@@ -2,11 +2,19 @@ package promptsource
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+)
+
+const (
+	counterexampleMaxRecipeDocumentBytes = 1 << 20
+	counterexampleMaxRecipesPerScope     = 128
+	counterexampleMaxRecipeCascadeBytes  = 8 << 20
 )
 
 // write creates dir/<name> with content, failing the test on error.
@@ -132,6 +140,49 @@ func TestListRecipesDegradesToBody(t *testing.T) {
 	}
 	if r.Description != "" {
 		t.Errorf("broken.Description = %q, want empty (no parsed frontmatter)", r.Description)
+	}
+}
+
+func TestListRecipesRejectsUnboundedDocument(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "oversized.md", strings.Repeat("r", counterexampleMaxRecipeDocumentBytes+1))
+
+	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
+		t.Fatal("listRecipes accepted a recipe larger than 1 MiB")
+	}
+}
+
+func TestListRecipesRejectsInvalidUTF8(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "invalid.md"), []byte{'r', 'u', 'n', 0xff}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
+		t.Fatal("listRecipes accepted invalid UTF-8 prompt material")
+	}
+}
+
+func TestListRecipesRejectsOverfullScope(t *testing.T) {
+	dir := t.TempDir()
+	for index := range counterexampleMaxRecipesPerScope + 1 {
+		write(t, dir, fmt.Sprintf("recipe-%03d.md", index), "prompt")
+	}
+
+	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
+		t.Fatalf("listRecipes accepted more than %d recipes from one scope", counterexampleMaxRecipesPerScope)
+	}
+}
+
+func TestListRecipesRejectsUnboundedCascadeMaterial(t *testing.T) {
+	dir := t.TempDir()
+	document := strings.Repeat("r", counterexampleMaxRecipeDocumentBytes)
+	for index := range counterexampleMaxRecipeCascadeBytes/counterexampleMaxRecipeDocumentBytes + 1 {
+		write(t, dir, fmt.Sprintf("large-%02d.md", index), document)
+	}
+
+	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
+		t.Fatalf("listRecipes accepted more than %d bytes of recipe material", counterexampleMaxRecipeCascadeBytes)
 	}
 }
 

@@ -124,6 +124,22 @@ func TestComposePromptUsesInjectedUserHomeForAgentDocs(t *testing.T) {
 	}
 }
 
+func TestComposePromptRejectsSilentlyDroppedAgentDocument(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(workspace, "AGENTS.md"),
+		[]byte(strings.Repeat("r", agentDocPromptMaxBytes+1)),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewWorkingContextComposer(WorkingContextConfig{}).
+		composeSystemMessage(t.Context(), "", workspace); err == nil {
+		t.Fatal("composeSystemMessage silently dropped a single oversized AGENTS.md")
+	}
+}
+
 // ------------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------------

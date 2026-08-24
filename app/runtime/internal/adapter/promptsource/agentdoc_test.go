@@ -11,6 +11,8 @@ import (
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
+const counterexampleMaxAuthoredPromptDocumentBytes = 1 << 20
+
 // writeFile is the test helper for laying out an AGENTS.md fixture. All discovery
 // happens against the OS filesystem so we use real temp dirs rather than
 // fstest.MapFS.
@@ -201,6 +203,29 @@ func TestDiscoverAgentDocsIgnoresEmpty(t *testing.T) {
 	}
 	if files[0].Content != "real-content" {
 		t.Fatalf("files[0].Content = %q", files[0].Content)
+	}
+}
+
+func TestDiscoverAgentDocsRejectsUnboundedDocument(t *testing.T) {
+	root := t.TempDir()
+	mkGitDir(t, root)
+	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Repeat("a", counterexampleMaxAuthoredPromptDocumentBytes+1))
+
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); err == nil {
+		t.Fatal("DiscoverAgentDocs accepted an AGENTS.md larger than 1 MiB")
+	}
+}
+
+func TestDiscoverAgentDocsRejectsInvalidUTF8(t *testing.T) {
+	root := t.TempDir()
+	mkGitDir(t, root)
+	path := filepath.Join(root, "AGENTS.md")
+	if err := os.WriteFile(path, []byte{'r', 'u', 'l', 'e', 0xff}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); err == nil {
+		t.Fatal("DiscoverAgentDocs accepted invalid UTF-8 instructions")
 	}
 }
 
