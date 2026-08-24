@@ -84,6 +84,8 @@ P167 收紧既有 Workspace VCS read semantics，不改变 wire shape。`workspa
 
 P168 收紧既有 model-facing `read`/`apply_patch` 内部 Tool semantics，不改变 tool definition 或 wire shape。read-before-mutation stamp 现在对完整 regular file 做 cancellation-aware streaming SHA-256；删除撤销 stamp，创建/修改刷新 stamp，fingerprint 失败不再跳过 guard。Auto-format 只处理最多 8 MiB 的完整 input/output；Go/JSON 在进程内完成，Prettier 通过 stdin/stdout 运行且 stderr 只保留 64 KiB prefix 并继续 drain，只有验证成功后才 atomic replace。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P169 收紧既有 model/direct `read` 内部语义，不改变 Tool name、`path/start_line/max_lines` request 或 `content/start_line/end_line/total_lines/truncated` response shape。Runtime 最多准入 8 MiB regular file与 1 MiB line，默认一次结果最多 1 MiB 且只在完整行后停止；`EndLine` 是最后返回行，`Truncated` 对省略 prefix/suffix/result budget 均为 true。完整扫描验证 UTF-8/NUL、BOM/CRLF、读取增长与 caller cancellation；mutation stamp 只有在 Tool call 前后 8 MiB-capped streaming digest 一致时提交。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework、`tools/fs` 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

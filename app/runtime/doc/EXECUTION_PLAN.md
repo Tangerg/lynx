@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P168 已完成；下一阶段待独立准入。
+> 状态：P0–P169 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P168 已完成。
+> 最近基线：2026-08-25，P169 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P169 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `1467db325` 证明 model/direct read 的 8 MiB+ input、1.2 MiB default result、预取消和 read-return/post-stamp replacement 均会越过旧边界。
+- 唯一根修复是 Runtime consumer-owned streaming Read + bracketing stamp：完整 file 8 MiB、single line 1 MiB、default complete-line result 1 MiB；64 KiB reader 验证增长、UTF-8/NUL、BOM/CRLF/trailing line、total/window 与 cancellation。read tracker 在 Tool call 前后以相同 8 MiB hard cap 做 streaming SHA-256，只有 exact digest 不变才记录授权。
+- 对 app2 的裁决：采用其 1 MiB default/8 MiB maximum 与 streaming line scan；补上 app2 model tool 仍直接使用通用 `fs.NewReadTool`、长行/complete-line continuation、预取消、direct/model 共用和 read/stamp 竞态未闭合的缺口。保留原版 Tool schema、direct registry、path lock 和 apply-patch guard，不复制 workspaceflow facade、第二 request shape 或配置层。
+- P169 的 Runtime test/vet/build/standalone/full-race、Go 1.27-built Staticcheck 2026.2.1、tidy/generate 零漂移、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。Architecture gates 另证明 Tool adapter 不发现 HOME 且流式 scan 保持复杂度预算；仅保留既有 macOS deployment-target linker warnings。临时 Staticcheck 目录与构建进程已回收，未启动 agent-browser。
 - P168 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `280391534` 同时证明 8 MiB+ supported file、128 KiB formatter diagnostics 与删除后外部同内容重建的 stale stamp 会越过旧 post-processing 边界。
 - 唯一根修复是 Tool adapter-owned complete mutation envelope：auto-format input/output 最多 8 MiB，Go/JSON 在进程内完成，Prettier 只经 bounded stdin/stdout 并以 64 KiB bounded-drain stderr、caller context、1-second `WaitDelay` 运行，验证后才 atomic replace。Mutation fingerprint 用 64 KiB streaming SHA-256，inspect/read failure fail closed，删除 forget、创建/修改 refresh，不保留旧资源授权。
 - 对 app2 的裁决：采用其 consumer-specific 8 MiB source material 与 bounded external-process 思路；保留原版 read-before-mutation、path lock、atomic format replace 和单一 apply-patch 纵切，同时补上 app2 没有的 model mutation stamp/auto-format owner。删除 `gofmt` 子进程与 Prettier `--write`，不复制 facade、配置层、兼容 API 或第二文件工具实现。
@@ -425,10 +429,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P166     | AGENTS.md / Recipe authored-source 资源与完整语义闭环                                         | Application 1 MiB document、有限 cascade/catalog 与 bounded filesystem admission；32 KiB model projection 不静默丢单文档            |
 | P167     | Workspace VCS read model 资源与路径语义闭环                                                   | 10k changes、5k files/rows、64 MiB diff/process envelope；whole-file truncation、streaming untracked stat 与 quoted/binary path 恢复   |
 | P168     | Model mutation stamp 与 auto-format 资源闭环                                                  | streaming/cancellable fingerprint、delete-forget；8 MiB complete formatter I/O、64 KiB diagnostics 与 validate-before-atomic-replace |
+| P169     | Model/direct file read 资源与 stamp 线性区间闭环                                             | 8 MiB file/1 MiB line+result、64 KiB streaming scan、complete-line paging 与 pre/post exact digest admission                         |
 
 ## 5. 当前里程碑结论
 
-P113–P168 共同建立了以下不可回退的心智模型：
+P113–P169 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -436,6 +441,7 @@ P113–P168 共同建立了以下不可回退的心智模型：
 - 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - Workspace VCS 是有界 complete read model：Application owns changes/file/row/material budgets，Git process owns stdout/stderr/lifetime，parser 只发布完整文件；零 limit、第一文件、binary/zero-row 文件、direct port 与 untracked symlink 都没有无界例外。资源治理不能牺牲 quoted/binary path、nested workspace 或 repository failure 语义。
 - Model mutation 的安全 stamp 与格式化副作用由同一个 Tool adapter stack 闭合：完整 fingerprint 流式且可取消，删除撤销授权；formatter 只接纳有限完整 input/output，第三方进程不能在验证前直接写目标。最终 Tool result、caller timeout 或 path lock 都不能替代这些资源与提交边界。
+- Model/direct file read 是 Runtime-owned bounded consumer，不继承通用 fs executor 的 unlimited zero：input、line 与 complete-line result 分别有 hard cap，窗口 metadata 对省略事实诚实。Mutation stamp 必须以相同 admission bracket 整次 read，post-read 单点 digest 不能证明模型观察过当前 generation。
 - LSP document synchronization 自己拥有 8 MiB 完整输入包络；通用 workspace read 的 caller window 不能替代外部进程 adapter 的 admission。超限、读取中增长或取消必须在 digest、JSON-RPC 通知与 client state 之前失败，不发送截断文档。
 - MCP remote capability discovery 是有限 complete-list：每 server 的工具数、单项 description 与 schema 由 Domain 唯一限定，模型目录和管理目录不得各自截断或容忍不同 material；跨 server public-name collision 继续由同一 atomic live commit 决定。
 - Knowledge `LYRA.md` 是有限 complete document：Domain 的 1 MiB 上限同时约束 command admission、direct store write、外部文件 read、管理投影与 prompt material；transport cap、静默 skip 或 truncation 都不是替代 owner。
@@ -489,4 +495,4 @@ P113–P168 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P168 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P169 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

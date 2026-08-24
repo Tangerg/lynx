@@ -35,7 +35,7 @@ func buildCWDTools(cwd string, ci *codeintel.Analyzer, tracker *readTracker, loc
 
 	families := cwdTools{
 		readSearch: []toolcontract.Tool{
-			withPathLock(withReadTracking(fs.NewReadTool(fsExec), tracker, cwd), locker, cwd),
+			withPathLock(withReadTracking(newRuntimeReadTool(cwd, fsExec), tracker, cwd), locker, cwd),
 			fs.NewGlobTool(fsExec),
 			fs.NewGrepTool(fsExec),
 		},

@@ -23,7 +23,7 @@ import (
 func directTools(root string) []toolcontract.Tool {
 	executor := fs.NewLocalExecutor(root)
 	return []toolcontract.Tool{
-		fs.NewReadTool(executor),
+		newRuntimeReadTool(root, executor),
 		fs.NewGlobTool(executor),
 		fs.NewGrepTool(executor),
 	}
@@ -36,7 +36,7 @@ func directTools(root string) []toolcontract.Tool {
 func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	switch name {
 	case tool.Read:
-		request, err := decodeDirectArguments[fs.ReadRequest](arguments)
+		request, err := decodeToolArguments[fs.ReadRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct read arguments: %w", err)
 		}
@@ -47,7 +47,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		request.Path = path
 		return encodeDirectArguments(request)
 	case tool.Glob:
-		request, err := decodeDirectArguments[fs.GlobRequest](arguments)
+		request, err := decodeToolArguments[fs.GlobRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct glob arguments: %w", err)
 		}
@@ -63,7 +63,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		}
 		return encodeDirectArguments(request)
 	case tool.Grep:
-		request, err := decodeDirectArguments[fs.GrepRequest](arguments)
+		request, err := decodeToolArguments[fs.GrepRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct grep arguments: %w", err)
 		}
@@ -80,7 +80,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	}
 }
 
-func decodeDirectArguments[T any](arguments string) (T, error) {
+func decodeToolArguments[T any](arguments string) (T, error) {
 	var request T
 	decoder := json.NewDecoder(strings.NewReader(arguments))
 	decoder.DisallowUnknownFields()

@@ -18,7 +18,7 @@ import (
 func guardedPatchTools(dir string, format bool) (toolcontract.Tool, toolcontract.Tool) {
 	tracker := newReadTracker()
 	executor := fs.NewLocalExecutor(dir)
-	read := withReadTracking(fs.NewReadTool(executor), tracker, dir)
+	read := withReadTracking(newRuntimeReadTool(dir, executor), tracker, dir)
 	var mutation toolcontract.Tool = fs.NewApplyPatchTool(executor)
 	if format {
 		mutation = withAutoFormat(mutation, dir)
@@ -243,7 +243,7 @@ func TestFingerprintFilePreservesCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := fingerprintFile(ctx, path); !errors.Is(err, context.Canceled) {
+	if _, err := fingerprintFile(ctx, path, 0); !errors.Is(err, context.Canceled) {
 		t.Fatalf("fingerprintFile error = %v, want context.Canceled", err)
 	}
 }
@@ -277,6 +277,43 @@ func TestReadTrackingRejectsAFileChangedAfterReadBeforeStamp(t *testing.T) {
 	close(release)
 	if err := <-done; err == nil || !strings.Contains(err.Error(), "changed while reading") {
 		t.Fatalf("tracked read error = %v, want unstable read refusal", err)
+	}
+}
+
+func TestReadTrackingRejectsSameContentReplacementDuringRead(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	content := []byte("same content\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tracker := newReadTracker()
+	base := newRuntimeReadTool(dir, fs.NewLocalExecutor(dir))
+	readFinished := make(chan struct{})
+	release := make(chan struct{})
+	blocking := decorateCall(base, func(ctx context.Context, arguments string) (string, error) {
+		out, err := base.Call(ctx, arguments)
+		close(readFinished)
+		<-release
+		return out, err
+	})
+	tracked := withReadTracking(blocking, tracker, dir)
+	done := make(chan error, 1)
+	go func() {
+		_, err := tracked.Call(t.Context(), `{"path":"foo.txt"}`)
+		done <- err
+	}()
+	<-readFinished
+	replacement := filepath.Join(dir, "replacement.txt")
+	if err := os.WriteFile(replacement, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(replacement, path); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; err == nil || !strings.Contains(err.Error(), "changed while reading") {
+		t.Fatalf("tracked read error = %v, want same-content generation refusal", err)
 	}
 }
 
