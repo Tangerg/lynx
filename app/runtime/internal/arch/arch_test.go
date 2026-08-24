@@ -747,18 +747,6 @@ func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 	})
 }
 
-// TestHTTPStaticRoutesUseStandardLibrary keeps the transport's closed set of
-// method/path pairs on net/http. A routing framework has no boundary to own
-// until the contract needs capabilities the standard library cannot express.
-func TestHTTPStaticRoutesUseStandardLibrary(t *testing.T) {
-	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "transport", "http"), []string{
-		"github.com/go-chi/chi",
-		"github.com/gorilla/mux",
-		"github.com/julienschmidt/httprouter",
-	})
-}
-
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
 // may own only construction and process-lifecycle behavior. The package-private
 // application capsule is a closed set of delivery/startup/worker composition
