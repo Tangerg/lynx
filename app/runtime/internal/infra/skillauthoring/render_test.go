@@ -1,6 +1,7 @@
 package skillauthoring
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -99,5 +100,19 @@ func TestRenderProposalIsDeterministic(t *testing.T) {
 	}
 	if string(first) != string(second) {
 		t.Fatalf("render not deterministic:\n%q\n%q", first, second)
+	}
+}
+
+func TestRenderProposalBoundsCompleteDocument(t *testing.T) {
+	proposal := skills.Proposal{
+		Scope: skills.ScopeUser, Name: "rendered-envelope",
+		Description:  "Frontmatter must count toward the complete authored document envelope.",
+		Instructions: strings.Repeat("x", skills.MaxAuthoredSkillDocumentBytes-1),
+	}
+	if err := proposal.Validate(); err != nil {
+		t.Fatalf("raw proposal should fit the instruction pre-check: %v", err)
+	}
+	if _, err := renderProposal(proposal); !errors.Is(err, skills.ErrDocumentTooLarge) {
+		t.Fatalf("renderProposal error = %v, want ErrDocumentTooLarge", err)
 	}
 }

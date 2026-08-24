@@ -1,10 +1,12 @@
 package skillauthoring_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -159,8 +161,8 @@ func TestSubmitProposalBoundsDocumentAndPendingQueue(t *testing.T) {
 			Description:  "A proposal whose rendered document exceeds the authored resource envelope.",
 			Instructions: strings.Repeat("x", (1<<20)+1),
 		}
-		if _, _, err := store.SubmitProposal(t.Context(), oversized); err == nil {
-			t.Fatal("SubmitProposal accepted a document larger than 1 MiB")
+		if _, _, err := store.SubmitProposal(t.Context(), oversized); !errors.Is(err, skills.ErrDocumentTooLarge) {
+			t.Fatalf("SubmitProposal error = %v, want ErrDocumentTooLarge", err)
 		}
 	})
 
@@ -176,11 +178,103 @@ func TestSubmitProposalBoundsDocumentAndPendingQueue(t *testing.T) {
 			if i < 128 && err != nil {
 				t.Fatalf("SubmitProposal(%d): %v", i, err)
 			}
-			if i == 128 && err == nil {
-				t.Fatal("SubmitProposal accepted a 129th distinct pending name")
+			if i == 128 && !errors.Is(err, skills.ErrProposalQueueFull) {
+				t.Fatalf("SubmitProposal(128) error = %v, want ErrProposalQueueFull", err)
 			}
 		}
 	})
+}
+
+func TestListProposalsRejectsCorruptUnboundedStorage(t *testing.T) {
+	t.Run("oversized document", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "_proposals", "oversized-on-disk")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "SKILL.md"),
+			[]byte(strings.Repeat("x", skills.MaxAuthoredSkillDocumentBytes+1)),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+		store := skillauthoring.NewStore(root, skills.ScopeUser)
+		if _, err := store.ListProposals(t.Context()); !errors.Is(err, skills.ErrDocumentTooLarge) {
+			t.Fatalf("ListProposals error = %v, want ErrDocumentTooLarge", err)
+		}
+	})
+
+	t.Run("over-capacity queue", func(t *testing.T) {
+		root := t.TempDir()
+		for i := range skills.MaxPendingProposalsPerScope + 1 {
+			if err := os.MkdirAll(
+				filepath.Join(root, "_proposals", fmt.Sprintf("external-proposal-%03d", i)),
+				0o755,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		store := skillauthoring.NewStore(root, skills.ScopeUser)
+		if _, err := store.ListProposals(t.Context()); !errors.Is(err, skills.ErrProposalQueueFull) {
+			t.Fatalf("ListProposals error = %v, want ErrProposalQueueFull", err)
+		}
+	})
+}
+
+func TestConcurrentStoresAdmitExactlyOneRemainingQueueSlot(t *testing.T) {
+	root := t.TempDir()
+	seed := skillauthoring.NewStore(root, skills.ScopeUser)
+	for i := range skills.MaxPendingProposalsPerScope - 1 {
+		_, _, err := seed.SubmitProposal(t.Context(), skills.Proposal{
+			Scope: skills.ScopeUser, Name: fmt.Sprintf("seed-proposal-%03d", i),
+			Description:  "A proposal occupying one bounded review queue slot.",
+			Instructions: "review these instructions",
+		})
+		if err != nil {
+			t.Fatalf("seed proposal %d: %v", i, err)
+		}
+	}
+	stores := []*skillauthoring.Store{
+		skillauthoring.NewStore(root, skills.ScopeUser),
+		skillauthoring.NewStore(root, skills.ScopeUser),
+	}
+	errs := make([]error, len(stores))
+	start := make(chan struct{})
+	var wait sync.WaitGroup
+	for i := range stores {
+		wait.Go(func() {
+			<-start
+			_, _, errs[i] = stores[i].SubmitProposal(t.Context(), skills.Proposal{
+				Scope: skills.ScopeUser, Name: fmt.Sprintf("concurrent-proposal-%d", i),
+				Description:  "A concurrent proposal competing for the final queue slot.",
+				Instructions: "review these instructions",
+			})
+		})
+	}
+	close(start)
+	wait.Wait()
+	succeeded, full := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, skills.ErrProposalQueueFull):
+			full++
+		default:
+			t.Fatalf("concurrent submission error = %v", err)
+		}
+	}
+	if succeeded != 1 || full != 1 {
+		t.Fatalf("concurrent outcomes = %d success / %d full, want 1 / 1", succeeded, full)
+	}
+	pending, err := seed.ListProposals(t.Context())
+	if err != nil {
+		t.Fatalf("ListProposals: %v", err)
+	}
+	if len(pending) != skills.MaxPendingProposalsPerScope {
+		t.Fatalf("pending count = %d, want %d", len(pending), skills.MaxPendingProposalsPerScope)
+	}
 }
 
 func TestApproveProposalRevisionReplacesActiveAndArchivesOld(t *testing.T) {

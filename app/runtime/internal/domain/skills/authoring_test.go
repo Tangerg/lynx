@@ -1,6 +1,10 @@
 package skills
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestProposalReferenceBindsExactContent(t *testing.T) {
 	content := []byte("proposal bytes")
@@ -36,5 +40,11 @@ func TestProposalValidatesMeaningAndSafety(t *testing.T) {
 	invalidRef := NewProposalRef(Scope("other"), "safe-skill", nil)
 	if err := invalidRef.Validate(); err == nil {
 		t.Fatal("invalid proposal scope passed validation")
+	}
+
+	oversized := safe
+	oversized.Instructions = strings.Repeat("x", MaxAuthoredSkillDocumentBytes+1)
+	if err := oversized.Validate(); !errors.Is(err, ErrDocumentTooLarge) {
+		t.Fatalf("oversized Validate() error = %v, want ErrDocumentTooLarge", err)
 	}
 }

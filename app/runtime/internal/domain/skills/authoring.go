@@ -16,9 +16,22 @@ import (
 )
 
 var (
-	ErrConflict        = errors.New("skills: destination already exists")
-	ErrProposalChanged = errors.New("skills: proposal content changed")
-	ErrNotFound        = errors.New("skills: entry not found")
+	ErrConflict          = errors.New("skills: destination already exists")
+	ErrProposalChanged   = errors.New("skills: proposal content changed")
+	ErrProposalQueueFull = errors.New("skills: proposal review queue is full")
+	ErrDocumentTooLarge  = errors.New("skills: document is too large")
+	ErrNotFound          = errors.New("skills: entry not found")
+)
+
+const (
+	// MaxAuthoredSkillDocumentBytes bounds the complete rendered SKILL.md
+	// accepted by the governed authoring lifecycle. Bundled resources remain
+	// separate and are disclosed on demand.
+	MaxAuthoredSkillDocumentBytes = 1 << 20
+
+	// MaxPendingProposalsPerScope bounds one complete, non-paginated review
+	// queue. Project and user libraries each own an independent queue.
+	MaxPendingProposalsPerScope = 128
 )
 
 // Scope identifies the Skill library that owns a proposal or active Skill.
@@ -151,6 +164,14 @@ func (p Proposal) Validate() error {
 	}
 	if strings.TrimSpace(p.Instructions) == "" {
 		return errors.New("skill instructions are required")
+	}
+	if len(p.Instructions) > MaxAuthoredSkillDocumentBytes {
+		return fmt.Errorf(
+			"%w: instructions use %d bytes before frontmatter (maximum document %d)",
+			ErrDocumentTooLarge,
+			len(p.Instructions),
+			MaxAuthoredSkillDocumentBytes,
+		)
 	}
 	return nil
 }

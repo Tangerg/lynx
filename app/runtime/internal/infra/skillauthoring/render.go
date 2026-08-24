@@ -23,7 +23,17 @@ func renderProposal(proposal skills.Proposal) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("skillauthoring: render frontmatter: %w", err)
 	}
-	return []byte("---\n" + string(frontmatter) + "---\n\n" + strings.TrimSpace(proposal.Instructions) + "\n"), nil
+	document := []byte("---\n" + string(frontmatter) + "---\n\n" + strings.TrimSpace(proposal.Instructions) + "\n")
+	if len(document) > skills.MaxAuthoredSkillDocumentBytes {
+		return nil, fmt.Errorf(
+			"skillauthoring: render proposal %q: %w: %d bytes exceeds %d",
+			proposal.Name,
+			skills.ErrDocumentTooLarge,
+			len(document),
+			skills.MaxAuthoredSkillDocumentBytes,
+		)
+	}
+	return document, nil
 }
 
 func proposalProvenance(proposal skills.Proposal) map[string]string {

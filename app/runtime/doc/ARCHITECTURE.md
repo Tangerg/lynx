@@ -164,6 +164,8 @@ Application checkpoint 包含：
 
 Agent Memory 的非分页管理面是 complete-list contract，因此每个 project/user target 的 active + pending 集合必须同时有限且完整：Domain 上限为 512，SQLite 写入在同一事务内计数，所有完整读取最多取 513 条并在越界时拒绝 corrupt state，不能用静默 `LIMIT 512` 伪造完整性。单次 extraction 与 curation 各至多产生 32 条，pending ledger cursor page 至多 128 条；自动 fold 在容量不足时只按重要性顺序发布可容纳前缀。Rejected 是抑制重复 proposal 的负历史，不是永久审计日志；每目标只保留最近 2048 条。显式 user add 可以把同 digest 的 pending/rejected item 原地提升为 active user memory，保持稳定 id，不建立 duplicate 或复活旁路。
 
+Skill Proposal review queue 同样是完整、本地且非分页的读模型，但唯一槽位是 `(scope, skill name)`，不是内容 revision。每个 project/user scope 最多保留 128 个待审名称；同名新稿原子替换当前 `SKILL.md`，旧 revision 句柄随即以 content CAS 失效，不再并列积累历史草稿。完整 authored `SKILL.md` 最多 1 MiB；proposal render、active/archive/proposal lifecycle read 都在解析前执行 stat + bounded read，队列枚举最多读取 capacity + 1 并对 corrupt overfull state fail closed。同一 library 的 directory lease 把容量检查、替换、生命周期 mutation 与 exact revision 决策跨 Runtime 进程线性化，因此共享数据目录不能超配容量或让旧审批删除后来稿。
+
 Runtime 的 title、compaction、Agent Memory consolidation 与 Skill mining 都是 request-detached auxiliary model use case，不进入交互 Run 的 Conversation、usage 或 middleware。`adapter/utilitymodel` 是这些调用的唯一请求包络：每次调用必须显式声明 aggregate input bytes 与 output tokens，越界在 provider I/O 前失败。Run-maintenance transcript 只有一个 512KiB request / 384KiB transcript / 24KiB-per-message policy，按消息公平保留 head/tail；compaction trigger 另行测量原始 transcript footprint，不能因模型输入有界而低估压缩时机。Memory curation 只对能完整装入预算的 ledger sequence 前缀推进 watermark，未进入 prompt 的事实继续待处理。
 
 ### 5.8 Aggregate roots

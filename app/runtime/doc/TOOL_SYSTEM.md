@@ -208,7 +208,7 @@
 - `name` 是稳定的 lowercase-hyphenated identifier；`description` 同时说明“做什么”和“何时使用”；`instructions` 是未来 Agent 可独立执行的完整指令，不携带本次进度、瞬时环境或 secret；
 - session、cwd、origin 由执行上下文补齐，绝不作为模型参数。前台工具固定写入 `origin=requested`；后台 Miner 固定写入 `origin=mined`；
 - 工具只提交不可变 Proposal，并返回 `pending_review + scope + name + revision`。它不 interrupt、不 approve、不 activate，也不依赖协议外的交互流程作为调用前置条件；
-- Proposal 按内容寻址并存入目标 library 的 `_proposals/<revision>/SKILL.md`。`revision` 同时覆盖 scope、name 和完整文件内容，评审操作不会误作用于后来变化的内容；
+- Proposal 按名称占用目标 library 的唯一当前槽位 `_proposals/<name>/SKILL.md`；同名新稿替换旧稿而不积累待审历史。`revision` 仍同时覆盖 scope、name 和完整文件内容，旧评审句柄在替换后确定性失效，不会误作用于后来变化的内容；每 scope 最多 128 个待审名称，完整 authored 文档最多 1 MiB；
 - 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
 - `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
 - 显式用户创作与自动 Miner 共享应用层 `SubmitProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；

@@ -36,6 +36,8 @@ func TestProposalSchemaRejectsInvalidDomainValuesBeforeSubmission(t *testing.T) 
 		"overlong name":     `{"name":"` + strings.Repeat("a", 65) + `","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"project"}`,
 		"overlong description": `{"name":"review-go-api","description":"` + strings.Repeat("a", 1025) +
 			`","instructions":"Review it.","scope":"project"}`,
+		"overlong instructions": `{"name":"review-go-api","description":"Review a Go API before implementation.","instructions":"` +
+			strings.Repeat("a", skills.MaxAuthoredSkillDocumentBytes+1) + `","scope":"project"}`,
 	}
 	for name, arguments := range tests {
 		t.Run(name, func(t *testing.T) {

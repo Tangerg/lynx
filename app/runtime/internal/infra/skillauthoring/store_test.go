@@ -31,14 +31,14 @@ func TestSubmitProposalThenApproveProposal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubmitProposal: %v", err)
 	}
-	if len(submitted) != 1 || submitted[0] != filepath.Join(root, "_proposals", ref.Revision, skillspec.SkillFile) {
+	if len(submitted) != 1 || submitted[0] != filepath.Join(root, "_proposals", ref.Name, skillspec.SkillFile) {
 		t.Fatalf("SubmitProposal identities = %v", submitted)
 	}
 	if duplicate, replayed, err := store.SubmitProposal(t.Context(), proposal); err != nil || duplicate != ref || len(replayed) != 0 {
 		t.Fatalf("replayed SubmitProposal = (%+v, %v, %v), want original ref and no mutation", duplicate, replayed, err)
 	}
 	// The proposal is under _proposals (invisible to the read-only source) — not active.
-	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Revision, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Name, "SKILL.md")); err != nil {
 		t.Fatalf("proposal not written: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, proposal.Name, "SKILL.md")); !os.IsNotExist(err) {
@@ -53,7 +53,7 @@ func TestSubmitProposalThenApproveProposal(t *testing.T) {
 		t.Fatalf("ApproveProposal identities = %v, want proposal and active files", approved)
 	}
 	// Now active, and the proposal is gone.
-	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Revision)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Name)); !os.IsNotExist(err) {
 		t.Fatal("approval should remove the proposal")
 	}
 
@@ -188,7 +188,7 @@ func TestRejectProposal(t *testing.T) {
 	if _, err := store.RejectProposal(t.Context(), ref); err != nil {
 		t.Fatalf("RejectProposal: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Revision)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Name)); !os.IsNotExist(err) {
 		t.Fatal("reject should remove the proposal dir")
 	}
 }
@@ -201,7 +201,7 @@ func TestSubmitProposalRejectsInvalid(t *testing.T) {
 	}
 }
 
-func TestSameNameProposalsKeepIndependentApprovedBytes(t *testing.T) {
+func TestSameNameProposalSupersessionKeepsCurrentApprovedBytes(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
 	first := skills.Proposal{Scope: skills.ScopeUser, Name: "shared-name", Description: "The first independently approved skill version.", Instructions: "first instructions"}
@@ -218,11 +218,11 @@ func TestSameNameProposalsKeepIndependentApprovedBytes(t *testing.T) {
 	if firstRef == secondRef {
 		t.Fatal("different proposal bytes received the same ref")
 	}
-	if _, err := store.RejectProposal(t.Context(), firstRef); err != nil {
-		t.Fatalf("reject first proposal: %v", err)
+	if _, err := store.RejectProposal(t.Context(), firstRef); !errors.Is(err, skills.ErrProposalChanged) {
+		t.Fatalf("reject superseded proposal error = %v, want ErrProposalChanged", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, proposalSubdir, secondRef.Revision, "SKILL.md")); err != nil {
-		t.Fatalf("rejecting one proposal removed another: %v", err)
+	if _, err := os.Stat(filepath.Join(root, proposalSubdir, secondRef.Name, "SKILL.md")); err != nil {
+		t.Fatalf("stale decision removed the current proposal: %v", err)
 	}
 	if _, err := store.ApproveProposal(t.Context(), secondRef); err != nil {
 		t.Fatalf("approve second proposal: %v", err)
@@ -244,7 +244,7 @@ func TestApproveProposalRejectsChangedProposalWithoutTouchingActiveSet(t *testin
 	if err != nil {
 		t.Fatalf("SubmitProposal: %v", err)
 	}
-	path := filepath.Join(root, proposalSubdir, ref.Revision, "SKILL.md")
+	path := filepath.Join(root, proposalSubdir, ref.Name, "SKILL.md")
 	if err := os.WriteFile(path, []byte("tampered"), 0o644); err != nil {
 		t.Fatalf("tamper proposal: %v", err)
 	}
@@ -304,12 +304,12 @@ func TestLifecycleConflictsPreserveBothStates(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, archiveSubdir, proposal.Name, "SKILL.md")); err != nil {
 		t.Fatalf("archived version was lost: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, proposalSubdir, ref.Revision, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, proposalSubdir, ref.Name, "SKILL.md")); err != nil {
 		t.Fatalf("conflicting proposal was lost: %v", err)
 	}
 }
 
-func TestConcurrentApprovalsPublishOneRevisionWithoutLosingTheOther(t *testing.T) {
+func TestConcurrentSubmissionsLeaveOneCurrentRevision(t *testing.T) {
 	root := t.TempDir()
 	stores := []*skillauthoring.Store{skillauthoring.NewStore(root, skills.ScopeUser), skillauthoring.NewStore(root, skills.ScopeUser)}
 	proposals := []skills.Proposal{
@@ -317,52 +317,82 @@ func TestConcurrentApprovalsPublishOneRevisionWithoutLosingTheOther(t *testing.T
 		{Scope: skills.ScopeUser, Name: "ordered-publish", Description: "The second concurrently proposed skill revision.", Instructions: "second"},
 	}
 	refs := make([]skills.ProposalRef, len(proposals))
-	for i, proposal := range proposals {
-		ref, _, err := stores[i].SubmitProposal(t.Context(), proposal)
-		if err != nil {
-			t.Fatalf("SubmitProposal(%d): %v", i, err)
-		}
-		refs[i] = ref
-	}
-
-	errs := make([]error, len(refs))
+	errs := make([]error, len(proposals))
 	var wait sync.WaitGroup
-	for i, ref := range refs {
-		wait.Go(func() { _, errs[i] = stores[i].ApproveProposal(t.Context(), ref) })
+	for i, proposal := range proposals {
+		wait.Go(func() { refs[i], _, errs[i] = stores[i].SubmitProposal(t.Context(), proposal) })
 	}
 	wait.Wait()
-
-	succeeded, conflicted := 0, 0
 	for _, err := range errs {
-		switch {
-		case err == nil:
-			succeeded++
-		case errors.Is(err, skills.ErrConflict):
-			conflicted++
-		default:
+		if err != nil {
 			t.Fatalf("unexpected approval error: %v", err)
 		}
 	}
-	if succeeded != 1 || conflicted != 1 {
-		t.Fatalf("approval outcomes = %d success, %d conflict; want 1 and 1", succeeded, conflicted)
-	}
-
-	active, err := os.ReadFile(filepath.Join(root, proposals[0].Name, "SKILL.md"))
+	pending, err := skillauthoring.NewStore(root, skills.ScopeUser).ListProposals(t.Context())
 	if err != nil {
-		t.Fatalf("read active skill: %v", err)
+		t.Fatalf("ListProposals: %v", err)
 	}
-	winner := -1
+	if len(pending) != 1 {
+		t.Fatalf("pending proposals = %+v, want one current revision", pending)
+	}
+	winner := false
 	for i, ref := range refs {
-		if ref.Matches(active) {
-			winner = i
-			break
+		if pending[0].Ref == ref {
+			winner = true
+			if _, err := stores[i].ApproveProposal(t.Context(), ref); err != nil {
+				t.Fatalf("ApproveProposal(current): %v", err)
+			}
 		}
 	}
-	if winner < 0 {
-		t.Fatal("active bytes match neither proposed revision")
+	if !winner {
+		t.Fatalf("current revision %+v matches neither submitted ref %+v", pending[0].Ref, refs)
 	}
-	loser := 1 - winner
-	if _, err := os.Stat(filepath.Join(root, proposalSubdir, refs[loser].Revision, "SKILL.md")); err != nil {
-		t.Fatalf("losing revision was destroyed: %v", err)
+}
+
+func TestApprovalCannotDeleteConcurrentNewerProposal(t *testing.T) {
+	for range 20 {
+		root := t.TempDir()
+		reviewer := skillauthoring.NewStore(root, skills.ScopeUser)
+		writer := skillauthoring.NewStore(root, skills.ScopeUser)
+		old := skills.Proposal{
+			Scope: skills.ScopeUser, Name: "review-race",
+			Description:  "The proposal revision already visible to the reviewer.",
+			Instructions: "old instructions",
+		}
+		newer := old
+		newer.Description = "The newer proposal revision must remain pending."
+		newer.Instructions = "new instructions"
+		oldRef, _, err := reviewer.SubmitProposal(t.Context(), old)
+		if err != nil {
+			t.Fatalf("SubmitProposal(old): %v", err)
+		}
+
+		var approveErr, submitErr error
+		var newerRef skills.ProposalRef
+		start := make(chan struct{})
+		var wait sync.WaitGroup
+		wait.Go(func() {
+			<-start
+			_, approveErr = reviewer.ApproveProposal(t.Context(), oldRef)
+		})
+		wait.Go(func() {
+			<-start
+			newerRef, _, submitErr = writer.SubmitProposal(t.Context(), newer)
+		})
+		close(start)
+		wait.Wait()
+		if submitErr != nil {
+			t.Fatalf("SubmitProposal(newer): %v", submitErr)
+		}
+		if approveErr != nil && !errors.Is(approveErr, skills.ErrProposalChanged) {
+			t.Fatalf("ApproveProposal(old) error = %v, want nil or ErrProposalChanged", approveErr)
+		}
+		pending, err := writer.ListProposals(t.Context())
+		if err != nil {
+			t.Fatalf("ListProposals: %v", err)
+		}
+		if len(pending) != 1 || pending[0].Ref != newerRef {
+			t.Fatalf("pending proposals = %+v, want newer revision %+v", pending, newerRef)
+		}
 	}
 }

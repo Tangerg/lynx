@@ -39,7 +39,7 @@ func (s *stubSkillProposals) ApproveProposal(_ context.Context, root string, ref
 func (s *stubSkillProposals) RejectProposal(_ context.Context, root string, ref skills.ProposalRef) ([]string, error) {
 	s.root = root
 	s.rejected = append(s.rejected, ref)
-	return []string{filepath.Join(root, "_proposals", ref.Revision, "SKILL.md")}, nil
+	return []string{filepath.Join(root, "_proposals", ref.Name, "SKILL.md")}, nil
 }
 
 func TestSkillProposalHandlersDisabled(t *testing.T) {

@@ -312,6 +312,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - Agent Memory recall 的语义是“当前项目上下文可见的长期记忆”，必须把 exact-project 与 user scope 作为一个 corpus 统一排序和截断。不得在 prompt/tool consumer 分别搜索、分别分配 top-k、重复 query embedding，或只让 pinned user memory 可达。
 - 可进入模型上下文的 durable text 必须在 Domain 建立可由 wire/schema/SQLite 精确投影的单位与上限；Agent Memory 单条 item/ledger fact 以最多 4096 个 Unicode code point 为唯一合同。输入、编辑、生成输出、strict read 与 fresh schema 同批守住该值，prompt adapter 另对 whole-item aggregate budget fail closed；不得用 HTML `maxLength`、字节数、客户端截断或“首项至少注入”建立不等价的第二规则。
 - 非分页 complete-list 资源必须由 Domain 给出有限集合上限，并由写事务与 strict reader 同时守住；不得只在 query 尾部加 `LIMIT` 后把被截断集合宣称为完整。Agent Memory 每目标最多 512 个 visible item、每次 extraction/curation 最多 32 条、ledger fold page 最多 128 条，最近 rejected tombstone 最多 2048 条。显式用户写入与自动发布共用同一容量 owner；负历史超限必须在产生新 tombstone 的事务内回收。
+- 待审内容的 identity 与 retention identity 必须分开：Skill Proposal review 决策以 scope/name/完整文档 digest 绑定 exact bytes，queue retention 则以 scope/name 只保留一个 current revision。同名改稿必须替换当前槽位并让旧 handle 确定性失效，不得用 content-addressed 目录把编辑历史伪装成多个待办。完整 authored Skill 文档最多 1 MiB，每 scope 最多 128 个待审名称；写入、生命周期读取与 complete list 必须共享该边界，越界状态整体拒绝而非截断。
 - 所有 request-detached auxiliary model call 必须在唯一 adapter 边界显式提交正数 aggregate-input byte limit 与 output-token limit，并在 provider I/O 前拒绝越界；不得继承 provider 默认输出、不提供 uncapped transcript mode。模型输入的公平裁剪与 compaction 的原始 footprint 测量必须分离；watermark/cursor 只能推进到实际完整进入 prompt 的最后一项，禁止裁掉 material 后仍越过其 durable identity。
 
 ## 7. 测试标准

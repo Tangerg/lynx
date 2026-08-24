@@ -54,11 +54,11 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	root, err := s.openRoot()
+	root, cleanup, err := s.openLeasedRoot(ctx, "record skill use")
 	if err != nil {
 		return err
 	}
-	defer root.Close()
+	defer cleanup()
 
 	usage, err := readUsage(root)
 	if err != nil {
@@ -92,11 +92,11 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	root, err := s.openRoot()
+	root, cleanup, err := s.openLeasedRoot(ctx, "sweep skills")
 	if err != nil {
 		return nil, nil, err
 	}
-	defer root.Close()
+	defer cleanup()
 
 	names, err := activeSkillNames(root)
 	if err != nil {
@@ -181,11 +181,11 @@ func (s *Store) dropUsage(ctx context.Context, name string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	root, err := s.openRoot()
+	root, cleanup, err := s.openLeasedRoot(ctx, "drop skill usage")
 	if err != nil {
 		return err
 	}
-	defer root.Close()
+	defer cleanup()
 	usage, err := readUsage(root)
 	if err != nil {
 		return err
