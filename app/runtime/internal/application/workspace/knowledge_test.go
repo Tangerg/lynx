@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
@@ -88,6 +89,29 @@ func TestRuntimeKnowledgeRejectsUnknownScopeBeforeDispatch(t *testing.T) {
 	}
 	if store.getScope != "" || store.updateScope != "" {
 		t.Fatalf("invalid scope reached store: get=%q update=%q", store.getScope, store.updateScope)
+	}
+}
+
+func TestRuntimeKnowledgeRejectsOversizedContentBeforeStore(t *testing.T) {
+	store := &fakeKnowledgeStore{}
+	var notices []invalidation.Notice
+	c := NewKnowledge(
+		NewScope("", "", testPaths{}),
+		knowledgeInspector{},
+		store,
+		nil,
+		func(notice invalidation.Notice) { notices = append(notices, notice) },
+	)
+
+	content := strings.Repeat("x", (1<<20)+1)
+	if _, err := c.Update(t.Context(), knowledge.ScopeHome, "", "rev-1", content); err == nil {
+		t.Fatal("Update accepted knowledge content larger than 1 MiB")
+	}
+	if store.updateContent != "" {
+		t.Fatal("oversized knowledge content reached the persistence port")
+	}
+	if len(notices) != 0 {
+		t.Fatalf("oversized update published invalidations: %+v", notices)
 	}
 }
 

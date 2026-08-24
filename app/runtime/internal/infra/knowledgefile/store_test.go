@@ -48,6 +48,36 @@ func TestStoreUpdateAndGet(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsOversizedKnowledgeDocuments(t *testing.T) {
+	t.Run("command content", func(t *testing.T) {
+		home := t.TempDir()
+		store := newKnowledgeStore(t, home, t.TempDir())
+		fresh, err := store.Get(t.Context(), knowledge.ScopeHome, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := strings.Repeat("x", (1<<20)+1)
+		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); err == nil {
+			t.Fatal("Update accepted knowledge content larger than 1 MiB")
+		}
+		if _, err := os.Stat(filepath.Join(home, "LYRA.md")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("oversized Update changed storage: %v", err)
+		}
+	})
+
+	t.Run("external file", func(t *testing.T) {
+		home := t.TempDir()
+		path := filepath.Join(home, "LYRA.md")
+		if err := os.WriteFile(path, []byte(strings.Repeat("x", (1<<20)+1)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store := newKnowledgeStore(t, home, t.TempDir())
+		if _, err := store.Get(t.Context(), knowledge.ScopeHome, ""); err == nil {
+			t.Fatal("Get accepted an external knowledge file larger than 1 MiB")
+		}
+	})
+}
+
 func TestStoreGetEmptyOnFreshHome(t *testing.T) {
 	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	got, err := store.Get(context.Background(), knowledge.ScopeHome, "")
