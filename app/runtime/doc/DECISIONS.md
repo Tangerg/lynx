@@ -515,3 +515,10 @@
 - 决策：embedding 是 `application/agentmemory.Searcher` 唯一拥有的可丢弃派生缓存，不再属于 Curation 或 Run maintenance。每个 search cache 同时保存 non-empty embedding space 与 finite vector；space 是 provider/model/custom endpoint 等非秘密 client input 的稳定指纹，不包含 API key。Searcher 先取得当前 embedder/query vector，只复用 space 相等且维度相同的 corpus vector，其余内容在该次搜索中批量重算并立即参与排名。resolve/embed/cache 任一失败不污染语义，仍以 keyword signal 返回。
 - 决策：cache write 携带 item id、由 exact content 生成的 digest、space 与 defensive-copy vector；SQLite 只在目标仍为 active 且 digest 未变时写入。schema 增加非空成对约束的 `embedding_space`，reader 严格拒绝空/半对、非 4-byte 编码和非有限数值；内容编辑同时清空 space/vector。SQLite 直接提升 epoch 81，不读取 epoch 80 裸向量，也不在 role mutation、后台 worker 或 Desktop 建立第二 invalidation/rebuild owner。
 - 后果：同维度 role 切换、维度变化、首次配置、内容编辑与并发搜索都在下一次真实 search 收敛到当前空间；迟到 cache 只能失去条件写，但本次请求仍使用自己已经取得的 exact vector。未配置或不健康的 embedder 继续 keyword-only；公共 embedding role、Agent Memory 用户能力和 Runtime 生命周期不变。
+
+## ADR-RT-074：Agent Memory recall 联合 project 与 user scope
+
+- 状态：已接受并实施，P155 完成；公共 Protocol、Artifact、SQLite shape、Desktop 与 Agent Framework 合同不变。
+- 背景：Agent Memory 管理面允许创建 active user-scope item，系统 prompt 也只会始终注入 pinned 的 project/user items；但 per-turn recall 和 `search_memory` 都把 Searcher 固定调用为 project scope。结果是未 pinned 的用户偏好在 SQLite 与 Desktop 中可见，却没有任何 Agent 消费路径；工具 definition 仍声称会搜索 user preferences，形成公开行为与真实 corpus 的冲突。
+- 决策：Searcher 的用例语义收敛为“当前项目上下文可见的联合 corpus”，删除调用方可选 scope 参数。SQLite 用一次 query 读取 exact project 的 active items 与全局 user-scope active items；Searcher 对该快照只生成一次 query embedding、执行一次 keyword/vector fusion 与一个全局 top-k，并在同一缓存 owner 下刷新两类 item。prompt recall 与 `search_memory` 只提交 project identity/query/limit，不分别查询或合并 scope。
+- 后果：未 pinned 的 user memory 与 project memory 现在公平竞争同一 recall budget，相关用户偏好能进入 per-turn system reminder 和显式工具结果；pinned items 仍由 always-on prompt owner 注入并在 per-turn block 中过滤。显式管理 API 的 scope、SQLite table/epoch、embedding cache 条件写、Desktop UI 与 keyword fallback 均不改变；没有第二 query、双 top-k、客户端 merge 或兼容 facade。

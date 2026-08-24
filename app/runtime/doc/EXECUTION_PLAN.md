@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P154 已完成；下一阶段待独立准入。
+> 状态：P0–P155 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P154 已完成。
+> 最近基线：2026-08-24，P155 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P155 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例证明 active user-scope memory 若未 pinned，虽然在 SQLite 与 Desktop 管理面可见，per-turn recall 和 `search_memory` 却都固定查询 project scope，因此没有任何 Agent consumer；工具 definition 声称可找 user preferences，但生产 corpus 与承诺不一致。
+- 唯一修复 owner 是 Agent Memory Search + SQLite search corpus。Searcher 删除 caller-selected scope，只接受 current project identity/query/top-k；SQLite 在一个 query snapshot 中返回 exact-project 与 user-scope active items，统一生成一次 query embedding、执行一次 keyword/vector fusion 与一个全局 top-k。prompt recall 与工具不分别搜索或拼接两个 scope，pinned item 继续由 always-on prompt 注入并在 per-turn block 过滤。
+- 对 app2 的裁决：采纳 consumer-owned capability、exact context 与一次性 materialization；拒绝在 Agent Framework adapter 内建立双查询、双 top-k、重复 embedding、客户端 merge 或第二 memory projection。Protocol、Artifact、SQLite epoch 81、公共 Go API、Desktop 与 CLI 均不改变。
+- P155 的 Agent working-context/tool/application/SQLite 红例与目标包门禁通过；Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、Runtime generator 零漂移、Frontend 313 files / 1950 tests 与全部静态/bundle 门禁、Wails v3 production build 全绿。未启动 agent-browser，临时检查器已回收。
 - P154 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例证明 embedding role 切换后，旧 `agent_memory_items.embedding` 裸 BLOB 会与新 query vector 直接比较；两个模型同维度但坐标语义相反时，Runtime 静默返回错误记忆，而不是 fail closed。并发审计还证明旧按 item id 回填可在内容编辑后把旧内容 vector 重新写回。
 - 唯一修复 owner 是 Agent Memory Search + SQLite derived cache。Searcher 只复用 exact embedding space、同维度且 finite 的 vector，其他内容在下一次真实搜索中批量重算并立即参与排名；cache write 携带 item id/content digest/space/vector，SQLite 只在 item 仍 active 且 digest 未变时提交。Curation 与 Run maintenance 删除 embedding resolver、unembedded query 和 backfill methods，未配置/失败继续 keyword-only。
 - 对 app2 的裁决：采纳 exact identity、consumer-owned capability 与由真实调用惰性建立派生事实；拒绝把 cache rebuild 继续挂在无关的 Run-boundary lifecycle，也不新增 role-change worker、刷新 operation、Desktop 状态或兼容读取。SQLite 直接提升 epoch 81，Protocol `2026-08-24`、Artifact v23、公共 Go API、Desktop 与 CLI 均不改变。
@@ -355,16 +359,18 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P152     | Instance delivery-to-Host shutdown graph 所有权闭环                                                     | Instance attempt 连续 join Endpoint/workers/Host；CLI/public Close timeout 不再要求第二调用，已接受 operation 终结后自行推进依赖释放                                     |
 | P153     | 删除独立 Codebase 向量索引纵切                                                                           | Runtime/Desktop/CLI direct consumer、SQLite/Protocol/生成合同一次性收口；Embedding 只归属 Agent Memory，代码发现回到 grep/glob/read/shell/LSP                              |
 | P154     | Agent Memory embedding cache 身份与提交权闭环                                                            | Search 只比较 exact space/同维 vector 并惰性修复；SQLite 以 content digest 条件缓存，Curation 不再拥有后台 backfill                                                        |
+| P155     | Agent Memory project/user recall corpus 可达性闭环                                                      | SQLite 一次读取 exact-project + user active items；Searcher 统一 query signal/ranking/top-k，未 pinned user memory 不再成为无 Agent consumer 的孤岛                     |
 
 ## 5. 当前里程碑结论
 
-P113–P154 共同建立了以下不可回退的心智模型：
+P113–P155 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - Runtime Instance shutdown 由唯一 active generation 从 operation Endpoint/workers 连续加入 Host，Host 再由 `hostLifetime` 唯一 generation 拥有 component、executor 与 resource 跨阶段连续性；任一 caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 或单次 public Close 即使不再有 cleanup caller 也不会因 timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
 - 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - Agent Memory embedding 是 Search-owned derived cache：只比较当前 exact space、同维且 finite 的 vector；role/内容/维度变化由真实 search 惰性重算，cache write 以 item id + content digest + active status 条件提交。Curation 不拥有 embedding resolver、后台 backfill 或第二 rebuild lifecycle。
+- Agent Memory recall 以当前 project context 为唯一入口：exact-project 与 user-scope active items 组成一个 corpus，共享 query signal、ranking 与全局 top-k。prompt/tool consumer 不选择 scope、不各自搜索或 merge，未 pinned 的 user memory 必须仍有 Agent 消费路径。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
@@ -406,4 +412,4 @@ P113–P154 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P154 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P155 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

@@ -56,6 +56,8 @@ P153 直接删除 Codebase semantic-index contract：公共 Go surface、三项 
 
 P154 不改变 Protocol、公共 Go API 或 Artifact shape。Agent Memory embedding role 仍是同一可选 provider/model pair；服务端内部 search cache 现在把 vector 与 exact embedding space、content digest 一起绑定，role/cache 变化不新增 operation、event、feature 或 consumer handoff。
 
+P155 不改变 Protocol、公共 Go API、Artifact 或 SQLite shape。内部 Agent Memory recall 不再接受任意单 scope，而是对当前项目的 active project items 与全局 active user items 做一次联合 ranking/top-k；`agentMemory.list/add/update/review/delete` 的显式 scope 合同与 Desktop 管理面不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

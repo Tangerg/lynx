@@ -6,11 +6,13 @@ import (
 	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
-// SearchStore supplies the active memory corpus and owns its derived embedding
-// cache. Cache writes are conditional on the exact content digest, so a late
-// model response cannot overwrite an item edited while embedding was in flight.
+// SearchStore supplies the active memory corpus visible from one project
+// context: exact-project items plus user-scoped items. It also owns the derived
+// embedding cache. Cache writes are conditional on the exact content digest, so
+// a late model response cannot overwrite an item edited while embedding was in
+// flight.
 type SearchStore interface {
-	ItemsForSearch(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error)
+	SearchCorpus(ctx context.Context, project string) ([]domain.Item, error)
 	SetEmbeddings(ctx context.Context, updates []domain.EmbeddingUpdate) error
 }
 
@@ -36,12 +38,14 @@ func NewSearcher(store SearchStore, resolveEmbedder func(context.Context) (Embed
 	return &Searcher{store: store, resolveEmbedder: resolveEmbedder}
 }
 
-// Search returns up to topK relevant memory items.
-func (s *Searcher) Search(ctx context.Context, scope domain.Scope, project, query string, topK int) ([]domain.Item, error) {
+// Search returns up to topK relevant project- and user-scoped memory items for
+// one project context. Ranking happens over the combined corpus so neither
+// partition receives a separate top-k quota or query embedding.
+func (s *Searcher) Search(ctx context.Context, project, query string, topK int) ([]domain.Item, error) {
 	if s == nil || s.store == nil || topK <= 0 {
 		return nil, nil
 	}
-	items, err := s.store.ItemsForSearch(ctx, scope, project)
+	items, err := s.store.SearchCorpus(ctx, project)
 	if err != nil || len(items) == 0 {
 		return nil, err
 	}

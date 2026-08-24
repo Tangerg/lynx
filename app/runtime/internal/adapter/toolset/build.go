@@ -50,7 +50,8 @@ type BuildConfig struct {
 	GoalReporter   builtin.GoalOutcomeReporter    // backs report_goal_outcome; nil → omitted
 
 	// AgentMemorySearch backs search_memory (keyword + semantic search over the
-	// agent's curated project memory). nil omits the tool.
+	// agent's curated memory visible from the current project context). nil omits
+	// the tool.
 	AgentMemorySearch builtin.AgentMemorySearch
 
 	// ConversationSearch backs search_conversations (full-text search over past conversation
@@ -182,9 +183,10 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
-	// search_memory reads back the agent's curated project memory (keyword +
-	// semantic). Working-directory independent (searches the Run's project), so
-	// built once for both roles. nil searcher → nil tool, simply omitted.
+	// search_memory reads back exact-project and user-scoped curated memory
+	// (keyword + semantic). Working-directory independent (searches the Run's
+	// project), so built once for both roles. nil searcher → nil tool, simply
+	// omitted.
 	agentMemorySearchTool, err := builtin.NewAgentMemorySearch(config.AgentMemorySearch)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_memory: %w", err)

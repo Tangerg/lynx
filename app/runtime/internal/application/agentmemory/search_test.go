@@ -16,7 +16,7 @@ type fakeItemSource struct {
 	updates  []domain.EmbeddingUpdate
 }
 
-func (f *fakeItemSource) ItemsForSearch(context.Context, domain.Scope, string) ([]domain.Item, error) {
+func (f *fakeItemSource) SearchCorpus(context.Context, string) ([]domain.Item, error) {
 	return slices.Clone(f.items), f.err
 }
 
@@ -70,7 +70,7 @@ func TestSearchKeywordOnlyWhenNoEmbedder(t *testing.T) {
 		domain.Item{ID: "c", Content: "- deploy with kubectl apply"},
 	)}
 	s := NewSearcher(store, nil)
-	got, err := s.Search(context.Background(), domain.ScopeProject, "/repo", "how do we run tests", 2)
+	got, err := s.Search(context.Background(), "/repo", "how do we run tests", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestSearchDegradesWhenEmbedderFails(t *testing.T) {
 	store := &fakeItemSource{items: items(domain.Item{ID: "a", Content: "- run make test"})}
 	resolve := func(context.Context) (Embedder, error) { return fakeEmbedder{err: errors.New("no model")}, nil }
 	s := NewSearcher(store, resolve)
-	got, err := s.Search(context.Background(), domain.ScopeProject, "/repo", "run the tests", 5)
+	got, err := s.Search(context.Background(), "/repo", "run the tests", 5)
 	if err != nil {
 		t.Fatalf("embed failure must not fail the search: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestSearchFusesVectorMatchWithoutKeywordOverlap(t *testing.T) {
 		return fakeEmbedder{vectors: map[string][]float32{"where is the pipeline": {1, 0}}}, nil
 	}
 	s := NewSearcher(store, resolve)
-	got, err := s.Search(context.Background(), domain.ScopeProject, "/repo", "where is the pipeline", 2)
+	got, err := s.Search(context.Background(), "/repo", "where is the pipeline", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestSearchDoesNotReuseCorpusVectorsFromAnotherEmbeddingSpace(t *testing.T) 
 		}, nil
 	}
 	s := NewSearcher(store, resolve)
-	got, err := s.Search(t.Context(), domain.ScopeProject, "/repo", "find the target", 1)
+	got, err := s.Search(t.Context(), "/repo", "find the target", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestSearchDoesNotReuseCorpusVectorsFromAnotherEmbeddingSpace(t *testing.T) 
 
 func TestSearchEmptyCorpus(t *testing.T) {
 	s := NewSearcher(&fakeItemSource{}, nil)
-	got, err := s.Search(context.Background(), domain.ScopeProject, "/repo", "anything", 5)
+	got, err := s.Search(context.Background(), "/repo", "anything", 5)
 	if err != nil || got != nil {
 		t.Fatalf("empty corpus search = (%+v, %v)", got, err)
 	}

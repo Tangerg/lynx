@@ -27,5 +27,5 @@ type AgentMemoryReader interface {
 
 // AgentMemorySearcher supplies prompt-relevant non-pinned memory.
 type AgentMemorySearcher interface {
-	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
+	Search(ctx context.Context, project, query string, topK int) ([]agentmemory.Item, error)
 }

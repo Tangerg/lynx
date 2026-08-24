@@ -160,7 +160,7 @@ Application checkpoint 包含：
 
 一个 package 是否继续独立，必须由实体所有权、变化原因和真实消费者证明，不能由目录对称性决定。
 
-代码发现不构成独立的持久 bounded context。Agent 通过 `grep`、`glob`、`read`、`shell` 与 LSP 组合当前 checkout 的可观察事实；Runtime 不维护面向客户端的 dense-vector corpus、index lifecycle、search operation、feature 或 invalidation topic。Embedding role 只服务仍有真实消费者的 Agent Memory，并允许后者在未配置 embedding 时退回关键词匹配。Agent Memory 向量只是 Search owner 的可丢弃派生缓存：每条缓存绑定 exact embedding space 与 content digest，space 由 provider/model/custom endpoint 的非秘密配置指纹确定；角色、endpoint、维度或内容变化后由下一次搜索惰性重算，Curation 不拥有向量回填生命周期。
+代码发现不构成独立的持久 bounded context。Agent 通过 `grep`、`glob`、`read`、`shell` 与 LSP 组合当前 checkout 的可观察事实；Runtime 不维护面向客户端的 dense-vector corpus、index lifecycle、search operation、feature 或 invalidation topic。Embedding role 只服务仍有真实消费者的 Agent Memory，并允许后者在未配置 embedding 时退回关键词匹配。Agent Memory 向量只是 Search owner 的可丢弃派生缓存：每条缓存绑定 exact embedding space 与 content digest，space 由 provider/model/custom endpoint 的非秘密配置指纹确定；角色、endpoint、维度或内容变化后由下一次搜索惰性重算，Curation 不拥有向量回填生命周期。一次 Agent recall 由同一 Search owner 在一个 SQLite snapshot 中取得 exact-project 与 user-scope active items，再共享一个 query signal、全局 ranking 与 top-k；prompt/tool consumer 不分别查询两个 scope。
 
 ### 5.8 Aggregate roots
 

@@ -109,9 +109,9 @@ func buildToolEnvironment(ctx context.Context, deps toolEnvironmentDependencies)
 	if deps.goalReporter != nil {
 		buildConfig.GoalReporter = deps.goalReporter
 	}
-	// search_memory searches the agent's curated project memory. Set only when a
-	// concrete searcher exists, so a nil *Searcher never reaches the tool builder
-	// as a non-nil interface.
+	// search_memory searches exact-project and user-scoped curated memory. Set
+	// only when a concrete searcher exists, so a nil *Searcher never reaches the
+	// tool builder as a non-nil interface.
 	if deps.agentMemorySearcher != nil {
 		buildConfig.AgentMemorySearch = deps.agentMemorySearcher
 	}

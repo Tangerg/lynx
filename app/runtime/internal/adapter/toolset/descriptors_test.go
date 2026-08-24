@@ -73,7 +73,7 @@ func (allWiredToolResults) Fetch(context.Context, string, resultoffload.ID) (str
 
 type allWiredAgentMemorySearch struct{}
 
-func (allWiredAgentMemorySearch) Search(context.Context, agentmemory.Scope, string, string, int) ([]agentmemory.Item, error) {
+func (allWiredAgentMemorySearch) Search(context.Context, string, string, int) ([]agentmemory.Item, error) {
 	return nil, nil
 }
 

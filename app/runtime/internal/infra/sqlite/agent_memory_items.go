@@ -135,7 +135,7 @@ func (s *AgentMemoryStore) insertItem(ctx context.Context, item agentmemory.Item
 const agentMemoryItemColumns = `id, scope, project, content, origin, status, pinned, session_id, day, created_at, updated_at`
 
 // scanItem decodes one item's base columns (embedding excluded — see
-// [AgentMemoryStore.ItemsForSearch] for the search path that reads it).
+// [AgentMemoryStore.SearchCorpus] for the search path that reads it).
 func scanItem(row scanRow) (agentmemory.Item, error) {
 	var (
 		item                              agentmemory.Item
@@ -196,18 +196,20 @@ func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, p
 		 ORDER BY pinned DESC, updated_at DESC`, "agent memory items", token, project)
 }
 
-// ItemsForSearch lists the active (scope, project) items with their embedding
-// decoded, for in-process keyword + vector ranking. Only approved memory is
-// searchable.
-func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	token, err := memoryPartition(scope, project)
-	if err != nil {
+// SearchCorpus lists the active exact-project and user-scoped items visible
+// from one project context, with their embedding cache decoded. Fetching both
+// partitions in one snapshot lets the application rank one combined corpus.
+func (s *AgentMemoryStore) SearchCorpus(ctx context.Context, project string) ([]agentmemory.Item, error) {
+	if _, err := memoryPartition(agentmemory.ScopeProject, project); err != nil {
 		return nil, err
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+agentMemoryItemColumns+`, embedding_space, embedding
 		 FROM agent_memory_items
-		 WHERE scope = ? AND project = ? AND status = 'active'`, token, project)
+		 WHERE status = 'active' AND (
+		       (scope = 'project' AND project = ?) OR
+		       (scope = 'user' AND project = '')
+		 )`, project)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list agent memory items for search: %w", err)
 	}

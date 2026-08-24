@@ -242,7 +242,7 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 		t.Fatalf("after edit = (%+v, %v, %v)", got, ok, err)
 	}
 	// Editing content clears the now-stale embedding.
-	forSearch, _ := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	forSearch, _ := store.SearchCorpus(t.Context(), "/repo")
 	if len(forSearch) != 1 || len(forSearch[0].Embedding) != 0 {
 		t.Fatalf("edit did not clear the stale embedding: %+v", forSearch)
 	}
@@ -284,7 +284,7 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	}
 
 	// Approved items carry no embedding yet.
-	forSearch, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	forSearch, err := store.SearchCorpus(t.Context(), "/repo")
 	if err != nil || len(forSearch) != 2 {
 		t.Fatalf("items for search = (%+v, %v), want 2", forSearch, err)
 	}
@@ -304,7 +304,7 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	}
 
 	// The search fetch decodes both the vector and its exact space identity.
-	forSearch, err = store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	forSearch, err = store.SearchCorpus(t.Context(), "/repo")
 	if err != nil || len(forSearch) != 2 {
 		t.Fatalf("items for search = (%+v, %v)", forSearch, err)
 	}
@@ -313,6 +313,38 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 		if item.EmbeddingSpace != "provider:model" || len(item.Embedding) != len(want) || item.Embedding[0] != want[0] || item.Embedding[1] != want[1] {
 			t.Fatalf("embedding round-trip failed for %s: got %v want %v", item.ID, item.Embedding, want)
 		}
+	}
+}
+
+func TestAgentMemorySearchCorpusIncludesUserAndExactProject(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	projectItem, _, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "project convention", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userItem, _, err := store.Add(t.Context(), agentmemory.ScopeUser, "", "user preference", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherItem, _, err := store.Add(t.Context(), agentmemory.ScopeProject, "/other", "other project convention", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	corpus, err := store.SearchCorpus(t.Context(), "/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[string]agentmemory.Scope, len(corpus))
+	for _, item := range corpus {
+		got[item.ID] = item.Scope
+	}
+	if len(got) != 2 || got[projectItem.ID] != agentmemory.ScopeProject || got[userItem.ID] != agentmemory.ScopeUser {
+		t.Fatalf("search corpus = %+v, want exact project + user items", corpus)
+	}
+	if _, leaked := got[otherItem.ID]; leaked {
+		t.Fatalf("other-project item leaked into search corpus: %+v", corpus)
 	}
 }
 
@@ -333,7 +365,7 @@ func TestAgentMemoryLateEmbeddingDoesNotOverwriteEditedContent(t *testing.T) {
 	if err := store.SetEmbeddings(t.Context(), []agentmemory.EmbeddingUpdate{late}); err != nil {
 		t.Fatal(err)
 	}
-	items, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	items, err := store.SearchCorpus(t.Context(), "/repo")
 	if err != nil || len(items) != 1 {
 		t.Fatalf("items for search = (%+v, %v)", items, err)
 	}

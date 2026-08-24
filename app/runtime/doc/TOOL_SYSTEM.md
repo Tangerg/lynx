@@ -368,7 +368,7 @@
 
 - 将后台命令领域词汇统一为 Shell：`shell_output` / `shell_kill` 改为 `read_shell_output` / `stop_shell`，参数统一为 `shell_id`，删除与 Agent process tree 冲突的 Process 叫法；
 - `shell.description` 是模型提供的简短动作标签，服务端将它附到工具调用活动信息供展示；将无单位 `timeout` / `auto_background_after` 改为 `timeout_millis` / `auto_background_after_seconds`；输出读取将 UI 控件式 `block` 改为行为语义 `wait`，等待超时也统一为 `timeout_millis`；
-- 将 curated project memory 与 raw transcript 两个 corpus 分别命名为 `search_memory`、`search_conversations`，重写 definition 与参数描述，统一 `query` 和 `limit=1..20` 的严格 schema；旧名称和越界截断路径不保留；
+- 将当前 project context 可见的 curated memory（exact project + user scope）与 raw transcript 两个 corpus 分别命名为 `search_memory`、`search_conversations`，重写 definition 与参数描述，统一 `query` 和 `limit=1..20` 的严格 schema；旧名称和越界截断路径不保留；
 - 改动只触及具体 toolset adapter、其 runtime 组装与基础 exec 注释；没有向通用 `tool.Tool`、Agent executor seam 或 delivery DTO 增加 Shell、Memory、Conversation 概念。
 
 ### 批次 5b.2

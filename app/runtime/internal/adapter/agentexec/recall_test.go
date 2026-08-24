@@ -9,17 +9,13 @@ import (
 )
 
 type fakeAgentMemorySearcher struct {
-	items        []agentmemory.Item
-	itemsByScope map[agentmemory.Scope][]agentmemory.Item
-	err          error
-	query        string
+	items []agentmemory.Item
+	err   error
+	query string
 }
 
-func (f *fakeAgentMemorySearcher) Search(_ context.Context, scope agentmemory.Scope, _, query string, _ int) ([]agentmemory.Item, error) {
+func (f *fakeAgentMemorySearcher) Search(_ context.Context, _, query string, _ int) ([]agentmemory.Item, error) {
 	f.query = query
-	if f.itemsByScope != nil {
-		return f.itemsByScope[scope], f.err
-	}
 	return f.items, f.err
 }
 
@@ -64,13 +60,12 @@ func TestRecalledMemoriesEmptyCases(t *testing.T) {
 }
 
 func TestRecalledMemoriesIncludeRelevantUserScope(t *testing.T) {
-	search := &fakeAgentMemorySearcher{itemsByScope: map[agentmemory.Scope][]agentmemory.Item{
-		agentmemory.ScopeUser: {{
-			ID:      "user-memory",
-			Content: "- user prefers concise explanations",
-			Status:  agentmemory.StatusActive,
-		}},
-	}}
+	search := &fakeAgentMemorySearcher{items: []agentmemory.Item{{
+		ID:      "user-memory",
+		Content: "- user prefers concise explanations",
+		Scope:   agentmemory.ScopeUser,
+		Status:  agentmemory.StatusActive,
+	}}}
 	composer := NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: search})
 
 	message, ok, err := composer.recallMessage(context.Background(), "/repo", "how should I explain this")

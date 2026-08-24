@@ -9,7 +9,7 @@ import (
 
 type agentMemorySearchStub struct{}
 
-func (agentMemorySearchStub) Search(context.Context, agentmemory.Scope, string, string, int) ([]agentmemory.Item, error) {
+func (agentMemorySearchStub) Search(context.Context, string, string, int) ([]agentmemory.Item, error) {
 	return nil, nil
 }
 

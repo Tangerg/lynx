@@ -1,4 +1,5 @@
-// Agent memory search exposes search_memory over curated project memory.
+// Agent memory search exposes search_memory over the curated memory visible
+// from the current project: exact-project facts plus user-scoped preferences.
 package builtin
 
 import (
@@ -18,7 +19,7 @@ import (
 const agentMemorySearchDefaultLimit = 8
 
 type agentMemorySearchRequest struct {
-	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Natural-language topic, decision, convention, or user preference to recall from curated project memory."`
+	Query string `json:"query" jsonschema:"minLength=1" jsonschema_description:"Natural-language topic, decision, convention, or user preference to recall from curated memory visible in the current project context."`
 	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum memories to return. Defaults to 8."`
 }
 
@@ -35,7 +36,7 @@ func (r agentMemorySearchRequest) normalize() (agentMemorySearchRequest, error) 
 
 // AgentMemorySearch is the agent-memory search capability this tool consumes.
 type AgentMemorySearch interface {
-	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
+	Search(ctx context.Context, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
 type agentMemorySearcher struct {
@@ -71,7 +72,7 @@ func (t *agentMemorySearcher) run(ctx context.Context, req agentMemorySearchRequ
 	if cwd == "" {
 		return "No project is associated with this session, so there is no project memory to search.", nil
 	}
-	items, err := t.search.Search(ctx, agentmemory.ScopeProject, filepath.Clean(cwd), req.Query, req.Limit)
+	items, err := t.search.Search(ctx, filepath.Clean(cwd), req.Query, req.Limit)
 	if err != nil {
 		return "", err
 	}
