@@ -72,9 +72,10 @@ func newAssembly(
 }
 
 // BuildAssembly constructs and returns a complete Host. On failure it begins a
-// bounded rollback and returns nil. Once terminal resource teardown starts, its
-// Sequence continues the reverse graph after caller timeout; Assembly retains
-// any not-yet-joined component phase for CloseAssembly.
+// bounded rollback and returns nil. The Host-owned shutdown generation keeps
+// joining components and the terminal resource Sequence after caller timeout;
+// CloseAssembly joins it or starts a new attempt after a settled component
+// error.
 func BuildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if a == nil {
 		return nil, errors.New("runtime: nil Assembly")

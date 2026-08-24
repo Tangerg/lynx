@@ -141,16 +141,22 @@ func TestInstanceCloseIsIdempotent(t *testing.T) {
 }
 
 func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
-	ready := false
+	releaseComponent := make(chan struct{})
+	resourceClosed := make(chan struct{})
 	host := &Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
 		runCoordinator: shutdownFunc{wait: func(ctx context.Context) error {
-			if ready {
+			select {
+			case <-releaseComponent:
 				return nil
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			<-ctx.Done()
-			return ctx.Err()
 		}},
+		hostResources: terminalClosers([]func() error{func() error {
+			close(resourceClosed)
+			return nil
+		}}),
 	}}
 	done := make(chan struct{})
 	close(done)
@@ -163,9 +169,14 @@ func TestInstanceCloseRetainsResourcesUntilHostJoins(t *testing.T) {
 	if err := instance.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)
 	}
-	ready = true
+	close(releaseComponent)
+	select {
+	case <-resourceClosed:
+	case <-time.After(time.Second):
+		t.Fatal("Instance Host abandoned resources after the first caller timed out")
+	}
 	if err := instance.Close(); err != nil {
-		t.Fatalf("retry Close: %v", err)
+		t.Fatalf("join completed Close: %v", err)
 	}
 }
 

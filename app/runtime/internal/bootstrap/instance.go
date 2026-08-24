@@ -242,9 +242,10 @@ func (i *Instance) ServerInfo() protocol.ServerInfo {
 	return i.serverInfo
 }
 
-// Close stops admissions, cancels instance-owned operations and workers, joins
-// the application Host. A timed-out dependency remains owned and a later Close
-// resumes teardown.
+// Close stops admissions, cancels instance-owned operations and workers, then
+// joins the application Host. Caller timeout does not cancel the Host-owned
+// shutdown generation; a later Close joins it or starts a new attempt after a
+// settled component error.
 func (i *Instance) Close() error {
 	if i == nil {
 		return nil

@@ -146,12 +146,13 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 依赖创建和 wiring 明确、静态、可搜索；
 - 不使用反射 DI container、service locator 或 package globals；
 - 所有 resource closers 只有一个 owner，且只能是 one-shot terminal action；返回 error 是诊断，不是“尚未关闭”，不得提供通用 Retryable wrapper。host/tool resources 按 acquisition 顺序一次性交给唯一逆序 Sequence；Sequence 的 generation 不受 caller deadline 取消，失败 Open 返回后也必须继续释放依赖，后续 Close 只能 join、不能重放。真正需要多 generation 推进的 subsystem 在自己的 owner/ledger 内表达，不能下沉为通用 closer；
+- Host 整体 shutdown generation 与 caller wait 必须正交：第一个 Close 广播 cancellation 并由 `hostLifetime` 持有 component/executor join 直到进入 terminal Sequence，caller timeout 只返回等待诊断，不能把图留给一个在失败 Open 中根本拿不到 Host 的外层。并发 Close 只 join 同一 generation；只有 component 已返回明确 unsettled error 时，后续显式 Close 才能启动下一 generation，禁止 timer retry loop；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - required collaborator 和 lifetime 在 constructor boundary 完整验证；constructor 必须返回可运行对象或 error，不能把半初始化对象和延迟 `unavailable` 分支交给用例；
 - optional capability 只在真实配置关闭时为 nil/absent；多个依赖共同构成一项能力时用一个显式 capability group 表达，不能允许半启用。
 - `bootstrap.OpenInstance` 创建每个 Runtime 唯一的 context root，并拥有 cancel 与 join；Assembly、operation、Interaction、Toolset、LSP、MCP/OAuth 和 workers 只消费注入 lifetime，不另造 immortal root。
 - HTTP host 与 embedded 共用同一 Runtime instance builder；共享目录 setup、所有权恢复、后台任务与资源关闭不能各装配一套。
-- canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚；caller timeout 只停止等待，已启动的 terminal resource Sequence 必须自行走完整图，不能要求拿不到 Host/Assembly 的外层调用方再次 Close。terminal diagnostic 不得让 Host 永久停在 stopping。
+- canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚；caller timeout 只停止等待，已启动的 Host generation 必须继续 join component/executor 并自行走完 terminal resource Sequence，不能要求拿不到 Host/Assembly 的外层调用方再次 Close。terminal diagnostic 不得让 Host 永久停在 stopping。
 - 每次 Session mutation/Run 必须取得跨进程 Session writer lease；Run 同时取得 physical working tree shared lease，rollback/restore 等破坏性操作取得 exclusive lease。Goal drive 和恢复器必须竞争同一 owner identity；恢复先选举一个跨进程 sweep winner并固定 Run-before-Goal 顺序，startup 必须等待 winner 后复核，存活期可以非阻塞跳过，cleanup 只能作用于已取得的 Session。
 - 不用 heartbeat/TTL 推断本机 owner 死亡；以 OS advisory lease 的持有/释放为真相。来自其他 SQLite connection 的提交必须触发 read-model resync，消费者收到后重读 durable projection。
 

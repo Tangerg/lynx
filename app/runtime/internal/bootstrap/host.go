@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
@@ -24,6 +25,7 @@ type hostLifetime struct {
 	stopping        bool
 	closed          bool
 	shutdownTimeout time.Duration
+	shutdown        *hostShutdownAttempt
 
 	goalDriver          shutdownComponent
 	mcpCoordinator      shutdownComponent
@@ -34,6 +36,12 @@ type hostLifetime struct {
 	toolResources       []*teardown.Step
 	hostResources       []*teardown.Step
 	resourceGraph       *teardown.Sequence
+}
+
+type hostShutdownAttempt struct {
+	done      chan struct{}
+	err       error
+	completed bool
 }
 
 type shutdownComponent interface {
@@ -49,12 +57,12 @@ type taskOwner interface {
 const hostShutdownTimeout = 10 * time.Second
 
 // Close shuts the assembled application tier down in reverse dependency order
-// (§10.3). It first broadcasts cancellation to every task-owning component,
-// then joins them under one Host-owned deadline. A component timeout leaves the
-// graph in its stopping phase for a later Close budget. Once terminal resource
-// teardown starts, its Sequence runs the whole reverse graph to completion past
-// caller timeout; later Close calls only join that generation. Idempotent across
-// Host copies once the graph has fully closed.
+// (§10.3). The first caller starts one Host-owned generation that broadcasts
+// cancellation, joins components and then enters terminal resource teardown.
+// Each caller has a bounded wait, but its deadline cannot abandon or duplicate
+// that generation. A completed component error permits a later Close to start
+// one new generation; terminal resource diagnostics close the graph. Idempotent
+// across Host copies once the graph has fully closed.
 func (h *Host) Close() error {
 	if h == nil || h.lifetime == nil {
 		return nil
@@ -67,18 +75,56 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		return nil
 	}
 	lifetime.closeMu.Lock()
-	defer lifetime.closeMu.Unlock()
 	if lifetime.closed {
+		lifetime.closeMu.Unlock()
 		return nil
 	}
+	attempt := lifetime.shutdown
+	if attempt == nil || attempt.completed {
+		attempt = &hostShutdownAttempt{done: make(chan struct{})}
+		lifetime.shutdown = attempt
+		// Preserve instance trace values, but never let the caller that happened
+		// to start Close cancel the owner generation. A nil lifetime context occurs
+		// only in direct Host tests and uses the same process-owner root as the wait.
+		ownerCtx := context.Background()
+		if lifetime.context != nil {
+			ownerCtx = context.WithoutCancel(lifetime.context)
+		}
+		go runHostShutdown(ownerCtx, lifetime, attempt)
+	}
+	timeout := lifetime.shutdownTimeout
+	lifetime.closeMu.Unlock()
+
+	if timeout <= 0 {
+		timeout = hostShutdownTimeout
+	}
+	waitCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := completion.Wait(waitCtx, attempt.done); err != nil {
+		return err
+	}
+	return attempt.err
+}
+
+func runHostShutdown(
+	ownerCtx context.Context,
+	lifetime *hostLifetime,
+	attempt *hostShutdownAttempt,
+) {
 	components := []shutdownComponent{
 		lifetime.goalDriver,
 		lifetime.mcpCoordinator,
 		lifetime.codebaseCoordinator,
 		lifetime.runCoordinator,
 	}
-	if !lifetime.stopping {
+	lifetime.closeMu.Lock()
+	begin := !lifetime.stopping
+	if begin {
 		lifetime.stopping = true
+	}
+	lifetime.closeMu.Unlock()
+
+	if begin {
 		for _, component := range components {
 			if component != nil {
 				component.BeginShutdown()
@@ -89,31 +135,28 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		}
 	}
 
-	timeout := lifetime.shutdownTimeout
-	if timeout <= 0 {
-		timeout = hostShutdownTimeout
-	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	var errs []error
 	for _, component := range components {
 		if component != nil {
-			errs = append(errs, component.AwaitShutdown(shutdownCtx))
+			errs = append(errs, component.AwaitShutdown(ownerCtx))
 		}
 	}
 	if lifetime.runEffectTasks != nil {
-		errs = append(errs, lifetime.runEffectTasks.Wait(shutdownCtx))
+		errs = append(errs, lifetime.runEffectTasks.Wait(ownerCtx))
 	}
 	if componentErr := errors.Join(errs...); componentErr != nil {
-		return componentErr
+		finishHostShutdown(lifetime, attempt, false, componentErr)
+		return
 	}
 
 	if lifetime.executor != nil {
 		lifetime.executor.BeginShutdown()
-		if err := lifetime.executor.AwaitShutdown(shutdownCtx); err != nil {
-			return err
+		if err := lifetime.executor.AwaitShutdown(ownerCtx); err != nil {
+			finishHostShutdown(lifetime, attempt, false, err)
+			return
 		}
 	}
+	lifetime.closeMu.Lock()
 	if lifetime.resourceGraph == nil {
 		// host resources are acquired before tool resources; concatenating them
 		// in creation order lets the Sequence own the whole reverse dependency
@@ -123,12 +166,30 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		steps = append(steps, lifetime.toolResources...)
 		lifetime.resourceGraph = teardown.NewSequence(steps)
 	}
-	settled, resourceErr := lifetime.resourceGraph.Shutdown(shutdownCtx)
+	resourceGraph := lifetime.resourceGraph
+	lifetime.closeMu.Unlock()
+	settled, resourceErr := resourceGraph.Shutdown(ownerCtx)
 	if !settled {
-		return resourceErr
+		finishHostShutdown(lifetime, attempt, false, resourceErr)
+		return
 	}
-	lifetime.toolResources = nil
-	lifetime.hostResources = nil
-	lifetime.closed = true
-	return resourceErr
+	finishHostShutdown(lifetime, attempt, true, resourceErr)
+}
+
+func finishHostShutdown(
+	lifetime *hostLifetime,
+	attempt *hostShutdownAttempt,
+	closed bool,
+	err error,
+) {
+	lifetime.closeMu.Lock()
+	defer lifetime.closeMu.Unlock()
+	attempt.err = err
+	attempt.completed = true
+	if closed {
+		lifetime.toolResources = nil
+		lifetime.hostResources = nil
+		lifetime.closed = true
+	}
+	close(attempt.done)
 }

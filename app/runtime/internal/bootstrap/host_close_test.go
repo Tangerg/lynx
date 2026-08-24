@@ -130,7 +130,7 @@ func TestHostCloseAdvancesPastCompletedCloserError(t *testing.T) {
 	}
 }
 
-func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T) {
+func TestHostCloseContinuesGraphAfterCallerTimeout(t *testing.T) {
 	releaseComponent := make(chan struct{})
 	toolClosed := make(chan struct{})
 	host := Host{lifetime: &hostLifetime{
@@ -170,38 +170,33 @@ func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T
 	}
 }
 
-func TestHostCloseRetriesDrainAfterTimeout(t *testing.T) {
-	var (
-		stops  int
-		ready  bool
-		closed int
-	)
+func TestHostCloseStartsNewGenerationAfterComponentError(t *testing.T) {
+	want := errors.New("component did not settle")
+	var stops, attempts, closed int
 	host := Host{lifetime: &hostLifetime{
-		shutdownTimeout: time.Millisecond,
 		runCoordinator: shutdownFunc{
 			stop: func() { stops++ },
-			wait: func(ctx context.Context) error {
-				if ready {
-					return nil
+			wait: func(context.Context) error {
+				attempts++
+				if attempts == 1 {
+					return want
 				}
-				<-ctx.Done()
-				return ctx.Err()
+				return nil
 			},
 		},
 		toolResources: terminalClosers([]func() error{func() error { closed++; return nil }}),
 	}}
-	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("first Close error = %v, want deadline exceeded", err)
+	if err := host.Close(); !errors.Is(err, want) {
+		t.Fatalf("first Close error = %v, want component failure", err)
 	}
-	if stops != 1 || closed != 0 {
-		t.Fatalf("after timed out close: stops=%d closed=%d, want 1/0", stops, closed)
+	if stops != 1 || attempts != 1 || closed != 0 {
+		t.Fatalf("after failed generation: stops=%d attempts=%d closed=%d, want 1/1/0", stops, attempts, closed)
 	}
-	ready = true
 	if err := host.Close(); err != nil {
 		t.Fatalf("retry Close: %v", err)
 	}
-	if stops != 1 || closed != 1 {
-		t.Fatalf("after retry close: stops=%d closed=%d, want 1/1", stops, closed)
+	if stops != 1 || attempts != 2 || closed != 1 {
+		t.Fatalf("after retry generation: stops=%d attempts=%d closed=%d, want 1/2/1", stops, attempts, closed)
 	}
 }
 
