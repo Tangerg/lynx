@@ -12,10 +12,10 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-// agentMemoryInjectBudget bounds the always-on curated-memory block whole-inject
-// (pinned items first, then recent). The extractor already caps the auto item
-// set well under this; the headroom absorbs a few user-pinned items. Retrieval
-// (a later batch) surfaces anything beyond the budget on demand.
+// agentMemoryInjectBudget bounds each prompt-resident Agent Memory block by the
+// same conservative token estimate: the always-on pinned core and the
+// per-message relevant recall. Items stay whole; lower-priority items beyond a
+// block's budget remain available through search_memory.
 const agentMemoryInjectBudget = 4096
 
 // basePrompt is the always-on identity / behavioral preamble. It

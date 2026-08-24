@@ -342,6 +342,8 @@ func (value AgentMemoryReviewRequest) ValidateWire() error {
 func (value AgentMemoryUpdateRequest) ValidateWire() error {
 	return collectWireViolations("AgentMemoryUpdateRequest",
 		requiredText("id", value.ID),
+		optionalText("content", value.Content),
+		optionalMaxLength("content", value.Content, 4096),
 	)
 }
 
@@ -354,6 +356,7 @@ func (value AgentMemoryItemRequest) ValidateWire() error {
 func (value AgentMemoryAddRequest) ValidateWire() error {
 	return collectWireViolations("AgentMemoryAddRequest",
 		requiredText("content", value.Content),
+		maxLength("content", value.Content, 4096),
 		closedEnum("scope", string(value.Scope), []string{"project", "user"}, false),
 		requiredWhen(wireFieldEquals(value, "scope", "project"), "workspace", value),
 		forbiddenWhen(wireFieldEquals(value, "scope", "user"), "workspace", value),
@@ -1598,6 +1601,16 @@ func (value KnowledgeEntry) ValidateWire() error {
 	return collectWireViolations("KnowledgeEntry",
 		requiredText("revision", value.Revision),
 		closedEnum("scope", string(value.Scope), []string{"cwd", "projectRoot", "home"}, false),
+	)
+}
+
+func (value AgentMemoryItem) ValidateWire() error {
+	return collectWireViolations("AgentMemoryItem",
+		requiredText("content", value.Content),
+		maxLength("content", value.Content, 4096),
+		closedEnum("scope", string(value.Scope), []string{"project", "user"}, false),
+		closedEnum("origin", string(value.Origin), []string{"auto", "user"}, false),
+		closedEnum("status", string(value.Status), []string{"active", "pending"}, false),
 	)
 }
 

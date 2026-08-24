@@ -41,7 +41,7 @@ func newPinnedMemoryPrompt(items []agentmemory.Item, maxTokens int) pinnedMemory
 			continue
 		}
 		cost := estimateMemoryPromptTokens(content)
-		if maxTokens > 0 && prompt.Len() > 0 && used+cost > maxTokens {
+		if maxTokens > 0 && used+cost > maxTokens {
 			break
 		}
 		if prompt.Len() > 0 {

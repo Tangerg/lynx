@@ -5167,11 +5167,32 @@
       ]
     },
     {
+      "type": "AgentMemoryItem",
+      "rules": [
+        {
+          "field": "content",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "content",
+          "constraint": "maxLength(4096)"
+        }
+      ]
+    },
+    {
       "type": "AgentMemoryUpdateRequest",
       "rules": [
         {
           "field": "id",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "content",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "content",
+          "constraint": "maxLength(4096)"
         }
       ]
     },
@@ -5181,6 +5202,10 @@
         {
           "field": "content",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "content",
+          "constraint": "maxLength(4096)"
         }
       ]
     },

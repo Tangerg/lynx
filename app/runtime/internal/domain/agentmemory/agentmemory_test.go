@@ -88,13 +88,12 @@ func TestItemConstructionRejectsInvalidPartition(t *testing.T) {
 }
 
 func TestItemConstructionBoundsContentForModelContext(t *testing.T) {
-	const maximumCharacters = 4096
 	now := time.Now()
 	if _, err := NewUserItem(
 		"mem_boundary",
 		ScopeUser,
 		"",
-		strings.Repeat("界", maximumCharacters),
+		strings.Repeat("界", MaxContentCharacters),
 		now,
 	); err != nil {
 		t.Fatalf("boundary content was rejected: %v", err)
@@ -103,10 +102,27 @@ func TestItemConstructionBoundsContentForModelContext(t *testing.T) {
 		"mem_oversized",
 		ScopeUser,
 		"",
-		strings.Repeat("界", maximumCharacters+1),
+		strings.Repeat("界", MaxContentCharacters+1),
 		now,
 	); err == nil {
 		t.Fatal("content larger than one context-safe memory item was accepted")
+	}
+	if _, err := NewUserItem(
+		"mem_invalid_utf8",
+		ScopeUser,
+		"",
+		string([]byte{0xff}),
+		now,
+	); err == nil {
+		t.Fatal("invalid UTF-8 content was accepted")
+	}
+
+	batch := FactBatch{
+		Project: "/repo", SessionID: "session", Day: "2026-08-24",
+		Facts: []string{strings.Repeat("界", MaxContentCharacters+1)}, CapturedAt: now,
+	}
+	if _, err := batch.Normalize(); err == nil {
+		t.Fatal("oversized ledger fact was accepted")
 	}
 }
 

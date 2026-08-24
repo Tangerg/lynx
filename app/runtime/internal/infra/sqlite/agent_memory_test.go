@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -210,6 +211,26 @@ func TestAgentMemorySchemaRejectsInvalidDomainVocabulary(t *testing.T) {
 	}
 }
 
+func TestAgentMemorySchemaRejectsContentBeyondDomainBound(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	oversized := strings.Repeat("界", agentmemory.MaxContentCharacters+1)
+	if _, err := db.Exec(`INSERT INTO agent_memory_items(
+		id, scope, project, content, digest, origin, status, created_at, updated_at
+	) VALUES ('mem_oversized', 'project', '/repo', ?, 'digest', 'user', 'active', 1, 1)`, oversized); err == nil {
+		t.Fatal("agent memory item beyond the Domain bound was persisted")
+	}
+	if _, err := db.Exec(`INSERT INTO agent_memory_ledger(
+		project, day, session_id, fact, digest, captured_at
+	) VALUES ('/repo', '2026-08-24', 'session', ?, 'digest', 1)`, oversized); err == nil {
+		t.Fatal("agent memory ledger fact beyond the Domain bound was persisted")
+	}
+}
+
 func TestAgentMemoryManagementOps(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
@@ -259,6 +280,14 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	unchanged, ok, err := store.Get(t.Context(), item.ID)
 	if err != nil || !ok || unchanged.Pinned {
 		t.Fatalf("failed Update changed item = (%+v, %v, %v)", unchanged, ok, err)
+	}
+	oversized := strings.Repeat("界", agentmemory.MaxContentCharacters+1)
+	if _, err := store.Update(t.Context(), item.ID, &oversized, &pinned, now.Add(2*time.Second)); err == nil {
+		t.Fatal("Update accepted oversized content")
+	}
+	unchanged, ok, err = store.Get(t.Context(), item.ID)
+	if err != nil || !ok || unchanged.Pinned {
+		t.Fatalf("oversized Update changed item = (%+v, %v, %v)", unchanged, ok, err)
 	}
 	if err := store.Delete(t.Context(), item.ID); err != nil {
 		t.Fatal(err)

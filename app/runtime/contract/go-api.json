@@ -2189,6 +2189,12 @@
               "type": "time.Time",
               "tag": "json:\"updatedAt\""
             }
+          ],
+          "methods": [
+            {
+              "name": "ValidateWire",
+              "signature": "func() error"
+            }
           ]
         },
         {

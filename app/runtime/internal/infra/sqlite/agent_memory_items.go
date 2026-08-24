@@ -100,6 +100,13 @@ func (s *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]age
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: decode agent memory item %q status: %w", item.ID, err)
 		}
+		content, err := agentmemory.NormalizeContent(item.Content)
+		if err != nil || content != item.Content {
+			if err == nil {
+				err = errors.New("content is not canonical")
+			}
+			return nil, fmt.Errorf("sqlite: decode invalid agent memory item %q: %w", item.ID, err)
+		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -383,9 +390,9 @@ func (s *AgentMemoryStore) SetPinned(ctx context.Context, id string, pinned bool
 // UpdateContent edits an item's content, recomputes its digest, and clears the
 // now-stale embedding so a later fold re-embeds it.
 func (s *AgentMemoryStore) UpdateContent(ctx context.Context, id, content string, now time.Time) error {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return errors.New("sqlite: agent memory content is required")
+	content, err := agentmemory.NormalizeContent(content)
+	if err != nil {
+		return fmt.Errorf("sqlite: edit agent memory: %w", err)
 	}
 	result, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE agent_memory_items SET content = ?, digest = ?, embedding_space = '', embedding = x'', updated_at = ? WHERE id = ?`,

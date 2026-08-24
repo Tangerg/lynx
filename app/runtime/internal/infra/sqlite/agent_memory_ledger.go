@@ -96,6 +96,9 @@ func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 			return nil, fmt.Errorf("sqlite: scan pending agent memory: %w", err)
 		}
 		fact.CapturedAt = time.Unix(0, capturedAt).UTC()
+		if err := fact.Validate(); err != nil {
+			return nil, fmt.Errorf("sqlite: decode invalid agent memory ledger fact %d: %w", fact.Sequence, err)
+		}
 		facts = append(facts, fact)
 	}
 	if err := rows.Err(); err != nil {

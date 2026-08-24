@@ -76,3 +76,19 @@ func TestRecalledMemoriesIncludeRelevantUserScope(t *testing.T) {
 		t.Fatalf("user-scope memory was not recalled: found=%t message=%q", ok, message.Text())
 	}
 }
+
+func TestRecalledMemoriesKeepWholeItemsWithinContextBudget(t *testing.T) {
+	search := &fakeAgentMemorySearcher{items: []agentmemory.Item{
+		{ID: "highest-ranked", Content: strings.Repeat("甲", 3000)},
+		{ID: "outside-budget", Content: strings.Repeat("乙", 3000)},
+	}}
+	composer := NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: search})
+
+	message, ok, err := composer.recallMessage(context.Background(), "/repo", "relevant facts")
+	if err != nil || !ok {
+		t.Fatalf("recallMessage found=%t error=%v", ok, err)
+	}
+	if !strings.Contains(message.Text(), "甲") || strings.Contains(message.Text(), "乙") {
+		t.Fatalf("budgeted recall did not preserve the highest-ranked whole item")
+	}
+}

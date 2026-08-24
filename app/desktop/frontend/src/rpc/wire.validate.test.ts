@@ -227,6 +227,37 @@ describe("the generated wire checks", () => {
         detail: "expected at most 1024 character(s)",
       },
     ]);
+
+    const boundaryMemory = "😀".repeat(4096);
+    expect(
+      validateWire("AgentMemoryAddRequest", { scope: "user", content: boundaryMemory }),
+    ).toEqual([]);
+    expect(
+      validateWire("AgentMemoryUpdateRequest", {
+        id: "mem_01",
+        content: `${boundaryMemory}😀`,
+      }),
+    ).toEqual([
+      {
+        path: "AgentMemoryUpdateRequest.content",
+        detail: "expected at most 4096 character(s)",
+      },
+    ]);
+    expect(
+      validateMethodResult("agentMemory.add", {
+        id: "mem_01",
+        scope: "user",
+        content: `${boundaryMemory}😀`,
+        origin: "user",
+        status: "active",
+        pinned: false,
+        createdAt: "2026-08-24T00:00:00Z",
+        updatedAt: "2026-08-24T00:00:00Z",
+      }),
+    ).toContainEqual({
+      path: "agentMemory.add.result.content",
+      detail: "expected at most 4096 character(s)",
+    });
   });
 
   // The constraint belongs to this request, not to every carrier of the shared

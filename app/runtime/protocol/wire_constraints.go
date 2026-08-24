@@ -331,6 +331,13 @@ func maxLength(field, value string, maximum int) FieldError {
 	return FieldError{}
 }
 
+func optionalMaxLength(field string, value *string, maximum int) FieldError {
+	if value == nil {
+		return FieldError{}
+	}
+	return maxLength(field, *value, maximum)
+}
+
 // nonEmptyProperties rejects an empty object map. nil remains a valid omission;
 // a present empty map is rejected by the same length check after decoding.
 func nonEmptyProperties[Value any](field string, values map[string]Value) FieldError {

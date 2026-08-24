@@ -131,6 +131,22 @@ func TestAgentMemoryContentWireConstraintUsesUnicodeCharacters(t *testing.T) {
 		"AgentMemoryUpdateRequest",
 		"content",
 	)
+	blank := ""
+	assertConstraintField(
+		t,
+		(AgentMemoryUpdateRequest{ID: "mem_1", Content: &blank}).ValidateWire(),
+		"AgentMemoryUpdateRequest",
+		"content",
+	)
+	assertConstraintField(
+		t,
+		(AgentMemoryItem{
+			ID: "mem_1", Scope: AgentMemoryScopeUser, Content: content,
+			Origin: AgentMemoryOriginUser, Status: AgentMemoryStatusActive,
+		}).ValidateWire(),
+		"AgentMemoryItem",
+		"content",
+	)
 }
 
 func TestOutputCollectionWireConstraints(t *testing.T) {

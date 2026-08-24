@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P155 已完成；下一阶段待独立准入。
+> 状态：P0–P156 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P155 已完成。
+> 最近基线：2026-08-24，P156 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P156 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`，`app/cli` 未修改、未暂存。失败优先反例证明 Domain/wire 会接受 4097 个 Unicode 字符的 memory，且 pinned prompt 的首项即使超过 4096-token budget 仍被完整注入；per-turn recall 只有 top-k，也没有 aggregate token bound。
+- 唯一根修复是 Agent Memory Domain 的 4096 Unicode-character canonical content invariant。item/ledger fact 构造、编辑、embedding identity、strict SQLite read/fresh schema、generated Go/JSON Schema/TypeScript request/output validation 一次性投影该值；SQLite 直接提升 epoch 82。Agent adapter 对 pinned 与 per-turn recall 分别执行 whole-item 4096-token budget，首项不再例外。
+- 对 app2 的裁决：采纳“durable memory 必须有领域内容上限”和“整条 item 服从 aggregate prompt budget”；按 app/runtime 已有 JSON Schema Unicode 语义与 token estimator 将 app2 的 byte bound 适配为 4096 code points。拒绝 consumer 截断、三套长度常量、memory 专用 tool-result 分页、旧 epoch reader或 CLI 兼容层；Desktop 只消费生成合同。
+- P156 的 Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、Runtime generator/go mod 零漂移、Frontend 313 files / 1950 tests 与全部静态/bundle 门禁、Wails v3 production build 全绿。Staticcheck 临时目录已回收，未启动 agent-browser。
 - P155 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例证明 active user-scope memory 若未 pinned，虽然在 SQLite 与 Desktop 管理面可见，per-turn recall 和 `search_memory` 却都固定查询 project scope，因此没有任何 Agent consumer；工具 definition 声称可找 user preferences，但生产 corpus 与承诺不一致。
 - 唯一修复 owner 是 Agent Memory Search + SQLite search corpus。Searcher 删除 caller-selected scope，只接受 current project identity/query/top-k；SQLite 在一个 query snapshot 中返回 exact-project 与 user-scope active items，统一生成一次 query embedding、执行一次 keyword/vector fusion 与一个全局 top-k。prompt recall 与工具不分别搜索或拼接两个 scope，pinned item 继续由 always-on prompt 注入并在 per-turn block 过滤。
 - 对 app2 的裁决：采纳 consumer-owned capability、exact context 与一次性 materialization；拒绝在 Agent Framework adapter 内建立双查询、双 top-k、重复 embedding、客户端 merge 或第二 memory projection。Protocol、Artifact、SQLite epoch 81、公共 Go API、Desktop 与 CLI 均不改变。
@@ -360,10 +364,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P153     | 删除独立 Codebase 向量索引纵切                                                                           | Runtime/Desktop/CLI direct consumer、SQLite/Protocol/生成合同一次性收口；Embedding 只归属 Agent Memory，代码发现回到 grep/glob/read/shell/LSP                              |
 | P154     | Agent Memory embedding cache 身份与提交权闭环                                                            | Search 只比较 exact space/同维 vector 并惰性修复；SQLite 以 content digest 条件缓存，Curation 不再拥有后台 backfill                                                        |
 | P155     | Agent Memory project/user recall corpus 可达性闭环                                                      | SQLite 一次读取 exact-project + user active items；Searcher 统一 query signal/ranking/top-k，未 pinned user memory 不再成为无 Agent consumer 的孤岛                     |
+| P156     | Agent Memory durable content 与 prompt budget 闭环                                                     | Domain/SQLite/generated contract 统一 4096 Unicode-character item/fact 上限；pinned/recall 首项也服从 whole-item 4096-token budget                     |
 
 ## 5. 当前里程碑结论
 
-P113–P155 共同建立了以下不可回退的心智模型：
+P113–P156 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -399,7 +404,7 @@ P113–P155 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1950 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、1.27-compatible `staticcheck ./...`、full `go test -race ./...` 与 `GOWORK=off go test ./...` 通过；根 workspace 对两个 app module 的全量 test、Runtime generator 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 81、Protocol `2026-08-24`；Wails v3 动态绑定保持。CLI 仅同步删除 Codebase direct consumer，受影响包门禁通过；其余 `runtimeembedded` 合同漂移不属于本批。
+最近一次完整验收基线：Frontend 313 files / 1950 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、1.27-compatible `staticcheck ./...`、Runtime full `go test -race ./...` 与 `GOWORK=off go test ./...` 通过；根 workspace 对两个 app module 的全量 test、Runtime generator/go mod 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；临时检查器已回收，未启动 agent-browser。
 
 ## 6. 新阶段准入
 
@@ -412,4 +417,4 @@ P113–P155 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P155 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P156 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

@@ -15,6 +15,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
@@ -61,7 +63,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 81
+const schemaEpoch = 82
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -596,16 +598,16 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// (YYYY-MM-DD); seq is both stable ordering and the curation watermark.
 		// A content digest deduplicates facts independently, so mixed old/new
 		// extraction batches never lose their new members.
-		`CREATE TABLE IF NOT EXISTS agent_memory_ledger (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS agent_memory_ledger (
 			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
 			project     TEXT    NOT NULL,
 			day         TEXT    NOT NULL,
 			session_id  TEXT    NOT NULL,
-			fact        TEXT    NOT NULL,
+			fact        TEXT    NOT NULL CHECK (length(fact) BETWEEN 1 AND %d),
 			digest      TEXT    NOT NULL,
 			captured_at INTEGER NOT NULL,
 			UNIQUE(project, digest)
-		)`,
+		)`, agentmemory.MaxContentCharacters),
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_ledger_project
 			ON agent_memory_ledger(project, seq)`,
 		// Curated memory items: the addressable projection folded from the ledger.
@@ -614,11 +616,11 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// dedups a fact across auto/user/pinned rows. origin 'auto' | 'user',
 		// scope 'project' | 'user'. Pinned items are always injected and never
 		// auto-pruned. session_id/day carry provenance.
-		`CREATE TABLE IF NOT EXISTS agent_memory_items (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS agent_memory_items (
 			id         TEXT    PRIMARY KEY,
 			scope      TEXT    NOT NULL CHECK (scope IN ('project', 'user')),
 			project    TEXT    NOT NULL DEFAULT '',
-			content    TEXT    NOT NULL,
+			content    TEXT    NOT NULL CHECK (length(content) BETWEEN 1 AND %d),
 			digest     TEXT    NOT NULL,
 			origin     TEXT    NOT NULL CHECK (origin IN ('auto', 'user')),
 			-- HITL review lifecycle: 'active' (approved/injected/searched),
@@ -638,9 +640,9 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			CHECK ((scope = 'project' AND project <> '') OR (scope = 'user' AND project = '')),
 			CHECK (origin <> 'user' OR status = 'active'),
 			CHECK ((embedding_space = '' AND length(embedding) = 0) OR
-			       (embedding_space <> '' AND length(embedding) > 0 AND length(embedding) % 4 = 0)),
+			       (embedding_space <> '' AND length(embedding) > 0 AND length(embedding) %% 4 = 0)),
 			UNIQUE(scope, project, digest)
-		)`,
+		)`, agentmemory.MaxContentCharacters),
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_items_scope
 			ON agent_memory_items(scope, project)`,
 		// Per-project curation watermark (the highest ledger seq already folded

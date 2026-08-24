@@ -573,8 +573,13 @@ TypeScript validator from this single registry projection.
 | `UpdateKnowledgeRequest` | `expectedRevision` | `nonEmpty` |
 | `AgentMemoryItemRequest` | `id` | `nonEmpty` |
 | `AgentMemoryReviewRequest` | `id` | `nonEmpty` |
+| `AgentMemoryItem` | `content` | `nonEmpty` |
+| `AgentMemoryItem` | `content` | `maxLength(4096)` |
 | `AgentMemoryUpdateRequest` | `id` | `nonEmpty` |
+| `AgentMemoryUpdateRequest` | `content` | `nonEmpty` |
+| `AgentMemoryUpdateRequest` | `content` | `maxLength(4096)` |
 | `AgentMemoryAddRequest` | `content` | `nonEmpty` |
+| `AgentMemoryAddRequest` | `content` | `maxLength(4096)` |
 | `CreateScheduleRequest` | `instructions` | `nonEmpty` |
 | `CreateScheduleRequest` | `cron` | `nonEmpty` |
 | `UpdateScheduleRequest` | `id` | `nonEmpty` |

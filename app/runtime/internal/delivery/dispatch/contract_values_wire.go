@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -354,8 +355,28 @@ func registerKnowledgeValues(s *Shapes) {
 func registerAgentMemoryValues(s *Shapes) {
 	nonEmpty[protocol.AgentMemoryItemRequest](s, "id")
 	nonEmpty[protocol.AgentMemoryReviewRequest](s, "id")
-	nonEmpty[protocol.AgentMemoryUpdateRequest](s, "id")
-	nonEmpty[protocol.AgentMemoryAddRequest](s, "content")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.AgentMemoryItem](),
+		Constraints: []FieldConstraint{
+			{Field: "content", Kind: ConstraintNonEmpty},
+			{Field: "content", Kind: ConstraintMaxLength, Limit: agentmemory.MaxContentCharacters},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.AgentMemoryUpdateRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "id", Kind: ConstraintNonEmpty},
+			{Field: "content", Kind: ConstraintNonEmpty},
+			{Field: "content", Kind: ConstraintMaxLength, Limit: agentmemory.MaxContentCharacters},
+		},
+	})
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.AgentMemoryAddRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "content", Kind: ConstraintNonEmpty},
+			{Field: "content", Kind: ConstraintMaxLength, Limit: agentmemory.MaxContentCharacters},
+		},
+	})
 }
 
 func registerScheduleValues(s *Shapes) {

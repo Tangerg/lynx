@@ -50,7 +50,8 @@
       "properties": {
         "content": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 4096
         },
         "scope": {
           "$ref": "#/$defs/AgentMemoryScope"
@@ -104,7 +105,9 @@
       "type": "object",
       "properties": {
         "content": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
         },
         "createdAt": {
           "type": "string",
@@ -271,7 +274,9 @@
       "type": "object",
       "properties": {
         "content": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
         },
         "id": {
           "type": "string",

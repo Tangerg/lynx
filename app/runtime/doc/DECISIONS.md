@@ -522,3 +522,11 @@
 - 背景：Agent Memory 管理面允许创建 active user-scope item，系统 prompt 也只会始终注入 pinned 的 project/user items；但 per-turn recall 和 `search_memory` 都把 Searcher 固定调用为 project scope。结果是未 pinned 的用户偏好在 SQLite 与 Desktop 中可见，却没有任何 Agent 消费路径；工具 definition 仍声称会搜索 user preferences，形成公开行为与真实 corpus 的冲突。
 - 决策：Searcher 的用例语义收敛为“当前项目上下文可见的联合 corpus”，删除调用方可选 scope 参数。SQLite 用一次 query 读取 exact project 的 active items 与全局 user-scope active items；Searcher 对该快照只生成一次 query embedding、执行一次 keyword/vector fusion 与一个全局 top-k，并在同一缓存 owner 下刷新两类 item。prompt recall 与 `search_memory` 只提交 project identity/query/limit，不分别查询或合并 scope。
 - 后果：未 pinned 的 user memory 与 project memory 现在公平竞争同一 recall budget，相关用户偏好能进入 per-turn system reminder 和显式工具结果；pinned items 仍由 always-on prompt owner 注入并在 per-turn block 中过滤。显式管理 API 的 scope、SQLite table/epoch、embedding cache 条件写、Desktop UI 与 keyword fallback 均不改变；没有第二 query、双 top-k、客户端 merge 或兼容 facade。
+
+## ADR-RT-075：Agent Memory 内容边界由 Domain 与 whole-item prompt budget 共同闭合
+
+- 状态：已接受并实施，P156 完成；Protocol 当前 shape、生成消费者与 SQLite 直接 breaking 前移，Artifact 和 CLI 不变。
+- 背景：Agent Memory 的 user add、curation proposal、编辑和 strict read 只校验非空，单条内容没有上限。`newPinnedMemoryPrompt` 又只在已经写入首项后检查 4096-token budget，因此任意大的首条 pinned item 会完整进入 system prompt；未 pinned item 也可经 per-turn recall 整条注入。管理面、SQLite 与 wire 接受的 durable value 因而能让模型请求超出上下文，而在三个消费者分别截断会制造不同内容身份和第二套规则。
+- 决策：Domain 以 `MaxContentCharacters = 4096` 唯一规定 item 与 ledger fact 的 canonical valid-UTF-8 内容上限，单位是 JSON Schema/Go/TypeScript 都能精确表达的 Unicode code point。构造、fact normalization、内容编辑、embedding identity、SQLite strict read 与 fresh schema 均投影该不变量；SQLite 直接提升 epoch 82。Contract registry 对 `agentMemory.add`、可选 update content 与 `AgentMemoryItem` 输出生成相同 `maxLength(4096)`，Desktop 的生成 request/result validator 消费它，不另写 UTF-16/字节长度常量。
+- 决策：Agent adapter 对 pinned core 和 per-turn recall 分别执行保留整条 item 的 4096-token aggregate budget；首项也必须检查，超预算即停止较低优先级 material。Domain 上限按现有保守估算保证任一合法单项自身可装入该预算；显式 `search_memory` 仍经过统一 Tool-result offload 生命周期，不建立 memory 专用截断/分页协议。
+- 后果：任意单条持久 memory 不再能放大为无界 prompt/request/result，corrupt 或绕过构造的首项也不能穿透 adapter budget。旧 epoch 81 database 与同日旧 generated shape 不读取；没有 silent truncation、dual validator、consumer-owned content cap、compat shim 或 CLI 改动。

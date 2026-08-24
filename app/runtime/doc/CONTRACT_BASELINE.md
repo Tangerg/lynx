@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `e5b3af0ddd19cda3f57bf89becef0c3440f3869594b93cbb7e34337edda1f261` |
-| `contract/openrpc.json` | `5493bb12d720e1bce61c6389704a44409b882619ac33081fae83fdf2077fb763` |
-| `contract/schema.json` | `e29df3eb47ed270d0133f956b4b6d899125b75fb7e7a2e5967e449f3a90d0b65` |
-| `contract/go-api.json` | `4dec32921006d70efe528ab3b9732c3b332b4abfee404a904939307356c682a2` |
+| `contract/manifest.json` | `f2264bd241ea2bdd19f72061f290e21ce41319b1b8ff4b4a1c033beb55af1441` |
+| `contract/openrpc.json` | `94af81a7fcb8cdc3c3ce8d16624110fb71df44e070a75c830b33e3ffd7f0105d` |
+| `contract/schema.json` | `c7e4004c928d2bf73d606e1b67ba87b5a407ac296c8d279726a0337c974fe428` |
+| `contract/go-api.json` | `0ef8f46e656a4b24f2f51093a1b10f457af3dfb31c018a43393dc7edb6f25bf2` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -57,6 +57,8 @@ P153 直接删除 Codebase semantic-index contract：公共 Go surface、三项 
 P154 不改变 Protocol、公共 Go API 或 Artifact shape。Agent Memory embedding role 仍是同一可选 provider/model pair；服务端内部 search cache 现在把 vector 与 exact embedding space、content digest 一起绑定，role/cache 变化不新增 operation、event、feature 或 consumer handoff。
 
 P155 不改变 Protocol、公共 Go API、Artifact 或 SQLite shape。内部 Agent Memory recall 不再接受任意单 scope，而是对当前项目的 active project items 与全局 active user items 做一次联合 ranking/top-k；`agentMemory.list/add/update/review/delete` 的显式 scope 合同与 Desktop 管理面不变。
+
+P156 将 Agent Memory 的 `add.content`、可选 `update.content` 与 `AgentMemoryItem.content` 精确约束为最多 4096 个 Unicode code point；Go validator、JSON Schema/OpenRPC、TypeScript validator 与 Desktop request/result boundary 均由同一 Contract Registry 生成。Protocol 精确值仍为当前开发日期 `2026-08-24`，不接受同日旧 shape；Artifact v23 不变。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
@@ -90,10 +92,11 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 81`；
+- 当前 `schemaEpoch = 82`；
 - `sessions.workspace_path` 是非空列；strict codec 先重建 Domain `Workspace`，相对、非 lexical-clean 或空路径均拒绝，旧 `sessions.cwd` 不读取；
 - `sessions.provider` / `sessions.model` 是非空列；strict codec 只恢复 configured exact pair，Runtime 默认只在 Session admission 时安装，不在 reader/Run 层补写；
 - `agent_memory_items.embedding_space` 与 `embedding` 是成对为空或成对有效的 search-derived cache；strict reader 拒绝空/半对、非 4-byte vector encoding 与非有限值。cache write 只在 exact item 仍 active 且 content digest 未变时提交；内容编辑同时清空 space/vector。epoch 80 的无空间裸 BLOB 不读取、不迁移；
+- `agent_memory_items.content` 与 `agent_memory_ledger.fact` 各自最多 4096 个 Unicode code point；Domain constructor/normalizer、strict reader 与 fresh-schema CHECK 共用同一 owner constant。epoch 81 的无界 shape 不读取、不迁移；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
 - SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；
 - 其他 SQLite connection 的 commit 只触发全量 read-model resync，细粒度本地 invalidation 仍由提交用例发布；该同步机制不拥有 SQLite epoch、Artifact、checkpoint 或 protocol wire shape；

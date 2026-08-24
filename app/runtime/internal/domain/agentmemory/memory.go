@@ -19,7 +19,34 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+// MaxContentCharacters is the one durable-item and ledger-fact content bound.
+// It is expressed in Unicode code points because memory is durable text, not a
+// byte payload. The model prompt's conservative token estimator charges every
+// non-ASCII code point as one token, so one valid item can never exceed its
+// 4096-token whole-item prompt budget.
+const MaxContentCharacters = 4096
+
+// NormalizeContent returns the canonical representation accepted at every
+// Agent Memory write boundary.
+func NormalizeContent(content string) (string, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "", errors.New("agentmemory: item content is required")
+	}
+	if !utf8.ValidString(content) {
+		return "", errors.New("agentmemory: item content must be valid UTF-8")
+	}
+	if utf8.RuneCountInString(content) > MaxContentCharacters {
+		return "", fmt.Errorf(
+			"agentmemory: item content exceeds %d Unicode characters",
+			MaxContentCharacters,
+		)
+	}
+	return content, nil
+}
 
 // Digest is a memory item's content identity: the same fact always hashes the
 // same, so the fold deduplicates across statuses and a reconcile keeps an
@@ -205,8 +232,12 @@ func NewEmbeddingUpdate(item Item, space string, vector []float32) (EmbeddingUpd
 	if strings.TrimSpace(item.ID) == "" {
 		return EmbeddingUpdate{}, errors.New("agentmemory: embedding item id is required")
 	}
-	if strings.TrimSpace(item.Content) == "" {
-		return EmbeddingUpdate{}, errors.New("agentmemory: embedding item content is required")
+	content, err := NormalizeContent(item.Content)
+	if err != nil {
+		return EmbeddingUpdate{}, fmt.Errorf("agentmemory: embedding item content: %w", err)
+	}
+	if content != item.Content {
+		return EmbeddingUpdate{}, errors.New("agentmemory: embedding item content is not canonical")
 	}
 	if err := validateEmbedding(space, vector); err != nil {
 		return EmbeddingUpdate{}, err
@@ -264,12 +295,16 @@ func NewUserItem(id string, scope Scope, project, content string, now time.Time)
 }
 
 func newItem(id string, scope Scope, project, content string, origin Origin, status Status, now time.Time) (Item, error) {
+	content, err := NormalizeContent(content)
+	if err != nil {
+		return Item{}, err
+	}
 	now = now.UTC()
 	item := Item{
 		ID:        id,
 		Scope:     scope,
 		Project:   project,
-		Content:   strings.TrimSpace(content),
+		Content:   content,
 		Origin:    origin,
 		Status:    status,
 		Day:       now.Format(time.DateOnly),
@@ -301,8 +336,12 @@ func (item Item) Validate() error {
 			return errors.New("agentmemory: user scope forbids a project")
 		}
 	}
-	if strings.TrimSpace(item.Content) == "" {
-		return errors.New("agentmemory: item content is required")
+	content, err := NormalizeContent(item.Content)
+	if err != nil {
+		return err
+	}
+	if content != item.Content {
+		return errors.New("agentmemory: item content is not canonical")
 	}
 	if err := item.Origin.Validate(); err != nil {
 		return err
@@ -356,7 +395,10 @@ func (b FactBatch) Normalize() (FactBatch, error) {
 	if b.CapturedAt.IsZero() {
 		return FactBatch{}, errors.New("agentmemory: fact batch capture time is required")
 	}
-	b.Facts = normalizeFactList(b.Facts)
+	b.Facts, err = normalizeFactList(b.Facts)
+	if err != nil {
+		return FactBatch{}, err
+	}
 	return b, nil
 }
 
@@ -369,6 +411,29 @@ type LedgerFact struct {
 	CapturedAt time.Time
 }
 
+// Validate protects one ledger fact read back from durable storage before it
+// can enter the curation prompt.
+func (fact LedgerFact) Validate() error {
+	if fact.Sequence <= 0 {
+		return errors.New("agentmemory: ledger fact sequence must be positive")
+	}
+	day, err := time.Parse(time.DateOnly, fact.Day)
+	if err != nil || day.Format(time.DateOnly) != fact.Day {
+		return fmt.Errorf("agentmemory: invalid ledger day %q", fact.Day)
+	}
+	content, err := NormalizeContent(fact.Content)
+	if err != nil {
+		return fmt.Errorf("agentmemory: ledger fact content: %w", err)
+	}
+	if content != fact.Content {
+		return errors.New("agentmemory: ledger fact content is not canonical")
+	}
+	if fact.CapturedAt.IsZero() {
+		return errors.New("agentmemory: ledger fact capture time is required")
+	}
+	return nil
+}
+
 // State is the curation watermark for a project: the highest ledger sequence
 // already folded into the item set.
 type State struct {
@@ -376,13 +441,17 @@ type State struct {
 	UpdatedAt time.Time
 }
 
-func normalizeFactList(input []string) []string {
+func normalizeFactList(input []string) ([]string, error) {
 	var normalized []string
 	seen := make(map[string]struct{})
 	for _, fact := range input {
-		fact = strings.TrimSpace(fact)
-		if fact == "" {
+		if strings.TrimSpace(fact) == "" {
 			continue
+		}
+		var err error
+		fact, err = NormalizeContent(fact)
+		if err != nil {
+			return nil, fmt.Errorf("agentmemory: invalid ledger fact: %w", err)
 		}
 		if _, duplicate := seen[fact]; duplicate {
 			continue
@@ -390,5 +459,5 @@ func normalizeFactList(input []string) []string {
 		seen[fact] = struct{}{}
 		normalized = append(normalized, fact)
 	}
-	return normalized
+	return normalized, nil
 }
