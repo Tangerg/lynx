@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 type concurrencyKeyer interface {
@@ -82,4 +85,66 @@ func TestSourceToolsEnablesOnlyAnnotatedReadOnlyConcurrency(t *testing.T) {
 	if !got["catalog_lookup"] || got["catalog_mutate"] {
 		t.Fatalf("source tool concurrency = %v, want lookup=true mutate=false", got)
 	}
+}
+
+func TestRemoteToolCatalogRejectsUnboundedMaterial(t *testing.T) {
+	t.Run("model-facing description", func(t *testing.T) {
+		session := toolCatalogSession(t, &sdkmcp.Tool{
+			Name:        "oversized-description",
+			Description: strings.Repeat("x", (64<<10)+1),
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		})
+		if _, err := sourceTools(t.Context(), lynxmcp.ToolSource{Name: "catalog", Session: session}); err == nil {
+			t.Fatal("sourceTools accepted a description larger than 64 KiB")
+		}
+	})
+
+	t.Run("management schema", func(t *testing.T) {
+		session := toolCatalogSession(t, &sdkmcp.Tool{
+			Name: "oversized-schema",
+			InputSchema: json.RawMessage(`{"type":"object","description":"` +
+				strings.Repeat("x", (1<<20)+1) + `"}`),
+		})
+		connections := &Connections{servers: []*server{{
+			config:  ServerConfig{Name: "catalog"},
+			session: session,
+		}}}
+		if _, err := connections.Tools(t.Context(), "catalog"); err == nil {
+			t.Fatal("Connections.Tools accepted a schema larger than 1 MiB")
+		}
+	})
+
+	t.Run("tool count", func(t *testing.T) {
+		candidate := make([]toolcontract.Tool, 2_049)
+		for index := range candidate {
+			candidate[index] = catalogTool(fmt.Sprintf("catalog_tool_%04d", index))
+		}
+		if err := validateToolCatalog(nil, nil, "catalog", candidate); err == nil {
+			t.Fatal("validateToolCatalog accepted more than 2,048 remote tools")
+		}
+	})
+}
+
+func toolCatalogSession(t *testing.T, descriptors ...*sdkmcp.Tool) *sdkmcp.ClientSession {
+	t.Helper()
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v0.1.0"}, nil)
+	for _, descriptor := range descriptors {
+		server.AddTool(descriptor, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			return &sdkmcp.CallToolResult{}, nil
+		})
+	}
+	serverSession, err := server.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("connect server: %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "v0.1.0"}, nil)
+	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("connect client: %v", err)
+	}
+	t.Cleanup(func() { _ = clientSession.Close() })
+	return clientSession
 }
