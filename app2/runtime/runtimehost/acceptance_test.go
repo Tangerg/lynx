@@ -847,6 +847,7 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 					protocol.FeatureSkills:      {Enabled: true},
 					protocol.FeatureKnowledge:   {Enabled: true},
 					protocol.FeatureAgentMemory: {Enabled: true},
+					protocol.FeatureCodebase:    {Enabled: true},
 				},
 				InterruptTypes: []protocol.InterruptType{
 					protocol.InterruptApproval, protocol.InterruptQuestion,
@@ -1174,6 +1175,28 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 		case "/models":
 			response.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(response, `{"object":"list","data":[{"id":"test-model","object":"model"}]}`)
+		case "/embeddings":
+			var body struct {
+				Input []string `json:"input"`
+				Model string   `json:"model"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil || len(body.Input) == 0 {
+				t.Errorf("decode embedding request error = %v, body = %+v", err, body)
+				http.Error(response, "bad request", http.StatusBadRequest)
+				return
+			}
+			data := make([]any, len(body.Input))
+			for index := range body.Input {
+				data[index] = map[string]any{
+					"object": "embedding", "index": index,
+					"embedding": []float64{1, 0.5, 0.25},
+				}
+			}
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]any{
+				"object": "list", "data": data, "model": body.Model,
+				"usage": map[string]any{"prompt_tokens": len(body.Input), "total_tokens": len(body.Input)},
+			})
 		case "/chat/completions":
 			model.calls.Add(1)
 			var body struct {
