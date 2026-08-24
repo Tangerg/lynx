@@ -32,7 +32,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary {
+function session(
+  patch: Omit<Partial<AgentSessionSummary>, "workspace"> & { cwd?: string } = {},
+): AgentSessionSummary {
+  const { cwd = "/repo", ...summary } = patch;
   return {
     id: "ses_1",
     revision: 1,
@@ -40,9 +43,9 @@ function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary 
     status: "idle",
     provider: "provider",
     model: "model",
-    cwd: "/repo",
+    workspace: { path: cwd, availability: "available" },
     time: "2026-08-11T00:00:00Z",
-    ...patch,
+    ...summary,
   };
 }
 

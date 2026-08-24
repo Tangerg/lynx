@@ -32,7 +32,7 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	invalidations := &invalidationRecorder{}
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Invalidations:     invalidations.publish,
 	}))
 
@@ -59,7 +59,7 @@ func TestFailedDeleteSessionPublishesNothing(t *testing.T) {
 	invalidations := &invalidationRecorder{}
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Invalidations:     invalidations.publish,
 	}))
 

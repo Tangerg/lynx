@@ -31,7 +31,15 @@ describe("active session workspace resolution", () => {
 
   it("uses the matching session-list projection", async () => {
     activeSessionId.mockReturnValue("ses_cached");
-    queryClient.setQueryData([AGENT_SESSIONS_KEY], [{ id: "ses_cached", cwd: "/cached/repo" }]);
+    queryClient.setQueryData(
+      [AGENT_SESSIONS_KEY],
+      [
+        {
+          id: "ses_cached",
+          workspace: { path: "/cached/repo", availability: "available" },
+        },
+      ],
+    );
 
     await expect(
       resolveActiveSessionWorkspaceCwd({ activeSessionId }, new AbortController().signal),

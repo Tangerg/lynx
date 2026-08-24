@@ -58,7 +58,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	}
 	workspace := t.TempDir()
 	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
-		ID: "session_1", Title: "delegate", CWD: workspace,
+		ID: "session_1", Title: "delegate", Workspace: sessionfixture.MustWorkspace(workspace),
 	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
@@ -182,7 +182,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	}
 	workspace := t.TempDir()
 	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
-		ID: "session_1", Title: "running cancellation", CWD: workspace,
+		ID: "session_1", Title: "running cancellation", Workspace: sessionfixture.MustWorkspace(workspace),
 	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
@@ -457,7 +457,7 @@ func runDelegateTree(
 	}
 	workspace := t.TempDir()
 	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
-		ID: "session_tree", Title: "delegate tree", CWD: workspace,
+		ID: "session_tree", Title: "delegate tree", Workspace: sessionfixture.MustWorkspace(workspace),
 	})}
 	projection := newDelegateProjection()
 	var identityMu sync.Mutex

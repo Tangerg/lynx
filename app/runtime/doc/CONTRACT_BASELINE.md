@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
@@ -84,7 +84,8 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 78`；
+- 当前 `schemaEpoch = 79`；
+- `sessions.workspace_path` 是非空列；strict codec 先重建 Domain `Workspace`，相对、非 lexical-clean 或空路径均拒绝，旧 `sessions.cwd` 不读取；
 - `sessions.provider` / `sessions.model` 是非空列；strict codec 只恢复 configured exact pair，Runtime 默认只在 Session admission 时安装，不在 reader/Run 层补写；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；
 - SQLite 事务与既有 uniqueness/CAS 继续拥有 durable winner。活跃 Session writer、physical working-tree shared/exclusive operation、Goal drive 与 ordered recovery sweep 使用 OS advisory lease；进程死亡由内核释放。单一 recovery winner 固定 Run-before-Goal 并只清理成功接管的 Session，不使用 TTL、heartbeat、全局 checkpoint/callback sweep 或兼容双路径；

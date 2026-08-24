@@ -113,7 +113,7 @@ export function createSession(): Promise<string | null> {
   const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId) return Promise.resolve(null);
   const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
-  const cwd = sessions?.find((session) => session.id === sessionId)?.cwd;
+  const cwd = sessions?.find((session) => session.id === sessionId)?.workspace.path;
   if (!cwd || cwd.trim() === "") return Promise.resolve(null);
   return doCreate({ cwd, reuseFreshDraft: true });
 }

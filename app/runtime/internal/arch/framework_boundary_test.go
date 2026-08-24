@@ -875,7 +875,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"DeleteCheckpoints(ctx, commit.SessionID",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
-			"ExecutorCheckpointExpectation", "GoalIncarnationID", "sess.CWD", "sess.Isolated",
+			"ExecutorCheckpointExpectation", "GoalIncarnationID", "sess.Workspace", "sess.Isolated",
 		},
 		filepath.Join("internal", "adapter", "agentexec", "interaction_recovery_probe.go"): {
 			"continuation.Validate()", "checkpoint.BuildID", "checkpoint.Scope.GoalIncarnationID", "continuation.Capabilities",

@@ -18,8 +18,10 @@ export function toAgentSessionSummary(session: Session): AgentSessionSummary {
     status: session.status,
     provider: session.provider,
     model: session.model,
-    cwd: session.workspace.ref.path,
-    ...(session.workspace.availability === "missing" ? { cwdMissing: true } : {}),
+    workspace: {
+      path: session.workspace.ref.path,
+      availability: session.workspace.availability,
+    },
     ...(session.favorite !== undefined ? { favorite: session.favorite } : {}),
     time: session.updatedAt || session.createdAt,
   };

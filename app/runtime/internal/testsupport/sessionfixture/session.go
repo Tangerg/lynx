@@ -12,8 +12,8 @@ import (
 // MustRestore fills irrelevant lifecycle defaults, restores snapshot, and
 // panics when the requested fixture is invalid.
 func MustRestore(snapshot session.Snapshot) session.Session {
-	if snapshot.CWD == "" {
-		snapshot.CWD = "/fixture"
+	if snapshot.Workspace.Path() == "" {
+		snapshot.Workspace = MustWorkspace("/fixture")
 	}
 	if snapshot.StartedAt.IsZero() {
 		snapshot.StartedAt = time.Unix(1, 0).UTC()
@@ -32,6 +32,15 @@ func MustRestore(snapshot session.Snapshot) session.Session {
 		panic(err)
 	}
 	return value
+}
+
+// MustWorkspace constructs a valid exact workspace value for test fixtures.
+func MustWorkspace(path string) session.Workspace {
+	workspace, err := session.NewWorkspace(path)
+	if err != nil {
+		panic(err)
+	}
+	return workspace
 }
 
 func fixtureSelection() modelref.Selection {

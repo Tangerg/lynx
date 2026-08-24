@@ -162,7 +162,7 @@ func validMaterialSnapshot() MaterialSnapshot {
 		Fields: []transcript.QuestionField{{Prompt: "Continue?"}},
 	}
 	return MaterialSnapshot{
-		Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/workspace"}),
+		Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/workspace")}),
 		Runs: []run.Run{runfixture.MustRestore(run.Snapshot{
 			ID: "run_root", SessionID: "ses_1", State: run.Waiting,
 			ModelSelection: selection, Capabilities: capabilities,

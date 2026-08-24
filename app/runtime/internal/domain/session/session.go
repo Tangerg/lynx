@@ -35,7 +35,7 @@ var (
 type Draft struct {
 	ID        string
 	Title     string
-	CWD       string
+	Workspace Workspace
 	Selection modelref.Selection
 	StartedAt time.Time
 }
@@ -47,7 +47,7 @@ type Draft struct {
 type Patch struct {
 	Title            *string
 	Selection        *modelref.Selection
-	CWD              *string
+	Workspace        *Workspace
 	Favorite         *bool
 	Isolated         *bool
 	ExpectedRevision uint64
@@ -55,7 +55,7 @@ type Patch struct {
 
 // Empty reports whether p requests no field change.
 func (p Patch) Empty() bool {
-	return p.Title == nil && p.Selection == nil && p.CWD == nil && p.Favorite == nil && p.Isolated == nil
+	return p.Title == nil && p.Selection == nil && p.Workspace == nil && p.Favorite == nil && p.Isolated == nil
 }
 
 // Snapshot is the complete technical representation used only to reconstruct
@@ -63,7 +63,7 @@ func (p Patch) Empty() bool {
 type Snapshot struct {
 	ID        string
 	Title     string
-	CWD       string
+	Workspace Workspace
 	Selection modelref.Selection
 	ParentID  string
 	StartedAt time.Time
@@ -79,7 +79,7 @@ type Snapshot struct {
 type Session struct {
 	id        string
 	title     string
-	cwd       string
+	workspace Workspace
 	selection modelref.Selection
 	parentID  string
 	startedAt time.Time
@@ -96,7 +96,7 @@ func New(draft Draft) (Session, error) {
 	startedAt := canonicalTime(draft.StartedAt)
 	snapshot := Snapshot{
 		ID: draft.ID, Title: strings.TrimSpace(draft.Title),
-		CWD: draft.CWD, Selection: draft.Selection,
+		Workspace: draft.Workspace, Selection: draft.Selection,
 		StartedAt: startedAt, UpdatedAt: startedAt, Revision: 1,
 	}
 	return Restore(snapshot)
@@ -106,7 +106,7 @@ func New(draft Draft) (Session, error) {
 // while rechecking every aggregate invariant.
 func Restore(snapshot Snapshot) (Session, error) {
 	value := Session{
-		id: snapshot.ID, title: snapshot.Title, cwd: snapshot.CWD,
+		id: snapshot.ID, title: snapshot.Title, workspace: snapshot.Workspace,
 		selection: snapshot.Selection, parentID: snapshot.ParentID,
 		startedAt: canonicalTime(snapshot.StartedAt),
 		updatedAt: canonicalTime(snapshot.UpdatedAt),
@@ -148,11 +148,11 @@ func (s Session) Apply(patch Patch, updatedAt time.Time) (next Session, changed 
 		}
 		next.selection = *patch.Selection
 	}
-	if patch.CWD != nil {
-		if err := validateRequiredText("cwd", *patch.CWD); err != nil {
+	if patch.Workspace != nil {
+		if err := patch.Workspace.Validate(); err != nil {
 			return Session{}, false, err
 		}
-		next.cwd = *patch.CWD
+		next.workspace = *patch.Workspace
 	}
 	if patch.Favorite != nil {
 		next.favorite = *patch.Favorite
@@ -197,7 +197,7 @@ func (s Session) Fork(id, title string, startedAt time.Time) (Session, error) {
 	}
 	startedAt = canonicalTime(startedAt)
 	return Restore(Snapshot{
-		ID: id, Title: title, CWD: s.cwd, ParentID: s.id,
+		ID: id, Title: title, Workspace: s.workspace, ParentID: s.id,
 		StartedAt: startedAt, UpdatedAt: startedAt,
 		Selection: s.selection, Isolated: s.isolated, Revision: 1,
 	})
@@ -206,14 +206,14 @@ func (s Session) Fork(id, title string, startedAt time.Time) (Session, error) {
 // InstallRestoredWorkspace replaces an archive's workspace spelling with the
 // canonical identity admitted before reconstruction. It is not an
 // edit: revision and timestamps remain the archive's facts.
-func (s Session) InstallRestoredWorkspace(cwd string) (Session, error) {
+func (s Session) InstallRestoredWorkspace(workspace Workspace) (Session, error) {
 	if err := s.Validate(); err != nil {
 		return Session{}, err
 	}
-	if err := validateRequiredText("cwd", cwd); err != nil {
+	if err := workspace.Validate(); err != nil {
 		return Session{}, err
 	}
-	s.cwd = cwd
+	s.workspace = workspace
 	return s, s.Validate()
 }
 
@@ -259,7 +259,7 @@ func (s Session) Validate() error {
 	if err := validateRequiredText("id", s.id); err != nil {
 		return err
 	}
-	if err := validateRequiredText("cwd", s.cwd); err != nil {
+	if err := s.workspace.Validate(); err != nil {
 		return err
 	}
 	if s.title != strings.TrimSpace(s.title) {
@@ -289,7 +289,7 @@ func (s Session) Validate() error {
 // Snapshot returns the complete technical representation of s.
 func (s Session) Snapshot() Snapshot {
 	return Snapshot{
-		ID: s.id, Title: s.title, CWD: s.cwd, Selection: s.selection,
+		ID: s.id, Title: s.title, Workspace: s.workspace, Selection: s.selection,
 		ParentID: s.parentID, StartedAt: s.startedAt, UpdatedAt: s.updatedAt,
 		Favorite: s.favorite, Isolated: s.isolated, Revision: s.revision,
 	}
@@ -301,8 +301,8 @@ func (s Session) ID() string { return s.id }
 // Title returns the user-facing title, which may be empty before generation.
 func (s Session) Title() string { return s.title }
 
-// CWD returns the admitted canonical workspace identity.
-func (s Session) CWD() string { return s.cwd }
+// Workspace returns the admitted exact workspace identity.
+func (s Session) Workspace() Workspace { return s.workspace }
 
 // Selection returns the exact provider/model pair owned by the Session.
 func (s Session) Selection() modelref.Selection { return s.selection }
@@ -326,7 +326,7 @@ func (s Session) Isolated() bool { return s.isolated }
 func (s Session) Revision() uint64 { return s.revision }
 
 func (s Session) sameValue(other Session) bool {
-	return s.id == other.id && s.title == other.title && s.cwd == other.cwd &&
+	return s.id == other.id && s.title == other.title && s.workspace == other.workspace &&
 		s.selection == other.selection && s.parentID == other.parentID &&
 		s.startedAt.Equal(other.startedAt) && s.favorite == other.favorite &&
 		s.isolated == other.isolated

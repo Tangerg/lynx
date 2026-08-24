@@ -44,8 +44,8 @@ func validateRecoveryParkedTree(
 	expected := ExecutorCheckpointExpectation{
 		RootMemberID:      rootContinuation.MemberID,
 		SessionID:         pending.SessionID,
-		CWD:               sess.CWD(),
-		WorkspaceCWD:      sess.CWD(),
+		CWD:               sess.Workspace().Path(),
+		WorkspaceCWD:      sess.Workspace().Path(),
 		Isolated:          false,
 		GoalIncarnationID: pending.GoalIncarnationID,
 		ModelSelection:    rootContinuation.ModelSelection,

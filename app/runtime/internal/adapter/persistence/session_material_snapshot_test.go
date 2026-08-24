@@ -49,7 +49,7 @@ func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.
 	readerSessionStore := sqlite.NewSessionStore(readerDB)
 	writerSessionStore := sqlite.NewSessionStore(writerDB)
 	original := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_snapshot", CWD: "/workspace", Title: "before",
+		ID: "ses_snapshot", Workspace: sessionfixture.MustWorkspace("/workspace"), Title: "before",
 		StartedAt: createdAt, UpdatedAt: createdAt, Revision: 1,
 	})
 	if err := writerSessionStore.Insert(ctx, original); err != nil {

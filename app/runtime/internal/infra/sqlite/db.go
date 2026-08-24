@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 78
+const schemaEpoch = 79
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -88,7 +88,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id          TEXT    PRIMARY KEY,
 			title       TEXT    NOT NULL,
-			cwd         TEXT    NOT NULL DEFAULT '',
+			workspace_path TEXT    NOT NULL CHECK (workspace_path <> ''),
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,

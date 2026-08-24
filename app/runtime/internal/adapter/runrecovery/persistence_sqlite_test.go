@@ -77,7 +77,7 @@ func testRecoveryMarksClaimedResumeLost(t *testing.T, openingCommitted bool) {
 	createdAt := time.Date(2026, 8, 1, 2, 0, 0, 0, time.UTC)
 	sessionStore := sqlite.NewSessionStore(db)
 	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
-		ID: "session_claim", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: "session_claim", Workspace: sessionfixture.MustWorkspace("/workspace"), StartedAt: createdAt, UpdatedAt: createdAt,
 	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
 	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
-		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: "session", Workspace: sessionfixture.MustWorkspace("/workspace"), StartedAt: createdAt, UpdatedAt: createdAt,
 	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
@@ -558,7 +558,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
 	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
-		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: "session", Workspace: sessionfixture.MustWorkspace("/workspace"), StartedAt: createdAt, UpdatedAt: createdAt,
 	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}

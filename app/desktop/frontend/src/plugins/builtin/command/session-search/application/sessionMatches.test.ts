@@ -10,7 +10,7 @@ function session(title: string, time: string): AgentSessionSummary {
     status: "idle",
     provider: "openai",
     model: "gpt-5.6",
-    cwd: "/repo",
+    workspace: { path: "/repo", availability: "available" },
     time,
   };
 }

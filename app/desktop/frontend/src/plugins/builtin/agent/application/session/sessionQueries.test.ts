@@ -6,6 +6,8 @@ import {
   type AgentSessionSummary,
 } from "./sessionQueries";
 
+const workspace = (path: string) => ({ path, availability: "available" as const });
+
 function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary {
   return {
     id: "ses_1",
@@ -14,7 +16,7 @@ function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary 
     status: "idle",
     provider: "provider",
     model: "model",
-    cwd: "/repo",
+    workspace: workspace("/repo"),
     time: "2026-08-11T00:00:00Z",
     ...patch,
   };
@@ -27,7 +29,8 @@ describe("subscribeAgentSessionProjection", () => {
     queryClient.setQueryData([AGENT_SESSIONS_KEY], [session()]);
     const onChange = vi.fn();
     const unsubscribe = subscribeAgentSessionProjection(
-      (sessions) => JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd]) ?? null),
+      (sessions) =>
+        JSON.stringify(sessions?.map(({ id, workspace: value }) => [id, value.path]) ?? null),
       onChange,
     );
 
@@ -36,15 +39,18 @@ describe("subscribeAgentSessionProjection", () => {
       refetchType: "none",
     });
     queryClient.setQueryData([AGENT_SESSIONS_KEY], [session({ status: "running" })]);
-    queryClient.setQueryData(["unrelated"], [session({ cwd: "/elsewhere" })]);
+    queryClient.setQueryData(["unrelated"], [session({ workspace: workspace("/elsewhere") })]);
     expect(onChange).not.toHaveBeenCalled();
 
-    queryClient.setQueryData([AGENT_SESSIONS_KEY], [session({ cwd: "/elsewhere" })]);
+    queryClient.setQueryData(
+      [AGENT_SESSIONS_KEY],
+      [session({ workspace: workspace("/elsewhere") })],
+    );
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith(JSON.stringify([["ses_1", "/elsewhere"]]));
 
     unsubscribe();
-    queryClient.setQueryData([AGENT_SESSIONS_KEY], [session({ cwd: "/third" })]);
+    queryClient.setQueryData([AGENT_SESSIONS_KEY], [session({ workspace: workspace("/third") })]);
     expect(onChange).toHaveBeenCalledOnce();
   });
 });

@@ -16,7 +16,7 @@ func TestSessionOwnsExactSelectionAcrossEditAndFork(t *testing.T) {
 		t.Fatalf("initial selection: %v", err)
 	}
 	parent := mustNew(t, Draft{
-		ID: "ses_parent", CWD: "/work", Selection: initial, StartedAt: startedAt,
+		ID: "ses_parent", Workspace: mustWorkspace(t, "/work"), Selection: initial, StartedAt: startedAt,
 	})
 	if parent.Selection() != initial {
 		t.Fatalf("initial selection = %v, want %v", parent.Selection(), initial)
@@ -43,14 +43,14 @@ func TestSessionConstruction(t *testing.T) {
 	startedAt := time.Unix(1, 0).In(time.FixedZone("fixture", 3600))
 	selection := mustModelSelection(t, "provider", "model")
 	created, err := New(Draft{
-		ID: "ses_root", Title: "  Research  ", CWD: "/work/project",
+		ID: "ses_root", Title: "  Research  ", Workspace: mustWorkspace(t, "/work/project"),
 		Selection: selection, StartedAt: startedAt,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	if created.ID() != "ses_root" || created.Title() != "Research" ||
-		created.CWD() != "/work/project" || created.Selection() != selection {
+		created.Workspace().Path() != "/work/project" || created.Selection() != selection {
 		t.Fatalf("created Session = %+v", created.Snapshot())
 	}
 	if created.ParentID() != "" || created.Revision() != 1 ||
@@ -64,14 +64,13 @@ func TestSessionConstruction(t *testing.T) {
 
 func TestSessionConstructionRejectsInvalidState(t *testing.T) {
 	selection := mustModelSelection(t, "provider", "model")
-	valid := Draft{ID: "ses_1", CWD: "/work", Selection: selection, StartedAt: time.Unix(1, 0)}
+	valid := Draft{ID: "ses_1", Workspace: mustWorkspace(t, "/work"), Selection: selection, StartedAt: time.Unix(1, 0)}
 	tests := map[string]Draft{
-		"missing identity":   {CWD: valid.CWD, Selection: selection, StartedAt: valid.StartedAt},
-		"spaced identity":    {ID: " ses_1", CWD: valid.CWD, Selection: selection, StartedAt: valid.StartedAt},
+		"missing identity":   {Workspace: valid.Workspace, Selection: selection, StartedAt: valid.StartedAt},
+		"spaced identity":    {ID: " ses_1", Workspace: valid.Workspace, Selection: selection, StartedAt: valid.StartedAt},
 		"missing workspace":  {ID: valid.ID, Selection: selection, StartedAt: valid.StartedAt},
-		"spaced workspace":   {ID: valid.ID, CWD: " /work", Selection: selection, StartedAt: valid.StartedAt},
-		"missing selection":  {ID: valid.ID, CWD: valid.CWD, StartedAt: valid.StartedAt},
-		"missing start time": {ID: valid.ID, CWD: valid.CWD, Selection: selection},
+		"missing selection":  {ID: valid.ID, Workspace: valid.Workspace, StartedAt: valid.StartedAt},
+		"missing start time": {ID: valid.ID, Workspace: valid.Workspace, Selection: selection},
 	}
 	for name, draft := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -82,9 +81,27 @@ func TestSessionConstructionRejectsInvalidState(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRejectsNonExactPaths(t *testing.T) {
+	for name, path := range map[string]string{
+		"missing": "", "relative": "relative/work", "unclean": "/work/../work",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewWorkspace(path); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("NewWorkspace(%q) error = %v, want ErrInvalid", path, err)
+			}
+		})
+	}
+	if root, err := NewWorkspace("/"); err != nil || root.Path() != "/" {
+		t.Fatalf("root workspace = %q, err=%v", root.Path(), err)
+	}
+	if spaced, err := NewWorkspace("/work "); err != nil || spaced.Path() != "/work " {
+		t.Fatalf("workspace with significant space = %q, err=%v", spaced.Path(), err)
+	}
+}
+
 func TestSessionApplyOwnsNormalizationRevisionAndTime(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
-	current := mustNew(t, Draft{ID: "ses_1", Title: "Before", CWD: "/work", StartedAt: startedAt})
+	current := mustNew(t, Draft{ID: "ses_1", Title: "Before", Workspace: mustWorkspace(t, "/work"), StartedAt: startedAt})
 	title := "  After  "
 	selection := mustModelSelection(t, "provider", "model")
 	favorite := true
@@ -108,7 +125,7 @@ func TestSessionApplyOwnsNormalizationRevisionAndTime(t *testing.T) {
 
 func TestSessionApplyNoopAndConflicts(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
-	current := mustNew(t, Draft{ID: "ses_1", Title: "Same", CWD: "/work", StartedAt: startedAt})
+	current := mustNew(t, Draft{ID: "ses_1", Title: "Same", Workspace: mustWorkspace(t, "/work"), StartedAt: startedAt})
 	title := " Same "
 	unmoved, changed, err := current.Apply(Patch{Title: &title}, startedAt.Add(time.Second))
 	if err != nil || changed || unmoved.Snapshot() != current.Snapshot() {
@@ -131,7 +148,7 @@ func TestSessionFork(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
 	isolated := true
 	parent := mustNew(t, Draft{
-		ID: "ses_parent", Title: "Research", CWD: "/work/project",
+		ID: "ses_parent", Title: "Research", Workspace: mustWorkspace(t, "/work/project"),
 		Selection: mustModelSelection(t, "provider", "model"), StartedAt: startedAt,
 	})
 	parent, _, _ = parent.Apply(Patch{Isolated: &isolated}, startedAt.Add(time.Second))
@@ -141,7 +158,7 @@ func TestSessionFork(t *testing.T) {
 		t.Fatalf("Fork: %v", err)
 	}
 	if child.ID() != "ses_child" || child.ParentID() != parent.ID() ||
-		child.Title() != "Research (fork)" || child.CWD() != parent.CWD() || !child.Isolated() {
+		child.Title() != "Research (fork)" || child.Workspace() != parent.Workspace() || !child.Isolated() {
 		t.Fatalf("child = %+v", child.Snapshot())
 	}
 	if child.Selection() != parent.Selection() || child.Favorite() || child.Revision() != 1 ||
@@ -152,7 +169,7 @@ func TestSessionFork(t *testing.T) {
 
 func TestSessionGeneratedTitleDoesNotOverrideUserTitle(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
-	untitled := mustNew(t, Draft{ID: "ses_1", CWD: "/work", StartedAt: startedAt})
+	untitled := mustNew(t, Draft{ID: "ses_1", Workspace: mustWorkspace(t, "/work"), StartedAt: startedAt})
 	named, changed, err := untitled.NameIfUntitled(" Generated ", startedAt.Add(time.Second))
 	if err != nil || !changed || named.Title() != "Generated" {
 		t.Fatalf("generated title = %+v, changed=%v, err=%v", named.Snapshot(), changed, err)
@@ -164,9 +181,9 @@ func TestSessionGeneratedTitleDoesNotOverrideUserTitle(t *testing.T) {
 }
 
 func TestSessionRestoreReplacementKeepsTargetRevisionSpace(t *testing.T) {
-	current := mustNew(t, Draft{ID: "ses_1", Title: "Current", CWD: "/old", StartedAt: time.Unix(1, 0)})
-	restored := mustNew(t, Draft{ID: "ses_1", Title: "Archive", CWD: "/archive", StartedAt: time.Unix(2, 0)})
-	restored, err := restored.InstallRestoredWorkspace("/canonical")
+	current := mustNew(t, Draft{ID: "ses_1", Title: "Current", Workspace: mustWorkspace(t, "/old"), StartedAt: time.Unix(1, 0)})
+	restored := mustNew(t, Draft{ID: "ses_1", Title: "Archive", Workspace: mustWorkspace(t, "/archive"), StartedAt: time.Unix(2, 0)})
+	restored, err := restored.InstallRestoredWorkspace(mustWorkspace(t, "/canonical"))
 	if err != nil {
 		t.Fatalf("InstallRestoredWorkspace: %v", err)
 	}
@@ -174,7 +191,7 @@ func TestSessionRestoreReplacementKeepsTargetRevisionSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReplaceWithRestore: %v", err)
 	}
-	if next.ID() != current.ID() || next.Title() != "Archive" || next.CWD() != "/canonical" ||
+	if next.ID() != current.ID() || next.Title() != "Archive" || next.Workspace().Path() != "/canonical" ||
 		next.Revision() != current.Revision()+1 || !next.UpdatedAt().Equal(time.Unix(3, 0)) {
 		t.Fatalf("restored replacement = %+v", next.Snapshot())
 	}
@@ -182,7 +199,7 @@ func TestSessionRestoreReplacementKeepsTargetRevisionSpace(t *testing.T) {
 
 func TestSessionRevisionOverflow(t *testing.T) {
 	current, err := Restore(Snapshot{
-		ID: "ses_1", CWD: "/work", StartedAt: time.Unix(1, 0),
+		ID: "ses_1", Workspace: mustWorkspace(t, "/work"), StartedAt: time.Unix(1, 0),
 		Selection: mustModelSelection(t, "provider", "model"),
 		UpdatedAt: time.Unix(1, 0), Revision: math.MaxUint64,
 	})
@@ -214,4 +231,13 @@ func mustModelSelection(t *testing.T, provider, model string) modelref.Selection
 		t.Fatalf("modelref.New: %v", err)
 	}
 	return selection
+}
+
+func mustWorkspace(t *testing.T, path string) Workspace {
+	t.Helper()
+	workspace, err := NewWorkspace(path)
+	if err != nil {
+		t.Fatalf("NewWorkspace(%q): %v", path, err)
+	}
+	return workspace
 }

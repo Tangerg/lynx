@@ -720,7 +720,7 @@ func waitingCancellationCoordinator(
 		return prepared.value(), nil
 	}
 	sessions := &fakeRunSessions{
-		sess: sessionfixture.MustRestore(session.Snapshot{ID: plan.pending.SessionID, CWD: "/work"}),
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: plan.pending.SessionID, Workspace: sessionfixture.MustWorkspace("/work")}),
 		pending: map[string]Pending{
 			plan.pending.RootRunID: plan.pending,
 		},

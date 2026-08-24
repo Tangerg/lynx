@@ -20,7 +20,7 @@ function session(id: string): AgentSessionSummary {
     status: "idle",
     provider: "openai",
     model: "gpt-5",
-    cwd: "",
+    workspace: { path: "/repo", availability: "available" },
     time: "2026-08-12T00:00:00Z",
   };
 }

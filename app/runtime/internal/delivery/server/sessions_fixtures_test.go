@@ -38,10 +38,14 @@ func insertSessionFixture(
 	store *sqlite.SessionStore,
 	title, cwd string,
 ) (session.Session, error) {
+	workspace, err := session.NewWorkspace(cwd)
+	if err != nil {
+		return session.Session{}, err
+	}
 	value, err := session.New(session.Draft{
 		ID:        fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1)),
 		Title:     title,
-		CWD:       cwd,
+		Workspace: workspace,
 		Selection: fixtureDefaultModelSelection(),
 		StartedAt: time.Now(),
 	})

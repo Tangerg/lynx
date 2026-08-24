@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -49,7 +50,7 @@ func putTestSession(t *testing.T, rt *stubRuntime) {
 	const sessionID = "ses_1"
 
 	if _, err := insertSessionSnapshot(t.Context(), rt.sess, session.Snapshot{
-		ID: sessionID, Title: sessionID, CWD: t.TempDir(),
+		ID: sessionID, Title: sessionID, Workspace: sessionfixture.MustWorkspace(t.TempDir()),
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}); err != nil {
 		t.Fatalf("putSession %s: %v", sessionID, err)

@@ -23,21 +23,27 @@ const (
 	ActivityIdle    Activity = "idle"
 )
 
+// WorkspaceView is the live filesystem projection of a Session's exact
+// Workspace identity.
+type WorkspaceView struct {
+	Path        string
+	ProjectRoot string
+	Missing     bool
+}
+
 // View is the complete application read model for a session. Live lineage and
 // other aggregate-only state stay inside the session domain.
 type View struct {
-	ID          string
-	Title       string
-	CWD         string
-	ProjectRoot string
-	CWDMissing  bool
-	Provider    string
-	Model       string
-	Activity    Activity
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Favorite    bool
-	Revision    uint64
+	ID        string
+	Title     string
+	Workspace WorkspaceView
+	Provider  string
+	Model     string
+	Activity  Activity
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Favorite  bool
+	Revision  uint64
 }
 
 // Activities resolves activity for the requested sessions in one durable read.
@@ -154,7 +160,7 @@ func (c *Coordinator) CreateView(ctx context.Context, title, cwd string) (View, 
 }
 
 // UpdateView applies an edit and returns its fully resolved read model.
-func (c *Coordinator) UpdateView(ctx context.Context, id string, patch session.Patch) (View, error) {
+func (c *Coordinator) UpdateView(ctx context.Context, id string, patch Patch) (View, error) {
 	value, err := c.Update(ctx, id, patch)
 	if err != nil {
 		return View{}, err
@@ -197,23 +203,21 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Vi
 }
 
 func (c *Coordinator) view(value session.Session, activity Activity) (View, error) {
-	workspace, err := c.paths.Inspect(value.CWD())
+	workspace, err := c.paths.Inspect(value.Workspace().Path())
 	if err != nil {
-		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD(), err)
+		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.Workspace().Path(), err)
 	}
 	selection := value.Selection()
 	return View{
-		ID:          value.ID(),
-		Title:       value.Title(),
-		CWD:         workspace.Path,
-		ProjectRoot: workspace.ProjectRoot,
-		CWDMissing:  workspace.Missing,
-		Provider:    selection.Provider(),
-		Model:       selection.Model(),
-		Activity:    activity,
-		CreatedAt:   value.StartedAt(),
-		UpdatedAt:   value.UpdatedAt(),
-		Favorite:    value.Favorite(),
-		Revision:    value.Revision(),
+		ID:    value.ID(),
+		Title: value.Title(),
+		Workspace: WorkspaceView{
+			Path: workspace.Path, ProjectRoot: workspace.ProjectRoot, Missing: workspace.Missing,
+		},
+		Provider:  selection.Provider(),
+		Model:     selection.Model(),
+		Activity:  activity,
+		CreatedAt: value.StartedAt(), UpdatedAt: value.UpdatedAt(),
+		Favorite: value.Favorite(), Revision: value.Revision(),
 	}, nil
 }

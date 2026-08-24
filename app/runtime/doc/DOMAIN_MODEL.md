@@ -272,7 +272,7 @@ Tool Adapter 只负责模型参数 decode、从 Tool execution context 提取 Se
 `domain/session.Session` 应完整拥有单个 Session 内的行为：
 
 - fresh 和 scheduled Session 的构造；
-- title/exact provider+model selection/workspace/isolation/favorite edit；
+- title/exact provider+model selection/exact Workspace/isolation/favorite edit；
 - fork inheritance；
 - relocation/restore 后 canonical workspace identity 的安装；
 - revision 单调推进和实体时间更新；
@@ -285,9 +285,15 @@ Artifact 都读取聚合内同一 pair，不再在消费处补默认或按 model
 executor staging 成功后，才随 Run opening 原子替换 Session pair；失败不得留下半更新。fork 继承父
 Session 的 exact pair，而不是清空后等待另一层重新猜默认。
 
+Session 的工作区身份同样不是 `cwd string`，而是 immutable `Workspace`。该值只拥有纯不变量：必填、
+绝对且等于其 lexical-clean 形式；root workspace 合法，路径段中的空格有意义。Draft、Patch、Snapshot、
+restore、fork 与 relocation installation 都只携带该值，因此不能在 Store/read model 处重新猜 canonical
+identity。filesystem existence、symlink/physical canonicalization 仍是外部事实：workspace port 先完成 admission，
+再构造 Domain value；Domain 不读取 filesystem，也不复制 app2 的 filesystem-root 禁令。
+
 Application 仍负责：
 
-- 通过 filesystem port 解析并验证 workspace；
+- 通过 filesystem port 验证存在性、解析 physical canonical workspace，再构造领域值；
 - ClaimIdleSession/ClaimSessionMutation；
 - root Run admission 的跨聚合唯一性；
 - CAS transaction；

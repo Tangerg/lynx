@@ -79,7 +79,7 @@ func TestDefaultModeUsesModePorts(t *testing.T) {
 func TestListRulesResolvesSessionProject(t *testing.T) {
 	store := &approvalStore{}
 	c := New(store, fakeSessionLookup{sess: sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_1", CWD: "/repo",
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/repo"),
 	})})
 
 	if _, err := c.ListRules(context.Background(), "ses_1"); err != nil {

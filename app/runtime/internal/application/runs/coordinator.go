@@ -213,7 +213,7 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 		return err
 	}
 	for {
-		if err := c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD()); err != nil {
+		if err := c.admission.WaitRunStartable(ctx, sess.ID(), sess.Workspace().Path()); err != nil {
 			return err
 		}
 		changed, stopObserving := c.publications.changes.observe(sess.ID())

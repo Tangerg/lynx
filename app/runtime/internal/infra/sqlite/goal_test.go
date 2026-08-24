@@ -122,7 +122,7 @@ func TestGoalSchemaUsesSemanticIncarnationColumns(t *testing.T) {
 
 func seedSession(t *testing.T, store *sqlite.SessionStore, id string) {
 	t.Helper()
-	value := sessionfixture.MustRestore(session.Snapshot{ID: id, CWD: "/work"})
+	value := sessionfixture.MustRestore(session.Snapshot{ID: id, Workspace: sessionfixture.MustWorkspace("/work")})
 	if err := store.Insert(t.Context(), value); err != nil {
 		t.Fatalf("seed session %q: %v", id, err)
 	}

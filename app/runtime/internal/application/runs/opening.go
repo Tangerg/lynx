@@ -85,7 +85,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		return StartResult{}, err
 	}
 	draft.CWD = execCWD
-	draft.WorkspaceCWD = sess.CWD()
+	draft.WorkspaceCWD = sess.Workspace().Path()
 	draft.Isolated = isolated
 	draft.WorkingContext, err = c.workingContexts.ComposeWorkingContext(ctx, WorkingContextInput{
 		SessionID:  sess.ID(),
@@ -137,7 +137,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		RunID:              runID,
 		SegmentID:          segmentID,
 		SessionID:          sess.ID(),
-		CWD:                sess.CWD(),
+		CWD:                sess.Workspace().Path(),
 		ExecutorID:         ref.ExecutorID,
 		ModelSelection:     cmd.ModelSelection,
 		GoalIncarnationID:  cmd.GoalIncarnationID,
@@ -196,7 +196,7 @@ func (c *Coordinator) resolveSession(
 }
 
 func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (sessionadmission.RunAdmission, error) {
-	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.CWD())
+	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.Workspace().Path())
 	if !ok {
 		// The in-process gate also guards working-tree mutations, so what it refuses is
 		// not always a Run and cannot always be named.
@@ -236,12 +236,12 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 // must never fall back to the real tree.
 func (c *Coordinator) executionCWD(ctx context.Context, sess session.Session) (cwd string, isolated bool, err error) {
 	if !sess.Isolated() {
-		return sess.CWD(), false, nil
+		return sess.Workspace().Path(), false, nil
 	}
 	if c.isolation == nil {
 		return "", false, fmt.Errorf("%w: isolation is not configured", ErrIsolationUnavailable)
 	}
-	copyDir, err := c.isolation.Workspace(ctx, sess.ID(), sess.CWD())
+	copyDir, err := c.isolation.Workspace(ctx, sess.ID(), sess.Workspace().Path())
 	if err != nil {
 		return "", false, fmt.Errorf("%w: %w", ErrIsolationUnavailable, err)
 	}

@@ -108,11 +108,11 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return View{}, err
 	}
 	defer admission.Release()
-	cwd, err := c.resolveSessionCWD(snapshot.Session.CWD())
+	workspace, err := c.resolveSessionWorkspace(snapshot.Session.Workspace().Path())
 	if err != nil {
 		return View{}, err
 	}
-	snapshot.Session, err = snapshot.Session.InstallRestoredWorkspace(cwd)
+	snapshot.Session, err = snapshot.Session.InstallRestoredWorkspace(workspace)
 	if err != nil {
 		return View{}, err
 	}

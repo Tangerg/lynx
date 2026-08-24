@@ -53,7 +53,7 @@ function summary(id: string, cwd: string): AgentSessionSummary {
     status: "idle",
     provider: "openai",
     model: "gpt-5",
-    cwd,
+    workspace: { path: cwd, availability: "available" },
     time: "2026-08-20T00:00:00Z",
   };
 }

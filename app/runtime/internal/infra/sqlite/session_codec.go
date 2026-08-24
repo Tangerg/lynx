@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, provider, model, favorite, isolated, revision`
+const sessionColumns = `id, title, workspace_path, parent_id, started_at, updated_at, provider, model, favorite, isolated, revision`
 
 // rowToSession decodes one DB row into a product session.Session. Execution
 // continuation state deliberately lives in its dedicated sidecar table, never
@@ -23,9 +23,10 @@ func rowToSession(scanner interface {
 		isolatedInt    int64
 		provider       string
 		model          string
+		workspacePath  string
 	)
 	if err := scanner.Scan(
-		&snapshot.ID, &snapshot.Title, &snapshot.CWD, &snapshot.ParentID,
+		&snapshot.ID, &snapshot.Title, &workspacePath, &snapshot.ParentID,
 		&startedAtNanos, &updatedAtNanos, &provider, &model,
 		&favoriteInt, &isolatedInt, &snapshot.Revision,
 	); err != nil {
@@ -35,6 +36,11 @@ func rowToSession(scanner interface {
 	snapshot.UpdatedAt = time.Unix(0, updatedAtNanos).UTC()
 	snapshot.Favorite = favoriteInt != 0
 	snapshot.Isolated = isolatedInt != 0
+	workspace, err := session.NewWorkspace(workspacePath)
+	if err != nil {
+		return session.Session{}, err
+	}
+	snapshot.Workspace = workspace
 	selection, err := modelref.New(provider, model)
 	if err != nil {
 		return session.Session{}, err

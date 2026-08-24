@@ -42,7 +42,7 @@ func newBlockingServer(t *testing.T) *Server {
 }
 
 func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session, error) {
-	return sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}), nil
+	return sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")}), nil
 }
 
 func (*blockingRunRuntime) Observe(ctx context.Context, _ runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {

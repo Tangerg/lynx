@@ -80,7 +80,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.CWD() {
+	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.Workspace().Path() {
 		t.Errorf("artifact session = %+v, want title/workspace preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
@@ -276,7 +276,7 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if got.Title() != "Live" || got.CWD() != "/proj" {
+	if got.Title() != "Live" || got.Workspace().Path() != "/proj" {
 		t.Fatalf("session mutated under active run: %+v", got)
 	}
 }
@@ -687,7 +687,7 @@ func TestSessionImportRefusesPlanWhenFeatureIsDisabled(t *testing.T) {
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
 			ID: ses.ID(), Title: "planned", Provider: "test-provider", Model: "test-model",
-			Workspace: protocol.WorkspaceRef{Path: ses.CWD()},
+			Workspace: protocol.WorkspaceRef{Path: ses.Workspace().Path()},
 		},
 		Plan: []protocol.PlanStep{{ID: "0", Description: "plan", Status: protocol.PlanStatusPending}},
 	}

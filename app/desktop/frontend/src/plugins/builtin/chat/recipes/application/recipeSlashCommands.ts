@@ -38,7 +38,7 @@ export function recipeWorkspaceQuery(
 }
 
 function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
-  return JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd ?? ""]) ?? null);
+  return JSON.stringify(sessions?.map(({ id, workspace }) => [id, workspace.path]) ?? null);
 }
 
 function fetchRecipes(query: RecipesQuery): Promise<Recipe[]> {

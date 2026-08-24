@@ -232,10 +232,10 @@ export function ChatPanel({ onSend }: Props) {
               {/* Where, then what. The workspace name is the quieter half on
                   purpose: it changes rarely and only has to confirm the session
                   you are reading belongs to the checkout you think it does. */}
-              {activeSession?.cwd && (
+              {activeSession?.workspace.path && (
                 <>
                   <span className="hidden min-w-0 max-w-[160px] shrink truncate font-mono text-ui-sm text-fg-faint lg:inline">
-                    {basename(activeSession.cwd)}
+                    {basename(activeSession.workspace.path)}
                   </span>
                   <span aria-hidden className="hidden shrink-0 text-ui-sm text-fg-faint lg:inline">
                     /

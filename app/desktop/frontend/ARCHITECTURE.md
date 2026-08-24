@@ -200,6 +200,11 @@ Session summary 尚未到达时保持 unresolved，不能把 query race 固化�
 Composer store；只有用户在 picker 中的明确选择才写入 process preference 并成为 Run override。未明确选择时
 Run 请求省略 pair，由 Runtime 从 durable Session 读取，因此不建立第二个 Session selection owner。
 
+Session workspace 在 Agent consumer 中保持一个 `workspace { path, availability }` 值。Runtime adapter 从
+`Session.workspace` 一次性投影该值；Shell missing banner、Work Index、active-workspace resolution 与 create
+inheritance 直接读取它，不再平铺 `cwd` / `cwdMissing` 镜像字段，也不通过 effect 或第二 store 同步。
+下游命令/查询的 `cwd` 参数只表达一次技术调用的工作目录，不反向成为 Session identity owner。
+
 Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它交给 `ctx.cleanup`；Installation remove、Host stop 或 HMR owner 退休会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
 需要全局命令入口的 replaceable application owner 使用 `lib/publicationSlot.ts`：slot 只拥有 process-local exact object identity，先发布 successor、再同步退休 predecessor，并只允许 exact owner withdraw。它不能持有 task、cache、event、error 或任意业务状态；serialization、abort、projection repair、material generation 和 typed retired error 必须继续留在 concrete owner。Singleton port 复用同一 identity primitive，业务类不再各自复制 `static #active` lifecycle protocol。

@@ -23,7 +23,7 @@ func newPermissionModeStores(t *testing.T) (*sqlite.PermissionModeStore, *sqlite
 func TestPermissionModeStoreRoundTripAndSessionLifecycle(t *testing.T) {
 	modes, sessions := newPermissionModeStores(t)
 	created := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_plan", Title: "Plan session", CWD: "/repo",
+		ID: "ses_plan", Title: "Plan session", Workspace: sessionfixture.MustWorkspace("/repo"),
 	})
 	if err := sessions.Insert(t.Context(), created); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -60,7 +60,7 @@ func TestPermissionModeStoreRoundTripAndSessionLifecycle(t *testing.T) {
 func TestPermissionModeStoreRejectsInvalidState(t *testing.T) {
 	modes, sessions := newPermissionModeStores(t)
 	created := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_invalid_plan", Title: "Plan session", CWD: "/repo",
+		ID: "ses_invalid_plan", Title: "Plan session", Workspace: sessionfixture.MustWorkspace("/repo"),
 	})
 	if err := sessions.Insert(t.Context(), created); err != nil {
 		t.Fatal(err)

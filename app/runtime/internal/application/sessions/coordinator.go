@@ -229,7 +229,7 @@ type Coordinator struct {
 	writes                WriteSets
 	forgetter             Forgetter
 	executionReleaser     ExecutionReleaser
-	paths                 CWDResolver
+	paths                 WorkspaceResolver
 	defaultModelSelection modelref.Selection
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
@@ -275,7 +275,7 @@ type Dependencies struct {
 	Writes                WriteSets
 	Forgetter             Forgetter
 	ExecutionReleaser     ExecutionReleaser
-	Paths                 CWDResolver
+	Paths                 WorkspaceResolver
 	DefaultModelSelection modelref.Selection
 	Checkpoints           WorkspaceCheckpoints
 	Sandbox               SandboxDiscarder
@@ -318,7 +318,7 @@ func New(deps Dependencies) (*Coordinator, error) {
 		{"write sets", deps.Writes},
 		{"session forgetter", deps.Forgetter},
 		{"execution releaser", deps.ExecutionReleaser},
-		{"cwd resolver", deps.Paths},
+		{"workspace resolver", deps.Paths},
 		{"admissions", deps.Admissions},
 		{"session id generator", deps.NewID},
 		{"run id generator", deps.NewRunID},

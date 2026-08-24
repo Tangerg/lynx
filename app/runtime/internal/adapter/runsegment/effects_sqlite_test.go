@@ -794,7 +794,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	created := time.Now().UTC()
 	draft := run.Draft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
 	scheduled := sessionfixture.MustRestore(session.Snapshot{
-		ID: draft.SessionID, Title: "scheduled", CWD: "/work",
+		ID: draft.SessionID, Title: "scheduled", Workspace: sessionfixture.MustWorkspace("/work"),
 		StartedAt: created, UpdatedAt: created, Revision: 1,
 	})
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
@@ -834,7 +834,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	goals := sqlite.NewGoalStore(db)
 	sessions := sqlite.NewSessionStore(db)
 	goalSession := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_goal", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1,
+		ID: "ses_goal", Workspace: sessionfixture.MustWorkspace("/work"), StartedAt: created, UpdatedAt: created, Revision: 1,
 	})
 	if err := sessions.Insert(ctx, goalSession); err != nil {
 		t.Fatalf("seed goal session: %v", err)

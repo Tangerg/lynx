@@ -12,7 +12,7 @@ import (
 func TestSessionStorePersistsExactReplacement(t *testing.T) {
 	store := newTempDB(t)
 	current := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_1", Title: "Before", CWD: "/work",
+		ID: "ses_1", Title: "Before", Workspace: sessionfixture.MustWorkspace("/work"),
 		StartedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0), Revision: 1,
 	})
 	if err := store.Insert(t.Context(), current); err != nil {
@@ -39,7 +39,7 @@ func TestSessionStorePersistsExactReplacement(t *testing.T) {
 
 func TestSessionStoreRejectsStaleReplacement(t *testing.T) {
 	store := newTempDB(t)
-	current := sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})
+	current := sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")})
 	if err := store.Insert(t.Context(), current); err != nil {
 		t.Fatalf("Insert: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestSessionStoreRejectsStaleReplacement(t *testing.T) {
 
 func TestSessionStoreRejectsInvalidWriteShape(t *testing.T) {
 	store := newTempDB(t)
-	initial := sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})
+	initial := sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")})
 	if err := store.Save(t.Context(), 1, initial); !errors.Is(err, session.ErrInvalid) {
 		t.Fatalf("non-advancing Save error = %v, want ErrInvalid", err)
 	}

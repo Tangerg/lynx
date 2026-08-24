@@ -36,7 +36,7 @@ func (s *crudSessionStore) Get(_ context.Context, id string) (session.Session, e
 		return session.Session{}, s.getErr
 	}
 	if s.current.ID() == "" {
-		s.current = sessionfixture.MustRestore(session.Snapshot{ID: id, CWD: "/repo"})
+		s.current = sessionfixture.MustRestore(session.Snapshot{ID: id, Workspace: sessionfixture.MustWorkspace("/repo")})
 	}
 	return s.current, nil
 }
@@ -114,7 +114,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	}}
 	stores := &crudStores{session: store}
 	c := mustNewCoordinator(testDependencies(stores, Dependencies{
-		Paths: testCWDResolver{resolved: "/resolved/project"},
+		Paths: testWorkspaceResolver{resolved: "/resolved/project"},
 		Now:   func() time.Time { return time.Unix(2, 0).UTC() },
 		NewID: func() string { return "ses_created" },
 	}))
@@ -132,7 +132,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if store.getID != "ses_2" || got.CWD() != "/repo" {
+	if store.getID != "ses_2" || got.Workspace().Path() != "/repo" {
 		t.Fatalf("getID=%q got=%+v", store.getID, got)
 	}
 
@@ -140,7 +140,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID() != "ses_created" || store.inserted.Title() != "New" || store.inserted.CWD() != "/resolved/project" {
+	if created.ID() != "ses_created" || store.inserted.Title() != "New" || store.inserted.Workspace().Path() != "/resolved/project" {
 		t.Fatalf("created=%+v inserted=%+v", created.Snapshot(), store.inserted.Snapshot())
 	}
 }
@@ -149,7 +149,7 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 	store := &crudSessionStore{getErr: session.ErrNotFound}
 	createdAt := time.Unix(9, 0).UTC()
 	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
-		Paths: testCWDResolver{resolved: "/resolved/scheduled"},
+		Paths: testWorkspaceResolver{resolved: "/resolved/scheduled"},
 		Now:   func() time.Time { return createdAt },
 	}))
 
@@ -164,7 +164,7 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 		t.Fatalf("scheduled current=%+v initial=%+v", current.Snapshot(), initial)
 	}
 	if current.ID() != "ses_scheduled" || current.Title() != "Scheduled" ||
-		current.CWD() != "/resolved/scheduled" ||
+		current.Workspace().Path() != "/resolved/scheduled" ||
 		current.Selection() != mustTestSelection(t, "provider", "model") ||
 		current.Revision() != 1 || !current.StartedAt().Equal(createdAt) {
 		t.Fatalf("scheduled aggregate = %+v", current.Snapshot())
@@ -176,12 +176,12 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 
 func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *testing.T) {
 	existing := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_scheduled", Title: "Existing", CWD: "/existing",
+		ID: "ses_scheduled", Title: "Existing", Workspace: sessionfixture.MustWorkspace("/existing"),
 		Selection: mustTestSelection(t, "provider", "existing-model"),
 	})
 	store := &crudSessionStore{current: existing}
 	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
-		Paths: testCWDResolver{err: errors.New("must not inspect workspace")},
+		Paths: testWorkspaceResolver{err: errors.New("must not inspect workspace")},
 	}))
 
 	current, initial, err := coordinator.PrepareScheduled(
@@ -198,7 +198,7 @@ func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *te
 
 func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 	current := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_1", CWD: "/repo", StartedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0),
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/repo"), StartedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0),
 	})
 	store := &generatedTitleRaceStore{crudSessionStore: &crudSessionStore{current: current}}
 	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
@@ -216,12 +216,14 @@ func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 	}
 }
 
-func TestViewPresentsTheSessionExactModelSelection(t *testing.T) {
+func TestViewPresentsExactSessionSelectionAndWorkspace(t *testing.T) {
 	selection := mustTestSelection(t, "anthropic", "claude-opus-4-8")
-	c := mustNewCoordinator(Dependencies{Paths: testCWDResolver{}, DefaultModelSelection: selection})
+	c := mustNewCoordinator(Dependencies{
+		Paths: testWorkspaceResolver{missing: true}, DefaultModelSelection: selection,
+	})
 
 	view, err := c.view(sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_1", CWD: "/repo", Selection: selection,
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/repo"), Selection: selection,
 	}), ActivityIdle)
 	if err != nil {
 		t.Fatalf("view: %v", err)
@@ -229,13 +231,16 @@ func TestViewPresentsTheSessionExactModelSelection(t *testing.T) {
 	if view.Provider != "anthropic" || view.Model != "claude-opus-4-8" {
 		t.Fatalf("view selection = %s/%s, want Session selection", view.Provider, view.Model)
 	}
+	if view.Workspace != (WorkspaceView{Path: "/repo", ProjectRoot: "/repo", Missing: true}) {
+		t.Fatalf("view workspace = %+v, want one exact missing projection", view.Workspace)
+	}
 }
 
 func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)
 	stores := &crudStores{session: store}
-	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testWorkspaceResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	ctx := context.Background()
 
 	title := "  Renamed  "
@@ -243,11 +248,11 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	cwd := "/requested/project"
 	favorite := true
 
-	got, err := c.Update(ctx, "ses_1", session.Patch{
-		Title:     &title,
-		Selection: &selection,
-		CWD:       &cwd,
-		Favorite:  &favorite,
+	got, err := c.Update(ctx, "ses_1", Patch{
+		Title:         &title,
+		Selection:     &selection,
+		WorkspacePath: &cwd,
+		Favorite:      &favorite,
 	})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
@@ -261,8 +266,8 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if store.saved.Selection() != selection {
 		t.Fatalf("model selection = %v", store.saved.Selection())
 	}
-	if store.saved.CWD() != "/resolved/project" {
-		t.Fatalf("cwd = %q", store.saved.CWD())
+	if store.saved.Workspace().Path() != "/resolved/project" {
+		t.Fatalf("cwd = %q", store.saved.Workspace().Path())
 	}
 	if !store.saved.Favorite() || store.expected != 1 || store.saved.Revision() != 2 {
 		t.Fatalf("saved lifecycle = %+v, expected=%d", store.saved.Snapshot(), store.expected)
@@ -276,10 +281,10 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 	stores := &crudStores{session: store}
-	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testWorkspaceResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	cwd := "/requested/project"
 
-	_, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &cwd})
+	_, err := c.Update(t.Context(), "ses_1", Patch{WorkspacePath: &cwd})
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("Update relocation error = %v, want ErrSessionBusy", err)
 	}
@@ -289,14 +294,14 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 }
 
 func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) {
-	for name, patch := range map[string]session.Patch{
-		"cwd": func() session.Patch {
+	for name, patch := range map[string]Patch{
+		"workspace": func() Patch {
 			cwd := "/requested/project"
-			return session.Patch{CWD: &cwd}
+			return Patch{WorkspacePath: &cwd}
 		}(),
-		"isolation": func() session.Patch {
+		"isolation": func() Patch {
 			isolated := true
-			return session.Patch{Isolated: &isolated}
+			return Patch{Isolated: &isolated}
 		}(),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -308,7 +313,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 				}},
 			}
 			coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
-				Paths:      testCWDResolver{resolved: "/resolved/project"},
+				Paths:      testWorkspaceResolver{resolved: "/resolved/project"},
 				Admissions: new(testClaimer),
 			}))
 
@@ -326,10 +331,10 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	stores := &crudStores{session: store}
-	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testCWDResolver{err: errors.New("cwd unavailable")}}))
+	c := mustNewCoordinator(testDependencies(stores, Dependencies{Paths: testWorkspaceResolver{err: errors.New("cwd unavailable")}}))
 
 	blank := "  "
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
+	if _, err := c.Update(t.Context(), "ses_1", Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
 		t.Fatalf("blank title err = %v, want ErrTitleRequired", err)
 	}
 	if store.saved.ID() != "" {
@@ -337,7 +342,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	ghost := "/no/such/dir"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", Patch{WorkspacePath: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("ghost cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.saved.ID() != "" {
@@ -345,7 +350,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	title := "Renamed"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, CWD: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", Patch{Title: &title, WorkspacePath: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("mixed patch err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.saved.ID() != "" {
@@ -395,7 +400,7 @@ func sessionRows(ids ...string) []session.Session {
 	for i, id := range ids {
 		updatedAt := time.Unix(0, int64(len(ids)-i)).UTC()
 		out = append(out, sessionfixture.MustRestore(session.Snapshot{
-			ID: id, CWD: "/repo", StartedAt: updatedAt, UpdatedAt: updatedAt,
+			ID: id, Workspace: sessionfixture.MustWorkspace("/repo"), StartedAt: updatedAt, UpdatedAt: updatedAt,
 		}))
 	}
 	return out
@@ -412,7 +417,7 @@ func TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor(t *testing.T) {
 		rows:             sessionRows("ses_1", "ses_2", "ses_3"),
 	}
 	c := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
-		Paths: testCWDResolver{resolved: "/repo"},
+		Paths: testWorkspaceResolver{resolved: "/repo"},
 	}))
 	ctx := t.Context()
 

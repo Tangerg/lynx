@@ -421,7 +421,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	value := sessionfixture.MustRestore(session.Snapshot{
-		ID: sessionID, CWD: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: sessionID, Workspace: sessionfixture.MustWorkspace(t.TempDir()), StartedAt: createdAt, UpdatedAt: createdAt,
 	})
 	if err := cfg.SessionStore.Insert(ctx, value); err != nil {
 		t.Fatalf("insert Session: %v", err)

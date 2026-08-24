@@ -3,18 +3,20 @@ import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session
 import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/queries";
 import { buildWorkIndex } from "./buildWorkIndex";
 
-function session(
-  overrides: Partial<AgentSessionSummary> & Pick<AgentSessionSummary, "id">,
-): AgentSessionSummary {
+type SessionOverrides = Omit<Partial<AgentSessionSummary>, "workspace"> &
+  Pick<AgentSessionSummary, "id"> & { cwd?: string };
+
+function session(overrides: SessionOverrides): AgentSessionSummary {
+  const { cwd = "/unclaimed", ...summary } = overrides;
   return {
     revision: 1,
     title: overrides.id,
     status: "idle",
     provider: "provider",
     model: "gpt-test",
-    cwd: "/unclaimed",
+    workspace: { path: cwd, availability: "available" },
     time: "2026-01-01T00:00:00.000Z",
-    ...overrides,
+    ...summary,
   };
 }
 

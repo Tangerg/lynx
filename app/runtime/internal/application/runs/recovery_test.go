@@ -66,7 +66,7 @@ func (store *recoveryStoreStub) SessionByID(_ context.Context, sessionID string)
 	if sess, ok := store.sessions[sessionID]; ok {
 		return sess, nil
 	}
-	return sessionfixture.MustRestore(session.Snapshot{ID: sessionID, CWD: "/workspace"}), nil
+	return sessionfixture.MustRestore(session.Snapshot{ID: sessionID, Workspace: sessionfixture.MustWorkspace("/workspace")}), nil
 }
 
 func (store *recoveryStoreStub) ListTranscript(_ context.Context, sessionID string) ([]transcript.Item, error) {
@@ -112,14 +112,14 @@ func (store *recoveryStoreStub) LoadExecutorCheckpoint(
 		}
 		sess, found := store.sessions[pending.SessionID]
 		if !found {
-			sess = sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, CWD: "/workspace"})
+			sess = sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, Workspace: sessionfixture.MustWorkspace("/workspace")})
 		}
 		return ExecutorCheckpoint{
 			RootMemberID: rootMemberID,
 			Payload:      []byte(`{}`),
 			BuildID:      "test-build",
 			Scope: ExecutionScope{
-				SessionID: pending.SessionID, CWD: sess.CWD(), WorkspaceCWD: sess.CWD(),
+				SessionID: pending.SessionID, CWD: sess.Workspace().Path(), WorkspaceCWD: sess.Workspace().Path(),
 				Isolated: sess.Isolated(), GoalIncarnationID: pending.GoalIncarnationID,
 			},
 			ModelSelection: root.ModelSelection,
@@ -590,7 +590,7 @@ func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testin
 		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 		sessions: map[string]session.Session{
 			run.SessionID(): sessionfixture.MustRestore(session.Snapshot{
-				ID: run.SessionID(), CWD: "/workspace", Isolated: true,
+				ID: run.SessionID(), Workspace: sessionfixture.MustWorkspace("/workspace"), Isolated: true,
 			}),
 		},
 	}

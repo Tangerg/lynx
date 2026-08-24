@@ -84,7 +84,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	releaseTerminal := make(chan struct{})
 	exec := gatedTerminalExecutor{release: releaseTerminal}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	invalidations := &invalidationRecorder{}
 	c := mustNewCoordinator(Dependencies{
@@ -140,7 +140,7 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	})}}}
 	invalidations := &invalidationRecorder{}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
-	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")})}
 	c := mustNewCoordinator(Dependencies{
 		RootStarts:    control,
 		Observations:  exec,

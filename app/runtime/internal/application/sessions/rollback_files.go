@@ -11,7 +11,7 @@ import (
 )
 
 // ErrCheckpointUnavailable reports that a file rollback can't restore the working
-// tree — the checkpoint store is disabled, the session has no cwd, or the target
+// tree — the checkpoint store is disabled or the target
 // run has no snapshot.
 var (
 	ErrCheckpointUnavailable = errors.New("sessions: checkpoint unavailable")
@@ -72,10 +72,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 
 	var cwd string
 	if spec.RestoreFiles {
-		cwd = currentSession.CWD()
-		if cwd == "" {
-			return result, ErrCheckpointUnavailable
-		}
+		cwd = currentSession.Workspace().Path()
 		workingTreeMutation, claimed := c.ClaimWorkingTreeMutation(cwd)
 		if !claimed {
 			return result, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)

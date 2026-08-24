@@ -106,18 +106,16 @@ func (d *Discovery) Workspaces(ctx context.Context) ([]Summary, error) {
 
 func workspacesFromSessions(sessions []session.Session) []Summary {
 	byPath := map[string]*Summary{}
-	for _, session := range sessions {
-		if session.CWD() == "" {
-			continue
-		}
-		workspace := byPath[session.CWD()]
+	for _, sessionValue := range sessions {
+		path := sessionValue.Workspace().Path()
+		workspace := byPath[path]
 		if workspace == nil {
-			workspace = &Summary{Path: session.CWD(), Name: filepath.Base(session.CWD())}
-			byPath[session.CWD()] = workspace
+			workspace = &Summary{Path: path, Name: filepath.Base(path)}
+			byPath[path] = workspace
 		}
 		workspace.SessionCount++
-		if workspace.LastActiveAt.IsZero() || session.UpdatedAt().After(workspace.LastActiveAt) {
-			workspace.LastActiveAt = session.UpdatedAt()
+		if workspace.LastActiveAt.IsZero() || sessionValue.UpdatedAt().After(workspace.LastActiveAt) {
+			workspace.LastActiveAt = sessionValue.UpdatedAt()
 		}
 	}
 	workspaces := make([]Summary, 0, len(byPath))

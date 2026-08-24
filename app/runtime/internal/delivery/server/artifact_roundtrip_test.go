@@ -24,6 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -348,7 +349,7 @@ func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 		t.Fatalf("seed model selection: %v", err)
 	}
 	if _, err := insertSessionSnapshot(ctx, rt.sess, session.Snapshot{
-		ID: sessionID, Title: "Everything", CWD: cwd,
+		ID: sessionID, Title: "Everything", Workspace: sessionfixture.MustWorkspace(cwd),
 		Selection: selection,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
 		Favorite: true, Revision: 1,

@@ -245,7 +245,7 @@ func validateCheckpointSessionScope(
 	checkpoint ExecutorCheckpoint,
 	sess session.Session,
 ) error {
-	if checkpoint.Scope.WorkspaceCWD != sess.CWD() || checkpoint.Scope.Isolated != sess.Isolated() {
+	if checkpoint.Scope.WorkspaceCWD != sess.Workspace().Path() || checkpoint.Scope.Isolated != sess.Isolated() {
 		return fmt.Errorf("%w: checkpoint workspace scope differs from Session", ErrExecutorStateLost)
 	}
 	if sess.Isolated() {
@@ -254,7 +254,7 @@ func validateCheckpointSessionScope(
 		}
 		return nil
 	}
-	if checkpoint.Scope.CWD != sess.CWD() {
+	if checkpoint.Scope.CWD != sess.Workspace().Path() {
 		return fmt.Errorf("%w: checkpoint working directory differs from Session", ErrExecutorStateLost)
 	}
 	return nil

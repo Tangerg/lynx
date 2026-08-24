@@ -18,7 +18,7 @@ import (
 
 func TestCopyForkSnapshotRemapsTheCompleteVisibleRunTree(t *testing.T) {
 	at := time.Unix(10, 0).UTC()
-	parent := sessionfixture.MustRestore(session.Snapshot{ID: "ses_parent", CWD: "/repo"})
+	parent := sessionfixture.MustRestore(session.Snapshot{ID: "ses_parent", Workspace: sessionfixture.MustWorkspace("/repo")})
 	child, err := parent.Fork("ses_child", "branch", at.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("fork child Session: %v", err)

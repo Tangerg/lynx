@@ -42,10 +42,10 @@ func (s *SessionStore) Save(
 	}
 	snapshot := replacement.Snapshot()
 	result, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
-		title = ?, cwd = ?, parent_id = ?, started_at = ?, updated_at = ?,
+		title = ?, workspace_path = ?, parent_id = ?, started_at = ?, updated_at = ?,
 		provider = ?, model = ?, favorite = ?, isolated = ?, revision = ?
 		WHERE id = ? AND revision = ?`,
-		snapshot.Title, snapshot.CWD, snapshot.ParentID,
+		snapshot.Title, snapshot.Workspace.Path(), snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
 		snapshot.Selection.Provider(), snapshot.Selection.Model(),
 		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
@@ -81,7 +81,7 @@ func (s *SessionStore) execInsert(ctx context.Context, executor execer, value se
 	snapshot := value.Snapshot()
 	_, err := executor.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		snapshot.ID, snapshot.Title, snapshot.CWD, snapshot.ParentID,
+		snapshot.ID, snapshot.Title, snapshot.Workspace.Path(), snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
 		snapshot.Selection.Provider(), snapshot.Selection.Model(),
 		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),

@@ -18,9 +18,9 @@ export async function resolveActiveSessionWorkspaceCwd(
 ): Promise<WorkspaceCwdResolution> {
   const id = sessions.activeSessionId();
   if (!id) return { status: "resolved" };
-  const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([AGENT_SESSIONS_KEY]);
+  const list = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
   const cached = list?.find((session) => session.id === id);
-  if (cached) return { status: "resolved", ...(cached.cwd ? { cwd: cached.cwd } : {}) };
+  if (cached) return { status: "resolved", cwd: cached.workspace.path };
   return getContainer()
     .client()
     .sessions.get(asSessionId(id), signal)
@@ -51,5 +51,5 @@ function sessionWorkspaceRevision(
   sessions: readonly AgentSessionSummary[] | undefined,
 ): string {
   const session = sessions?.find(({ id }) => id === activeSessionId);
-  return JSON.stringify([activeSessionId, session ? session.cwd : null]);
+  return JSON.stringify([activeSessionId, session ? session.workspace.path : null]);
 }

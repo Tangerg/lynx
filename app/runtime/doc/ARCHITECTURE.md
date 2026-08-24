@@ -60,7 +60,7 @@ DDD 用于澄清语言、实体行为、聚合和所有权，不用于复制 Jav
 
 | 术语 | 唯一含义 | 明确不表示 |
 |---|---|---|
-| `Session` | 一段持久产品会话，拥有 workspace 绑定、默认模型和根 Run admission 约束 | Agent Framework Process、网络连接 |
+| `Session` | 一段持久产品会话，拥有 exact Workspace、默认模型和根 Run admission 约束 | filesystem 存在性/物理 canonicalization、Agent Framework Process、网络连接 |
 | `Run` | 用户看到的一次完整逻辑执行，跨中断与恢复保持同一身份 | 一次模型调用、Agent Framework Execution |
 | `Segment` | 一个 Run 中连续输出的一段；首启和每次恢复分别打开新 Segment | Run、Agent Framework Step |
 | `Conversation` | Host 拥有、用于构造未来模型上下文的产品消息历史 | Transcript、WorkingContext |
@@ -165,7 +165,7 @@ Application checkpoint 包含：
 | Aggregate root | 内部一致性边界 | 不拥有 |
 |---|---|---|
 | `Run` | lifecycle、Segment、lineage、limits、capabilities、outcome | Transcript Items、executor state、Store |
-| `Session` | workspace/default model/isolation 和 root admission 状态 | Run 推进、Conversation 内容 |
+| `Session` | exact Workspace/default model/isolation 和 root admission 状态 | filesystem 查询与 canonicalization、Run 推进、Conversation 内容 |
 | `Conversation` | message sequence、watermark、truncate/seed/fork | Transcript、WorkingContext |
 | `Transcript` | Item/Run projection 顺序、accepted Question response、rollback/fork boundary | Run 状态机、Agent state |
 | `Pending` | 一个 root Run tree 的 open Interrupt 集与答案/claim | Framework wait/mailbox |
@@ -465,6 +465,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 ## 10. 持久化与恢复
 
 - 当前开发阶段只有一个 SQLite shape；schema 变化直接提升 epoch，不双读、不迁移旧 shape；
+- Session workspace 只以非空 `sessions.workspace_path` 保存；strict reader 必须重新构造 Domain `Workspace`，相对或 lexical-unclean row fail closed，旧 `cwd` 列和空默认值不存在；
 - Store 保存 Application aggregate，不保存 live Engine、Dispatcher、context、goroutine 或 SDK object；
 - root Process tree 是 executor snapshot 的不可拆分恢复单位；
 - checkpoint 写入和产品 waiting facts 必须属于同一个 Application write-set；

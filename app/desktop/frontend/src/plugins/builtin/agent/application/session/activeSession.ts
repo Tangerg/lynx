@@ -75,7 +75,7 @@ export function activeSessionWorkspaceSelection(
   if (!activeSessionId) return { status: "ready" };
   const session = sessions?.find((candidate) => candidate.id === activeSessionId);
   return session
-    ? { status: "ready", cwd: session.cwd }
+    ? { status: "ready", cwd: session.workspace.path }
     : { status: "resolving", sessionId: activeSessionId };
 }
 

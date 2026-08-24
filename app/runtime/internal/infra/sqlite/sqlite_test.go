@@ -43,6 +43,50 @@ func newTempDB(t *testing.T) *sqlite.SessionStore {
 	return sqlite.NewSessionStore(db)
 }
 
+func TestSessionSchemaOwnsExactWorkspacePath(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	rows, err := db.Query(`PRAGMA table_info(sessions)`)
+	if err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			t.Fatalf("scan table_info: %v", err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	if !columns["workspace_path"] || columns["cwd"] {
+		t.Fatalf("sessions columns = %v, want workspace_path without cwd", columns)
+	}
+
+	const insert = `INSERT INTO sessions(
+		id, title, workspace_path, parent_id, started_at, updated_at,
+		provider, model, favorite, isolated, revision
+	) VALUES (?, '', ?, '', 1, 1, 'provider', 'model', 0, 0, 1)`
+	if _, err := db.Exec(insert, "ses_empty", ""); err == nil {
+		t.Fatal("sessions accepted an empty workspace_path")
+	}
+	if _, err := db.Exec(insert, "ses_relative", "relative/work"); err != nil {
+		t.Fatalf("seed relative workspace: %v", err)
+	}
+	if _, err := sqlite.NewSessionStore(db).Get(t.Context(), "ses_relative"); !errors.Is(err, session.ErrInvalid) {
+		t.Fatalf("decode relative workspace error = %v, want session.ErrInvalid", err)
+	}
+}
+
 // TestSessionCRUD exercises the exact aggregate persistence lifecycle
 // against the SQLite backend.
 func TestSessionCRUD(t *testing.T) {
@@ -59,7 +103,7 @@ func TestSessionCRUD(t *testing.T) {
 	}
 
 	created := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_first", Title: "first session", CWD: "/work",
+		ID: "ses_first", Title: "first session", Workspace: sessionfixture.MustWorkspace("/work"),
 	})
 	if err := svc.Insert(ctx, created); err != nil {
 		t.Fatalf("Insert: %v", err)
@@ -115,7 +159,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	}
 	svc1 := sqlite.NewSessionStore(db1)
 	created := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_persistent", Title: "persistent", CWD: "/work",
+		ID: "ses_persistent", Title: "persistent", Workspace: sessionfixture.MustWorkspace("/work"),
 	})
 	if err := svc1.Insert(ctx, created); err != nil {
 		t.Fatalf("Insert: %v", err)

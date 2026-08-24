@@ -57,7 +57,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations},
 	}))
 
@@ -74,7 +74,7 @@ func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations},
 	}))
 
@@ -91,7 +91,7 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Goals:             mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
 	}))
 
@@ -132,7 +132,7 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations, err: executionErr},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Checkpoints:       checkpoints,
 	}))
 
@@ -154,7 +154,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		Checkpoints:       &mutationCheckpoints{operations: &stores.operations},
 		Sandbox:           &mutationSandbox{operations: &stores.operations, err: sandboxErr},
 	}))
@@ -179,7 +179,7 @@ func TestRollbackReportsParkedExecutorReleaseFailure(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations, err: executionErr},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
@@ -220,7 +220,7 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	_, err := newCoordinator(stores, mutationExecutions{operations: &stores.operations}).restoreSession(
 		t.Context(),
 		Snapshot{
-			Session:  sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/workspace"}),
+			Session:  sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/workspace")}),
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
 		}, false,
 	)
@@ -236,7 +236,7 @@ func TestRestoreSessionPresentsTheCommittedReplacementRevision(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]runs.Pending{}
 	current := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_1", CWD: "/workspace", StartedAt: time.Unix(1, 0).UTC(),
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/workspace"), StartedAt: time.Unix(1, 0).UTC(),
 		UpdatedAt: time.Unix(1, 0).UTC(), Revision: 4,
 	})
 	stores.current = &current
@@ -244,7 +244,7 @@ func TestRestoreSessionPresentsTheCommittedReplacementRevision(t *testing.T) {
 
 	view, err := coordinator.restoreSession(t.Context(), Snapshot{
 		Session: sessionfixture.MustRestore(session.Snapshot{
-			ID: "ses_1", CWD: "/workspace", StartedAt: time.Unix(1, 0).UTC(),
+			ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/workspace"), StartedAt: time.Unix(1, 0).UTC(),
 			UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 		}),
 	}, true)
@@ -265,10 +265,10 @@ func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 	want := errors.New("missing workspace")
 	coordinator := mustNewCoordinator(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
-		Paths:             testCWDResolver{err: want},
+		Paths:             testWorkspaceResolver{err: want},
 	}))
 
-	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "relative"})}, false)
+	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/archive")})}, false)
 	if !errors.Is(err, workspaceapp.ErrCWDUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}

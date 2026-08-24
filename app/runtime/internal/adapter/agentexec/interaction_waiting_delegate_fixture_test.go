@@ -61,7 +61,7 @@ func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFi
 
 	workspace := t.TempDir()
 	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
-		ID: "session_1", Title: "waiting delegate", CWD: workspace,
+		ID: "session_1", Title: "waiting delegate", Workspace: sessionfixture.MustWorkspace(workspace),
 	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}

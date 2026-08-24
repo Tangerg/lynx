@@ -157,7 +157,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         status: "running",
         provider: "anthropic",
         model: "claude",
-        cwd: "/work/auth",
+        workspace: { path: "/work/auth", availability: "available" },
         time: "2026-06-01T01:00:00Z",
       },
     ]);

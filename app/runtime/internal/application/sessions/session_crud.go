@@ -10,12 +10,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// CWDResolver is the filesystem boundary needed when a Session is created or
-// relocated. Session.CWD is canonical after admission, so downstream use cases
-// treat it as an invariant instead of repeatedly touching the filesystem.
-type CWDResolver interface {
+// WorkspaceResolver is the filesystem boundary needed when a Session is
+// created or relocated. Session.Workspace is exact after admission, so
+// downstream use cases treat it as an invariant instead of repeatedly touching
+// the filesystem.
+type WorkspaceResolver interface {
 	ResolveExistingDir(path string) (string, error)
 	Inspect(path string) (workspaceapp.Resolved, error)
+}
+
+// Patch is the Application command for editing a Session. WorkspacePath is an
+// untrusted external spelling until Update admits it through WorkspaceResolver;
+// the Domain patch receives only the resulting exact Workspace value.
+type Patch struct {
+	Title            *string
+	Selection        *modelref.Selection
+	WorkspacePath    *string
+	Favorite         *bool
+	Isolated         *bool
+	ExpectedRevision uint64
 }
 
 // List returns every user-facing Session, newest-updated first.
@@ -38,12 +51,12 @@ func (c *Coordinator) InspectWorkspace(cwd string) (workspaceapp.Resolved, error
 
 // Create starts and persists a fresh root Session in an admitted workspace.
 func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Session, error) {
-	cwd, err := c.resolveSessionCWD(cwd)
+	workspace, err := c.resolveSessionWorkspace(cwd)
 	if err != nil {
 		return session.Session{}, err
 	}
 	created, err := session.New(session.Draft{
-		ID: c.newID(), Title: title, CWD: cwd,
+		ID: c.newID(), Title: title, Workspace: workspace,
 		Selection: c.defaultModelSelection, StartedAt: c.now(),
 	})
 	if err != nil {
@@ -73,7 +86,7 @@ func (c *Coordinator) PrepareScheduled(
 	if !errors.Is(err, session.ErrNotFound) {
 		return session.Session{}, nil, err
 	}
-	cwd, err = c.resolveSessionCWD(cwd)
+	workspace, err := c.resolveSessionWorkspace(cwd)
 	if err != nil {
 		return session.Session{}, nil, err
 	}
@@ -84,7 +97,7 @@ func (c *Coordinator) PrepareScheduled(
 		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection: %w", err)
 	}
 	created, err := session.New(session.Draft{
-		ID: id, Title: title, CWD: cwd, Selection: selection, StartedAt: c.now(),
+		ID: id, Title: title, Workspace: workspace, Selection: selection, StartedAt: c.now(),
 	})
 	if err != nil {
 		return session.Session{}, nil, err
@@ -95,15 +108,16 @@ func (c *Coordinator) PrepareScheduled(
 // Update applies one complete Session edit. External workspace admission and
 // process-local mutation claims occur before Domain behavior; persistence only
 // saves the resulting aggregate with CAS.
-func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
-	if patch.CWD != nil {
-		cwd, err := c.resolveSessionCWD(*patch.CWD)
+func (c *Coordinator) Update(ctx context.Context, id string, patch Patch) (session.Session, error) {
+	var workspace *session.Workspace
+	if patch.WorkspacePath != nil {
+		resolved, err := c.resolveSessionWorkspace(*patch.WorkspacePath)
 		if err != nil {
 			return session.Session{}, err
 		}
-		patch.CWD = &cwd
+		workspace = &resolved
 	}
-	if patch.CWD != nil || patch.Isolated != nil {
+	if workspace != nil || patch.Isolated != nil {
 		admission, err := c.ClaimIdleSession(ctx, id)
 		if err != nil {
 			return session.Session{}, err
@@ -114,7 +128,11 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 	if err != nil {
 		return session.Session{}, err
 	}
-	updated, changed, err := current.Apply(patch, c.now())
+	updated, changed, err := current.Apply(session.Patch{
+		Title: patch.Title, Selection: patch.Selection, Workspace: workspace,
+		Favorite: patch.Favorite, Isolated: patch.Isolated,
+		ExpectedRevision: patch.ExpectedRevision,
+	}, c.now())
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -167,12 +185,16 @@ func (c *Coordinator) ApplyGeneratedTitle(ctx context.Context, id, title string)
 	}
 }
 
-// resolveSessionCWD canonicalizes cwd and requires it to be an existing
+// resolveSessionWorkspace canonicalizes path and requires it to be an existing
 // directory, returning the shared workspace-admission sentinel on failure.
-func (c *Coordinator) resolveSessionCWD(cwd string) (string, error) {
-	resolved, err := c.paths.ResolveExistingDir(cwd)
+func (c *Coordinator) resolveSessionWorkspace(path string) (session.Workspace, error) {
+	resolved, err := c.paths.ResolveExistingDir(path)
 	if err != nil {
-		return "", errors.Join(workspaceapp.ErrCWDUnavailable, err)
+		return session.Workspace{}, errors.Join(workspaceapp.ErrCWDUnavailable, err)
 	}
-	return resolved, nil
+	workspace, err := session.NewWorkspace(resolved)
+	if err != nil {
+		return session.Workspace{}, fmt.Errorf("sessions: resolved workspace: %w", err)
+	}
+	return workspace, nil
 }

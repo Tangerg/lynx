@@ -26,7 +26,7 @@ export function CwdMissingBanner() {
   // immediate Apply click in one tick would otherwise both fire relocate.
   const submitting = useRef(false);
 
-  if (!session?.cwdMissing) return null;
+  if (session?.workspace.availability !== "missing") return null;
 
   const submit = async (): Promise<void> => {
     const next = path.trim();
@@ -47,7 +47,8 @@ export function CwdMissingBanner() {
       <div className="min-w-0">
         <div className="mb-0.5 text-ui-md font-semibold text-warning">{t("cwdMissing.title")}</div>
         <div className="text-ui-md text-fg-soft break-words">
-          <code className="font-mono text-ui-md">{session.cwd}</code> · {t("cwdMissing.body")}
+          <code className="font-mono text-ui-md">{session.workspace.path}</code> ·{" "}
+          {t("cwdMissing.body")}
         </div>
         {relocateEnabled && (
           <div className="mt-2">
@@ -88,7 +89,7 @@ export function CwdMissingBanner() {
               <BannerAction
                 label={t("cwdMissing.action.relocate")}
                 onClick={() => {
-                  setPath(session.cwd);
+                  setPath(session.workspace.path);
                   setEditing(true);
                 }}
                 primary

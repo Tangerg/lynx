@@ -24,7 +24,11 @@
 
 ## 当前状态
 
-P0–P139 服务端重构、内部所有权清理、公共 binding、真实 consumer 联调和单 Desktop/逻辑 Runtime 全链路恢复反证已经完成，P140 Runtime/Desktop 第二轮熵回收进行中。Protocol `2026-08-21`、Artifact v22、SQLite epoch 77、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 20 是当前基线；Runtime 只通过 canonical Agent module 和 `adapter/agentexec` 防腐层消费 Framework，不读取 private state，也不向 Agent 泄露产品抽象。进程、connection 和 binding 的换代不建立“旧服务端/后继服务端”模型。消费者同步状态以 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 为准，Runtime 不为任何消费者恢复旧合同。
+当前授权与阶段只由 [`doc/EXECUTION_PLAN.md`](doc/EXECUTION_PLAN.md) 拥有，能力快照与版本事实分别只由
+[`doc/CAPABILITY_LEDGER.md`](doc/CAPABILITY_LEDGER.md) 和
+[`doc/CONTRACT_BASELINE.md`](doc/CONTRACT_BASELINE.md) 拥有。本文件不复制这些可变值，避免 scoped instruction
+在后续纵切中成为第二份陈旧基线。消费者同步状态以
+[`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 为准，Runtime 不为任何消费者恢复旧合同。
 
 ## 工作纪律
 

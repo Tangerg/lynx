@@ -34,7 +34,7 @@ import (
 const bootstrapCheckpointBuildID = "test-build"
 
 func bootstrapSession(id, title, cwd string) session.Session {
-	return sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, CWD: cwd})
+	return sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, Workspace: sessionfixture.MustWorkspace(cwd)})
 }
 
 func insertBootstrapSession(t *testing.T, store *sqlite.SessionStore, value session.Session) {
@@ -213,7 +213,7 @@ func parkWithGoalLease(
 	ctx := context.Background()
 	startedAt := time.Unix(0, 0).UTC()
 	value := sessionfixture.MustRestore(session.Snapshot{
-		ID: sessionID, CWD: "/work", StartedAt: startedAt, UpdatedAt: startedAt,
+		ID: sessionID, Workspace: sessionfixture.MustWorkspace("/work"), StartedAt: startedAt, UpdatedAt: startedAt,
 	})
 	if err := sessions.Insert(ctx, value); err != nil {
 		t.Fatalf("insert Session: %v", err)
@@ -853,7 +853,7 @@ func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	}
 
 	target, err := ss.sessions.Get(ctx, "ses_B")
-	if err != nil || target.Title() != "target" || target.CWD() != "/target" {
+	if err != nil || target.Title() != "target" || target.Workspace().Path() != "/target" {
 		t.Fatalf("target Session after rollback = %+v, %v", target.Snapshot(), err)
 	}
 	messages, err := ss.history.Read(ctx, "ses_B")

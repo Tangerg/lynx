@@ -25,7 +25,7 @@ func TestExecutionCWD(t *testing.T) {
 
 	t.Run("non-isolated uses the project cwd", func(t *testing.T) {
 		c := &Coordinator{isolation: &stubIsolation{path: "/should/not/be/used"}}
-		cwd, isolated, err := c.executionCWD(ctx, sessionfixture.MustRestore(session.Snapshot{ID: "s1", CWD: "/proj"}))
+		cwd, isolated, err := c.executionCWD(ctx, sessionfixture.MustRestore(session.Snapshot{ID: "s1", Workspace: sessionfixture.MustWorkspace("/proj")}))
 		if err != nil || cwd != "/proj" || isolated {
 			t.Fatalf("executionCWD = (%q, %v, %v), want (/proj, false, nil)", cwd, isolated, err)
 		}
@@ -34,7 +34,7 @@ func TestExecutionCWD(t *testing.T) {
 	t.Run("isolated resolves the sandbox copy", func(t *testing.T) {
 		stub := &stubIsolation{path: "/tmp/copy"}
 		c := &Coordinator{isolation: stub}
-		cwd, isolated, err := c.executionCWD(ctx, sessionfixture.MustRestore(session.Snapshot{ID: "s1", CWD: "/proj", Isolated: true}))
+		cwd, isolated, err := c.executionCWD(ctx, sessionfixture.MustRestore(session.Snapshot{ID: "s1", Workspace: sessionfixture.MustWorkspace("/proj"), Isolated: true}))
 		if err != nil || cwd != "/tmp/copy" || !isolated {
 			t.Fatalf("executionCWD = (%q, %v, %v), want (/tmp/copy, true, nil)", cwd, isolated, err)
 		}
@@ -45,7 +45,7 @@ func TestExecutionCWD(t *testing.T) {
 
 	t.Run("isolated with no provider fails closed", func(t *testing.T) {
 		c := &Coordinator{}
-		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", CWD: "/proj", Isolated: true})
+		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", Workspace: sessionfixture.MustWorkspace("/proj"), Isolated: true})
 		if _, _, err := c.executionCWD(ctx, value); !errors.Is(err, ErrIsolationUnavailable) {
 			t.Fatalf("err = %v, want ErrIsolationUnavailable", err)
 		}
@@ -53,7 +53,7 @@ func TestExecutionCWD(t *testing.T) {
 
 	t.Run("isolated with a provider error fails closed", func(t *testing.T) {
 		c := &Coordinator{isolation: &stubIsolation{err: errors.New("no backend")}}
-		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", CWD: "/proj", Isolated: true})
+		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", Workspace: sessionfixture.MustWorkspace("/proj"), Isolated: true})
 		if _, _, err := c.executionCWD(ctx, value); !errors.Is(err, ErrIsolationUnavailable) {
 			t.Fatalf("err = %v, want ErrIsolationUnavailable", err)
 		}

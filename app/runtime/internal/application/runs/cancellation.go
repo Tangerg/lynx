@@ -180,13 +180,13 @@ func (c *Coordinator) cancelWaitingChild(
 	if err != nil {
 		return CancelResult{}, err
 	}
-	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.CWD())
+	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.Workspace().Path())
 	if !ok {
 		return CancelResult{}, fmt.Errorf(
 			"%w: session %q or working tree %q has a run or mutation in flight",
 			ErrSessionBusy,
 			sess.ID(),
-			sess.CWD(),
+			sess.Workspace().Path(),
 		)
 	}
 	defer runAdmission.Release()
@@ -381,7 +381,7 @@ func (c *Coordinator) resumeAfterWaitingChildCancellation(
 		RunID:             plan.root.run.ID(),
 		SegmentID:         segmentID,
 		SessionID:         plan.pending.SessionID,
-		CWD:               sess.CWD(),
+		CWD:               sess.Workspace().Path(),
 		ExecutorID:        plan.executor.ExecutorID,
 		ModelSelection:    rootContinuation.ModelSelection,
 		GoalIncarnationID: transformation.continuation.goalIncarnationID,

@@ -25,7 +25,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -43,7 +42,7 @@ type sessionUseCases interface {
 	MaterialSnapshot(ctx context.Context, sessionID string) (sessions.MaterialSnapshot, error)
 	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.View, error)
 	Rollback(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
-	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.View, error)
+	UpdateView(ctx context.Context, id string, patch sessions.Patch) (sessions.View, error)
 	View(ctx context.Context, id string) (sessions.View, error)
 }
 

@@ -31,7 +31,7 @@ func TestObserveExternalChangesIgnoresLocalAndReportsOtherRuntimeCommit(t *testi
 	if err != nil {
 		t.Fatalf("start external change observer: %v", err)
 	}
-	local := sessionfixture.MustRestore(session.Snapshot{ID: "session-local", CWD: root})
+	local := sessionfixture.MustRestore(session.Snapshot{ID: "session-local", Workspace: sessionfixture.MustWorkspace(root)})
 	if err := first.Sessions.Insert(t.Context(), local); err != nil {
 		t.Fatalf("insert through observed Runtime: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestObserveExternalChangesIgnoresLocalAndReportsOtherRuntimeCommit(t *testi
 	case <-time.After(2 * externalChangePollInterval):
 	}
 
-	remote := sessionfixture.MustRestore(session.Snapshot{ID: "session-remote", CWD: root})
+	remote := sessionfixture.MustRestore(session.Snapshot{ID: "session-remote", Workspace: sessionfixture.MustWorkspace(root)})
 	if err := second.Sessions.Insert(t.Context(), remote); err != nil {
 		t.Fatalf("insert through second Runtime: %v", err)
 	}

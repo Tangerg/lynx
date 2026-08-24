@@ -35,7 +35,7 @@ func newCompactionFixture(t *testing.T) (*sql.DB, *sqlite.MessageStore, *sqlite.
 		},
 	)
 	service := conversations.NewMessages(messages, compactions)
-	ses := sessionfixture.MustRestore(session.Snapshot{ID: "ses_long", Title: "long", CWD: "/work"})
+	ses := sessionfixture.MustRestore(session.Snapshot{ID: "ses_long", Title: "long", Workspace: sessionfixture.MustWorkspace("/work")})
 	if err := sqlite.NewSessionStore(db).Insert(t.Context(), ses); err != nil {
 		t.Fatal(err)
 	}

@@ -37,7 +37,7 @@ func TestNewRejectsMalformedDependencies(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}}}
 	deps := testDependencies(stores, Dependencies{
 		ExecutionReleaser: inertExecutionReleaser{},
-		Paths:             testCWDResolver{},
+		Paths:             testWorkspaceResolver{},
 		MaterialSnapshots: emptyMaterialSnapshotReader{},
 	})
 	deps.Plan = &PlanServices{}
@@ -196,7 +196,7 @@ func newCoordinator(stores testStores, executions ExecutionReleaser) *Coordinato
 
 func newCoordinatorWithAdmissions(stores testStores, executions ExecutionReleaser, admissions Admissions) *Coordinator {
 	return mustNewCoordinator(testDependencies(stores, Dependencies{
-		ExecutionReleaser: executions, Paths: testCWDResolver{}, Admissions: admissions,
+		ExecutionReleaser: executions, Paths: testWorkspaceResolver{}, Admissions: admissions,
 	}))
 }
 
@@ -269,7 +269,7 @@ func mustNewCoordinator(deps Dependencies) *Coordinator {
 		deps.ExecutionReleaser = inertExecutionReleaser{}
 	}
 	if deps.Paths == nil {
-		deps.Paths = testCWDResolver{}
+		deps.Paths = testWorkspaceResolver{}
 	}
 	if deps.Admissions == nil {
 		deps.Admissions = new(testClaimer)
@@ -329,12 +329,13 @@ func (emptySessionStore) Save(context.Context, uint64, session.Session) error {
 	return nil
 }
 
-type testCWDResolver struct {
+type testWorkspaceResolver struct {
 	resolved string
+	missing  bool
 	err      error
 }
 
-func (r testCWDResolver) ResolveExistingDir(path string) (string, error) {
+func (r testWorkspaceResolver) ResolveExistingDir(path string) (string, error) {
 	if r.err != nil {
 		return "", r.err
 	}
@@ -344,14 +345,14 @@ func (r testCWDResolver) ResolveExistingDir(path string) (string, error) {
 	return path, nil
 }
 
-func (r testCWDResolver) Inspect(path string) (workspace.Resolved, error) {
+func (r testWorkspaceResolver) Inspect(path string) (workspace.Resolved, error) {
 	if r.err != nil {
 		return workspace.Resolved{}, r.err
 	}
 	if r.resolved != "" {
 		path = r.resolved
 	}
-	return workspace.Resolved{Path: path, ProjectRoot: path}, nil
+	return workspace.Resolved{Path: path, ProjectRoot: path, Missing: r.missing}, nil
 }
 
 type emptyTranscript struct{}

@@ -635,7 +635,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 	snapshotted := make(chan string, 1)
 	stores := &fakeStores{
 		session: &fakeSession{
-			sess:    sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/repo"}),
+			sess:    sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/repo")}),
 			renamed: renamed,
 		},
 		title: "Generated title",

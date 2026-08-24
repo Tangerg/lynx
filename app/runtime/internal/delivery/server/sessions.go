@@ -162,10 +162,10 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		selection = &value
 	}
-	view, err := s.sessions.UpdateView(ctx, in.SessionID, session.Patch{
+	view, err := s.sessions.UpdateView(ctx, in.SessionID, sessions.Patch{
 		Title:            in.Title,
 		Selection:        selection,
-		CWD:              cwd,
+		WorkspacePath:    cwd,
 		Favorite:         in.Favorite,
 		ExpectedRevision: in.ExpectedRevision,
 	})
@@ -212,7 +212,7 @@ func presentSession(view sessions.View) protocol.Session {
 	return protocol.Session{
 		ID:        view.ID,
 		Title:     view.Title,
-		Workspace: presentWorkspaceInfo(view.CWD, view.ProjectRoot, view.CWDMissing),
+		Workspace: presentWorkspaceInfo(view.Workspace.Path, view.Workspace.ProjectRoot, view.Workspace.Missing),
 		Provider:  view.Provider,
 		Model:     view.Model,
 		Status:    presentSessionStatus(view.Activity),

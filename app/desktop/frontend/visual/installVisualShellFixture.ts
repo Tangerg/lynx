@@ -123,7 +123,7 @@ function session(
     status,
     provider: "openai",
     model: "gpt-5.6",
-    cwd,
+    workspace: { path: cwd, availability: "available" },
     favorite,
     time: time.includes("T") ? time : `2026-07-31T${time}:00Z`,
   };

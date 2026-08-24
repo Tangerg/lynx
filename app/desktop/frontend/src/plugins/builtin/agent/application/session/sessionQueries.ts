@@ -1,6 +1,11 @@
 import { createDataQuery } from "@/plugins/sdk";
 import { queryClient } from "@/lib/queryClient";
 
+export interface AgentSessionWorkspace {
+  path: string;
+  availability: "available" | "missing";
+}
+
 export interface AgentSessionSummary {
   id: string;
   revision: number;
@@ -8,8 +13,7 @@ export interface AgentSessionSummary {
   status: "running" | "waiting" | "idle";
   provider: string;
   model: string;
-  cwd: string;
-  cwdMissing?: boolean;
+  workspace: AgentSessionWorkspace;
   favorite?: boolean;
   time: string;
 }

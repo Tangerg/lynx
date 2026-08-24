@@ -191,8 +191,12 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 }
 
 func (p PortableSession) session() (session.Session, error) {
+	workspace, err := session.NewWorkspace(p.CWD)
+	if err != nil {
+		return session.Session{}, err
+	}
 	return session.Restore(session.Snapshot{
-		ID: p.ID, Title: p.Title, CWD: p.CWD, Selection: p.Selection,
+		ID: p.ID, Title: p.Title, Workspace: workspace, Selection: p.Selection,
 		StartedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 		Favorite: p.Favorite, Revision: 1,
 	})
@@ -237,7 +241,7 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		Session: PortableSession{
 			ID:        normalized.Session.ID(),
 			Title:     normalized.Session.Title(),
-			CWD:       normalized.Session.CWD(),
+			CWD:       normalized.Session.Workspace().Path(),
 			Selection: normalized.Session.Selection(),
 			CreatedAt: normalized.Session.StartedAt(),
 			UpdatedAt: normalized.Session.UpdatedAt(),
