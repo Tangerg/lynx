@@ -162,6 +162,8 @@ Application checkpoint 包含：
 
 代码发现不构成独立的持久 bounded context。Agent 通过 `grep`、`glob`、`read`、`shell` 与 LSP 组合当前 checkout 的可观察事实；Runtime 不维护面向客户端的 dense-vector corpus、index lifecycle、search operation、feature 或 invalidation topic。Embedding role 只服务仍有真实消费者的 Agent Memory，并允许后者在未配置 embedding 时退回关键词匹配。Agent Memory 向量只是 Search owner 的可丢弃派生缓存：每条缓存绑定 exact embedding space 与 content digest，space 由 provider/model/custom endpoint 的非秘密配置指纹确定；角色、endpoint、维度或内容变化后由下一次搜索惰性重算，Curation 不拥有向量回填生命周期。一次 Agent recall 由同一 Search owner 在一个 SQLite snapshot 中取得 exact-project 与 user-scope active items，再共享一个 query signal、全局 ranking 与 top-k；prompt/tool consumer 不分别查询两个 scope。Agent Memory Domain 还唯一拥有单条 item/ledger fact 的 4096 Unicode-character 内容不变量；wire/generated consumer 与 SQLite 只投影该值，pinned 和 per-turn recall 各自按 4096-token whole-item budget 截断，不能让第一项绕过预算或在消费端另造长度规则。
 
+Runtime 的 title、compaction、Agent Memory consolidation 与 Skill mining 都是 request-detached auxiliary model use case，不进入交互 Run 的 Conversation、usage 或 middleware。`adapter/utilitymodel` 是这些调用的唯一请求包络：每次调用必须显式声明 aggregate input bytes 与 output tokens，越界在 provider I/O 前失败。Run-maintenance transcript 只有一个 512KiB request / 384KiB transcript / 24KiB-per-message policy，按消息公平保留 head/tail；compaction trigger 另行测量原始 transcript footprint，不能因模型输入有界而低估压缩时机。Memory curation 只对能完整装入预算的 ledger sequence 前缀推进 watermark，未进入 prompt 的事实继续待处理。
+
 ### 5.8 Aggregate roots
 
 | Aggregate root | 内部一致性边界 | 不拥有 |
@@ -263,6 +265,8 @@ Adapter 实现 Application 消费端口并翻译外部能力。若 Domain 存在
 - `modelclient`：把 Provider/model selection 映射到 chat client；
 - `toolset`：组装通用 Tool 能力；
 - `workspace`、`maintenance`、`pricing`、`hooks`：各自准确的应用适配。
+
+`maintenance` 不直接构造无界 provider request，也不为不同 worker 暴露 uncapped render mode；语义化选择哪些 material 进入预算属于各 worker，最终输入/输出配额验证与 `chat.Options.MaxTokens` 投影只属于 `utilitymodel`。
 
 Adapter 不能只是同名 Infra 类型的透传包装。没有翻译、组合或策略意义的中间层必须合并。
 

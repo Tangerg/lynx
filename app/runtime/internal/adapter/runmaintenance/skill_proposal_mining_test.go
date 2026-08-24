@@ -126,12 +126,15 @@ func TestSkillMinerCadenceGatesMining(t *testing.T) {
 }
 
 func TestSkillMinerSubmitsUserProposalWithMinedProvenance(t *testing.T) {
-	skillMiner, proposals, _ := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	skillMiner, proposals, model := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
 	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 1 {
 		t.Fatalf("expected one proposal, got %d", len(proposals.proposals))
+	}
+	if len(model.requests) != 1 || model.requests[0].Options.MaxTokens == nil || *model.requests[0].Options.MaxTokens != skillMiningOutputTokens {
+		t.Fatalf("skill mining MaxTokens = %#v, want %d", model.requests, skillMiningOutputTokens)
 	}
 	proposal := proposals.proposals[0]
 	if proposal.Name != "run-project-tests" {

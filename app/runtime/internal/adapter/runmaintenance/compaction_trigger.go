@@ -28,5 +28,5 @@ func (c *Compactor) shouldCompact(msgs []chat.Message, maxTokens int) bool {
 // [renderTranscript] so tool-result bodies (the bulk of a coding
 // conversation) are counted, not just chat text.
 func estimateTokens(msgs []chat.Message) int {
-	return len(renderTranscript(msgs, uncappedToolResults)) / charsPerToken
+	return transcriptBytes(msgs) / charsPerToken
 }

@@ -23,14 +23,6 @@ const (
 	// window range; a relative trigger tracks the actual model's context
 	// window rather than a fixed number that's wrong at either extreme.
 	windowTriggerPct = 80
-
-	// summaryToolResultCap bounds each tool-result body in the summariser's
-	// INPUT — not the stored history, not the trigger estimate. The token
-	// trigger fires precisely on conversations a few large tool outputs
-	// dominate; feeding those raw to the summary call costs the most and risks
-	// the summary model's own context window. The summary needs each result's
-	// gist, not its full body. Generous — smaller results pass through untouched.
-	summaryToolResultCap = 4000
 )
 
 // CompactionConfig tunes the auto-compaction heuristic.

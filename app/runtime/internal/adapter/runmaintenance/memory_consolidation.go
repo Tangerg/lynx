@@ -21,6 +21,12 @@ const (
 	defaultMemoryCurationMaxPending = 128
 	defaultMemoryCurationMaxTokens  = 2_048
 	defaultMemoryCurationMaxAge     = 24 * time.Hour
+
+	// The curation request reserves independent whole-entry allocations for
+	// existing memory and the ledger. A fact excluded by the ledger allocation
+	// is not covered by this fold's watermark and remains pending.
+	memoryCurationCurrentBytes = 96 * 1024
+	memoryCurationLedgerBytes  = 256 * 1024
 )
 
 // MemoryCurationConfig bounds and schedules the ledger-to-memory fold. Zero values
@@ -136,6 +142,10 @@ func (c *MemoryConsolidator) maybeCurate(ctx context.Context, project string, no
 	if !c.curationDue(state, len(pending), now) {
 		return nil
 	}
+	pending = boundedLedgerPrefix(pending, memoryCurationLedgerBytes)
+	if len(pending) == 0 {
+		return errors.New("memory curation: pending ledger cannot fit model input envelope")
+	}
 	current, err := c.currentMemory(ctx, project)
 	if err != nil {
 		return fmt.Errorf("memory curation: load current items: %w", err)
@@ -171,6 +181,13 @@ func (c *MemoryConsolidator) currentMemory(ctx context.Context, project string) 
 		if item.Origin != agentmemory.OriginAuto {
 			continue
 		}
+		lineBytes := len(item.Content) + 2
+		if b.Len() > 0 {
+			lineBytes++
+		}
+		if b.Len()+lineBytes > memoryCurationCurrentBytes {
+			break
+		}
 		if b.Len() > 0 {
 			b.WriteByte('\n')
 		}
@@ -178,6 +195,22 @@ func (c *MemoryConsolidator) currentMemory(ctx context.Context, project string) 
 		b.WriteString(item.Content)
 	}
 	return b.String(), nil
+}
+
+// boundedLedgerPrefix keeps the oldest whole facts that fit the current fold.
+// Returning a prefix is essential: the caller advances the watermark only
+// through the final returned sequence, so omitted facts remain durable input
+// to the next curation pass.
+func boundedLedgerPrefix(facts []agentmemory.LedgerFact, budget int) []agentmemory.LedgerFact {
+	used := 0
+	for index, fact := range facts {
+		lineBytes := len(fact.Day) + len(strconv.FormatInt(fact.Sequence, 10)) + len(fact.Content) + len("[ #] \n")
+		if used+lineBytes > budget {
+			return facts[:index]
+		}
+		used += lineBytes
+	}
+	return facts
 }
 
 func (c *MemoryConsolidator) curationDue(state agentmemory.State, pending int, now time.Time) bool {
@@ -193,7 +226,7 @@ func (c *MemoryConsolidator) curationDue(state agentmemory.State, pending int, n
 // askForFacts queries the utility model directly, outside conversation
 // middleware, and returns its raw bullet response.
 func (c *MemoryConsolidator) askForFacts(ctx context.Context, messages []chat.Message) (string, error) {
-	transcript := renderTranscript(messages, uncappedToolResults)
+	transcript := renderTranscript(messages)
 	const prompt = `You are mining a coding-agent conversation for durable facts.
 Output short markdown bullets; each bullet must be stand-alone and useful in a
 future session working on the same project.
@@ -204,7 +237,10 @@ transient state, one-off observations, and facts already obvious from source.
 
 If nothing deserves the append-only memory ledger, respond exactly NO_FACTS.
 Otherwise output only bullets, without a preamble or code fence.`
-	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), prompt, transcript)
+	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), utilitymodel.Prompt{
+		SystemPrompt: prompt, UserPrompt: transcript,
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(c.config.MaxTokens),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -239,7 +275,10 @@ If no facts remain useful, respond exactly NO_MEMORY.`
 	for _, fact := range pending {
 		fmt.Fprintf(&input, "[%s #%d] %s\n", fact.Day, fact.Sequence, fact.Content)
 	}
-	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), systemPrompt, input.String())
+	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), utilitymodel.Prompt{
+		SystemPrompt: systemPrompt, UserPrompt: input.String(),
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(c.config.MaxTokens),
+	})
 	if err != nil {
 		return "", err
 	}

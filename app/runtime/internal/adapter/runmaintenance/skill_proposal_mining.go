@@ -27,6 +27,9 @@ const (
 	// skillMiningMinMessages skips mining a conversation too short to hold a reusable
 	// procedure.
 	skillMiningMinMessages = 4
+	// A complete SKILL.md needs more output room than a title or memory fact
+	// list, but still has an explicit auxiliary-call ceiling.
+	skillMiningOutputTokens int64 = 4096
 
 	// skillProposalNew / skillProposalRevision are the mined proposal kinds, carried as the skill.kind
 	// metric label; consts so a typo can't silently ship a wrong dimension.
@@ -273,8 +276,11 @@ description: <what the skill does and WHEN to use it, one or two sentences>
 // outside conversation middleware. It returns "" for NO_SKILL, a "REVISE: <name>"
 // directive, or a new-skill SKILL.md; the caller interprets which.
 func (m *SkillProposalMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
-	transcript := renderTranscript(messages, uncappedToolResults)
-	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), skillMinerPrompt, transcript)
+	transcript := renderTranscript(messages)
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
+		SystemPrompt: skillMinerPrompt, UserPrompt: transcript,
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: skillMiningOutputTokens,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -312,8 +318,11 @@ func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skills
 	input.WriteString("\n\n")
 	input.WriteString(current.Body)
 	input.WriteString("\n\nCONVERSATION\n---\n")
-	input.WriteString(renderTranscript(messages, uncappedToolResults))
-	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), skillRevisePrompt, input.String())
+	input.WriteString(renderTranscript(messages))
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
+		SystemPrompt: skillRevisePrompt, UserPrompt: input.String(),
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: skillMiningOutputTokens,
+	})
 	if err != nil {
 		return "", err
 	}

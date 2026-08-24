@@ -18,10 +18,13 @@ func TestCapText(t *testing.T) {
 	// Oversized: capped shorter than input, marked, head + tail preserved.
 	big := strings.Repeat("x", 10_000)
 	got := capText(big, 400)
+	if len(got) > 400 {
+		t.Fatalf("capText exceeded exact byte limit: %d > 400", len(got))
+	}
 	if len(got) >= len(big) {
 		t.Fatalf("capText did not shrink: %d >= %d", len(got), len(big))
 	}
-	if !strings.Contains(got, "elided for summary") {
+	if !strings.Contains(got, "elided for auxiliary model input") {
 		t.Fatal("missing elision marker")
 	}
 	if !strings.HasPrefix(got, "xxx") || !strings.HasSuffix(got, "xxx") {

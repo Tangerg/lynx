@@ -109,9 +109,27 @@ func TestMemoryConsolidatorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
 	if len(model.requests) != 2 {
 		t.Fatalf("model calls = %d, want extraction + curation", len(model.requests))
 	}
+	for index, request := range model.requests {
+		if request.Options.MaxTokens == nil || *request.Options.MaxTokens != defaultMemoryCurationMaxTokens {
+			t.Errorf("model request %d MaxTokens = %v, want %d", index, request.Options.MaxTokens, defaultMemoryCurationMaxTokens)
+		}
+	}
 	curationPrompt := model.requests[1].Messages[1].Text()
 	if !strings.Contains(curationPrompt, "[2026-07-19 #") {
 		t.Fatalf("curation prompt lacks daily provenance: %q", curationPrompt)
+	}
+}
+
+func TestBoundedLedgerPrefixNeverSkipsPastOmittedFact(t *testing.T) {
+	facts := []agentmemory.LedgerFact{
+		{Sequence: 41, Day: "2026-08-24", Content: strings.Repeat("a", 20)},
+		{Sequence: 42, Day: "2026-08-24", Content: strings.Repeat("b", 20)},
+		{Sequence: 43, Day: "2026-08-24", Content: strings.Repeat("c", 20)},
+	}
+	firstLineBytes := len(facts[0].Day) + len("41") + len(facts[0].Content) + len("[ #] \n")
+	bounded := boundedLedgerPrefix(facts, firstLineBytes)
+	if len(bounded) != 1 || bounded[0].Sequence != 41 {
+		t.Fatalf("bounded ledger = %+v, want exact prefix through sequence 41", bounded)
 	}
 }
 

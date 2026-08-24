@@ -80,7 +80,8 @@ func TestCompactor_Compacts(t *testing.T) {
 		_ = store.Write(context.Background(), sessID, chat.NewUserMessage(chat.NewTextPart("msg")))
 	}
 
-	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
+	model := newTextStubModel("BULLETS")
+	client, _ := chatclient.New(model, chatclient.Config{})
 
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: total, KeepRecent: 4})
 	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
@@ -89,6 +90,9 @@ func TestCompactor_Compacts(t *testing.T) {
 	}
 	if !res.Compacted {
 		t.Fatal("expected compaction to fire")
+	}
+	if len(model.requests) != 1 || model.requests[0].Options.MaxTokens == nil || *model.requests[0].Options.MaxTokens != compactionSummaryOutputTokens {
+		t.Fatalf("compaction MaxTokens = %#v, want %d", model.requests, compactionSummaryOutputTokens)
 	}
 	if res.MessagesBefore != total || res.MessagesAfter != 5 {
 		t.Errorf("result counts = (%d → %d), want (%d → 5)", res.MessagesBefore, res.MessagesAfter, total)
@@ -632,16 +636,18 @@ func TestTrimForBudget_PreviewsOldNotRecentAndDoesNotMutate(t *testing.T) {
 // reply for any prompt — enough to drive the maintenance workers'
 // direct (middleware-free) LLM calls offline.
 type textStubModel struct {
-	reply string
-	calls int // Call invocations, so a test can assert the LLM rung did / didn't fire
+	reply    string
+	calls    int // Call invocations, so a test can assert the LLM rung did / didn't fire
+	requests []*chat.Request
 }
 
 func newTextStubModel(reply string) *textStubModel {
 	return &textStubModel{reply: reply}
 }
 
-func (m *textStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+func (m *textStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	m.calls++
+	m.requests = append(m.requests, request)
 	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
 	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }

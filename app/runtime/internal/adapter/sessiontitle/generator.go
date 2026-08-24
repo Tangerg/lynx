@@ -14,6 +14,11 @@ import (
 // prompt keeps the (cheap-model) call fast.
 const titleMaxInputRunes = 4000
 
+const (
+	titleModelInputBytes   = 20 * 1024
+	titleModelOutputTokens = int64(64)
+)
+
 // titleMaxRunes bounds the generated title; an over-long model reply is
 // truncated rather than rejected (a usable title beats none).
 const titleMaxRunes = 80
@@ -59,7 +64,10 @@ func (t *Generator) Generate(ctx context.Context, firstMessage string) (string, 
 	if client == nil {
 		return fallback, nil
 	}
-	text, err := utilitymodel.Complete(ctx, client, titlePrompt, msg)
+	text, err := utilitymodel.Complete(ctx, client, utilitymodel.Prompt{
+		SystemPrompt: titlePrompt, UserPrompt: msg,
+		MaxInputBytes: titleModelInputBytes, MaxOutputTokens: titleModelOutputTokens,
+	})
 	if err != nil {
 		return fallback, err
 	}

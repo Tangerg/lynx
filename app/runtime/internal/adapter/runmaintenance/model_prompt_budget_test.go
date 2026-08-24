@@ -20,10 +20,14 @@ func TestMaintenanceModelTranscriptHasAggregateInputBound(t *testing.T) {
 		}))
 	}
 
-	for _, toolResultCap := range []int{uncappedToolResults, summaryToolResultCap} {
-		transcript := renderTranscript(messages, toolResultCap)
-		if len(transcript) > maximumInputBytes {
-			t.Errorf("renderTranscript(toolResultCap=%d) = %d bytes, want at most %d", toolResultCap, len(transcript), maximumInputBytes)
-		}
+	transcript := renderTranscript(messages)
+	if len(transcript) > maximumInputBytes {
+		t.Errorf("renderTranscript = %d bytes, want at most %d", len(transcript), maximumInputBytes)
+	}
+	if measured := transcriptBytes(messages); measured <= len(transcript) {
+		t.Fatalf("raw transcript measurement = %d, want greater than bounded rendering %d", measured, len(transcript))
+	}
+	if tokens := estimateTokens(messages); tokens <= len(transcript)/charsPerToken {
+		t.Fatalf("compaction estimate = %d, want raw footprint rather than bounded rendering", tokens)
 	}
 }

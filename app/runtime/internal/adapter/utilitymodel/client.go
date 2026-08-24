@@ -6,6 +6,7 @@ package utilitymodel
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
@@ -20,17 +21,49 @@ type Resolver func(context.Context) *chatclient.Client
 // callTimeout bounds one auxiliary model request independently of an Agent Run.
 const callTimeout = 2 * time.Minute
 
-// Complete performs one synchronous, middleware-free prompt completion.
-func Complete(ctx context.Context, client *chatclient.Client, systemPrompt, userPrompt string) (string, error) {
+// Prompt is the complete resource envelope for one auxiliary model request.
+// Input bytes and output tokens are deliberately mandatory: background
+// maintenance must never inherit a provider's context/output defaults.
+type Prompt struct {
+	SystemPrompt    string
+	UserPrompt      string
+	MaxInputBytes   int
+	MaxOutputTokens int64
+}
+
+func (prompt Prompt) validate() error {
+	if prompt.MaxInputBytes <= 0 {
+		return errors.New("utilitymodel: max input bytes must be positive")
+	}
+	if prompt.MaxOutputTokens <= 0 {
+		return errors.New("utilitymodel: max output tokens must be positive")
+	}
+	inputBytes := len(prompt.SystemPrompt) + len(prompt.UserPrompt)
+	if inputBytes > prompt.MaxInputBytes {
+		return fmt.Errorf(
+			"utilitymodel: prompt is %d bytes; input limit is %d",
+			inputBytes,
+			prompt.MaxInputBytes,
+		)
+	}
+	return nil
+}
+
+// Complete performs one synchronous, middleware-free prompt completion inside
+// the caller's explicit input/output envelope.
+func Complete(ctx context.Context, client *chatclient.Client, prompt Prompt) (string, error) {
 	if client == nil {
 		return "", errors.New("utilitymodel: client is required")
+	}
+	if err := prompt.validate(); err != nil {
+		return "", err
 	}
 	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	response, err := client.Call(callCtx, &chat.Request{Messages: []chat.Message{
-		chat.NewSystemMessage(systemPrompt),
-		chat.NewUserMessage(chat.NewTextPart(userPrompt)),
-	}})
+		chat.NewSystemMessage(prompt.SystemPrompt),
+		chat.NewUserMessage(chat.NewTextPart(prompt.UserPrompt)),
+	}, Options: chat.Options{MaxTokens: &prompt.MaxOutputTokens}})
 	if err != nil {
 		return "", err
 	}

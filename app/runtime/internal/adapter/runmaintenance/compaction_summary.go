@@ -41,18 +41,23 @@ your sections verbatim.`
 
 var errEmptyCompactionSummary = errors.New("compactor: summary is empty")
 
+const compactionSummaryOutputTokens int64 = 4096
+
 // summarize asks the LLM to fold the older messages into a single
 // system message of bullet points. Failure aborts compaction —
 // keeping the existing history is always preferable to losing it
 // behind a bad summary.
 func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
-	transcript := renderTranscript(msgs, summaryToolResultCap)
+	transcript := renderTranscript(msgs)
 
 	var client *chatclient.Client
 	if c.client != nil {
 		client = c.client(ctx)
 	}
-	text, err := utilitymodel.Complete(ctx, client, compactionPrompt, transcript)
+	text, err := utilitymodel.Complete(ctx, client, utilitymodel.Prompt{
+		SystemPrompt: compactionPrompt, UserPrompt: transcript,
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: compactionSummaryOutputTokens,
+	})
 	if err != nil {
 		return chat.Message{}, err
 	}
