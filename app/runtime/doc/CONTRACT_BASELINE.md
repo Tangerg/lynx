@@ -78,6 +78,8 @@ P164 收紧 Hook command 私有进程合同：stdout/stderr 各最多保留 64 K
 
 P165 收紧同一私有 Hook command stdin 合同：Domain command projection 将 prompt/arguments/result/reason 类 material 分别限制在 256/256/128/8 KiB，prompt 与 result 只发布 marked UTF-8 prefix，arguments 必须 lossless；Shell 在进程创建前同时要求 raw material 与最终 JSON stdin 不超过 512 KiB。新增 `promptTruncated`、`tool.resultTruncated` 与 Subagent 对应 marker 只属于 private process JSON，不进入 Lyra Protocol。超界或非法 material 作为可观察的 broken-hook failure，不执行 command；declarative hook 仍独立生效。`hooks.*` Protocol shape、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P166 收紧现有 `agentDocs.list` / fresh Run AGENTS.md 与 `recipes.list` 的 authored-source 准入，不改变 wire shape：Application 统一规定每份完整文档最多 1 MiB/valid UTF-8，Agent document cascade 最多 64 份/4 MiB，Recipe 每 scope 128 份且完整级联最多 256 份/8 MiB；filesystem adapter 在 parse/materialize 前以 stat + cancellation-aware `limit+1` 复验，并以 1024-entry sentinel 限制 Recipe directory scan。现存 invalid/oversized source 整体失败；AGENTS.md 模型 projection 仍按 32 KiB 选择完整的 most-specific tail，但单份文档放不进预算时拒绝 Run，不静默省略。Protocol `2026-08-24`、operation/feature/topic catalog、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

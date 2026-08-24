@@ -2,6 +2,7 @@ package promptsource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,12 +10,6 @@ import (
 	"testing"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-)
-
-const (
-	counterexampleMaxRecipeDocumentBytes = 1 << 20
-	counterexampleMaxRecipesPerScope     = 128
-	counterexampleMaxRecipeCascadeBytes  = 8 << 20
 )
 
 // write creates dir/<name> with content, failing the test on error.
@@ -145,10 +140,10 @@ func TestListRecipesDegradesToBody(t *testing.T) {
 
 func TestListRecipesRejectsUnboundedDocument(t *testing.T) {
 	dir := t.TempDir()
-	write(t, dir, "oversized.md", strings.Repeat("r", counterexampleMaxRecipeDocumentBytes+1))
+	write(t, dir, "oversized.md", strings.Repeat("r", workspaceapp.MaxAuthoredPromptDocumentBytes+1))
 
-	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
-		t.Fatal("listRecipes accepted a recipe larger than 1 MiB")
+	if _, err := listRecipes(t.Context(), dir, ""); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		t.Fatalf("listRecipes error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
 
@@ -158,31 +153,31 @@ func TestListRecipesRejectsInvalidUTF8(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
-		t.Fatal("listRecipes accepted invalid UTF-8 prompt material")
+	if _, err := listRecipes(t.Context(), dir, ""); !errors.Is(err, workspaceapp.ErrInvalidPromptSource) {
+		t.Fatalf("listRecipes error = %v, want ErrInvalidPromptSource", err)
 	}
 }
 
 func TestListRecipesRejectsOverfullScope(t *testing.T) {
 	dir := t.TempDir()
-	for index := range counterexampleMaxRecipesPerScope + 1 {
+	for index := range workspaceapp.MaxRecipesPerScope + 1 {
 		write(t, dir, fmt.Sprintf("recipe-%03d.md", index), "prompt")
 	}
 
-	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
-		t.Fatalf("listRecipes accepted more than %d recipes from one scope", counterexampleMaxRecipesPerScope)
+	if _, err := listRecipes(t.Context(), dir, ""); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		t.Fatalf("listRecipes error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
 
 func TestListRecipesRejectsUnboundedCascadeMaterial(t *testing.T) {
 	dir := t.TempDir()
-	document := strings.Repeat("r", counterexampleMaxRecipeDocumentBytes)
-	for index := range counterexampleMaxRecipeCascadeBytes/counterexampleMaxRecipeDocumentBytes + 1 {
+	document := strings.Repeat("r", workspaceapp.MaxAuthoredPromptDocumentBytes)
+	for index := range workspaceapp.MaxRecipeCascadeBytes/workspaceapp.MaxAuthoredPromptDocumentBytes + 1 {
 		write(t, dir, fmt.Sprintf("large-%02d.md", index), document)
 	}
 
-	if _, err := listRecipes(t.Context(), dir, ""); err == nil {
-		t.Fatalf("listRecipes accepted more than %d bytes of recipe material", counterexampleMaxRecipeCascadeBytes)
+	if _, err := listRecipes(t.Context(), dir, ""); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		t.Fatalf("listRecipes error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
 

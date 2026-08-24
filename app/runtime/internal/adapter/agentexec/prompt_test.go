@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
@@ -135,8 +136,8 @@ func TestComposePromptRejectsSilentlyDroppedAgentDocument(t *testing.T) {
 	}
 
 	if _, err := NewWorkingContextComposer(WorkingContextConfig{}).
-		composeSystemMessage(t.Context(), "", workspace); err == nil {
-		t.Fatal("composeSystemMessage silently dropped a single oversized AGENTS.md")
+		composeSystemMessage(t.Context(), "", workspace); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		t.Fatalf("composeSystemMessage error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
 

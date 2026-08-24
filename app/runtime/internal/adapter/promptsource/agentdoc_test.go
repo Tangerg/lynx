@@ -2,6 +2,7 @@ package promptsource_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +11,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
-
-const counterexampleMaxAuthoredPromptDocumentBytes = 1 << 20
 
 // writeFile is the test helper for laying out an AGENTS.md fixture. All discovery
 // happens against the OS filesystem so we use real temp dirs rather than
@@ -209,10 +208,10 @@ func TestDiscoverAgentDocsIgnoresEmpty(t *testing.T) {
 func TestDiscoverAgentDocsRejectsUnboundedDocument(t *testing.T) {
 	root := t.TempDir()
 	mkGitDir(t, root)
-	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Repeat("a", counterexampleMaxAuthoredPromptDocumentBytes+1))
+	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Repeat("a", workspaceapp.MaxAuthoredPromptDocumentBytes+1))
 
-	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); err == nil {
-		t.Fatal("DiscoverAgentDocs accepted an AGENTS.md larger than 1 MiB")
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		t.Fatalf("DiscoverAgentDocs error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
 
@@ -224,8 +223,8 @@ func TestDiscoverAgentDocsRejectsInvalidUTF8(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); err == nil {
-		t.Fatal("DiscoverAgentDocs accepted invalid UTF-8 instructions")
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); !errors.Is(err, workspaceapp.ErrInvalidPromptSource) {
+		t.Fatalf("DiscoverAgentDocs error = %v, want ErrInvalidPromptSource", err)
 	}
 }
 

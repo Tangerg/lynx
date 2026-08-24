@@ -1,12 +1,15 @@
 package agentexec
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 const agentDocPromptMaxBytes = 32 * 1024
+
+const agentDocPromptHeader = "## Project context (from AGENTS.md cascade)"
 
 // agentDocumentsPrompt formats discovered files for the agent system prompt. The
 // provenance marker and byte budget are part of the model-facing prompt, not
@@ -16,17 +19,28 @@ type agentDocumentsPrompt struct {
 	sources contextSources
 }
 
-func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) agentDocumentsPrompt {
+func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) (agentDocumentsPrompt, error) {
 	if len(files) == 0 || maxBytes <= 0 {
-		return agentDocumentsPrompt{}
+		return agentDocumentsPrompt{}, nil
+	}
+	if err := workspace.ValidateAgentDocumentCascade(files); err != nil {
+		return agentDocumentsPrompt{}, err
 	}
 
 	blocks := make([]string, len(files))
 	sizes := make([]int, len(files))
-	total := 0
+	total := len(agentDocPromptHeader) + 2
 	for i, file := range files {
 		blocks[i] = "<!-- From: " + file.Path + " -->\n" + file.Content + "\n"
 		sizes[i] = len(blocks[i])
+		if len(agentDocPromptHeader)+2+sizes[i] > maxBytes {
+			return agentDocumentsPrompt{}, fmt.Errorf(
+				"%w: agent document %q cannot fit the %d-byte Run guidance budget",
+				workspace.ErrPromptSourceTooLarge,
+				file.Path,
+				maxBytes,
+			)
+		}
 		total += sizes[i]
 	}
 	if len(files) > 1 {
@@ -36,13 +50,13 @@ func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) agent
 	start := 0
 	for start < len(files) && total > maxBytes {
 		total -= sizes[start]
-		if start > 0 {
+		if start+1 < len(files) {
 			total--
 		}
 		start++
 	}
 	if start == len(files) {
-		return agentDocumentsPrompt{}
+		return agentDocumentsPrompt{}, nil
 	}
 
 	var prompt strings.Builder
@@ -57,7 +71,7 @@ func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) agent
 	for _, file := range files[start:] {
 		sources = append(sources, contextSourceAgentDocument.source(file.Path))
 	}
-	return agentDocumentsPrompt{text: prompt.String(), sources: sources}
+	return agentDocumentsPrompt{text: prompt.String(), sources: sources}, nil
 }
 
 func (prompt agentDocumentsPrompt) appendTo(composition *promptComposition) {
@@ -65,7 +79,7 @@ func (prompt agentDocumentsPrompt) appendTo(composition *promptComposition) {
 		return
 	}
 	composition.append(
-		"## Project context (from AGENTS.md cascade)\n\n"+prompt.text,
+		agentDocPromptHeader+"\n\n"+prompt.text,
 		prompt.sources[0],
 		prompt.sources[1:]...,
 	)

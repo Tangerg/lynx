@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P165 已完成；下一阶段待独立准入。
+> 状态：P0–P166 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P165 已完成。
+> 最近基线：2026-08-24，P166 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P166 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `b15d7d746` 证明超过 1 MiB/非法 UTF-8 的 AGENTS.md 与 Recipe、单 scope 129 份和超过 8 MiB 的 Recipe cascade 都会进入 materialization；单份超过 32 KiB 的 AGENTS.md 会在 fresh Run 中静默整份消失。复核反例 `fc54339ef` 证明 broken 高优先级 AGENTS symlink 还会触发静默低优先级回退。
+- 唯一根修复是 Application-owned authored-source contract + filesystem bounded admission + complete-document model projection：每份 1 MiB/valid UTF-8，Agent cascade 64 份/4 MiB，Recipe 每 scope 128 份且完整级联 256 份/8 MiB；stat + cancellation-aware `limit+1` 与 1024-entry directory sentinel 发生在 string/YAML 前。AGENTS aggregate 仍按 32 KiB 选择 most-specific whole-document tail，单份放不下则明确失败。
+- 对 app2 的裁决：采用其 shared 1 MiB authored-file reader、existing-source fail-closed 与 32 KiB whole-document guidance；补上 app2 未拥有的 Recipe cardinality/aggregate/directory-scan 包络。保留原版 `application/workspace` + `adapter/promptsource/agentexec` 纵切与 provenance，不复制 capabilityflow Service、root-level public package 或第二文档类型。
+- P166 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 与构建资源已删除，无残留 Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P165 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `a47c9c7c8` 证明超过 256 KiB 的 prompt/arguments、超过 128 KiB 的 result、超过 8 KiB 的 reason 与超过 512 KiB 的 aggregate identity 都会被完整 JSON 编码并启动 Hook shell。
 - 唯一根修复是 Domain-owned command projection + Shell-owned stdin envelope：prompt/arguments/result/reason 类 material 分别限制为 256/256/128/8 KiB；prompt/result 使用有效 UTF-8 marked prefix，arguments 必须 lossless。Application 只为实际命中的 command hook 懒投影一次；Shell 在 marshal 前拒绝超过 512 KiB 的 raw material，marshal 后再拒绝超过 512 KiB 的 exact JSON，timer/process 尚未创建。
 - 对 app2 的裁决：采用其 field caps、512 KiB stdin 与 prompt/result truncation marker；保留原版单一 Hook Domain/Application/Shell 纵切、typed `Input`、declarative fast path 与 broken-hook non-blocking policy。不复制 `lifecyclehook.Invocation` 平行类型、hookflow/hookprocess package split、Service facade、producer-by-producer cap 或配置旋钮。
@@ -410,10 +414,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P163     | Lifecycle Hook 配置级联资源包络闭环                                                            | 256 KiB/文件、128 hooks/文件、256 hooks/级联与 bounded matcher/action/timeout；管理面和 Run policy 共同 fail closed                    |
 | P164     | Lifecycle Hook command 输出与进程树资源包络闭环                                                | 64 KiB/stream bounded drain、strict single decision JSON、Unix process-group timeout/cleanup；invalid output observable non-blocking    |
 | P165     | Lifecycle Hook command input/stdin 资源包络闭环                                               | Domain 256/256/128/8 KiB material projection、marked prompt/result prefix 与 512 KiB exact stdin；pre-spawn reject                    |
+| P166     | AGENTS.md / Recipe authored-source 资源与完整语义闭环                                         | Application 1 MiB document、有限 cascade/catalog 与 bounded filesystem admission；32 KiB model projection 不静默丢单文档            |
 
 ## 5. 当前里程碑结论
 
-P113–P165 共同建立了以下不可回退的心智模型：
+P113–P166 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -425,6 +430,7 @@ P113–P165 共同建立了以下不可回退的心智模型：
 - Lifecycle Hook 配置是有限 complete policy cascade：Domain 同时限制 encoded file、per-file count、global + project total、matcher/action/timeout，filesystem loader 在 decode/materialization 前验证完整 UTF-8 bytes；管理页、trust binding 与 Run execution 不得各自截断或接受不同策略前缀。
 - Lifecycle Hook command 是有界外部进程：stdout/stderr 必须 drain 而非无界保留，decision 必须 strict whole-object decode，invalid output 不得贡献 partial policy；timeout/cancellation 必须回收可拥有的完整进程树，exit-2 deny 与 broken-hook non-blocking 是两个独立语义。
 - Lifecycle Hook command input 是独立 consumer projection：Domain 约束 prompt/arguments/result/reason material，prompt/result 只发布带 marker 的 UTF-8 prefix，arguments 必须完整；Application 只为命中的 command hook 懒投影，Shell 在 marshal 前后共同守住 512 KiB stdin 并在 spawn 前拒绝。declarative inject 不经过该边界。
+- AGENTS.md 与 Recipe 是有限 complete authored sources：Application 统一拥有 document/cascade/catalog 合同，filesystem 在 parse/materialize 前 bounded read/scan；missing/empty 可缺席，现存 invalid source 必须让管理与执行共同失败。模型 aggregate budget 可以舍弃较低优先级完整文档，但单份指令不能截断或静默消失。
 - Agent Memory embedding 是 Search-owned derived cache：只比较当前 exact space、同维且 finite 的 vector；role/内容/维度变化由真实 search 惰性重算，cache write 以 item id + content digest + active status 条件提交。Curation 不拥有 embedding resolver、后台 backfill 或第二 rebuild lifecycle。
 - Agent Memory recall 以当前 project context 为唯一入口：exact-project 与 user-scope active items 组成一个 corpus，共享 query signal、ranking 与全局 top-k。prompt/tool consumer 不选择 scope、不各自搜索或 merge，未 pinned 的 user memory 必须仍有 Agent 消费路径。
 - Agent Memory 的管理/prompt/search read model 是有限 complete-list，不是静默分页：每 target 的 visible set、每次 maintenance result、ledger cursor page 与 rejected negative history 分别服从 Domain 唯一上限；显式 user intent 可在原 id 上提升 pending/rejected fact，自动 curation 只能填充真实剩余容量。
@@ -471,4 +477,4 @@ P113–P165 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P165 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P166 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

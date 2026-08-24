@@ -39,9 +39,9 @@ func TestWorkspacesFromSessions(t *testing.T) {
 
 func TestAgentDocsPreservesDiscoveryProvenance(t *testing.T) {
 	finder := staticAgentDocFinder{files: []AgentDocFile{
-		{Path: "/home/.lyra/AGENTS.md", Scope: AgentDocScopeHome},
-		{Path: "/repo/AGENTS.md", Scope: AgentDocScopeProjectRoot},
-		{Path: "/repo/pkg/AGENTS.md", Scope: AgentDocScopeCWD},
+		{Path: "/home/.lyra/AGENTS.md", Content: "home", Scope: AgentDocScopeHome},
+		{Path: "/repo/AGENTS.md", Content: "root", Scope: AgentDocScopeProjectRoot},
+		{Path: "/repo/pkg/AGENTS.md", Content: "leaf", Scope: AgentDocScopeCWD},
 	}}
 	discovery := NewDiscovery(NewScope("", "/home", testPaths{}), nil, finder, nil)
 
@@ -55,7 +55,7 @@ func TestAgentDocsPreservesDiscoveryProvenance(t *testing.T) {
 }
 
 func TestAgentDocsRejectsUnknownDiscoveryProvenance(t *testing.T) {
-	finder := staticAgentDocFinder{files: []AgentDocFile{{Path: "/repo/AGENTS.md", Scope: "other"}}}
+	finder := staticAgentDocFinder{files: []AgentDocFile{{Path: "/repo/AGENTS.md", Content: "rule", Scope: "other"}}}
 	discovery := NewDiscovery(NewScope("", "/home", testPaths{}), nil, finder, nil)
 
 	if _, err := discovery.AgentDocs(t.Context(), "/repo"); err == nil {

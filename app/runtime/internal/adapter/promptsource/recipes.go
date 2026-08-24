@@ -2,6 +2,9 @@ package promptsource
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +18,10 @@ import (
 const (
 	recipeProjectSubdir = ".lyra/recipes"
 	recipeFileExt       = ".md"
+	// A recipes directory is an authored capability root rather than a generic
+	// file browser. This adapter limit bounds scanning even when most entries do
+	// not have the recipe extension.
+	maxRecipeDirectoryEntries = 1024
 )
 
 // listRecipes enumerates recipe files from projectDir layered over globalDir,
@@ -24,11 +31,13 @@ const (
 func listRecipes(ctx context.Context, projectDir, globalDir string) ([]workspaceapp.Recipe, error) {
 	seen := make(map[string]struct{})
 	var out []workspaceapp.Recipe
+	totalBytes := 0
 	add := func(dir string, scope workspaceapp.RecipeScope) error {
-		entries, err := os.ReadDir(dir)
+		entries, err := readRecipeDirectory(ctx, dir)
 		if err != nil {
-			return nil // missing / unreadable dir contributes nothing
+			return err
 		}
+		scopeCount := 0
 		for _, entry := range entries {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -40,15 +49,39 @@ func listRecipes(ctx context.Context, projectDir, globalDir string) ([]workspace
 			if !ok {
 				continue
 			}
+			scopeCount++
+			if scopeCount > workspaceapp.MaxRecipesPerScope {
+				return fmt.Errorf(
+					"%w: recipe scope %q has more than %d recipes",
+					workspaceapp.ErrPromptSourceTooLarge,
+					scope,
+					workspaceapp.MaxRecipesPerScope,
+				)
+			}
 			if _, dup := seen[name]; dup {
 				continue // a higher-precedence (project) source already provided it
 			}
 			path := filepath.Join(dir, entry.Name())
-			data, err := os.ReadFile(path)
+			data, err := readAuthoredPromptFile(ctx, path)
 			if err != nil {
-				continue
+				return fmt.Errorf("promptsource: read recipe %q: %w", name, err)
+			}
+			if len(out) >= workspaceapp.MaxRecipeCascade {
+				return fmt.Errorf(
+					"%w: recipe cascade has more than %d recipes",
+					workspaceapp.ErrPromptSourceTooLarge,
+					workspaceapp.MaxRecipeCascade,
+				)
+			}
+			if len(data) > workspaceapp.MaxRecipeCascadeBytes-totalBytes {
+				return fmt.Errorf(
+					"%w: recipe cascade exceeds %d bytes",
+					workspaceapp.ErrPromptSourceTooLarge,
+					workspaceapp.MaxRecipeCascadeBytes,
+				)
 			}
 			seen[name] = struct{}{}
+			totalBytes += len(data)
 			out = append(out, parseRecipe(name, scope, path, data))
 		}
 		return nil
@@ -60,7 +93,40 @@ func listRecipes(ctx context.Context, projectDir, globalDir string) ([]workspace
 		return nil, err
 	}
 	slices.SortFunc(out, func(a, b workspaceapp.Recipe) int { return strings.Compare(a.Name, b.Name) })
+	if err := workspaceapp.ValidateRecipeCascade(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+func readRecipeDirectory(ctx context.Context, directory string) ([]os.DirEntry, error) {
+	if directory == "" {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	dir, err := os.Open(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("promptsource: open recipe directory %q: %w", directory, err)
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(maxRecipeDirectoryEntries + 1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("promptsource: read recipe directory %q: %w", directory, err)
+	}
+	if len(entries) > maxRecipeDirectoryEntries {
+		return nil, fmt.Errorf(
+			"%w: recipe directory %q has more than %d entries",
+			workspaceapp.ErrPromptSourceTooLarge,
+			directory,
+			maxRecipeDirectoryEntries,
+		)
+	}
+	return entries, nil
 }
 
 func recipeDir(cwd string) string {

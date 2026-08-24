@@ -37,7 +37,14 @@ func (d *Discovery) Recipes(ctx context.Context, cwd string) ([]Recipe, error) {
 	if d.recipes == nil {
 		return nil, nil
 	}
-	return d.recipes.List(ctx, root)
+	recipes, err := d.recipes.List(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateRecipeCascade(recipes); err != nil {
+		return nil, err
+	}
+	return recipes, nil
 }
 
 // Resolved is the current filesystem identity of one workspace ref.
@@ -148,6 +155,9 @@ func (d *Discovery) AgentDocs(ctx context.Context, cwd string) ([]AgentDoc, erro
 	}
 	files, err := d.agentDocs.Find(ctx, root, d.scope.userHome)
 	if err != nil {
+		return nil, err
+	}
+	if err := ValidateAgentDocumentCascade(files); err != nil {
 		return nil, err
 	}
 	docs := make([]AgentDoc, 0, len(files))

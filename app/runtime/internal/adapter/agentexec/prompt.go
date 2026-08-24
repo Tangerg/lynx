@@ -59,7 +59,9 @@ task is ambiguous, ask one focused question rather than guess.`
 // discovered files.
 // A configured Knowledge reader supplies one complete cascade, so a read error
 // fails prompt construction instead of silently deleting user instructions.
-// Memory, agent documents and Plan remain best-effort enrichment.
+// Memory and Plan remain best-effort enrichment. An existing Agent document is
+// authoritative authored input: invalid or individually unprojectable material
+// fails construction instead of silently deleting instructions.
 func (composer *WorkingContextComposer) composeSystemMessage(
 	ctx context.Context,
 	sessionID string,
@@ -124,13 +126,20 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 		}
 	}
 
-	// AGENTS.md cascade — best-effort, silent on error so a missing or unreadable
-	// instruction file never derails a turn. User Home is injected rather than
-	// rediscovered inside every prompt assembly.
+	// AGENTS.md cascade. Missing/empty sources contribute nothing; an existing
+	// invalid source remains observable so a turn cannot run under silently
+	// incomplete instructions. User Home is injected rather than rediscovered
+	// inside every prompt assembly.
 	if dir := strings.TrimSpace(cwd); dir != "" {
-		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, composer.config.UserHome); err == nil {
-			newAgentDocumentsPrompt(files, agentDocPromptMaxBytes).appendTo(&prompt)
+		files, err := promptsource.DiscoverAgentDocs(ctx, dir, composer.config.UserHome)
+		if err != nil {
+			return corechat.Message{}, fmt.Errorf("agentexec: load agent documents: %w", err)
 		}
+		documents, err := newAgentDocumentsPrompt(files, agentDocPromptMaxBytes)
+		if err != nil {
+			return corechat.Message{}, fmt.Errorf("agentexec: render agent documents: %w", err)
+		}
+		documents.appendTo(&prompt)
 	}
 
 	composer.appendSessionPlan(ctx, &prompt, sessionID)

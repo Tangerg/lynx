@@ -8,6 +8,7 @@ package promptsource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,8 +32,10 @@ import (
 // are deduped by absolute path.
 //
 // ctx cancels long walks; cwd / home are absolute composition inputs. Missing
-// files are never an error — discovery is best-effort. The agent-execution
-// adapter renders the resulting values.
+// and empty files contribute nothing. An existing unreadable, invalid, or
+// oversized document rejects the complete cascade so management and execution
+// cannot observe different instruction sets. The agent-execution adapter
+// renders the resulting values.
 func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
 	if cwd == "" {
 		return nil, errors.New("promptsource: cwd is required")
@@ -88,12 +91,13 @@ func (AgentDocs) Find(ctx context.Context, cwd, home string) ([]workspaceapp.Age
 	return DiscoverAgentDocs(ctx, cwd, home)
 }
 
-// agentDocScan carries the de-dup state across the walk. Methods return the ctx
-// error and nothing else — file-stat failures and empty files are silently
-// skipped per the best-effort policy.
+// agentDocScan carries de-duplication and complete-cascade admission across the
+// walk. Missing/empty candidates remain absent; an existing invalid candidate
+// returns its error instead of silently changing the instruction set.
 type agentDocScan struct {
-	seen  map[string]struct{}
-	files []workspaceapp.AgentDocFile
+	seen     map[string]struct{}
+	files    []workspaceapp.AgentDocFile
+	rawBytes int
 }
 
 func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.AgentDocScope) error {
@@ -103,18 +107,43 @@ func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.
 	if path == "" {
 		return nil
 	}
-	abs, err := filepath.EvalSymlinks(filepath.Clean(path))
+	clean := filepath.Clean(path)
+	if _, err := os.Lstat(clean); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("promptsource: inspect agent document %q: %w", path, err)
+	}
+	abs, err := filepath.EvalSymlinks(clean)
 	if err != nil {
-		return nil
+		return fmt.Errorf("promptsource: resolve agent document %q: %w", path, err)
 	}
 	if _, dup := d.seen[abs]; dup {
 		return nil
 	}
-	content, ok := readIfNonEmpty(abs)
+	content, size, ok, err := readIfNonEmpty(ctx, abs)
+	if err != nil {
+		return fmt.Errorf("promptsource: read agent document: %w", err)
+	}
 	if !ok {
 		return nil
 	}
+	if len(d.files) >= workspaceapp.MaxAgentDocumentsPerCascade {
+		return fmt.Errorf(
+			"%w: agent document cascade has more than %d documents",
+			workspaceapp.ErrPromptSourceTooLarge,
+			workspaceapp.MaxAgentDocumentsPerCascade,
+		)
+	}
+	if size > workspaceapp.MaxAgentDocumentCascadeBytes-d.rawBytes {
+		return fmt.Errorf(
+			"%w: agent document cascade exceeds %d bytes",
+			workspaceapp.ErrPromptSourceTooLarge,
+			workspaceapp.MaxAgentDocumentCascadeBytes,
+		)
+	}
 	d.seen[abs] = struct{}{}
+	d.rawBytes += size
 	d.files = append(d.files, workspaceapp.AgentDocFile{Path: abs, Content: content, Scope: scope})
 	return nil
 }
@@ -132,23 +161,18 @@ func (d *agentDocScan) tryFirst(ctx context.Context, scope workspaceapp.AgentDoc
 	return nil
 }
 
-// readIfNonEmpty reads path and returns its trimmed content + true when the file
-// exists and has content. Errors (incl. ENOENT) and empty files return ok=false
-// silently.
-func readIfNonEmpty(path string) (string, bool) {
-	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() {
-		return "", false
-	}
-	data, err := os.ReadFile(path)
+// readIfNonEmpty returns trimmed, admitted content and its complete encoded
+// size. Empty files remain absent; an existing invalid file remains observable.
+func readIfNonEmpty(ctx context.Context, path string) (string, int, bool, error) {
+	data, err := readAuthoredPromptFile(ctx, path)
 	if err != nil {
-		return "", false
+		return "", 0, false, err
 	}
 	content := strings.TrimSpace(string(data))
 	if content == "" {
-		return "", false
+		return "", len(data), false, nil
 	}
-	return content, true
+	return content, len(data), true, nil
 }
 
 // findProjectRoot walks up from cwd looking for a `.git` entry (dir OR file —

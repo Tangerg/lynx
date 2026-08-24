@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P165 已完成。
+> 状态：当前能力快照；P166 已完成。
 >
 > 基线日期：2026-08-24。
 
@@ -35,6 +35,7 @@
 - P163 让 Hook Domain 唯一拥有 256 KiB/文件、128 hooks/文件、256 hooks/级联与 bounded matcher/action/timeout；管理面和 Run policy 共用完整配置准入。
 - P164 让 Hook Shell 唯一拥有 64 KiB/stream bounded drain、strict decision decode 与 process-group cleanup；invalid output 可观察但不贡献 partial policy。
 - P165 让 Hook Domain/Application/Shell 共同形成唯一 command-input admission：256/256/128/8 KiB field projection、marked prompt/result prefix 与 512 KiB exact stdin 在 process spawn 前闭合；declarative path 不承担该成本。
+- P166 让 AGENTS.md 与 Recipe 共享唯一 Application-owned authored-source contract：1 MiB complete UTF-8 document、有限 cascade/catalog、bounded filesystem read/scan 与 32 KiB whole-document model projection共同消除无界 material 和静默指令丢失。
 
 ## 2. 架构与所有权
 
@@ -295,6 +296,8 @@ P164 完成 Lifecycle Hook command output/process-tree 资源包络闭环。失�
 
 P165 完成 Lifecycle Hook command input/stdin 资源包络闭环。失败优先反例 `a47c9c7c8` 证明超过 256 KiB 的 prompt/arguments、超过 128 KiB 的 Tool result、超过 8 KiB 的 reason 与超过 512 KiB 的 aggregate identity 都会被完整 JSON 编码并启动 shell。Hook Domain 现唯一拥有 256 KiB prompt、256 KiB lossless arguments、128 KiB result 与 8 KiB reason/description/error projection；Application 只为命中的 command hook 懒生成一次 bounded copy，prompt/result 以有效 UTF-8 prefix 和 explicit marker 表达损失，arguments 超界不截断。Shell 在 marshal 前做 512 KiB raw-material preflight，marshal 后复验 512 KiB exact JSON，任何失败都发生在 timer/process spawn 前并沿既有 observable broken-hook path 收敛，declarative inject 继续独立生效。Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、generator/tidy 零漂移、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Linux/Windows Hook cross-compile、Wails v3 production build 全绿；临时工具、cross-compile artifacts 和进程已回收，未启动 agent-browser。Protocol、Artifact v23、SQLite epoch 82、generated contract、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P166 完成 AGENTS.md / Recipe authored-source 资源与完整语义闭环。失败优先反例 `b15d7d746` 证明超过 1 MiB/非法 UTF-8 的两类文件、单 scope 129 份及超过 8 MiB 的 Recipe cascade 都会完整进入读取与 materialization，单份超过 32 KiB 的 AGENTS.md 又会在 fresh Run 中静默消失；复核反例 `fc54339ef` 证明 broken 高优先级 AGENTS symlink 会静默回退低优先级副本。Application 现统一规定 1 MiB valid-UTF-8 document、64 documents/4 MiB Agent cascade、128 recipes/scope 与 256 recipes/8 MiB catalog；promptsource 在 parse/string 前 stat + cancellation-aware `limit+1`，并用 1024-entry sentinel 限制目录。existing invalid source 对管理与执行共同 fail closed；Agent projection 只选择 32 KiB most-specific complete-document tail，单份放不下明确拒绝。Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、generator/tidy 零漂移、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿；临时工具和进程已回收，未启动 agent-browser。Protocol、Artifact v23、SQLite epoch 82、generated contract、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -307,13 +310,15 @@ P164 进一步证明 external policy process 的“超时”不是资源包络�
 
 P165 进一步证明 typed input 也不天然有界：只有 Domain field projection、Application matched-command admission 与 adapter exact encoded envelope 同时成立，Runtime 已有的大字符串才不会在外部进程边界形成无界复制；可截断 observation 与不可截断 policy fact 必须显式区分。
 
+P166 进一步证明“prompt 最终有 aggregate budget”不能替代 source admission：只有单文档、完整级联、目录枚举和 consumer projection 分别有 owner，Runtime 才不会先无界 materialize 再静默删除用户指令；missing source 与 broken existing source 必须是两种不同事实。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
 
-P165 在既有 P0–P164 结论上继续封闭 Hook process 的输入半边：Domain-owned field projection、Application matched-command lazy admission 与 Shell 512 KiB pre/post-encode envelope 共同替代 direct `json.Marshal`；prompt/result 的 marked observation prefix 与 lossless arguments policy fact 不再共享含糊的截断语义。当前完成范围因此为 P0–P165。
+P166 在既有 P0–P165 结论上继续封闭 authored prompt sources：Application-owned document/cascade/catalog contract、filesystem bounded read/scan 与 Agent whole-document projection 共同替代 direct `os.ReadFile`/`os.ReadDir` 和 silent omission。当前完成范围因此为 P0–P166。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

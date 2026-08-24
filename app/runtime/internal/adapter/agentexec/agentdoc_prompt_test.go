@@ -8,9 +8,9 @@ import (
 )
 
 func TestAgentDocumentsPromptAnnotatesEachSource(t *testing.T) {
-	out := newAgentDocumentsPrompt([]workspace.AgentDocFile{
-		{Path: "/a/AGENTS.md", Content: "alpha"},
-		{Path: "/b/AGENTS.md", Content: "beta"},
+	out := agentDocumentsPromptForTest(t, []workspace.AgentDocFile{
+		{Path: "/a/AGENTS.md", Content: "alpha", Scope: workspace.AgentDocScopeProjectRoot},
+		{Path: "/b/AGENTS.md", Content: "beta", Scope: workspace.AgentDocScopeCWD},
 	}, agentDocPromptMaxBytes).text
 
 	for _, want := range []string{"<!-- From: /a/AGENTS.md -->", "<!-- From: /b/AGENTS.md -->", "alpha", "beta"} {
@@ -25,18 +25,32 @@ func TestAgentDocumentsPromptAnnotatesEachSource(t *testing.T) {
 
 func TestAgentDocumentsPromptKeepsMostSpecificFilesWithinBudget(t *testing.T) {
 	files := []workspace.AgentDocFile{
-		{Path: "/root/AGENTS.md", Content: strings.Repeat("a", 1000)},
-		{Path: "/leaf/AGENTS.md", Content: "leaf"},
+		{Path: "/root/AGENTS.md", Content: strings.Repeat("a", 100), Scope: workspace.AgentDocScopeProjectRoot},
+		{Path: "/leaf/AGENTS.md", Content: "leaf", Scope: workspace.AgentDocScopeCWD},
 	}
-	out := newAgentDocumentsPrompt(files, 200).text
+	out := agentDocumentsPromptForTest(t, files, 200).text
 	if strings.Contains(out, "/root/AGENTS.md") || !strings.Contains(out, "leaf") {
 		t.Fatalf("budgeted docs = %q", out)
 	}
-	prompt := newAgentDocumentsPrompt(files, 200)
+	prompt := agentDocumentsPromptForTest(t, files, 200)
 	if len(prompt.sources) != 1 || prompt.sources[0].Reference != "/leaf/AGENTS.md" {
 		t.Fatalf("projected sources = %v", prompt.sources)
 	}
-	if newAgentDocumentsPrompt(nil, agentDocPromptMaxBytes).text != "" || newAgentDocumentsPrompt(files, 0).text != "" {
+	if agentDocumentsPromptForTest(t, nil, agentDocPromptMaxBytes).text != "" ||
+		agentDocumentsPromptForTest(t, files, 0).text != "" {
 		t.Fatal("empty input or budget must render no prompt text")
 	}
+}
+
+func agentDocumentsPromptForTest(
+	t *testing.T,
+	files []workspace.AgentDocFile,
+	maxBytes int,
+) agentDocumentsPrompt {
+	t.Helper()
+	prompt, err := newAgentDocumentsPrompt(files, maxBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return prompt
 }
