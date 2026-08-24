@@ -553,3 +553,10 @@
 - 决策：proposal retention identity 改为 `(scope, name)`，存储槽位一次性切换为 `_proposals/<name>/SKILL.md`；同名提交用原子文件替换保留一个 current revision。`ProposalRef` 继续以 scope/name/完整文档 SHA-256 绑定审阅字节，旧句柄读取当前槽位时返回 `ErrProposalChanged`。同一 library 的既有 directory advisory lease 统一包围 capacity check、replacement、active/archive mutation、usage maintenance 与 exact review decision；两个 Runtime 共享目录时只有一个 durable winner，不另建 proposal lock/claim 状态机。
 - 决策：Domain 唯一定义完整 authored `SKILL.md` 1 MiB 与每 scope 128 个待审名称。Proposal raw validation、rendered document、active/archive/proposal lifecycle reader 与 Agent Tool schema 共同守住文档边界；读取先检查 stat，再用 limit+1 读取。队列枚举只取 capacity+1，正常写入在创建新名称前校验容量，corrupt overfull state 整体拒绝，不把静默截断伪装成完整页面。
 - 后果：连续改稿不再制造无消费者的 pending history，公共 review 页面最多返回 project/user 各 128 份且单份大小有限；stale decision 与 concurrent replacement 仍由 exact content CAS 确定性隔离。该批采纳 app2 的“每 workspace/name 一个 pending row”和 1 MiB authored document envelope，但保留原版 filesystem confinement、精确 review ref、原子发布/归档与既有跨进程 lease owner；不复制 app2 SQLite proposal owner、胖 facade 或迁移链。
+
+## ADR-RT-079：LSP document synchronization 拥有固定输入包络
+
+- 状态：已接受并实施，P160 完成；只改变 Runtime internal LSP filesystem adapter 与测试文档，公共 Protocol、Artifact、SQLite、Desktop source、Agent Framework 与 CLI 合同不变。
+- 背景：原版 `ensureOpen` 对 workspace document 直接调用 `os.ReadFile`，文件大小没有上限；读取完成后还会复制到 SHA-256 输入、Go string 与 JSON-RPC `didOpen/didChange` payload。失败优先反例 `c6ff8f3a0` 证明超过 8 MiB 的生成文件仍被完整接纳，甚至在 digest 与已有 open-state 相同、不需要通知时也先付出无界读取成本。请求取消只能在整份文件读完后由后续 RPC 看见。
+- 决策：采纳 app2 codeintel 的 8 MiB 单文档 envelope，并把它放在原版唯一 `ensureOpen` 读取边界。reader 在打开前检查 cancellation，以 stat 快拒绝已超限文件，再通过 cancellation-aware `limit+1` 读取覆盖并发增长；超限以稳定 `ErrDocumentTooLarge` 返回，既不计算 digest，也不修改 client state 或通知语言服务器。
+- 后果：LSP 输入内存与 JSON-RPC payload 取得确定上界，exact-boundary 文档仍可使用；取消在分块读取过程中保持可见。该限制只属于语言服务器同步消费者，不改变 workspace file read 的 caller-defined window，不引入截断、partial document、兼容 fallback、配置旋钮或第二同步路径。

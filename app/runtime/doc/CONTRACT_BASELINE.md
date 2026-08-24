@@ -66,6 +66,8 @@ P158 只收紧 Agent Memory 内部有限集合与生命周期行为：每个 pro
 
 P159 将 Runtime internal Skill Proposal storage 从 `_proposals/<revision>/SKILL.md` 一次性切换为 `_proposals/<name>/SKILL.md`，每个 project/user scope 最多 128 个 current proposal，完整 authored `SKILL.md` 最多 1 MiB；revision 仍是 scope/name/完整文档的 SHA-256 CAS，旧 handle 不兼容地失效。`skills.proposals.list/approve/reject` request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API 与 CLI 均不改变；`propose_skill.instructions` 的 internal Agent Tool schema 同步增加 1 MiB ceiling。
 
+P160 只收紧 Runtime internal LSP document synchronization：进入 digest、`didOpen/didChange` 与 client open-state 的单文件最多 8 MiB，读取同时服从 caller cancellation 与 `limit+1` growth detection。LSP operation request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

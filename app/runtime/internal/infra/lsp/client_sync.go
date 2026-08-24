@@ -3,9 +3,17 @@ package lsp
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 )
+
+const maxDocumentBytes int64 = 8 << 20
+
+// ErrDocumentTooLarge reports a workspace document that cannot be admitted to
+// the in-memory language-server synchronization boundary.
+var ErrDocumentTooLarge = errors.New("lsp: document exceeds the 8 MiB limit")
 
 // ensureOpen makes the server aware of abs's current on-disk content: a
 // didOpen the first time, a didChange when the content has changed since we
@@ -13,7 +21,7 @@ import (
 // version now in effect, which a diagnostics wait uses to recognize fresh
 // pushes. A no-op (content unchanged) returns the existing version.
 func (c *client) ensureOpen(ctx context.Context, abs string) (int, error) {
-	text, err := os.ReadFile(abs)
+	text, err := readDocument(ctx, abs)
 	if err != nil {
 		return 0, fmt.Errorf("lsp: read %s: %w", abs, err)
 	}
@@ -53,4 +61,49 @@ func (c *client) ensureOpen(ctx context.Context, abs string) (int, error) {
 	}
 	c.open[uri] = openDoc{version: version, hash: hash}
 	return version, nil
+}
+
+func readDocument(ctx context.Context, path string) (_ []byte, err error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return nil, cause
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxDocumentBytes {
+		return nil, fmt.Errorf("%w: %d bytes", ErrDocumentTooLarge, info.Size())
+	}
+	content, err := io.ReadAll(io.LimitReader(contextReader{ctx: ctx, reader: file}, maxDocumentBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(content) > int(maxDocumentBytes) {
+		return nil, fmt.Errorf("%w: file grew while reading", ErrDocumentTooLarge)
+	}
+	return content, nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(r.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := r.reader.Read(buffer)
+	if cause := context.Cause(r.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }
