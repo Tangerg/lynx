@@ -522,6 +522,152 @@ func TestPublicWorkspaceGitAndDirectToolSurfaces(t *testing.T) {
 	}
 }
 
+func TestPublicSettingsHooksSchedulesAndUsageSurfaces(t *testing.T) {
+	harness := newAcceptanceHarness(t)
+	baseURL, namespace, meta := harness.runtime.baseURL, harness.namespace, harness.meta
+	session := createRunSession(t, baseURL, namespace, "settings-surfaces")
+
+	providers := rpcCallWithMeta[*protocol.Page[protocol.Provider]](
+		t, baseURL, "providers.list", struct{}{}, meta,
+	)
+	configuredProvider := false
+	for _, provider := range providers.Data {
+		if provider.ID == "openai-compatible" && provider.BaseURL == harness.model.URL &&
+			provider.APIKeyMasked != "" && provider.APIKeyMasked != "test-key" {
+			configuredProvider = true
+		}
+	}
+	if !configuredProvider {
+		t.Fatalf("providers.list omitted masked configured provider: %+v", providers.Data)
+	}
+	models := rpcCallWithMeta[*protocol.Page[protocol.Model]](
+		t, baseURL, "models.list", protocol.ListModelsRequest{Provider: "openai-compatible"}, meta,
+	)
+	if len(models.Data) != 1 || models.Data[0].ID != "test-model" ||
+		models.Data[0].Provider != "openai-compatible" {
+		t.Fatalf("models.list = %+v", models.Data)
+	}
+	role := rpcCall[*protocol.UtilityRole](
+		t, baseURL, "models.setUtilityRole",
+		protocol.UtilityRole{Provider: "openai-compatible", Model: "test-model"},
+		"set-utility-role", namespace,
+	)
+	if role.Provider != "openai-compatible" || role.Model != "test-model" {
+		t.Fatalf("models.setUtilityRole = %+v", role)
+	}
+	storedRole := rpcCallWithMeta[*protocol.UtilityRole](
+		t, baseURL, "models.getUtilityRole", struct{}{}, meta,
+	)
+	if *storedRole != *role {
+		t.Fatalf("models.getUtilityRole = %+v, want %+v", storedRole, role)
+	}
+
+	mode := rpcCallWithMeta[*protocol.ApprovalModeResult](
+		t, baseURL, "approval.getMode", struct{}{}, meta,
+	)
+	if mode.Mode != protocol.ApprovalModeBalanced {
+		t.Fatalf("default approval mode = %q", mode.Mode)
+	}
+	mode = rpcCall[*protocol.ApprovalModeResult](
+		t, baseURL, "approval.setMode", protocol.SetApprovalModeRequest{Mode: protocol.ApprovalModeSafe},
+		"set-approval-mode", namespace,
+	)
+	if mode.Mode != protocol.ApprovalModeSafe {
+		t.Fatalf("approval.setMode = %+v", mode)
+	}
+	rules := rpcCallWithMeta[*protocol.ListApprovalRulesResult](
+		t, baseURL, "approval.listRules", protocol.ListApprovalRulesRequest{SessionID: session.ID}, meta,
+	)
+	if rules.Rules == nil || len(rules.Rules) != 0 {
+		t.Fatalf("approval.listRules = %+v", rules.Rules)
+	}
+
+	hooksDirectory := filepath.Join(harness.workspace, ".lyra")
+	if err := os.MkdirAll(hooksDirectory, 0o700); err != nil {
+		t.Fatalf("create hooks directory error = %v", err)
+	}
+	hooksPath := filepath.Join(hooksDirectory, "hooks.json")
+	writeFixtureFile(t, hooksPath, `{"hooks":[{"event":"SessionStart","inject":"acceptance context"}]}`)
+	hooks := rpcCallWithMeta[*protocol.HooksListResult](
+		t, baseURL, "hooks.list", protocol.ListHooksRequest{
+			Workspace: protocol.WorkspaceRef{Path: harness.workspace},
+		}, meta,
+	)
+	if hooks.ProjectRoot != harness.workspace || hooks.ProjectTrusted || len(hooks.Hooks) != 1 ||
+		hooks.Hooks[0].Scope != protocol.HookScopeProject || hooks.Hooks[0].Source != hooksPath ||
+		hooks.Hooks[0].Active {
+		t.Fatalf("untrusted hooks.list = %+v", hooks)
+	}
+	rpcCall[struct{}](
+		t, baseURL, "hooks.setTrust", protocol.SetHookTrustRequest{
+			ProjectRoot: hooks.ProjectRoot, Trusted: true,
+		}, "trust-project-hooks", namespace,
+	)
+	hooks = rpcCallWithMeta[*protocol.HooksListResult](
+		t, baseURL, "hooks.list", protocol.ListHooksRequest{
+			Workspace: protocol.WorkspaceRef{Path: harness.workspace},
+		}, meta,
+	)
+	if !hooks.ProjectTrusted || len(hooks.Hooks) != 1 || !hooks.Hooks[0].Active {
+		t.Fatalf("trusted hooks.list = %+v", hooks)
+	}
+
+	schedule := rpcCall[*protocol.Schedule](
+		t, baseURL, "schedules.create", protocol.CreateScheduleRequest{
+			Title: "Acceptance schedule", Instructions: "SCENARIO_NORMAL",
+			Workspace: &protocol.WorkspaceRef{Path: harness.workspace},
+			Provider:  "openai-compatible", Model: "test-model", Cron: "0 0 * * *",
+		}, "create-schedule", namespace,
+	)
+	if schedule.ID == "" || !schedule.Enabled || schedule.Revision == 0 || schedule.NextRunAt == nil {
+		t.Fatalf("schedules.create = %+v", schedule)
+	}
+	updatedTitle := "Updated acceptance schedule"
+	updated := rpcCall[*protocol.Schedule](
+		t, baseURL, "schedules.update", protocol.UpdateScheduleRequest{
+			ID: schedule.ID, ExpectedRevision: schedule.Revision, Title: &updatedTitle,
+		}, "update-schedule", namespace,
+	)
+	if updated.Title != updatedTitle || updated.Revision <= schedule.Revision {
+		t.Fatalf("schedules.update = %+v", updated)
+	}
+	schedules := rpcCallWithMeta[*protocol.Page[protocol.Schedule]](
+		t, baseURL, "schedules.list", protocol.PageQuery{Limit: 100}, meta,
+	)
+	if len(schedules.Data) != 1 || schedules.Data[0].ID != schedule.ID ||
+		schedules.Data[0].Revision != updated.Revision {
+		t.Fatalf("schedules.list = %+v", schedules.Data)
+	}
+	started := rpcCall[*protocol.RunScheduleNowResponse](
+		t, baseURL, "schedules.runNow", protocol.RunScheduleNowRequest{ID: schedule.ID},
+		"run-schedule-now", namespace,
+	)
+	waitForFinishedRun(t, baseURL, started.RunID, meta)
+	usage := rpcCallWithMeta[*protocol.Usage](
+		t, baseURL, "usage.session", protocol.SessionUsageRequest{SessionID: started.SessionID}, meta,
+	)
+	if usage.InputTokens == 0 || usage.OutputTokens == 0 || len(usage.ByModel) != 1 {
+		t.Fatalf("usage.session = %+v", usage)
+	}
+	summary := rpcCallWithMeta[*protocol.UsageSummary](
+		t, baseURL, "usage.summary", protocol.UsageSummaryRequest{SinceDays: 1}, meta,
+	)
+	if summary.Runs == 0 || summary.Sessions == 0 || summary.Total.InputTokens == 0 ||
+		len(summary.ByProvider) == 0 || len(summary.ByModel) == 0 || len(summary.ByDay) == 0 {
+		t.Fatalf("usage.summary = %+v", summary)
+	}
+	rpcCall[struct{}](
+		t, baseURL, "schedules.delete", protocol.DeleteScheduleRequest{ID: schedule.ID},
+		"delete-schedule", namespace,
+	)
+	schedules = rpcCallWithMeta[*protocol.Page[protocol.Schedule]](
+		t, baseURL, "schedules.list", protocol.PageQuery{Limit: 100}, meta,
+	)
+	if len(schedules.Data) != 0 {
+		t.Fatalf("schedules.list after delete = %+v", schedules.Data)
+	}
+}
+
 func TestPublicLongHistoryIsBoundedAndCursorComplete(t *testing.T) {
 	harness := newAcceptanceHarness(t)
 	session := createRunSession(t, harness.runtime.baseURL, harness.namespace, "long-history")
@@ -695,6 +841,7 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 					protocol.FeatureSubagents: {Enabled: true},
 					protocol.FeatureMCP:       {Enabled: true},
 					protocol.FeatureGit:       {Enabled: true},
+					protocol.FeatureSchedules: {Enabled: true},
 				},
 				InterruptTypes: []protocol.InterruptType{
 					protocol.InterruptApproval, protocol.InterruptQuestion,
@@ -971,6 +1118,25 @@ func assertFinishedRun(t *testing.T, baseURL string, runID string, meta protocol
 	if run.Status != protocol.RunStatusFinished || run.Outcome == nil || run.Outcome.Type != protocol.OutcomeCompleted {
 		t.Fatalf("Run %q state = %+v", runID, run)
 	}
+}
+
+func waitForFinishedRun(t *testing.T, baseURL string, runID string, meta protocol.RequestMeta) *protocol.RunRef {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		run := rpcCallWithMeta[*protocol.RunRef](
+			t, baseURL, "runs.get", protocol.GetRunRequest{RunID: runID}, meta,
+		)
+		if run.Status == protocol.RunStatusFinished {
+			if run.Outcome == nil || run.Outcome.Type != protocol.OutcomeCompleted {
+				t.Fatalf("Run %q settled as %+v", runID, run.Outcome)
+			}
+			return run
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("Run %q did not finish before timeout", runID)
+	return nil
 }
 
 func containsFinalText(items []protocol.Item, wanted string) bool {
