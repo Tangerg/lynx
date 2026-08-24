@@ -117,6 +117,16 @@ func TestLoadPreservesCancellation(t *testing.T) {
 }
 
 func TestLoadRejectsUnboundedHookFilesAndCascades(t *testing.T) {
+	t.Run("exact file bytes", func(t *testing.T) {
+		cwd := t.TempDir()
+		body := hooksDocument(0)
+		body += strings.Repeat(" ", int(domainhooks.MaxConfigurationFileBytes)-len(body))
+		writeHooks(t, cwd, body)
+		if _, err := Load(t.Context(), cwd, ""); err != nil {
+			t.Fatalf("Load exact 256 KiB hooks.json: %v", err)
+		}
+	})
+
 	t.Run("file bytes", func(t *testing.T) {
 		cwd := t.TempDir()
 		writeHooks(t, cwd, hooksDocument(0)+strings.Repeat(" ", 256<<10))

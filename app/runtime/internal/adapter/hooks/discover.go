@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"unicode/utf8"
 
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -51,12 +53,15 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 			return nil
 		}
 		seen[abs] = struct{}{}
-		file, ok, err := readHooksFile(abs)
+		file, ok, err := readHooksFile(ctx, abs)
 		if err != nil {
 			return fmt.Errorf("hooks: load config %q: %w", abs, err)
 		}
 		if !ok {
 			return nil
+		}
+		if err := domainhooks.ValidateHookCascade(len(out) + len(file.Hooks)); err != nil {
+			return fmt.Errorf("hooks: load cascade after %q: %w", abs, err)
 		}
 		for _, wire := range file.Hooks {
 			h := wire.domain()
@@ -102,26 +107,49 @@ func (wire hookWire) domain() domainhooks.Hook {
 	}
 }
 
-func readHooksFile(path string) (hooksFile, bool, error) {
-	info, err := os.Stat(path)
+func readHooksFile(ctx context.Context, path string) (hooksFile, bool, error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return hooksFile{}, false, cause
+	}
+	handle, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return hooksFile{}, false, nil
 	}
 	if err != nil {
 		return hooksFile{}, false, err
 	}
+	defer func() { _ = handle.Close() }()
+	info, err := handle.Stat()
+	if err != nil {
+		return hooksFile{}, false, err
+	}
 	if !info.Mode().IsRegular() {
 		return hooksFile{}, false, errors.New("not a regular file")
 	}
-	data, err := os.ReadFile(path)
+	if err := domainhooks.ValidateConfigurationFileSize(info.Size()); err != nil {
+		return hooksFile{}, false, err
+	}
+	data, err := io.ReadAll(io.LimitReader(
+		hooksContextReader{ctx: ctx, reader: handle},
+		domainhooks.MaxConfigurationFileBytes+1,
+	))
 	if err != nil {
+		return hooksFile{}, false, err
+	}
+	if err := domainhooks.ValidateConfigurationFileSize(int64(len(data))); err != nil {
 		return hooksFile{}, false, err
 	}
 	if len(data) == 0 {
 		return hooksFile{}, false, nil
 	}
+	if !utf8.Valid(data) {
+		return hooksFile{}, false, errors.New("configuration is not valid UTF-8")
+	}
 	var file hooksFile
 	if err := json.Unmarshal(data, &file); err != nil {
+		return hooksFile{}, false, err
+	}
+	if err := domainhooks.ValidateHooksPerFile(len(file.Hooks)); err != nil {
 		return hooksFile{}, false, err
 	}
 	for index, wire := range file.Hooks {
@@ -131,6 +159,22 @@ func readHooksFile(path string) (hooksFile, bool, error) {
 		}
 	}
 	return file, true, nil
+}
+
+type hooksContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r hooksContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(r.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := r.reader.Read(buffer)
+	if cause := context.Cause(r.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }
 
 // ProjectRoot returns cwd's project root, the nearest ancestor with a `.git`

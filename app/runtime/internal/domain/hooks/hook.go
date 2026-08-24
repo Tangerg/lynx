@@ -9,6 +9,25 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"unicode/utf8"
+)
+
+const (
+	// MaxConfigurationFileBytes bounds one complete authored hooks.json file
+	// before JSON decoding or management projection.
+	MaxConfigurationFileBytes int64 = 256 << 10
+	// MaxHooksPerFile bounds one authored policy document.
+	MaxHooksPerFile = 128
+	// MaxHooksPerCascade bounds the complete global + project policy resolved
+	// for one workspace.
+	MaxHooksPerCascade = 256
+	// MaxMatcherBytes bounds one tool-name glob.
+	MaxMatcherBytes = 256
+	// MaxActionBytes bounds one shell command or declarative injection.
+	MaxActionBytes = 8 << 10
+	// MaxTimeoutMillis prevents authored policy from replacing the Runtime's
+	// bounded command lifecycle with an arbitrarily long wait.
+	MaxTimeoutMillis = 5 * 60 * 1_000
 )
 
 // Event is a lifecycle point a hook can fire on.
@@ -73,6 +92,50 @@ type Hook struct {
 // must fail discovery instead of silently becoming no-ops.
 var ErrInvalidHook = errors.New("hooks: invalid hook")
 
+// ErrConfigurationTooLarge reports a hooks.json document or resolved cascade
+// that cannot enter the complete management and execution projections.
+var ErrConfigurationTooLarge = errors.New("hooks: configuration too large")
+
+// ValidateConfigurationFileSize checks the encoded envelope before a loader
+// allocates or decodes one authored policy document.
+func ValidateConfigurationFileSize(size int64) error {
+	if size < 0 || size > MaxConfigurationFileBytes {
+		return fmt.Errorf(
+			"%w: file uses %d bytes, maximum %d",
+			ErrConfigurationTooLarge,
+			size,
+			MaxConfigurationFileBytes,
+		)
+	}
+	return nil
+}
+
+// ValidateHooksPerFile checks the complete entry count of one hooks.json.
+func ValidateHooksPerFile(count int) error {
+	if count < 0 || count > MaxHooksPerFile {
+		return fmt.Errorf(
+			"%w: file contains %d hooks, maximum %d",
+			ErrConfigurationTooLarge,
+			count,
+			MaxHooksPerFile,
+		)
+	}
+	return nil
+}
+
+// ValidateHookCascade checks the complete global + project policy set.
+func ValidateHookCascade(count int) error {
+	if count < 0 || count > MaxHooksPerCascade {
+		return fmt.Errorf(
+			"%w: cascade contains %d hooks, maximum %d",
+			ErrConfigurationTooLarge,
+			count,
+			MaxHooksPerCascade,
+		)
+	}
+	return nil
+}
+
 // Validate checks the declarative hook contract before a resolved set can be
 // installed. A hook has one known lifecycle event and exactly one action;
 // malformed matchers and negative timeouts are configuration errors rather
@@ -89,8 +152,21 @@ func (h Hook) Validate() error {
 	if hasCommand == hasInject {
 		return fmt.Errorf("%w: exactly one of command or inject is required", ErrInvalidHook)
 	}
-	if h.TimeoutMillis < 0 {
-		return fmt.Errorf("%w: timeoutMillis must be non-negative", ErrInvalidHook)
+	if !utf8.ValidString(h.Matcher) || !utf8.ValidString(h.Command) || !utf8.ValidString(h.Inject) {
+		return fmt.Errorf("%w: text must be valid UTF-8", ErrInvalidHook)
+	}
+	if len(h.Matcher) > MaxMatcherBytes {
+		return fmt.Errorf("%w: matcher exceeds %d bytes", ErrInvalidHook, MaxMatcherBytes)
+	}
+	if len(h.Command) > MaxActionBytes || len(h.Inject) > MaxActionBytes {
+		return fmt.Errorf("%w: action exceeds %d bytes", ErrInvalidHook, MaxActionBytes)
+	}
+	if h.TimeoutMillis < 0 || h.TimeoutMillis > MaxTimeoutMillis {
+		return fmt.Errorf(
+			"%w: timeoutMillis must be between 0 and %d",
+			ErrInvalidHook,
+			MaxTimeoutMillis,
+		)
 	}
 	if hasInject && h.TimeoutMillis != 0 {
 		return fmt.Errorf("%w: timeoutMillis is only valid for command hooks", ErrInvalidHook)

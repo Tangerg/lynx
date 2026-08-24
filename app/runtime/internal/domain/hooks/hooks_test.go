@@ -14,6 +14,14 @@ func TestHookValidate(t *testing.T) {
 	}{
 		{name: "command", hook: Hook{Event: PreToolUse, Command: "check"}, ok: true},
 		{name: "inject", hook: Hook{Event: SessionStart, Inject: "context"}, ok: true},
+		{
+			name: "exact resource boundary",
+			hook: Hook{
+				Event: PreToolUse, Matcher: strings.Repeat("x", MaxMatcherBytes),
+				Command: strings.Repeat("x", MaxActionBytes), TimeoutMillis: MaxTimeoutMillis,
+			},
+			ok: true,
+		},
 		{name: "unknown event", hook: Hook{Event: "PreTool", Command: "check"}},
 		{name: "missing action", hook: Hook{Event: Stop}},
 		{name: "ambiguous action", hook: Hook{Event: Stop, Command: "notify", Inject: "context"}},
@@ -34,6 +42,27 @@ func TestHookValidate(t *testing.T) {
 				t.Fatalf("Validate error = %v, want ErrInvalidHook", err)
 			}
 		})
+	}
+}
+
+func TestHookConfigurationCollectionEnvelope(t *testing.T) {
+	if err := ValidateConfigurationFileSize(MaxConfigurationFileBytes); err != nil {
+		t.Fatalf("exact file boundary: %v", err)
+	}
+	if err := ValidateConfigurationFileSize(MaxConfigurationFileBytes + 1); !errors.Is(err, ErrConfigurationTooLarge) {
+		t.Fatalf("oversized file error = %v, want ErrConfigurationTooLarge", err)
+	}
+	if err := ValidateHooksPerFile(MaxHooksPerFile); err != nil {
+		t.Fatalf("exact file hook count: %v", err)
+	}
+	if err := ValidateHooksPerFile(MaxHooksPerFile + 1); !errors.Is(err, ErrConfigurationTooLarge) {
+		t.Fatalf("overfull file error = %v, want ErrConfigurationTooLarge", err)
+	}
+	if err := ValidateHookCascade(MaxHooksPerCascade); err != nil {
+		t.Fatalf("exact cascade hook count: %v", err)
+	}
+	if err := ValidateHookCascade(MaxHooksPerCascade + 1); !errors.Is(err, ErrConfigurationTooLarge) {
+		t.Fatalf("overfull cascade error = %v, want ErrConfigurationTooLarge", err)
 	}
 }
 

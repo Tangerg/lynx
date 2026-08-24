@@ -72,6 +72,8 @@ P161 只收紧 Runtime internal MCP remote catalog admission：每 connected ser
 
 P162 只收紧 Knowledge 完整文档准入：单份 home/projectRoot/cwd `LYRA.md` 最多 1 MiB，`knowledge.update` 在 persistence port 前拒绝超限内容并投影为 `invalid_params`，filesystem store 的 direct write 与外部文件 read 复用同一 Domain 上限；完整 cascade 不截断或跳过越界文档。Knowledge operation request/result shape、content-revision 格式、CAS/atomic-replace/recovery 语义、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P163 只收紧 Lifecycle Hook 配置准入：单份 `hooks.json` 最多 256 KiB/128 条，global + project 完整级联最多 256 条；matcher 最多 256 bytes、command/inject 最多 8 KiB、command timeout 最多 5 分钟，配置文本必须是有效 UTF-8。`hooks.list` 与 fresh Run binding 对任一超限文件或级联整体失败，不截断、不跳过、不发布部分策略。Hook operation/request/result shape、trust key/active 语义、event/scope vocabulary、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

@@ -317,6 +317,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 外部进程的 document synchronization 必须在读取、复制、哈希和协议编码之前拥有固定资源包络。LSP 单文档最多 8 MiB，必须以 stat + cancellation-aware `limit+1` reader 同时覆盖已超限文件与读取期间增长；不得截断后发送 partial document，也不得把 workspace file API 的 caller-defined read window 当作 LSP 的隐式保障。
 - 外部能力目录必须在进入模型或非分页管理 read model 前由领域边界限制 item count 与单项 material。MCP 每 connected server 最多 2048 个 tools、description 最多 64 KiB 且为 UTF-8、encoded input schema 最多 1 MiB；模型目录与管理目录必须共享同一常量并对整份 server catalog fail closed，不得各自截断、用 provider context 间接限流或把 invalid schema 改写为空对象。
 - 同时进入管理面与 prompt 的 human-authored complete document 必须由所属 Domain 定义单文档包络，并在 Application command admission 与 filesystem adapter read/write 共同执行。Knowledge `LYRA.md` 最多 1 MiB；读取必须以 stat + cancellation-aware `limit+1` 同时覆盖已超限文件和读取期间增长，cascade 不得静默跳过或截断越界文档，transport body limit 不能替代领域所有权。
+- 同时进入非分页管理面与执行策略的 authored configuration 必须对 encoded file、per-file items、完整 cascade 和单项 material 分别有 Domain-owned 上限。Lifecycle Hook 配置固定为 256 KiB/文件、128 hooks/文件、256 hooks/级联、256-byte matcher、8-KiB action 与 5-minute timeout；loader 必须在 decode/materialization 前以 stat + cancellation-aware `limit+1` 验证完整有效 UTF-8，不得用 partial policy、页面截断或 shell timeout 掩盖无界准入。
 
 ## 7. 测试标准
 
