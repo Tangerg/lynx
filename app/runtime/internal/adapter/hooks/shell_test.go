@@ -99,6 +99,61 @@ func TestShellBoundsCommandOutputAndRejectsMalformedDecision(t *testing.T) {
 	}
 }
 
+func TestShellRejectsUnboundedCommandInput(t *testing.T) {
+	tests := []struct {
+		name  string
+		input domainhooks.Input
+	}{
+		{
+			name: "prompt",
+			input: domainhooks.Input{
+				Event:  domainhooks.UserPromptSubmit,
+				Prompt: strings.Repeat("p", (256<<10)+1),
+			},
+		},
+		{
+			name: "tool arguments",
+			input: domainhooks.Input{
+				Event: domainhooks.PreToolUse,
+				Tool: &domainhooks.ToolInput{
+					Name: "shell", Arguments: strings.Repeat("a", (256<<10)+1),
+				},
+			},
+		},
+		{
+			name: "tool result",
+			input: domainhooks.Input{
+				Event: domainhooks.PostToolUse,
+				Tool: &domainhooks.ToolInput{
+					Name: "shell", Result: strings.Repeat("r", (128<<10)+1),
+				},
+			},
+		},
+		{
+			name: "reason",
+			input: domainhooks.Input{
+				Event: domainhooks.Stop, Reason: strings.Repeat("e", (8<<10)+1),
+			},
+		},
+		{
+			name: "aggregate stdin",
+			input: domainhooks.Input{
+				Event: domainhooks.SessionStart, SessionID: strings.Repeat("s", (512<<10)+1),
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := Shell{}.RunHookCommand(t.Context(), apphooks.CommandRequest{
+				Command: ":", Input: test.input, Timeout: time.Second,
+			})
+			if got.Err == nil || got.ExitCode != -1 {
+				t.Fatalf("oversized %s result = %+v, want pre-spawn rejection", test.name, got)
+			}
+		})
+	}
+}
+
 func TestShellOversizedExitTwoRemainsAnExplicitDeny(t *testing.T) {
 	runner := apphooks.NewRunner(Shell{}, nil)
 	decision := runner.Run(t.Context(), []domainhooks.Hook{{
