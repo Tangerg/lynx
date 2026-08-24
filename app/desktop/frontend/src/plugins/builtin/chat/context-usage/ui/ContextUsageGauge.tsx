@@ -12,8 +12,10 @@ export function ContextUsageGauge() {
   const activeSessionId = useActiveSessionId();
   const { data: sessions } = useAgentSessions();
   const { data: models = [] } = useModels();
-  const servedModelId = sessions?.find((session) => session.id === activeSessionId)?.model;
-  const servedModel = models.find((model) => model.id === servedModelId);
+  const servedSelection = sessions?.find((session) => session.id === activeSessionId);
+  const servedModel = models.find(
+    (model) => model.provider === servedSelection?.provider && model.id === servedSelection?.model,
+  );
   const readout = contextUsageReadout(contextTokens ?? undefined, servedModel?.contextWindow);
   if (!readout) return null;
 

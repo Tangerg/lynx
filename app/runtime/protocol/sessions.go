@@ -19,6 +19,7 @@ type Session struct {
 	ID        string        `json:"id"`
 	Title     string        `json:"title"`
 	Status    SessionStatus `json:"status"`
+	Provider  string        `json:"provider"`
 	Model     string        `json:"model"`
 	Workspace WorkspaceInfo `json:"workspace"`
 	CreatedAt time.Time     `json:"createdAt"`
@@ -71,6 +72,7 @@ type UpdateSessionRequest struct {
 	ExpectedRevision uint64        `json:"expectedRevision"`
 	Title            *string       `json:"title,omitempty"`
 	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
+	Provider         *string       `json:"provider,omitempty"`
 	Model            *string       `json:"model,omitempty"`
 	Favorite         *bool         `json:"favorite,omitempty"`
 }
@@ -160,9 +162,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 22 preserves each Run's latest authoritative prompt footprint and the
-// Session Plan, so an imported Session renders the same durable state as its source.
-const SessionArtifactVersion = 22
+// Version 23 preserves the Session's exact provider/model selection in addition
+// to the complete durable material introduced by earlier versions.
+const SessionArtifactVersion = 23
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -200,6 +202,7 @@ type ArtifactSession struct {
 	ID        string       `json:"id"`
 	Title     string       `json:"title"`
 	Workspace WorkspaceRef `json:"workspace"`
+	Provider  string       `json:"provider"`
 	Model     string       `json:"model"`
 	CreatedAt time.Time    `json:"createdAt"`
 	UpdatedAt time.Time    `json:"updatedAt"`

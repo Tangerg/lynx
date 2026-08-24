@@ -154,7 +154,8 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 	}))
 
 	current, initial, err := coordinator.PrepareScheduled(
-		t.Context(), "ses_scheduled", " Scheduled ", "/requested", " model ",
+		t.Context(), "ses_scheduled", " Scheduled ", "/requested",
+		mustTestSelection(t, "provider", "model"),
 	)
 	if err != nil {
 		t.Fatalf("PrepareScheduled: %v", err)
@@ -163,7 +164,8 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 		t.Fatalf("scheduled current=%+v initial=%+v", current.Snapshot(), initial)
 	}
 	if current.ID() != "ses_scheduled" || current.Title() != "Scheduled" ||
-		current.CWD() != "/resolved/scheduled" || current.Model() != "model" ||
+		current.CWD() != "/resolved/scheduled" ||
+		current.Selection() != mustTestSelection(t, "provider", "model") ||
 		current.Revision() != 1 || !current.StartedAt().Equal(createdAt) {
 		t.Fatalf("scheduled aggregate = %+v", current.Snapshot())
 	}
@@ -174,7 +176,8 @@ func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
 
 func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *testing.T) {
 	existing := sessionfixture.MustRestore(session.Snapshot{
-		ID: "ses_scheduled", Title: "Existing", CWD: "/existing", Model: "existing-model",
+		ID: "ses_scheduled", Title: "Existing", CWD: "/existing",
+		Selection: mustTestSelection(t, "provider", "existing-model"),
 	})
 	store := &crudSessionStore{current: existing}
 	coordinator := mustNewCoordinator(testDependencies(&crudStores{session: store}, Dependencies{
@@ -182,7 +185,8 @@ func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *te
 	}))
 
 	current, initial, err := coordinator.PrepareScheduled(
-		t.Context(), existing.ID(), "Ignored", "/unavailable", "ignored-model",
+		t.Context(), existing.ID(), "Ignored", "/unavailable",
+		mustTestSelection(t, "ignored-provider", "ignored-model"),
 	)
 	if err != nil {
 		t.Fatalf("PrepareScheduled existing: %v", err)
@@ -212,15 +216,18 @@ func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 	}
 }
 
-func TestViewUsesConfiguredDefaultModel(t *testing.T) {
-	c := mustNewCoordinator(Dependencies{Paths: testCWDResolver{}, DefaultModel: "claude-opus-4-8"})
+func TestViewPresentsTheSessionExactModelSelection(t *testing.T) {
+	selection := mustTestSelection(t, "anthropic", "claude-opus-4-8")
+	c := mustNewCoordinator(Dependencies{Paths: testCWDResolver{}, DefaultModelSelection: selection})
 
-	view, err := c.view(sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/repo"}), ActivityIdle)
+	view, err := c.view(sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/repo", Selection: selection,
+	}), ActivityIdle)
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
-	if view.Model != "claude-opus-4-8" {
-		t.Fatalf("view model = %q, want configured default", view.Model)
+	if view.Provider != "anthropic" || view.Model != "claude-opus-4-8" {
+		t.Fatalf("view selection = %s/%s, want Session selection", view.Provider, view.Model)
 	}
 }
 
@@ -232,15 +239,15 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	ctx := context.Background()
 
 	title := "  Renamed  "
-	model := "claude-opus-4-8"
+	selection := mustTestSelection(t, "anthropic", "claude-opus-4-8")
 	cwd := "/requested/project"
 	favorite := true
 
 	got, err := c.Update(ctx, "ses_1", session.Patch{
-		Title:    &title,
-		Model:    &model,
-		CWD:      &cwd,
-		Favorite: &favorite,
+		Title:     &title,
+		Selection: &selection,
+		CWD:       &cwd,
+		Favorite:  &favorite,
 	})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
@@ -251,8 +258,8 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if got.ID() != "ses_1" || store.saved.Title() != "Renamed" {
 		t.Fatalf("updated=%+v saved=%+v", got.Snapshot(), store.saved.Snapshot())
 	}
-	if store.saved.Model() != model {
-		t.Fatalf("model = %q", store.saved.Model())
+	if store.saved.Selection() != selection {
+		t.Fatalf("model selection = %v", store.saved.Selection())
 	}
 	if store.saved.CWD() != "/resolved/project" {
 		t.Fatalf("cwd = %q", store.saved.CWD())

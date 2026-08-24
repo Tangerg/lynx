@@ -261,6 +261,8 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 			Session: protocol.ArtifactSession{
 				ID:        ses.ID(),
 				Title:     "Restored",
+				Provider:  "test-provider",
+				Model:     "test-model",
 				Workspace: protocol.WorkspaceRef{Path: "/restore"},
 				CreatedAt: time.Unix(1, 0).UTC(),
 				UpdatedAt: time.Unix(1, 0).UTC(),
@@ -323,6 +325,8 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 			Session: protocol.ArtifactSession{
 				ID:        ses.ID(),
 				Title:     "Restored",
+				Provider:  "test-provider",
+				Model:     "test-model",
 				Workspace: protocol.WorkspaceRef{Path: "/restore"},
 				CreatedAt: time.Unix(1, 0).UTC(),
 				UpdatedAt: time.Unix(1, 0).UTC(),
@@ -452,7 +456,8 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 
 	now := time.Now().UTC()
 	_, err = s.sessions.RestorePortableSession(ctx, sessions.PortableSnapshot{Session: sessions.PortableSession{
-		ID: ses.ID(), Title: "Restored", CWD: restoreCWD, CreatedAt: now, UpdatedAt: now,
+		ID: ses.ID(), Title: "Restored", CWD: restoreCWD, Selection: fixtureDefaultModelSelection(),
+		CreatedAt: now, UpdatedAt: now,
 	}})
 	if !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
@@ -505,7 +510,12 @@ func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
 	for _, version := range []int{0, protocol.SessionArtifactVersion - 1, protocol.SessionArtifactVersion + 1} {
 		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
-			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.ArtifactSession{ID: "ses_x"}},
+			Artifact: protocol.SessionArtifact{
+				Version: version,
+				Session: protocol.ArtifactSession{
+					ID: "ses_x", Provider: "test-provider", Model: "test-model",
+				},
+			},
 		})
 		if !errors.Is(err, protocol.ErrInvalidParams) {
 			t.Fatalf("version %d mismatch err = %v, want ErrInvalidParams", version, err)
@@ -520,7 +530,8 @@ func TestSessionImportRejectsUnavailableCWD(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID: "ses_missing_cwd", Workspace: protocol.WorkspaceRef{Path: missing},
+				ID: "ses_missing_cwd", Provider: "test-provider", Model: "test-model",
+				Workspace: protocol.WorkspaceRef{Path: missing},
 				CreatedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(),
 			},
 		},
@@ -548,7 +559,8 @@ func TestSessionImportRejectsAFailedRunWithoutItsFailure(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID: "ses_unexplained", Title: "Restored", CreatedAt: created, UpdatedAt: created,
+				ID: "ses_unexplained", Title: "Restored", Provider: "test-provider", Model: "test-model",
+				CreatedAt: created, UpdatedAt: created,
 			},
 			Runs: []protocol.ArtifactRun{{
 				ID: "run_1", SessionID: "ses_unexplained",
@@ -674,7 +686,8 @@ func TestSessionImportRefusesPlanWhenFeatureIsDisabled(t *testing.T) {
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
-			ID: ses.ID(), Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.CWD()},
+			ID: ses.ID(), Title: "planned", Provider: "test-provider", Model: "test-model",
+			Workspace: protocol.WorkspaceRef{Path: ses.CWD()},
 		},
 		Plan: []protocol.PlanStep{{ID: "0", Description: "plan", Status: protocol.PlanStatusPending}},
 	}

@@ -1,11 +1,12 @@
 {
   "format": "json",
   "artifact": {
-    "version": 22,
+      "version": 23,
     "session": {
-      "id": "ses_01",
-      "title": "Refactor the runtime protocol",
-      "model": "claude-opus-4-8",
+        "id": "ses_01",
+        "title": "Refactor the runtime protocol",
+        "provider": "anthropic",
+        "model": "claude-opus-4-8",
       "workspace": { "path": "/Users/dev/project" },
       "createdAt": "2026-07-07T10:00:00Z",
       "updatedAt": "2026-07-07T10:05:00Z"

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 import { Button, DropdownMenu, HiddenFileInput, Icon, IconButton, ProviderIcon } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
@@ -17,25 +17,15 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { useAddComposerImageFiles } from "./public/attachments";
-import {
-  useComposerModelPreference,
-  useSetComposerModelPreference,
-} from "./public/modelPreference";
+import { useSetComposerModelPreference } from "./public/modelPreference";
 
 // The trigger wears the selected model's provider mark. Provider health is not
 // part of this app's state, so the control carries no status indicator.
 function ModelPicker() {
   const t = useT();
   const { data: models = [], isLoading, isError } = useModels();
-  const { provider, model } = useComposerModelPreference();
   const setModel = useSetComposerModelPreference();
   const selected = useSelectedModel();
-
-  useEffect(() => {
-    if (selected && (provider !== selected.provider || model !== selected.id)) {
-      setModel(selected.provider, selected.id);
-    }
-  }, [model, provider, selected, setModel]);
 
   if (models.length === 0) {
     if (isError) {
@@ -63,8 +53,8 @@ function ModelPicker() {
     );
   }
   // An active Session id can be available one query tick before its summary.
-  // Keep the placeholder for that tick instead of showing — and then seeding —
-  // a catalog model which would override the Session's durable model.
+  // Keep the placeholder for that tick instead of showing a catalog model
+  // which would disagree with the Session's durable model.
   if (!selected) {
     return (
       <div

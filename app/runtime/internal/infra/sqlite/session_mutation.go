@@ -43,11 +43,12 @@ func (s *SessionStore) Save(
 	snapshot := replacement.Snapshot()
 	result, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
 		title = ?, cwd = ?, parent_id = ?, started_at = ?, updated_at = ?,
-		model = ?, favorite = ?, isolated = ?, revision = ?
+		provider = ?, model = ?, favorite = ?, isolated = ?, revision = ?
 		WHERE id = ? AND revision = ?`,
 		snapshot.Title, snapshot.CWD, snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
-		snapshot.Model, boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
+		snapshot.Selection.Provider(), snapshot.Selection.Model(),
+		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
 		snapshot.Revision, snapshot.ID, expectedRevision,
 	)
 	if err != nil {
@@ -79,10 +80,11 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 func (s *SessionStore) execInsert(ctx context.Context, executor execer, value session.Session) error {
 	snapshot := value.Snapshot()
 	_, err := executor.ExecContext(ctx,
-		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		snapshot.ID, snapshot.Title, snapshot.CWD, snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
-		snapshot.Model, boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
+		snapshot.Selection.Provider(), snapshot.Selection.Model(),
+		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
 		snapshot.Revision,
 	)
 	if err != nil {

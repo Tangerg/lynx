@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -174,7 +175,7 @@ func (store *delegateSessionStore) PrepareScheduled(
 	string,
 	string,
 	string,
-	string,
+	modelref.Selection,
 ) (session.Session, *session.Session, error) {
 	return store.value, nil, nil
 }

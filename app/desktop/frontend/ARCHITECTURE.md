@@ -193,6 +193,13 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 
 React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/queries.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
 
+Session 的 served-model identity 是 Runtime 持久化的 exact `provider + model` pair。Agent Session adapter
+必须把两者共同投影到 `AgentSessionSummary`；Composer restore 与 Context usage 只按 pair 查模型目录，不能按
+model id 取首项或在既有 Session 上回落 Runtime 全局默认。无 Session 的 welcome surface 才能采用目录默认；
+Session summary 尚未到达时保持 unresolved，不能把 query race 固化成覆盖。该选择只在 render 中派生，不反写
+Composer store；只有用户在 picker 中的明确选择才写入 process preference 并成为 Run override。未明确选择时
+Run 请求省略 pair，由 Runtime 从 durable Session 读取，因此不建立第二个 Session selection owner。
+
 Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它交给 `ctx.cleanup`；Installation remove、Host stop 或 HMR owner 退休会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
 
 需要全局命令入口的 replaceable application owner 使用 `lib/publicationSlot.ts`：slot 只拥有 process-local exact object identity，先发布 successor、再同步退休 predecessor，并只允许 exact owner withdraw。它不能持有 task、cache、event、error 或任意业务状态；serialization、abort、projection repair、material generation 和 typed retired error 必须继续留在 concrete owner。Singleton port 复用同一 identity primitive，业务类不再各自复制 `static #active` lifecycle protocol。
@@ -328,10 +335,10 @@ App.tsx
 
 三个 Slot 是 kernel 的全部肉（没有底部状态栏——run telemetry 在 composer footer，全局指示/通知在 sidebar footer）：
 
-| Slot          | 典型贡献者                                  |
-| ------------- | ------------------------------------------- |
-| `app.sidebar` | `kernel-sidebar`                            |
-| `app.main`    | `kernel-chat`（ChatPanel）                  |
+| Slot          | 典型贡献者                                                 |
+| ------------- | ---------------------------------------------------------- |
+| `app.sidebar` | `kernel-sidebar`                                           |
+| `app.main`    | `kernel-chat`（ChatPanel）                                 |
 | `app.overlay` | `session-search` / `chat-search` / `toaster` / `shortcuts` |
 
 `AgentAppShell` 拥有窗口外壳、Work Index 区域和 settings 的 single-surface

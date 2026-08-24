@@ -19,6 +19,7 @@ const session = {
   id: "ses_01",
   title: "Refactor the runtime protocol",
   status: "idle",
+  provider: "anthropic",
   model: "claude-opus-4-8",
   workspace: {
     ref: { path: "/Users/dev/project" },
@@ -33,6 +34,7 @@ const session = {
 const artifactSession = {
   id: "ses_01",
   title: "Refactor the runtime protocol",
+  provider: "anthropic",
   model: "claude-opus-4-8",
   workspace: { path: "/Users/dev/project" },
   createdAt: "2026-07-07T10:00:00Z",
@@ -232,7 +234,7 @@ describe("the generated wire checks", () => {
   // one that reads `minLength` with no type keyword beside it.
   it("states a constraint on a field of a shared shape", () => {
     const artifact = {
-      version: 22,
+      version: 23,
       session: artifactSession,
       items: [],
       messages: [],
@@ -354,6 +356,21 @@ describe("the generated wire checks", () => {
     expect(validateWire("RunRef", unexplained)).toEqual([
       { path: "RunRef.outcome", detail: "is required" },
     ]);
+
+    expect(
+      validateWire("StartRunRequest", {
+        sessionId: "ses_01",
+        input: [{ type: "text", text: "go" }],
+        provider: "provider",
+      }),
+    ).toContainEqual({ path: "StartRunRequest.model", detail: "is required" });
+    expect(
+      validateWire("UpdateSessionRequest", {
+        sessionId: "ses_01",
+        expectedRevision: 1,
+        model: "model",
+      }),
+    ).toContainEqual({ path: "UpdateSessionRequest.provider", detail: "is required" });
   });
 
   it("checks array elements and names the index", () => {

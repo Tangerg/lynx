@@ -15,7 +15,9 @@ func validArtifact() protocol.SessionArtifact {
 	finished := time.Unix(1, 0).UTC()
 	return protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
-		Session: protocol.ArtifactSession{ID: "ses_1"},
+		Session: protocol.ArtifactSession{
+			ID: "ses_1", Provider: "test-provider", Model: "test-model",
+		},
 		Runs: []protocol.ArtifactRun{{
 			ID: "run_1", SessionID: "ses_1", CreatedAt: finished, FinishedAt: finished,
 			UpdatedAt: finished, MessageMark: 0,

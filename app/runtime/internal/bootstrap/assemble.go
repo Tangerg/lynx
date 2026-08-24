@@ -37,7 +37,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
@@ -209,22 +208,26 @@ func buildAssemblyCore(
 		EmbeddingStore:     cfg.EmbeddingRoleStore,
 		Invalidations:      policy.invalidations.Publish,
 	})
+	defaultRunModel, err := runtimeDefaultModelSelection(cfg)
+	if err != nil {
+		return nil, err
+	}
 	sessionDependencies := sessions.Dependencies{
-		Sessions:          cfg.SessionStore,
-		Interrupts:        cfg.InterruptStore,
-		Transcript:        cfg.TranscriptStore,
-		Runs:              cfg.RunStore,
-		Snapshots:         sessionStores,
-		MaterialSnapshots: sessionStores,
-		Writes:            sessionStores,
-		Forgetter:         execution.workingContexts,
-		ExecutionReleaser: execution.executor,
-		Paths:             workspacepath.Resolver{},
-		DefaultModel:      cfg.Model,
-		Checkpoints:       checkpointstore.NewSessionCheckpoints(workspaceServices.checkpoints),
-		Admissions:        admissionGate,
-		Invalidations:     policy.invalidations.Publish,
-		Now:               time.Now,
+		Sessions:              cfg.SessionStore,
+		Interrupts:            cfg.InterruptStore,
+		Transcript:            cfg.TranscriptStore,
+		Runs:                  cfg.RunStore,
+		Snapshots:             sessionStores,
+		MaterialSnapshots:     sessionStores,
+		Writes:                sessionStores,
+		Forgetter:             execution.workingContexts,
+		ExecutionReleaser:     execution.executor,
+		Paths:                 workspacepath.Resolver{},
+		DefaultModelSelection: defaultRunModel,
+		Checkpoints:           checkpointstore.NewSessionCheckpoints(workspaceServices.checkpoints),
+		Admissions:            admissionGate,
+		Invalidations:         policy.invalidations.Publish,
+		Now:                   time.Now,
 		NewID: func() string {
 			return session.IDPrefix + uuid.NewString()
 		},
@@ -307,10 +310,6 @@ func buildAssemblyCore(
 		return nil, fmt.Errorf("runtime: construct Run finalizer: %w", err)
 	}
 	workspaceNotifier := runsegment.NewWorkspaceNotifier(fileChanges.Publish)
-	defaultRunModel, err := modelref.New(cfg.Provider, cfg.Model)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: default Run model selection: %w", err)
-	}
 	runDependencies := runs.Dependencies{
 		RootStarts:                         execution.executor,
 		Observations:                       execution.executor,
@@ -341,11 +340,10 @@ func buildAssemblyCore(
 			Workspace:                   workspaceNotifier,
 			Finalizer:                   runFinalizer,
 		},
-		Runs:                  cfg.RunStore,
-		Items:                 cfg.TranscriptStore,
-		Admissions:            admissionGate,
-		DefaultModelSelection: defaultRunModel,
-		Now:                   time.Now,
+		Runs:       cfg.RunStore,
+		Items:      cfg.TranscriptStore,
+		Admissions: admissionGate,
+		Now:        time.Now,
 		NewRunID: func() string {
 			return runs.NewRunID(uuid.NewString())
 		},

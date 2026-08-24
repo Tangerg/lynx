@@ -5,19 +5,52 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
+
+func TestSessionOwnsExactSelectionAcrossEditAndFork(t *testing.T) {
+	startedAt := time.Unix(1, 0).UTC()
+	initial, err := modelref.New("provider-a", "shared-model")
+	if err != nil {
+		t.Fatalf("initial selection: %v", err)
+	}
+	parent := mustNew(t, Draft{
+		ID: "ses_parent", CWD: "/work", Selection: initial, StartedAt: startedAt,
+	})
+	if parent.Selection() != initial {
+		t.Fatalf("initial selection = %v, want %v", parent.Selection(), initial)
+	}
+
+	replacement, err := modelref.New("provider-b", "shared-model")
+	if err != nil {
+		t.Fatalf("replacement selection: %v", err)
+	}
+	next, changed, err := parent.Apply(Patch{Selection: &replacement}, startedAt.Add(time.Second))
+	if err != nil || !changed || next.Selection() != replacement {
+		t.Fatalf("selection replacement = %v, changed=%v, err=%v", next.Selection(), changed, err)
+	}
+	child, err := next.Fork("ses_child", "", startedAt.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+	if child.Selection() != replacement {
+		t.Fatalf("fork selection = %v, want %v", child.Selection(), replacement)
+	}
+}
 
 func TestSessionConstruction(t *testing.T) {
 	startedAt := time.Unix(1, 0).In(time.FixedZone("fixture", 3600))
+	selection := mustModelSelection(t, "provider", "model")
 	created, err := New(Draft{
 		ID: "ses_root", Title: "  Research  ", CWD: "/work/project",
-		Model: "  model  ", StartedAt: startedAt,
+		Selection: selection, StartedAt: startedAt,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	if created.ID() != "ses_root" || created.Title() != "Research" ||
-		created.CWD() != "/work/project" || created.Model() != "model" {
+		created.CWD() != "/work/project" || created.Selection() != selection {
 		t.Fatalf("created Session = %+v", created.Snapshot())
 	}
 	if created.ParentID() != "" || created.Revision() != 1 ||
@@ -30,13 +63,15 @@ func TestSessionConstruction(t *testing.T) {
 }
 
 func TestSessionConstructionRejectsInvalidState(t *testing.T) {
-	valid := Draft{ID: "ses_1", CWD: "/work", StartedAt: time.Unix(1, 0)}
+	selection := mustModelSelection(t, "provider", "model")
+	valid := Draft{ID: "ses_1", CWD: "/work", Selection: selection, StartedAt: time.Unix(1, 0)}
 	tests := map[string]Draft{
-		"missing identity":   {CWD: valid.CWD, StartedAt: valid.StartedAt},
-		"spaced identity":    {ID: " ses_1", CWD: valid.CWD, StartedAt: valid.StartedAt},
-		"missing workspace":  {ID: valid.ID, StartedAt: valid.StartedAt},
-		"spaced workspace":   {ID: valid.ID, CWD: " /work", StartedAt: valid.StartedAt},
-		"missing start time": {ID: valid.ID, CWD: valid.CWD},
+		"missing identity":   {CWD: valid.CWD, Selection: selection, StartedAt: valid.StartedAt},
+		"spaced identity":    {ID: " ses_1", CWD: valid.CWD, Selection: selection, StartedAt: valid.StartedAt},
+		"missing workspace":  {ID: valid.ID, Selection: selection, StartedAt: valid.StartedAt},
+		"spaced workspace":   {ID: valid.ID, CWD: " /work", Selection: selection, StartedAt: valid.StartedAt},
+		"missing selection":  {ID: valid.ID, CWD: valid.CWD, StartedAt: valid.StartedAt},
+		"missing start time": {ID: valid.ID, CWD: valid.CWD, Selection: selection},
 	}
 	for name, draft := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -51,16 +86,16 @@ func TestSessionApplyOwnsNormalizationRevisionAndTime(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
 	current := mustNew(t, Draft{ID: "ses_1", Title: "Before", CWD: "/work", StartedAt: startedAt})
 	title := "  After  "
-	model := "  model  "
+	selection := mustModelSelection(t, "provider", "model")
 	favorite := true
 	next, changed, err := current.Apply(Patch{
-		Title: &title, Model: &model, Favorite: &favorite,
+		Title: &title, Selection: &selection, Favorite: &favorite,
 		ExpectedRevision: current.Revision(),
 	}, startedAt.Add(time.Second))
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if !changed || next.Title() != "After" || next.Model() != "model" || !next.Favorite() {
+	if !changed || next.Title() != "After" || next.Selection() != selection || !next.Favorite() {
 		t.Fatalf("replacement = %+v, changed=%v", next.Snapshot(), changed)
 	}
 	if next.Revision() != current.Revision()+1 || !next.UpdatedAt().Equal(startedAt.Add(time.Second)) {
@@ -97,7 +132,7 @@ func TestSessionFork(t *testing.T) {
 	isolated := true
 	parent := mustNew(t, Draft{
 		ID: "ses_parent", Title: "Research", CWD: "/work/project",
-		Model: "model", StartedAt: startedAt,
+		Selection: mustModelSelection(t, "provider", "model"), StartedAt: startedAt,
 	})
 	parent, _, _ = parent.Apply(Patch{Isolated: &isolated}, startedAt.Add(time.Second))
 	childAt := startedAt.Add(2 * time.Second)
@@ -109,7 +144,7 @@ func TestSessionFork(t *testing.T) {
 		child.Title() != "Research (fork)" || child.CWD() != parent.CWD() || !child.Isolated() {
 		t.Fatalf("child = %+v", child.Snapshot())
 	}
-	if child.Model() != "" || child.Favorite() || child.Revision() != 1 ||
+	if child.Selection() != parent.Selection() || child.Favorite() || child.Revision() != 1 ||
 		!child.StartedAt().Equal(childAt) || !child.UpdatedAt().Equal(childAt) {
 		t.Fatalf("child fresh state = %+v", child.Snapshot())
 	}
@@ -148,6 +183,7 @@ func TestSessionRestoreReplacementKeepsTargetRevisionSpace(t *testing.T) {
 func TestSessionRevisionOverflow(t *testing.T) {
 	current, err := Restore(Snapshot{
 		ID: "ses_1", CWD: "/work", StartedAt: time.Unix(1, 0),
+		Selection: mustModelSelection(t, "provider", "model"),
 		UpdatedAt: time.Unix(1, 0), Revision: math.MaxUint64,
 	})
 	if err != nil {
@@ -161,9 +197,21 @@ func TestSessionRevisionOverflow(t *testing.T) {
 
 func mustNew(t *testing.T, draft Draft) Session {
 	t.Helper()
+	if !draft.Selection.Configured() {
+		draft.Selection = mustModelSelection(t, "test-provider", "test-model")
+	}
 	value, err := New(draft)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	return value
+}
+
+func mustModelSelection(t *testing.T, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New: %v", err)
+	}
+	return selection
 }

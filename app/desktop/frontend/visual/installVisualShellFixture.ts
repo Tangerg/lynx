@@ -121,6 +121,7 @@ function session(
     revision: 7,
     title,
     status,
+    provider: "openai",
     model: "gpt-5.6",
     cwd,
     favorite,

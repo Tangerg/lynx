@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -42,7 +43,8 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 		return session.Session{}, err
 	}
 	created, err := session.New(session.Draft{
-		ID: c.newID(), Title: title, CWD: cwd, StartedAt: c.now(),
+		ID: c.newID(), Title: title, CWD: cwd,
+		Selection: c.defaultModelSelection, StartedAt: c.now(),
 	})
 	if err != nil {
 		return session.Session{}, err
@@ -61,7 +63,8 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 // to derive or normalize product state.
 func (c *Coordinator) PrepareScheduled(
 	ctx context.Context,
-	id, title, cwd, model string,
+	id, title, cwd string,
+	selection modelref.Selection,
 ) (current session.Session, initial *session.Session, err error) {
 	existing, err := c.sessions.Get(ctx, id)
 	if err == nil {
@@ -74,8 +77,14 @@ func (c *Coordinator) PrepareScheduled(
 	if err != nil {
 		return session.Session{}, nil, err
 	}
+	if !selection.Configured() {
+		selection = c.defaultModelSelection
+	}
+	if err := selection.Validate(); err != nil {
+		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection: %w", err)
+	}
 	created, err := session.New(session.Draft{
-		ID: id, Title: title, CWD: cwd, Model: model, StartedAt: c.now(),
+		ID: id, Title: title, CWD: cwd, Selection: selection, StartedAt: c.now(),
 	})
 	if err != nil {
 		return session.Session{}, nil, err

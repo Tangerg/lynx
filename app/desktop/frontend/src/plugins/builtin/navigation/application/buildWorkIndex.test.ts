@@ -10,6 +10,7 @@ function session(
     revision: 1,
     title: overrides.id,
     status: "idle",
+    provider: "provider",
     model: "gpt-test",
     cwd: "/unclaimed",
     time: "2026-01-01T00:00:00.000Z",

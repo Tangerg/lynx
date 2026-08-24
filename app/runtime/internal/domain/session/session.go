@@ -10,6 +10,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // IDPrefix is the type prefix assigned when a Runtime generates a Session ID.
@@ -34,7 +36,7 @@ type Draft struct {
 	ID        string
 	Title     string
 	CWD       string
-	Model     string
+	Selection modelref.Selection
 	StartedAt time.Time
 }
 
@@ -44,7 +46,7 @@ type Draft struct {
 // Runtime-owned maintenance.
 type Patch struct {
 	Title            *string
-	Model            *string
+	Selection        *modelref.Selection
 	CWD              *string
 	Favorite         *bool
 	Isolated         *bool
@@ -53,7 +55,7 @@ type Patch struct {
 
 // Empty reports whether p requests no field change.
 func (p Patch) Empty() bool {
-	return p.Title == nil && p.Model == nil && p.CWD == nil && p.Favorite == nil && p.Isolated == nil
+	return p.Title == nil && p.Selection == nil && p.CWD == nil && p.Favorite == nil && p.Isolated == nil
 }
 
 // Snapshot is the complete technical representation used only to reconstruct
@@ -62,7 +64,7 @@ type Snapshot struct {
 	ID        string
 	Title     string
 	CWD       string
-	Model     string
+	Selection modelref.Selection
 	ParentID  string
 	StartedAt time.Time
 	UpdatedAt time.Time
@@ -78,7 +80,7 @@ type Session struct {
 	id        string
 	title     string
 	cwd       string
-	model     string
+	selection modelref.Selection
 	parentID  string
 	startedAt time.Time
 	updatedAt time.Time
@@ -93,8 +95,8 @@ type Session struct {
 func New(draft Draft) (Session, error) {
 	startedAt := canonicalTime(draft.StartedAt)
 	snapshot := Snapshot{
-		ID: draft.ID, Title: normalizeOptionalText(draft.Title),
-		CWD: draft.CWD, Model: normalizeOptionalText(draft.Model),
+		ID: draft.ID, Title: strings.TrimSpace(draft.Title),
+		CWD: draft.CWD, Selection: draft.Selection,
 		StartedAt: startedAt, UpdatedAt: startedAt, Revision: 1,
 	}
 	return Restore(snapshot)
@@ -105,7 +107,7 @@ func New(draft Draft) (Session, error) {
 func Restore(snapshot Snapshot) (Session, error) {
 	value := Session{
 		id: snapshot.ID, title: snapshot.Title, cwd: snapshot.CWD,
-		model: snapshot.Model, parentID: snapshot.ParentID,
+		selection: snapshot.Selection, parentID: snapshot.ParentID,
 		startedAt: canonicalTime(snapshot.StartedAt),
 		updatedAt: canonicalTime(snapshot.UpdatedAt),
 		favorite:  snapshot.Favorite, isolated: snapshot.Isolated,
@@ -140,8 +142,11 @@ func (s Session) Apply(patch Patch, updatedAt time.Time) (next Session, changed 
 		}
 		next.title = title
 	}
-	if patch.Model != nil {
-		next.model = normalizeOptionalText(*patch.Model)
+	if patch.Selection != nil {
+		if err := patch.Selection.Validate(); err != nil {
+			return Session{}, false, fmt.Errorf("%w: model selection: %v", ErrInvalid, err)
+		}
+		next.selection = *patch.Selection
 	}
 	if patch.CWD != nil {
 		if err := validateRequiredText("cwd", *patch.CWD); err != nil {
@@ -175,8 +180,8 @@ func (s Session) NameIfUntitled(title string, updatedAt time.Time) (Session, boo
 }
 
 // Fork derives a new child Session. It inherits the admitted workspace and
-// isolation choice, starts a fresh conversation with no model selection or
-// favorite flag, and records immutable lineage back to s. An empty title uses
+// isolation choice and exact model selection, starts a fresh conversation with
+// no favorite flag, and records immutable lineage back to s. An empty title uses
 // the parent's human-readable fork title.
 func (s Session) Fork(id, title string, startedAt time.Time) (Session, error) {
 	if err := s.Validate(); err != nil {
@@ -194,7 +199,7 @@ func (s Session) Fork(id, title string, startedAt time.Time) (Session, error) {
 	return Restore(Snapshot{
 		ID: id, Title: title, CWD: s.cwd, ParentID: s.id,
 		StartedAt: startedAt, UpdatedAt: startedAt,
-		Isolated: s.isolated, Revision: 1,
+		Selection: s.selection, Isolated: s.isolated, Revision: 1,
 	})
 }
 
@@ -257,8 +262,14 @@ func (s Session) Validate() error {
 	if err := validateRequiredText("cwd", s.cwd); err != nil {
 		return err
 	}
-	if s.title != strings.TrimSpace(s.title) || s.model != strings.TrimSpace(s.model) {
-		return fmt.Errorf("%w: title and model must not contain surrounding whitespace", ErrInvalid)
+	if s.title != strings.TrimSpace(s.title) {
+		return fmt.Errorf("%w: title must not contain surrounding whitespace", ErrInvalid)
+	}
+	if err := s.selection.Validate(); err != nil {
+		return fmt.Errorf("%w: model selection: %v", ErrInvalid, err)
+	}
+	if !s.selection.Configured() {
+		return fmt.Errorf("%w: model selection is required", ErrInvalid)
 	}
 	if s.parentID != strings.TrimSpace(s.parentID) || s.parentID == s.id {
 		return fmt.Errorf("%w: invalid parent identity", ErrInvalid)
@@ -278,7 +289,7 @@ func (s Session) Validate() error {
 // Snapshot returns the complete technical representation of s.
 func (s Session) Snapshot() Snapshot {
 	return Snapshot{
-		ID: s.id, Title: s.title, CWD: s.cwd, Model: s.model,
+		ID: s.id, Title: s.title, CWD: s.cwd, Selection: s.selection,
 		ParentID: s.parentID, StartedAt: s.startedAt, UpdatedAt: s.updatedAt,
 		Favorite: s.favorite, Isolated: s.isolated, Revision: s.revision,
 	}
@@ -293,8 +304,8 @@ func (s Session) Title() string { return s.title }
 // CWD returns the admitted canonical workspace identity.
 func (s Session) CWD() string { return s.cwd }
 
-// Model returns the last explicitly selected model, or empty for the Runtime default.
-func (s Session) Model() string { return s.model }
+// Selection returns the exact provider/model pair owned by the Session.
+func (s Session) Selection() modelref.Selection { return s.selection }
 
 // ParentID returns the immutable parent Session identity, or empty for a root.
 func (s Session) ParentID() string { return s.parentID }
@@ -316,7 +327,7 @@ func (s Session) Revision() uint64 { return s.revision }
 
 func (s Session) sameValue(other Session) bool {
 	return s.id == other.id && s.title == other.title && s.cwd == other.cwd &&
-		s.model == other.model && s.parentID == other.parentID &&
+		s.selection == other.selection && s.parentID == other.parentID &&
 		s.startedAt.Equal(other.startedAt) && s.favorite == other.favorite &&
 		s.isolated == other.isolated
 }
@@ -327,8 +338,6 @@ func validateRequiredText(name, value string) error {
 	}
 	return nil
 }
-
-func normalizeOptionalText(value string) string { return strings.TrimSpace(value) }
 
 func canonicalTime(value time.Time) time.Time {
 	if value.IsZero() {

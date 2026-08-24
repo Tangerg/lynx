@@ -383,6 +383,8 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	checkpoints := persistence.NewExecutorCheckpointStore(sqlitestore.NewExecutorCheckpointStore(db))
 	mcpServers := sqlitestore.NewMCPServerStore(db)
 	return Config{
+		Provider:             "anthropic",
+		Model:                "claude-test",
 		UserHome:             t.TempDir(),
 		KnowledgeDirectory:   t.TempDir(),
 		DefaultWorkspacePath: t.TempDir(),

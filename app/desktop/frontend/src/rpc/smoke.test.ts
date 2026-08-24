@@ -92,6 +92,7 @@ describe("smoke: v2 end-to-end happy path", () => {
       id: "ses_1",
       title: "smoke",
       status: "idle",
+      provider: "anthropic",
       model: "claude",
       workspace: {
         ref: { path: "/work" },

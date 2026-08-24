@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -22,15 +23,27 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if err := cmd.ModelSelection.Validate(); err != nil {
 		return StartResult{}, fmt.Errorf("runs: model selection: %w", err)
 	}
-	if !cmd.ModelSelection.Configured() {
-		cmd.ModelSelection = c.defaultModelSelection
-	}
-	if err := cmd.ModelSelection.Validate(); err != nil {
-		return StartResult{}, fmt.Errorf("runs: default model selection: %w", err)
-	}
+	requestedSelection := cmd.ModelSelection
 	message, media, openingUserText, err := cmd.MaterializeInput()
 	if err != nil {
 		return StartResult{}, err
+	}
+	sess, initialSession, err := c.resolveSession(
+		ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath,
+		cmd.NewSessionTitle, requestedSelection,
+	)
+	if err != nil {
+		return StartResult{}, err
+	}
+	cmd.ModelSelection = requestedSelection
+	if !cmd.ModelSelection.Configured() {
+		cmd.ModelSelection = sess.Selection()
+	}
+	if err := cmd.ModelSelection.Validate(); err != nil {
+		return StartResult{}, fmt.Errorf("runs: effective model selection: %w", err)
+	}
+	if !cmd.ModelSelection.Configured() {
+		return StartResult{}, errors.New("runs: effective model selection is required")
 	}
 	draft := RootExecutionStart{
 		Message:                  message,
@@ -54,13 +67,6 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		return StartResult{}, err
 	}
 
-	sess, initialSession, err := c.resolveSession(
-		ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath,
-		cmd.NewSessionTitle, cmd.ModelSelection.Model(),
-	)
-	if err != nil {
-		return StartResult{}, err
-	}
 	runAdmission, err := c.claimFreshRun(ctx, sess)
 	if err != nil {
 		return StartResult{}, err
@@ -113,11 +119,10 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	createdAt := c.publications.nowUTC()
 	modelOnlyInput := cmd.GoalIncarnationID != ""
 	var sessionReplacement *SessionReplacement
-	if initialSession == nil && cmd.ModelSelection.Configured() {
-		model := cmd.ModelSelection.Model()
-		next, changed, err := sess.Apply(session.Patch{Model: &model}, createdAt)
+	if initialSession == nil && requestedSelection.Configured() {
+		next, changed, err := sess.Apply(session.Patch{Selection: &requestedSelection}, createdAt)
 		if err != nil {
-			return StartResult{}, fmt.Errorf("runs: prepare Session model replacement: %w", err)
+			return StartResult{}, fmt.Errorf("runs: prepare Session model-selection replacement: %w", err)
 		}
 		if changed {
 			sessionReplacement = &SessionReplacement{
@@ -176,10 +181,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 
 func (c *Coordinator) resolveSession(
 	ctx context.Context,
-	id, newID, defaultWorkspacePath, title, model string,
+	id, newID, defaultWorkspacePath, title string,
+	selection modelref.Selection,
 ) (session.Session, *session.Session, error) {
 	if newID != "" {
-		return c.sessionCreator.PrepareScheduled(ctx, newID, title, defaultWorkspacePath, model)
+		return c.sessionCreator.PrepareScheduled(ctx, newID, title, defaultWorkspacePath, selection)
 	}
 	if id == "" {
 		sess, err := c.sessionCreator.Create(ctx, title, defaultWorkspacePath)

@@ -8,6 +8,7 @@ function session(title: string, time: string): AgentSessionSummary {
     revision: 1,
     title,
     status: "idle",
+    provider: "openai",
     model: "gpt-5.6",
     cwd: "/repo",
     time,

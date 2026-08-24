@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-21";
+export const PROTOCOL_VERSION = "2026-08-24";
 
 // HTTP entrypoints implemented by this runtime build.
 export const HTTP_ENDPOINTS = {
@@ -246,6 +246,7 @@ export interface ArtifactSession {
   favorite?: boolean;
   id: string;
   model: string;
+  provider: string;
   title: string;
   updatedAt: string;
   workspace: WorkspaceRef;
@@ -1370,6 +1371,7 @@ export interface Session {
   favorite?: boolean;
   id: string;
   model: string;
+  provider: string;
   revision: number;
   status: SessionStatus;
   title: string;
@@ -1566,6 +1568,7 @@ export interface UpdateSessionRequest {
   expectedRevision: number;
   favorite?: boolean;
   model?: string;
+  provider?: string;
   sessionId: string;
   title?: string;
   workspace?: WorkspaceRef;

@@ -1,9 +1,10 @@
 {
   "session": {
     "id": "ses_01",
-    "title": "Refactor the runtime protocol",
-    "status": "idle",
-    "model": "claude-opus-4-8",
+      "title": "Refactor the runtime protocol",
+      "status": "idle",
+      "provider": "anthropic",
+      "model": "claude-opus-4-8",
     "workspace": {
       "ref": { "path": "/Users/dev/project" },
       "projectRoot": "/Users/dev/project",

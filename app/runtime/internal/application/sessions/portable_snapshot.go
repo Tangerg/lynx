@@ -40,7 +40,7 @@ type PortableSession struct {
 	ID        string
 	Title     string
 	CWD       string
-	Model     string
+	Selection modelref.Selection
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Favorite  bool
@@ -192,7 +192,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 
 func (p PortableSession) session() (session.Session, error) {
 	return session.Restore(session.Snapshot{
-		ID: p.ID, Title: p.Title, CWD: p.CWD, Model: p.Model,
+		ID: p.ID, Title: p.Title, CWD: p.CWD, Selection: p.Selection,
 		StartedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 		Favorite: p.Favorite, Revision: 1,
 	})
@@ -238,7 +238,7 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			ID:        normalized.Session.ID(),
 			Title:     normalized.Session.Title(),
 			CWD:       normalized.Session.CWD(),
-			Model:     normalized.Session.Model(),
+			Selection: normalized.Session.Selection(),
 			CreatedAt: normalized.Session.StartedAt(),
 			UpdatedAt: normalized.Session.UpdatedAt(),
 			Favorite:  normalized.Session.Favorite(),

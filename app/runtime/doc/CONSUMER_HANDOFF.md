@@ -7,13 +7,13 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-21, during the P140 Plan-contract cutover.
+> Desktop generated consumer: 2026-08-24, during the P143 Session-selection cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
-- Protocol version: exactly `2026-08-21`; there is no compatibility range.
-- Session artifact version: `22`; every other version is rejected before
+- Protocol version: exactly `2026-08-24`; there is no compatibility range.
+- Session artifact version: `23`; every other version is rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -34,7 +34,7 @@ use first-class Item or resource contracts for new facts.
 Plan is no longer the sole member of a speculative shared-state registry. The
 only spellings are `plan.updated`, `plan.changed`, `plan.get`,
 `SessionSnapshot.plan`, and `SessionArtifact.plan`; discovery has no
-`stateSnapshots`, RuntimeEvent has no state key, and Artifact v22 has no
+`stateSnapshots`, RuntimeEvent has no state key, and Artifact v23 has no
 `states[]` union. Consumers must not retain `state.snapshot`, `state.changed`,
 `StateSnapshot`, the old `states[]` archive shape, or a generic shared-state Plan
 reader. Desktop projects the Runtime Plan into the explicit `AgentSessionView.plan`;
@@ -49,6 +49,17 @@ The protocol and artifact version bumps are deliberate rejection boundaries.
 Consumers must not retry with an older version or rewrite an old artifact's
 version number: old artifacts must be re-exported by the build that owns their
 schema.
+
+Every public `Session` and `ArtifactSession` now carries required `provider` and
+`model` fields. `sessions.update` changes them only as one complete pair;
+provider-only, model-only, empty, or whitespace-padded identities are invalid.
+Omitting a per-Run pair uses the durable Session pair, while an explicit pair is
+committed as the Session's next default in the same opening write-set. Consumers
+must compare both fields when resolving a catalog entry or its context window;
+matching model id alone is incorrect when providers publish the same id. Fork,
+scheduled admission, export, and import preserve the exact pair. There is no
+model-only alias, provider inference, global-default fallback for an existing
+Session, v22 artifact reader, or epoch-77 database migration.
 
 Transcript events now publish user messages, questions, and compaction as
 complete facts without a synthetic `item.started` event. Agent-message and
@@ -123,6 +134,13 @@ artifact import. The Session read model selects the newest positive root-run foo
 it never substitutes cumulative `RunMetrics.usage.inputTokens`, and a newly admitted
 successor with no model response does not erase the preceding proven footprint.
 
+P143 makes Session selection an exact durable identity. Desktop's
+`AgentSessionSummary` now projects both `provider` and `model`; Composer restore
+and Context usage resolve the catalog by the pair, including duplicate model-id
+fixtures. The generated package, handwritten adapter, smoke/wire fixtures, and
+strict validators move together to Protocol `2026-08-24` and Artifact v23. No
+second selection store or compatibility decoder was added.
+
 - `app/runtime/contract/typescript/` generated bindings, validators, canonical
   samples, and the handwritten JSON Schema check vocabulary;
 - `app/desktop/frontend/src/rpc/` SDK, preflight, and schema tests;
@@ -158,18 +176,21 @@ checkpoint contracts; there is no compatibility reader or global-directory
 single-instance fallback. TUI code may consume the CLI-owned narrow port and
 protocol values rather than opening an unnecessary third Runtime.
 
-No CLI or TUI source is changed by P19. Absence from this list is not evidence
-that an in-tree or out-of-tree consumer is compatible.
+No CLI or TUI source is changed by P143. A CLI consumer that constructs,
+updates, validates, exports, or imports Session values must migrate to the exact
+pair before it can claim compatibility; this handoff does not authorize a
+Runtime model-only shim. Absence from this list is not evidence that an in-tree
+or out-of-tree consumer is compatible.
 
 ## Consumer acceptance
 
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-21"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-24"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v22 with its explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
+4. imports/exports Session artifact v23 with its required exact provider/model pair and explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

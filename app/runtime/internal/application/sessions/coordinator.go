@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -218,18 +219,18 @@ type ExecutionReleaser interface {
 // Stateless beyond its collaborators and the in-process admission gates;
 // safe to share.
 type Coordinator struct {
-	sessions          Store
-	interrupts        InterruptStore
-	transcript        TranscriptStore
-	runs              RunStore
-	plan              *PlanServices
-	snapshots         SnapshotReader
-	materialSnapshots MaterialSnapshotReader
-	writes            WriteSets
-	forgetter         Forgetter
-	executionReleaser ExecutionReleaser
-	paths             CWDResolver
-	defaultModel      string
+	sessions              Store
+	interrupts            InterruptStore
+	transcript            TranscriptStore
+	runs                  RunStore
+	plan                  *PlanServices
+	snapshots             SnapshotReader
+	materialSnapshots     MaterialSnapshotReader
+	writes                WriteSets
+	forgetter             Forgetter
+	executionReleaser     ExecutionReleaser
+	paths                 CWDResolver
+	defaultModelSelection modelref.Selection
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -268,19 +269,19 @@ type Dependencies struct {
 	Runs       RunStore
 	// Plan is nil when Plan support is disabled. When enabled, both the boundary
 	// history and replacement behavior are one capability and must be present.
-	Plan              *PlanServices
-	Snapshots         SnapshotReader
-	MaterialSnapshots MaterialSnapshotReader
-	Writes            WriteSets
-	Forgetter         Forgetter
-	ExecutionReleaser ExecutionReleaser
-	Paths             CWDResolver
-	DefaultModel      string
-	Checkpoints       WorkspaceCheckpoints
-	Sandbox           SandboxDiscarder
-	Goals             GoalMutationGuard
-	Mutations         WorkspaceMutations
-	Admissions        Admissions
+	Plan                  *PlanServices
+	Snapshots             SnapshotReader
+	MaterialSnapshots     MaterialSnapshotReader
+	Writes                WriteSets
+	Forgetter             Forgetter
+	ExecutionReleaser     ExecutionReleaser
+	Paths                 CWDResolver
+	DefaultModelSelection modelref.Selection
+	Checkpoints           WorkspaceCheckpoints
+	Sandbox               SandboxDiscarder
+	Goals                 GoalMutationGuard
+	Mutations             WorkspaceMutations
+	Admissions            Admissions
 	// Invalidations publishes post-commit invalidations for the session projections a
 	// mutation moved. nil disables them (no runtime change stream wired).
 	Invalidations invalidation.Publish
@@ -351,30 +352,36 @@ func New(deps Dependencies) (*Coordinator, error) {
 			return nil, errors.New("sessions: plan replacements are required when Plan support is enabled")
 		}
 	}
+	if err := deps.DefaultModelSelection.Validate(); err != nil {
+		return nil, fmt.Errorf("sessions: default model selection: %w", err)
+	}
+	if !deps.DefaultModelSelection.Configured() {
+		return nil, errors.New("sessions: configured default model selection is required")
+	}
 	return &Coordinator{
-		sessions:          deps.Sessions,
-		interrupts:        deps.Interrupts,
-		transcript:        deps.Transcript,
-		runs:              deps.Runs,
-		plan:              deps.Plan,
-		snapshots:         deps.Snapshots,
-		materialSnapshots: deps.MaterialSnapshots,
-		writes:            deps.Writes,
-		forgetter:         deps.Forgetter,
-		executionReleaser: deps.ExecutionReleaser,
-		paths:             deps.Paths,
-		defaultModel:      deps.DefaultModel,
-		checkpoints:       deps.Checkpoints,
-		sandbox:           deps.Sandbox,
-		goals:             deps.Goals,
-		mutations:         deps.Mutations,
-		admissions:        deps.Admissions,
-		invalidations:     deps.Invalidations,
-		now:               deps.Now,
-		newID:             deps.NewID,
-		newRunID:          deps.NewRunID,
-		newItemID:         deps.NewItemID,
-		newToolResultID:   deps.NewToolResultID,
+		sessions:              deps.Sessions,
+		interrupts:            deps.Interrupts,
+		transcript:            deps.Transcript,
+		runs:                  deps.Runs,
+		plan:                  deps.Plan,
+		snapshots:             deps.Snapshots,
+		materialSnapshots:     deps.MaterialSnapshots,
+		writes:                deps.Writes,
+		forgetter:             deps.Forgetter,
+		executionReleaser:     deps.ExecutionReleaser,
+		paths:                 deps.Paths,
+		defaultModelSelection: deps.DefaultModelSelection,
+		checkpoints:           deps.Checkpoints,
+		sandbox:               deps.Sandbox,
+		goals:                 deps.Goals,
+		mutations:             deps.Mutations,
+		admissions:            deps.Admissions,
+		invalidations:         deps.Invalidations,
+		now:                   deps.Now,
+		newID:                 deps.NewID,
+		newRunID:              deps.NewRunID,
+		newItemID:             deps.NewItemID,
+		newToolResultID:       deps.NewToolResultID,
 	}, nil
 }
 

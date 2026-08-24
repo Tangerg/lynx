@@ -500,6 +500,29 @@ func TestPublishedLimitWireConstraints(t *testing.T) {
 	}
 }
 
+func TestModelSelectionWireConstraintsRequireAnExactPair(t *testing.T) {
+	t.Parallel()
+
+	start := StartRunRequest{
+		SessionID: "ses_1",
+		Input:     []ContentBlock{{Type: ContentBlockText, Text: "go"}},
+		Provider:  "provider",
+	}
+	assertConstraintField(t, start.ValidateWire(), "StartRunRequest", "model")
+
+	provider := "provider"
+	update := UpdateSessionRequest{
+		SessionID: "ses_1", ExpectedRevision: 1, Provider: &provider,
+	}
+	assertConstraintField(t, update.ValidateWire(), "UpdateSessionRequest", "model")
+
+	model := "model"
+	update = UpdateSessionRequest{
+		SessionID: "ses_1", ExpectedRevision: 1, Model: &model,
+	}
+	assertConstraintField(t, update.ValidateWire(), "UpdateSessionRequest", "provider")
+}
+
 func TestRequestBoundsAreWireConstraints(t *testing.T) {
 	t.Parallel()
 

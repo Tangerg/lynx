@@ -17,6 +17,7 @@ function session(): AgentSessionSummary {
     revision: 3,
     title: "before",
     status: "idle",
+    provider: "openai",
     model: "gpt-5",
     cwd: "",
     time: "2026-08-12T00:00:00Z",

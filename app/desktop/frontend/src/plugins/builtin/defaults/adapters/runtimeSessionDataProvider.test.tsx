@@ -31,6 +31,7 @@ function session(id: string) {
     id,
     title: id,
     status: "idle",
+    provider: "test-provider",
     model: "test-model",
     workspace: {
       ref: { path: "/repo" },

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
@@ -285,11 +286,23 @@ func mustNewCoordinator(deps Dependencies) *Coordinator {
 	if deps.NewToolResultID == nil {
 		deps.NewToolResultID = toolresult.NewID
 	}
+	if !deps.DefaultModelSelection.Configured() {
+		deps.DefaultModelSelection, _ = modelref.New("test-provider", "test-model")
+	}
 	coordinator, err := New(deps)
 	if err != nil {
 		panic(err)
 	}
 	return coordinator
+}
+
+func mustTestSelection(t *testing.T, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New: %v", err)
+	}
+	return selection
 }
 
 type inertExecutionReleaser struct{}

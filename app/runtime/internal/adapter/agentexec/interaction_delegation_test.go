@@ -49,7 +49,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		Lifetime:      t.Context(),
-		DefaultClient: client, ImplementationIdentity: "interaction-delegate-test-build",
+		DefaultClient: client, DefaultSelection: testDefaultSelection(), ImplementationIdentity: "interaction-delegate-test-build",
 		ConfigurationIdentity: "interaction-delegate-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,
 	})
@@ -173,7 +173,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		Lifetime:      t.Context(),
-		DefaultClient: client, ImplementationIdentity: "interaction-running-cancel-test-build",
+		DefaultClient: client, DefaultSelection: testDefaultSelection(), ImplementationIdentity: "interaction-running-cancel-test-build",
 		ConfigurationIdentity: "interaction-running-cancel-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,
 	})
@@ -448,7 +448,7 @@ func runDelegateTree(
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		Lifetime:      t.Context(),
-		DefaultClient: client, ImplementationIdentity: "interaction-delegate-tree-test-build",
+		DefaultClient: client, DefaultSelection: testDefaultSelection(), ImplementationIdentity: "interaction-delegate-tree-test-build",
 		ConfigurationIdentity: "interaction-delegate-tree-test-config", DefaultMaxModelCalls: 6,
 		MaxConcurrentToolCalls: 4, BuildID: interactionTestBuildID,
 	})

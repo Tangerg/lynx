@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -38,8 +39,11 @@ func insertSessionFixture(
 	title, cwd string,
 ) (session.Session, error) {
 	value, err := session.New(session.Draft{
-		ID:    fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1)),
-		Title: title, CWD: cwd, StartedAt: time.Now(),
+		ID:        fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1)),
+		Title:     title,
+		CWD:       cwd,
+		Selection: fixtureDefaultModelSelection(),
+		StartedAt: time.Now(),
 	})
 	if err != nil {
 		return session.Session{}, err
@@ -55,6 +59,9 @@ func insertSessionSnapshot(
 	store *sqlite.SessionStore,
 	snapshot session.Snapshot,
 ) (session.Session, error) {
+	if !snapshot.Selection.Configured() {
+		snapshot.Selection = fixtureDefaultModelSelection()
+	}
 	value, err := session.Restore(snapshot)
 	if err != nil {
 		return session.Session{}, err
@@ -878,19 +885,20 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		runStore = s.runs
 	}
 	deps := sessions.Dependencies{
-		Sessions:          nonNilSessionStore(s.sess),
-		Interrupts:        nonNilSessionInterrupts(s.interrupts),
-		Transcript:        nonNilSessionTranscript(s.hist),
-		Runs:              runStore,
-		Snapshots:         stores,
-		MaterialSnapshots: stores,
-		Writes:            stores,
-		Forgetter:         s,
-		ExecutionReleaser: stubExecutionReleaser{rt: s},
-		Paths:             workspacepath.Resolver{},
-		Checkpoints:       checkpoints,
-		Admissions:        admissions,
-		Now:               time.Now,
+		Sessions:              nonNilSessionStore(s.sess),
+		Interrupts:            nonNilSessionInterrupts(s.interrupts),
+		Transcript:            nonNilSessionTranscript(s.hist),
+		Runs:                  runStore,
+		Snapshots:             stores,
+		MaterialSnapshots:     stores,
+		Writes:                stores,
+		Forgetter:             s,
+		ExecutionReleaser:     stubExecutionReleaser{rt: s},
+		Paths:                 workspacepath.Resolver{},
+		DefaultModelSelection: fixtureDefaultModelSelection(),
+		Checkpoints:           checkpoints,
+		Admissions:            admissions,
+		Now:                   time.Now,
 		NewID: func() string {
 			return fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1))
 		},
@@ -918,6 +926,14 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		panic(err)
 	}
 	return coordinator
+}
+
+func fixtureDefaultModelSelection() modelref.Selection {
+	selection, err := modelref.New("test-provider", "test-model")
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }
 
 // emptySessionRunStore is the explicit no-Run dependency for delivery fixtures

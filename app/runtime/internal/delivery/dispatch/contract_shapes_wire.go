@@ -428,6 +428,22 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
+	for _, target := range []reflect.Type{
+		typeOf[protocol.StartRunRequest](),
+		typeOf[protocol.UpdateSessionRequest](),
+	} {
+		s.constraint(ObjectConstraintSpec{
+			GoType: target,
+			Rules: []PresenceRule{{
+				When:     []operation.FieldCondition{{Field: "provider", Operator: operation.OperatorPresent}},
+				Required: []string{"model"},
+			}, {
+				When:     []operation.FieldCondition{{Field: "model", Operator: operation.OperatorPresent}},
+				Required: []string{"provider"},
+			}},
+		})
+	}
+
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.UpdateScheduleRequest](),
 		Rules: []PresenceRule{{

@@ -5,7 +5,7 @@ import { useComposerModelPreference } from "./modelPreference";
 
 /** The model the next run will use: composerStore's provider+model pair
  *  resolved against the live model list, then the active durable Session's
- *  model before the first explicit pick, then the catalog default when no
+ *  exact provider/model selection before the first explicit pick, then the catalog default when no
  *  Session is active. While an active Session summary is loading there is no
  *  fallback: choosing early would turn a query race into a model override.
  *  `undefined` when no provider is enabled yet.
@@ -18,10 +18,13 @@ export function useSelectedModel() {
   const preference = useComposerModelPreference();
   const activeSessionId = useActiveSessionId();
   const { data: sessions } = useAgentSessions();
-  const activeSessionModel = activeSessionId
+  const activeSessionSelection = activeSessionId
     ? sessions === undefined
       ? undefined
-      : (sessions.find((session) => session.id === activeSessionId)?.model ?? null)
+      : (() => {
+          const session = sessions.find((candidate) => candidate.id === activeSessionId);
+          return session ? { provider: session.provider, model: session.model } : null;
+        })()
     : null;
-  return resolveComposerModel(models, preference, activeSessionModel);
+  return resolveComposerModel(models, preference, activeSessionSelection);
 }

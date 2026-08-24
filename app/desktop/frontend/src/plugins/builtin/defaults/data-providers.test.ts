@@ -135,6 +135,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
               revision: 7,
               title: "Refactor auth",
               status: "running",
+              provider: "anthropic",
               model: "claude",
               workspace: {
                 ref: { path: "/work/auth" },
@@ -154,6 +155,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         revision: 7,
         title: "Refactor auth",
         status: "running",
+        provider: "anthropic",
         model: "claude",
         cwd: "/work/auth",
         time: "2026-06-01T01:00:00Z",

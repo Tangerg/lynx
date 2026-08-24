@@ -440,3 +440,12 @@
 - 决策：God object 的拆解边界以锁、生命周期和不变量为依据，优先在现有 package 内建立 package-private component；没有独立变化轴时不新建 package。请求 Context 不存入长期对象，不在内部调用点把 nil 静默改成 `context.Background()`；只有进程/instance owner 可以创建 lifecycle root，并必须拥有 cancel 与 join。
 - 决策：architecture fitness test 只守长期语义：允许/禁止 import DAG、唯一 vocabulary/codec/state owner、公共 API/持久化 shape、构造合法性和生命周期边界。已删除 package 可以由准确 owner 的 absence guard 防止第二真相源回流，但不得继续以成百历史标识符、局部变量名或“某声明必须位于某文件”充当风格检查；复杂度预算只约束可执行编排行为，声明式 catalog、生成物和本质递归 validator 必须有明确范围。
 - 后果：P113 可以进行内部 breaking change并删除无价值边界，同时保持 Domain/Application/Adapter/Infra/Delivery/Bootstrap DAG。每个纵切必须删掉旧 owner、更新当前事实文档并通过目标包、race、全量 Runtime 和静态门禁；不得以拆出更多微包或增加 façade 来降低单文件指标。
+
+## ADR-RT-064：Session 持久拥有精确 provider/model 身份
+
+- 状态：已接受并实施，P143 完成；Protocol 前移到 `2026-08-24`，Session Artifact 前移到 v23，SQLite 前移到 epoch 78，不保留旧 shape reader。
+- 背景：Session 过去只保存 `model`，而 provider 只存在于一次 Run 选择或 Runtime 全局默认中。两个 provider 发布同名 model 时，Desktop 只能按 model id 选择目录中的首项；`runs.start` 省略选择时又在读取 Session 前回落全局默认。于是公共语义声称 Session 是下一次 Run 的模型 owner，实际却无法证明 provider，恢复、fork 与 Context window 都可能指向另一模型。该缺陷不是 Delivery 缺字段，而是 Domain owner 不完整。
+- 决策：`domain/session.Session` 直接持有既有 immutable `modelref.Selection`，并把 configured exact pair 设为聚合不变量；zero selection 不能构造、恢复、编辑或持久化 Session。Runtime 默认只在 Session Application admission 时安装一次，Runs Application 不再拥有第二份默认选择。省略 Run 选择时读取 Session pair；显式完整 pair 通过 executor staging 后与 Run opening 在同一 write-set 原子替换 Session pair。provider/model 缺一、空值或外围空白一律 fail closed，provider 永不由 model id 推断。
+- 决策：fresh create、scheduled admission、fork、restore、Artifact v23、SQLite epoch 78、公共 Session/UpdateSession 与生成 Go/Schema/TypeScript 合同一次性携带 pair。fork 继承父 Session 的 exact pair；归档 import 必须提供 pair；SQLite 列非空且 strict codec 重新建立 Domain 不变量。旧 wire、v22 artifact 与 epoch 77 database 确定性拒绝，不加 alias、双写、双读、fallback 或 migration。
+- 决策：Desktop 的 consumer-owned `AgentSessionSummary`、Composer resolution 与 Context gauge 都以 provider+model 比较；同名 model 反例必须命中 exact provider。React render 直接派生该 pair，effect 只依赖 primitive identity，不复制第二 selection store。`app/cli` 本批不修改，其迁移缺口只记录在 consumer handoff，不能倒逼 Runtime 恢复 model-only surface。
+- 后果：Session、Run staging、持久化、归档和 Desktop presentation 对“下一次 Run 使用哪个模型”只有一个可恢复答案。采用 app2 的 exact identity 与纵切经验，但拒绝 opaque JSON、额外 public package、god facade、能力删减和低覆盖；原 Runtime 的严格 Protocol、完整恢复矩阵、公共 `protocol`/`embedded` 边界与资源生命周期保持不变。

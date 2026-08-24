@@ -1464,7 +1464,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-21\""
+          "value": "\"2026-08-24\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1764,7 +1764,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "22"
+          "value": "23"
         },
         {
           "name": "SessionStatusIdle",
@@ -2936,6 +2936,11 @@
               "tag": "json:\"workspace\""
             },
             {
+              "name": "Provider",
+              "type": "string",
+              "tag": "json:\"provider\""
+            },
+            {
               "name": "Model",
               "type": "string",
               "tag": "json:\"model\""
@@ -2954,6 +2959,12 @@
               "name": "Favorite",
               "type": "bool",
               "tag": "json:\"favorite,omitempty\""
+            }
+          ],
+          "methods": [
+            {
+              "name": "ValidateWire",
+              "signature": "func() error"
             }
           ]
         },
@@ -7067,6 +7078,11 @@
               "tag": "json:\"status\""
             },
             {
+              "name": "Provider",
+              "type": "string",
+              "tag": "json:\"provider\""
+            },
+            {
               "name": "Model",
               "type": "string",
               "tag": "json:\"model\""
@@ -7095,6 +7111,12 @@
               "name": "Revision",
               "type": "uint64",
               "tag": "json:\"revision\""
+            }
+          ],
+          "methods": [
+            {
+              "name": "ValidateWire",
+              "signature": "func() error"
             }
           ]
         },
@@ -7922,6 +7944,11 @@
               "name": "Workspace",
               "type": "*WorkspaceRef",
               "tag": "json:\"workspace,omitempty\""
+            },
+            {
+              "name": "Provider",
+              "type": "*string",
+              "tag": "json:\"provider,omitempty\""
             },
             {
               "name": "Model",

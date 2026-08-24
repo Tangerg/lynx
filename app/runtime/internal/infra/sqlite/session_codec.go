@@ -3,10 +3,11 @@ package sqlite
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, model, favorite, isolated, revision`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, provider, model, favorite, isolated, revision`
 
 // rowToSession decodes one DB row into a product session.Session. Execution
 // continuation state deliberately lives in its dedicated sidecar table, never
@@ -20,10 +21,12 @@ func rowToSession(scanner interface {
 		updatedAtNanos int64
 		favoriteInt    int64
 		isolatedInt    int64
+		provider       string
+		model          string
 	)
 	if err := scanner.Scan(
 		&snapshot.ID, &snapshot.Title, &snapshot.CWD, &snapshot.ParentID,
-		&startedAtNanos, &updatedAtNanos, &snapshot.Model,
+		&startedAtNanos, &updatedAtNanos, &provider, &model,
 		&favoriteInt, &isolatedInt, &snapshot.Revision,
 	); err != nil {
 		return session.Session{}, err
@@ -32,6 +35,11 @@ func rowToSession(scanner interface {
 	snapshot.UpdatedAt = time.Unix(0, updatedAtNanos).UTC()
 	snapshot.Favorite = favoriteInt != 0
 	snapshot.Isolated = isolatedInt != 0
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		return session.Session{}, err
+	}
+	snapshot.Selection = selection
 	value, err := session.Restore(snapshot)
 	if err != nil {
 		return session.Session{}, err

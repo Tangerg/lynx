@@ -18,6 +18,10 @@ func (value UpdateSessionRequest) ValidateWire() error {
 	return collectWireViolations("UpdateSessionRequest",
 		requiredText("sessionId", value.SessionID),
 		positiveNumber("expectedRevision", value.ExpectedRevision),
+		optionalText("provider", value.Provider),
+		optionalText("model", value.Model),
+		requiredWhen(wireFieldPresent(value, "provider"), "model", value),
+		requiredWhen(wireFieldPresent(value, "model"), "provider", value),
 	)
 }
 
@@ -60,6 +64,8 @@ func (value StartRunRequest) ValidateWire() error {
 		nonNegativeNumber("maxTotalTokens", value.MaxTotalTokens),
 		nonNegativeNumber("maxSteps", value.MaxSteps),
 		nonNegativeNumber("maxBudgetUsd", value.MaxBudgetUSD),
+		requiredWhen(wireFieldPresent(value, "provider"), "model", value),
+		requiredWhen(wireFieldPresent(value, "model"), "provider", value),
 	)
 }
 
@@ -1465,10 +1471,25 @@ func (value ArtifactRun) ValidateWire() error {
 	)
 }
 
+func (value Session) ValidateWire() error {
+	return collectWireViolations("Session",
+		requiredText("provider", value.Provider),
+		requiredText("model", value.Model),
+		closedEnum("status", string(value.Status), []string{"running", "waiting", "idle"}, false),
+	)
+}
+
+func (value ArtifactSession) ValidateWire() error {
+	return collectWireViolations("ArtifactSession",
+		requiredText("provider", value.Provider),
+		requiredText("model", value.Model),
+	)
+}
+
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 22),
-		maximumNumber("version", value.Version, 22),
+		minimumNumber("version", value.Version, 23),
+		maximumNumber("version", value.Version, 23),
 	)
 }
 

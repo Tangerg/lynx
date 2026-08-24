@@ -16,6 +16,7 @@ export function toAgentSessionSummary(session: Session): AgentSessionSummary {
     revision: session.revision,
     title: session.title,
     status: session.status,
+    provider: session.provider,
     model: session.model,
     cwd: session.workspace.ref.path,
     ...(session.workspace.availability === "missing" ? { cwdMissing: true } : {}),

@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-21` · 89 methods
+Protocol `2026-08-24` · 89 methods
 
 ## Methods
 
@@ -443,6 +443,8 @@ TypeScript validator from this single registry projection.
 | shape | field | constraint |
 | --- | --- | --- |
 | `PageQuery` | `limit` | `nonNegative` |
+| `Session` | `provider` | `nonEmpty` |
+| `Session` | `model` | `nonEmpty` |
 | `GetSessionRequest` | `sessionId` | `nonEmpty` |
 | `DeleteSessionRequest` | `sessionId` | `nonEmpty` |
 | `ForkSessionRequest` | `sessionId` | `nonEmpty` |
@@ -450,9 +452,13 @@ TypeScript validator from this single registry projection.
 | `ExportSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
+| `UpdateSessionRequest` | `provider` | `nonEmpty` |
+| `UpdateSessionRequest` | `model` | `nonEmpty` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(22)` |
-| `SessionArtifact` | `version` | `maximum(22)` |
+| `ArtifactSession` | `provider` | `nonEmpty` |
+| `ArtifactSession` | `model` | `nonEmpty` |
+| `SessionArtifact` | `version` | `minimum(23)` |
+| `SessionArtifact` | `version` | `maximum(23)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRun` | `contextTokens` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |

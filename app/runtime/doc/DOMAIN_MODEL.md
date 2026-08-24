@@ -272,11 +272,18 @@ Tool Adapter 只负责模型参数 decode、从 Tool execution context 提取 Se
 `domain/session.Session` 应完整拥有单个 Session 内的行为：
 
 - fresh 和 scheduled Session 的构造；
-- title/model/workspace/isolation/favorite edit；
+- title/exact provider+model selection/workspace/isolation/favorite edit；
 - fork inheritance；
 - relocation/restore 后 canonical workspace identity 的安装；
 - revision 单调推进和实体时间更新；
 - immutable identity、parent 和 started time。
+
+Session 的模型身份不是可缺省字符串，而是 configured `modelref.Selection`。Domain 构造、restore 与 patch
+都要求 provider/model 同时存在且无外围空白；zero selection 对 Session 非法。Runtime 全局默认只由
+Session Application 在 fresh/scheduled admission 时解析并安装，之后 read model、Run、fork、SQLite 与
+Artifact 都读取聚合内同一 pair，不再在消费处补默认或按 model id 推断 provider。显式 Run pair 只有在
+executor staging 成功后，才随 Run opening 原子替换 Session pair；失败不得留下半更新。fork 继承父
+Session 的 exact pair，而不是清空后等待另一层重新猜默认。
 
 Application 仍负责：
 

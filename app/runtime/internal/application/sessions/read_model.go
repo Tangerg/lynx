@@ -31,6 +31,7 @@ type View struct {
 	CWD         string
 	ProjectRoot string
 	CWDMissing  bool
+	Provider    string
 	Model       string
 	Activity    Activity
 	CreatedAt   time.Time
@@ -200,17 +201,15 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 	if err != nil {
 		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD(), err)
 	}
-	model := value.Model()
-	if model == "" {
-		model = c.defaultModel
-	}
+	selection := value.Selection()
 	return View{
 		ID:          value.ID(),
 		Title:       value.Title(),
 		CWD:         workspace.Path,
 		ProjectRoot: workspace.ProjectRoot,
 		CWDMissing:  workspace.Missing,
-		Model:       model,
+		Provider:    selection.Provider(),
+		Model:       selection.Model(),
 		Activity:    activity,
 		CreatedAt:   value.StartedAt(),
 		UpdatedAt:   value.UpdatedAt(),

@@ -38,6 +38,7 @@ function session(patch: Partial<AgentSessionSummary> = {}): AgentSessionSummary 
     revision: 1,
     title: "Session",
     status: "idle",
+    provider: "provider",
     model: "model",
     cwd: "/repo",
     time: "2026-08-11T00:00:00Z",

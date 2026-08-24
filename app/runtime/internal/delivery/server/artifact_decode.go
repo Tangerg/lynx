@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -32,6 +33,17 @@ func invalidArtifact(path, format string, args ...any) error {
 func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSnapshot, error) {
 	if art.Session.ID == "" {
 		return sessions.PortableSnapshot{}, invalidArtifact("artifact.session.id", "is required")
+	}
+	selection, err := modelref.New(art.Session.Provider, art.Session.Model)
+	if err != nil {
+		return sessions.PortableSnapshot{}, invalidArtifact(
+			"artifact.session", "provider and model must form a complete selection: %v", err,
+		)
+	}
+	if !selection.Configured() {
+		return sessions.PortableSnapshot{}, invalidArtifact(
+			"artifact.session", "provider and model are required",
+		)
 	}
 	messages := make([]chat.Message, 0, len(art.Messages))
 	for index, encoded := range art.Messages {
@@ -74,7 +86,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 	}
 	return sessions.PortableSnapshot{
 		Session: sessions.PortableSession{
-			ID: art.Session.ID, Title: art.Session.Title, CWD: art.Session.Workspace.Path, Model: art.Session.Model,
+			ID: art.Session.ID, Title: art.Session.Title, CWD: art.Session.Workspace.Path, Selection: selection,
 			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
 		},
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Plan: plan,

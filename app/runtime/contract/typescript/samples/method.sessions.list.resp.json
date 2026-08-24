@@ -4,6 +4,7 @@
       "id": "ses_01",
       "title": "Refactor the runtime protocol",
       "status": "idle",
+      "provider": "anthropic",
       "model": "claude-opus-4-8",
       "workspace": {
         "ref": { "path": "/Users/dev/project" },

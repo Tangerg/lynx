@@ -68,6 +68,7 @@ type InteractionExecutorConfig struct {
 	Lifetime                  context.Context
 	BuildID                   string
 	DefaultClient             *chatclient.Client
+	DefaultSelection          modelref.Selection
 	ChatResolver              InteractionChatResolver
 	RestoreScopeValidator     RestoreScopeValidator
 	ImplementationIdentity    string
@@ -116,6 +117,12 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	}
 	if config.DefaultClient == nil && isNilInteractionCapability(config.ChatResolver) {
 		return nil, errors.New("agentexec: Interaction requires a chat client or resolver")
+	}
+	if err := config.DefaultSelection.Validate(); err != nil {
+		return nil, fmt.Errorf("agentexec: Interaction default model selection: %w", err)
+	}
+	if !config.DefaultSelection.Configured() {
+		return nil, errors.New("agentexec: Interaction requires an exact default model selection")
 	}
 	for _, capability := range []struct {
 		name  string
@@ -934,23 +941,26 @@ func (executor *InteractionExecutor) resolveClient(
 	ctx context.Context,
 	selection modelref.Selection,
 ) (*chatclient.Client, error) {
-	if selection.Configured() {
-		if executor.config.ChatResolver == nil {
-			return nil, errors.New("agentexec: explicit Interaction model selection requires a chat resolver")
-		}
-		client, err := executor.config.ChatResolver.ResolveChat(ctx, selection)
-		if err != nil {
-			return nil, fmt.Errorf("agentexec: resolve Interaction chat client: %w", err)
-		}
-		if client == nil {
-			return nil, errors.New("agentexec: Interaction chat resolver returned nil")
-		}
-		return client, nil
+	if err := selection.Validate(); err != nil {
+		return nil, fmt.Errorf("agentexec: Interaction model selection: %w", err)
 	}
-	if executor.config.DefaultClient == nil {
-		return nil, errors.New("agentexec: Interaction has no default chat client")
+	if !selection.Configured() {
+		return nil, errors.New("agentexec: Interaction requires an exact model selection")
 	}
-	return executor.config.DefaultClient, nil
+	if selection == executor.config.DefaultSelection && executor.config.DefaultClient != nil {
+		return executor.config.DefaultClient, nil
+	}
+	if executor.config.ChatResolver == nil {
+		return nil, errors.New("agentexec: Interaction model selection requires a chat resolver")
+	}
+	client, err := executor.config.ChatResolver.ResolveChat(ctx, selection)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: resolve Interaction chat client: %w", err)
+	}
+	if client == nil {
+		return nil, errors.New("agentexec: Interaction chat resolver returned nil")
+	}
+	return client, nil
 }
 
 func (executor *InteractionExecutor) maxModelCalls(start runs.RootExecutionStart) (uint32, error) {

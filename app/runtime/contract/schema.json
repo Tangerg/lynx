@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Lyra Runtime Protocol wire types",
-  "protocolVersion": "2026-08-21",
+  "protocolVersion": "2026-08-24",
   "$defs": {
     "ActiveRunRef": {
       "type": "object",
@@ -1228,7 +1228,12 @@
           "type": "string"
         },
         "model": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
         },
         "title": {
           "type": "string"
@@ -1245,6 +1250,7 @@
         "createdAt",
         "id",
         "model",
+        "provider",
         "title",
         "updatedAt",
         "workspace"
@@ -7774,7 +7780,12 @@
           "type": "string"
         },
         "model": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
         },
         "revision": {
           "type": "integer",
@@ -7798,6 +7809,7 @@
         "createdAt",
         "id",
         "model",
+        "provider",
         "revision",
         "status",
         "title",
@@ -7841,8 +7853,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 22,
-          "maximum": 22
+          "minimum": 23,
+          "maximum": 23
         }
       },
       "required": [
@@ -8112,6 +8124,32 @@
       "required": [
         "input",
         "sessionId"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "model"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "model"
+            ]
+          },
+          "then": {
+            "required": [
+              "provider"
+            ]
+          }
+        }
       ]
     },
     "StartRunResponse": {
@@ -8617,7 +8655,12 @@
           "type": "boolean"
         },
         "model": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
         },
         "sessionId": {
           "type": "string",
@@ -8633,6 +8676,32 @@
       "required": [
         "expectedRevision",
         "sessionId"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "model"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "model"
+            ]
+          },
+          "then": {
+            "required": [
+              "provider"
+            ]
+          }
+        }
       ]
     },
     "Usage": {

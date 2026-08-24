@@ -427,7 +427,7 @@ func protocolRuntimeConfig(t *testing.T, stores *persistence.Bundle, model chat.
 		t.Fatalf("build chat client: %v", err)
 	}
 	cfg := ComposeConfig(
-		config.Settings{},
+		config.Settings{Provider: "anthropic", Model: "claude-test"},
 		stores,
 		client,
 		stores.Providers,

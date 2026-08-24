@@ -58,7 +58,8 @@ func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionA
 
 func artifactSessionFromPortable(value sessions.PortableSession) protocol.ArtifactSession {
 	return protocol.ArtifactSession{
-		ID: value.ID, Title: value.Title, Workspace: protocol.WorkspaceRef{Path: value.CWD}, Model: value.Model,
+		ID: value.ID, Title: value.Title, Workspace: protocol.WorkspaceRef{Path: value.CWD},
+		Provider: value.Selection.Provider(), Model: value.Selection.Model(),
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -27,6 +28,7 @@ func TestInteractionExecutorRequiresProcessLifetime(t *testing.T) {
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		DefaultClient:          client,
+		DefaultSelection:       testDefaultSelection(),
 		ImplementationIdentity: "interaction-executor-test-build",
 		ConfigurationIdentity:  "interaction-executor-test-config",
 		BuildID:                interactionTestBuildID,
@@ -34,6 +36,64 @@ func TestInteractionExecutorRequiresProcessLifetime(t *testing.T) {
 	if err == nil || executor != nil {
 		t.Fatalf("NewInteractionExecutor without lifetime = (%v, %v), want nil executor and non-nil error", executor, err)
 	}
+}
+
+func TestInteractionExecutorRequiresExactDefaultIdentity(t *testing.T) {
+	client, err := chatclient.New(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return interactionTextResponse("unused"), nil
+	}), chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
+		Lifetime:               t.Context(),
+		DefaultClient:          client,
+		ImplementationIdentity: "interaction-executor-test-build",
+		ConfigurationIdentity:  "interaction-executor-test-config",
+		BuildID:                interactionTestBuildID,
+	})
+	if err == nil || executor != nil {
+		t.Fatalf("NewInteractionExecutor without default selection = (%v, %v), want nil executor and non-nil error", executor, err)
+	}
+}
+
+func TestInteractionExecutorResolvesDefaultThroughResolverWithoutImplicitSelection(t *testing.T) {
+	client, err := chatclient.New(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return interactionTextResponse("unused"), nil
+	}), chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resolved modelref.Selection
+	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
+		Lifetime: t.Context(), DefaultSelection: testDefaultSelection(),
+		ChatResolver: interactionChatResolverFunc(func(_ context.Context, selection modelref.Selection) (*chatclient.Client, error) {
+			resolved = selection
+			return client, nil
+		}),
+		ImplementationIdentity: "interaction-executor-test-build",
+		ConfigurationIdentity:  "interaction-executor-test-config",
+		BuildID:                interactionTestBuildID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := executor.resolveClient(t.Context(), testDefaultSelection())
+	if err != nil || got != client || resolved != testDefaultSelection() {
+		t.Fatalf("resolve exact default = (%p, %v, %#v), want (%p, nil, %#v)", got, err, resolved, client, testDefaultSelection())
+	}
+	if _, err := executor.resolveClient(t.Context(), modelref.Selection{}); err == nil {
+		t.Fatal("resolve implicit selection succeeded, want exact-selection error")
+	}
+}
+
+type interactionChatResolverFunc func(context.Context, modelref.Selection) (*chatclient.Client, error)
+
+func (resolve interactionChatResolverFunc) ResolveChat(
+	ctx context.Context,
+	selection modelref.Selection,
+) (*chatclient.Client, error) {
+	return resolve(ctx, selection)
 }
 
 func TestInteractionExecutorRunsRootFromCompleteWorkingContext(t *testing.T) {
@@ -251,7 +311,7 @@ func newTestInteractionExecutorWithLifetime(
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		Lifetime:      lifetime,
-		DefaultClient: client, ImplementationIdentity: "interaction-executor-test-build",
+		DefaultClient: client, DefaultSelection: testDefaultSelection(), ImplementationIdentity: "interaction-executor-test-build",
 		ConfigurationIdentity: "interaction-executor-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,
 	})
@@ -263,7 +323,7 @@ func newTestInteractionExecutorWithLifetime(
 
 func interactionTestStart() runs.RootExecutionStart {
 	return runs.RootExecutionStart{
-		SessionID: "session_1", Message: "current question",
+		SessionID: "session_1", Message: "current question", ModelSelection: testDefaultSelection(),
 		WorkingContext: []chat.Message{chat.NewUserMessage(chat.NewTextPart("current question"))},
 	}
 }

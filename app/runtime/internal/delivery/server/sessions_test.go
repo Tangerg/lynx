@@ -31,13 +31,27 @@ func TestUpdateSession(t *testing.T) {
 	}
 
 	// The aggregate model edit surfaces on the wire.
+	provider := "anthropic"
 	model := "claude-opus-4-8"
-	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Model: &model})
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), Provider: &provider, Model: &model,
+	})
 	if err != nil {
 		t.Fatalf("set model: %v", err)
 	}
-	if out.Model != model {
-		t.Errorf("Model = %q, want %q", out.Model, model)
+	if out.Provider != provider || out.Model != model {
+		t.Errorf("selection = %s/%s, want %s/%s", out.Provider, out.Model, provider, model)
+	}
+
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), Provider: &provider,
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Errorf("provider-only selection err = %v, want ErrInvalidParams", err)
+	}
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), Model: &model,
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Errorf("model-only selection err = %v, want ErrInvalidParams", err)
 	}
 
 	// whitespace-only title → invalid_params (a session title must be non-empty)

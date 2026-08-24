@@ -123,6 +123,7 @@ func offloadedSnapshot(result string) Snapshot {
 // becomes a session — before anything is written.
 func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 	capabilities := run.Capabilities{}
+	selection := mustTestSelection(t, "provider", "model")
 	root := func() PortableRun {
 		return PortableRun{
 			SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
@@ -155,7 +156,7 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			portable := PortableSnapshot{
-				Session: PortableSession{ID: "ses_1", Title: "t", CWD: "/w"},
+				Session: PortableSession{ID: "ses_1", Title: "t", CWD: "/w", Selection: selection},
 				Runs:    runs,
 			}
 			if _, err := portable.CanonicalSnapshot(); !errors.Is(err, ErrInvalidPortableSnapshot) {
@@ -173,8 +174,12 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	at := time.Unix(1, 0).UTC()
+	selection := mustTestSelection(t, "provider", "model")
 	portable := PortableSnapshot{
-		Session: PortableSession{ID: "ses_1", Title: "t", CWD: "/w", CreatedAt: at, UpdatedAt: at},
+		Session: PortableSession{
+			ID: "ses_1", Title: "t", CWD: "/w", Selection: selection,
+			CreatedAt: at, UpdatedAt: at,
+		},
 		// The spawning item has to exist: a child run is spawned BY something, and an
 		// archive naming an item it does not contain is a tree that cannot be walked.
 		// The spawning item is a TOOL CALL: a child run is the execution of one.

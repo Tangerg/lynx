@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -147,9 +148,23 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		path := in.Workspace.Path
 		cwd = &path
 	}
+	var selection *modelref.Selection
+	if in.Provider != nil || in.Model != nil {
+		if in.Provider == nil || in.Model == nil {
+			return nil, fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
+		}
+		value, selectionErr := modelref.New(*in.Provider, *in.Model)
+		if selectionErr != nil {
+			return nil, fmt.Errorf("%w: invalid model selection: %v", protocol.ErrInvalidParams, selectionErr)
+		}
+		if !value.Configured() {
+			return nil, fmt.Errorf("%w: provider and model must be non-empty", protocol.ErrInvalidParams)
+		}
+		selection = &value
+	}
 	view, err := s.sessions.UpdateView(ctx, in.SessionID, session.Patch{
 		Title:            in.Title,
-		Model:            in.Model,
+		Selection:        selection,
 		CWD:              cwd,
 		Favorite:         in.Favorite,
 		ExpectedRevision: in.ExpectedRevision,
@@ -198,6 +213,7 @@ func presentSession(view sessions.View) protocol.Session {
 		ID:        view.ID,
 		Title:     view.Title,
 		Workspace: presentWorkspaceInfo(view.CWD, view.ProjectRoot, view.CWDMissing),
+		Provider:  view.Provider,
 		Model:     view.Model,
 		Status:    presentSessionStatus(view.Activity),
 		CreatedAt: view.CreatedAt,

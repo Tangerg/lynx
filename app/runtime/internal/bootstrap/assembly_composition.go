@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -217,10 +219,15 @@ func buildExecutionComposition(
 		modelServices.utilityClient,
 		modelServices.liveEmbedder.ResolveMemory,
 	)
+	defaultSelection, err := runtimeDefaultModelSelection(cfg)
+	if err != nil {
+		return executionComposition{}, err
+	}
 	interactionConfig := agentexec.InteractionExecutorConfig{
 		Lifetime:               lifetime.context,
 		BuildID:                cfg.BuildID,
 		DefaultClient:          cfg.ChatClient,
+		DefaultSelection:       defaultSelection,
 		ChatResolver:           modelServices.chatResolver,
 		ImplementationIdentity: cfg.BuildID,
 		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
@@ -259,4 +266,15 @@ func buildExecutionComposition(
 		executor:        interactionExecutor,
 		toolRegistry:    toolset.NewDiagnosticRegistry(),
 	}, nil
+}
+
+func runtimeDefaultModelSelection(cfg Config) (modelref.Selection, error) {
+	selection, err := modelref.New(cfg.Provider, cfg.Model)
+	if err != nil {
+		return modelref.Selection{}, fmt.Errorf("runtime: default model selection: %w", err)
+	}
+	if !selection.Configured() {
+		return modelref.Selection{}, errors.New("runtime: configured default model selection is required")
+	}
+	return selection, nil
 }

@@ -1,4 +1,5 @@
 import { AGENT_RUN_OPTIONS, definePlugin } from "@/plugins/sdk";
+import { resolveComposerRunOptions } from "./application/modelSelection";
 import { selectedComposerModelPreference } from "./public/modelPreference";
 
 export const composerRunOptions = definePlugin({
@@ -7,10 +8,7 @@ export const composerRunOptions = definePlugin({
     ctx.contribute(AGENT_RUN_OPTIONS, {
       id: "composer.model",
       priority: 0,
-      resolve: () => {
-        const { provider, model } = selectedComposerModelPreference();
-        return provider && model ? { provider, model } : {};
-      },
+      resolve: () => resolveComposerRunOptions(selectedComposerModelPreference()),
     });
   },
 });

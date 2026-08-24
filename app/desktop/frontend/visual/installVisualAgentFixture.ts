@@ -96,6 +96,7 @@ function visualSession(state: VisualAgentState): AgentSessionSummary {
         : state === "running" || state === "steer" || state === "delegated"
           ? "running"
           : "idle",
+    provider: VISUAL_MODELS[0]!.provider,
     model: VISUAL_MODELS[0]!.id,
     cwd: "/Users/visual/lynx",
     time: "2026-07-31T08:00:00.000Z",

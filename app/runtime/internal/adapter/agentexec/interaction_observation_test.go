@@ -1245,6 +1245,7 @@ func newObservedTestInteractionExecutor(
 		t.Fatal(err)
 	}
 	extra.DefaultClient = client
+	extra.DefaultSelection = testDefaultSelection()
 	extra.Lifetime = t.Context()
 	extra.ImplementationIdentity = "interaction-observation-test-build"
 	extra.ConfigurationIdentity = "interaction-observation-test-config"

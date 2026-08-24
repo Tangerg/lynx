@@ -109,10 +109,11 @@ func (f *fakeRunSessions) Create(_ context.Context, title, cwd string) (session.
 
 func (f *fakeRunSessions) PrepareScheduled(
 	_ context.Context,
-	id, title, cwd, model string,
+	id, title, cwd string,
+	selection modelref.Selection,
 ) (session.Session, *session.Session, error) {
 	f.createdTitle = title
-	f.sess = sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, CWD: cwd, Model: model})
+	f.sess = sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, CWD: cwd, Selection: selection})
 	return f.sess, &f.sess, nil
 }
 
@@ -358,11 +359,12 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		control.requestRootCancel = executor.requestRootCancellation
 	}
 	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
+	defaultSelection := mustUseCaseSelection("test-provider", "test-model")
 	projection := &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForSegment(testSegment()),
 		"run_new": runForSegment(segmentSpec{
 			RunID: "run_new", SegmentID: "seg_new", SessionID: "ses_1",
-			ExecutorID: "turn_1", CreatedAt: freshCreatedAt,
+			ExecutorID: "turn_1", ModelSelection: defaultSelection, CreatedAt: freshCreatedAt,
 		}),
 	}}
 	if fake, ok := sessions.(*fakeRunSessions); ok {
@@ -560,7 +562,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		t.Fatalf("opening limits = %+v, want %+v", opening.Admit.Limits, wantLimits)
 	} else if opening.SessionReplacement == nil ||
 		opening.SessionReplacement.State.ID() != "ses_1" ||
-		opening.SessionReplacement.State.Model() != "model" {
+		opening.SessionReplacement.State.Selection() != mustUseCaseSelection("provider", "model") {
 		t.Fatalf("opening Session replacement = %+v, want ses_1/model", opening.SessionReplacement)
 	}
 }
@@ -638,13 +640,15 @@ func TestStartSettlesAfterOpeningWithoutWaitingForExecutorActivation(t *testing.
 	requireCoordinatorShutdown(t, coordinator)
 }
 
-func TestStartResolvesTheDefaultModelBeforeExecutorAndDurableAdmission(t *testing.T) {
+func TestStartResolvesTheSessionSelectionBeforeExecutorAndDurableAdmission(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	want := mustUseCaseSelection("default-provider", "default-model")
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/work", Selection: want,
+	})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	coordinator := newUseCaseCoordinator(exec, control, sessions, effects)
-	coordinator.defaultModelSelection = mustUseCaseSelection("default-provider", "default-model")
 
 	result, err := coordinator.Start(t.Context(), StartCommand{
 		SessionID: "ses_1",
@@ -654,13 +658,38 @@ func TestStartResolvesTheDefaultModelBeforeExecutorAndDurableAdmission(t *testin
 		t.Fatalf("Start: %v", err)
 	}
 	consumeEvents(result.Events)
-	want := mustUseCaseSelection("default-provider", "default-model")
 	if control.validated.ModelSelection != want || control.started.ModelSelection != want {
 		t.Fatalf("executor selection: validated=%v started=%v want=%v", control.validated.ModelSelection, control.started.ModelSelection, want)
 	}
 	opening := effects.opening()
 	if opening.Admit == nil || opening.Admit.ModelSelection != want {
 		t.Fatalf("durable opening = %+v, want model selection %v", opening, want)
+	}
+}
+
+func TestStartWithoutOverrideUsesTheSessionExactModelSelection(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessionSelection := mustUseCaseSelection("provider-b", "shared-model")
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/work", Selection: sessionSelection,
+	})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	coordinator := newUseCaseCoordinator(exec, control, sessions, effects)
+
+	result, err := coordinator.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	consumeEvents(result.Events)
+	if control.started.ModelSelection != sessionSelection {
+		t.Fatalf("executor selection = %v, want Session selection %v", control.started.ModelSelection, sessionSelection)
+	}
+	if opening := effects.opening(); opening.Admit == nil || opening.Admit.ModelSelection != sessionSelection || opening.SessionReplacement != nil {
+		t.Fatalf("durable opening = %+v, want Session selection without replacement", opening)
 	}
 }
 
@@ -687,7 +716,8 @@ func TestScheduledStartCarriesExactInitialSessionInOpening(t *testing.T) {
 	}
 	initial := *opening.InitialSession
 	if initial.ID() != "ses_1" || initial.Title() != "Scheduled" ||
-		initial.CWD() != "/work" || initial.Model() != "model" || initial.Revision() != 1 {
+		initial.CWD() != "/work" ||
+		initial.Selection() != mustUseCaseSelection("provider", "model") || initial.Revision() != 1 {
 		t.Fatalf("opening initial Session = %+v", initial.Snapshot())
 	}
 }

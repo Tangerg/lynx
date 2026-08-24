@@ -5,6 +5,7 @@ package sessionfixture
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -23,9 +24,20 @@ func MustRestore(snapshot session.Snapshot) session.Session {
 	if snapshot.Revision == 0 {
 		snapshot.Revision = 1
 	}
+	if !snapshot.Selection.Configured() {
+		snapshot.Selection = fixtureSelection()
+	}
 	value, err := session.Restore(snapshot)
 	if err != nil {
 		panic(err)
 	}
 	return value
+}
+
+func fixtureSelection() modelref.Selection {
+	selection, err := modelref.New("test-provider", "test-model")
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }

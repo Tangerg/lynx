@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-08-21`）
+# Lyra Runtime Protocol（定稿 `2026-08-24`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-21`**（本 build 只服务这一个精确版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-24`**（本 build 只服务这一个精确版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -305,7 +305,8 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 ### 4.1 Session / Workspace
 
-`Session` 是会话聚合：身份（`id` / `title` / `createdAt`）、绑定（`workspace: WorkspaceInfo`）、默认 `model`、
+`Session` 是会话聚合：身份（`id` / `title` / `createdAt`）、绑定（`workspace: WorkspaceInfo`）、默认
+`provider` + `model` 精确选择、
 派生 `status`（`running|waiting|idle`）与乐观并发的 `revision`。
 
 - **`revision` 是条件写的唯一凭证**：`sessions.update` 必带 `expectedRevision`，过期返回 `revision_conflict`
@@ -459,7 +460,7 @@ process、session、审批或模型循环的只读诊断能力。
 
 ### 4.8 HITL 类型
 
-`Interrupt` 三变体（`approval` / `question` / `toolResult`），每个都带 `itemId` + `runId` + 自包含 `payload`。
+`Interrupt` 两个一等变体（`approval` / `question`），每个都带 `itemId` + `runId` + 自包含 `payload`。
 
 - **`runId` 是"谁提出的"，不是"谁在等"**：一棵 run 树里，interrupt 集挂在 root 上，但每条 interrupt 记的是提出它的
   那个 Run。
@@ -472,9 +473,14 @@ process、session、审批或模型循环的只读诊断能力。
 
 ### 4.9 Provider / Model
 
-provider 凭证只回 `apiKeyMasked`，永不可逆推。per-run 的 provider + model **显式配对**（缺一即错、都缺用默认），
-provider **不从 model 名推断**。`models.list` 的 `contextWindow` 配 live `RunProgress.contextTokens` 或 durable
+provider 凭证只回 `apiKeyMasked`，永不可逆推。per-run 的 provider + model **显式配对**（缺一即错；都缺时读取
+既有 Session 的 durable pair，只有 fresh Session admission 才安装 Runtime 默认），provider **不从 model 名推断**。
+`models.list` 的 `contextWindow` 配 live `RunProgress.contextTokens` 或 durable
 `RunRef.contextTokens` 做占用条。
+
+Session 同样持久化完整 provider + model pair，并作为省略 per-run 选择时的唯一默认 owner。显式 Run 选择成功进入
+opening write-set 后原子替换该 pair；创建、schedule、fork 与 artifact round-trip 都保留完整身份。两个 provider
+发布同名 model 时不得按 model id 取首项或回落全局默认。
 
 ### 4.10 Workspace 周边 / 可选域类型
 
@@ -715,10 +721,10 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的 Plan 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v22）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v23）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 显式 `plan` 语义值（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
-  确定性拒绝、**不迁移**，只接受当前 v22 shape。
+  确定性拒绝、**不迁移**，只接受当前 v23 shape。
 
 ### 7.3 runs.\*
 
@@ -1039,14 +1045,14 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-21`）：**本 build 只服务一个精确版本**，协议没有兼容范围。
+- `protocolVersion` 是日期串（本定稿 `2026-08-24`）：**本 build 只服务一个精确版本**，协议没有兼容范围。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的精确版本），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
 - **加什么必须 bump**：新增请求字段（旧 server 严格拒绝）、**给闭合枚举或闭合 union 加成员**（客户端对它写
   exhaustive switch，§2.3）、加一等事件/资源、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **22**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **23**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -1090,7 +1096,7 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
 版本一致**；错误 type↔code 单一源；Plan 的 live event、cold read、Session material 与 archive shape 一致；
-Artifact v22 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+Artifact v23 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 

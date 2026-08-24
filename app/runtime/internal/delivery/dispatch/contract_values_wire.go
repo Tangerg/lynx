@@ -68,6 +68,7 @@ func nonNegative[Shape any](s *Shapes, fields ...string) {
 }
 
 func registerSessionValues(s *Shapes) {
+	nonEmpty[protocol.Session](s, "provider", "model")
 	nonEmpty[protocol.GetSessionRequest](s, "sessionId")
 	nonEmpty[protocol.DeleteSessionRequest](s, "sessionId")
 	nonEmpty[protocol.ForkSessionRequest](s, "sessionId")
@@ -79,6 +80,8 @@ func registerSessionValues(s *Shapes) {
 		Constraints: []FieldConstraint{
 			{Field: "sessionId", Kind: ConstraintNonEmpty},
 			{Field: "expectedRevision", Kind: ConstraintPositive},
+			{Field: "provider", Kind: ConstraintNonEmpty},
+			{Field: "model", Kind: ConstraintNonEmpty},
 		},
 	})
 
@@ -88,6 +91,7 @@ func registerSessionValues(s *Shapes) {
 }
 
 func registerArtifactValues(s *Shapes) {
+	nonEmpty[protocol.ArtifactSession](s, "provider", "model")
 	// Import accepts exactly the archive revision this development build emits.
 	// Publishing the version as an unconstrained integer would make generated
 	// clients promise support the runtime deliberately refuses.

@@ -22,8 +22,8 @@ import (
 
 // RootExecutionStarter validates execution-specific input, stages a new root,
 // then begins it after the opening write-set is durable. ValidateRootStart runs
-// before Session resolution and may inspect only input and frozen policy fields.
-// StageRoot receives the resolved Session/workspace fields and must not cross
+// after Session selection resolution but before any execution staging, and may
+// inspect only immutable input and frozen policy fields. StageRoot receives the resolved Session/workspace fields and must not cross
 // the model/tool side-effect boundary. BeginRoot runs only after admission commits.
 type RootExecutionStarter interface {
 	ValidateRootStart(start RootExecutionStart) error
@@ -193,7 +193,8 @@ type SessionCreator interface {
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	PrepareScheduled(
 		ctx context.Context,
-		id, title, cwd, model string,
+		id, title, cwd string,
+		selection modelref.Selection,
 	) (session.Session, *session.Session, error)
 }
 

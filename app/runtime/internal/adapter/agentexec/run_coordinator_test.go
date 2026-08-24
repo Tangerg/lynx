@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -63,6 +64,14 @@ func mustNewRunCoordinator(t *testing.T, deps runs.Dependencies) *runs.Coordinat
 		t.Fatalf("construct Run coordinator: %v", err)
 	}
 	return coordinator
+}
+
+func testDefaultSelection() modelref.Selection {
+	selection, err := modelref.New("test-provider", "test-model")
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }
 
 type inertRunProjection struct{}

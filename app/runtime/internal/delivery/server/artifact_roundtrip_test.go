@@ -35,13 +35,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 22 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v22",
+	if protocol.SessionArtifactVersion != 23 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v23",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV22RoundTripsEveryFieldItCarries is the rest of gate 16.
+// TestArtifactV23RoundTripsEveryFieldItCarries is the rest of gate 16.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -54,7 +54,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV22RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV23RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition offers Plan, so it may restore it
 	ctx := t.Context()
@@ -165,7 +165,8 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
-			ID: "ses_tree", Title: "tree", Workspace: protocol.WorkspaceRef{Path: t.TempDir()}, CreatedAt: at, UpdatedAt: at,
+			ID: "ses_tree", Title: "tree", Workspace: protocol.WorkspaceRef{Path: t.TempDir()},
+			Provider: "test-provider", Model: "test-model", CreatedAt: at, UpdatedAt: at,
 		},
 		Runs: []protocol.ArtifactRun{
 			{
@@ -205,6 +206,7 @@ func TestImportRefusesAnUnknownRunProtocolFeature(t *testing.T) {
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
 			ID: "ses_unknown_profile", Title: "profile", Workspace: protocol.WorkspaceRef{Path: t.TempDir()},
+			Provider: "test-provider", Model: "test-model",
 		},
 		Runs: []protocol.ArtifactRun{{
 			ID: "run_root", SessionID: "ses_unknown_profile", ProtocolProfile: &profile,
@@ -341,8 +343,13 @@ func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 	// path would make the two exports differ by macOS's /private prefix rather than
 	// by anything the archive carries.
 	cwd := canonicalWorkspacePath(t, t.TempDir())
+	selection, err := modelref.New("anthropic", "claude-opus-5")
+	if err != nil {
+		t.Fatalf("seed model selection: %v", err)
+	}
 	if _, err := insertSessionSnapshot(ctx, rt.sess, session.Snapshot{
-		ID: sessionID, Title: "Everything", CWD: cwd, Model: "claude-opus-5",
+		ID: sessionID, Title: "Everything", CWD: cwd,
+		Selection: selection,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
 		Favorite: true, Revision: 1,
 	}); err != nil {

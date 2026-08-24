@@ -6,6 +6,7 @@ export interface AgentSessionSummary {
   revision: number;
   title: string;
   status: "running" | "waiting" | "idle";
+  provider: string;
   model: string;
   cwd: string;
   cwdMissing?: boolean;

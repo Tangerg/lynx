@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-08-21",
+  "protocolVersion": "2026-08-24",
   "features": [
     "reasoning",
     "multimodal",
@@ -3479,6 +3479,60 @@
   ],
   "objectConstraints": [
     {
+      "type": "StartRunRequest",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "provider",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "model"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "model",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "provider"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "UpdateSessionRequest",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "provider",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "model"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "model",
+              "operator": "present"
+            }
+          ],
+          "required": [
+            "provider"
+          ]
+        }
+      ]
+    },
+    {
       "type": "UpdateScheduleRequest",
       "rules": [
         {
@@ -4224,6 +4278,19 @@
       ]
     },
     {
+      "type": "Session",
+      "rules": [
+        {
+          "field": "provider",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "model",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "GetSessionRequest",
       "rules": [
         {
@@ -4278,6 +4345,14 @@
         {
           "field": "expectedRevision",
           "constraint": "positive"
+        },
+        {
+          "field": "provider",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "model",
+          "constraint": "nonEmpty"
         }
       ]
     },
@@ -4291,15 +4366,28 @@
       ]
     },
     {
+      "type": "ArtifactSession",
+      "rules": [
+        {
+          "field": "provider",
+          "constraint": "nonEmpty"
+        },
+        {
+          "field": "model",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
       "type": "SessionArtifact",
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(22)"
+          "constraint": "minimum(23)"
         },
         {
           "field": "version",
-          "constraint": "maximum(22)"
+          "constraint": "maximum(23)"
         }
       ]
     },
