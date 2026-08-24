@@ -80,7 +80,7 @@ transport **不**配对 request/response id —— 那是上层 RPC client 的�
 
 公共 `protocol` 是 HTTP 与 embedded 共用的唯一语义合同；公共 `embedded.Open` 返回 concrete Runtime。embedded 直接调用 binding-neutral operation pipeline，不启动 listener、不要求本地 token、不做 JSON-RPC/SSE 编解码。
 
-`RequestMeta` 仍表达协议版本与客户端能力。写调用通过 `CommandOptions.IdempotencyKey` 提交稳定幂等身份；run 续流通过 `RunSubscriptionOptions.AfterEventID` 表达同一 replay cursor 语义。两者是语义准确的 Go option，不复用 HTTP header 名。请求 context 只约束当前调用/订阅，已接受 Run 由 Runtime lifecycle 继续拥有。
+`RequestMeta` 仍表达协议版本与客户端能力。写调用通过 `CommandOptions.IdempotencyKey` 提交稳定幂等身份；run 续流通过 `RunSubscriptionOptions.AfterEventID` 表达同一 replay cursor 语义。两者是语义准确的 Go option，不复用 HTTP header 名。方法是否接受这些带外事实由生成合同的 `idempotency` / `replayCursor` policy 决定，并由 operation 统一强制：query/subscription 不接受幂等 key，namespace 不能脱离 key，只有 run-opening retry 与 `runs.subscribe` 接受 run cursor。binding 不得静默忽略不相容元数据。请求 context 只约束当前调用/订阅，已接受 Run 由 Runtime lifecycle 继续拥有。
 
 embedded 不公开 protocol method-group interface、Router、Host、Store、Engine、Application concrete、context private key、JSON-RPC numeric code 或 transport problem。消费方在自身边界定义所需窄接口。
 

@@ -94,6 +94,17 @@ func (p IdempotencyPolicy) Replays() bool {
 	return p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
 }
 
+// ReplayCursorPolicy says whether a streaming method accepts the opaque run
+// event cursor carried by bindings as AfterEventID / Last-Event-Id. Keeping
+// this beside the method's idempotency policy lets admission and generated
+// clients reject cursor metadata that no handler can honor.
+type ReplayCursorPolicy uint8
+
+const (
+	ReplayCursorNone ReplayCursorPolicy = iota
+	ReplayCursorRun
+)
+
 // PaginationKind describes whether one unary response is a cursor page. It is
 // derived from the registered Params and Result wire shapes by the registration
 // factory; authors never classify methods by name or maintain a second list.
@@ -158,8 +169,9 @@ type MethodMeta struct {
 	// subscription.
 	Operation OperationKind
 
-	Idempotency IdempotencyPolicy
-	Pagination  PaginationKind
+	Idempotency  IdempotencyPolicy
+	ReplayCursor ReplayCursorPolicy
+	Pagination   PaginationKind
 
 	// Errors is the method-SPECIFIC ProblemData.type values its contract documents
 	// (API.md §7 per-method "错误" lines). It deliberately does not include:
@@ -298,6 +310,17 @@ func (m MethodMeta) validateIdentity() error {
 			IdempotencyReplayRunStream,
 		)
 	}
+	switch m.ReplayCursor {
+	case ReplayCursorNone, ReplayCursorRun:
+	default:
+		return fmt.Errorf(
+			"%s: invalid replay cursor policy %s; expected %s or %s",
+			m.Name,
+			m.ReplayCursor,
+			ReplayCursorNone,
+			ReplayCursorRun,
+		)
+	}
 	switch m.Pagination {
 	case PaginationNone, PaginationCursor:
 	default:
@@ -350,6 +373,16 @@ func (m MethodMeta) validateOperationPolicy() error {
 			return fmt.Errorf("%s: a streaming run command must replay by re-attaching to its run", m.Name)
 		}
 	}
+	if m.ReplayCursor == ReplayCursorRun {
+		switch {
+		case m.Kind != KindStream:
+			return fmt.Errorf("%s: only a streaming method may accept a run replay cursor", m.Name)
+		case m.Operation == OperationCommand && m.Idempotency != IdempotencyReplayRunStream:
+			return fmt.Errorf("%s: a cursor-aware command must replay by re-attaching to its run", m.Name)
+		case m.Operation != OperationCommand && m.Operation != OperationSubscription:
+			return fmt.Errorf("%s: only a run command or subscription may accept a run replay cursor", m.Name)
+		}
+	}
 	if m.Pagination == PaginationCursor && m.Operation != OperationQuery {
 		return fmt.Errorf("%s: only a query may return a cursor page", m.Name)
 	}
@@ -372,6 +405,9 @@ func (m MethodMeta) validateShapes() error {
 	}
 	if (m.Kind == KindStream) != (m.Event != nil) {
 		return fmt.Errorf("%s: a stream declares its event type and only a stream has one", m.Name)
+	}
+	if m.ReplayCursor == ReplayCursorRun && m.Event != reflect.TypeFor[protocol.RunEvent]() {
+		return fmt.Errorf("%s: a run replay cursor requires RunEvent stream frames", m.Name)
 	}
 	if m.ResultNullable && (m.Result == nil || m.Result.Kind() != reflect.Pointer) {
 		return fmt.Errorf("%s: a nullable result needs a pointer to be nil", m.Name)
@@ -433,6 +469,17 @@ func (p IdempotencyPolicy) String() string {
 		return "replayRunStream"
 	default:
 		return fmt.Sprintf("IdempotencyPolicy(%d)", p)
+	}
+}
+
+func (p ReplayCursorPolicy) String() string {
+	switch p {
+	case ReplayCursorNone:
+		return "none"
+	case ReplayCursorRun:
+		return "run"
+	default:
+		return fmt.Sprintf("ReplayCursorPolicy(%d)", p)
 	}
 }
 

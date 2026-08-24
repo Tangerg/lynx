@@ -11,6 +11,35 @@ import session from "@lyra/runtime-contract/samples/session.json";
 const SOME_BUSINESS_CODE = -32002;
 
 describe("RpcClient", () => {
+  it("rejects method-incompatible transport metadata before send", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+
+    await expect(
+      client.call("runtime.discover", {}, { idempotencyKey: "query-key" }),
+    ).rejects.toThrow("runtime.discover does not accept an idempotency key");
+    await expect(
+      client.call("runtime.discover", {}, { idempotencyNamespace: "idp_store" }),
+    ).rejects.toThrow("An idempotency namespace requires an idempotency key");
+    await expect(
+      client.call(
+        "runtime.subscribe",
+        { topics: ["sessions.changed"] },
+        { lastEventId: "evt_cursor" },
+      ),
+    ).rejects.toThrow("runtime.subscribe does not accept a run replay cursor");
+    await expect(
+      client.call(
+        "runs.start",
+        { sessionId: "ses_01", input: [{ type: "text", text: "hello" }] },
+        { lastEventId: "evt_cursor" },
+      ),
+    ).rejects.toThrow("A run command replay cursor requires an idempotency key");
+
+    expect(transport.outbox()).toHaveLength(0);
+    await client.close();
+  });
+
   it("sends a registered Request and resolves a validated result", async () => {
     const transport = createMemoryTransport();
     const client = createRpcClient(transport);

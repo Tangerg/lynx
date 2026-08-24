@@ -20,6 +20,8 @@ import type {
   TransportResponseMetadata,
 } from "./transport";
 import {
+  wireMethodAcceptsReplayCursor,
+  wireMethodRequiresIdempotency,
   wireMethodReturnsValue,
   type WireMethodName,
   type WireParams,
@@ -281,6 +283,24 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     callOptions: RpcCallOptions = {},
   ): Promise<WireResult<M>> {
     if (closed) throw new RpcTransportError("client closed");
+    const requiresIdempotency = wireMethodRequiresIdempotency(method);
+    if (callOptions.idempotencyKey !== undefined && !requiresIdempotency) {
+      throw new TypeError(`${method} does not accept an idempotency key`);
+    }
+    if (
+      callOptions.idempotencyNamespace !== undefined &&
+      callOptions.idempotencyKey === undefined
+    ) {
+      throw new TypeError("An idempotency namespace requires an idempotency key");
+    }
+    if (callOptions.lastEventId !== undefined) {
+      if (!wireMethodAcceptsReplayCursor(method)) {
+        throw new TypeError(`${method} does not accept a run replay cursor`);
+      }
+      if (requiresIdempotency && callOptions.idempotencyKey === undefined) {
+        throw new TypeError("A run command replay cursor requires an idempotency key");
+      }
+    }
     const id = String(nextId++);
     callOptions.onRequestRpcId?.(id);
     const req: TransportRequest = {

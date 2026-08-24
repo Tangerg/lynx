@@ -46,7 +46,7 @@ func registerRuns(registry *Registry) {
 	// cannot be served. Each is declared because each sends the client somewhere
 	// different — rootRunId, interrupt.list, items.list, runs.get, or a cursorless
 	// reattach — and one collapsed run_not_found would send it nowhere.
-	Subscription(registry, MethodMeta{
+	RunSubscription(registry, MethodMeta{
 		Name: "runs.subscribe",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),

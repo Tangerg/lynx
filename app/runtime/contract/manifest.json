@@ -26,6 +26,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -33,6 +34,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor"
     },
     {
@@ -40,6 +42,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found"
@@ -50,6 +53,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -71,6 +75,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
@@ -81,6 +86,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -97,6 +103,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found"
@@ -107,6 +114,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -118,6 +126,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -135,6 +144,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -149,6 +159,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -162,6 +173,7 @@
       "kind": "stream",
       "operation": "command",
       "idempotency": "replayRunStream",
+      "replayCursor": "run",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -176,6 +188,7 @@
       "kind": "stream",
       "operation": "command",
       "idempotency": "replayRunStream",
+      "replayCursor": "run",
       "pagination": "none",
       "errors": [
         "run_not_found",
@@ -188,6 +201,7 @@
       "kind": "stream",
       "operation": "subscription",
       "idempotency": "none",
+      "replayCursor": "run",
       "pagination": "none",
       "errors": [
         "run_not_found",
@@ -205,6 +219,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "run_not_found",
@@ -218,6 +233,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "run_not_found",
@@ -232,6 +248,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "run_not_found",
@@ -243,6 +260,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor",
       "errors": [
         "capability_not_negotiated"
@@ -256,6 +274,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor",
       "errors": [
         "run_not_root",
@@ -267,6 +286,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -281,6 +301,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor",
       "errors": [
         "session_not_found",
@@ -296,6 +317,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
@@ -306,6 +328,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -313,6 +336,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -328,6 +352,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -344,6 +369,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -355,6 +381,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -366,6 +393,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor",
       "errors": [
         "workspace_unavailable",
@@ -377,6 +405,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -388,6 +417,7 @@
       "kind": "stream",
       "operation": "subscription",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -401,6 +431,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -415,6 +446,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -428,6 +460,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -441,6 +474,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -454,6 +488,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -467,6 +502,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -480,6 +516,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -493,6 +530,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
@@ -503,6 +541,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
@@ -513,6 +552,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -526,6 +566,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_server_already_exists",
@@ -540,6 +581,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_server_not_found",
@@ -554,6 +596,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_server_not_found",
@@ -568,6 +611,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -581,6 +625,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -594,6 +639,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_server_not_found",
@@ -609,6 +655,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_server_not_found",
@@ -624,6 +671,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "mcp_authorization_attempt_not_found",
@@ -638,6 +686,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable"
@@ -648,6 +697,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -655,6 +705,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -662,6 +713,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -669,6 +721,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -676,6 +729,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -683,6 +737,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "cursor",
       "errors": [
         "capability_not_negotiated"
@@ -696,6 +751,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -709,6 +765,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "revision_conflict",
@@ -723,6 +780,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -736,6 +794,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -749,6 +808,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -763,6 +823,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -777,6 +838,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -791,6 +853,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -805,6 +868,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -819,6 +883,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found",
@@ -833,6 +898,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -847,6 +913,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -861,6 +928,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -875,6 +943,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -882,6 +951,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -889,6 +959,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -896,6 +967,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -903,6 +975,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -910,6 +983,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -917,6 +991,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -924,6 +999,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -931,6 +1007,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -938,6 +1015,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -949,6 +1027,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "session_not_found"
@@ -959,6 +1038,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none"
     },
     {
@@ -966,6 +1046,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -981,6 +1062,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -996,6 +1078,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
@@ -1012,6 +1095,7 @@
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -1025,6 +1109,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -1038,6 +1123,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -1051,6 +1137,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -1064,6 +1151,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none",
       "errors": [
         "capability_not_negotiated"
@@ -1077,6 +1165,7 @@
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
+      "replayCursor": "none",
       "pagination": "none"
     }
   ],

@@ -9,97 +9,97 @@ Protocol `2026-08-24` · 89 methods
 
 ## Methods
 
-| method | operation | response | retry | pagination | materializes | features | documented errors |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `runtime.discover` | query | unary | none | none | — | — | — |
-| `sessions.list` | query | unary | none | cursor | — | — | — |
-| `sessions.get` | query | unary | none | none | — | — | `session_not_found` |
-| `sessions.snapshot` | query | unary | none | none | `items.list`, `runs.list`, `interrupts.list`, `plan.get`, `goals.get` | `subagents` | `session_not_found`, `capability_not_negotiated` |
-| `sessions.create` | command | unary | replayResponse | none | — | — | `workspace_unavailable` |
-| `sessions.update` | command | unary | replayResponse | none | — | `relocate` | `session_not_found`, `revision_conflict`, `workspace_unavailable`, `capability_not_negotiated` |
-| `sessions.delete` | command | unary | replayResponse | none | — | — | `session_not_found` |
-| `sessions.fork` | command | unary | replayResponse | none | — | — | `session_not_found`, `run_not_found` |
-| `sessions.rollback` | command | unary | replayResponse | none | — | `checkpoints` | `session_not_found`, `run_not_found`, `session_busy`, `checkpoint_unavailable`, `capability_not_negotiated` |
-| `sessions.export` | query | unary | none | none | — | `sessionExport` | `session_not_found`, `capability_not_negotiated` |
-| `sessions.import` | command | unary | replayResponse | none | — | `sessionExport` | `capability_not_negotiated` |
-| `runs.start` | command | stream | replayRunStream | none | — | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime`, `capability_not_negotiated` |
-| `runs.resume` | command | stream | replayRunStream | none | — | — | `run_not_found`, `interrupt_not_open`, `capability_not_negotiated` |
-| `runs.subscribe` | subscription | stream | none | none | — | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable`, `capability_not_negotiated` |
-| `runs.cancel` | command | unary | replayResponse | none | — | — | `run_not_found`, `run_finished`, `session_busy`, `capability_not_negotiated` |
-| `runs.steer` | command | unary | replayResponse | none | — | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment` |
-| `runs.get` | query | unary | none | none | — | — | `run_not_found`, `capability_not_negotiated` |
-| `runs.list` | query | unary | none | cursor | — | `subagents` | `capability_not_negotiated` |
-| `interrupts.list` | query | unary | none | cursor | — | — | `run_not_root`, `capability_not_negotiated` |
-| `plan.get` | query | unary | none | none | — | `plan` | `session_not_found`, `capability_not_negotiated` |
-| `items.list` | query | unary | none | cursor | — | `subagents` | `session_not_found`, `run_not_found`, `capability_not_negotiated` |
-| `workspaces.resolve` | query | unary | none | none | — | — | `workspace_unavailable` |
-| `workspaces.list` | query | unary | none | none | — | — | — |
-| `workspace.changes.list` | query | unary | none | none | — | `git` | `workspace_unavailable`, `vcs_unavailable`, `capability_not_negotiated` |
-| `workspace.diff.get` | query | unary | none | none | — | `git` | `workspace_unavailable`, `vcs_unavailable`, `path_outside_root`, `capability_not_negotiated` |
-| `workspace.files.head` | query | unary | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
-| `workspace.files.search` | query | unary | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
-| `workspace.files.list` | query | unary | none | cursor | — | — | `workspace_unavailable`, `path_outside_root` |
-| `workspace.files.read` | query | unary | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
-| `runtime.subscribe` | subscription | stream | none | none | — | `fileWatch` | `capability_not_negotiated` |
-| `skills.discovered.list` | query | unary | none | none | — | `skills` | `workspace_unavailable`, `capability_not_negotiated` |
-| `skills.library.list` | query | unary | none | none | — | `skills` | `capability_not_negotiated` |
-| `skills.library.archive` | command | unary | replayResponse | none | — | `skills` | `capability_not_negotiated` |
-| `skills.library.restore` | command | unary | replayResponse | none | — | `skills` | `capability_not_negotiated` |
-| `skills.proposals.list` | query | unary | none | none | — | `skills` | `capability_not_negotiated` |
-| `skills.proposals.approve` | command | unary | replayResponse | none | — | `skills` | `capability_not_negotiated` |
-| `skills.proposals.reject` | command | unary | replayResponse | none | — | `skills` | `capability_not_negotiated` |
-| `recipes.list` | query | unary | none | none | — | — | `workspace_unavailable` |
-| `agentDocs.list` | query | unary | none | none | — | — | `workspace_unavailable` |
-| `mcp.servers.list` | query | unary | none | none | — | `mcp` | `capability_not_negotiated` |
-| `mcp.servers.create` | command | unary | replayResponse | none | — | `mcp` | `mcp_server_already_exists`, `capability_not_negotiated` |
-| `mcp.servers.update` | command | unary | replayResponse | none | — | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
-| `mcp.servers.delete` | command | unary | replayResponse | none | — | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
-| `mcp.servers.test` | query | unary | none | none | — | `mcp` | `capability_not_negotiated` |
-| `mcp.tools.list` | query | unary | none | none | — | `mcp` | `capability_not_negotiated` |
-| `mcp.servers.reconnect` | command | unary | replayResponse | none | — | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
-| `mcp.authorizationAttempts.create` | command | unary | replayResponse | none | — | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
-| `mcp.authorizationAttempts.get` | query | unary | none | none | — | `mcp` | `mcp_authorization_attempt_not_found`, `capability_not_negotiated` |
-| `hooks.list` | query | unary | none | none | — | — | `workspace_unavailable` |
-| `hooks.setTrust` | command | unary | replayResponse | none | — | — | — |
-| `approval.getMode` | query | unary | none | none | — | — | — |
-| `approval.setMode` | command | unary | replayResponse | none | — | — | — |
-| `approval.listRules` | query | unary | none | none | — | — | — |
-| `approval.forgetRule` | command | unary | replayResponse | none | — | — | — |
-| `schedules.list` | query | unary | none | cursor | — | `schedules` | `capability_not_negotiated` |
-| `schedules.create` | command | unary | replayResponse | none | — | `schedules` | `capability_not_negotiated` |
-| `schedules.update` | command | unary | replayResponse | none | — | `schedules` | `revision_conflict`, `capability_not_negotiated` |
-| `schedules.delete` | command | unary | replayResponse | none | — | `schedules` | `capability_not_negotiated` |
-| `schedules.runNow` | command | unary | replayResponse | none | — | `schedules` | `capability_not_negotiated` |
-| `goals.start` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `goals.update` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `goals.clear` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `goals.get` | query | unary | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `goals.stop` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `goals.resume` | command | unary | replayResponse | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `codebase.search` | query | unary | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
-| `codebase.status` | query | unary | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
-| `codebase.reindex` | command | unary | replayResponse | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
-| `providers.list` | query | unary | none | none | — | — | — |
-| `providers.update` | command | unary | replayResponse | none | — | — | — |
-| `providers.test` | query | unary | none | none | — | — | — |
-| `models.list` | query | unary | none | none | — | — | — |
-| `models.getUtilityRole` | query | unary | none | none | — | — | — |
-| `models.setUtilityRole` | command | unary | replayResponse | none | — | — | — |
-| `models.getEmbeddingRole` | query | unary | none | none | — | — | — |
-| `models.setEmbeddingRole` | command | unary | replayResponse | none | — | — | — |
-| `tools.list` | query | unary | none | none | — | — | — |
-| `tools.invoke` | command | unary | replayResponse | none | — | — | `workspace_unavailable`, `path_outside_root` |
-| `usage.session` | query | unary | none | none | — | — | `session_not_found` |
-| `usage.summary` | query | unary | none | none | — | — | — |
-| `knowledge.list` | query | unary | none | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
-| `knowledge.get` | query | unary | none | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
-| `knowledge.update` | command | unary | replayResponse | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `revision_conflict`, `capability_not_negotiated` |
-| `agentMemory.list` | query | unary | none | none | — | `agentMemory` | `capability_not_negotiated` |
-| `agentMemory.review` | command | unary | replayResponse | none | — | `agentMemory` | `capability_not_negotiated` |
-| `agentMemory.update` | command | unary | replayResponse | none | — | `agentMemory` | `capability_not_negotiated` |
-| `agentMemory.delete` | command | unary | replayResponse | none | — | `agentMemory` | `capability_not_negotiated` |
-| `agentMemory.add` | command | unary | replayResponse | none | — | `agentMemory` | `capability_not_negotiated` |
-| `feedback.create` | command | unary | replayResponse | none | — | — | — |
+| method | operation | response | retry | run replay cursor | pagination | materializes | features | documented errors |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `runtime.discover` | query | unary | none | none | none | — | — | — |
+| `sessions.list` | query | unary | none | none | cursor | — | — | — |
+| `sessions.get` | query | unary | none | none | none | — | — | `session_not_found` |
+| `sessions.snapshot` | query | unary | none | none | none | `items.list`, `runs.list`, `interrupts.list`, `plan.get`, `goals.get` | `subagents` | `session_not_found`, `capability_not_negotiated` |
+| `sessions.create` | command | unary | replayResponse | none | none | — | — | `workspace_unavailable` |
+| `sessions.update` | command | unary | replayResponse | none | none | — | `relocate` | `session_not_found`, `revision_conflict`, `workspace_unavailable`, `capability_not_negotiated` |
+| `sessions.delete` | command | unary | replayResponse | none | none | — | — | `session_not_found` |
+| `sessions.fork` | command | unary | replayResponse | none | none | — | — | `session_not_found`, `run_not_found` |
+| `sessions.rollback` | command | unary | replayResponse | none | none | — | `checkpoints` | `session_not_found`, `run_not_found`, `session_busy`, `checkpoint_unavailable`, `capability_not_negotiated` |
+| `sessions.export` | query | unary | none | none | none | — | `sessionExport` | `session_not_found`, `capability_not_negotiated` |
+| `sessions.import` | command | unary | replayResponse | none | none | — | `sessionExport` | `capability_not_negotiated` |
+| `runs.start` | command | stream | replayRunStream | run | none | — | — | `session_not_found`, `session_busy`, `session_has_active_run`, `unsupported_mime`, `capability_not_negotiated` |
+| `runs.resume` | command | stream | replayRunStream | run | none | — | — | `run_not_found`, `interrupt_not_open`, `capability_not_negotiated` |
+| `runs.subscribe` | subscription | stream | none | run | none | — | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment`, `replay_cursor_invalid`, `replay_unavailable`, `capability_not_negotiated` |
+| `runs.cancel` | command | unary | replayResponse | none | none | — | — | `run_not_found`, `run_finished`, `session_busy`, `capability_not_negotiated` |
+| `runs.steer` | command | unary | replayResponse | none | none | — | — | `run_not_found`, `run_not_root`, `run_waiting`, `run_finished`, `stale_segment` |
+| `runs.get` | query | unary | none | none | none | — | — | `run_not_found`, `capability_not_negotiated` |
+| `runs.list` | query | unary | none | none | cursor | — | `subagents` | `capability_not_negotiated` |
+| `interrupts.list` | query | unary | none | none | cursor | — | — | `run_not_root`, `capability_not_negotiated` |
+| `plan.get` | query | unary | none | none | none | — | `plan` | `session_not_found`, `capability_not_negotiated` |
+| `items.list` | query | unary | none | none | cursor | — | `subagents` | `session_not_found`, `run_not_found`, `capability_not_negotiated` |
+| `workspaces.resolve` | query | unary | none | none | none | — | — | `workspace_unavailable` |
+| `workspaces.list` | query | unary | none | none | none | — | — | — |
+| `workspace.changes.list` | query | unary | none | none | none | — | `git` | `workspace_unavailable`, `vcs_unavailable`, `capability_not_negotiated` |
+| `workspace.diff.get` | query | unary | none | none | none | — | `git` | `workspace_unavailable`, `vcs_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `workspace.files.head` | query | unary | none | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.search` | query | unary | none | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.list` | query | unary | none | none | cursor | — | — | `workspace_unavailable`, `path_outside_root` |
+| `workspace.files.read` | query | unary | none | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
+| `runtime.subscribe` | subscription | stream | none | none | none | — | `fileWatch` | `capability_not_negotiated` |
+| `skills.discovered.list` | query | unary | none | none | none | — | `skills` | `workspace_unavailable`, `capability_not_negotiated` |
+| `skills.library.list` | query | unary | none | none | none | — | `skills` | `capability_not_negotiated` |
+| `skills.library.archive` | command | unary | replayResponse | none | none | — | `skills` | `capability_not_negotiated` |
+| `skills.library.restore` | command | unary | replayResponse | none | none | — | `skills` | `capability_not_negotiated` |
+| `skills.proposals.list` | query | unary | none | none | none | — | `skills` | `capability_not_negotiated` |
+| `skills.proposals.approve` | command | unary | replayResponse | none | none | — | `skills` | `capability_not_negotiated` |
+| `skills.proposals.reject` | command | unary | replayResponse | none | none | — | `skills` | `capability_not_negotiated` |
+| `recipes.list` | query | unary | none | none | none | — | — | `workspace_unavailable` |
+| `agentDocs.list` | query | unary | none | none | none | — | — | `workspace_unavailable` |
+| `mcp.servers.list` | query | unary | none | none | none | — | `mcp` | `capability_not_negotiated` |
+| `mcp.servers.create` | command | unary | replayResponse | none | none | — | `mcp` | `mcp_server_already_exists`, `capability_not_negotiated` |
+| `mcp.servers.update` | command | unary | replayResponse | none | none | — | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
+| `mcp.servers.delete` | command | unary | replayResponse | none | none | — | `mcp` | `mcp_server_not_found`, `capability_not_negotiated` |
+| `mcp.servers.test` | query | unary | none | none | none | — | `mcp` | `capability_not_negotiated` |
+| `mcp.tools.list` | query | unary | none | none | none | — | `mcp` | `capability_not_negotiated` |
+| `mcp.servers.reconnect` | command | unary | replayResponse | none | none | — | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
+| `mcp.authorizationAttempts.create` | command | unary | replayResponse | none | none | — | `mcp` | `mcp_server_not_found`, `mcp_server_disabled`, `capability_not_negotiated` |
+| `mcp.authorizationAttempts.get` | query | unary | none | none | none | — | `mcp` | `mcp_authorization_attempt_not_found`, `capability_not_negotiated` |
+| `hooks.list` | query | unary | none | none | none | — | — | `workspace_unavailable` |
+| `hooks.setTrust` | command | unary | replayResponse | none | none | — | — | — |
+| `approval.getMode` | query | unary | none | none | none | — | — | — |
+| `approval.setMode` | command | unary | replayResponse | none | none | — | — | — |
+| `approval.listRules` | query | unary | none | none | none | — | — | — |
+| `approval.forgetRule` | command | unary | replayResponse | none | none | — | — | — |
+| `schedules.list` | query | unary | none | none | cursor | — | `schedules` | `capability_not_negotiated` |
+| `schedules.create` | command | unary | replayResponse | none | none | — | `schedules` | `capability_not_negotiated` |
+| `schedules.update` | command | unary | replayResponse | none | none | — | `schedules` | `revision_conflict`, `capability_not_negotiated` |
+| `schedules.delete` | command | unary | replayResponse | none | none | — | `schedules` | `capability_not_negotiated` |
+| `schedules.runNow` | command | unary | replayResponse | none | none | — | `schedules` | `capability_not_negotiated` |
+| `goals.start` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.update` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.clear` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.get` | query | unary | none | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.stop` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `goals.resume` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
+| `codebase.search` | query | unary | none | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
+| `codebase.status` | query | unary | none | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
+| `codebase.reindex` | command | unary | replayResponse | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
+| `providers.list` | query | unary | none | none | none | — | — | — |
+| `providers.update` | command | unary | replayResponse | none | none | — | — | — |
+| `providers.test` | query | unary | none | none | none | — | — | — |
+| `models.list` | query | unary | none | none | none | — | — | — |
+| `models.getUtilityRole` | query | unary | none | none | none | — | — | — |
+| `models.setUtilityRole` | command | unary | replayResponse | none | none | — | — | — |
+| `models.getEmbeddingRole` | query | unary | none | none | none | — | — | — |
+| `models.setEmbeddingRole` | command | unary | replayResponse | none | none | — | — | — |
+| `tools.list` | query | unary | none | none | none | — | — | — |
+| `tools.invoke` | command | unary | replayResponse | none | none | — | — | `workspace_unavailable`, `path_outside_root` |
+| `usage.session` | query | unary | none | none | none | — | — | `session_not_found` |
+| `usage.summary` | query | unary | none | none | none | — | — | — |
+| `knowledge.list` | query | unary | none | none | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `knowledge.get` | query | unary | none | none | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `knowledge.update` | command | unary | replayResponse | none | none | — | `knowledge` | `workspace_unavailable`, `path_outside_root`, `revision_conflict`, `capability_not_negotiated` |
+| `agentMemory.list` | query | unary | none | none | none | — | `agentMemory` | `capability_not_negotiated` |
+| `agentMemory.review` | command | unary | replayResponse | none | none | — | `agentMemory` | `capability_not_negotiated` |
+| `agentMemory.update` | command | unary | replayResponse | none | none | — | `agentMemory` | `capability_not_negotiated` |
+| `agentMemory.delete` | command | unary | replayResponse | none | none | — | `agentMemory` | `capability_not_negotiated` |
+| `agentMemory.add` | command | unary | replayResponse | none | none | — | `agentMemory` | `capability_not_negotiated` |
+| `feedback.create` | command | unary | replayResponse | none | none | — | — | — |
 
 ## HTTP endpoints
 

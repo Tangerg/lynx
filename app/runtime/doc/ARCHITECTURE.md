@@ -508,7 +508,7 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 - API semantic、transport binding 和 auxiliary capability 分别由现有三份规范拥有；
 - HTTP status 只表示 transport，业务失败使用协议 error；
 - transport metadata 不进入 JSON-RPC body；
-- HTTP/SSE 与 embedded 都驱动同一 binding-neutral operation 和 Application use case；binding 只投影 metadata、options 与结果流，不得复制业务路径。
+- HTTP/SSE 与 embedded 都驱动同一 binding-neutral operation 和 Application use case；binding 只投影 metadata、options 与结果流，不得复制业务路径。Contract Registry 同时拥有 idempotency 与 run replay cursor 的方法适用性，operation 在 capability/handler admission 前拒绝不相容的带外元数据；binding 不得静默忽略或自行扩大这些承诺。
 - embedded 不经过 JSON-RPC/SSE 编解码，但必须遵守同一严格验证、capability、idempotency、replay cursor 与 problem 语义。
 - 同一 canonical data directory 可以由少量 embedded/HTTP Runtime 同时打开；目录 setup 只在 schema/config seeding 期间串行。冲突操作由 Session writer、working-tree shared/exclusive lease、Goal drive 和数据库事务共同 fail closed，跨进程提交通过既有 resync event 促使消费者重读。
 

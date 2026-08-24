@@ -59,6 +59,7 @@ type openrpcMethod struct {
 	Kind         string          `json:"x-lyra-kind"`
 	Operation    string          `json:"x-lyra-operation"`
 	Idempotency  string          `json:"x-lyra-idempotency"`
+	ReplayCursor string          `json:"x-lyra-replayCursor"`
 	Pagination   string          `json:"x-lyra-pagination"`
 	Features     []string        `json:"x-lyra-features,omitempty"`
 	Capabilities []capabilityRow `json:"x-lyra-capabilityRules,omitempty"`
@@ -120,6 +121,7 @@ func openrpcMethodFor(meta operation.MethodMeta, set *schemaSet, codes map[strin
 		Kind:           meta.Kind.String(),
 		Operation:      meta.Operation.String(),
 		Idempotency:    meta.Idempotency.String(),
+		ReplayCursor:   meta.ReplayCursor.String(),
 		Pagination:     meta.Pagination.String(),
 		Features:       meta.Features(),
 		Capabilities:   capabilityRowsFor(meta),

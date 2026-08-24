@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P145 已完成；P146 已准入，正在实施。
+> 状态：P0–P146 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P145 已完成。
+> 最近基线：2026-08-24，P146 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,10 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P146 已准入，继续只修改 `app/runtime` 与直接消费者 `app/desktop`；`app/cli` 不修改、不暂存。当前 public HTTP 反例可给 `runtime.discover` 这类 query 携带 `Idempotency-Key`，operation 会静默忽略该 key 并正常执行；public embedded surface 则通过 `CallOptions` 根本不允许表达同一元数据。客户端因而可能把一次不受 replay 保护的调用误认成受保护调用，两个 binding 也没有同一 admission 语义。
-- P146 的唯一 owner 是 binding-neutral Contract Registry + operation admission：method metadata 必须明确发布 replay cursor 能力，并与既有 operation/idempotency facts 一起拒绝不相容的 idempotency namespace、key 与 `AfterEventID`，且拒绝发生在 capability/handler admission 前。允许的 breaking surface 是生成的 manifest/OpenRPC/TypeScript method policy 与 Desktop 低层 RPC options；不改变 Protocol DTO、Artifact、SQLite、业务事务、stream owner 或 Runtime lifecycle。
+- P146 已完成，且只修改 `app/runtime` 与直接消费者 `app/desktop`；`app/cli` 未修改、未暂存。public HTTP 红例证明 `runtime.discover` 曾可携带 `Idempotency-Key` 并被 operation 静默忽略，而 embedded query 的 `CallOptions` 不允许表达同一元数据，形成虚假的 replay 承诺与 binding 语义分叉。
+- P146 已把唯一 owner 收敛到 binding-neutral Contract Registry + operation admission：method metadata 现在显式发布 `ReplayCursorPolicy`，并与 operation/idempotency facts 一起在 capability/handler admission 前拒绝不相容的 namespace、key 与 `AfterEventID`。仅 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run replay cursor；Desktop 低层 RPC client 直接消费生成策略并在发送前拒绝无效组合，embedded surface guard 也不再按方法名维护第二列表。
 - 对 app2 的裁决：采纳其“operation narrow waist 拒绝非 replay method 的 idempotency key”以及小型跨 binding 验收思路；补足 app2 仍由 HTTP adapter 私自 trim/传递通用元数据、未把 replay cursor applicability 发布成方法事实的缺口。拒绝 god facade、opaque JSON、额外公共 package、兼容双路和按方法名维护第二列表。
-- 本批先提交 public HTTP 红例，再让 Registry 单一事实驱动 Go admission、embedded option surface 守卫、生成合同与 Desktop client preflight；验证覆盖定向 red/green、Runtime/桌面全量 test/vet/build/staticcheck、受影响 race、generator diff、Frontend 类型/测试/静态门禁与 standalone。无需改 SQLite/Artifact 或做与本切片无关的 Runtime restart/Wails recovery；结束时审计 listener、测试进程、临时目录、浏览器资源和 `app/cli` 零 diff。
+- 本批先独立提交 public HTTP 红例，再让 Registry 单一事实驱动 Go admission、embedded option surface 守卫、生成 manifest/OpenRPC/TypeScript 合同与 Desktop client preflight。此前被忽略的元数据现在 breaking 地返回 `invalid_params` 或本地 `TypeError`；Protocol DTO、Artifact、SQLite、业务事务、stream owner 与 Runtime lifecycle 未改变，也没有 alias、兼容 fallback、双策略或按方法名维护的旁路。
 - P145 已完成，且只修改 `app/runtime`；`app/desktop` 本批没有直接爆炸半径，`app/cli` 未修改、未暂存。当前代码上的可逆反例把 `recovery_validation.go` 的局部变量 `sess` 等价改名为 `currentSession`：Application checkpoint ownership/恢复行为测试仍通过，但 `TestExecutorCheckpointBindingIsValidatedAtEveryBoundary` 仅因缺少字符串 `sess.Workspace` / `sess.Isolated` 失败。P144 也曾被迫只为 Workspace owner 改名同步更新该 marker，证明它冻结的是文件和局部语法，不是运行时不变量。
 - P145 的唯一切片是 C7 architecture guard 熵回收：已删除 `framework_boundary_test.go` 中三条逐文件 `strings.Contains` marker 守卫，让 checkpoint binding、Pending mutation ownership 与 parked continuation closure 回到 `ExecutorCheckpoint.ValidateFor`、`Pending.ValidateProjection`、Application write-set 和 SQLite owner predicate 的行为测试。新增 boot recovery 的真实 checkpoint ownership mismatch 矩阵直接证明 root/Session/workspace/isolation/Goal incarnation/provider/model/limits/capabilities 漂移都会 fail closed，且不会进入 executor resumability probe；既有 tree-barrier、waiting-subtree、material snapshot、interrupt/executor-checkpoint SQLite 测试继续覆盖其余提交边界。
 - 对 app2 的裁决：采纳小而语义化的 architecture guard、行为 owner 和人为回归仍能失败的验收方法；拒绝把原 Runtime 收敛成只有 import guard 的低覆盖实现，也不删除公共/持久 shape、唯一 owner、Agent Framework isolation 或 lifecycle 守卫。该批不改变 Runtime Protocol、Artifact、SQLite schema、公共 Go API、运行时能力或资源生命周期；没有新 facade、接口、兼容路径、第二 writer 或刷新旁路。
@@ -316,10 +316,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P143     | Session exact provider/model 身份闭环                                                                          | Session Domain、opening、fork、SQLite、Artifact、Protocol/generated contract 与 Desktop Composer/Context 一次性切换 exact pair；删除 Runs/read-model 默认 fallback，不保留旧 shape          |
 | P144     | Session exact Workspace 身份闭环                                                                               | Session Domain 只拥有必填、绝对、lexical-clean value，filesystem adapter 拥有物理 admission；SQLite 与 Desktop 一次性删除 `cwd` 平行 shape，不保留兼容读取                                  |
 | P145     | Architecture guard 熵回收                                                                                     | 删除三条逐文件源码 marker 守卫；checkpoint/Pending/recovery 由真实行为矩阵守住，等价改名和移动不再被局部变量或表达式拼写误杀                                                               |
+| P146     | operation 带外元数据适用性闭环                                                                                | Registry 唯一发布 idempotency/replay cursor policy；operation、HTTP、embedded、生成合同与 Desktop preflight 共享该事实，无效元数据在执行前失败                                             |
 
 ## 5. 当前里程碑结论
 
-P113–P145 共同建立了以下不可回退的心智模型：
+P113–P146 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -332,6 +333,7 @@ P113–P145 共同建立了以下不可回退的心智模型：
 - modal interaction scope 只有一个全局 presentation owner：light/dark 都使用 `#00000022` scrim，dialog surface 自己拥有边框、材质和阴影深度；Goal、table preview 等消费者不能建立局部 backdrop 或 scheme 分叉。
 - Goal objective update 先 quiesce exact owned drive，再以 fresh incarnation/CAS 替换 durable Goal；只有原 lifecycle 为 active 才按冻结事实恢复 drive。Goal clear 在 owned drive 静止后 CAS 删除，absence 幂等成功，Frontend 只能通过同一个 per-Session Goal command owner 发起并等待权威 snapshot 收敛。
 - durable mutation 以事务 marker/identity 判断“已提交但成功回执丢失”；不得靠重试猜测或本地 optimistic 状态冒充服务端事实。
+- operation catalog 是带外调用元数据适用性的唯一 owner：idempotency key/namespace 与 replay cursor 只有在 method policy 明确承诺时才可进入执行；所有 binding 与生成消费者只能投影该事实，不能静默忽略或维护第二方法列表。
 - Run Summary、Terminal、Diff、Tool selection、Goal、Plan、审批、Session/Dock navigation 只消费所属 Session 与 generation 的权威投影。
 - Desktop 冷启动依赖在 composition root 显式声明；Composer、Recipes 和 Workspace Events 的 session ports 不再依赖偶然安装顺序。
 - local transport token 由 durable data path 拥有，不属于 Runtime process generation；`instanceId` 换代不撤销仍存活 Desktop 的认证能力。
@@ -349,7 +351,7 @@ P113–P145 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 316 files / 1973 tests 全绿，97 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop `go test ./...`、`go vet ./...`、`go build ./...` 与 Go 1.26.5 toolchain 的 `staticcheck ./...` 通过；Session/Runs/Interaction/SQLite/Delivery/Bootstrap 受影响包 race 通过，Runtime 与 Desktop `GOWORK=off` tests 通过，`wails3 task build` 完成 production native build。P145 另以当前 Runtime 全量 test/vet/build/staticcheck、Runs/Sessions/Runsegment/SQLite/Architecture race 与 `GOWORK=off` standalone 证明 architecture guard 减法没有降低行为覆盖。合同生成器重跑后 digests 与 baseline 一致。当前合同为 Artifact v23、SQLite epoch 79、Protocol `2026-08-24`；Wails v3 动态绑定保持，`app/cli` 零 diff。
+最近一次完整验收基线：Frontend 316 files / 1974 tests 全绿，97 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.26.5 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与 `GOWORK=off go test ./...` 通过；P146 受影响的 operation/dispatch/HTTP/embedded/contractgen race 通过，合同生成器重跑并由新 baseline digest 锁定 Registry policy 投影。当前合同仍为 Artifact v23、SQLite epoch 79、Protocol `2026-08-24`；Wails v3 动态绑定保持，`app/cli` 零 diff。
 
 ## 6. 新阶段准入
 
@@ -362,4 +364,4 @@ P113–P145 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P145 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P146 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

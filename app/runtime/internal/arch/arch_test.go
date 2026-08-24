@@ -1257,7 +1257,7 @@ func TestDeliveryServerMatchesRegisteredOperationCapabilities(t *testing.T) {
 	registrationCount := 0
 	factories := map[string]struct{}{
 		"Query": {}, "Command": {}, "CommandAck": {},
-		"Subscription": {}, "RunStreamCommand": {},
+		"Subscription": {}, "RunSubscription": {}, "RunStreamCommand": {},
 	}
 	walkErr := filepath.WalkDir(operationDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {

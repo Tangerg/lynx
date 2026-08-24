@@ -457,3 +457,11 @@
 - 决策：`domain/session.Workspace` 是 immutable exact value，拥有不接触 filesystem 的纯不变量：路径必填、绝对且等于其 lexical clean 形式。Session 的 Draft、Patch、Snapshot、restore、fork 与 relocation installation 只接收该值。Application filesystem port 先验证目录存在并解析物理 canonical identity，再构造 Domain Workspace；Domain 不解析 symlink、不查询存在性，也不复制 app2 的 filesystem-root 禁令，因而保留原 Runtime admission 语义。
 - 决策：Application Session read model 将 path、project root 与 availability 收进一个 consumer-owned Workspace 投影；Desktop adapter 再投影唯一 workspace 对象，React 直接派生 path/missing，不维护镜像状态。SQLite 只保存非空 `workspace_path`，shape change 直接提升 epoch，旧 `cwd` 列不双读、不迁移。Protocol/Artifact 已经使用 `WorkspaceRef`，机器 shape 不变时不虚增版本。
 - 后果：任何进入 Session、SQLite 或 Desktop projection 的 workspace 都可追溯到同一已准入值；执行用例中表示 sandbox/命令工作目录的 `CWD` 仍是不同技术事实，不做全仓术语替换。`app/cli` 留待独立 handoff，不能要求 Runtime 保留旧内部 shape。
+
+## ADR-RT-066：operation catalog 拥有带外调用元数据的适用性
+
+- 状态：已接受并实施，P146 完成。
+- 背景：HTTP adapter 可把 `Idempotency-Key` 带到 query，operation 却静默忽略并正常执行；embedded query 的 `CallOptions` 根本不能表达该 key。同样，通用 HTTP header bag 可把 namespace 或 `Last-Event-Id` 投给不会消费它们的方法。binding 因而既不等价，也可能让客户端误以为一次调用拥有实际不存在的 replay 保证。
+- 决策：Contract Registry 在 operation/idempotency 之外发布 `ReplayCursorPolicy`；run-opening command 与 `runs.subscribe` 由 registration factory 获得 run cursor 能力，`runtime.subscribe` 等其他 stream 明确为 none。operation Endpoint 在 capability 与 handler admission 前统一拒绝非 replay 方法的 idempotency key、无 key 的 namespace、无 cursor 能力的方法携带 `AfterEventID`，以及没有 idempotency key 的 run-command cursor。
+- 决策：manifest、OpenRPC 与生成 TypeScript method policy 只投影 Registry 的同一事实；Desktop 低层 RPC client 在 transport send 前消费该生成策略。embedded surface guard 同样按 policy 选择 option 类型，不再按 `runs.subscribe` 方法名维护第二列表。HTTP/embedded 只负责把本地表示投影成 operation options，不自行决定承诺是否成立。
+- 后果：此前被静默忽略的带外元数据现在 breaking 地返回 `invalid_params` / 本地 `TypeError`；合法 command replay、run reattach、Runtime invalidation subscription 的业务、stream lifecycle 与 wire DTO 不变。没有兼容 fallback、双策略、第二 writer 或 transport-specific admission。

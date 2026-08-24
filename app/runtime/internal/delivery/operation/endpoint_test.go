@@ -61,6 +61,55 @@ func TestEndpointRejectsMissingMethodCapability(t *testing.T) {
 	}
 }
 
+func TestEndpointRejectsMethodIncompatibleMetadataBeforeCapabilityAdmission(t *testing.T) {
+	tests := []struct {
+		name       string
+		method     string
+		parameters any
+		options    Options
+	}{
+		{
+			name:       "query idempotency key",
+			method:     "runtime.discover",
+			parameters: struct{}{},
+			options:    Options{IdempotencyKey: "query-key"},
+		},
+		{
+			name:       "namespace without key",
+			method:     "runtime.discover",
+			parameters: struct{}{},
+			options:    Options{IdempotencyNamespace: "idp_store"},
+		},
+		{
+			name:   "runtime subscription run cursor",
+			method: "runtime.subscribe",
+			parameters: protocol.RuntimeSubscribeRequest{
+				Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+			},
+			options: Options{AfterEventID: "evt_cursor"},
+		},
+		{
+			name:       "run command cursor without replay key",
+			method:     "runs.start",
+			parameters: protocol.StartRunRequest{},
+			options:    Options{AfterEventID: "evt_cursor"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := mustNewEndpoint(t, struct{}{}, Config{}).Invoke(
+				t.Context(),
+				test.method,
+				test.parameters,
+				test.options,
+			)
+			if !errors.Is(result.Failure, protocol.ErrInvalidParams) {
+				t.Fatalf("failure = %v, want invalid_params", result.Failure)
+			}
+		})
+	}
+}
+
 func (s *lifetimeService) SubscribeRuntime(ctx context.Context, _ protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {
 		close(s.streamStarted)

@@ -91,6 +91,22 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 	}
 }
 
+func TestRunReplayCursorPolicyNamesOnlyReplayableRunStreams(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+	for _, meta := range Contract().Metas() {
+		if meta.ReplayCursor == ReplayCursorRun {
+			got = append(got, meta.Name)
+		}
+	}
+	want := []string{"runs.resume", "runs.start", "runs.subscribe"}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("run replay cursor methods = %v, want %v", got, want)
+	}
+}
+
 func TestGoalManagementCommandsArePublished(t *testing.T) {
 	t.Parallel()
 

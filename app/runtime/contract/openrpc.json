@@ -26,6 +26,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -77,6 +78,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -129,6 +131,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -190,6 +193,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "subagents"
@@ -262,6 +266,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -366,6 +371,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "relocate"
@@ -434,6 +440,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -502,6 +509,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -582,6 +590,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "checkpoints"
@@ -673,6 +682,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "sessionExport"
@@ -734,6 +744,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "sessionExport"
@@ -862,6 +873,7 @@
       "x-lyra-kind": "stream",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayRunStream",
+      "x-lyra-replayCursor": "run",
       "x-lyra-pagination": "none",
       "x-lyra-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
@@ -945,6 +957,7 @@
       "x-lyra-kind": "stream",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayRunStream",
+      "x-lyra-replayCursor": "run",
       "x-lyra-pagination": "none",
       "x-lyra-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
@@ -1036,6 +1049,7 @@
       "x-lyra-kind": "stream",
       "x-lyra-operation": "subscription",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "run",
       "x-lyra-pagination": "none",
       "x-lyra-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
@@ -1110,6 +1124,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1197,6 +1212,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1253,6 +1269,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1333,6 +1350,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-features": [
         "subagents"
@@ -1422,6 +1440,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1478,6 +1497,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "plan"
@@ -1566,6 +1586,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-features": [
         "subagents"
@@ -1632,6 +1653,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1670,6 +1692,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1729,6 +1752,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "git"
@@ -1827,6 +1851,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "git"
@@ -1907,6 +1932,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -1983,6 +2009,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -2075,6 +2102,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -2159,6 +2187,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -2224,6 +2253,7 @@
       "x-lyra-kind": "stream",
       "x-lyra-operation": "subscription",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "fileWatch"
@@ -2298,6 +2328,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2352,6 +2383,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2414,6 +2446,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2476,6 +2509,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2537,6 +2571,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2621,6 +2656,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2705,6 +2741,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "skills"
@@ -2766,6 +2803,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -2817,6 +2855,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -2861,6 +2900,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -2974,6 +3014,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3085,6 +3126,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3151,6 +3193,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3260,6 +3303,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3320,6 +3364,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3390,6 +3435,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3460,6 +3506,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3526,6 +3573,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "mcp"
@@ -3587,6 +3635,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3640,6 +3689,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3678,6 +3728,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3723,6 +3774,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3769,6 +3821,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3815,6 +3868,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -3872,6 +3926,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "cursor",
       "x-lyra-features": [
         "schedules"
@@ -3966,6 +4021,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "schedules"
@@ -4090,6 +4146,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "schedules"
@@ -4152,6 +4209,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "schedules"
@@ -4214,6 +4272,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "schedules"
@@ -4306,6 +4365,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4378,6 +4438,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4444,6 +4505,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4517,6 +4579,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4583,6 +4646,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4649,6 +4713,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "goals"
@@ -4729,6 +4794,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "codebase"
@@ -4794,6 +4860,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "codebase"
@@ -4859,6 +4926,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "codebase"
@@ -4907,6 +4975,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -4965,6 +5034,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5011,6 +5081,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5055,6 +5126,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5093,6 +5165,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5143,6 +5216,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5181,6 +5255,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5231,6 +5306,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5269,6 +5345,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5337,6 +5414,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5389,6 +5467,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5434,6 +5513,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,
@@ -5493,6 +5573,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "knowledge"
@@ -5568,6 +5649,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "knowledge"
@@ -5662,6 +5744,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "knowledge"
@@ -5729,6 +5812,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "query",
       "x-lyra-idempotency": "none",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "agentMemory"
@@ -5798,6 +5882,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "agentMemory"
@@ -5872,6 +5957,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "agentMemory"
@@ -5934,6 +6020,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "agentMemory"
@@ -6009,6 +6096,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-features": [
         "agentMemory"
@@ -6087,6 +6175,7 @@
       "x-lyra-kind": "unary",
       "x-lyra-operation": "command",
       "x-lyra-idempotency": "replayResponse",
+      "x-lyra-replayCursor": "none",
       "x-lyra-pagination": "none",
       "x-lyra-requestFrame": {
         "unevaluatedProperties": false,

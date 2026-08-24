@@ -172,10 +172,30 @@ func Subscription[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
+	registerSubscription(registry, meta, call)
+}
+
+func registerSubscription[Capability, Params, Ack, Event any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
+) {
 	meta.Kind = KindStream
 	meta.Operation = OperationSubscription
 	meta.Idempotency = IdempotencyNone
 	registerStream(registry, meta, call)
+}
+
+// RunSubscription registers a stream that may replay retained Run events from
+// an opaque cursor. Runtime-wide invalidation subscriptions use Subscription:
+// reconnecting those streams deliberately resyncs instead of replaying history.
+func RunSubscription[Capability, Params, Ack, Event any](
+	registry *Registry,
+	meta MethodMeta,
+	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
+) {
+	meta.ReplayCursor = ReplayCursorRun
+	registerSubscription(registry, meta, call)
 }
 
 func RunStreamCommand[Capability, Params, Ack, Event any](
@@ -186,6 +206,7 @@ func RunStreamCommand[Capability, Params, Ack, Event any](
 	meta.Kind = KindStream
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayRunStream
+	meta.ReplayCursor = ReplayCursorRun
 	registerStream(registry, meta, call)
 }
 

@@ -134,7 +134,7 @@ func optionType(meta operation.MethodMeta) reflect.Type {
 	switch {
 	case meta.Kind == operation.KindStream && meta.Operation == operation.OperationCommand:
 		return reflect.TypeFor[RunCommandOptions]()
-	case meta.Name == "runs.subscribe":
+	case meta.ReplayCursor == operation.ReplayCursorRun:
 		return reflect.TypeFor[RunSubscriptionOptions]()
 	case meta.Kind == operation.KindStream:
 		return reflect.TypeFor[SubscriptionOptions]()

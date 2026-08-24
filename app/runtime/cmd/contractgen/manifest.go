@@ -52,6 +52,7 @@ type methodEntry struct {
 	Kind         string   `json:"kind"`
 	Operation    string   `json:"operation"`
 	Idempotency  string   `json:"idempotency"`
+	ReplayCursor string   `json:"replayCursor"`
 	Pagination   string   `json:"pagination"`
 	Errors       []string `json:"errors,omitempty"`
 	Features     []string `json:"features,omitempty"`
@@ -239,6 +240,7 @@ func methods(registry *operation.Registry) []methodEntry {
 			Kind:         meta.Kind.String(),
 			Operation:    meta.Operation.String(),
 			Idempotency:  meta.Idempotency.String(),
+			ReplayCursor: meta.ReplayCursor.String(),
 			Pagination:   meta.Pagination.String(),
 			Errors:       meta.ProblemTypes(),
 			Features:     meta.Features(),

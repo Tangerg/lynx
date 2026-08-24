@@ -69,6 +69,24 @@ func TestOpenRPCRequestFramesAreStrictAndPublishUniversalMetadata(t *testing.T) 
 	}
 }
 
+func TestOpenRPCPublishesRunReplayCursorPolicy(t *testing.T) {
+	t.Parallel()
+
+	document := newOpenRPC(operation.Contract(), dispatch.WireShapes(), walkWireTypes(operation.Contract(), dispatch.WireShapes()))
+	for _, test := range []struct {
+		method string
+		want   string
+	}{
+		{method: "runs.start", want: "run"},
+		{method: "runs.subscribe", want: "run"},
+		{method: "runtime.subscribe", want: "none"},
+	} {
+		if got := openRPCMethod(t, document, test.method).ReplayCursor; got != test.want {
+			t.Errorf("%s replay cursor = %q, want %q", test.method, got, test.want)
+		}
+	}
+}
+
 func TestOpenRPCParamsPreserveRequestFieldConstraints(t *testing.T) {
 	t.Parallel()
 

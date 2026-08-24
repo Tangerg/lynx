@@ -106,31 +106,65 @@ func TestDiscoverOverRPC(t *testing.T) {
 }
 
 // A binding must never accept metadata whose promise the operation does not
-// implement. Embedded queries expose CallOptions and therefore cannot carry an
-// idempotency key; HTTP must refuse the same impossible request instead of
-// silently running it without replay protection.
-func TestQueryRefusesIdempotencyKey(t *testing.T) {
+// implement. Embedded exposes method-specific option types; HTTP must refuse
+// the same impossible combinations instead of silently discarding metadata.
+func TestRPCRefusesMethodIncompatibleMetadata(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	req, err := netHTTP.NewRequest(
-		netHTTP.MethodPost,
-		ts.URL+"/v2/rpc",
-		bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`),
-	)
-	if err != nil {
-		t.Fatalf("new request: %v", err)
+	tests := []struct {
+		name   string
+		body   string
+		header string
+		value  string
+	}{
+		{
+			name:   "query idempotency key",
+			body:   `{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`,
+			header: "Idempotency-Key",
+			value:  "query-must-not-promise-replay",
+		},
+		{
+			name:   "namespace without key",
+			body:   `{"jsonrpc":"2.0","id":"2","method":"runtime.discover","params":{}}`,
+			header: "Idempotency-Namespace",
+			value:  "idp_store",
+		},
+		{
+			name:   "runtime subscription run cursor",
+			body:   `{"jsonrpc":"2.0","id":"3","method":"runtime.subscribe","params":{"topics":["sessions.changed"]}}`,
+			header: "Last-Event-Id",
+			value:  "evt_cursor",
+		},
+		{
+			name:   "run command cursor without replay key",
+			body:   `{"jsonrpc":"2.0","id":"4","method":"runs.start","params":{"sessionId":"ses_1","input":[{"type":"text","text":"hi"}]}}`,
+			header: "Last-Event-Id",
+			value:  "evt_cursor",
+		},
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", "query-must-not-promise-replay")
-	resp, err := netHTTP.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("post request: %v", err)
-	}
-	defer resp.Body.Close()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := netHTTP.NewRequest(
+				netHTTP.MethodPost,
+				ts.URL+"/v2/rpc",
+				bytes.NewBufferString(test.body),
+			)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(test.header, test.value)
+			resp, err := netHTTP.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("post request: %v", err)
+			}
+			defer resp.Body.Close()
 
-	if code := decodeErrorCode(t, resp); code != -32602 {
-		t.Fatalf("error code = %d, want invalid_params (-32602)", code)
+			if code := decodeErrorCode(t, resp); code != -32602 {
+				t.Fatalf("error code = %d, want invalid_params (-32602)", code)
+			}
+		})
 	}
 }
 

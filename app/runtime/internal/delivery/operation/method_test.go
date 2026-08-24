@@ -59,6 +59,8 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		{name: "method kind", mutate: func(meta *MethodMeta) { meta.Kind = MethodKind(255) }, want: []string{"runs.list", "MethodKind(255)"}},
 		{name: "operation kind", mutate: func(meta *MethodMeta) { meta.Operation = OperationKind(255) }, want: []string{"runs.list", "OperationKind(255)"}},
 		{name: "idempotency policy", mutate: func(meta *MethodMeta) { meta.Idempotency = IdempotencyPolicy(255) }, want: []string{"runs.list", "IdempotencyPolicy(255)"}},
+		{name: "replay cursor policy", mutate: func(meta *MethodMeta) { meta.ReplayCursor = ReplayCursorPolicy(255) }, want: []string{"runs.list", "ReplayCursorPolicy(255)"}},
+		{name: "query run replay cursor", mutate: func(meta *MethodMeta) { meta.ReplayCursor = ReplayCursorRun }, want: []string{"runs.list", "only a streaming method"}},
 		{name: "pagination kind", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationKind(255) }, want: []string{"runs.list", "PaginationKind(255)"}},
 		{name: "pagination disagrees with shapes", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationNone }, want: []string{"runs.list", "shapes derive cursor"}},
 		{name: "condition operator", mutate: func(meta *MethodMeta) { meta.CapabilityRules[0].When[0].Operator = ConditionOperator(255) }, want: []string{"runs.list", "includeDescendants", "ConditionOperator(255)"}},
@@ -94,11 +96,27 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 	if got := IdempotencyPolicy(255).String(); got == IdempotencyNone.String() {
 		t.Fatalf("unknown idempotency policy masquerades as %q", got)
 	}
+	if got := ReplayCursorPolicy(255).String(); got == ReplayCursorNone.String() {
+		t.Fatalf("unknown replay cursor policy masquerades as %q", got)
+	}
 	if got := PaginationKind(255).String(); got == PaginationNone.String() {
 		t.Fatalf("unknown pagination kind masquerades as %q", got)
 	}
 	if got := ConditionOperator(255).String(); got == OperatorPresent.String() {
 		t.Fatalf("unknown condition operator masquerades as %q", got)
+	}
+}
+
+func TestRunReplayCursorRequiresRunEventFrames(t *testing.T) {
+	t.Parallel()
+
+	meta, ok := Contract().Lookup("runtime.subscribe")
+	if !ok {
+		t.Fatal("runtime.subscribe is not registered")
+	}
+	meta.ReplayCursor = ReplayCursorRun
+	if err := meta.Validate(); err == nil || !strings.Contains(err.Error(), "requires RunEvent stream frames") {
+		t.Fatalf("Validate error = %v, want RunEvent stream refusal", err)
 	}
 }
 

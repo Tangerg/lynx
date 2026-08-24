@@ -35,8 +35,8 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `2380d0c1761b04eef9d5c6659fa50aaa6c3b2d4a6b265adae384ebaf7a8c36cb` |
-| `contract/openrpc.json` | `7b09fd2f28709652f3e050ef219413ff34a9daf89a6602c8299045225e191e68` |
+| `contract/manifest.json` | `7eceacca468e7b3be7acb2fef3b17b22647fbfcf7a46ac7f55987e4f9b21539c` |
+| `contract/openrpc.json` | `8cb85e7c520117ee4c26f61dceca20d37c93f4501eb5ebe86344c75f32e6c206` |
 | `contract/schema.json` | `04d823c064fb88c774fb90eaa233cd47fe71d2ff5b306c22131eb0785c419a73` |
 | `contract/go-api.json` | `f1026353c6a88c067f9e238f95242b9bf26f4f05bd2597ecad8a0e369f1f7a48` |
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting

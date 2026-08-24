@@ -101,12 +101,11 @@ func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, opti
 		release()
 		return failed(NewFailure(protocol.ErrMethodNotFound, fmt.Sprintf("unknown method %q", name)))
 	}
-	if err := validateOptions(options); err != nil {
+	if err := validateOptions(method.Meta, options); err != nil {
 		release()
 		return failed(err)
 	}
-	if options.IdempotencyKey != "" && method.Meta.Idempotency.Replays() &&
-		options.IdempotencyNamespace != "" &&
+	if options.IdempotencyKey != "" && options.IdempotencyNamespace != "" &&
 		options.IdempotencyNamespace != e.idempotencyNamespace {
 		release()
 		return failed(NewFailure(
@@ -202,7 +201,7 @@ func allowsEvent(ctx context.Context, event any) bool {
 	return true
 }
 
-func validateOptions(options Options) *Failure {
+func validateOptions(method MethodMeta, options Options) *Failure {
 	if err := protocol.ValidateWireTree(options.RequestMeta); err != nil {
 		return InvalidParameters(err)
 	}
@@ -212,6 +211,20 @@ func validateOptions(options Options) *Failure {
 			protocol.ErrInvalidProtocolVersion,
 			fmt.Sprintf("protocolVersion %q is unsupported; expected %q", version, protocol.ProtocolVersion),
 		)
+	}
+	if options.IdempotencyKey != "" && !method.Idempotency.Replays() {
+		return NewFailure(protocol.ErrInvalidParams, "this operation does not accept an idempotency key")
+	}
+	if options.IdempotencyNamespace != "" && options.IdempotencyKey == "" {
+		return NewFailure(protocol.ErrInvalidParams, "an idempotency namespace requires an idempotency key")
+	}
+	if options.AfterEventID != "" {
+		if method.ReplayCursor != ReplayCursorRun {
+			return NewFailure(protocol.ErrInvalidParams, "this operation does not accept a run replay cursor")
+		}
+		if method.Operation == OperationCommand && options.IdempotencyKey == "" {
+			return NewFailure(protocol.ErrInvalidParams, "a run command replay cursor requires an idempotency key")
+		}
 	}
 	return nil
 }

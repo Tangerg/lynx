@@ -95,6 +95,31 @@ func TestGeneratedMethodsPublishDerivedPagination(t *testing.T) {
 	}
 }
 
+func TestGeneratedMethodsPublishRunReplayCursorPolicy(t *testing.T) {
+	t.Parallel()
+
+	manifest := build(newSchemaSet(dispatch.WireShapes()))
+	for _, test := range []struct {
+		method string
+		want   string
+	}{
+		{method: "runs.start", want: "run"},
+		{method: "runs.subscribe", want: "run"},
+		{method: "runtime.subscribe", want: "none"},
+		{method: "runtime.discover", want: "none"},
+	} {
+		index := slices.IndexFunc(manifest.Methods, func(method methodEntry) bool {
+			return method.Name == test.method
+		})
+		if index < 0 {
+			t.Fatalf("%s is absent from the manifest", test.method)
+		}
+		if got := manifest.Methods[index].ReplayCursor; got != test.want {
+			t.Errorf("%s replay cursor = %q, want %q", test.method, got, test.want)
+		}
+	}
+}
+
 func TestGeneratedMethodsPublishMaterializedQueryFacts(t *testing.T) {
 	t.Parallel()
 
