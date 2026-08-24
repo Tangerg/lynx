@@ -22,12 +22,39 @@ import (
 	"unicode/utf8"
 )
 
-// MaxContentCharacters is the one durable-item and ledger-fact content bound.
-// It is expressed in Unicode code points because memory is durable text, not a
-// byte payload. The model prompt's conservative token estimator charges every
-// non-ASCII code point as one token, so one valid item can never exceed its
-// 4096-token whole-item prompt budget.
-const MaxContentCharacters = 4096
+const (
+	// MaxContentCharacters is the one durable-item and ledger-fact content
+	// bound. It is expressed in Unicode code points because memory is durable
+	// text, not a byte payload. The model prompt's conservative token estimator
+	// charges every non-ASCII code point as one token, so one valid item can
+	// never exceed its 4096-token whole-item prompt budget.
+	MaxContentCharacters = 4096
+
+	// MaxFactsPerBatch bounds one extraction result and therefore one ledger
+	// append transaction. Deduplication happens after this admission check: a
+	// provider cannot evade the request envelope with repeated output.
+	MaxFactsPerBatch = 32
+
+	// MaxCurationProposals bounds one curator generation. Approved memory is
+	// sticky, so this is the number of review proposals one fold may create,
+	// not the total durable target capacity.
+	MaxCurationProposals = 32
+
+	// MaxLedgerFoldFacts bounds the cursor page loaded for one curation pass.
+	// The byte envelope may choose a shorter prefix, but no configuration can
+	// turn the database read preceding that envelope into an unbounded query.
+	MaxLedgerFoldFacts = 128
+
+	// MaxVisiblePerTarget makes the non-paginated management and prompt read
+	// models complete but finite. Active and pending items are visible; rejected
+	// tombstones have their own larger retention window below.
+	MaxVisiblePerTarget = 512
+
+	// MaxRejectedPerTarget bounds negative-history retention. Recent rejections
+	// still suppress repeated proposals without turning that suppression log
+	// into an unbounded durable collection.
+	MaxRejectedPerTarget = 2048
+)
 
 // NormalizeContent returns the canonical representation accepted at every
 // Agent Memory write boundary.
@@ -64,6 +91,10 @@ var ErrNotFound = errors.New("agentmemory: item not found")
 // ErrNotPending reports that a review targeted an item whose review boundary
 // has already been resolved or that was user-authored as active.
 var ErrNotPending = errors.New("agentmemory: item is not pending review")
+
+// ErrTargetFull reports that a new visible item would exceed the finite
+// complete-list capacity of its project or user target.
+var ErrTargetFull = errors.New("agentmemory: target is full")
 
 // Scope selects the breadth of a memory item.
 type Scope string
@@ -395,7 +426,7 @@ func (b FactBatch) Normalize() (FactBatch, error) {
 	if b.CapturedAt.IsZero() {
 		return FactBatch{}, errors.New("agentmemory: fact batch capture time is required")
 	}
-	b.Facts, err = normalizeFactList(b.Facts)
+	b.Facts, err = normalizeFactList(b.Facts, MaxFactsPerBatch, "fact batch")
 	if err != nil {
 		return FactBatch{}, err
 	}
@@ -441,7 +472,10 @@ type State struct {
 	UpdatedAt time.Time
 }
 
-func normalizeFactList(input []string) ([]string, error) {
+func normalizeFactList(input []string, maximum int, collection string) ([]string, error) {
+	if len(input) > maximum {
+		return nil, fmt.Errorf("agentmemory: %s exceeds %d items", collection, maximum)
+	}
 	var normalized []string
 	seen := make(map[string]struct{})
 	for _, fact := range input {
@@ -451,7 +485,7 @@ func normalizeFactList(input []string) ([]string, error) {
 		var err error
 		fact, err = NormalizeContent(fact)
 		if err != nil {
-			return nil, fmt.Errorf("agentmemory: invalid ledger fact: %w", err)
+			return nil, fmt.Errorf("agentmemory: invalid %s item: %w", collection, err)
 		}
 		if _, duplicate := seen[fact]; duplicate {
 			continue

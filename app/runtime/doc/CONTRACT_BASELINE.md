@@ -62,6 +62,8 @@ P156 将 Agent Memory 的 `add.content`、可选 `update.content` 与 `AgentMemo
 
 P157 只收紧 Runtime 内部 auxiliary model request envelope：title、compaction、Agent Memory consolidation 与 Skill mining 必须显式携带 aggregate input-byte/output-token 上限，maintenance transcript 受 384KiB total / 24KiB per-message 公平预算约束。该批不改变 Protocol、manifest/OpenRPC/schema、公共 Go API、Artifact v23、SQLite epoch 82、Desktop binding、Agent Framework 或 CLI。
 
+P158 只收紧 Agent Memory 内部有限集合与生命周期行为：每个 project/user target 最多 512 个 active + pending item、最近 2048 个 rejected tombstone，单次 extraction/curation 最多 32 条，pending ledger page 最多 128 条；显式 Add 可原地恢复同 digest 的 pending/rejected proposal。`agentMemory.*` request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23 与 SQLite epoch 82 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

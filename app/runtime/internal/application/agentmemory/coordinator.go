@@ -28,7 +28,7 @@ type Store interface {
 	Review(ctx context.Context, id string, decision domain.ReviewDecision, now time.Time) error
 	Update(ctx context.Context, id string, content *string, pinned *bool, now time.Time) (domain.Item, error)
 	Delete(ctx context.Context, id string) error
-	Add(ctx context.Context, scope domain.Scope, project, content string, now time.Time) (item domain.Item, created bool, err error)
+	Add(ctx context.Context, scope domain.Scope, project, content string, now time.Time) (item domain.Item, changed bool, err error)
 }
 
 // Config bundles the review use case's driven ports. Store may be nil to
@@ -124,11 +124,11 @@ func (c *Coordinator) Add(ctx context.Context, scope domain.Scope, cwd, content 
 	if err != nil {
 		return domain.Item{}, err
 	}
-	item, created, err := c.store.Add(ctx, scope, project, content, c.now())
+	item, changed, err := c.store.Add(ctx, scope, project, content, c.now())
 	if err != nil {
 		return domain.Item{}, err
 	}
-	if created {
+	if changed {
 		c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
 	}
 	return item, nil

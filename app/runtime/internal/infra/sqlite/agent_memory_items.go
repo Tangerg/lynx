@@ -55,13 +55,23 @@ func (s *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 	if err != nil {
 		return err
 	}
-	plan := agentmemory.Fold(existing, contents)
+	plan, err := agentmemory.Fold(existing, contents)
+	if err != nil {
+		return fmt.Errorf("sqlite: plan agent memory fold: %w", err)
+	}
 	for _, id := range plan.PruneIDs {
 		if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM agent_memory_items WHERE id = ?`, id); err != nil {
 			return fmt.Errorf("sqlite: prune agent memory item: %w", err)
 		}
 	}
+	visible, err := s.countVisibleItems(ctx, agentmemory.ScopeProject, project)
+	if err != nil {
+		return err
+	}
 	for _, content := range plan.InsertContents {
+		if visible >= agentmemory.MaxVisiblePerTarget {
+			break
+		}
 		id, err := newMemoryID()
 		if err != nil {
 			return err
@@ -70,19 +80,25 @@ func (s *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 		if err != nil {
 			return err
 		}
-		if _, err := s.insertItem(ctx, item); err != nil {
+		inserted, err := s.insertItem(ctx, item)
+		if err != nil {
 			return err
+		}
+		if inserted {
+			visible++
 		}
 	}
 	return nil
 }
 
-// autoItems fetches the project's auto-origin, unpinned items (id + content +
-// status) the fold reconciles over.
+// autoItems fetches the project's auto-origin fold set: unpinned visible items
+// plus every retained rejected tombstone (id + content + status suffice).
 func (s *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]agentmemory.Item, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT id, content, status FROM agent_memory_items
-		 WHERE scope = 'project' AND project = ? AND origin = 'auto' AND pinned = 0`, project)
+		 WHERE scope = 'project' AND project = ? AND origin = 'auto'
+		   AND (pinned = 0 OR status = 'rejected')
+		 LIMIT ?`, project, agentmemory.MaxVisiblePerTarget+agentmemory.MaxRejectedPerTarget+1)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list agent memory items: %w", err)
 	}
@@ -111,6 +127,17 @@ func (s *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]age
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
+	}
+	visible, rejected := 0, 0
+	for _, item := range items {
+		if item.Status == agentmemory.StatusRejected {
+			rejected++
+		} else {
+			visible++
+		}
+	}
+	if visible > agentmemory.MaxVisiblePerTarget || rejected > agentmemory.MaxRejectedPerTarget {
+		return nil, errors.New("sqlite: agent memory target exceeds its lifecycle bounds")
 	}
 	return items, nil
 }
@@ -200,7 +227,8 @@ func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, p
 		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status = 'active'
-		 ORDER BY pinned DESC, updated_at DESC`, "agent memory items", token, project)
+		 ORDER BY pinned DESC, updated_at DESC
+		 LIMIT ?`, "agent memory items", agentmemory.MaxVisiblePerTarget, token, project)
 }
 
 // SearchCorpus lists the active exact-project and user-scoped items visible
@@ -216,12 +244,14 @@ func (s *AgentMemoryStore) SearchCorpus(ctx context.Context, project string) ([]
 		 WHERE status = 'active' AND (
 		       (scope = 'project' AND project = ?) OR
 		       (scope = 'user' AND project = '')
-		 )`, project)
+		 )
+		 LIMIT ?`, project, 2*agentmemory.MaxVisiblePerTarget+1)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list agent memory items for search: %w", err)
 	}
 	defer rows.Close()
 	var items []agentmemory.Item
+	visibleByScope := make(map[agentmemory.Scope]int, 2)
 	for rows.Next() {
 		var (
 			item                              agentmemory.Item
@@ -250,6 +280,10 @@ func (s *AgentMemoryStore) SearchCorpus(ctx context.Context, project string) ([]
 				return nil, fmt.Errorf("sqlite: decode invalid agent memory search item %q: %w", item.ID, validateErr)
 			}
 		}
+		visibleByScope[item.Scope]++
+		if visibleByScope[item.Scope] > agentmemory.MaxVisiblePerTarget {
+			return nil, fmt.Errorf("sqlite: agent memory %s search target exceeds its complete-list bound", item.Scope)
+		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -270,11 +304,19 @@ func (s *AgentMemoryStore) List(ctx context.Context, scope agentmemory.Scope, pr
 		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status IN ('active','pending')
-		 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, pinned DESC, updated_at DESC`,
-		"agent memory", token, project)
+		 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, pinned DESC, updated_at DESC
+		 LIMIT ?`,
+		"agent memory", agentmemory.MaxVisiblePerTarget, token, project)
 }
 
-func (s *AgentMemoryStore) listItems(ctx context.Context, query, operation string, args ...any) ([]agentmemory.Item, error) {
+func (s *AgentMemoryStore) listItems(
+	ctx context.Context,
+	query string,
+	operation string,
+	maximum int,
+	args ...any,
+) ([]agentmemory.Item, error) {
+	args = append(args, maximum+1)
 	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list %s: %w", operation, err)
@@ -290,6 +332,9 @@ func (s *AgentMemoryStore) listItems(ctx context.Context, query, operation strin
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: iterate %s: %w", operation, err)
+	}
+	if len(items) > maximum {
+		return nil, fmt.Errorf("sqlite: %s target exceeds its complete-list bound of %d", operation, maximum)
 	}
 	return items, nil
 }
@@ -358,6 +403,11 @@ func (s *AgentMemoryStore) Review(ctx context.Context, id string, decision agent
 			return fmt.Errorf("sqlite: inspect agent memory review: %w", err)
 		}
 		if matched == 1 {
+			if status == agentmemory.StatusRejected {
+				if err := s.pruneRejectedItems(ctx, id); err != nil {
+					return err
+				}
+			}
 			return nil
 		}
 		var stored string
@@ -373,6 +423,26 @@ func (s *AgentMemoryStore) Review(ctx context.Context, id string, decision agent
 		}
 		return fmt.Errorf("%w: item %q is %s", agentmemory.ErrNotPending, id, current)
 	})
+}
+
+func (s *AgentMemoryStore) pruneRejectedItems(ctx context.Context, preservedID string) error {
+	var scope, project string
+	if err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT scope, project FROM agent_memory_items WHERE id = ?`, preservedID,
+	).Scan(&scope, &project); err != nil {
+		return fmt.Errorf("sqlite: locate rejected agent memory item: %w", err)
+	}
+	if _, err := conn(ctx, s.db).ExecContext(ctx, `
+		DELETE FROM agent_memory_items
+		WHERE id IN (
+			SELECT id FROM agent_memory_items
+			WHERE scope = ? AND project = ? AND status = 'rejected' AND id != ?
+			ORDER BY updated_at DESC, id DESC
+			LIMIT -1 OFFSET ?
+		)`, scope, project, preservedID, agentmemory.MaxRejectedPerTarget-1); err != nil {
+		return fmt.Errorf("sqlite: prune rejected agent memory items: %w", err)
+	}
+	return nil
 }
 
 // SetPinned pins or unpins an item; pinned items are always injected and never
@@ -413,8 +483,9 @@ func (s *AgentMemoryStore) Delete(ctx context.Context, id string) error {
 	return affectedOne(result, "delete")
 }
 
-// Add stores a user-authored active item. A digest collision with an existing
-// item returns that item unchanged rather than creating a duplicate.
+// Add stores a user-authored active item. An existing active digest is
+// idempotent; an explicit user addition promotes a matching pending or rejected
+// proposal while preserving its stable id.
 func (s *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, project, content string, now time.Time) (agentmemory.Item, bool, error) {
 	if strings.TrimSpace(content) == "" {
 		return agentmemory.Item{}, false, errors.New("sqlite: agent memory content is required")
@@ -427,12 +498,102 @@ func (s *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 	if err != nil {
 		return agentmemory.Item{}, false, err
 	}
-	created, err := s.insertItem(ctx, item)
+	var stored agentmemory.Item
+	changed := false
+	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
+		existing, found, err := s.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
+		if err != nil {
+			return err
+		}
+		if found {
+			if existing.Status == agentmemory.StatusActive {
+				stored = existing
+				return nil
+			}
+			if existing.Status == agentmemory.StatusRejected {
+				visible, err := s.countVisibleItems(ctx, scope, project)
+				if err != nil {
+					return err
+				}
+				if visible >= agentmemory.MaxVisiblePerTarget {
+					return agentmemory.ErrTargetFull
+				}
+			}
+			existing.Content = item.Content
+			existing.Origin = agentmemory.OriginUser
+			existing.Status = agentmemory.StatusActive
+			existing.Pinned = false
+			existing.SessionID = ""
+			existing.Day = item.Day
+			existing.UpdatedAt = item.UpdatedAt
+			existing.EmbeddingSpace = ""
+			existing.Embedding = nil
+			if err := existing.Validate(); err != nil {
+				return err
+			}
+			result, err := conn(ctx, s.db).ExecContext(ctx, `
+				UPDATE agent_memory_items
+				SET content = ?, digest = ?, origin = 'user', status = 'active', pinned = 0,
+					session_id = '', day = ?, embedding_space = '', embedding = x'', updated_at = ?
+				WHERE id = ?`, existing.Content, agentmemory.Digest(existing.Content), existing.Day,
+				existing.UpdatedAt.UTC().UnixNano(), existing.ID)
+			if err != nil {
+				return fmt.Errorf("sqlite: revive rejected agent memory item: %w", err)
+			}
+			if err := affectedOne(result, "revive"); err != nil {
+				return err
+			}
+			stored = existing
+			changed = true
+			return nil
+		}
+		visible, err := s.countVisibleItems(ctx, scope, project)
+		if err != nil {
+			return err
+		}
+		if visible >= agentmemory.MaxVisiblePerTarget {
+			return agentmemory.ErrTargetFull
+		}
+		inserted, err := s.insertItem(ctx, item)
+		if err != nil {
+			return err
+		}
+		if !inserted {
+			return errors.New("sqlite: agent memory insert lost digest identity inside transaction")
+		}
+		stored = item
+		changed = true
+		return nil
+	})
 	if err != nil {
 		return agentmemory.Item{}, false, err
 	}
-	stored, _, err := s.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
-	return stored, created, err
+	return stored, changed, nil
+}
+
+func (s *AgentMemoryStore) countVisibleItems(
+	ctx context.Context,
+	scope agentmemory.Scope,
+	project string,
+) (int, error) {
+	token, err := memoryPartition(scope, project)
+	if err != nil {
+		return 0, err
+	}
+	var count int
+	if err := conn(ctx, s.db).QueryRowContext(ctx, `
+		SELECT count(*) FROM agent_memory_items
+		WHERE scope = ? AND project = ? AND status IN ('active','pending')`,
+		token, project).Scan(&count); err != nil {
+		return 0, fmt.Errorf("sqlite: count visible agent memory items: %w", err)
+	}
+	if count > agentmemory.MaxVisiblePerTarget {
+		return 0, fmt.Errorf(
+			"sqlite: agent memory target exceeds its complete-list bound of %d",
+			agentmemory.MaxVisiblePerTarget,
+		)
+	}
+	return count, nil
 }
 
 func (s *AgentMemoryStore) itemByDigest(ctx context.Context, scope agentmemory.Scope, project, digest string) (agentmemory.Item, bool, error) {

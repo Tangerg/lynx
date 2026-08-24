@@ -29,6 +29,7 @@ type recordingAgentMemory struct {
 	addContent string
 
 	getItem agentmemory.Item
+	err     error
 }
 
 func (*recordingAgentMemory) Available() bool { return true }
@@ -60,6 +61,9 @@ func (r *recordingAgentMemory) Delete(_ context.Context, id string) error {
 
 func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error) {
 	r.addScope, r.addCWD, r.addContent = scope, cwd, content
+	if r.err != nil {
+		return agentmemory.Item{}, r.err
+	}
 	return agentmemory.Item{ID: "mem_new", Scope: scope, Content: content, Origin: agentmemory.OriginUser, Status: agentmemory.StatusActive}, nil
 }
 
@@ -162,5 +166,17 @@ func TestAgentMemoryUpdateAndAdd(t *testing.T) {
 	}
 	if rec.addContent != "- new note" || rec.addCWD != "/repo" || added.Origin != "user" {
 		t.Fatalf("add recorded=%+v wire=%+v", rec, added)
+	}
+}
+
+func TestAgentMemoryTargetFullMapsToInvalidParams(t *testing.T) {
+	s := newTestServer(&stubRuntime{})
+	s.agentMemory = &recordingAgentMemory{err: agentmemory.ErrTargetFull}
+	s.features.agentMemory = true
+	_, err := s.AddAgentMemory(t.Context(), protocol.AgentMemoryAddRequest{
+		Scope: protocol.AgentMemoryScopeUser, Content: "new memory",
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) || !errors.Is(err, agentmemory.ErrTargetFull) {
+		t.Fatalf("AddAgentMemory error = %v, want invalid_params wrapping ErrTargetFull", err)
 	}
 }

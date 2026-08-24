@@ -75,8 +75,11 @@ func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 	if watermark < 0 {
 		return nil, errors.New("sqlite: agent memory watermark must not be negative")
 	}
-	if limit <= 0 {
-		return nil, errors.New("sqlite: agent memory pending limit must be positive")
+	if limit <= 0 || limit > agentmemory.MaxLedgerFoldFacts {
+		return nil, fmt.Errorf(
+			"sqlite: agent memory pending limit must be between 1 and %d",
+			agentmemory.MaxLedgerFoldFacts,
+		)
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT seq, day, fact, captured_at

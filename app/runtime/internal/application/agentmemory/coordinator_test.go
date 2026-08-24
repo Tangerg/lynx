@@ -18,7 +18,7 @@ type fakeStore struct {
 	pinned      *bool
 	decision    domain.ReviewDecision
 	err         error
-	addCreated  bool
+	addChanged  bool
 }
 
 func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
@@ -39,7 +39,7 @@ func (s *fakeStore) Update(_ context.Context, _ string, content *string, pinned 
 func (s *fakeStore) Delete(context.Context, string) error { return s.err }
 
 func (s *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, bool, error) {
-	return domain.Item{}, s.addCreated, s.err
+	return domain.Item{}, s.addChanged, s.err
 }
 
 type rootResolver struct {
@@ -115,7 +115,7 @@ func TestDisabledCoordinatorFailsExplicitly(t *testing.T) {
 
 func TestCommittedAgentMemoryMutationsPublishInvalidations(t *testing.T) {
 	var notices []invalidation.Notice
-	store := &fakeStore{addCreated: true}
+	store := &fakeStore{addChanged: true}
 	c := New(Config{
 		Store: store,
 		Roots: rootResolver{root: "/repo"},
@@ -140,7 +140,7 @@ func TestCommittedAgentMemoryMutationsPublishInvalidations(t *testing.T) {
 	if len(notices) != 4 {
 		t.Fatalf("notices = %+v, want four", notices)
 	}
-	store.addCreated = false
+	store.addChanged = false
 	if _, err := c.Add(t.Context(), domain.ScopeProject, "/repo", "new"); err != nil {
 		t.Fatal(err)
 	}

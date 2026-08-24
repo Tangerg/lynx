@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P157 已完成；下一阶段待独立准入。
+> 状态：P0–P158 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P157 已完成。
+> 最近基线：2026-08-24，P158 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P158 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `28decb8b5` 证明单次 extraction 可接收 33 条事实、project target 可写入并完整返回 513 个 visible item、corrupt overfull target 不报错、显式 Add 无法恢复 rejected proposal，连续拒绝会保留 2049 个 tombstone。
+- 唯一根修复是 Agent Memory Domain lifecycle capacity + SQLite transaction/strict read：每 target 最多 512 visible 与最近 2048 rejected，单次 extraction/curation 最多 32 条，pending-ledger page 最多 128 条。Add 在 digest lookup、lifecycle promotion 与 capacity count 的一个事务内提交；automatic fold 先释放 stale pending，再按模型输出的重要性前缀填充剩余容量；List/Items/SearchCorpus 用 bound+1 检测 corrupt state，Review reject 同事务删除最旧超额 tombstone。
+- 对 app2 的裁决：采纳 finite complete-list、target capacity、negative-history retention 与 explicit-user revival；把其约束适配到 app/runtime 已有 active-sticky fold、联合 project/user search 和纯文本 curation，不复制 revision shape、独立 runtimehost、数据库迁移链或分页兼容面。Protocol、Artifact v23、SQLite epoch 82、生成合同、公共 Go API、Desktop、Agent Framework 与 CLI 均不改变。
+- P158 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 二进制和目录已精确删除，无残留 Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P157 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例证明辅助模型公共 helper 不设置 output `MaxTokens`，128 条 8KiB Tool result 会把普通维护 transcript 放大到约 1.05MiB，原 compaction 的 per-result cap 仍会形成约 518KiB 总输入。
 - 唯一根修复是 `adapter/utilitymodel.Prompt` request envelope + `runmaintenance` semantic renderer：每次 auxiliary call 必须显式声明并在 provider I/O 前验证 aggregate input bytes/output tokens；maintenance 使用 512KiB hard request、384KiB transcript、24KiB per-message 公平 head/tail policy，不存在 uncapped mode。Title/Memory/Compaction/Skill 分别提交 64/默认 2048/4096/4096 output-token ceiling；compaction trigger 独立测量未裁剪原始 footprint。
 - Memory curation 同批把 current auto memory 与 ledger 分配到独立 whole-entry budget；watermark 只推进到真正进入 prompt 的 ledger prefix 末项，裁掉的 durable fact 保持 pending。对 app2 采纳显式 `MaxTokens`、384KiB aggregate transcript 与 fair-share；拒绝复制 `runtimehost` facade、第二 model resolver、公共协议 shape 或 consumer fallback。本批不改变 Protocol、Artifact v23、SQLite epoch 82、生成合同、公共 Go API、Desktop、Agent Framework 或 CLI。
@@ -370,10 +374,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P155     | Agent Memory project/user recall corpus 可达性闭环                                                      | SQLite 一次读取 exact-project + user active items；Searcher 统一 query signal/ranking/top-k，未 pinned user memory 不再成为无 Agent consumer 的孤岛                     |
 | P156     | Agent Memory durable content 与 prompt budget 闭环                                                     | Domain/SQLite/generated contract 统一 4096 Unicode-character item/fact 上限；pinned/recall 首项也服从 whole-item 4096-token budget                     |
 | P157     | Auxiliary model request 输入/输出资源包络闭环                                                        | utilitymodel 强制 explicit input bytes/output tokens；maintenance transcript 统一 fair-share 总预算，curation watermark 只覆盖实际输入前缀            |
+| P158     | Agent Memory complete-list 与负历史容量闭环                                                        | Domain 统一 target/batch/page/retention 上限；SQLite 原子 admission、严格完整读取、显式 user revival 与 rejected tombstone 回收            |
 
 ## 5. 当前里程碑结论
 
-P113–P157 共同建立了以下不可回退的心智模型：
+P113–P158 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -381,6 +386,7 @@ P113–P157 共同建立了以下不可回退的心智模型：
 - 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - Agent Memory embedding 是 Search-owned derived cache：只比较当前 exact space、同维且 finite 的 vector；role/内容/维度变化由真实 search 惰性重算，cache write 以 item id + content digest + active status 条件提交。Curation 不拥有 embedding resolver、后台 backfill 或第二 rebuild lifecycle。
 - Agent Memory recall 以当前 project context 为唯一入口：exact-project 与 user-scope active items 组成一个 corpus，共享 query signal、ranking 与全局 top-k。prompt/tool consumer 不选择 scope、不各自搜索或 merge，未 pinned 的 user memory 必须仍有 Agent 消费路径。
+- Agent Memory 的管理/prompt/search read model 是有限 complete-list，不是静默分页：每 target 的 visible set、每次 maintenance result、ledger cursor page 与 rejected negative history 分别服从 Domain 唯一上限；显式 user intent 可在原 id 上提升 pending/rejected fact，自动 curation 只能填充真实剩余容量。
 - request-detached auxiliary model call 必须显式拥有 aggregate input-byte 与 output-token envelope；maintenance transcript 只有一个 bounded fair-share renderer，compaction trigger 独立观察 raw footprint。任何 ledger/cursor 只能推进到实际完整进入模型输入的最后一项。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
@@ -423,4 +429,4 @@ P113–P157 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P157 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P158 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

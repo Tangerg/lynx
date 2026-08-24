@@ -59,6 +59,15 @@ func TestAgentMemoryLedgerIsDailyDeduplicatedAndProjectScoped(t *testing.T) {
 	}
 }
 
+func TestAgentMemoryPendingLedgerRequiresBoundedPage(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	if _, err := store.PendingLedger(
+		t.Context(), "/repo", 0, agentmemory.MaxLedgerFoldFacts+1,
+	); err == nil {
+		t.Fatal("oversized pending-ledger page was accepted")
+	}
+}
+
 func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
@@ -311,8 +320,8 @@ func TestAgentMemoryTargetCapacityBoundsCompleteList(t *testing.T) {
 	}
 	if _, _, err := store.Add(
 		t.Context(), agentmemory.ScopeProject, "/repo", "memory 512", now,
-	); err == nil {
-		t.Fatal("513th visible item in one target was accepted")
+	); !errors.Is(err, agentmemory.ErrTargetFull) {
+		t.Fatalf("513th visible item error = %v, want ErrTargetFull", err)
 	}
 	items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	if err != nil || len(items) != 512 {
@@ -322,6 +331,43 @@ func TestAgentMemoryTargetCapacityBoundsCompleteList(t *testing.T) {
 		t.Context(), agentmemory.ScopeProject, "/other", "independent target", now,
 	); err != nil || !created {
 		t.Fatalf("independent target Add = (created=%t, err=%v)", created, err)
+	}
+}
+
+func TestAgentMemoryReconcilePublishesOnlyAvailableTargetCapacity(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 8, 24, 1, 0, 0, 0, time.UTC)
+	for index := range agentmemory.MaxVisiblePerTarget - 1 {
+		if _, _, err := store.Add(
+			t.Context(), agentmemory.ScopeProject, "/repo",
+			fmt.Sprintf("accepted memory %d", index), now,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	facts := appendAgentFacts(t, store, "/repo", "2026-08-24", "ledger fact")
+	published, err := store.Reconcile(
+		t.Context(), "/repo", 0, facts[0].Sequence,
+		[]string{"highest priority proposal", "lower priority proposal"}, now.Add(time.Second),
+	)
+	if err != nil || !published {
+		t.Fatalf("Reconcile = (%t, %v)", published, err)
+	}
+	items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != agentmemory.MaxVisiblePerTarget {
+		t.Fatalf("List = (%d items, %v)", len(items), err)
+	}
+	if items[0].Content != "highest priority proposal" || items[0].Status != agentmemory.StatusPending {
+		t.Fatalf("capacity proposal = %+v", items[0])
+	}
+	if slices.ContainsFunc(items, func(item agentmemory.Item) bool {
+		return item.Content == "lower priority proposal"
+	}) {
+		t.Fatal("lower-priority proposal exceeded the target capacity")
+	}
+	state, err := store.State(t.Context(), "/repo")
+	if err != nil || state.Watermark != facts[0].Sequence {
+		t.Fatalf("state = (%+v, %v)", state, err)
 	}
 }
 
@@ -349,8 +395,24 @@ func TestAgentMemoryListRejectsCorruptOverfullTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := sqlite.NewAgentMemoryStore(db)
-	if items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo"); err == nil {
-		t.Fatalf("overfull complete-list target returned %d items without an error", len(items))
+	queries := []struct {
+		name string
+		read func() ([]agentmemory.Item, error)
+	}{
+		{name: "management list", read: func() ([]agentmemory.Item, error) {
+			return store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+		}},
+		{name: "prompt items", read: func() ([]agentmemory.Item, error) {
+			return store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+		}},
+		{name: "search corpus", read: func() ([]agentmemory.Item, error) {
+			return store.SearchCorpus(t.Context(), "/repo")
+		}},
+	}
+	for _, query := range queries {
+		if items, err := query.read(); err == nil {
+			t.Errorf("%s returned %d overfull items without an error", query.name, len(items))
+		}
 	}
 }
 
@@ -615,5 +677,47 @@ func TestAgentMemoryConcurrentAddReportsOneCreation(t *testing.T) {
 	})
 	if distinct != 1 {
 		t.Fatalf("distinct item ids = %d, want 1", distinct)
+	}
+}
+
+func TestAgentMemoryConcurrentAddsCannotExceedTargetCapacity(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 8, 24, 1, 0, 0, 0, time.UTC)
+	for index := range agentmemory.MaxVisiblePerTarget - 1 {
+		if _, _, err := store.Add(
+			t.Context(), agentmemory.ScopeProject, "/repo", fmt.Sprintf("existing %d", index), now,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var created atomic.Int32
+	var wg sync.WaitGroup
+	for index := range 8 {
+		wg.Go(func() {
+			_, inserted, err := store.Add(
+				t.Context(), agentmemory.ScopeProject, "/repo",
+				fmt.Sprintf("concurrent %d", index), now.Add(time.Second),
+			)
+			if errors.Is(err, agentmemory.ErrTargetFull) {
+				return
+			}
+			if err != nil {
+				t.Errorf("Add: %v", err)
+				return
+			}
+			if !inserted {
+				t.Error("unique concurrent Add was reported as idempotent")
+				return
+			}
+			created.Add(1)
+		})
+	}
+	wg.Wait()
+	if got := created.Load(); got != 1 {
+		t.Fatalf("created = %d, want exactly one remaining slot winner", got)
+	}
+	items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != agentmemory.MaxVisiblePerTarget {
+		t.Fatalf("List = (%d items, %v)", len(items), err)
 	}
 }

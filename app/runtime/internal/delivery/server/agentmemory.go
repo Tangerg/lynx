@@ -127,6 +127,8 @@ func mapAgentMemoryErr(err error, method string) error {
 		return fmt.Errorf("%w: no such memory item", protocol.ErrInvalidParams)
 	case errors.Is(err, agentmemory.ErrNotPending):
 		return fmt.Errorf("%w: memory item is not pending review", protocol.ErrInvalidParams)
+	case errors.Is(err, agentmemory.ErrTargetFull):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	default:
 		return wireWorkspaceError(err)
 	}

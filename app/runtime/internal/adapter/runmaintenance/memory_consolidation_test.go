@@ -190,6 +190,16 @@ func TestCurationGateAndTokenEstimate(t *testing.T) {
 	}
 }
 
+func TestMemoryCurationConfigCannotExpandLedgerReadBound(t *testing.T) {
+	config := (MemoryCurationConfig{
+		MinPendingFacts: 1,
+		MaxPendingFacts: agentmemory.MaxLedgerFoldFacts + 1,
+	}).normalized()
+	if config.MaxPendingFacts != agentmemory.MaxLedgerFoldFacts {
+		t.Fatalf("MaxPendingFacts = %d, want %d", config.MaxPendingFacts, agentmemory.MaxLedgerFoldFacts)
+	}
+}
+
 func TestMemoryConsolidatorDoesNotAdvanceWatermarkForOversizedCuration(t *testing.T) {
 	consolidator, memory, _ := memoryConsolidationFixture(t,
 		scriptedReply{text: "- durable fact"},
