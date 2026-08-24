@@ -229,6 +229,19 @@ func TestDiscoverAgentDocsRejectsInvalidUTF8(t *testing.T) {
 	}
 }
 
+func TestDiscoverAgentDocsRejectsBrokenHigherPrecedenceSource(t *testing.T) {
+	root := t.TempDir()
+	mkGitDir(t, root)
+	if err := os.Symlink("missing-agent-document", filepath.Join(root, "AGENTS.md")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	writeFile(t, filepath.Join(root, "agents.md"), "lower-precedence rule")
+
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), root, ""); err == nil {
+		t.Fatal("DiscoverAgentDocs silently fell back past an existing broken source")
+	}
+}
+
 func TestDiscoverAgentDocsRequiresAbsoluteCompositionPaths(t *testing.T) {
 	if _, err := promptsource.DiscoverAgentDocs(t.Context(), "relative-workspace", ""); err == nil {
 		t.Fatal("DiscoverAgentDocs accepted a relative cwd")
