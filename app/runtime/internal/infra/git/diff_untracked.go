@@ -1,12 +1,16 @@
 package git
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 )
+
+const maxUntrackedDiffPaths = 10_000
 
 // untrackedPaths lists untracked files (status ??), optionally under relPath.
 func untrackedPaths(ctx context.Context, dir, relPath string) ([]string, error) {
@@ -19,47 +23,64 @@ func untrackedPaths(ctx context.Context, dir, relPath string) ([]string, error) 
 		return nil, err
 	}
 	var paths []string
-	for path := range strings.SplitSeq(out, "\x00") {
-		if path != "" {
-			paths = append(paths, path)
+	for path := range bytes.SplitSeq(out, []byte{0}) {
+		if len(path) != 0 {
+			if len(paths) >= maxUntrackedDiffPaths {
+				return nil, fmt.Errorf("%w: more than %d untracked diff paths", ErrResultTooLarge, maxUntrackedDiffPaths)
+			}
+			paths = append(paths, string(path))
 		}
 	}
 	return paths, nil
 }
 
-// untrackedDiffFile builds an all-added DiffFile by reading the untracked file.
-// Binary files surface as binary:true with no rows.
-func untrackedDiffFile(dir, rel string) (DiffFile, bool) {
-	data, err := os.ReadFile(filepath.Join(dir, rel))
+// untrackedFileStat streams one untracked regular file for its Git-facing line
+// count and binary bit. A symbolic link is one link-target line; its referent is
+// never read as workspace material.
+func untrackedFileStat(ctx context.Context, dir, rel string) (int, bool, error) {
+	path := filepath.Join(dir, rel)
+	info, err := os.Lstat(path)
 	if err != nil {
-		return DiffFile{}, false
+		return 0, false, fmt.Errorf("git: inspect untracked file %q: %w", rel, err)
 	}
-	df := DiffFile{Path: rel, Status: StatusUntracked}
-	if looksBinary(data) {
-		df.Binary = true
-		return df, true
+	if info.Mode()&os.ModeSymlink != 0 {
+		return 1, false, nil
 	}
-	text := strings.TrimSuffix(string(data), "\n")
-	lines := strings.Split(text, "\n")
-	if len(data) == 0 {
-		lines = nil
+	if !info.Mode().IsRegular() {
+		return 0, true, nil
 	}
-	df.Rows = append(df.Rows, Row{Type: RowHunk, Text: "@@ -0,0 +1," + strconv.Itoa(len(lines)) + " @@"})
-	for i, ln := range lines {
-		df.Rows = append(df.Rows, Row{Type: RowAdded, RightLine: i + 1, Code: ln})
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, false, fmt.Errorf("git: open untracked file %q: %w", rel, err)
 	}
-	df.Added = len(lines)
-	return df, true
-}
-
-// looksBinary reports whether data appears to be binary (a NUL byte in the
-// first 8KB — git's own heuristic).
-func looksBinary(data []byte) bool {
-	n := min(len(data), 8000)
-	for i := range n {
-		if data[i] == 0 {
-			return true
+	defer file.Close()
+	buffer := make([]byte, 64<<10)
+	lines := 0
+	var last byte
+	nonempty := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, false, err
+		}
+		count, readErr := file.Read(buffer)
+		if count > 0 {
+			nonempty = true
+			chunk := buffer[:count]
+			if bytes.IndexByte(chunk, 0) >= 0 {
+				return 0, true, nil
+			}
+			lines += bytes.Count(chunk, []byte{'\n'})
+			last = chunk[len(chunk)-1]
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return 0, false, fmt.Errorf("git: read untracked file %q: %w", rel, readErr)
 		}
 	}
-	return false
+	if nonempty && last != '\n' {
+		lines++
+	}
+	return lines, false, nil
 }

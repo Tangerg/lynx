@@ -105,13 +105,15 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 	var files []string
 	if !opts.IncludeIgnored {
 		var err error
-		files, err = git.ListFiles(ctx, root, sub)
+		files, err = git.ListFiles(ctx, root, sub, maxListEntries)
 		switch {
 		case err == nil:
 			repository = true
 		case errors.Is(err, git.ErrNotRepo), errors.Is(err, git.ErrUnavailable):
 			// Git-aware listing is unavailable for this workspace. The
 			// filesystem fallback below remains authoritative in this case.
+		case errors.Is(err, git.ErrResultTooLarge):
+			return nil, fmt.Errorf("%w: more than %d files", ErrListingTooLarge, maxListEntries)
 		default:
 			return nil, err
 		}

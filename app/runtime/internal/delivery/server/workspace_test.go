@@ -58,7 +58,7 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 	roots := workspaceapp.NewScope(cwd, cwd, workspacepath.Resolver{})
 	watcher := cfg.Watcher
 	if watcher == nil {
-		watcher = workspaceadapter.GitWatcher{}
+		watcher = workspaceadapter.NewGitWatcher(context.Background())
 	}
 	authoredWatcher := cfg.AuthoredWatcher
 	if authoredWatcher == nil {

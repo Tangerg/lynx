@@ -454,7 +454,10 @@ func buildAssemblyCore(
 	workspaceHooks := workspace.NewHooks(
 		workspaceServices.scope, cfg.HooksResolver, cfg.HookTrustStore, policy.invalidations.Publish,
 	)
-	workspaceWatch := workspace.NewGitWatch(workspaceServices.scope, checkpointstore.GitWatcher{})
+	workspaceWatch := workspace.NewGitWatch(
+		workspaceServices.scope,
+		checkpointstore.NewGitWatcher(lifetime.context),
+	)
 	host := &Host{
 		application: &hostApplication{
 			delivery: server.Config{

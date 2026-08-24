@@ -3,8 +3,8 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
-	"strings"
 )
 
 // ErrNoBase means mode=base could not resolve a base branch: there is no remote
@@ -55,44 +55,85 @@ type DiffFile struct {
 	Rows         []Row
 }
 
-// Diff returns the per-file parsed diff for dir under the given mode, optionally
-// scoped to relPath (relative to dir). Worktree mode appends untracked files as
-// all-added diffs. Returns ErrNotRepo / ErrUnavailable / ErrNoBase as the
-// caller needs to distinguish them.
-func Diff(ctx context.Context, dir, relPath string, mode Mode) ([]DiffFile, error) {
-	patch, untracked, err := diffSources(ctx, dir, relPath, mode)
+// Diff returns a whole-file parsed projection for dir under the given mode,
+// optionally scoped to relPath (relative to dir). Worktree mode includes
+// untracked files through Git's no-index patch semantics. maxFiles, maxRows,
+// and maxBytes are hard pre-materialization boundaries; truncated reports a
+// complete-file cut. Repository and process sentinels remain distinguishable.
+func Diff(ctx context.Context, dir, relPath string, mode Mode, maxFiles, maxRows, maxBytes int) ([]DiffFile, bool, error) {
+	patch, untracked, err := completeDiff(ctx, dir, relPath, mode, maxBytes)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	files, err := parseUnifiedDiff(patch)
+	files, truncated, err := parseUnifiedDiff(patch, maxFiles, maxRows)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	for _, u := range untracked {
-		if df, ok := untrackedDiffFile(dir, u); ok {
-			files = append(files, df)
+	for index := range files {
+		if _, ok := untracked[files[index].Path]; ok {
+			files[index].Status = StatusUntracked
 		}
 	}
-	return files, nil
+	return files, truncated, nil
 }
 
-// RawDiff returns the raw unified patch text (format=raw). Worktree mode appends
-// per-untracked no-index patches so the raw view matches the parsed one.
-func RawDiff(ctx context.Context, dir, relPath string, mode Mode) (string, error) {
-	patch, untracked, err := diffSources(ctx, dir, relPath, mode)
+// RawDiff returns at most maxBytes of complete raw unified patch text. Worktree
+// mode appends per-untracked no-index patches so the raw view matches the
+// parsed one; an oversized aggregate fails instead of returning a partial patch.
+func RawDiff(ctx context.Context, dir, relPath string, mode Mode, maxBytes int) (string, error) {
+	patch, _, err := completeDiff(ctx, dir, relPath, mode, maxBytes)
 	if err != nil {
 		return "", err
 	}
-	var b strings.Builder
-	b.WriteString(patch)
-	for _, u := range untracked {
+	return string(patch), nil
+}
+
+func completeDiff(ctx context.Context, dir, relPath string, mode Mode, maxBytes int) ([]byte, map[string]struct{}, error) {
+	if maxBytes <= 0 {
+		return nil, nil, fmt.Errorf("%w: diff requires a positive byte limit", ErrResultTooLarge)
+	}
+	patch, untrackedPaths, err := diffSources(ctx, dir, relPath, mode)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(patch) > maxBytes {
+		return nil, nil, fmt.Errorf("%w: aggregate diff exceeds %d bytes", ErrResultTooLarge, maxBytes)
+	}
+	untracked := make(map[string]struct{}, len(untrackedPaths))
+	for _, path := range untrackedPaths {
+		untracked[path] = struct{}{}
 		// no-index diff of /dev/null vs the file; Git uses exit code 1 to report
 		// the expected fact that the two paths differ.
-		out, err := runAllowingExitCode(ctx, dir, 1, "diff", "--no-index", "--", os.DevNull, u)
+		out, err := runAllowingExitCode(
+			ctx,
+			dir,
+			1,
+			"diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, path,
+		)
 		if err != nil {
-			return "", err
+			return nil, nil, err
 		}
-		b.WriteString(out)
+		patch, err = appendDiffPatch(patch, out, maxBytes)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-	return b.String(), nil
+	return patch, untracked, nil
+}
+
+func appendDiffPatch(existing, addition []byte, maxBytes int) ([]byte, error) {
+	if len(addition) == 0 {
+		return existing, nil
+	}
+	separator := 0
+	if len(existing) > 0 && existing[len(existing)-1] != '\n' {
+		separator = 1
+	}
+	if len(existing) > maxBytes-separator || len(addition) > maxBytes-len(existing)-separator {
+		return nil, fmt.Errorf("%w: aggregate diff exceeds %d bytes", ErrResultTooLarge, maxBytes)
+	}
+	if separator != 0 {
+		existing = append(existing, '\n')
+	}
+	return append(existing, addition...), nil
 }

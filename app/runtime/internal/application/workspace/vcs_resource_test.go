@@ -14,6 +14,7 @@ type resourceGitReader struct {
 	changeMax int
 	diffFiles int
 	diffRows  int
+	diffBytes int
 }
 
 func (reader *resourceGitReader) Changes(_ context.Context, _ string, maxChanges int) ([]FileChange, error) {
@@ -21,12 +22,12 @@ func (reader *resourceGitReader) Changes(_ context.Context, _ string, maxChanges
 	return reader.changes, nil
 }
 
-func (reader *resourceGitReader) StructuredDiff(_ context.Context, _, _ string, _ bool, maxFiles, maxRows int) (StructuredDiffResult, error) {
-	reader.diffFiles, reader.diffRows = maxFiles, maxRows
+func (reader *resourceGitReader) StructuredDiff(_ context.Context, _, _ string, _ bool, maxFiles, maxRows, maxBytes int) (StructuredDiffResult, error) {
+	reader.diffFiles, reader.diffRows, reader.diffBytes = maxFiles, maxRows, maxBytes
 	return StructuredDiffResult{Files: reader.files}, nil
 }
 
-func (reader *resourceGitReader) RawDiff(context.Context, string, string, bool) (string, error) {
+func (reader *resourceGitReader) RawDiff(context.Context, string, string, bool, int) (string, error) {
 	return reader.patch, nil
 }
 
@@ -67,7 +68,7 @@ func TestVCSDiffAppliesMaterialBudgetAtTheFirstFileBoundary(t *testing.T) {
 			Status: FileStatusModified,
 			Rows: []DiffRow{{
 				Type: DiffRowAdded,
-				Code: strings.Repeat("x", MaxWorkspaceRawDiffBytes+1),
+				Code: strings.Repeat("x", MaxWorkspaceDiffBytes+1),
 			}},
 		}},
 	})
@@ -83,7 +84,7 @@ func TestVCSDiffAppliesMaterialBudgetAtTheFirstFileBoundary(t *testing.T) {
 
 func TestVCSRejectsUnboundedRawDiffFromDirectPort(t *testing.T) {
 	vcs := NewVCS(NewScope("", "", testPaths{}), &resourceGitReader{
-		patch: strings.Repeat("p", MaxWorkspaceRawDiffBytes+1),
+		patch: strings.Repeat("p", MaxWorkspaceDiffBytes+1),
 	})
 
 	if _, err := vcs.Diff(t.Context(), DiffInput{CWD: "/repo", Raw: true}); !errors.Is(err, ErrVCSResultTooLarge) {
@@ -100,12 +101,14 @@ func TestVCSPassesApplicationLimitsToTheGitReader(t *testing.T) {
 	if _, err := vcs.Diff(t.Context(), DiffInput{CWD: "/repo", Limit: 42}); err != nil {
 		t.Fatal(err)
 	}
-	if reader.changeMax != MaxWorkspaceChanges || reader.diffFiles != MaxWorkspaceDiffFiles || reader.diffRows != 42 {
+	if reader.changeMax != MaxWorkspaceChanges || reader.diffFiles != MaxWorkspaceDiffFiles ||
+		reader.diffRows != 42 || reader.diffBytes != MaxWorkspaceDiffBytes {
 		t.Fatalf(
-			"reader limits = changes:%d files:%d rows:%d",
+			"reader limits = changes:%d files:%d rows:%d bytes:%d",
 			reader.changeMax,
 			reader.diffFiles,
 			reader.diffRows,
+			reader.diffBytes,
 		)
 	}
 }

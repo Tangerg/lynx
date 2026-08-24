@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -21,27 +22,43 @@ import (
 // GitWatcher adapts platform filesystem notifications to the workspace
 // application's Git-state observation port. It watches only .git signal
 // directories (never a project tree), keeping the descriptor cost fixed even
-// for large repositories.
-type GitWatcher struct{}
+// for large repositories. Its observation commands derive from the Runtime
+// lifetime supplied at construction.
+type GitWatcher struct {
+	lifetime context.Context
+}
+
+// NewGitWatcher binds Git observation to the owning Runtime lifetime.
+func NewGitWatcher(lifetime context.Context) GitWatcher {
+	return GitWatcher{lifetime: lifetime}
+}
 
 var _ workspaceapp.GitStateWatcher = GitWatcher{}
 
 const gitWatchDebounce = 200 * time.Millisecond
 
+const gitObservationTimeout = 10 * time.Second
+
 // Watch observes every distinct repository reached from roots. A
 // non-repository root is intentionally inert: its diff view is unavailable as
 // well, but the surrounding workspace subscription remains valid.
-func (GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
-	repositories := watchedRepositories(roots)
+func (watcher GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
+	if watcher.lifetime == nil {
+		return nil, errors.New("workspace: Git watcher lifetime is required")
+	}
+	lifetime, stop := context.WithCancel(watcher.lifetime)
+	repositories := watchedRepositories(lifetime, roots)
 	if len(repositories) == 0 {
+		stop()
 		return nopWatch{}, nil
 	}
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
+		stop()
 		return nil, err
 	}
 	w := &gitWatch{
-		fsw: fsw, notify: notify, repositories: repositories,
+		fsw: fsw, notify: notify, repositories: repositories, lifetime: lifetime, stop: stop,
 		done: make(chan struct{}), exited: make(chan struct{}),
 	}
 	addedDirectories := make(map[string]struct{})
@@ -51,10 +68,12 @@ func (GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
 		// ordinary checkout and distinct for `git worktree` checkouts.
 		for _, gitDir := range []string{repository.gitDir, repository.commonDir} {
 			if err := addGitWatch(fsw, addedDirectories, gitDir, false); err != nil {
+				stop()
 				return nil, closeFailedWatch(fsw, err)
 			}
 		}
 		if err := addGitWatch(fsw, addedDirectories, filepath.Join(repository.commonDir, "refs", "heads"), true); err != nil {
+			stop()
 			return nil, closeFailedWatch(fsw, err)
 		}
 	}
@@ -70,11 +89,11 @@ type watchedRepository struct {
 	valid       bool
 }
 
-func watchedRepositories(roots []string) []watchedRepository {
+func watchedRepositories(lifetime context.Context, roots []string) []watchedRepository {
 	seen := make(map[string]struct{}, len(roots))
 	repositories := make([]watchedRepository, 0, len(roots))
 	for _, root := range roots {
-		gitDir, commonDir, ok := gitDirectoriesOf(root)
+		gitDir, commonDir, ok := gitDirectoriesOf(lifetime, root)
 		if !ok {
 			continue
 		}
@@ -86,7 +105,7 @@ func watchedRepositories(roots []string) []watchedRepository {
 			continue
 		}
 		seen[identity] = struct{}{}
-		fingerprint, valid := semanticGitFingerprint(root)
+		fingerprint, valid := semanticGitFingerprint(lifetime, root)
 		repositories = append(repositories, watchedRepository{
 			root: root, gitDir: gitDir, commonDir: commonDir,
 			fingerprint: fingerprint, valid: valid,
@@ -95,13 +114,13 @@ func watchedRepositories(roots []string) []watchedRepository {
 	return repositories
 }
 
-func gitDirectoriesOf(root string) (gitDir, commonDir string, ok bool) {
-	gitDirOutput, ok := gitObservation(root, "rev-parse", "--absolute-git-dir")
+func gitDirectoriesOf(lifetime context.Context, root string) (gitDir, commonDir string, ok bool) {
+	gitDirOutput, ok := gitObservation(lifetime, root, "rev-parse", "--absolute-git-dir")
 	if !ok {
 		return "", "", false
 	}
 	gitDir = strings.TrimRight(string(gitDirOutput), "\r\n")
-	commonDirOutput, ok := gitObservation(root, "rev-parse", "--git-common-dir")
+	commonDirOutput, ok := gitObservation(lifetime, root, "rev-parse", "--git-common-dir")
 	if !ok {
 		return "", "", false
 	}
@@ -145,6 +164,8 @@ type gitWatch struct {
 	fsw          *fsnotify.Watcher
 	notify       func()
 	repositories []watchedRepository
+	lifetime     context.Context
+	stop         context.CancelFunc
 	done         chan struct{}
 	exited       chan struct{}
 	closeOnce    sync.Once
@@ -192,7 +213,7 @@ func (w *gitWatch) semanticStateChanged() bool {
 	changed := false
 	for index := range w.repositories {
 		repository := &w.repositories[index]
-		next, valid := semanticGitFingerprint(repository.root)
+		next, valid := semanticGitFingerprint(w.lifetime, repository.root)
 		if !valid || !repository.valid || next != repository.fingerprint {
 			changed = true
 		}
@@ -202,17 +223,17 @@ func (w *gitWatch) semanticStateChanged() bool {
 	return changed
 }
 
-func semanticGitFingerprint(root string) ([sha256.Size]byte, bool) {
-	head, headOK := gitObservation(root, "rev-parse", "--verify", "HEAD")
+func semanticGitFingerprint(lifetime context.Context, root string) ([sha256.Size]byte, bool) {
+	head, headOK := gitObservation(lifetime, root, "rev-parse", "--verify", "HEAD")
 	if !headOK {
 		// An unborn repository has no commit yet. Its symbolic ref still matters:
 		// changing the branch name is a semantic move even before the first commit.
-		head, headOK = gitObservation(root, "symbolic-ref", "--quiet", "HEAD")
+		head, headOK = gitObservation(lifetime, root, "symbolic-ref", "--quiet", "HEAD")
 		if !headOK {
 			return [sha256.Size]byte{}, false
 		}
 	}
-	index, ok := gitObservation(root, "ls-files", "--stage", "-z")
+	index, ok := gitObservation(lifetime, root, "ls-files", "--stage", "-z")
 	if !ok {
 		return [sha256.Size]byte{}, false
 	}
@@ -223,16 +244,19 @@ func semanticGitFingerprint(root string) ([sha256.Size]byte, bool) {
 	return sha256.Sum256(state), true
 }
 
-func gitObservation(root string, args ...string) ([]byte, bool) {
-	full := append([]string{"--no-optional-locks", "-C", root}, args...)
-	output, err := gitprocess.Command(full...).Output()
-	return output, err == nil
+func gitObservation(lifetime context.Context, root string, args ...string) ([]byte, bool) {
+	ctx, cancel := context.WithTimeout(lifetime, gitObservationTimeout)
+	defer cancel()
+	full := append([]string{"--no-pager", "--no-optional-locks", "-C", root}, args...)
+	result, err := gitprocess.Run(ctx, nil, full...)
+	return result.Stdout, err == nil && result.ExitCode == 0
 }
 
 // Close joins the callback goroutine before closing the underlying watcher, so
 // a caller can safely close its output channel immediately afterwards.
 func (w *gitWatch) Close() error {
 	w.closeOnce.Do(func() {
+		w.stop()
 		close(w.done)
 		<-w.exited
 		_ = w.fsw.Close()

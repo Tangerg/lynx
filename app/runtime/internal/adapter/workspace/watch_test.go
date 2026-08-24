@@ -20,7 +20,7 @@ func TestGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {
 		t.Fatalf("remove git dir: %v", err)
 	}
 
-	watcher, err := (GitWatcher{}).Watch([]string{root}, func() {})
+	watcher, err := NewGitWatcher(t.Context()).Watch([]string{root}, func() {})
 	if err != nil {
 		t.Fatalf("non-repository root should produce an inert watcher: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestGitWatcherIgnoresIndexStatRefreshButPublishesStageChange(t *testing.T) 
 	gitCommand(t, root, "commit", "-m", "initial")
 
 	notified := make(chan struct{}, 2)
-	watcher, err := (GitWatcher{}).Watch([]string{root}, func() { notified <- struct{}{} })
+	watcher, err := NewGitWatcher(t.Context()).Watch([]string{root}, func() { notified <- struct{}{} })
 	if err != nil {
 		t.Fatalf("watch repository: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestGitWatcherIgnoresIndexStatRefreshButPublishesStageChange(t *testing.T) 
 	// This compound read makes Git refresh index stat data on versions where
 	// diff treats that refresh as mandatory. The physical index replacement is
 	// not a staged/HEAD change and must stay below the watcher abstraction.
-	if _, err := ListChanges(t.Context(), root); err != nil {
+	if _, err := ListChanges(t.Context(), root, 10_000); err != nil {
 		t.Fatalf("ListChanges: %v", err)
 	}
 	select {
@@ -102,7 +102,7 @@ func TestGitWatcherResolvesRepositoryFromNestedWorkspace(t *testing.T) {
 	gitCommand(t, root, "commit", "-m", "initial")
 
 	notified := make(chan struct{}, 1)
-	watcher, err := (GitWatcher{}).Watch([]string{nested}, func() { notified <- struct{}{} })
+	watcher, err := NewGitWatcher(t.Context()).Watch([]string{nested}, func() { notified <- struct{}{} })
 	if err != nil {
 		t.Fatalf("watch nested workspace: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestGitWatcherKeepsDistinctScopesWithinOneRepository(t *testing.T) {
 	gitCommand(t, root, "add", "packages/first/tracked.txt", "packages/second/tracked.txt")
 
 	notified := make(chan struct{}, 1)
-	watcher, err := (GitWatcher{}).Watch([]string{first, second}, func() {
+	watcher, err := NewGitWatcher(t.Context()).Watch([]string{first, second}, func() {
 		select {
 		case notified <- struct{}{}:
 		default:
@@ -188,7 +188,7 @@ func TestGitWatcherObservesLinkedWorktreeFromNestedWorkspace(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatalf("mkdir nested worktree workspace: %v", err)
 	}
-	gitDir, commonDir, ok := gitDirectoriesOf(nested)
+	gitDir, commonDir, ok := gitDirectoriesOf(t.Context(), nested)
 	if !ok {
 		t.Fatal("linked worktree was not resolved as a repository")
 	}
@@ -197,7 +197,7 @@ func TestGitWatcherObservesLinkedWorktreeFromNestedWorkspace(t *testing.T) {
 	}
 
 	notified := make(chan struct{}, 1)
-	watcher, err := (GitWatcher{}).Watch([]string{nested}, func() {
+	watcher, err := NewGitWatcher(t.Context()).Watch([]string{nested}, func() {
 		select {
 		case notified <- struct{}{}:
 		default:
@@ -235,7 +235,7 @@ func TestGitWatcherIgnoresAmbientRepositoryRouting(t *testing.T) {
 	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
 	t.Setenv("GIT_WORK_TREE", foreign)
 
-	gitDir, commonDir, ok := gitDirectoriesOf(root)
+	gitDir, commonDir, ok := gitDirectoriesOf(t.Context(), root)
 	if !ok {
 		t.Fatal("requested workspace was not resolved as a repository")
 	}

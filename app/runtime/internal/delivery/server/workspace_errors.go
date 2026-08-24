@@ -47,6 +47,7 @@ func wireWorkspaceError(err error) error {
 		errors.Is(err, workspaceapp.ErrFileListTooLarge),
 		errors.Is(err, workspaceapp.ErrPageLimit),
 		errors.Is(err, workspaceapp.ErrPageCursor),
+		errors.Is(err, workspaceapp.ErrVCSResultTooLarge),
 		errors.Is(err, workspaceapp.ErrVCSBaseUnknown):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, workspaceapp.ErrVCSUnavailable):

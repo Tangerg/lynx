@@ -45,6 +45,17 @@ func write(t *testing.T, dir, name, body string) {
 	}
 }
 
+func testChanges(ctx context.Context, dir string) ([]FileChange, error) {
+	return ListChanges(ctx, dir, 10_000)
+}
+
+const testMaxDiffBytes = 64 << 20
+
+func testDiff(ctx context.Context, dir, path string, mode Mode) ([]DiffFile, error) {
+	files, _, err := Diff(ctx, dir, path, mode, 5_000, 5_000, testMaxDiffBytes)
+	return files, err
+}
+
 func TestRepositoryReadsPreserveCancellation(t *testing.T) {
 	dir := initRepo(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -54,10 +65,10 @@ func TestRepositoryReadsPreserveCancellation(t *testing.T) {
 		name string
 		read func() error
 	}{
-		{name: "changes", read: func() error { _, err := ListChanges(ctx, dir); return err }},
-		{name: "files", read: func() error { _, err := ListFiles(ctx, dir, "."); return err }},
-		{name: "structured diff", read: func() error { _, err := Diff(ctx, dir, "", Worktree); return err }},
-		{name: "raw diff", read: func() error { _, err := RawDiff(ctx, dir, "", Worktree); return err }},
+		{name: "changes", read: func() error { _, err := testChanges(ctx, dir); return err }},
+		{name: "files", read: func() error { _, err := ListFiles(ctx, dir, ".", 20_000); return err }},
+		{name: "structured diff", read: func() error { _, err := testDiff(ctx, dir, "", Worktree); return err }},
+		{name: "raw diff", read: func() error { _, err := RawDiff(ctx, dir, "", Worktree, testMaxDiffBytes); return err }},
 	}
 	for _, test := range reads {
 		t.Run(test.name, func(t *testing.T) {
@@ -76,14 +87,14 @@ func TestWorktreeDiffKeepsUnbornRepositorySemantics(t *testing.T) {
 	gitTestCommand(t, dir, "init", "-b", "main")
 	write(t, dir, "new.txt", "new\n")
 
-	files, err := Diff(t.Context(), dir, "", Worktree)
+	files, err := testDiff(t.Context(), dir, "", Worktree)
 	if err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
 	if len(files) != 1 || files[0].Path != "new.txt" || files[0].Status != StatusUntracked {
 		t.Fatalf("Diff = %+v, want unborn repository's untracked file", files)
 	}
-	patch, err := RawDiff(t.Context(), dir, "", Worktree)
+	patch, err := RawDiff(t.Context(), dir, "", Worktree, testMaxDiffBytes)
 	if err != nil {
 		t.Fatalf("RawDiff: %v", err)
 	}
@@ -100,7 +111,7 @@ func TestListChangesAndDiff(t *testing.T) {
 	write(t, dir, "a.txt", "a\nB\nc\nd\n") // modify line 2, add line 4
 	write(t, dir, "new.txt", "x\ny\n")     // untracked
 
-	changes, err := ListChanges(ctx, dir)
+	changes, err := testChanges(ctx, dir)
 	if err != nil {
 		t.Fatalf("ListChanges: %v", err)
 	}
@@ -115,7 +126,7 @@ func TestListChangesAndDiff(t *testing.T) {
 		t.Errorf("new.txt status = %q, want untracked", c.Status)
 	}
 
-	files, err := Diff(ctx, dir, "", Worktree)
+	files, err := testDiff(ctx, dir, "", Worktree)
 	if err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
@@ -147,7 +158,7 @@ func TestNestedWorkspaceVCSReadsStayJailedAndWorkspaceRelative(t *testing.T) {
 	write(t, root, "outside-untracked.txt", "outside\n")
 	write(t, nested, "inside-untracked.txt", "one\ntwo\n")
 
-	changes, err := ListChanges(t.Context(), nested)
+	changes, err := testChanges(t.Context(), nested)
 	if err != nil {
 		t.Fatalf("ListChanges: %v", err)
 	}
@@ -170,7 +181,7 @@ func TestNestedWorkspaceVCSReadsStayJailedAndWorkspaceRelative(t *testing.T) {
 		}
 	}
 
-	files, err := Diff(t.Context(), nested, "", Worktree)
+	files, err := testDiff(t.Context(), nested, "", Worktree)
 	if err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
@@ -181,14 +192,14 @@ func TestNestedWorkspaceVCSReadsStayJailedAndWorkspaceRelative(t *testing.T) {
 	if len(files) != 2 || diffByPath["inside.txt"].Status != StatusModified || diffByPath["inside-untracked.txt"].Status != StatusUntracked {
 		t.Fatalf("diff files = %+v, want workspace-relative nested files", files)
 	}
-	selected, err := Diff(t.Context(), nested, filepath.Join(nested, "inside.txt"), Worktree)
+	selected, err := testDiff(t.Context(), nested, filepath.Join(nested, "inside.txt"), Worktree)
 	if err != nil {
 		t.Fatalf("Diff selected absolute path: %v", err)
 	}
 	if len(selected) != 1 || selected[0].Path != "inside.txt" {
 		t.Fatalf("selected diff = %+v, want inside.txt", selected)
 	}
-	if _, err := Diff(t.Context(), nested, filepath.Join(root, "a.txt"), Worktree); err == nil {
+	if _, err := testDiff(t.Context(), nested, filepath.Join(root, "a.txt"), Worktree); err == nil {
 		t.Fatal("Diff accepted a path outside the nested workspace")
 	}
 }
@@ -197,7 +208,7 @@ func TestNestedWorkspaceVCSReadsStayJailedAndWorkspaceRelative(t *testing.T) {
 func TestDiffRowsStructure(t *testing.T) {
 	dir := initRepo(t)
 	write(t, dir, "a.txt", "a\nB\nc\n") // change line 2: b → B
-	files, err := Diff(context.Background(), dir, "a.txt", Worktree)
+	files, err := testDiff(context.Background(), dir, "a.txt", Worktree)
 	if err != nil {
 		t.Fatalf("Diff: %v", err)
 	}
@@ -225,7 +236,7 @@ func TestNotRepo(t *testing.T) {
 	if !Available() {
 		t.Skip("git not on PATH")
 	}
-	if _, err := ListChanges(context.Background(), t.TempDir()); !errors.Is(err, ErrNotRepo) {
+	if _, err := testChanges(context.Background(), t.TempDir()); !errors.Is(err, ErrNotRepo) {
 		t.Errorf("ListChanges on non-repo err = %v, want ErrNotRepo", err)
 	}
 }
@@ -267,7 +278,7 @@ func TestRunAllowsDocumentedExitCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runAllowingExitCode: %v", err)
 	}
-	if !strings.Contains(out, "+new") {
+	if !bytes.Contains(out, []byte("+new")) {
 		t.Fatalf("diff output = %q, want added content", out)
 	}
 }
@@ -294,7 +305,7 @@ func TestListChangesUsesGitSymlinkStatInsteadOfReadingTheTarget(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	changes, err := ListChanges(t.Context(), dir)
+	changes, err := testChanges(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +344,7 @@ func TestStatusObservationDoesNotRefreshGitIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if status != "" {
+	if len(status) != 0 {
 		t.Fatalf("timestamp-only change reported as content change: %q", status)
 	}
 	after, err := os.ReadFile(indexPath)
@@ -355,7 +366,7 @@ func TestListChangesIgnoresAmbientRepositoryRouting(t *testing.T) {
 	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
 	t.Setenv("GIT_WORK_TREE", foreign)
 
-	changes, err := ListChanges(t.Context(), dir)
+	changes, err := testChanges(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("ListChanges with ambient repository routing: %v", err)
 	}
@@ -366,14 +377,42 @@ func TestListChangesIgnoresAmbientRepositoryRouting(t *testing.T) {
 
 func TestParseUnifiedDiffRejectsMalformedHunkHeader(t *testing.T) {
 	patch := "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -invalid +1 @@\n-old\n+new\n"
-	if _, err := parseUnifiedDiff(patch); err == nil {
+	if _, _, err := parseUnifiedDiff([]byte(patch), 5_000, 5_000); err == nil {
 		t.Fatal("parseUnifiedDiff accepted a malformed hunk header")
+	}
+}
+
+func TestParseUnifiedDiffStopsBeforeAnOversizedWholeFile(t *testing.T) {
+	patch := []byte("diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +1 @@\n+line\n")
+	files, truncated, err := parseUnifiedDiff(patch, 5, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 || !truncated {
+		t.Fatalf("parse = %d files, truncated=%v; want a whole-file cut", len(files), truncated)
+	}
+}
+
+func TestParseUnifiedDiffBoundsZeroRowFiles(t *testing.T) {
+	patch := []byte("diff --git a/a.bin b/a.bin\nBinary files a/a.bin and b/a.bin differ\ndiff --git a/b.bin b/b.bin\nBinary files a/b.bin and b/b.bin differ\n")
+	files, truncated, err := parseUnifiedDiff(patch, 1, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || !truncated {
+		t.Fatalf("parse = %d files, truncated=%v; want one file and an honest cut", len(files), truncated)
+	}
+}
+
+func TestParseStatusBoundsTheCompleteCatalog(t *testing.T) {
+	if _, _, err := parseStatusZ([]byte("?? a.txt\x00?? b.txt\x00"), 1); !errors.Is(err, ErrResultTooLarge) {
+		t.Fatalf("parseStatusZ error = %v, want ErrResultTooLarge", err)
 	}
 }
 
 func TestApplyNumstatRejectsMalformedCounts(t *testing.T) {
 	changes := map[string]*FileChange{"a.txt": {Path: "a.txt"}}
-	if err := applyNumstatZ("invalid\t1\ta.txt\x00", changes); err == nil {
+	if err := applyNumstatZ([]byte("invalid\t1\ta.txt\x00"), changes); err == nil {
 		t.Fatal("applyNumstatZ accepted a malformed added-line count")
 	}
 }

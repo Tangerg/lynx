@@ -13,8 +13,8 @@ import (
 // It translates raw Git failures into application-level outcomes.
 type VCS struct{}
 
-func (VCS) Changes(ctx context.Context, root string) ([]workspaceapp.FileChange, error) {
-	changes, err := ListChanges(ctx, root)
+func (VCS) Changes(ctx context.Context, root string, maxChanges int) ([]workspaceapp.FileChange, error) {
+	changes, err := ListChanges(ctx, root, maxChanges)
 	if err != nil {
 		return nil, vcsError(err)
 	}
@@ -32,22 +32,27 @@ func (VCS) Changes(ctx context.Context, root string) ([]workspaceapp.FileChange,
 	return out, nil
 }
 
-func (VCS) StructuredDiff(ctx context.Context, root, path string, base bool) ([]workspaceapp.FileDiff, error) {
-	files, err := Diff(ctx, root, path, base)
+func (VCS) StructuredDiff(
+	ctx context.Context,
+	root, path string,
+	base bool,
+	maxFiles, maxRows, maxBytes int,
+) (workspaceapp.StructuredDiffResult, error) {
+	files, truncated, err := Diff(ctx, root, path, base, maxFiles, maxRows, maxBytes)
 	if err != nil {
-		return nil, vcsError(err)
+		return workspaceapp.StructuredDiffResult{}, vcsError(err)
 	}
 	out := make([]workspaceapp.FileDiff, 0, len(files))
 	for _, file := range files {
 		status, ok := fileStatus(file.Status)
 		if !ok {
-			return nil, fmt.Errorf("workspace: unsupported git status %q", file.Status)
+			return workspaceapp.StructuredDiffResult{}, fmt.Errorf("workspace: unsupported git status %q", file.Status)
 		}
 		rows := make([]workspaceapp.DiffRow, 0, len(file.Rows))
 		for _, row := range file.Rows {
 			kind, ok := diffRowType(row.Type)
 			if !ok {
-				return nil, fmt.Errorf("workspace: unsupported diff row type %q", row.Type)
+				return workspaceapp.StructuredDiffResult{}, fmt.Errorf("workspace: unsupported diff row type %q", row.Type)
 			}
 			rows = append(rows, workspaceapp.DiffRow{
 				Type: kind, Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
@@ -58,11 +63,11 @@ func (VCS) StructuredDiff(ctx context.Context, root, path string, base bool) ([]
 			Binary: file.Binary, Added: file.Added, Removed: file.Removed, Rows: rows,
 		})
 	}
-	return out, nil
+	return workspaceapp.StructuredDiffResult{Files: out, Truncated: truncated}, nil
 }
 
-func (VCS) RawDiff(ctx context.Context, root, path string, base bool) (string, error) {
-	patch, err := RawDiff(ctx, root, path, base)
+func (VCS) RawDiff(ctx context.Context, root, path string, base bool, maxBytes int) (string, error) {
+	patch, err := RawDiff(ctx, root, path, base, maxBytes)
 	return patch, vcsError(err)
 }
 
@@ -106,6 +111,8 @@ func vcsError(err error) error {
 		return workspaceapp.ErrVCSUnavailable
 	case errors.Is(err, git.ErrNoBase):
 		return workspaceapp.ErrVCSBaseUnknown
+	case errors.Is(err, git.ErrResultTooLarge):
+		return workspaceapp.ErrVCSResultTooLarge
 	default:
 		return err
 	}

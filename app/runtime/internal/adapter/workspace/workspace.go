@@ -30,21 +30,21 @@ var (
 func GitAvailable() bool { return git.Available() }
 
 // ListChanges scans root's working tree for changed files.
-func ListChanges(ctx context.Context, root string) ([]git.FileChange, error) {
-	return git.ListChanges(ctx, root)
+func ListChanges(ctx context.Context, root string, maxChanges int) ([]git.FileChange, error) {
+	return git.ListChanges(ctx, root, maxChanges)
 }
 
 // Diff returns the structured diff for root (optionally scoped to relPath).
 // base selects the diff target: false = working tree, true = merge-base with
 // the default branch.
-func Diff(ctx context.Context, root, relPath string, base bool) ([]git.DiffFile, error) {
-	return git.Diff(ctx, root, relPath, diffMode(base))
+func Diff(ctx context.Context, root, relPath string, base bool, maxFiles, maxRows, maxBytes int) ([]git.DiffFile, bool, error) {
+	return git.Diff(ctx, root, relPath, diffMode(base), maxFiles, maxRows, maxBytes)
 }
 
 // RawDiff returns the unified patch text for root (optionally scoped to
 // relPath). base selects the diff target as in [Diff].
-func RawDiff(ctx context.Context, root, relPath string, base bool) (string, error) {
-	return git.RawDiff(ctx, root, relPath, diffMode(base))
+func RawDiff(ctx context.Context, root, relPath string, base bool, maxBytes int) (string, error) {
+	return git.RawDiff(ctx, root, relPath, diffMode(base), maxBytes)
 }
 
 func diffMode(base bool) git.Mode {

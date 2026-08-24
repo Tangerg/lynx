@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -9,48 +10,48 @@ import (
 
 // diffSources runs the tracked-changes git diff for the mode and returns the
 // patch text plus the untracked file list (worktree mode only).
-func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch string, untracked []string, err error) {
+func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch []byte, untracked []string, err error) {
 	repository, err := IsRepo(ctx, dir)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	if !repository {
-		return "", nil, ErrNotRepo
+		return nil, nil, ErrNotRepo
 	}
 
-	args := []string{"diff", "-M", "--relative"}
+	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "-M", "--relative"}
 	switch mode {
 	case Base:
 		base, berr := mergeBase(ctx, dir)
 		if berr != nil {
-			return "", nil, berr
+			return nil, nil, berr
 		}
 		args = append(args, base)
 	default: // Worktree
 		head, headErr := runAllowingExitCode(ctx, dir, 1, "rev-parse", "--verify", "--quiet", "HEAD")
 		if headErr != nil {
-			return "", nil, headErr
+			return nil, nil, headErr
 		}
-		if strings.TrimSpace(head) == "" {
+		if len(bytes.TrimSpace(head)) == 0 {
 			untracked, err = untrackedPaths(ctx, dir, relPath)
-			return "", untracked, err
+			return nil, untracked, err
 		}
 		args = append(args, "HEAD")
 	}
 	scopePath, err := gitPathRelativeToWorkspace(dir, relPath)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	args = append(args, "--", scopePath)
 	patch, err = run(ctx, dir, args...)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
 	if mode == Worktree {
 		untracked, err = untrackedPaths(ctx, dir, relPath)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 	}
 	return patch, untracked, nil
@@ -87,13 +88,13 @@ func mergeBase(ctx context.Context, dir string) (string, error) {
 	if err != nil {
 		return "", ErrNoBase
 	}
-	return strings.TrimSpace(out), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 // defaultBranch resolves the base branch: origin/HEAD → main → master.
 func defaultBranch(ctx context.Context, dir string) (string, error) {
 	if out, err := run(ctx, dir, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
-		ref := strings.TrimSpace(out) // refs/remotes/origin/main
+		ref := strings.TrimSpace(string(out)) // refs/remotes/origin/main
 		if b, ok := strings.CutPrefix(ref, "refs/remotes/"); ok {
 			return b, nil
 		}
