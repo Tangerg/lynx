@@ -788,6 +788,7 @@ type acceptanceHarness struct {
 	runtime   *runningRuntime
 	model     *scenarioModel
 	workspace string
+	home      string
 	namespace string
 	meta      protocol.RequestMeta
 }
@@ -801,9 +802,10 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 	if err != nil {
 		t.Fatalf("resolve acceptance workspace error = %v", err)
 	}
+	home := privateDirectory(t, "home")
 	runtime := startRuntime(t, runtimehost.Config{
 		Listen: "127.0.0.1:0", DatabasePath: filepath.Join(privateDirectory(t, "data"), "runtime.sqlite"),
-		DefaultWorkspace: workspace, UserHome: privateDirectory(t, "home"),
+		DefaultWorkspace: workspace, UserHome: home,
 		ServerName: "lyra-runtime", ServerVersion: "acceptance",
 	})
 	t.Cleanup(func() { runtime.stop(t) })
@@ -830,18 +832,21 @@ func newAcceptanceHarness(t *testing.T) acceptanceHarness {
 		t.Fatalf("provider probe = %+v", probe)
 	}
 	return acceptanceHarness{
-		runtime: runtime, model: model, workspace: workspace, namespace: namespace,
+		runtime: runtime, model: model, workspace: workspace, home: home, namespace: namespace,
 		meta: protocol.RequestMeta{
 			ProtocolVersion: protocol.ProtocolVersion,
 			ClientInfo:      &protocol.ClientInfo{Name: "runtime-acceptance", Version: "1"},
 			ClientCapabilities: &protocol.ClientCapabilities{
 				Features: map[string]protocol.FeaturePreference{
-					protocol.FeatureGoals:     {Enabled: true},
-					protocol.FeaturePlan:      {Enabled: true},
-					protocol.FeatureSubagents: {Enabled: true},
-					protocol.FeatureMCP:       {Enabled: true},
-					protocol.FeatureGit:       {Enabled: true},
-					protocol.FeatureSchedules: {Enabled: true},
+					protocol.FeatureGoals:       {Enabled: true},
+					protocol.FeaturePlan:        {Enabled: true},
+					protocol.FeatureSubagents:   {Enabled: true},
+					protocol.FeatureMCP:         {Enabled: true},
+					protocol.FeatureGit:         {Enabled: true},
+					protocol.FeatureSchedules:   {Enabled: true},
+					protocol.FeatureSkills:      {Enabled: true},
+					protocol.FeatureKnowledge:   {Enabled: true},
+					protocol.FeatureAgentMemory: {Enabled: true},
 				},
 				InterruptTypes: []protocol.InterruptType{
 					protocol.InterruptApproval, protocol.InterruptQuestion,
@@ -1212,6 +1217,12 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				writeScenarioToolStream(response, "call-plan", "set_plan", `{"steps":[{"description":"Inspect architecture","status":"in_progress"},{"description":"Implement cleanly","status":"pending"}]}`)
 			case strings.Contains(material, "SCENARIO_PLAN"):
 				writeScenarioTextStream(response, "plan complete")
+			case strings.Contains(material, "SCENARIO_PROPOSE_SKILL") && !hasToolResult:
+				writeScenarioToolStream(response, "call-propose-skill", "propose_skill", `{"name":"proposed-skill","description":"A proposed acceptance skill","instructions":"Apply the accepted workflow carefully.","scope":"project"}`)
+			case strings.Contains(material, "SCENARIO_REJECT_SKILL") && !hasToolResult:
+				writeScenarioToolStream(response, "call-reject-skill", "propose_skill", `{"name":"rejected-skill","description":"A rejected acceptance skill","instructions":"This proposal should remain inactive.","scope":"project"}`)
+			case strings.Contains(material, "SCENARIO_PROPOSE_SKILL"), strings.Contains(material, "SCENARIO_REJECT_SKILL"):
+				writeScenarioTextStream(response, "skill proposal complete")
 			case strings.Contains(material, "SCENARIO_PROVIDER_FAILURE"):
 				http.Error(response, "provider temporarily unavailable", http.StatusServiceUnavailable)
 			default:
