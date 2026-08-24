@@ -277,6 +277,53 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 	}
 }
 
+func TestAssemblyFailureRollbackContinuesAfterCloseTimeout(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	// Fail after tool acquisition. OpenInstance receives no Host on this path and
+	// can make only its bounded rollback calls, so the graph itself must retain
+	// ownership when a terminal closer finishes after both callers time out.
+	cfg.BuildID = "dev"
+	resourceClosed := make(chan struct{})
+	cfg.Resources = []TerminalResource{closerFunc(func() error {
+		close(resourceClosed)
+		return nil
+	})}
+	closerStarted := make(chan struct{})
+	releaseCloser := make(chan struct{})
+	assembly := newAssembly(t.Context(), cfg, func(
+		ctx context.Context,
+		deps toolEnvironmentDependencies,
+	) (toolEnvironment, error) {
+		toolRuntime, err := buildToolEnvironment(ctx, deps)
+		if err != nil {
+			return toolEnvironment{}, err
+		}
+		toolRuntime.closers = append(toolRuntime.closers, teardown.Terminal(func(context.Context) error {
+			close(closerStarted)
+			<-releaseCloser
+			return nil
+		}))
+		return toolRuntime, nil
+	})
+	assembly.lifetime.shutdownTimeout = time.Millisecond
+
+	failedHost, err := BuildAssembly(t.Context(), assembly)
+	if failedHost != nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("failed Build = (%v, %v), want nil Host and bounded rollback timeout", failedHost, err)
+	}
+	<-closerStarted
+	if err := CloseAssembly(assembly); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("bounded Assembly.Close = %v, want deadline exceeded", err)
+	}
+
+	close(releaseCloser)
+	select {
+	case <-resourceClosed:
+	case <-time.After(time.Second):
+		t.Fatal("failed Assembly lost its dependent resource owner after rollback timeout")
+	}
+}
+
 func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Fail after tools exist, then make the last tool closer fail once. The
