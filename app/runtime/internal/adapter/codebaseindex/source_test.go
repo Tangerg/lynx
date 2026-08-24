@@ -2,11 +2,24 @@ package codebaseindex
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 )
+
+func TestSourceFilesHonorsCancellation(t *testing.T) {
+	root := t.TempDir()
+	writeSourceFile(t, root, "main.go", "package main")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, _, err := (Source{}).Files(ctx, root)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Files error = %v, want context.Canceled", err)
+	}
+}
 
 func writeSourceFile(t *testing.T, root, rel, body string) {
 	t.Helper()

@@ -45,6 +45,29 @@ func write(t *testing.T, dir, name, body string) {
 	}
 }
 
+func TestRepositoryReadsPreserveCancellation(t *testing.T) {
+	dir := initRepo(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	reads := []struct {
+		name string
+		read func() error
+	}{
+		{name: "changes", read: func() error { _, err := ListChanges(ctx, dir); return err }},
+		{name: "files", read: func() error { _, err := ListFiles(ctx, dir, "."); return err }},
+		{name: "structured diff", read: func() error { _, err := Diff(ctx, dir, "", Worktree); return err }},
+		{name: "raw diff", read: func() error { _, err := RawDiff(ctx, dir, "", Worktree); return err }},
+	}
+	for _, test := range reads {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.read(); !errors.Is(err, context.Canceled) {
+				t.Fatalf("repository read error = %v, want context.Canceled", err)
+			}
+		})
+	}
+}
+
 // TestListChangesAndDiff: a modified tracked file + an untracked file show up
 // in both ListChanges (with line counts) and Diff (worktree, with rows).
 func TestListChangesAndDiff(t *testing.T) {
