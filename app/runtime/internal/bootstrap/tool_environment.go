@@ -58,9 +58,13 @@ func buildToolEnvironment(ctx context.Context, deps toolEnvironmentDependencies)
 	}
 	environment := toolEnvironment{
 		mcp: mcpPool,
-		// MCP retains sessions whose Close failed and can make real progress on a
-		// later Shutdown generation, unlike the one-shot local capability closers.
-		closers: []*teardown.Step{teardown.Retryable(mcpPool.Shutdown)},
+		// The SDK consumes each ClientSession transport closer even when Close
+		// returns a diagnostic. Step owns the caller deadline; the action itself
+		// must outlive that deadline and return only when the pool generation has
+		// actually settled, so a timed-out Host retains and later joins it.
+		closers: []*teardown.Step{teardown.Terminal(func(ctx context.Context) error {
+			return mcpPool.Shutdown(context.WithoutCancel(ctx))
+		})},
 	}
 	buildConfig := toolset.BuildConfig{
 		Lifetime:        deps.lifetime,

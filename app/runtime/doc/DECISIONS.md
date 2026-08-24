@@ -470,5 +470,12 @@
 
 - 状态：已接受并实施，P148 完成；细化 ADR-RT-063 的合法构造与唯一 lifecycle owner，不改变公共 Protocol、Artifact、SQLite shape 或 Agent Framework 合同。
 - 背景：Host 过去把任意 `Shutdown` error 都解释为“资源仍未关闭”，保留该 step 并阻止依赖关闭。但生产 A2A、LSP、Shell 与 SQLite closer 都由 `sync.Once` 拥有终态：第一次调用即使报告诊断，后续只会永久返回同一缓存错误。于是一个已经完成的 close error 会让 Host 永久停在 stopping，Store 等下层依赖也永远得不到释放；旧 `Bundle.Shutdown(ctx)` 还把“预算已过期、根本没有调用 Close”伪装成同一种 error。
-- 决策：Infra teardown step 显式区分 `Terminal` 与 `Retryable`，其 Shutdown 结果同时携带 settled bool 与 diagnostic error。Terminal action 一旦返回便冻结 settlement，Host 记录诊断但继续逆序关闭依赖并最终把 graph 标记 closed；Retryable action 失败时仍保留 exact step 与依赖前缀，后续 Close 只启动下一代或 join 原在途 generation。Config 只接收具有 one-shot `Close` 语义的 `TerminalResource`；MCP session ledger 因失败 session 仍留在 ledger 且下一次 Shutdown 会重试，成为唯一显式 retryable tool resource。SQLite 删除没有独立消费者且会混淆状态的 context-aware Shutdown adapter。
-- 后果：一次性 close error 只执行一次、只向实际观察它的 Close 调用报告，不能形成永久错误回放或资源保活；超时、未完成 MCP close 与非协作第三方 closer 仍有界并可续跑。关闭顺序、并发 Host copy 幂等性、失败 Assembly 回滚和公共 `embedded.Runtime.Close` 入口不变，没有兼容层、第二清理图或后台重试循环。
+- 决策：Infra teardown step 显式区分 `Terminal` 与 `Retryable`，其 Shutdown 结果同时携带 settled bool 与 diagnostic error。Terminal action 一旦返回便冻结 settlement，Host 记录诊断但继续逆序关闭依赖并最终把 graph 标记 closed；Retryable action 失败时仍保留 exact step 与依赖前缀，后续 Close 只启动下一代或 join 原在途 generation。Config 只接收具有 one-shot `Close` 语义的 `TerminalResource`；SQLite 删除没有独立消费者且会混淆状态的 context-aware Shutdown adapter。P148 暂把 MCP session ledger 归为 retryable，P149 按 SDK 的真实终止合同在 ADR-RT-068 中纠正该分类。
+- 后果：一次性 close error 只执行一次、只向实际观察它的 Close 调用报告，不能形成永久错误回放或资源保活；超时、未完成的 Close 与非协作第三方 closer 仍有界并由同一在途 generation 持有。关闭顺序、并发 Host copy 幂等性、失败 Assembly 回滚和公共 `embedded.Runtime.Close` 入口不变，没有兼容层、第二清理图或后台重试循环。
+
+## ADR-RT-068：MCP ClientSession 关闭错误是 terminal diagnostic
+
+- 状态：已接受并实施，P149 完成；纠正 P148 对唯一生产 `Retryable` step 的暂定分类，不改变公共 Protocol、Artifact、SQLite shape 或 Agent Framework 合同。
+- 背景：Runtime 的 MCP ledger 曾在 `ClientSession.Close` 返回错误后继续保留 session，并让下一次 `Shutdown` 建立新一代 close attempt。实际 SDK 会在 connection 进入 closing 后等待任务、调用底层 transport closer，并无论该 closer 成败都将其置空；后续 `ClientSession.Close` 只能返回同一个缓存诊断，不能再执行底层释放。Runtime 因而把已经终结的 session 误作活资源永久保留，也让 Bootstrap 的 terminal 依赖关闭被一个无法推进的假 retry 阻塞。
+- 决策：每个 MCP session close attempt 返回后都从 ownership ledger 删除；异步 Detach 的 attempt/diagnostic 由独立 retirement ledger 保存到 `Shutdown` 汇总，不继续持有 session。加入当代 `Shutdown` generation 的 caller 收到聚合诊断，已经完成的 `Shutdown` 再调用则为幂等 no-op。并发 caller 继续 join 同一个在途 attempt，caller timeout 也不创建并行 Close。Bootstrap 将 MCP pool 注册为 `Terminal` step，并以 `context.WithoutCancel` 让内部 action 跑到真实终态；有界等待由 Step 拥有，超时后 Host 仍保留并 join 原 action。`Retryable` 原语只允许用于动作返回后仍持有未关闭资源且下一代确实能执行新底层清理的 owner，当前没有生产使用者。
+- 后果：MCP close diagnostic 不再形成永久资源保活或错误回放，下层 SQLite/host resource 可按逆序继续释放；仍在途或不协作的 SDK Close 继续由原 Step 持有并受 Host deadline 约束。修复删除伪状态，不新增循环、goroutine owner、兼容分支或第二清理图。

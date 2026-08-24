@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P148 已完成；下一阶段待独立准入。
+> 状态：P0–P149 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P148 已完成。
+> 最近基线：2026-08-24，P149 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,8 +15,12 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P149 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例使用与 MCP SDK 相同的 one-shot closer：底层 close action 返回诊断后已被消费，旧 Connections 却仍在 ledger 保留 session，下一次 `Shutdown` 只能重放同一错误而无法推进释放。
+- 唯一修复 owner 是 MCP Connections ownership ledger + Bootstrap teardown classification。session close attempt 完成后无论诊断都退出资源 ledger，异步 Detach 只把 attempt/diagnostic 留到 `Shutdown` 汇总；加入该 generation 的 caller 仍得到错误，后续 `Shutdown` 是幂等 no-op。Bootstrap MCP pool 从 `Retryable` 改为 `Terminal`，内部 action 以 `context.WithoutCancel` 跑到真实终态，有界等待与超时续 join 由 Step 拥有；当前生产资源没有 retryable step，该原语只为“动作返回后仍有未关闭资源且下一代能执行新底层清理”的未来 owner 保留。
+- 对 app2 的裁决：继续采纳 acquisition 立即登记、single transfer 与失败逆序释放的 owner ledger；本批同时纠正 P148 因只观察 Runtime 自有 map、没有下钻 SDK 终止合同而形成的假 retryable。保留有界 Close、generation join 与 teardown diagnostic，拒绝后台循环、重复 SDK Close、第二清理图或用 map 存活代替真实资源状态。
+- Runtime/Desktop 全量 test、vet、build、Go 1.27-compatible Staticcheck、full race 与 standalone module 门禁全绿；根 workspace tests、Runtime generator 零漂移和 Wails v3 production build 通过。临时 Staticcheck 已回收，未启动 agent-browser；Protocol、Artifact、SQLite、生成合同、公共 Go API 与 Desktop source 均未改变。
 - P148 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例使用与生产 A2A/LSP/Shell/SQLite 相同的 `sync.Once` close 语义：第一次 Close 已到 terminal 但返回诊断后，旧 Host 把它当作 unfinished，既不关闭下一层 Store，也在以后每次 Close 永久回放同一错误。
-- 唯一修复 owner 是 Infra teardown settlement + Bootstrap shutdown graph。Step 现在显式分为 `Terminal` 与 `Retryable`，Shutdown 同时返回 settled 与 diagnostic；terminal error 只报告但继续逆序关闭依赖，只有确实保留失败 session、下一代能推进的 MCP ledger 使用 retryable。Config breaking 地只接收 one-shot `TerminalResource.Close`，SQLite Bundle 的伪 context-aware Shutdown adapter 与对应测试已删除；超时在途 closer 仍由同一 step 持有并在后续 Close join，不新增后台重试或第二清理图。
+- 唯一修复 owner 是 Infra teardown settlement + Bootstrap shutdown graph。Step 现在显式分为 `Terminal` 与 `Retryable`，Shutdown 同时返回 settled 与 diagnostic；terminal error 只报告但继续逆序关闭依赖。P148 对 MCP ledger 的暂定 retryable 分类已由 P149 按 SDK 真实合同纠正；Config breaking 地只接收 one-shot `TerminalResource.Close`，SQLite Bundle 的伪 context-aware Shutdown adapter 与对应测试已删除；超时在途 closer 仍由同一 step 持有并在后续 Close join，不新增后台重试或第二清理图。
 - 对 app2 的裁决：采纳其 composition open-guard 对“获取即登记、失败逆序释放”的结构化提醒，并补足其没有表达 retryable/terminal settlement 的缺口；保留原 Runtime 的有界 Close、并发 Host copy、MCP session ledger 和完整生命周期测试，拒绝复制 app2 的简化 Stop-only facade、opaque resource bag 或吞掉 teardown 诊断。
 - P147 已完成：按用户明确要求，`app/runtime/go.mod`、`app/desktop/go.mod` 与 Desktop 隔离 `go.work` 已统一为 Go `1.27.0`，Runtime public embedded 外部消费者编译夹具同步使用同一语言版本。Go 1.27 的 `tidy` 结果一次性规范化 Runtime direct/indirect dependency 分组，没有升级依赖版本或建立兼容路径。
 - 根 workspace 的真实红例证明仅提升两个 module 会被旧 `go.work 1.26.5` 拒绝，因此根 `go.work` 只同步一行最低版本以保持默认仓库入口可构建；这不是修改 `app/cli` module，CLI 的源码、`go.mod` 与暂存区均保持零差异。Protocol、Artifact、SQLite、生成合同、公共 Go API 与运行时行为均未改变。
@@ -325,10 +329,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P146     | operation 带外元数据适用性闭环                                                                                | Registry 唯一发布 idempotency/replay cursor policy；operation、HTTP、embedded、生成合同与 Desktop preflight 共享该事实，无效元数据在执行前失败                                             |
 | P147     | Runtime/Desktop Go 1.27 工具链统一                                                                           | 两个 module、Desktop standalone workspace、Runtime external-consumer fixture 与根 workspace coordinator 切换 1.27.0；1.27-compatible Staticcheck、full race 与 production build 封板        |
 | P148     | Bootstrap teardown settlement 闭环                                                                          | terminal one-shot Close 与真正 retryable Shutdown 显式分型；诊断不再冒充未完成状态，Host 可继续逆序释放依赖并只保留真实 unfinished step                                                    |
+| P149     | MCP teardown 终止合同纠偏                                                                                   | SDK 已消费的 ClientSession close error 退出 ownership ledger；当代 caller 保留诊断、后续 Shutdown 幂等，Bootstrap 不再声明伪 retryable                                                     |
 
 ## 5. 当前里程碑结论
 
-P113–P148 共同建立了以下不可回退的心智模型：
+P113–P149 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。

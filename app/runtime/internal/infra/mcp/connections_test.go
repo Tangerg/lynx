@@ -173,6 +173,49 @@ func TestConnectionsShutdownSettlesTerminalSessionCloseError(t *testing.T) {
 	}
 }
 
+func TestConnectionsShutdownReportsSettledAsyncRetirementDiagnosticOnce(t *testing.T) {
+	closeErr := errors.New("retired session close failed")
+	var calls atomic.Int32
+	session := new(sdkmcp.ClientSession)
+	c := &Connections{
+		lifetime: t.Context(),
+		sessions: map[*sdkmcp.ClientSession]*ownedSession{
+			session: {
+				closeFn: sync.OnceValue(func() error {
+					calls.Add(1)
+					return closeErr
+				}),
+			},
+		},
+	}
+
+	c.retireSession(session)
+	c.mu.Lock()
+	var closeAttempt *sessionCloseAttempt
+	for candidate := range c.retirements {
+		closeAttempt = candidate
+		break
+	}
+	c.mu.Unlock()
+	if closeAttempt == nil {
+		t.Fatal("asynchronous retirement was not registered")
+	}
+	<-closeAttempt.done
+	if got := ownedSessionCount(c); got != 0 {
+		t.Fatalf("owned sessions after terminal retirement error = %d, want 0", got)
+	}
+
+	if err := c.Shutdown(t.Context()); !errors.Is(err, closeErr) {
+		t.Fatalf("first Shutdown = %v, want retirement diagnostic", err)
+	}
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("second Shutdown = %v, want settled no-op", err)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("underlying session close calls = %d, want 1", got)
+	}
+}
+
 func TestConnectionAttemptsSupersedePerServer(t *testing.T) {
 	c := &Connections{lifetime: t.Context()}
 	first := &server{config: ServerConfig{Name: "first"}}

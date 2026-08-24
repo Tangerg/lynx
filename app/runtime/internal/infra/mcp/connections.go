@@ -61,6 +61,9 @@ type Connections struct {
 	closed   bool                      // terminal admission state set by Shutdown
 	shutdown *shutdownAttempt
 	sessions map[*sdkmcp.ClientSession]*ownedSession
+	// retirements retain asynchronous close attempts and their diagnostics until
+	// Shutdown joins them. Resource ownership remains exclusively in sessions.
+	retirements map[*sessionCloseAttempt]struct{}
 
 	// oauthSessions is the durable credential boundary. It is optional so the
 	// infrastructure remains usable in processes that deliberately opt out of

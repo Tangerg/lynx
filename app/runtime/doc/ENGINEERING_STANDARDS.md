@@ -145,7 +145,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 
 - 依赖创建和 wiring 明确、静态、可搜索；
 - 不使用反射 DI container、service locator 或 package globals；
-- 所有 closers 只有一个 owner，逆序、幂等关闭；关闭合同必须分别表达 settlement 与 diagnostic，不能把任意 `error` 当成“尚未关闭”。one-shot Close 返回后即 terminal，带错也继续释放依赖；只有真实保留未关闭资源且下一代调用可推进的 owner 才能声明 retryable；
+- 所有 closers 只有一个 owner，逆序、幂等关闭；关闭合同必须分别表达 settlement 与 diagnostic，不能把任意 `error` 当成“尚未关闭”。one-shot Close 返回后即 terminal，带错也继续释放依赖；只有动作返回后仍明确持有未关闭资源且下一代调用会执行新底层清理的 owner 才能声明 retryable。SDK 的幂等 API 若只缓存同一错误，不构成重试能力；MCP `ClientSession.Close` 属于 terminal；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - required collaborator 和 lifetime 在 constructor boundary 完整验证；constructor 必须返回可运行对象或 error，不能把半初始化对象和延迟 `unavailable` 分支交给用例；
 - optional capability 只在真实配置关闭时为 nil/absent；多个依赖共同构成一项能力时用一个显式 capability group 表达，不能允许半启用。

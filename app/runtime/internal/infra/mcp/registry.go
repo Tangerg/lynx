@@ -124,11 +124,12 @@ func (c *Connections) retireSession(session *sdkmcp.ClientSession) {
 		return
 	}
 	c.mu.Lock()
-	owned := c.sessions[session]
-	if owned != nil && owned.close == nil {
-		attempt := &sessionCloseAttempt{done: make(chan struct{})}
-		owned.close = attempt
-		go c.closeSessionAttempt(session, owned, attempt)
+	attempt := c.beginSessionCloseLocked(session)
+	if attempt != nil {
+		if c.retirements == nil {
+			c.retirements = make(map[*sessionCloseAttempt]struct{})
+		}
+		c.retirements[attempt] = struct{}{}
 	}
 	c.mu.Unlock()
 }
@@ -157,8 +158,9 @@ func (c *Connections) publishTools() {
 }
 
 // Shutdown rejects new operations, joins all admitted dials, and closes every
-// session still present in the ownership ledger. A failed close remains in the
-// ledger for a later explicit Shutdown call.
+// session still present in the ownership ledger. ClientSession.Close consumes
+// its transport closer even when it returns an error, so that diagnostic is
+// terminal and the session leaves the ledger after the attempt completes.
 func (c *Connections) Shutdown(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -181,11 +183,11 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 	if attempt != nil {
 		select {
 		case <-attempt.done:
-			if attempt.err == nil {
-				c.mu.Unlock()
-				return nil
-			}
-			attempt = nil
+			// Every session close owned by the completed generation reached its
+			// terminal state. Its diagnostic was reported to callers that joined
+			// that generation; repeating Shutdown is an idempotent no-op.
+			c.mu.Unlock()
+			return nil
 		default:
 		}
 	}
@@ -208,24 +210,40 @@ func (c *Connections) closeAll(attempt *shutdownAttempt) {
 	c.attempts.Wait()
 
 	c.mu.Lock()
-	sessions := make([]*sdkmcp.ClientSession, 0, len(c.sessions))
+	closeAttempts := make([]*sessionCloseAttempt, 0, len(c.sessions)+len(c.retirements))
+	seen := make(map[*sessionCloseAttempt]struct{}, len(c.sessions)+len(c.retirements))
 	for session := range c.sessions {
-		sessions = append(sessions, session)
+		closeAttempt := c.beginSessionCloseLocked(session)
+		if closeAttempt != nil {
+			if _, ok := seen[closeAttempt]; !ok {
+				seen[closeAttempt] = struct{}{}
+				closeAttempts = append(closeAttempts, closeAttempt)
+			}
+		}
+	}
+	for closeAttempt := range c.retirements {
+		if _, ok := seen[closeAttempt]; !ok {
+			seen[closeAttempt] = struct{}{}
+			closeAttempts = append(closeAttempts, closeAttempt)
+		}
 	}
 	c.mu.Unlock()
 
 	var errs []error
-	for _, session := range sessions {
-		attempt := c.beginSessionClose(session)
-		if attempt != nil {
-			<-attempt.done
-			if attempt.err != nil {
-				errs = append(errs, attempt.err)
-			}
+	for _, closeAttempt := range closeAttempts {
+		<-closeAttempt.done
+		if closeAttempt.err != nil {
+			errs = append(errs, closeAttempt.err)
 		}
 	}
 
 	c.mu.Lock()
+	// A racing Detach may register an attempt after the initial snapshot, but
+	// the session itself guaranteed that attempt was already in closeAttempts.
+	// Consume the diagnostic only after the joined attempt has completed.
+	for closeAttempt := range seen {
+		delete(c.retirements, closeAttempt)
+	}
 	attempt.err = errors.Join(errs...)
 	close(attempt.done)
 	c.mu.Unlock()
@@ -254,6 +272,10 @@ func (c *Connections) closeSession(ctx context.Context, session *sdkmcp.ClientSe
 func (c *Connections) beginSessionClose(session *sdkmcp.ClientSession) *sessionCloseAttempt {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.beginSessionCloseLocked(session)
+}
+
+func (c *Connections) beginSessionCloseLocked(session *sdkmcp.ClientSession) *sessionCloseAttempt {
 	owned := c.sessions[session]
 	if owned == nil {
 		return nil
@@ -275,13 +297,15 @@ func (c *Connections) closeSessionAttempt(
 	err := owned.closeFn()
 	c.mu.Lock()
 	if current := c.sessions[session]; current == owned && current.close == attempt {
-		if err == nil {
-			delete(c.sessions, session)
-		} else {
-			// The failed attempt remains joinable through its local pointer, but
-			// ownership is ready for one later explicit close generation.
-			current.close = nil
-		}
+		// sdkmcp.ClientSession.Close is one-shot: its underlying transport
+		// closer is consumed before the error returns. Retaining this entry
+		// would only replay a cached diagnostic, never advance cleanup.
+		delete(c.sessions, session)
+	}
+	if err == nil {
+		// Successful asynchronous retirement has no diagnostic to preserve for
+		// Shutdown; a failed attempt stays in retirements until it is reported.
+		delete(c.retirements, attempt)
 	}
 	attempt.err = err
 	close(attempt.done)
