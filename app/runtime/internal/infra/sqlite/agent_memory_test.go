@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -294,6 +295,141 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	}
 	if err := store.Delete(t.Context(), item.ID); !errors.Is(err, agentmemory.ErrNotFound) {
 		t.Fatalf("second delete = %v, want ErrNotFound", err)
+	}
+}
+
+func TestAgentMemoryTargetCapacityBoundsCompleteList(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 8, 24, 1, 0, 0, 0, time.UTC)
+	for index := range 512 {
+		if _, created, err := store.Add(
+			t.Context(), agentmemory.ScopeProject, "/repo",
+			fmt.Sprintf("memory %d", index), now,
+		); err != nil || !created {
+			t.Fatalf("Add(%d) = (created=%t, err=%v)", index, created, err)
+		}
+	}
+	if _, _, err := store.Add(
+		t.Context(), agentmemory.ScopeProject, "/repo", "memory 512", now,
+	); err == nil {
+		t.Fatal("513th visible item in one target was accepted")
+	}
+	items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != 512 {
+		t.Fatalf("List = (%d items, %v), want the complete 512-item target", len(items), err)
+	}
+	if _, created, err := store.Add(
+		t.Context(), agentmemory.ScopeProject, "/other", "independent target", now,
+	); err != nil || !created {
+		t.Fatalf("independent target Add = (created=%t, err=%v)", created, err)
+	}
+}
+
+func TestAgentMemoryListRejectsCorruptOverfullTarget(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	tx, err := db.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range 513 {
+		_, err = tx.ExecContext(t.Context(), `INSERT INTO agent_memory_items(
+			id, scope, project, content, digest, origin, status, created_at, updated_at
+		) VALUES (?, 'project', '/repo', ?, ?, 'user', 'active', 1, 1)`,
+			fmt.Sprintf("mem_%d", index), fmt.Sprintf("memory %d", index), fmt.Sprintf("digest_%d", index))
+		if err != nil {
+			_ = tx.Rollback()
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	store := sqlite.NewAgentMemoryStore(db)
+	if items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo"); err == nil {
+		t.Fatalf("overfull complete-list target returned %d items without an error", len(items))
+	}
+}
+
+func TestAgentMemoryExplicitAddRevivesRejectedProposal(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	facts := appendAgentFacts(t, store, "/repo", "2026-08-24", "revive me")
+	now := time.Date(2026, 8, 24, 1, 0, 0, 0, time.UTC)
+	if _, err := store.Reconcile(
+		t.Context(), "/repo", 0, facts[0].Sequence, []string{"revive me"}, now,
+	); err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("proposal list = (%+v, %v)", items, err)
+	}
+	if err := store.Review(t.Context(), items[0].ID, agentmemory.ReviewReject, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	revived, created, err := store.Add(
+		t.Context(), agentmemory.ScopeProject, "/repo", "revive me", now.Add(2*time.Second),
+	)
+	if err != nil || !created || revived.ID != items[0].ID ||
+		revived.Origin != agentmemory.OriginUser || revived.Status != agentmemory.StatusActive {
+		t.Fatalf("revived Add = (%+v, created=%t, err=%v)", revived, created, err)
+	}
+}
+
+func TestAgentMemoryReviewBoundsRejectedTombstones(t *testing.T) {
+	const maximumRejected = 2048
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	tx, err := db.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range maximumRejected {
+		_, err = tx.ExecContext(t.Context(), `INSERT INTO agent_memory_items(
+			id, scope, project, content, digest, origin, status, created_at, updated_at
+		) VALUES (?, 'project', '/repo', ?, ?, 'auto', 'rejected', 1, ?)`,
+			fmt.Sprintf("mem_old_%d", index), fmt.Sprintf("old rejection %d", index),
+			fmt.Sprintf("old_digest_%d", index), index+1)
+		if err != nil {
+			_ = tx.Rollback()
+			t.Fatal(err)
+		}
+	}
+	_, err = tx.ExecContext(t.Context(), `INSERT INTO agent_memory_items(
+		id, scope, project, content, digest, origin, status, created_at, updated_at
+	) VALUES ('mem_new', 'project', '/repo', 'new rejection', 'new_digest', 'auto', 'pending', 1, 1)`)
+	if err != nil {
+		_ = tx.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	store := sqlite.NewAgentMemoryStore(db)
+	if err := store.Review(
+		t.Context(), "mem_new", agentmemory.ReviewReject,
+		time.Date(2026, 8, 24, 1, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatal(err)
+	}
+	var rejected int
+	if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM agent_memory_items
+		WHERE scope = 'project' AND project = '/repo' AND status = 'rejected'`).Scan(&rejected); err != nil {
+		t.Fatal(err)
+	}
+	if rejected != maximumRejected {
+		t.Fatalf("rejected tombstones = %d, want %d", rejected, maximumRejected)
+	}
+	var preserved int
+	if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM agent_memory_items
+		WHERE id = 'mem_new' AND status = 'rejected'`).Scan(&preserved); err != nil || preserved != 1 {
+		t.Fatalf("new rejection preserved = %d, err=%v", preserved, err)
 	}
 }
 

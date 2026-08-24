@@ -1,6 +1,7 @@
 package agentmemory
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -26,6 +27,20 @@ func TestFactBatchNormalizeValidatesIdentity(t *testing.T) {
 	batch.Day = "2026-7-19"
 	if _, err := batch.Normalize(); err == nil {
 		t.Fatal("non-canonical day was accepted")
+	}
+}
+
+func TestFactBatchNormalizeRejectsUnboundedExtractionCardinality(t *testing.T) {
+	facts := make([]string, 33)
+	for index := range facts {
+		facts[index] = fmt.Sprintf("fact %d", index)
+	}
+	batch := FactBatch{
+		Project: "/repo", SessionID: "session", Day: "2026-08-24",
+		Facts: facts, CapturedAt: time.Now(),
+	}
+	if _, err := batch.Normalize(); err == nil {
+		t.Fatal("fact batch with 33 distinct facts was accepted")
 	}
 }
 
