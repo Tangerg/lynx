@@ -37,7 +37,11 @@ func (tool *routedTool) Call(ctx context.Context, arguments string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return executable.Call(ctx, arguments)
+	result, err := executable.Call(ctx, arguments)
+	if err != nil {
+		return "", err
+	}
+	return tool.router.observer.boundToolResult(ctx, result)
 }
 
 type runToolRouter struct {

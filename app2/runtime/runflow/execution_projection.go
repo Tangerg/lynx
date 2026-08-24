@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -311,36 +310,16 @@ func runningToolItem(runID string, observation agentexec.ToolObservation) protoc
 	}
 }
 
-const (
-	inlineToolResultBytes  = 64 << 10
-	previewToolResultBytes = 16 << 10
-)
-
 func projectToolResult(sessionID, itemID, toolName, body string, createdAt time.Time) (any, *toolresult.Record) {
-	if len(body) <= inlineToolResultBytes {
+	projected := toolresult.Project(itemID, body)
+	if !projected.Offloaded {
 		return bestEffortJSON(body), nil
 	}
-	id := toolResultID(itemID)
-	prefix := utf8Prefix(body, previewToolResultBytes)
-	preview := prefix + fmt.Sprintf("\n\n[… %d bytes omitted. Continue with read_tool_result: {\"result_id\":%q}]", len(body)-len(prefix), id)
-	record := &toolresult.Record{ID: id, SessionID: sessionID, ItemID: itemID, ToolName: toolName, Preview: preview, Body: body, CreatedAt: createdAt}
-	return preview, record
-}
-
-func toolResultID(itemID string) string {
-	digest := sha256.Sum256([]byte("tool-result\x00" + itemID))
-	return "tr_" + hex.EncodeToString(digest[:16])
-}
-
-func utf8Prefix(value string, limit int) string {
-	if len(value) <= limit {
-		return value
+	record := &toolresult.Record{
+		ID: projected.ID, SessionID: sessionID, ItemID: itemID, ToolName: toolName,
+		Preview: projected.Preview, Body: body, CreatedAt: createdAt,
 	}
-	end := limit
-	for end > 0 && !utf8.ValidString(value[:end]) {
-		end--
-	}
-	return value[:end]
+	return projected.Preview, record
 }
 
 func bestEffortJSON(raw string) any {

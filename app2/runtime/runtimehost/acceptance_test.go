@@ -1217,10 +1217,13 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				writeScenarioCompletion(response, "background complete")
 				return
 			}
-			hasToolResult := false
+			toolResultCount := 0
 			for _, message := range body.Messages {
-				hasToolResult = hasToolResult || message.Role == "tool"
+				if message.Role == "tool" {
+					toolResultCount++
+				}
 			}
+			hasToolResult := toolResultCount > 0
 			switch {
 			case strings.Contains(material, "SCENARIO_CHILD"):
 				writeScenarioTextStream(response, "child complete")
@@ -1246,6 +1249,21 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 				writeScenarioToolStream(response, "call-reject-skill", "propose_skill", `{"name":"rejected-skill","description":"A rejected acceptance skill","instructions":"This proposal should remain inactive.","scope":"project"}`)
 			case strings.Contains(material, "SCENARIO_PROPOSE_SKILL"), strings.Contains(material, "SCENARIO_REJECT_SKILL"):
 				writeScenarioTextStream(response, "skill proposal complete")
+			case strings.Contains(material, "SCENARIO_LARGE_RESULT") && toolResultCount == 0:
+				writeScenarioToolStream(response, "call-large-read", "read", `{"path":"large-result.txt"}`)
+			case strings.Contains(material, "SCENARIO_LARGE_RESULT") && toolResultCount == 1:
+				resultID := toolResultIDFromMessages(body.Messages)
+				if resultID == "" {
+					t.Errorf("large result preview omitted result_id: %s", material)
+					http.Error(response, "missing result id", http.StatusBadRequest)
+					return
+				}
+				arguments, _ := json.Marshal(map[string]any{
+					"result_id": resultID, "offset_bytes": 16_000, "limit_bytes": 20_000,
+				})
+				writeScenarioToolStream(response, "call-large-result-window", "read_tool_result", string(arguments))
+			case strings.Contains(material, "SCENARIO_LARGE_RESULT"):
+				writeScenarioTextStream(response, "large result complete")
 			case strings.Contains(material, "SCENARIO_PROVIDER_FAILURE"):
 				http.Error(response, "provider temporarily unavailable", http.StatusServiceUnavailable)
 			default:
@@ -1256,6 +1274,32 @@ func newScenarioModel(t *testing.T) *scenarioModel {
 		}
 	}))
 	return model
+}
+
+func toolResultIDFromMessages(messages []struct {
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+}) string {
+	const marker = `"result_id":"`
+	for _, message := range messages {
+		if message.Role != "tool" {
+			continue
+		}
+		var content string
+		if err := json.Unmarshal(message.Content, &content); err != nil {
+			content = string(message.Content)
+		}
+		start := strings.Index(content, marker)
+		if start < 0 {
+			continue
+		}
+		start += len(marker)
+		end := strings.IndexByte(content[start:], '"')
+		if end > 0 {
+			return content[start : start+end]
+		}
+	}
+	return ""
 }
 
 func writeScenarioTextStream(response http.ResponseWriter, content string) {

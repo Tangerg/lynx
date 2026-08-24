@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app2/runtime/agentexec"
 	conversationdomain "github.com/Tangerg/lynx/app2/runtime/domain/conversation"
 	rundomain "github.com/Tangerg/lynx/app2/runtime/domain/run"
+	"github.com/Tangerg/lynx/app2/runtime/domain/toolresult"
 	"github.com/Tangerg/lynx/app2/runtime/domain/transcript"
 	"github.com/Tangerg/lynx/app2/runtime/protocol"
 )
@@ -186,14 +187,8 @@ func resolveConversationToolResult(
 		if observation.value.Failure != "" {
 			result = "error: " + observation.value.Failure
 			isError = true
-		} else if len(result) > inlineToolResultBytes {
-			_, offload := projectToolResult(
-				sessionID, observation.value.ItemID, observation.value.Name,
-				result, observation.value.FinishedAt,
-			)
-			if offload != nil {
-				result = offload.Preview
-			}
+		} else if projected := toolresult.Project(observation.value.ItemID, result); projected.Offloaded {
+			result = projected.Preview
 		}
 		return chat.ToolResult{ID: call.ID, Name: call.Name, Result: result, IsError: isError}, true, nil
 	}

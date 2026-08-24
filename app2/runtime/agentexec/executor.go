@@ -818,6 +818,7 @@ func (executor *Executor) deployment(ctx context.Context, request deploymentRequ
 		if err != nil {
 			return preparedDeployment{}, fmt.Errorf("agentexec: resolve tools: %w", err)
 		}
+		bindings = boundToolResults(bindings, observer)
 	}
 	observer.bindTools(bindings)
 	if request.subagents {

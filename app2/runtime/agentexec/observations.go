@@ -120,6 +120,7 @@ type executionObserver struct {
 	tools              map[observationIdentity]ToolObservation
 	plans              map[observationIdentity]protocol.Plan
 	effectiveArguments map[observationIdentity]map[string]any
+	fullToolResults    map[observationIdentity]string
 	live               LiveObservationSink
 	streams            map[string]*modelStream
 	delegation         *delegationBridge
@@ -139,7 +140,8 @@ func newExecutionObserver(runID, segmentID, model string, live LiveObservationSi
 		runID: runID, segmentID: segmentID, defaultModel: model, safetyByName: make(map[string]protocol.SafetyClass),
 		intrinsicInput: make(map[string]bool),
 		tools:          make(map[observationIdentity]ToolObservation), plans: make(map[observationIdentity]protocol.Plan),
-		effectiveArguments: make(map[observationIdentity]map[string]any), live: live,
+		effectiveArguments: make(map[observationIdentity]map[string]any),
+		fullToolResults:    make(map[observationIdentity]string), live: live,
 		streams: make(map[string]*modelStream), delegation: delegation,
 	}
 }
@@ -298,7 +300,11 @@ func (observer *executionObserver) OnToolSettled(_ context.Context, invocation i
 	if settlement.Result != nil {
 		value.Result = settlement.Result.Result
 		value.IsError = settlement.Result.IsError
+		if full, offloaded := observer.fullToolResults[identity]; offloaded && !value.IsError {
+			value.Result = full
+		}
 	}
+	delete(observer.fullToolResults, identity)
 	if !value.Waiting {
 		value.FinishedAt = time.Now().UTC()
 	}
