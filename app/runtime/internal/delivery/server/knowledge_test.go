@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,6 +175,18 @@ func TestUpdateKnowledgeMapsStaleRevisionToProtocolConflict(t *testing.T) {
 	})
 	if !errors.Is(err, protocol.ErrRevisionConflict) {
 		t.Fatalf("UpdateKnowledge err = %v, want revision_conflict", err)
+	}
+}
+
+func TestUpdateKnowledgeMapsOversizedDocumentToInvalidParams(t *testing.T) {
+	s := serverWithKnowledge(&fakeKnowledgeStore{})
+
+	_, err := s.UpdateKnowledge(t.Context(), protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeHome, ExpectedRevision: "rev-1",
+		Content: strings.Repeat("x", int(knowledge.MaxDocumentBytes)+1),
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("UpdateKnowledge err = %v, want invalid_params", err)
 	}
 }
 

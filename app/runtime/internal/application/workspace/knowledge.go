@@ -101,6 +101,9 @@ func (k *Knowledge) Update(ctx context.Context, scope knowledge.Scope, cwd, expe
 	if expectedRevision == "" {
 		return knowledge.Entry{}, knowledge.ErrRevisionRequired
 	}
+	if err := knowledge.ValidateDocument(content); err != nil {
+		return knowledge.Entry{}, err
+	}
 	if k.store == nil {
 		return knowledge.Entry{}, ErrKnowledgeUnavailable
 	}

@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -56,8 +57,9 @@ task is ambiguous, ask one focused question rather than guess.`
 // read-only cross-tool AGENTS.md convention.
 // Engines built without knowledge or agent memory simply yield the base prompt +
 // discovered files.
-// The optional knowledge, memory, document and Plan sources are best-effort:
-// they enrich model context but never become correctness inputs for a run.
+// A configured Knowledge reader supplies one complete cascade, so a read error
+// fails prompt construction instead of silently deleting user instructions.
+// Memory, agent documents and Plan remain best-effort enrichment.
 func (composer *WorkingContextComposer) composeSystemMessage(
 	ctx context.Context,
 	sessionID string,
@@ -71,7 +73,11 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 
 	var knowledgeEntries []knowledge.Entry
 	if composer.config.Knowledge != nil {
-		knowledgeEntries, _ = composer.config.Knowledge.Entries(ctx, cwd)
+		var err error
+		knowledgeEntries, err = composer.config.Knowledge.Entries(ctx, cwd)
+		if err != nil {
+			return corechat.Message{}, fmt.Errorf("agentexec: load knowledge cascade: %w", err)
+		}
 		for _, entry := range knowledgeEntries {
 			if entry.Scope != knowledge.ScopeHome {
 				continue

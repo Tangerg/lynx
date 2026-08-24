@@ -56,9 +56,9 @@ func TestStoreRejectsOversizedKnowledgeDocuments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		content := strings.Repeat("x", (1<<20)+1)
-		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); err == nil {
-			t.Fatal("Update accepted knowledge content larger than 1 MiB")
+		content := strings.Repeat("x", int(knowledge.MaxDocumentBytes)+1)
+		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); !errors.Is(err, knowledge.ErrDocumentTooLarge) {
+			t.Fatalf("Update error = %v, want ErrDocumentTooLarge", err)
 		}
 		if _, err := os.Stat(filepath.Join(home, "LYRA.md")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("oversized Update changed storage: %v", err)
@@ -68,12 +68,29 @@ func TestStoreRejectsOversizedKnowledgeDocuments(t *testing.T) {
 	t.Run("external file", func(t *testing.T) {
 		home := t.TempDir()
 		path := filepath.Join(home, "LYRA.md")
-		if err := os.WriteFile(path, []byte(strings.Repeat("x", (1<<20)+1)), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte(strings.Repeat("x", int(knowledge.MaxDocumentBytes)+1)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		store := newKnowledgeStore(t, home, t.TempDir())
-		if _, err := store.Get(t.Context(), knowledge.ScopeHome, ""); err == nil {
-			t.Fatal("Get accepted an external knowledge file larger than 1 MiB")
+		if _, err := store.Get(t.Context(), knowledge.ScopeHome, ""); !errors.Is(err, knowledge.ErrDocumentTooLarge) {
+			t.Fatalf("Get error = %v, want ErrDocumentTooLarge", err)
+		}
+	})
+
+	t.Run("exact boundary", func(t *testing.T) {
+		home := t.TempDir()
+		store := newKnowledgeStore(t, home, t.TempDir())
+		fresh, err := store.Get(t.Context(), knowledge.ScopeHome, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := strings.Repeat("x", int(knowledge.MaxDocumentBytes))
+		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); err != nil {
+			t.Fatalf("Update exact boundary: %v", err)
+		}
+		got, err := store.Get(t.Context(), knowledge.ScopeHome, "")
+		if err != nil || got.Content != content {
+			t.Fatalf("Get exact boundary: bytes=%d err=%v", len(got.Content), err)
 		}
 	})
 }
@@ -418,7 +435,7 @@ func TestStoreCrossProcessUpdatesHaveOneCASWinner(t *testing.T) {
 func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 	if os.Getenv("LYRA_TEST_KNOWLEDGE_CRASH_CHILD") == "1" {
 		store := newKnowledgeStore(t, os.Getenv("LYRA_TEST_KNOWLEDGE_HOME"), t.TempDir())
-		body := strings.Repeat("x", 64<<20)
+		body := strings.Repeat("x", int(knowledge.MaxDocumentBytes))
 		if err := os.WriteFile(os.Getenv("LYRA_TEST_KNOWLEDGE_READY"), nil, 0o600); err != nil {
 			t.Fatal(err)
 		}

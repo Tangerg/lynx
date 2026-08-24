@@ -70,6 +70,8 @@ P160 只收紧 Runtime internal LSP document synchronization：进入 digest、`
 
 P161 只收紧 Runtime internal MCP remote catalog admission：每 connected server 最多 2048 个 tools，每个 description 最多 64 KiB 且为有效 UTF-8，每个 encoded input schema 最多 1 MiB；模型目录和 `mcp.tools.list` 管理目录都 fail closed，不返回截断前缀。MCP operation request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P162 只收紧 Knowledge 完整文档准入：单份 home/projectRoot/cwd `LYRA.md` 最多 1 MiB，`knowledge.update` 在 persistence port 前拒绝超限内容并投影为 `invalid_params`，filesystem store 的 direct write 与外部文件 read 复用同一 Domain 上限；完整 cascade 不截断或跳过越界文档。Knowledge operation request/result shape、content-revision 格式、CAS/atomic-replace/recovery 语义、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

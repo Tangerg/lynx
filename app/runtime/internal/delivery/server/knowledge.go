@@ -57,7 +57,7 @@ func (s *Server) UpdateKnowledge(ctx context.Context, in protocol.UpdateKnowledg
 		if errors.Is(err, knowledge.ErrRevisionConflict) {
 			return nil, fmt.Errorf("%w: the knowledge document changed after it was read", protocol.ErrRevisionConflict)
 		}
-		if errors.Is(err, knowledge.ErrRevisionRequired) {
+		if errors.Is(err, knowledge.ErrRevisionRequired) || errors.Is(err, knowledge.ErrDocumentTooLarge) {
 			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 		}
 		return nil, wireWorkspaceError(err)

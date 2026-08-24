@@ -103,9 +103,9 @@ func TestRuntimeKnowledgeRejectsOversizedContentBeforeStore(t *testing.T) {
 		func(notice invalidation.Notice) { notices = append(notices, notice) },
 	)
 
-	content := strings.Repeat("x", (1<<20)+1)
-	if _, err := c.Update(t.Context(), knowledge.ScopeHome, "", "rev-1", content); err == nil {
-		t.Fatal("Update accepted knowledge content larger than 1 MiB")
+	content := strings.Repeat("x", int(knowledge.MaxDocumentBytes)+1)
+	if _, err := c.Update(t.Context(), knowledge.ScopeHome, "", "rev-1", content); !errors.Is(err, knowledge.ErrDocumentTooLarge) {
+		t.Fatalf("Update error = %v, want ErrDocumentTooLarge", err)
 	}
 	if store.updateContent != "" {
 		t.Fatal("oversized knowledge content reached the persistence port")

@@ -17,7 +17,32 @@ var (
 	ErrRevisionConflict = errors.New("knowledge: revision conflict")
 	// ErrPathOutsideScope reports a document that does not belong to the selected scope.
 	ErrPathOutsideScope = errors.New("knowledge: path outside scope")
+	// ErrDocumentTooLarge reports authored knowledge that cannot enter the
+	// complete management and prompt projections.
+	ErrDocumentTooLarge = errors.New("knowledge: document too large")
 )
+
+// MaxDocumentBytes is the complete encoded size admitted for one LYRA.md.
+const MaxDocumentBytes int64 = 1 << 20
+
+// ValidateDocumentSize enforces the single resource envelope shared by
+// command admission and filesystem reads.
+func ValidateDocumentSize(size int64) error {
+	if size < 0 || size > MaxDocumentBytes {
+		return fmt.Errorf(
+			"%w: %d bytes, maximum %d",
+			ErrDocumentTooLarge,
+			size,
+			MaxDocumentBytes,
+		)
+	}
+	return nil
+}
+
+// ValidateDocument validates an already-owned knowledge document.
+func ValidateDocument(content string) error {
+	return ValidateDocumentSize(int64(len(content)))
+}
 
 // Scope selects one location in the human-authored LYRA.md cascade. The three
 // locations are distinct even when a workspace happens to be its project root:

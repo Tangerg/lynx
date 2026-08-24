@@ -144,10 +144,13 @@ func (s *Store) read(ctx context.Context, doc document) (knowledge.Entry, os.Fil
 		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
 	}
 	defer func() { _ = root.Close() }()
-	return readDocumentAt(root, doc)
+	return readDocumentAt(ctx, root, doc)
 }
 
-func readDocumentAt(root *os.Root, doc document) (knowledge.Entry, os.FileMode, error) {
+func readDocumentAt(ctx context.Context, root *os.Root, doc document) (knowledge.Entry, os.FileMode, error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return knowledge.Entry{}, 0, cause
+	}
 	file, err := root.Open(doc.relative)
 	if errors.Is(err, os.ErrNotExist) {
 		return emptyEntry(doc), initialMode(doc.scope), nil
@@ -163,8 +166,17 @@ func readDocumentAt(root *os.Root, doc document) (knowledge.Entry, os.FileMode, 
 	if !info.Mode().IsRegular() {
 		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: %q is not a regular file", doc.path)
 	}
-	data, err := io.ReadAll(file)
+	if err := knowledge.ValidateDocumentSize(info.Size()); err != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: inspect %q: %w", doc.path, err)
+	}
+	data, err := io.ReadAll(io.LimitReader(
+		knowledgeContextReader{ctx: ctx, reader: file},
+		knowledge.MaxDocumentBytes+1,
+	))
 	if err != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, err)
+	}
+	if err := knowledge.ValidateDocumentSize(int64(len(data))); err != nil {
 		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, err)
 	}
 	entry := knowledge.Entry{
@@ -196,6 +208,9 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 	if expectedRevision == "" {
 		return knowledge.Entry{}, knowledge.ErrRevisionRequired
 	}
+	if err := knowledge.ValidateDocument(content); err != nil {
+		return knowledge.Entry{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rootPath, err := s.rootFor(scope, dir)
@@ -225,7 +240,7 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 	if err := s.recoverStagedFilesAt(root, doc, true); err != nil {
 		return knowledge.Entry{}, err
 	}
-	current, mode, err := readDocumentAt(root, doc)
+	current, mode, err := readDocumentAt(ctx, root, doc)
 	if err != nil {
 		return knowledge.Entry{}, err
 	}
@@ -271,6 +286,22 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 	// never turn a successful mutation into an apparent failure that a client
 	// might retry with an obsolete revision.
 	return committed, nil
+}
+
+type knowledgeContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r knowledgeContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(r.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := r.reader.Read(buffer)
+	if cause := context.Cause(r.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }
 
 func createTemporary(root *os.Root, target string) (*os.File, string, error) {
