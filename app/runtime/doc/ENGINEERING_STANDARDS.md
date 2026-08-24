@@ -318,6 +318,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 外部能力目录必须在进入模型或非分页管理 read model 前由领域边界限制 item count 与单项 material。MCP 每 connected server 最多 2048 个 tools、description 最多 64 KiB 且为 UTF-8、encoded input schema 最多 1 MiB；模型目录与管理目录必须共享同一常量并对整份 server catalog fail closed，不得各自截断、用 provider context 间接限流或把 invalid schema 改写为空对象。
 - 同时进入管理面与 prompt 的 human-authored complete document 必须由所属 Domain 定义单文档包络，并在 Application command admission 与 filesystem adapter read/write 共同执行。Knowledge `LYRA.md` 最多 1 MiB；读取必须以 stat + cancellation-aware `limit+1` 同时覆盖已超限文件和读取期间增长，cascade 不得静默跳过或截断越界文档，transport body limit 不能替代领域所有权。
 - 同时进入非分页管理面与执行策略的 authored configuration 必须对 encoded file、per-file items、完整 cascade 和单项 material 分别有 Domain-owned 上限。Lifecycle Hook 配置固定为 256 KiB/文件、128 hooks/文件、256 hooks/级联、256-byte matcher、8-KiB action 与 5-minute timeout；loader 必须在 decode/materialization 前以 stat + cancellation-aware `limit+1` 验证完整有效 UTF-8，不得用 partial policy、页面截断或 shell timeout 掩盖无界准入。
+- 外部策略进程的 stdout/stderr 必须用“继续 drain、有限保留”的 writer，不能用 `bytes.Buffer` 把 timeout 变成内存上限。Lifecycle Hook 每条 stream 只保留 64 KiB；stdout 必须严格解析为单一已知 UTF-8 decision object，invalid output 必须可观察且不得贡献 partial decision。timeout/cancellation 必须终止整个可拥有的进程树，返回后再做幂等 cleanup；明确 deny exit code 与 broken-hook non-blocking policy 不得因资源治理互相改写。
 
 ## 7. 测试标准
 

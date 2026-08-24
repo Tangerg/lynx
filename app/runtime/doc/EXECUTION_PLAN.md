@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P163 已完成；下一阶段待独立准入。
+> 状态：P0–P164 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P163 已完成。
+> 最近基线：2026-08-24，P164 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P164 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `295eacc5d` 证明 Hook shell 会把 70 KiB stdout 完整注入 decision、完整保留 70 KiB stderr，畸形/未知/多值 JSON 都静默放行，40 ms timeout 的 descendant 仍让调用等待约 5 秒；补充反例 `7574fcacc` 证明 JSON `null` 也会穿透宽松结构体解码并静默成为 allow。
+- 唯一根修复是 Hook process-owned output/process-tree envelope：stdout/stderr 各用 64 KiB bounded-drain writer；stdout 只接受 empty 或一个 known UTF-8 JSON decision，invalid/overflow 进入既有 observable broken-hook path 且不贡献 partial decision，exit 2 仍明确 deny。Unix shell 在独立 process group 内运行，timeout/cancellation 与 return cleanup 都回收整组，2-second `WaitDelay` 只兜底异常 pipe join。
+- 对 app2 的裁决：采用其 64 KiB per-stream、strict decoder、process group 与 `WaitDelay`；保留原版单一 Shell adapter、Application first-deny/first-rewrite fold、exit-2 deny 与 non-2 failure policy。private stdout contract 直接严格化，不复制 hookprocess/hookflow package split、Service facade、第二 executor 或 legacy parser；invocation/stdin material 留给下一独立批次。
+- P164 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 目录与 cross-compile artifacts 已删除，无残留 Hook descendant/Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P163 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `df00e958f` 证明 Hook loader 会接受超过 256 KiB 的文件、单文件 129 条、global + project 完整级联 257 条与非法 UTF-8，Domain 也接受超过 256-byte matcher、8-KiB action 和 5-minute timeout。
 - 唯一根修复是 Hook Domain-owned complete-configuration envelope：256 KiB/文件、128 hooks/文件、256 hooks/级联、256-byte matcher、8-KiB command/inject、5-minute timeout；filesystem loader 在 decode/materialization 前用 stat + cancellation-aware `limit+1` 覆盖既有超限文件、读取期间增长和 caller cancellation，管理面与 Run binding 对完整级联共同 fail closed。
 - 对 app2 的裁决：采用其已验证的阈值与 file/count/material 分层；保留原版的 global-before-project discovery、每 Run 动态 trust、event vocabulary、first-deny/first-rewrite fold、watcher invalidation 与现有管理投影，并把常量和稳定错误收归原版 Hook Domain。不复制 app2 hookflow Service/Target facade、第二 resolver 或 Protocol compatibility surface；命令进程 I/O 留给独立后续批次。
@@ -400,10 +404,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P161     | MCP remote tool catalog 资源包络闭环                                                           | 每 server 2048 tools、64 KiB description、1 MiB schema；模型与管理 complete-list 共用 Domain envelope 并 fail closed                    |
 | P162     | Knowledge `LYRA.md` 完整文档资源包络闭环                                                       | Domain 统一 1 MiB 文档上限；Application 与 filesystem read/write 共用准入，超限不进入 revision、管理面或 prompt                       |
 | P163     | Lifecycle Hook 配置级联资源包络闭环                                                            | 256 KiB/文件、128 hooks/文件、256 hooks/级联与 bounded matcher/action/timeout；管理面和 Run policy 共同 fail closed                    |
+| P164     | Lifecycle Hook command 输出与进程树资源包络闭环                                                | 64 KiB/stream bounded drain、strict single decision JSON、Unix process-group timeout/cleanup；invalid output observable non-blocking    |
 
 ## 5. 当前里程碑结论
 
-P113–P163 共同建立了以下不可回退的心智模型：
+P113–P164 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -413,6 +418,7 @@ P113–P163 共同建立了以下不可回退的心智模型：
 - MCP remote capability discovery 是有限 complete-list：每 server 的工具数、单项 description 与 schema 由 Domain 唯一限定，模型目录和管理目录不得各自截断或容忍不同 material；跨 server public-name collision 继续由同一 atomic live commit 决定。
 - Knowledge `LYRA.md` 是有限 complete document：Domain 的 1 MiB 上限同时约束 command admission、direct store write、外部文件 read、管理投影与 prompt material；transport cap、静默 skip 或 truncation 都不是替代 owner。
 - Lifecycle Hook 配置是有限 complete policy cascade：Domain 同时限制 encoded file、per-file count、global + project total、matcher/action/timeout，filesystem loader 在 decode/materialization 前验证完整 UTF-8 bytes；管理页、trust binding 与 Run execution 不得各自截断或接受不同策略前缀。
+- Lifecycle Hook command 是有界外部进程：stdout/stderr 必须 drain 而非无界保留，decision 必须 strict whole-object decode，invalid output 不得贡献 partial policy；timeout/cancellation 必须回收可拥有的完整进程树，exit-2 deny 与 broken-hook non-blocking 是两个独立语义。
 - Agent Memory embedding 是 Search-owned derived cache：只比较当前 exact space、同维且 finite 的 vector；role/内容/维度变化由真实 search 惰性重算，cache write 以 item id + content digest + active status 条件提交。Curation 不拥有 embedding resolver、后台 backfill 或第二 rebuild lifecycle。
 - Agent Memory recall 以当前 project context 为唯一入口：exact-project 与 user-scope active items 组成一个 corpus，共享 query signal、ranking 与全局 top-k。prompt/tool consumer 不选择 scope、不各自搜索或 merge，未 pinned 的 user memory 必须仍有 Agent 消费路径。
 - Agent Memory 的管理/prompt/search read model 是有限 complete-list，不是静默分页：每 target 的 visible set、每次 maintenance result、ledger cursor page 与 rejected negative history 分别服从 Domain 唯一上限；显式 user intent 可在原 id 上提升 pending/rejected fact，自动 curation 只能填充真实剩余容量。
@@ -459,4 +465,4 @@ P113–P163 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P163 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P164 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

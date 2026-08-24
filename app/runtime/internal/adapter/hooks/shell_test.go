@@ -84,6 +84,7 @@ func TestShellBoundsCommandOutputAndRejectsMalformedDecision(t *testing.T) {
 		`not-json`,
 		`null`,
 		`{"decision":"unknown"}`,
+		`{"unknown":true}`,
 		`{"decision":"deny"} {"decision":"allow"}`,
 	} {
 		t.Run(output, func(t *testing.T) {
@@ -95,6 +96,47 @@ func TestShellBoundsCommandOutputAndRejectsMalformedDecision(t *testing.T) {
 				t.Fatalf("malformed hook decision %q was silently accepted", output)
 			}
 		})
+	}
+}
+
+func TestShellOversizedExitTwoRemainsAnExplicitDeny(t *testing.T) {
+	runner := apphooks.NewRunner(Shell{}, nil)
+	decision := runner.Run(t.Context(), []domainhooks.Hook{{
+		Event: domainhooks.PreToolUse, Source: "/tmp/hooks.json",
+		Command: `printf '{"injectContext":"'; head -c 70000 /dev/zero | tr '\000' x; printf '"}'; printf 'blocked' >&2; exit 2`,
+	}}, domainhooks.Input{
+		Event: domainhooks.PreToolUse,
+		Tool:  &domainhooks.ToolInput{Name: "shell"},
+	})
+	if !decision.Block || decision.Reason != "blocked" {
+		t.Fatalf("oversized exit-two decision = %+v, want explicit bounded deny", decision)
+	}
+}
+
+func TestShellMalformedDecisionIsObservableAndNonBlocking(t *testing.T) {
+	var observed error
+	runner := apphooks.NewRunner(Shell{}, func(_ context.Context, _ string, err error) {
+		observed = err
+	})
+	decision := runner.Run(t.Context(), []domainhooks.Hook{{
+		Event: domainhooks.PreToolUse, Source: "/tmp/hooks.json",
+		Command: `printf 'not-json'`,
+	}}, domainhooks.Input{
+		Event: domainhooks.PreToolUse,
+		Tool:  &domainhooks.ToolInput{Name: "shell"},
+	})
+	if decision.Block || observed == nil {
+		t.Fatalf("malformed decision = %+v observed=%v, want observable non-blocking failure", decision, observed)
+	}
+}
+
+func TestHookOutputBufferDrainsAfterItsBoundedPrefix(t *testing.T) {
+	buffer := newHookOutputBuffer(4)
+	if written, err := buffer.Write([]byte("abcdef")); err != nil || written != 6 {
+		t.Fatalf("Write = (%d, %v), want (6, nil)", written, err)
+	}
+	if got := buffer.String(); got != "abcd" || !buffer.overflow {
+		t.Fatalf("buffer = %q overflow=%v, want bounded overflowing prefix", got, buffer.overflow)
 	}
 }
 

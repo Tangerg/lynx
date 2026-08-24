@@ -5,22 +5,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"time"
+	"unicode/utf8"
 
 	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
+const (
+	maxHookCommandOutputBytes = 64 << 10
+	hookProcessWaitDelay      = 2 * time.Second
+)
+
 // Shell executes hook commands with the host shell.
 type Shell struct{}
 
-// RunHookCommand runs req.Command via `sh -c`, encoding the typed domain input
-// into the external hook JSON contract at this adapter boundary.
+// RunHookCommand runs req.Command via the host shell, encoding the typed domain
+// input into the external hook JSON contract at this adapter boundary.
 func (Shell) RunHookCommand(ctx context.Context, req apphooks.CommandRequest) apphooks.CommandResult {
 	cctx, cancel := context.WithTimeout(ctx, req.Timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(cctx, "sh", "-c", req.Command)
+	cmd := hookShellCommand(cctx, req.Command)
 	stdin, err := json.Marshal(hookInputWireFrom(req.Input))
 	if err != nil {
 		return apphooks.CommandResult{Err: err, ExitCode: -1}
@@ -29,18 +39,35 @@ func (Shell) RunHookCommand(ctx context.Context, req apphooks.CommandRequest) ap
 	if req.CWD != "" {
 		cmd.Dir = req.CWD
 	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := newHookOutputBuffer(maxHookCommandOutputBytes)
+	stderr := newHookOutputBuffer(maxHookCommandOutputBytes)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	cmd.WaitDelay = hookProcessWaitDelay
+	prepareHookProcessGroup(cmd)
+	cmd.Cancel = func() error { return stopHookProcessGroup(cmd) }
 
-	err = cmd.Run()
-	return apphooks.CommandResult{
-		Decision: hookDecisionFromWire(stdout.Bytes()),
+	runErr := cmd.Run()
+	cleanupErr := stopHookProcessGroup(cmd)
+	if errors.Is(cleanupErr, os.ErrProcessDone) {
+		cleanupErr = nil
+	}
+	result := apphooks.CommandResult{
 		Stderr:   stderr.String(),
-		ExitCode: exitCodeOf(err),
-		Err:      err,
+		ExitCode: exitCodeOf(runErr),
+		Err:      errors.Join(runErr, cleanupErr),
 		TimedOut: cctx.Err() == context.DeadlineExceeded,
 	}
+	if stdout.overflow {
+		result.Err = errors.Join(
+			result.Err,
+			fmt.Errorf("hooks: command stdout exceeds %d bytes", maxHookCommandOutputBytes),
+		)
+		return result
+	}
+	result.Decision, err = hookDecisionFromWire(stdout.Bytes())
+	result.Err = errors.Join(result.Err, err)
+	return result
 }
 
 type hookInputWire struct {
@@ -91,25 +118,84 @@ type hookDecisionWire struct {
 	RewriteArguments string `json:"rewriteArguments,omitempty"`
 }
 
-func hookDecisionFromWire(stdout []byte) apphooks.CommandDecision {
+func hookDecisionFromWire(stdout []byte) (apphooks.CommandDecision, error) {
+	trimmed := bytes.TrimSpace(stdout)
+	if len(trimmed) == 0 {
+		return apphooks.CommandDecision{}, nil
+	}
+	if !utf8.Valid(stdout) {
+		return apphooks.CommandDecision{}, errors.New("hooks: command decision is not valid UTF-8")
+	}
+	if trimmed[0] != '{' {
+		return apphooks.CommandDecision{}, errors.New("hooks: command decision must be a JSON object")
+	}
 	var wire hookDecisionWire
-	_ = json.Unmarshal(stdout, &wire) // malformed stdout is exit-code-only.
+	decoder := json.NewDecoder(bytes.NewReader(stdout))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return apphooks.CommandDecision{}, fmt.Errorf("hooks: decode command decision: %w", err)
+	}
+	if err := requireHookDecisionEOF(decoder); err != nil {
+		return apphooks.CommandDecision{}, fmt.Errorf("hooks: decode command decision: %w", err)
+	}
+	verdict, err := hookVerdictFromWire(wire.Decision)
+	if err != nil {
+		return apphooks.CommandDecision{}, err
+	}
 	return apphooks.CommandDecision{
-		Verdict: hookVerdictFromWire(wire.Decision), Reason: wire.Reason,
+		Verdict: verdict, Reason: wire.Reason,
 		InjectContext: wire.InjectContext, RewriteArguments: wire.RewriteArguments,
+	}, nil
+}
+
+func requireHookDecisionEOF(decoder *json.Decoder) error {
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
+		return err
+	}
+	return nil
+}
+
+func hookVerdictFromWire(verdict string) (apphooks.CommandVerdict, error) {
+	switch verdict {
+	case "", "allow":
+		return apphooks.CommandAllow, nil
+	case "deny":
+		return apphooks.CommandDeny, nil
+	case "ask":
+		return apphooks.CommandAsk, nil
+	default:
+		return apphooks.CommandAllow, fmt.Errorf("hooks: unsupported command decision %q", verdict)
 	}
 }
 
-func hookVerdictFromWire(verdict string) apphooks.CommandVerdict {
-	switch verdict {
-	case "deny":
-		return apphooks.CommandDeny
-	case "ask":
-		return apphooks.CommandAsk
-	default:
-		return apphooks.CommandAllow
-	}
+type hookOutputBuffer struct {
+	buffer   bytes.Buffer
+	limit    int
+	overflow bool
 }
+
+func newHookOutputBuffer(limit int) *hookOutputBuffer {
+	return &hookOutputBuffer{limit: limit}
+}
+
+func (buffer *hookOutputBuffer) Write(value []byte) (int, error) {
+	written := len(value)
+	remaining := buffer.limit - buffer.buffer.Len()
+	if remaining > 0 {
+		_, _ = buffer.buffer.Write(value[:min(len(value), remaining)])
+	}
+	if len(value) > remaining {
+		buffer.overflow = true
+	}
+	return written, nil
+}
+
+func (buffer *hookOutputBuffer) Bytes() []byte  { return buffer.buffer.Bytes() }
+func (buffer *hookOutputBuffer) String() string { return buffer.buffer.String() }
 
 func exitCodeOf(err error) int {
 	if err == nil {
