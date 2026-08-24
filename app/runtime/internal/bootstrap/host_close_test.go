@@ -157,6 +157,42 @@ func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
 	}
 }
 
+func TestHostCloseAdvancesPastCompletedCloserError(t *testing.T) {
+	closeErr := errors.New("terminal close diagnostic")
+	var toolCalls, resourceCalls int
+	oneShotToolClose := sync.OnceValue(func() error {
+		toolCalls++
+		return closeErr
+	})
+	host := Host{lifetime: &hostLifetime{
+		// A2A, LSP, Shells and SQLite all use this one-shot close shape: the
+		// resource reaches its terminal state on the first call even when that
+		// call reports a diagnostic. Replaying the same cached error can never
+		// make more cleanup progress.
+		toolResources: shutdownClosers([]func() error{oneShotToolClose}),
+		hostResources: []ShutdownResource{closerFunc(func() error {
+			resourceCalls++
+			return nil
+		})},
+	}}
+
+	if err := host.Close(); !errors.Is(err, closeErr) {
+		t.Fatalf("first Close error = %v, want terminal diagnostic", err)
+	}
+	if toolCalls != 1 {
+		t.Fatalf("one-shot tool close calls = %d, want 1", toolCalls)
+	}
+	if resourceCalls != 1 {
+		t.Fatalf("dependent resource close calls = %d, want 1 after tool reached its terminal state", resourceCalls)
+	}
+	if err := host.Close(); err != nil {
+		t.Fatalf("second Close = %v, want already-closed Host", err)
+	}
+	if toolCalls != 1 || resourceCalls != 1 {
+		t.Fatalf("second Close replayed terminal work: tool=%d resource=%d", toolCalls, resourceCalls)
+	}
+}
+
 func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T) {
 	toolClosed := false
 	host := Host{lifetime: &hostLifetime{
