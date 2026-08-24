@@ -75,7 +75,7 @@ func TestEmbeddedBindingCompilesForAnExternalModule(t *testing.T) {
 	directory := t.TempDir()
 	goMod := fmt.Sprintf(`module example.com/runtimeconsumer
 
-go 1.26.5
+go 1.27.0
 
 require github.com/Tangerg/lynx/app/runtime v0.0.0
 

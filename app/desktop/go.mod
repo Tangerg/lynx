@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/app/desktop
 
-go 1.26.5
+go 1.27.0
 
 require github.com/wailsapp/wails/v3 v3.0.0-beta.4
 

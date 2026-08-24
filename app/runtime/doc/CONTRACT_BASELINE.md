@@ -27,7 +27,7 @@ Runtime 是应用后端，同时提供公共 Go binding。只有 `protocol` 与 
 
 Digest 只用于发现未审计漂移，不能替代语义测试。
 
-当前 Runtime module 使用 Go `1.26.5`。重构代码使用该版本已经提供的标准库和测试能力，不引入为旧 Go 版本服务的兼容写法；Go 版本随仓库统一升级时同步更新本基线。
+当前 Runtime 与 Desktop module 统一使用 Go `1.27.0`。重构代码使用该版本已经提供的标准库和测试能力，不引入为旧 Go 版本服务的兼容写法；两个 app module 的 `go` directive 与 Desktop 隔离 workspace 必须保持一致。
 
 ## 2. Runtime Protocol Baseline 1
 
