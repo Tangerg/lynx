@@ -82,6 +82,7 @@ func TestShellBoundsCommandOutputAndRejectsMalformedDecision(t *testing.T) {
 
 	for _, output := range []string{
 		`not-json`,
+		`null`,
 		`{"decision":"unknown"}`,
 		`{"decision":"deny"} {"decision":"allow"}`,
 	} {
