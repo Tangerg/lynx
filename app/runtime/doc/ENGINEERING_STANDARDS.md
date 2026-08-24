@@ -315,6 +315,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 待审内容的 identity 与 retention identity 必须分开：Skill Proposal review 决策以 scope/name/完整文档 digest 绑定 exact bytes，queue retention 则以 scope/name 只保留一个 current revision。同名改稿必须替换当前槽位并让旧 handle 确定性失效，不得用 content-addressed 目录把编辑历史伪装成多个待办。完整 authored Skill 文档最多 1 MiB，每 scope 最多 128 个待审名称；写入、生命周期读取与 complete list 必须共享该边界，越界状态整体拒绝而非截断。
 - 所有 request-detached auxiliary model call 必须在唯一 adapter 边界显式提交正数 aggregate-input byte limit 与 output-token limit，并在 provider I/O 前拒绝越界；不得继承 provider 默认输出、不提供 uncapped transcript mode。模型输入的公平裁剪与 compaction 的原始 footprint 测量必须分离；watermark/cursor 只能推进到实际完整进入 prompt 的最后一项，禁止裁掉 material 后仍越过其 durable identity。
 - 外部进程的 document synchronization 必须在读取、复制、哈希和协议编码之前拥有固定资源包络。LSP 单文档最多 8 MiB，必须以 stat + cancellation-aware `limit+1` reader 同时覆盖已超限文件与读取期间增长；不得截断后发送 partial document，也不得把 workspace file API 的 caller-defined read window 当作 LSP 的隐式保障。
+- 外部能力目录必须在进入模型或非分页管理 read model 前由领域边界限制 item count 与单项 material。MCP 每 connected server 最多 2048 个 tools、description 最多 64 KiB 且为 UTF-8、encoded input schema 最多 1 MiB；模型目录与管理目录必须共享同一常量并对整份 server catalog fail closed，不得各自截断、用 provider context 间接限流或把 invalid schema 改写为空对象。
 
 ## 7. 测试标准
 

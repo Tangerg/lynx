@@ -560,3 +560,10 @@
 - 背景：原版 `ensureOpen` 对 workspace document 直接调用 `os.ReadFile`，文件大小没有上限；读取完成后还会复制到 SHA-256 输入、Go string 与 JSON-RPC `didOpen/didChange` payload。失败优先反例 `c6ff8f3a0` 证明超过 8 MiB 的生成文件仍被完整接纳，甚至在 digest 与已有 open-state 相同、不需要通知时也先付出无界读取成本。请求取消只能在整份文件读完后由后续 RPC 看见。
 - 决策：采纳 app2 codeintel 的 8 MiB 单文档 envelope，并把它放在原版唯一 `ensureOpen` 读取边界。reader 在打开前检查 cancellation，以 stat 快拒绝已超限文件，再通过 cancellation-aware `limit+1` 读取覆盖并发增长；超限以稳定 `ErrDocumentTooLarge` 返回，既不计算 digest，也不修改 client state 或通知语言服务器。
 - 后果：LSP 输入内存与 JSON-RPC payload 取得确定上界，exact-boundary 文档仍可使用；取消在分块读取过程中保持可见。该限制只属于语言服务器同步消费者，不改变 workspace file read 的 caller-defined window，不引入截断、partial document、兼容 fallback、配置旋钮或第二同步路径。
+
+## ADR-RT-080：MCP 远端工具目录在 Domain 统一限制 material
+
+- 状态：已接受并实施，P161 完成；只改变 Runtime internal MCP Domain/Infra 与测试文档，公共 Protocol shape、Artifact、SQLite、Desktop source、Agent Framework 与 CLI 合同不变。
+- 背景：原版只验证 MCP input schema 是 object，并在 live commit 时拒绝 public tool-name collision；远端 `tools/list` 的数量、description bytes 与 schema bytes 都没有上限。失败优先反例 `ee80f6901` 证明模型目录接受超过 64 KiB 的 description，`mcp.tools.list` 接受超过 1 MiB 的 schema，commit gate 接受同 server 2049 个工具。远端 material 会被保留到每次模型请求并完整投影到管理面，不能依赖 provider context 或 HTTP body limit 间接兜底。
+- 决策：采纳 app2 已验证的 per-server 2048 tools、per-description 64 KiB 与 per-schema 1 MiB envelope，并由 MCP Domain 唯一发布常量和稳定错误。description 同时要求有效 UTF-8；input schema 在 JSON decode 前先验 encoded bytes，并在 canonical normalization 后重验 owned representation，防转义扩张越界。模型目录在 session verification 后、publication 前验证完整 tool set；管理目录逐 descriptor 验证并拒绝 nil/empty/duplicate name。commit gate 再守一次廉价 count invariant，并继续原子检查跨 server public-name collision。
+- 后果：一个远端 server 不能把无界 descriptor material 带入 durable live projection、模型工具目录或非分页管理页面；任何越界使该 server 的完整 catalog 失败，不截断、不发布前缀、不降级为空 schema。该批保留原版 generation-safe reconnect、session ownership、tool policy 与 public-name identity，不复制 app2 Runtime/Service facade、SQLite owner 或兼容路径。

@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
@@ -16,6 +17,9 @@ import (
 // boot it is nil because the candidate has not joined servers yet. The caller
 // serializes access to servers.
 func validateToolCatalog(servers []*server, replacing *server, candidateServer string, candidate []toolcontract.Tool) error {
+	if err := mcpserver.ValidateRemoteToolCount(len(candidate)); err != nil {
+		return fmt.Errorf("mcp: validate tools from server %q: %w", candidateServer, err)
+	}
 	owners := make(map[string]string)
 	for _, current := range servers {
 		if current == replacing || current.session == nil {

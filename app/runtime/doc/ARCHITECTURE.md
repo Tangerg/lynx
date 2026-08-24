@@ -164,6 +164,8 @@ Application checkpoint 包含：
 
 LSP 的 document synchronization 是一次有界内存传输，不是通用文件读取旁路。唯一 `ensureOpen` 入口最多接纳 8 MiB：先用 stat 快速拒绝已超限文件，再以 cancellation-aware `limit+1` reader 防读取期间增长；只有完整通过包络的 bytes 才能进入 digest、字符串转换、`didOpen/didChange` 和 open-document state。Workspace file API 的 caller-defined `maxBytes` 与 LSP 固定同步包络属于不同消费者，不得互相推断或让语言服务器绕过资源上限。
 
+MCP 远端工具描述符是不可信的 complete-list 输入。MCP Domain 唯一规定每个 connected server 最多 2048 个工具、每个 description 最多 64 KiB 且必须是 UTF-8、每个 encoded input schema 最多 1 MiB；schema 在 JSON decode 前先验输入大小，并在 canonical normalization 后重验 owned representation。模型目录的 session verification 与 `mcp.tools.list` 管理目录共同消费这些常量，空名、重复名或越界 material 使该 server 的完整 catalog 失败，不发布截断前缀或部分可信状态。跨 server 的 model-facing public-name collision 仍由 commit gate 原子验证，资源包络不替代 identity 规则。
+
 Agent Memory 的非分页管理面是 complete-list contract，因此每个 project/user target 的 active + pending 集合必须同时有限且完整：Domain 上限为 512，SQLite 写入在同一事务内计数，所有完整读取最多取 513 条并在越界时拒绝 corrupt state，不能用静默 `LIMIT 512` 伪造完整性。单次 extraction 与 curation 各至多产生 32 条，pending ledger cursor page 至多 128 条；自动 fold 在容量不足时只按重要性顺序发布可容纳前缀。Rejected 是抑制重复 proposal 的负历史，不是永久审计日志；每目标只保留最近 2048 条。显式 user add 可以把同 digest 的 pending/rejected item 原地提升为 active user memory，保持稳定 id，不建立 duplicate 或复活旁路。
 
 Skill Proposal review queue 同样是完整、本地且非分页的读模型，但唯一槽位是 `(scope, skill name)`，不是内容 revision。每个 project/user scope 最多保留 128 个待审名称；同名新稿原子替换当前 `SKILL.md`，旧 revision 句柄随即以 content CAS 失效，不再并列积累历史草稿。完整 authored `SKILL.md` 最多 1 MiB；proposal render、active/archive/proposal lifecycle read 都在解析前执行 stat + bounded read，队列枚举最多读取 capacity + 1 并对 corrupt overfull state fail closed。同一 library 的 directory lease 把容量检查、替换、生命周期 mutation 与 exact revision 决策跨 Runtime 进程线性化，因此共享数据目录不能超配容量或让旧审批删除后来稿。

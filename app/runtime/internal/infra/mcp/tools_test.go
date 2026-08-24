@@ -91,7 +91,7 @@ func TestRemoteToolCatalogRejectsUnboundedMaterial(t *testing.T) {
 	t.Run("model-facing description", func(t *testing.T) {
 		session := toolCatalogSession(t, &sdkmcp.Tool{
 			Name:        "oversized-description",
-			Description: strings.Repeat("x", (64<<10)+1),
+			Description: strings.Repeat("x", mcpserver.MaxRemoteToolDescriptionBytes+1),
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		})
 		if _, err := sourceTools(t.Context(), lynxmcp.ToolSource{Name: "catalog", Session: session}); err == nil {
@@ -103,7 +103,7 @@ func TestRemoteToolCatalogRejectsUnboundedMaterial(t *testing.T) {
 		session := toolCatalogSession(t, &sdkmcp.Tool{
 			Name: "oversized-schema",
 			InputSchema: json.RawMessage(`{"type":"object","description":"` +
-				strings.Repeat("x", (1<<20)+1) + `"}`),
+				strings.Repeat("x", mcpserver.MaxRemoteToolInputSchemaBytes+1) + `"}`),
 		})
 		connections := &Connections{servers: []*server{{
 			config:  ServerConfig{Name: "catalog"},
@@ -115,7 +115,7 @@ func TestRemoteToolCatalogRejectsUnboundedMaterial(t *testing.T) {
 	})
 
 	t.Run("tool count", func(t *testing.T) {
-		candidate := make([]toolcontract.Tool, 2_049)
+		candidate := make([]toolcontract.Tool, mcpserver.MaxRemoteToolsPerServer+1)
 		for index := range candidate {
 			candidate[index] = catalogTool(fmt.Sprintf("catalog_tool_%04d", index))
 		}

@@ -38,6 +38,14 @@ func NewInputSchema(value any) (InputSchema, error) {
 
 // ParseInputSchema validates and owns a JSON-encoded MCP input schema.
 func ParseInputSchema(data []byte) (InputSchema, error) {
+	if len(data) > MaxRemoteToolInputSchemaBytes {
+		return InputSchema{}, fmt.Errorf(
+			"%w: schema uses %d bytes, maximum %d",
+			ErrInvalidInputSchema,
+			len(data),
+			MaxRemoteToolInputSchemaBytes,
+		)
+	}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return InputSchema{}, fmt.Errorf("%w: empty JSON document", ErrInvalidInputSchema)
 	}
@@ -65,6 +73,14 @@ func ParseInputSchema(data []byte) (InputSchema, error) {
 	normalized, err := json.Marshal(object)
 	if err != nil {
 		return InputSchema{}, fmt.Errorf("%w: normalize schema: %w", ErrInvalidInputSchema, err)
+	}
+	if len(normalized) > MaxRemoteToolInputSchemaBytes {
+		return InputSchema{}, fmt.Errorf(
+			"%w: normalized schema uses %d bytes, maximum %d",
+			ErrInvalidInputSchema,
+			len(normalized),
+			MaxRemoteToolInputSchemaBytes,
+		)
 	}
 	if string(normalized) == emptyInputSchema {
 		return InputSchema{}, nil

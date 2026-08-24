@@ -68,6 +68,8 @@ P159 将 Runtime internal Skill Proposal storage 从 `_proposals/<revision>/SKIL
 
 P160 只收紧 Runtime internal LSP document synchronization：进入 digest、`didOpen/didChange` 与 client open-state 的单文件最多 8 MiB，读取同时服从 caller cancellation 与 `limit+1` growth detection。LSP operation request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P161 只收紧 Runtime internal MCP remote catalog admission：每 connected server 最多 2048 个 tools，每个 description 最多 64 KiB 且为有效 UTF-8，每个 encoded input schema 最多 1 MiB；模型目录和 `mcp.tools.list` 管理目录都 fail closed，不返回截断前缀。MCP operation request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

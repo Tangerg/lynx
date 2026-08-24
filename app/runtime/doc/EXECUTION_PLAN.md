@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P160 已完成；下一阶段待独立准入。
+> 状态：P0–P161 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P160 已完成。
+> 最近基线：2026-08-24，P161 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P161 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `ee80f6901` 证明 MCP 模型目录接受超过 64 KiB 的 description、管理目录接受超过 1 MiB 的 schema、commit gate 接受同 server 2049 个 tools。
+- 唯一根修复是 MCP Domain-owned remote catalog envelope：每 connected server 最多 2048 tools、单 description 最多 64 KiB 且为 UTF-8、单 encoded input schema 最多 1 MiB。模型 session verification 与 live management listing 共享常量，任一 nil/empty/duplicate/oversized descriptor 都使完整 server catalog 失败；不截断、不发布前缀、不生成空 schema fallback。
+- 对 app2 的裁决：直接采纳其 2048/64 KiB/1 MiB 阈值；保留原版 generation-safe reconnect、session retirement、tool-policy 与跨 server public-name commit gate，并补上 Domain 单一 owner、稳定错误、管理面同步验证和 invalid UTF-8/duplicate descriptor 拒绝。不复制 app2 Runtime/Service facade、SQLite MCP owner 或迁移链。
+- P161 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 目录已删除，无残留 Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P160 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例 `c6ff8f3a0` 证明超过 8 MiB 的 workspace document 仍会被 LSP `ensureOpen` 完整读取并接受，即使 digest 与已有 open-state 相同、无需发送通知。
 - 唯一根修复是 LSP consumer-owned document envelope：单文件最多 8 MiB，唯一同步入口先检查 cancellation/stat，再以 cancellation-aware `limit+1` reader 覆盖并发增长；越界不进入 digest、string、`didOpen/didChange` 或 open-state，没有截断、fallback 或第二同步路径。
 - 对 app2 的裁决：直接采纳其 codeintel 8 MiB document limit，但保留原版成熟的 per-document version ordering、diagnostics generation、process ownership 与 workspace confinement；补上 app2 reader 尚未表达的 stat fast rejection、growth detection、stable error identity 与分块 cancellation，不复制 app2 Runtime facade 或 client lifecycle。
@@ -385,16 +389,18 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P158     | Agent Memory complete-list 与负历史容量闭环                                                        | Domain 统一 target/batch/page/retention 上限；SQLite 原子 admission、严格完整读取、显式 user revival 与 rejected tombstone 回收            |
 | P159     | Skill Proposal current revision 与 review queue 容量闭环                                          | 每 scope/name 一个 current proposal；1 MiB document、128-name queue、exact revision 条件审阅与 corrupt storage fail-closed                 |
 | P160     | LSP document synchronization 资源包络闭环                                                       | 8 MiB exact document envelope；stat + cancellation-aware limit+1 reader，超限不进入 digest、通知或 client state                         |
+| P161     | MCP remote tool catalog 资源包络闭环                                                           | 每 server 2048 tools、64 KiB description、1 MiB schema；模型与管理 complete-list 共用 Domain envelope 并 fail closed                    |
 
 ## 5. 当前里程碑结论
 
-P113–P160 共同建立了以下不可回退的心智模型：
+P113–P161 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - Runtime Instance shutdown 由唯一 active generation 从 operation Endpoint/workers 连续加入 Host，Host 再由 `hostLifetime` 唯一 generation 拥有 component、executor 与 resource 跨阶段连续性；任一 caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 或单次 public Close 即使不再有 cleanup caller 也不会因 timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
 - 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - LSP document synchronization 自己拥有 8 MiB 完整输入包络；通用 workspace read 的 caller window 不能替代外部进程 adapter 的 admission。超限、读取中增长或取消必须在 digest、JSON-RPC 通知与 client state 之前失败，不发送截断文档。
+- MCP remote capability discovery 是有限 complete-list：每 server 的工具数、单项 description 与 schema 由 Domain 唯一限定，模型目录和管理目录不得各自截断或容忍不同 material；跨 server public-name collision 继续由同一 atomic live commit 决定。
 - Agent Memory embedding 是 Search-owned derived cache：只比较当前 exact space、同维且 finite 的 vector；role/内容/维度变化由真实 search 惰性重算，cache write 以 item id + content digest + active status 条件提交。Curation 不拥有 embedding resolver、后台 backfill 或第二 rebuild lifecycle。
 - Agent Memory recall 以当前 project context 为唯一入口：exact-project 与 user-scope active items 组成一个 corpus，共享 query signal、ranking 与全局 top-k。prompt/tool consumer 不选择 scope、不各自搜索或 merge，未 pinned 的 user memory 必须仍有 Agent 消费路径。
 - Agent Memory 的管理/prompt/search read model 是有限 complete-list，不是静默分页：每 target 的 visible set、每次 maintenance result、ledger cursor page 与 rejected negative history 分别服从 Domain 唯一上限；显式 user intent 可在原 id 上提升 pending/rejected fact，自动 curation 只能填充真实剩余容量。
@@ -441,4 +447,4 @@ P113–P160 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P160 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P161 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

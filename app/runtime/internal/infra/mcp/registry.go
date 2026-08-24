@@ -61,9 +61,22 @@ func (c *Connections) Tools(ctx context.Context, serverName string) ([]mcpserver
 
 	var out []mcpserver.AdvertisedTool
 	for _, t := range targets {
+		seen := make(map[string]struct{})
 		for descriptor, err := range t.session.Tools(ctx, nil) {
 			if err != nil {
 				return nil, fmt.Errorf("mcp: list tools from server %q: %w", t.name, err)
+			}
+			if descriptor == nil || descriptor.Name == "" {
+				return nil, fmt.Errorf("%w: server %q returned a nil or unnamed tool", mcpserver.ErrInvalidRemoteToolCatalog, t.name)
+			}
+			if _, duplicate := seen[descriptor.Name]; duplicate {
+				return nil, fmt.Errorf("%w: server %q returned duplicate tool %q", mcpserver.ErrInvalidRemoteToolCatalog, t.name, descriptor.Name)
+			}
+			if err := mcpserver.ValidateRemoteToolCount(len(seen) + 1); err != nil {
+				return nil, fmt.Errorf("mcp: validate tools from server %q: %w", t.name, err)
+			}
+			if err := mcpserver.ValidateRemoteToolDescription(descriptor.Description); err != nil {
+				return nil, fmt.Errorf("mcp: validate tool %q from server %q: %w", descriptor.Name, t.name, err)
 			}
 			schema, err := inputSchema(descriptor.InputSchema)
 			if err != nil {
@@ -74,6 +87,7 @@ func (c *Connections) Tools(ctx context.Context, serverName string) ([]mcpserver
 					err,
 				)
 			}
+			seen[descriptor.Name] = struct{}{}
 			out = append(out, mcpserver.AdvertisedTool{
 				Server:      t.name,
 				Name:        descriptor.Name,
