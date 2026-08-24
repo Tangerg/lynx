@@ -97,3 +97,93 @@ func TestHookValidateRejectsUnboundedConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestCommandProjectionBoundsDynamicMaterialWithoutMutatingInput(t *testing.T) {
+	input := Input{
+		Event:  PostToolUse,
+		Prompt: strings.Repeat("p", MaxPromptBytes+1),
+		Reason: strings.Repeat("e", MaxReasonBytes+1),
+		Tool: &ToolInput{
+			Name: "shell", Arguments: `{"command":"go test ./..."}`,
+			Result: strings.Repeat("r", MaxResultBytes+1),
+		},
+		Subagent: &SubagentInput{
+			RunID: "run-child", ParentRunID: "run-root",
+			Description: strings.Repeat("d", MaxReasonBytes+1),
+			Prompt:      strings.Repeat("q", MaxPromptBytes+1),
+			Result:      strings.Repeat("s", MaxResultBytes+1),
+			Error:       strings.Repeat("x", MaxReasonBytes+1),
+		},
+	}
+
+	projected, err := input.CommandProjection()
+	if err != nil {
+		t.Fatalf("CommandProjection: %v", err)
+	}
+	if len(projected.Prompt) != MaxPromptBytes || !projected.PromptTruncated {
+		t.Fatalf("prompt = %d bytes truncated=%v", len(projected.Prompt), projected.PromptTruncated)
+	}
+	if len(projected.Reason) != MaxReasonBytes {
+		t.Fatalf("reason = %d bytes, want %d", len(projected.Reason), MaxReasonBytes)
+	}
+	if projected.Tool == input.Tool ||
+		len(projected.Tool.Result) != MaxResultBytes ||
+		!projected.Tool.ResultTruncated ||
+		projected.Tool.Arguments != input.Tool.Arguments {
+		t.Fatalf("projected tool = %+v", projected.Tool)
+	}
+	if projected.Subagent == input.Subagent ||
+		len(projected.Subagent.Description) != MaxReasonBytes ||
+		len(projected.Subagent.Prompt) != MaxPromptBytes ||
+		!projected.Subagent.PromptTruncated ||
+		len(projected.Subagent.Result) != MaxResultBytes ||
+		!projected.Subagent.ResultTruncated ||
+		len(projected.Subagent.Error) != MaxReasonBytes {
+		t.Fatalf("projected subagent = %+v", projected.Subagent)
+	}
+	if len(input.Prompt) != MaxPromptBytes+1 ||
+		len(input.Tool.Result) != MaxResultBytes+1 ||
+		len(input.Subagent.Prompt) != MaxPromptBytes+1 {
+		t.Fatal("CommandProjection mutated its input")
+	}
+}
+
+func TestCommandProjectionRejectsLossyToolArguments(t *testing.T) {
+	_, err := (Input{
+		Event: PreToolUse,
+		Tool: &ToolInput{
+			Name: "shell", Arguments: strings.Repeat("a", MaxArgumentsBytes+1),
+		},
+	}).CommandProjection()
+	if !errors.Is(err, ErrCommandInputTooLarge) {
+		t.Fatalf("CommandProjection error = %v, want ErrCommandInputTooLarge", err)
+	}
+
+	_, err = (Input{
+		Event: PreToolUse,
+		Tool:  &ToolInput{Name: "shell", Arguments: "{\xff}"},
+	}).CommandProjection()
+	if !errors.Is(err, ErrInvalidCommandInput) {
+		t.Fatalf("invalid UTF-8 arguments error = %v, want ErrInvalidCommandInput", err)
+	}
+}
+
+func TestValidateCommandMaterialAcceptsExactBoundaries(t *testing.T) {
+	tests := []Input{
+		{Event: UserPromptSubmit, Prompt: strings.Repeat("p", MaxPromptBytes)},
+		{Event: Stop, Reason: strings.Repeat("e", MaxReasonBytes)},
+		{
+			Event: PreToolUse,
+			Tool:  &ToolInput{Name: "shell", Arguments: strings.Repeat("a", MaxArgumentsBytes)},
+		},
+		{
+			Event: PostToolUse,
+			Tool:  &ToolInput{Name: "shell", Result: strings.Repeat("r", MaxResultBytes)},
+		},
+	}
+	for index, input := range tests {
+		if err := input.ValidateCommandMaterial(); err != nil {
+			t.Fatalf("exact boundary input[%d]: %v", index, err)
+		}
+	}
+}

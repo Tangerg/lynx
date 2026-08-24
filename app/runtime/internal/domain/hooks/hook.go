@@ -25,6 +25,19 @@ const (
 	MaxMatcherBytes = 256
 	// MaxActionBytes bounds one shell command or declarative injection.
 	MaxActionBytes = 8 << 10
+	// MaxPromptBytes bounds user and sub-agent prompt material presented to one
+	// command hook. Longer prompt material is projected as a marked prefix.
+	MaxPromptBytes = 256 << 10
+	// MaxArgumentsBytes is the lossless ceiling for canonical Tool arguments.
+	// Arguments are policy input, so an oversized object is rejected rather than
+	// truncated into a different action.
+	MaxArgumentsBytes = 256 << 10
+	// MaxResultBytes bounds Tool and sub-agent result material presented to one
+	// command hook. The original result remains owned by its normal consumer.
+	MaxResultBytes = 128 << 10
+	// MaxReasonBytes bounds failure, terminal, and descriptive material exposed
+	// to one command hook.
+	MaxReasonBytes = 8 << 10
 	// MaxTimeoutMillis prevents authored policy from replacing the Runtime's
 	// bounded command lifecycle with an arbitrarily long wait.
 	MaxTimeoutMillis = 5 * 60 * 1_000
@@ -95,6 +108,14 @@ var ErrInvalidHook = errors.New("hooks: invalid hook")
 // ErrConfigurationTooLarge reports a hooks.json document or resolved cascade
 // that cannot enter the complete management and execution projections.
 var ErrConfigurationTooLarge = errors.New("hooks: configuration too large")
+
+// ErrCommandInputTooLarge reports semantic invocation material that cannot be
+// projected into the private command contract without changing policy input.
+var ErrCommandInputTooLarge = errors.New("hooks: command input too large")
+
+// ErrInvalidCommandInput reports command material that cannot enter the
+// private JSON contract without silent text replacement.
+var ErrInvalidCommandInput = errors.New("hooks: invalid command input")
 
 // ValidateConfigurationFileSize checks the encoded envelope before a loader
 // allocates or decodes one authored policy document.
@@ -184,12 +205,13 @@ func (h Hook) Validate() error {
 
 // Input is the semantic lifecycle payload passed to a hook runner.
 type Input struct {
-	Event     Event
-	SessionID string
-	CWD       string
-	Tool      *ToolInput
-	Subagent  *SubagentInput
-	Prompt    string
+	Event           Event
+	SessionID       string
+	CWD             string
+	Tool            *ToolInput
+	Subagent        *SubagentInput
+	Prompt          string
+	PromptTruncated bool
 	// Reason carries a human-readable note for the observe-only events (the Stop
 	// terminal detail, the Notification reason).
 	Reason string
@@ -197,9 +219,10 @@ type Input struct {
 
 // ToolInput is the tool slice of an Input for the tool events.
 type ToolInput struct {
-	Name      string
-	Arguments string // raw JSON args (PreToolUse)
-	Result    string // tool output (PostToolUse)
+	Name            string
+	Arguments       string // canonical JSON args (Pre/PostToolUse)
+	Result          string // tool output (PostToolUse)
+	ResultTruncated bool
 }
 
 // SubagentStatus is the stable terminal vocabulary exposed to lifecycle hooks.
@@ -225,13 +248,124 @@ func (s SubagentStatus) Valid() bool {
 
 // SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
 type SubagentInput struct {
-	RunID       string
-	ParentRunID string
-	Description string
-	Prompt      string
-	Status      SubagentStatus
-	Result      string
-	Error       string
+	RunID           string
+	ParentRunID     string
+	Description     string
+	Prompt          string
+	PromptTruncated bool
+	Status          SubagentStatus
+	Result          string
+	Error           string
+	ResultTruncated bool
+}
+
+// CommandProjection returns an ownership-isolated, bounded view for external
+// command hooks. Human-readable prompt/result material may use an explicit
+// marked prefix; canonical Tool arguments never truncate because doing so would
+// describe a different effect to policy code.
+func (in Input) CommandProjection() (Input, error) {
+	out := in
+	out.Prompt, out.PromptTruncated = boundedCommandText(in.Prompt, MaxPromptBytes, in.PromptTruncated)
+	out.Reason, _ = boundedCommandText(in.Reason, MaxReasonBytes, false)
+	if in.Tool != nil {
+		if len(in.Tool.Arguments) > MaxArgumentsBytes {
+			return Input{}, fmt.Errorf(
+				"%w: tool arguments use %d bytes, maximum %d",
+				ErrCommandInputTooLarge,
+				len(in.Tool.Arguments),
+				MaxArgumentsBytes,
+			)
+		}
+		tool := *in.Tool
+		tool.Result, tool.ResultTruncated = boundedCommandText(
+			in.Tool.Result,
+			MaxResultBytes,
+			in.Tool.ResultTruncated,
+		)
+		out.Tool = &tool
+	}
+	if in.Subagent != nil {
+		subagent := *in.Subagent
+		subagent.Description, _ = boundedCommandText(in.Subagent.Description, MaxReasonBytes, false)
+		subagent.Prompt, subagent.PromptTruncated = boundedCommandText(
+			in.Subagent.Prompt,
+			MaxPromptBytes,
+			in.Subagent.PromptTruncated,
+		)
+		subagent.Result, subagent.ResultTruncated = boundedCommandText(
+			in.Subagent.Result,
+			MaxResultBytes,
+			in.Subagent.ResultTruncated,
+		)
+		subagent.Error, _ = boundedCommandText(in.Subagent.Error, MaxReasonBytes, false)
+		out.Subagent = &subagent
+	}
+	if err := out.ValidateCommandMaterial(); err != nil {
+		return Input{}, err
+	}
+	return out, nil
+}
+
+// ValidateCommandMaterial is the process-boundary backstop for callers that
+// bypass CommandProjection. It rejects lossy or oversized semantic input before
+// JSON encoding and process creation.
+func (in Input) ValidateCommandMaterial() error {
+	if len(in.Prompt) > MaxPromptBytes || len(in.Reason) > MaxReasonBytes {
+		return ErrCommandInputTooLarge
+	}
+	values := []string{string(in.Event), in.SessionID, in.CWD, in.Prompt, in.Reason}
+	if in.Tool != nil {
+		if len(in.Tool.Arguments) > MaxArgumentsBytes || len(in.Tool.Result) > MaxResultBytes {
+			return ErrCommandInputTooLarge
+		}
+		values = append(values, in.Tool.Name, in.Tool.Arguments, in.Tool.Result)
+	}
+	if in.Subagent != nil {
+		if len(in.Subagent.Description) > MaxReasonBytes ||
+			len(in.Subagent.Prompt) > MaxPromptBytes ||
+			len(in.Subagent.Result) > MaxResultBytes ||
+			len(in.Subagent.Error) > MaxReasonBytes {
+			return ErrCommandInputTooLarge
+		}
+		values = append(
+			values,
+			in.Subagent.RunID,
+			in.Subagent.ParentRunID,
+			in.Subagent.Description,
+			in.Subagent.Prompt,
+			string(in.Subagent.Status),
+			in.Subagent.Result,
+			in.Subagent.Error,
+		)
+	}
+	for _, value := range values {
+		if !utf8.ValidString(value) {
+			return fmt.Errorf("%w: material must be valid UTF-8", ErrInvalidCommandInput)
+		}
+	}
+	return nil
+}
+
+func boundedCommandText(value string, limit int, alreadyTruncated bool) (string, bool) {
+	if limit <= 0 {
+		return "", alreadyTruncated || value != ""
+	}
+	truncated := alreadyTruncated || len(value) > limit
+	if len(value) > limit {
+		value = value[:limit]
+	}
+	valid := strings.ToValidUTF8(value, "�")
+	if valid != value {
+		truncated = true
+	}
+	if len(valid) > limit {
+		valid = valid[:limit]
+		for len(valid) > 0 && !utf8.ValidString(valid) {
+			valid = valid[:len(valid)-1]
+		}
+		truncated = true
+	}
+	return valid, truncated
 }
 
 // Decision is the combined verdict of every hook that fired for one event.

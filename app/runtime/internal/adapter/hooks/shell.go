@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	maxHookCommandInputBytes  = 512 << 10
 	maxHookCommandOutputBytes = 64 << 10
 	hookProcessWaitDelay      = 2 * time.Second
 )
@@ -27,14 +28,36 @@ type Shell struct{}
 // RunHookCommand runs req.Command via the host shell, encoding the typed domain
 // input into the external hook JSON contract at this adapter boundary.
 func (Shell) RunHookCommand(ctx context.Context, req apphooks.CommandRequest) apphooks.CommandResult {
-	cctx, cancel := context.WithTimeout(ctx, req.Timeout)
-	defer cancel()
-
-	cmd := hookShellCommand(cctx, req.Command)
+	if err := ctx.Err(); err != nil {
+		return apphooks.CommandResult{
+			Err: err, ExitCode: -1,
+			TimedOut: errors.Is(err, context.DeadlineExceeded),
+		}
+	}
+	if err := req.Input.ValidateCommandMaterial(); err != nil {
+		return failedHookCommandInput(err)
+	}
+	if !hookInputMaterialWithinLimit(req.Input, maxHookCommandInputBytes) {
+		return failedHookCommandInput(fmt.Errorf(
+			"raw material exceeds %d bytes",
+			maxHookCommandInputBytes,
+		))
+	}
 	stdin, err := json.Marshal(hookInputWireFrom(req.Input))
 	if err != nil {
-		return apphooks.CommandResult{Err: err, ExitCode: -1}
+		return failedHookCommandInput(fmt.Errorf("encode: %w", err))
 	}
+	if len(stdin) > maxHookCommandInputBytes {
+		return failedHookCommandInput(fmt.Errorf(
+			"encoded input uses %d bytes, maximum %d",
+			len(stdin),
+			maxHookCommandInputBytes,
+		))
+	}
+
+	cctx, cancel := context.WithTimeout(ctx, req.Timeout)
+	defer cancel()
+	cmd := hookShellCommand(cctx, req.Command)
 	cmd.Stdin = bytes.NewReader(stdin)
 	if req.CWD != "" {
 		cmd.Dir = req.CWD
@@ -71,44 +94,97 @@ func (Shell) RunHookCommand(ctx context.Context, req apphooks.CommandRequest) ap
 }
 
 type hookInputWire struct {
-	Event     domainhooks.Event      `json:"event"`
-	SessionID string                 `json:"sessionId,omitempty"`
-	CWD       string                 `json:"cwd,omitempty"`
-	Tool      *hookToolInputWire     `json:"tool,omitempty"`
-	Subagent  *hookSubagentInputWire `json:"subagent,omitempty"`
-	Prompt    string                 `json:"prompt,omitempty"`
-	Reason    string                 `json:"reason,omitempty"`
+	Event           domainhooks.Event      `json:"event"`
+	SessionID       string                 `json:"sessionId,omitempty"`
+	CWD             string                 `json:"cwd,omitempty"`
+	Tool            *hookToolInputWire     `json:"tool,omitempty"`
+	Subagent        *hookSubagentInputWire `json:"subagent,omitempty"`
+	Prompt          string                 `json:"prompt,omitempty"`
+	PromptTruncated bool                   `json:"promptTruncated,omitempty"`
+	Reason          string                 `json:"reason,omitempty"`
 }
 
 type hookToolInputWire struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments,omitempty"`
-	Result    string `json:"result,omitempty"`
+	Name            string `json:"name"`
+	Arguments       string `json:"arguments,omitempty"`
+	Result          string `json:"result,omitempty"`
+	ResultTruncated bool   `json:"resultTruncated,omitempty"`
 }
 
 type hookSubagentInputWire struct {
-	RunID       string `json:"runId"`
-	ParentRunID string `json:"parentRunId,omitempty"`
-	Description string `json:"description,omitempty"`
-	Prompt      string `json:"prompt,omitempty"`
-	Status      string `json:"status,omitempty"`
-	Result      string `json:"result,omitempty"`
-	Error       string `json:"error,omitempty"`
+	RunID           string `json:"runId"`
+	ParentRunID     string `json:"parentRunId,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Prompt          string `json:"prompt,omitempty"`
+	PromptTruncated bool   `json:"promptTruncated,omitempty"`
+	Status          string `json:"status,omitempty"`
+	Result          string `json:"result,omitempty"`
+	Error           string `json:"error,omitempty"`
+	ResultTruncated bool   `json:"resultTruncated,omitempty"`
 }
 
 func hookInputWireFrom(input domainhooks.Input) hookInputWire {
-	out := hookInputWire{Event: input.Event, SessionID: input.SessionID, CWD: input.CWD, Prompt: input.Prompt, Reason: input.Reason}
+	out := hookInputWire{
+		Event: input.Event, SessionID: input.SessionID, CWD: input.CWD,
+		Prompt: input.Prompt, PromptTruncated: input.PromptTruncated, Reason: input.Reason,
+	}
 	if input.Tool != nil {
-		out.Tool = &hookToolInputWire{Name: input.Tool.Name, Arguments: input.Tool.Arguments, Result: input.Tool.Result}
+		out.Tool = &hookToolInputWire{
+			Name: input.Tool.Name, Arguments: input.Tool.Arguments,
+			Result: input.Tool.Result, ResultTruncated: input.Tool.ResultTruncated,
+		}
 	}
 	if input.Subagent != nil {
 		out.Subagent = &hookSubagentInputWire{
 			RunID: input.Subagent.RunID, ParentRunID: input.Subagent.ParentRunID,
-			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt, Status: string(input.Subagent.Status),
+			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt,
+			PromptTruncated: input.Subagent.PromptTruncated, Status: string(input.Subagent.Status),
 			Result: input.Subagent.Result, Error: input.Subagent.Error,
+			ResultTruncated: input.Subagent.ResultTruncated,
 		}
 	}
 	return out
+}
+
+func failedHookCommandInput(err error) apphooks.CommandResult {
+	return apphooks.CommandResult{
+		Err: fmt.Errorf("hooks: command input: %w", err), ExitCode: -1,
+	}
+}
+
+func hookInputMaterialWithinLimit(input domainhooks.Input, limit int) bool {
+	remaining := limit
+	consume := func(value string) bool {
+		if len(value) > remaining {
+			return false
+		}
+		remaining -= len(value)
+		return true
+	}
+	if !consume(string(input.Event)) ||
+		!consume(input.SessionID) ||
+		!consume(input.CWD) ||
+		!consume(input.Prompt) ||
+		!consume(input.Reason) {
+		return false
+	}
+	if input.Tool != nil &&
+		(!consume(input.Tool.Name) ||
+			!consume(input.Tool.Arguments) ||
+			!consume(input.Tool.Result)) {
+		return false
+	}
+	if input.Subagent != nil &&
+		(!consume(input.Subagent.RunID) ||
+			!consume(input.Subagent.ParentRunID) ||
+			!consume(input.Subagent.Description) ||
+			!consume(input.Subagent.Prompt) ||
+			!consume(string(input.Subagent.Status)) ||
+			!consume(input.Subagent.Result) ||
+			!consume(input.Subagent.Error)) {
+		return false
+	}
+	return true
 }
 
 type hookDecisionWire struct {

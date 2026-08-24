@@ -95,6 +95,9 @@ func NewRunner(commands CommandRunner, onError func(ctx context.Context, source 
 // deterministic.
 func (r *Runner) Run(ctx context.Context, hooks []domain.Hook, in domain.Input) domain.Decision {
 	var dec domain.Decision
+	var commandInput domain.Input
+	var commandInputErr error
+	commandInputReady := false
 	for _, h := range hooks {
 		if !h.Matches(in) {
 			continue
@@ -104,7 +107,15 @@ func (r *Runner) Run(ctx context.Context, hooks []domain.Hook, in domain.Input) 
 			dec.Fold(false, false, "", strings.TrimSpace(h.Inject), "")
 			continue
 		}
-		r.runOne(ctx, h, in, &dec)
+		if !commandInputReady {
+			commandInput, commandInputErr = in.CommandProjection()
+			commandInputReady = true
+		}
+		if commandInputErr != nil {
+			r.fail(ctx, h.Source, commandInputErr)
+			continue
+		}
+		r.runOne(ctx, h, commandInput, &dec)
 	}
 	return dec
 }

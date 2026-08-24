@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P164 已完成。
+> 状态：当前能力快照；P165 已完成。
 >
 > 基线日期：2026-08-24。
 
@@ -34,6 +34,7 @@
 - P162 让 Knowledge Domain 唯一拥有 1 MiB `LYRA.md` 完整文档包络；Application 与 filesystem read/write 共同准入，超限内容不进入 revision、管理面或 prompt。
 - P163 让 Hook Domain 唯一拥有 256 KiB/文件、128 hooks/文件、256 hooks/级联与 bounded matcher/action/timeout；管理面和 Run policy 共用完整配置准入。
 - P164 让 Hook Shell 唯一拥有 64 KiB/stream bounded drain、strict decision decode 与 process-group cleanup；invalid output 可观察但不贡献 partial policy。
+- P165 让 Hook Domain/Application/Shell 共同形成唯一 command-input admission：256/256/128/8 KiB field projection、marked prompt/result prefix 与 512 KiB exact stdin 在 process spawn 前闭合；declarative path 不承担该成本。
 
 ## 2. 架构与所有权
 
@@ -292,6 +293,8 @@ P163 完成 Lifecycle Hook authored configuration 资源包络闭环。失败优
 
 P164 完成 Lifecycle Hook command output/process-tree 资源包络闭环。失败优先反例 `295eacc5d` 证明 70 KiB stdout/stderr 都会无界保留，malformed/unknown/trailing decision 静默允许，40 ms timeout 后 descendant 仍拖住调用约 5 秒；补充反例 `7574fcacc` 证明 JSON `null` 也会穿透结构体解码并成为空 allow。Hook Shell 现用 64 KiB bounded-drain writer 保持 pipe 流动但不扩大驻留，stdout 严格接受 empty 或单一 known UTF-8 JSON object；invalid/overflow 进入既有 observable error path 且不贡献 decision，exit code 2 仍以有界 reason 明确 deny。Unix command 独立 process group 在 cancellation/timeout 与 return cleanup 双边回收，`WaitDelay` 只封顶异常 pipe join；Windows/other 使用平台可拥有的 process kill。Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、generator/tidy 零漂移、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿；临时工具、cross-compile artifacts 和进程已回收，未启动 agent-browser。Protocol、Artifact v23、SQLite epoch 82、generated contract、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
+P165 完成 Lifecycle Hook command input/stdin 资源包络闭环。失败优先反例 `a47c9c7c8` 证明超过 256 KiB 的 prompt/arguments、超过 128 KiB 的 Tool result、超过 8 KiB 的 reason 与超过 512 KiB 的 aggregate identity 都会被完整 JSON 编码并启动 shell。Hook Domain 现唯一拥有 256 KiB prompt、256 KiB lossless arguments、128 KiB result 与 8 KiB reason/description/error projection；Application 只为命中的 command hook 懒生成一次 bounded copy，prompt/result 以有效 UTF-8 prefix 和 explicit marker 表达损失，arguments 超界不截断。Shell 在 marshal 前做 512 KiB raw-material preflight，marshal 后复验 512 KiB exact JSON，任何失败都发生在 timer/process spawn 前并沿既有 observable broken-hook path 收敛，declarative inject 继续独立生效。Runtime/Desktop test/vet/build/standalone、Runtime full race、Go 1.27-compatible Staticcheck、根 workspace tests、generator/tidy 零漂移、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Linux/Windows Hook cross-compile、Wails v3 production build 全绿；临时工具、cross-compile artifacts 和进程已回收，未启动 agent-browser。Protocol、Artifact v23、SQLite epoch 82、generated contract、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -302,11 +305,15 @@ P163 进一步证明 executable authored policy 比普通配置更需要 complet
 
 P164 进一步证明 external policy process 的“超时”不是资源包络：只有 bounded drain、strict whole-output decode、process-tree cancellation 和 return cleanup 同时成立，memory、pipe、descendant 与 policy semantics 才由同一个 adapter 收口。
 
+P165 进一步证明 typed input 也不天然有界：只有 Domain field projection、Application matched-command admission 与 adapter exact encoded envelope 同时成立，Runtime 已有的大字符串才不会在外部进程边界形成无界复制；可截断 observation 与不可截断 policy fact 必须显式区分。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
+
+P165 在既有 P0–P164 结论上继续封闭 Hook process 的输入半边：Domain-owned field projection、Application matched-command lazy admission 与 Shell 512 KiB pre/post-encode envelope 共同替代 direct `json.Marshal`；prompt/result 的 marked observation prefix 与 lossless arguments policy fact 不再共享含糊的截断语义。当前完成范围因此为 P0–P165。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

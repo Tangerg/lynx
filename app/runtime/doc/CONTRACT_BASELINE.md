@@ -76,6 +76,8 @@ P163 只收紧 Lifecycle Hook 配置准入：单份 `hooks.json` 最多 256 KiB/
 
 P164 收紧 Hook command 私有进程合同：stdout/stderr 各最多保留 64 KiB 且继续 drain；stdout 只能为空或一个 UTF-8 JSON object，只接受 `decision/reason/injectContext/rewriteArguments` 与 `allow/deny/ask`，unknown/trailing/malformed/overflow 输出作为可观察的 broken-hook failure，不贡献 decision。既有非阻断错误策略保持，exit code 2 即使 stdout 失效也继续 deny；Unix timeout/cancellation 终止整个 process group，返回时再次清理后代。该私有 shell contract 的严格化不改变 `hooks.*` Protocol shape、trust/event/scope 语义、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI。
 
+P165 收紧同一私有 Hook command stdin 合同：Domain command projection 将 prompt/arguments/result/reason 类 material 分别限制在 256/256/128/8 KiB，prompt 与 result 只发布 marked UTF-8 prefix，arguments 必须 lossless；Shell 在进程创建前同时要求 raw material 与最终 JSON stdin 不超过 512 KiB。新增 `promptTruncated`、`tool.resultTruncated` 与 Subagent 对应 marker 只属于 private process JSON，不进入 Lyra Protocol。超界或非法 material 作为可观察的 broken-hook failure，不执行 command；declarative hook 仍独立生效。`hooks.*` Protocol shape、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

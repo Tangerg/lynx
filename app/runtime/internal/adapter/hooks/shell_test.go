@@ -141,6 +141,12 @@ func TestShellRejectsUnboundedCommandInput(t *testing.T) {
 				Event: domainhooks.SessionStart, SessionID: strings.Repeat("s", (512<<10)+1),
 			},
 		},
+		{
+			name: "encoded stdin",
+			input: domainhooks.Input{
+				Event: domainhooks.SessionStart, SessionID: strings.Repeat("\x00", 100<<10),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -151,6 +157,35 @@ func TestShellRejectsUnboundedCommandInput(t *testing.T) {
 				t.Fatalf("oversized %s result = %+v, want pre-spawn rejection", test.name, got)
 			}
 		})
+	}
+}
+
+func TestHookInputWirePreservesBoundedProjectionMarkers(t *testing.T) {
+	prompt := hookInputWireFrom(domainhooks.Input{
+		Event: domainhooks.UserPromptSubmit, Prompt: "prefix", PromptTruncated: true,
+	})
+	if !prompt.PromptTruncated {
+		t.Fatal("prompt truncation marker was dropped at the process boundary")
+	}
+	tool := hookInputWireFrom(domainhooks.Input{
+		Event: domainhooks.PostToolUse,
+		Tool:  &domainhooks.ToolInput{Name: "shell", Result: "prefix", ResultTruncated: true},
+	})
+	if tool.Tool == nil || !tool.Tool.ResultTruncated {
+		t.Fatal("tool result truncation marker was dropped at the process boundary")
+	}
+	subagent := hookInputWireFrom(domainhooks.Input{
+		Event: domainhooks.SubagentStop,
+		Subagent: &domainhooks.SubagentInput{
+			RunID: "run-child", ParentRunID: "run-root",
+			Prompt: "prompt", PromptTruncated: true,
+			Result: "result", ResultTruncated: true,
+		},
+	})
+	if subagent.Subagent == nil ||
+		!subagent.Subagent.PromptTruncated ||
+		!subagent.Subagent.ResultTruncated {
+		t.Fatal("sub-agent truncation markers were dropped at the process boundary")
 	}
 }
 

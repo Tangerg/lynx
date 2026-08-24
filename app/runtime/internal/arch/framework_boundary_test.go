@@ -574,9 +574,12 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse hook domain: %v", err)
 	}
-	want := []string{"RunID", "ParentRunID", "Description", "Prompt", "Status", "Result", "Error"}
+	want := []string{
+		"RunID", "ParentRunID", "Description", "Prompt", "PromptTruncated",
+		"Status", "Result", "Error", "ResultTruncated",
+	}
 	if fields := structFields(hookFile, "SubagentInput"); strings.Join(fields, ",") != strings.Join(want, ",") {
-		t.Fatalf("SubagentInput fields = %v, want application lifecycle identity %v", fields, want)
+		t.Fatalf("SubagentInput fields = %v, want application lifecycle material %v", fields, want)
 	}
 
 	shellPath := filepath.Join(root, "internal", "adapter", "hooks", "shell.go")

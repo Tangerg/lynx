@@ -64,6 +64,47 @@ func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
 	}
 }
 
+func TestRunnerProjectsBoundedMaterialForCommandHooks(t *testing.T) {
+	cmds := &commandStub{}
+	r := NewRunner(cmds, nil)
+	r.Run(ctxBG(), []hookdomain.Hook{{
+		Event: hookdomain.UserPromptSubmit, Command: "hook",
+	}}, hookdomain.Input{
+		Event:  hookdomain.UserPromptSubmit,
+		Prompt: strings.Repeat("p", hookdomain.MaxPromptBytes+1),
+	})
+	if len(cmds.requests) != 1 {
+		t.Fatalf("command requests = %d, want 1", len(cmds.requests))
+	}
+	got := cmds.requests[0].Input
+	if len(got.Prompt) != hookdomain.MaxPromptBytes || !got.PromptTruncated {
+		t.Fatalf("projected prompt = %d bytes truncated=%v", len(got.Prompt), got.PromptTruncated)
+	}
+}
+
+func TestRunnerRejectsLossyArgumentsWithoutDroppingDeclarativeContext(t *testing.T) {
+	cmds := &commandStub{}
+	var observed error
+	r := NewRunner(cmds, func(_ context.Context, _ string, err error) {
+		observed = err
+	})
+	decision := r.Run(ctxBG(), []hookdomain.Hook{
+		{Event: hookdomain.PreToolUse, Inject: "bounded context"},
+		{Event: hookdomain.PreToolUse, Command: "hook", Source: "/tmp/hooks.json"},
+	}, hookdomain.Input{
+		Event: hookdomain.PreToolUse,
+		Tool: &hookdomain.ToolInput{
+			Name: "shell", Arguments: strings.Repeat("a", hookdomain.MaxArgumentsBytes+1),
+		},
+	})
+	if cmds.calls() != 0 || observed == nil {
+		t.Fatalf("command calls = %d observed=%v, want rejected observable command input", cmds.calls(), observed)
+	}
+	if decision.InjectContext != "bounded context" {
+		t.Fatalf("declarative context = %q, want preserved bounded path", decision.InjectContext)
+	}
+}
+
 func TestRunner_StdoutDenyBlocks(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny, Reason: "no rm allowed"}}}}, nil)
 	hooks := []hookdomain.Hook{{
