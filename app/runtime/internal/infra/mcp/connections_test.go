@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -137,17 +138,18 @@ func TestConnectionsShutdownCancelsAndJoinsAttempts(t *testing.T) {
 	}
 }
 
-func TestConnectionsShutdownRetriesOnlyFailedSessionClosures(t *testing.T) {
+func TestConnectionsShutdownSettlesTerminalSessionCloseError(t *testing.T) {
 	closeErr := errors.New("session close failed")
 	var calls atomic.Int32
 	session := new(sdkmcp.ClientSession)
 	owned := &ownedSession{
-		closeFn: func() error {
-			if calls.Add(1) == 1 {
-				return closeErr
-			}
-			return nil
-		},
+		// ClientSession.Close has this exact one-shot shape: its transport closer
+		// is consumed even when it returns an error, so replay can only return the
+		// same diagnostic and can never advance resource settlement.
+		closeFn: sync.OnceValue(func() error {
+			calls.Add(1)
+			return closeErr
+		}),
 	}
 	c := &Connections{lifetime: t.Context(),
 		closed:   true,
@@ -157,14 +159,17 @@ func TestConnectionsShutdownRetriesOnlyFailedSessionClosures(t *testing.T) {
 	if err := c.Shutdown(t.Context()); !errors.Is(err, closeErr) {
 		t.Fatalf("first Shutdown = %v, want close failure", err)
 	}
-	if err := c.Shutdown(t.Context()); err != nil {
-		t.Fatalf("second Shutdown: %v", err)
+	if got := ownedSessionCount(c); got != 0 {
+		t.Fatalf("owned sessions after terminal close error = %d, want 0", got)
 	}
-	if got := calls.Load(); got != 2 {
-		t.Fatalf("session close calls = %d, want 2", got)
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("second Shutdown = %v, want settled no-op", err)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("underlying session close calls = %d, want 1", got)
 	}
 	if got := ownedSessionCount(c); got != 0 {
-		t.Fatalf("owned sessions after successful retry = %d, want 0", got)
+		t.Fatalf("owned sessions after repeated Shutdown = %d, want 0", got)
 	}
 }
 
