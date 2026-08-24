@@ -226,7 +226,7 @@
 
 ### 从模型工具面移除
 
-- `codebase_search`；代码索引仅在仍有独立协议消费方时保留；
+- `codebase_search` 及后来失去独立协议消费者的客户端 Codebase 索引（P153）；
 - 共享 session Plan store 的委派 Agent 写入口。
 
 ### 合并或拆分
@@ -403,8 +403,15 @@
 
 - 从模型工具面完整删除 `codebase_search` package、definition、schema、resolver 动态 availability gate、BuildConfig/Deps 端口、安全分类和专属测试；不以 Hidden、disabled registration 或 MCP alias 保留第二条代码搜索入口；
 - Agent 已有 `grep`、`glob`、`read` 与 `shell`，能在当前 checkout 上形成可观察、可组合的代码检索链路；删除语义索引工具避免模型在 exact/local search 与 opaque embedding ranking 间无谓选择，也让工具 manifest 少一个依赖用户 embedding 配置的变化轴；
-- 保留 `domain/codebaseindex`、SQLite index store、application `codebase.Coordinator` 及 `codebase.search/status/reindex` delivery contract：它们仍被客户端 `@codebase` mention、状态和手动重建表面实际消费；
+- 当时保留 `domain/codebaseindex`、SQLite index store、application `codebase.Coordinator` 及 `codebase.search/status/reindex` delivery contract，因为客户端仍有手动消费面；该阶段性裁决已由 P153 的完整纵切删除取代；
 - Bootstrap 只把 semantic index 交给 application codebase use case，不再额外适配为 `toolset.CodebaseIndex` 并穿过 tool environment builder。移除这个双用途端口后，toolset 不认识 embedding role、index availability 或 client codebase lifecycle，边界更窄而非新增 facade。
+
+### 批次 6d（P153）
+
+- 动态消费者复核证明 Agent 工具已不使用语义索引，Desktop/CLI 只剩手动状态、搜索和重建面；固定 50 行 chunk + cosine-only 的独立向量检索没有 lexical、symbol、graph 或 rerank 组合，维护成本高于产品价值；
+- Runtime、Desktop 与获准的 CLI consumer 同批删除 Codebase Domain/Application/Adapter/SQLite/Delivery/Protocol、RPC/feature/topic、view/query/command/port/test/locales 和文档，不保留 disabled registration、旧 binding、兼容 facade 或空 package；
+- Agent Memory 仍是 embedding role 的真实消费者，并在未配置 embedding 时保留关键词检索，所以 model client 与向量 codec 收归 Agent Memory owner，不因 Codebase 删除而机械删掉共享但仍真实消费的能力；
+- 代码检索继续由 `grep`、`glob`、`read`、`shell` 与 LSP 等可组合、可观察能力承担；不新造第二套 RAG、聚合搜索 facade 或旧 `@codebase` alias。
 
 ### 批次 6c
 
@@ -465,7 +472,7 @@
 - 完整 `app/runtime go test ./...` 只失败于 `internal/arch` 与 `internal/delivery/protocol`：桌面 TypeScript generated contract 未反映 Plan/GetPlan 与 artifact v10，canonical samples 仍是 Todo/artifact v9，另有旧 plan delta/item samples 已无 server binding。它们完全落在用户指定的下一轮前端专项范围，本轮没有越界生成或修改；
 - 生产 Go 源码扫描确认旧工具名、旧参数名和 `weather_query` 均无模型入口；固定内建 catalog 的 safety/strict-schema/implementation-word 三组 fitness checks 全部通过；
 - 最终边界扫描再次确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；没有为收尾新增 facade、胖接口、通用 manifest 状态或兼容 decoder；
-- 当时的删除结论包含 `propose_skill`；该单点结论已由批次 8 取代。`download`、`sourcegraph_search`、Agent `codebase_search` 与 Todo 的删除结论不变；client codebase index 与后台 Skill authoring 继续因非模型真实消费者而保留。
+- 当时的删除结论包含 `propose_skill`；该单点结论已由批次 8 取代。`download`、`sourcegraph_search`、Agent `codebase_search` 与 Todo 的删除结论不变；后台 Skill authoring 继续因非模型真实消费者而保留，当时保留的 client semantic index 已由 P153 删除。
 
 ### 批次 8a
 

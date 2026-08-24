@@ -55,7 +55,6 @@ type Bundle struct {
 	Trust               *sqlitestore.TrustStore
 	Schedules           *sqlitestore.ScheduleStore
 	EmbeddingRole       *sqlitestore.EmbeddingRoleStore
-	CodebaseIndex       *sqlitestore.CodebaseIndexStore
 	ToolResults         *sqlitestore.ToolResultStore
 	Idempotency         *sqlitestore.IdempotencyStore
 }
@@ -170,7 +169,6 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 		Trust:               sqlitestore.NewTrustStore(db),
 		Schedules:           sqlitestore.NewScheduleStore(db),
 		EmbeddingRole:       sqlitestore.NewEmbeddingRoleStore(db),
-		CodebaseIndex:       sqlitestore.NewCodebaseIndexStore(db),
 		ToolResults:         sqlitestore.NewToolResultStore(db),
 		Idempotency:         sqlitestore.NewIdempotencyStore(db),
 	}, nil

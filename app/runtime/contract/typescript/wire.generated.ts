@@ -308,48 +308,6 @@ export interface ClientInfo {
   version: string;
 }
 
-export interface CodebaseHit {
-  endLine: number;
-  path: string;
-  score: number;
-  snippet: string;
-  startLine: number;
-}
-
-export interface CodebaseReindexRequest {
-  workspace: WorkspaceRef;
-}
-
-export interface CodebaseReindexResponse {
-  operationId: string;
-}
-
-export interface CodebaseSearchRequest {
-  limit?: number;
-  query: string;
-  workspace: WorkspaceRef;
-}
-
-export interface CodebaseSearchResult {
-  hits: CodebaseHit[];
-}
-
-export type CodebaseState = "none" | "indexing" | "ready" | "error";
-
-export interface CodebaseStatus {
-  chunkCount: number;
-  fileCount: number;
-  indexedAt?: string;
-  modelId?: string;
-  operationId?: string;
-  state: CodebaseState;
-  truncated?: boolean;
-}
-
-export interface CodebaseStatusRequest {
-  workspace: WorkspaceRef;
-}
-
 export interface CommandResult {
   exitCode?: number;
   output: string;
@@ -1261,14 +1219,13 @@ export type RuntimeEvent =
   | { type: "models.changed"; sequence: number }
   | { type: "approvals.changed"; sequence: number }
   | { type: "agentMemory.changed"; sequence: number }
-  | { type: "codebase.changed"; sequence: number }
   | { type: "resync"; sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
 
 export interface RuntimeEventNotification {
   event: RuntimeEvent;
 }
 
-export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed" | "resync";
+export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "resync";
 
 export interface RuntimeInfo {
   endpoints: RuntimeInfoEndpoints;
@@ -1306,7 +1263,7 @@ export interface RuntimeSubscribeRequest {
 export interface RuntimeSubscribeResponse {
 }
 
-export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed";
+export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "plan.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed";
 
 export type SafetyClass = "safe" | "write" | "exec" | "network";
 
@@ -1678,7 +1635,6 @@ export const WIRE_ENUMS = {
   CancelRunResponseType: ["root", "child"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic"],
   ChangeStatus: ["added", "deleted", "modified", "moved"],
-  CodebaseState: ["none", "indexing", "ready", "error"],
   ContentBlockType: ["text", "image"],
   DiffFormat: ["rows", "raw"],
   DiffMode: ["worktree", "base"],
@@ -1719,8 +1675,8 @@ export const WIRE_ENUMS = {
   RunProtocolFeature: ["subagents"],
   RunReplayScope: ["runtimeInstanceRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
-  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"],
-  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"],
+  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "resync"],
+  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
   ScheduleWorkspaceMode: ["default"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],

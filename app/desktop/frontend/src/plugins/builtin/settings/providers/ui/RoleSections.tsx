@@ -130,7 +130,7 @@ export function UtilityModelSection() {
   );
 }
 
-// Global embedding model for @codebase indexing; empty disables semantic search.
+// Optional embedding model for agent-memory ranking; empty keeps keyword search.
 export function EmbeddingModelSection() {
   const t = useT();
   const { role, capableProviders, isSet, isAvailable } = useEmbeddingModelConfig();

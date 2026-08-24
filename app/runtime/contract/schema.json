@@ -1509,140 +1509,6 @@
         "version"
       ]
     },
-    "CodebaseHit": {
-      "type": "object",
-      "properties": {
-        "endLine": {
-          "type": "integer"
-        },
-        "path": {
-          "type": "string"
-        },
-        "score": {
-          "type": "number"
-        },
-        "snippet": {
-          "type": "string"
-        },
-        "startLine": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "endLine",
-        "path",
-        "score",
-        "snippet",
-        "startLine"
-      ]
-    },
-    "CodebaseReindexRequest": {
-      "type": "object",
-      "properties": {
-        "workspace": {
-          "$ref": "#/$defs/WorkspaceRef"
-        }
-      },
-      "required": [
-        "workspace"
-      ]
-    },
-    "CodebaseReindexResponse": {
-      "type": "object",
-      "properties": {
-        "operationId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "operationId"
-      ]
-    },
-    "CodebaseSearchRequest": {
-      "type": "object",
-      "properties": {
-        "limit": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "query": {
-          "type": "string",
-          "minLength": 1
-        },
-        "workspace": {
-          "$ref": "#/$defs/WorkspaceRef"
-        }
-      },
-      "required": [
-        "query",
-        "workspace"
-      ]
-    },
-    "CodebaseSearchResult": {
-      "type": "object",
-      "properties": {
-        "hits": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/CodebaseHit"
-          }
-        }
-      },
-      "required": [
-        "hits"
-      ]
-    },
-    "CodebaseState": {
-      "type": "string",
-      "enum": [
-        "none",
-        "indexing",
-        "ready",
-        "error"
-      ]
-    },
-    "CodebaseStatus": {
-      "type": "object",
-      "properties": {
-        "chunkCount": {
-          "type": "integer"
-        },
-        "fileCount": {
-          "type": "integer"
-        },
-        "indexedAt": {
-          "type": "string"
-        },
-        "modelId": {
-          "type": "string"
-        },
-        "operationId": {
-          "type": "string"
-        },
-        "state": {
-          "$ref": "#/$defs/CodebaseState"
-        },
-        "truncated": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "chunkCount",
-        "fileCount",
-        "state"
-      ]
-    },
-    "CodebaseStatusRequest": {
-      "type": "object",
-      "properties": {
-        "workspace": {
-          "$ref": "#/$defs/WorkspaceRef"
-        }
-      },
-      "required": [
-        "workspace"
-      ]
-    },
     "CommandResult": {
       "type": "object",
       "properties": {
@@ -7145,27 +7011,6 @@
             "scheduleIds": false,
             "serverIds": false,
             "sessionIds": false,
-            "topics": false,
-            "type": {
-              "const": "codebase.changed"
-            },
-            "watchId": false,
-            "watchIds": false,
-            "workspace": false
-          },
-          "required": [
-            "sequence",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "names": false,
-            "paths": false,
-            "runIds": false,
-            "scheduleIds": false,
-            "serverIds": false,
-            "sessionIds": false,
             "type": {
               "const": "resync"
             },
@@ -7208,7 +7053,6 @@
         "models.changed",
         "approvals.changed",
         "agentMemory.changed",
-        "codebase.changed",
         "resync"
       ]
     },
@@ -7344,8 +7188,7 @@
         "hooks.changed",
         "models.changed",
         "approvals.changed",
-        "agentMemory.changed",
-        "codebase.changed"
+        "agentMemory.changed"
       ]
     },
     "SafetyClass": {

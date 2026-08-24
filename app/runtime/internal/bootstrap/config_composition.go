@@ -59,7 +59,6 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		CheckpointDir:          filepath.Join(stores.DataDirectory, "checkpoints"),
 		ScheduleStore:          stores.Schedules,
 		EmbeddingRoleStore:     stores.EmbeddingRole,
-		CodebaseStore:          stores.CodebaseIndex,
 		ToolResultStore:        stores.ToolResults,
 		ToolResultThreshold:    cfg.ToolResultOffloadThreshold,
 		Transactor:             Transactor(stores.Transactor),

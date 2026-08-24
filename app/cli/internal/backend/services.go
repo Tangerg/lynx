@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
@@ -43,7 +42,6 @@ type Services struct {
 	AgentMemory      agentmemory.Service
 	Knowledge        knowledge.Service
 	DiagnosticTools  diagnostictool.Service
-	Codebase         codebase.Service
 	AuthoringContext authoringcontext.Service
 	Hooks            hookpolicy.Service
 	Feedback         feedback.Service

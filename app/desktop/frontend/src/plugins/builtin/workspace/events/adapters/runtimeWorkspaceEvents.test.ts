@@ -45,7 +45,6 @@ beforeEach(() => {
     "models.changed",
     "approvals.changed",
     "agentMemory.changed",
-    "codebase.changed",
   ]) {
     supportedTopics.add(topic);
   }
@@ -76,7 +75,6 @@ describe("runtime workspace event subscription", () => {
           "models.changed",
           "approvals.changed",
           "agentMemory.changed",
-          "codebase.changed",
         ]),
         watches: [{ watchId: "active-session", workspace: { path: "/canonical/repo" } }],
       }),

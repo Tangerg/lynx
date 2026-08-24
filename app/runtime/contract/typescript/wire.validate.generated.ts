@@ -63,14 +63,6 @@ export type WireTypeName =
   | "ChangeStatus"
   | "ClientCapabilities"
   | "ClientInfo"
-  | "CodebaseHit"
-  | "CodebaseReindexRequest"
-  | "CodebaseReindexResponse"
-  | "CodebaseSearchRequest"
-  | "CodebaseSearchResult"
-  | "CodebaseState"
-  | "CodebaseStatus"
-  | "CodebaseStatusRequest"
   | "CommandResult"
   | "ContentBlock"
   | "ContentBlockType"
@@ -813,40 +805,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     name: allOf([text(), minLength(1)]),
     version: allOf([text(), minLength(1)]),
   }, ["name", "version"]),
-  CodebaseHit: object({
-    endLine: integer(),
-    path: text(),
-    score: numeric(),
-    snippet: text(),
-    startLine: integer(),
-  }, ["endLine", "path", "score", "snippet", "startLine"]),
-  CodebaseReindexRequest: object({
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["workspace"]),
-  CodebaseReindexResponse: object({
-    operationId: text(),
-  }, ["operationId"]),
-  CodebaseSearchRequest: object({
-    limit: allOf([integer(), minimum(0)]),
-    query: allOf([text(), minLength(1)]),
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["query", "workspace"]),
-  CodebaseSearchResult: object({
-    hits: array(ref(() => CHECKS.CodebaseHit)),
-  }, ["hits"]),
-  CodebaseState: enumOf(["none", "indexing", "ready", "error"]),
-  CodebaseStatus: object({
-    chunkCount: integer(),
-    fileCount: integer(),
-    indexedAt: text(),
-    modelId: text(),
-    operationId: text(),
-    state: ref(() => CHECKS.CodebaseState),
-    truncated: flag(),
-  }, ["chunkCount", "fileCount", "state"]),
-  CodebaseStatusRequest: object({
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["workspace"]),
   CommandResult: object({
     exitCode: integer(),
     output: text(),
@@ -2765,19 +2723,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         scheduleIds: absent(),
         serverIds: absent(),
         sessionIds: absent(),
-        topics: absent(),
-        type: literal("codebase.changed"),
-        watchId: absent(),
-        watchIds: absent(),
-        workspace: absent(),
-      }, ["sequence", "type"]),
-      fields({
-        names: absent(),
-        paths: absent(),
-        runIds: absent(),
-        scheduleIds: absent(),
-        serverIds: absent(),
-        sessionIds: absent(),
         type: literal("resync"),
         watchId: absent(),
         workspace: absent(),
@@ -2787,7 +2732,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   RuntimeEventNotification: object({
     event: ref(() => CHECKS.RuntimeEvent),
   }, ["event"]),
-  RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"]),
+  RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "resync"]),
   RuntimeInfo: object({
     endpoints: ref(() => CHECKS.RuntimeInfoEndpoints),
     protocolVersion: text(),
@@ -2817,7 +2762,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     watches: array(ref(() => CHECKS.WatchSpec)),
   }, ["topics"]),
   RuntimeSubscribeResponse: object({}, []),
-  RuntimeTopic: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"]),
+  RuntimeTopic: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed"]),
   SafetyClass: enumOf(["safe", "write", "exec", "network"]),
   Schedule: object({
     createdAt: text(),
@@ -3385,9 +3330,6 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "goals.get": nullable(ref(() => CHECKS.Goal)),
   "goals.stop": ref(() => CHECKS.Goal),
   "goals.resume": ref(() => CHECKS.Goal),
-  "codebase.search": ref(() => CHECKS.CodebaseSearchResult),
-  "codebase.status": ref(() => CHECKS.CodebaseStatus),
-  "codebase.reindex": ref(() => CHECKS.CodebaseReindexResponse),
   "providers.list": ref(() => CHECKS.PageOfProvider),
   "providers.update": ref(() => CHECKS.Provider),
   "providers.test": ref(() => CHECKS.ProviderTestResult),

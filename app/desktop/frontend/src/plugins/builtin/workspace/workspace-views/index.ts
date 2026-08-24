@@ -15,7 +15,6 @@ export { skillsView } from "./skills";
 export { skillLibraryView } from "./skillLibrary";
 export { skillProposalsView } from "./skillProposals";
 export { recipesView } from "./recipes";
-export { codebaseView } from "./codebase";
 export { inboxView } from "./inbox";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";

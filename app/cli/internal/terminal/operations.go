@@ -38,7 +38,6 @@ const (
 	agentMemoryOperation          operationSlot = "agent-memory"
 	knowledgeOperation            operationSlot = "knowledge"
 	diagnosticToolOperation       operationSlot = "diagnostic-tool"
-	codebaseOperation             operationSlot = "codebase"
 	authoringContextOperation     operationSlot = "authoring-context"
 	hookOperation                 operationSlot = "hook"
 	feedbackOperation             operationSlot = "feedback"

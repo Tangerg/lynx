@@ -38,10 +38,6 @@ import type {
   HooksListResult,
   ImportSessionResponse,
   DiscoverResponse,
-  CodebaseReindexResponse,
-  CodebaseSearchRequest,
-  CodebaseSearchResult,
-  CodebaseStatus,
   EmbeddingRole,
   InvokeToolRequest,
   ListApprovalRulesResult,
@@ -216,11 +212,6 @@ export interface WorkspaceMethods {
   };
   agentDocs: {
     list: () => Promise<Page<AgentDoc>>;
-  };
-  codebase: {
-    search: (params: Omit<CodebaseSearchRequest, "workspace">) => Promise<CodebaseSearchResult>;
-    status: () => Promise<CodebaseStatus>;
-    reindex: () => MutationPromise<CodebaseReindexResponse>;
   };
   knowledge: {
     list: () => Promise<Page<KnowledgeEntry>>;
@@ -403,9 +394,9 @@ export interface Methods {
     // turn model. setUtilityRole validates by resolving the client server-side.
     getUtilityRole: () => Promise<UtilityRole>;
     setUtilityRole: (params: UtilityRole) => MutationPromise<UtilityRole>;
-    // The (embedding-capable provider, model) the @codebase index embeds with.
-    // Empty model = unset → the feature is off. setEmbeddingRole validates by
-    // building the embedding client server-side.
+    // The optional embedding-capable provider and model for agent-memory ranking.
+    // Empty model leaves Agent Memory on keyword ranking. setEmbeddingRole
+    // validates configured selections by building the client server-side.
     getEmbeddingRole: () => Promise<EmbeddingRole>;
     setEmbeddingRole: (params: EmbeddingRole) => MutationPromise<EmbeddingRole>;
   };
@@ -533,11 +524,6 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
     },
     agentDocs: {
       list: () => call("agentDocs.list", { workspace }),
-    },
-    codebase: {
-      search: (params) => call("codebase.search", { ...params, workspace }),
-      status: () => call("codebase.status", { workspace }),
-      reindex: () => call("codebase.reindex", { workspace }),
     },
     knowledge: {
       list: () => call("knowledge.list", { workspace }),

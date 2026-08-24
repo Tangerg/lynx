@@ -92,7 +92,16 @@ func (c *Checkpoints) Snapshot(ctx context.Context, sessionID, cwd, runID string
 	// `git add` on millions of files. Non-git projects get no file checkpoint,
 	// by design: file rollback is a git-shaped feature, only safe where a
 	// .gitignore scopes the work tree.
-	if !git.IsRepo(ctx, cwd) {
+	repository, err := git.IsRepo(ctx, cwd)
+	if err != nil {
+		// Snapshot failures are best-effort, but cancellation is the caller's
+		// control signal rather than a checkpoint diagnostic.
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
+		return nil
+	}
+	if !repository {
 		return nil
 	}
 	return c.store.Snapshot(ctx, sessionID, cwd, runID)

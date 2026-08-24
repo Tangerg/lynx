@@ -538,7 +538,6 @@ func TestRequestBoundsAreWireConstraints(t *testing.T) {
 		{shape: "ReadFileRequest", field: "startLine", value: ReadFileRequest{Path: "README.md", StartLine: -1}},
 		{shape: "ReadFileRequest", field: "endLine", value: ReadFileRequest{Path: "README.md", EndLine: -1}},
 		{shape: "ReadFileRequest", field: "maxBytes", value: ReadFileRequest{Path: "README.md", MaxBytes: -1}},
-		{shape: "CodebaseSearchRequest", field: "limit", value: CodebaseSearchRequest{Query: "symbol", Limit: -1}},
 		{shape: "UsageSummaryRequest", field: "sinceDays", value: UsageSummaryRequest{SinceDays: -1}},
 	} {
 		t.Run(test.shape+"."+test.field, func(t *testing.T) {

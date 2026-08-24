@@ -17,7 +17,6 @@ export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
   { viewId: "file", scope: "workspace", order: 25 },
   { viewId: "files", scope: "workspace", order: 30 },
   { viewId: "diff", scope: "workspace", order: 40 },
-  { viewId: "codebase", scope: "workspace", order: 50 },
   { viewId: "terminal", scope: "workspace", order: 60 },
   { viewId: "tools", scope: "workspace", order: 70 },
   { viewId: "skills", scope: "workspace", order: 80 },

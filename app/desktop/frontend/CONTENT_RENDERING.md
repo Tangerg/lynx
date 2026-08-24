@@ -2021,20 +2021,6 @@ interface HookInfo {
 }
 ```
 
-### 9.11 语义索引（G 区）
-
-```ts
-interface CodebaseStatus {
-  state: "none" | "indexing" | "ready" | "error";
-  fileCount: number; chunkCount: number;
-  indexedAt?: string; modelId?: string; operationId?: string; truncated?: boolean;
-}
-interface CodebaseHit {
-  path: string; startLine: number; endLine: number; snippet: string;
-  score: number;   // 0–1，不要印裸浮点
-}
-```
-
 ### 9.12 审批策略（H 设置）
 
 ```ts
@@ -2089,7 +2075,7 @@ interface ServerCapabilities {
 }
 ```
 
-**18 个 feature**：`reasoning` `multimodal` `compaction` `plan` `goals` `agentMemory` `knowledge` `skills` `mcp` `schedules` `codebase` `git` `checkpoints` `fileWatch` `lsp` `sessionExport` `relocate` `subagents`。
+**17 个 feature**：`reasoning` `multimodal` `compaction` `plan` `goals` `agentMemory` `knowledge` `skills` `mcp` `schedules` `git` `checkpoints` `fileWatch` `lsp` `sessionExport` `relocate` `subagents`。
 **关闭的域整块不渲染** —— 不是渲染出来再报错。
 
 ### 9.15 后台变更通知：哪个话题让哪块 UI 失效

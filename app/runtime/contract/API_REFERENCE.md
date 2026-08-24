@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-24` · 89 methods
+Protocol `2026-08-24` · 86 methods
 
 ## Methods
 
@@ -76,9 +76,6 @@ Protocol `2026-08-24` · 89 methods
 | `goals.get` | query | unary | none | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.stop` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
 | `goals.resume` | command | unary | replayResponse | none | none | — | `goals` | `session_not_found`, `capability_not_negotiated` |
-| `codebase.search` | query | unary | none | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
-| `codebase.status` | query | unary | none | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
-| `codebase.reindex` | command | unary | replayResponse | none | none | — | `codebase` | `workspace_unavailable`, `capability_not_negotiated` |
 | `providers.list` | query | unary | none | none | none | — | — | — |
 | `providers.update` | command | unary | replayResponse | none | none | — | — | — |
 | `providers.test` | query | unary | none | none | none | — | — | — |
@@ -393,7 +390,6 @@ Forbidden on every variant: `durable`.
 | `models.changed` | `sequence` | — |
 | `approvals.changed` | `sequence` | — |
 | `agentMemory.changed` | `sequence` | — |
-| `codebase.changed` | `sequence` | — |
 | `resync` | `sequence`, `topics` | `watchIds` |
 
 ### `ArtifactOutcome`
@@ -541,8 +537,6 @@ TypeScript validator from this single registry projection.
 | `ReadFileRequest` | `maxBytes` | `nonNegative` |
 | `GrepRequest` | `query` | `nonEmpty` |
 | `GrepRequest` | `limit` | `nonNegative` |
-| `CodebaseSearchRequest` | `query` | `nonEmpty` |
-| `CodebaseSearchRequest` | `limit` | `nonNegative` |
 | `SessionUsageRequest` | `sessionId` | `nonEmpty` |
 | `UsageSummaryRequest` | `sinceDays` | `nonNegative` |
 | `SkillNameRequest` | `name` | `nonEmpty` |
@@ -684,9 +678,6 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `goals.get` | always | `goals` |
 | `goals.stop` | always | `goals` |
 | `goals.resume` | always | `goals` |
-| `codebase.search` | always | `codebase` |
-| `codebase.status` | always | `codebase` |
-| `codebase.reindex` | always | `codebase` |
 | `knowledge.list` | always | `knowledge` |
 | `knowledge.get` | always | `knowledge` |
 | `knowledge.update` | always | `knowledge` |

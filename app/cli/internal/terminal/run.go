@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
@@ -59,7 +58,6 @@ type Config struct {
 	AgentMemory      agentmemory.Service
 	Knowledge        knowledge.Service
 	DiagnosticTools  diagnostictool.Service
-	Codebase         codebase.Service
 	AuthoringContext authoringcontext.Service
 	Hooks            hookpolicy.Service
 	Feedback         feedback.Service
@@ -115,7 +113,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
 				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP, schedules: cfg.Schedules,
 				agentMemory: cfg.AgentMemory, knowledge: cfg.Knowledge,
-				diagnosticTools: cfg.DiagnosticTools, codebase: cfg.Codebase,
+				diagnosticTools:  cfg.DiagnosticTools,
 				authoringContext: cfg.AuthoringContext, hooks: cfg.Hooks, feedback: cfg.Feedback,
 				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,

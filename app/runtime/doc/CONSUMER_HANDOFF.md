@@ -7,7 +7,7 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-24, during the P143 Session-selection cutover.
+> Desktop generated consumer: 2026-08-24, during the P153 Codebase removal cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
@@ -49,6 +49,14 @@ The protocol and artifact version bumps are deliberate rejection boundaries.
 Consumers must not retry with an older version or rewrite an old artifact's
 version number: old artifacts must be re-exported by the build that owns their
 schema.
+
+P153 removes the standalone Codebase semantic-index contract in full. Consumers
+must delete `GetCodebaseStatus`, `SearchCodebase`, `ReindexCodebase`, the
+`codebase` feature, `codebase.changed`, every Codebase DTO/enum/sample, and all
+status/search/reindex UI or commands. They must not retain a disabled capability,
+old generated binding, `@codebase` alias, or compatibility adapter. The
+embedding role remains valid only as optional Agent Memory ranking; keyword
+memory search remains available without it.
 
 Every public `Session` and `ArtifactSession` now carries required `provider` and
 `model` fields. `sessions.update` changes them only as one complete pair;
@@ -176,11 +184,15 @@ checkpoint contracts; there is no compatibility reader or global-directory
 single-instance fallback. TUI code may consume the CLI-owned narrow port and
 protocol values rather than opening an unnecessary third Runtime.
 
-No CLI or TUI source is changed by P143. A CLI consumer that constructs,
-updates, validates, exports, or imports Session values must migrate to the exact
-pair before it can claim compatibility; this handoff does not authorize a
-Runtime model-only shim. Absence from this list is not evidence that an in-tree
-or out-of-tree consumer is compatible.
+P153 synchronizes the in-tree CLI's direct Codebase consumer deletion: its
+narrow port, embedded adapter, three TUI commands, change topic, feature gate,
+tests, architecture inventory, and docs are gone. This is the only CLI scope
+authorized by that batch; the CLI's separately accumulated Runtime-contract
+drift remains a distinct migration and cannot justify a Runtime compatibility
+shim. The affected backend/changefeed/runtimeprofile/terminal/arch/cmd packages
+pass standalone tests; the broader `runtimeembedded` package still fails on
+unrelated pre-existing Session/Question/Knowledge contract changes. Absence from
+this list is not evidence that an out-of-tree consumer is compatible.
 
 ## Consumer acceptance
 

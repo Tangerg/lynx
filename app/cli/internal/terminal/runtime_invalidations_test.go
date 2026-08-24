@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
@@ -194,50 +193,6 @@ func (catalog *mutableRuntimeCatalog) setRules(rules ...agent.ApprovalRule) {
 	catalog.mu.Unlock()
 }
 
-type mutableCodebaseService struct {
-	mu        sync.Mutex
-	status    codebase.Status
-	hits      []codebase.Hit
-	searches  []codebase.Query
-	reindexes atomic.Int32
-}
-
-func (service *mutableCodebaseService) Status(context.Context, string) (codebase.Status, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return service.status, nil
-}
-
-func (service *mutableCodebaseService) Search(_ context.Context, query codebase.Query) ([]codebase.Hit, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.searches = append(service.searches, query)
-	return slices.Clone(service.hits), nil
-}
-
-func (service *mutableCodebaseService) Reindex(context.Context, string) (codebase.ReindexOperation, error) {
-	service.reindexes.Add(1)
-	return codebase.ReindexOperation{ID: "op_test"}, nil
-}
-
-func (service *mutableCodebaseService) setHits(hits ...codebase.Hit) {
-	service.mu.Lock()
-	service.hits = slices.Clone(hits)
-	service.mu.Unlock()
-}
-
-func (service *mutableCodebaseService) setStatus(status codebase.Status) {
-	service.mu.Lock()
-	service.status = status
-	service.mu.Unlock()
-}
-
-func (service *mutableCodebaseService) searchQueries() []codebase.Query {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return slices.Clone(service.searches)
-}
-
 func TestRuntimeResourceInvalidationsRefreshTheOpenProjection(t *testing.T) {
 	t.Run("model picker", func(t *testing.T) {
 		catalog := &mutableRuntimeCatalog{Runtime: mock.New()}
@@ -365,61 +320,6 @@ func TestRuntimeResourceInvalidationsRefreshTheOpenProjection(t *testing.T) {
 		stop()
 	})
 
-	t.Run("codebase search", func(t *testing.T) {
-		index := &mutableCodebaseService{status: codebase.Status{State: codebase.Ready}}
-		index.setHits(codebase.Hit{
-			Path: "internal/old.go", StartLine: 1, EndLine: 2, Snippet: "old owner", Score: .8,
-		})
-		source := runtimeResourceChangeSource(changefeed.CodebaseChanged)
-		host, stop := runUIWithRuntimeServices(t, Config{
-			Runtime: mock.New(), Workspace: "/workspace", Codebase: index, Changes: source,
-		})
-		host.Shows(t, "Ask lyra")
-		assertSingleRuntimeTopic(t, source.subscription, changefeed.CodebaseChanged)
-		host.Type("/codebase-search ownership")
-		host.Press(input.Enter)
-		host.Shows(t, "internal/old.go")
-
-		index.setHits(codebase.Hit{
-			Path: "internal/new.go", StartLine: 3, EndLine: 5, Snippet: "new owner", Score: .9,
-		})
-		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.CodebaseChanged), Sequence: 1}
-		awaitSignal(t, source.applied, "codebase.changed delivery")
-		host.Shows(t, "internal/new.go")
-		host.Hides(t, "internal/old.go")
-		queries := index.searchQueries()
-		if len(queries) < 2 {
-			t.Fatalf("codebase refresh queries = %+v, want at least the initial and invalidation reads", queries)
-		}
-		for _, query := range queries {
-			if query != queries[0] || query.Text != "ownership" {
-				t.Fatalf("codebase refresh queries = %+v, want the exact original query", queries)
-			}
-		}
-		stop()
-	})
-
-	t.Run("codebase status", func(t *testing.T) {
-		index := &mutableCodebaseService{status: codebase.Status{
-			State: codebase.Ready, FileCount: 12, ChunkCount: 24,
-		}}
-		source := runtimeResourceChangeSource(changefeed.CodebaseChanged)
-		host, stop := runUIWithRuntimeServices(t, Config{
-			Runtime: mock.New(), Workspace: "/workspace", Codebase: index, Changes: source,
-		})
-		host.Shows(t, "Ask lyra")
-		assertSingleRuntimeTopic(t, source.subscription, changefeed.CodebaseChanged)
-		host.Type("/codebase")
-		host.Press(input.Enter)
-		host.Shows(t, "files      12")
-
-		index.setStatus(codebase.Status{State: codebase.Ready, FileCount: 17, ChunkCount: 31})
-		source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.CodebaseChanged), Sequence: 1}
-		awaitSignal(t, source.applied, "codebase.changed status delivery")
-		host.Shows(t, "files      17")
-		host.Hides(t, "files      12")
-		stop()
-	})
 }
 
 func TestApprovalRuleDeletionResolvesAUniquePrefixAndSurvivesResize(t *testing.T) {
@@ -690,47 +590,6 @@ func TestResolveApprovalRuleRequiresAnUnambiguousIdentity(t *testing.T) {
 	if _, err := resolveApprovalRule(rules, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("missing rule error = %v", err)
 	}
-}
-
-func TestWorkspaceReplacementRetiresThePreviousProjectionConfirmation(t *testing.T) {
-	backend := mock.New()
-	index := &mutableCodebaseService{}
-	source := &runtimeChangeSourceStub{
-		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
-		applied: make(chan changefeed.Event, 1),
-	}
-	host, stop := runUIWithRuntimeServices(t, Config{
-		Runtime: backend, Codebase: index, Changes: source, SessionID: "ses_demo_1",
-	})
-	host.Shows(t, "Ask lyra")
-	awaitValue(t, source.subscription, "runtime invalidation subscription")
-	host.Type("/codebase-reindex")
-	host.Press(input.Enter)
-	host.Shows(t, "Reindex codebase")
-
-	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	replacementWorkspace := t.TempDir()
-	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
-		SessionID: snapshot.Session.ID, Workspace: &replacementWorkspace,
-		ExpectedRevision: snapshot.Session.Revision,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	source.events <- changefeed.Event{
-		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
-		SessionIDs: []string{"ses_demo_1"},
-	}
-	awaitSignal(t, source.applied, "workspace replacement invalidation")
-	host.Hides(t, "Reindex codebase")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	if calls := index.reindexes.Load(); calls != 0 {
-		t.Fatalf("retired projection confirmation started %d reindexes", calls)
-	}
-	stop()
 }
 
 func runtimeResourceChangeSource(topic changefeed.Topic) *runtimeChangeSourceStub {

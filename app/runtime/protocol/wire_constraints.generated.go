@@ -160,7 +160,7 @@ func (value RuntimeSubscribeRequest) ValidateWire() error {
 	return collectWireViolations("RuntimeSubscribeRequest",
 		requiredItems("topics", value.Topics),
 		uniqueItems("topics", value.Topics),
-		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"}),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed"}),
 	)
 }
 
@@ -278,13 +278,6 @@ func (value StartGoalRequest) ValidateWire() error {
 func (value GoalRequest) ValidateWire() error {
 	return collectWireViolations("GoalRequest",
 		requiredText("sessionId", value.SessionID),
-	)
-}
-
-func (value CodebaseSearchRequest) ValidateWire() error {
-	return collectWireViolations("CodebaseSearchRequest",
-		requiredText("query", value.Query),
-		nonNegativeNumber("limit", value.Limit),
 	)
 }
 
@@ -1058,8 +1051,8 @@ func (value RuntimeEvent) ValidateWire() error {
 		uniqueItems("topics", value.Topics),
 		nonEmptyItems("watchIds", value.WatchIDs),
 		uniqueItems("watchIds", value.WatchIDs),
-		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"}, false),
-		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"}),
+		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "resync"}, false),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "plan.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed"}),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "paths", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "files.changed"), "names", value),
@@ -1202,17 +1195,6 @@ func (value RuntimeEvent) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMemory.changed"), "runIds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMemory.changed"), "topics", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMemory.changed"), "watchIds", value),
-		requiredWhen(wireFieldEquals(value, "type", "codebase.changed"), "sequence", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "paths", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "watchId", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "workspace", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "names", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "serverIds", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "scheduleIds", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "sessionIds", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "runIds", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "topics", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "codebase.changed"), "watchIds", value),
 		requiredWhen(wireFieldEquals(value, "type", "resync"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "resync"), "topics", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "resync"), "paths", value),

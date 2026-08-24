@@ -44,7 +44,7 @@
   - **有界 + 溢出强制当轮 consolidate（Hermes）** —— 硬 char cap，溢出返回教模型自 curate 的结构化错误；**更贴 lyra 薄核 + 反向不变量**（无隐藏后台 LLM）。
   - **无界 + 后台 "dream" LLM 蒸馏（Grok）** —— 周期性反思式合并 session log 进 curated 文件，gate+lock+`NO_REPLY`+只删已读。
   - **检索式注入（Claude Code）** —— frontmatter manifest + 便宜模型选 top-5 + 注入；沙箱化 extraction fork 只读+只写 memdir。
-- **综合落地**：`LYRA.md` 当 curated 层（不切分两文件）；加 session-log 层 + **FTS5 关键词召回**（Hermes 证明关键词对"是否聊过 X"够用，比向量便宜）；轨迹自动挖掘按 cadence；写全部生命周期所有 + HITL 一致；**推荐 Hermes 的有界路线**、dream 作可选。复用 lyra 现成 @codebase embedding/cosine 做向量层。详见 [Hermes 记忆](HERMES.md)、[Grok G2](GROK.md)、[Claude Code CC4](CLAUDE_CODE.md)。
+- **综合落地**：`LYRA.md` 当 curated 层（不切分两文件）；加 session-log 层 + **FTS5 关键词召回**（Hermes 证明关键词对"是否聊过 X"够用，比向量便宜）；轨迹自动挖掘按 cadence；写全部生命周期所有 + HITL 一致；**推荐 Hermes 的有界路线**、dream 作可选。现行实现只在 Agent Memory 内可选使用 embedding/cosine，并保留关键词 fallback；P153 已删除独立 Codebase 向量索引。详见 [Hermes 记忆](HERMES.md)、[Grok G2](GROK.md)、[Claude Code CC4](CLAUDE_CODE.md)。
 
 **T5 · Goal mode —— 受监督的自主多轮执行循环**　`✅ 已落地（前后端）`　`唯一：Kimi`
 - typed runtime state + 最小 4 态机（active/paused/blocked/complete）+ continuation-prompt 驱动 + **opt-in 预算硬顶** + 重启降级(active→paused) + **入口 HITL 门**。lyra 有 plan-mode/steer/scheduler/durable-resume，但**无自主自续执行循环**——用户现在得每轮敲 continue。保持为独立机制、别折进 steer/plan。详见 [Kimi K1](KIMI_CODE.md)。

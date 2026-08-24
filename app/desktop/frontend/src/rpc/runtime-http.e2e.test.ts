@@ -3363,69 +3363,6 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
-  it("reindexes and searches the real codebase side API with the selected embedding role", async () => {
-    if (!client) throw new Error("runtime client was not initialized");
-
-    const workspaceRoot = join(root, "workspace-codebase-index");
-    await mkdir(workspaceRoot);
-    await execFileAsync("git", ["init", "--quiet"], { cwd: workspaceRoot });
-    await writeFile(
-      join(workspaceRoot, "target.go"),
-      "package target\n\n// semantic target marker belongs to the indexed symbol.\nfunc Target() {}\n",
-    );
-    await writeFile(
-      join(workspaceRoot, "helper.go"),
-      "package helper\n\n// unrelated helper belongs to another symbol.\nfunc Helper() {}\n",
-    );
-    await client.providers.update({
-      provider: "openai",
-      apiKey: { type: "set", value: "embedding-test-key" },
-      baseUrl: { type: "set", value: providerBaseUrl },
-    });
-    await client.models.setEmbeddingRole({ provider: "openai", model: "e2e-embedding" });
-
-    try {
-      const codebase = client.workspace({ path: workspaceRoot }).codebase;
-      await expect(codebase.status()).resolves.toEqual({
-        state: "none",
-        fileCount: 0,
-        chunkCount: 0,
-      });
-      await expect(codebase.reindex()).resolves.toEqual({
-        operationId: expect.stringMatching(/^op_/),
-      });
-
-      let status = await codebase.status();
-      for (let attempt = 0; attempt < 100 && status.state !== "ready"; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 25));
-        status = await codebase.status();
-      }
-      expect(status).toMatchObject({
-        state: "ready",
-        modelId: "openai:e2e-embedding",
-        fileCount: 2,
-        chunkCount: 2,
-        indexedAt: expect.any(String),
-      });
-
-      const search = await codebase.search({ query: "semantic target marker", limit: 1 });
-      expect(search.hits).toEqual([
-        expect.objectContaining({
-          path: "target.go",
-          startLine: 1,
-          endLine: 5,
-          snippet: expect.stringContaining("semantic target marker"),
-          score: 1,
-        }),
-      ]);
-      await expect(codebase.search({ query: "", limit: 1 })).rejects.toSatisfy(
-        (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
-      );
-    } finally {
-      await client.models.setEmbeddingRole({});
-    }
-  }, 30_000);
-
   it("reconciles an agent file write through files.changed", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

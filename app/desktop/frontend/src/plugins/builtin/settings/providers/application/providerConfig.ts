@@ -110,11 +110,11 @@ export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
 }
 
 /**
- * Point the @codebase semantic index at an (embedding-capable provider, model)
- * — an empty model clears it (turns the feature off) (models.setEmbeddingRole).
+ * Select the optional embedding model for agent-memory ranking. An empty model
+ * leaves memory search keyword-only (models.setEmbeddingRole).
  * Validated server-side (the provider must be embedding-capable + configured);
  * flattened to `{ ok, error }` so the pane renders the reason inline. Refetches
- * the embedding-role + codebase-status queries on success.
+ * the embedding-role query on success.
  */
 export async function setEmbeddingRole(role: ProviderRole): Promise<TestOutcome> {
   const owner = ProviderMutationOwner.current();

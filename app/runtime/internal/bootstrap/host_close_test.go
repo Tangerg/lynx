@@ -33,12 +33,11 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	}
 	host := Host{
 		lifetime: &hostLifetime{
-			goalDriver:          shutdownFunc{stop: recordStop("goals"), wait: recordWait("goals")},
-			mcpCoordinator:      shutdownFunc{stop: recordStop("mcp"), wait: recordWait("mcp")},
-			codebaseCoordinator: shutdownFunc{stop: recordStop("codebase"), wait: recordWait("codebase")},
-			runCoordinator:      shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
-			executor:            shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
-			runEffectTasks:      shutdownFunc{stop: recordStop("effects"), wait: recordWait("effects")},
+			goalDriver:     shutdownFunc{stop: recordStop("goals"), wait: recordWait("goals")},
+			mcpCoordinator: shutdownFunc{stop: recordStop("mcp"), wait: recordWait("mcp")},
+			runCoordinator: shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
+			executor:       shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
+			runEffectTasks: shutdownFunc{stop: recordStop("effects"), wait: recordWait("effects")},
 			toolResources: terminalClosers([]func() error{
 				closerFunc(record("tool-1", nil)),
 				closerFunc(record("tool-2", nil)),
@@ -74,12 +73,10 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	wantCalls := []string{
 		"stop goals",
 		"stop mcp",
-		"stop codebase",
 		"stop active-runs",
 		"stop effects",
 		"wait goals",
 		"wait mcp",
-		"wait codebase",
 		"wait active-runs",
 		"wait effects",
 		"stop active-execution-tree",

@@ -13,7 +13,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 
 	caps := capabilitiesFor(featureAvailability{
 		knowledge: true, git: true, fileWatch: true, plan: true,
-		goals: true, agentMemory: true, schedules: true, codebase: true,
+		goals: true, agentMemory: true, schedules: true,
 	}, replayLimitsFrom(runs.DefaultRetention()), protocol.IdempotencyLimits{RetentionSeconds: 86_400, Namespace: "idp_test"}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
@@ -30,7 +30,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if !caps.Features["subagents"].Enabled {
 		t.Fatalf("produced subagent Run trees were not advertised: %+v", caps.Features)
 	}
-	for _, feature := range []string{"plan", "goals", "agentMemory", "schedules", "codebase"} {
+	for _, feature := range []string{"plan", "goals", "agentMemory", "schedules"} {
 		if !caps.Features[feature].Enabled {
 			t.Fatalf("wired feature %q was not advertised: %+v", feature, caps.Features)
 		}

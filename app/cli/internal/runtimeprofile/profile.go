@@ -45,7 +45,6 @@ const (
 	FeatureSkills        FeatureName = "skills"
 	FeatureMCP           FeatureName = "mcp"
 	FeatureSchedules     FeatureName = "schedules"
-	FeatureCodebase      FeatureName = "codebase"
 	FeatureGit           FeatureName = "git"
 	FeatureCheckpoints   FeatureName = "checkpoints"
 	FeatureFileWatch     FeatureName = "fileWatch"
@@ -62,7 +61,7 @@ func KnownFeatures() []FeatureName {
 	return []FeatureName{
 		FeatureReasoning, FeatureMultimodal, FeatureCompaction, FeaturePlan,
 		FeatureGoals, FeatureAgentMemory, FeatureKnowledge, FeatureSkills,
-		FeatureMCP, FeatureSchedules, FeatureCodebase, FeatureGit,
+		FeatureMCP, FeatureSchedules, FeatureGit,
 		FeatureCheckpoints, FeatureFileWatch, FeatureLSP, FeatureSessionExport,
 		FeatureRelocate, FeatureSubagents, FeatureClientTools,
 	}

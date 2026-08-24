@@ -79,7 +79,7 @@ Workspace          文件、配置发现与执行的显式资源根             
 - `workspaces.list` 返回按 Session 绑定聚合的 `WorkspaceSummary`；无 active 标记，不制造平行的 Project 资源。
 - `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 workspace path），不取代
   `WorkspaceRef` 作为身份与工具根。
-- SDK 用 `client.workspace(ref)` 把已知身份一次绑定到 `files/diff/changes/skills/recipes/agentDocs/hooks/codebase/knowledge/agentMemory`
+- SDK 用 `client.workspace(ref)` 把已知身份一次绑定到 `files/diff/changes/skills/recipes/agentDocs/hooks/knowledge/agentMemory`
   等子资源；`await client.workspaces.open(ref?)` 在需要规范化或默认 workspace 时先 resolve 再绑定。绑定对象冻结自己的
   `ref`，调用方后来修改原对象不能偷换已打开资源的目标；默认 resolve 只缓存成功结果，瞬时失败可重试。
 
@@ -484,7 +484,7 @@ opening write-set 后原子替换该 pair；创建、schedule、fork 与 artifac
 
 ### 4.10 Workspace 周边 / 可选域类型
 
-MCP server / skills / recipes / hooks / schedules / codebase / knowledge / goals / agentMemory 等可选域的类型都在
+MCP server / skills / recipes / hooks / schedules / knowledge / goals / agentMemory 等可选域的类型都在
 `schema.json` 里，语义见 [`AUX_API.md`](./AUX_API.md)。每个域由 §9 的一个 feature 门控。
 
 MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态拆成两个集合让客户端 join：
@@ -831,7 +831,7 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 | method                        | params         | 载什么                                                                                                                                                                                         |
 | ----------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `notifications.run.event`     | `RunEvent`     | 一个 run 段的 segment/item/Plan 事件（§5）                                                                                                                                                     |
-| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `plan.changed` / `goals.changed` / `interrupts.changed` / `knowledge.changed` / `hooks.changed` / `models.changed` / `approvals.changed` / `agentMemory.changed` / `codebase.changed` / `resync` |
+| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `plan.changed` / `goals.changed` / `interrupts.changed` / `knowledge.changed` / `hooks.changed` / `models.changed` / `approvals.changed` / `agentMemory.changed` / `resync` |
 
 失效信号的契约（§9 / AUX_API §3）：
 
@@ -853,11 +853,6 @@ cron 形态的 headless run 管理（`features.schedules`）：一条 schedule �
 `schedules.update` 是带 `expectedRevision` 的部分更新。工作区有三个无歧义分支：省略 `workspace` 与
 `workspaceMode` 保持现有绑定；发送合法 `workspace: WorkspaceRef` 设置显式绑定；发送
 `workspaceMode: "default"` 删除显式绑定并回到 `ServerInfo.defaultWorkspace`。后两者互斥，空路径不是清空语义。
-
-### 7.10 codebase.\*
-
-语义代码索引的状态与检索（`features.codebase`）：索引进度是一个可轮询的状态读，检索是一个普通分页读。
-embedding 角色属于运行时配置（§7.6），不是每次检索的参数。
 
 ### 7.14 goals.\*
 

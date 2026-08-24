@@ -415,7 +415,7 @@ export const zh: Record<string, string> = {
   "providers.utility.error": "设置辅助模型失败。",
   "providers.embedding.title": "嵌入模型",
   "providers.embedding.desc":
-    "驱动 @codebase 语义搜索。选一个支持 embedding 的 provider(OpenAI,或本地 Ollama 零成本)。关闭则禁用。",
+    "可选地改善 Agent Memory 排序。请选择支持嵌入的 Provider；关闭时 Memory 仍使用关键词匹配。",
   "providers.embedding.off": "关闭",
   "providers.embedding.none":
     "尚未配置支持 embedding 的 provider —— 先在上方添加一个(如 OpenAI 或 Ollama)。",
@@ -455,7 +455,6 @@ export const zh: Record<string, string> = {
   "workspace.view.title.terminal": "终端",
   "workspace.view.title.skills": "技能",
   "workspace.view.title.recipes": "Recipes",
-  "workspace.view.title.codebase": "代码库",
   "workspace.view.title.knowledge": "知识",
   "workspace.view.title.tools": "工具",
   "workspace.view.title.search": "搜索",
@@ -754,23 +753,6 @@ export const zh: Record<string, string> = {
   "schedules.preset.daily": "每天 9 点",
   "schedules.preset.weekdays": "工作日 9 点",
   "schedules.preset.weekly": "每周一",
-
-  "codebase.title": "代码库",
-  "codebase.status": "{{state}} · {{files}} 个文件 · {{chunks}} 个片段",
-  "codebase.state.ready": "已索引",
-  "codebase.state.indexing": "索引中…",
-  "codebase.state.error": "索引出错",
-  "codebase.state.none": "未索引",
-  "codebase.search.placeholder": "描述你要找的代码…",
-  "codebase.search.go": "搜索",
-  "codebase.searching": "搜索中…",
-  "codebase.reindex": "重建索引",
-  "codebase.empty": "未找到语义相近的代码。",
-  "codebase.error": "搜索失败。",
-  "codebase.disabled.title": "未设置嵌入模型",
-  "codebase.disabled.sub": "在 设置 → Providers 选一个嵌入模型即可启用语义代码搜索。",
-  "codebase.unavailable.title": "代码库搜索不可用",
-  "codebase.unavailable.sub": "当前运行时没有启用代码库索引能力。",
 
   // ── 工作区视图：记忆 ──
   "knowledge.title": "知识",

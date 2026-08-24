@@ -36,7 +36,6 @@ var layers = []struct {
 	{"internal/agentmemory/", "agentmemory"},
 	{"internal/diagnostictool/", "diagnostictool"},
 	{"internal/hookpolicy/", "hookpolicy"},
-	{"internal/codebase/", "codebase"},
 	{"internal/feedback/", "feedback"},
 	{"internal/failure/", "failure"},
 	{"internal/changefeed/", "changefeed"},
@@ -85,7 +84,6 @@ var allowed = map[string][]string{
 	"authoringcontext": nil,
 	"diagnostictool":   nil,
 	"hookpolicy":       nil,
-	"codebase":         nil,
 	"feedback":         nil,
 	"changefeed":       nil,
 	"workspace":        nil,
@@ -96,7 +94,7 @@ var allowed = map[string][]string{
 	"skills":           nil,
 	"mcp":              {"failure"},
 	"schedule":         nil,
-	"backend":          {"agent", "agentmemory", "authoringcontext", "changefeed", "codebase", "diagnostictool", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "runtimeprofile", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"backend":          {"agent", "agentmemory", "authoringcontext", "changefeed", "diagnostictool", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "runtimeprofile", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"settings":         {"agent"},
 	"session":          {"agent"},
 	"sessiondeletion":  {"agent", "mutation", "retry", "workbench"},
@@ -116,12 +114,12 @@ var allowed = map[string][]string{
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
 	"mock":            {"agent", "failure", "workspace"},
-	"runtimeembedded": {"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "runtimeprofile", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"runtimeembedded": {"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "runtimeprofile", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"render":          {"agent", "failure"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "agentmemory", "attachment", "authoringcontext", "changefeed", "codebase", "diagnostictool", "extensions", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "promptqueue", "reconnect", "retry", "runrecovery", "runtimeprofile", "schedule", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "settings", "skills", "steering", "usage", "workbench", "workspace"},
+	"terminal": {"agent", "agentmemory", "attachment", "authoringcontext", "changefeed", "diagnostictool", "extensions", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "promptqueue", "reconnect", "retry", "runrecovery", "runtimeprofile", "schedule", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "settings", "skills", "steering", "usage", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "backend", "extensions", "failure", "mutation", "oneshot", "render", "retry", "runtimeprofile", "session", "sessiondeletion", "settings", "sideload", "terminal", "workbench"},
 	"arch":     nil,
@@ -192,7 +190,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "retry", "runtimeprofile", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "steering", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "diagnostictool", "failure", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "mutation", "retry", "runtimeprofile", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiondeletion", "sessionrollback", "sessiontransfer", "steering", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {

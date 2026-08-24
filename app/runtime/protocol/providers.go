@@ -22,7 +22,7 @@ type Provider struct {
 	// them, and (since they carry no catalog) a free-form model id.
 	RequiresBaseURL bool `json:"requiresBaseUrl,omitempty"`
 	// EmbeddingCapable marks providers with an embeddings adapter — the set the
-	// @codebase embedding-role picker offers (models.setEmbeddingRole).
+	// agent-memory embedding-role picker offers (models.setEmbeddingRole).
 	// DefaultEmbeddingModel is a sensible default model id to prefill ("" when
 	// the id is user-supplied, e.g. an Azure deployment).
 	EmbeddingCapable      bool   `json:"embeddingCapable,omitempty"`

@@ -131,7 +131,6 @@ func TestRuntimeFeatureServicesRequireBothPortAndPublishedCapability(t *testing.
 		runtimeprofile.FeatureSchedules:   {Stability: runtimeprofile.Stable},
 		runtimeprofile.FeatureAgentMemory: {Stability: runtimeprofile.Stable},
 		runtimeprofile.FeatureKnowledge:   {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureCodebase:    {Stability: runtimeprofile.Stable},
 	}
 	profile := runtimeprofile.Profile{Features: features}
 	application := &app{
@@ -142,7 +141,6 @@ func TestRuntimeFeatureServicesRequireBothPortAndPublishedCapability(t *testing.
 		schedules:      newScheduleServiceStub(),
 		agentMemory:    newAgentMemoryServiceStub(),
 		knowledge:      newKnowledgeServiceStub(),
-		codebase:       &codebaseServiceStub{},
 	}
 	checks := map[runtimeprofile.FeatureName]func(*app) CommandAvailability{
 		runtimeprofile.FeatureGoals:       availableWithGoals,
@@ -151,7 +149,6 @@ func TestRuntimeFeatureServicesRequireBothPortAndPublishedCapability(t *testing.
 		runtimeprofile.FeatureSchedules:   availableWithSchedules,
 		runtimeprofile.FeatureAgentMemory: availableWithAgentMemory,
 		runtimeprofile.FeatureKnowledge:   availableWithKnowledge,
-		runtimeprofile.FeatureCodebase:    availableWithCodebase,
 	}
 	for feature, check := range checks {
 		if availability := check(application); availability.Enabled || !strings.Contains(availability.Reason, "was not negotiated") {
@@ -230,7 +227,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		commandCategoryAutomation:  {"schedules", "schedule-create", "schedule-edit", "schedule-enable", "schedule-disable", "schedule-run", "schedule-delete"},
 		commandCategoryContext:     {"agent-docs", "recipes", "recipe", "memory", "memory-add", "memory-edit", "memory-pin", "memory-unpin", "memory-approve", "memory-reject", "memory-delete", "knowledge", "knowledge-read", "knowledge-edit", "skills", "skill-library", "skill-proposals", "skill-archive", "skill-restore", "skill-approve", "skill-reject"},
 		commandCategoryConnections: {"mcp", "mcp-tools", "mcp-create", "mcp-edit", "mcp-probe", "mcp-delete", "mcp-reconnect", "mcp-auth"},
-		commandCategoryWorkspace:   {"codebase", "codebase-search", "codebase-reindex", "workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
+		commandCategoryWorkspace:   {"workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
 		commandCategoryExtensions:  {"plugins", "reload", "unload"},
 	}
 	wantGuard := map[string]bool{
@@ -246,7 +243,6 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		"mcp": true, "mcp-tools": true, "mcp-create": true, "mcp-edit": true, "mcp-probe": true, "mcp-delete": true, "mcp-reconnect": true, "mcp-auth": true,
 		"schedules": true, "schedule-create": true, "schedule-edit": true, "schedule-enable": true, "schedule-disable": true, "schedule-run": true, "schedule-delete": true,
 		"tools": true, "tool-invoke": true,
-		"codebase": true, "codebase-search": true, "codebase-reindex": true,
 		"agent-docs": true, "recipes": true, "recipe": true,
 		"hooks": true, "hooks-trust": true, "hooks-revoke": true,
 		"feedback": true,

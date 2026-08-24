@@ -101,18 +101,36 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 			return nil, fmt.Errorf("%w %q: %v", ErrInvalidGlob, opts.Glob, err)
 		}
 	}
+	repository := false
+	var files []string
+	if !opts.IncludeIgnored {
+		var err error
+		files, err = git.ListFiles(ctx, root, sub)
+		switch {
+		case err == nil:
+			repository = true
+		case errors.Is(err, git.ErrNotRepo), errors.Is(err, git.ErrUnavailable):
+			// Git-aware listing is unavailable for this workspace. The
+			// filesystem fallback below remains authoritative in this case.
+		default:
+			return nil, err
+		}
+	}
 	// A non-recursive filesystem listing is genuinely one level. Walking the
 	// entire subtree first defeats lazy tree loading: a home-directory workspace
 	// can hit an unreadable descendant or the global safety limit before its
 	// immediate children are returned. Git-backed listings still derive their
 	// children from `git ls-files` so ignored directories stay hidden.
-	if !opts.Recursive && opts.Glob == "" && (opts.IncludeIgnored || !git.IsRepo(ctx, root)) {
+	if !opts.Recursive && opts.Glob == "" && !repository {
 		return levelFilesystemEntries(ctx, root, sub, opts.IncludeIgnored)
 	}
 
-	files, err := candidateFiles(ctx, root, sub, opts.IncludeIgnored)
-	if err != nil {
-		return nil, err
+	if !repository {
+		var err error
+		files, err = walkFiles(ctx, root, sub, opts.IncludeIgnored)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(files) > maxListEntries {
 		return nil, fmt.Errorf("%w: more than %d files", ErrListingTooLarge, maxListEntries)
@@ -175,15 +193,6 @@ func readDirectoryEntries(directory string, limit int) ([]fs.DirEntry, error) {
 		return nil, fmt.Errorf("%w: more than %d entries in %q", ErrListingTooLarge, limit, directory)
 	}
 	return children, nil
-}
-
-// candidateFiles returns every non-ignored file under sub (relative to root),
-// gitignore-aware via `git ls-files` in a repo, else a bounded filesystem walk.
-func candidateFiles(ctx context.Context, root, sub string, includeIgnored bool) ([]string, error) {
-	if !includeIgnored && git.IsRepo(ctx, root) {
-		return git.ListFiles(ctx, root, sub)
-	}
-	return walkFiles(ctx, root, sub, includeIgnored)
 }
 
 // walkFiles is the non-repo fallback: a filesystem walk under root/sub that

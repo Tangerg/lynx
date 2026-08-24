@@ -101,7 +101,7 @@ Work Index 的心率要低。它应当稳定、稀疏、可扫视，像 Codex �
 
 - files / file tree。
 - diff / review。
-- codebase search。
+- semantic index search；文件检索只通过明确的 grep / file / symbol 能力进入。
 - memory / skills / recipes / hooks。
 - tool detail。
 - session-scoped settings 或 cwd-scoped panels。
@@ -153,7 +153,7 @@ Context Dock 是当前 session/cwd 的材料区。它不是永久抢戏的第三
 - file mode：file tree + opened file + breadcrumb。
 - tool mode：selected tool call detail + outputs。
 - run mode：完整 Run tree、按 source Run 组织的 Timeline、Session tool log。
-- codebase mode：grep / semantic search / symbols。
+- search mode：grep / symbols；不维护独立向量索引状态。
 - memory / skills / recipes：围绕当前 cwd 展示。
 
 Context Dock 的内容由 active `Session.cwd` 驱动。切换 session 后，应恢复该 session 自己的 dock 状态，而不是共享一份全局状态。
@@ -264,7 +264,7 @@ type ContextDockDestinationScope = "workspace" | "session" | "run";
 | Context launcher              | `WorkIndexItem`            | `session`   | `rail` handle into Context Dock                |
 | Files / File Tree             | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
 | Diff / Review                 | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
-| Grep / Codebase Search        | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Grep / Symbol Search          | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
 | Skills / Recipes / Agent Docs | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
 | Memory                        | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
 | Tool Detail                   | `ContextDockDestination`   | `run`       | Context Dock placement is implicit             |
@@ -371,7 +371,7 @@ P129 进一步固定 Conversation 与 Transcript 的可见性边界：Applicatio
 
 ### Phase 3: Move Workspace Destinations to Context Dock — `DONE`
 
-- 移除左侧顶级 `codebase / skills / recipes / tools / memory` 类 workspace destinations。
+- 移除左侧顶级 `skills / recipes / tools / memory` 类 workspace destinations；废弃的语义索引入口不再注册。
 - 建立 context-dock destination contribution。
 - Files / Diff / Search / Skills / Recipes / Memory 进入右侧 dock。
 

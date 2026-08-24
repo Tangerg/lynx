@@ -3,13 +3,7 @@ import { queryClient } from "@/lib/queryClient";
 import { RetirableTaskCohort } from "@/lib/taskQueue";
 import type { ProviderGateway, ProviderTestOutcome, ProviderUpdate } from "./ports/providerGateway";
 import type { ProviderConfiguration, ProviderRole } from "./providerModels";
-import {
-  CODEBASE_STATUS_KEY,
-  EMBEDDING_ROLE_KEY,
-  MODELS_KEY,
-  PROVIDERS_KEY,
-  UTILITY_ROLE_KEY,
-} from "./providerQueries";
+import { EMBEDDING_ROLE_KEY, MODELS_KEY, PROVIDERS_KEY, UTILITY_ROLE_KEY } from "./providerQueries";
 
 class ProviderMutationRetiredError extends Error {
   override readonly name = "ProviderMutationRetiredError";
@@ -55,7 +49,7 @@ class ProviderMutationGeneration {
     return this.#run("embedding-role", {
       execute: () => this.#gateway.setEmbeddingRole(role),
       commit: (saved) => queryClient.setQueryData([EMBEDDING_ROLE_KEY], saved),
-      repair: [EMBEDDING_ROLE_KEY, CODEBASE_STATUS_KEY],
+      repair: [EMBEDDING_ROLE_KEY],
     });
   }
 

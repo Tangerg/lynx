@@ -42,8 +42,6 @@ const (
 	RuntimeApprovalsChanged RuntimeEventType = "approvals.changed"
 	// RuntimeAgentMemoryChanged — the agent-memory review collection changed.
 	RuntimeAgentMemoryChanged RuntimeEventType = "agentMemory.changed"
-	// RuntimeCodebaseChanged — a semantic-index rebuild started or settled.
-	RuntimeCodebaseChanged RuntimeEventType = "codebase.changed"
 	// RuntimeResync — the stream could not keep every change, so what a client holds
 	// may be stale. It names the topics and watches affected; the remedy is to read
 	// them again.
@@ -70,7 +68,6 @@ const (
 	TopicModelsChanged      = RuntimeTopic(RuntimeModelsChanged)
 	TopicApprovalsChanged   = RuntimeTopic(RuntimeApprovalsChanged)
 	TopicAgentMemoryChanged = RuntimeTopic(RuntimeAgentMemoryChanged)
-	TopicCodebaseChanged    = RuntimeTopic(RuntimeCodebaseChanged)
 )
 
 // RuntimeTopics returns the closed subscribable set in declaration order. It is
@@ -83,7 +80,6 @@ func RuntimeTopics() []RuntimeTopic {
 		TopicSessionsChanged, TopicRunsChanged, TopicPlanChanged, TopicGoalsChanged,
 		TopicInterruptsChanged, TopicKnowledgeChanged, TopicHooksChanged,
 		TopicModelsChanged, TopicApprovalsChanged, TopicAgentMemoryChanged,
-		TopicCodebaseChanged,
 	}
 }
 

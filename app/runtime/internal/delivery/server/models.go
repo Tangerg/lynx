@@ -41,7 +41,7 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 	return &protocol.UtilityRole{Provider: role.Provider(), Model: role.Model()}, nil
 }
 
-// GetEmbeddingRole reports the (provider, model) the @codebase semantic index
+// GetEmbeddingRole reports the optional (provider, model) for agent-memory ranking
 // embeds with — empty model when unset (the feature is off)
 // (models.getEmbeddingRole).
 func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {

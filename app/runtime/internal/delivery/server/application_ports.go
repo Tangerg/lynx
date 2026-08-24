@@ -5,7 +5,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
@@ -18,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -80,13 +78,6 @@ type modelUseCases interface {
 type toolUseCases interface {
 	Invoke(ctx context.Context, in toolapp.Invocation) (toolsvc.Result, error)
 	List(ctx context.Context) ([]toolsvc.Tool, error)
-}
-
-type codebaseUseCases interface {
-	Available() bool
-	Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error)
-	StartReindex(ctx context.Context, cwd string) (string, error)
-	Status(ctx context.Context, cwd string) (codebase.Status, error)
 }
 
 type runUseCases interface {

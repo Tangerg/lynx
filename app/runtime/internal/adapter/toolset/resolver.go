@@ -74,7 +74,7 @@ type placement uint8
 
 const (
 	afterSkill placement = iota
-	afterCodebase
+	interactionTail
 	rootTail
 )
 
@@ -142,9 +142,9 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 		lsp:           slices.Clone(d.LSP),
 		shell:         slices.Clone(d.Shell),
 		staticSpecs: []staticSpec{
-			{tool: d.AskUser, audience: audienceBoth, placement: afterCodebase},
-			{tool: d.EnterPlan, audience: audienceRoot, placement: afterCodebase},
-			{tool: d.ExitPlan, audience: audienceRoot, placement: afterCodebase},
+			{tool: d.AskUser, audience: audienceBoth, placement: interactionTail},
+			{tool: d.EnterPlan, audience: audienceRoot, placement: interactionTail},
+			{tool: d.ExitPlan, audience: audienceRoot, placement: interactionTail},
 			{tool: d.Plan, audience: audienceRoot, placement: afterSkill},
 			{tool: d.ToolResult, audience: audienceBoth, placement: afterSkill},
 			{tool: d.AgentMemorySearch, audience: audienceBoth, placement: afterSkill, deferred: true},
@@ -305,7 +305,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 	// Both roles can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question waits at the same durable tree boundary as a
 	// child approval.
-	if err := r.appendStatic(ctx, &tools, afterCodebase, role); err != nil {
+	if err := r.appendStatic(ctx, &tools, interactionTail, role); err != nil {
 		return manifestBuilder{}, err
 	}
 	if role == domaintool.GroupRoot {

@@ -90,7 +90,7 @@ Domain package 是否成立只看以下证据：
 
 ### 4.2 保持精简值对象
 
-`modelref`、`knowledge`、`feedback`、`interrupt`、`provider`、`toolresult`、`codebaseindex` 等 package 不因方法少而自动判为贫血。只要它们拥有稳定值、不变量或纯算法，并且被真实消费者共享，就保持独立。
+`modelref`、`knowledge`、`feedback`、`interrupt`、`provider`、`toolresult` 等 package 不因方法少而自动判为贫血。只要它们拥有稳定值、不变量或纯算法，并且被真实消费者共享，就保持独立。
 
 不得为这些值对象添加无意义的 setter、Manager、Service 或 Repository，使代码看起来“更 DDD”。没有状态转换的概念不需要伪造状态转换。
 
@@ -112,7 +112,6 @@ Domain package 是否成立只看以下证据：
 | `accounting` | 模型 token、cost 与累计快照的纯值和单调聚合；被 Run、pricing、usage 共同消费 |
 | `agentmemory` | Agent 维护的长期记忆、review lifecycle、fact fold 与 ranking；与人类维护的 Knowledge 分离 |
 | `approval` | Tool call gate、remembered rule、scope/specificity 与会话 permission policy |
-| `codebaseindex` | code chunk、index status、similarity hit 与纯 ranking；corpus build lifecycle 和持久化不在此处 |
 | `conversation` | 唯一的模型上下文 message sequence、seed 和 truncate watermark；不与 Transcript/Run 合并 |
 | `feedback` | 可独立保存的 immutable interaction quality signal |
 | `goal` | 跨多个 Run 的 autonomous Goal、objective incarnation、budget、progress 和 terminal reason |

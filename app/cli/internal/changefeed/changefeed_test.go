@@ -13,7 +13,7 @@ func TestTopicsReturnsAnOwnedCompleteInventory(t *testing.T) {
 		FilesChanged, SkillsChanged, MCPChanged, SchedulesChanged,
 		SessionsChanged, RunsChanged, StateChanged, GoalsChanged, InterruptsChanged,
 		KnowledgeChanged, HooksChanged, ModelsChanged, ApprovalsChanged,
-		AgentMemoryChanged, CodebaseChanged,
+		AgentMemoryChanged,
 	}
 	got := Topics()
 	if !slices.Equal(got, want) {

@@ -14,7 +14,6 @@ import { HOOKS_KEY } from "@/plugins/builtin/settings/hooks/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import { USAGE_SUMMARY_KEY } from "@/plugins/builtin/settings/usage/public/queries";
 import {
-  CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
@@ -52,7 +51,6 @@ const QUERY_KEYS: Record<
   agentMemory: WORKSPACE_AGENT_MEMORY_KEY,
   approvalMode: APPROVAL_MODE_KEY,
   approvalRules: APPROVAL_RULES_KEY,
-  codebaseStatus: CODEBASE_STATUS_KEY,
   diff: WORKSPACE_DIFF_KEY,
   fileHead: WORKSPACE_FILE_HEAD_KEY,
   fileList: WORKSPACE_LIST_FILES_KEY,

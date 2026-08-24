@@ -204,11 +204,6 @@ func requireAuxiliaryCapabilities(t *testing.T, runtime *Runtime, sessionID, wor
 	}); err != nil {
 		t.Fatalf("Create feedback: %v", err)
 	}
-	if services.Codebase != nil {
-		if status, err := services.Codebase.Status(t.Context(), workspace); err != nil {
-			t.Fatalf("Codebase status = (%+v, %v)", status, err)
-		}
-	}
 }
 
 func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) {

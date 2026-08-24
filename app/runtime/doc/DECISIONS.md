@@ -500,3 +500,10 @@
 - 背景：P151 保证 Host component 在 caller timeout 后迟到结束仍会进入 executor/resource teardown，但 `Instance.Close` 仍在单个 caller-owned context 内同步加入 operation Endpoint、scheduler、database observer 与 recovery worker；其中任一项超时都不会调用 Host。CLI 以一个 defer 调用 `Instance.Close`，公共 embedded Close 也只转发一次，不存在外部 retry 承诺。真实反例证明已接受 operation 在 caller deadline 后返回时，旧 Instance 既没有提前关闭 Host resource，也没有 owner 在 operation 结束后继续关闭它。
 - 决策：Instance 持有唯一 active shutdown attempt。第一个 Close 建立一个从 Host 已注入 Runtime lifetime 派生、不继承 caller cancellation 的 generation；它只广播一次 delivery admission close 与 Runtime cancellation，然后依次加入 Endpoint、scheduler/database/recovery workers，最后通过 package-private Host attempt 入口加入 P151/P150 关闭图。每个 Instance Close caller 单独使用有界 wait context；并发 caller 只 join 同一 attempt。已完成且返回明确 phase error 时，后续显式 Close 可开新 attempt。
 - 后果：已接受 operation 仍在依赖关闭前完整退出；即使唯一 public/CLI Close caller 先返回 timeout，operation 迟到结束也会自然推进 workers 和 Host resource 释放。Instance 不复制 Runtime context 字段，而是消费 Host 唯一 lifetime owner；没有 timer/backoff/retry loop、第二 Host graph、兼容路径或新公共 surface。
+
+## ADR-RT-072：删除独立 Codebase 向量索引纵切
+
+- 状态：已接受并实施，P153 完成；允许 Protocol、公共 Go API、SQLite 与直接消费者 breaking change，不提供兼容期。
+- 背景：Agent `codebase_search` 已在早期批次删除，真实代码发现由 grep/glob/read/shell/LSP 承担；余下 Codebase 只有 Desktop Context Dock 与 CLI 手动状态、搜索、重建入口。其实现是固定行块、cosine-only 的单路 dense-vector 检索，没有 lexical fusion、symbol/graph、query rewrite 或 rerank，却持续拥有三项 operation、一个 feature/topic、三张表、后台 lifecycle、生成合同和两端 UI/命令。Agent Memory 则仍真实使用 embedding，并有关键词 fallback，二者不能机械捆绑删除。
+- 决策：Runtime、Desktop 与经用户授权的 CLI direct consumer 一次性删除 Codebase Domain/Application/Adapter/Infra/Delivery/Protocol、feature/topic/schema、RPC/gateway/query/view/command/port/test/locales/docs；SQLite 直接提升 epoch 80，生成合同只保留当前 shape。Embedding resolver 与 vector codec 收归 Agent Memory owner。Git/workspace source discovery 同批把 cancellation、unborn repository 与非仓 fallback 明确分型；exit 128 不能一律伪装成非仓。
+- 后果：不存在 disabled registration、旧 `@codebase` mention、compat facade、双 schema、空 package 或隐藏命令。客户端使用现有 workspace grep/file 能力，Agent 继续使用可组合代码工具；Memory semantic ranking 保留且关闭 embedding 时仍可用。Protocol 精确版本仍为 `2026-08-24`，因为仓库只接受同批生成的唯一当前版本，不承诺同日旧 shape。

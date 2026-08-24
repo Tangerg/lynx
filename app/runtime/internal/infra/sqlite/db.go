@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 79
+const schemaEpoch = 80
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -551,46 +551,14 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_idempotency_records_expires_at
 			ON idempotency_records(expires_at)`,
-		// Embedding-model role: the (provider, model)
-		// the @codebase semantic index embeds with. Single row, pinned by
-		// CHECK(id = 1); empty model = unset (the index feature is off). Mirrors
-		// utility_role; the credential comes from the provider registry.
+		// Optional agent-memory embedding role. Single row, pinned by CHECK(id =
+		// 1); empty model leaves memory search keyword-only. The credential comes
+		// from the provider registry.
 		`CREATE TABLE IF NOT EXISTS embedding_role (
 			id        INTEGER PRIMARY KEY CHECK (id = 1),
 			provider  TEXT NOT NULL DEFAULT '',
 			model     TEXT NOT NULL DEFAULT ''
 		)`,
-		// @codebase semantic index, keyed by project cwd. codebase_index is the
-		// per-project meta (which embedding model the vectors were built with, so
-		// a model change invalidates them; counts + timestamp for status).
-		// codebase_files holds per-file content hashes for incremental re-index;
-		// codebase_chunks holds the chunk text + its embedding (little-endian
-		// float32 BLOB — half the size of float64, ample for cosine).
-		`CREATE TABLE IF NOT EXISTS codebase_index (
-			cwd         TEXT    PRIMARY KEY,
-			model_id    TEXT    NOT NULL DEFAULT '',
-			indexed_at  INTEGER NOT NULL DEFAULT 0,
-			file_count  INTEGER NOT NULL DEFAULT 0,
-			chunk_count INTEGER NOT NULL DEFAULT 0,
-			truncated   INTEGER NOT NULL DEFAULT 0
-		)`,
-		`CREATE TABLE IF NOT EXISTS codebase_files (
-			cwd  TEXT NOT NULL,
-			path TEXT NOT NULL,
-			hash TEXT NOT NULL,
-			PRIMARY KEY (cwd, path)
-		)`,
-		`CREATE TABLE IF NOT EXISTS codebase_chunks (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			cwd        TEXT    NOT NULL,
-			path       TEXT    NOT NULL,
-			start_line INTEGER NOT NULL,
-			end_line   INTEGER NOT NULL,
-			text       TEXT    NOT NULL,
-			embedding  BLOB    NOT NULL
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_codebase_chunks_cwd
-			ON codebase_chunks(cwd)`,
 		// Offloaded tool-result bodies (context eviction): a single tool output
 		// that exceeds the eviction threshold is moved here and model history keeps
 		// only a bounded head+tail preview. history_items.offload_id + item_id form
@@ -662,9 +630,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			day        TEXT    NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL,
-			-- Content vector for semantic search (little-endian float32 BLOB, as in
-			-- codebase_chunks). Empty until a configured embedder backfills it; a
-			-- keyword scan works without it.
+			-- Optional content vector for semantic ranking. Empty until a configured
+			-- embedder backfills it; keyword ranking works without it.
 			embedding  BLOB    NOT NULL DEFAULT x'',
 			CHECK ((scope = 'project' AND project <> '') OR (scope = 'user' AND project = '')),
 			CHECK (origin <> 'user' OR status = 'active'),

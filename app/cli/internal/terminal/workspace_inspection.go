@@ -358,7 +358,6 @@ type runtimeResourceObservation struct {
 	models      bool
 	approvals   bool
 	agentMemory bool
-	codebase    bool
 }
 
 func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bool {
@@ -377,7 +376,6 @@ func (a *app) observedRuntimeResources() runtimeResourceObservation {
 		models:      true,
 		approvals:   true,
 		agentMemory: a.agentMemory != nil && a.runtimeSupports(runtimeprofile.FeatureAgentMemory),
-		codebase:    a.codebase != nil && a.runtimeSupports(runtimeprofile.FeatureCodebase),
 	}
 }
 
@@ -628,9 +626,6 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	}
 	if monitor.resources.agentMemory {
 		candidates = append(candidates, changefeed.AgentMemoryChanged)
-	}
-	if monitor.resources.codebase {
-		candidates = append(candidates, changefeed.CodebaseChanged)
 	}
 	if monitor.observesWorkspace() {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)

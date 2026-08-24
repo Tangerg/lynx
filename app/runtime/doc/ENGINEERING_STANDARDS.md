@@ -399,10 +399,11 @@ Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Inter
 
 - 从失败的产品反例开始：先证明当前 owner 在何种真实交错下违反不变量，再修改生产代码；
 - breaking change 必须一次删除旧 contract、调用方、codec、测试和文档，不保留 alias、fallback、dual read/write 或 shadow owner；
+- 删除能力前必须同时证明静态引用、动态注册、生成入口、持久 shape、外部发布义务和直接消费者；确认删除后按 Domain→Application→Adapter/Infra→Delivery/Protocol→consumer 的完整纵切收口，共享机制只按剩余真实消费者重新归属，不能因原 owner 消失而机械删除；
 - 只有改动涉及异步交接、事务或 replacement 时，才说明 admission identity、linearization point、durable winner 和失败行为；普通局部重构只需说明真实 owner、被删除边界和可观察结果；
 - 后端参考 `/Users/tangerg/Desktop/study/codex-server/codex-rs`，前端主参考 `/Users/tangerg/Desktop/study/codex`，zcode/minimax 只作补充。参考只提供反证与机制证据，不授权复制 package、状态流或多 connection 产品设计；
 - 测试优先覆盖一个 Desktop 与一个逻辑 Runtime 内的真实交错、SQLite 不变量、同一 Runtime 的进程重启、SIGKILL/回执丢失、renderer replacement、长对话和异步泄露。Desktop 与 CLI 共享目录时，只测试已经存在的存储并发合同；不扩张成通用多客户端 race；
-- 精确暂存本批文件，提交前确认 `app/cli` 和无关改动未进入 diff；使用浏览器自动化后关闭本批会话和 daemon，不关闭用户已有 Wails/Vite/Chrome 进程。
+- 精确暂存本批文件，提交前确认只有已授权 scope 和无关改动未进入 diff；`app/cli` 默认不动，只有用户对明确 direct-consumer 纵切另行授权时才可同步删除该消费链。使用浏览器自动化后关闭本批会话和 daemon，不关闭用户已有 Wails/Vite/Chrome 进程。
 
 ## 9. 文档纪律
 

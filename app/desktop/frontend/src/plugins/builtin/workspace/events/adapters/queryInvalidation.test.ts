@@ -28,7 +28,6 @@ vi.mock("@/plugins/builtin/agent/public/approvalPolicy", () => ({
 }));
 
 vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
-  CODEBASE_STATUS_KEY: "codebase-status",
   EMBEDDING_ROLE_KEY: "embedding-role",
   MODELS_KEY: "models",
   PROVIDERS_KEY: "providers",
@@ -111,12 +110,7 @@ describe("workspace session projection invalidation", () => {
   });
 
   it("refreshes every read affected by external settings mutations", () => {
-    for (const type of [
-      "models.changed",
-      "approvals.changed",
-      "agentMemory.changed",
-      "codebase.changed",
-    ] as const) {
+    for (const type of ["models.changed", "approvals.changed", "agentMemory.changed"] as const) {
       invalidateWorkspaceEvent({ type, sequence: 1 });
     }
 
@@ -125,11 +119,9 @@ describe("workspace session projection invalidation", () => {
       "models",
       "utility-role",
       "embedding-role",
-      "codebase-status",
       "approval-mode",
       "approval-rules",
       "agent-memory",
-      "codebase-status",
     ]);
     expect(cancelQueries.mock.calls).toEqual(invalidateQueries.mock.calls);
   });

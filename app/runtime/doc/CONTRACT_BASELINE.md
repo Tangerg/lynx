@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `7eceacca468e7b3be7acb2fef3b17b22647fbfcf7a46ac7f55987e4f9b21539c` |
-| `contract/openrpc.json` | `8cb85e7c520117ee4c26f61dceca20d37c93f4501eb5ebe86344c75f32e6c206` |
-| `contract/schema.json` | `04d823c064fb88c774fb90eaa233cd47fe71d2ff5b306c22131eb0785c419a73` |
-| `contract/go-api.json` | `f1026353c6a88c067f9e238f95242b9bf26f4f05bd2597ecad8a0e369f1f7a48` |
+| `contract/manifest.json` | `e5b3af0ddd19cda3f57bf89becef0c3440f3869594b93cbb7e34337edda1f261` |
+| `contract/openrpc.json` | `5493bb12d720e1bce61c6389704a44409b882619ac33081fae83fdf2077fb763` |
+| `contract/schema.json` | `e29df3eb47ed270d0133f956b4b6d899125b75fb7e7a2e5967e449f3a90d0b65` |
+| `contract/go-api.json` | `4dec32921006d70efe528ab3b9732c3b332b4abfee404a904939307356c682a2` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -51,6 +51,8 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 本文件不复制 method、field、error 或 example catalog。
 
 当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+
+P153 直接删除 Codebase semantic-index contract：公共 Go surface、三项 operation、feature、runtime topic、DTO/enum/sample 及 Desktop/CLI direct consumer 同批消失；不存在旧同日 Protocol shape reader、disabled capability 或 compatibility binding。当前 manifest 精确发布 86 个 methods、17 个 features 与 15 个 runtime topics。Embedding role 仍是 Agent Memory 的可选配置，不是被删除能力的残留别名。
 
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
@@ -76,7 +78,7 @@ Knowledge 条目以内容摘要作为 opaque revision。`knowledge.list/get` 即
 identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 directory lease 包围 revision compare、权限继承、临时文件 fsync、
 原子 rename 和父目录 sync，cold read 回收严格命名的 pre-publish staging。进程崩溃后的可见内容只能是上一 committed revision 或完整
 新 revision。
-这些 topic 是失效事实，不携带配置值。Provider/model role、approval policy、agent-memory review 与 codebase rebuild 同样在所属 Application use case 提交后发布专用失效事实；Delivery 才将中性 notice 映射为 wire topic，Desktop Workspace events Adapter 再映射到各 context 公开 query identity，Agent Framework 零感知。
+这些 topic 是失效事实，不携带配置值。Provider/model role、approval policy 与 agent-memory review 同样在所属 Application use case 提交后发布专用失效事实；Delivery 才将中性 notice 映射为 wire topic，Desktop Workspace events Adapter 再映射到各 context 公开 query identity，Agent Framework 零感知。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。同一 canonical data directory 可由另一个 embedded/HTTP Runtime 同时打开，因此旧的 `embedded.ErrDataDirectoryInUse` 已 breaking 删除；实际冲突在对应 Session operation 上投影既有 `session_busy`。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。P113 对 Assembly、operation、Interaction、Toolset、LSP、MCP 以及 Runs/Sessions/Runsegment constructor 的 breaking correction 只收紧 internal valid construction 与 lifetime ownership；P148/P149 先分离 terminal diagnostic、再按 SDK 合同纠正 MCP close，P150 删除失去生产消费者的 Retryable/settlement 双态并让 terminal Sequence 在失败 Assembly timeout 后继续完成逆序资源图，P151 让 Host 整体 shutdown generation 独立于 caller wait，P152 再让 Instance 以同一 owner 规则从 operation Endpoint 穿过 workers 加入 Host；公共/CLI Close timeout 不再遗弃下层图。这些批次均不改变生成的 public Go API、Protocol method/event、Artifact 或 SQLite shape。
 
@@ -84,7 +86,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 79`；
+- 当前 `schemaEpoch = 80`；
 - `sessions.workspace_path` 是非空列；strict codec 先重建 Domain `Workspace`，相对、非 lexical-clean 或空路径均拒绝，旧 `sessions.cwd` 不读取；
 - `sessions.provider` / `sessions.model` 是非空列；strict codec 只恢复 configured exact pair，Runtime 默认只在 Session admission 时安装，不在 reader/Run 层补写；
 - 数据目录为 `0700` 私有目录，可由少量同版本 Runtime 进程共享；schema/config setup 使用短期跨进程 lease，Runtime lifecycle 不拥有目录全局独占权；

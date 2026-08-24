@@ -129,9 +129,6 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "mcp-auth", Title: "start and observe MCP browser authorization", Arguments: RequiredArguments}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.AuthorizeMCPServer(server) }},
 		),
 		commandGroup(commandCategoryWorkspace,
-			localCommand{Descriptor: CommandDescriptor{Name: "codebase", Title: "inspect semantic codebase index status"}, Available: availableWithCodebase, Run: func(a *app, _ string) error { a.ShowCodebaseStatus(); return nil }},
-			localCommand{Descriptor: CommandDescriptor{Name: "codebase-search", Title: "search the semantic codebase index", Arguments: RequiredArguments}, Available: availableWithCodebase, Run: func(a *app, query string) error { return a.SearchCodebase(query) }},
-			localCommand{Descriptor: CommandDescriptor{Name: "codebase-reindex", Title: "rebuild the semantic codebase index"}, Available: availableWithCodebase, Run: func(a *app, _ string) error { return a.PrepareCodebaseReindex() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithGitWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "diff", Title: "inspect workspace changes; supports --base, --rows, and --limit", Arguments: OptionalArguments}, Available: availableWithGitWorkspaceService, Run: func(a *app, argument string) error { return a.ShowWorkspaceDiff(argument) }},
@@ -233,13 +230,6 @@ func availableWithDiagnosticTools(a *app) CommandAvailability {
 		return CommandAvailability{Reason: "this runtime composition has no diagnostic tool service"}
 	}
 	return CommandAvailability{Enabled: true}
-}
-
-func availableWithCodebase(a *app) CommandAvailability {
-	if a.codebase == nil {
-		return CommandAvailability{Reason: "this runtime composition has no codebase service"}
-	}
-	return availableWithRuntimeFeature(a, runtimeprofile.FeatureCodebase)
 }
 
 func availableWithAuthoringContext(a *app) CommandAvailability {

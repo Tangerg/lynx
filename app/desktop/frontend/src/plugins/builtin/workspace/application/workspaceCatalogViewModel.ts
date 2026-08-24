@@ -1,5 +1,4 @@
 import type { WorkspaceKnowledgeEntry } from "./workspaceQueries";
-import type { CodebaseSearchHit } from "./ports/codebaseGateway";
 import type {
   WorkspaceAgentDoc,
   WorkspaceKnowledgeScope,
@@ -51,26 +50,6 @@ export interface WorkspaceAgentDocRowViewModel {
   title: string;
   path: string;
   scopeLabelKey: string;
-}
-
-export interface CodebaseStatusProjection {
-  state: "ready" | "indexing" | "error" | "none";
-  fileCount: number;
-  chunkCount: number;
-}
-
-export interface CodebaseSearchRowViewModel {
-  id: string;
-  path: string;
-  startLine: number;
-  pathRange: string;
-  score: string;
-  snippet: string;
-}
-
-export interface CodebaseSearchViewModel {
-  rows: CodebaseSearchRowViewModel[];
-  isEmpty: boolean;
 }
 
 // The scope words live in the catalogs; this maps a scope to its key.
@@ -164,50 +143,4 @@ export function workspaceAgentDocsViewModel(
       scopeLabelKey: scopeLabelKey(doc.scope),
     })),
   );
-}
-
-export function codebaseStatusViewModel(
-  status:
-    | {
-        state?: string;
-        fileCount?: number;
-        chunkCount?: number;
-      }
-    | undefined,
-): CodebaseStatusProjection {
-  return {
-    state: codebaseStatusState(status?.state),
-    fileCount: status?.fileCount ?? 0,
-    chunkCount: status?.chunkCount ?? 0,
-  };
-}
-
-export function codebaseSearchViewModel(
-  hits: readonly CodebaseSearchHit[] | null,
-): CodebaseSearchViewModel {
-  const rows =
-    hits?.map((hit, index) => ({
-      id: `${hit.path}:${hit.startLine}:${hit.endLine}:${index}`,
-      path: hit.path,
-      startLine: hit.startLine,
-      pathRange: `${hit.path}:${hit.startLine}-${hit.endLine}`,
-      score: hit.score.toFixed(2),
-      snippet: hit.snippet,
-    })) ?? [];
-
-  return {
-    rows,
-    isEmpty: hits !== null && rows.length === 0,
-  };
-}
-
-function codebaseStatusState(state: string | undefined): CodebaseStatusProjection["state"] {
-  switch (state) {
-    case "ready":
-    case "indexing":
-    case "error":
-      return state;
-    default:
-      return "none";
-  }
 }

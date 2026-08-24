@@ -359,7 +359,7 @@ export const en: Record<string, string> = {
   "providers.utility.error": "Couldn't set the utility model.",
   "providers.embedding.title": "Embedding model",
   "providers.embedding.desc":
-    "Powers @codebase semantic search. Pick an embedding-capable provider (OpenAI, or a local Ollama for zero cost). Off disables it.",
+    "Optionally improves Agent Memory ranking. Pick an embedding-capable provider; when Off, Memory continues with keyword matching.",
   "providers.embedding.off": "Off",
   "providers.embedding.none":
     "No embedding-capable provider configured yet — add one (e.g. OpenAI, or Ollama) above.",
@@ -468,7 +468,6 @@ export const en: Record<string, string> = {
   "workspace.view.title.terminal": "Terminal",
   "workspace.view.title.skills": "Skills",
   "workspace.view.title.recipes": "Recipes",
-  "workspace.view.title.codebase": "Codebase",
   "workspace.view.title.knowledge": "Knowledge",
   "workspace.view.title.tools": "Tools",
   "workspace.view.title.search": "Search",
@@ -839,24 +838,6 @@ export const en: Record<string, string> = {
   "schedules.preset.daily": "Daily 9am",
   "schedules.preset.weekdays": "Weekdays 9am",
   "schedules.preset.weekly": "Weekly Mon",
-
-  "codebase.title": "Codebase",
-  "codebase.status": "{{state}} · {{files}} files · {{chunks}} chunks",
-  "codebase.state.ready": "Indexed",
-  "codebase.state.indexing": "Indexing…",
-  "codebase.state.error": "Index error",
-  "codebase.state.none": "Not indexed",
-  "codebase.search.placeholder": "Describe the code you're looking for…",
-  "codebase.search.go": "Search",
-  "codebase.searching": "Searching…",
-  "codebase.reindex": "Rebuild index",
-  "codebase.empty": "No semantically similar code found.",
-  "codebase.error": "Search failed.",
-  "codebase.disabled.title": "Embedding model not set",
-  "codebase.disabled.sub":
-    "Pick an embedding model in Settings → Providers to enable semantic code search.",
-  "codebase.unavailable.title": "Codebase search is unavailable",
-  "codebase.unavailable.sub": "This runtime has not enabled the codebase-index capability.",
 
   // ── Workspace view: Knowledge ──
   "knowledge.title": "Knowledge",

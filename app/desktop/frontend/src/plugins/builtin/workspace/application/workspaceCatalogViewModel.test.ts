@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  codebaseSearchViewModel,
-  codebaseStatusViewModel,
   scopeLabelKey,
   workspaceAgentDocsViewModel,
   workspaceKnowledgeViewModel,
@@ -119,51 +117,5 @@ describe("workspace catalog view models", () => {
 
   it("falls back to raw unknown scope labels", () => {
     expect(scopeLabelKey("workspace")).toBe("workspace");
-  });
-});
-
-describe("codebase view models", () => {
-  it("normalizes missing and unknown status to the none state", () => {
-    expect(codebaseStatusViewModel(undefined)).toEqual({
-      state: "none",
-      fileCount: 0,
-      chunkCount: 0,
-    });
-    expect(codebaseStatusViewModel({ state: "paused", fileCount: 4, chunkCount: 8 })).toEqual({
-      state: "none",
-      fileCount: 4,
-      chunkCount: 8,
-    });
-  });
-
-  it("projects codebase hit display fields", () => {
-    expect(
-      codebaseSearchViewModel([
-        {
-          path: "src/app.ts",
-          startLine: 3,
-          endLine: 7,
-          snippet: "const app = true",
-          score: 0.876,
-        },
-      ]),
-    ).toEqual({
-      rows: [
-        {
-          id: "src/app.ts:3:7:0",
-          path: "src/app.ts",
-          startLine: 3,
-          pathRange: "src/app.ts:3-7",
-          score: "0.88",
-          snippet: "const app = true",
-        },
-      ],
-      isEmpty: false,
-    });
-  });
-
-  it("distinguishes no search from an empty result", () => {
-    expect(codebaseSearchViewModel(null)).toEqual({ rows: [], isEmpty: false });
-    expect(codebaseSearchViewModel([])).toEqual({ rows: [], isEmpty: true });
   });
 });

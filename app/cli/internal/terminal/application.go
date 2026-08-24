@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
@@ -83,7 +82,6 @@ type app struct {
 	agentMemory      agentmemory.Service
 	knowledge        knowledge.Service
 	diagnosticTools  diagnostictool.Service
-	codebase         codebase.Service
 	authoringContext authoringcontext.Service
 	hooks            hookpolicy.Service
 	feedback         feedback.Service
@@ -208,7 +206,6 @@ type appConfig struct {
 	agentMemory      agentmemory.Service
 	knowledge        knowledge.Service
 	diagnosticTools  diagnostictool.Service
-	codebase         codebase.Service
 	authoringContext authoringcontext.Service
 	hooks            hookpolicy.Service
 	feedback         feedback.Service
@@ -255,7 +252,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		changes:        cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
 		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp, schedules: cfg.schedules,
 		agentMemory: cfg.agentMemory, knowledge: cfg.knowledge,
-		diagnosticTools: cfg.diagnosticTools, codebase: cfg.codebase,
+		diagnosticTools:  cfg.diagnosticTools,
 		authoringContext: cfg.authoringContext, hooks: cfg.hooks, feedback: cfg.feedback,
 		session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,

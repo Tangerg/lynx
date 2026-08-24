@@ -57,8 +57,6 @@ type Config struct {
 	WorkspaceWatch         workspaceWatchUseCases
 	WorkspaceAuthoredWatch workspaceAuthoredWatchUseCases
 
-	Codebase codebaseUseCases
-
 	GitAvailable bool
 	PlanEnabled  bool
 }
@@ -72,7 +70,6 @@ type Server struct {
 	approvals      approvalUseCases
 	models         modelUseCases
 	tools          toolUseCases
-	codebase       codebaseUseCases
 	runs           runUseCases
 	queries        queryUseCases
 	usage          usageUseCases
@@ -115,7 +112,6 @@ type featureAvailability struct {
 	goals       bool
 	agentMemory bool
 	schedules   bool
-	codebase    bool
 }
 
 // Close rejects new runtime subscriptions. Existing streams retain their
@@ -160,7 +156,6 @@ func (cfg Config) validate() error {
 		{name: "Feedback", available: cfg.Feedback != nil},
 		{name: "Schedules", available: cfg.Schedules != nil},
 		{name: "ScheduleFiring", available: cfg.ScheduleFiring != nil},
-		{name: "Codebase", available: cfg.Codebase != nil},
 	} {
 		if !dependency.available {
 			return fmt.Errorf("server: %s is required", dependency.name)
@@ -206,7 +201,6 @@ func deriveContractFacts(cfg Config) (contractFacts, error) {
 			goals:       cfg.Goals != nil,
 			agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
 			schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
-			codebase:    cfg.Codebase.Available(),
 		},
 		replay: replayLimitsFrom(cfg.Runs.ReplayRetention()),
 		mcpAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{
@@ -235,7 +229,6 @@ func newServer(cfg Config, facts contractFacts) *Server {
 		approvals:                cfg.Approvals,
 		models:                   cfg.Models,
 		tools:                    cfg.Tools,
-		codebase:                 cfg.Codebase,
 		runs:                     cfg.Runs,
 		queries:                  cfg.Queries,
 		usage:                    cfg.Usage,
@@ -368,7 +361,6 @@ func capabilitiesFor(
 			protocol.FeatureGoals:       features.goals,
 			protocol.FeatureAgentMemory: features.agentMemory,
 			protocol.FeatureSchedules:   features.schedules,
-			protocol.FeatureCodebase:    features.codebase,
 			protocol.FeatureSubagents:   true,
 		}),
 	}

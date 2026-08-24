@@ -6,7 +6,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
@@ -241,12 +240,10 @@ type Config struct {
 	// process root, not the server process's current working directory.
 	DefaultWorkspacePath string
 
-	// EmbeddingRoleStore persists the embedding-model role the @codebase index
-	// uses (models.setEmbeddingRole). nil disables persistence. CodebaseStore
-	// persists the index itself; nil disables the @codebase feature entirely
-	// (no tool, no RPC). The composition root injects the sqlite-backed stores.
+	// EmbeddingRoleStore persists the optional embedding model used to enrich
+	// agent-memory ranking. nil disables role persistence; memory remains
+	// keyword-searchable. The composition root injects the SQLite-backed store.
 	EmbeddingRoleStore EmbeddingRoleStore
-	CodebaseStore      codebase.Store
 
 	// ToolResultStore persists tool-result bodies offloaded on context eviction
 	// (read back by read_tool_result). Injected sqlite-backed for the same

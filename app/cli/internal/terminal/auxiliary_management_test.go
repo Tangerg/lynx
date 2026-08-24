@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/oolong/core/input"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
@@ -57,167 +55,6 @@ func TestDiagnosticToolsRenderSchemaAndConfinedResultAcrossResize(t *testing.T) 
 		t.Fatal("diagnostic result did not survive a minimal viewport")
 	}
 	showsPlain(t, host, `"healthy": true`)
-	stop()
-}
-
-type codebaseServiceStub struct {
-	reindexed         chan string
-	statusOperationID string
-}
-
-type blockingCodebaseReindexService struct {
-	codebase.Service
-	started  chan string
-	release  chan struct{}
-	canceled chan struct{}
-}
-
-func (service *blockingCodebaseReindexService) Reindex(
-	ctx context.Context,
-	workspace string,
-) (codebase.ReindexOperation, error) {
-	service.started <- workspace
-	select {
-	case <-service.release:
-		return service.Service.Reindex(ctx, workspace)
-	case <-ctx.Done():
-		close(service.canceled)
-		return codebase.ReindexOperation{}, context.Cause(ctx)
-	}
-}
-
-func (service *codebaseServiceStub) Status(context.Context, string) (codebase.Status, error) {
-	now := time.Date(2026, 8, 12, 1, 2, 3, 0, time.UTC)
-	return codebase.Status{
-		State: codebase.Ready, ModelID: "embed/model", FileCount: 12, ChunkCount: 24,
-		IndexedAt: &now, OperationID: service.statusOperationID,
-	}, nil
-}
-
-func (*codebaseServiceStub) Search(_ context.Context, query codebase.Query) ([]codebase.Hit, error) {
-	return []codebase.Hit{{Path: "internal/owner.go", StartLine: 10, EndLine: 14, Snippet: "type Owner struct{}", Score: .875}}, nil
-}
-
-func (service *codebaseServiceStub) Reindex(_ context.Context, workspace string) (codebase.ReindexOperation, error) {
-	service.reindexed <- workspace
-	return codebase.ReindexOperation{ID: "op_reindex"}, nil
-}
-
-func TestCodebaseStatusSearchAndResizeSafeReindexConfirmation(t *testing.T) {
-	index := &codebaseServiceStub{reindexed: make(chan string, 1)}
-	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Workspace: "/workspace", Codebase: index})
-	host.Shows(t, "Ask lyra")
-	host.Type("/codebase")
-	host.Press(input.Enter)
-	host.Shows(t, "Codebase index")
-	host.Shows(t, "files      12")
-	host.Press(input.Esc)
-	host.Shows(t, "Ask lyra")
-	host.Type("/codebase-search ownership")
-	host.Press(input.Enter)
-	host.Shows(t, "internal/owner.go:10-14")
-	host.Press(input.Esc)
-	host.Shows(t, "Ask lyra")
-	host.Type("/codebase-reindex")
-	host.Press(input.Enter)
-	host.Shows(t, "Reindex codebase")
-	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
-		t.Fatal("codebase confirmation did not survive a minimal viewport")
-	}
-	host.Shows(t, "Reindex codebase")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	if got := awaitValue(t, index.reindexed, "codebase reindex"); got != "/workspace" {
-		t.Fatalf("reindexed workspace = %q", got)
-	}
-	host.Shows(t, "operation op_reindex")
-	stop()
-}
-
-func TestCodebaseReindexRejectsStatusFromAnotherOperation(t *testing.T) {
-	index := &codebaseServiceStub{reindexed: make(chan string, 1), statusOperationID: "op_stale"}
-	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Workspace: "/workspace", Codebase: index})
-	host.Shows(t, "Ask lyra")
-	host.Type("/codebase-reindex")
-	host.Press(input.Enter)
-	host.Shows(t, "Reindex codebase")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	if got := awaitValue(t, index.reindexed, "codebase reindex"); got != "/workspace" {
-		t.Fatalf("reindexed workspace = %q", got)
-	}
-	host.Shows(t, "start codebase reindex failed: verify codebase reindex")
-	host.Hides(t, "codebase reindex admitted")
-	stop()
-}
-
-func TestCodebaseReindexOutlivesSameSessionProjectionReplacement(t *testing.T) {
-	backend := mock.New()
-	base := &codebaseServiceStub{reindexed: make(chan string, 1)}
-	index := &blockingCodebaseReindexService{
-		Service: base, started: make(chan string, 1), release: make(chan struct{}), canceled: make(chan struct{}),
-	}
-	release := sync.OnceFunc(func() { close(index.release) })
-	t.Cleanup(release)
-	source := &runtimeChangeSourceStub{
-		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
-		applied: make(chan changefeed.Event, 1),
-	}
-	host, stop := runUIWithRuntimeServices(t, Config{
-		Runtime: backend, SessionID: "ses_demo_1", Codebase: index, Changes: source,
-	})
-	host.Shows(t, "Ask lyra")
-	awaitValue(t, source.subscription, "runtime change subscription")
-	host.Type("/codebase-reindex")
-	host.Press(input.Enter)
-	host.Shows(t, "Reindex codebase")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	workspace := awaitValue(t, index.started, "codebase reindex mutation")
-	title := "Projection changed during codebase reindex"
-	installChangedSessionProjection(t, backend, source, "ses_demo_1", title)
-	host.Shows(t, title)
-	select {
-	case <-index.canceled:
-		t.Fatal("session projection replacement canceled the codebase reindex")
-	default:
-	}
-	release()
-	if got := awaitValue(t, base.reindexed, "committed codebase reindex"); got != workspace {
-		t.Fatalf("reindexed workspace = %q, want %q", got, workspace)
-	}
-	host.Shows(t, "operation op_reindex")
-	stop()
-}
-
-func TestCodebaseReindexDoesNotInstallAReaderAfterSessionSwitch(t *testing.T) {
-	base := &codebaseServiceStub{reindexed: make(chan string, 1)}
-	index := &blockingCodebaseReindexService{
-		Service: base, started: make(chan string, 1), release: make(chan struct{}), canceled: make(chan struct{}),
-	}
-	release := sync.OnceFunc(func() { close(index.release) })
-	t.Cleanup(release)
-	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), SessionID: "ses_demo_1", Codebase: index})
-	host.Shows(t, "Ask lyra")
-	host.Type("/codebase-reindex")
-	host.Press(input.Enter)
-	host.Shows(t, "Reindex codebase")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	awaitValue(t, index.started, "codebase reindex mutation")
-	host.Hides(t, "Reindex codebase")
-	host.Type("/new")
-	host.Press(input.Enter)
-	host.Shows(t, "session · Untitled session")
-	select {
-	case <-index.canceled:
-		t.Fatal("session switch canceled the admitted codebase reindex")
-	default:
-	}
-	release()
-	awaitValue(t, base.reindexed, "committed codebase reindex")
-	host.Shows(t, "codebase reindex admitted · op_reindex")
-	host.Hides(t, "Codebase index")
 	stop()
 }
 

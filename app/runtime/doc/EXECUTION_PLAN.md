@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P152 已完成；下一阶段待独立准入。
+> 状态：P0–P153 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P152 已完成。
+> 最近基线：2026-08-24，P153 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P153 已完成。用户确认删除 Codebase，并明确授权把 `app/cli` 仅作为 direct consumer 同步纳入；其他 CLI 重构仍不在 scope。静态/动态审计证明 Agent 工具已无 Codebase consumer，Desktop/CLI 只保留手动入口；独立向量索引的固定 chunk + cosine-only 路线不值得继续持有完整 Domain/Application/SQLite/Protocol/UI lifecycle。
+- Runtime、Desktop 与 CLI 的 Codebase 纵切已一次性删除；三项 operation、feature/topic、三张 SQLite 表、后台 coordinator、公共 embedded/protocol surface、生成合同、Desktop Dock/query/gateway/locales 和 CLI port/adapter/命令/事件/测试均不保留。Embedding role/vector codec 收归仍有真实消费者且支持 keyword fallback 的 Agent Memory。SQLite 直接提升 epoch 80；Protocol 维持唯一精确 `2026-08-24`，不提供旧同日 shape reader。
+- 同批红例证明 Git/workspace source discovery 会把已取消请求和失败的 repository probe 混为非仓并走 filesystem fallback。Git probe 现在先保留 cancellation，只把明确 non-repository diagnostic 当作值，其他 exit 128 错误保持可见；unborn repository 继续返回合法 worktree/untracked 事实。
+- P153 的 Frontend 313 files / 1950 tests 与全部静态、边界、消费者和 bundle 门禁全绿，86/86 operations、3/3 sidecars、15/15 events 均有产品消费者。Runtime/Desktop 全量 test/vet/build、Go 1.27-compatible Staticcheck、full race、standalone、根 workspace tests、Runtime generator 零漂移与 Wails production build 通过；CLI 受影响的 backend/changefeed/runtimeprofile/terminal/arch/cmd 包通过。CLI `runtimeembedded` 的更广合同漂移早于本批且不涉及 Codebase，继续作为独立迁移，不以 Runtime 兼容层掩盖。临时 Staticcheck 已回收，未启动 agent-browser。
 - P152 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例让已接受 operation 穿过 Instance Close caller deadline 后才返回；旧 Instance 没有提前关闭 Host resource，但 operation 结束一秒后仍无 owner 继续图。CLI defer 与公共 embedded Close 都只调用一次，没有外层 retry 承诺。
 - 唯一修复 owner 是 Instance active shutdown attempt + Host package-private owner join。第一个 Instance Close 从 Host 已注入 Runtime lifetime 派生一个不继承 caller cancellation 的 generation，只退休一次 delivery/lifetime，再依次 join Endpoint、scheduler/database/recovery workers 与 Host attempt。每个 caller 只有独立有界 wait；并发 Close 只 join，已完成 phase error 才允许下一次显式 attempt。
 - 对 app2 的裁决：采纳完整 process owner 与 acquisition/retirement 连续性，拒绝无界 WaitGroup、ambient Background 扩散、Stop-only facade 和不完整 join。Instance 不复制第二 Runtime context，而是消费 Host 唯一 lifetime owner；不建立 timer/backoff/retry loop、第二 Host graph、兼容路径或新 public surface。
@@ -345,14 +349,16 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P150     | 失败 Open terminal resource graph 所有权闭环                                                                | host/tool steps 进入唯一自驱 reverse Sequence；caller timeout 不取消图，失败 constructor 无 cleanup handle 仍完成依赖释放；删除 test-only Retryable 双态                                    |
 | P151     | Host component-to-resource shutdown graph 所有权闭环                                                    | `hostLifetime` 独占 component/executor/resource generation；caller timeout 只停止等待，post-transfer 失败 Open 无 Host handle 仍在迟到 component 终结后释放依赖                    |
 | P152     | Instance delivery-to-Host shutdown graph 所有权闭环                                                     | Instance attempt 连续 join Endpoint/workers/Host；CLI/public Close timeout 不再要求第二调用，已接受 operation 终结后自行推进依赖释放                                     |
+| P153     | 删除独立 Codebase 向量索引纵切                                                                           | Runtime/Desktop/CLI direct consumer、SQLite/Protocol/生成合同一次性收口；Embedding 只归属 Agent Memory，代码发现回到 grep/glob/read/shell/LSP                              |
 
 ## 5. 当前里程碑结论
 
-P113–P152 共同建立了以下不可回退的心智模型：
+P113–P153 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - Runtime Instance shutdown 由唯一 active generation 从 operation Endpoint/workers 连续加入 Host，Host 再由 `hostLifetime` 唯一 generation 拥有 component、executor 与 resource 跨阶段连续性；任一 caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 或单次 public Close 即使不再有 cleanup caller 也不会因 timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
+- 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
@@ -381,7 +387,7 @@ P113–P152 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 316 files / 1974 tests 全绿，97 条 published context edge 无环，89/89 Runtime operation fact families、3/3 sidecars、16/16 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、1.27-compatible `staticcheck ./...`、full `go test -race ./...` 与 `GOWORK=off go test ./...` 通过；根 workspace 对两个 app module 的全量 test、Runtime generator 零漂移和 `wails3 task build` production native build 通过。当前合同仍为 Artifact v23、SQLite epoch 79、Protocol `2026-08-24`；Wails v3 动态绑定保持，`app/cli` 零 diff。
+最近一次完整验收基线：Frontend 313 files / 1950 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、1.27-compatible `staticcheck ./...`、full `go test -race ./...` 与 `GOWORK=off go test ./...` 通过；根 workspace 对两个 app module 的全量 test、Runtime generator 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 80、Protocol `2026-08-24`；Wails v3 动态绑定保持。CLI 仅同步删除 Codebase direct consumer，受影响包门禁通过；其余 `runtimeembedded` 合同漂移不属于本批。
 
 ## 6. 新阶段准入
 
@@ -394,4 +400,4 @@ P113–P152 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P152 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P153 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

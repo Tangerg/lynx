@@ -28,7 +28,6 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshModelReader(changefeed.Topic(event.Type) == changefeed.ModelsChanged)
 	a.refreshApprovalReader(changefeed.Topic(event.Type) == changefeed.ApprovalsChanged)
 	a.refreshAgentMemoryReader(changefeed.Topic(event.Type) == changefeed.AgentMemoryChanged)
-	a.refreshCodebaseReader(changefeed.Topic(event.Type) == changefeed.CodebaseChanged)
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -45,7 +44,6 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshModelReader(containsTopic(topics, changefeed.ModelsChanged))
 	a.refreshApprovalReader(containsTopic(topics, changefeed.ApprovalsChanged))
 	a.refreshAgentMemoryReader(containsTopic(topics, changefeed.AgentMemoryChanged))
-	a.refreshCodebaseReader(containsTopic(topics, changefeed.CodebaseChanged))
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(changefeed.Event{Type: changefeed.Resync, Topics: topics}),
 		resyncAffectsSession(topics),
@@ -140,18 +138,6 @@ func (a *app) refreshApprovalReader(affected bool) {
 func (a *app) refreshAgentMemoryReader(affected bool) {
 	if affected && a.agentMemory != nil && a.runtimeReader == runtimeReaderAgentMemory && a.readerDialog.Open() {
 		a.refreshRuntimeReader(a.agentMemoryReaderQuery(a.runtimeSelection.agentMemoryTarget))
-	}
-}
-
-func (a *app) refreshCodebaseReader(affected bool) {
-	if !affected || a.codebase == nil || !a.readerDialog.Open() {
-		return
-	}
-	switch a.runtimeReader {
-	case runtimeReaderCodebaseStatus:
-		a.refreshRuntimeReader(a.codebaseStatusReaderQuery(a.session.Workspace.Path))
-	case runtimeReaderCodebaseSearch:
-		a.refreshRuntimeReader(a.codebaseSearchReaderQuery(a.runtimeSelection.codebaseQuery))
 	}
 }
 

@@ -90,11 +90,11 @@
 
 ## 3. 失效事件流
 
-非-run 的**失效信号**推送（文件 / skills / MCP / schedules / 会话 / run / interrupt / goal / state / knowledge / hooks / models / approvals / agent memory / codebase），与 run 事件流
+非-run 的**失效信号**推送（文件 / skills / MCP / schedules / 会话 / run / interrupt / goal / state / knowledge / hooks / models / approvals / agent memory），与 run 事件流
 （`API.md §5`）分层，自成一条常驻流。
 
-`runtime.subscribe{ topics, watches? }` 打开它；流式 `notifications.runtime.event`（params `RuntimeEvent`，十六个变体
-见 `API.md §7.8`）。
+`runtime.subscribe{ topics, watches? }` 打开它；流式 `notifications.runtime.event`（params `RuntimeEvent`，十五个可订阅 topic
+加一个 `resync` 变体，见 `API.md §7.8`）。
 
 - **订阅点名 topic**：`topics` 是闭合集合（`RuntimeTopic`），客户端只收它点过的名。上限在
   `capabilities.limits.runtimeSubscription{maxTopics,maxWatches}` 里公布并被强制执行。
@@ -108,9 +108,8 @@
 - **每个 topic 都有生产者**：discovery 里出现的 topic，runtime 一定会在对应提交之后发它。一个"名字在、流是静的"
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
 - **配置与后台任务有专用信号**：成功的 Skill library/proposal、`knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
-  review mutation 分别经同一 Application invalidation vocabulary 发布所属 topic；显式 codebase rebuild 在 operation 可读后与 settle 后各发布一次
-  `codebase.changed`，首次或过期的 `codebase.search` 隐式 reconcile 也在 indexing 与 settle 各发布一次。外部进程新增、
-  替换、删除已订阅作用域的 `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
+  review mutation 分别经同一 Application invalidation vocabulary 发布所属 topic。外部进程新增、替换、删除已订阅作用域的
+  `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
   workspace 观测或 Runtime wire 细节泄露到 Agent。
 
 ### 3.1 连接与投递模型

@@ -27,15 +27,14 @@ type hostLifetime struct {
 	shutdownTimeout time.Duration
 	shutdown        *hostShutdownAttempt
 
-	goalDriver          shutdownComponent
-	mcpCoordinator      shutdownComponent
-	codebaseCoordinator shutdownComponent
-	runCoordinator      shutdownComponent
-	executor            shutdownComponent
-	runEffectTasks      taskOwner
-	toolResources       []*teardown.Step
-	hostResources       []*teardown.Step
-	resourceGraph       *teardown.Sequence
+	goalDriver     shutdownComponent
+	mcpCoordinator shutdownComponent
+	runCoordinator shutdownComponent
+	executor       shutdownComponent
+	runEffectTasks taskOwner
+	toolResources  []*teardown.Step
+	hostResources  []*teardown.Step
+	resourceGraph  *teardown.Sequence
 }
 
 type hostShutdownAttempt struct {
@@ -137,7 +136,6 @@ func runHostShutdown(
 	components := []shutdownComponent{
 		lifetime.goalDriver,
 		lifetime.mcpCoordinator,
-		lifetime.codebaseCoordinator,
 		lifetime.runCoordinator,
 	}
 	lifetime.closeMu.Lock()

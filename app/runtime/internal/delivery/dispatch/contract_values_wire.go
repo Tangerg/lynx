@@ -25,7 +25,6 @@ func registerValueConstraints(s *Shapes) {
 	registerRunValues(s)
 	registerPlanValues(s)
 	registerWorkspaceValues(s)
-	registerCodebaseValues(s)
 	registerUsageValues(s)
 	registerSkillValues(s)
 	registerHookValues(s)
@@ -268,16 +267,6 @@ func registerWorkspaceValues(s *Shapes) {
 	})
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.GrepRequest](),
-		Constraints: []FieldConstraint{
-			{Field: "query", Kind: ConstraintNonEmpty},
-			{Field: "limit", Kind: ConstraintNonNegative},
-		},
-	})
-}
-
-func registerCodebaseValues(s *Shapes) {
-	s.valueConstraint(FieldConstraintSpec{
-		GoType: typeOf[protocol.CodebaseSearchRequest](),
 		Constraints: []FieldConstraint{
 			{Field: "query", Kind: ConstraintNonEmpty},
 			{Field: "limit", Kind: ConstraintNonNegative},

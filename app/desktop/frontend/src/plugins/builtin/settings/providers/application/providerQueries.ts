@@ -1,18 +1,7 @@
-import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
-import { queryClient } from "@/lib/queryClient";
+import { createDataQuery } from "@/plugins/sdk";
 import type { ProviderConfiguration, ProviderRole } from "./providerModels";
 
 export type { ProviderConfiguration, ProviderRole } from "./providerModels";
-
-export interface CodebaseStatusReadModel {
-  state: "none" | "indexing" | "ready" | "error";
-  modelId?: string;
-  fileCount: number;
-  chunkCount: number;
-  indexedAt?: string;
-  truncated?: boolean;
-  operationId?: string;
-}
 
 export interface SelectableModel {
   id: string;
@@ -20,10 +9,6 @@ export interface SelectableModel {
   label: string;
   multimodal: boolean;
   contextWindow?: number;
-}
-
-export interface CodebaseStatusQuery {
-  cwd?: string;
 }
 
 /**
@@ -47,37 +32,7 @@ export const PROVIDERS_KEY = "providers";
 export const MODELS_KEY = "models";
 export const UTILITY_ROLE_KEY = "utility-role";
 export const EMBEDDING_ROLE_KEY = "embedding-role";
-export const CODEBASE_STATUS_KEY = "codebase-status";
-
-export function commitCodebaseReindexStarted(
-  query: CodebaseStatusQuery,
-  operationId: string,
-): void {
-  queryClient.setQueryData<CodebaseStatusReadModel>([CODEBASE_STATUS_KEY, query], (current) => ({
-    ...current,
-    state: "indexing",
-    fileCount: current?.fileCount ?? 0,
-    chunkCount: current?.chunkCount ?? 0,
-    operationId,
-  }));
-}
-
-const ACTIVE_CODEBASE_STATUS_REFRESH_MS = 1_000;
-
-// Runtime owns background reindex execution and exposes operationId as its
-// liveness handle. Refresh only while that handle exists, then let the final
-// ready/error status return this query to its normal cache lifetime.
-export function codebaseStatusRefreshInterval(
-  status: CodebaseStatusReadModel | undefined,
-): number | false {
-  return status?.operationId ? ACTIVE_CODEBASE_STATUS_REFRESH_MS : false;
-}
-
 export const useModels = createDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = createDataQuery<ProviderConfiguration[]>(PROVIDERS_KEY);
 export const useUtilityRole = createDataQuery<ProviderRole>(UTILITY_ROLE_KEY);
 export const useEmbeddingRole = createDataQuery<ProviderRole>(EMBEDDING_ROLE_KEY);
-export const useCodebaseStatus = createParameterizedDataQuery<
-  CodebaseStatusQuery,
-  CodebaseStatusReadModel
->(CODEBASE_STATUS_KEY, { refetchInterval: codebaseStatusRefreshInterval });

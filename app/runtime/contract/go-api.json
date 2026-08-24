@@ -191,10 +191,6 @@
               "signature": "func(ctx context.Context, options CallOptions) (*protocol.ApprovalModeResult, error)"
             },
             {
-              "name": "GetCodebaseStatus",
-              "signature": "func(ctx context.Context, request protocol.CodebaseStatusRequest, options CallOptions) (*protocol.CodebaseStatus, error)"
-            },
-            {
               "name": "GetEmbeddingRole",
               "signature": "func(ctx context.Context, options CallOptions) (*protocol.EmbeddingRole, error)"
             },
@@ -351,10 +347,6 @@
               "signature": "func(ctx context.Context, request protocol.MCPServerRequest, options CommandOptions) error"
             },
             {
-              "name": "ReindexCodebase",
-              "signature": "func(ctx context.Context, request protocol.CodebaseReindexRequest, options CommandOptions) (*protocol.CodebaseReindexResponse, error)"
-            },
-            {
               "name": "RejectSkillProposal",
               "signature": "func(ctx context.Context, request protocol.SkillProposalRef, options CommandOptions) error"
             },
@@ -385,10 +377,6 @@
             {
               "name": "RunScheduleNow",
               "signature": "func(ctx context.Context, request protocol.RunScheduleNowRequest, options CommandOptions) (*protocol.RunScheduleNowResponse, error)"
-            },
-            {
-              "name": "SearchCodebase",
-              "signature": "func(ctx context.Context, request protocol.CodebaseSearchRequest, options CallOptions) (*protocol.CodebaseSearchResult, error)"
             },
             {
               "name": "SearchWorkspaceFiles",
@@ -717,26 +705,6 @@
           "value": "\"root\""
         },
         {
-          "name": "CodebaseStateError",
-          "type": "CodebaseState",
-          "value": "\"error\""
-        },
-        {
-          "name": "CodebaseStateIndexing",
-          "type": "CodebaseState",
-          "value": "\"indexing\""
-        },
-        {
-          "name": "CodebaseStateNone",
-          "type": "CodebaseState",
-          "value": "\"none\""
-        },
-        {
-          "name": "CodebaseStateReady",
-          "type": "CodebaseState",
-          "value": "\"ready\""
-        },
-        {
           "name": "ContentBlockImage",
           "type": "ContentBlockType",
           "value": "\"image\""
@@ -825,11 +793,6 @@
           "name": "FeatureCheckpoints",
           "type": "untyped string",
           "value": "\"checkpoints\""
-        },
-        {
-          "name": "FeatureCodebase",
-          "type": "untyped string",
-          "value": "\"codebase\""
         },
         {
           "name": "FeatureCompaction",
@@ -1622,11 +1585,6 @@
           "value": "\"approvals.changed\""
         },
         {
-          "name": "RuntimeCodebaseChanged",
-          "type": "RuntimeEventType",
-          "value": "\"codebase.changed\""
-        },
-        {
           "name": "RuntimeFilesChanged",
           "type": "RuntimeEventType",
           "value": "\"files.changed\""
@@ -1865,11 +1823,6 @@
           "name": "TopicApprovalsChanged",
           "type": "RuntimeTopic",
           "value": "\"approvals.changed\""
-        },
-        {
-          "name": "TopicCodebaseChanged",
-          "type": "RuntimeTopic",
-          "value": "\"codebase.changed\""
         },
         {
           "name": "TopicFilesChanged",
@@ -3199,154 +3152,6 @@
             {
               "name": "ValidateWire",
               "signature": "func() error"
-            }
-          ]
-        },
-        {
-          "name": "CodebaseHit",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Path",
-              "type": "string",
-              "tag": "json:\"path\""
-            },
-            {
-              "name": "StartLine",
-              "type": "int",
-              "tag": "json:\"startLine\""
-            },
-            {
-              "name": "EndLine",
-              "type": "int",
-              "tag": "json:\"endLine\""
-            },
-            {
-              "name": "Snippet",
-              "type": "string",
-              "tag": "json:\"snippet\""
-            },
-            {
-              "name": "Score",
-              "type": "float64",
-              "tag": "json:\"score\""
-            }
-          ]
-        },
-        {
-          "name": "CodebaseReindexRequest",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Workspace",
-              "type": "WorkspaceRef",
-              "tag": "json:\"workspace\""
-            }
-          ]
-        },
-        {
-          "name": "CodebaseReindexResponse",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "OperationID",
-              "type": "string",
-              "tag": "json:\"operationId\""
-            }
-          ]
-        },
-        {
-          "name": "CodebaseSearchRequest",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Workspace",
-              "type": "WorkspaceRef",
-              "tag": "json:\"workspace\""
-            },
-            {
-              "name": "Query",
-              "type": "string",
-              "tag": "json:\"query\""
-            },
-            {
-              "name": "Limit",
-              "type": "int",
-              "tag": "json:\"limit,omitempty\""
-            }
-          ],
-          "methods": [
-            {
-              "name": "ValidateWire",
-              "signature": "func() error"
-            }
-          ]
-        },
-        {
-          "name": "CodebaseSearchResult",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Hits",
-              "type": "[]CodebaseHit",
-              "tag": "json:\"hits\""
-            }
-          ]
-        },
-        {
-          "name": "CodebaseState",
-          "kind": "defined",
-          "underlying": "string"
-        },
-        {
-          "name": "CodebaseStatus",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "State",
-              "type": "CodebaseState",
-              "tag": "json:\"state\""
-            },
-            {
-              "name": "ModelID",
-              "type": "string",
-              "tag": "json:\"modelId,omitempty\""
-            },
-            {
-              "name": "FileCount",
-              "type": "int",
-              "tag": "json:\"fileCount\""
-            },
-            {
-              "name": "ChunkCount",
-              "type": "int",
-              "tag": "json:\"chunkCount\""
-            },
-            {
-              "name": "IndexedAt",
-              "type": "string",
-              "tag": "json:\"indexedAt,omitempty\""
-            },
-            {
-              "name": "Truncated",
-              "type": "bool",
-              "tag": "json:\"truncated,omitempty\""
-            },
-            {
-              "name": "OperationID",
-              "type": "string",
-              "tag": "json:\"operationId,omitempty\""
-            }
-          ]
-        },
-        {
-          "name": "CodebaseStatusRequest",
-          "kind": "struct",
-          "fields": [
-            {
-              "name": "Workspace",
-              "type": "WorkspaceRef",
-              "tag": "json:\"workspace\""
             }
           ]
         },

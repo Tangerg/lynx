@@ -117,7 +117,7 @@ func Samples() []Sample {
 		{"method.listFileChanges.resp.json", reflect.TypeFor[protocol.Page[protocol.WorkspaceFileChange]]()},
 		{"method.grep.req.json", reflect.TypeFor[protocol.GrepRequest]()},
 
-		// §4.6 Approval + §4.9 providers/models/usage/codebase.
+		// §4.6 Approval + §4.9 providers/models/usage.
 		{"approvalRule.json", reflect.TypeFor[protocol.ApprovalRule]()},
 		{"approvalMode.resp.json", reflect.TypeFor[protocol.ApprovalModeResult]()},
 		{"approvalRules.resp.json", reflect.TypeFor[protocol.ListApprovalRulesResult]()},
@@ -128,9 +128,6 @@ func Samples() []Sample {
 		{"utilityRole.json", reflect.TypeFor[protocol.UtilityRole]()},
 		{"embeddingRole.json", reflect.TypeFor[protocol.EmbeddingRole]()},
 		{"usageSummary.json", reflect.TypeFor[protocol.UsageSummary]()},
-		{"codebaseStatus.json", reflect.TypeFor[protocol.CodebaseStatus]()},
-		{"codebaseHit.json", reflect.TypeFor[protocol.CodebaseHit]()},
-		{"codebaseSearch.resp.json", reflect.TypeFor[protocol.CodebaseSearchResult]()},
 
 		// §3/§9 discovery, request metadata + §4.10 config surfaces.
 		{"method.discover.resp.json", reflect.TypeFor[protocol.DiscoverResponse]()},

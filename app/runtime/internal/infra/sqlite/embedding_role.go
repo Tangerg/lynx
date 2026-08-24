@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// EmbeddingRoleStore persists the global embedding-model role — the (provider,
-// model) the @codebase semantic index embeds with — as a single row. The DB
+// EmbeddingRoleStore persists the optional agent-memory embedding-model role as
+// a single row. The DB
 // must have been opened via [Open] so the embedding_role table exists. Mirrors
 // [UtilityRoleStore]; the credential for the named provider comes from the
 // provider registry.

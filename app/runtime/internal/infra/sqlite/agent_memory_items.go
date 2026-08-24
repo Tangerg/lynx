@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -19,6 +21,22 @@ func newMemoryID() (string, error) {
 		return "", fmt.Errorf("sqlite: mint memory id: %w", err)
 	}
 	return "mem_" + hex.EncodeToString(buf[:]), nil
+}
+
+func encodeVec(vector []float32) []byte {
+	encoded := make([]byte, 4*len(vector))
+	for index, value := range vector {
+		binary.LittleEndian.PutUint32(encoded[index*4:], math.Float32bits(value))
+	}
+	return encoded
+}
+
+func decodeVec(encoded []byte) []float32 {
+	vector := make([]float32, len(encoded)/4)
+	for index := range vector {
+		vector[index] = math.Float32frombits(binary.LittleEndian.Uint32(encoded[index*4:]))
+	}
+	return vector
 }
 
 // reconcileItems applies the domain fold ([agentmemory.Fold]) to the project's

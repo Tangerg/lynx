@@ -61,14 +61,49 @@ func Available() bool {
 	return availableOnce.ok
 }
 
-// IsRepo reports whether dir is inside a git work tree. False when git is
-// unavailable.
-func IsRepo(ctx context.Context, dir string) bool {
-	if !Available() {
-		return false
+// IsRepo reports whether dir is inside a Git work tree. An unavailable binary
+// and request cancellation remain errors so callers can deliberately choose
+// fallback or termination instead of conflating both with a non-repository.
+func IsRepo(ctx context.Context, dir string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, fmt.Errorf("git rev-parse --is-inside-work-tree: %w", err)
 	}
-	out, err := run(ctx, dir, "rev-parse", "--is-inside-work-tree")
-	return err == nil && strings.TrimSpace(out) == "true"
+	if !Available() {
+		return false, ErrUnavailable
+	}
+	args := []string{"rev-parse", "--is-inside-work-tree"}
+	full := append([]string{"--no-optional-locks", "-C", dir, "-c", "core.quotepath=false"}, args...)
+	cmd := gitprocess.CommandContext(ctx, full...)
+	// The only expected negative result is identified from Git's stable English
+	// diagnostic. Exit 128 alone is not enough: unsafe ownership, corrupt
+	// metadata, and an unreadable repository use the same status and must remain
+	// observable to the caller.
+	cmd.Env = gitprocess.Environment("LC_ALL=C", "LANG=C")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return false, fmt.Errorf("git %s: %w", strings.Join(args, " "), contextErr)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			return false, ErrUnavailable
+		}
+		diagnostic := strings.TrimSpace(stderr.String())
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 && isNotRepositoryDiagnostic(diagnostic) {
+			return false, nil
+		}
+		if diagnostic != "" {
+			return false, fmt.Errorf("git %s: %s: %w", strings.Join(args, " "), diagnostic, err)
+		}
+		return false, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(stdout.String()) == "true", nil
+}
+
+func isNotRepositoryDiagnostic(diagnostic string) bool {
+	return strings.HasPrefix(diagnostic, "fatal: not a git repository")
 }
 
 // run executes `git -C dir <args...>` with hooks disabled and returns stdout.
@@ -92,14 +127,17 @@ func runAllowingExitCode(ctx context.Context, dir string, allowedExitCode int, a
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		command := strings.Join(args, " ")
+		if contextErr := ctx.Err(); contextErr != nil {
+			return stdout.String(), fmt.Errorf("git %s: %w", command, contextErr)
+		}
 		var exitErr *exec.ExitError
-		if ctx.Err() == nil && errors.As(err, &exitErr) && exitErr.ExitCode() == allowedExitCode {
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == allowedExitCode {
 			return stdout.String(), nil
 		}
 		if errors.Is(err, exec.ErrNotFound) {
 			return "", ErrUnavailable
 		}
-		command := strings.Join(args, " ")
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
 			return stdout.String(), fmt.Errorf("git %s: %s: %w", command, msg, err)
 		}
@@ -112,10 +150,11 @@ func runAllowingExitCode(ctx context.Context, dir string, allowedExitCode int, a
 // counts + rename detection) plus untracked files. Returns ErrNotRepo when dir
 // isn't a repo. Result order is git's (roughly path order).
 func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
-	if !Available() {
-		return nil, ErrUnavailable
+	repository, err := IsRepo(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
-	if !IsRepo(ctx, dir) {
+	if !repository {
 		return nil, ErrNotRepo
 	}
 	prefixOut, err := run(ctx, dir, "rev-parse", "--show-prefix")
@@ -203,10 +242,11 @@ func workspaceRelativeGitPath(path, repositoryPrefix string) (string, bool) {
 // names (spaces/newlines) intact. Returns ErrNotRepo when dir isn't a repo, so
 // the caller can fall back to a plain filesystem walk.
 func ListFiles(ctx context.Context, dir, relPath string) ([]string, error) {
-	if !Available() {
-		return nil, ErrUnavailable
+	repository, err := IsRepo(ctx, dir)
+	if err != nil {
+		return nil, err
 	}
-	if !IsRepo(ctx, dir) {
+	if !repository {
 		return nil, ErrNotRepo
 	}
 	args := []string{"ls-files", "--cached", "--others", "--exclude-standard", "-z"}

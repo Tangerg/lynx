@@ -8,28 +8,28 @@ import (
 
 	"github.com/Tangerg/lynx/embeddingclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
 // EmbeddingResolver builds + caches embedding clients from provider-registry
 // credentials, keyed by everything that changes the built client (so a
-// credential mutation is picked up). Mirrors [ChatResolver] for semantic-index
-// embedding role.
+// credential mutation is picked up). Mirrors [ChatResolver] for the optional
+// agent-memory embedding role.
 type EmbeddingResolver struct {
 	providers CredentialLookup
 	mu        sync.Mutex
-	cache     map[string]codebase.Embedder
+	cache     map[string]agentmemoryapp.Embedder
 }
 
 // NewEmbeddingResolver returns a resolver over the provider credential lookup.
 func NewEmbeddingResolver(providers CredentialLookup) *EmbeddingResolver {
-	return &EmbeddingResolver{providers: providers, cache: map[string]codebase.Embedder{}}
+	return &EmbeddingResolver{providers: providers, cache: map[string]agentmemoryapp.Embedder{}}
 }
 
 // Resolve builds (or returns a cached) embedder for selection.
-func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (codebase.Embedder, error) {
+func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (agentmemoryapp.Embedder, error) {
 	if !selection.Configured() {
 		return nil, errors.New("modelclient: explicit model selection is required")
 	}
@@ -76,8 +76,7 @@ func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, provider
 	return err
 }
 
-// embedder adapts an embeddingclient.Client to [codebase.Embedder], converting
-// the float64 vectors to the float32 the index stores.
+// embedder adapts an embeddingclient.Client to the agent-memory search port.
 type embedder struct {
 	id     string
 	client *embeddingclient.Client

@@ -11,7 +11,6 @@
     "skills",
     "mcp",
     "schedules",
-    "codebase",
     "git",
     "checkpoints",
     "fileWatch",
@@ -894,51 +893,6 @@
       ]
     },
     {
-      "name": "codebase.search",
-      "kind": "unary",
-      "operation": "query",
-      "idempotency": "none",
-      "replayCursor": "none",
-      "pagination": "none",
-      "errors": [
-        "workspace_unavailable",
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "codebase"
-      ]
-    },
-    {
-      "name": "codebase.status",
-      "kind": "unary",
-      "operation": "query",
-      "idempotency": "none",
-      "replayCursor": "none",
-      "pagination": "none",
-      "errors": [
-        "workspace_unavailable",
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "codebase"
-      ]
-    },
-    {
-      "name": "codebase.reindex",
-      "kind": "unary",
-      "operation": "command",
-      "idempotency": "replayResponse",
-      "replayCursor": "none",
-      "pagination": "none",
-      "errors": [
-        "workspace_unavailable",
-        "capability_not_negotiated"
-      ],
-      "features": [
-        "codebase"
-      ]
-    },
-    {
       "name": "providers.list",
       "kind": "unary",
       "operation": "query",
@@ -1245,9 +1199,6 @@
           "agentMemory.list",
           "agentMemory.review",
           "agentMemory.update",
-          "codebase.reindex",
-          "codebase.search",
-          "codebase.status",
           "goals.clear",
           "goals.get",
           "goals.resume",
@@ -1560,9 +1511,6 @@
         "recoveryAction": "promptUser",
         "methods": [
           "agentDocs.list",
-          "codebase.reindex",
-          "codebase.search",
-          "codebase.status",
           "hooks.list",
           "knowledge.get",
           "knowledge.list",
@@ -2035,36 +1983,6 @@
       ]
     },
     {
-      "method": "codebase.search",
-      "rules": [
-        {
-          "requires": [
-            "codebase"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "codebase.status",
-      "rules": [
-        {
-          "requires": [
-            "codebase"
-          ]
-        }
-      ]
-    },
-    {
-      "method": "codebase.reindex",
-      "rules": [
-        {
-          "requires": [
-            "codebase"
-          ]
-        }
-      ]
-    },
-    {
       "method": "knowledge.list",
       "rules": [
         {
@@ -2225,9 +2143,6 @@
     },
     {
       "type": "agentMemory.changed"
-    },
-    {
-      "type": "codebase.changed"
     },
     {
       "type": "resync"
@@ -3359,12 +3274,6 @@
         },
         {
           "tag": "agentMemory.changed",
-          "required": [
-            "sequence"
-          ]
-        },
-        {
-          "tag": "codebase.changed",
           "required": [
             "sequence"
           ]
@@ -4984,19 +4893,6 @@
       ]
     },
     {
-      "type": "CodebaseSearchRequest",
-      "rules": [
-        {
-          "field": "query",
-          "constraint": "nonEmpty"
-        },
-        {
-          "field": "limit",
-          "constraint": "nonNegative"
-        }
-      ]
-    },
-    {
       "type": "SessionUsageRequest",
       "rules": [
         {
@@ -5951,18 +5847,6 @@
     {
       "file": "usageSummary.json",
       "shape": "UsageSummary"
-    },
-    {
-      "file": "codebaseStatus.json",
-      "shape": "CodebaseStatus"
-    },
-    {
-      "file": "codebaseHit.json",
-      "shape": "CodebaseHit"
-    },
-    {
-      "file": "codebaseSearch.resp.json",
-      "shape": "CodebaseSearchResult"
     },
     {
       "file": "method.discover.resp.json",

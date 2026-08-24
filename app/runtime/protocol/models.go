@@ -10,9 +10,9 @@ type UtilityRole struct {
 	Model    string `json:"model,omitempty"`
 }
 
-// EmbeddingRole is the (provider, model) the @codebase semantic index embeds
-// with (models.getEmbeddingRole / setEmbeddingRole). Empty model = unset → the
-// index feature is off. Provider must be configured and embedding-capable when
+// EmbeddingRole is the optional (provider, model) used to enrich agent-memory
+// ranking (models.getEmbeddingRole / setEmbeddingRole). Empty model leaves
+// memory search keyword-only. Provider must be configured and embedding-capable when
 // the role is assigned. The selection remains stored if credentials later
 // change, so clients that need effective availability join it with
 // providers.list. A distinct type from [UtilityRole] (same shape, different

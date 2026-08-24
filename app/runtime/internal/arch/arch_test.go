@@ -178,16 +178,15 @@ func TestDependencyRule(t *testing.T) {
 func TestRemovedProducerPortsDoNotReturnToDomain(t *testing.T) {
 	root := moduleRoot(t)
 	for path, forbiddenNames := range map[string]map[string]struct{}{
-		filepath.Join(root, "internal", "domain", "agentmemory"):   {"Store": {}},
-		filepath.Join(root, "internal", "domain", "approval"):      {"Policy": {}},
-		filepath.Join(root, "internal", "domain", "codebaseindex"): {"Index": {}},
-		filepath.Join(root, "internal", "domain", "feedback"):      {"Store": {}},
-		filepath.Join(root, "internal", "domain", "goal"):          {"Store": {}},
-		filepath.Join(root, "internal", "domain", "knowledge"):     {"Store": {}},
-		filepath.Join(root, "internal", "domain", "mcpserver"):     {"Registry": {}},
-		filepath.Join(root, "internal", "domain", "schedule"):      {"Registry": {}},
-		filepath.Join(root, "internal", "domain", "plan"):          {"Store": {}},
-		filepath.Join(root, "internal", "domain", "tool"):          {"Catalog": {}, "Invoker": {}, "Registry": {}},
+		filepath.Join(root, "internal", "domain", "agentmemory"): {"Store": {}},
+		filepath.Join(root, "internal", "domain", "approval"):    {"Policy": {}},
+		filepath.Join(root, "internal", "domain", "feedback"):    {"Store": {}},
+		filepath.Join(root, "internal", "domain", "goal"):        {"Store": {}},
+		filepath.Join(root, "internal", "domain", "knowledge"):   {"Store": {}},
+		filepath.Join(root, "internal", "domain", "mcpserver"):   {"Registry": {}},
+		filepath.Join(root, "internal", "domain", "schedule"):    {"Registry": {}},
+		filepath.Join(root, "internal", "domain", "plan"):        {"Store": {}},
+		filepath.Join(root, "internal", "domain", "tool"):        {"Catalog": {}, "Invoker": {}, "Registry": {}},
 	} {
 		entries, err := os.ReadDir(path)
 		if err != nil {
@@ -565,7 +564,6 @@ func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 	forbidQualifiedCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
 		"schedules.New":      "Bootstrap owns schedule coordinator construction",
 		"workspace.NewScope": "Bootstrap owns workspace use-case construction",
-		"codebase.New":       "Bootstrap owns codebase coordinator construction",
 	})
 }
 
@@ -866,7 +864,6 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 	for _, required := range []string{
 		"goalDriver",
 		"mcpCoordinator",
-		"codebaseCoordinator",
 		"runCoordinator",
 		"executor",
 		"runEffectTasks",

@@ -7,12 +7,10 @@ import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
-  CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
-  type CodebaseStatusQuery,
 } from "@/plugins/builtin/settings/providers/public/queries";
 import {
   SCHEDULES_KEY,
@@ -312,17 +310,6 @@ export function registerDefaultDataProviders(ctx: Contributor): void {
   contribute({
     key: EMBEDDING_ROLE_KEY,
     fetcher: (read) => read.client.models.getEmbeddingRole(),
-  });
-  contribute({
-    key: CODEBASE_STATUS_KEY,
-    fetcher: (read, params) => {
-      if (!runtimeCapability("codebase")) {
-        return Promise.resolve({ state: "none" as const, fileCount: 0, chunkCount: 0 });
-      }
-      return read
-        .workspace(optionalParams<CodebaseStatusQuery>(params)?.cwd)
-        .then((resources) => resources.codebase.status());
-    },
   });
   contribute({
     key: APPROVAL_RULES_KEY,

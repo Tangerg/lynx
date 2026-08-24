@@ -5,10 +5,8 @@ import (
 
 	"github.com/Tangerg/lynx/chatclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 )
 
@@ -22,7 +20,6 @@ type modelEnvironment struct {
 	embeddingRoleState *models.RoleState
 	embeddingResolver  *modelclient.EmbeddingResolver
 	liveEmbedder       *modelclient.RoleEmbedder
-	codebaseIndex      codebase.Index
 	agentMemorySearch  *agentmemoryapp.Searcher
 }
 
@@ -49,9 +46,6 @@ func buildModelEnvironment(ctx context.Context, cfg Config) (modelEnvironment, e
 		embeddingRoleState: embeddingRoleState,
 		embeddingResolver:  embeddingResolver,
 		liveEmbedder:       liveEmbedder,
-	}
-	if cfg.CodebaseStore != nil {
-		environment.codebaseIndex = codebase.NewIndex(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindex.Source{})
 	}
 	if cfg.AgentMemoryStore != nil {
 		environment.agentMemorySearch = agentmemoryapp.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)

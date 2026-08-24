@@ -63,7 +63,10 @@ func recipesDocument(workspace string, recipes []authoringcontext.Recipe) reader
 	}
 	sections := make([]ToolSection, 0, len(recipes)*2)
 	for _, recipe := range recipes {
-		description := fallback(recipe.Description, "No description provided.")
+		description := recipe.Description
+		if strings.TrimSpace(description) == "" {
+			description = "No description provided."
+		}
 		invocation := "/recipe " + recipe.Name
 		if recipe.ArgumentHint != "" {
 			invocation += " " + recipe.ArgumentHint

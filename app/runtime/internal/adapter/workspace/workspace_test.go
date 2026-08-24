@@ -2,6 +2,7 @@ package workspace_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
+
+func TestSnapshotPreservesCancellation(t *testing.T) {
+	if !git.Available() {
+		t.Skip("git not installed")
+	}
+	cwd := t.TempDir()
+	if out, err := exec.Command("git", "-C", cwd, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := workspace.NewCheckpoints(t.TempDir()).Snapshot(ctx, "ses1", cwd, "run1")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Snapshot error = %v, want context.Canceled", err)
+	}
+}
 
 // TestSnapshot_SkipsNonGitDir is the regression guard for the run-teardown hang:
 // a session opened on a non-git directory (e.g. the home dir) must NOT be

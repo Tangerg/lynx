@@ -68,6 +68,30 @@ func TestRepositoryReadsPreserveCancellation(t *testing.T) {
 	}
 }
 
+func TestWorktreeDiffKeepsUnbornRepositorySemantics(t *testing.T) {
+	if !Available() {
+		t.Skip("git not on PATH")
+	}
+	dir := t.TempDir()
+	gitTestCommand(t, dir, "init", "-b", "main")
+	write(t, dir, "new.txt", "new\n")
+
+	files, err := Diff(t.Context(), dir, "", Worktree)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "new.txt" || files[0].Status != StatusUntracked {
+		t.Fatalf("Diff = %+v, want unborn repository's untracked file", files)
+	}
+	patch, err := RawDiff(t.Context(), dir, "", Worktree)
+	if err != nil {
+		t.Fatalf("RawDiff: %v", err)
+	}
+	if !strings.Contains(patch, "new.txt") {
+		t.Fatalf("RawDiff = %q, want new.txt", patch)
+	}
+}
+
 // TestListChangesAndDiff: a modified tracked file + an untracked file show up
 // in both ListChanges (with line counts) and Diff (worktree, with rows).
 func TestListChangesAndDiff(t *testing.T) {
@@ -203,6 +227,21 @@ func TestNotRepo(t *testing.T) {
 	}
 	if _, err := ListChanges(context.Background(), t.TempDir()); !errors.Is(err, ErrNotRepo) {
 		t.Errorf("ListChanges on non-repo err = %v, want ErrNotRepo", err)
+	}
+}
+
+func TestRepositoryProbeDoesNotConflateExit128FailuresWithNotRepo(t *testing.T) {
+	for _, diagnostic := range []string{
+		"fatal: detected dubious ownership in repository at '/workspace'",
+		"fatal: bad object HEAD",
+		"fatal: unable to read current working directory: Permission denied",
+	} {
+		if isNotRepositoryDiagnostic(diagnostic) {
+			t.Fatalf("diagnostic %q was classified as a non-repository", diagnostic)
+		}
+	}
+	if !isNotRepositoryDiagnostic("fatal: not a git repository (or any of the parent directories): .git") {
+		t.Fatal("canonical non-repository diagnostic was not classified")
 	}
 }
 

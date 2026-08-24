@@ -17,12 +17,6 @@ import type {
   ApprovalModeResult,
   CancelRunRequest,
   CancelRunResponse,
-  CodebaseReindexRequest,
-  CodebaseReindexResponse,
-  CodebaseSearchRequest,
-  CodebaseSearchResult,
-  CodebaseStatus,
-  CodebaseStatusRequest,
   CreateMCPAuthorizationAttemptRequest,
   CreateScheduleRequest,
   CreateSessionRequest,
@@ -145,7 +139,6 @@ const FEATURES = [
   "skills",
   "mcp",
   "schedules",
-  "codebase",
   "git",
   "checkpoints",
   "fileWatch",
@@ -225,9 +218,6 @@ const METHOD_NAMES = [
   "goals.get",
   "goals.stop",
   "goals.resume",
-  "codebase.search",
-  "codebase.status",
-  "codebase.reindex",
   "providers.list",
   "providers.update",
   "providers.test",
@@ -325,9 +315,6 @@ const VALUE_METHOD_NAMES = [
   "goals.get",
   "goals.stop",
   "goals.resume",
-  "codebase.search",
-  "codebase.status",
-  "codebase.reindex",
   "providers.list",
   "providers.update",
   "providers.test",
@@ -826,27 +813,6 @@ export const WIRE_METHOD_POLICY = {
     replayCursor: "none",
     pagination: "none",
   },
-  "codebase.search": {
-    operation: "query",
-    response: "unary",
-    idempotency: "none",
-    replayCursor: "none",
-    pagination: "none",
-  },
-  "codebase.status": {
-    operation: "query",
-    response: "unary",
-    idempotency: "none",
-    replayCursor: "none",
-    pagination: "none",
-  },
-  "codebase.reindex": {
-    operation: "command",
-    response: "unary",
-    idempotency: "replayResponse",
-    replayCursor: "none",
-    pagination: "none",
-  },
   "providers.list": {
     operation: "query",
     response: "unary",
@@ -1167,15 +1133,6 @@ export const WIRE_CAPABILITY_POLICY: {
   "goals.resume": [
     { requires: ["goals"] },
   ],
-  "codebase.search": [
-    { requires: ["codebase"] },
-  ],
-  "codebase.status": [
-    { requires: ["codebase"] },
-  ],
-  "codebase.reindex": [
-    { requires: ["codebase"] },
-  ],
   "knowledge.list": [
     { requires: ["knowledge"] },
   ],
@@ -1269,9 +1226,6 @@ export interface WireShapes {
   "goals.get": { params: GoalRequest; result: Goal | null };
   "goals.stop": { params: GoalRequest; result: Goal };
   "goals.resume": { params: GoalRequest; result: Goal };
-  "codebase.search": { params: CodebaseSearchRequest; result: CodebaseSearchResult };
-  "codebase.status": { params: CodebaseStatusRequest; result: CodebaseStatus };
-  "codebase.reindex": { params: CodebaseReindexRequest; result: CodebaseReindexResponse };
   "providers.list": { params: Record<string, never>; result: PageOfProvider };
   "providers.update": { params: UpdateProviderRequest; result: Provider };
   "providers.test": { params: TestProviderRequest; result: ProviderTestResult };

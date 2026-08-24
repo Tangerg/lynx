@@ -4,7 +4,7 @@ import "time"
 
 // This file holds the small, cross-cutting value codecs the stores share
 // (several tables encode times as unix millis and bools as 0/1). They lived in
-// schedule.go but are used by codebaseindex / agent_memory / session_mutation
+// schedule.go but are used by agent_memory / session_mutation
 // too, so they belong in a neutral place rather than a feature file.
 
 // toMillis encodes a time as unix millis, mapping the zero time to 0 (the

@@ -235,7 +235,6 @@ func TestChangefeedAdapterProjectsRuntimeResourceInvalidations(t *testing.T) {
 		{name: "models", topic: changefeed.ModelsChanged, event: protocol.RuntimeModelsChanged},
 		{name: "approvals", topic: changefeed.ApprovalsChanged, event: protocol.RuntimeApprovalsChanged},
 		{name: "agent memory", topic: changefeed.AgentMemoryChanged, event: protocol.RuntimeAgentMemoryChanged},
-		{name: "codebase", topic: changefeed.CodebaseChanged, event: protocol.RuntimeCodebaseChanged},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

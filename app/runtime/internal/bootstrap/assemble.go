@@ -21,7 +21,6 @@ import (
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
@@ -456,12 +455,6 @@ func buildAssemblyCore(
 		workspaceServices.scope, cfg.HooksResolver, cfg.HookTrustStore, policy.invalidations.Publish,
 	)
 	workspaceWatch := workspace.NewGitWatch(workspaceServices.scope, checkpointstore.GitWatcher{})
-	// The @codebase semantic index is its own use-case coordinator (nil index =
-	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoordinator := codebase.New(
-		execution.models.codebaseIndex, workspaceServices.scope, policy.invalidations.Publish,
-	)
-	lifetime.codebaseCoordinator = codebaseCoordinator
 	host := &Host{
 		application: &hostApplication{
 			delivery: server.Config{
@@ -470,7 +463,6 @@ func buildAssemblyCore(
 				Approvals:     approvalCoordinator,
 				Models:        modelCoordinator,
 				Tools:         toolCoordinator,
-				Codebase:      codebaseCoordinator,
 				Runs:          runCoordinator,
 				FileChanges:   fileChanges.Observe,
 				Invalidations: policy.invalidations.Observe,

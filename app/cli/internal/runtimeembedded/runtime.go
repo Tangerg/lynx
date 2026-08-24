@@ -88,7 +88,6 @@ type Runtime struct {
 	agentMemory      agentMemoryBinding
 	knowledge        knowledgeBinding
 	diagnosticTools  diagnosticToolBinding
-	codebase         codebaseBinding
 	authoringContext authoringContextBinding
 	hooks            hookBinding
 	feedback         feedbackBinding
@@ -96,7 +95,6 @@ type Runtime struct {
 	agentMemoryPort  *agentMemoryAdapter
 	knowledgePort    *knowledgeAdapter
 	diagnosticPort   *diagnosticToolAdapter
-	codebasePort     *codebaseAdapter
 	authoringPort    *authoringContextAdapter
 	hookPort         *hookAdapter
 	feedbackPort     *feedbackAdapter
@@ -142,7 +140,6 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		agentMemory:      binding,
 		knowledge:        binding,
 		diagnosticTools:  binding,
-		codebase:         binding,
 		authoringContext: binding,
 		hooks:            binding,
 		feedback:         binding,
@@ -369,7 +366,6 @@ func (r *Runtime) services() backend.Services {
 		r.agentMemoryPort = &agentMemoryAdapter{runtime: r}
 		r.knowledgePort = &knowledgeAdapter{runtime: r}
 		r.diagnosticPort = &diagnosticToolAdapter{runtime: r}
-		r.codebasePort = &codebaseAdapter{runtime: r}
 		r.authoringPort = &authoringContextAdapter{runtime: r}
 		r.hookPort = &hookAdapter{runtime: r}
 		r.feedbackPort = &feedbackAdapter{runtime: r}
@@ -399,9 +395,6 @@ func (r *Runtime) services() backend.Services {
 	}
 	if r.supportsFeature(runtimeprofile.FeatureKnowledge) {
 		services.Knowledge = r.knowledgePort
-	}
-	if r.supportsFeature(runtimeprofile.FeatureCodebase) {
-		services.Codebase = r.codebasePort
 	}
 	if r.supportsFeature(runtimeprofile.FeatureSessionExport) {
 		services.Transfers = r

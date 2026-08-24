@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 )
@@ -74,109 +72,6 @@ func TestDiagnosticToolAdapterRejectsUnaddressableOrUnsafeCatalogs(t *testing.T)
 			}
 		})
 	}
-}
-
-type codebaseBindingStub struct {
-	t           *testing.T
-	status      *protocol.CodebaseStatus
-	hits        []protocol.CodebaseHit
-	operationID string
-	searchLimit int
-}
-
-func (stub *codebaseBindingStub) SearchCodebase(_ context.Context, request protocol.CodebaseSearchRequest, options embedded.CallOptions) (*protocol.CodebaseSearchResult, error) {
-	assertCallMeta(stub.t, options.RequestMeta)
-	expectedLimit := stub.searchLimit
-	if expectedLimit == 0 {
-		expectedLimit = 8
-	}
-	if request.Workspace.Path != "/workspace" || request.Query != "ownership" || request.Limit != expectedLimit {
-		stub.t.Fatalf("codebase search request = %+v", request)
-	}
-	return &protocol.CodebaseSearchResult{Hits: stub.hits}, nil
-}
-
-func (stub *codebaseBindingStub) GetCodebaseStatus(_ context.Context, request protocol.CodebaseStatusRequest, options embedded.CallOptions) (*protocol.CodebaseStatus, error) {
-	assertCallMeta(stub.t, options.RequestMeta)
-	if request.Workspace.Path != "/workspace" {
-		stub.t.Fatalf("codebase status request = %+v", request)
-	}
-	return stub.status, nil
-}
-
-func (stub *codebaseBindingStub) ReindexCodebase(_ context.Context, request protocol.CodebaseReindexRequest, options embedded.CommandOptions) (*protocol.CodebaseReindexResponse, error) {
-	assertCommandMeta(stub.t, options)
-	if request.Workspace.Path != "/workspace" {
-		stub.t.Fatalf("codebase reindex request = %+v", request)
-	}
-	return &protocol.CodebaseReindexResponse{OperationID: stub.operationID}, nil
-}
-
-func TestCodebaseAdapterProjectsLifecycleSearchAndReindex(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Second)
-	stub := &codebaseBindingStub{
-		t: t, status: &protocol.CodebaseStatus{State: protocol.CodebaseStateReady, ModelID: "embed", FileCount: 2, ChunkCount: 3, IndexedAt: now.Format(time.RFC3339)},
-		hits: []protocol.CodebaseHit{{Path: "main.go", StartLine: 2, EndLine: 4, Snippet: "owner", Score: .9}}, operationID: "op_1",
-	}
-	adapter := &codebaseAdapter{runtime: &Runtime{codebase: stub, meta: requestMeta("test")}}
-	status, err := adapter.Status(t.Context(), "/workspace")
-	if err != nil || status.IndexedAt == nil || !status.IndexedAt.Equal(now) {
-		t.Fatalf("Status = (%+v, %v)", status, err)
-	}
-	hits, err := adapter.Search(t.Context(), codebase.Query{Workspace: "/workspace", Text: "ownership", Limit: 8})
-	if err != nil || len(hits) != 1 || hits[0].Score != .9 {
-		t.Fatalf("Search = (%+v, %v)", hits, err)
-	}
-	operation, err := adapter.Reindex(t.Context(), "/workspace")
-	if err != nil || operation.ID != "op_1" {
-		t.Fatalf("Reindex = (%+v, %v)", operation, err)
-	}
-}
-
-func TestCodebaseAdapterRejectsMalformedProjections(t *testing.T) {
-	for name, stub := range map[string]*codebaseBindingStub{
-		"nil status": {t: t},
-		"bad time":   {t: t, status: &protocol.CodebaseStatus{State: protocol.CodebaseStateReady, IndexedAt: "not-time"}},
-		"bad hit": {t: t, hits: []protocol.CodebaseHit{{
-			Path: "main.go", StartLine: 4, EndLine: 2, Score: .5,
-		}}},
-		"empty operation": {t: t, operationID: ""},
-	} {
-		t.Run(name, func(t *testing.T) {
-			adapter := &codebaseAdapter{runtime: &Runtime{codebase: stub, meta: requestMeta("test")}}
-			switch name {
-			case "nil status", "bad time":
-				if _, err := adapter.Status(t.Context(), "/workspace"); err == nil {
-					t.Fatal("malformed status was accepted")
-				} else {
-					requireRuntimeContractViolation(t, err)
-				}
-			case "bad hit":
-				if _, err := adapter.Search(t.Context(), codebase.Query{Workspace: "/workspace", Text: "ownership", Limit: 8}); err == nil {
-					t.Fatal("malformed hit was accepted")
-				} else {
-					requireRuntimeContractViolation(t, err)
-				}
-			case "empty operation":
-				if _, err := adapter.Reindex(t.Context(), "/workspace"); err == nil {
-					t.Fatal("empty operation was accepted")
-				} else {
-					requireRuntimeContractViolation(t, err)
-				}
-			}
-		})
-	}
-}
-
-func TestCodebaseAdapterRejectsSearchResultsAboveTheRequestedLimit(t *testing.T) {
-	t.Parallel()
-	stub := &codebaseBindingStub{t: t, searchLimit: 1, hits: []protocol.CodebaseHit{
-		{Path: "one.go", StartLine: 1, EndLine: 1, Score: .9},
-		{Path: "two.go", StartLine: 1, EndLine: 1, Score: .8},
-	}}
-	adapter := &codebaseAdapter{runtime: &Runtime{codebase: stub, meta: requestMeta("test")}}
-	_, err := adapter.Search(t.Context(), codebase.Query{Workspace: "/workspace", Text: "ownership", Limit: 1})
-	requireRuntimeContractViolation(t, err)
 }
 
 type authoringContextBindingStub struct {

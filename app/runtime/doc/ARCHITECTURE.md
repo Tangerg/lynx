@@ -156,9 +156,11 @@ Application checkpoint 包含：
 - `tool`：产品侧工具事实、结果和展示语义；
 - `skills`：Skill 与 Proposal；
 - `schedule`：重复执行定义；
-- `feedback`、`hooks`、`mcpserver`、`codebaseindex`：各自已有的真实产品能力。
+- `feedback`、`hooks`、`mcpserver`：各自已有的真实产品能力。
 
 一个 package 是否继续独立，必须由实体所有权、变化原因和真实消费者证明，不能由目录对称性决定。
+
+代码发现不构成独立的持久 bounded context。Agent 通过 `grep`、`glob`、`read`、`shell` 与 LSP 组合当前 checkout 的可观察事实；Runtime 不维护面向客户端的 dense-vector corpus、index lifecycle、search operation、feature 或 invalidation topic。Embedding role 只服务仍有真实消费者的 Agent Memory，并允许后者在未配置 embedding 时退回关键词匹配。
 
 ### 5.8 Aggregate roots
 

@@ -29,7 +29,6 @@ const (
 	ModelsChanged      Topic = "models.changed"
 	ApprovalsChanged   Topic = "approvals.changed"
 	AgentMemoryChanged Topic = "agentMemory.changed"
-	CodebaseChanged    Topic = "codebase.changed"
 )
 
 // Topics returns the complete change vocabulary understood by this client.
@@ -51,7 +50,6 @@ func Topics() []Topic {
 		ModelsChanged,
 		ApprovalsChanged,
 		AgentMemoryChanged,
-		CodebaseChanged,
 	}
 }
 

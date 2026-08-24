@@ -6,8 +6,6 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -47,19 +45,15 @@ func NewRoleEmbedder(resolver *EmbeddingResolver, roles RoleSource) *RoleEmbedde
 	return &RoleEmbedder{resolver: resolver, roles: roles}
 }
 
-// Resolve returns the embedder configured for the current role.
-func (r *RoleEmbedder) Resolve(ctx context.Context) (codebase.Embedder, error) {
+// ResolveMemory returns the optional embedder configured for agent-memory
+// ranking. An absent role is a normal keyword-only configuration.
+func (r *RoleEmbedder) ResolveMemory(ctx context.Context) (agentmemoryapp.Embedder, error) {
 	if r == nil || r.resolver == nil || r.roles == nil {
-		return nil, codebaseindex.ErrNoEmbeddingModel
+		return nil, nil
 	}
 	role := r.roles.Role()
 	if !role.Configured() {
-		return nil, codebaseindex.ErrNoEmbeddingModel
+		return nil, nil
 	}
 	return r.resolver.Resolve(ctx, role)
-}
-
-// ResolveMemory adapts the same live embedder to agent-memory search.
-func (r *RoleEmbedder) ResolveMemory(ctx context.Context) (agentmemoryapp.Embedder, error) {
-	return r.Resolve(ctx)
 }

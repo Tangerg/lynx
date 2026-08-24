@@ -10,10 +10,11 @@ import (
 // diffSources runs the tracked-changes git diff for the mode and returns the
 // patch text plus the untracked file list (worktree mode only).
 func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch string, untracked []string, err error) {
-	if !Available() {
-		return "", nil, ErrUnavailable
+	repository, err := IsRepo(ctx, dir)
+	if err != nil {
+		return "", nil, err
 	}
-	if !IsRepo(ctx, dir) {
+	if !repository {
 		return "", nil, ErrNotRepo
 	}
 
@@ -26,6 +27,14 @@ func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch str
 		}
 		args = append(args, base)
 	default: // Worktree
+		head, headErr := runAllowingExitCode(ctx, dir, 1, "rev-parse", "--verify", "--quiet", "HEAD")
+		if headErr != nil {
+			return "", nil, headErr
+		}
+		if strings.TrimSpace(head) == "" {
+			untracked, err = untrackedPaths(ctx, dir, relPath)
+			return "", untracked, err
+		}
 		args = append(args, "HEAD")
 	}
 	scopePath, err := gitPathRelativeToWorkspace(dir, relPath)
@@ -35,12 +44,14 @@ func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch str
 	args = append(args, "--", scopePath)
 	patch, err = run(ctx, dir, args...)
 	if err != nil {
-		// Fresh repo (no HEAD) yields an error; treat as empty diff rather than fail.
-		patch = ""
+		return "", nil, err
 	}
 
 	if mode == Worktree {
-		untracked = untrackedPaths(ctx, dir, relPath)
+		untracked, err = untrackedPaths(ctx, dir, relPath)
+		if err != nil {
+			return "", nil, err
+		}
 	}
 	return patch, untracked, nil
 }

@@ -9,14 +9,14 @@ import (
 )
 
 // untrackedPaths lists untracked files (status ??), optionally under relPath.
-func untrackedPaths(ctx context.Context, dir, relPath string) []string {
+func untrackedPaths(ctx context.Context, dir, relPath string) ([]string, error) {
 	scopePath, err := gitPathRelativeToWorkspace(dir, relPath)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	out, err := run(ctx, dir, "ls-files", "--others", "--exclude-standard", "-z", "--", scopePath)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var paths []string
 	for path := range strings.SplitSeq(out, "\x00") {
@@ -24,7 +24,7 @@ func untrackedPaths(ctx context.Context, dir, relPath string) []string {
 			paths = append(paths, path)
 		}
 	}
-	return paths
+	return paths, nil
 }
 
 // untrackedDiffFile builds an all-added DiffFile by reading the untracked file.

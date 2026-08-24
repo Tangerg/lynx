@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
-	"github.com/Tangerg/lynx/app/cli/internal/codebase"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
@@ -39,8 +38,6 @@ const (
 	runtimeReaderAgentMemory
 	runtimeReaderKnowledge
 	runtimeReaderDiagnosticTools
-	runtimeReaderCodebaseStatus
-	runtimeReaderCodebaseSearch
 	runtimeReaderAgentDocuments
 	runtimeReaderRecipes
 	runtimeReaderHooks
@@ -63,7 +60,6 @@ type runtimeReaderSelection struct {
 	knowledgeTarget   knowledge.Target
 	knowledgeEntry    bool
 	agentMemoryTarget agentmemory.Target
-	codebaseQuery     codebase.Query
 }
 
 type usageReport struct {
