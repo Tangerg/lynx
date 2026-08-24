@@ -107,6 +107,32 @@ func TestAgentMemoryTargetIsUnambiguous(t *testing.T) {
 	)
 }
 
+func TestAgentMemoryContentWireConstraintUsesUnicodeCharacters(t *testing.T) {
+	t.Parallel()
+
+	const maximum = 4096
+	content := strings.Repeat("界", maximum)
+	if err := (AgentMemoryAddRequest{
+		Scope: AgentMemoryScopeUser, Content: content,
+	}).ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected the memory content boundary: %v", err)
+	}
+
+	content += "界"
+	assertConstraintField(
+		t,
+		(AgentMemoryAddRequest{Scope: AgentMemoryScopeUser, Content: content}).ValidateWire(),
+		"AgentMemoryAddRequest",
+		"content",
+	)
+	assertConstraintField(
+		t,
+		(AgentMemoryUpdateRequest{ID: "mem_1", Content: &content}).ValidateWire(),
+		"AgentMemoryUpdateRequest",
+		"content",
+	)
+}
+
 func TestOutputCollectionWireConstraints(t *testing.T) {
 	t.Parallel()
 

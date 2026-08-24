@@ -39,3 +39,14 @@ func TestPinnedMemoryPromptHonorsBudget(t *testing.T) {
 		t.Fatalf("CJK estimate = %d, want 100", got)
 	}
 }
+
+func TestPinnedMemoryPromptDoesNotLetFirstItemBypassBudget(t *testing.T) {
+	prompt := newPinnedMemoryPrompt([]agentmemory.Item{{
+		ID:      "oversized-first",
+		Content: strings.Repeat("界", 6),
+		Pinned:  true,
+	}}, 5)
+	if prompt.text != "" || len(prompt.sources) != 0 {
+		t.Fatalf("oversized first item bypassed budget: %+v", prompt)
+	}
+}

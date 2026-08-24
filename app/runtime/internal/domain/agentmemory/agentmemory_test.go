@@ -3,6 +3,7 @@ package agentmemory
 import (
 	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -83,6 +84,29 @@ func TestItemConstructionRejectsInvalidPartition(t *testing.T) {
 	}
 	if _, err := NewUserItem("mem_2", ScopeUser, "/repo", "fact", now); err == nil {
 		t.Fatal("user item with project was accepted")
+	}
+}
+
+func TestItemConstructionBoundsContentForModelContext(t *testing.T) {
+	const maximumCharacters = 4096
+	now := time.Now()
+	if _, err := NewUserItem(
+		"mem_boundary",
+		ScopeUser,
+		"",
+		strings.Repeat("界", maximumCharacters),
+		now,
+	); err != nil {
+		t.Fatalf("boundary content was rejected: %v", err)
+	}
+	if _, err := NewUserItem(
+		"mem_oversized",
+		ScopeUser,
+		"",
+		strings.Repeat("界", maximumCharacters+1),
+		now,
+	); err == nil {
+		t.Fatal("content larger than one context-safe memory item was accepted")
 	}
 }
 
