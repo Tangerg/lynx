@@ -272,6 +272,43 @@ func TestRunAllowsDocumentedExitCode(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnboundedGitOutput(t *testing.T) {
+	dir := initRepo(t)
+	const maxOutput = 64 << 20
+	path := filepath.Join(dir, "large.txt")
+	if err := os.WriteFile(path, bytes.Repeat([]byte{'x'}, maxOutput+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.TrimSpace(gitTestCommandOutput(t, dir, "hash-object", "-w", path))
+
+	if _, err := run(t.Context(), dir, "cat-file", "blob", hash); err == nil {
+		t.Fatal("run accepted Git stdout larger than 64 MiB")
+	}
+}
+
+func TestListChangesUsesGitSymlinkStatInsteadOfReadingTheTarget(t *testing.T) {
+	dir := initRepo(t)
+	targetDir := t.TempDir()
+	write(t, targetDir, "outside.txt", "one\ntwo\nthree\n")
+	if err := os.Symlink(filepath.Join(targetDir, "outside.txt"), filepath.Join(dir, "link.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	changes, err := ListChanges(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range changes {
+		if change.Path == "link.txt" {
+			if change.Added != 1 || change.Binary {
+				t.Fatalf("symlink stat = added:%d binary:%v, want one Git symlink line", change.Added, change.Binary)
+			}
+			return
+		}
+	}
+	t.Fatal("untracked symlink was absent from Changes")
+}
+
 func TestStatusObservationDoesNotRefreshGitIndex(t *testing.T) {
 	dir := initRepo(t)
 	indexPath := filepath.Join(dir, ".git", "index")
@@ -343,6 +380,11 @@ func TestApplyNumstatRejectsMalformedCounts(t *testing.T) {
 
 func gitTestCommand(t *testing.T, dir string, args ...string) {
 	t.Helper()
+	_ = gitTestCommandOutput(t, dir, args...)
+}
+
+func gitTestCommandOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
@@ -351,5 +393,8 @@ func gitTestCommand(t *testing.T, dir string, args ...string) {
 	)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v: %s", args, err, output)
+	} else {
+		return string(output)
 	}
+	return ""
 }
