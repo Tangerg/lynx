@@ -1,6 +1,6 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P145 已完成；下一阶段待独立准入。
+> 状态：P0–P145 已完成；P146 已准入，正在实施。
 >
 > 最近基线：2026-08-24，P145 已完成。
 
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P146 已准入，继续只修改 `app/runtime` 与直接消费者 `app/desktop`；`app/cli` 不修改、不暂存。当前 public HTTP 反例可给 `runtime.discover` 这类 query 携带 `Idempotency-Key`，operation 会静默忽略该 key 并正常执行；public embedded surface 则通过 `CallOptions` 根本不允许表达同一元数据。客户端因而可能把一次不受 replay 保护的调用误认成受保护调用，两个 binding 也没有同一 admission 语义。
+- P146 的唯一 owner 是 binding-neutral Contract Registry + operation admission：method metadata 必须明确发布 replay cursor 能力，并与既有 operation/idempotency facts 一起拒绝不相容的 idempotency namespace、key 与 `AfterEventID`，且拒绝发生在 capability/handler admission 前。允许的 breaking surface 是生成的 manifest/OpenRPC/TypeScript method policy 与 Desktop 低层 RPC options；不改变 Protocol DTO、Artifact、SQLite、业务事务、stream owner 或 Runtime lifecycle。
+- 对 app2 的裁决：采纳其“operation narrow waist 拒绝非 replay method 的 idempotency key”以及小型跨 binding 验收思路；补足 app2 仍由 HTTP adapter 私自 trim/传递通用元数据、未把 replay cursor applicability 发布成方法事实的缺口。拒绝 god facade、opaque JSON、额外公共 package、兼容双路和按方法名维护第二列表。
+- 本批先提交 public HTTP 红例，再让 Registry 单一事实驱动 Go admission、embedded option surface 守卫、生成合同与 Desktop client preflight；验证覆盖定向 red/green、Runtime/桌面全量 test/vet/build/staticcheck、受影响 race、generator diff、Frontend 类型/测试/静态门禁与 standalone。无需改 SQLite/Artifact 或做与本切片无关的 Runtime restart/Wails recovery；结束时审计 listener、测试进程、临时目录、浏览器资源和 `app/cli` 零 diff。
 - P145 已完成，且只修改 `app/runtime`；`app/desktop` 本批没有直接爆炸半径，`app/cli` 未修改、未暂存。当前代码上的可逆反例把 `recovery_validation.go` 的局部变量 `sess` 等价改名为 `currentSession`：Application checkpoint ownership/恢复行为测试仍通过，但 `TestExecutorCheckpointBindingIsValidatedAtEveryBoundary` 仅因缺少字符串 `sess.Workspace` / `sess.Isolated` 失败。P144 也曾被迫只为 Workspace owner 改名同步更新该 marker，证明它冻结的是文件和局部语法，不是运行时不变量。
 - P145 的唯一切片是 C7 architecture guard 熵回收：已删除 `framework_boundary_test.go` 中三条逐文件 `strings.Contains` marker 守卫，让 checkpoint binding、Pending mutation ownership 与 parked continuation closure 回到 `ExecutorCheckpoint.ValidateFor`、`Pending.ValidateProjection`、Application write-set 和 SQLite owner predicate 的行为测试。新增 boot recovery 的真实 checkpoint ownership mismatch 矩阵直接证明 root/Session/workspace/isolation/Goal incarnation/provider/model/limits/capabilities 漂移都会 fail closed，且不会进入 executor resumability probe；既有 tree-barrier、waiting-subtree、material snapshot、interrupt/executor-checkpoint SQLite 测试继续覆盖其余提交边界。
 - 对 app2 的裁决：采纳小而语义化的 architecture guard、行为 owner 和人为回归仍能失败的验收方法；拒绝把原 Runtime 收敛成只有 import guard 的低覆盖实现，也不删除公共/持久 shape、唯一 owner、Agent Framework isolation 或 lifecycle 守卫。该批不改变 Runtime Protocol、Artifact、SQLite schema、公共 Go API、运行时能力或资源生命周期；没有新 facade、接口、兼容路径、第二 writer 或刷新旁路。

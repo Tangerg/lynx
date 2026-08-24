@@ -105,6 +105,35 @@ func TestDiscoverOverRPC(t *testing.T) {
 	}
 }
 
+// A binding must never accept metadata whose promise the operation does not
+// implement. Embedded queries expose CallOptions and therefore cannot carry an
+// idempotency key; HTTP must refuse the same impossible request instead of
+// silently running it without replay protection.
+func TestQueryRefusesIdempotencyKey(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	req, err := netHTTP.NewRequest(
+		netHTTP.MethodPost,
+		ts.URL+"/v2/rpc",
+		bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`),
+	)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "query-must-not-promise-replay")
+	resp, err := netHTTP.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if code := decodeErrorCode(t, resp); code != -32602 {
+		t.Fatalf("error code = %d, want invalid_params (-32602)", code)
+	}
+}
+
 // TestRPCMethodHeader confirms X-Method reflects the envelope method.
 func TestRPCMethodHeader(t *testing.T) {
 	ts, _ := newTestServer(t)
