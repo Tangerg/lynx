@@ -14,6 +14,7 @@ import (
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
 // toolEnvironment groups the tool resolver with the separately-owned MCP
@@ -22,7 +23,7 @@ import (
 type toolEnvironment struct {
 	tools   toolset.Built
 	mcp     *mcpconnection.Pool
-	closers []ShutdownResource
+	closers []*teardown.Step
 }
 
 // toolEnvironmentDependencies is the complete construction contract for the
@@ -56,8 +57,10 @@ func buildToolEnvironment(ctx context.Context, deps toolEnvironmentDependencies)
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}
 	environment := toolEnvironment{
-		mcp:     mcpPool,
-		closers: []ShutdownResource{mcpPool},
+		mcp: mcpPool,
+		// MCP retains sessions whose Close failed and can make real progress on a
+		// later Shutdown generation, unlike the one-shot local capability closers.
+		closers: []*teardown.Step{teardown.Retryable(mcpPool.Shutdown)},
 	}
 	buildConfig := toolset.BuildConfig{
 		Lifetime:        deps.lifetime,
@@ -120,6 +123,6 @@ func buildToolEnvironment(ctx context.Context, deps toolEnvironmentDependencies)
 	}
 	mcpPool.SetToolSink(builtToolset.Resolver.SetMCPTools)
 	environment.tools = builtToolset
-	environment.closers = append(environment.closers, shutdownClosers(builtToolset.Closers)...)
+	environment.closers = append(environment.closers, terminalClosers(builtToolset.Closers)...)
 	return environment, nil
 }

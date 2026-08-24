@@ -16,10 +16,10 @@ func TestClosePendingResourcesPreservesDependenciesAfterFailure(t *testing.T) {
 	firstErr := errors.New("first")
 	lastErr := errors.New("last")
 	var calls []int
-	pending, err := closePendingResources(t.Context(), []ShutdownResource{
-		shutdownResourceFunc(func(context.Context) error { calls = append(calls, 1); return firstErr }),
+	pending, err := closePendingResources(t.Context(), []*teardown.Step{
+		teardown.Retryable(func(context.Context) error { calls = append(calls, 1); return firstErr }),
 		nil,
-		shutdownResourceFunc(func(context.Context) error { calls = append(calls, 3); return lastErr }),
+		teardown.Retryable(func(context.Context) error { calls = append(calls, 3); return lastErr }),
 	})
 	if !errors.Is(err, lastErr) || errors.Is(err, firstErr) {
 		t.Fatalf("closePendingResources err = %v, want only the first reverse-order failure", err)
@@ -59,14 +59,14 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 			runCoordinator:      shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
 			executor:            shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
 			runEffectTasks:      shutdownFunc{stop: recordStop("effects"), wait: recordWait("effects")},
-			toolResources: []ShutdownResource{
+			toolResources: terminalClosers([]func() error{
 				closerFunc(record("tool-1", nil)),
 				closerFunc(record("tool-2", nil)),
-			},
-			hostResources: []ShutdownResource{
+			}),
+			hostResources: terminalClosers([]func() error{
 				closerFunc(record("resource-1", nil)),
 				closerFunc(record("resource-2", nil)),
-			},
+			}),
 		},
 	}
 	copyOfHost := host
@@ -119,9 +119,9 @@ func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
 	resourceErr := errors.New("resource close")
 	var toolCalls, resourceCalls, successfulCalls int
 	host := Host{lifetime: &hostLifetime{
-		toolResources: []ShutdownResource{
-			closerFunc(func() error { successfulCalls++; return nil }),
-			closerFunc(func() error {
+		toolResources: []*teardown.Step{
+			teardown.Retryable(func(context.Context) error { successfulCalls++; return nil }),
+			teardown.Retryable(func(context.Context) error {
 				toolCalls++
 				if toolCalls == 1 {
 					return toolErr
@@ -129,7 +129,7 @@ func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
 				return nil
 			}),
 		},
-		hostResources: []ShutdownResource{closerFunc(func() error {
+		hostResources: []*teardown.Step{teardown.Retryable(func(context.Context) error {
 			resourceCalls++
 			if resourceCalls == 1 {
 				return resourceErr
@@ -169,11 +169,11 @@ func TestHostCloseAdvancesPastCompletedCloserError(t *testing.T) {
 		// resource reaches its terminal state on the first call even when that
 		// call reports a diagnostic. Replaying the same cached error can never
 		// make more cleanup progress.
-		toolResources: shutdownClosers([]func() error{oneShotToolClose}),
-		hostResources: []ShutdownResource{closerFunc(func() error {
+		toolResources: terminalClosers([]func() error{oneShotToolClose}),
+		hostResources: terminalClosers([]func() error{func() error {
 			resourceCalls++
 			return nil
-		})},
+		}}),
 	}}
 
 	if err := host.Close(); !errors.Is(err, closeErr) {
@@ -203,10 +203,10 @@ func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T
 				return ctx.Err()
 			},
 		},
-		toolResources: []ShutdownResource{closerFunc(func() error {
+		toolResources: terminalClosers([]func() error{func() error {
 			toolClosed = true
 			return nil
-		})},
+		}}),
 	}}
 	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Close error = %v, want deadline exceeded", err)
@@ -234,7 +234,7 @@ func TestHostCloseRetriesDrainAfterTimeout(t *testing.T) {
 				return ctx.Err()
 			},
 		},
-		toolResources: []ShutdownResource{closerFunc(func() error { closed++; return nil })},
+		toolResources: terminalClosers([]func() error{func() error { closed++; return nil }}),
 	}}
 	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)
@@ -256,20 +256,23 @@ func TestHostCloseBoundsAndRetriesContextAwareResource(t *testing.T) {
 		attempts int
 		ready    bool
 	)
+	firstAttemptDone := make(chan struct{})
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		hostResources: []ShutdownResource{shutdownResourceFunc(func(ctx context.Context) error {
+		hostResources: []*teardown.Step{teardown.Retryable(func(ctx context.Context) error {
 			attempts++
 			if ready {
 				return nil
 			}
 			<-ctx.Done()
+			close(firstAttemptDone)
 			return ctx.Err()
 		})},
 	}}
 	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)
 	}
+	<-firstAttemptDone
 	if attempts != 1 {
 		t.Fatalf("resource shutdown attempts = %d, want 1", attempts)
 	}
@@ -288,7 +291,7 @@ func TestHostCloseBoundsNonCooperativeToolCloserWithoutConcurrentRetry(t *testin
 	var calls atomic.Int32
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		toolResources: []ShutdownResource{teardown.New(func(context.Context) error {
+		toolResources: []*teardown.Step{teardown.Terminal(func(context.Context) error {
 			calls.Add(1)
 			close(started)
 			<-release // Models a third-party Close with no cancellation support.
@@ -320,12 +323,6 @@ func TestHostCloseBoundsNonCooperativeToolCloserWithoutConcurrentRetry(t *testin
 type closerFunc func() error
 
 func (f closerFunc) Close() error { return f() }
-
-func (f closerFunc) Shutdown(context.Context) error { return f() }
-
-type shutdownResourceFunc func(context.Context) error
-
-func (f shutdownResourceFunc) Shutdown(ctx context.Context) error { return f(ctx) }
 
 type shutdownFunc struct {
 	stop func()

@@ -63,12 +63,13 @@ type Config struct {
 
 	IdempotencyStore *sqlitestore.IdempotencyStore
 
-	// Resources are process adapters whose ownership transfers to Assembly when
-	// [NewAssembly] is called. A successful [BuildAssembly] transfers them to Host;
-	// after a failed build, Assembly retains any resource whose rollback did not
-	// finish and [CloseAssembly] retries it. Host releases resources only after
-	// background tasks and execution/tool capabilities have stopped.
-	Resources []ShutdownResource
+	// Resources are one-shot process adapters whose ownership transfers to
+	// Assembly when [NewAssembly] is called. A successful [BuildAssembly]
+	// transfers them to Host. Host bounds each Close call and releases resources
+	// only after background tasks and execution/tool capabilities have stopped;
+	// a returned error is retained as a diagnostic but cannot make a terminal
+	// Close replayable.
+	Resources []TerminalResource
 
 	// UtilityRoleStore persists the global utility-model role used by history
 	// compaction, memory consolidation, Skill proposal mining, and Session title

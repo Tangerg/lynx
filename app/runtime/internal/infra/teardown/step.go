@@ -14,11 +14,13 @@ import (
 // retains ownership of the in-flight operation; a later caller joins it instead
 // of issuing concurrent teardown.
 type Step struct {
-	action func(context.Context) error
+	action        func(context.Context) error
+	settleOnError bool
 
-	mu       sync.Mutex
-	complete bool
-	active   *attemptState
+	mu            sync.Mutex
+	settled       bool
+	settlementErr error
+	active        *attemptState
 }
 
 type attemptState struct {
@@ -31,15 +33,32 @@ type Attempt struct {
 	state *attemptState
 }
 
-// New returns a teardown step around action. A nil action is a completed no-op.
-func New(action func(context.Context) error) *Step {
+// Retryable returns a teardown step whose failed action remains unsettled. A
+// later caller starts one new attempt; concurrent callers still join the same
+// in-flight attempt.
+func Retryable(action func(context.Context) error) *Step {
 	return &Step{action: action}
 }
 
-// Shutdown starts action once, or joins its current attempt. Success makes
-// future calls no-ops; failure remains retryable by a later call.
-func (step *Step) Shutdown(ctx context.Context) error {
-	return step.Begin(ctx).Wait(ctx)
+// Terminal returns a teardown step whose action reaching a return statement is
+// the resource's final state. Its error is a shutdown diagnostic, not evidence
+// that replaying the same one-shot Close can make further progress.
+func Terminal(action func(context.Context) error) *Step {
+	return &Step{action: action, settleOnError: true}
+}
+
+// Shutdown starts or joins the current attempt and reports both resource
+// settlement and its diagnostic. settled=false means the owner must retain the
+// step and try again; settled=true means dependencies may now be released even
+// when err is non-nil.
+func (step *Step) Shutdown(ctx context.Context) (settled bool, err error) {
+	attempt := step.Begin(ctx)
+	waitErr := attempt.Wait(ctx)
+	settled, err = step.Settlement()
+	if settled {
+		return settled, err
+	}
+	return false, waitErr
 }
 
 // Begin starts a new generation, joins the active generation, or returns a
@@ -55,9 +74,10 @@ func (step *Step) Begin(ctx context.Context) *Attempt {
 		return completedAttempt(err)
 	}
 	step.mu.Lock()
-	if step.complete {
+	if step.settled {
+		err := step.settlementErr
 		step.mu.Unlock()
-		return completedAttempt(nil)
+		return completedAttempt(err)
 	}
 	running := step.active
 	if running == nil {
@@ -97,6 +117,18 @@ func (attempt *Attempt) Result() (completed bool, err error) {
 	}
 }
 
+// Settlement returns the resource-level terminal state. It differs from
+// [Attempt.Result]: a retryable action can finish with an error while the
+// resource remains unsettled.
+func (step *Step) Settlement() (settled bool, err error) {
+	if step == nil || step.action == nil {
+		return true, nil
+	}
+	step.mu.Lock()
+	defer step.mu.Unlock()
+	return step.settled, step.settlementErr
+}
+
 func completedAttempt(err error) *Attempt {
 	state := &attemptState{done: make(chan struct{}), err: err}
 	close(state.done)
@@ -107,8 +139,9 @@ func (step *Step) run(ctx context.Context, running *attemptState) {
 	err := step.action(ctx)
 	step.mu.Lock()
 	running.err = err
-	if err == nil {
-		step.complete = true
+	if err == nil || step.settleOnError {
+		step.settled = true
+		step.settlementErr = err
 	}
 	if step.active == running {
 		step.active = nil

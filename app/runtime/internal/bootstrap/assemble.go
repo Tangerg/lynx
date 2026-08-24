@@ -66,7 +66,7 @@ func newAssembly(
 		buildTools: buildTools,
 		lifetime: &hostLifetime{
 			context:       lifetime,
-			hostResources: shutdownResources(cfg.Resources),
+			hostResources: terminalResources(cfg.Resources),
 		},
 	}
 }
@@ -173,7 +173,7 @@ func buildAssemblyCore(
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build isolated workspace manager: %w", err)
 		}
-		lifetime.toolResources = append(lifetime.toolResources, teardown.New(func(context.Context) error {
+		lifetime.toolResources = append(lifetime.toolResources, teardown.Terminal(func(context.Context) error {
 			return isolator.Close()
 		}))
 	}

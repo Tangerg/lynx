@@ -188,14 +188,3 @@ func (b *Bundle) Close() error {
 	})
 	return b.closeErr
 }
-
-// Shutdown implements the context-aware process-resource boundary.
-// SQLite's Close is synchronous and normally immediate, but checking the
-// deadline before beginning prevents a shutdown attempt from starting new work
-// after its caller's budget has expired.
-func (b *Bundle) Shutdown(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return b.Close()
-}

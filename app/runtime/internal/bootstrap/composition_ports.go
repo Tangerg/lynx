@@ -11,13 +11,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// ShutdownResource is a process-owned adapter released by Host after every
-// task-owning component has stopped. Shutdown receives Host's shared deadline.
-// It should stop promptly when that context ends; if it cannot, Host retains
-// the in-flight close operation and lets a later Close join it instead of
-// issuing a concurrent second teardown.
-type ShutdownResource interface {
-	Shutdown(ctx context.Context) error
+// TerminalResource is a process-owned adapter whose Close call is one-shot:
+// once Close returns, the resource has reached its final state even when it
+// reports a diagnostic. Host bounds and joins the call itself, so adapters do
+// not need a second timeout or retry layer.
+type TerminalResource interface {
+	Close() error
 }
 
 // PlanStore is the composition-root union shared by prompt assembly, Plan use cases,

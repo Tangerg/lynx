@@ -145,13 +145,13 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 
 - 依赖创建和 wiring 明确、静态、可搜索；
 - 不使用反射 DI container、service locator 或 package globals；
-- 所有 closers 只有一个 owner，逆序、幂等关闭；
+- 所有 closers 只有一个 owner，逆序、幂等关闭；关闭合同必须分别表达 settlement 与 diagnostic，不能把任意 `error` 当成“尚未关闭”。one-shot Close 返回后即 terminal，带错也继续释放依赖；只有真实保留未关闭资源且下一代调用可推进的 owner 才能声明 retryable；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - required collaborator 和 lifetime 在 constructor boundary 完整验证；constructor 必须返回可运行对象或 error，不能把半初始化对象和延迟 `unavailable` 分支交给用例；
 - optional capability 只在真实配置关闭时为 nil/absent；多个依赖共同构成一项能力时用一个显式 capability group 表达，不能允许半启用。
 - `bootstrap.OpenInstance` 创建每个 Runtime 唯一的 context root，并拥有 cancel 与 join；Assembly、operation、Interaction、Toolset、LSP、MCP/OAuth 和 workers 只消费注入 lifetime，不另造 immortal root。
 - HTTP host 与 embedded 共用同一 Runtime instance builder；共享目录 setup、所有权恢复、后台任务与资源关闭不能各装配一套。
-- canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚，失败 Close 保留未关闭资源并允许重试。
+- canonical data directory 必须是 `0700` 私有目录；setup lease 只包围 store 打开与 schema/config seeding，不能扩张为 Runtime 全生命周期单实例锁。失败 Open 要逆序回滚；失败 Close 只保留 settlement 明确为 unfinished 的资源，terminal diagnostic 不得让 Host 永久停在 stopping。
 - 每次 Session mutation/Run 必须取得跨进程 Session writer lease；Run 同时取得 physical working tree shared lease，rollback/restore 等破坏性操作取得 exclusive lease。Goal drive 和恢复器必须竞争同一 owner identity；恢复先选举一个跨进程 sweep winner并固定 Run-before-Goal 顺序，startup 必须等待 winner 后复核，存活期可以非阻塞跳过，cleanup 只能作用于已取得的 Session。
 - 不用 heartbeat/TTL 推断本机 owner 死亡；以 OS advisory lease 的持有/释放为真相。来自其他 SQLite connection 的提交必须触发 read-model resync，消费者收到后重读 durable projection。
 

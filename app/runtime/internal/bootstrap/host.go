@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
 // Host owns the assembled application tier and its process-level close order
@@ -29,8 +31,8 @@ type hostLifetime struct {
 	runCoordinator      shutdownComponent
 	executor            shutdownComponent
 	runEffectTasks      taskOwner
-	toolResources       []ShutdownResource
-	hostResources       []ShutdownResource
+	toolResources       []*teardown.Step
+	hostResources       []*teardown.Step
 }
 
 type shutdownComponent interface {
@@ -110,18 +112,21 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 			return err
 		}
 	}
-	var err error
-	lifetime.toolResources, err = closePendingResources(shutdownCtx, lifetime.toolResources)
-	if err != nil {
-		// A closer that failed is still owned by this Host. Keep only those
-		// unresolved steps so a later Close retries the real incomplete graph
-		// without closing dependencies below an incomplete step.
-		return err
+	var diagnostics []error
+	var resourceErr error
+	lifetime.toolResources, resourceErr = closePendingResources(shutdownCtx, lifetime.toolResources)
+	diagnostics = append(diagnostics, resourceErr)
+	if len(lifetime.toolResources) != 0 {
+		// The unfinished step and every dependency below it remain owned by the
+		// Host. A later Close resumes that exact graph; settled diagnostics do not
+		// keep an already-terminal resource alive.
+		return errors.Join(diagnostics...)
 	}
-	lifetime.hostResources, err = closePendingResources(shutdownCtx, lifetime.hostResources)
-	if err != nil {
-		return err
+	lifetime.hostResources, resourceErr = closePendingResources(shutdownCtx, lifetime.hostResources)
+	diagnostics = append(diagnostics, resourceErr)
+	if len(lifetime.hostResources) != 0 {
+		return errors.Join(diagnostics...)
 	}
 	lifetime.closed = true
-	return nil
+	return errors.Join(diagnostics...)
 }

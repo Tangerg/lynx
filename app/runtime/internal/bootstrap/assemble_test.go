@@ -189,7 +189,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 func TestAssemblyCloseBeforeBuildReleasesResourcesAndConsumesBuilder(t *testing.T) {
 	var closed atomic.Int32
 	assembly := NewAssembly(t.Context(), Config{
-		Resources: []ShutdownResource{closerFunc(func() error {
+		Resources: []TerminalResource{closerFunc(func() error {
 			closed.Add(1)
 			return nil
 		})},
@@ -215,7 +215,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		toolClosed     atomic.Int32
 		resourceClosed atomic.Int32
 	)
-	cfg.Resources = []ShutdownResource{closerFunc(func() error {
+	cfg.Resources = []TerminalResource{closerFunc(func() error {
 		resourceClosed.Add(1)
 		return nil
 	})}
@@ -228,7 +228,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.Terminal(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))
@@ -259,7 +259,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		toolEnvironmentDependencies,
 	) (toolEnvironment, error) {
 		return toolEnvironment{
-			closers: []ShutdownResource{teardown.New(func(context.Context) error {
+			closers: []*teardown.Step{teardown.Terminal(func(context.Context) error {
 				closed.Add(1)
 				return nil
 			})},
@@ -285,7 +285,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	cfg.BuildID = "dev"
 	closeErr := errors.New("tool close")
 	var attempts, resourceClosed atomic.Int32
-	cfg.Resources = []ShutdownResource{closerFunc(func() error {
+	cfg.Resources = []TerminalResource{closerFunc(func() error {
 		resourceClosed.Add(1)
 		return nil
 	})}
@@ -298,7 +298,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.Retryable(func(context.Context) error {
 			if attempts.Add(1) == 1 {
 				return closeErr
 			}
@@ -345,7 +345,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.Terminal(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))

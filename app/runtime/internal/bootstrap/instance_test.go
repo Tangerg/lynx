@@ -200,12 +200,12 @@ func TestInstanceCloseJoinsAcceptedOperationsBeforeClosingResources(t *testing.T
 	resourceClosed := make(chan struct{})
 	instance := &Instance{
 		delivery: operationDelivery{endpoint: endpoint, service: &runtimeserver.Server{}},
-		host: &Host{lifetime: &hostLifetime{hostResources: []ShutdownResource{
-			shutdownResourceFunc(func(context.Context) error {
+		host: &Host{lifetime: &hostLifetime{hostResources: terminalClosers([]func() error{
+			func() error {
 				close(resourceClosed)
 				return nil
-			}),
-		}}},
+			},
+		})}},
 		stopRuntime:   stopRuntime,
 		schedulerDone: schedulerDone,
 	}

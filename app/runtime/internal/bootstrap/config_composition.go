@@ -18,7 +18,7 @@ import (
 // the construction input consumed by [NewAssembly].
 func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers models.ProviderRegistry, hooks HookResolver, buildID string) Config {
 	return Config{
-		Resources:              []ShutdownResource{stores},
+		Resources:              []TerminalResource{stores},
 		BuildID:                buildID,
 		ChatClient:             client,
 		ConversationStore:      stores.ChatHistory,

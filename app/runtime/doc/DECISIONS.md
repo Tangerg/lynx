@@ -465,3 +465,10 @@
 - 决策：Contract Registry 在 operation/idempotency 之外发布 `ReplayCursorPolicy`；run-opening command 与 `runs.subscribe` 由 registration factory 获得 run cursor 能力，`runtime.subscribe` 等其他 stream 明确为 none。operation Endpoint 在 capability 与 handler admission 前统一拒绝非 replay 方法的 idempotency key、无 key 的 namespace、无 cursor 能力的方法携带 `AfterEventID`，以及没有 idempotency key 的 run-command cursor。
 - 决策：manifest、OpenRPC 与生成 TypeScript method policy 只投影 Registry 的同一事实；Desktop 低层 RPC client 在 transport send 前消费该生成策略。embedded surface guard 同样按 policy 选择 option 类型，不再按 `runs.subscribe` 方法名维护第二列表。HTTP/embedded 只负责把本地表示投影成 operation options，不自行决定承诺是否成立。
 - 后果：此前被静默忽略的带外元数据现在 breaking 地返回 `invalid_params` / 本地 `TypeError`；合法 command replay、run reattach、Runtime invalidation subscription 的业务、stream lifecycle 与 wire DTO 不变。没有兼容 fallback、双策略、第二 writer 或 transport-specific admission。
+
+## ADR-RT-067：资源关闭 settlement 与 diagnostic 必须正交
+
+- 状态：已接受并实施，P148 完成；细化 ADR-RT-063 的合法构造与唯一 lifecycle owner，不改变公共 Protocol、Artifact、SQLite shape 或 Agent Framework 合同。
+- 背景：Host 过去把任意 `Shutdown` error 都解释为“资源仍未关闭”，保留该 step 并阻止依赖关闭。但生产 A2A、LSP、Shell 与 SQLite closer 都由 `sync.Once` 拥有终态：第一次调用即使报告诊断，后续只会永久返回同一缓存错误。于是一个已经完成的 close error 会让 Host 永久停在 stopping，Store 等下层依赖也永远得不到释放；旧 `Bundle.Shutdown(ctx)` 还把“预算已过期、根本没有调用 Close”伪装成同一种 error。
+- 决策：Infra teardown step 显式区分 `Terminal` 与 `Retryable`，其 Shutdown 结果同时携带 settled bool 与 diagnostic error。Terminal action 一旦返回便冻结 settlement，Host 记录诊断但继续逆序关闭依赖并最终把 graph 标记 closed；Retryable action 失败时仍保留 exact step 与依赖前缀，后续 Close 只启动下一代或 join 原在途 generation。Config 只接收具有 one-shot `Close` 语义的 `TerminalResource`；MCP session ledger 因失败 session 仍留在 ledger 且下一次 Shutdown 会重试，成为唯一显式 retryable tool resource。SQLite 删除没有独立消费者且会混淆状态的 context-aware Shutdown adapter。
+- 后果：一次性 close error 只执行一次、只向实际观察它的 Close 调用报告，不能形成永久错误回放或资源保活；超时、未完成 MCP close 与非协作第三方 closer 仍有界并可续跑。关闭顺序、并发 Host copy 幂等性、失败 Assembly 回滚和公共 `embedded.Runtime.Close` 入口不变，没有兼容层、第二清理图或后台重试循环。

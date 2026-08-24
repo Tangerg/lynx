@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P147 已完成；下一阶段待独立准入。
+> 状态：P0–P148 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-24，P147 已完成。
+> 最近基线：2026-08-24，P148 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P148 已完成，且只修改 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例使用与生产 A2A/LSP/Shell/SQLite 相同的 `sync.Once` close 语义：第一次 Close 已到 terminal 但返回诊断后，旧 Host 把它当作 unfinished，既不关闭下一层 Store，也在以后每次 Close 永久回放同一错误。
+- 唯一修复 owner 是 Infra teardown settlement + Bootstrap shutdown graph。Step 现在显式分为 `Terminal` 与 `Retryable`，Shutdown 同时返回 settled 与 diagnostic；terminal error 只报告但继续逆序关闭依赖，只有确实保留失败 session、下一代能推进的 MCP ledger 使用 retryable。Config breaking 地只接收 one-shot `TerminalResource.Close`，SQLite Bundle 的伪 context-aware Shutdown adapter 与对应测试已删除；超时在途 closer 仍由同一 step 持有并在后续 Close join，不新增后台重试或第二清理图。
+- 对 app2 的裁决：采纳其 composition open-guard 对“获取即登记、失败逆序释放”的结构化提醒，并补足其没有表达 retryable/terminal settlement 的缺口；保留原 Runtime 的有界 Close、并发 Host copy、MCP session ledger 和完整生命周期测试，拒绝复制 app2 的简化 Stop-only facade、opaque resource bag 或吞掉 teardown 诊断。
 - P147 已完成：按用户明确要求，`app/runtime/go.mod`、`app/desktop/go.mod` 与 Desktop 隔离 `go.work` 已统一为 Go `1.27.0`，Runtime public embedded 外部消费者编译夹具同步使用同一语言版本。Go 1.27 的 `tidy` 结果一次性规范化 Runtime direct/indirect dependency 分组，没有升级依赖版本或建立兼容路径。
 - 根 workspace 的真实红例证明仅提升两个 module 会被旧 `go.work 1.26.5` 拒绝，因此根 `go.work` 只同步一行最低版本以保持默认仓库入口可构建；这不是修改 `app/cli` module，CLI 的源码、`go.mod` 与暂存区均保持零差异。Protocol、Artifact、SQLite、生成合同、公共 Go API 与运行时行为均未改变。
 - Go 1.26.3 构建的稳定版 Staticcheck 2026.1 即使重编也无法读取 Go 1.27 export-data v4；本批没有跳过静态检查，而是用 Go 1.27 构建并固定验证官方主分支 `honnef.co/go/tools@v0.7.0-0.dev.0.20260821203000-f2e7b72a56da`。Runtime/Desktop 全量 test/vet/build/staticcheck/full-race/standalone、根 workspace test、Runtime generator 零漂移与 Wails production build 全绿；临时检查器在验收后回收。
@@ -321,13 +324,15 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P145     | Architecture guard 熵回收                                                                                     | 删除三条逐文件源码 marker 守卫；checkpoint/Pending/recovery 由真实行为矩阵守住，等价改名和移动不再被局部变量或表达式拼写误杀                                                               |
 | P146     | operation 带外元数据适用性闭环                                                                                | Registry 唯一发布 idempotency/replay cursor policy；operation、HTTP、embedded、生成合同与 Desktop preflight 共享该事实，无效元数据在执行前失败                                             |
 | P147     | Runtime/Desktop Go 1.27 工具链统一                                                                           | 两个 module、Desktop standalone workspace、Runtime external-consumer fixture 与根 workspace coordinator 切换 1.27.0；1.27-compatible Staticcheck、full race 与 production build 封板        |
+| P148     | Bootstrap teardown settlement 闭环                                                                          | terminal one-shot Close 与真正 retryable Shutdown 显式分型；诊断不再冒充未完成状态，Host 可继续逆序释放依赖并只保留真实 unfinished step                                                    |
 
 ## 5. 当前里程碑结论
 
-P113–P147 共同建立了以下不可回退的心智模型：
+P113–P148 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
+- Runtime shutdown 的 settlement 与 diagnostic 正交：one-shot Close 返回即 terminal，带错仍继续释放依赖；只有真实保留未关闭资源且下一代调用能取得进展的 owner 才可 retry，超时在途 operation 由原 step 继续持有。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
@@ -369,4 +374,4 @@ P113–P147 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P147 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P148 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
