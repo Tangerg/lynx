@@ -9,7 +9,6 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -88,7 +87,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		return "", nil, nil, err
 	}
 
-	cfgValue, _, err := metadata.Decode[genai.EmbedContentConfig](mergedOpts.Extensions, protocolKey(e.provider, "embedding_request"))
+	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.EmbedContentConfig](protocolKey(e.provider, "embedding_request"))
 
 	cfg := &cfgValue
 	if err != nil {

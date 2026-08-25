@@ -13,7 +13,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
@@ -97,7 +96,7 @@ func (m *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 		return "", nil, nil, err
 	}
 
-	providerOptsValue, _, err := metadata.Decode[ImageGenerationOptions](mergedOpts.Extensions, ImageRequestExtensionKey)
+	providerOptsValue, _, err := mergedOpts.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
 
 	providerOpts := &providerOptsValue
 	if err != nil {

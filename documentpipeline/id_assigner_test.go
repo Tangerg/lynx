@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
 )
 
@@ -38,7 +37,7 @@ func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 		t.Fatalf("Assign mutated caller-owned document ID: %q", withoutID.ID)
 	}
 	_ = out[1].Metadata.Set("source", "changed")
-	if source, _, _ := metadata.Decode[string](withoutID.Metadata, "source"); source != "original" {
+	if source, _, _ := withoutID.Metadata.Decode[string]("source"); source != "original" {
 		t.Fatalf("output metadata aliases caller-owned metadata: %q", source)
 	}
 }

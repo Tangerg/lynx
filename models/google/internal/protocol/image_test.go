@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/modeltest"
 	google "github.com/Tangerg/lynx/models/google/internal/protocol"
 )
@@ -67,7 +66,7 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	if got := out.Metadata.Created; got != time.Date(2026, 7, 31, 10, 20, 30, 0, time.UTC).Unix() {
 		t.Fatalf("Created = %d", got)
 	}
-	if _, ok, err := metadata.Decode[map[string]any](out.Metadata.Extra, google.ImageResponseExtensionKey); err != nil || !ok {
+	if _, ok, err := out.Metadata.Extra.Decode[map[string]any](google.ImageResponseExtensionKey); err != nil || !ok {
 		t.Fatalf("native response extension: exists=%t err=%v", ok, err)
 	}
 

@@ -9,7 +9,6 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/google/internal/options"
 )
@@ -94,7 +93,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return "", nil, nil, err
 	}
 
-	cfgValue, _, err := metadata.Decode[genai.GenerateContentConfig](mergedOpts.Extensions, protocolKey(a.provider, "transcription_request"))
+	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "transcription_request"))
 
 	cfg := &cfgValue
 	if err != nil {

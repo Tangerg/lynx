@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
 	markdownsplitter "github.com/Tangerg/lynx/documentpipeline/markdown"
 )
@@ -197,7 +196,7 @@ func TestTransformPreservesLineageAndAssignsIDs(t *testing.T) {
 		if chunk.ID == "" {
 			t.Fatalf("chunk %d has no generated ID", index)
 		}
-		parent, ok, err := metadata.Decode[string](chunk.Metadata, documentpipeline.MetadataKeyParentID)
+		parent, ok, err := chunk.Metadata.Decode[string](documentpipeline.MetadataKeyParentID)
 		if err != nil || !ok || parent != "source" {
 			t.Fatalf("chunk %d parent = %q, %v, %v", index, parent, ok, err)
 		}

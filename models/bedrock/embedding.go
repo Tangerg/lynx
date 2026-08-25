@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -89,7 +88,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	if err != nil {
 		return nil, err
 	}
-	nativeValue, _, err := metadata.Decode[EmbeddingRequestOptions](merged.Extensions, EmbeddingRequestExtensionKey)
+	nativeValue, _, err := merged.Extensions.Decode[EmbeddingRequestOptions](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 func TestNativeClaudeSamplingContract(t *testing.T) {
@@ -60,7 +59,7 @@ func TestNativeClaudePreservesServerToolResponse(t *testing.T) {
 	if response.Result.Message == nil || response.Result.Message.Text() != "result" {
 		t.Fatalf("Core response = %#v", response.Result)
 	}
-	preserved, found, err := metadata.Decode[anthropicsdk.Message](response.Metadata.Extra, ResponseExtensionKey)
+	preserved, found, err := response.Metadata.Extra.Decode[anthropicsdk.Message](ResponseExtensionKey)
 	if err != nil || !found {
 		t.Fatalf("decode native response = found %v, error %v", found, err)
 	}

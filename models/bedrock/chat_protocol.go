@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -273,14 +272,14 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 		return nil, errors.New("bedrock: frequency_penalty, presence_penalty, and top_k are not supported by Converse inference configuration")
 	}
 
-	native, found, err := metadata.Decode[ChatRequestOptions](req.Options.Extensions, ChatRequestExtensionKey)
+	native, found, err := req.Options.Extensions.Decode[ChatRequestOptions](ChatRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("bedrock: extension %q: %w", ChatRequestExtensionKey, err)
 	}
 	if !found {
 		native = ChatRequestOptions{}
 	} else {
-		fields, _, decodeErr := metadata.Decode[map[string]json.RawMessage](req.Options.Extensions, ChatRequestExtensionKey)
+		fields, _, decodeErr := req.Options.Extensions.Decode[map[string]json.RawMessage](ChatRequestExtensionKey)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("bedrock: extension %q: %w", ChatRequestExtensionKey, decodeErr)
 		}
@@ -377,7 +376,7 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 		}
 		return block, true, nil
 	case corechat.PartReasoning:
-		kind, found, err := metadata.Decode[string](part.Metadata, chatReasoningKindKey)
+		kind, found, err := part.Metadata.Decode[string](chatReasoningKindKey)
 		if err != nil {
 			return nil, false, err
 		}

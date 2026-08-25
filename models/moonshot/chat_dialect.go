@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
@@ -94,7 +93,7 @@ func (options ChatRequestOptions) ValidateFor(model string) error {
 }
 
 func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
-	options, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
+	options, found, err := source.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
 	}

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -61,7 +60,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*nativeEmbedRe
 		return nil, err
 	}
 
-	apiRequest, _, err := metadata.Decode[nativeEmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiRequest, _, err := mergedOpts.Extensions.Decode[nativeEmbedRequest](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

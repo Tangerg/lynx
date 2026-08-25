@@ -7,7 +7,6 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/models/internal/streamio"
@@ -77,7 +76,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *speakParams,
 		return "", nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[speakParams](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	paramsValue, _, err := mergedOpts.Extensions.Decode[speakParams](SpeechRequestExtensionKey)
 
 	params := &paramsValue
 	if err != nil {

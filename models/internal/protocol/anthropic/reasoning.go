@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // ReasoningBlockKind identifies the official Anthropic reasoning block carried
@@ -47,7 +46,7 @@ func NewRedactedThinkingPart(data []byte) (corechat.Part, error) {
 // ReasoningBlockKindOf reports whether part contains Anthropic-issued
 // reasoning replay state and, when it does, which official block variant it is.
 func ReasoningBlockKindOf(part corechat.Part) (ReasoningBlockKind, bool, error) {
-	value, found, err := metadata.Decode[string](part.Metadata, protocolReasoningKindKey)
+	value, found, err := part.Metadata.Decode[string](protocolReasoningKindKey)
 	if err != nil {
 		return "", found, fmt.Errorf("anthropic: reasoning metadata: %w", err)
 	}

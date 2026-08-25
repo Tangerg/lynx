@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef h1:Ml4MatoQ8GpbTmCwtXS9tHIu2SRnGsq3PsRH3UZCbcM=
+github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/lumalabs/luma-agents-go v0.4.0 h1:6EYcrPgLM0B54kf1D85PQUWvVuMGitJnhnIUcFVz6MA=
 github.com/lumalabs/luma-agents-go v0.4.0/go.mod h1:oxgjNsKJqSCv/o7dtLpYchLyqMmzYosrQ/mbW0RBDCs=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

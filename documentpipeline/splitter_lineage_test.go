@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
 )
 
@@ -34,16 +33,16 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 	}
 
 	for i, chunk := range chunks {
-		if value, ok, _ := metadata.Decode[int](chunk.Metadata, documentpipeline.MetadataKeyChunkIndex); !ok || value != i {
+		if value, ok, _ := chunk.Metadata.Decode[int](documentpipeline.MetadataKeyChunkIndex); !ok || value != i {
 			t.Fatalf("chunk %d: chunk_index = %v", i, value)
 		}
-		if value, ok, _ := metadata.Decode[int](chunk.Metadata, documentpipeline.MetadataKeyChunkTotal); !ok || value != 3 {
+		if value, ok, _ := chunk.Metadata.Decode[int](documentpipeline.MetadataKeyChunkTotal); !ok || value != 3 {
 			t.Fatalf("chunk %d: chunk_total = %v", i, value)
 		}
-		if value, ok, _ := metadata.Decode[string](chunk.Metadata, documentpipeline.MetadataKeyParentID); !ok || value != "parent-1" {
+		if value, ok, _ := chunk.Metadata.Decode[string](documentpipeline.MetadataKeyParentID); !ok || value != "parent-1" {
 			t.Fatalf("chunk %d: parent id = %v", i, value)
 		}
-		if value, ok, _ := metadata.Decode[string](chunk.Metadata, "source"); !ok || value != "manual" {
+		if value, ok, _ := chunk.Metadata.Decode[string]("source"); !ok || value != "manual" {
 			t.Fatalf("chunk %d: original metadata not carried through", i)
 		}
 	}

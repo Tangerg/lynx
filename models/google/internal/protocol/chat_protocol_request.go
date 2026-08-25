@@ -12,7 +12,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -216,7 +215,7 @@ func mapProtocolAssistantParts(provider string, parts []corechat.Part) ([]*genai
 	for i := range parts {
 		part := parts[i]
 		nativePartKey := protocolKey(provider, "native_part")
-		native, found, err := metadata.Decode[genai.Part](part.Metadata, nativePartKey)
+		native, found, err := part.Metadata.Decode[genai.Part](nativePartKey)
 		if err != nil {
 			return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, nativePartKey, err)
 		}

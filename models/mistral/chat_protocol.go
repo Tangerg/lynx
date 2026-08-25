@@ -18,7 +18,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -174,12 +173,12 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: request: %w", err)
 	}
-	extension, found, err := metadata.Decode[ChatRequestOptions](request.Options.Extensions, RequestExtensionKey)
+	extension, found, err := request.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 	}
 	if found {
-		fields, _, decodeErr := metadata.Decode[map[string]json.RawMessage](request.Options.Extensions, RequestExtensionKey)
+		fields, _, decodeErr := request.Options.Extensions.Decode[map[string]json.RawMessage](RequestExtensionKey)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, decodeErr)
 		}

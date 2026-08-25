@@ -8,7 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 )
 
@@ -102,7 +101,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[transcriptRequest](mergedOpts.Extensions, RequestExtensionKey)
+	apiReqValue, _, err := mergedOpts.Extensions.Decode[transcriptRequest](RequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err

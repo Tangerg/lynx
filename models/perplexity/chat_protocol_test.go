@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/perplexity"
 )
 
@@ -82,7 +81,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	if !ok || webOptions["search_context_size"] != "high" || webOptions["search_type"] != "fast" {
 		t.Fatalf("web_search_options = %#v", body["web_search_options"])
 	}
-	raw, found, err := metadata.Decode[map[string]any](response.Metadata.Extra, perplexity.OpenAIResponseExtensionKey)
+	raw, found, err := response.Metadata.Extra.Decode[map[string]any](perplexity.OpenAIResponseExtensionKey)
 	if err != nil {
 		t.Fatalf("decode response extension: %v", err)
 	} else if !found {

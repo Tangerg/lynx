@@ -15,7 +15,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -33,7 +32,7 @@ const (
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialect Dialect) (*anthropicsdk.MessageNewParams, error) {
 	extensionKey := protocolRequestExtensionKey(dialect.Provider)
-	fields, _, err := metadata.Decode[map[string]any](req.Options.Extensions, extensionKey)
+	fields, _, err := req.Options.Extensions.Decode[map[string]any](extensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: extension %q: %w", extensionKey, err)
 	}
@@ -281,7 +280,7 @@ func mapProtocolAssistant(message corechat.Message, provider string) ([]anthropi
 		case corechat.PartText:
 			blocks = append(blocks, anthropicsdk.NewTextBlock(part.Text))
 		case corechat.PartReasoning:
-			issuer, issuerFound, err := metadata.Decode[string](part.Metadata, protocolReasoningProviderKey)
+			issuer, issuerFound, err := part.Metadata.Decode[string](protocolReasoningProviderKey)
 			if err != nil {
 				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningProviderKey, err)
 			}
@@ -289,7 +288,7 @@ func mapProtocolAssistant(message corechat.Message, provider string) ([]anthropi
 				// Opaque state is valid only for the provider that issued it.
 				continue
 			}
-			kind, found, err := metadata.Decode[string](part.Metadata, protocolReasoningKindKey)
+			kind, found, err := part.Metadata.Decode[string](protocolReasoningKindKey)
 			if err != nil {
 				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningKindKey, err)
 			}

@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
@@ -83,14 +82,14 @@ type requestDialect struct {
 }
 
 func (dialect requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
-	fields, _, err := metadata.Decode[map[string]any](request.Options.Extensions, RequestExtensionKey)
+	fields, _, err := request.Options.Extensions.Decode[map[string]any](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}
 	if _, exists := fields["response_format"]; exists {
 		return fmt.Errorf("extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
 	}
-	options, _, err := metadata.Decode[RequestOptions](request.Options.Extensions, RequestExtensionKey)
+	options, _, err := request.Options.Extensions.Decode[RequestOptions](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}

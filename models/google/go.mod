@@ -3,8 +3,8 @@ module github.com/Tangerg/lynx/models/google
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825102631-28cf6163c4da
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825102734-e077fb7a91a5
+	github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825203409-5acb60d66365
 	github.com/go-resty/resty/v2 v2.17.2
 	google.golang.org/genai v1.66.0
 )

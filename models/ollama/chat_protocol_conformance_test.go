@@ -324,7 +324,7 @@ func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 
 func decodeExtension[T any](t *testing.T, values metadata.Map, key string) T {
 	t.Helper()
-	value, found, err := metadata.Decode[T](values, key)
+	value, found, err := values.Decode[T](key)
 	if err != nil {
 		t.Fatalf("decode extension %q: %v", key, err)
 	}

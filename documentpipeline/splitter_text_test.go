@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
 )
 
@@ -44,7 +43,7 @@ func TestTextSplitterPreservesMetadata(t *testing.T) {
 	_ = doc.Metadata.Set("src", "manual")
 	docs, _ := splitter.Split(t.Context(), []*document.Document{doc})
 	for index, chunk := range docs {
-		if src, ok, _ := metadata.Decode[string](chunk.Metadata, "src"); !ok || src != "manual" {
+		if src, ok, _ := chunk.Metadata.Decode[string]("src"); !ok || src != "manual" {
 			t.Fatalf("chunk[%d] missing metadata", index)
 		}
 	}

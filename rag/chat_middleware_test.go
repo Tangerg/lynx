@@ -106,7 +106,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey)
+	docs, ok, err := response.Metadata.Extra.Decode[[]rag.Candidate](rag.RetrievedCandidatesKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
 	if _, err := callMiddleware(&echoChatModel{}).Call(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
-	tenant, found, err := metadata.Decode[string](capturedExtensions, "test/tenant")
+	tenant, found, err := capturedExtensions.Decode[string]("test/tenant")
 	if err != nil || !found || tenant != "acme" {
 		t.Fatalf("request extension = (%q, %v, %v), want (acme, true, nil)", tenant, found, err)
 	}
@@ -171,7 +171,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 		chunks++
-		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey); decodeErr != nil || !ok {
+		if _, ok, decodeErr := response.Metadata.Extra.Decode[[]rag.Candidate](rag.RetrievedCandidatesKey); decodeErr != nil || !ok {
 			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
 		}
 	}
@@ -251,7 +251,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	if response != partial || !errors.Is(err, wantErr) {
 		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
 	}
-	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey); decodeErr != nil || !found {
+	if _, found, decodeErr := response.Metadata.Extra.Decode[[]rag.Candidate](rag.RetrievedCandidatesKey); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }

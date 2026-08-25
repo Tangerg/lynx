@@ -9,7 +9,6 @@ import (
 	cohere "github.com/cohere-ai/cohere-go/v2"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -67,7 +66,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		return nil, err
 	}
 
-	apiRequest, _, err := metadata.Decode[cohere.V2EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiRequest, _, err := mergedOpts.Extensions.Decode[cohere.V2EmbedRequest](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}

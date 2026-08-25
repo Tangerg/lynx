@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
@@ -57,7 +56,7 @@ func (options ChatRequestOptions) Validate() error {
 // reasoningSplitDialect keeps MiniMax thinking separate from answer content.
 // The official API otherwise embeds thinking in content inside <think> tags.
 func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
-	extension, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
+	extension, found, err := source.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("minimax: extension %q: %w", RequestExtensionKey, err)
 	}

@@ -15,7 +15,7 @@ func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) (T, bool) {
 	t.Helper()
-	value, ok, err := coremetadata.Decode[T](values, key)
+	value, ok, err := values.Decode[T](key)
 	if err != nil {
 		t.Fatalf("metadata %q: %v", key, err)
 	}

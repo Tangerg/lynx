@@ -199,7 +199,7 @@ func TestStore_SearchLikePattern(t *testing.T) {
 		t.Fatalf("got %d, want 2", len(got))
 	}
 	for _, match := range got {
-		name, _, _ := coremetadata.Decode[string](match.Document.Metadata, "name")
+		name, _, _ := match.Document.Metadata.Decode[string]("name")
 		if !strings.HasPrefix(name, "alpha") {
 			t.Errorf("doc %q has name=%q, want alpha-prefix", match.Document.ID, name)
 		}

@@ -223,10 +223,10 @@ func TestCompositeMergesValidatedResultsWithoutAliasing(t *testing.T) {
 	if result.Pass || result.Score != 0.75 || result.Feedback != "[Evaluation 1] good\n\n[Evaluation 2] weak" {
 		t.Fatalf("result = %#v", result)
 	}
-	if got, ok, err := metadata.Decode[int](result.Metadata, "total_evaluations"); err != nil || !ok || got != 2 {
+	if got, ok, err := result.Metadata.Decode[int]("total_evaluations"); err != nil || !ok || got != 2 {
 		t.Fatalf("total_evaluations = %d/%v/%v", got, ok, err)
 	}
-	if got, ok, err := metadata.Decode[int](result.Metadata, "passed_count"); err != nil || !ok || got != 1 {
+	if got, ok, err := result.Metadata.Decode[int]("passed_count"); err != nil || !ok || got != 1 {
 		t.Fatalf("passed_count = %d/%v/%v", got, ok, err)
 	}
 	result.Metadata["evaluation_1_source"][1] = 'X'

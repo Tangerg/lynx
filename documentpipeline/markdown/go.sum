@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
-github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef h1:Ml4MatoQ8GpbTmCwtXS9tHIu2SRnGsq3PsRH3UZCbcM=
+github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/Tangerg/lynx/documentpipeline v0.0.0-20260825151244-6267ff60620c h1:M6yXYjOi4g5JCtjL3o4ffCC61u4DYNrNITFsns5zvBc=
 github.com/Tangerg/lynx/documentpipeline v0.0.0-20260825151244-6267ff60620c/go.mod h1:hOO8kyzpeg5AsDVxnWzWbDYeJY1ADm8doM8/kMQ8J6E=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

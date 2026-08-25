@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
@@ -151,7 +150,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[predictionRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](SpeechRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 )
 
@@ -74,7 +73,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	paramsValue, _, err := metadata.Decode[listenParams](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
+	paramsValue, _, err := mergedOpts.Extensions.Decode[listenParams](TranscriptionRequestExtensionKey)
 	params := &paramsValue
 	if err != nil {
 		return nil, err

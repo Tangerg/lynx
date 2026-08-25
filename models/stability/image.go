@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -83,7 +82,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *generateReque
 		return "", nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[generateRequest](mergedOpts.Extensions, RequestExtensionKey)
+	apiReqValue, _, err := mergedOpts.Extensions.Decode[generateRequest](RequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {

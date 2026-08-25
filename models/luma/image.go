@@ -14,7 +14,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -99,7 +98,7 @@ func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*ima
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[lumaagents.GenerationNewParams](optionsValue.Extensions, ImageRequestExtensionKey)
+	paramsValue, _, err := optionsValue.Extensions.Decode[lumaagents.GenerationNewParams](ImageRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("luma: extension %q: %w", ImageRequestExtensionKey, err)
 	}

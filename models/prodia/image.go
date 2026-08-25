@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -63,7 +62,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[jobRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
+	apiReqValue, _, err := mergedOpts.Extensions.Decode[jobRequest](ImageRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err

@@ -123,7 +123,7 @@ func TestReadMalformedPDFReturnsError(t *testing.T) {
 
 func assertMetadata[T comparable](t *testing.T, metadata coremetadata.Map, key string, want T) {
 	t.Helper()
-	got, found, err := coremetadata.Decode[T](metadata, key)
+	got, found, err := metadata.Decode[T](key)
 	if err != nil || !found || got != want {
 		t.Fatalf("metadata %q = %v, found=%v, err=%v; want %v", key, got, found, err, want)
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // ReasoningBlockKind identifies a Bedrock Converse reasoning-content variant.
@@ -44,7 +43,7 @@ func NewRedactedReasoningPart(content []byte) (corechat.Part, error) {
 // ReasoningBlockKindOf reports whether part contains Bedrock-issued reasoning
 // replay state.
 func ReasoningBlockKindOf(part corechat.Part) (ReasoningBlockKind, bool, error) {
-	value, found, err := metadata.Decode[string](part.Metadata, chatReasoningKindKey)
+	value, found, err := part.Metadata.Decode[string](chatReasoningKindKey)
 	if err != nil {
 		return "", found, fmt.Errorf("bedrock: reasoning metadata: %w", err)
 	}

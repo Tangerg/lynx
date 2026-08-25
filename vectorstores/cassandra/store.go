@@ -326,7 +326,7 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 	args := []any{id, doc.Text}
 
 	for _, m := range s.metadataColumns {
-		val, ok, err := metadata.Decode[any](doc.Metadata, m.Name)
+		val, ok, err := doc.Metadata.Decode[any](m.Name)
 		if err != nil {
 			return fmt.Errorf("cassandra: decode metadata %s: %w", m.Name, err)
 		}

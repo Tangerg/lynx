@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
@@ -38,7 +37,7 @@ func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleReq
 	if temperature, ok := target.Temperature(); ok && temperature > 1.5 {
 		return errors.New("xiaomi: temperature must be between 0 and 1.5")
 	}
-	options, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
+	options, found, err := source.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("xiaomi: extension %q: %w", RequestExtensionKey, err)
 	}

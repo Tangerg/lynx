@@ -19,7 +19,7 @@
 - **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
 - **流式逐事件累积**:每 provider 自己的 accumulator 把 SSE delta 拼成 chunk,上层再 stitch 成完整消息 —— 用 `iter.Seq2`,不用 channel。
 - **能力差异按 provider 填空**:reasoning signature(续流必需)有的家有、有的没有,适配层用中性字节承载,不强求统一。
-- **公共契约测试归 Core**：所有 provider 直接复用 `core/modeltest`；provider module 不复制 conformance、HTTP fixture 或 stream helper。扩展参数直接用 `core/metadata.Decode`，只有跨多个本 module provider 的真实校验逻辑才允许留在 `internal`。
+- **公共契约测试归 Core**：所有 provider 直接复用 `core/modeltest`；provider module 不复制 conformance、HTTP fixture 或 stream helper。扩展参数直接用 `core/metadata.Map.Decode`，只有跨多个本 module provider 的真实校验逻辑才允许留在 `internal`。
 
 ## 模块特有反向不变量
 
