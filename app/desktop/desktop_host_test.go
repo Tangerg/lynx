@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -24,18 +25,61 @@ func (f imageSaverFunc) SaveImage(suggestedFilename string, contents []byte) (bo
 func TestDesktopHostBootstrap(t *testing.T) {
 	home := t.TempDir()
 	host := newDesktopHost(home)
-	if err := os.MkdirAll(filepath.Join(home, ".lyra"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(home, ".lyra"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(home, ".lyra", "local-token"), []byte("token\n"), 0o600); err != nil {
+	value := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
+	if err := os.WriteFile(filepath.Join(home, ".lyra", "local-token"), []byte(value), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	bootstrap, err := host.Bootstrap()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bootstrap.LocalRuntime.Endpoint != localRuntimeEndpoint || bootstrap.LocalRuntime.LocalToken != "token" {
+	if bootstrap.LocalRuntime.Endpoint != localRuntimeEndpoint || bootstrap.LocalRuntime.LocalToken != value {
 		t.Fatalf("local runtime = %#v", bootstrap.LocalRuntime)
+	}
+}
+
+func TestDesktopHostBootstrapRejectsInvalidDurableCredentials(t *testing.T) {
+	value := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
+	tests := map[string]struct {
+		contents []byte
+		mode     os.FileMode
+		link     bool
+	}{
+		"arbitrary text":     {contents: []byte("token"), mode: 0o600},
+		"whitespace wrapped": {contents: []byte("\n" + value + "\n"), mode: 0o600},
+		"oversized":          {contents: bytes.Repeat([]byte("x"), 1<<20), mode: 0o600},
+		"public permissions": {contents: []byte(value), mode: 0o644},
+		"symbolic link":      {contents: []byte(value), mode: 0o600, link: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			root := filepath.Join(home, ".lyra")
+			if err := os.MkdirAll(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			tokenPath := filepath.Join(root, "local-token")
+			writePath := tokenPath
+			if test.link {
+				writePath = filepath.Join(root, "actual-token")
+			}
+			if err := os.WriteFile(writePath, test.contents, test.mode); err != nil {
+				t.Fatal(err)
+			}
+			if test.link {
+				if err := os.Symlink(writePath, tokenPath); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if _, err := newDesktopHost(home).Bootstrap(); err == nil {
+				t.Fatal("Bootstrap() accepted an invalid durable credential")
+			}
+		})
 	}
 }
 

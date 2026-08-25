@@ -2,6 +2,7 @@ package http_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	netHTTP "net/http"
 	"net/http/httptest"
 	"os"
@@ -327,6 +328,17 @@ func TestOpenLocalTokenRejectsInvalidDurableCredential(t *testing.T) {
 	}
 	if _, err := lyrahttp.OpenLocalToken(path); err == nil {
 		t.Fatal("OpenLocalToken accepted an invalid durable credential")
+	}
+}
+
+func TestOpenLocalTokenRejectsNonCanonicalDurableCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "local-token")
+	value := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
+	if err := os.WriteFile(path, []byte("\n"+value+"\n"), 0o600); err != nil {
+		t.Fatalf("write whitespace-wrapped local token: %v", err)
+	}
+	if _, err := lyrahttp.OpenLocalToken(path); err == nil {
+		t.Fatal("OpenLocalToken accepted a non-canonical durable credential")
 	}
 }
 
