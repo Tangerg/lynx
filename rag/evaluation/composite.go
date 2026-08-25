@@ -47,10 +47,10 @@ func (c *Composite) Evaluate(ctx context.Context, request Request) (Result, erro
 		}
 		results = append(results, result)
 	}
-	return merge(results)
+	return c.merge(results)
 }
 
-func merge(results []Result) (Result, error) {
+func (c *Composite) merge(results []Result) (Result, error) {
 	if len(results) == 0 {
 		return Result{}, fmt.Errorf("%w: no results to merge", ErrInvalidResult)
 	}

@@ -1,69 +1,94 @@
 package evaluation
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-var scorePattern = regexp.MustCompile(`\d*\.\d+|\d+`)
+const modelResultSchema = `{
+  "type": "object",
+  "properties": {
+    "score": {"type": "number", "minimum": 0, "maximum": 1},
+    "feedback": {"type": "string"}
+  },
+  "required": ["score"],
+  "additionalProperties": false
+}`
 
-// ModelConfig configures a model-backed evaluator. Prompt is an optional Go
-// text/template over .Query, .Answer, and .Context. Threshold zero selects
-// DefaultPassThreshold; other values must be in [0, 1].
+// ModelConfig configures a model-backed evaluator. PromptTemplate is rendered
+// over .Query, .Answer, and .Context. A nil Threshold selects
+// DefaultPassThreshold; a non-nil value must be in [0, 1].
 type ModelConfig struct {
-	Model     chat.Model
-	Prompt    string
-	Threshold float64
+	Model          chat.Model
+	PromptTemplate *chatclient.Template
+	Threshold      *float64
 }
 
-type promptData struct {
+type promptVariables struct {
 	Query   string
 	Answer  string
 	Context string
 }
 
-type modelEvaluator struct {
-	client    *chatclient.Client
-	prompt    *template.Template
-	threshold float64
-	validate  func(Request) error
+type modelResult struct {
+	Score    float64 `json:"score"`
+	Feedback string  `json:"feedback,omitzero"`
 }
 
-func newModelEvaluator(config ModelConfig, defaultPrompt string, validate func(Request) error) (*modelEvaluator, error) {
+type modelEvaluator struct {
+	generation      chatclient.Generation[modelResult]
+	prompt          *chatclient.Template
+	threshold       float64
+	validateRequest func(Request) error
+}
+
+func newModelEvaluator(
+	config ModelConfig,
+	defaultPrompt string,
+	validate func(Request) error,
+	required ...string,
+) (*modelEvaluator, error) {
 	if isNilCapability(config.Model) {
 		return nil, fmt.Errorf("%w: nil model", ErrInvalidConfig)
 	}
-	if config.Threshold < 0 || config.Threshold > 1 {
+	threshold := DefaultPassThreshold
+	if config.Threshold != nil {
+		threshold = *config.Threshold
+	}
+	if threshold < 0 || threshold > 1 {
 		return nil, fmt.Errorf("%w: threshold must be between 0 and 1", ErrInvalidConfig)
 	}
-	if config.Threshold == 0 {
-		config.Threshold = DefaultPassThreshold
+	prompt := config.PromptTemplate
+	if prompt == nil {
+		var err error
+		prompt, err = chatclient.ParseTemplate(defaultPrompt)
+		if err != nil {
+			return nil, fmt.Errorf("%w: default prompt: %w", ErrInvalidConfig, err)
+		}
 	}
-	if config.Prompt == "" {
-		config.Prompt = defaultPrompt
+	if err := prompt.Require(required...); err != nil {
+		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidConfig, err)
 	}
-	prompt, err := template.New("evaluation").Option("missingkey=error").Parse(config.Prompt)
-	if err != nil {
-		return nil, fmt.Errorf("%w: parse prompt: %w", ErrInvalidConfig, err)
-	}
-	var check bytes.Buffer
-	if err := prompt.Execute(&check, promptData{}); err != nil {
-		return nil, fmt.Errorf("%w: validate prompt: %w", ErrInvalidConfig, err)
+	if _, err := prompt.Render(promptVariables{}); err != nil {
+		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidConfig, err)
 	}
 	client, err := chatclient.New(config.Model, chatclient.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("%w: model: %w", ErrInvalidConfig, err)
 	}
+	format, err := chatclient.JSONSchema[modelResult]("evaluation_result", []byte(modelResultSchema))
+	if err != nil {
+		return nil, fmt.Errorf("%w: output format: %w", ErrInvalidConfig, err)
+	}
 	return &modelEvaluator{
-		client: client, prompt: prompt, threshold: config.Threshold, validate: validate,
+		generation:      client.Output(format),
+		prompt:          prompt,
+		threshold:       threshold,
+		validateRequest: validate,
 	}, nil
 }
 
@@ -71,40 +96,27 @@ func (e *modelEvaluator) Evaluate(ctx context.Context, request Request) (Result,
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if err := e.validate(request); err != nil {
+	if err := e.validateRequest(request); err != nil {
 		return Result{}, err
 	}
 
-	var prompt bytes.Buffer
-	if err := e.prompt.Execute(&prompt, promptData{
+	message, err := e.prompt.UserMessage(promptVariables{
 		Query: request.Query, Answer: request.Answer, Context: request.contextText(),
-	}); err != nil {
+	})
+	if err != nil {
 		return Result{}, fmt.Errorf("evaluation: render prompt: %w", err)
 	}
-	modelRequest, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart(prompt.String())))
+	output, err := e.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
-		return Result{}, fmt.Errorf("evaluation: build model request: %w", err)
+		return Result{}, fmt.Errorf("evaluation: generate result: %w", err)
 	}
-	response, err := e.client.Call(ctx, modelRequest)
-	if err != nil {
-		return Result{}, fmt.Errorf("evaluation: model call: %w", err)
+	result := Result{
+		Pass:     output.Score >= e.threshold,
+		Score:    output.Score,
+		Feedback: strings.TrimSpace(output.Feedback),
 	}
-	if response == nil {
-		return Result{}, ErrNilResponse
+	if err := result.Validate(); err != nil {
+		return Result{}, fmt.Errorf("evaluation: model result: %w", err)
 	}
-	return parseScore(response.Text(), e.threshold)
-}
-
-func parseScore(text string, threshold float64) (Result, error) {
-	for _, span := range scorePattern.FindAllStringIndex(text, -1) {
-		token := text[span[0]:span[1]]
-		score, err := strconv.ParseFloat(token, 64)
-		if err != nil || score < 0 || score > 1 {
-			continue
-		}
-		return Result{
-			Pass: score >= threshold, Score: score, Feedback: strings.TrimSpace(text[span[1]:]),
-		}, nil
-	}
-	return Result{}, fmt.Errorf("%w: %q", ErrNoScore, text)
+	return result, nil
 }

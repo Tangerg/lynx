@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/rag/evaluation"
@@ -17,17 +18,20 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("nil model error = %v", err)
 	}
-	model := &fakeModel{reply: "0.5"}
-	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Threshold: -0.1}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	model := &fakeModel{reply: `{"score":0.5}`}
+	negative := -0.1
+	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Threshold: &negative}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("negative threshold error = %v", err)
 	}
-	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Threshold: 1.1}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	large := 1.1
+	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Threshold: &large}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("large threshold error = %v", err)
 	}
-	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Prompt: "{{"}); !errors.Is(err, evaluation.ErrInvalidConfig) {
-		t.Fatalf("syntax error = %v", err)
+	missing, err := chatclient.ParseTemplate("{{.Missing}}")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Prompt: "{{.Missing}}"}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, PromptTemplate: missing}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("unknown field error = %v", err)
 	}
 	var typedNilModel *fakeModel
@@ -36,8 +40,8 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	}
 }
 
-func TestFactEvaluatorBuildsPlainRequestAndParsesVerdict(t *testing.T) {
-	model := &fakeModel{reply: "SCORE: 0.95\nFully supported."}
+func TestFactEvaluatorBuildsStructuredRequestAndDecodesResult(t *testing.T) {
+	model := &fakeModel{reply: `{"score":0.95,"feedback":"Fully supported."}`}
 	evaluator, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
@@ -61,12 +65,20 @@ func TestFactEvaluatorBuildsPlainRequestAndParsesVerdict(t *testing.T) {
 			t.Fatalf("prompt %q missing %q", prompt, want)
 		}
 	}
+	if request.Options.OutputFormat == nil || request.Options.OutputFormat.Type != chat.OutputFormatJSONSchema {
+		t.Fatalf("output format = %#v, want JSON Schema", request.Options.OutputFormat)
+	}
 }
 
 func TestRelevanceEvaluatorSupportsCustomPromptAndThreshold(t *testing.T) {
-	model := &fakeModel{reply: "5 out of 10; normalized 0.6\nPartly relevant."}
+	model := &fakeModel{reply: `{"score":0.6,"feedback":"Partly relevant."}`}
+	prompt, err := chatclient.ParseTemplate("Q={{.Query}} A={{.Answer}} C={{.Context}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	threshold := 0.8
 	evaluator, err := evaluation.NewRelevanceEvaluator(evaluation.ModelConfig{
-		Model: model, Threshold: 0.8, Prompt: "Q={{.Query}} A={{.Answer}} C={{.Context}}",
+		Model: model, Threshold: &threshold, PromptTemplate: prompt,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -85,8 +97,24 @@ func TestRelevanceEvaluatorSupportsCustomPromptAndThreshold(t *testing.T) {
 	}
 }
 
+func TestModelEvaluatorSupportsExplicitZeroThreshold(t *testing.T) {
+	model := &fakeModel{reply: `{"score":0}`}
+	threshold := 0.0
+	evaluator, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model, Threshold: &threshold})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := evaluator.Evaluate(t.Context(), evaluation.Request{Answer: "answer", Context: []string{"source"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Pass || result.Score != 0 {
+		t.Fatalf("result = %#v, want passing zero score at zero threshold", result)
+	}
+}
+
 func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
-	model := &fakeModel{reply: "0.5"}
+	model := &fakeModel{reply: `{"score":0.5}`}
 	fact, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
@@ -142,22 +170,31 @@ func TestModelEvaluatorRejectsNilResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = evaluator.Evaluate(t.Context(), evaluation.Request{Answer: "answer", Context: []string{"source"}})
-	if !errors.Is(err, evaluation.ErrNilResponse) {
+	if !errors.Is(err, chatclient.ErrInvalidOutputFormat) {
 		t.Fatalf("nil response error = %v", err)
 	}
 }
 
-func TestModelEvaluatorRejectsRepliesWithoutNormalizedScore(t *testing.T) {
-	for _, reply := range []string{"YES", "5 out of 10", "", "score 2"} {
+func TestModelEvaluatorRejectsInvalidStructuredResults(t *testing.T) {
+	for _, reply := range []string{"YES", "5 out of 10", "", `{"score":"0.5"}`} {
 		model := &fakeModel{reply: reply}
 		evaluator, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model})
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, err = evaluator.Evaluate(t.Context(), evaluation.Request{Answer: "answer", Context: []string{"source"}})
-		if !errors.Is(err, evaluation.ErrNoScore) {
+		if err == nil {
 			t.Fatalf("reply %q error = %v", reply, err)
 		}
+	}
+	model := &fakeModel{reply: `{"score":2}`}
+	evaluator, err := evaluation.NewFactEvaluator(evaluation.ModelConfig{Model: model})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = evaluator.Evaluate(t.Context(), evaluation.Request{Answer: "answer", Context: []string{"source"}})
+	if !errors.Is(err, evaluation.ErrInvalidResult) {
+		t.Fatalf("out-of-range score error = %v", err)
 	}
 }
 

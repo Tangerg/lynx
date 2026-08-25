@@ -1,13 +1,14 @@
 package evaluation
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
 
 const factPrompt = `Evaluate how well the answer is supported by the provided context.
 
-Reply with a number between 0.0 and 1.0 on the first line, then briefly explain your reasoning.
+Score support from 0.0 to 1.0 and provide concise feedback.
 
 Context:
 {{.Context}}
@@ -15,20 +16,25 @@ Context:
 Answer:
 {{.Answer}}
 
-Score:`
+Evaluation:`
 
 // FactEvaluator scores whether an answer is supported by source context.
 type FactEvaluator struct {
-	*modelEvaluator
+	evaluator *modelEvaluator
 }
 
 // NewFactEvaluator constructs a fact-support evaluator.
 func NewFactEvaluator(config ModelConfig) (*FactEvaluator, error) {
-	evaluator, err := newModelEvaluator(config, factPrompt, validateFactRequest)
+	evaluator, err := newModelEvaluator(config, factPrompt, validateFactRequest, "Answer", "Context")
 	if err != nil {
 		return nil, err
 	}
-	return &FactEvaluator{modelEvaluator: evaluator}, nil
+	return &FactEvaluator{evaluator: evaluator}, nil
+}
+
+// Evaluate scores request for factual support.
+func (e *FactEvaluator) Evaluate(ctx context.Context, request Request) (Result, error) {
+	return e.evaluator.Evaluate(ctx, request)
 }
 
 func validateFactRequest(request Request) error {

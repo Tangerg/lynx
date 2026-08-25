@@ -15,8 +15,6 @@ var (
 	ErrInvalidConfig  = errors.New("evaluation: invalid config")
 	ErrInvalidRequest = errors.New("evaluation: invalid request")
 	ErrInvalidResult  = errors.New("evaluation: invalid result")
-	ErrNoScore        = errors.New("evaluation: no score in [0, 1]")
-	ErrNilResponse    = errors.New("evaluation: model returned a nil response")
 )
 
 func isNilCapability(value any) bool {
@@ -39,9 +37,9 @@ const DefaultPassThreshold = 0.5
 // caller-selected source text; evaluation deliberately does not depend on a
 // document storage or retrieval type.
 type Request struct {
-	Query   string   `json:"query,omitempty"`
-	Answer  string   `json:"answer,omitempty"`
-	Context []string `json:"context,omitempty"`
+	Query   string   `json:"query,omitzero"`
+	Answer  string   `json:"answer,omitzero"`
+	Context []string `json:"context,omitzero"`
 }
 
 func (r Request) contextText() string {
@@ -58,8 +56,8 @@ func (r Request) contextText() string {
 type Result struct {
 	Pass     bool         `json:"pass"`
 	Score    float64      `json:"score"`
-	Feedback string       `json:"feedback,omitempty"`
-	Metadata metadata.Map `json:"metadata,omitempty"`
+	Feedback string       `json:"feedback,omitzero"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
 // Validate verifies the normalized score and JSON-safe metadata.
