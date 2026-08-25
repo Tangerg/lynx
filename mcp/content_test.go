@@ -96,14 +96,15 @@ func TestSchemaToJSON_StructSerializes(t *testing.T) {
 }
 
 func TestDecodeArgumentsRequiresJSONObject(t *testing.T) {
-	for _, input := range []string{"null", `[]`, `"text"`, `1`, `true`, `{]`} {
+	for _, input := range []string{"null", `[]`, `"text"`, `1`, `true`, `{]`, `{"name":"first","name":"second"}`} {
 		t.Run(input, func(t *testing.T) {
 			_, err := decodeArguments(input)
 			require.Error(t, err)
 		})
 	}
 
-	got, err := decodeArguments(`{"name":"value"}`)
+	const input = `{"integer":9007199254740993,"precise":1.0000000000000001}`
+	got, err := decodeArguments(input)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"name": "value"}, got)
+	assert.Equal(t, input, string(got))
 }

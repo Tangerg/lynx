@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -51,18 +52,18 @@ func firstTextOrFallback(items []sdkmcp.Content, fallback string) string {
 	return fallback
 }
 
-func decodeArguments(arguments string) (any, error) {
+func decodeArguments(arguments string) (json.RawMessage, error) {
 	if arguments == "" {
-		return map[string]any{}, nil
+		return json.RawMessage("{}"), nil
 	}
-	var decoded map[string]any
-	if err := json.Unmarshal([]byte(arguments), &decoded); err != nil {
-		return nil, fmt.Errorf("mcp: decode tool arguments: %w", err)
+	value := jsontext.Value(arguments)
+	if !value.IsValid() {
+		return nil, errors.New("mcp: decode tool arguments: invalid JSON")
 	}
-	if decoded == nil {
+	if value.Kind() != '{' {
 		return nil, errors.New("mcp: tool arguments must be a JSON object")
 	}
-	return decoded, nil
+	return json.RawMessage(value.Clone()), nil
 }
 
 // schemaToJSON converts the heterogeneous [sdkmcp.Tool.InputSchema]
