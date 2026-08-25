@@ -97,9 +97,7 @@ func (dispatcher *Dispatcher) callToolBatch(
 	jobs := make(chan int, len(calls))
 	var group sync.WaitGroup
 	for range limit {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			for index := range jobs {
 				outcomes[index].result, outcomes[index].advertisedToolNames,
 					outcomes[index].required, outcomes[index].err = dispatcher.callTool(
@@ -110,7 +108,7 @@ func (dispatcher *Dispatcher) callToolBatch(
 					calls[index],
 				)
 			}
-		}()
+		})
 	}
 	for index := range calls {
 		jobs <- index
