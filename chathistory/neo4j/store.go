@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
-	"regexp"
 	"slices"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/chathistory"
-	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -24,17 +21,6 @@ const (
 	fieldSequence       = "seq"
 	parameterRows       = "rows"
 )
-
-var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-func validIdentifier(value string) bool {
-	return identifierPattern.MatchString(value)
-}
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	return !reflected.IsValid() || (reflected.Kind() == reflect.Pointer && reflected.IsNil())
-}
 
 // Config configures [New]. Only [Config.Driver] is required.
 type Config struct {
@@ -78,8 +64,7 @@ type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
 	label    string
-	codec    historystorage.MessageCodec
-	sequence historystorage.Sequence
+	sequence sequenceGenerator
 }
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
@@ -135,7 +120,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := s.codec.Encode(messages)
+	encoded, err := encodeMessages(messages)
 	if err != nil {
 		return fmt.Errorf("neo4j: write: encode messages: %w", err)
 	}
@@ -211,7 +196,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 		if !ok {
 			return nil, fmt.Errorf("neo4j: read: record %d message has type %T, want string", index, raw)
 		}
-		message, err := s.codec.Decode([]byte(encodedMessage))
+		message, err := decodeMessage([]byte(encodedMessage))
 		if err != nil {
 			return nil, fmt.Errorf("neo4j: read: decode message %d: %w", index, err)
 		}

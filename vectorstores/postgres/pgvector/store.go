@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 	"github.com/Tangerg/lynx/vectorstores/postgres/internal/pgstore"
 )
 
@@ -88,7 +87,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("pgvector: unsupported IndexType %q", c.IndexType)
 	}
-	return identifier.Strict.Validate("pgvector", map[string]string{
+	return validateIdentifiers("pgvector", map[string]string{
 		"SchemaName":     c.SchemaName,
 		"TableName":      c.TableName,
 		"IndexName":      c.IndexName,

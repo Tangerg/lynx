@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "Couchbase"
@@ -130,7 +129,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", c.IndexOptimization)
 	}
-	return identifier.WithDash.Validate("couchbase", map[string]string{
+	return validateIdentifiersWithDash("couchbase", map[string]string{
 		"BucketName":      c.BucketName,
 		"ScopeName":       c.ScopeName,
 		"CollectionName":  c.CollectionName,

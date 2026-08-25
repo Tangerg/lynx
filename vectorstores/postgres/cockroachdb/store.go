@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 	"github.com/Tangerg/lynx/vectorstores/postgres/internal/pgstore"
 )
 
@@ -89,7 +88,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("cockroachdb: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
-	return identifier.Strict.Validate("cockroachdb", map[string]string{
+	return validateIdentifiers("cockroachdb", map[string]string{
 		"SchemaName":     c.SchemaName,
 		"TableName":      c.TableName,
 		"IndexName":      c.IndexName,

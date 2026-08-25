@@ -10,7 +10,6 @@ import (
 	"github.com/gocql/gocql"
 
 	"github.com/Tangerg/lynx/chathistory"
-	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -64,8 +63,7 @@ var (
 // Store is a Cassandra-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	session  *gocql.Session
-	codec    historystorage.MessageCodec
-	sequence historystorage.Sequence
+	sequence sequenceGenerator
 
 	writeCQL  string
 	readCQL   string
@@ -129,7 +127,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := s.codec.Encode(messages)
+	encoded, err := encodeMessages(messages)
 	if err != nil {
 		return fmt.Errorf("cassandra: write: encode messages: %w", err)
 	}
@@ -165,7 +163,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 	storedMessages = []chat.Message{}
 	var encodedMessage string
 	for iterator.Scan(&encodedMessage) {
-		message, decodeErr := s.codec.Decode([]byte(encodedMessage))
+		message, decodeErr := decodeMessage([]byte(encodedMessage))
 		if decodeErr != nil {
 			err = fmt.Errorf("cassandra: read: decode message %d: %w", len(storedMessages), decodeErr)
 			return nil, err

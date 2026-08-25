@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db h1:F0QCS/VQLaYF/wpGF/WL/Z0UDx8M+Hu/hpbMugHXUTM=
-github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3 h1:m5E5Mf8ve1IUPJRw+DH1wuhL6fbq3sy/AcTh9mSUWPE=
+github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/couchbase/gocb/v2 v2.12.4 h1:46tegk0WLcZdUQMi4hLa1B9m4WyuMRNhslhaqKkNslM=

@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
-	github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
 )
 
 require (

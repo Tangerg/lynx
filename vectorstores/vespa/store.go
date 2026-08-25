@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
-	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const (
@@ -107,7 +106,7 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
 	}
-	if err := identifier.WithDash.Validate("vespa", map[string]string{
+	if err := validateIdentifiersWithDash("vespa", map[string]string{
 		"SchemaName":      c.SchemaName,
 		"Namespace":       c.Namespace,
 		"EmbeddingField":  c.EmbeddingField,
@@ -118,7 +117,7 @@ func (c StoreConfig) Validate() error {
 	}); err != nil {
 		return err
 	}
-	if c.ContentCluster != "" && !identifier.WithDash.Match(c.ContentCluster) {
+	if c.ContentCluster != "" && !identifierPatternWithDash.MatchString(c.ContentCluster) {
 		return fmt.Errorf("vespa: ContentCluster=%q must be a safe identifier", c.ContentCluster)
 	}
 	return nil

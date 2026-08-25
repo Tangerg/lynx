@@ -1,4 +1,4 @@
-github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db h1:F0QCS/VQLaYF/wpGF/WL/Z0UDx8M+Hu/hpbMugHXUTM=
-github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3 h1:m5E5Mf8ve1IUPJRw+DH1wuhL6fbq3sy/AcTh9mSUWPE=
+github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/neo4j/neo4j-go-driver/v5 v5.28.4 h1:7toxehVcYkZbyxV4W3Ib9VcnyRBQPucF+VwNNmtSXi4=
 github.com/neo4j/neo4j-go-driver/v5 v5.28.4/go.mod h1:Vff8OwT7QpLm7L2yYr85XNWe9Rbqlbeb9asNXJTHO4k=

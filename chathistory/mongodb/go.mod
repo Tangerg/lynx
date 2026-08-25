@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/chathistory/mongodb
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825210731-804c787afb14
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 )
 
