@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"mime"
 	"slices"
 	"strings"
@@ -41,7 +42,11 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 			return nil, fmt.Errorf("anthropic: extension %q field %q is owned by Core", extensionKey, name)
 		}
 	}
-	params := anthropicsdk.MessageNewParams{}
+	outputConfig, err := decodeOutputConfig(fields, extensionKey)
+	if err != nil {
+		return nil, err
+	}
+	params := anthropicsdk.MessageNewParams{OutputConfig: outputConfig}
 	params.SetExtraFields(fields)
 
 	options, err := defaults.Merged(req.Options)
@@ -91,12 +96,65 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	}
 	params.System = append(params.System, system...)
 	params.Messages = append(params.Messages, messages...)
+	if err := mapProtocolOutputFormat(options.OutputFormat, dialect, &params); err != nil {
+		return nil, err
+	}
 	tools, err := mapProtocolTools(req.Tools)
 	if err != nil {
 		return nil, err
 	}
 	params.Tools = append(params.Tools, tools...)
 	return &params, nil
+}
+
+func decodeOutputConfig(fields map[string]any, extensionKey string) (anthropicsdk.OutputConfigParam, error) {
+	value, exists := fields["output_config"]
+	if !exists {
+		return anthropicsdk.OutputConfigParam{}, nil
+	}
+	var extraFields map[string]any
+	if object, ok := value.(map[string]any); ok {
+		if _, exists := object["format"]; exists {
+			return anthropicsdk.OutputConfigParam{}, fmt.Errorf("anthropic: extension %q field %q.format is owned by options.output_format", extensionKey, "output_config")
+		}
+		extraFields = maps.Clone(object)
+		delete(extraFields, "effort")
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return anthropicsdk.OutputConfigParam{}, fmt.Errorf("anthropic: extension %q field %q: %w", extensionKey, "output_config", err)
+	}
+	var config anthropicsdk.OutputConfigParam
+	if err := json.Unmarshal(encoded, &config); err != nil {
+		return anthropicsdk.OutputConfigParam{}, fmt.Errorf("anthropic: extension %q field %q: %w", extensionKey, "output_config", err)
+	}
+	if len(extraFields) > 0 {
+		config.SetExtraFields(extraFields)
+	}
+	delete(fields, "output_config")
+	return config, nil
+}
+
+func mapProtocolOutputFormat(format *corechat.OutputFormat, dialect Dialect, params *anthropicsdk.MessageNewParams) error {
+	if format == nil || format.Type == corechat.OutputFormatText {
+		return nil
+	}
+	if format.Type == corechat.OutputFormatJSONSchema && dialect.NativeJSONSchema {
+		schema, err := format.SchemaAs[map[string]any]()
+		if err != nil {
+			return fmt.Errorf("anthropic: output schema: %w", err)
+		}
+		params.OutputConfig.Format = anthropicsdk.JSONOutputFormatParam{Schema: schema}
+		return nil
+	}
+	instruction, err := format.FallbackInstruction()
+	if err != nil {
+		return fmt.Errorf("anthropic: output format fallback: %w", err)
+	}
+	if instruction != "" {
+		params.System = append(params.System, anthropicsdk.TextBlockParam{Text: instruction})
+	}
+	return nil
 }
 
 func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthropicsdk.TextBlockParam, []anthropicsdk.MessageParam, error) {

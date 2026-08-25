@@ -121,10 +121,14 @@ func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		}},
 	}
+	format, err := corechat.NewOutputFormat(corechat.OutputFormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Options.OutputFormat = &format
 	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
 		Thinking:        &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
 		ReasoningEffort: deepseek.ReasoningEffortMax,
-		ResponseFormat:  deepseek.ResponseFormatJSONObject,
 		ToolChoice:      &deepseek.ToolChoice{FunctionName: "lookup"},
 		LogProbs:        &logProbs,
 		TopLogProbs:     &topLogProbs,
@@ -143,8 +147,8 @@ func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
 	if body["reasoning_effort"] != "max" || body["user_id"] != "tenant_42-user" {
 		t.Fatalf("DeepSeek fields missing: %#v", body)
 	}
-	format, ok := body["response_format"].(map[string]any)
-	if !ok || format["type"] != "json_object" {
+	wireFormat, ok := body["response_format"].(map[string]any)
+	if !ok || wireFormat["type"] != "json_object" {
 		t.Fatalf("response_format = %#v", body["response_format"])
 	}
 	choice, ok := body["tool_choice"].(map[string]any)

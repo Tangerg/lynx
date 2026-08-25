@@ -52,7 +52,6 @@ type ChatRequestOptions struct {
 	SafePrompt        *bool             `json:"safe_prompt,omitempty"`
 	ParallelToolCalls *bool             `json:"parallel_tool_calls,omitempty"`
 	PromptCacheKey    string            `json:"prompt_cache_key,omitempty"`
-	ResponseFormat    json.RawMessage   `json:"response_format,omitempty"`
 	ToolChoice        json.RawMessage   `json:"tool_choice,omitempty"`
 	Metadata          map[string]any    `json:"metadata,omitempty"`
 	Guardrails        []json.RawMessage `json:"guardrails,omitempty"`
@@ -63,8 +62,7 @@ func (options ChatRequestOptions) validate() error {
 		return err
 	}
 	for name, raw := range map[string]json.RawMessage{
-		"response_format": options.ResponseFormat,
-		"tool_choice":     options.ToolChoice,
+		"tool_choice": options.ToolChoice,
 	} {
 		if len(raw) > 0 && !json.Valid(raw) {
 			return fmt.Errorf("%s contains invalid JSON", name)
@@ -181,6 +179,13 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 		return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 	}
 	if found {
+		fields, _, decodeErr := metadata.Decode[map[string]json.RawMessage](request.Options.Extensions, RequestExtensionKey)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, decodeErr)
+		}
+		if _, exists := fields["response_format"]; exists {
+			return nil, fmt.Errorf("mistral: extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
+		}
 		if err := extension.validate(); err != nil {
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 		}
@@ -206,6 +211,10 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 	if err != nil {
 		return nil, err
 	}
+	responseFormat, err := mapMistralOutputFormat(options.OutputFormat)
+	if err != nil {
+		return nil, err
+	}
 	return &chatCompletionRequest{
 		Model:              options.Model,
 		Messages:           messages,
@@ -217,8 +226,39 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 		PresencePenalty:    options.PresencePenalty,
 		FrequencyPenalty:   options.FrequencyPenalty,
 		Tools:              tools,
+		ResponseFormat:     responseFormat,
 		ChatRequestOptions: extension,
 	}, nil
+}
+
+func mapMistralOutputFormat(format *corechat.OutputFormat) (json.RawMessage, error) {
+	if format == nil {
+		return nil, nil
+	}
+	var value any
+	switch format.Type {
+	case corechat.OutputFormatText:
+		value = map[string]string{"type": "text"}
+	case corechat.OutputFormatJSON:
+		value = map[string]string{"type": "json_object"}
+	case corechat.OutputFormatJSONSchema:
+		schema, err := format.SchemaAs[map[string]any]()
+		if err != nil {
+			return nil, fmt.Errorf("mistral: output schema: %w", err)
+		}
+		definition := map[string]any{"name": format.Name, "schema": schema, "strict": true}
+		if format.Description != "" {
+			definition["description"] = format.Description
+		}
+		value = map[string]any{"type": "json_schema", "json_schema": definition}
+	default:
+		return nil, fmt.Errorf("mistral: unsupported output format %q", format.Type)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("mistral: encode output format: %w", err)
+	}
+	return encoded, nil
 }
 
 func mapChatRequestMessages(messages []corechat.Message) ([]chatMessage, error) {

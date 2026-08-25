@@ -51,7 +51,7 @@ type Chat struct {
 
 // NewChat constructs Anthropic's native Messages adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
-	return newChat(config, Dialect{Provider: "anthropic", MaxTemperature: 1, RejectTopK: true, RejectTopP: true})
+	return newChat(config, Dialect{Provider: "anthropic", MaxTemperature: 1, RejectTopK: true, RejectTopP: true, NativeJSONSchema: true})
 }
 
 // NewCompatibleChat constructs a Messages adapter with one explicit provider

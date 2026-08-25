@@ -39,14 +39,6 @@ const (
 	ReasoningEffortMax  ReasoningEffort = "max"
 )
 
-// ResponseFormat selects DeepSeek's documented output representation.
-type ResponseFormat string
-
-const (
-	ResponseFormatText       ResponseFormat = "text"
-	ResponseFormatJSONObject ResponseFormat = "json_object"
-)
-
 // ToolChoiceMode controls whether DeepSeek may select a tool. To force one
 // function, set [ToolChoice.FunctionName] instead of Mode.
 type ToolChoiceMode string
@@ -70,7 +62,6 @@ type ToolChoice struct {
 type RequestOptions struct {
 	Thinking        *ThinkingConfig `json:"thinking,omitempty"`
 	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
-	ResponseFormat  ResponseFormat  `json:"response_format,omitempty"`
 	ToolChoice      *ToolChoice     `json:"tool_choice,omitempty"`
 	LogProbs        *bool           `json:"logprobs,omitempty"`
 	TopLogProbs     *int64          `json:"top_logprobs,omitempty"`
@@ -83,6 +74,13 @@ type requestDialect struct {
 }
 
 func (dialect requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
+	fields, _, err := metadata.Decode[map[string]any](request.Options.Extensions, RequestExtensionKey)
+	if err != nil {
+		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
+	}
+	if _, exists := fields["response_format"]; exists {
+		return fmt.Errorf("extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
+	}
 	options, _, err := metadata.Decode[RequestOptions](request.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
@@ -102,13 +100,6 @@ func (dialect requestDialect) prepareRequest(request *corechat.Request, target *
 	}
 	if options.ReasoningEffort != "" {
 		if err := target.SetExtraField("reasoning_effort", options.ReasoningEffort); err != nil {
-			return err
-		}
-	}
-	if options.ResponseFormat != "" {
-		if err := target.SetExtraField("response_format", map[string]ResponseFormat{
-			"type": options.ResponseFormat,
-		}); err != nil {
 			return err
 		}
 	}
@@ -187,11 +178,6 @@ func (options RequestOptions) validate(generation corechat.Options, tools []core
 		return errors.New("tools must contain at most 128 functions for DeepSeek")
 	}
 
-	switch options.ResponseFormat {
-	case "", ResponseFormatText, ResponseFormatJSONObject:
-	default:
-		return fmt.Errorf("response_format has unsupported value %q", options.ResponseFormat)
-	}
 	if err := options.ToolChoice.validate(tools); err != nil {
 		return fmt.Errorf("tool_choice: %w", err)
 	}

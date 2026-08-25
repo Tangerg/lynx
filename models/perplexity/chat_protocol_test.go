@@ -49,6 +49,11 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("question")),
 	}}
+	format, err := corechat.NewOutputFormat(corechat.OutputFormatText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Options.OutputFormat = &format
 	returnImages := true
 	disableSearch := false
 	if err := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
@@ -62,7 +67,6 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 		LanguagePreference:    "en",
 		SearchAfterDateFilter: "01/01/2026",
 		WebSearchOptions:      &perplexity.WebSearchOptions{SearchContextSize: perplexity.SearchContextHigh, SearchType: perplexity.SearchTypeFast},
-		ResponseFormat:        json.RawMessage(`{"type":"text"}`),
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}

@@ -44,6 +44,9 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		return nil, fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
 	dialect := openai.ReasoningContentToolReplayDialect("deepseek")
+	dialect.NativeOutputFormat = func(formatType corechat.OutputFormatType) bool {
+		return formatType == corechat.OutputFormatText || formatType == corechat.OutputFormatJSON
+	}
 	dialect.PrepareRequest = requestDialect{defaults: config.DefaultOptions.Clone()}.prepareRequest
 	dialect.DisableRawRequestExtension = true
 	protocol, err := openai.NewCompatibleChat(

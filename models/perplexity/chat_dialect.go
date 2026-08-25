@@ -76,7 +76,6 @@ type WebSearchOptions struct {
 // RequestOptions contains the documented Sonar fields without a neutral Core
 // equivalent. Store it in [chat.Options.Extensions] under RequestExtensionKey.
 type RequestOptions struct {
-	ResponseFormat          json.RawMessage   `json:"response_format,omitempty"`
 	WebSearchOptions        *WebSearchOptions `json:"web_search_options,omitempty"`
 	SearchMode              SearchMode        `json:"search_mode,omitempty"`
 	ReturnImages            *bool             `json:"return_images,omitempty"`
@@ -138,6 +137,13 @@ func prepareRequest(source *corechat.Request, target *openai.CompatibleRequest) 
 }
 
 func decodeRequestOptions(request *corechat.Request) (RequestOptions, error) {
+	fields, _, err := metadata.Decode[map[string]any](request.Options.Extensions, RequestExtensionKey)
+	if err != nil {
+		return RequestOptions{}, fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
+	}
+	if _, exists := fields["response_format"]; exists {
+		return RequestOptions{}, fmt.Errorf("extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
+	}
 	options, _, err := metadata.Decode[RequestOptions](request.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return RequestOptions{}, fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
@@ -159,9 +165,6 @@ func validateCoreOptions(options corechat.Options) error {
 }
 
 func (options RequestOptions) validate(model string, stream bool) error {
-	if len(options.ResponseFormat) != 0 && !json.Valid(options.ResponseFormat) {
-		return errors.New("response_format contains invalid JSON")
-	}
 	if err := validateEnum("search_mode", string(options.SearchMode), "web", "academic", "sec"); err != nil {
 		return err
 	}

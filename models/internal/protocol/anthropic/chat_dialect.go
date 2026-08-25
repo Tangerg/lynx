@@ -10,6 +10,10 @@ type Dialect struct {
 	MaxTemperature float64
 	RejectTopK     bool
 	RejectTopP     bool
+	// NativeJSONSchema reports whether this endpoint implements Anthropic's
+	// output_config.format JSON Schema control. Compatible providers that do not
+	// declare it receive the shared prompt fallback.
+	NativeJSONSchema bool
 }
 
 func protocolRequestExtensionKey(provider string) string {

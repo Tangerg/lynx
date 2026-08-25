@@ -3,16 +3,17 @@ package mistral
 import "encoding/json"
 
 type chatCompletionRequest struct {
-	Model            string        `json:"model"`
-	Messages         []chatMessage `json:"messages"`
-	Temperature      *float64      `json:"temperature,omitempty"`
-	TopP             *float64      `json:"top_p,omitempty"`
-	MaxTokens        *int64        `json:"max_tokens,omitempty"`
-	Stream           bool          `json:"stream"`
-	Stop             []string      `json:"stop,omitempty"`
-	PresencePenalty  *float64      `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64      `json:"frequency_penalty,omitempty"`
-	Tools            []chatTool    `json:"tools,omitempty"`
+	Model            string          `json:"model"`
+	Messages         []chatMessage   `json:"messages"`
+	Temperature      *float64        `json:"temperature,omitempty"`
+	TopP             *float64        `json:"top_p,omitempty"`
+	MaxTokens        *int64          `json:"max_tokens,omitempty"`
+	Stream           bool            `json:"stream"`
+	Stop             []string        `json:"stop,omitempty"`
+	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
+	Tools            []chatTool      `json:"tools,omitempty"`
+	ResponseFormat   json.RawMessage `json:"response_format,omitempty"`
 	ChatRequestOptions
 }
 
