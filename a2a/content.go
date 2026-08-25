@@ -15,8 +15,7 @@ func userMessage(text string) *sdka2a.Message {
 // textOfParts renders A2A content parts to a single string: text parts are
 // concatenated verbatim, structured data parts are JSON-encoded, and other
 // kinds (raw bytes, file URLs) are described compactly. tools and the
-// chat loop are text-first, so this is the lossy-but-faithful projection —
-// the analog of mcp.flattenContent.
+// chat loop are text-first, so this is the lossy-but-faithful projection.
 func textOfParts(parts sdka2a.ContentParts) string {
 	if len(parts) == 0 {
 		return ""
