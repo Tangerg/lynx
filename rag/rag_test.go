@@ -64,7 +64,7 @@ func TestQueryValueKeyRejectsUntypedAndConflictingValues(t *testing.T) {
 		t.Fatalf("WithValue conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
 	}
 	if _, _, err := q.Value(conflicting); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
-		t.Fatalf("LookupValue conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
+		t.Fatalf("Value conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
 	}
 	nilSliceKey := rag.MustValueKey[[]string]("nil slice")
 	if _, err := q.WithValue(nilSliceKey, nil); !errors.Is(err, rag.ErrNilQueryValue) {
