@@ -20,6 +20,9 @@ var (
 	ErrProposalChanged   = errors.New("skills: proposal content changed")
 	ErrProposalQueueFull = errors.New("skills: proposal review queue is full")
 	ErrDocumentTooLarge  = errors.New("skills: document is too large")
+	ErrLibraryCapacity   = errors.New("skills: library capacity exceeded")
+	ErrResourceTooLarge  = errors.New("skills: resource is too large")
+	ErrUsageTooLarge     = errors.New("skills: usage metadata is too large")
 	ErrNotFound          = errors.New("skills: entry not found")
 )
 
@@ -32,6 +35,22 @@ const (
 	// MaxPendingProposalsPerScope bounds one complete, non-paginated review
 	// queue. Project and user libraries each own an independent queue.
 	MaxPendingProposalsPerScope = 128
+
+	// MaxSkillsPerSource bounds one complete, non-paginated Skill source. It is
+	// shared by project/user discovery and the active+archived managed library,
+	// so model, UI, and curator consumers cannot disagree about admissible size.
+	MaxSkillsPerSource = 256
+
+	// MaxSkillDirectoryEntries bounds the raw top-level directory snapshot used
+	// to discover MaxSkillsPerSource valid Skills. The small allowance covers
+	// reserved lifecycle metadata while preventing junk entries from turning a
+	// complete list into an unbounded scan.
+	MaxSkillDirectoryEntries = MaxSkillsPerSource + 16
+
+	// MaxSkillResourceBytes bounds one model-facing bundled resource read. A
+	// resource is progressive-disclosure context, not an arbitrary binary
+	// transport; larger assets must be consumed by a purpose-built tool.
+	MaxSkillResourceBytes = 1 << 20
 )
 
 // Scope identifies the Skill library that owns a proposal or active Skill.

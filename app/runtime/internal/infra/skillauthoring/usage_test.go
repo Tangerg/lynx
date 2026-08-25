@@ -2,6 +2,7 @@ package skillauthoring_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,8 +15,7 @@ import (
 )
 
 const (
-	governedManagedSkills = 256
-	governedUsageBytes    = 64 << 10
+	governedUsageBytes = 64 << 10
 )
 
 func writeActiveSkillFixture(t *testing.T, root, name string) {
@@ -76,15 +76,15 @@ func TestRecordUseRejectsOversizedUsageMetadata(t *testing.T) {
 	}
 
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); err == nil {
-		t.Fatalf("RecordUse accepted usage metadata larger than %d bytes", governedUsageBytes)
+	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); !errors.Is(err, skills.ErrUsageTooLarge) {
+		t.Fatalf("RecordUse error = %v, want ErrUsageTooLarge beyond %d bytes", err, governedUsageBytes)
 	}
 }
 
 func TestRecordUseRejectsOverCapacityUsageMap(t *testing.T) {
 	root := t.TempDir()
-	usage := make(map[string]map[string]int64, governedManagedSkills+1)
-	for index := range governedManagedSkills + 1 {
+	usage := make(map[string]map[string]int64, skills.MaxSkillsPerSource+1)
+	for index := range skills.MaxSkillsPerSource + 1 {
 		usage[fmt.Sprintf("skill-%03d", index)] = map[string]int64{"firstSeen": 1}
 	}
 	data, err := json.Marshal(usage)
@@ -96,7 +96,7 @@ func TestRecordUseRejectsOverCapacityUsageMap(t *testing.T) {
 	}
 
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); err == nil {
-		t.Fatalf("RecordUse accepted more than %d usage records", governedManagedSkills)
+	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); !errors.Is(err, skills.ErrLibraryCapacity) {
+		t.Fatalf("RecordUse error = %v, want ErrLibraryCapacity beyond %d records", err, skills.MaxSkillsPerSource)
 	}
 }

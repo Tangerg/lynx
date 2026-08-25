@@ -192,6 +192,8 @@ Agent Memory 的非分页管理面是 complete-list contract，因此每个 proj
 
 Skill Proposal review queue 同样是完整、本地且非分页的读模型，但唯一槽位是 `(scope, skill name)`，不是内容 revision。每个 project/user scope 最多保留 128 个待审名称；同名新稿原子替换当前 `SKILL.md`，旧 revision 句柄随即以 content CAS 失效，不再并列积累历史草稿。完整 authored `SKILL.md` 最多 1 MiB；proposal render、active/archive/proposal lifecycle read 都在解析前执行 stat + bounded read，队列枚举最多读取 capacity + 1 并对 corrupt overfull state fail closed。同一 library 的 directory lease 把容量检查、替换、生命周期 mutation 与 exact revision 决策跨 Runtime 进程线性化，因此共享数据目录不能超配容量或让旧审批删除后来稿。
 
+Skill 的 progressive-disclosure 与管理面必须消费同一份有限来源事实。每个 project/user source 最多 256 个 valid-named Skill candidate，top-level 枚举最多读取 272 个 raw entries；完整 `SKILL.md` 与 model-facing bundled resource 分别最多 1 MiB，必须在 parse/string/Tool result 前以 stat + cancellation-aware bounded reader 准入。用户托管库的 active + archived 总量、批准事务、完整 `skills.library.list`、idle sweep 与 `.usage.json` 共同服从 256 项容量；usage sidecar 最多 64 KiB/256 records。任一越界整体失败，不把截断集合宣称为 complete list，也不让 Desktop discovery 与 Run 内 `list_skills/load_skill/read_skill_resource` 观察不同语料。
+
 Runtime 的 title、compaction、Agent Memory consolidation 与 Skill mining 都是 request-detached auxiliary model use case，不进入交互 Run 的 Conversation、usage 或 middleware。`adapter/utilitymodel` 是这些调用的唯一请求包络：每次调用必须显式声明 aggregate input bytes 与 output tokens，越界在 provider I/O 前失败。Run-maintenance transcript 只有一个 512KiB request / 384KiB transcript / 24KiB-per-message policy，按消息公平保留 head/tail；compaction trigger 另行测量原始 transcript footprint，不能因模型输入有界而低估压缩时机。Memory curation 只对能完整装入预算的 ledger sequence 前缀推进 watermark，未进入 prompt 的事实继续待处理。
 
 ### 5.8 Aggregate roots

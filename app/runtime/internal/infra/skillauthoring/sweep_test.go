@@ -1,6 +1,7 @@
 package skillauthoring_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -148,11 +149,11 @@ func TestSweepIdleDisabledStoreNoOps(t *testing.T) {
 func TestSweepIdleRejectsOverCapacityManagedLibrary(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	for index := range governedManagedSkills + 1 {
+	for index := range skills.MaxSkillsPerSource + 1 {
 		writeActiveSkillFixture(t, root, fmt.Sprintf("skill-%03d", index))
 	}
 
-	if _, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err == nil {
-		t.Fatalf("SweepIdle accepted more than %d active skills", governedManagedSkills)
+	if _, _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); !errors.Is(err, skills.ErrLibraryCapacity) {
+		t.Fatalf("SweepIdle error = %v, want ErrLibraryCapacity beyond %d active Skills", err, skills.MaxSkillsPerSource)
 	}
 }

@@ -177,6 +177,9 @@ func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
 		return nil, fmt.Errorf("skillauthoring: inspect active skill %q: %w", ref.Name, statErr)
 	}
+	if err := ensureManagedSkillCapacity(root); err != nil {
+		return nil, err
+	}
 	if err := contextError(ctx, "approve proposal"); err != nil {
 		return nil, err
 	}
@@ -235,6 +238,19 @@ func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.Pro
 	}
 	if err := contextError(ctx, "replace skill"); err != nil {
 		return nil, err
+	}
+	needsSlot := !exists
+	if exists {
+		if _, statErr := root.Lstat(s.archiveDir(ref.Name)); errors.Is(statErr, fs.ErrNotExist) {
+			needsSlot = true
+		} else if statErr != nil {
+			return nil, fmt.Errorf("skillauthoring: inspect archived revision slot for %q: %w", ref.Name, statErr)
+		}
+	}
+	if needsSlot {
+		if err := ensureManagedSkillCapacity(root); err != nil {
+			return nil, err
+		}
 	}
 	var identities []string
 	if exists {
@@ -477,29 +493,129 @@ func (s *Store) List(ctx context.Context) ([]skills.Entry, error) {
 	if !s.Enabled() {
 		return nil, nil
 	}
+	if err := contextError(ctx, "list managed skills"); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	active, err := entries(ctx, s.root, skills.Active)
+	root, cleanup, err := s.openLeasedRoot(ctx, "list managed skills")
 	if err != nil {
 		return nil, err
 	}
-	archived, err := entries(ctx, filepath.Join(s.root, archivedSubdir), skills.Archived)
+	defer cleanup()
+	activeNames, archivedNames, err := managedSkillNames(root)
+	if err != nil {
+		return nil, err
+	}
+	active, err := managedEntries(ctx, root, ".", activeNames, skills.Active)
+	if err != nil {
+		return nil, err
+	}
+	archived, err := managedEntries(ctx, root, archivedSubdir, archivedNames, skills.Archived)
 	if err != nil {
 		return nil, err
 	}
 	return append(active, archived...), nil
 }
 
-func entries(ctx context.Context, dir string, lifecycle skills.Lifecycle) ([]skills.Entry, error) {
-	summaries, err := skillspec.Dir(dir).List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("skillauthoring: list %s skills: %w", lifecycle, err)
-	}
-	out := make([]skills.Entry, len(summaries))
-	for i, summary := range summaries {
-		out[i] = skills.Entry{Name: summary.Name, Description: summary.Description, Lifecycle: lifecycle}
+func managedEntries(ctx context.Context, root *os.Root, directory string, names []string, lifecycle skills.Lifecycle) ([]skills.Entry, error) {
+	out := make([]skills.Entry, 0, len(names))
+	for _, name := range names {
+		if err := contextError(ctx, "list managed skills"); err != nil {
+			return nil, err
+		}
+		content, found, err := readSkill(root, filepath.Join(directory, name))
+		if err != nil {
+			return nil, fmt.Errorf("skillauthoring: list %s skill %q: %w", lifecycle, name, err)
+		}
+		if !found {
+			continue
+		}
+		frontmatter, _, err := skillspec.Parse(content)
+		if err != nil || frontmatter.Validate() != nil || frontmatter.Name != name {
+			continue
+		}
+		out = append(out, skills.Entry{Name: name, Description: frontmatter.Description, Lifecycle: lifecycle})
 	}
 	return out, nil
+}
+
+func ensureManagedSkillCapacity(root *os.Root) error {
+	active, archived, err := managedSkillNames(root)
+	if err != nil {
+		return err
+	}
+	if len(active)+len(archived) >= skills.MaxSkillsPerSource {
+		return fmt.Errorf(
+			"%w: scope already contains %d managed Skills",
+			skills.ErrLibraryCapacity,
+			len(active)+len(archived),
+		)
+	}
+	return nil
+}
+
+func managedSkillNames(root *os.Root) ([]string, []string, error) {
+	active, err := managedSkillNamesAt(root, ".")
+	if err != nil {
+		return nil, nil, err
+	}
+	archived, err := managedSkillNamesAt(root, archivedSubdir)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(active)+len(archived) > skills.MaxSkillsPerSource {
+		return nil, nil, fmt.Errorf(
+			"%w: scope contains %d active and archived Skills; limit is %d",
+			skills.ErrLibraryCapacity,
+			len(active)+len(archived),
+			skills.MaxSkillsPerSource,
+		)
+	}
+	return active, archived, nil
+}
+
+func managedSkillNamesAt(root *os.Root, path string) ([]string, error) {
+	directory, err := root.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("skillauthoring: list managed skills at %q: %w", path, err)
+	}
+	entries, readErr := directory.ReadDir(skills.MaxSkillDirectoryEntries + 1)
+	if errors.Is(readErr, io.EOF) {
+		readErr = nil
+	}
+	closeErr := directory.Close()
+	if readErr != nil || closeErr != nil {
+		return nil, fmt.Errorf("skillauthoring: list managed skills at %q: %w", path, errors.Join(readErr, closeErr))
+	}
+	if len(entries) > skills.MaxSkillDirectoryEntries {
+		return nil, fmt.Errorf(
+			"%w: %q contains more than %d directory entries",
+			skills.ErrLibraryCapacity,
+			path,
+			skills.MaxSkillDirectoryEntries,
+		)
+	}
+	names := make([]string, 0, min(len(entries), skills.MaxSkillsPerSource))
+	for _, entry := range entries {
+		if !entry.IsDir() || !validName(entry.Name()) {
+			continue
+		}
+		if len(names) == skills.MaxSkillsPerSource {
+			return nil, fmt.Errorf(
+				"%w: %q contains more than %d Skills",
+				skills.ErrLibraryCapacity,
+				path,
+				skills.MaxSkillsPerSource,
+			)
+		}
+		names = append(names, entry.Name())
+	}
+	slices.Sort(names)
+	return names, nil
 }
 
 // ListProposals enumerates the one current proposal for each name under
@@ -789,8 +905,5 @@ func contextError(ctx context.Context, operation string) error {
 }
 
 func validName(name string) bool {
-	if name == "" || name == "." || name == ".." {
-		return false
-	}
-	return name == filepath.Base(name) && !filepath.IsAbs(name)
+	return (skillspec.Frontmatter{Name: name, Description: "managed Skill"}).Validate() == nil
 }

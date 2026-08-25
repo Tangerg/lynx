@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P172 已完成；下一阶段待独立准入。
+> 状态：P0–P173 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P172 已完成。
+> 最近基线：2026-08-25，P173 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -22,6 +22,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - P172 已完成，修改范围仅为 `app/runtime`；`app/desktop` 既有 Tool presentation 不依赖新增 `total`，共享 `tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `85536eb29` 证明 model/direct 搜索仍先完整 materialize `find/rg/grep` stdout、受宿主 PATH 控制、无法报告 exact total，并会把病态长行直接送入 Tool result。
 - P172 的唯一根修是 Runtime-owned typed `glob/grep` + 既有有限 Workspace catalog/text scanner：schema 收敛为可组合输入，canonical root confinement、4/64/4 KiB glob/regex/path、100/1000 rows、1 MiB encoded Tool result 与 P171 grep corpus 包络在 filesystem I/O/serialization 前生效；两种结果都返回 exact total。
 - P172 的 Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、architecture gate、tidy/generate 零漂移，Desktop workspace/standalone test/vet/build/Staticcheck、根 workspace Runtime+Desktop tests、Frontend 313 files / 1952 tests 与完整静态/bundle 门禁、纯 Wails v3 production build 全绿。仅观察到既有 macOS deployment-target linker warnings；临时检查器已删除，未启动 agent-browser，本批 test/build/frontend 进程均已 join。
+- P173 已完成，修改范围仅为 `app/runtime`；`app/desktop` 继续消费同一 `skills.discovered.list/skills.library.list` shape，`app/cli` 未修改、未暂存。失败优先反例 `1ca213c51` 证明共享 Skill SDK 会无界读取正文/目录，托管 list、idle sweep 与 usage sidecar 也没有统一容量。
+- P173 的唯一根修是 Runtime-owned finite `ResourceSource` + Skill Domain/Store 单一容量：每 source 256 candidates/272 raw entries，`SKILL.md` 与 model resource 各 1 MiB；active+archived 总量、approval、list、sweep 和 64 KiB/256-record usage sidecar 共用同一 strict snapshot。app2 的单一 Skill source 思路保留，其无 directory/document/resource/usage envelope 的缺口不复制。
+- P173 的 Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、architecture gate、tidy/generate 零漂移，Desktop workspace/standalone test/vet/build/Staticcheck、根 workspace Runtime+Desktop tests、Frontend 313 files / 1952 tests 与完整静态/bundle 门禁、纯 Wails v3 production build 全绿。仅观察到既有 macOS deployment-target linker warnings；临时检查器已删除，未启动 agent-browser，本批 test/build/frontend 进程均已 join。
 - P170 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`；`tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `c2ef7dfe5` 证明 Workspace read 的 unlimited zero、caller-raised 9 MiB result、预取消与 invalid UTF-8 均会越过旧产品边界。
 - 唯一根修复是 Application-owned editor read envelope + Runtime-shared bounded text scanner：default/max output 1/8 MiB、complete source 64 MiB、single line 8 MiB；64 KiB reader 验证 cancellation、growth、UTF-8/NUL、BOM/CRLF/trailing line 与 total/window，Application 对 direct port result 再验 budget/text/window/truncation。model consumer 保持 complete-line paging，Workspace consumer 允许 UTF-8-safe last-line prefix；Head 默认/最高 200/400 行且不能静默 partial。
 - 对 app2 的裁决：采用 `workspaceflow` 的 1 MiB default、8 MiB maximum、streaming scan 与 target line window 思路；补上 app2 无 complete-source cap、Scanner trailing-empty-line 丢失、partial-line continuation 不透明、Head 无 truncation signal、invalid source error ownership和 Desktop 深行仍读默认前缀的缺口。保留原版 Application/Delivery/Protocol shape与 filesystem confinement，不复制 facade、第二 request 或配置层。
@@ -444,10 +447,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P170     | Workspace file API 与 Desktop target-window 资源闭环                                         | 1/8 MiB result、64 MiB source、8 MiB line、shared bounded scanner；Head 完整性与真实 start-line gutter                               |
 | P171     | Workspace search 编译准入、语料与精确总数闭环                                               | 64 KiB regex、100/1000 rows、8 MiB result、8/1/512 MiB file/line/scan；single-pass exact total，无共享 executor subprocess          |
 | P172     | Model/direct glob/grep 有限语料与可组合合同收敛                                              | Runtime typed tools 复用 20k ignore-aware catalog/P171 scanner；移除 subprocess-specific fields，exact total，无 `find/rg/grep` stdout |
+| P173     | Skill progressive disclosure 与托管生命周期有限来源闭环                                      | 256 Skills/272 raw entries、1 MiB document/resource、64 KiB usage；model/Desktop/list/sweep/approval 共享单一容量                         |
 
 ## 5. 当前里程碑结论
 
-P113–P172 共同建立了以下不可回退的心智模型：
+P113–P173 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -512,4 +516,4 @@ P113–P172 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P172 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P173 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

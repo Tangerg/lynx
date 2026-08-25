@@ -163,12 +163,12 @@ func TestArchiveRestoreAndList(t *testing.T) {
 func TestManagedLibraryListRejectsOverCapacitySnapshot(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	for index := range governedManagedSkills + 1 {
+	for index := range skills.MaxSkillsPerSource + 1 {
 		writeActiveSkillFixture(t, root, fmt.Sprintf("skill-%03d", index))
 	}
 
-	if _, err := store.List(t.Context()); err == nil {
-		t.Fatalf("List accepted more than %d managed skills", governedManagedSkills)
+	if _, err := store.List(t.Context()); !errors.Is(err, skills.ErrLibraryCapacity) {
+		t.Fatalf("List error = %v, want ErrLibraryCapacity beyond %d managed Skills", err, skills.MaxSkillsPerSource)
 	}
 }
 
@@ -295,6 +295,56 @@ func TestApproveProposalIsIdempotentForExactReplay(t *testing.T) {
 	}
 	if _, err := store.ApproveProposal(t.Context(), first); err != nil {
 		t.Fatalf("replayed ApproveProposal: %v", err)
+	}
+}
+
+func TestApproveProposalCannotExceedManagedLibraryCapacity(t *testing.T) {
+	root := t.TempDir()
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
+	for index := range skills.MaxSkillsPerSource {
+		writeActiveSkillFixture(t, root, fmt.Sprintf("skill-%03d", index))
+	}
+	proposal := skills.Proposal{
+		Scope: skills.ScopeUser, Name: "overflow",
+		Description:  "A new Skill must not make the managed library unlistable.",
+		Instructions: "instructions",
+	}
+	ref, _, err := store.SubmitProposal(t.Context(), proposal)
+	if err != nil {
+		t.Fatalf("SubmitProposal: %v", err)
+	}
+	if _, err := store.ApproveProposal(t.Context(), ref); !errors.Is(err, skills.ErrLibraryCapacity) {
+		t.Fatalf("ApproveProposal error = %v, want ErrLibraryCapacity", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, proposalSubdir, ref.Name, "SKILL.md")); err != nil {
+		t.Fatalf("capacity rejection removed the reviewable proposal: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ref.Name, "SKILL.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capacity rejection published an active Skill: %v", err)
+	}
+}
+
+func TestApproveRevisionNeedsCapacityForFirstArchiveSlot(t *testing.T) {
+	root := t.TempDir()
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
+	for index := range skills.MaxSkillsPerSource {
+		writeActiveSkillFixture(t, root, fmt.Sprintf("skill-%03d", index))
+	}
+	proposal := skills.Proposal{
+		Scope: skills.ScopeUser, Name: "skill-000",
+		Description:  "A revision cannot hide an extra archived slot beyond capacity.",
+		Instructions: "revised instructions",
+		Origin:       skills.ProposalOriginMined, Revises: true,
+	}
+	ref, _, err := store.SubmitProposal(t.Context(), proposal)
+	if err != nil {
+		t.Fatalf("SubmitProposal: %v", err)
+	}
+	if _, err := store.ApproveProposal(t.Context(), ref); !errors.Is(err, skills.ErrLibraryCapacity) {
+		t.Fatalf("ApproveProposal(revision) error = %v, want ErrLibraryCapacity", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, archiveSubdir, ref.Name)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("capacity rejection created an archive slot: %v", err)
 	}
 }
 

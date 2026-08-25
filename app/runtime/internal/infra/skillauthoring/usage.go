@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"strings"
 	"time"
 
 	skillspec "github.com/Tangerg/lynx/skills"
@@ -20,7 +20,10 @@ import (
 // name is not a valid skill name, so the read-only loader and List skip it. One
 // central file (not per-skill dotfiles) keeps writes serialized under the store
 // mutex and reads cheap for the curator sweep.
-const usageFile = ".usage.json"
+const (
+	usageFile             = ".usage.json"
+	maxUsageMetadataBytes = 64 << 10
+)
 
 // usageRecord tracks one skill's activity for the idle-lifecycle curator.
 // FirstSeen anchors the grace floor for a never-used skill; LastUsed drives the
@@ -52,6 +55,9 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	if err := contextError(ctx, "record skill use"); err != nil {
 		return err
 	}
+	if !validName(name) {
+		return fmt.Errorf("skillauthoring: invalid skill name %q", name)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	root, cleanup, err := s.openLeasedRoot(ctx, "record skill use")
@@ -60,7 +66,7 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	}
 	defer cleanup()
 
-	usage, err := readUsage(root)
+	usage, err := readUsage(ctx, root)
 	if err != nil {
 		return err
 	}
@@ -71,7 +77,7 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	}
 	record.LastUsed = ts
 	usage[name] = record
-	return writeUsage(root, usage)
+	return writeUsage(ctx, root, usage)
 }
 
 // SweepIdle archives Agent-authored skills idle past archiveAfter, returning the
@@ -98,11 +104,11 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 	}
 	defer cleanup()
 
-	names, err := activeSkillNames(root)
+	names, err := activeSkillNames(ctx, root)
 	if err != nil {
 		return nil, nil, err
 	}
-	usage, err := readUsage(root)
+	usage, err := readUsage(ctx, root)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -141,7 +147,7 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 		// grace is anchored to its first sweep, not re-seeded to now every pass.
 		usage[name] = record
 	}
-	if err := writeUsage(root, usage); err != nil {
+	if err := writeUsage(ctx, root, usage); err != nil {
 		return archived, distinctPaths(identities), err
 	}
 	return archived, distinctPaths(identities), nil
@@ -150,23 +156,12 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 // activeSkillNames lists the active skill directories directly under the store
 // root — every directory that isn't the reserved _proposals/_archive area or a
 // dotfile.
-func activeSkillNames(root *os.Root) ([]string, error) {
-	entries, err := fs.ReadDir(root.FS(), ".")
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+func activeSkillNames(ctx context.Context, root *os.Root) ([]string, error) {
+	if err := contextError(ctx, "list active skills"); err != nil {
+		return nil, err
 	}
-	if err != nil {
-		return nil, fmt.Errorf("skillauthoring: list active skills: %w", err)
-	}
-	var names []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if !entry.IsDir() || strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
-			continue
-		}
-		names = append(names, name)
-	}
-	return names, nil
+	active, _, err := managedSkillNames(root)
+	return active, err
 }
 
 // dropUsage removes a skill's usage record if present. Used when a skill leaves
@@ -186,7 +181,7 @@ func (s *Store) dropUsage(ctx context.Context, name string) error {
 		return err
 	}
 	defer cleanup()
-	usage, err := readUsage(root)
+	usage, err := readUsage(ctx, root)
 	if err != nil {
 		return err
 	}
@@ -194,16 +189,43 @@ func (s *Store) dropUsage(ctx context.Context, name string) error {
 		return nil
 	}
 	delete(usage, name)
-	return writeUsage(root, usage)
+	return writeUsage(ctx, root, usage)
 }
 
-func readUsage(root *os.Root) (map[string]usageRecord, error) {
-	data, err := root.ReadFile(usageFile)
+func readUsage(ctx context.Context, root *os.Root) (map[string]usageRecord, error) {
+	if err := contextError(ctx, "read skill usage"); err != nil {
+		return nil, err
+	}
+	file, err := root.Open(usageFile)
 	if errors.Is(err, fs.ErrNotExist) {
 		return map[string]usageRecord{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("skillauthoring: read usage: %w", err)
+		return nil, fmt.Errorf("skillauthoring: open usage: %w", err)
+	}
+	info, statErr := file.Stat()
+	if statErr != nil {
+		return nil, errors.Join(fmt.Errorf("skillauthoring: inspect usage: %w", statErr), file.Close())
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.Join(errors.New("skillauthoring: usage metadata is not a regular file"), file.Close())
+	}
+	if info.Size() > maxUsageMetadataBytes {
+		return nil, errors.Join(
+			fmt.Errorf("%w: %d bytes exceeds %d", skills.ErrUsageTooLarge, info.Size(), maxUsageMetadataBytes),
+			file.Close(),
+		)
+	}
+	data, readErr := io.ReadAll(io.LimitReader(
+		skillUsageContextReader{ctx: ctx, reader: file},
+		maxUsageMetadataBytes+1,
+	))
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil {
+		return nil, fmt.Errorf("skillauthoring: read usage: %w", errors.Join(readErr, closeErr))
+	}
+	if len(data) > maxUsageMetadataBytes {
+		return nil, fmt.Errorf("%w: exceeds %d bytes", skills.ErrUsageTooLarge, maxUsageMetadataBytes)
 	}
 	var usage map[string]usageRecord
 	if err := json.Unmarshal(data, &usage); err != nil {
@@ -214,16 +236,52 @@ func readUsage(root *os.Root) (map[string]usageRecord, error) {
 	if usage == nil {
 		usage = map[string]usageRecord{}
 	}
+	if len(usage) > skills.MaxSkillsPerSource {
+		return nil, fmt.Errorf(
+			"%w: usage metadata contains %d records; limit is %d",
+			skills.ErrLibraryCapacity,
+			len(usage),
+			skills.MaxSkillsPerSource,
+		)
+	}
+	for name := range usage {
+		if !validName(name) {
+			// Invalid records are non-critical corrupt metadata, like malformed
+			// JSON: discard the sidecar rather than preserving unusable keys.
+			return map[string]usageRecord{}, nil
+		}
+	}
 	return usage, nil
 }
 
-func writeUsage(root *os.Root, usage map[string]usageRecord) error {
+func writeUsage(ctx context.Context, root *os.Root, usage map[string]usageRecord) error {
+	if err := contextError(ctx, "write skill usage"); err != nil {
+		return err
+	}
+	if len(usage) > skills.MaxSkillsPerSource {
+		return fmt.Errorf(
+			"%w: cannot write %d usage records; limit is %d",
+			skills.ErrLibraryCapacity,
+			len(usage),
+			skills.MaxSkillsPerSource,
+		)
+	}
 	data, err := json.MarshalIndent(usage, "", "  ")
 	if err != nil {
 		return fmt.Errorf("skillauthoring: marshal usage: %w", err)
 	}
+	if len(data) > maxUsageMetadataBytes {
+		return fmt.Errorf("%w: encoded usage is %d bytes; limit is %d", skills.ErrUsageTooLarge, len(data), maxUsageMetadataBytes)
+	}
 	temporary := usageFile + ".tmp-" + rand.Text()
+	if err := contextError(ctx, "write skill usage"); err != nil {
+		return err
+	}
 	if err := writeFile(root, temporary, data); err != nil {
+		return err
+	}
+	if err := contextError(ctx, "commit skill usage"); err != nil {
+		_ = root.Remove(temporary)
 		return err
 	}
 	if err := root.Rename(temporary, usageFile); err != nil {
@@ -231,4 +289,20 @@ func writeUsage(root *os.Root, usage map[string]usageRecord) error {
 		return fmt.Errorf("skillauthoring: commit usage: %w", err)
 	}
 	return nil
+}
+
+type skillUsageContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r skillUsageContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(r.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := r.reader.Read(buffer)
+	if cause := context.Cause(r.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }

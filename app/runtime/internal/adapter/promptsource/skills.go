@@ -40,10 +40,10 @@ func ProjectSkillDir(cwd string) string {
 func MergeSkillSource(projectDir, userDir string, decorateUser func(sdk.ResourceSource) sdk.ResourceSource) sdk.ResourceSource {
 	var sources []sdk.ResourceSource
 	if dirExists(projectDir) {
-		sources = append(sources, sdk.Dir(projectDir))
+		sources = append(sources, newRuntimeSkillSource(projectDir))
 	}
 	if dirExists(userDir) {
-		user := sdk.Dir(userDir)
+		user := newRuntimeSkillSource(userDir)
 		if decorateUser != nil {
 			user = decorateUser(user)
 		}
@@ -66,7 +66,7 @@ func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp
 		if !dirExists(dir) {
 			return nil
 		}
-		summaries, err := sdk.Dir(dir).List(ctx)
+		summaries, err := newRuntimeSkillSource(dir).List(ctx)
 		if err != nil {
 			return err
 		}
