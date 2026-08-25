@@ -416,7 +416,9 @@ func (loop *processLoop) deliverBatch(ctx context.Context, command processComman
 			return
 		}
 		if status == StatusWaiting {
-			if _, addressed := signal.WaitID(); addressed { status = StatusRunning }
+			if _, addressed := signal.WaitID(); addressed {
+				status = StatusRunning
+			}
 		}
 		signals = append(signals, signal)
 	}
