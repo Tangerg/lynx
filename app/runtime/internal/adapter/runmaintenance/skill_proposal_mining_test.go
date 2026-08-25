@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 	skillspec "github.com/Tangerg/lynx/skills"
 
@@ -45,7 +45,7 @@ func (s *fakeProposalSubmitter) SubmitProposal(_ context.Context, cwd string, pr
 
 func skillProposalMinerFixture(t *testing.T, reply string, config SkillMiningConfig) (*SkillProposalMiner, *fakeProposalSubmitter, *textStubModel) {
 	t.Helper()
-	messages := inmemory.New()
+	messages := conversationfixture.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("add a test target")),
 		chat.NewAssistantMessage(chat.NewTextPart("done")),
@@ -69,7 +69,7 @@ func skillProposalMinerFixture(t *testing.T, reply string, config SkillMiningCon
 // real current skill bodies for the read-before-write guard.
 func skillRevisionMinerFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillProposalMiner, *fakeProposalSubmitter) {
 	t.Helper()
-	messages := inmemory.New()
+	messages := conversationfixture.New()
 	if err := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("that skill's command is wrong")),
 		chat.NewAssistantMessage(chat.NewTextPart("fixing")),

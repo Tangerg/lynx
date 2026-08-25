@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
-	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -28,7 +28,7 @@ func (s *recordingCompactions) ApplyCompaction(_ context.Context, plan Compactio
 }
 
 func TestMessagesCoordinatesDurableHistory(t *testing.T) {
-	messages := NewMessages(inmemory.New(), nil)
+	messages := NewMessages(conversationfixture.New(), nil)
 	seed := []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("one")),
 		chat.NewAssistantMessage(chat.NewTextPart("two")),
@@ -53,7 +53,7 @@ func TestMessagesCoordinatesDurableHistory(t *testing.T) {
 }
 
 func TestMessagesRejectsMissingSession(t *testing.T) {
-	messages := NewMessages(inmemory.New(), nil)
+	messages := NewMessages(conversationfixture.New(), nil)
 	if _, err := messages.Read(t.Context(), ""); !errors.Is(err, errSessionIDRequired) {
 		t.Fatalf("Read error = %v", err)
 	}
@@ -70,7 +70,7 @@ func TestMessagesPlansCompactionRunWatermarks(t *testing.T) {
 		runfixture.MustRestore(run.Snapshot{ID: "run_recent", SessionID: "ses_1", State: run.Completed, CreatedAt: at.Add(2 * time.Second), MessageMark: 8}),
 		runfixture.MustRestore(run.Snapshot{ID: "run_active", SessionID: "ses_1", State: run.Running, CreatedAt: at.Add(3 * time.Second)}),
 	}}
-	messages := NewMessages(inmemory.New(), compactions)
+	messages := NewMessages(conversationfixture.New(), compactions)
 	replacement := []chat.Message{
 		chat.NewSystemMessage("summary"),
 		chat.NewUserMessage(chat.NewTextPart("recent question")),

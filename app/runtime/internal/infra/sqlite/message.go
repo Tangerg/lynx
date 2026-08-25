@@ -4,34 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// errEmptyConversationID guards every store operation: the conversation id is
-// the table key, so an empty one is a caller bug, not an empty conversation.
-var errEmptyConversationID = errors.New("sqlite: conversation id is required")
-
-// MessageStore implements the lynx-core chat history [history.Store] against
-// SQLite — the per-conversation chat history the history middleware loads
-// before each Run and appends to it afterward. One append-only table keyed by
-// conversation, ordered by an autoincrement seq; each [chat.Message] is
-// stored as opaque JSON (round-tripped via [chat.UnmarshalMessage]).
+// MessageStore persists the Runtime's per-session model-context history in
+// SQLite. One append-only table is keyed by session and ordered by an
+// autoincrement seq; each [chat.Message] is stored as opaque JSON
+// (round-tripped via [chat.UnmarshalMessage]).
 //
 // Append-only: one INSERT per message — O(1) writes, ordered reads, no
 // whole-file rewrite.
 type MessageStore struct {
 	db *sql.DB
 }
-
-var (
-	_ history.Store    = (*MessageStore)(nil)
-	_ history.Replacer = (*MessageStore)(nil)
-	_ history.Counter  = (*MessageStore)(nil)
-)
 
 // NewMessageStore binds the chat history store to a database opened via [Open].
 func NewMessageStore(db *sql.DB) *MessageStore {
@@ -43,8 +31,8 @@ func NewMessageStore(db *sql.DB) *MessageStore {
 // are skipped rather than failing the read, so one bad write can't poison
 // the whole conversation.
 func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if conversationID == "" {
-		return nil, errEmptyConversationID
+	if err := history.ConversationID(conversationID).Validate(); err != nil {
+		return nil, err
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT message FROM messages WHERE conversation_id = ? ORDER BY seq`, conversationID)
@@ -74,8 +62,8 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 // Write appends messages to the conversation in one transaction. No-op for
 // an empty batch.
 func (s *MessageStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if conversationID == "" {
-		return errEmptyConversationID
+	if err := history.ConversationID(conversationID).Validate(); err != nil {
+		return err
 	}
 	if len(messages) == 0 {
 		return nil
@@ -109,8 +97,8 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 // Retention (truncate / compaction) uses this instead of Clear+Write, which
 // would lose the conversation if the Write failed after the Clear committed.
 func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if conversationID == "" {
-		return errEmptyConversationID
+	if err := history.ConversationID(conversationID).Validate(); err != nil {
+		return err
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
@@ -142,8 +130,8 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 // skips any that fail to unmarshal, but Write only persists marshalable
 // messages, so in practice the two agree.
 func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, error) {
-	if conversationID == "" {
-		return 0, errEmptyConversationID
+	if err := history.ConversationID(conversationID).Validate(); err != nil {
+		return 0, err
 	}
 	var n int
 	if err := conn(ctx, s.db).QueryRowContext(ctx,
@@ -157,8 +145,8 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 // Clear drops every message for conversationID. Idempotent — unknown id is
 // not an error (matches in-memory history store).
 func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
-	if conversationID == "" {
-		return errEmptyConversationID
+	if err := history.ConversationID(conversationID).Validate(); err != nil {
+		return err
 	}
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,

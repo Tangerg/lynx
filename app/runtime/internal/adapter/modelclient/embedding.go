@@ -91,7 +91,7 @@ func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, provider
 // embedder adapts an embeddingclient.Client to the agent-memory search port.
 type embedder struct {
 	id     string
-	client *embeddingclient.Client
+	client embeddingclient.Client
 }
 
 func (e *embedder) ID() string { return e.id }

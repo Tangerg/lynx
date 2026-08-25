@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
@@ -24,10 +24,10 @@ func constClient(c *chatclient.Client) utilitymodel.Resolver {
 	return func(context.Context) *chatclient.Client { return c }
 }
 
-type compactionTestStore struct{ *inmemory.Store }
+type compactionTestStore struct{ *conversationfixture.Store }
 
 func newCompactionTestStore() *compactionTestStore {
-	return &compactionTestStore{Store: inmemory.New()}
+	return &compactionTestStore{Store: conversationfixture.New()}
 }
 
 func (s *compactionTestStore) RewriteForCompaction(
