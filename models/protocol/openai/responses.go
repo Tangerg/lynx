@@ -111,6 +111,9 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: request: %w", err)
 	}
+	if err := rejectResponsesOutputFormatExtension(req.Options.Extensions); err != nil {
+		return nil, err
+	}
 	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Options.Extensions, ResponsesRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
@@ -139,6 +142,13 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if options.TopP != nil {
 		params.TopP = openaisdk.Float(*options.TopP)
 	}
+	if options.OutputFormat != nil {
+		format, err := mapResponsesOutputFormat(options.OutputFormat)
+		if err != nil {
+			return nil, err
+		}
+		params.Text.Format = format
+	}
 	if !slices.Contains(params.Include, responses.ResponseIncludableReasoningEncryptedContent) {
 		params.Include = append(params.Include, responses.ResponseIncludableReasoningEncryptedContent)
 	}
@@ -153,6 +163,57 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		return nil, err
 	}
 	return &params, nil
+}
+
+func rejectResponsesOutputFormatExtension(extensions metadata.Map) error {
+	fields, found, err := metadata.Decode[map[string]json.RawMessage](extensions, ResponsesRequestExtensionKey)
+	if err != nil {
+		return fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
+	}
+	if !found {
+		return nil
+	}
+	raw, exists := fields["text"]
+	if !exists {
+		return nil
+	}
+	var textFields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &textFields); err != nil {
+		return fmt.Errorf("openai responses: extension %q field %q: %w", ResponsesRequestExtensionKey, "text", err)
+	}
+	if _, exists := textFields["format"]; exists {
+		return fmt.Errorf("openai responses: extension %q field %q.format is owned by options.output_format", ResponsesRequestExtensionKey, "text")
+	}
+	return nil
+}
+
+func mapResponsesOutputFormat(format *corechat.OutputFormat) (responses.ResponseFormatTextConfigUnionParam, error) {
+	switch format.Type {
+	case corechat.OutputFormatText:
+		return responses.ResponseFormatTextConfigUnionParam{
+			OfText: &shared.ResponseFormatTextParam{},
+		}, nil
+	case corechat.OutputFormatJSON:
+		return responses.ResponseFormatTextConfigUnionParam{
+			OfJSONObject: &shared.ResponseFormatJSONObjectParam{},
+		}, nil
+	case corechat.OutputFormatJSONSchema:
+		schema, err := format.SchemaAs[map[string]any]()
+		if err != nil {
+			return responses.ResponseFormatTextConfigUnionParam{}, fmt.Errorf("openai responses: output schema: %w", err)
+		}
+		definition := responses.ResponseFormatTextJSONSchemaConfigParam{
+			Name:   format.Name,
+			Schema: schema,
+			Strict: openaisdk.Bool(true),
+		}
+		if format.Description != "" {
+			definition.Description = openaisdk.String(format.Description)
+		}
+		return responses.ResponseFormatTextConfigUnionParam{OfJSONSchema: &definition}, nil
+	default:
+		return responses.ResponseFormatTextConfigUnionParam{}, fmt.Errorf("openai responses: unsupported output format %q", format.Type)
+	}
 }
 
 func mapResponsesTools(definitions []corechat.ToolDefinition) ([]responses.ToolUnionParam, error) {

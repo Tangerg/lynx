@@ -162,7 +162,7 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
 		fields, err := decodeRequestFields(req.Options.Extensions, extensionKey,
 			"model", "messages", "tools", "frequency_penalty", "max_tokens",
-			"max_completion_tokens", "presence_penalty", "stop", "temperature", "top_p",
+			"max_completion_tokens", "presence_penalty", "response_format", "stop", "temperature", "top_p",
 		)
 		if err != nil {
 			return nil, err
@@ -216,6 +216,9 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 	}
 	params.Tools, err = mapToolDefinitions(req.Tools)
 	if err != nil {
+		return nil, err
+	}
+	if err := applyChatOutputFormat(options.OutputFormat, &params, c.dialect); err != nil {
 		return nil, err
 	}
 	if c.dialect.request != nil {

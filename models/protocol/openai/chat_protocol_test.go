@@ -213,7 +213,11 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 	}
 	temperature := 0.3
 	maxTokens := int64(512)
-	request.Options = corechat.Options{Model: "gpt-5.2", Temperature: &temperature, MaxTokens: &maxTokens, Stop: []string{"<END>"}}
+	format, err := corechat.NewOutputFormat(corechat.OutputFormatJSON)
+	if err != nil {
+		t.Fatalf("NewOutputFormat: %v", err)
+	}
+	request.Options = corechat.Options{Model: "gpt-5.2", OutputFormat: &format, Temperature: &temperature, MaxTokens: &maxTokens, Stop: []string{"<END>"}}
 	request.Tools = []corechat.ToolDefinition{{
 		Name:        "search",
 		Description: "Search the index",
@@ -222,9 +226,6 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 	if err := request.Options.SetExtension("test/openai_request", map[string]any{
 		"modalities": []string{"text", "audio"},
 		"audio":      map[string]any{"format": "wav", "voice": "alloy"},
-		"response_format": map[string]any{
-			"type": "json_object",
-		},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
