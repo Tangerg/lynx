@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 func Example() {
@@ -16,7 +15,7 @@ func Example() {
 	if err := doc.Metadata.Set("source", "field-guide"); err != nil {
 		panic(err)
 	}
-	source, _, err := metadata.Decode[string](doc.Metadata, "source")
+	source, _, err := doc.Metadata.Decode[string]("source")
 	if err != nil {
 		panic(err)
 	}

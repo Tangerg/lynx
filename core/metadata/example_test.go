@@ -11,7 +11,7 @@ func Example() {
 	if err := values.Set("attempt", 3); err != nil {
 		panic(err)
 	}
-	attempt, found, err := metadata.Decode[int](values, "attempt")
+	attempt, found, err := values.Decode[int]("attempt")
 
 	fmt.Println(attempt, found, err)
 	// Output:

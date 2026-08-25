@@ -21,7 +21,7 @@ func TestSetAndDecode(t *testing.T) {
 		t.Fatalf("Set: %v", err)
 	}
 
-	got, ok, err := metadata.Decode[value](m, "value")
+	got, ok, err := m.Decode[value]("value")
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 		if err := m.Set("key", 1); err != nil {
 			t.Fatalf("Set on nil map: %v", err)
 		}
-		value, ok, err := metadata.Decode[int](m, "key")
+		value, ok, err := m.Decode[int]("key")
 		if err != nil || !ok || value != 1 {
 			t.Fatalf("Decode after lazy init = (%v, %v, %v), want (1, true, nil)", value, ok, err)
 		}
@@ -168,7 +168,7 @@ func TestEqual(t *testing.T) {
 }
 
 func TestDecodeMissingAndTypeMismatch(t *testing.T) {
-	if got, ok, err := metadata.Decode[string](nil, "missing"); err != nil || ok || got != "" {
+	if got, ok, err := (metadata.Map(nil)).Decode[string]("missing"); err != nil || ok || got != "" {
 		t.Fatalf("missing Decode = (%q, %v, %v)", got, ok, err)
 	}
 
@@ -176,7 +176,7 @@ func TestDecodeMissingAndTypeMismatch(t *testing.T) {
 	if err := m.Set("count", 3); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := metadata.Decode[string](m, "count"); err == nil || !ok {
+	if _, ok, err := m.Decode[string]("count"); err == nil || !ok {
 		t.Fatalf("type mismatch Decode = (present %v, error %v)", ok, err)
 	}
 }

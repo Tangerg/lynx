@@ -156,7 +156,7 @@ func TestRequestOptionsExtension(t *testing.T) {
 	if err := request.Options.SetExtension("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
-	value, ok, err := metadata.Decode[map[string]string](request.Options.Extensions, "openai/response_format")
+	value, ok, err := request.Options.Extensions.Decode[map[string]string]("openai/response_format")
 	if err != nil || !ok || value["type"] != "json_object" {
 		t.Fatalf("Decode extension = (%v, %v, %v)", value, ok, err)
 	}

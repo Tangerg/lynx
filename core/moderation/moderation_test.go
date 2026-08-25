@@ -120,7 +120,7 @@ func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 
 func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 	t.Helper()
-	value, ok, err := metadata.Decode[T](values, key)
+	value, ok, err := values.Decode[T](key)
 	if err != nil || !ok {
 		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
 	}

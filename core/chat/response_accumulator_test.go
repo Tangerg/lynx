@@ -267,7 +267,7 @@ func partKinds(message *chat.Message) []chat.PartKind {
 
 func decode[T any](t *testing.T, values metadata.Map, key string) T {
 	t.Helper()
-	value, found, err := metadata.Decode[T](values, key)
+	value, found, err := values.Decode[T](key)
 	if err != nil {
 		t.Fatalf("Decode %q: %v", key, err)
 	}

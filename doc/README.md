@@ -49,6 +49,7 @@ lynx/
 - [`CORE_GETTING_STARTED.md`](./CORE_GETTING_STARTED.md) — 当前 API 的最小同步/流式/typed Tool、managed Interaction 与 structured output 上手路径
 - [`TOOL_FOUNDATION_MIGRATION.md`](./TOOL_FOUNDATION_MIGRATION.md) — `tools` 契约下沉到 `tool` 的 breaking migration
 - [`TOKENIZER_MODULE_MIGRATION.md`](./TOKENIZER_MODULE_MIGRATION.md) — tokenizer SPI 与 tiktoken 实现的独立发布边界
+- [`GO127_METHOD_GENERICS_MIGRATION.md`](./GO127_METHOD_GENERICS_MIGRATION.md) — Go 1.27 方法泛型的 owner 边界与 breaking API 迁移
 - [`../agent/doc/`](../agent/doc/) — Agent Framework 当前架构、ADR、公共基线、能力台账与执行计划的唯一文档集合
 - [`OBSERVABILITY.md`](./OBSERVABILITY.md) — 可观测性设计：OTel 三驾马车 → `log/slog`、语义规范、埋点清单、桥接 exporter
 

@@ -210,12 +210,12 @@ metadata: func (m *Map) Merge(source Map) error
 metadata: func (m *Map) Set(key string, value any) error
 metadata: func (m *Map) UnmarshalJSON(data []byte) error
 metadata: func (m Map) Clone() Map
+metadata: func (m Map) Decode[T any](key string) (T, bool, error)
 metadata: func (m Map) Equal(other Map) bool
 metadata: func (m Map) IsZero() bool
 metadata: func (m Map) MarshalJSON() ([]byte, error)
 metadata: func (m Map) Validate() error
 metadata: func (m Map) Values() (map[string]any, error)
-metadata: func Decode[T any](m Map, key string) (T, bool, error)
 metadata: func FromValues(values map[string]any) (Map, error)
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )

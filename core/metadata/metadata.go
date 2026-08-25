@@ -166,7 +166,7 @@ func (m *Map) Merge(source Map) error {
 
 // Decode decodes the value stored under key into T. The boolean reports
 // whether key was present.
-func Decode[T any](m Map, key string) (T, bool, error) {
+func (m Map) Decode[T any](key string) (T, bool, error) {
 	var zero T
 	if key == "" {
 		return zero, false, ErrEmptyKey
