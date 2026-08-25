@@ -1,7 +1,7 @@
 github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9 h1:JAGDFuA5c06tUb6ZvVCIFGeXsh+AXehaii4qn++xxjc=
 github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
-github.com/Tangerg/lynx/documentpipeline v0.0.0-20260803141845-7207652c95af h1:tfA91GD9vRX2IrFbiTDdqs8fdqXhtVKb7BF/WZnSIRs=
-github.com/Tangerg/lynx/documentpipeline v0.0.0-20260803141845-7207652c95af/go.mod h1:JARNXASFea+bkgnPrERWQvMdZF0IqRMfxWRaV/N5Oxw=
+github.com/Tangerg/lynx/documentpipeline v0.0.0-20260825151244-6267ff60620c h1:M6yXYjOi4g5JCtjL3o4ffCC61u4DYNrNITFsns5zvBc=
+github.com/Tangerg/lynx/documentpipeline v0.0.0-20260825151244-6267ff60620c/go.mod h1:hOO8kyzpeg5AsDVxnWzWbDYeJY1ADm8doM8/kMQ8J6E=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/yuin/goldmark v1.8.5 h1:r6N5afV5qj/5S4UTch8agZHJ8UxNCMwX7WjkkJam2NA=
