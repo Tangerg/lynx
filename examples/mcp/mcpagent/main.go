@@ -130,7 +130,7 @@ func main() {
 	if !ok {
 		log.Fatalf("no interaction output produced; status=%s", result.Status())
 	}
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		log.Fatal(err)
 	}

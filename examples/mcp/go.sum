@@ -2,8 +2,8 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/lynx v0.0.0-20260825164831-aa4f921ee222 h1:mv4rRWQM4HI2X6E8OoDFP8P/dQ/cXVLZs1gS/7Vd5xU=
 github.com/Tangerg/lynx v0.0.0-20260825164831-aa4f921ee222/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
-github.com/Tangerg/lynx/agent v0.0.0-20260825124337-cd54da9c8d01 h1:Vx42axImKruB5R7/56xBVf1TfpGssAm5IrKFKsEpkVA=
-github.com/Tangerg/lynx/agent v0.0.0-20260825124337-cd54da9c8d01/go.mod h1:3BAKBBrdL0GhKqWDYQREdUfNVJcaR1eO7mS7bYLz/GM=
+github.com/Tangerg/lynx/agent v0.0.0-20260825202712-0c66817b83ea h1:l9AveZ8JYO0zA1WU2Jm82jMnVt3DOwZ7Eyks0kyMi0o=
+github.com/Tangerg/lynx/agent v0.0.0-20260825202712-0c66817b83ea/go.mod h1:3BAKBBrdL0GhKqWDYQREdUfNVJcaR1eO7mS7bYLz/GM=
 github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71 h1:kcoOy75UF7XCK438q42GZ1ut4oGNao1YYwnkQ+3NZqw=
 github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71/go.mod h1:AaYeeq50cbecqPzqcWM8NIlbsxo6Ttl468uRM2NpHoQ=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
