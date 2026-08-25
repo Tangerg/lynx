@@ -85,7 +85,7 @@ func (g *reportGenerator) report() *Response {
 	dewPoint := calculateDewPoint(current, humidity)
 
 	var precipitation *Precipitation
-	if precipitationFor(condition) {
+	if condition.hasPrecipitation() {
 		precipitation = g.precipitation(condition, current)
 	}
 

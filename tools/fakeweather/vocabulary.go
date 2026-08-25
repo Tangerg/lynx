@@ -26,6 +26,14 @@ const (
 	ConditionWindy        Condition = "Windy"
 )
 
+func (condition Condition) hasPrecipitation() bool {
+	switch condition {
+	case ConditionRainy, ConditionSnowy, ConditionStormy, ConditionBlizzard, ConditionDrizzle:
+		return true
+	}
+	return false
+}
+
 // PrecipitationType is the synthesized precipitation phase.
 type PrecipitationType string
 

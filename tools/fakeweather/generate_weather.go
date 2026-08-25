@@ -178,14 +178,6 @@ func calculateDewPoint(temp, humidity int) int {
 	return int(math.Round((b * alpha) / (a - alpha)))
 }
 
-func precipitationFor(condition Condition) bool {
-	switch condition {
-	case ConditionRainy, ConditionSnowy, ConditionStormy, ConditionBlizzard, ConditionDrizzle:
-		return true
-	}
-	return false
-}
-
 func (g *reportGenerator) precipitation(condition Condition, temp int) *Precipitation {
 	p := &Precipitation{}
 	switch {

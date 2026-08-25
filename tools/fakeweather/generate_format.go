@@ -43,7 +43,7 @@ func (g *reportGenerator) hourlyForecast(dailyMean int, condition Condition) []H
 		}
 
 		precip := 0.0
-		if precipitationFor(hourCondition) {
+		if hourCondition.hasPrecipitation() {
 			precip = math.Round(g.rng.Float64()*5.0*10) / 10
 		}
 

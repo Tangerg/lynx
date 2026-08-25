@@ -205,7 +205,7 @@ func (options RequestOptions) ValidateFor(model string, stream bool) error {
 			}
 		}
 	}
-	if options.SearchMode == SearchModeAcademic && hasDateFilter(options) {
+	if options.SearchMode == SearchModeAcademic && options.hasDateFilter() {
 		return errors.New("date filters are not supported with academic search mode")
 	}
 	if len(options.ImageFormatFilter) > 10 {
@@ -310,7 +310,7 @@ func isLanguageCode(value string) bool {
 	return len(value) == 2 && value[0] >= 'a' && value[0] <= 'z' && value[1] >= 'a' && value[1] <= 'z'
 }
 
-func hasDateFilter(options RequestOptions) bool {
+func (options RequestOptions) hasDateFilter() bool {
 	return options.SearchRecencyFilter != "" ||
 		options.SearchAfterDateFilter != "" ||
 		options.SearchBeforeDateFilter != "" ||
