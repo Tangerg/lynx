@@ -4,18 +4,18 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
+	"github.com/Tangerg/lynx/vectorstores/internal/jsonmetadata"
+	"github.com/Tangerg/lynx/vectorstores/internal/vectorliteral"
 )
 
 const Provider = "TiDB"
@@ -149,6 +149,7 @@ type Store struct {
 	embeddingColumn string
 	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
+	metadataCodec   jsonmetadata.Codec
 	dimensions      int
 	distanceMetric  DistanceMetric
 }
@@ -264,12 +265,12 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			defer stmt.Close()
 			for i, doc := range docs {
 				id := doc.ID
-				metaJSON, err := marshalMetadata(doc.Metadata)
+				metaJSON, err := s.metadataCodec.Marshal(doc.Metadata)
 				if err != nil {
 					return fmt.Errorf("marshal metadata for %s: %w", id, err)
 				}
 				vec32 := embedding.Float32Vector(vectors[i])
-				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, formatVectorLiteral(vec32)); err != nil {
+				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, vectorliteral.Format(vec32)); err != nil {
 					return fmt.Errorf("upsert %s: %w", id, err)
 				}
 			}
@@ -302,7 +303,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, fmt.Errorf("tidb: embed query: %w", err)
 	}
 	queryVec := embedding.Float32Vector(vector)
-	vecText := formatVectorLiteral(queryVec)
+	vecText := vectorliteral.Format(queryVec)
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
@@ -354,7 +355,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 		doc := &document.Document{ID: id, Text: content.String}
 		if metaRaw.Valid {
-			if doc.Metadata, err = unmarshalMetadata([]byte(metaRaw.String)); err != nil {
+			if doc.Metadata, err = s.metadataCodec.Unmarshal([]byte(metaRaw.String)); err != nil {
 				return nil, fmt.Errorf("tidb: unmarshal metadata for %s: %w", id, err)
 			}
 		}
@@ -429,21 +430,3 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 }
 
 func (s *Store) Close() error { return nil }
-
-func marshalMetadata(m metadata.Map) ([]byte, error) {
-	if m == nil {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(m)
-}
-
-func unmarshalMetadata(b []byte) (metadata.Map, error) {
-	if len(b) == 0 {
-		return nil, nil
-	}
-	var out metadata.Map
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
