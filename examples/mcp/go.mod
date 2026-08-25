@@ -3,8 +3,8 @@ module github.com/Tangerg/lynx/examples/mcp
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
-	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx v0.0.0-20260825164831-aa4f921ee222
+	github.com/Tangerg/lynx/agent v0.0.0-20260825124337-cd54da9c8d01
 	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )

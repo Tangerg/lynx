@@ -11,6 +11,8 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tool"
@@ -24,8 +26,6 @@ type (
 		Sources []string
 	}
 )
-
-const researchToolRole = "research"
 
 func main() {
 	ctx := context.Background()
@@ -50,87 +50,104 @@ func main() {
 	}
 	defer cliSession.Close()
 
-	toolSource := func(ctx context.Context) ([]tool.Tool, error) {
+	loadTools := func(ctx context.Context) ([]tool.Tool, error) {
 		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolOptions{
 			MetaFunc: lynxmcp.MetaFromContext,
 		})
 	}
-
-	a := agent.New(agent.Config{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a remote MCP search tool", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
-		result, err := cliSession.GetPrompt(ctx, &sdkmcp.GetPromptParams{Name: "researcher_role", Arguments: map[string]string{"topic": in.Title}})
-		if err != nil {
-			return Brief{}, fmt.Errorf("get prompt: %w", err)
-		}
-		systemMessages, err := lynxmcp.PromptMessagesToChat(result.Messages)
-		if err != nil {
-			return Brief{}, fmt.Errorf("convert MCP prompt messages: %w", err)
-		}
-		var systemPrompt strings.Builder
-		for index := range systemMessages {
-			systemPrompt.WriteString(systemMessages[index].Text())
-		}
-		ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{"lynx.process_id": pc.Process().ID(), "lynx.action": "brief"})
-		prompt := fmt.Sprintf("Use research_search to gather sources on %q, then reply with JSON: "+`{"sources":["..."]}`, in.Title)
-		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{System: systemPrompt.String()})
-		if err != nil {
-			return Brief{}, err
-		}
-		var parsed struct {
-			Sources []string `json:"sources"`
-		}
-		_ = json.Unmarshal([]byte(text), &parsed)
-		return Brief{Topic: in.Title, Sources: parsed.Sources}, nil
-	}, agent.ActionConfig{ToolRoles: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
-
-	resolver := mcpToolResolver{group: mcpToolGroup{load: toolSource}}
-	engine := agent.MustNewEngine(agent.EngineConfig{
-		Chat:       agent.Chat(model),
-		Extensions: []agent.Extension{resolver},
+	topic := Topic{Title: "agent frameworks in 2026"}
+	promptResult, err := cliSession.GetPrompt(ctx, &sdkmcp.GetPromptParams{
+		Name: "researcher_role", Arguments: map[string]string{"topic": topic.Title},
 	})
-	if _, err := engine.Deploy(context.Background(), a); err != nil {
-		log.Fatal(err)
+	if err != nil {
+		log.Fatal(fmt.Errorf("get prompt: %w", err))
 	}
-
-	process, err := engine.Run(
-		ctx, a,
-		agent.Input(Topic{Title: "agent frameworks in 2026"}),
-		agent.ProcessOptions{},
-	)
+	systemMessages, err := lynxmcp.PromptMessagesToChat(promptResult.Messages)
+	if err != nil {
+		log.Fatal(fmt.Errorf("convert MCP prompt messages: %w", err))
+	}
+	var systemPrompt strings.Builder
+	for index := range systemMessages {
+		systemPrompt.WriteString(systemMessages[index].Text())
+	}
+	availableTools, err := loadTools(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	brief, ok := agent.Result[Brief](process)
-	if !ok {
-		log.Fatalf("no Brief produced; status=%s", process.Status())
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		log.Fatal(err)
 	}
+	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
+		Name:          "example.mcp_briefing",
+		Description:   "Ask the model for a topic brief using a remote MCP search tool.",
+		Version:       "1.0.0",
+		MaxModelCalls: 3,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
+		Client: client,
+		Tools:  availableTools,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
+		Definition:           definition,
+		Dispatcher:           dispatcher,
+		ImplementationDigest: agent.ComputeDigest([]byte("example-mcp-briefing-implementation")),
+		ConfigurationDigest:  agent.ComputeDigest([]byte("example-mcp-briefing-configuration")),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	engine, err := agent.NewEngine(agent.EngineConfig{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer engine.Close()
+
+	outputFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
+	if err != nil {
+		log.Fatal(err)
+	}
+	prompt := fmt.Sprintf("Use research_search to gather source URLs on %q.", topic.Title)
+	input, err := agent.EncodeInput(interaction.Input{Messages: []chat.Message{
+		chat.NewSystemMessage(systemPrompt.String()),
+		chat.NewUserMessage(chat.NewTextPart(prompt)),
+	}, Options: chat.Options{OutputFormat: &outputFormat}})
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{"lynx.example": "mcp-agent"})
+	result, err := engine.Run(ctx, deployment, input)
+	if err != nil {
+		log.Fatal(err)
+	}
+	erased, ok := result.Output()
+	if !ok {
+		log.Fatalf("no interaction output produced; status=%s", result.Status())
+	}
+	output, err := agent.DecodeOutput[interaction.Output](erased)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if output.ModelResponse == nil {
+		log.Fatalf("unexpected interaction completion source %q", output.Source)
+	}
+	var parsed struct {
+		Sources []string `json:"sources"`
+	}
+	if err := json.Unmarshal([]byte(output.ModelResponse.Text()), &parsed); err != nil {
+		log.Fatal(fmt.Errorf("decode brief: %w", err))
+	}
+	brief := Brief{Topic: topic.Title, Sources: parsed.Sources}
 
 	fmt.Println("\n--- result ---")
 	fmt.Printf("topic:   %s\n", brief.Topic)
 	fmt.Printf("sources: %v\n", brief.Sources)
-}
-
-// mcpToolResolver owns the MCP-specific discovery policy. The framework only
-// consumes the ToolGroupResolver capability and does not cache MCP results.
-type mcpToolResolver struct {
-	group mcpToolGroup
-}
-
-func (mcpToolResolver) Name() string { return "mcp-research" }
-
-func (r mcpToolResolver) Resolve(_ context.Context, role string) (agent.ToolGroup, bool, error) {
-	if role != researchToolRole {
-		return nil, false, nil
-	}
-	return r.group, true, nil
-}
-
-type mcpToolGroup struct {
-	load func(context.Context) ([]tool.Tool, error)
-}
-
-func (g mcpToolGroup) Tools(ctx context.Context) ([]tool.Tool, error) {
-	return g.load(ctx)
 }
 
 // ============================================================================
