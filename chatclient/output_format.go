@@ -175,13 +175,15 @@ func (d outputDecoder) firstBalancedJSON(raw []byte) ([]byte, bool) {
 		if value != '{' && value != '[' {
 			continue
 		}
-		if end, ok := d.balancedJSONEnd(raw, start); ok {
-			if found != nil {
-				return nil, false
-			}
-			found = bytes.TrimSpace(raw[start:end])
-			start = end - 1
+		end, ok := d.balancedJSONEnd(raw, start)
+		if !ok {
+			return nil, false
 		}
+		if found != nil {
+			return nil, false
+		}
+		found = bytes.TrimSpace(raw[start:end])
+		start = end - 1
 	}
 	return found, found != nil
 }

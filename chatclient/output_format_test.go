@@ -114,6 +114,7 @@ func TestOutputFormatDecodeRobustJSON(t *testing.T) {
 func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 	for _, raw := range []string{
 		`{"name":"tea","steps":[]`,
+		`prefix {"wrapper":{"name":"tea","steps":[]}`,
 		`{"name":"first","steps":[]} {"name":"second","steps":[]}`,
 		`{"name":"tea","name":"coffee","steps":[]}`,
 		string([]byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', ',', '"', 's', 't', 'e', 'p', 's', '"', ':', '[', ']', '}'}),
