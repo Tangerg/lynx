@@ -12,7 +12,7 @@ import (
 type RequestFields map[string]any
 
 func decodeRequestFields(values metadata.Map, key string, reserved ...string) (RequestFields, error) {
-	fields, _, err := metadata.Decode[RequestFields](values, key)
+	fields, _, err := values.Decode[RequestFields](key)
 	if err != nil {
 		return nil, fmt.Errorf("openai: extension %q: %w", key, err)
 	}

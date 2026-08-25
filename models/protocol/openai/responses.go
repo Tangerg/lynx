@@ -114,7 +114,7 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if err := rejectResponsesOutputFormatExtension(req.Options.Extensions); err != nil {
 		return nil, err
 	}
-	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Options.Extensions, ResponsesRequestExtensionKey)
+	params, found, err := req.Options.Extensions.Decode[responses.ResponseNewParams](ResponsesRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
 	}
@@ -166,7 +166,7 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 }
 
 func rejectResponsesOutputFormatExtension(extensions metadata.Map) error {
-	fields, found, err := metadata.Decode[map[string]json.RawMessage](extensions, ResponsesRequestExtensionKey)
+	fields, found, err := extensions.Decode[map[string]json.RawMessage](ResponsesRequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
 	}

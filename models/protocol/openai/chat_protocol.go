@@ -17,7 +17,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -441,7 +440,7 @@ func mapAssistantMessage(message corechat.Message, provider string) (openaisdk.C
 		assistant.Audio.ID = audioID
 	}
 	refusalKey := protocolRefusalExtensionKey(provider)
-	refusal, found, err := metadata.Decode[string](message.Metadata, refusalKey)
+	refusal, found, err := message.Metadata.Decode[string](refusalKey)
 	if err != nil {
 		return openaisdk.ChatCompletionMessageParamUnion{}, fmt.Errorf("metadata %q: %w", refusalKey, err)
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/openai/openai-go/v3/packages/respjson"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 const (
@@ -243,11 +242,11 @@ func assistantReplayState(message corechat.Message, provider, field string) (rea
 	for i := range message.Parts {
 		switch message.Parts[i].Kind {
 		case corechat.PartReasoning:
-			issuer, found, decodeErr := metadata.Decode[string](message.Parts[i].Metadata, textReasoningProviderKey)
+			issuer, found, decodeErr := message.Parts[i].Metadata.Decode[string](textReasoningProviderKey)
 			if decodeErr != nil {
 				return "", false, fmt.Errorf("parts[%d].metadata[%q]: %w", i, textReasoningProviderKey, decodeErr)
 			}
-			wireField, fieldFound, decodeErr := metadata.Decode[string](message.Parts[i].Metadata, textReasoningFieldKey)
+			wireField, fieldFound, decodeErr := message.Parts[i].Metadata.Decode[string](textReasoningFieldKey)
 			if decodeErr != nil {
 				return "", false, fmt.Errorf("parts[%d].metadata[%q]: %w", i, textReasoningFieldKey, decodeErr)
 			}
