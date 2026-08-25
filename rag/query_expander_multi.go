@@ -32,8 +32,8 @@ const defaultMultiQueryCount = 3
 
 // MultiQueryExpanderConfig configures [NewMultiQueryExpander].
 type MultiQueryExpanderConfig struct {
-	// ChatModel produces the variants. Required.
-	ChatModel chat.Model
+	// Model produces the variants. Required.
+	Model chat.Model
 
 	// IncludeOriginal prepends the original query to the variant list.
 	// Defaults to false.
@@ -52,8 +52,7 @@ type MultiQueryExpanderConfig struct {
 var _ Expander = (*multiQueryExpander)(nil)
 
 type multiQueryExpander struct {
-	chatClient      *chatclient.Client
-	promptTemplate  *chatclient.Template
+	prompt          modelPrompt
 	includeOriginal bool
 	numberOfQueries int
 }
@@ -66,16 +65,14 @@ type multiQueryPromptVariables struct {
 // NewMultiQueryExpander returns an [Expander] that asks an LLM for alternate
 // query phrasings.
 func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
-	if cfg.ChatModel == nil {
-		return nil, errors.New("rag: multi-query expander requires a chat model")
-	}
 	if cfg.NumberOfQueries < 0 {
 		return nil, errors.New("rag: number of expanded queries must not be negative")
 	}
 	if cfg.NumberOfQueries == 0 {
 		cfg.NumberOfQueries = defaultMultiQueryCount
 	}
-	promptTemplate, err := resolvePromptTemplate(
+	prompt, err := newModelPrompt(
+		cfg.Model,
 		cfg.PromptTemplate,
 		multiExpanderDefaultTemplate,
 		promptVariableNumber,
@@ -85,14 +82,8 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 		return nil, err
 	}
 
-	client, err := chatclient.New(cfg.ChatModel, chatclient.Config{})
-	if err != nil {
-		return nil, err
-	}
-
 	return &multiQueryExpander{
-		chatClient:      client,
-		promptTemplate:  promptTemplate,
+		prompt:          prompt,
 		includeOriginal: cfg.IncludeOriginal,
 		numberOfQueries: cfg.NumberOfQueries,
 	}, nil
@@ -106,7 +97,7 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return nil, err
 	}
 
-	expanded, err := callPrompt(ctx, m.chatClient, m.promptTemplate, multiQueryPromptVariables{
+	expanded, err := m.prompt.call(ctx, multiQueryPromptVariables{
 		Number: m.numberOfQueries,
 		Query:  query.Text(),
 	})
@@ -114,8 +105,7 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return nil, err
 	}
 
-	lines := strings.Split(expanded, "\n")
-	queries := make([]*Query, 0, len(lines)+1)
+	queries := make([]*Query, 0, m.numberOfQueries+1)
 	if m.includeOriginal {
 		queries = append(queries, query)
 	}
@@ -124,7 +114,7 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		limit++
 	}
 
-	for _, line := range lines {
+	for line := range strings.SplitSeq(expanded, "\n") {
 		if len(queries) >= limit {
 			break
 		}

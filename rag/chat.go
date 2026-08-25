@@ -3,7 +3,6 @@ package rag
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/chatclient"
@@ -23,6 +22,28 @@ const (
 // identity operation.
 var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 
+type modelPrompt struct {
+	generation chatclient.Generation[string]
+	template   *chatclient.Template
+}
+
+func newModelPrompt(
+	model chat.Model,
+	template *chatclient.Template,
+	fallback string,
+	required ...string,
+) (modelPrompt, error) {
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		return modelPrompt{}, err
+	}
+	template, err = resolvePromptTemplate(template, fallback, required...)
+	if err != nil {
+		return modelPrompt{}, err
+	}
+	return modelPrompt{generation: client.Output(chatclient.Text()), template: template}, nil
+}
+
 func resolvePromptTemplate(current *chatclient.Template, fallback string, required ...string) (*chatclient.Template, error) {
 	if current == nil {
 		var err error
@@ -37,53 +58,18 @@ func resolvePromptTemplate(current *chatclient.Template, fallback string, requir
 	return current, nil
 }
 
-func callPrompt(ctx context.Context, client *chatclient.Client, prompt *chatclient.Template, data any) (string, error) {
-	message, err := prompt.UserMessage(data)
+func (p modelPrompt) call(ctx context.Context, data any) (string, error) {
+	message, err := p.template.UserMessage(data)
 	if err != nil {
 		return "", err
 	}
-	response, err := client.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	text, err := p.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
 		return "", err
 	}
-	if response == nil {
-		return "", ErrNilChatResponse
-	}
-	text := strings.TrimSpace(response.Text())
+	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", ErrEmptyModelOutput
 	}
 	return text, nil
-}
-
-func formatChatHistory(messages []chat.Message) (string, error) {
-	var output strings.Builder
-	for messageIndex := range messages {
-		if err := messages[messageIndex].Validate(); err != nil {
-			return "", fmt.Errorf("rag: format chat history message %d: %w", messageIndex, err)
-		}
-		if output.Len() != 0 {
-			output.WriteString("\n\n")
-		}
-		fmt.Fprintf(&output, "%s: ", messages[messageIndex].Role)
-		for partIndex := range messages[messageIndex].Parts {
-			if partIndex != 0 {
-				output.WriteString(" ")
-			}
-			part := messages[messageIndex].Parts[partIndex]
-			switch part.Kind {
-			case chat.PartText:
-				output.WriteString(part.Text)
-			case chat.PartMedia:
-				fmt.Fprintf(&output, "[media %s]", part.Media.MIME)
-			case chat.PartReasoning:
-				output.WriteString("[reasoning omitted]")
-			case chat.PartToolCall:
-				fmt.Fprintf(&output, "[tool call %s %s]", part.ToolCall.Name, part.ToolCall.Arguments)
-			case chat.PartToolResult:
-				fmt.Fprintf(&output, "[tool result %s %s]", part.ToolResult.Name, part.ToolResult.Result)
-			}
-		}
-	}
-	return output.String(), nil
 }

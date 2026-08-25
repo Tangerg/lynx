@@ -2,7 +2,6 @@ package rag
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -25,8 +24,8 @@ const defaultRewriteTarget = "vector store"
 
 // RewriteTransformerConfig configures [NewRewriteTransformer].
 type RewriteTransformerConfig struct {
-	// ChatModel performs the rewrite. Required.
-	ChatModel chat.Model
+	// Model performs the rewrite. Required.
+	Model chat.Model
 
 	// TargetSearchSystem names the downstream search engine — "vector
 	// store", "web search engine", "database", etc. Defaults to
@@ -42,9 +41,8 @@ type RewriteTransformerConfig struct {
 var _ Transformer = (*rewriteTransformer)(nil)
 
 type rewriteTransformer struct {
-	chatClient         *chatclient.Client
+	prompt             modelPrompt
 	targetSearchSystem string
-	promptTemplate     *chatclient.Template
 }
 
 type rewritePromptVariables struct {
@@ -55,13 +53,11 @@ type rewritePromptVariables struct {
 // NewRewriteTransformer returns a [Transformer] that tightens a verbose or
 // ambiguous user query for a configured search target.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
-	if cfg.ChatModel == nil {
-		return nil, errors.New("rag: rewrite transformer requires a chat model")
-	}
 	if cfg.TargetSearchSystem == "" {
 		cfg.TargetSearchSystem = defaultRewriteTarget
 	}
-	promptTemplate, err := resolvePromptTemplate(
+	prompt, err := newModelPrompt(
+		cfg.Model,
 		cfg.PromptTemplate,
 		rewriteDefaultTemplate,
 		promptVariableTarget,
@@ -71,15 +67,9 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 		return nil, err
 	}
 
-	client, err := chatclient.New(cfg.ChatModel, chatclient.Config{})
-	if err != nil {
-		return nil, err
-	}
-
 	return &rewriteTransformer{
-		chatClient:         client,
+		prompt:             prompt,
 		targetSearchSystem: cfg.TargetSearchSystem,
-		promptTemplate:     promptTemplate,
 	}, nil
 }
 
@@ -90,7 +80,7 @@ func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Quer
 		return nil, err
 	}
 
-	rewritten, err := callPrompt(ctx, r.chatClient, r.promptTemplate, rewritePromptVariables{
+	rewritten, err := r.prompt.call(ctx, rewritePromptVariables{
 		Target: r.targetSearchSystem,
 		Query:  query.Text(),
 	})

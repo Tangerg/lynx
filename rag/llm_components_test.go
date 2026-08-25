@@ -138,28 +138,28 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 		},
 		"multi-query expander": func() error {
 			_, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
-				ChatModel:      model,
+				Model:          model,
 				PromptTemplate: prompt,
 			})
 			return err
 		},
 		"compression transformer": func() error {
 			_, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{
-				ChatModel:      model,
+				Model:          model,
 				PromptTemplate: prompt,
 			})
 			return err
 		},
 		"rewrite transformer": func() error {
 			_, err := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{
-				ChatModel:      model,
+				Model:          model,
 				PromptTemplate: prompt,
 			})
 			return err
 		},
 		"translation transformer": func() error {
 			_, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
-				ChatModel:      model,
+				Model:          model,
 				TargetLanguage: "English",
 				PromptTemplate: prompt,
 			})
@@ -179,7 +179,7 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	model := newFakeChatModel(t, " variant 1 \n\nvariant 2\nvariant 3")
 	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
-		ChatModel:       model,
+		Model:           model,
 		NumberOfQueries: 3,
 	})
 	if err != nil {
@@ -209,7 +209,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 	model := newFakeChatModel(t, "v1\nv2")
 	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
-		ChatModel:       model,
+		Model:           model,
 		NumberOfQueries: 2,
 		IncludeOriginal: true,
 	})
@@ -223,7 +223,7 @@ func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 
 func TestMultiQueryExpanderRejectsEmptyModelOutput(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{ChatModel: model})
+	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{Model: model})
 
 	q, _ := rag.NewQuery("orig")
 	if _, err := exp.Expand(t.Context(), q); !errors.Is(err, rag.ErrEmptyModelOutput) {
@@ -231,9 +231,13 @@ func TestMultiQueryExpanderRejectsEmptyModelOutput(t *testing.T) {
 	}
 }
 
-func TestMultiQueryExpanderConfig_RejectsMissingChatModel(t *testing.T) {
+func TestMultiQueryExpanderConfigRejectsMissingModel(t *testing.T) {
 	if _, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{}); err == nil {
-		t.Fatal("missing ChatModel must error")
+		t.Fatal("missing Model must error")
+	}
+	var typedNilModel *fakeChatModel
+	if _, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{Model: typedNilModel}); err == nil {
+		t.Fatal("typed nil Model must error")
 	}
 }
 
@@ -241,7 +245,7 @@ func TestMultiQueryExpanderConfig_RejectsMissingChatModel(t *testing.T) {
 
 func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	model := newFakeChatModel(t, "compressed query")
-	tr, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{ChatModel: model})
+	tr, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +273,7 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 
 func TestCompressionTransformerRejectsEmptyModelOutput(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	tr, _ := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{ChatModel: model})
+	tr, _ := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{Model: model})
 
 	q, _ := rag.NewQuery("orig")
 	if _, err := tr.Transform(t.Context(), q); !errors.Is(err, rag.ErrEmptyModelOutput) {
@@ -281,7 +285,7 @@ func TestCompressionTransformerRejectsEmptyModelOutput(t *testing.T) {
 
 func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened query")
-	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{ChatModel: model})
+	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{Model: model})
 
 	q, _ := rag.NewQuery("user input")
 	if _, err := tr.Transform(t.Context(), q); err != nil {
@@ -295,7 +299,7 @@ func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened")
 	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{
-		ChatModel:          model,
+		Model:              model,
 		TargetSearchSystem: "elasticsearch",
 	})
 
@@ -310,7 +314,7 @@ func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 
 func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{ChatModel: model}); err == nil {
+	if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{Model: model}); err == nil {
 		t.Fatal("missing TargetLanguage must error")
 	}
 }
@@ -318,7 +322,7 @@ func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 func TestTranslationTransformer_TranslatesText(t *testing.T) {
 	model := newFakeChatModel(t, "你好")
 	tr, _ := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
-		ChatModel:      model,
+		Model:          model,
 		TargetLanguage: "Chinese",
 	})
 
@@ -337,7 +341,7 @@ func TestTranslationTransformer_PropagatesError(t *testing.T) {
 	model.err = errors.New("boom")
 
 	tr, _ := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
-		ChatModel:      model,
+		Model:          model,
 		TargetLanguage: "English",
 	})
 

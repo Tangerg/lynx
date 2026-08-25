@@ -2,8 +2,8 @@ package rag
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -26,8 +26,8 @@ Standalone query:`
 
 // CompressionTransformerConfig configures [NewCompressionTransformer].
 type CompressionTransformerConfig struct {
-	// ChatModel performs the compression. Required.
-	ChatModel chat.Model
+	// Model performs the compression. Required.
+	Model chat.Model
 
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [compressionDefaultTemplate]. Custom templates must declare
@@ -38,8 +38,7 @@ type CompressionTransformerConfig struct {
 var _ Transformer = (*compressionTransformer)(nil)
 
 type compressionTransformer struct {
-	chatClient     *chatclient.Client
-	promptTemplate *chatclient.Template
+	prompt modelPrompt
 }
 
 type compressionPromptVariables struct {
@@ -51,10 +50,8 @@ type compressionPromptVariables struct {
 // plus a follow-up question into a single self-contained query. It reads chat
 // history from the query value stored under [ChatHistoryValueKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
-	if cfg.ChatModel == nil {
-		return nil, errors.New("rag: compression transformer requires a chat model")
-	}
-	promptTemplate, err := resolvePromptTemplate(
+	prompt, err := newModelPrompt(
+		cfg.Model,
 		cfg.PromptTemplate,
 		compressionDefaultTemplate,
 		promptVariableHistory,
@@ -64,15 +61,7 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, e
 		return nil, err
 	}
 
-	client, err := chatclient.New(cfg.ChatModel, chatclient.Config{})
-	if err != nil {
-		return nil, err
-	}
-
-	return &compressionTransformer{
-		chatClient:     client,
-		promptTemplate: promptTemplate,
-	}, nil
+	return &compressionTransformer{prompt: prompt}, nil
 }
 
 // Transform asks the LLM for a self-contained version of the query.
@@ -87,7 +76,7 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, err
 	}
 
-	compressed, err := callPrompt(ctx, c.chatClient, c.promptTemplate, compressionPromptVariables{
+	compressed, err := c.prompt.call(ctx, compressionPromptVariables{
 		History: history,
 		Query:   query.Text(),
 	})
@@ -109,5 +98,37 @@ func (c *compressionTransformer) extractHistory(query *Query) (string, error) {
 	if !exists {
 		return "", nil
 	}
-	return formatChatHistory(messages)
+	return c.formatHistory(messages)
+}
+
+func (c *compressionTransformer) formatHistory(messages []chat.Message) (string, error) {
+	var output strings.Builder
+	for messageIndex := range messages {
+		if err := messages[messageIndex].Validate(); err != nil {
+			return "", fmt.Errorf("rag: format chat history message %d: %w", messageIndex, err)
+		}
+		if output.Len() != 0 {
+			output.WriteString("\n\n")
+		}
+		fmt.Fprintf(&output, "%s: ", messages[messageIndex].Role)
+		for partIndex := range messages[messageIndex].Parts {
+			if partIndex != 0 {
+				output.WriteString(" ")
+			}
+			part := messages[messageIndex].Parts[partIndex]
+			switch part.Kind {
+			case chat.PartText:
+				output.WriteString(part.Text)
+			case chat.PartMedia:
+				fmt.Fprintf(&output, "[media %s]", part.Media.MIME)
+			case chat.PartReasoning:
+				output.WriteString("[reasoning omitted]")
+			case chat.PartToolCall:
+				fmt.Fprintf(&output, "[tool call %s %s]", part.ToolCall.Name, part.ToolCall.Arguments)
+			case chat.PartToolResult:
+				fmt.Fprintf(&output, "[tool result %s %s]", part.ToolResult.Name, part.ToolResult.Result)
+			}
+		}
+	}
+	return output.String(), nil
 }

@@ -23,8 +23,8 @@ Translated query:`
 
 // TranslationTransformerConfig configures [NewTranslationTransformer].
 type TranslationTransformerConfig struct {
-	// ChatModel performs the translation. Required.
-	ChatModel chat.Model
+	// Model performs the translation. Required.
+	Model chat.Model
 
 	// TargetLanguage is the language the embedding model expects —
 	// "English", "Chinese", "Spanish", etc. Required.
@@ -39,9 +39,8 @@ type TranslationTransformerConfig struct {
 var _ Transformer = (*translationTransformer)(nil)
 
 type translationTransformer struct {
-	chatClient     *chatclient.Client
+	prompt         modelPrompt
 	targetLanguage string
-	promptTemplate *chatclient.Template
 }
 
 type translationPromptVariables struct {
@@ -52,13 +51,11 @@ type translationPromptVariables struct {
 // NewTranslationTransformer returns a [Transformer] that translates queries
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
-	if cfg.ChatModel == nil {
-		return nil, errors.New("rag: translation transformer requires a chat model")
-	}
 	if cfg.TargetLanguage == "" {
 		return nil, errors.New("rag: translation target language is required")
 	}
-	promptTemplate, err := resolvePromptTemplate(
+	prompt, err := newModelPrompt(
+		cfg.Model,
 		cfg.PromptTemplate,
 		translationDefaultTemplate,
 		promptVariableTarget,
@@ -68,15 +65,9 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 		return nil, err
 	}
 
-	client, err := chatclient.New(cfg.ChatModel, chatclient.Config{})
-	if err != nil {
-		return nil, err
-	}
-
 	return &translationTransformer{
-		chatClient:     client,
+		prompt:         prompt,
 		targetLanguage: cfg.TargetLanguage,
-		promptTemplate: promptTemplate,
 	}, nil
 }
 
@@ -87,7 +78,7 @@ func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, err
 	}
 
-	translated, err := callPrompt(ctx, t.chatClient, t.promptTemplate, translationPromptVariables{
+	translated, err := t.prompt.call(ctx, translationPromptVariables{
 		Target: t.targetLanguage,
 		Query:  query.Text(),
 	})
