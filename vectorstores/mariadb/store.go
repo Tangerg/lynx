@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "MariaDB"
@@ -124,7 +125,7 @@ func (c StoreConfig) Validate() error {
 	if c.SchemaName != "" {
 		checks["SchemaName"] = c.SchemaName
 	}
-	return validateIdentifiers("mariadb", checks)
+	return identifier.Strict.Validate("mariadb", checks)
 }
 
 // applyDefaults fills zero fields with documented defaults.

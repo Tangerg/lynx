@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "TiDB"
@@ -115,7 +116,7 @@ func (c StoreConfig) Validate() error {
 	if c.SchemaName != "" {
 		checks["SchemaName"] = c.SchemaName
 	}
-	return validateIdentifiers("tidb", checks)
+	return identifier.Strict.Validate("tidb", checks)
 }
 
 // applyDefaults fills zero fields with documented defaults.
