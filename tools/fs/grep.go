@@ -47,7 +47,7 @@ var _ toolcontract.Tool = (*GrepTool)(nil)
 // GrepTool is the thin LLM-facing adapter for [Executor.Grep].
 type GrepTool struct {
 	executor Executor
-	typed    *toolcontract.Func[GrepRequest, GrepResponse]
+	typed    toolcontract.Func[GrepRequest, GrepResponse]
 }
 
 // NewGrepTool builds a [GrepTool] backed by executor. Passing nil

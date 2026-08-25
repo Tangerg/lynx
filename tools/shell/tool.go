@@ -32,7 +32,7 @@ var _ toolcontract.Tool = (*Tool)(nil)
 // Tool runs a shell command via the supplied [Executor].
 type Tool struct {
 	executor Executor
-	typed    *toolcontract.Func[Request, Response]
+	typed    toolcontract.Func[Request, Response]
 }
 
 // NewTool builds a [Tool] backed by executor. Passing nil wires up

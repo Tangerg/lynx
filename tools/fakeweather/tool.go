@@ -143,7 +143,7 @@ var _ toolcontract.Tool = (*Tool)(nil)
 // Construct with [New].
 type Tool struct {
 	writer io.Writer
-	typed  *toolcontract.Func[Request, *Response]
+	typed  toolcontract.Func[Request, *Response]
 }
 
 // New returns a Tool that writes its trace lines to writer. Pass nil

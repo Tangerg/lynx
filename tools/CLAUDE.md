@@ -16,7 +16,7 @@
 - **两层 SPI 是核心**:Tool 层只做 JSON ↔ Go + schema 校验 + LLM 交互;**所有业务逻辑**(行号、binary 检测、写锁、路径锚定 …)都在 Executor 层 —— 这样远程 backend 能独立优化,不必往返整个文件。
 - **手动注册,无全局 registry**:调用方显式把工具注册进自己的 toolset,多 agent / 多进程各管各的。
 - **只有一套可执行 Tool 身份**：`tools.Registry` 只管理普通 `tool.Tool`；Agent Framework `interaction.Dispatcher` 冻结同一批 Tool，不建立第二套 Tool 类型、可变 registry 或 bridge。
-- **schema 归单工具层**：`tool.NewFunc` 从 Input struct 派生 schema；手写具体 Tool 使用 `tool.Schema` / `tool.MustSchema`，不在本 family 复制 schema 内核。
+- **schema 归单工具层**：`tool.NewFunc` 从 Input struct 派生 schema；手写具体 Tool 使用 `tool.Schema`，不在本 family 复制 schema 内核。
 - **typed helper 不承载 runtime policy**：`tool.NewFunc` 不处理并发、重试、HITL、直接返回或 Tool loop 终止；这些属于 `agent/interaction` 与 Host adapter。
 - **Nil-safety 双标**:有本地实现的(shell / fs 等)`New(nil)` 默认本地、开箱即用;必须外部配置的(websearch / webfetch / httpreq)`New(nil)` **返错** —— 没有本地 fallback。
 - **输出超限截断而非报错**:带 truncated 标记,LLM 据此决定下一步。

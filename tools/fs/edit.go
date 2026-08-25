@@ -29,7 +29,7 @@ var _ toolcontract.Tool = (*EditTool)(nil)
 // can swap match policy without changing the tool.
 type EditTool struct {
 	executor Executor
-	typed    *toolcontract.Func[EditRequest, EditResponse]
+	typed    toolcontract.Func[EditRequest, EditResponse]
 }
 
 // NewEditTool builds an [EditTool] backed by executor. Passing nil

@@ -27,7 +27,7 @@ var _ toolcontract.Tool = (*GlobTool)(nil)
 // GlobTool is the thin LLM-facing adapter for [Executor.Glob].
 type GlobTool struct {
 	executor Executor
-	typed    *toolcontract.Func[GlobRequest, GlobResponse]
+	typed    toolcontract.Func[GlobRequest, GlobResponse]
 }
 
 // NewGlobTool builds a [GlobTool] backed by executor. Passing nil

@@ -25,7 +25,7 @@ var _ toolcontract.Tool = (*WriteTool)(nil)
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {
 	executor Executor
-	typed    *toolcontract.Func[WriteRequest, WriteResponse]
+	typed    toolcontract.Func[WriteRequest, WriteResponse]
 }
 
 // NewWriteTool builds a [WriteTool] backed by executor. Passing nil

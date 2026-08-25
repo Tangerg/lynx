@@ -34,7 +34,7 @@ var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 // ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {
 	executor Executor
-	typed    *toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
+	typed    toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
 // NewApplyPatchTool builds an [ApplyPatchTool] backed by executor. Passing nil

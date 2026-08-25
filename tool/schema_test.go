@@ -70,8 +70,26 @@ func TestSchemaSupportsCollectionsAndPointers(t *testing.T) {
 	if _, err := tool.Schema[*input](); err != nil {
 		t.Fatal(err)
 	}
-	if schema, err := tool.Schema[map[string][]int](); err != nil || !strings.Contains(schema, `"additionalProperties":{"type":"array"`) {
+	if schema, err := tool.Schema[map[string][]int](); err != nil || !strings.Contains(string(schema), `"additionalProperties":{"type":"array"`) {
 		t.Fatalf("map schema = %q, %v", schema, err)
+	}
+}
+
+func TestSchemaReturnsIndependentJSON(t *testing.T) {
+	type input struct {
+		Value string `json:"value"`
+	}
+	first, err := tool.Schema[input]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := tool.Schema[input]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first[0] = '['
+	if second[0] != '{' {
+		t.Fatal("mutating returned schema changed another schema snapshot")
 	}
 }
 

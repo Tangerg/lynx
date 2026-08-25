@@ -93,6 +93,16 @@ func TestNewFuncRejectsInvalidConstruction(t *testing.T) {
 	}
 }
 
+func TestFuncZeroValueIsInvalidWithoutNilState(t *testing.T) {
+	var function tool.Func[struct{}, string]
+	if definition := function.Definition(); definition.Name != "" || definition.InputSchema != nil {
+		t.Fatalf("zero Definition = %#v", definition)
+	}
+	if _, err := function.Call(t.Context(), `{}`); !errors.Is(err, tool.ErrInvalidTool) {
+		t.Fatalf("zero Call error = %v, want ErrInvalidTool", err)
+	}
+}
+
 func TestFuncDecodesStrictObjectArguments(t *testing.T) {
 	type optionalInput struct {
 		Value string `json:"value,omitempty"`

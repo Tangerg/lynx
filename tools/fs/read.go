@@ -31,7 +31,7 @@ var _ toolcontract.Tool = (*ReadTool)(nil)
 // ReadTool is the thin LLM-facing adapter for [Executor.Read].
 type ReadTool struct {
 	executor Executor
-	typed    *toolcontract.Func[ReadRequest, ReadResponse]
+	typed    toolcontract.Func[ReadRequest, ReadResponse]
 }
 
 // NewReadTool builds a [ReadTool] backed by executor. Passing nil

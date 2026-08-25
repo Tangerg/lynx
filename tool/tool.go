@@ -3,7 +3,6 @@ package tool
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -20,17 +19,4 @@ var ErrInvalidTool = errors.New("tool: invalid tool")
 type Tool interface {
 	Definition() chat.ToolDefinition
 	Call(ctx context.Context, arguments string) (string, error)
-}
-
-func nilTool(value Tool) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
