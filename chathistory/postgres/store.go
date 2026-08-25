@@ -5,14 +5,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/lynx/chathistory"
+	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
+
+var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validIdentifier(value string) bool {
+	return identifierPattern.MatchString(value)
+}
 
 // Default identifiers used when [Config] leaves them blank.
 const (
@@ -91,7 +99,8 @@ var (
 // conversations don't contend on a per-conversation counter; ordering
 // inside a single conversation is recovered by ORDER BY seq.
 type Store struct {
-	pool *pgxpool.Pool
+	pool  *pgxpool.Pool
+	codec historystorage.MessageCodec
 
 	// Pre-formatted SQL — interpolated identifiers are validated at
 	// construction time so the hot path is plain parameter binding.
@@ -178,7 +187,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := encodeMessages(messages)
+	encoded, err := s.codec.Encode(messages)
 	if err != nil {
 		return fmt.Errorf("postgres: write: encode messages: %w", err)
 	}
@@ -216,7 +225,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 		if err := rows.Scan(&raw); err != nil {
 			return nil, fmt.Errorf("postgres: read: scan message: %w", err)
 		}
-		message, err := decodeMessage(raw)
+		message, err := s.codec.Decode(raw)
 		if err != nil {
 			return nil, fmt.Errorf("postgres: read: decode message: %w", err)
 		}

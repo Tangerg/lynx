@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Tangerg/lynx/chathistory"
+	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -40,7 +41,8 @@ var (
 // Store is a Cosmos DB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	container *azcosmos.ContainerClient
-	sequence  sequenceGenerator
+	codec     historystorage.MessageCodec
+	sequence  historystorage.Sequence
 }
 
 // New builds a [Store] from cfg.
@@ -75,7 +77,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := encodeMessages(messages)
+	encoded, err := s.codec.Encode(messages)
 	if err != nil {
 		return fmt.Errorf("cosmosdb: write: encode messages: %w", err)
 	}
@@ -147,7 +149,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 	slices.SortFunc(documents, compareDocuments)
 	storedMessages = make([]chat.Message, 0, len(documents))
 	for index, document := range documents {
-		message, err := decodeMessage([]byte(document.Message))
+		message, err := s.codec.Decode([]byte(document.Message))
 		if err != nil {
 			return nil, fmt.Errorf("cosmosdb: read: decode message %d: %w", index, err)
 		}

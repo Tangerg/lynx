@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Tangerg/lynx/chathistory"
+	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -23,6 +25,11 @@ var scanPatternEscaper = strings.NewReplacer(
 	`[`, `\[`,
 	`]`, `\]`,
 )
+
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	return !reflected.IsValid() || (reflected.Kind() == reflect.Pointer && reflected.IsNil())
+}
 
 // Config configures [New]. Only [Config.Client] is required.
 type Config struct {
@@ -62,6 +69,7 @@ type Store struct {
 	client    goredis.UniversalClient
 	keyPrefix string
 	ttl       time.Duration
+	codec     historystorage.MessageCodec
 }
 
 // New builds a [Store] from cfg.
@@ -98,7 +106,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := encodeMessages(messages)
+	encoded, err := s.codec.Encode(messages)
 	if err != nil {
 		return fmt.Errorf("redis: write: encode messages: %w", err)
 	}
@@ -141,7 +149,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 
 	storedMessages = make([]chat.Message, 0, len(encodedMessages))
 	for index, raw := range encodedMessages {
-		message, err := decodeMessage([]byte(raw))
+		message, err := s.codec.Decode([]byte(raw))
 		if err != nil {
 			return nil, fmt.Errorf("redis: read: decode message %d: %w", index, err)
 		}

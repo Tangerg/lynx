@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/Tangerg/lynx/chathistory"
+	historystorage "github.com/Tangerg/lynx/chathistory/internal/storage"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -50,7 +51,8 @@ var (
 // Store is a MongoDB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	collection *mongo.Collection
-	sequence   sequenceGenerator
+	codec      historystorage.MessageCodec
+	sequence   historystorage.Sequence
 }
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
@@ -95,7 +97,7 @@ func (s *Store) Write(ctx context.Context, conversationID chathistory.Conversati
 		return nil
 	}
 
-	encoded, err := encodeMessages(messages)
+	encoded, err := s.codec.Encode(messages)
 	if err != nil {
 		return fmt.Errorf("mongodb: write: encode messages: %w", err)
 	}
@@ -155,7 +157,7 @@ func (s *Store) Read(ctx context.Context, conversationID chathistory.Conversatio
 		if document.Sequence <= 0 {
 			return nil, fmt.Errorf("mongodb: read: document %s has invalid sequence %d", document.ID.Hex(), document.Sequence)
 		}
-		message, err := decodeMessage([]byte(document.Message))
+		message, err := s.codec.Decode([]byte(document.Message))
 		if err != nil {
 			return nil, fmt.Errorf("mongodb: read: decode message %d: %w", index, err)
 		}
