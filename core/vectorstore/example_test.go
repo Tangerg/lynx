@@ -9,17 +9,17 @@ import (
 
 func Example() {
 	expr := filter.EQ("category", "wildlife")
-	request := vectorstore.SearchRequest{
-		Query:    "lynx habitat",
-		TopK:     5,
-		MinScore: 0.7,
-		Filter:   expr,
+	request := &vectorstore.SearchRequest{
+		Query: "lynx habitat",
+		Options: vectorstore.SearchOptions{
+			TopK: 5, MinScore: 0.7, Filter: expr,
+		},
 	}
 	if err := request.Validate(); err != nil {
 		panic(err)
 	}
 
-	fmt.Println(request.Query, request.TopK, request.MinScore, expr.Op)
+	fmt.Println(request.Query, request.Options.TopK, request.Options.MinScore, expr.Operator())
 	// Output:
 	// lynx habitat 5 0.7 ==
 }

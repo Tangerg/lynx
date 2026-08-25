@@ -224,21 +224,22 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 	}, nil
 }
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("milvus.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("milvus.Store.Index: %w", err)
 	}
-	if err := validateProviderDocuments(docs); err != nil {
-		return fmt.Errorf("milvus.Store.Add: %w", err)
+	if err := validateProviderDocuments(request.Documents); err != nil {
+		return fmt.Errorf("milvus.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("milvus: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("milvus: embed documents: %w", err)
@@ -271,14 +272,14 @@ func validateProviderDocuments(docs []*document.Document) error {
 	return nil
 }
 
-func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]vectorstore.Match, error) {
+func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore vectorstore.Score) ([]*vectorstore.SearchResult, error) {
 	if len(rs.Scores) != rs.Len() {
 		return nil, fmt.Errorf("milvus: search returned %d scores for %d rows", len(rs.Scores), rs.Len())
 	}
 	if rs.Len() == 0 {
 		return nil, nil
 	}
-	docs := make([]vectorstore.Match, 0, rs.Len())
+	docs := make([]*vectorstore.SearchResult, 0, rs.Len())
 
 	idCol := rs.GetColumn(fieldID)
 	contentCol := rs.GetColumn(fieldContent)
@@ -323,31 +324,32 @@ func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 		}
 
 		doc := &document.Document{ID: id, Text: text, Metadata: decodedMetadata}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) normalizeScore(raw float64) float64 {
+func (s *Store) normalizeScore(raw float64) vectorstore.Score {
 	switch s.metricType {
 	case entity.L2:
-		return vectorstore.NormalizeDistance(raw)
+		return vectorstore.ScoreFromDistance(raw)
 	case entity.IP, entity.COSINE:
-		return vectorstore.NormalizeCosineSimilarity(raw)
+		return vectorstore.ScoreFromCosineSimilarity(raw)
 	default:
-		return vectorstore.NormalizeScore(raw)
+		return vectorstore.ScoreFromValue(raw)
 	}
 }
 
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("milvus.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -359,12 +361,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	queryVec := entity.FloatVector(embedding.Float32Vector(vector))
 
-	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.TopK), []entity.Vector{queryVec}).
+	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.Options.TopK), []entity.Vector{queryVec}).
 		WithANNSField(fieldVector).
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 
-	if req.Filter != nil {
-		filterExpr, filterErr := ToFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filterExpr, filterErr := ToFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, fmt.Errorf("milvus: convert filter: %w", filterErr)
 		}
@@ -380,19 +382,19 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, nil
 	}
 
-	docs, err = s.buildDocumentsFromResults(results[0], float64(req.MinScore))
+	docs, err = s.buildDocumentsFromResults(results[0], req.Options.MinScore)
 	if err != nil {
 		return nil, fmt.Errorf("milvus: build documents from results: %w", err)
 	}
 
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("milvus.Store.DeleteWhere: %w", err)
 	}
 

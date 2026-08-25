@@ -15,7 +15,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := elasticsearch.NewVisitor("metadata")
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -47,7 +47,7 @@ func TestVisitor_NullTest(t *testing.T) {
 				t.Fatalf("parse %q: %v", tt.src, err)
 			}
 			v := elasticsearch.NewVisitor("metadata")
-			if err := v.Visit(expr); err != nil {
+			if err := expr.Accept(v); err != nil {
 				t.Fatalf("visit %q: %v", tt.src, err)
 			}
 			if got := v.Result(); got != tt.want {
@@ -60,7 +60,7 @@ func TestVisitor_NullTest(t *testing.T) {
 func TestVisitor_CollectionMembershipUsesExactFieldQuery(t *testing.T) {
 	expr := filter.Has("visible_to", "user-42")
 	visitor := elasticsearch.NewVisitor("metadata")
-	if err := visitor.Visit(expr); err != nil {
+	if err := expr.Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := visitor.Result(), `metadata.visible_to:"user-42"`; got != want {

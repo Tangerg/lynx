@@ -9,7 +9,7 @@ import (
 
 func TestVisitorCollectionMembershipUsesExactArrayMatch(t *testing.T) {
 	visitor := typesense.NewVisitor("metadata")
-	if err := visitor.Visit(filter.Has("visible_to", "user-42")); err != nil {
+	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := visitor.Result(), "metadata.visible_to:= user-42"; got != want {

@@ -72,8 +72,11 @@ var wireFixtureCoverage = map[string]string{
 	"transcription.ResponseMetadata": "transcription_response",
 	"transcription.Result":           "transcription_response",
 	"transcription.ResultMetadata":   "transcription_response",
-	"vectorstore.Match":              "vectorstore_match",
+	"vectorstore.IndexRequest":       "vectorstore_index_request",
+	"vectorstore.SearchOptions":      "vectorstore_search_request",
 	"vectorstore.SearchRequest":      "vectorstore_search_request",
+	"vectorstore.SearchResponse":     "vectorstore_search_response",
+	"vectorstore.SearchResult":       "vectorstore_search_response",
 }
 
 func TestWireTypeCoverage(t *testing.T) {

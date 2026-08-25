@@ -20,7 +20,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := mongodb.NewVisitor("metadata")
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -43,7 +43,7 @@ func build(t *testing.T, src string) (map[string]any, error) {
 		return nil, err
 	}
 	v := mongodb.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return nil, err
 	}
 	return v.Result(), nil

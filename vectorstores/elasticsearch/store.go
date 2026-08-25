@@ -271,4 +271,4 @@ func (s *Store) createIndex(ctx context.Context) error {
 	return nil
 }
 
-// Add embeds the documents and bulk-indexes them.
+// Index embeds the documents and bulk-indexes them.

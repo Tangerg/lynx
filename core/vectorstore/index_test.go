@@ -18,7 +18,7 @@ func (f batcherFunc) Batch(
 	return f(ctx, documents)
 }
 
-func TestValidateDocuments(t *testing.T) {
+func TestIndexRequestValidate(t *testing.T) {
 	valid := func(id string) *document.Document {
 		return &document.Document{ID: id, Text: "content"}
 	}
@@ -38,46 +38,55 @@ func TestValidateDocuments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := vectorstore.ValidateDocuments(test.documents); !errors.Is(err, test.want) {
-				t.Fatalf("ValidateDocuments() error = %v, want %v", err, test.want)
+			request := &vectorstore.IndexRequest{Documents: test.documents}
+			if err := request.Validate(); !errors.Is(err, test.want) {
+				t.Fatalf("IndexRequest.Validate() error = %v, want %v", err, test.want)
 			}
 		})
 	}
 }
 
-func TestBatchDocuments(t *testing.T) {
-	documents := []*document.Document{{ID: "a"}, {ID: "b"}, {ID: "c"}}
-	batches, err := vectorstore.BatchDocuments(t.Context(), batcherFunc(func(
+func TestIndexRequestBatch(t *testing.T) {
+	documents := []*document.Document{{ID: "a", Text: "a"}, {ID: "b", Text: "b"}, {ID: "c", Text: "c"}}
+	request, err := vectorstore.NewIndexRequest(documents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batches, err := request.Batch(t.Context(), batcherFunc(func(
 		_ context.Context,
 		input []*document.Document,
 	) ([][]*document.Document, error) {
 		return [][]*document.Document{input[:2], input[2:]}, nil
-	}), documents)
+	}))
 	if err != nil {
-		t.Fatalf("BatchDocuments: %v", err)
+		t.Fatalf("IndexRequest.Batch: %v", err)
 	}
 	if len(batches) != 2 {
 		t.Fatalf("batch count = %d, want 2", len(batches))
 	}
 }
 
-func TestBatchDocumentsRejectsInvalidPartitions(t *testing.T) {
-	documents := []*document.Document{{ID: "a"}, {ID: "b"}}
+func TestIndexRequestBatchRejectsInvalidPartitions(t *testing.T) {
+	documents := []*document.Document{{ID: "a", Text: "a"}, {ID: "b", Text: "b"}}
 	tests := map[string][][]*document.Document{
 		"missing document": {documents[:1]},
 		"reordered":        {{documents[1], documents[0]}},
 		"duplicate":        {{documents[0], documents[0]}},
 		"empty batch":      {documents[:1], nil, documents[1:]},
-		"extra document":   {documents, {{ID: "c"}}},
+		"extra document":   {documents, {{ID: "c", Text: "c"}}},
 	}
 	for name, output := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := vectorstore.BatchDocuments(t.Context(), batcherFunc(func(
+			request, err := vectorstore.NewIndexRequest(documents)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = request.Batch(t.Context(), batcherFunc(func(
 				context.Context,
 				[]*document.Document,
 			) ([][]*document.Document, error) {
 				return output, nil
-			}), documents)
+			}))
 			if !errors.Is(err, vectorstore.ErrInvalidBatcherOutput) {
 				t.Fatalf("error = %v, want ErrInvalidBatcherOutput", err)
 			}
@@ -85,14 +94,18 @@ func TestBatchDocumentsRejectsInvalidPartitions(t *testing.T) {
 	}
 }
 
-func TestBatchDocumentsPreservesBatcherError(t *testing.T) {
+func TestIndexRequestBatchPreservesBatcherError(t *testing.T) {
 	want := errors.New("batch failed")
-	_, err := vectorstore.BatchDocuments(t.Context(), batcherFunc(func(
+	request, err := vectorstore.NewIndexRequest([]*document.Document{{ID: "a", Text: "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = request.Batch(t.Context(), batcherFunc(func(
 		context.Context,
 		[]*document.Document,
 	) ([][]*document.Document, error) {
 		return nil, want
-	}), nil)
+	}))
 	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want %v", err, want)
 	}

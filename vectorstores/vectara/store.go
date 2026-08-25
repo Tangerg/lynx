@@ -115,16 +115,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Add uploads documents to the corpus via Vectara's index API. The
+// Index uploads documents to the corpus via Vectara's index API. The
 // service performs its own embedding internally, so no embedding
 // client is required here.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("vectara.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("vectara.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("vectara: batch documents: %w", err)
 	}
@@ -132,7 +132,8 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	path := fmt.Sprintf("/%s/corpora/%s/documents",
 		DefaultAPIVersion, url.PathEscape(s.corpusKey))
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		for _, doc := range docs {
 			id := doc.ID
 			metadataValues, err := doc.Metadata.Values()
@@ -156,21 +157,22 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs a Vectara semantic search.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vectara.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
 	searchOpts := map[string]any{
-		"limit": req.TopK,
+		"limit": req.Options.TopK,
 	}
-	filterFragment, err := s.buildFilter(req.Filter)
+	filterFragment, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +204,13 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("vectara: decode query response: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(parsed.SearchResults))
+	docs = make([]*vectorstore.SearchResult, 0, len(parsed.SearchResults))
 	for i, hit := range parsed.SearchResults {
 		if hit.Score == nil {
 			return nil, errors.New("vectara: search result is missing score")
 		}
-		score := vectorstore.NormalizeScore(*hit.Score)
-		if score < req.MinScore {
+		score := vectorstore.ScoreFromValue(*hit.Score)
+		if score < req.Options.MinScore {
 			continue
 		}
 		if hit.DocumentID == "" {
@@ -221,22 +223,23 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if err != nil {
 			return nil, fmt.Errorf("vectara: convert metadata: %w", err)
 		}
-		docs = append(docs, vectorstore.Match{
+		docs = append(docs, &vectorstore.SearchResult{
 			Document: &document.Document{ID: hit.DocumentID, Text: hit.Text, Metadata: metadata},
 			Score:    score,
 		})
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter via Vectara's
 // document-level delete endpoint. Vectara has no bulk filter-delete,
 // so matching ids are enumerated first, then deleted one-by-one.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("vectara.Store.DeleteWhere: %w", err)
 	}
 
@@ -291,7 +294,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(s.metadataPrefix)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("vectara: convert filter: %w", err)
 	}
 	return v.Result(), nil

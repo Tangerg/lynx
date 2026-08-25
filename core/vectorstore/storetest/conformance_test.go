@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/storetest"
@@ -12,11 +11,11 @@ import (
 
 type allCapabilities struct{}
 
-func (allCapabilities) Add(context.Context, []*document.Document) error {
+func (allCapabilities) Index(context.Context, *vectorstore.IndexRequest) error {
 	return vectorstore.ErrInvalidDocument
 }
-func (allCapabilities) Search(context.Context, vectorstore.SearchRequest) ([]vectorstore.Match, error) {
-	return nil, vectorstore.SearchRequest{}.Validate()
+func (allCapabilities) Search(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
+	return nil, (&vectorstore.SearchRequest{}).Validate()
 }
 func (allCapabilities) DeleteIDs(context.Context, []string) error { return nil }
 func (allCapabilities) DeleteWhere(context.Context, filter.Predicate) error {
@@ -31,7 +30,8 @@ func TestRun(t *testing.T) {
 
 type validatingCapabilities struct{ allCapabilities }
 
-func (validatingCapabilities) Add(_ context.Context, docs []*document.Document) error {
+func (validatingCapabilities) Index(_ context.Context, request *vectorstore.IndexRequest) error {
+	docs := request.Documents
 	switch {
 	case len(docs) == 0:
 		return vectorstore.ErrEmptyDocuments

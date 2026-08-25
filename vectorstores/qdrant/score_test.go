@@ -25,7 +25,7 @@ func TestScoreNormalization(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			store := Store{distanceMetric: test.metric}
-			if got := store.normalizeScore(test.raw); math.Abs(got-test.want) > 1e-12 {
+			if got := store.normalizeScore(test.raw); math.Abs(got.Float64()-test.want) > 1e-12 {
 				t.Fatalf("normalizeScore(%v) = %v, want %v", test.raw, got, test.want)
 			}
 		})
@@ -43,7 +43,7 @@ func TestRawScoreThresholdRoundTrips(t *testing.T) {
 			if !ok {
 				t.Fatal("rawScoreThreshold() ok = false, want true")
 			}
-			if got := store.normalizeScore(raw); math.Abs(got-0.75) > 1e-12 {
+			if got := store.normalizeScore(raw); math.Abs(got.Float64()-0.75) > 1e-12 {
 				t.Fatalf("threshold round trip = %v, want 0.75", got)
 			}
 		})

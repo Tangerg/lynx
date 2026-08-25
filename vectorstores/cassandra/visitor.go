@@ -66,45 +66,45 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.IsLogicalOperator():
-		if expr.Op.Is(filter.OpOr) {
+	case expr.Operator().IsLogicalOperator():
+		if expr.Operator().Is(filter.OpOr) {
 			// CQL doesn't support OR on regular columns; SAI indexes
 			// can do it via composite predicates but it's a special
 			// case best handled by the caller.
 			return errors.New("cassandra: OR is not supported in CQL WHERE clauses")
 		}
 		return v.visitAnd(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return fmt.Errorf("cassandra: HAS requires a declared collection column type, which this scalar metadata schema does not provide at %s",
 			expr.Start().String())
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
 		return fmt.Errorf("cassandra: unsupported binary operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 }
 
 func (v *Visitor) visitAnd(expr *filter.BinaryExpr) error {
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(" AND ")
-	return v.visit(expr.Right)
+	return v.visit(expr.Right())
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	column, err := columnName(expr.Left)
+	column, err := columnName(expr.Left())
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := cqlOpFor(expr.Op)
+	op, err := cqlOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
@@ -118,17 +118,17 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	column, err := columnName(expr.Left)
+	column, err := columnName(expr.Left())
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return fmt.Errorf("cassandra: 'IN' requires a list on the right at %s, got %T",
-			expr.Start().String(), expr.Right)
+			expr.Start().String(), expr.Right())
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return fmt.Errorf("cassandra: 'IN' requires a non-empty list at %s",
 			expr.Start().String())
 	}
@@ -150,7 +150,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 func columnName(expr filter.Expr) (string, error) {
 	switch node := expr.(type) {
 	case *filter.Ident:
-		return node.Value, nil
+		return node.Name(), nil
 	case *filter.IndexExpr:
 		return "", errors.New("indexed expressions are not supported — declare the metadata key as a column")
 	default:
@@ -161,8 +161,7 @@ func columnName(expr filter.Expr) (string, error) {
 // listToTypedSlice promotes the literal list to a Go slice typed by
 // the first element. gocql binds typed slices to `IN ?` parameters.
 func listToTypedSlice(list *filter.ListLiteral) (any, error) {
-	values, _, err := filter.ConvertListLiteral(list)
-	return values, err
+	return list.Values()
 }
 
 func cqlOpFor(kind filter.Operator) (string, error) {

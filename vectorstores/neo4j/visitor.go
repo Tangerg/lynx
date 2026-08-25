@@ -80,30 +80,30 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.IsNullOperator():
+	case expr.Operator().IsNullOperator():
 		return v.visitNullTestExpr(expr)
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return v.visitHasExpr(expr)
-	case expr.Op.Is(filter.OpLike):
+	case expr.Operator().Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
 		return fmt.Errorf("neo4j: unsupported binary operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 }
 
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	prop, err := v.propertyAccess(expr.Left)
+	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
@@ -115,12 +115,12 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	if !expr.Op.Is(filter.OpNot) {
+	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("neo4j: unsupported unary operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 	v.sql.WriteString("NOT (")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -129,15 +129,15 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(op)
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -145,15 +145,15 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	prop, err := v.propertyAccess(expr.Left)
+	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := cypherOpFor(expr.Op)
+	op, err := cypherOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
@@ -168,24 +168,24 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	prop, err := v.propertyAccess(expr.Left)
+	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return fmt.Errorf("neo4j: 'IN' requires a list on the right at %s, got %T",
-			expr.Start().String(), expr.Right)
+			expr.Start().String(), expr.Right())
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return fmt.Errorf("neo4j: 'IN' requires a non-empty list at %s",
 			expr.Start().String())
 	}
 
-	values := make([]any, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	values := make([]any, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 		}
@@ -202,11 +202,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // visitLikeExpr maps LIKE onto Cypher's regex operator =~. SQL
 // wildcards translate to regex equivalents and the match is anchored.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	prop, err := v.propertyAccess(expr.Left)
+	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
@@ -247,7 +247,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // equivalent, so no separate handling is needed here. No bound
 // parameter — `IS NULL` is inline in Cypher.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	prop, err := v.propertyAccess(expr.Left)
+	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
@@ -259,8 +259,8 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // propertyAccess assembles the Cypher property accessor for the left
 // side of a comparison, e.g. “node.`metadata.foo` “.
-func (v *Visitor) propertyAccess(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func (v *Visitor) propertyAccess(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

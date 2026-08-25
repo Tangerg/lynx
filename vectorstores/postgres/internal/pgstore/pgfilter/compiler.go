@@ -72,10 +72,10 @@ func (c *Compiler) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		if node.Op.IsNullOperator() {
+		if node.Operator().IsNullOperator() {
 			return c.visitNullTestExpr(node)
 		}
-		return filter.DispatchBinary(node, filter.BinaryHandlers{
+		return node.Dispatch(filter.BinaryHandlers{
 			Logical:    c.visitLogicalExpr,
 			Comparison: c.visitComparisonExpr,
 			In:         c.visitInExpr,
@@ -83,7 +83,7 @@ func (c *Compiler) visit(expr filter.Expr) error {
 			Like:       c.visitLikeExpr,
 		})
 	case *filter.UnaryExpr:
-		return filter.DispatchUnary(node, c.visitNotExpr)
+		return node.Dispatch(c.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
@@ -92,11 +92,11 @@ func (c *Compiler) visit(expr filter.Expr) error {
 // visitHasExpr uses JSONB containment against the collection at the selected
 // metadata path. jsonb_build_array preserves the scalar parameter's JSON type.
 func (c *Compiler) visitHasExpr(expr *filter.BinaryExpr) error {
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
-	jsonPath, err := buildRawJSONPath(expr.Left, c.metadataCol)
+	jsonPath, err := buildRawJSONPath(expr, c.metadataCol)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -112,7 +112,7 @@ func (c *Compiler) visitHasExpr(expr *filter.BinaryExpr) error {
 
 func (c *Compiler) visitNotExpr(expr *filter.UnaryExpr) error {
 	c.sql.WriteString("(NOT ")
-	if err := c.visit(expr.Right); err != nil {
+	if err := c.visit(expr.Right()); err != nil {
 		return err
 	}
 	c.sql.WriteString(")")
@@ -120,19 +120,19 @@ func (c *Compiler) visitNotExpr(expr *filter.UnaryExpr) error {
 }
 
 func (c *Compiler) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	op, err := filter.LogicalOpString(expr.Op)
+	op, err := expr.Operator().LogicalString()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
 	c.sql.WriteString("(")
-	if err := c.visit(expr.Left); err != nil {
+	if err := c.visit(expr.Left()); err != nil {
 		return err
 	}
 	c.sql.WriteString(" ")
 	c.sql.WriteString(op)
 	c.sql.WriteString(" ")
-	if err := c.visit(expr.Right); err != nil {
+	if err := c.visit(expr.Right()); err != nil {
 		return err
 	}
 	c.sql.WriteString(")")
@@ -143,17 +143,17 @@ func (c *Compiler) visitLogicalExpr(expr *filter.BinaryExpr) error {
 // expression on the left side is type-cast based on the value type:
 // numbers → ::numeric, bools → ::boolean, strings → no cast.
 func (c *Compiler) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, comparisonCastFor(value, expr.Op))
+	jsonPath, err := buildJSONPath(expr, c.metadataCol, comparisonCastFor(value, expr.Operator()))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	op, err := sqlOpFor(expr.Op)
+	op, err := sqlOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
@@ -173,17 +173,25 @@ func (c *Compiler) visitComparisonExpr(expr *filter.BinaryExpr) error {
 // follows the literal type — pgx maps Go slices to a Postgres array of
 // the matching type.
 func (c *Compiler) visitInExpr(expr *filter.BinaryExpr) error {
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	values, sample, err := filter.ConvertListLiteral(listLit)
+	values, err := listLit.Values()
+	if err != nil {
+		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
+	}
+	first, err := listLit.First()
+	if err != nil {
+		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
+	}
+	sample, err := first.Value()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, comparisonCastFor(sample, filter.OpEqual))
+	jsonPath, err := buildJSONPath(expr, c.metadataCol, comparisonCastFor(sample, filter.OpEqual))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -201,12 +209,12 @@ func (c *Compiler) visitInExpr(expr *filter.BinaryExpr) error {
 // pattern-match that most filter DSLs assume. Right side must be a
 // string literal.
 func (c *Compiler) visitLikeExpr(expr *filter.BinaryExpr) error {
-	pattern, err := filter.RequireStringPatternOnRight(expr)
+	pattern, err := expr.Pattern()
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, castNone)
+	jsonPath, err := buildJSONPath(expr, c.metadataCol, castNone)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -226,7 +234,7 @@ func (c *Compiler) visitLikeExpr(expr *filter.BinaryExpr) error {
 // `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
 // visitNotExpr, so no separate handling is needed here.
 func (c *Compiler) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left, c.metadataCol, castNone)
+	jsonPath, err := buildJSONPath(expr, c.metadataCol, castNone)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -291,8 +299,8 @@ func sqlOpFor(kind filter.Operator) (string, error) {
 //
 // For numeric / boolean comparisons the trailing ->> is wrapped in a
 // type cast.
-func buildJSONPath(expr filter.Expr, metadataCol string, cast jsonCast) (string, error) {
-	pathParts, err := filter.CollectKeyPath(expr)
+func buildJSONPath(expr *filter.BinaryExpr, metadataCol string, cast jsonCast) (string, error) {
+	pathParts, err := expr.Path()
 	if err != nil {
 		return "", err
 	}
@@ -329,8 +337,8 @@ func buildJSONPath(expr filter.Expr, metadataCol string, cast jsonCast) (string,
 
 // buildRawJSONPath keeps the selected value as JSONB. Collection operators
 // must not use ->>, which would erase the array shape by converting it to text.
-func buildRawJSONPath(expr filter.Expr, metadataCol string) (string, error) {
-	pathParts, err := filter.CollectKeyPath(expr)
+func buildRawJSONPath(expr *filter.BinaryExpr, metadataCol string) (string, error) {
+	pathParts, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

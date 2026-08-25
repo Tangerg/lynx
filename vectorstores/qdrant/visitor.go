@@ -116,10 +116,10 @@ func (v *Visitor) visit(expr filter.Expr) error {
 //   - Membership operator: IN (handled by visitInExpr)
 //   - Pattern matching operator: LIKE (handled by visitLikeExpr)
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsNullOperator() {
+	if expr.Operator().IsNullOperator() {
 		return v.visitNullTestExpr(expr)
 	}
-	return filter.DispatchBinary(expr, filter.BinaryHandlers{
+	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -131,7 +131,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 // visitComparisonExpr splits equality vs ordering since qdrant emits
 // distinct condition shapes for the two families.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsEqualityOperator() {
+	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
 	}
 	return v.visitOrderingExpr(expr)
@@ -143,7 +143,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 // rendered by visitNotExpr (MustNot wrap), so no separate handling is
 // needed here.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of 'IS NULL' at %s: %w",
 			expr.Start().String(), err)
@@ -155,7 +155,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filter.DispatchUnary(expr, v.visitNotExpr)
+	return expr.Dispatch(v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
@@ -163,7 +163,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 //
 // Example: For expression "age > 18", this extracts "age" as the field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
-	v.currentFieldKey = ident.Value
+	v.currentFieldKey = ident.Name()
 	return nil
 }
 
@@ -187,8 +187,8 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 // This method is used by the IN operator to extract the list of values
 // for membership testing.
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
-	values := make([]any, 0, len(list.Values))
-	for i, lit := range list.Values {
+	values := make([]any, 0, list.Len())
+	for i, lit := range list.Literals() {
 		value, err := v.literalToValue(lit)
 		if err != nil {
 			return fmt.Errorf("convert list element at index %d: %w", i, err)
@@ -226,19 +226,19 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 //   - "age > 18 AND status == 'active'" produces: Must[age>18, status==active]
 //   - "role == 'admin' OR role == 'owner'" produces: Should[role==admin, role==owner]
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	leftCond, err := v.buildNestedCondition(expr.Left)
+	leftCond, err := v.buildNestedCondition(expr.Left())
 	if err != nil {
 		return fmt.Errorf("process left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	rightCond, err := v.buildNestedCondition(expr.Right)
+	rightCond, err := v.buildNestedCondition(expr.Right())
 	if err != nil {
 		return fmt.Errorf("process right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpAnd:
 		v.filter.Must = append(v.filter.Must, leftCond, rightCond)
 		return nil
@@ -248,7 +248,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	default:
 		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected logical operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 }
 
@@ -259,7 +259,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 //   - "NOT (age > 18)" produces: MustNot[age>18]
 //   - "NOT (status == 'active' OR role == 'admin')" produces: MustNot[Filter{Should[...]}]
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
-	cond, err := v.buildNestedCondition(expr.Right)
+	cond, err := v.buildNestedCondition(expr.Right())
 	if err != nil {
 		return fmt.Errorf("process NOT operand at %s: %w",
 			expr.Start().String(), err)

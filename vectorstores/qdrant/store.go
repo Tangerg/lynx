@@ -199,18 +199,19 @@ func validateCollectionSchema(info *qdrant.CollectionInfo, dimensions int, dista
 	return nil
 }
 
-func (s *Store) buildUpsertPoints(ctx context.Context, docs []*document.Document) (*qdrant.UpsertPoints, error) {
+func (s *Store) buildUpsertPoints(ctx context.Context, request *vectorstore.IndexRequest) (*qdrant.UpsertPoints, error) {
 	upsertPoints := &qdrant.UpsertPoints{
 		CollectionName: s.collectionName,
 		Wait:           new(true),
 	}
 
-	batchedDocs, err := vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	batches, err := request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return nil, fmt.Errorf("qdrant: embed documents: %w", err)
@@ -259,18 +260,19 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 	return point, nil
 }
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("qdrant.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("qdrant.Store.Index: %w", err)
 	}
+	docs := request.Documents
 	for _, doc := range docs {
 		if _, err := parsePointID(doc.ID); err != nil {
-			return fmt.Errorf("qdrant.Store.Add: %w", err)
+			return fmt.Errorf("qdrant.Store.Index: %w", err)
 		}
 	}
 
 	var upsertPoints *qdrant.UpsertPoints
-	upsertPoints, err = s.buildUpsertPoints(ctx, docs)
+	upsertPoints, err = s.buildUpsertPoints(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -284,19 +286,19 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-func (s *Store) buildQueryPoints(ctx context.Context, req vectorstore.SearchRequest) (*qdrant.QueryPoints, error) {
+func (s *Store) buildQueryPoints(ctx context.Context, req *vectorstore.SearchRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: s.collectionName,
-		Limit:          new(uint64(req.TopK)),
+		Limit:          new(uint64(req.Options.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
-	if threshold, ok := s.rawScoreThreshold(req.MinScore); ok {
+	if threshold, ok := s.rawScoreThreshold(req.Options.MinScore); ok {
 		threshold32 := float32(max(-stdmath.MaxFloat32, min(stdmath.MaxFloat32, threshold)))
 		queryPoints.ScoreThreshold = &threshold32
 	}
 
-	if req.Filter != nil {
-		filter, err := ToFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filter, err := ToFilter(req.Options.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("qdrant: convert filter: %w", err)
 		}
@@ -380,8 +382,8 @@ func (s *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[s
 	return metadata
 }
 
-func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]vectorstore.Match, error) {
-	docs := make([]vectorstore.Match, 0, len(scoredPoints))
+func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*vectorstore.SearchResult, error) {
+	docs := make([]*vectorstore.SearchResult, 0, len(scoredPoints))
 
 	for i, point := range scoredPoints {
 		if point == nil {
@@ -403,7 +405,7 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 			return nil, fmt.Errorf("qdrant: decode metadata for query result %d: %w", i, err)
 		}
 
-		docs = append(docs, vectorstore.Match{
+		docs = append(docs, &vectorstore.SearchResult{
 			Document: doc,
 			Score:    s.normalizeScore(float64(point.GetScore())),
 		})
@@ -412,14 +414,15 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 	return docs, nil
 }
 
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("qdrant.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -440,14 +443,14 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("qdrant: build documents from query results: %w", err)
 	}
 
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("qdrant.Store.DeleteWhere: %w", err)
 	}
 
@@ -513,39 +516,40 @@ func (m DistanceMetric) qdrant() (qdrant.Distance, error) {
 	}
 }
 
-func (s *Store) normalizeScore(raw float64) float64 {
+func (s *Store) normalizeScore(raw float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceDot:
-		return vectorstore.NormalizeInnerProduct(raw)
+		return vectorstore.ScoreFromInnerProduct(raw)
 	case DistanceEuclid, DistanceManhattan:
-		return vectorstore.NormalizeDistance(raw)
+		return vectorstore.ScoreFromDistance(raw)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineSimilarity(raw)
+		return vectorstore.ScoreFromCosineSimilarity(raw)
 	}
 }
 
 // rawScoreThreshold converts Lynx's normalized minimum score back into the
 // collection metric. Qdrant interprets thresholds according to metric
 // direction, so Euclidean and Manhattan correctly use a maximum distance.
-func (s *Store) rawScoreThreshold(minScore float64) (float64, bool) {
-	if minScore <= vectorstore.MinSimilarityScore {
+func (s *Store) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
+	value := minScore.Float64()
+	if value <= vectorstore.MinSimilarityScore {
 		return 0, false
 	}
 
 	switch s.distanceMetric {
 	case DistanceDot:
-		if minScore >= vectorstore.MaxSimilarityScore {
+		if value >= vectorstore.MaxSimilarityScore {
 			return stdmath.MaxFloat32, true
 		}
-		return stdmath.Log(minScore / (1 - minScore)), true
+		return stdmath.Log(value / (1 - value)), true
 	case DistanceEuclid, DistanceManhattan:
-		return 1/minScore - 1, true
+		return 1/value - 1, true
 	case DistanceCosine:
 		fallthrough
 	default:
-		return 2*minScore - 1, true
+		return 2*value - 1, true
 	}
 }
 

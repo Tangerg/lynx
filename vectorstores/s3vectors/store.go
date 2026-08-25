@@ -127,21 +127,22 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Add embeds documents and PUTs them. S3 Vectors caps each
+// Index embeds documents and PUTs them. S3 Vectors caps each
 // PutVectors batch at 500 vectors, so the document batcher should
 // produce shards smaller than that.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("s3vectors.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("s3vectors.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("s3vectors: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("s3vectors: embed documents: %w", err)
@@ -182,14 +183,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs QueryVectors with the configured filter.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("s3vectors.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -204,13 +206,13 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		VectorBucketName: aws.String(s.vectorBucketName),
 		IndexName:        aws.String(s.indexName),
 		QueryVector:      &types.VectorDataMemberFloat32{Value: queryVec},
-		TopK:             aws.Int32(int32(req.TopK)),
+		TopK:             aws.Int32(int32(req.Options.TopK)),
 		ReturnDistance:   true,
 		ReturnMetadata:   true,
 	}
 
-	if req.Filter != nil {
-		filterDoc, filterErr := s.buildFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filterDoc, filterErr := s.buildFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, filterErr
 		}
@@ -224,27 +226,28 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("s3vectors: QueryVectors: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(resp.Vectors))
+	docs = make([]*vectorstore.SearchResult, 0, len(resp.Vectors))
 	for _, hit := range resp.Vectors {
-		match, err := s.toMatch(hit, req.MinScore)
+		match, err := s.toMatch(hit, req.Options.MinScore)
 		if err != nil {
 			return nil, err
 		}
 		if match != nil {
-			docs = append(docs, *match)
+			docs = append(docs, match)
 		}
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete enumerates ids that match the filter via QueryVectors (S3
 // Vectors has no filter-based DeleteVectors) and then issues a
 // DeleteVectors call.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("s3vectors.Store.DeleteWhere: %w", err)
 	}
 
@@ -302,13 +305,13 @@ func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
 		return nil, nil
 	}
 	v := NewVisitor()
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return nil, fmt.Errorf("s3vectors: convert filter: %w", err)
 	}
 	return v.Result(), nil
 }
 
-func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectorstore.Match, error) {
+func (s *Store) toMatch(hit types.QueryOutputVector, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {
 	if hit.Key == nil || *hit.Key == "" {
 		return nil, errors.New("s3vectors: query result is missing key")
 	}
@@ -341,17 +344,17 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectors
 	if doc.Text == "" {
 		return nil, errors.New("s3vectors: query result is missing document text metadata")
 	}
-	return &vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-func (s *Store) distanceToScore(distance float64) float64 {
+func (s *Store) distanceToScore(distance float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceEuclidean:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	}
 }
 

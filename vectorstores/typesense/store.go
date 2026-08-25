@@ -167,19 +167,20 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	return nil
 }
 
-// Add embeds documents and imports them via the upsert action.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("typesense.Store.Add: %w", err)
+// Index embeds documents and imports them via the upsert action.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("typesense.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("typesense: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("typesense: embed documents: %w", err)
@@ -211,14 +212,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs a vector search via the documents.Search API.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("typesense.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -228,9 +230,9 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("typesense: embed query: %w", err)
 	}
 	queryVec := embedding.Float32Vector(vector)
-	vectorQuery := formatVectorQuery(queryVec, req.TopK)
+	vectorQuery := formatVectorQuery(queryVec, req.Options.TopK)
 
-	filterBy, err := s.buildFilter(req.Filter)
+	filterBy, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +240,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	params := &api.SearchCollectionParams{
 		Q:           pointer.String("*"),
 		VectorQuery: pointer.String(vectorQuery),
-		PerPage:     pointer.Int(req.TopK),
+		PerPage:     pointer.Int(req.Options.TopK),
 	}
 	if filterBy != "" {
 		params.FilterBy = pointer.String(filterBy)
@@ -252,26 +254,27 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, nil
 	}
 
-	docs = make([]vectorstore.Match, 0, len(*result.Hits))
+	docs = make([]*vectorstore.SearchResult, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
 		match, err := toMatch(hit)
 		if err != nil {
 			return nil, err
 		}
-		if match.Score < req.MinScore {
+		if match.Score < req.Options.MinScore {
 			continue
 		}
 		docs = append(docs, match)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter expression.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("typesense.Store.DeleteWhere: %w", err)
 	}
 
@@ -295,40 +298,40 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(metadataField)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("typesense: convert filter: %w", err)
 	}
 	return v.Result(), nil
 }
 
-func toMatch(hit api.SearchResultHit) (vectorstore.Match, error) {
+func toMatch(hit api.SearchResultHit) (*vectorstore.SearchResult, error) {
 	if hit.Document == nil {
-		return vectorstore.Match{}, errors.New("typesense: search hit is missing document")
+		return nil, errors.New("typesense: search hit is missing document")
 	}
 	if hit.VectorDistance == nil {
-		return vectorstore.Match{}, errors.New("typesense: search hit is missing vector distance")
+		return nil, errors.New("typesense: search hit is missing vector distance")
 	}
 	raw := *hit.Document
 	id, ok := raw[idField].(string)
 	if !ok || id == "" {
-		return vectorstore.Match{}, fmt.Errorf("typesense: search hit is missing string field %q", idField)
+		return nil, fmt.Errorf("typesense: search hit is missing string field %q", idField)
 	}
 	content, ok := raw[contentField].(string)
 	if !ok || content == "" {
-		return vectorstore.Match{}, fmt.Errorf("typesense: search hit is missing string field %q", contentField)
+		return nil, fmt.Errorf("typesense: search hit is missing string field %q", contentField)
 	}
 	doc := &document.Document{ID: id, Text: content}
 	if meta, ok := raw[metadataField].(map[string]any); ok && len(meta) > 0 {
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("typesense: convert metadata: %w", err)
+			return nil, fmt.Errorf("typesense: convert metadata: %w", err)
 		}
 	}
 	// Typesense returns distance in the cosine [0, 2] range; map
 	// onto a "higher = more similar" score in [0, 1].
-	matchScore := vectorstore.NormalizeCosineDistance(float64(*hit.VectorDistance))
-	return vectorstore.Match{Document: doc, Score: matchScore}, nil
+	matchScore := vectorstore.ScoreFromCosineDistance(float64(*hit.VectorDistance))
+	return &vectorstore.SearchResult{Document: doc, Score: matchScore}, nil
 }
 
 // formatVectorQuery builds the Typesense `vector_query` string —

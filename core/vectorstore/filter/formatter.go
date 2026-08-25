@@ -6,41 +6,25 @@ import (
 	"strings"
 )
 
-// Formatter renders a predicate as the canonical textual filter DSL. Its zero
-// value is ready to use and may be reused; each successful Visit replaces the
-// previous result. Formatter is useful for logs, persistence, and adapters
-// that consume the textual form.
-type Formatter struct {
-	formatted string
+// formatter owns one complete DSL rendering operation. Its builder never
+// escapes, so formatting has no reusable mutable lifecycle.
+type formatter struct {
+	output strings.Builder
 }
 
-var _ Visitor = (*Formatter)(nil)
-
-// Visit renders predicate. Callers that invoke Visit directly must first
-// ensure predicate is accepted by [Validate]; [Visit] does that automatically
-// when dispatching this Formatter alongside other visitors.
-func (f *Formatter) Visit(predicate Predicate) error {
-	if f == nil {
-		return errors.New("filter.Formatter.Visit: formatter is nil")
-	}
-	f.formatted = ""
-
-	var output strings.Builder
-	if err := f.format(&output, predicate, formatRoot, false); err != nil {
-		return err
-	}
-	f.formatted = output.String()
-	return nil
-}
-
-// String returns the result of the latest successful Visit. It returns an
-// empty string before the first visit, after a failed visit, or on a nil
-// receiver.
-func (f *Formatter) String() string {
-	if f == nil {
+func formatPredicate(predicate Predicate) string {
+	formatted, err := new(formatter).format(predicate)
+	if err != nil {
 		return ""
 	}
-	return f.formatted
+	return formatted
+}
+
+func (f *formatter) format(predicate Predicate) (string, error) {
+	if err := f.expression(predicate, formatRoot, false); err != nil {
+		return "", err
+	}
+	return f.output.String(), nil
 }
 
 type formatPrecedence uint8
@@ -52,74 +36,74 @@ const (
 	formatTest
 )
 
-func (f *Formatter) format(output *strings.Builder, expr Expr, parent formatPrecedence, right bool) error {
+func (f *formatter) expression(expr Expr, parent formatPrecedence, right bool) error {
 	if isNilExpr(expr) {
-		return errors.New("filter.Formatter: expression is nil")
+		return errors.New("filter: expression is nil")
 	}
 
 	switch node := expr.(type) {
 	case *Ident:
-		output.WriteString(node.Value)
+		f.output.WriteString(node.name)
 	case *Literal:
-		f.formatLiteral(output, node)
+		f.literal(node)
 	case *ListLiteral:
-		output.WriteByte('(')
-		for i, value := range node.Values {
+		f.output.WriteByte('(')
+		for i, value := range node.values {
 			if i > 0 {
-				output.WriteString(", ")
+				f.output.WriteString(", ")
 			}
-			if err := f.format(output, value, formatRoot, false); err != nil {
+			if err := f.expression(value, formatRoot, false); err != nil {
 				return err
 			}
 		}
-		output.WriteByte(')')
+		f.output.WriteByte(')')
 	case *IndexExpr:
-		if err := f.format(output, node.Left, formatTest, false); err != nil {
+		if err := f.expression(node.left, formatTest, false); err != nil {
 			return err
 		}
-		output.WriteByte('[')
-		if err := f.format(output, node.Index, formatRoot, false); err != nil {
+		f.output.WriteByte('[')
+		if err := f.expression(node.index, formatRoot, false); err != nil {
 			return err
 		}
-		output.WriteByte(']')
+		f.output.WriteByte(']')
 	case *UnaryExpr:
-		output.WriteString(node.Op.String())
-		output.WriteString(" (")
-		if err := f.format(output, node.Right, formatRoot, false); err != nil {
+		f.output.WriteString(node.operator.String())
+		f.output.WriteString(" (")
+		if err := f.expression(node.right, formatRoot, false); err != nil {
 			return err
 		}
-		output.WriteByte(')')
+		f.output.WriteByte(')')
 	case *BinaryExpr:
-		return f.formatBinary(output, node, parent, right)
+		return f.binary(node, parent, right)
 	default:
-		return fmt.Errorf("filter.Formatter: unsupported expression %T", expr)
+		return fmt.Errorf("filter: unsupported expression %T", expr)
 	}
 	return nil
 }
 
-func (f *Formatter) formatBinary(output *strings.Builder, binary *BinaryExpr, parent formatPrecedence, right bool) error {
-	precedence := binaryPrecedence(binary)
+func (f *formatter) binary(binary *BinaryExpr, parent formatPrecedence, right bool) error {
+	precedence := f.precedence(binary)
 	wrapped := precedence < parent || right && precedence == parent && precedence != formatTest
 	if wrapped {
-		output.WriteByte('(')
+		f.output.WriteByte('(')
 	}
-	if err := f.format(output, binary.Left, precedence, false); err != nil {
+	if err := f.expression(binary.left, precedence, false); err != nil {
 		return err
 	}
-	output.WriteByte(' ')
-	output.WriteString(binary.Op.String())
-	output.WriteByte(' ')
-	if err := f.format(output, binary.Right, precedence, true); err != nil {
+	f.output.WriteByte(' ')
+	f.output.WriteString(binary.operator.String())
+	f.output.WriteByte(' ')
+	if err := f.expression(binary.right, precedence, true); err != nil {
 		return err
 	}
 	if wrapped {
-		output.WriteByte(')')
+		f.output.WriteByte(')')
 	}
 	return nil
 }
 
-func binaryPrecedence(binary *BinaryExpr) formatPrecedence {
-	switch binary.Op {
+func (f *formatter) precedence(binary *BinaryExpr) formatPrecedence {
+	switch binary.operator {
 	case OpOr:
 		return formatOr
 	case OpAnd:
@@ -137,12 +121,12 @@ var filterStringEscaper = strings.NewReplacer(
 	"\r", `\r`,
 )
 
-func (f *Formatter) formatLiteral(output *strings.Builder, literal *Literal) {
+func (f *formatter) literal(literal *Literal) {
 	if literal.IsString() {
-		output.WriteByte('\'')
-		output.WriteString(filterStringEscaper.Replace(literal.Value))
-		output.WriteByte('\'')
+		f.output.WriteByte('\'')
+		f.output.WriteString(filterStringEscaper.Replace(literal.text))
+		f.output.WriteByte('\'')
 		return
 	}
-	output.WriteString(literal.Value)
+	f.output.WriteString(literal.text)
 }

@@ -21,7 +21,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := chroma.NewVisitor()
-			return v.Visit(expr)
+			return expr.Accept(v)
 		},
 		storetest.Options{Unsupported: []string{
 			"not", "nested_logical", "collection_membership", "like",

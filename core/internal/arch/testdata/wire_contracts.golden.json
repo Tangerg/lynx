@@ -454,18 +454,27 @@
       }
     }
   },
-  "vectorstore_match": {
-    "document": {
-      "id": "doc-1",
-      "text": "A lynx document.",
-      "media": {
-        "mime": "image/png",
-        "source": {
-          "kind": "bytes",
-          "bytes": "bHlueA=="
+  "vectorstore_index_request": {
+    "documents": [
+      {
+        "id": "doc-1",
+        "text": "A lynx document.",
+        "media": {
+          "mime": "image/png",
+          "source": {
+            "kind": "bytes",
+            "bytes": "bHlueA=="
+          },
+          "id": "media-1",
+          "name": "lynx.png",
+          "metadata": {
+            "count": 2,
+            "label": "fixture",
+            "nested": {
+              "enabled": true
+            }
+          }
         },
-        "id": "media-1",
-        "name": "lynx.png",
         "metadata": {
           "count": 2,
           "label": "fixture",
@@ -473,20 +482,48 @@
             "enabled": true
           }
         }
-      },
-      "metadata": {
-        "count": 2,
-        "label": "fixture",
-        "nested": {
-          "enabled": true
-        }
       }
-    },
-    "score": 0.95
+    ]
   },
   "vectorstore_search_request": {
     "query": "lynx",
-    "top_k": 10,
-    "min_score": 0.75
+    "options": {
+      "top_k": 10,
+      "min_score": 0.75
+    }
+  },
+  "vectorstore_search_response": {
+    "results": [
+      {
+        "document": {
+          "id": "doc-1",
+          "text": "A lynx document.",
+          "media": {
+            "mime": "image/png",
+            "source": {
+              "kind": "bytes",
+              "bytes": "bHlueA=="
+            },
+            "id": "media-1",
+            "name": "lynx.png",
+            "metadata": {
+              "count": 2,
+              "label": "fixture",
+              "nested": {
+                "enabled": true
+              }
+            }
+          },
+          "metadata": {
+            "count": 2,
+            "label": "fixture",
+            "nested": {
+              "enabled": true
+            }
+          }
+        },
+        "score": 0.95
+      }
+    ]
   }
 }

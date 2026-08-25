@@ -20,7 +20,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := pinecone.NewVisitor()
-			return v.Visit(expr)
+			return expr.Accept(v)
 		},
 		storetest.Options{
 			// Pinecone metadata filters have no LIKE operator.

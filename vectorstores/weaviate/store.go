@@ -213,23 +213,24 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 	return objects, nil
 }
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("weaviate.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("weaviate.Store.Index: %w", err)
 	}
-	for i, doc := range docs {
+	for i, doc := range request.Documents {
 		if err := validateObjectID(doc.ID); err != nil {
-			return fmt.Errorf("weaviate.Store.Add: documents[%d]: %w", i, err)
+			return fmt.Errorf("weaviate.Store.Index: documents[%d]: %w", i, err)
 		}
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("weaviate: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("weaviate: embed documents: %w", err)
@@ -260,26 +261,27 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
+func (s *Store) buildNearVector(vector []float64, minScore vectorstore.Score) *graphql.NearVectorArgumentBuilder {
 	builder := s.client.GraphQL().NearVectorArgBuilder().
 		WithVector(models.C11yVector(embedding.Float32Vector(vector)))
 
 	// WithCertainty is the minimum similarity threshold, only valid for cosine distance.
 	if minScore > 0 && s.distanceMetric == DistanceCosine {
-		builder = builder.WithCertainty(float32(minScore))
+		builder = builder.WithCertainty(float32(minScore.Float64()))
 	}
 
 	return builder
 }
 
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -304,11 +306,11 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	getBuilder := s.client.GraphQL().Get().
 		WithClassName(s.className).
 		WithFields(fields...).
-		WithNearVector(s.buildNearVector(vector, req.MinScore)).
-		WithLimit(req.TopK)
+		WithNearVector(s.buildNearVector(vector, req.Options.MinScore)).
+		WithLimit(req.Options.TopK)
 
-	if req.Filter != nil {
-		whereFilter, filterErr := ToFilter(req.Filter)
+	if req.Options.Filter != nil {
+		whereFilter, filterErr := ToFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, fmt.Errorf("weaviate: convert filter: %w", filterErr)
 		}
@@ -324,18 +326,18 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("weaviate: GraphQL query error: %v", result.Errors[0].Message)
 	}
 
-	docs, err = s.buildDocumentsFromResult(result, req.MinScore)
+	docs, err = s.buildDocumentsFromResult(result, req.Options.MinScore)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate: build documents from results: %w", err)
 	}
 
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 func (s *Store) buildDocumentsFromResult(
 	result *models.GraphQLResponse,
-	minScore float64,
-) ([]vectorstore.Match, error) {
+	minScore vectorstore.Score,
+) ([]*vectorstore.SearchResult, error) {
 	if result == nil {
 		return nil, errors.New("weaviate: GraphQL response is nil")
 	}
@@ -359,7 +361,7 @@ func (s *Store) buildDocumentsFromResult(
 		return nil, fmt.Errorf("weaviate: GraphQL class data has type %T, want array", classData)
 	}
 
-	docs := make([]vectorstore.Match, 0, len(items))
+	docs := make([]*vectorstore.SearchResult, 0, len(items))
 
 	for _, item := range items {
 		objMap, ok := item.(map[string]any)
@@ -398,22 +400,22 @@ func (s *Store) buildDocumentsFromResult(
 			}
 		}
 
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) normalizeDistance(distance float64) float64 {
+func (s *Store) normalizeDistance(distance float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	case DistanceDot:
-		return vectorstore.NormalizeNegativeInnerProductDistance(distance)
+		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
 	case DistanceL2Squared, DistanceHamming, DistanceManhattan:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	default:
-		return vectorstore.NormalizeScore(distance)
+		return vectorstore.ScoreFromValue(distance)
 	}
 }
 
@@ -421,7 +423,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("weaviate.Store.DeleteWhere: %w", err)
 	}
 

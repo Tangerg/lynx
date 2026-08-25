@@ -16,7 +16,7 @@ func build(t *testing.T, src string) (string, map[string]any, error) {
 		return "", nil, err
 	}
 	v := neo4j.NewVisitor("node", "metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
 	cypher, params := v.Result()

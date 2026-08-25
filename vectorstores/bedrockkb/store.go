@@ -35,7 +35,7 @@ type StoreConfig struct {
 
 	// RerankingConfiguration and ImplicitFilterConfiguration expose Bedrock's
 	// provider-specific retrieval features without allowing them to override
-	// SearchRequest.TopK or SearchRequest.Filter.
+	// SearchOptions.TopK or SearchOptions.Filter.
 	RerankingConfiguration      *types.VectorSearchRerankingConfiguration
 	ImplicitFilterConfiguration *types.ImplicitFilterConfiguration
 }
@@ -81,14 +81,15 @@ func NewStore(config StoreConfig) (*Store, error) {
 }
 
 // Search runs the Bedrock Knowledge Base Retrieve API.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrockkb.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -112,24 +113,25 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("bedrockkb: retrieve: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(resp.RetrievalResults))
+	docs = make([]*vectorstore.SearchResult, 0, len(resp.RetrievalResults))
 	for _, r := range resp.RetrievalResults {
 		match, err := toMatch(r)
 		if err != nil {
 			return nil, err
 		}
-		if match.Score < req.MinScore {
+		if match.Score < req.Options.MinScore {
 			continue
 		}
 		docs = append(docs, match)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // vectorSearchConfig builds the per-call vector search configuration,
 // layering caller-supplied overrides on top of the request defaults.
-func (s *Store) vectorSearchConfig(req vectorstore.SearchRequest) (*types.KnowledgeBaseVectorSearchConfiguration, error) {
-	topK := int32(req.TopK)
+
+func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.KnowledgeBaseVectorSearchConfiguration, error) {
+	topK := int32(req.Options.TopK)
 	cfg := &types.KnowledgeBaseVectorSearchConfiguration{
 		NumberOfResults:             &topK,
 		OverrideSearchType:          s.overrideSearchType,
@@ -137,8 +139,8 @@ func (s *Store) vectorSearchConfig(req vectorstore.SearchRequest) (*types.Knowle
 		ImplicitFilterConfiguration: s.implicitFilterConfiguration,
 	}
 
-	if req.Filter != nil {
-		retrievalFilter, err := BuildRetrievalFilter(req.Filter)
+	if req.Options.Filter != nil {
+		retrievalFilter, err := BuildRetrievalFilter(req.Options.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("bedrockkb.Store.Search: compile metadata filter: %w", err)
 		}
@@ -148,17 +150,17 @@ func (s *Store) vectorSearchConfig(req vectorstore.SearchRequest) (*types.Knowle
 }
 
 // toMatch converts a Bedrock retrieval result into a Lynx match.
-func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
+func toMatch(r types.KnowledgeBaseRetrievalResult) (*vectorstore.SearchResult, error) {
 	doc := &document.Document{}
 	if r.Score == nil {
-		return vectorstore.Match{}, errors.New("bedrockkb: retrieval result is missing score")
+		return nil, errors.New("bedrockkb: retrieval result is missing score")
 	}
-	score := vectorstore.NormalizeScore(*r.Score)
+	score := vectorstore.ScoreFromValue(*r.Score)
 	if r.Content != nil && r.Content.Text != nil {
 		doc.Text = *r.Content.Text
 	}
 	if doc.Text == "" {
-		return vectorstore.Match{}, errors.New("bedrockkb: retrieval result has no text content")
+		return nil, errors.New("bedrockkb: retrieval result has no text content")
 	}
 
 	if len(r.Metadata) > 0 {
@@ -166,14 +168,14 @@ func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 		for k, v := range r.Metadata {
 			var decoded any
 			if err := v.UnmarshalSmithyDocument(&decoded); err != nil {
-				return vectorstore.Match{}, fmt.Errorf("bedrockkb: decode metadata key %s: %w", k, err)
+				return nil, fmt.Errorf("bedrockkb: decode metadata key %s: %w", k, err)
 			}
 			meta[k] = decoded
 		}
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("bedrockkb: convert metadata: %w", err)
+			return nil, fmt.Errorf("bedrockkb: convert metadata: %w", err)
 		}
 	}
 
@@ -186,16 +188,16 @@ func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 	if doc.ID == "" && r.Location != nil {
 		location, err := json.Marshal(r.Location)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("bedrockkb: encode result location: %w", err)
+			return nil, fmt.Errorf("bedrockkb: encode result location: %w", err)
 		}
 		if string(location) != "{}" && string(location) != "null" {
 			doc.ID = string(location)
 		}
 	}
 	if doc.ID == "" {
-		return vectorstore.Match{}, errors.New("bedrockkb: retrieval result has no stable document identity")
+		return nil, errors.New("bedrockkb: retrieval result has no stable document identity")
 	}
-	return vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
 func (s *Store) Close() error { return nil }

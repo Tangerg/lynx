@@ -38,7 +38,7 @@ func Run(t *testing.T, store any, want Capabilities) {
 
 	ctx := t.Context()
 	if want.Indexer && hasIndexer {
-		addCases := []struct {
+		indexCases := []struct {
 			name string
 			docs []*document.Document
 			want error
@@ -52,17 +52,18 @@ func Run(t *testing.T, store any, want Capabilities) {
 				want: vectorstore.ErrDuplicateDocumentID,
 			},
 		}
-		for _, test := range addCases {
-			t.Run("AddRejects"+test.name+"BeforeIO", func(t *testing.T) {
-				if err := indexer.Add(ctx, test.docs); !errors.Is(err, test.want) {
-					t.Fatalf("Add() error = %v, want %v", err, test.want)
+		for _, test := range indexCases {
+			t.Run("IndexRejects"+test.name+"BeforeIO", func(t *testing.T) {
+				request := &vectorstore.IndexRequest{Documents: test.docs}
+				if err := indexer.Index(ctx, request); !errors.Is(err, test.want) {
+					t.Fatalf("Index() error = %v, want %v", err, test.want)
 				}
 			})
 		}
 	}
 	if want.Searcher && hasSearcher {
 		t.Run("SearchRejectsInvalidRequestBeforeIO", func(t *testing.T) {
-			if _, err := searcher.Search(ctx, vectorstore.SearchRequest{}); err == nil {
+			if _, err := searcher.Search(ctx, &vectorstore.SearchRequest{}); err == nil {
 				t.Fatal("Search(zero request) error = nil, want validation error")
 			}
 		})

@@ -219,24 +219,32 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 
 	return map[string]any{
-		"chat_request":               chatRequest,
-		"chat_response":              chatResponse,
-		"document":                   doc,
-		"document_empty_metadata":    emptyMetadataDoc,
-		"embedding_request":          embeddingRequest,
-		"embedding_response":         embeddingResponse,
-		"image_request":              imageRequest,
-		"image_response":             imageResponse,
-		"media":                      []*media.Media{inlineMedia, uriMedia, referenceMedia},
-		"metadata":                   protocolMetadata,
-		"moderation_request":         moderationRequest,
-		"moderation_response":        moderationResponse,
-		"speech_request":             speechRequest,
-		"speech_response":            speechResponse,
-		"transcription_request":      transcriptionRequest,
-		"transcription_response":     transcriptionResponse,
-		"vectorstore_match":          vectorstore.Match{Document: doc, Score: 0.95},
-		"vectorstore_search_request": vectorstore.SearchRequest{Query: "lynx", TopK: 10, MinScore: 0.75, Filter: filter.EQ("kind", "animal")},
+		"chat_request":              chatRequest,
+		"chat_response":             chatResponse,
+		"document":                  doc,
+		"document_empty_metadata":   emptyMetadataDoc,
+		"embedding_request":         embeddingRequest,
+		"embedding_response":        embeddingResponse,
+		"image_request":             imageRequest,
+		"image_response":            imageResponse,
+		"media":                     []*media.Media{inlineMedia, uriMedia, referenceMedia},
+		"metadata":                  protocolMetadata,
+		"moderation_request":        moderationRequest,
+		"moderation_response":       moderationResponse,
+		"speech_request":            speechRequest,
+		"speech_response":           speechResponse,
+		"transcription_request":     transcriptionRequest,
+		"transcription_response":    transcriptionResponse,
+		"vectorstore_index_request": &vectorstore.IndexRequest{Documents: []*document.Document{doc}},
+		"vectorstore_search_request": vectorstore.SearchRequest{
+			Query: "lynx",
+			Options: vectorstore.SearchOptions{
+				TopK: 10, MinScore: 0.75, Filter: filter.EQ("kind", "animal"),
+			},
+		},
+		"vectorstore_search_response": &vectorstore.SearchResponse{
+			Results: []*vectorstore.SearchResult{{Document: doc, Score: 0.95}},
+		},
 	}
 }
 

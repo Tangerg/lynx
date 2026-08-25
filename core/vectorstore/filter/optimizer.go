@@ -21,68 +21,68 @@ func (o optimizer) rewrite(predicate Predicate) Predicate {
 }
 
 func (o optimizer) rewriteUnary(unary *UnaryExpr) Predicate {
-	right := o.rewrite(unary.Right)
-	if inner, ok := right.(*UnaryExpr); ok && unary.Op == OpNot && inner.Op == OpNot {
-		return inner.Right
+	right := o.rewrite(unary.right)
+	if inner, ok := right.(*UnaryExpr); ok && unary.operator == OpNot && inner.operator == OpNot {
+		return inner.right
 	}
-	if right == unary.Right {
+	if right == unary.right {
 		return unary
 	}
 	return &UnaryExpr{
-		Op: unary.Op, Right: right,
+		operator: unary.operator, right: right,
 		start: unary.start, end: unary.end,
 	}
 }
 
 func (o optimizer) rewriteBinary(binary *BinaryExpr) Predicate {
-	if !binary.Op.IsLogicalOperator() {
+	if !binary.operator.IsLogicalOperator() {
 		return binary
 	}
 
-	left := o.rewrite(binary.Left.(Predicate))
-	right := o.rewrite(binary.Right.(Predicate))
+	left := o.rewrite(binary.left.(Predicate))
+	right := o.rewrite(binary.right.(Predicate))
 
-	terms := appendLogicalTerms(nil, binary.Op, left)
-	terms = appendLogicalTerms(terms, binary.Op, right)
-	terms, deduplicated := uniquePredicates(terms)
-	terms, absorbed := removeAbsorbed(terms, binary.Op)
+	terms := o.appendLogicalTerms(nil, binary.operator, left)
+	terms = o.appendLogicalTerms(terms, binary.operator, right)
+	terms, deduplicated := o.uniquePredicates(terms)
+	terms, absorbed := o.removeAbsorbed(terms, binary.operator)
 	if deduplicated || absorbed {
-		return joinLogical(binary.Op, terms)
+		return o.joinLogical(binary.operator, terms)
 	}
 	if len(terms) == 2 {
-		if factored, ok := factorCommon(binary.Op, terms[0], terms[1]); ok {
+		if factored, ok := o.factorCommon(binary.operator, terms[0], terms[1]); ok {
 			return o.rewrite(factored)
 		}
 	}
 
-	if left == binary.Left && right == binary.Right {
+	if left == binary.left && right == binary.right {
 		return binary
 	}
 	return &BinaryExpr{
-		Left: left, Op: binary.Op, Right: right,
+		left: left, operator: binary.operator, right: right,
 		start: binary.start, end: binary.end,
 	}
 }
 
-func appendLogicalTerms(terms []Predicate, operator Operator, predicate Predicate) []Predicate {
+func (o optimizer) appendLogicalTerms(terms []Predicate, operator Operator, predicate Predicate) []Predicate {
 	binary, ok := predicate.(*BinaryExpr)
-	if !ok || binary.Op != operator {
+	if !ok || binary.operator != operator {
 		return append(terms, predicate)
 	}
-	left, leftOK := binary.Left.(Predicate)
-	right, rightOK := binary.Right.(Predicate)
+	left, leftOK := binary.left.(Predicate)
+	right, rightOK := binary.right.(Predicate)
 	if !leftOK || !rightOK {
 		return append(terms, predicate)
 	}
-	terms = appendLogicalTerms(terms, operator, left)
-	return appendLogicalTerms(terms, operator, right)
+	terms = o.appendLogicalTerms(terms, operator, left)
+	return o.appendLogicalTerms(terms, operator, right)
 }
 
-func uniquePredicates(predicates []Predicate) ([]Predicate, bool) {
+func (o optimizer) uniquePredicates(predicates []Predicate) ([]Predicate, bool) {
 	unique := make([]Predicate, 0, len(predicates))
 	changed := false
 	for _, candidate := range predicates {
-		if containsPredicate(unique, candidate) {
+		if o.containsPredicate(unique, candidate) {
 			changed = true
 			continue
 		}
@@ -91,7 +91,7 @@ func uniquePredicates(predicates []Predicate) ([]Predicate, bool) {
 	return unique, changed
 }
 
-func containsPredicate(predicates []Predicate, candidate Predicate) bool {
+func (optimizer) containsPredicate(predicates []Predicate, candidate Predicate) bool {
 	for _, predicate := range predicates {
 		if predicate.Equal(candidate) {
 			return true
@@ -100,14 +100,14 @@ func containsPredicate(predicates []Predicate, candidate Predicate) bool {
 	return false
 }
 
-func removeAbsorbed(predicates []Predicate, operator Operator) ([]Predicate, bool) {
+func (o optimizer) removeAbsorbed(predicates []Predicate, operator Operator) ([]Predicate, bool) {
 	kept := make([]Predicate, 0, len(predicates))
 	changed := false
 	dual := operator.dual()
 	for i, candidate := range predicates {
 		absorbed := false
 		for j, predicate := range predicates {
-			if i != j && containsLogical(candidate, dual, predicate) {
+			if i != j && o.containsLogical(candidate, dual, predicate) {
 				absorbed = true
 				changed = true
 				break
@@ -120,31 +120,31 @@ func removeAbsorbed(predicates []Predicate, operator Operator) ([]Predicate, boo
 	return kept, changed
 }
 
-func containsLogical(candidate Predicate, operator Operator, target Predicate) bool {
+func (o optimizer) containsLogical(candidate Predicate, operator Operator, target Predicate) bool {
 	binary, ok := candidate.(*BinaryExpr)
-	if !ok || binary.Op != operator {
+	if !ok || binary.operator != operator {
 		return false
 	}
 	if candidate.Equal(target) {
 		return true
 	}
-	left, leftOK := binary.Left.(Predicate)
-	right, rightOK := binary.Right.(Predicate)
-	return leftOK && (left.Equal(target) || containsLogical(left, operator, target)) ||
-		rightOK && (right.Equal(target) || containsLogical(right, operator, target))
+	left, leftOK := binary.left.(Predicate)
+	right, rightOK := binary.right.(Predicate)
+	return leftOK && (left.Equal(target) || o.containsLogical(left, operator, target)) ||
+		rightOK && (right.Equal(target) || o.containsLogical(right, operator, target))
 }
 
-func factorCommon(operator Operator, left, right Predicate) (Predicate, bool) {
+func (o optimizer) factorCommon(operator Operator, left, right Predicate) (Predicate, bool) {
 	dual := operator.dual()
 	leftBinary, leftOK := left.(*BinaryExpr)
 	rightBinary, rightOK := right.(*BinaryExpr)
-	if !leftOK || !rightOK || leftBinary.Op != dual || rightBinary.Op != dual {
+	if !leftOK || !rightOK || leftBinary.operator != dual || rightBinary.operator != dual {
 		return nil, false
 	}
 
-	leftTerms := appendLogicalTerms(nil, dual, left)
-	rightTerms := appendLogicalTerms(nil, dual, right)
-	common, leftOnly, rightOnly := partitionCommon(leftTerms, rightTerms)
+	leftTerms := o.appendLogicalTerms(nil, dual, left)
+	rightTerms := o.appendLogicalTerms(nil, dual, right)
+	common, leftOnly, rightOnly := o.partitionCommon(leftTerms, rightTerms)
 	if len(common) == 0 {
 		return nil, false
 	}
@@ -155,14 +155,14 @@ func factorCommon(operator Operator, left, right Predicate) (Predicate, bool) {
 		return right, true
 	}
 
-	remainder := joinLogical(operator, []Predicate{
-		joinLogical(dual, leftOnly),
-		joinLogical(dual, rightOnly),
+	remainder := o.joinLogical(operator, []Predicate{
+		o.joinLogical(dual, leftOnly),
+		o.joinLogical(dual, rightOnly),
 	})
-	return joinLogical(dual, append(common, remainder)), true
+	return o.joinLogical(dual, append(common, remainder)), true
 }
 
-func partitionCommon(left, right []Predicate) (common, leftOnly, rightOnly []Predicate) {
+func (optimizer) partitionCommon(left, right []Predicate) (common, leftOnly, rightOnly []Predicate) {
 	matched := make([]bool, len(right))
 	for _, candidate := range left {
 		match := -1
@@ -187,18 +187,18 @@ func partitionCommon(left, right []Predicate) (common, leftOnly, rightOnly []Pre
 	return common, leftOnly, rightOnly
 }
 
-func joinLogical(operator Operator, predicates []Predicate) Predicate {
+func (optimizer) joinLogical(operator Operator, predicates []Predicate) Predicate {
 	if len(predicates) == 0 {
 		panic("filter: cannot join an empty predicate set")
 	}
 	result := predicates[0]
 	for _, right := range predicates[1:] {
 		result = &BinaryExpr{
-			Left:  result,
-			Op:    operator,
-			Right: right,
-			start: result.Start(),
-			end:   right.End(),
+			left:     result,
+			operator: operator,
+			right:    right,
+			start:    result.Start(),
+			end:      right.End(),
 		}
 	}
 	return result

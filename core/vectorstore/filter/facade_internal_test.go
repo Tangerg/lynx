@@ -73,7 +73,7 @@ func TestOperatorVocabulary(t *testing.T) {
 func TestVisitorProcessesCompletePredicate(t *testing.T) {
 	predicate := EQ("status", "active")
 	visitor := &recordingVisitor{}
-	if err := visitor.Visit(predicate); err != nil {
+	if err := predicate.Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	if visitor.visited != predicate {
@@ -81,27 +81,22 @@ func TestVisitorProcessesCompletePredicate(t *testing.T) {
 	}
 }
 
-func TestVisitDispatchesInOrderAndStopsAtFirstError(t *testing.T) {
+func TestAcceptPropagatesVisitorError(t *testing.T) {
 	predicate := EQ("status", "active")
 	wantErr := errors.New("stop")
-	first := &recordingVisitor{}
-	second := &recordingVisitor{err: wantErr}
-	third := &recordingVisitor{}
+	visitor := &recordingVisitor{err: wantErr}
 
-	if err := Visit(predicate, first, second, third); err != wantErr {
-		t.Fatalf("Visit() error = %v, want %v", err, wantErr)
+	if err := predicate.Accept(visitor); err != wantErr {
+		t.Fatalf("Accept() error = %v, want %v", err, wantErr)
 	}
-	if first.visits != 1 || second.visits != 1 || third.visits != 0 {
-		t.Fatalf("visitor calls = [%d %d %d], want [1 1 0]", first.visits, second.visits, third.visits)
-	}
-	if first.visited != predicate || second.visited != predicate {
-		t.Fatal("Visit did not pass the original predicate to each visitor")
+	if visitor.visits != 1 || visitor.visited != predicate {
+		t.Fatal("Accept did not pass the original predicate to the visitor")
 	}
 }
 
 func TestVisitRejectsInvalidInputsBeforeDispatch(t *testing.T) {
 	visitor := &recordingVisitor{}
-	if err := Visit(&BinaryExpr{}, visitor); err == nil {
+	if err := (&BinaryExpr{}).Accept(visitor); err == nil {
 		t.Fatal("Visit accepted an invalid predicate")
 	}
 	if visitor.visits != 0 {
@@ -109,11 +104,11 @@ func TestVisitRejectsInvalidInputsBeforeDispatch(t *testing.T) {
 	}
 
 	predicate := EQ("status", "active")
-	if err := Visit(predicate, visitor, nil); err == nil {
+	if err := predicate.Accept(nil); err == nil {
 		t.Fatal("Visit accepted a nil visitor")
 	}
 	var nilVisitor *recordingVisitor
-	if err := Visit(predicate, visitor, nilVisitor); err == nil {
+	if err := predicate.Accept(nilVisitor); err == nil {
 		t.Fatal("Visit accepted a typed nil visitor")
 	}
 	if visitor.visits != 0 {
@@ -149,15 +144,15 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	if got, err := numberLiteral.AsNumber(); err != nil || got.String() != "42" {
 		t.Fatalf("AsNumber() = %v, %v", got, err)
 	}
-	precise := &Literal{Kind: LiteralNumber, Value: "9007199254740993"}
-	if got, err := precise.AsNumber(); err != nil || got.String() != precise.Value {
+	precise := &Literal{kind: LiteralNumber, text: "9007199254740993"}
+	if got, err := precise.AsNumber(); err != nil || got.String() != precise.text {
 		t.Fatalf("AsNumber() lost precision: %v, %v", got, err)
 	}
-	huge := &Literal{Kind: LiteralNumber, Value: "1e400"}
-	if got, err := huge.AsNumber(); err != nil || got.String() != huge.Value {
+	huge := &Literal{kind: LiteralNumber, text: "1e400"}
+	if got, err := huge.AsNumber(); err != nil || got.String() != huge.text {
 		t.Fatalf("AsNumber() rejected exact large exponent: %v, %v", got, err)
 	}
-	if _, err := (&Literal{Kind: LiteralNumber, Value: "not-a-number"}).AsNumber(); err == nil {
+	if _, err := (&Literal{kind: LiteralNumber, text: "not-a-number"}).AsNumber(); err == nil {
 		t.Fatal("AsNumber accepted an invalid number")
 	}
 
@@ -168,11 +163,11 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	if got, err := boolLiteral.AsBool(); err != nil || !got {
 		t.Fatalf("AsBool() = %t, %v", got, err)
 	}
-	if _, err := (&Literal{Kind: LiteralBool, Value: "not-a-bool"}).AsBool(); err == nil {
+	if _, err := (&Literal{kind: LiteralBool, text: "not-a-bool"}).AsBool(); err == nil {
 		t.Fatal("AsBool accepted an invalid boolean")
 	}
 
-	nullLiteral := &Literal{Kind: LiteralNull, Value: "null"}
+	nullLiteral := &Literal{kind: LiteralNull, text: "null"}
 	if !nullLiteral.IsNull() || nullLiteral.IsSameKind(stringLiteral) || !stringLiteral.IsSameKind(NewLiteral("other")) {
 		t.Fatal("literal kind comparison is inconsistent")
 	}
@@ -183,7 +178,7 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	if got := NewLiteral(stringLiteral); got != stringLiteral {
 		t.Fatal("NewLiteral did not preserve an existing literal")
 	}
-	if got := NewLiterals([]string{"a", "b"}); len(got) != 2 || got[1].Value != "b" {
+	if got := NewLiterals([]string{"a", "b"}); len(got) != 2 || got[1].text != "b" {
 		t.Fatalf("NewLiterals() = %#v", got)
 	}
 	if _, err := newLiteral(nil); err == nil {
@@ -201,18 +196,18 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	}
 	for _, input := range listInputs {
 		list, err := newListLiteral(input)
-		if err != nil || len(list.Values) != 1 {
+		if err != nil || len(list.values) != 1 {
 			t.Fatalf("newListLiteral(%T) = %#v, %v", input, list, err)
 		}
 	}
-	existingList := &ListLiteral{Values: []*Literal{stringLiteral}}
+	existingList := &ListLiteral{values: []*Literal{stringLiteral}}
 	if got, err := newListLiteral(existingList); err != nil || got != existingList {
 		t.Fatalf("newListLiteral(existing) = %#v, %v", got, err)
 	}
 	if _, err := newListLiteral(struct{}{}); err == nil {
 		t.Fatal("newListLiteral accepted a struct")
 	}
-	if got := NewListLiteral([]int{1, 2}); len(got.Values) != 2 {
+	if got := NewListLiteral([]int{1, 2}); len(got.values) != 2 {
 		t.Fatalf("NewListLiteral() = %#v", got)
 	}
 }
@@ -229,7 +224,7 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 	index := Index("metadata", "author")
 	nested := Index(index, 0)
 	fromIdent := Index(ident, NewLiteral("key"))
-	if index.Left == nil || nested.Left != index || fromIdent.Left != ident {
+	if index.left == nil || nested.left != index || fromIdent.left != ident {
 		t.Fatal("Index did not preserve its left operand")
 	}
 
@@ -242,7 +237,7 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 		Not(EQ("disabled", true)), EQ(nested, "lynx"),
 	}
 	for _, expr := range expressions {
-		if err := Validate(expr); err != nil {
+		if err := expr.Validate(); err != nil {
 			t.Fatalf("Validate(%T) = %v", expr, err)
 		}
 	}
@@ -254,15 +249,15 @@ func TestSemanticNodeMethods(t *testing.T) {
 		t.Fatalf("Position.String() = %q", start.String())
 	}
 
-	ident := &Ident{Value: "field", start: start, end: end}
-	if ident.Start() != start || ident.End() != end || !ident.Equal(&Ident{Value: "field"}) || ident.Equal(NewLiteral("field")) {
+	ident := &Ident{name: "field", start: start, end: end}
+	if ident.Start() != start || ident.End() != end || !ident.Equal(&Ident{name: "field"}) || ident.Equal(NewLiteral("field")) {
 		t.Fatal("identifier methods are inconsistent")
 	}
 	if (*Ident)(nil).Start() != (Position{}) || (*Ident)(nil).End() != (Position{}) || (*Ident)(nil).Equal((*Ident)(nil)) {
 		t.Fatal("nil identifier methods are inconsistent")
 	}
 
-	literal := &Literal{Kind: LiteralString, Value: "value", start: start, end: end}
+	literal := &Literal{kind: LiteralString, text: "value", start: start, end: end}
 	if literal.Start() != start || literal.End() != end || !literal.Equal(NewLiteral("value")) || literal.Equal(NewLiteral("other")) {
 		t.Fatal("literal methods are inconsistent")
 	}
@@ -270,41 +265,41 @@ func TestSemanticNodeMethods(t *testing.T) {
 		t.Fatal("nil literal methods are inconsistent")
 	}
 
-	list := &ListLiteral{Values: []*Literal{literal}, start: start, end: end}
-	if list.Start() != start || list.End() != end || !list.Equal(&ListLiteral{Values: []*Literal{NewLiteral("value")}}) {
+	list := &ListLiteral{values: []*Literal{literal}, start: start, end: end}
+	if list.Start() != start || list.End() != end || !list.Equal(&ListLiteral{values: []*Literal{NewLiteral("value")}}) {
 		t.Fatal("list methods are inconsistent")
 	}
-	if list.Equal(&ListLiteral{}) || list.Equal(&ListLiteral{Values: []*Literal{NewLiteral("other")}}) || list.Equal(literal) {
+	if list.Equal(&ListLiteral{}) || list.Equal(&ListLiteral{values: []*Literal{NewLiteral("other")}}) || list.Equal(literal) {
 		t.Fatal("list equality accepted a mismatch")
 	}
 	if (*ListLiteral)(nil).Start() != (Position{}) || (*ListLiteral)(nil).End() != (Position{}) || (*ListLiteral)(nil).Equal((*ListLiteral)(nil)) {
 		t.Fatal("nil list methods are inconsistent")
 	}
 
-	binary := &BinaryExpr{Left: ident, Op: OpEqual, Right: literal, start: start, end: end}
-	if binary.Start() != start || binary.End() != end || !binary.Equal(&BinaryExpr{Left: NewIdent("field"), Op: OpEqual, Right: NewLiteral("value")}) {
+	binary := &BinaryExpr{left: ident, operator: OpEqual, right: literal, start: start, end: end}
+	if binary.Start() != start || binary.End() != end || !binary.Equal(&BinaryExpr{left: NewIdent("field"), operator: OpEqual, right: NewLiteral("value")}) {
 		t.Fatal("binary methods are inconsistent")
 	}
-	if (&BinaryExpr{Left: ident}).Start() != (Position{}) || (&BinaryExpr{Right: literal}).End() != (Position{}) {
+	if (&BinaryExpr{left: ident}).Start() != (Position{}) || (&BinaryExpr{right: literal}).End() != (Position{}) {
 		t.Fatal("programmatic binary positions must remain zero")
 	}
 	if (&BinaryExpr{}).Start() != (Position{}) || (&BinaryExpr{}).End() != (Position{}) || (*BinaryExpr)(nil).Start() != (Position{}) || (*BinaryExpr)(nil).End() != (Position{}) {
 		t.Fatal("empty binary positions are inconsistent")
 	}
 
-	unary := &UnaryExpr{Op: OpNot, Right: binary, start: start, end: end}
-	if unary.Start() != start || unary.End() != end || !unary.Equal(&UnaryExpr{Op: OpNot, Right: binary}) {
+	unary := &UnaryExpr{operator: OpNot, right: binary, start: start, end: end}
+	if unary.Start() != start || unary.End() != end || !unary.Equal(&UnaryExpr{operator: OpNot, right: binary}) {
 		t.Fatal("unary methods are inconsistent")
 	}
-	if (&UnaryExpr{Right: binary}).End() != (Position{}) || (&UnaryExpr{}).End() != (Position{}) || (*UnaryExpr)(nil).Start() != (Position{}) || (*UnaryExpr)(nil).End() != (Position{}) {
+	if (&UnaryExpr{right: binary}).End() != (Position{}) || (&UnaryExpr{}).End() != (Position{}) || (*UnaryExpr)(nil).Start() != (Position{}) || (*UnaryExpr)(nil).End() != (Position{}) {
 		t.Fatal("programmatic unary positions must remain zero")
 	}
 
-	indexed := &IndexExpr{Left: ident, Index: literal, start: start, end: end}
-	if indexed.Start() != start || indexed.End() != end || !indexed.Equal(&IndexExpr{Left: NewIdent("field"), Index: NewLiteral("value")}) {
+	indexed := &IndexExpr{left: ident, index: literal, start: start, end: end}
+	if indexed.Start() != start || indexed.End() != end || !indexed.Equal(&IndexExpr{left: NewIdent("field"), index: NewLiteral("value")}) {
 		t.Fatal("index methods are inconsistent")
 	}
-	if (&IndexExpr{Left: ident}).Start() != (Position{}) || (&IndexExpr{}).Start() != (Position{}) || (*IndexExpr)(nil).Start() != (Position{}) || (*IndexExpr)(nil).End() != (Position{}) {
+	if (&IndexExpr{left: ident}).Start() != (Position{}) || (&IndexExpr{}).Start() != (Position{}) || (*IndexExpr)(nil).Start() != (Position{}) || (*IndexExpr)(nil).End() != (Position{}) {
 		t.Fatal("programmatic index positions must remain zero")
 	}
 

@@ -150,19 +150,20 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Add embeds documents and upserts them.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("azurecosmos.Store.Add: %w", err)
+// Index embeds documents and upserts them.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("azurecosmos.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("azurecosmos: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("azurecosmos: embed documents: %w", err)
@@ -193,14 +194,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs a VectorDistance-ordered query.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azurecosmos.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -211,7 +213,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	wherePredicate, params, err := s.buildFilter(req.Filter)
+	wherePredicate, params, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +233,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	queryParams := append([]azcosmos.QueryParameter(nil),
 		azcosmos.QueryParameter{Name: "@queryVec", Value: queryVec},
-		azcosmos.QueryParameter{Name: "@topK", Value: req.TopK},
+		azcosmos.QueryParameter{Name: "@topK", Value: req.Options.TopK},
 	)
 	for _, p := range params {
 		queryParams = append(queryParams, azcosmos.QueryParameter{Name: p.Name, Value: p.Value})
@@ -242,31 +244,32 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		QueryParameters: queryParams,
 	})
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("azurecosmos: query: %w", err)
 		}
 		for _, item := range page.Items {
-			match, err := s.decodeRow(item, req.MinScore)
+			match, err := s.decodeRow(item, req.Options.MinScore)
 			if err != nil {
 				return nil, err
 			}
 			if match != nil {
-				docs = append(docs, *match)
+				docs = append(docs, match)
 			}
 		}
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter expression.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("azurecosmos.Store.DeleteWhere: %w", err)
 	}
 
@@ -313,7 +316,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []NamedParam, erro
 		return "", nil, nil
 	}
 	v := NewVisitor(docAlias, s.metadataField)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("azurecosmos: convert filter: %w", err)
 	}
 	predicate, params := v.Result()
@@ -322,7 +325,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []NamedParam, erro
 
 // decodeRow turns a Cosmos JSON row into a Document and applies Lynx's
 // normalized score threshold.
-func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.Match, error) {
+func (s *Store) decodeRow(raw json.RawMessage, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {
 	var row struct {
 		ID          string         `json:"_id"`
 		Content     string         `json:"_content"`
@@ -350,22 +353,22 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.M
 	if err != nil {
 		return nil, fmt.Errorf("azurecosmos: convert metadata: %w", err)
 	}
-	return &vectorstore.Match{
+	return &vectorstore.SearchResult{
 		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: metadata},
 		Score:    score,
 	}, nil
 }
 
-func (s *Store) normalizeScore(raw float64) float64 {
+func (s *Store) normalizeScore(raw float64) vectorstore.Score {
 	switch s.distanceFunc {
 	case DistanceEuclidean:
-		return vectorstore.NormalizeDistance(raw)
+		return vectorstore.ScoreFromDistance(raw)
 	case DistanceDotProduct:
-		return vectorstore.NormalizeInnerProduct(raw)
+		return vectorstore.ScoreFromInnerProduct(raw)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineSimilarity(raw)
+		return vectorstore.ScoreFromCosineSimilarity(raw)
 	}
 }
 

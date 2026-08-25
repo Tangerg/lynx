@@ -289,19 +289,20 @@ func firstLine(s string) string {
 	return s
 }
 
-// Add embeds documents and inserts them.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("cassandra.Store.Add: %w", err)
+// Index embeds documents and inserts them.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("cassandra.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("cassandra: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("cassandra: embed documents: %w", err)
@@ -347,14 +348,15 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 }
 
 // Search runs an ANN query using the configured similarity function.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("cassandra.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -365,7 +367,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	vecLiteral := formatVectorLiteral(embedding.Float32Vector(vector))
 
-	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
+	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -387,33 +389,34 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	stmt := fmt.Sprintf(
 		"SELECT %s FROM %s%s ORDER BY %s ANN OF %s LIMIT %d",
 		strings.Join(columns, ", "), s.fullTable, wherePart,
-		s.embeddingColumn, vecLiteral, req.TopK,
+		s.embeddingColumn, vecLiteral, req.Options.TopK,
 	)
 
 	iter := s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()
 	defer iter.Close()
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	scanDest := s.makeScanDestinations()
 	for iter.Scan(scanDest...) {
-		match, err := s.scanDestToMatch(scanDest, req.MinScore)
+		match, err := s.scanDestToMatch(scanDest, req.Options.MinScore)
 		if err != nil {
 			return nil, err
 		}
 		if match == nil {
 			continue
 		}
-		docs = append(docs, *match)
+		docs = append(docs, match)
 	}
 	if err := iter.Close(); err != nil {
 		return nil, fmt.Errorf("cassandra: query %s: %w", s.fullTable, err)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // makeScanDestinations allocates the per-row pointer slice used by
 // gocql.Iter.Scan. The shape mirrors the SELECT column list built in
 // Search.
+
 func (s *Store) makeScanDestinations() []any {
 	dest := []any{new(string), new(string), new(float32)}
 	for range s.metadataColumns {
@@ -424,10 +427,10 @@ func (s *Store) makeScanDestinations() []any {
 
 // scanDestToDocument turns the per-row pointer slice back into a
 // Document. Returns nil when the row's score falls below minScore.
-func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Match, error) {
+func (s *Store) scanDestToMatch(dest []any, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {
 	id := *dest[0].(*string)
 	text := *dest[1].(*string)
-	score := vectorstore.NormalizeScore(float64(*dest[2].(*float32)))
+	score := vectorstore.ScoreFromValue(float64(*dest[2].(*float32)))
 	if score < minScore {
 		return nil, nil
 	}
@@ -455,7 +458,7 @@ func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Matc
 			}
 		}
 	}
-	return &vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
 // Delete removes rows matching the filter expression.
@@ -468,7 +471,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("cassandra.Store.DeleteWhere: %w", err)
 	}
 
@@ -537,7 +540,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 		return "", nil, nil
 	}
 	v := NewVisitor()
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("cassandra: convert filter: %w", err)
 	}
 	predicate, args := v.Result()

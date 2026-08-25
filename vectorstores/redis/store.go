@@ -396,34 +396,35 @@ func searchFieldType(t MetadataFieldType) goredis.SearchFieldType {
 
 // distanceToScore maps the raw distance returned by RediSearch to a
 // "higher = more similar" score in [0, 1].
-func (s *Store) distanceToScore(distance float64) float64 {
+func (s *Store) distanceToScore(distance float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceL2:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	case DistanceIP:
 		// Redis defines IP distance as 1-dot-product.
-		return vectorstore.NormalizeOneMinusInnerProductDistance(distance)
+		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	}
 }
 
-// Add embeds documents and writes them as Redis HASHes keyed by
+// Index embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("redis.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("redis.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("redis: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("redis: embed documents: %w", err)
@@ -455,14 +456,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 // Search embeds the query, runs a KNN search through RediSearch,
 // and returns the matching documents above MinScore.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("redis.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -473,7 +475,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := float32sToBytes(embedding.Float32Vector(vector))
 
-	filterQuery, err := s.buildFilterQuery(req.Filter)
+	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +483,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	// RediSearch hybrid syntax: <filter>=>[KNN <k> @embedding $vec AS distance]
 	queryStr := fmt.Sprintf(
 		"%s=>[KNN %d @%s $%s AS %s]",
-		filterQuery, req.TopK, s.embeddingField, vectorParamName, distanceFieldName,
+		filterQuery, req.Options.TopK, s.embeddingField, vectorParamName, distanceFieldName,
 	)
 
 	returnFields := make([]goredis.FTSearchReturn, 0, 3+len(s.metadataFields))
@@ -497,7 +499,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		},
 		Return:         returnFields,
 		LimitOffset:    0,
-		Limit:          req.TopK,
+		Limit:          req.Options.TopK,
 		DialectVersion: 2,
 		SortBy: []goredis.FTSearchSortBy{
 			{FieldName: distanceFieldName, Asc: true},
@@ -509,31 +511,32 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("redis: FT.SEARCH %s: %w", s.indexName, err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(result.Docs))
+	docs = make([]*vectorstore.SearchResult, 0, len(result.Docs))
 	for _, hit := range result.Docs {
 		score, err := s.scoreFromFields(hit.Fields)
 		if err != nil {
 			return nil, err
 		}
-		if score < req.MinScore {
+		if score < req.Options.MinScore {
 			continue
 		}
 		doc, err := s.toDocument(hit)
 		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete looks up documents matching the filter via FT.SEARCH, then
 // removes the underlying keys with DEL.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("redis.Store.DeleteWhere: %w", err)
 	}
 
@@ -601,7 +604,7 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 		return "*", nil
 	}
 	v := NewVisitor(s.fieldTypes)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("redis: convert filter: %w", err)
 	}
 	fragment := v.Result()
@@ -611,7 +614,7 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	return "(" + fragment + ")", nil
 }
 
-func (s *Store) scoreFromFields(fields map[string]string) (float64, error) {
+func (s *Store) scoreFromFields(fields map[string]string) (vectorstore.Score, error) {
 	raw, ok := fields[distanceFieldName]
 	if !ok {
 		return 0, fmt.Errorf("redis: missing distance field %q in result", distanceFieldName)

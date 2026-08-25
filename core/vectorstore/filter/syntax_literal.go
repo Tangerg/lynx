@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -27,30 +28,30 @@ func newLiteral(value any) (*Literal, error) {
 		reflected := reflect.ValueOf(value)
 		switch reflected.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return &Literal{Kind: LiteralNumber, Value: strconv.FormatInt(reflected.Int(), 10)}, nil
+			return &Literal{kind: LiteralNumber, text: strconv.FormatInt(reflected.Int(), 10)}, nil
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return &Literal{Kind: LiteralNumber, Value: strconv.FormatUint(reflected.Uint(), 10)}, nil
+			return &Literal{kind: LiteralNumber, text: strconv.FormatUint(reflected.Uint(), 10)}, nil
 		case reflect.Float32, reflect.Float64:
 			number := reflected.Float()
 			// Collapse negative zero: FormatFloat renders -0.0 as "-0", which
 			// fails the canonical round-trip in Validate (canonicalNumber("-0")
 			// yields "0"), so a -0.0 literal would reject its own value.
 			if number == 0 {
-				return &Literal{Kind: LiteralNumber, Value: "0"}, nil
+				return &Literal{kind: LiteralNumber, text: "0"}, nil
 			}
 			return &Literal{
-				Kind:  LiteralNumber,
-				Value: strconv.FormatFloat(number, 'g', -1, reflected.Type().Bits()),
+				kind: LiteralNumber,
+				text: strconv.FormatFloat(number, 'g', -1, reflected.Type().Bits()),
 			}, nil
 		}
 	}
 
 	switch typed := value.(type) {
 	case string:
-		return &Literal{Kind: LiteralString, Value: typed}, nil
+		return &Literal{kind: LiteralString, text: typed}, nil
 
 	case bool:
-		return &Literal{Kind: LiteralBool, Value: strconv.FormatBool(typed)}, nil
+		return &Literal{kind: LiteralBool, text: strconv.FormatBool(typed)}, nil
 
 	case *Literal:
 		return typed, nil
@@ -122,35 +123,35 @@ func newListLiteral(value any) (*ListLiteral, error) {
 
 	switch typed := value.(type) {
 	case []int:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []int8:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []int16:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []int32:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []int64:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []uint:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []uint8:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []uint16:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []uint32:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []uint64:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []float32:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []float64:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []string:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []bool:
-		result.Values = NewLiterals(typed)
+		result.values = NewLiterals(typed)
 	case []*Literal:
-		result.Values = typed
+		result.values = slices.Clone(typed)
 	default:
 		return nil, fmt.Errorf("filter.newListLiteral: unsupported list type %T (%v)",
 			value, value)

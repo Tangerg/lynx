@@ -23,7 +23,7 @@ func TestLikeCompilationPreservesPatternSemantics(t *testing.T) {
 		t.Run(test.pattern, func(t *testing.T) {
 			t.Parallel()
 			compiler := NewVisitor("c", "metadata")
-			if err := compiler.Visit(filter.Like("name", test.pattern)); err != nil {
+			if err := filter.Like("name", test.pattern).Accept(compiler); err != nil {
 				t.Fatal(err)
 			}
 			if got, _ := compiler.Result(); got != test.want {
@@ -38,7 +38,7 @@ func TestLikeCompilationRejectsUnsupportedPatterns(t *testing.T) {
 
 	for _, pattern := range []string{"a_b", "a%b", "%"} {
 		compiler := NewVisitor("c", "metadata")
-		if err := compiler.Visit(filter.Like("name", pattern)); err == nil {
+		if err := filter.Like("name", pattern).Accept(compiler); err == nil {
 			t.Errorf("Visit(LIKE %q) error = nil, want unsupported pattern", pattern)
 		}
 	}
@@ -48,7 +48,7 @@ func TestCollectionMembershipUsesArrayContains(t *testing.T) {
 	t.Parallel()
 
 	visitor := NewVisitor("c", "metadata")
-	if err := visitor.Visit(filter.Has("visible_to", "user-42")); err != nil {
+	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	query, params := visitor.Result()

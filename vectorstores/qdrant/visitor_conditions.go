@@ -11,25 +11,25 @@ import (
 )
 
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("extract value from right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
 	matchCond, err := v.buildMatchCondition(fieldKey, fieldValue)
 	if err != nil {
 		return fmt.Errorf("create match condition for '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpEqual:
 		// == operator: field must equal value
 		v.filter.Must = append(v.filter.Must, matchCond)
@@ -39,7 +39,7 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	default:
 		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected equality operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	return nil
@@ -48,11 +48,11 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 // visitHasExpr uses Qdrant's match condition, whose exact-match semantics
 // apply to any element when the payload field is an array.
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract collection field at %s: %w", expr.Start().String(), err)
 	}
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("extract collection member at %s: %w", expr.Start().String(), err)
 	}
@@ -108,24 +108,24 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 //   - "age > 18" produces: Must[Range{Gt: 18}]
 //   - "price <= 99.99" produces: Must[Range{Lte: 99.99}]
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	literal, ok := expr.Right.(*filter.Literal)
+	literal, ok := expr.Right().(*filter.Literal)
 	if !ok {
 		return fmt.Errorf("right operand of '%s' at %s must be a number literal, got %T",
-			expr.Op.String(), expr.Start().String(), expr.Right)
+			expr.Operator().String(), expr.Start().String(), expr.Right())
 	}
-	numericValue, err := filter.NumberToFloat64(literal)
+	numericValue, err := literal.Float64()
 	if err != nil {
 		return fmt.Errorf("cannot convert value for '%s' comparison at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpLess:
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lt: &numericValue,
@@ -145,7 +145,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	default:
 		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected ordering operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	return nil
@@ -168,23 +168,27 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 //   - "age IN [18, 21, 25]" produces: Must[MatchInts(age, [18, 21, 25])]
 //   - "active IN [true, false]" produces: Must[Filter{Should[active==true, active==false]}]
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("qdrant: %w", err)
+	}
+	first, err := listLit.First()
+	if err != nil {
+		return fmt.Errorf("qdrant: IN values: %w", err)
 	}
 
 	// Determine list type and create appropriate condition based on first element
 	switch {
-	case listLit.Values[0].IsString():
+	case first.IsString():
 		// String list: use MatchKeywords (OR semantics for multiple keywords)
-		keywords := make([]string, 0, len(listLit.Values))
-		for _, literal := range listLit.Values {
+		keywords := make([]string, 0, listLit.Len())
+		for _, literal := range listLit.Literals() {
 			value, err := literal.AsString()
 			if err != nil {
 				return err
@@ -193,11 +197,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		}
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
 
-	case listLit.Values[0].IsNumber():
+	case first.IsNumber():
 		// Number list: use MatchInts (OR semantics for multiple integers)
-		integers := make([]int64, 0, len(listLit.Values))
-		for _, literal := range listLit.Values {
-			value, err := filter.NumberToInt64(literal)
+		integers := make([]int64, 0, listLit.Len())
+		for _, literal := range listLit.Literals() {
+			value, err := literal.Int64()
 			if err != nil {
 				return fmt.Errorf("qdrant: IN numeric value: %w", err)
 			}
@@ -205,14 +209,14 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		}
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
 
-	case listLit.Values[0].IsBool():
+	case first.IsBool():
 		// Boolean list: wrap Should conditions in a nested filter
 		// This is necessary because:
 		// 1. The SDK doesn't provide NewMatchBools
 		// 2. Direct Should append would affect top-level filter semantics
 		// 3. Nested filter isolates the OR logic for this specific condition
-		boolConditions := make([]*qdrant.Condition, 0, len(listLit.Values))
-		for _, literal := range listLit.Values {
+		boolConditions := make([]*qdrant.Condition, 0, listLit.Len())
+		for _, literal := range listLit.Literals() {
 			value, err := literal.AsBool()
 			if err != nil {
 				return err
@@ -226,7 +230,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 	default:
 		return fmt.Errorf("unsupported literal kind %s in 'IN' list at %s",
-			listLit.Values[0].Kind, expr.Start().String())
+			first.Kind(), expr.Start().String())
 	}
 
 	return nil
@@ -237,21 +241,21 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // is not equivalent to SQL LIKE, so patterns containing SQL wildcards are
 // rejected instead of being silently widened or narrowed.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("qdrant: extract field key from left operand of LIKE at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	lit, ok := expr.Right.(*filter.Literal)
+	lit, ok := expr.Right().(*filter.Literal)
 	if !ok {
 		return fmt.Errorf("qdrant: LIKE requires a string literal on the right side at %s, got %T",
-			expr.Start().String(), expr.Right)
+			expr.Start().String(), expr.Right())
 	}
 
 	if !lit.IsString() {
 		return fmt.Errorf("qdrant: LIKE requires a string pattern at %s, got %s",
-			expr.Start().String(), lit.Kind)
+			expr.Start().String(), lit.Kind())
 	}
 	pattern, err := lit.AsString()
 	if err != nil {
@@ -393,17 +397,17 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	currentExpr := expr
 	for {
-		key, err := filter.LiteralAsKey(currentExpr.Index)
+		key, err := currentExpr.Index().Key()
 		if err != nil {
 			return "", err
 		}
 		pathParts = append([]string{key}, pathParts...)
 
-		switch leftNode := currentExpr.Left.(type) {
+		switch leftNode := currentExpr.Left().(type) {
 		case *filter.IndexExpr:
 			currentExpr = leftNode
 		case *filter.Ident:
-			pathParts = append([]string{leftNode.Value}, pathParts...)
+			pathParts = append([]string{leftNode.Name()}, pathParts...)
 			return strings.Join(pathParts, "."), nil
 		default:
 			return "", fmt.Errorf("invalid left operand type %T in index expression, expected identifier or index", leftNode)
@@ -426,14 +430,14 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	}
 
 	if lit.IsNumber() {
-		return filter.LiteralToValue(lit)
+		return lit.Value()
 	}
 
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
 
-	return nil, fmt.Errorf("unsupported literal type '%s'", lit.Kind)
+	return nil, fmt.Errorf("unsupported literal type '%s'", lit.Kind())
 }
 
 // ToFilter converts an AST filter expression into a Qdrant filter.
@@ -496,7 +500,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 //   - error: Conversion error if the expression contains unsupported operations or syntax errors
 func ToFilter(expr filter.Predicate) (*qdrant.Filter, error) {
 	conv := NewVisitor()
-	if err := conv.Visit(expr); err != nil {
+	if err := expr.Accept(conv); err != nil {
 		return nil, err
 	}
 	return conv.Filter(), nil

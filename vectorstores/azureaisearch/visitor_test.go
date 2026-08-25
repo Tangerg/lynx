@@ -18,7 +18,7 @@ func TestCollectionMembershipUsesODataAny(t *testing.T) {
 	t.Parallel()
 
 	visitor := NewVisitor()
-	if err := visitor.Visit(filter.Has("visible_to", "user-42")); err != nil {
+	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := visitor.Result(), `visible_to/any(element: element eq 'user-42')`; got != want {

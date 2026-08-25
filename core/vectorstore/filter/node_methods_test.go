@@ -23,7 +23,7 @@ func mustParseBinary(t *testing.T, src string) *filter.BinaryExpr {
 	return be
 }
 
-func TestDispatchBinary_Routes(t *testing.T) {
+func TestBinaryExprDispatchRoutes(t *testing.T) {
 	cases := []struct {
 		name string
 		src  string
@@ -44,7 +44,7 @@ func TestDispatchBinary_Routes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := mustParseBinary(t, tc.src)
 			var got string
-			err := filter.DispatchBinary(e, filter.BinaryHandlers{
+			err := e.Dispatch(filter.BinaryHandlers{
 				Logical:    func(*filter.BinaryExpr) error { got = "logical"; return nil },
 				Comparison: func(*filter.BinaryExpr) error { got = "comparison"; return nil },
 				In:         func(*filter.BinaryExpr) error { got = "in"; return nil },
@@ -52,7 +52,7 @@ func TestDispatchBinary_Routes(t *testing.T) {
 				Like:       func(*filter.BinaryExpr) error { got = "like"; return nil },
 			})
 			if err != nil {
-				t.Fatalf("DispatchBinary: %v", err)
+				t.Fatalf("BinaryExpr.Dispatch: %v", err)
 			}
 			if got != tc.want {
 				t.Fatalf("routed to %q, want %q", got, tc.want)
@@ -61,18 +61,18 @@ func TestDispatchBinary_Routes(t *testing.T) {
 	}
 }
 
-func TestDispatchBinary_MissingHandlerIsExplicitlyUnsupported(t *testing.T) {
+func TestBinaryExprDispatchMissingHandlerIsExplicitlyUnsupported(t *testing.T) {
 	expr := mustParseBinary(t, `tags has 'rag'`)
-	err := filter.DispatchBinary(expr, filter.BinaryHandlers{})
+	err := expr.Dispatch(filter.BinaryHandlers{})
 	if err == nil || !strings.Contains(err.Error(), "HAS is not supported") {
 		t.Fatalf("error = %v, want explicit HAS unsupported error", err)
 	}
 }
 
-func TestDispatchBinary_HandlerErrorPropagates(t *testing.T) {
+func TestBinaryExprDispatchHandlerErrorPropagates(t *testing.T) {
 	want := errors.New("boom")
 	e := mustParseBinary(t, `a == 1`)
-	err := filter.DispatchBinary(e, filter.BinaryHandlers{
+	err := e.Dispatch(filter.BinaryHandlers{
 		Comparison: func(*filter.BinaryExpr) error { return want },
 	})
 	if !errors.Is(err, want) {
@@ -80,7 +80,7 @@ func TestDispatchBinary_HandlerErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestDispatchUnary_NotOK(t *testing.T) {
+func TestUnaryExprDispatchNot(t *testing.T) {
 	expr, err := filter.Parse(`not (a == 1)`)
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
@@ -90,73 +90,71 @@ func TestDispatchUnary_NotOK(t *testing.T) {
 		t.Fatalf("expected *filter.UnaryExpr, got %T", expr)
 	}
 	var got string
-	err = filter.DispatchUnary(u,
+	err = u.Dispatch(
 		func(*filter.UnaryExpr) error { got = "not"; return nil },
 	)
 	if err != nil {
-		t.Fatalf("DispatchUnary: %v", err)
+		t.Fatalf("UnaryExpr.Dispatch: %v", err)
 	}
 	if got != "not" {
 		t.Fatalf("got %q, want not", got)
 	}
 }
 
-func TestLogicalOpString(t *testing.T) {
-	if op, _ := filter.LogicalOpString(filter.OpAnd); op != "AND" {
+func TestOperatorLogicalString(t *testing.T) {
+	if op, _ := filter.OpAnd.LogicalString(); op != "AND" {
 		t.Fatalf("AND → %q, want AND", op)
 	}
-	if op, _ := filter.LogicalOpString(filter.OpOr); op != "OR" {
+	if op, _ := filter.OpOr.LogicalString(); op != "OR" {
 		t.Fatalf("OR → %q, want OR", op)
 	}
-	if _, err := filter.LogicalOpString(filter.OpEqual); err == nil {
+	if _, err := filter.OpEqual.LogicalString(); err == nil {
 		t.Fatal("non-logical kind must error")
 	}
 }
 
-func TestRequireListLiteral_NonEmpty(t *testing.T) {
+func TestBinaryExprListNonEmpty(t *testing.T) {
 	e := mustParseBinary(t, `a in (1, 2, 3)`)
-	list, err := filter.RequireListLiteral(e)
+	list, err := e.List()
 	if err != nil {
-		t.Fatalf("RequireListLiteral: %v", err)
+		t.Fatalf("BinaryExpr.List: %v", err)
 	}
-	if got := len(list.Values); got != 3 {
+	if got := list.Len(); got != 3 {
 		t.Fatalf("len = %d, want 3", got)
 	}
 }
 
-func TestRequireListLiteral_RejectsNonList(t *testing.T) {
+func TestBinaryExprListRejectsNonList(t *testing.T) {
 	e := mustParseBinary(t, `a == 1`)
-	_, err := filter.RequireListLiteral(e)
+	_, err := e.List()
 	if err == nil || !strings.Contains(err.Error(), "list") {
 		t.Fatalf("expected list error, got %v", err)
 	}
 }
 
-func TestRequireStringPatternOnRight(t *testing.T) {
+func TestBinaryExprPattern(t *testing.T) {
 	e := mustParseBinary(t, `a like '%foo%'`)
-	got, err := filter.RequireStringPatternOnRight(e)
+	got, err := e.Pattern()
 	if err != nil {
-		t.Fatalf("RequireStringPatternOnRight: %v", err)
+		t.Fatalf("BinaryExpr.Pattern: %v", err)
 	}
 	if got != "%foo%" {
 		t.Fatalf("got %q, want %%foo%%", got)
 	}
 
-	bad := &filter.BinaryExpr{
-		Left: filter.NewIdent("a"), Op: filter.OpLike, Right: filter.NewLiteral(42),
-	}
-	if _, err := filter.RequireStringPatternOnRight(bad); err == nil {
+	bad := filter.Like("a", filter.NewLiteral(42))
+	if _, err := bad.Pattern(); err == nil {
 		t.Fatal("non-string pattern must error")
 	}
 }
 
-func TestConvertListLiteral_Strings(t *testing.T) {
+func TestListLiteralValuesStrings(t *testing.T) {
 	e := mustParseBinary(t, `a in ('x', 'y', 'z')`)
-	list, _ := filter.RequireListLiteral(e)
+	list, _ := e.List()
 
-	slice, sample, err := filter.ConvertListLiteral(list)
+	slice, err := list.Values()
 	if err != nil {
-		t.Fatalf("ConvertListLiteral: %v", err)
+		t.Fatalf("ListLiteral.Values: %v", err)
 	}
 	xs, ok := slice.([]string)
 	if !ok {
@@ -165,18 +163,15 @@ func TestConvertListLiteral_Strings(t *testing.T) {
 	if len(xs) != 3 || xs[0] != "x" || xs[2] != "z" {
 		t.Fatalf("xs = %v, want [x y z]", xs)
 	}
-	if s, _ := sample.(string); s != "x" {
-		t.Fatalf("sample = %v, want x", sample)
-	}
 }
 
-func TestConvertListLiteral_Numbers(t *testing.T) {
+func TestListLiteralValuesNumbers(t *testing.T) {
 	e := mustParseBinary(t, `a in (1, 2, 3.5)`)
-	list, _ := filter.RequireListLiteral(e)
+	list, _ := e.List()
 
-	slice, sample, err := filter.ConvertListLiteral(list)
+	slice, err := list.Values()
 	if err != nil {
-		t.Fatalf("ConvertListLiteral: %v", err)
+		t.Fatalf("ListLiteral.Values: %v", err)
 	}
 	ns, ok := slice.([]float64)
 	if !ok {
@@ -185,16 +180,13 @@ func TestConvertListLiteral_Numbers(t *testing.T) {
 	if len(ns) != 3 || ns[2] != 3.5 {
 		t.Fatalf("ns = %v, want [1 2 3.5]", ns)
 	}
-	if n, _ := sample.(float64); n != 1.0 {
-		t.Fatalf("sample = %v, want 1.0", sample)
-	}
 }
 
-func TestConvertListLiteral_IntegersStayExact(t *testing.T) {
+func TestListLiteralValuesIntegersStayExact(t *testing.T) {
 	e := mustParseBinary(t, `a in (1, 2, 3)`)
-	list, _ := filter.RequireListLiteral(e)
+	list, _ := e.List()
 
-	slice, sample, err := filter.ConvertListLiteral(list)
+	slice, err := list.Values()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,14 +194,11 @@ func TestConvertListLiteral_IntegersStayExact(t *testing.T) {
 	if !ok || len(values) != 3 || values[2] != 3 {
 		t.Fatalf("slice = %#v (%T), want []int64{1, 2, 3}", slice, slice)
 	}
-	if sample != int64(1) {
-		t.Fatalf("sample = %#v, want int64(1)", sample)
-	}
 }
 
-func TestLiteralToValue_PreservesUint64(t *testing.T) {
+func TestLiteralValuePreservesUint64(t *testing.T) {
 	literal := filter.NewLiteral(uint64(math.MaxUint64))
-	value, err := filter.LiteralToValue(literal)
+	value, err := literal.Value()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,10 +207,10 @@ func TestLiteralToValue_PreservesUint64(t *testing.T) {
 	}
 }
 
-func TestCollectKeyPath_IncludesBaseIdentifier(t *testing.T) {
+func TestSelectorPathIncludesBaseIdentifier(t *testing.T) {
 	tests := []struct {
 		name string
-		expr filter.Expr
+		expr filter.Selector
 		want []string
 	}{
 		{name: "bare", expr: filter.NewIdent("author"), want: []string{"author"}},
@@ -231,7 +220,7 @@ func TestCollectKeyPath_IncludesBaseIdentifier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := filter.CollectKeyPath(tt.expr)
+			got, err := tt.expr.Path()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -242,13 +231,13 @@ func TestCollectKeyPath_IncludesBaseIdentifier(t *testing.T) {
 	}
 }
 
-func TestConvertListLiteral_Bools(t *testing.T) {
+func TestListLiteralValuesBools(t *testing.T) {
 	e := mustParseBinary(t, `a in (true, false, true)`)
-	list, _ := filter.RequireListLiteral(e)
+	list, _ := e.List()
 
-	slice, _, err := filter.ConvertListLiteral(list)
+	slice, err := list.Values()
 	if err != nil {
-		t.Fatalf("ConvertListLiteral: %v", err)
+		t.Fatalf("ListLiteral.Values: %v", err)
 	}
 	bs, ok := slice.([]bool)
 	if !ok {

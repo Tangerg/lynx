@@ -19,9 +19,9 @@ func TestParse_ProducesCanonicalPredicates(t *testing.T) {
 			input: `status in ('active')`,
 			check: func(t *testing.T, expr filter.Expr) {
 				binary := expr.(*filter.BinaryExpr)
-				list, ok := binary.Right.(*filter.ListLiteral)
-				if !ok || len(list.Values) != 1 || list.Values[0].Value != "active" {
-					t.Fatalf("right = %#v, want one-element ListLiteral", binary.Right)
+				list, ok := binary.Right().(*filter.ListLiteral)
+				if !ok || list.Len() != 1 || list.Literals()[0].Text() != "active" {
+					t.Fatalf("right = %#v, want one-element ListLiteral", binary.Right())
 				}
 			},
 		},
@@ -30,8 +30,8 @@ func TestParse_ProducesCanonicalPredicates(t *testing.T) {
 			input: `visible_to has 'user-42'`,
 			check: func(t *testing.T, expr filter.Expr) {
 				binary := expr.(*filter.BinaryExpr)
-				literal, ok := binary.Right.(*filter.Literal)
-				if binary.Op != filter.OpHas || !ok || literal.Value != "user-42" {
+				literal, ok := binary.Right().(*filter.Literal)
+				if binary.Operator() != filter.OpHas || !ok || literal.Text() != "user-42" {
 					t.Fatalf("expression = %#v, want HAS with scalar literal", binary)
 				}
 			},
@@ -50,9 +50,9 @@ func TestParse_ProducesCanonicalPredicates(t *testing.T) {
 			input: `score == 1e3`,
 			check: func(t *testing.T, expr filter.Expr) {
 				binary := expr.(*filter.BinaryExpr)
-				literal := binary.Right.(*filter.Literal)
-				if literal.Value != "1000" {
-					t.Fatalf("literal.Value = %q, want 1000", literal.Value)
+				literal := binary.Right().(*filter.Literal)
+				if literal.Text() != "1000" {
+					t.Fatalf("literal.Text() = %q, want 1000", literal.Text())
 				}
 			},
 		},
@@ -203,8 +203,8 @@ func TestParse_NotIn(t *testing.T) {
 	if !ok {
 		t.Fatalf("NOT IN should be a UnaryExpr(NOT, ...), got %T", expr)
 	}
-	if _, ok := unary.Right.(*filter.BinaryExpr); !ok {
-		t.Fatalf("NOT IN inner should be a BinaryExpr(IN), got %T", unary.Right)
+	if _, ok := unary.Right().(*filter.BinaryExpr); !ok {
+		t.Fatalf("NOT IN inner should be a BinaryExpr(IN), got %T", unary.Right())
 	}
 }
 

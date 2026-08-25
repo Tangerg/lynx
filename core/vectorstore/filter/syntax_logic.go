@@ -2,9 +2,9 @@ package filter
 
 func logic[L Predicate, R Predicate](l L, r R, op Operator) *BinaryExpr {
 	return &BinaryExpr{
-		Left:  l,
-		Op:    op,
-		Right: r,
+		left:     l,
+		operator: op,
+		right:    r,
 	}
 }
 
@@ -22,7 +22,7 @@ func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr {
 // Not builds `NOT r`. The operand must be a predicate.
 func Not[T Predicate](r T) *UnaryExpr {
 	return &UnaryExpr{
-		Op:    OpNot,
-		Right: r,
+		operator: OpNot,
+		right:    r,
 	}
 }

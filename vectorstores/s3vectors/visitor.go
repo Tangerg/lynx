@@ -57,27 +57,27 @@ func (v *Visitor) translate(expr filter.Expr) (map[string]any, error) {
 
 func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, error) {
 	switch {
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return v.translateLogical(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.translateIn(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return v.translateHas(expr)
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.translateComparison(expr)
 	default:
-		return nil, fmt.Errorf("s3vectors: unsupported binary operator '%s'", expr.Op.String())
+		return nil, fmt.Errorf("s3vectors: unsupported binary operator '%s'", expr.Operator().String())
 	}
 }
 
 // translateHas uses S3 Vectors' documented scalar equality behavior for
 // metadata arrays: $eq matches when any array element equals the scalar.
 func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
-	key, err := keyName(expr.Left)
+	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +85,10 @@ func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) 
 }
 
 func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {
-	if !expr.Op.Is(filter.OpNot) {
-		return nil, fmt.Errorf("s3vectors: unsupported unary '%s'", expr.Op.String())
+	if !expr.Operator().Is(filter.OpNot) {
+		return nil, fmt.Errorf("s3vectors: unsupported unary '%s'", expr.Operator().String())
 	}
-	inner, err := v.translate(expr.Right)
+	inner, err := v.translate(expr.Right())
 	if err != nil {
 		return nil, err
 	}
@@ -96,31 +96,31 @@ func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error)
 }
 
 func (v *Visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, error) {
-	left, err := v.translate(expr.Left)
+	left, err := v.translate(expr.Left())
 	if err != nil {
 		return nil, err
 	}
-	right, err := v.translate(expr.Right)
+	right, err := v.translate(expr.Right())
 	if err != nil {
 		return nil, err
 	}
 	op := "$and"
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		op = "$or"
 	}
 	return map[string]any{op: []any{left, right}}, nil
 }
 
 func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, error) {
-	key, err := keyName(expr.Left)
+	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return nil, err
 	}
-	op, err := mongoOpFor(expr.Op)
+	op, err := mongoOpFor(expr.Operator())
 	if err != nil {
 		return nil, err
 	}
@@ -128,20 +128,20 @@ func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, 
 }
 
 func (v *Visitor) translateIn(expr *filter.BinaryExpr) (map[string]any, error) {
-	key, err := keyName(expr.Left)
+	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err
 	}
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return nil, errors.New("s3vectors: 'IN' requires a list on the right")
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return nil, errors.New("s3vectors: 'IN' requires a non-empty list")
 	}
-	values := make([]any, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	values := make([]any, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return nil, err
 		}
@@ -153,9 +153,9 @@ func (v *Visitor) translateIn(expr *filter.BinaryExpr) (map[string]any, error) {
 func keyName(expr filter.Expr) (string, error) {
 	switch node := expr.(type) {
 	case *filter.Ident:
-		return node.Value, nil
+		return node.Name(), nil
 	case *filter.IndexExpr:
-		keys, err := filter.CollectKeyPath(node)
+		keys, err := node.Path()
 		if err != nil {
 			return "", err
 		}

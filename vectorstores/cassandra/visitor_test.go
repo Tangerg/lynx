@@ -10,7 +10,7 @@ import (
 
 func TestVisitor_PreservesUnsignedIntegerList(t *testing.T) {
 	visitor := cassandra.NewVisitor()
-	if err := visitor.Visit(filter.In("id", []uint64{math.MaxUint64})); err != nil {
+	if err := filter.In("id", []uint64{math.MaxUint64}).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	_, args := visitor.Result()

@@ -232,14 +232,14 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	return nil
 }
 
-// Add embeds documents and upserts them into the vector table.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("mariadb.Store.Add: %w", err)
+// Index embeds documents and upserts them into the vector table.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("mariadb.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("mariadb: batch documents: %w", err)
 	}
@@ -253,7 +253,8 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		s.embeddingColumn, s.embeddingColumn,
 	)
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("mariadb: embed documents: %w", err)
@@ -288,14 +289,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 // Search embeds the query, ranks rows by vec_distance, and returns
 // matching documents above MinScore.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("mariadb.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -307,7 +309,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	queryVec := embedding.Float32Vector(vector)
 	vecText := formatVectorLiteral(queryVec)
 
-	wherePredicate, whereArgs, err := s.buildFilter(req.Filter)
+	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +330,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	args := make([]any, 0, len(whereArgs)+2)
 	args = append(args, vecText)
 	args = append(args, whereArgs...)
-	args = append(args, req.TopK)
+	args = append(args, req.Options.TopK)
 
 	rows, err := s.db.QueryContext(ctx, stmt, args...)
 	if err != nil {
@@ -336,7 +338,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	defer rows.Close()
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -349,7 +351,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		}
 
 		score := distanceToScore(s.distanceMetric, distance)
-		if score < req.MinScore {
+		if score < req.Options.MinScore {
 			continue
 		}
 		if id == "" {
@@ -365,20 +367,21 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 				return nil, fmt.Errorf("mariadb: unmarshal metadata for %s: %w", id, err)
 			}
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("mariadb: read rows: %w", err)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes rows matching the filter expression.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("mariadb.Store.DeleteWhere: %w", err)
 	}
 
@@ -430,7 +433,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 		return "", nil, nil
 	}
 	v := NewVisitor(s.metadataColumn)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("mariadb: convert filter: %w", err)
 	}
 	predicate, args := v.Result()
@@ -441,14 +444,14 @@ func (s *Store) Close() error { return nil }
 
 // distanceToScore maps a vec_distance_* result into a [0, 1]
 // similarity score.
-func distanceToScore(metric DistanceMetric, distance float64) float64 {
+func distanceToScore(metric DistanceMetric, distance float64) vectorstore.Score {
 	switch metric {
 	case DistanceEuclidean:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	}
 }
 

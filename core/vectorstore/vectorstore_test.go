@@ -15,11 +15,11 @@ func TestSearchRequestValidate(t *testing.T) {
 		req  vectorstore.SearchRequest
 		ok   bool
 	}{
-		{"empty query", vectorstore.SearchRequest{TopK: 5}, false},
+		{"empty query", vectorstore.SearchRequest{Options: vectorstore.SearchOptions{TopK: 5}}, false},
 		{"zero topk", vectorstore.SearchRequest{Query: "hi"}, false},
-		{"out-of-range minscore", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: 1.5}, false},
-		{"nan minscore", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: math.NaN()}, false},
-		{"valid", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: 0.5}, true},
+		{"out-of-range minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 1.5}}, false},
+		{"nan minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: vectorstore.Score(math.NaN())}}, false},
+		{"valid", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 0.5}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -34,32 +34,33 @@ func TestSearchRequestValidate(t *testing.T) {
 	}
 }
 
-func TestSearchRequestValidateMatches(t *testing.T) {
-	request := vectorstore.SearchRequest{Query: "lynx", TopK: 2, MinScore: 0.5}
+func TestSearchResponseValidate(t *testing.T) {
+	request := vectorstore.SearchRequest{Query: "lynx", Options: vectorstore.SearchOptions{TopK: 2, MinScore: 0.5}}
 	first, _ := document.NewDocument("first", nil)
 	second, _ := document.NewDocument("second", nil)
 	first.ID = "first"
 	second.ID = "second"
-	valid := []vectorstore.Match{{Document: first, Score: 0.9}, {Document: second, Score: 0.5}}
-	if err := request.ValidateMatches(valid); err != nil {
+	valid := []*vectorstore.SearchResult{{Document: first, Score: 0.9}, {Document: second, Score: 0.5}}
+	if err := (&vectorstore.SearchResponse{Results: valid}).ValidateFor(&request); err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
 		name    string
-		matches []vectorstore.Match
+		results []*vectorstore.SearchResult
 	}{
-		{name: "too many", matches: append(valid, vectorstore.Match{Document: second, Score: 0.5})},
-		{name: "nil document", matches: []vectorstore.Match{{Score: 0.9}}},
-		{name: "missing document ID", matches: []vectorstore.Match{{Document: &document.Document{Text: "text"}, Score: 0.9}}},
-		{name: "out of range", matches: []vectorstore.Match{{Document: first, Score: 1.1}}},
-		{name: "below threshold", matches: []vectorstore.Match{{Document: first, Score: 0.4}}},
-		{name: "not sorted", matches: []vectorstore.Match{{Document: first, Score: 0.5}, {Document: second, Score: 0.9}}},
+		{name: "too many", results: append(valid, &vectorstore.SearchResult{Document: second, Score: 0.5})},
+		{name: "nil result", results: []*vectorstore.SearchResult{nil}},
+		{name: "nil document", results: []*vectorstore.SearchResult{{Score: 0.9}}},
+		{name: "missing document ID", results: []*vectorstore.SearchResult{{Document: &document.Document{Text: "text"}, Score: 0.9}}},
+		{name: "out of range", results: []*vectorstore.SearchResult{{Document: first, Score: 1.1}}},
+		{name: "below threshold", results: []*vectorstore.SearchResult{{Document: first, Score: 0.4}}},
+		{name: "not sorted", results: []*vectorstore.SearchResult{{Document: first, Score: 0.5}, {Document: second, Score: 0.9}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := request.ValidateMatches(test.matches); err == nil {
-				t.Fatal("ValidateMatches accepted invalid output")
+			if err := (&vectorstore.SearchResponse{Results: test.results}).ValidateFor(&request); err == nil {
+				t.Fatal("SearchResponse.Validate accepted invalid output")
 			}
 		})
 	}
@@ -71,7 +72,7 @@ func TestCapabilityInterfacesStayMinimal(t *testing.T) {
 		typeOf reflect.Type
 		method string
 	}{
-		{"Indexer", reflect.TypeFor[vectorstore.Indexer](), "Add"},
+		{"Indexer", reflect.TypeFor[vectorstore.Indexer](), "Index"},
 		{"Searcher", reflect.TypeFor[vectorstore.Searcher](), "Search"},
 		{"IDDeleter", reflect.TypeFor[vectorstore.IDDeleter](), "DeleteIDs"},
 		{"FilterDeleter", reflect.TypeFor[vectorstore.FilterDeleter](), "DeleteWhere"},

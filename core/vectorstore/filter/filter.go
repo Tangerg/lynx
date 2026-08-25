@@ -9,15 +9,10 @@ func Parse(input string) (Predicate, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := Validate(expr); err != nil {
+	if err := expr.Validate(); err != nil {
 		return nil, err
 	}
 	return optimize(expr), nil
 }
 
-// Validate checks a programmatically constructed expression for invalid
-// operators, operands, identifiers, and heterogeneous/empty lists. [Parse]
-// validates parsed input automatically.
-func Validate(expr Predicate) error {
-	return (&analyzer{}).analyze(expr)
-}
+func validatePredicate(expr Predicate) error { return (&analyzer{}).analyze(expr) }

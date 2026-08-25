@@ -63,7 +63,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		return filter.DispatchBinary(node, filter.BinaryHandlers{
+		return node.Dispatch(filter.BinaryHandlers{
 			Logical:    v.visitLogicalExpr,
 			Comparison: v.visitComparisonExpr,
 			In:         v.visitInExpr,
@@ -71,7 +71,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 			Like:       v.visitTextFieldExpr,
 		})
 	case *filter.UnaryExpr:
-		return filter.DispatchUnary(node, v.visitNotExpr)
+		return node.Dispatch(v.visitNotExpr)
 	default:
 		return fmt.Errorf("redis: unsupported root expression %T", node)
 	}
@@ -84,7 +84,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("-(")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -93,19 +93,19 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 
 // visitLogicalExpr uses RediSearch's space separator for AND and the
 // pipe (` | `) for OR — not the verbatim "AND"/"OR" strings other
-// vendors emit. We don't call filter.LogicalOpString here because
+// vendors emit. We don't call Operator.LogicalString here because
 // of that mapping difference.
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	sep := " "
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		sep = " | "
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(sep)
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -117,17 +117,17 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 //   - NUMERIC fields handle the full ordering set
 //   - TEXT fields only support equality via the (value) syntax
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	field, kind, err := v.resolveFieldKey(expr.Left)
+	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	op := expr.Op
+	op := expr.Operator()
 	negate := op.Is(filter.OpNotEqual)
 	if negate {
 		op = filter.OpEqual
@@ -141,7 +141,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	case FieldTag:
 		if !op.Is(filter.OpEqual) {
 			return fmt.Errorf("redis: TAG field '%s' only supports == / != / IN (got '%s')",
-				field, expr.Op.String())
+				field, expr.Operator().String())
 		}
 		v.sql.WriteString("@")
 		v.sql.WriteString(field)
@@ -150,11 +150,11 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString("}")
 
 	case FieldNumeric:
-		literal, ok := expr.Right.(*filter.Literal)
+		literal, ok := expr.Right().(*filter.Literal)
 		if !ok {
-			return fmt.Errorf("redis: NUMERIC field '%s' requires a number literal, got %T", field, expr.Right)
+			return fmt.Errorf("redis: NUMERIC field '%s' requires a number literal, got %T", field, expr.Right())
 		}
-		num, err := filter.NumberToFloat64(literal)
+		num, err := literal.Float64()
 		if err != nil {
 			return fmt.Errorf("redis: NUMERIC field '%s': %w", field, err)
 		}
@@ -170,7 +170,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	case FieldText:
 		if !op.Is(filter.OpEqual) {
 			return fmt.Errorf("redis: TEXT field '%s' only supports == / != / LIKE (got '%s')",
-				field, expr.Op.String())
+				field, expr.Operator().String())
 		}
 		v.sql.WriteString("@")
 		v.sql.WriteString(field)
@@ -185,7 +185,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
-	field, kind, err := v.resolveFieldKey(expr.Left)
+	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
@@ -194,7 +194,7 @@ func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 			kind, field)
 	}
 
-	pattern, err := filter.RequireStringPatternOnRight(expr)
+	pattern, err := expr.Pattern()
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
@@ -232,20 +232,20 @@ func redisWildcardPattern(pattern string) string {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	field, kind, err := v.resolveFieldKey(expr.Left)
+	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
 
 	switch kind {
 	case FieldTag:
-		parts := make([]string, 0, len(listLit.Values))
-		for _, lit := range listLit.Values {
+		parts := make([]string, 0, listLit.Len())
+		for _, lit := range listLit.Literals() {
 			val, err := literalToString(lit)
 			if err != nil {
 				return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -259,8 +259,8 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString("}")
 
 	case FieldText:
-		parts := make([]string, 0, len(listLit.Values))
-		for _, lit := range listLit.Values {
+		parts := make([]string, 0, listLit.Len())
+		for _, lit := range listLit.Literals() {
 			val, err := literalToString(lit)
 			if err != nil {
 				return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -288,7 +288,7 @@ func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, 
 	var field string
 	switch node := expr.(type) {
 	case *filter.Ident:
-		field = node.Value
+		field = node.Name()
 	case *filter.IndexExpr:
 		// metadata["author"] / metadata["a"]["b"]: collapse the path
 		// with dots — RediSearch fields are flat so deep paths must
@@ -314,17 +314,17 @@ func flattenIndexExpr(expr *filter.IndexExpr) ([]string, error) {
 	var keys []string
 	current := expr
 	for {
-		key, err := filter.LiteralAsKey(current.Index)
+		key, err := current.Index().Key()
 		if err != nil {
 			return nil, err
 		}
 		keys = append([]string{key}, keys...)
 
-		switch inner := current.Left.(type) {
+		switch inner := current.Left().(type) {
 		case *filter.IndexExpr:
 			current = inner
 		case *filter.Ident:
-			keys = append([]string{inner.Value}, keys...)
+			keys = append([]string{inner.Name()}, keys...)
 			return keys, nil
 		default:
 			return nil, fmt.Errorf("redis: unsupported index base %T", inner)
@@ -363,7 +363,7 @@ func literalToString(lit *filter.Literal) (string, error) {
 	case lit.IsString():
 		return lit.AsString()
 	case lit.IsNumber():
-		return filter.NumberText(lit)
+		return lit.NumberText()
 	case lit.IsBool():
 		b, err := lit.AsBool()
 		if err != nil {
@@ -371,7 +371,7 @@ func literalToString(lit *filter.Literal) (string, error) {
 		}
 		return strconv.FormatBool(b), nil
 	default:
-		return "", fmt.Errorf("redis: unsupported literal kind %s", lit.Kind)
+		return "", fmt.Errorf("redis: unsupported literal kind %s", lit.Kind())
 	}
 }
 

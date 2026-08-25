@@ -43,7 +43,7 @@ func (v *Visitor) Result() *filters.WhereBuilder {
 // ToFilter compiles a Lynx filter expression into a Weaviate where filter.
 func ToFilter(expr filter.Predicate) (*filters.WhereBuilder, error) {
 	visitor := NewVisitor()
-	if err := visitor.Visit(expr); err != nil {
+	if err := expr.Accept(visitor); err != nil {
 		return nil, err
 	}
 	return visitor.Result(), nil
@@ -72,30 +72,30 @@ func compileFilter(expr filter.Expr) (*filters.WhereBuilder, error) {
 
 func compileBinary(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 	switch {
-	case expr.Op.IsNullOperator():
+	case expr.Operator().IsNullOperator():
 		return compileNullTest(expr)
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return compileLogical(expr)
-	case expr.Op.IsComparisonOperator():
+	case expr.Operator().IsComparisonOperator():
 		return compileComparison(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return compileIn(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return compileHas(expr)
-	case expr.Op.Is(filter.OpLike):
+	case expr.Operator().Is(filter.OpLike):
 		return compileLike(expr)
 	default:
 		return nil, fmt.Errorf("weaviate.filter: unsupported binary operator %q at %s",
-			expr.Op.String(), expr.Start())
+			expr.Operator().String(), expr.Start())
 	}
 }
 
 func compileUnary(expr *filter.UnaryExpr) (*filters.WhereBuilder, error) {
-	if !expr.Op.Is(filter.OpNot) {
+	if !expr.Operator().Is(filter.OpNot) {
 		return nil, fmt.Errorf("weaviate.filter: unsupported unary operator %q at %s",
-			expr.Op.String(), expr.Start())
+			expr.Operator().String(), expr.Start())
 	}
-	operand, err := compileFilter(expr.Right)
+	operand, err := compileFilter(expr.Right())
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: NOT operand: %w", err)
 	}
@@ -105,23 +105,23 @@ func compileUnary(expr *filter.UnaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileLogical(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	left, err := compileFilter(expr.Left)
+	left, err := compileFilter(expr.Left())
 	if err != nil {
-		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Op, err)
+		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Operator(), err)
 	}
-	right, err := compileFilter(expr.Right)
+	right, err := compileFilter(expr.Right())
 	if err != nil {
-		return nil, fmt.Errorf("weaviate.filter: right operand of %s: %w", expr.Op, err)
+		return nil, fmt.Errorf("weaviate.filter: right operand of %s: %w", expr.Operator(), err)
 	}
 
 	var operator filters.WhereOperator
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpAnd:
 		operator = filters.And
 	case filter.OpOr:
 		operator = filters.Or
 	default:
-		return nil, fmt.Errorf("weaviate.filter: unsupported logical operator %q", expr.Op)
+		return nil, fmt.Errorf("weaviate.filter: unsupported logical operator %q", expr.Operator())
 	}
 	return filters.Where().
 		WithOperator(operator).
@@ -129,23 +129,23 @@ func compileLogical(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileComparison(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filter.CollectKeyPath(expr.Left)
+	path, err := expr.Path()
 	if err != nil {
-		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Op, err)
+		return nil, fmt.Errorf("weaviate.filter: left operand of %s: %w", expr.Operator(), err)
 	}
-	literal, ok := expr.Right.(*filter.Literal)
+	literal, ok := expr.Right().(*filter.Literal)
 	if !ok || literal == nil {
 		return nil, fmt.Errorf("weaviate.filter: right operand of %s must be a literal, got %T at %s",
-			expr.Op, expr.Right, expr.Start())
+			expr.Operator(), expr.Right(), expr.Start())
 	}
 
-	operator, err := comparisonOperator(expr.Op)
+	operator, err := comparisonOperator(expr.Operator())
 	if err != nil {
 		return nil, err
 	}
-	if !expr.Op.IsEqualityOperator() && !literal.IsNumber() {
+	if !expr.Operator().IsEqualityOperator() && !literal.IsNumber() {
 		return nil, fmt.Errorf("weaviate.filter: %s requires a numeric right operand at %s",
-			expr.Op, expr.Start())
+			expr.Operator(), expr.Start())
 	}
 	return scalarFilter(path, operator, literal)
 }
@@ -189,7 +189,7 @@ func scalarFilter(
 		}
 		return builder.WithValueBoolean(value), nil
 	case literal.IsNumber():
-		value, err := filter.LiteralToValue(literal)
+		value, err := literal.Value()
 		if err != nil {
 			return nil, fmt.Errorf("weaviate.filter: number literal: %w", err)
 		}
@@ -198,7 +198,7 @@ func scalarFilter(
 			return builder.WithValueInt(number), nil
 		case uint64:
 			if number > math.MaxInt64 {
-				return nil, fmt.Errorf("weaviate.filter: integer %q exceeds Weaviate int64", literal.Value)
+				return nil, fmt.Errorf("weaviate.filter: integer %q exceeds Weaviate int64", literal.Text())
 			}
 			return builder.WithValueInt(int64(number)), nil
 		case float64:
@@ -207,25 +207,25 @@ func scalarFilter(
 			return nil, fmt.Errorf("weaviate.filter: unsupported numeric value %T", value)
 		}
 	default:
-		return nil, fmt.Errorf("weaviate.filter: unsupported literal kind %s", literal.Kind)
+		return nil, fmt.Errorf("weaviate.filter: unsupported literal kind %s", literal.Kind())
 	}
 }
 
 func compileIn(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filter.CollectKeyPath(expr.Left)
+	path, err := expr.Path()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of IN: %w", err)
 	}
-	list, err := filter.RequireListLiteral(expr)
+	list, err := expr.List()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
-	if _, _, err := filter.ConvertListLiteral(list); err != nil {
+	if _, err := list.Values(); err != nil {
 		return nil, fmt.Errorf("weaviate.filter: IN values: %w", err)
 	}
 
-	operands := make([]*filters.WhereBuilder, 0, len(list.Values))
-	for _, literal := range list.Values {
+	operands := make([]*filters.WhereBuilder, 0, list.Len())
+	for _, literal := range list.Literals() {
 		operand, err := scalarFilter(path, filters.Equal, literal)
 		if err != nil {
 			return nil, fmt.Errorf("weaviate.filter: IN value: %w", err)
@@ -238,24 +238,24 @@ func compileIn(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
 }
 
 func compileHas(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filter.CollectKeyPath(expr.Left)
+	path, err := expr.Path()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of HAS: %w", err)
 	}
-	literal, ok := expr.Right.(*filter.Literal)
+	literal, ok := expr.Right().(*filter.Literal)
 	if !ok || literal == nil {
 		return nil, fmt.Errorf("weaviate.filter: right operand of HAS must be a literal, got %T at %s",
-			expr.Right, expr.Start())
+			expr.Right(), expr.Start())
 	}
 	return scalarFilter(path, filters.ContainsAny, literal)
 }
 
 func compileLike(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filter.CollectKeyPath(expr.Left)
+	path, err := expr.Path()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of LIKE: %w", err)
 	}
-	pattern, err := filter.RequireStringPatternOnRight(expr)
+	pattern, err := expr.Pattern()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: %w", err)
 	}
@@ -280,7 +280,7 @@ func weaviateLikePattern(pattern string) (string, error) {
 }
 
 func compileNullTest(expr *filter.BinaryExpr) (*filters.WhereBuilder, error) {
-	path, err := filter.CollectKeyPath(expr.Left)
+	path, err := expr.Path()
 	if err != nil {
 		return nil, fmt.Errorf("weaviate.filter: left operand of IS NULL: %w", err)
 	}

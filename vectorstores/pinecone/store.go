@@ -126,16 +126,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-func (s *Store) normalizeScore(raw float64) float64 {
+func (s *Store) normalizeScore(raw float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return vectorstore.NormalizeCosineSimilarity(raw)
+		return vectorstore.ScoreFromCosineSimilarity(raw)
 	case DistanceDot:
-		return vectorstore.NormalizeInnerProduct(raw)
+		return vectorstore.ScoreFromInnerProduct(raw)
 	case DistanceEuclidean:
-		return vectorstore.NormalizeDistance(raw)
+		return vectorstore.ScoreFromDistance(raw)
 	default:
-		return vectorstore.NormalizeScore(raw)
+		return vectorstore.ScoreFromValue(raw)
 	}
 }
 
@@ -172,18 +172,19 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 	return result, nil
 }
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("pinecone.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("pinecone.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("pinecone: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("pinecone: embed documents: %w", err)
@@ -203,8 +204,8 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]vectorstore.Match, error) {
-	docs := make([]vectorstore.Match, 0, len(svs))
+func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore vectorstore.Score) ([]*vectorstore.SearchResult, error) {
+	docs := make([]*vectorstore.SearchResult, 0, len(svs))
 
 	for i, sv := range svs {
 		if sv == nil || sv.Vector == nil {
@@ -234,20 +235,21 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 		if err != nil {
 			return nil, fmt.Errorf("pinecone: decode metadata for query result %d: %w", i, err)
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pinecone.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -259,12 +261,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	queryReq := &pinecone.QueryByVectorValuesRequest{
 		Vector:          embedding.Float32Vector(vector),
-		TopK:            uint32(req.TopK),
+		TopK:            uint32(req.Options.TopK),
 		IncludeMetadata: true,
 	}
 
-	if req.Filter != nil {
-		filter, filterErr := ToFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filter, filterErr := ToFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, fmt.Errorf("pinecone: convert filter: %w", filterErr)
 		}
@@ -280,19 +282,19 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, nil
 	}
 
-	docs, err = s.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
+	docs, err = s.buildDocumentsFromScoredVectors(resp.Matches, req.Options.MinScore)
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: build documents from results: %w", err)
 	}
 
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("pinecone.Store.DeleteWhere: %w", err)
 	}
 

@@ -2,9 +2,9 @@ package filter
 
 func compare[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R, op Operator) *BinaryExpr {
 	return &BinaryExpr{
-		Left:  leftOperand(l),
-		Op:    op,
-		Right: NewLiteral(r),
+		left:     leftOperand(l),
+		operator: op,
+		right:    NewLiteral(r),
 	}
 }
 
@@ -47,9 +47,9 @@ func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryEx
 // `id IN (1,2,3)`.
 func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr {
 	return &BinaryExpr{
-		Left:  leftOperand(l),
-		Op:    OpIn,
-		Right: NewListLiteral(r),
+		left:     leftOperand(l),
+		operator: OpIn,
+		right:    NewListLiteral(r),
 	}
 }
 
@@ -58,9 +58,9 @@ func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr {
 // selected scalar against a caller-supplied list.
 func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr {
 	return &BinaryExpr{
-		Left:  leftOperand(l),
-		Op:    OpHas,
-		Right: NewLiteral(r),
+		left:     leftOperand(l),
+		operator: OpHas,
+		right:    NewLiteral(r),
 	}
 }
 
@@ -68,15 +68,15 @@ func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr {
 // `name LIKE 'John%'`, `email LIKE '%@gmail.com'`.
 func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr {
 	return &BinaryExpr{
-		Left:  leftOperand(l),
-		Op:    OpLike,
-		Right: NewLiteral(r),
+		left:     leftOperand(l),
+		operator: OpLike,
+		right:    NewLiteral(r),
 	}
 }
 
 // IsNull builds `l IS NULL`.
 func IsNull[L IdentifierValue | *IndexExpr](l L) *BinaryExpr {
-	return &BinaryExpr{Left: leftOperand(l), Op: OpIs, Right: &Literal{Kind: LiteralNull, Value: "null"}}
+	return &BinaryExpr{left: leftOperand(l), operator: OpIs, right: &Literal{kind: LiteralNull, text: "null"}}
 }
 
 // IsNotNull builds `NOT (l IS NULL)`.

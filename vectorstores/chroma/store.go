@@ -163,17 +163,17 @@ func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 //
 // Chroma returns distances (lower = more similar) for cosine and L2 metrics.
 // For IP it returns inner-product values (higher = more similar).
-func (s *Store) distanceToScore(distance float64) float64 {
+func (s *Store) distanceToScore(distance float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceCosine:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	case DistanceL2:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	case DistanceIP:
 		// Chroma reports 1 - inner product as a distance.
-		return vectorstore.NormalizeOneMinusInnerProductDistance(distance)
+		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
 	default:
-		return vectorstore.NormalizeScore(distance)
+		return vectorstore.ScoreFromValue(distance)
 	}
 }
 
@@ -252,19 +252,20 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 	return opts, nil
 }
 
-// Add embeds the documents and upserts them into Chroma.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("chroma.Store.Add: %w", err)
+// Index embeds the documents and upserts them into Chroma.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("chroma.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("chroma: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("chroma: embed documents: %w", err)
@@ -286,17 +287,17 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 // buildQueryOptions assembles the Query options for the given retrieval request
 // and the pre-computed query embedding vector.
-func (s *Store) buildQueryOptions(req vectorstore.SearchRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
+func (s *Store) buildQueryOptions(req *vectorstore.SearchRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
 	queryEmb := chromaEmbed.NewEmbeddingFromFloat32(queryVector)
 
 	opts := []v2.CollectionQueryOption{
 		v2.WithQueryEmbeddings(queryEmb),
-		v2.WithNResults(req.TopK),
+		v2.WithNResults(req.Options.TopK),
 		v2.WithInclude(v2.IncludeDocuments, v2.IncludeMetadatas, v2.IncludeDistances),
 	}
 
-	if req.Filter != nil {
-		filter, err := ToFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filter, err := ToFilter(req.Options.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("chroma: convert filter: %w", err)
 		}
@@ -310,7 +311,7 @@ func (s *Store) buildQueryOptions(req vectorstore.SearchRequest, queryVector []f
 
 // buildDocumentsFromResult assembles Lynx Documents from the parallel slices
 // returned by the QueryResult interface, applying the MinScore threshold.
-func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) ([]vectorstore.Match, error) {
+func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore vectorstore.Score) ([]*vectorstore.SearchResult, error) {
 	idGroups := result.GetIDGroups()
 	if len(idGroups) == 0 {
 		return nil, nil
@@ -354,7 +355,7 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 		return nil, fmt.Errorf("chroma: query returned %d distances for %d IDs", len(distGroup), len(ids))
 	}
 
-	docs := make([]vectorstore.Match, 0, len(ids))
+	docs := make([]*vectorstore.SearchResult, 0, len(ids))
 	for i, id := range ids {
 		if id == "" {
 			return nil, fmt.Errorf("chroma: query result %d is missing ID", i)
@@ -378,21 +379,22 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 			}
 		}
 
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
 // Search embeds the query, searches Chroma, and returns matching documents.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("chroma.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -416,19 +418,20 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("chroma: query collection %s: %w", s.collectionName, err)
 	}
 
-	docs, err = s.buildDocumentsFromResult(result, req.MinScore)
+	docs, err = s.buildDocumentsFromResult(result, req.Options.MinScore)
 	if err != nil {
 		return nil, err
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents from the collection that match the filter in req.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("chroma.Store.DeleteWhere: %w", err)
 	}
 

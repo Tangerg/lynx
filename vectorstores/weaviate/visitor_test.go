@@ -18,7 +18,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := weaviate.NewVisitor()
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -110,16 +110,8 @@ func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
 }
 
 func TestVisitor_RejectsMixedMembershipTypes(t *testing.T) {
-	expr := &filter.BinaryExpr{
-		Left: filter.NewIdent("status"),
-		Op:   filter.OpIn,
-		Right: &filter.ListLiteral{Values: []*filter.Literal{
-			filter.NewLiteral("active"),
-			filter.NewLiteral(1),
-		}},
-	}
-	if _, err := weaviate.ToFilter(expr); err == nil {
-		t.Fatal("Weaviate accepted an IN list with mixed element types")
+	if _, err := filter.Parse(`status in ('active', 1)`); err == nil {
+		t.Fatal("filter parser accepted an IN list with mixed element types")
 	}
 }
 

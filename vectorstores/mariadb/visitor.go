@@ -64,10 +64,10 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		if node.Op.IsNullOperator() {
+		if node.Operator().IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filter.DispatchBinary(node, filter.BinaryHandlers{
+		return node.Dispatch(filter.BinaryHandlers{
 			Logical:    v.visitLogicalExpr,
 			Comparison: v.visitComparisonExpr,
 			In:         v.visitInExpr,
@@ -75,18 +75,18 @@ func (v *Visitor) visit(expr filter.Expr) error {
 			Like:       v.visitLikeExpr,
 		})
 	case *filter.UnaryExpr:
-		return filter.DispatchUnary(node, v.visitNotExpr)
+		return node.Dispatch(v.visitNotExpr)
 	default:
 		return fmt.Errorf("mariadb: unsupported root expression %T", node)
 	}
 }
 
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
@@ -118,7 +118,7 @@ func (v *Visitor) appendJSONScalar(value any) {
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -126,18 +126,18 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	op, err := filter.LogicalOpString(expr.Op)
+	op, err := expr.Operator().LogicalString()
 	if err != nil {
 		return fmt.Errorf("mariadb: %w", err)
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(" ")
 	v.sql.WriteString(op)
 	v.sql.WriteString(" ")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -145,20 +145,20 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := sqlOpFor(expr.Op)
+	op, err := sqlOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
 
-	v.appendJSONExtraction(jsonPath, value, expr.Op)
+	v.appendJSONExtraction(jsonPath, value, expr.Operator())
 	v.sql.WriteByte(' ')
 	v.sql.WriteString(op)
 	v.sql.WriteByte(' ')
@@ -167,19 +167,19 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("mariadb: %w", err)
 	}
 
-	values := make([]any, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	values := make([]any, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 		}
@@ -199,11 +199,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	pattern, err := filter.RequireStringPatternOnRight(expr)
+	pattern, err := expr.Pattern()
 	if err != nil {
 		return fmt.Errorf("mariadb: %w", err)
 	}
@@ -220,7 +220,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // The negated `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered
 // by visitNotExpr, so no separate handling is needed here.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
@@ -276,8 +276,8 @@ func (v *Visitor) appendValuePlaceholder(value any) {
 	v.sql.WriteByte('?')
 }
 
-func buildJSONPath(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func buildJSONPath(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

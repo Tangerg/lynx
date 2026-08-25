@@ -18,18 +18,19 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("elasticsearch.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("elasticsearch.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("elasticsearch: embed documents: %w", err)
@@ -87,14 +88,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 // Search runs a KNN search over the embedding field. Optional
 // metadata filtering is expressed via a query_string clause.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("elasticsearch.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -108,11 +110,11 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	knn := map[string]any{
 		"field":          s.embeddingField,
 		"query_vector":   queryVec,
-		"k":              req.TopK,
-		"num_candidates": int(stdmath.Ceil(float64(req.TopK) * s.numCandidatesMul)),
+		"k":              req.Options.TopK,
+		"num_candidates": int(stdmath.Ceil(float64(req.Options.TopK) * s.numCandidatesMul)),
 	}
 
-	filterQuery, err := s.buildFilterQuery(req.Filter)
+	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +125,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	body := map[string]any{
-		"size": req.TopK,
+		"size": req.Options.TopK,
 		"knn":  knn,
 	}
 	buf, err := jsonReader(body)
@@ -151,27 +153,28 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("elasticsearch: decode search response: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(parsed.Hits.Hits))
+	docs = make([]*vectorstore.SearchResult, 0, len(parsed.Hits.Hits))
 	for _, hit := range parsed.Hits.Hits {
 		score := s.normalizeScore(hit.Score)
-		if score < req.MinScore {
+		if score < req.Options.MinScore {
 			continue
 		}
 		doc, err := s.toDocument(hit)
 		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter via delete_by_query.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("elasticsearch.Store.DeleteWhere: %w", err)
 	}
 
@@ -253,7 +256,7 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(s.metadataField)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("elasticsearch: convert filter: %w", err)
 	}
 	return v.Result(), nil
@@ -262,8 +265,8 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 // normalizeScore validates Elasticsearch's already normalized dense-vector
 // score. cosine and dot_product return (1+similarity)/2; l2_norm returns
 // 1/(1+distance²). All three are in [0,1] with higher values ranked first.
-func (s *Store) normalizeScore(score float64) float64 {
-	return vectorstore.NormalizeScore(score)
+func (s *Store) normalizeScore(score float64) vectorstore.Score {
+	return vectorstore.ScoreFromValue(score)
 }
 
 func (s *Store) toDocument(hit searchHit) (*document.Document, error) {

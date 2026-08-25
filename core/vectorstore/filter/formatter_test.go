@@ -55,17 +55,13 @@ func TestFormatterCanonicalDSL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var formatter filter.Formatter
-			if err := filter.Visit(tt.predicate, &formatter); err != nil {
-				t.Fatal(err)
-			}
-			if actual := formatter.String(); actual != tt.expect {
-				t.Fatalf("Formatter.String() = %q, want %q", actual, tt.expect)
+			if actual := tt.predicate.String(); actual != tt.expect {
+				t.Fatalf("Predicate.String() = %q, want %q", actual, tt.expect)
 			}
 
-			roundTrip, err := filter.Parse(formatter.String())
+			roundTrip, err := filter.Parse(tt.predicate.String())
 			if err != nil {
-				t.Fatalf("Parse(Formatter.String()) = %v", err)
+				t.Fatalf("Parse(Predicate.String()) = %v", err)
 			}
 			if !roundTrip.Equal(tt.predicate) {
 				t.Fatalf("round trip = %#v, want %#v", roundTrip, tt.predicate)
@@ -74,37 +70,8 @@ func TestFormatterCanonicalDSL(t *testing.T) {
 	}
 }
 
-func TestFormatterLifecycle(t *testing.T) {
-	var formatter filter.Formatter
-	if formatter.String() != "" {
-		t.Fatal("zero-value Formatter has a result")
-	}
-	if err := formatter.Visit(filter.EQ("first", 1)); err != nil {
-		t.Fatal(err)
-	}
-	if formatter.String() != "first == 1" {
-		t.Fatalf("first result = %q", formatter.String())
-	}
-	if err := formatter.Visit(&filter.BinaryExpr{}); err == nil {
-		t.Fatal("Formatter accepted a malformed predicate")
-	}
-	if formatter.String() != "" {
-		t.Fatalf("failed Visit retained %q", formatter.String())
-	}
-	if err := formatter.Visit(filter.EQ("second", true)); err != nil {
-		t.Fatal(err)
-	}
-	if formatter.String() != "second == true" {
-		t.Fatalf("reused result = %q", formatter.String())
-	}
-}
-
-func TestFormatterNilReceiver(t *testing.T) {
-	var formatter *filter.Formatter
-	if formatter.String() != "" {
-		t.Fatal("nil Formatter returned a result")
-	}
-	if err := formatter.Visit(filter.EQ("field", 1)); err == nil {
-		t.Fatal("nil Formatter accepted Visit")
+func TestMalformedPredicateHasNoStringRepresentation(t *testing.T) {
+	if actual := (&filter.BinaryExpr{}).String(); actual != "" {
+		t.Fatalf("malformed predicate String() = %q, want empty", actual)
 	}
 }

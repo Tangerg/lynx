@@ -27,7 +27,7 @@ func FuzzParse(f *testing.F) {
 		if expr == nil {
 			t.Fatal("Parse succeeded with a nil expression")
 		}
-		if err := filter.Validate(expr); err != nil {
+		if err := expr.Validate(); err != nil {
 			t.Fatalf("Parse returned an invalid expression: %v", err)
 		}
 		if !expr.Equal(expr) {

@@ -46,7 +46,7 @@ func (p *parser) parseOr() (Predicate, error) {
 			return nil, err
 		}
 		left = &BinaryExpr{
-			Left: left, Op: OpOr, Right: right,
+			left: left, operator: OpOr, right: right,
 			start: left.Start(), end: right.End(),
 		}
 	}
@@ -67,7 +67,7 @@ func (p *parser) parseAnd() (Predicate, error) {
 			return nil, err
 		}
 		left = &BinaryExpr{
-			Left: left, Op: OpAnd, Right: right,
+			left: left, operator: OpAnd, right: right,
 			start: left.Start(), end: right.End(),
 		}
 	}
@@ -85,7 +85,7 @@ func (p *parser) parseNot() (Predicate, error) {
 			return nil, err
 		}
 		return &UnaryExpr{
-			Op: OpNot, Right: right,
+			operator: OpNot, right: right,
 			start: op.start, end: right.End(),
 		}, nil
 	}
@@ -124,11 +124,11 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		membership := &BinaryExpr{
-			Left: left, Op: OpIn, Right: list,
+			left: left, operator: OpIn, right: list,
 			start: left.Start(), end: list.End(),
 		}
 		return &UnaryExpr{
-			Op: OpNot, Right: membership,
+			operator: OpNot, right: membership,
 			start: left.Start(), end: list.End(),
 		}, nil
 	}
@@ -144,7 +144,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		return &BinaryExpr{
-			Left: left, Op: op, Right: right,
+			left: left, operator: op, right: right,
 			start: left.Start(), end: right.End(),
 		}, nil
 
@@ -157,7 +157,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		return &BinaryExpr{
-			Left: left, Op: OpIn, Right: list,
+			left: left, operator: OpIn, right: list,
 			start: left.Start(), end: list.End(),
 		}, nil
 
@@ -170,7 +170,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		return &BinaryExpr{
-			Left: left, Op: OpHas, Right: right,
+			left: left, operator: OpHas, right: right,
 			start: left.Start(), end: right.End(),
 		}, nil
 
@@ -183,7 +183,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		return &BinaryExpr{
-			Left: left, Op: OpLike, Right: right,
+			left: left, operator: OpLike, right: right,
 			start: left.Start(), end: right.End(),
 		}, nil
 
@@ -202,18 +202,18 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		null := &Literal{
-			Kind: LiteralNull, Value: "null",
+			kind: LiteralNull, text: "null",
 			start: nullToken.start, end: nullToken.end,
 		}
 		test := &BinaryExpr{
-			Left: left, Op: OpIs, Right: null,
+			left: left, operator: OpIs, right: null,
 			start: left.Start(), end: null.End(),
 		}
 		if !negated {
 			return test, nil
 		}
 		return &UnaryExpr{
-			Op: OpNot, Right: test,
+			operator: OpNot, right: test,
 			start: left.Start(), end: null.End(),
 		}, nil
 
@@ -229,7 +229,7 @@ func (p *parser) parseSelector() (Selector, error) {
 	}
 
 	var left Selector = &Ident{
-		Value: identToken.literal,
+		name:  identToken.literal,
 		start: identToken.start, end: identToken.end,
 	}
 	for p.current.kind == tokenLeftBracket {
@@ -241,14 +241,14 @@ func (p *parser) parseSelector() (Selector, error) {
 			return nil, err
 		}
 		if !index.IsString() && !index.IsNumber() {
-			return nil, newSyntaxError(index.Start(), index.Value, "index must be a string or number")
+			return nil, newSyntaxError(index.Start(), index.text, "index must be a string or number")
 		}
 		closing, err := p.expect(tokenRightBracket, "closing ']'")
 		if err != nil {
 			return nil, err
 		}
 		left = &IndexExpr{
-			Left: left, Index: index,
+			left: left, index: index,
 			start: left.Start(), end: closing.end,
 		}
 	}
@@ -288,7 +288,7 @@ func (p *parser) parseList() (*ListLiteral, error) {
 		return nil, err
 	}
 	return &ListLiteral{
-		Values: values,
+		values: values,
 		start:  opening.start, end: closing.end,
 	}, nil
 }
@@ -303,7 +303,7 @@ func (p *parser) parseLiteral() (*Literal, error) {
 		return nil, err
 	}
 	return &Literal{
-		Kind: kind, Value: current.literal,
+		kind: kind, text: current.literal,
 		start: current.start, end: current.end,
 	}, nil
 }

@@ -20,7 +20,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := couchbase.NewVisitor("metadata")
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -32,7 +32,7 @@ func build(t *testing.T, src string) (string, error) {
 		return "", err
 	}
 	v := couchbase.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", err
 	}
 	return v.Result(), nil

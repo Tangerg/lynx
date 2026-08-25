@@ -14,18 +14,18 @@ import (
 // fakeVectorSearcher captures the request the retriever issues so
 // tests can assert that filters / topK / minScore are wired through.
 type fakeVectorSearcher struct {
-	got vectorstore.SearchRequest
+	got *vectorstore.SearchRequest
 	err error
 }
 
-func (f *fakeVectorSearcher) Search(_ context.Context, req vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+func (f *fakeVectorSearcher) Search(_ context.Context, req *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 	f.got = req
 	if f.err != nil {
 		return nil, f.err
 	}
 	doc, _ := document.NewDocument("hit", nil)
 	doc.ID = "hit"
-	return []vectorstore.Match{{Document: doc, Score: 0.75}}, nil
+	return &vectorstore.SearchResponse{Results: []*vectorstore.SearchResult{{Document: doc, Score: 0.75}}}, nil
 }
 
 func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {
@@ -59,11 +59,11 @@ func TestRetrieverAppliesTopKAndMinScore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if store.got.TopK != 7 {
-		t.Fatalf("TopK = %d, want 7", store.got.TopK)
+	if store.got.Options.TopK != 7 {
+		t.Fatalf("TopK = %d, want 7", store.got.Options.TopK)
 	}
-	if store.got.MinScore != 0.42 {
-		t.Fatalf("MinScore = %f, want 0.42", store.got.MinScore)
+	if store.got.Options.MinScore != 0.42 {
+		t.Fatalf("MinScore = %f, want 0.42", store.got.Options.MinScore)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	if funcCalls != 0 {
 		t.Fatal("per-query filter must override FilterFunc")
 	}
-	if store.got.Filter == nil {
+	if store.got.Options.Filter == nil {
 		t.Fatal("filter was not threaded into the retrieval request")
 	}
 }
@@ -122,7 +122,7 @@ func TestRetrieverUsesParsedQueryFilter(t *testing.T) {
 	if _, err := r.Retrieve(t.Context(), q); err != nil {
 		t.Fatal(err)
 	}
-	if store.got.Filter == nil {
+	if store.got.Options.Filter == nil {
 		t.Fatal("string filter was not parsed and threaded through")
 	}
 }

@@ -17,7 +17,7 @@ import (
 
 // StoreConfig configures a [Store].
 type StoreConfig struct {
-	// EmbeddingModel embeds documents on Add and queries on Search.
+	// EmbeddingModel embeds documents on Index and queries on Search.
 	// Required.
 	EmbeddingModel embedding.Model
 
@@ -43,7 +43,7 @@ func (c StoreConfig) Validate() error {
 }
 
 // record pairs a stored document with the embedding vector that was
-// computed for it at Add time. Re-embedding never happens for
+// computed for it at Index time. Re-embedding never happens for
 // existing records — the cost of a fresh vectorisation is paid once.
 type record struct {
 	doc       *document.Document
@@ -95,22 +95,23 @@ func (s *Store) Len() int {
 	return len(s.records)
 }
 
-// Add embeds the documents and indexes them by ID. Each
+// Index embeds the documents and indexes them by ID. Each
 // document must have a non-empty ID (use [document.Document.ID] or
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("inmemory.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("inmemory.Store.Index: %w", err)
 	}
+	docs := request.Documents
 
 	texts := make([]string, 0, len(docs))
 	for i, doc := range docs {
 		if doc == nil {
-			return fmt.Errorf("inmemory.Store.Add: document[%d] is nil", i)
+			return fmt.Errorf("inmemory.Store.Index: document[%d] is nil", i)
 		}
 		if doc.ID == "" {
-			return fmt.Errorf("inmemory.Store.Add: document[%d] has empty ID", i)
+			return fmt.Errorf("inmemory.Store.Index: document[%d] has empty ID", i)
 		}
 		texts = append(texts, doc.Text)
 	}
@@ -118,10 +119,10 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	var embeddings [][]float64
 	embeddings, err = s.embeddingClient.EmbedTexts(ctx, texts)
 	if err != nil {
-		return fmt.Errorf("inmemory.Store.Add: embed: %w", err)
+		return fmt.Errorf("inmemory.Store.Index: embed: %w", err)
 	}
 	if len(embeddings) != len(docs) {
-		return fmt.Errorf("inmemory.Store.Add: embedder returned %d vectors for %d documents",
+		return fmt.Errorf("inmemory.Store.Index: embedder returned %d vectors for %d documents",
 			len(embeddings), len(docs))
 	}
 
@@ -136,14 +137,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search embeds the query, scores every record by similarity, and
 // returns the top-K above MinScore. Filtering happens BEFORE scoring
 // to keep the cost O(filtered × dim) rather than O(all × dim).
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var out []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(out)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -155,19 +157,19 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 
 	type scored struct {
 		doc   *document.Document
-		score float64
+		score vectorstore.Score
 	}
 
 	s.mu.RLock()
 	candidates := make([]scored, 0, len(s.records))
 	for _, rec := range s.records {
-		if req.Filter != nil {
+		if req.Options.Filter != nil {
 			metadataValues, decodeErr := rec.doc.Metadata.Values()
 			if decodeErr != nil {
 				s.mu.RUnlock()
 				return nil, fmt.Errorf("inmemory.Store.Search: metadata: %w", decodeErr)
 			}
-			match, ferr := matchesFilter(req.Filter, metadataValues)
+			match, ferr := matchesFilter(req.Options.Filter, metadataValues)
 			if ferr != nil {
 				s.mu.RUnlock()
 				return nil, fmt.Errorf("inmemory.Store.Search: filter: %w", ferr)
@@ -177,7 +179,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 			}
 		}
 		score := s.similarity(query, rec.embedding)
-		if score < req.MinScore {
+		if score < req.Options.MinScore {
 			continue
 		}
 		candidates = append(candidates, scored{doc: rec.doc, score: score})
@@ -188,23 +190,24 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 		return cmp.Compare(b.score, a.score)
 	})
 
-	limit := min(req.TopK, len(candidates))
-	out = make([]vectorstore.Match, 0, limit)
+	limit := min(req.Options.TopK, len(candidates))
+	out = make([]*vectorstore.SearchResult, 0, limit)
 	for i := range limit {
-		out = append(out, vectorstore.Match{Document: candidates[i].doc, Score: candidates[i].score})
+		out = append(out, &vectorstore.SearchResult{Document: candidates[i].doc, Score: candidates[i].score})
 	}
-	return out, nil
+	return &vectorstore.SearchResponse{Results: out}, nil
 }
 
 // Delete removes every record whose metadata matches the filter
 // expression. The number of records actually removed is not reported
 // by the [vectorstore.FilterDeleter] contract; call [Store.Len] before and
 // after if you need the delta.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("inmemory.Store.DeleteWhere: %w", err)
 	}
 

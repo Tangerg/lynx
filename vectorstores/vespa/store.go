@@ -184,20 +184,21 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Add embeds documents and PUTs them through the Vespa Document
+// Index embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("vespa.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("vespa.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("vespa: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("vespa: embed documents: %w", err)
@@ -224,14 +225,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs a nearestNeighbor YQL query.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vespa.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -242,13 +244,13 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	filterFragment, err := s.buildFilter(req.Filter)
+	filterFragment, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
 
 	nn := fmt.Sprintf("{targetHits:%d}nearestNeighbor(%s, %s)",
-		req.TopK, s.embeddingField, s.queryTensorName)
+		req.Options.TopK, s.embeddingField, s.queryTensorName)
 	yql := fmt.Sprintf("select * from %s where %s", s.schemaName, nn)
 	if filterFragment != "" {
 		yql = yql + " and " + filterFragment
@@ -256,7 +258,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	body := map[string]any{
 		"yql":  yql,
-		"hits": req.TopK,
+		"hits": req.Options.TopK,
 		fmt.Sprintf("input.query(%s)", s.queryTensorName): map[string]any{"values": queryVec},
 		"ranking": s.rankingProfile,
 	}
@@ -279,24 +281,24 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("vespa: decode search response: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(parsed.Root.Children))
+	docs = make([]*vectorstore.SearchResult, 0, len(parsed.Root.Children))
 	for _, hit := range parsed.Root.Children {
 		if hit.Relevance == nil {
 			return nil, errors.New("vespa: search hit is missing relevance")
 		}
 		// Vespa relevance for nearestNeighbor is the configured
 		// distance metric's similarity directly (cosine: [0, 1]).
-		score := vectorstore.NormalizeScore(*hit.Relevance)
-		if score < req.MinScore {
+		score := vectorstore.ScoreFromValue(*hit.Relevance)
+		if score < req.Options.MinScore {
 			continue
 		}
 		doc, err := s.toDocument(hit.ID, hit.Fields)
 		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter expression via the
@@ -305,11 +307,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 // Vespa selection expressions live under their own mini language;
 // rather than translate the AST a second way, the approach routes
 // through a YQL search to enumerate ids, then deletes them.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("vespa.Store.DeleteWhere: %w", err)
 	}
 
@@ -371,7 +374,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor("")
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("vespa: convert filter: %w", err)
 	}
 	return v.Result(), nil

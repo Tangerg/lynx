@@ -16,15 +16,15 @@ import (
 	vectorotel "github.com/Tangerg/lynx/otel/vectorstore"
 )
 
-type indexerFunc func(context.Context, []*document.Document) error
+type indexerFunc func(context.Context, *vectorstore.IndexRequest) error
 
-func (f indexerFunc) Add(ctx context.Context, docs []*document.Document) error {
-	return f(ctx, docs)
+func (f indexerFunc) Index(ctx context.Context, request *vectorstore.IndexRequest) error {
+	return f(ctx, request)
 }
 
-type searcherFunc func(context.Context, vectorstore.SearchRequest) ([]vectorstore.Match, error)
+type searcherFunc func(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error)
 
-func (f searcherFunc) Search(ctx context.Context, request vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+func (f searcherFunc) Search(ctx context.Context, request *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 	return f(ctx, request)
 }
 
@@ -79,25 +79,25 @@ func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 	middleware, recorder := newVectorStoreMiddleware(t)
 	want := errors.New("write failed")
 	var sawSpan bool
-	wrapped := middleware.Index(indexerFunc(func(ctx context.Context, docs []*document.Document) error {
-		sawSpan = trace.SpanFromContext(ctx).SpanContext().IsValid() && len(docs) == 2
+	wrapped := middleware.Index(indexerFunc(func(ctx context.Context, request *vectorstore.IndexRequest) error {
+		sawSpan = trace.SpanFromContext(ctx).SpanContext().IsValid() && len(request.Documents) == 2
 		return want
 	}))
 	if _, leaked := wrapped.(vectorstore.Searcher); leaked {
 		t.Fatal("Indexer decorator leaked Searcher capability")
 	}
-	err := wrapped.Add(t.Context(), []*document.Document{{ID: "one", Text: "one"}, {ID: "two", Text: "two"}})
+	err := wrapped.Index(t.Context(), &vectorstore.IndexRequest{Documents: []*document.Document{{ID: "one", Text: "one"}, {ID: "two", Text: "two"}}})
 	if !errors.Is(err, want) || !sawSpan {
-		t.Fatalf("Add() error/span = %v/%t", err, sawSpan)
+		t.Fatalf("Index() error/span = %v/%t", err, sawSpan)
 	}
 
 	span := recorder.Ended()[0]
-	if span.Name() != "add knowledge" || span.SpanKind() != trace.SpanKindClient || span.Status().Code != codes.Error {
+	if span.Name() != "index knowledge" || span.SpanKind() != trace.SpanKindClient || span.Status().Code != codes.Error {
 		t.Fatalf("span name/kind/status = %q/%v/%v", span.Name(), span.SpanKind(), span.Status())
 	}
 	attrs := spanAttributes(t, span)
 	assertStringAttr(t, attrs, "db.system.name", "qdrant")
-	assertStringAttr(t, attrs, "db.operation.name", "add")
+	assertStringAttr(t, attrs, "db.operation.name", "index")
 	assertStringAttr(t, attrs, "db.collection.name", "knowledge")
 	assertStringAttr(t, attrs, "db.namespace", "tenant")
 	if got := attrs["db.operation.batch.size"].AsInt64(); got != 2 {
@@ -107,15 +107,15 @@ func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 
 func TestSearchPreservesMatchesAndRecordsCount(t *testing.T) {
 	middleware, recorder := newVectorStoreMiddleware(t)
-	want := []vectorstore.Match{{Document: &document.Document{ID: "one", Text: "one"}, Score: 0.9}}
-	wrapped := middleware.Search(searcherFunc(func(context.Context, vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+	want := &vectorstore.SearchResponse{Results: []*vectorstore.SearchResult{{Document: &document.Document{ID: "one", Text: "one"}, Score: 0.9}}}
+	wrapped := middleware.Search(searcherFunc(func(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 		return want, nil
 	}))
 	if _, leaked := wrapped.(vectorstore.Indexer); leaked {
 		t.Fatal("Searcher decorator leaked Indexer capability")
 	}
-	got, err := wrapped.Search(t.Context(), vectorstore.SearchRequest{Query: "query", TopK: 1})
-	if err != nil || &got[0] != &want[0] {
+	got, err := wrapped.Search(t.Context(), &vectorstore.SearchRequest{Query: "query", Options: vectorstore.SearchOptions{TopK: 1}})
+	if err != nil || got != want {
 		t.Fatalf("Search() = %#v, %v", got, err)
 	}
 	attrs := spanAttributes(t, recorder.Ended()[0])

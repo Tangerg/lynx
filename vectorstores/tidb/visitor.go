@@ -58,7 +58,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		if node.Op.IsNullOperator() {
+		if node.Operator().IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return v.visitBinaryExpr(node)
@@ -71,27 +71,27 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return v.visitHasExpr(expr)
-	case expr.Op.Is(filter.OpLike):
+	case expr.Operator().Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("tidb: unsupported binary operator '%s'", expr.Op.String())
+		return fmt.Errorf("tidb: unsupported binary operator '%s'", expr.Operator().String())
 	}
 }
 
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
@@ -122,11 +122,11 @@ func (v *Visitor) appendJSONScalar(value any) {
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	if !expr.Op.Is(filter.OpNot) {
-		return fmt.Errorf("tidb: unsupported unary '%s'", expr.Op.String())
+	if !expr.Operator().Is(filter.OpNot) {
+		return fmt.Errorf("tidb: unsupported unary '%s'", expr.Operator().String())
 	}
 	v.sql.WriteString("NOT (")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -135,15 +135,15 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(op)
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -151,19 +151,19 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := sqlOpFor(expr.Op)
+	op, err := sqlOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
-	v.appendJSONExtraction(jsonPath, value, expr.Op)
+	v.appendJSONExtraction(jsonPath, value, expr.Operator())
 	v.sql.WriteByte(' ')
 	v.sql.WriteString(op)
 	v.sql.WriteByte(' ')
@@ -172,20 +172,20 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return errors.New("tidb: 'IN' requires a list on the right")
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return errors.New("tidb: 'IN' requires a non-empty list")
 	}
-	values := make([]any, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	values := make([]any, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return err
 		}
@@ -204,11 +204,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
@@ -229,7 +229,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // arrives as NOT(… IS NULL) and is rendered by visitUnaryExpr, so no
 // separate handling is needed here.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	jsonPath, err := buildJSONPath(expr.Left)
+	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
 	}
@@ -279,8 +279,8 @@ func (v *Visitor) appendValuePlaceholder(value any) {
 	v.sql.WriteByte('?')
 }
 
-func buildJSONPath(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func buildJSONPath(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

@@ -17,7 +17,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	v := tidb.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
 	sql, args := v.Result()
@@ -64,7 +64,7 @@ func TestVisitorCollectionMembershipPreservesJSONType(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			visitor := tidb.NewVisitor("metadata")
-			if err := visitor.Visit(test.predicate); err != nil {
+			if err := test.predicate.Accept(visitor); err != nil {
 				t.Fatal(err)
 			}
 			sql, args := visitor.Result()

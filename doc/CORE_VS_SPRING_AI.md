@@ -241,13 +241,13 @@ interface VectorStore extends DocumentWriter, VectorStoreRetriever {
 
 ```go
 // core/vectorstore
-type Indexer       interface { Add(ctx, docs) error }
-type Searcher      interface { Search(ctx, SearchRequest) ([]Match, error) }
+type Indexer       interface { Index(ctx, *IndexRequest) error }
+type Searcher      interface { Search(ctx, *SearchRequest) (*SearchResponse, error) }
 type IDDeleter     interface { DeleteIDs(ctx, ids) error }        // 按 id 删
 type FilterDeleter interface { DeleteWhere(ctx, filter.Predicate) error }  // 按 filter 删
 ```
 
-**取舍与理由**:很多 provider "能搜不能改索引",或"能按 id 删但不支持 filter 删"。Spring 把 `delete(ids)` 和 `delete(Expression)` 都塞在 `VectorStore` 一个胖接口里(`doDelete(Expression)` default `throw UnsupportedOperationException`)。lynx 按**消费者真实能力**拆成四个窄接口,装配处 union、消费者各依赖自己那片 —— 这正是 core 心智"按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力"。另外 lynx 的 `SearchRequest` 同时拥有**输入校验 `Validate()` 和 Match 输出校验 `ValidateMatches()`**(检查 score 范围、阈值、降序、TopK 上限);Spring 的 `SearchRequest` 是 plain class + builder,阈值过滤文档为"客户端后处理",无输出契约校验。
+**取舍与理由**:很多 provider "能搜不能改索引",或"能按 id 删但不支持 filter 删"。Spring 把 `delete(ids)` 和 `delete(Expression)` 都塞在 `VectorStore` 一个胖接口里(`doDelete(Expression)` default `throw UnsupportedOperationException`)。lynx 按**消费者真实能力**拆成四个窄接口,装配处 union、消费者各依赖自己那片 —— 这正是 core 心智"按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力"。`IndexRequest` 自己承担输入校验与分批；`SearchRequest` 校验查询和 options，`SearchResponse.ValidateFor` 校验 score 范围、阈值、降序和 TopK 上限。Spring 的 `SearchRequest` 是 plain class + builder,阈值过滤文档为"客户端后处理",无输出契约校验。
 
 ---
 
@@ -346,7 +346,7 @@ class NonTransientAiException extends RuntimeException {}    // 4xx → 不重�
 ## 13. core 有、而 Spring AI 没有(或更弱)
 
 - **wire 契约冻结 + fixture 门禁**:`internal/arch` 的 `TestExportedAPIMatchesBaseline`(公共面冻结)+ `TestWire*`(JSON DTO 聚合 fixture)+ 依赖预算 fail-fast。任何 exported API / JSON tag 变更必须过闸、评审后才 `-update-*` 重生基线。Spring AI 无等价的自动化冻结门禁。
-- **边界 `Validate()` 贯穿**:Message/Request/Options/Document/SearchRequest 都有显式 `Validate()`,`MarshalJSON` 强制校验,输出侧还有 `ValidateMatches`。
+- **边界 `Validate()` 贯穿**:Message/Request/Options/Document/SearchRequest 都有显式 `Validate()`,`MarshalJSON` 强制校验；向量搜索输出由 `SearchResponse.ValidateFor` 对请求策略做完整校验。
 - **有序异构 `[]Part`**:交错 text/reasoning/tool-call 无损 round-trip(§2)。
 - **`iter.Seq2` 流式契约**:early-stop / ctx-cancel / 首错终止 / 同步释放资源,全部有测试保证,无 detached goroutine。
 - **值语义不可变构造器**:`DefaultOptions`/`New*` 返回值不返指针;pointer-receiver 方法自带 nil 守卫。

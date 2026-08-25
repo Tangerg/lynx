@@ -254,19 +254,20 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 	return nil
 }
 
-// Add embeds documents and bulk-upserts them by _id.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("mongodb.Store.Add: %w", err)
+// Index embeds documents and bulk-upserts them by _id.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("mongodb.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("mongodb: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("mongodb: embed documents: %w", err)
@@ -313,14 +314,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 // Search runs the $vectorSearch aggregation and returns the matching
 // documents above the configured MinScore threshold.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("mongodb.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -336,10 +338,10 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		"path":          s.embeddingPath,
 		"queryVector":   queryVec,
 		"numCandidates": s.numCandidates,
-		"limit":         req.TopK,
+		"limit":         req.Options.TopK,
 	}
-	if req.Filter != nil {
-		filterDoc, filterErr := s.buildFilter(req.Filter)
+	if req.Options.Filter != nil {
+		filterDoc, filterErr := s.buildFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, filterErr
 		}
@@ -354,9 +356,9 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 			scoreField: bson.M{"$meta": "vectorSearchScore"},
 		}}},
 	}
-	if req.MinScore > 0 {
+	if req.Options.MinScore > 0 {
 		pipeline = append(pipeline, bson.D{
-			{Key: "$match", Value: bson.M{scoreField: bson.M{"$gte": req.MinScore}}},
+			{Key: "$match", Value: bson.M{scoreField: bson.M{"$gte": req.Options.MinScore}}},
 		})
 	}
 
@@ -366,7 +368,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	defer cursor.Close(ctx)
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	for cursor.Next(ctx) {
 		var raw bson.M
 		if err := cursor.Decode(&raw); err != nil {
@@ -381,15 +383,16 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err := cursor.Err(); err != nil {
 		return nil, fmt.Errorf("mongodb: cursor: %w", err)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter expression.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("mongodb.Store.DeleteWhere: %w", err)
 	}
 
@@ -429,20 +432,20 @@ func (s *Store) buildFilter(expr filter.Predicate) (bson.M, error) {
 		return nil, nil
 	}
 	v := NewVisitor(s.metadataField)
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return nil, fmt.Errorf("mongodb: convert filter: %w", err)
 	}
 	return bson.M(v.Result()), nil
 }
 
-func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
+func (s *Store) toMatch(raw bson.M) (*vectorstore.SearchResult, error) {
 	id, ok := raw[defaultIDField].(string)
 	if !ok || id == "" {
-		return vectorstore.Match{}, fmt.Errorf("mongodb: result is missing string field %q", defaultIDField)
+		return nil, fmt.Errorf("mongodb: result is missing string field %q", defaultIDField)
 	}
 	content, ok := raw[s.contentField].(string)
 	if !ok || content == "" {
-		return vectorstore.Match{}, fmt.Errorf("mongodb: result is missing string field %q", s.contentField)
+		return nil, fmt.Errorf("mongodb: result is missing string field %q", s.contentField)
 	}
 	doc := &document.Document{ID: id, Text: content}
 	var rawScore float64
@@ -452,9 +455,9 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 	case float32:
 		rawScore = float64(value)
 	default:
-		return vectorstore.Match{}, fmt.Errorf("mongodb: result score has type %T, want number", raw[scoreField])
+		return nil, fmt.Errorf("mongodb: result score has type %T, want number", raw[scoreField])
 	}
-	score := vectorstore.NormalizeScore(rawScore)
+	score := vectorstore.ScoreFromValue(rawScore)
 
 	if s.metadataField != "" {
 		switch meta := raw[s.metadataField].(type) {
@@ -462,13 +465,13 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(map[string]any(meta))
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
+				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		case map[string]any:
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
+				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		}
 	} else {
@@ -484,11 +487,11 @@ func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("mongodb: convert metadata: %w", err)
+				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
 			}
 		}
 	}
-	return vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
 func (s *Store) Close() error { return nil }

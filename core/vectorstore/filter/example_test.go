@@ -16,22 +16,17 @@ func Example() {
 		panic(err)
 	}
 
-	fmt.Println(built.Op, built.Equal(parsed))
+	fmt.Println(built.Operator(), built.Equal(parsed))
 	// Output:
 	// and true
 }
 
-func ExampleFormatter() {
+func ExamplePredicate_String() {
 	predicate := filter.And(
 		filter.EQ("category", "wildlife"),
 		filter.GE("year", 2020),
 	)
-	var formatter filter.Formatter
-	if err := filter.Visit(predicate, &formatter); err != nil {
-		panic(err)
-	}
-
-	fmt.Println(formatter.String())
+	fmt.Println(predicate.String())
 	// Output:
 	// category == 'wildlife' and year >= 2020
 }

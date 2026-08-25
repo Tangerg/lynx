@@ -8,24 +8,38 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-func TestConstructorsBuildStableSemanticNodes(t *testing.T) {
+func TestConstructorsBuildRichImmutableNodes(t *testing.T) {
 	expr := filter.And(
 		filter.EQ("category", "tech"),
 		filter.In("year", []int{2024, 2025}),
 	)
-	if err := filter.Validate(expr); err != nil {
+	if err := expr.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if expr.Op != filter.OpAnd {
-		t.Fatalf("operator = %q, want and", expr.Op)
+	if expr.Operator() != filter.OpAnd {
+		t.Fatalf("operator = %q, want and", expr.Operator())
 	}
-	left, ok := expr.Left.(*filter.BinaryExpr)
-	if !ok || left.Op != filter.OpEqual {
-		t.Fatalf("left = %#v, want equality", expr.Left)
+	left, ok := expr.Left().(*filter.BinaryExpr)
+	if !ok || left.Operator() != filter.OpEqual {
+		t.Fatalf("left = %#v, want equality", expr.Left())
 	}
-	literal, ok := left.Right.(*filter.Literal)
-	if !ok || literal.Kind != filter.LiteralString || literal.Value != "tech" {
-		t.Fatalf("literal = %#v", left.Right)
+	literal, err := left.Literal()
+	if err != nil || literal.Kind() != filter.LiteralString || literal.Text() != "tech" {
+		t.Fatalf("literal = %#v, %v", literal, err)
+	}
+
+	right, ok := expr.Right().(*filter.BinaryExpr)
+	if !ok {
+		t.Fatalf("right = %T, want binary", expr.Right())
+	}
+	list, err := right.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	literals := list.Literals()
+	literals[0] = filter.NewLiteral(0)
+	if first, _ := list.First(); first.Text() != "2024" {
+		t.Fatal("Literals exposed mutable list ownership")
 	}
 }
 
@@ -35,11 +49,14 @@ func TestParseReturnsValidatedCanonicalTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	binary, ok := expr.(*filter.BinaryExpr)
-	if !ok || binary.Op != filter.OpGreaterEqual {
+	if !ok || binary.Operator() != filter.OpGreaterEqual {
 		t.Fatalf("parsed = %T %#v, want optimized comparison", expr, expr)
 	}
 	if binary.Start().Line != 1 || binary.Start().Column == 0 {
 		t.Fatalf("parsed position = %v, want source position", binary.Start())
+	}
+	if binary.String() != "year >= 2020" {
+		t.Fatalf("String() = %q", binary.String())
 	}
 }
 
@@ -71,143 +88,59 @@ func TestProgrammaticCompositePositionsRemainZero(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsMalformedPublicTreeWithoutPanicking(t *testing.T) {
+func TestValidateRejectsInvalidConstructedValues(t *testing.T) {
 	tests := map[string]filter.Predicate{
-		"nil":                 nil,
-		"typed nil":           (*filter.BinaryExpr)(nil),
-		"missing left":        &filter.BinaryExpr{Op: filter.OpEqual, Right: filter.NewLiteral("value")},
-		"missing right":       &filter.BinaryExpr{Left: filter.NewIdent("field"), Op: filter.OpEqual},
-		"missing unary right": &filter.UnaryExpr{Op: filter.OpNot},
-		"nil list element":    &filter.BinaryExpr{Left: filter.NewIdent("field"), Op: filter.OpIn, Right: &filter.ListLiteral{Values: []*filter.Literal{nil}}},
-		"missing index":       &filter.BinaryExpr{Left: &filter.IndexExpr{Left: filter.NewIdent("field")}, Op: filter.OpEqual, Right: filter.NewLiteral("value")},
+		"numeric identifier":   filter.EQ(filter.NewIdent("123"), 1),
+		"keyword identifier":   filter.EQ(filter.NewIdent("and"), 1),
+		"fractional index":     filter.EQ(filter.Index("field", 1.5), "value"),
+		"negative index":       filter.EQ(filter.Index("field", -1), "value"),
+		"oversized index":      filter.EQ(filter.Index("field", uint64(math.MaxUint64)), "value"),
+		"non-finite number":    filter.EQ("score", math.NaN()),
+		"numeric LIKE pattern": filter.Like("name", filter.NewLiteral(42)),
 	}
 
 	for name, expr := range tests {
 		t.Run(name, func(t *testing.T) {
-			if err := filter.Validate(expr); err == nil {
+			if err := expr.Validate(); err == nil {
 				t.Fatal("Validate returned nil error")
 			}
 		})
-	}
-}
-
-func TestValidateRejectsInvalidSemanticShapes(t *testing.T) {
-	tests := map[string]filter.Predicate{
-		"numeric identifier": filter.EQ(filter.NewIdent("123"), 1),
-		"keyword identifier": filter.EQ(filter.NewIdent("and"), 1),
-		"scalar IN": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpIn, Right: filter.NewLiteral(1),
-		},
-		"list HAS": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpHas,
-			Right: &filter.ListLiteral{Values: []*filter.Literal{filter.NewLiteral(1)}},
-		},
-		"null HAS": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpHas,
-			Right: &filter.Literal{Kind: filter.LiteralNull, Value: "null"},
-		},
-		"fractional index": filter.EQ(filter.Index("field", 1.5), "value"),
-		"negative index":   filter.EQ(filter.Index("field", -1), "value"),
-		"non-finite number": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpEqual,
-			Right: &filter.Literal{Kind: filter.LiteralNumber, Value: "NaN"},
-		},
-		"non-canonical number": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpEqual,
-			Right: &filter.Literal{Kind: filter.LiteralNumber, Value: "01"},
-		},
-		"malformed null": &filter.BinaryExpr{
-			Left: filter.NewIdent("field"), Op: filter.OpIs,
-			Right: &filter.Literal{Kind: filter.LiteralNull, Value: "NULL"},
-		},
-		"oversized index": filter.EQ(filter.Index("field", uint64(math.MaxUint64)), "value"),
-	}
-
-	for name, expr := range tests {
-		t.Run(name, func(t *testing.T) {
-			if err := filter.Validate(expr); err == nil {
-				t.Fatal("Validate returned nil error")
-			}
-		})
-	}
-}
-
-func TestValidateRejectsExpressionCycles(t *testing.T) {
-	unary := &filter.UnaryExpr{Op: filter.OpNot}
-	unary.Right = unary
-
-	binary := &filter.BinaryExpr{Op: filter.OpAnd, Right: filter.EQ("ready", true)}
-	binary.Left = binary
-
-	index := &filter.IndexExpr{Index: filter.NewLiteral("key")}
-	index.Left = index
-
-	for name, predicate := range map[string]filter.Predicate{
-		"unary":  unary,
-		"binary": binary,
-		"index":  filter.EQ(index, "value"),
-	} {
-		t.Run(name, func(t *testing.T) {
-			err := filter.Validate(predicate)
-			if err == nil || !strings.Contains(err.Error(), "cycle") {
-				t.Fatalf("Validate() error = %v, want cycle error", err)
-			}
-		})
-	}
-}
-
-func TestValidateReportsInvalidOperatorBeforeOperands(t *testing.T) {
-	err := filter.Validate(&filter.BinaryExpr{Op: filter.Operator("xor")})
-	if err == nil || !strings.Contains(err.Error(), "invalid binary operator") {
-		t.Fatalf("Validate() error = %v, want invalid operator", err)
-	}
-
-	err = filter.Validate(&filter.UnaryExpr{Op: filter.OpAnd})
-	if err == nil || !strings.Contains(err.Error(), "invalid unary operator") {
-		t.Fatalf("Validate() error = %v, want invalid operator", err)
 	}
 }
 
 func TestValidateNumericIndexBoundaries(t *testing.T) {
-	if err := filter.Validate(filter.EQ(filter.Index("items", int64(math.MaxInt64)), "value")); err != nil {
+	if err := filter.EQ(filter.Index("items", int64(math.MaxInt64)), "value").Validate(); err != nil {
 		t.Fatalf("max int64 index: %v", err)
 	}
-	if err := filter.Validate(filter.EQ(filter.Index("items", uint64(math.MaxInt64)+1), "value")); err == nil {
+	if err := filter.EQ(filter.Index("items", uint64(math.MaxInt64)+1), "value").Validate(); err == nil {
 		t.Fatal("Validate accepted an index above max int64")
 	}
 }
 
 func TestNumericLiteralPreservesIntegerPrecision(t *testing.T) {
-	const integer = uint64(math.MaxUint64)
-	literal := filter.NewLiteral(integer)
-	if literal.Value != "18446744073709551615" {
-		t.Fatalf("Value = %q, want exact uint64 text", literal.Value)
-	}
-}
-
-func TestNewLiteralDefersNonFiniteValidation(t *testing.T) {
-	expr := filter.EQ("score", math.NaN())
-	if err := filter.Validate(expr); err == nil {
-		t.Fatal("Validate accepted a non-finite literal")
+	literal := filter.NewLiteral(uint64(math.MaxUint64))
+	if literal.Text() != "18446744073709551615" {
+		t.Fatalf("Text = %q, want exact uint64 text", literal.Text())
 	}
 }
 
 func TestNewLiteralCanonicalizesNegativeZero(t *testing.T) {
 	literal := filter.NewLiteral(math.Copysign(0, -1))
-	if literal.Value != "0" {
-		t.Fatalf("Value = %q, want 0", literal.Value)
+	if literal.Text() != "0" {
+		t.Fatalf("Text = %q, want 0", literal.Text())
 	}
 }
 
-func TestMalformedExpressionEqualityIsNilSafe(t *testing.T) {
-	left := &filter.BinaryExpr{Op: filter.OpEqual}
-	right := &filter.BinaryExpr{Op: filter.OpEqual}
-	if !left.Equal(right) {
-		t.Fatal("equivalent incomplete expressions should compare equal")
+func TestNegatedComparisonIsImmutable(t *testing.T) {
+	original := filter.GT("score", 10)
+	negated, err := original.Negated()
+	if err != nil {
+		t.Fatal(err)
 	}
-	leftList := &filter.ListLiteral{Values: []*filter.Literal{nil}}
-	rightList := &filter.ListLiteral{Values: []*filter.Literal{nil}}
-	if !leftList.Equal(rightList) {
-		t.Fatal("equivalent incomplete lists should compare equal")
+	if original.Operator() != filter.OpGreater || negated.Operator() != filter.OpLessEqual {
+		t.Fatalf("operators = %s, %s", original.Operator(), negated.Operator())
+	}
+	if _, err := filter.And(filter.EQ("a", 1), filter.EQ("b", 2)).Negated(); err == nil || !strings.Contains(err.Error(), "inverse") {
+		t.Fatalf("logical negation error = %v", err)
 	}
 }

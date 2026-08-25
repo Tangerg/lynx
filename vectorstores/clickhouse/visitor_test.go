@@ -21,7 +21,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := clickhouse.NewVisitor("metadata")
-			return v.Visit(expr)
+			return expr.Accept(v)
 		},
 		storetest.Options{Unsupported: []string{"collection_membership"}},
 	)
@@ -35,7 +35,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	v := clickhouse.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
 	sql, args := v.Result()

@@ -317,19 +317,20 @@ func (s *Store) upsertSearchIndex() error {
 	return mgr.UpsertIndex(idx, nil)
 }
 
-// Add embeds documents and upserts them by id.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("couchbase.Store.Add: %w", err)
+// Index embeds documents and upserts them by id.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("couchbase.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("couchbase: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("couchbase: embed documents: %w", err)
@@ -356,14 +357,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 }
 
 // Search runs a SQL++ query that embeds the KNN search clause.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("couchbase.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -379,8 +381,8 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	whereExtra := ""
-	if req.Filter != nil {
-		predicate, filterErr := s.buildFilter(req.Filter)
+	if req.Options.Filter != nil {
+		predicate, filterErr := s.buildFilter(req.Options.Filter)
 		if filterErr != nil {
 			return nil, filterErr
 		}
@@ -391,7 +393,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 	knnFragment := fmt.Sprintf(
 		`{"query":{"match_none":{}},"knn":[{"field":"%s","k":%d,"vector":%s}]}`,
-		embeddingField, req.TopK, string(vectorJSON),
+		embeddingField, req.Options.TopK, string(vectorJSON),
 	)
 	indexFullName := fmt.Sprintf("%s.%s.%s", s.bucketName, s.scopeName, s.vectorIndexName)
 	stmt := fmt.Sprintf(
@@ -399,7 +401,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 			`WHERE SEARCH(c, %s, {"index": "%s"})%s ORDER BY SEARCH_SCORE() DESC LIMIT %d`,
 		resultScoreField,
 		s.bucketName, s.scopeName, s.collectionName,
-		knnFragment, indexFullName, whereExtra, req.TopK,
+		knnFragment, indexFullName, whereExtra, req.Options.TopK,
 	)
 
 	rows, err := s.scope.Query(stmt, &gocb.QueryOptions{Context: ctx})
@@ -408,7 +410,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	defer rows.Close()
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	for rows.Next() {
 		var raw map[string]any
 		if err := rows.Row(&raw); err != nil {
@@ -422,24 +424,25 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if !ok {
 			return nil, fmt.Errorf("couchbase: result is missing numeric %s", resultScoreField)
 		}
-		score := vectorstore.NormalizeScore(rawScore)
-		if score < req.MinScore {
+		score := vectorstore.ScoreFromValue(rawScore)
+		if score < req.Options.MinScore {
 			continue
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("couchbase: read rows: %w", err)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter via DELETE.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("couchbase.Store.DeleteWhere: %w", err)
 	}
 
@@ -461,8 +464,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	return nil
 }
 
-// DeleteIDs removes documents by their KV key. Add upserts each
-// document under its id as the document key (see [Store.Add]), so the
+// DeleteIDs removes documents by their KV key. Index upserts each
+// document under its id as the document key (see [Store.Index]), so the
 // id is the KV key here too. An empty slice is a no-op; a per-key
 // "document not found" error is treated as success so repeated deletes
 // stay idempotent. Implements [vectorstore.IDDeleter].
@@ -488,7 +491,7 @@ func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(metadataField)
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", fmt.Errorf("couchbase: convert filter: %w", err)
 	}
 	return v.Result(), nil

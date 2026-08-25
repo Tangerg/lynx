@@ -69,27 +69,27 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return v.visitHasExpr(expr)
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("typesense: unsupported binary operator '%s'", expr.Op.String())
+		return fmt.Errorf("typesense: unsupported binary operator '%s'", expr.Operator().String())
 	}
 }
 
 // visitHasExpr uses Typesense's exact-match syntax. On an array field, an
 // exact scalar filter matches when any array element is equal to that value.
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return err
 	}
@@ -102,10 +102,10 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 // visitUnaryExpr maps NOT (op) onto the operator's inverse because
 // Typesense `filter_by` has no top-level NOT.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	if !expr.Op.Is(filter.OpNot) {
-		return fmt.Errorf("typesense: unsupported unary '%s'", expr.Op.String())
+	if !expr.Operator().Is(filter.OpNot) {
+		return fmt.Errorf("typesense: unsupported unary '%s'", expr.Operator().String())
 	}
-	bin, ok := expr.Right.(*filter.BinaryExpr)
+	bin, ok := expr.Right().(*filter.BinaryExpr)
 	if !ok {
 		return errors.New("typesense: NOT may only wrap a binary comparison")
 	}
@@ -117,37 +117,24 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 }
 
 func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
-	clone := *expr
-	switch expr.Op {
-	case filter.OpEqual:
-		clone.Op = filter.OpNotEqual
-	case filter.OpNotEqual:
-		clone.Op = filter.OpEqual
-	case filter.OpLess:
-		clone.Op = filter.OpGreaterEqual
-	case filter.OpLessEqual:
-		clone.Op = filter.OpGreater
-	case filter.OpGreater:
-		clone.Op = filter.OpLessEqual
-	case filter.OpGreaterEqual:
-		clone.Op = filter.OpLess
-	default:
-		return nil, fmt.Errorf("typesense: cannot invert operator '%s'", expr.Op.String())
+	inverted, err := expr.Negated()
+	if err != nil {
+		return nil, fmt.Errorf("typesense: cannot invert operator '%s': %w", expr.Operator(), err)
 	}
-	return &clone, nil
+	return inverted, nil
 }
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " && "
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		op = " || "
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(op)
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -155,15 +142,15 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return err
 	}
-	op, err := filterOpFor(expr.Op)
+	op, err := filterOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
@@ -177,21 +164,21 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return errors.New("typesense: 'IN' requires a list on the right")
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return errors.New("typesense: 'IN' requires a non-empty list")
 	}
 
-	parts := make([]string, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	parts := make([]string, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return err
 		}
@@ -204,8 +191,8 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

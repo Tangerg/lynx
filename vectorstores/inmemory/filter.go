@@ -33,7 +33,7 @@ func (e *evaluator) Visit(predicate filter.Predicate) error {
 // than swallowed — a malformed filter is a programmer bug.
 func matchesFilter(expr filter.Predicate, metadata map[string]any) (bool, error) {
 	evaluator := evaluator{metadata: metadata}
-	if err := evaluator.Visit(expr); err != nil {
+	if err := expr.Accept(&evaluator); err != nil {
 		return false, err
 	}
 	return evaluator.match, nil
@@ -42,7 +42,7 @@ func matchesFilter(expr filter.Predicate, metadata map[string]any) (bool, error)
 func (e *evaluator) eval(expr filter.Expr) (any, error) {
 	switch node := expr.(type) {
 	case *filter.Ident:
-		return e.lookupField(node.Value), nil
+		return e.lookupField(node.Name()), nil
 	case *filter.Literal:
 		return e.literalValue(node)
 	case *filter.ListLiteral:
@@ -58,7 +58,7 @@ func (e *evaluator) eval(expr filter.Expr) (any, error) {
 }
 
 func (e *evaluator) literalValue(lit *filter.Literal) (any, error) {
-	value, err := filter.LiteralToValue(lit)
+	value, err := lit.Value()
 	if err != nil {
 		return nil, fmt.Errorf("inmemory.evaluator: decode literal: %w", err)
 	}
@@ -66,8 +66,8 @@ func (e *evaluator) literalValue(lit *filter.Literal) (any, error) {
 }
 
 func (e *evaluator) listValue(list *filter.ListLiteral) (any, error) {
-	out := make([]any, 0, len(list.Values))
-	for _, item := range list.Values {
+	out := make([]any, 0, list.Len())
+	for _, item := range list.Literals() {
 		v, err := e.literalValue(item)
 		if err != nil {
 			return nil, err
@@ -135,14 +135,14 @@ func (e *evaluator) indexKeys(idx *filter.IndexExpr) ([]any, error) {
 	for {
 		switch typed := cur.(type) {
 		case *filter.IndexExpr:
-			key, err := e.literalValue(typed.Index)
+			key, err := e.literalValue(typed.Index())
 			if err != nil {
 				return nil, err
 			}
 			chain = append([]any{key}, chain...)
-			cur = typed.Left
+			cur = typed.Left()
 		case *filter.Ident:
-			chain = append([]any{typed.Value}, chain...)
+			chain = append([]any{typed.Name()}, chain...)
 			return chain, nil
 		default:
 			return nil, fmt.Errorf("inmemory.evaluator: unexpected index base %T", cur)
@@ -151,10 +151,10 @@ func (e *evaluator) indexKeys(idx *filter.IndexExpr) ([]any, error) {
 }
 
 func (e *evaluator) evalUnary(u *filter.UnaryExpr) (any, error) {
-	if u.Op != filter.OpNot {
-		return nil, fmt.Errorf("inmemory.evalUnary: unsupported unary operator %s", u.Op)
+	if u.Operator() != filter.OpNot {
+		return nil, fmt.Errorf("inmemory.evalUnary: unsupported unary operator %s", u.Operator())
 	}
-	v, err := e.eval(u.Right)
+	v, err := e.eval(u.Right())
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (e *evaluator) evalUnary(u *filter.UnaryExpr) (any, error) {
 }
 
 func (e *evaluator) evalBinary(b *filter.BinaryExpr) (any, error) {
-	switch b.Op {
+	switch b.Operator() {
 	case filter.OpAnd, filter.OpOr:
 		return e.evalLogical(b)
 	case filter.OpEqual, filter.OpNotEqual:
@@ -182,15 +182,15 @@ func (e *evaluator) evalBinary(b *filter.BinaryExpr) (any, error) {
 	case filter.OpIs:
 		return e.evalNullTest(b)
 	}
-	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op)
+	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Operator())
 }
 
 func (e *evaluator) evalHas(b *filter.BinaryExpr) (any, error) {
-	collection, err := e.eval(b.Left)
+	collection, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
-	wanted, err := e.eval(b.Right)
+	wanted, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (e *evaluator) evalHas(b *filter.BinaryExpr) (any, error) {
 // check. `IS NOT NULL` is the NOT wrapper around this, handled by
 // evalUnary.
 func (e *evaluator) evalNullTest(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
@@ -224,43 +224,43 @@ func (e *evaluator) evalNullTest(b *filter.BinaryExpr) (any, error) {
 }
 
 func (e *evaluator) evalLogical(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
 	lb, ok := left.(bool)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalLogical: %s left operand must be bool, got %T", b.Op, left)
+		return nil, fmt.Errorf("inmemory.evalLogical: %s left operand must be bool, got %T", b.Operator(), left)
 	}
 	// Short-circuit.
-	if b.Op == filter.OpAnd && !lb {
+	if b.Operator() == filter.OpAnd && !lb {
 		return false, nil
 	}
-	if b.Op == filter.OpOr && lb {
+	if b.Operator() == filter.OpOr && lb {
 		return true, nil
 	}
-	right, err := e.eval(b.Right)
+	right, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}
 	rb, ok := right.(bool)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalLogical: %s right operand must be bool, got %T", b.Op, right)
+		return nil, fmt.Errorf("inmemory.evalLogical: %s right operand must be bool, got %T", b.Operator(), right)
 	}
 	return rb, nil
 }
 
 func (e *evaluator) evalEquality(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
-	right, err := e.eval(b.Right)
+	right, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}
 	eq := equalValues(left, right)
-	if b.Op == filter.OpNotEqual {
+	if b.Operator() == filter.OpNotEqual {
 		return !eq, nil
 	}
 	return eq, nil
@@ -277,25 +277,25 @@ func equalValues(a, b any) bool {
 }
 
 func (e *evaluator) evalOrdering(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
 	if left == nil {
 		return false, nil
 	}
-	right, err := e.eval(b.Right)
+	right, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}
 	order, numeric, ordered := compareNumbers(left, right)
 	if !numeric {
-		return nil, fmt.Errorf("inmemory.evalOrdering: %s left operand must be numeric, got %T", b.Op, left)
+		return nil, fmt.Errorf("inmemory.evalOrdering: %s left operand must be numeric, got %T", b.Operator(), left)
 	}
 	if !ordered {
 		return false, nil
 	}
-	switch b.Op {
+	switch b.Operator() {
 	case filter.OpLess:
 		return order < 0, nil
 	case filter.OpLessEqual:
@@ -305,7 +305,7 @@ func (e *evaluator) evalOrdering(b *filter.BinaryExpr) (any, error) {
 	case filter.OpGreaterEqual:
 		return order >= 0, nil
 	}
-	return nil, fmt.Errorf("inmemory.evalOrdering: unreachable op %s", b.Op)
+	return nil, fmt.Errorf("inmemory.evalOrdering: unreachable op %s", b.Operator())
 }
 
 type integerValue struct {
@@ -408,11 +408,11 @@ func compareUint64(left, right uint64) int {
 }
 
 func (e *evaluator) evalIn(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
-	right, err := e.eval(b.Right)
+	right, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}
@@ -429,14 +429,14 @@ func (e *evaluator) evalIn(b *filter.BinaryExpr) (any, error) {
 }
 
 func (e *evaluator) evalLike(b *filter.BinaryExpr) (any, error) {
-	left, err := e.eval(b.Left)
+	left, err := e.eval(b.Left())
 	if err != nil {
 		return nil, err
 	}
 	if left == nil {
 		return false, nil
 	}
-	right, err := e.eval(b.Right)
+	right, err := e.eval(b.Right())
 	if err != nil {
 		return nil, err
 	}

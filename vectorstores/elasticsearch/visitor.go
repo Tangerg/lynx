@@ -63,10 +63,10 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		if node.Op.IsNullOperator() {
+		if node.Operator().IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filter.DispatchBinary(node, filter.BinaryHandlers{
+		return node.Dispatch(filter.BinaryHandlers{
 			Logical:    v.visitLogicalExpr,
 			Comparison: v.visitComparisonExpr,
 			In:         v.visitInExpr,
@@ -74,7 +74,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 			Like:       v.visitLikeExpr,
 		})
 	case *filter.UnaryExpr:
-		return filter.DispatchUnary(node, v.visitNotExpr)
+		return node.Dispatch(v.visitNotExpr)
 	default:
 		return fmt.Errorf("elasticsearch: unsupported root expression %T", node)
 	}
@@ -84,11 +84,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 // query to every value of a multi-valued field, so this is collection
 // membership rather than scalar coercion at the provider boundary.
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
@@ -100,7 +100,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -108,18 +108,18 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	op, err := filter.LogicalOpString(expr.Op)
+	op, err := expr.Operator().LogicalString()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(" ")
 	v.sql.WriteString(op)
 	v.sql.WriteString(" ")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -127,17 +127,17 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpEqual:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":")
@@ -164,25 +164,25 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString(":>=")
 		v.sql.WriteString(formatValue(value))
 	default:
-		return fmt.Errorf("elasticsearch: unexpected comparison operator '%s'", expr.Op.String())
+		return fmt.Errorf("elasticsearch: unexpected comparison operator '%s'", expr.Operator().String())
 	}
 	return nil
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
 
-	parts := make([]string, 0, len(listLit.Values))
-	for _, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	parts := make([]string, 0, listLit.Len())
+	for _, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 		}
@@ -208,7 +208,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // `_exists_:<path>` — the existence check — so no separate handling is
 // needed here.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
@@ -220,12 +220,12 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 // visitLikeExpr maps LIKE onto Lucene wildcard syntax. Right operand
 // must be a string pattern — % is translated to *, _ to ?.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	pattern, err := filter.RequireStringPatternOnRight(expr)
+	pattern, err := expr.Pattern()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
@@ -238,8 +238,8 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 
 // fieldPath assembles the dotted Elasticsearch field path for the
 // metadata key on the left side of a comparison.
-func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

@@ -16,7 +16,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := milvus.NewVisitor()
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -36,7 +36,7 @@ func TestVisitor_HasUsesArrayContains(t *testing.T) {
 		t.Fatal(err)
 	}
 	v := milvus.NewVisitor()
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		t.Fatal(err)
 	}
 	if got := v.Result(); got != `ARRAY_CONTAINS(tags, "rag")` {

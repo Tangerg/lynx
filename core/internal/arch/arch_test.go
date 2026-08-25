@@ -103,7 +103,7 @@ func TestRemovedConvenienceSurfaceDoesNotReturn(t *testing.T) {
 
 func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 	want := map[reflect.Type]string{
-		reflect.TypeFor[vectorstore.Indexer]():       "Add",
+		reflect.TypeFor[vectorstore.Indexer]():       "Index",
 		reflect.TypeFor[vectorstore.Searcher]():      "Search",
 		reflect.TypeFor[vectorstore.IDDeleter]():     "DeleteIDs",
 		reflect.TypeFor[vectorstore.FilterDeleter](): "DeleteWhere",

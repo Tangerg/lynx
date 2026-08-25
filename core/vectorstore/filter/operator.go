@@ -1,5 +1,7 @@
 package filter
 
+import "fmt"
+
 // Operator is a semantic filter operation. It is independent from lexer token
 // kinds and is safe for provider adapters to switch on.
 type Operator string
@@ -71,6 +73,38 @@ func (o Operator) IsBinaryOperator() bool {
 	return o.IsComparisonOperator() || o.IsLogicalOperator() || o.IsMatchingOperator() || o.IsNullOperator()
 }
 func (o Operator) IsUnaryOperator() bool { return o == OpNot }
+
+// LogicalString returns the canonical uppercase form of a logical operator.
+func (o Operator) LogicalString() (string, error) {
+	switch o {
+	case OpAnd:
+		return "AND", nil
+	case OpOr:
+		return "OR", nil
+	default:
+		return "", fmt.Errorf("filter.Operator.LogicalString: expected logical operator, got %s", o.Name())
+	}
+}
+
+// Negated returns the exact inverse comparison operator.
+func (o Operator) Negated() (Operator, error) {
+	switch o {
+	case OpEqual:
+		return OpNotEqual, nil
+	case OpNotEqual:
+		return OpEqual, nil
+	case OpLess:
+		return OpGreaterEqual, nil
+	case OpLessEqual:
+		return OpGreater, nil
+	case OpGreater:
+		return OpLessEqual, nil
+	case OpGreaterEqual:
+		return OpLess, nil
+	default:
+		return "", fmt.Errorf("filter.Operator.Negated: %s has no direct inverse", o.Name())
+	}
+}
 
 func (o Operator) dual() Operator {
 	if o == OpAnd {

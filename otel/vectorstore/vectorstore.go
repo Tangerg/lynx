@@ -14,7 +14,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/document"
 	corevectorstore "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
@@ -81,13 +80,13 @@ func (m *Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer
 	if isNilCapability(next) {
 		return nil
 	}
-	return indexerFunc(func(ctx context.Context, docs []*document.Document) error {
+	return indexerFunc(func(ctx context.Context, request *corevectorstore.IndexRequest) error {
 		extra := make([]attribute.KeyValue, 0, 1)
-		if len(docs) > 1 {
-			extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(docs)))
+		if request != nil && len(request.Documents) > 1 {
+			extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(request.Documents)))
 		}
-		ctx, span := m.start(ctx, "add", extra...)
-		err := next.Add(ctx, docs)
+		ctx, span := m.start(ctx, "index", extra...)
+		err := next.Index(ctx, request)
 		finishVectorStoreSpan(span, err)
 		return err
 	})
@@ -98,17 +97,23 @@ func (m *Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searc
 	if isNilCapability(next) {
 		return nil
 	}
-	return searcherFunc(func(ctx context.Context, request corevectorstore.SearchRequest) ([]corevectorstore.Match, error) {
+	return searcherFunc(func(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
+		var topK int
+		var minScore float64
+		if request != nil {
+			topK = request.Options.TopK
+			minScore = request.Options.MinScore.Float64()
+		}
 		ctx, span := m.start(ctx, "search",
-			attribute.Int("db.vector.query.top_k", request.TopK),
-			attribute.Float64("db.vector.query.similarity_threshold", request.MinScore),
+			attribute.Int("db.vector.query.top_k", topK),
+			attribute.Float64("db.vector.query.similarity_threshold", minScore),
 		)
-		matches, err := next.Search(ctx, request)
-		if err == nil {
-			span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(matches)))
+		response, err := next.Search(ctx, request)
+		if err == nil && response != nil {
+			span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(response.Results)))
 		}
 		finishVectorStoreSpan(span, err)
-		return matches, err
+		return response, err
 	})
 }
 
@@ -184,15 +189,15 @@ func finishVectorStoreSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-type indexerFunc func(context.Context, []*document.Document) error
+type indexerFunc func(context.Context, *corevectorstore.IndexRequest) error
 
-func (f indexerFunc) Add(ctx context.Context, docs []*document.Document) error {
-	return f(ctx, docs)
+func (f indexerFunc) Index(ctx context.Context, request *corevectorstore.IndexRequest) error {
+	return f(ctx, request)
 }
 
-type searcherFunc func(context.Context, corevectorstore.SearchRequest) ([]corevectorstore.Match, error)
+type searcherFunc func(context.Context, *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error)
 
-func (f searcherFunc) Search(ctx context.Context, request corevectorstore.SearchRequest) ([]corevectorstore.Match, error) {
+func (f searcherFunc) Search(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
 	return f(ctx, request)
 }
 

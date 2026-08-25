@@ -185,20 +185,21 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Add embeds documents and uploads them via the
+// Index embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("azureaisearch.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("azureaisearch.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("azureaisearch: batch documents: %w", err)
 	}
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("azureaisearch: embed documents: %w", err)
@@ -237,14 +238,15 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 // Search runs a hybrid vector query — the call is pure vector when
 // no filter is set, otherwise the filter rides along as the OData
 // `$filter` clause.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azureaisearch.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -255,7 +257,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	filterStr, err := s.buildFilter(req.Filter)
+	filterStr, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +265,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	vectorQuery := map[string]any{
 		"kind":   "vector",
 		"vector": queryVec,
-		"k":      req.TopK,
+		"k":      req.Options.TopK,
 		"fields": s.embeddingField,
 	}
 	body := map[string]any{
 		"count":         false,
-		"top":           req.TopK,
+		"top":           req.Options.TopK,
 		"vectorQueries": []any{vectorQuery},
 	}
 	if filterStr != "" {
@@ -288,28 +290,29 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		return nil, fmt.Errorf("azureaisearch: decode search response: %w", err)
 	}
 
-	docs = make([]vectorstore.Match, 0, len(parsed.Value))
+	docs = make([]*vectorstore.SearchResult, 0, len(parsed.Value))
 	for _, row := range parsed.Value {
 		match, err := s.toMatch(row)
 		if err != nil {
 			return nil, err
 		}
-		if match.Score < req.MinScore {
+		if match.Score < req.Options.MinScore {
 			continue
 		}
 		docs = append(docs, match)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // Delete removes documents matching the filter expression. The
 // service has no filter-based delete, so matching ids are enumerated
 // first and then deleted in a batch.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("azureaisearch.Store.DeleteWhere: %w", err)
 	}
 
@@ -389,27 +392,27 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor()
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("azureaisearch: convert filter: %w", err)
 	}
 	return v.Result(), nil
 }
 
-func (s *Store) toMatch(row map[string]any) (vectorstore.Match, error) {
+func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 	doc := &document.Document{}
 	id, ok := row[s.idField].(string)
 	if !ok || id == "" {
-		return vectorstore.Match{}, fmt.Errorf("azureaisearch: result is missing string field %q", s.idField)
+		return nil, fmt.Errorf("azureaisearch: result is missing string field %q", s.idField)
 	}
 	text, ok := row[s.contentField].(string)
 	if !ok || text == "" {
-		return vectorstore.Match{}, fmt.Errorf("azureaisearch: result is missing string field %q", s.contentField)
+		return nil, fmt.Errorf("azureaisearch: result is missing string field %q", s.contentField)
 	}
 	doc.ID = id
 	doc.Text = text
 	rawScore, ok := row["@search.score"].(float64)
 	if !ok {
-		return vectorstore.Match{}, errors.New("azureaisearch: result is missing numeric @search.score")
+		return nil, errors.New("azureaisearch: result is missing numeric @search.score")
 	}
 	score := s.normalizeScore(rawScore)
 
@@ -429,23 +432,23 @@ func (s *Store) toMatch(row map[string]any) (vectorstore.Match, error) {
 		var err error
 		doc.Metadata, err = metadata.FromValues(meta)
 		if err != nil {
-			return vectorstore.Match{}, fmt.Errorf("azureaisearch: convert metadata: %w", err)
+			return nil, fmt.Errorf("azureaisearch: convert metadata: %w", err)
 		}
 	}
-	return vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-func (s *Store) normalizeScore(raw float64) float64 {
+func (s *Store) normalizeScore(raw float64) vectorstore.Score {
 	switch s.similarityMetric {
 	case SimilarityCosine:
 		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
 		// then apply Lynx's [-1,1] to [0,1] normalization.
-		return vectorstore.NormalizeCosineSimilarity(2 - 1/raw)
+		return vectorstore.ScoreFromCosineSimilarity(2 - 1/raw)
 	case SimilarityDot, SimilarityEuclidean:
 		// Azure documents both native vector scores as [0,1].
-		return vectorstore.NormalizeScore(raw)
+		return vectorstore.ScoreFromValue(raw)
 	default:
-		return vectorstore.NormalizeScore(raw)
+		return vectorstore.ScoreFromValue(raw)
 	}
 }
 

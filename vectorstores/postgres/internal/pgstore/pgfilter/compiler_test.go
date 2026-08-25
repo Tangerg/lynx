@@ -21,7 +21,7 @@ func TestCompiler_Conformance(t *testing.T) {
 			return err
 		}
 		compiler := pgfilter.NewCompiler("metadata")
-		return compiler.Visit(expr)
+		return expr.Accept(compiler)
 	})
 }
 
@@ -33,7 +33,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	compiler := pgfilter.NewCompiler("metadata")
-	if err := compiler.Visit(expr); err != nil {
+	if err := expr.Accept(compiler); err != nil {
 		return "", nil, err
 	}
 	sql, args := compiler.Result()
@@ -214,7 +214,7 @@ func TestCompiler_EmptyMetadataColDefaults(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 	compiler := pgfilter.NewCompiler("") // empty → defaults to "metadata"
-	if err := compiler.Visit(expr); err != nil {
+	if err := expr.Accept(compiler); err != nil {
 		t.Fatalf("visit: %v", err)
 	}
 	sql, _ := compiler.Result()

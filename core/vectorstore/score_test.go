@@ -10,15 +10,15 @@ import (
 func TestScoreNormalization(t *testing.T) {
 	tests := []struct {
 		name string
-		got  float64
-		want float64
+		got  vectorstore.Score
+		want vectorstore.Score
 	}{
-		{"opposite similarity", vectorstore.NormalizeCosineSimilarity(-1), 0},
-		{"orthogonal similarity", vectorstore.NormalizeCosineSimilarity(0), 0.5},
-		{"identical similarity", vectorstore.NormalizeCosineSimilarity(1), 1},
-		{"identical distance", vectorstore.NormalizeCosineDistance(0), 1},
-		{"orthogonal distance", vectorstore.NormalizeCosineDistance(1), 0.5},
-		{"opposite distance", vectorstore.NormalizeCosineDistance(2), 0},
+		{"opposite similarity", vectorstore.ScoreFromCosineSimilarity(-1), 0},
+		{"orthogonal similarity", vectorstore.ScoreFromCosineSimilarity(0), 0.5},
+		{"identical similarity", vectorstore.ScoreFromCosineSimilarity(1), 1},
+		{"identical distance", vectorstore.ScoreFromCosineDistance(0), 1},
+		{"orthogonal distance", vectorstore.ScoreFromCosineDistance(1), 0.5},
+		{"opposite distance", vectorstore.ScoreFromCosineDistance(2), 0},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -30,18 +30,18 @@ func TestScoreNormalization(t *testing.T) {
 }
 
 func TestDistanceNormalizationIsMonotonic(t *testing.T) {
-	if got := vectorstore.NormalizeDistance(0); got != 1 {
+	if got := vectorstore.ScoreFromDistance(0); got != 1 {
 		t.Fatalf("exact-match score = %v, want 1", got)
 	}
-	if near, far := vectorstore.NormalizeDistance(1), vectorstore.NormalizeDistance(2); near <= far {
+	if near, far := vectorstore.ScoreFromDistance(1), vectorstore.ScoreFromDistance(2); near <= far {
 		t.Fatalf("near score %v must exceed far score %v", near, far)
 	}
 }
 
 func TestInnerProductNormalizationIsStableAndMonotonic(t *testing.T) {
-	negative := vectorstore.NormalizeInnerProduct(-1000)
-	zero := vectorstore.NormalizeInnerProduct(0)
-	positive := vectorstore.NormalizeInnerProduct(1000)
+	negative := vectorstore.ScoreFromInnerProduct(-1000)
+	zero := vectorstore.ScoreFromInnerProduct(0)
+	positive := vectorstore.ScoreFromInnerProduct(1000)
 	if !(negative < zero && zero < positive) {
 		t.Fatalf("scores are not monotonic: %v, %v, %v", negative, zero, positive)
 	}
@@ -51,12 +51,12 @@ func TestInnerProductNormalizationIsStableAndMonotonic(t *testing.T) {
 }
 
 func TestNonFiniteScoresRemainInvalid(t *testing.T) {
-	for _, score := range []float64{
-		vectorstore.NormalizeScore(math.Inf(1)),
-		vectorstore.NormalizeDistance(math.Inf(1)),
-		vectorstore.NormalizeInnerProduct(math.Inf(1)),
+	for _, score := range []vectorstore.Score{
+		vectorstore.ScoreFromValue(math.Inf(1)),
+		vectorstore.ScoreFromDistance(math.Inf(1)),
+		vectorstore.ScoreFromInnerProduct(math.Inf(1)),
 	} {
-		if !math.IsNaN(score) {
+		if !math.IsNaN(score.Float64()) {
 			t.Fatalf("score = %v, want NaN", score)
 		}
 	}

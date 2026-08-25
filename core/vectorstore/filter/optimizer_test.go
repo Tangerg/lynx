@@ -93,10 +93,10 @@ func TestValidateDoesNotRewriteProgrammaticPredicate(t *testing.T) {
 	comparison := filter.EQ("a", 1)
 	predicate := filter.And(comparison, comparison)
 
-	if err := filter.Validate(predicate); err != nil {
+	if err := predicate.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if predicate.Op != filter.OpAnd || predicate.Left != comparison || predicate.Right != comparison {
+	if predicate.Operator() != filter.OpAnd || predicate.Left() != comparison || predicate.Right() != comparison {
 		t.Fatal("Validate rewrote the caller-owned predicate")
 	}
 }
@@ -106,8 +106,9 @@ func TestParseOptimizerPreservesMembershipOperands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	list := predicate.(*filter.BinaryExpr).Right.(*filter.ListLiteral)
-	if len(list.Values) != 3 || list.Values[0].Value != "active" || list.Values[1].Value != "active" {
-		t.Fatalf("membership values = %#v, want source order and duplicates preserved", list.Values)
+	list := predicate.(*filter.BinaryExpr).Right().(*filter.ListLiteral)
+	values := list.Literals()
+	if len(values) != 3 || values[0].Text() != "active" || values[1].Text() != "active" {
+		t.Fatalf("membership values = %#v, want source order and duplicates preserved", values)
 	}
 }

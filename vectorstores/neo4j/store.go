@@ -249,14 +249,14 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 	return nil
 }
 
-// Add embeds documents and upserts them as nodes.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("neo4j.Store.Add: %w", err)
+// Index embeds documents and upserts them as nodes.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("neo4j.Store.Index: %w", err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
 		return fmt.Errorf("neo4j: batch documents: %w", err)
 	}
@@ -271,7 +271,8 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		s.label, s.idProperty,
 	)
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("neo4j: embed documents: %w", err)
@@ -326,14 +327,15 @@ func (s *Store) documentProperties(doc *document.Document) (map[string]any, erro
 
 // Search calls db.index.vector.queryNodes and returns matching
 // documents above MinScore.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("neo4j.Store.Search: %w", err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -344,7 +346,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	wherePredicate, params, err := s.buildPredicate(req.Filter)
+	wherePredicate, params, err := s.buildPredicate(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -364,9 +366,9 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		params = make(map[string]any, 4)
 	}
 	params["indexName"] = s.indexName
-	params["k"] = req.TopK
+	params["k"] = req.Options.TopK
 	params["vec"] = queryVec
-	params["threshold"] = req.MinScore
+	params["threshold"] = req.Options.MinScore
 
 	session := s.session(ctx, neo4j.AccessModeRead)
 	defer session.Close(ctx)
@@ -381,7 +383,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		if collectErr != nil {
 			return nil, collectErr
 		}
-		out := make([]vectorstore.Match, 0, len(records))
+		out := make([]*vectorstore.SearchResult, 0, len(records))
 		for _, rec := range records {
 			match, convErr := s.recordToMatch(rec)
 			if convErr != nil {
@@ -394,41 +396,41 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: vector query: %w", err)
 	}
-	docs = result.([]vectorstore.Match)
-	return docs, nil
+	docs = result.([]*vectorstore.SearchResult)
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
+func (s *Store) recordToMatch(rec *neo4j.Record) (*vectorstore.SearchResult, error) {
 	nodeRaw, found := rec.Get("node")
 	if !found {
-		return vectorstore.Match{}, errors.New("neo4j: result record missing 'node' field")
+		return nil, errors.New("neo4j: result record missing 'node' field")
 	}
 	node, ok := nodeRaw.(neo4j.Node)
 	if !ok {
-		return vectorstore.Match{}, fmt.Errorf("neo4j: unexpected node type %T", nodeRaw)
+		return nil, fmt.Errorf("neo4j: unexpected node type %T", nodeRaw)
 	}
 
 	rawScore, found := rec.Get("score")
 	if !found {
-		return vectorstore.Match{}, errors.New("neo4j: result record missing 'score' field")
+		return nil, errors.New("neo4j: result record missing 'score' field")
 	}
-	var score float64
+	var score vectorstore.Score
 	switch value := rawScore.(type) {
 	case float64:
-		score = vectorstore.NormalizeScore(value)
+		score = vectorstore.ScoreFromValue(value)
 	case float32:
-		score = vectorstore.NormalizeScore(float64(value))
+		score = vectorstore.ScoreFromValue(float64(value))
 	default:
-		return vectorstore.Match{}, fmt.Errorf("neo4j: result score has type %T, want number", rawScore)
+		return nil, fmt.Errorf("neo4j: result score has type %T, want number", rawScore)
 	}
 
 	id, ok := node.Props[s.idProperty].(string)
 	if !ok || id == "" {
-		return vectorstore.Match{}, fmt.Errorf("neo4j: result node is missing string property %q", s.idProperty)
+		return nil, fmt.Errorf("neo4j: result node is missing string property %q", s.idProperty)
 	}
 	text, ok := node.Props[s.textProperty].(string)
 	if !ok || text == "" {
-		return vectorstore.Match{}, fmt.Errorf("neo4j: result node is missing string property %q", s.textProperty)
+		return nil, fmt.Errorf("neo4j: result node is missing string property %q", s.textProperty)
 	}
 	doc := &document.Document{ID: id, Text: text}
 
@@ -453,11 +455,11 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 			var err error
 			doc.Metadata, err = metadata.FromValues(meta)
 			if err != nil {
-				return vectorstore.Match{}, fmt.Errorf("neo4j: convert metadata: %w", err)
+				return nil, fmt.Errorf("neo4j: convert metadata: %w", err)
 			}
 		}
 	}
-	return vectorstore.Match{Document: doc, Score: score}, nil
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
 // Delete removes nodes matching the filter expression.
@@ -465,7 +467,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("neo4j.Store.DeleteWhere: %w", err)
 	}
 
@@ -518,7 +520,7 @@ func (s *Store) buildPredicate(filter filter.Predicate) (string, map[string]any,
 		return "", nil, nil
 	}
 	v := NewVisitor("node", s.metadataPrefix)
-	if err := v.Visit(filter); err != nil {
+	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("neo4j: convert filter: %w", err)
 	}
 	predicate, params := v.Result()

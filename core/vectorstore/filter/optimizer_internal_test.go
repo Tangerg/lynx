@@ -27,7 +27,7 @@ func TestOptimizerPreservesThreeValuedLogic(t *testing.T) {
 	values := []truth{falseTruth, unknownTruth, trueTruth}
 	for name, predicate := range tests {
 		t.Run(name, func(t *testing.T) {
-			if err := Validate(predicate); err != nil {
+			if err := predicate.Validate(); err != nil {
 				t.Fatal(err)
 			}
 			optimized := optimize(predicate)
@@ -66,7 +66,7 @@ func TestOptimizerDoesNotMutateCallerTree(t *testing.T) {
 	predicate := Or(left, right)
 
 	optimized := optimize(predicate)
-	if predicate.Left != left || predicate.Right != right || left.Left != a || right.Left != a {
+	if predicate.left != left || predicate.right != right || left.left != a || right.left != a {
 		t.Fatal("optimizer mutated the caller-owned boolean tree")
 	}
 	if !optimized.Equal(And(a, Or(b, c))) {
@@ -84,7 +84,7 @@ func TestLiteralIntegerIndexUsesExactArithmetic(t *testing.T) {
 		"1e3":                 true,
 	}
 	for value, want := range tests {
-		literal := &Literal{Kind: LiteralNumber, Value: value}
+		literal := &Literal{kind: LiteralNumber, text: value}
 		if got := literal.isIntegerIndex(); got != want {
 			t.Errorf("isIntegerIndex(%q) = %v, want %v", value, got, want)
 		}
@@ -95,21 +95,21 @@ func evaluateTruth(t *testing.T, predicate Predicate, assignment map[string]trut
 	t.Helper()
 	switch node := predicate.(type) {
 	case *UnaryExpr:
-		return trueTruth - evaluateTruth(t, node.Right, assignment)
+		return trueTruth - evaluateTruth(t, node.right, assignment)
 	case *BinaryExpr:
-		if node.Op == OpAnd || node.Op == OpOr {
-			left := evaluateTruth(t, node.Left.(Predicate), assignment)
-			right := evaluateTruth(t, node.Right.(Predicate), assignment)
-			if node.Op == OpAnd {
+		if node.operator == OpAnd || node.operator == OpOr {
+			left := evaluateTruth(t, node.left.(Predicate), assignment)
+			right := evaluateTruth(t, node.right.(Predicate), assignment)
+			if node.operator == OpAnd {
 				return min(left, right)
 			}
 			return max(left, right)
 		}
-		ident, ok := node.Left.(*Ident)
+		ident, ok := node.left.(*Ident)
 		if !ok {
-			t.Fatalf("atomic predicate left operand = %T", node.Left)
+			t.Fatalf("atomic predicate left operand = %T", node.left)
 		}
-		return assignment[ident.Value]
+		return assignment[ident.name]
 	default:
 		t.Fatalf("predicate = %T", predicate)
 		return unknownTruth

@@ -25,7 +25,7 @@ type VectorStoreConfig struct {
 
 	// MinScore filters out matches below this similarity threshold.
 	// Range [0.0, 1.0].
-	MinScore float64
+	MinScore corevs.Score
 
 	// FilterFunc dynamically builds a metadata filter from the complete query.
 	// Optional; when [VectorStoreFilterValueKey] is set, the per-query filter wins.
@@ -37,7 +37,7 @@ var _ Retriever = (*vectorStoreRetriever)(nil)
 type vectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
-	minScore    float64
+	minScore    corevs.Score
 	filterFunc  func(ctx context.Context, query *Query) (filter.Predicate, error)
 }
 
@@ -82,19 +82,19 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 		return nil, err
 	}
 
-	request := corevs.SearchRequest{
-		Query:    query.Text(),
-		TopK:     v.topK,
-		MinScore: v.minScore,
-		Filter:   expr,
+	request := &corevs.SearchRequest{
+		Query: query.Text(),
+		Options: corevs.SearchOptions{
+			TopK: v.topK, MinScore: v.minScore, Filter: expr,
+		},
 	}
-	matches, err := v.vectorStore.Search(ctx, request)
+	response, err := v.vectorStore.Search(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	candidates := make([]Candidate, 0, len(matches))
-	for _, match := range matches {
-		candidates = append(candidates, Candidate{Document: match.Document, Score: match.Score})
+	candidates := make([]Candidate, 0, len(response.Results))
+	for _, result := range response.Results {
+		candidates = append(candidates, Candidate{Document: result.Document, Score: result.Score.Float64()})
 	}
 	return candidates, nil
 }

@@ -2,26 +2,152 @@ package vectorstore
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// Indexer embeds and indexes documents in the vector store. The store
-// runs:
+// IndexRequest is one atomic indexing operation. It owns the complete
+// provider-independent validation and batching lifecycle for its documents.
+type IndexRequest struct {
+	Documents []*document.Document `json:"documents"`
+}
+
+// NewIndexRequest creates and validates an indexing request for documents.
+func NewIndexRequest(documents []*document.Document) (*IndexRequest, error) {
+	request := &IndexRequest{Documents: slices.Clone(documents)}
+	if err := request.Validate(); err != nil {
+		return nil, fmt.Errorf("vectorstore.NewIndexRequest: %w", err)
+	}
+	return request, nil
+}
+
+// Validate enforces the provider-independent ingestion contract before a
+// batcher, embedding model, or provider client observes the input.
+func (r *IndexRequest) Validate() error {
+	if r == nil {
+		return fmt.Errorf("%w: index request is nil", ErrInvalidRequest)
+	}
+	if len(r.Documents) == 0 {
+		return fmt.Errorf("%w: %w", ErrInvalidRequest, ErrEmptyDocuments)
+	}
+
+	seen := make(map[string]int, len(r.Documents))
+	for i, doc := range r.Documents {
+		if doc == nil {
+			return fmt.Errorf("%w: %w: documents[%d] is nil", ErrInvalidRequest, ErrInvalidDocument, i)
+		}
+		if err := doc.Validate(); err != nil {
+			return fmt.Errorf("%w: %w: documents[%d]: %w", ErrInvalidRequest, ErrInvalidDocument, i, err)
+		}
+		if strings.TrimSpace(doc.ID) == "" {
+			return fmt.Errorf("%w: %w: documents[%d]", ErrInvalidRequest, ErrMissingDocumentID, i)
+		}
+		if doc.Text == "" {
+			return fmt.Errorf("%w: %w: documents[%d] has no text to embed", ErrInvalidRequest, ErrInvalidDocument, i)
+		}
+		if first, duplicate := seen[doc.ID]; duplicate {
+			return fmt.Errorf("%w: %w %q at documents[%d] and documents[%d]",
+				ErrInvalidRequest, ErrDuplicateDocumentID, doc.ID, first, i)
+		}
+		seen[doc.ID] = i
+	}
+	return nil
+}
+
+func (r IndexRequest) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireIndexRequest IndexRequest
+	return json.Marshal(wireIndexRequest(r))
+}
+
+func (r *IndexRequest) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return fmt.Errorf("%w: nil IndexRequest receiver", ErrInvalidRequest)
+	}
+	type wireIndexRequest IndexRequest
+	var decoded wireIndexRequest
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode index request: %w", ErrInvalidRequest, err)
+	}
+	candidate := IndexRequest(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*r = candidate
+	return nil
+}
+
+// Batch delegates to batcher and returns validated, order-preserving child
+// requests. The receiver itself must be valid.
+func (r *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error) {
+	if err := r.Validate(); err != nil {
+		return nil, err
+	}
+	if batcher == nil {
+		return nil, errors.New("vectorstore.IndexRequest.Batch: batcher must not be nil")
+	}
+
+	documentBatches, err := batcher.Batch(ctx, r.Documents)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.validateBatches(documentBatches); err != nil {
+		return nil, err
+	}
+
+	batches := make([]*IndexRequest, len(documentBatches))
+	for i, documents := range documentBatches {
+		batch, err := NewIndexRequest(documents)
+		if err != nil {
+			return nil, fmt.Errorf("vectorstore.IndexRequest.Batch: batch %d: %w", i, err)
+		}
+		batches[i] = batch
+	}
+	return batches, nil
+}
+
+func (r *IndexRequest) validateBatches(batches [][]*document.Document) error {
+	next := 0
+	for batchIndex, batch := range batches {
+		if len(batch) == 0 {
+			return fmt.Errorf("%w: batch %d is empty", ErrInvalidBatcherOutput, batchIndex)
+		}
+		for documentIndex, doc := range batch {
+			if next >= len(r.Documents) {
+				return fmt.Errorf("%w: unexpected document at batch %d index %d",
+					ErrInvalidBatcherOutput, batchIndex, documentIndex)
+			}
+			if doc != r.Documents[next] {
+				return fmt.Errorf("%w: document at batch %d index %d does not match input index %d",
+					ErrInvalidBatcherOutput, batchIndex, documentIndex, next)
+			}
+			next++
+		}
+	}
+	if next != len(r.Documents) {
+		return fmt.Errorf("%w: returned %d of %d documents", ErrInvalidBatcherOutput, next, len(r.Documents))
+	}
+	return nil
+}
+
+// Indexer embeds and indexes documents in the vector store. The store runs:
 //
 //  1. Embedding (text → vector)
 //  2. Indexing (vector + metadata → searchable record)
 //  3. Storage (record → durable backend)
 type Indexer interface {
-	// Add persists documents using caller-assigned IDs. Existing IDs are
-	// replaced according to the backend's upsert semantics. Implementations
-	// validate the complete input before external I/O and return:
-	//   - [ErrEmptyDocuments] when docs is empty,
-	//   - [ErrInvalidDocument] when a document is nil or malformed,
-	//   - [ErrMissingDocumentID] when an ID is empty, and
-	//   - [ErrDuplicateDocumentID] when an ID occurs more than once.
+	// Index persists request documents using caller-assigned IDs. Existing IDs
+	// are replaced according to the backend's upsert semantics. Implementations
+	// validate the complete request before external I/O.
 	//
-	// Add never invents document IDs: its error-only result has no channel for
+	// Index never invents document IDs: its error-only result has no channel for
 	// returning generated identities to the caller.
-	Add(ctx context.Context, docs []*document.Document) error
+	Index(ctx context.Context, request *IndexRequest) error
 }

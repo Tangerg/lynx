@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -203,14 +202,14 @@ func (m DistanceMetric) indexOpClass() string {
 	}
 }
 
-func (s *Store) Add(ctx context.Context, docs []*document.Document) error {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("pgvector.Store.Add: %w", err)
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) error {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("pgvector.Store.Index: %w", err)
 	}
-	return s.engine.Add(ctx, docs)
+	return s.engine.Index(ctx, request)
 }
 
-func (s *Store) Search(ctx context.Context, request vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+func (s *Store) Search(ctx context.Context, request *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("pgvector.Store.Search: %w", err)
 	}
@@ -221,7 +220,7 @@ func (s *Store) DeleteWhere(ctx context.Context, predicate filter.Predicate) err
 	if predicate == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err := filter.Validate(predicate); err != nil {
+	if err := predicate.Validate(); err != nil {
 		return fmt.Errorf("pgvector.Store.DeleteWhere: %w", err)
 	}
 	return s.engine.DeleteWhere(ctx, predicate)

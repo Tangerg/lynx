@@ -17,7 +17,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := oracle.NewVisitor("metadata")
-		return v.Visit(expr)
+		return expr.Accept(v)
 	})
 }
 
@@ -37,7 +37,7 @@ func TestVisitor_CollectionMembershipUsesJSONExists(t *testing.T) {
 
 func TestVisitor_CollectionMembershipRejectsBoolean(t *testing.T) {
 	visitor := oracle.NewVisitor("metadata")
-	if err := visitor.Visit(filter.Has("flags", true)); err == nil {
+	if err := filter.Has("flags", true).Accept(visitor); err == nil {
 		t.Fatal("Visit() error = nil, want Oracle PASSING boolean limitation")
 	}
 }
@@ -50,7 +50,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	v := oracle.NewVisitor("metadata")
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
 	sql, args := v.Result()

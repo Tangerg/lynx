@@ -18,7 +18,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := qdrant.NewVisitor()
-			return v.Visit(expr)
+			return expr.Accept(v)
 		},
 		storetest.Options{
 			// Qdrant keyword matching can represent LIKE only when the
@@ -35,7 +35,7 @@ func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 		t.Fatalf("parse %q: %v", src, err)
 	}
 	v := qdrant.NewVisitor()
-	if err := v.Visit(expr); err != nil {
+	if err := expr.Accept(v); err != nil {
 		t.Fatalf("visit %q: %v", src, err)
 	}
 	return v.Filter()
@@ -106,7 +106,7 @@ func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			visitor := qdrant.NewVisitor()
-			if err := visitor.Visit(predicate); err == nil {
+			if err := predicate.Accept(visitor); err == nil {
 				t.Fatal("Qdrant silently accepted a fractional integer match")
 			}
 		})
@@ -115,7 +115,7 @@ func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
 
 func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
 	visitor := qdrant.NewVisitor()
-	if err := visitor.Visit(filter.Like("title", "guide")); err != nil {
+	if err := filter.Like("title", "guide").Accept(visitor); err != nil {
 		t.Fatalf("visit exact LIKE pattern: %v", err)
 	}
 	conditions := visitor.Filter().GetMust()
@@ -126,7 +126,7 @@ func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
 
 	for _, pattern := range []string{"guide%", "%guide", "g_ide"} {
 		t.Run(pattern, func(t *testing.T) {
-			if err := qdrant.NewVisitor().Visit(filter.Like("title", pattern)); err == nil {
+			if err := filter.Like("title", pattern).Accept(qdrant.NewVisitor()); err == nil {
 				t.Fatalf("Qdrant silently accepted inexact LIKE pattern %q", pattern)
 			}
 		})

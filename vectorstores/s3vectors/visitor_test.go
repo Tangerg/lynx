@@ -10,7 +10,7 @@ import (
 
 func TestVisitorCollectionMembershipUsesScalarEquality(t *testing.T) {
 	visitor := s3vectors.NewVisitor()
-	if err := visitor.Visit(filter.Has("visible_to", "user-42")); err != nil {
+	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{"visible_to": map[string]any{"$eq": "user-42"}}

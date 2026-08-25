@@ -77,27 +77,27 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.IsLogicalOperator():
+	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Is(filter.OpIn):
+	case expr.Operator().Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Is(filter.OpHas):
+	case expr.Operator().Is(filter.OpHas):
 		return v.visitHasExpr(expr)
-	case expr.Op.Is(filter.OpLike):
+	case expr.Operator().Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
+	case expr.Operator().IsEqualityOperator() || expr.Operator().IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("azurecosmos: unsupported binary operator '%s'", expr.Op.String())
+		return fmt.Errorf("azurecosmos: unsupported binary operator '%s'", expr.Operator().String())
 	}
 }
 
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return err
 	}
@@ -110,11 +110,11 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	if !expr.Op.Is(filter.OpNot) {
-		return fmt.Errorf("azurecosmos: unsupported unary '%s'", expr.Op.String())
+	if !expr.Operator().Is(filter.OpNot) {
+		return fmt.Errorf("azurecosmos: unsupported unary '%s'", expr.Operator().String())
 	}
 	v.sql.WriteString("NOT (")
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -123,15 +123,15 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Is(filter.OpOr) {
+	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
-	if err := v.visit(expr.Left); err != nil {
+	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
 	v.sql.WriteString(op)
-	if err := v.visit(expr.Right); err != nil {
+	if err := v.visit(expr.Right()); err != nil {
 		return err
 	}
 	v.sql.WriteString(")")
@@ -139,15 +139,15 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return err
 	}
-	op, err := sqlOpFor(expr.Op)
+	op, err := sqlOpFor(expr.Operator())
 	if err != nil {
 		return err
 	}
@@ -161,22 +161,22 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right().(*filter.ListLiteral)
 	if !ok {
 		return errors.New("azurecosmos: 'IN' requires a list on the right")
 	}
-	if len(listLit.Values) == 0 {
+	if listLit.Len() == 0 {
 		return errors.New("azurecosmos: 'IN' requires a non-empty list")
 	}
 
 	v.sql.WriteString(field)
 	v.sql.WriteString(" IN (")
-	for i, lit := range listLit.Values {
-		val, err := filter.LiteralToValue(lit)
+	for i, lit := range listLit.Literals() {
+		val, err := lit.Value()
 		if err != nil {
 			return err
 		}
@@ -193,11 +193,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // functions. Patterns with internal or single-character wildcards are rejected
 // instead of being approximated.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	field, err := v.fieldPath(expr.Left)
+	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
 	}
-	value, err := filter.ExtractValue(expr.Right)
+	value, err := expr.Value()
 	if err != nil {
 		return err
 	}
@@ -242,8 +242,8 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filter.CollectKeyPath(expr)
+func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+	keys, err := expr.Path()
 	if err != nil {
 		return "", err
 	}

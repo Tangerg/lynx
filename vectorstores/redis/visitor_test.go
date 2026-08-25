@@ -37,7 +37,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := redis.NewVisitor(fields)
-			return v.Visit(expr)
+			return expr.Accept(v)
 		},
 		storetest.Options{
 			// Redis doesn't support IN on NUMERIC fields — the visitor
@@ -50,7 +50,7 @@ func TestVisitor_Conformance(t *testing.T) {
 
 func TestVisitor_RejectsIntegerThatRediSearchCannotRepresentExactly(t *testing.T) {
 	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"id": redis.FieldNumeric})
-	if err := visitor.Visit(filter.EQ("id", uint64(1<<53+1))); err == nil {
+	if err := filter.EQ("id", uint64(1<<53+1)).Accept(visitor); err == nil {
 		t.Fatal("Redis silently rounded a large integer")
 	}
 }
@@ -59,7 +59,7 @@ func TestVisitor_TranslatesLikeToRedisWildcardQuery(t *testing.T) {
 	t.Parallel()
 
 	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"title": redis.FieldText})
-	if err := visitor.Visit(filter.Like("title", `intro%_literal*?`)); err != nil {
+	if err := filter.Like("title", `intro%_literal*?`).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := visitor.Result(), `@title:(w'intro*?literal\*\?')`; got != want {

@@ -25,7 +25,7 @@ func TestNormalizeScore(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			store := Store{distanceFunc: test.function}
-			if got := store.normalizeScore(test.raw); math.Abs(got-test.want) > 1e-12 {
+			if got := store.normalizeScore(test.raw); math.Abs(got.Float64()-test.want) > 1e-12 {
 				t.Fatalf("normalizeScore(%v) = %v, want %v", test.raw, got, test.want)
 			}
 		})

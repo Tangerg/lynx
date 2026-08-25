@@ -15,7 +15,7 @@
 //
 // Retrieve uses Bedrock's runtime Retrieve API with the configured
 // [types.KnowledgeBaseVectorSearchConfiguration] — NumberOfResults
-// is populated from [vectorstore.SearchRequest.TopK]. Callers can
+// is populated from [vectorstore.SearchOptions.TopK]. Callers can
 // override search type / reranking / implicit filter via
 // [StoreConfig.VectorSearchOverrides].
 //

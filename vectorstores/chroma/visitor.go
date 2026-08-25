@@ -96,7 +96,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filter.DispatchBinary(expr, filter.BinaryHandlers{
+	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -113,7 +113,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 // visitComparisonExpr splits equality vs ordering since chroma emits
 // distinct Where map shapes for the two families.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsEqualityOperator() {
+	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
 	}
 	return v.visitOrderingExpr(expr)
@@ -129,14 +129,14 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // standalone logical NOT, so even the only valid unary kind (NOT)
 // is rejected with a guidance message.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filter.DispatchUnary(expr, func(*filter.UnaryExpr) error {
+	return expr.Dispatch(func(*filter.UnaryExpr) error {
 		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
 
 // visitIdent stores the identifier name as the current field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
-	v.currentFieldKey = ident.Value
+	v.currentFieldKey = ident.Name()
 	return nil
 }
 
@@ -152,8 +152,8 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 
 // visitListLiteral converts a list of literals to a []any slice and stores it.
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
-	values := make([]any, 0, len(list.Values))
-	for i, lit := range list.Values {
+	values := make([]any, 0, list.Len())
+	for i, lit := range list.Literals() {
 		value, err := v.literalToValue(lit)
 		if err != nil {
 			return fmt.Errorf("chroma: convert list element at index %d: %w", i, err)
@@ -180,26 +180,26 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 // Each operand is processed in isolation and the results are combined with
 // v2.And or v2.Or respectively.
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	leftClause, err := v.buildNestedClause(expr.Left)
+	leftClause, err := v.buildNestedClause(expr.Left())
 	if err != nil {
 		return fmt.Errorf("chroma: process left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	rightClause, err := v.buildNestedClause(expr.Right)
+	rightClause, err := v.buildNestedClause(expr.Right())
 	if err != nil {
 		return fmt.Errorf("chroma: process right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpAnd:
 		v.result = v2.And(leftClause, rightClause)
 	case filter.OpOr:
 		v.result = v2.Or(leftClause, rightClause)
 	default:
 		return fmt.Errorf("chroma: unexpected logical operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 	return nil
 }
@@ -207,22 +207,22 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 // visitEqualityExpr handles == and != operators.
 // The appropriate Chroma Eq*/NotEq* function is chosen based on the value type.
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Op)
+	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Operator())
 	if err != nil {
 		return fmt.Errorf("chroma: build equality clause for '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
 	v.result = clause
@@ -268,26 +268,26 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter
 // Whole-number values use the int variants of the Chroma comparison functions;
 // fractional values use the float32 variants.
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
 	numericValue, ok := fieldValue.(chromaNumber)
 	if !ok {
 		return fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T",
-			expr.Op.String(), expr.Start().String(), fieldValue)
+			expr.Operator().String(), expr.Start().String(), fieldValue)
 	}
 
 	var clause v2.WhereClause
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpLess:
 		if numericValue.isInteger {
 			clause = v2.LtInt(fieldKey, numericValue.integer)
@@ -314,7 +314,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 		}
 	default:
 		return fmt.Errorf("chroma: unexpected ordering operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	v.result = clause
@@ -328,13 +328,13 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 //   - fractional float64 list → v2.InFloat (float32 values)
 //   - bool list → v2.InBool
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("chroma: extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("chroma: %w", err)
 	}
@@ -382,9 +382,9 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			}
 			v.result = v2.InInt(fieldKey, ints...)
 		} else {
-			floats := make([]float32, 0, len(listLit.Values))
-			for _, literal := range listLit.Values {
-				value, err := filter.NumberToFloat32(literal)
+			floats := make([]float32, 0, listLit.Len())
+			for _, literal := range listLit.Literals() {
+				value, err := literal.Float32()
 				if err != nil {
 					return fmt.Errorf("chroma: IN numeric value: %w", err)
 				}
@@ -481,17 +481,17 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filter.LiteralAsKey(current.Index)
+		key, err := current.Index().Key()
 		if err != nil {
 			return "", fmt.Errorf("chroma: %w", err)
 		}
 		pathParts = append([]string{key}, pathParts...)
 
-		switch left := current.Left.(type) {
+		switch left := current.Left().(type) {
 		case *filter.IndexExpr:
 			current = left
 		case *filter.Ident:
-			pathParts = append([]string{left.Value}, pathParts...)
+			pathParts = append([]string{left.Name()}, pathParts...)
 			return strings.Join(pathParts, "."), nil
 		default:
 			return "", fmt.Errorf("chroma: invalid left operand type %T in index expression", left)
@@ -505,18 +505,18 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsString()
 	}
 	if lit.IsNumber() {
-		integer, err := filter.NumberIsInteger(lit)
+		integer, err := lit.IsInteger()
 		if err != nil {
 			return nil, err
 		}
 		if integer {
-			value, err := filter.NumberToInt(lit)
+			value, err := lit.Int()
 			if err != nil {
 				return nil, err
 			}
 			return chromaNumber{integer: value, isInteger: true}, nil
 		}
-		value, err := filter.NumberToFloat32(lit)
+		value, err := lit.Float32()
 		if err != nil {
 			return nil, err
 		}
@@ -525,7 +525,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
-	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind)
+	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind())
 }
 
 // ToFilter converts an AST filter expression into a Chroma WhereClause.
@@ -538,7 +538,7 @@ func ToFilter(expr filter.Predicate) (v2.WhereClause, error) {
 		return nil, nil
 	}
 	vis := NewVisitor()
-	if err := vis.Visit(expr); err != nil {
+	if err := expr.Accept(vis); err != nil {
 		return nil, err
 	}
 	return vis.Result(), nil

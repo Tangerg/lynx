@@ -93,11 +93,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes via [filter.DispatchBinary]. The
+// visitBinaryExpr routes via [filter.BinaryExpr.Dispatch]. The
 // comparison wrapper splits equality vs ordering since milvus emits
 // distinct expression shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filter.DispatchBinary(expr, filter.BinaryHandlers{
+	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
 		Comparison: v.visitComparisonExpr,
 		In:         v.visitInExpr,
@@ -107,11 +107,11 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 }
 
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: extract collection field at %s: %w", expr.Start().String(), err)
 	}
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("milvus: extract collection member at %s: %w", expr.Start().String(), err)
 	}
@@ -122,7 +122,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 // visitComparisonExpr routes to equality or ordering based on the
 // operator family.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	if expr.Op.IsEqualityOperator() {
+	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
 	}
 	return v.visitOrderingExpr(expr)
@@ -130,12 +130,12 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filter.DispatchUnary(expr, v.visitNotExpr)
+	return expr.Dispatch(v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
-	v.currentFieldKey = ident.Value
+	v.currentFieldKey = ident.Name()
 	return nil
 }
 
@@ -158,9 +158,9 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 // visitListLiteral converts a list of literals to a Milvus list expression and stores it.
 // Example output: ["active", "pending"] or [18, 21, 25]
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
-	parts := make([]string, 0, len(list.Values))
+	parts := make([]string, 0, list.Len())
 
-	for i, lit := range list.Values {
+	for i, lit := range list.Literals() {
 		s, err := v.literalToString(lit)
 		if err != nil {
 			return fmt.Errorf("milvus: convert list element at index %d: %w", i, err)
@@ -192,26 +192,26 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 //   - AND: (left) and (right)
 //   - OR:  (left) or (right)
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	left, err := v.buildNestedExpr(expr.Left)
+	left, err := v.buildNestedExpr(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: process left operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	right, err := v.buildNestedExpr(expr.Right)
+	right, err := v.buildNestedExpr(expr.Right())
 	if err != nil {
 		return fmt.Errorf("milvus: process right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpAnd:
 		v.result = fmt.Sprintf("(%s) and (%s)", left, right)
 	case filter.OpOr:
 		v.result = fmt.Sprintf("(%s) or (%s)", left, right)
 	default:
 		return fmt.Errorf("milvus: unexpected logical operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	return nil
@@ -220,7 +220,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 // visitNotExpr handles the NOT operator.
 // Example: NOT (age > 18) → not (age > 18)
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
-	operand, err := v.buildNestedExpr(expr.Right)
+	operand, err := v.buildNestedExpr(expr.Right())
 	if err != nil {
 		return fmt.Errorf("milvus: process NOT operand at %s: %w",
 			expr.Start().String(), err)
@@ -235,26 +235,26 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 //   - status == "active"
 //   - age != 18
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: extract field key from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("milvus: extract value from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpEqual:
 		v.result = fmt.Sprintf("%s == %s", fieldKey, fieldValue)
 	case filter.OpNotEqual:
 		v.result = fmt.Sprintf("%s != %s", fieldKey, fieldValue)
 	default:
 		return fmt.Errorf("milvus: unexpected equality operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	return nil
@@ -265,19 +265,19 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 //   - age > 18
 //   - price <= 99.99
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: extract field key from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right())
 	if err != nil {
 		return fmt.Errorf("milvus: extract value from '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+			expr.Operator().String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op {
+	switch expr.Operator() {
 	case filter.OpLess:
 		v.result = fmt.Sprintf("%s < %s", fieldKey, fieldValue)
 	case filter.OpLessEqual:
@@ -288,7 +288,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 		v.result = fmt.Sprintf("%s >= %s", fieldKey, fieldValue)
 	default:
 		return fmt.Errorf("milvus: unexpected ordering operator '%s' at %s",
-			expr.Op.String(), expr.Start().String())
+			expr.Operator().String(), expr.Start().String())
 	}
 
 	return nil
@@ -298,13 +298,13 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 // The right operand must be a non-empty list literal.
 // Example: status in ["active", "pending"]
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: extract field key from 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filter.RequireListLiteral(expr)
+	listLit, err := expr.List()
 	if err != nil {
 		return fmt.Errorf("milvus: %w", err)
 	}
@@ -321,20 +321,20 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // The right operand must be a string literal.
 // Example: name like "go%"
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left)
+	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("milvus: extract field key from 'LIKE' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	lit, ok := expr.Right.(*filter.Literal)
+	lit, ok := expr.Right().(*filter.Literal)
 	if !ok {
 		return fmt.Errorf("milvus: 'LIKE' operator requires a string literal on the right side at %s, got %T",
-			expr.Start().String(), expr.Right)
+			expr.Start().String(), expr.Right())
 	}
 	if !lit.IsString() {
 		return fmt.Errorf("milvus: 'LIKE' operator requires a string pattern at %s, got %s",
-			expr.Start().String(), lit.Kind)
+			expr.Start().String(), lit.Kind())
 	}
 
 	if err = v.visitLiteral(lit); err != nil {
@@ -419,20 +419,20 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filter.LiteralAsKey(current.Index)
+		key, err := current.Index().Key()
 		if err != nil {
 			return "", fmt.Errorf("milvus: %w", err)
 		}
-		if current.Index.IsString() {
+		if current.Index().IsString() {
 			key = strconv.Quote(key)
 		}
 		parts = append([]string{"[" + key + "]"}, parts...)
 
-		switch left := current.Left.(type) {
+		switch left := current.Left().(type) {
 		case *filter.IndexExpr:
 			current = left
 		case *filter.Ident:
-			return left.Value + strings.Join(parts, ""), nil
+			return left.Name() + strings.Join(parts, ""), nil
 		default:
 			return "", fmt.Errorf("milvus: invalid left operand type %T in index expression, expected identifier or index",
 				left)
@@ -452,7 +452,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	}
 
 	if lit.IsNumber() {
-		n, err := filter.NumberText(lit)
+		n, err := lit.NumberText()
 		if err != nil {
 			return "", fmt.Errorf("milvus: convert number literal at %s: %w",
 				lit.Start().String(), err)
@@ -473,7 +473,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	}
 
 	return "", fmt.Errorf("milvus: unsupported literal type '%s' at %s",
-		lit.Kind, lit.Start().String())
+		lit.Kind(), lit.Start().String())
 }
 
 // ToFilter converts an AST filter expression into a Milvus filter expression string.
@@ -505,7 +505,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 //	// filter: (age > 18) and (status == "active")
 func ToFilter(expr filter.Predicate) (string, error) {
 	conv := NewVisitor()
-	if err := conv.Visit(expr); err != nil {
+	if err := expr.Accept(conv); err != nil {
 		return "", err
 	}
 	return conv.Result(), nil

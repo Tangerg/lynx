@@ -98,29 +98,29 @@ func (d DistanceMetric) operator() string {
 // distanceToScore maps the raw distance returned by pgvector onto a
 // "higher = more similar" score in [0, 1], matching the rest of the
 // lynx vectorstore providers.
-func (s *Store) distanceToScore(distance float64) float64 {
+func (s *Store) distanceToScore(distance float64) vectorstore.Score {
 	switch s.distanceMetric {
 	case DistanceL2:
-		return vectorstore.NormalizeDistance(distance)
+		return vectorstore.ScoreFromDistance(distance)
 	case DistanceIP:
-		return vectorstore.NormalizeNegativeInnerProductDistance(distance)
+		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
 	case DistanceCosine:
 		fallthrough
 	default:
-		return vectorstore.NormalizeCosineDistance(distance)
+		return vectorstore.ScoreFromCosineDistance(distance)
 	}
 }
 
-// Add embeds the documents and upserts them into the configured table.
-func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
-	if err := vectorstore.ValidateDocuments(docs); err != nil {
-		return fmt.Errorf("%s.Store.Add: %w", s.provider, err)
+// Index embeds the documents and upserts them into the configured table.
+func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("%s.Store.Index: %w", s.provider, err)
 	}
 
-	var batchedDocs [][]*document.Document
-	batchedDocs, err = vectorstore.BatchDocuments(ctx, s.documentBatcher, docs)
+	var batches []*vectorstore.IndexRequest
+	batches, err = request.Batch(ctx, s.documentBatcher)
 	if err != nil {
-		return fmt.Errorf("%s.Store.Add: batch documents: %w", s.provider, err)
+		return fmt.Errorf("%s.Store.Index: batch documents: %w", s.provider, err)
 	}
 
 	upsertSQL := fmt.Sprintf(
@@ -132,10 +132,11 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		s.fullTable, s.metadataColumn, s.metadataColumn, s.metadataColumn,
 	)
 
-	for _, docs := range batchedDocs {
+	for _, batch := range batches {
+		docs := batch.Documents
 		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
-			return fmt.Errorf("%s.Store.Add: embed documents: %w", s.provider, err)
+			return fmt.Errorf("%s.Store.Index: embed documents: %w", s.provider, err)
 		}
 
 		batch := &pgx.Batch{}
@@ -144,7 +145,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 
 			metaJSON, err := marshalMetadata(doc.Metadata)
 			if err != nil {
-				return fmt.Errorf("%s.Store.Add: marshal metadata for document %q: %w", s.provider, id, err)
+				return fmt.Errorf("%s.Store.Index: marshal metadata for document %q: %w", s.provider, id, err)
 			}
 
 			vec := pgvec.NewVector(embedding.Float32Vector(vectors[i]))
@@ -155,10 +156,10 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 		execErr := drainBatch(results, len(docs))
 		closeErr := results.Close()
 		if execErr != nil {
-			return fmt.Errorf("%s.Store.Add: execute upsert batch: %w", s.provider, execErr)
+			return fmt.Errorf("%s.Store.Index: execute upsert batch: %w", s.provider, execErr)
 		}
 		if closeErr != nil {
-			return fmt.Errorf("%s.Store.Add: close upsert batch: %w", s.provider, closeErr)
+			return fmt.Errorf("%s.Store.Index: close upsert batch: %w", s.provider, closeErr)
 		}
 	}
 	return nil
@@ -177,14 +178,15 @@ func drainBatch(br pgx.BatchResults, n int) error {
 
 // Search embeds the query, runs an ANN search, and returns the matching
 // documents above the configured MinScore threshold.
-func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
+	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("%s.Store.Search: %w", s.provider, err)
 	}
 
 	defer func() {
 		if err == nil {
-			err = req.ValidateMatches(docs)
+			err = response.ValidateFor(req)
 		}
 	}()
 
@@ -195,14 +197,14 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	queryVec := pgvec.NewVector(embedding.Float32Vector(vector))
 
-	whereSQL, args, err := s.buildWhereClause(req.Filter)
+	whereSQL, args, err := s.buildWhereClause(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
 
 	args = append(args, queryVec)
 	distancePlaceholder := fmt.Sprintf("$%d", len(args))
-	args = append(args, req.TopK)
+	args = append(args, req.Options.TopK)
 	limitPlaceholder := fmt.Sprintf("$%d", len(args))
 
 	sql := fmt.Sprintf(
@@ -217,7 +219,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 	defer rows.Close()
 
-	docs = make([]vectorstore.Match, 0, req.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -230,7 +232,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 		}
 
 		score := s.distanceToScore(distance)
-		if score < req.MinScore {
+		if score < req.Options.MinScore {
 			continue
 		}
 		if id == "" {
@@ -246,20 +248,21 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 				return nil, fmt.Errorf("%s.Store.Search: unmarshal metadata for %q: %w", s.provider, id, err)
 			}
 		}
-		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
+		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("%s.Store.Search: read rows: %w", s.provider, err)
 	}
-	return docs, nil
+	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
 // DeleteWhere removes every row whose metadata matches the predicate.
+
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Validate(expr); err != nil {
+	if err = expr.Validate(); err != nil {
 		return fmt.Errorf("%s.Store.DeleteWhere: %w", s.provider, err)
 	}
 
@@ -306,7 +309,7 @@ func (s *Store) buildWhereClause(filter filter.Predicate) (string, []any, error)
 		return "", nil, nil
 	}
 	compiler := pgfilter.NewCompiler(s.metadataColumn)
-	if err := compiler.Visit(filter); err != nil {
+	if err := filter.Accept(compiler); err != nil {
 		return "", nil, fmt.Errorf("%s: compile metadata filter: %w", s.provider, err)
 	}
 	fragment, args := compiler.Result()

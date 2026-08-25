@@ -14,7 +14,7 @@ type IdentifierValue interface {
 func newIdent(value any) (*Ident, error) {
 	switch typed := value.(type) {
 	case string:
-		return &Ident{Value: typed}, nil
+		return &Ident{name: typed}, nil
 	case *Ident:
 		return typed, nil
 	default:
