@@ -165,7 +165,7 @@ func (definition *delegatedInteractionDefinition) Start(input agent.Input) (agen
 	if definition == nil || definition.inner == nil || !definition.descriptor.Valid() {
 		return nil, errors.New("agentexec: delegated Interaction definition is invalid")
 	}
-	task, err := agent.DecodeInput[delegateInput](input)
+	task, err := input.Decode[delegateInput]()
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: decode delegated task: %w", err)
 	}
@@ -212,7 +212,7 @@ func (execution *delegatedInteractionExecution) Step(
 		return transition, err
 	}
 	erased, _ := transition.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		return agent.Transition{}, fmt.Errorf("agentexec: decode delegated Interaction output: %w", err)
 	}

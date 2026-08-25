@@ -135,7 +135,7 @@ func TestWorkingContextAttributesHookAndRecalledMemoryInPlace(t *testing.T) {
 
 func decodeContextProvenance(t *testing.T, values metadata.Map) contextProvenance {
 	t.Helper()
-	provenance, found, err := metadata.Decode[contextProvenance](values, contextProvenanceMetadataKey)
+	provenance, found, err := values.Decode[contextProvenance](contextProvenanceMetadataKey)
 	if err != nil || !found {
 		t.Fatalf("decode context provenance found=%t error=%v", found, err)
 	}

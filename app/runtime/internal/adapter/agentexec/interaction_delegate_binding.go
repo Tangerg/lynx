@@ -125,7 +125,7 @@ func decodeDelegateCall(call corechat.ToolCall) (delegateInput, tool.Arguments, 
 	if err != nil {
 		return delegateInput{}, tool.Arguments{}, err
 	}
-	input, err := agent.DecodeInput[delegateInput](erased)
+	input, err := erased.Decode[delegateInput]()
 	if err != nil {
 		return delegateInput{}, tool.Arguments{}, err
 	}

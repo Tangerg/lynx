@@ -1,8 +1,8 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P180 已完成。
+> 状态：当前能力快照；P181 已完成。
 >
-> 基线日期：2026-08-25。
+> 基线日期：2026-08-26。
 
 本文只回答“现在具备什么能力、谁拥有它、用什么证据守住”。详细 wire/storage 版本见
 [`CONTRACT_BASELINE.md`](CONTRACT_BASELINE.md)，实施历史见
@@ -50,6 +50,7 @@
 - P178 让 MCP stdio session ledger 同时拥有 subprocess cleanup：Unix command 独占 process group，正常 close、context cancel、dial failure、probe、replacement、detach 与 shutdown 都回收后代并保留 cleanup diagnostic。
 - P179 删除 Sandbox working tree 的内存 tar 往返：source/destination `os.Root` 直接以 64 KiB chunk 复制，继续拥有 100k entries、128 MiB/file、512 MiB aggregate、identity/growth/cancellation 与 symlink confinement。
 - P180 让 Model Shell 的 foreground/background 共用完整进程 owner：Unix process group 在 stop/timeout/natural leader exit/Host close 后清理并 join，terminal Outcome 保留 cleanup diagnostic。
+- P181 让 Runtime Agent ACL 与 metadata 测试直接消费 `Input`、`Output`、`metadata.Map` 的 Go 1.27 generic methods，并把独立 module graph 钉到同一批已发布 owner-method 版本；workspace 与 `GOWORK=off` 不再编译两套 API 事实。
 
 ## 2. 架构与所有权
 
@@ -368,6 +369,8 @@ P180 完成模型 Shell process-tree 生命周期闭环。失败优先反例 `ea
 
 P180 封板通过 Shell/Tool 定向 test+race、kill/successful-parent descendant 回归、Unix/Windows/Linux cross-build、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser，cross-build artifacts 与所有 descendant/验证进程均已回收，`app/desktop` 与 `app/cli` 零修改。
 
+P181 收敛 Runtime typed ACL 与发布依赖图。当前工作区曾因四处已删除的 Agent free decode 无法编译，而 standalone 仍因旧依赖全绿；升级 Root/Core、Agent 与三份 Model module 后，ACL 直接调用 `Input.Decode` / `Output.Decode`，metadata 测试直接调用 `Map.Decode`，没有兼容函数、第二 codec 或 wire 转换。Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built 固定 Staticcheck、根 Runtime+Desktop tests、外部消费者编译、tidy 与 generator 零漂移全绿；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop/Wails/Agent Framework/CLI 均不改变。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -408,7 +411,7 @@ Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production packa
 
 ## 10. 当前结论
 
-P180 在既有 P0–P179 结论上删除 Model Shell 明确允许 orphan descendant 的例外，使 foreground/background presentation 服从同一 process-tree owner。当前完成范围因此为 P0–P180。
+P181 在既有 P0–P180 结论上消除 Runtime workspace 与 standalone module graph 的 typed API 分叉，使 Agent/Core rich-model owner 在 ACL 与发布消费者中保持一致。当前完成范围因此为 P0–P181。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

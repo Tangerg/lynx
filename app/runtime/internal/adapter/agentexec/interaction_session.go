@@ -680,7 +680,7 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 		if !ok {
 			return errors.New("agentexec: completed Interaction has no output")
 		}
-		output, err := agent.DecodeOutput[interaction.Output](erased)
+		output, err := erased.Decode[interaction.Output]()
 		if err != nil {
 			return fmt.Errorf("decode Interaction output: %w", err)
 		}

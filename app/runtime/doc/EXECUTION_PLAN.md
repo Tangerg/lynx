@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P180 已完成；下一阶段待独立准入。
+> 状态：P0–P181 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P180 已完成。
+> 最近基线：2026-08-26，P181 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P181 已准入，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 不修改、不暂存。当前工作区 `go test ./...` 无法编译 Runtime：Agent Framework 已把 typed decode 归还 Go 1.27 generic methods `Input.Decode` / `Output.Decode`，Core 已把 metadata decode 归还 `metadata.Map.Decode`，Runtime ACL 与测试仍调用已删除的过程式函数。与此同时 `GOWORK=off` 因钉住旧 module graph 全绿，证明同一源码存在 workspace/standalone 两种编译真相。
+- P181 的唯一 owner 是 Agent `Input` / `Output` 与 Core `metadata.Map`；Runtime 只消费其已验证值，不复制 codec、schema、兼容 free function 或第二表示。允许的 breaking surface 仅为 Runtime internal adapter/test 与独立 module requirements；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop、Wails、Agent Framework 和 `app/cli` 均不改变。
+- P181 已完成：四处 Agent decode 与 metadata 测试消费已归还各自 generic method，Runtime 独立 module 同步钉住已发布的 Core、Agent 与三份 Model owner-method 版本；workspace/standalone test、vet、build，Go 1.27-built 固定 Staticcheck、full race、root Runtime+Desktop tests、tidy、外部消费者编译与 generate 零漂移全绿。仅观察到既有 macOS deployment-target linker warning；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop、Wails、Agent Framework 与 `app/cli` 零修改。
 - P180 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先反例 `ea8a280b9` 证明真实 `/bin/sh` 的 `sleep` 后代会在 `Shells.Kill`/leader Wait 已完成后继续存活；旧 package comment 甚至把该泄漏列为 local single-user 可接受行为，foreground cancellation 还会在 Done 前 Remove。
 - P180 的唯一根修让 Unix Shell 从 Start 前独占 process group，timeout、`stop_shell`、foreground cancel、natural leader exit 与 Host `KillAll` 共用 group stop + Wait join + terminal cleanup diagnostic。成功 leader 因后代持 pipe 触发的 `ErrWaitDelay` 不再重写 exit code；foreground 只在 Done 后 Remove。Internal `Outcome` breaking 增加 cleanup error，model-facing Shell JSON 不变。
 - 对 app2 的裁决：采用其“所有 external process 都必须有 exact tree owner 和 join boundary”，删除原版显式 orphan 例外；复用现有 `Shells`、auto-background、ring buffer 与 Tool shape，不复制 process facade、daemon mode、supervisor、第二 executor 或 compatibility method。
@@ -483,10 +486,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P178     | MCP stdio session 与派生进程生命周期闭环                                                     | fallible session cleanup；Unix process group 在 close/cancel/failure/shutdown 后完整回收                                                     |
 | P179     | Sandbox working tree 去 archive 中间表示                                                     | direct `os.Root` copy；64 KiB heap chunk，100k/128 MiB/512 MiB complete-source envelope                                                       |
 | P180     | Model Shell foreground/background process-tree owner 闭环                                    | Unix process group；stop/timeout/natural exit/Host close 全路径 cleanup + join + diagnostic                                                  |
+| P181     | Runtime typed ACL 与独立 module graph 收敛                                                   | `Input` / `Output` / `metadata.Map` generic methods；workspace/standalone 共用同一已发布依赖事实                                               |
 
 ## 5. 当前里程碑结论
 
-P113–P180 共同建立了以下不可回退的心智模型：
+P113–P181 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -552,4 +556,4 @@ P113–P180 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P180 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P181 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
