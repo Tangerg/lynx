@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825123604-4178b5e54868
+	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0

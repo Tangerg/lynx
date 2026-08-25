@@ -3,13 +3,13 @@ module github.com/Tangerg/lynx/a2a
 go 1.27.0
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
 	github.com/a2aproject/a2a-go/v2 v2.4.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

@@ -6,8 +6,8 @@ cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdB
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/lynx v0.0.0-20260825123604-4178b5e54868 h1:UXiO8dVyCmT0c9MT1ZhxH0MNJUbFtBAxof4Bh1FAVmo=
-github.com/Tangerg/lynx v0.0.0-20260825123604-4178b5e54868/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43 h1:Wp5xmCQhklgGC8qjLfswRv4hIT2MK6Hz4b+A3ZeQfDM=
+github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 h1:3/qCFIBln0tzmZyrnAPnlXpoogqrGG6YXpvOe3olMPo=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10/go.mod h1:KYQPTw87c3ZEc1LJfSFyi2uyLUIhOnqScLUyqaGXVms=
 github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570 h1:qXN0+SWcf9pIJ8JTGYg6d5PBZNcWVL6UPU4KBkBUOmQ=

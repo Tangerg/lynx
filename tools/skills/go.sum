@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260803203338-c4ebadf56498 h1:rGFvFJzMak+koAMcg60YgMrfcd459gpEiP9uwY63Cf4=
-github.com/Tangerg/lynx v0.0.0-20260803203338-c4ebadf56498/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43 h1:Wp5xmCQhklgGC8qjLfswRv4hIT2MK6Hz4b+A3ZeQfDM=
+github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af h1:UgctZqpKFJfF/s8h0SVNq49qyFaYVKWpOpzmicotKuc=
 github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=

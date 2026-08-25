@@ -3,6 +3,7 @@ module github.com/Tangerg/lynx/mcp
 go 1.27.0
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260805104644-9a5938dbf5d7
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
