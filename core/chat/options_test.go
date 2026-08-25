@@ -67,8 +67,13 @@ func TestOptionsValidateBoundaries(t *testing.T) {
 }
 
 func TestOptionsClone(t *testing.T) {
+	format, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	options := chat.Options{
 		Model:            "model",
+		OutputFormat:     &format,
 		FrequencyPenalty: new(0.1),
 		MaxTokens:        new(int64(10)),
 		PresencePenalty:  new(0.2),
@@ -83,6 +88,7 @@ func TestOptionsClone(t *testing.T) {
 	}
 	clone := options.Clone()
 
+	clone.OutputFormat.Schema[0] = '['
 	*clone.FrequencyPenalty = 1
 	*clone.MaxTokens = 20
 	*clone.PresencePenalty = 1
@@ -93,6 +99,7 @@ func TestOptionsClone(t *testing.T) {
 	clone.Extensions["test/value"][0] = 'x'
 
 	if *options.FrequencyPenalty != 0.1 ||
+		options.OutputFormat.Schema[0] != '{' ||
 		*options.MaxTokens != 10 ||
 		*options.PresencePenalty != 0.2 ||
 		options.Stop[0] != "END" ||
@@ -105,8 +112,13 @@ func TestOptionsClone(t *testing.T) {
 }
 
 func TestOptionsMerged(t *testing.T) {
+	baseFormat, err := chat.NewOutputFormat(chat.OutputFormatText)
+	if err != nil {
+		t.Fatal(err)
+	}
 	base := chat.Options{
 		Model:            "base-model",
+		OutputFormat:     &baseFormat,
 		FrequencyPenalty: new(0.1),
 		MaxTokens:        new(int64(10)),
 		PresencePenalty:  new(0.2),
@@ -130,11 +142,16 @@ func TestOptionsMerged(t *testing.T) {
 		Stop:        []string{"OVERRIDE"},
 		Temperature: new(0.7),
 	}
+	overrideFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	override.OutputFormat = &overrideFormat
 	got, err = base.Merged(override)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Model != "override-model" || *got.MaxTokens != 20 ||
+	if got.Model != "override-model" || got.OutputFormat == nil || got.OutputFormat.Type != chat.OutputFormatJSON || *got.MaxTokens != 20 ||
 		got.Stop[0] != "OVERRIDE" || *got.Temperature != 0.7 {
 		t.Fatalf("Merged did not apply set fields: %#v", got)
 	}
@@ -144,12 +161,13 @@ func TestOptionsMerged(t *testing.T) {
 	}
 
 	*got.MaxTokens = 99
+	got.OutputFormat.Type = chat.OutputFormatText
 	got.Stop[0] = "MUTATED"
 	*got.FrequencyPenalty = 99
-	if *override.MaxTokens != 20 || override.Stop[0] != "OVERRIDE" {
+	if *override.MaxTokens != 20 || override.OutputFormat.Type != chat.OutputFormatJSON || override.Stop[0] != "OVERRIDE" {
 		t.Fatalf("Merged aliased the override: %#v", override)
 	}
-	if *base.FrequencyPenalty != 0.1 || base.Stop[0] != "BASE" {
+	if *base.FrequencyPenalty != 0.1 || base.OutputFormat.Type != chat.OutputFormatText || base.Stop[0] != "BASE" {
 		t.Fatalf("Merged aliased the base: %#v", base)
 	}
 }
@@ -178,6 +196,7 @@ func TestOptionsValidateRejectsInvalidOverrides(t *testing.T) {
 		options chat.Options
 	}{
 		{name: "model whitespace", options: chat.Options{Model: " model"}},
+		{name: "invalid output format", options: chat.Options{OutputFormat: &chat.OutputFormat{}}},
 		{name: "frequency low", options: chat.Options{FrequencyPenalty: new(-2.1)}},
 		{name: "frequency NaN", options: chat.Options{FrequencyPenalty: new(math.NaN())}},
 		{name: "max tokens zero", options: chat.Options{MaxTokens: new(int64(0))}},

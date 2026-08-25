@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/chathistory/mongodb
 
-go 1.26.5
+go 1.27.0
 
 require go.mongodb.org/mongo-driver/v2 v2.8.0
 

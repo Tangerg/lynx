@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/pinecone
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/pinecone-io/go-pinecone/v4 v4.1.4

@@ -62,8 +62,17 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Description: "Inspect media",
 		InputSchema: json.RawMessage(`{"type":"object"}`),
 	}}
+	chatOutputFormat, err := chat.NewJSONSchemaOutputFormat(
+		"answer",
+		json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatOutputFormat.Description = "Structured answer"
 	chatRequest.Options = chat.Options{
 		Model:            "chat-model",
+		OutputFormat:     &chatOutputFormat,
 		FrequencyPenalty: new(0.1),
 		MaxTokens:        new(int64(512)),
 		PresencePenalty:  new(0.2),

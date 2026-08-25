@@ -39,7 +39,7 @@ func TestRuntimeConfigDirectoriesFindWorktreeDevelopmentConfig(t *testing.T) {
 		}
 	}
 	for path, content := range map[string]string{
-		filepath.Join(root, "go.work"):                  "go 1.26.5\n",
+		filepath.Join(root, "go.work"):                  "go 1.27.0\n",
 		filepath.Join(root, "app", "runtime", "go.mod"): "module example/runtime\n",
 		filepath.Join(configDirectory, "config.yaml"):   "provider: deepseek\n",
 	} {

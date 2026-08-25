@@ -105,8 +105,12 @@ func TestRequestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Tools = []chat.ToolDefinition{validToolDefinition()}
-	request.Options = chat.Options{Model: "model", Temperature: new(0.5)}
-	if err := request.Options.SetExtension("openai/request", map[string]any{"response_format": "json"}); err != nil {
+	format, err := chat.NewOutputFormat(chat.OutputFormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Options = chat.Options{Model: "model", OutputFormat: &format, Temperature: new(0.5)}
+	if err := request.Options.SetExtension("openai/request", map[string]any{"seed": 42}); err != nil {
 		t.Fatal(err)
 	}
 	if err := request.Validate(); err != nil {

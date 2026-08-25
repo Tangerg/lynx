@@ -72,7 +72,7 @@ func ExampleTemplate() {
 	// Output: Explain Go interfaces in one sentence.
 }
 
-func ExampleCallStructured() {
+func ExampleOutputFormat_Decode() {
 	type answer struct {
 		Value int `json:"value"`
 	}
@@ -87,7 +87,9 @@ func ExampleCallStructured() {
 	if err != nil {
 		panic(err)
 	}
-	result, _, err := chatclient.CallStructured(context.Background(), client, request, chatclient.JSON[answer]())
+	format := chatclient.JSON[answer]()
+	request.Options.OutputFormat = format.Contract()
+	result, err := format.Decode(chatclient.Once(client.Call(context.Background(), request)))
 	if err != nil {
 		panic(err)
 	}

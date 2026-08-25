@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/documentpipeline/markdown
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Tangerg/lynx/documentpipeline v0.0.0-20260803141845-7207652c95af

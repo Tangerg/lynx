@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/chathistory/cosmosdb
 
-go 1.26.5
+go 1.27.0
 
 require github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 

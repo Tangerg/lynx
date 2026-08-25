@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/models/protocol/openai
 
-go 1.26.5
+go 1.27.0
 
 require github.com/openai/openai-go/v3 v3.49.0
 

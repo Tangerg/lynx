@@ -25,9 +25,9 @@ OpenAI、Anthropic、Google 和 Ollama 的适配器分别由各 provider 包的
 
 ```go
 func Ask(ctx context.Context, model chat.Model, question string) (string, error) {
-    client, err := chatclient.New(model,
-        chatclient.WithDefaults(chat.Options{Model: "provider-model-name"}),
-    )
+    client, err := chatclient.New(model, chatclient.Config{
+        Defaults: chat.Options{Model: "provider-model-name"},
+    })
     if err != nil {
         return "", err
     }
@@ -52,7 +52,7 @@ Streamer 和 middleware。不存在第二套 fluent request builder。
 ## 3. 流式调用
 
 当同步 model 本身也实现 `chat.Streamer` 时，`chatclient.New` 会自动发现它；
-Call/Stream 是两个独立对象时使用 `chatclient.WithStreamer(streamer)`。
+Call/Stream 是两个独立对象时写入 `chatclient.Config.Streamer`。
 
 ```go
 for response, err := range client.Stream(ctx, request) {
@@ -110,19 +110,27 @@ prompt, err := chatclient.ParseTemplate("Explain {{.Topic}} in one sentence.")
 message, err := prompt.UserMessage(struct{ Topic string }{Topic: "Go interfaces"})
 ```
 
-结构化输出使用普通泛型值和 decoder：
+`OutputFormat` 同时拥有请求格式和结果 decoder。同步结果通过 `Once` 提升为
+单元素流，因此同步、流式只有一条累积与 decode 路径：
 
 ```go
 type Answer struct {
     Value int `json:"value"`
 }
 
-answer, response, err := chatclient.CallStructured(
-    ctx, client, request, chatclient.JSON[Answer](),
-)
+format := chatclient.JSON[Answer]()
+request.Options.OutputFormat = format.Contract()
+
+// 同步：完整响应是一种只有一个元素的流。
+answer, err := format.Decode(chatclient.Once(client.Call(ctx, request)))
+
+// 流式：复用完全相同的 decoder。
+answer, err = format.Decode(client.Stream(ctx, request))
 ```
 
-decode 失败时仍返回原始 Response，repair/retry 策略由调用方显式决定。
+provider 优先映射为原生格式控制；只有协议不支持所请求格式时才注入等价 prompt。
+decoder 接受完整 JSON、JSON markdown fence 和单个被说明文字包围的完整 JSON，拒绝
+截断补全、多个 JSON 值、重复 key 和非法 UTF-8。repair/retry 策略仍由调用方显式决定。
 
 ## 7. 下一步
 

@@ -188,7 +188,7 @@ interface ToolCallingManager { List<ToolDefinition> resolveToolDefinitions(...);
 - core `chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值，**没有可执行 `Tool` 接口**，也没有 `ToolCallingManager` 这类编排服务。可执行工具的最小接口位于外圈 `tool` 模块，typed function 和具体实现继续通过 sibling `tools` 组合。
 - 托管模型→Tool→模型循环是原生 `agent/interaction` Strategy：Definition 冻结契约与上限，Dispatcher 持有 `chatclient.Client` 和可执行 Tools，Engine 通过 Process/Effect/Signal 推进并以完整 TreeSnapshot 恢复。工具默认串行，只有 `ConcurrentTool` 明确声明后才按 resource key 有界并发；结果与 continuation 始终按原 ToolCall 顺序提交。无可证明 settlement 不自动重试；Tool 输入等待由 Engine-minted WaitID 和 Strategy-owned checkpoint 表达，不往 provider `Response` 塞运行时状态，也不存在第二 Runner/Resume 生命周期。
 
-**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把执行窄腰放在 Agent Framework，core 只定义"一个 ToolCall 长什么样"。此外 lynx 不把 structured output 当 tool-options 的一个开关(Spring 的 `StructuredOutputChatOptions`)，而由 `chatclient.CallStructured` 组合调用方拥有的 instructions 与 decoder；需要恢复和治理时再由 typed Agent Input/Output schema 接入 managed Process。
+**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把执行窄腰放在 Agent Framework，core 只定义"一个 ToolCall 长什么样"。结构化输出由 provider-neutral `chat.Options.OutputFormat` 表达；adapter 优先使用原生能力，只有不支持时才注入 prompt。`chatclient.OutputFormat[T]` 在同一对象上拥有请求 contract 和同步/流式共用的 decoder；需要恢复和治理时再由 typed Agent Input/Output schema 接入 managed Process。
 
 ---
 
@@ -339,7 +339,7 @@ class NonTransientAiException extends RuntimeException {}    // 4xx → 不重�
 - **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `chathistory`/`rag`/agent guardrails,用 middleware 接入。
 - **ANTLR 文法与生成 parser**(§8)—— 手写。
 - **Micrometer 内嵌 SPI**(§10)—— `otel` 边界装饰。
-- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `chatclient`;结构化输出由 `chatclient.Output[T]` 统一表达。
+- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `chatclient`;结构化输出由 `chatclient.OutputFormat[T]` 统一表达。
 - **`getNativeUsage()` / `getNativeClient()` 原始对象逃生口** —— 协议层不开逃生口。
 - **RAG advisor(`QuestionAnswerAdvisor`/`RetrievalAugmentationAdvisor`)** —— 独立 `rag` 模块。
 

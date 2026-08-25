@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/rag
 
-go 1.26.5
+go 1.27.0
 
 require (
 	go.opentelemetry.io/otel v1.44.0

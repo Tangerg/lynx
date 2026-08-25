@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/weaviate
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/go-openapi/strfmt v0.27.0

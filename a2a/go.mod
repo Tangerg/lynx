@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/a2a
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/a2aproject/a2a-go/v2 v2.4.0

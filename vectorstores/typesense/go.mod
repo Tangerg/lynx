@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/typesense
 
-go 1.26.5
+go 1.27.0
 
 require github.com/typesense/typesense-go/v3 v3.2.0
 

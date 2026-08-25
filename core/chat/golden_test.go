@@ -34,10 +34,11 @@ func TestRequestGolden(t *testing.T) {
 		Description: "Inspect an image",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"string"}}}`),
 	}}
-	request.Options = chat.Options{Model: "provider-model", Temperature: new(0.2), MaxTokens: new(int64(256))}
-	if err := request.Options.SetExtension("openai/response_format", map[string]string{"type": "text"}); err != nil {
+	format, err := chat.NewOutputFormat(chat.OutputFormatText)
+	if err != nil {
 		t.Fatal(err)
 	}
+	request.Options = chat.Options{Model: "provider-model", OutputFormat: &format, Temperature: new(0.2), MaxTokens: new(int64(256))}
 	assertChatGolden(t, "request.golden.json", request)
 }
 

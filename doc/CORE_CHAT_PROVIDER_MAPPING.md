@@ -20,6 +20,7 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 8. 原生协议没有 tool-call ID 时，adapter 使用 `<provider>/<part-index>` 生成确定性 ID，并在同一轮 ToolResult 中沿用。不得使用全局计数器。
 9. 通用 token 数进入 `Response.Metadata.Usage`；provider 原始 usage 和未提升的计数进入 `Response.Metadata.Extra` 的 `<provider>/usage`。
 10. provider 特有请求参数只进入 `Request.Options.Extensions` 的 `<provider>/request`，adapter 只读取自己的 namespace。
+11. 结果表示统一由 `Request.Options.OutputFormat` 表达。adapter 必须优先使用 provider 原生参数；只有原生协议无法表达该格式时才注入等价 system instruction。对应的 provider extension 字段由 Core 字段独占，不允许同时设置两套来源。
 
 ## 2. 能力矩阵
 
@@ -33,7 +34,8 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 | ToolResult error | 原生无独立标志，结果文本保留 | `is_error` ↔ ToolResult.IsError | response object；错误语义保留在对象/结果 | 结果文本保留 |
 | 缓存 usage | cached prompt tokens → CacheRead | cache read/create → CacheRead/CacheWrite | cached content → CacheRead | 当前无 |
 | reasoning usage | completion details → Reasoning | 如 provider 单独报告则映射 | thoughts token count → Reasoning | 当前无 |
-| 原生请求逃生舱 | response format、modalities、audio 等 | thinking、cache control 等 | safety、response modalities 等 | keep_alive、format、think、options 等 |
+| OutputFormat 原生映射 | Chat `response_format`；Responses `text.format` | `output_config.format`（JSON Schema）；JSON prompt fallback | `response_mime_type` + `response_json_schema` | `format` |
+| 原生请求逃生舱 | modalities、audio 等 | thinking、cache control 等 | safety、response modalities 等 | keep_alive、think、options 等 |
 
 ## 3. Provider 细则
 
@@ -43,6 +45,7 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 - refusal、annotations 和可重放 audio identity 属于 Message Metadata；logprobs 属于 `Result.Metadata.Extra`。
 - created、service tier 与原始 usage 属于 `Response.Metadata.Extra`。
 - image bytes 映射为 data URL，URI 保持 URI；file reference 映射为 provider file ID；不兼容组合返回错误。
+- `OutputFormat` 在 Chat Completions 映射为 `response_format`，在 Responses API 映射为 `text.format`；extension 不得重复设置 `response_format`。
 
 ### 3.2 Anthropic
 
@@ -50,6 +53,7 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 - content blocks 原生保序；thinking 的 signature 必须逐 Part 保存并在续轮原样回放。
 - redacted thinking 没有可见文本，保存到 `anthropic/redacted_reasoning` Message Metadata。
 - prompt cache breakpoint、extended thinking 等原生参数由 `anthropic/request` 承载；原生 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` 归一化为 Core 总 `InputTokens`，两个 cache 分量分别映射到 Usage 可选 breakdown，原始计数保留在 `anthropic/usage`。
+- JSON Schema `OutputFormat` 映射到 `output_config.format`；普通 JSON 或不支持该字段的 Anthropic-compatible endpoint 使用统一 prompt fallback。extension 可继续承载 output config 的其他字段，但不得重复设置 `format`。
 
 ### 3.3 Google Gemini
 
@@ -58,12 +62,13 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 - FunctionCall.ID 缺失时按统一规则生成稳定 ID；FunctionResponse 仍按 provider 要求以 name/object 下沉。
 - 原生 `prompt_token_count + tool_use_prompt_token_count` 归一化为 Core 总 `InputTokens`，`candidates_token_count + thoughts_token_count` 归一化为总 `OutputTokens`；cache/thoughts 作为 breakdown，原始分项进入 `google/usage`。
 - model version 和 tool-use prompt token 另行进入 `Response.Metadata.Extra`。
+- `OutputFormat` 映射到 `response_mime_type` 与 `response_json_schema`；extension 不得重复设置这些字段。
 
 ### 3.4 Ollama Native Chat
 
 - content、thinking、tool_calls 是分离字段，Core 规范顺序为 reasoning → text → tool calls。
 - Native API 没有稳定 ID 时使用确定性合成 ID。
-- keep_alive、format、think 和额外 options 保留在 `ollama/request`。
+- keep_alive、think 和额外 options 保留在 `ollama/request`；`format` 由 Core `OutputFormat` 独占。
 - created_at、各阶段 duration 和原始 metrics 保留在 `Response.Metadata.Extra`。
 
 ## 4. 可执行证据与后续使用

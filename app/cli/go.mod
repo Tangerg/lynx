@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/app/cli
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Tangerg/lynx/app/runtime v0.0.0-20260811170725-420f627f131a

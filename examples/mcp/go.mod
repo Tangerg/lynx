@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/examples/mcp
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570

@@ -2,6 +2,7 @@
 # Regenerate: go test ./internal/arch -run TestExportedAPIMatchesBaseline -update-api
 
 chat: const ( FinishReasonStop FinishReason = "stop" FinishReasonLength FinishReason = "length" FinishReasonToolCalls FinishReason = "tool_calls" FinishReasonContentFilter FinishReason = "content_filter" FinishReasonOther FinishReason = "other" )
+chat: const ( OutputFormatText OutputFormatType = "text" OutputFormatJSON OutputFormatType = "json" OutputFormatJSONSchema OutputFormatType = "json_schema" )
 chat: const ( PartText PartKind = "text" PartMedia PartKind = "media" PartReasoning PartKind = "reasoning" PartToolCall PartKind = "tool_call" PartToolResult PartKind = "tool_result" )
 chat: const ( RoleSystem Role = "system" RoleUser Role = "user" RoleAssistant Role = "assistant" RoleTool Role = "tool" )
 chat: func (a *ResponseAccumulator) Add(chunk *Response) error
@@ -11,7 +12,12 @@ chat: func (d *ToolDefinition) UnmarshalJSON(data []byte) error
 chat: func (d ToolDefinition) Clone() ToolDefinition
 chat: func (d ToolDefinition) MarshalJSON() ([]byte, error)
 chat: func (d ToolDefinition) Validate() error
+chat: func (f *OutputFormat) Clone() *OutputFormat
+chat: func (f *OutputFormat) FallbackInstruction() (string, error)
+chat: func (f *OutputFormat) UnmarshalJSON(data []byte) error
 chat: func (f ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)
+chat: func (f OutputFormat) MarshalJSON() ([]byte, error)
+chat: func (f OutputFormat) Validate() error
 chat: func (f StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
 chat: func (k PartKind) Valid() bool
 chat: func (m *Message) Text() string
@@ -57,8 +63,10 @@ chat: func (u Usage) MarshalJSON() ([]byte, error)
 chat: func (u Usage) TotalTokens() int64
 chat: func (u Usage) Validate() error
 chat: func NewAssistantMessage(parts ...Part) Message
+chat: func NewJSONSchemaOutputFormat(name string, schema json.RawMessage) (OutputFormat, error)
 chat: func NewMediaPart(value *media.Media) Part
 chat: func NewOptions(model string) (Options, error)
+chat: func NewOutputFormat(formatType OutputFormatType) (OutputFormat, error)
 chat: func NewReasoningPart(text string, signature []byte) Part
 chat: func NewRequest(messages ...Message) (*Request, error)
 chat: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
@@ -76,7 +84,9 @@ chat: type FinishReason string
 chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type Model interface { Call(ctx context.Context, req *Request) (*Response, error) }
 chat: type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
-chat: type Options struct { Model string `json:"model,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
+chat: type Options struct { Model string `json:"model,omitempty"` OutputFormat *OutputFormat `json:"output_format,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
+chat: type OutputFormat struct { Type OutputFormatType `json:"type"` Name string `json:"name,omitempty"` Description string `json:"description,omitempty"` Schema json.RawMessage `json:"schema,omitempty"` }
+chat: type OutputFormatType string
 chat: type Part struct { Kind PartKind `json:"kind"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Signature []byte `json:"signature,omitempty"` ToolCall *ToolCall `json:"tool_call,omitempty"` ToolResult *ToolResult `json:"tool_result,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type PartKind string
 chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` }
@@ -95,6 +105,7 @@ chat: type ToolResult struct { ID string `json:"id"` Name string `json:"name"` R
 chat: type Usage struct { InputTokens int64 `json:"input_tokens,omitempty"` OutputTokens int64 `json:"output_tokens,omitempty"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` }
 chat: var ( ErrInvalidMessage = errors.New("chat: invalid message") ErrInvalidPart = errors.New("chat: invalid part") ErrInvalidToolCall = errors.New("chat: invalid tool call") ErrInvalidToolResult = errors.New("chat: invalid tool result") )
 chat: var ErrInvalidOptions = errors.New("chat: invalid options")
+chat: var ErrInvalidOutputFormat = errors.New("chat: invalid output format")
 chat: var ErrInvalidRequest = errors.New("chat: invalid request")
 chat: var ErrInvalidResponse = errors.New("chat: invalid response")
 chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")

@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/models/cohere
 
-go 1.26.5
+go 1.27.0
 
 require github.com/cohere-ai/cohere-go/v2 v2.18.0
 

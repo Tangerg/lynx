@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/chathistory/cassandra
 
-go 1.26.5
+go 1.27.0
 
 require github.com/gocql/gocql v1.7.0
 

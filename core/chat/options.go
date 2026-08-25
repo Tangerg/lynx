@@ -18,15 +18,16 @@ var ErrInvalidOptions = errors.New("chat: invalid options")
 // Options contains provider-neutral per-request generation overrides. Its zero
 // value is valid and means that the model/provider defaults apply.
 type Options struct {
-	Model            string       `json:"model,omitempty"`
-	FrequencyPenalty *float64     `json:"frequency_penalty,omitempty"`
-	MaxTokens        *int64       `json:"max_tokens,omitempty"`
-	PresencePenalty  *float64     `json:"presence_penalty,omitempty"`
-	Stop             []string     `json:"stop,omitempty"`
-	Temperature      *float64     `json:"temperature,omitempty"`
-	TopK             *int64       `json:"top_k,omitempty"`
-	TopP             *float64     `json:"top_p,omitempty"`
-	Extensions       metadata.Map `json:"extensions,omitzero"`
+	Model            string        `json:"model,omitempty"`
+	OutputFormat     *OutputFormat `json:"output_format,omitempty"`
+	FrequencyPenalty *float64      `json:"frequency_penalty,omitempty"`
+	MaxTokens        *int64        `json:"max_tokens,omitempty"`
+	PresencePenalty  *float64      `json:"presence_penalty,omitempty"`
+	Stop             []string      `json:"stop,omitempty"`
+	Temperature      *float64      `json:"temperature,omitempty"`
+	TopK             *int64        `json:"top_k,omitempty"`
+	TopP             *float64      `json:"top_p,omitempty"`
+	Extensions       metadata.Map  `json:"extensions,omitzero"`
 }
 
 // NewOptions builds Options for the given model id.
@@ -56,6 +57,7 @@ func (o *Options) SetExtension(key string, value any) error {
 func (o Options) Clone() Options {
 	return Options{
 		Model:            o.Model,
+		OutputFormat:     o.OutputFormat.Clone(),
 		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
 		MaxTokens:        ptr.Clone(o.MaxTokens),
 		PresencePenalty:  ptr.Clone(o.PresencePenalty),
@@ -84,6 +86,9 @@ func (o Options) Merged(overrides ...Options) (Options, error) {
 func (o *Options) applyOverride(src Options) error {
 	if src.Model != "" {
 		o.Model = src.Model
+	}
+	if src.OutputFormat != nil {
+		o.OutputFormat = src.OutputFormat.Clone()
 	}
 	if src.FrequencyPenalty != nil {
 		o.FrequencyPenalty = ptr.Clone(src.FrequencyPenalty)
@@ -118,6 +123,11 @@ func (o *Options) applyOverride(src Options) error {
 func (o Options) Validate() error {
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
 		return fmt.Errorf("%w: model must not have surrounding whitespace", ErrInvalidOptions)
+	}
+	if o.OutputFormat != nil {
+		if err := o.OutputFormat.Validate(); err != nil {
+			return fmt.Errorf("%w: output_format: %w", ErrInvalidOptions, err)
+		}
 	}
 	if err := validateFloat("frequency_penalty", o.FrequencyPenalty, -2, 2); err != nil {
 		return err

@@ -2809,7 +2809,7 @@ Peer adapters:
 | P31.4 unique retrieval ranking | `DONE` | 相同非空 Document ID 只占一个名额，保留最高分；`TopK` 在截断前唯一化，组合顺序不再改变结果 | `277f36b72` |
 | P31.5 Markdown semantic chunking | `DONE` | 独立可选模块保留 heading ancestry，并只在 table row、list item、code line 等语义边界切分 | `12998274d` |
 | P31.6 collection membership | `DONE` | `IN` 明确为 scalar-in-literals；新增 `HAS` 表达 collection-contains-scalar，并按 provider 官方能力映射或显式拒绝 | `01177233f` |
-| P31.7 managed typed prompt | `DONE` | `agent.Prompt[T]` 复用唯一 owner `chatclient.Output[T]`，保留 ToolLoop/lifecycle/event/usage，删除示例手工 JSON 截取与静默 fallback | `9a2c9222a` |
+| P31.7 managed typed prompt | `DONE` | `agent.Prompt[T]` 复用唯一 owner `chatclient.OutputFormat[T]`，保留 ToolLoop/lifecycle/event/usage，删除示例手工 JSON 截取与静默 fallback | `9a2c9222a` |
 | P31.8 final audit | `DONE` | 拒绝恢复 public store/provider testkit；清理旧 `Extra`、旧文件名和结构化输出文档漂移；全量非 fuzz 门禁通过 | 随本原子 slice 提交 |
 
 ### 18.2 最终执行与数据心智模型
@@ -2833,7 +2833,7 @@ RAG
   -> provider metadata filtering uses explicit scalar IN vs collection HAS
 
 Typed model output
-  -> chatclient.Output[T] owns instructions + decoder
+  -> chatclient.OutputFormat[T] owns contract + decoder
   -> agent.Prompt[T] adapts it to the managed Process interaction
   -> providers and Agent do not grow parallel converter hierarchies
 ```

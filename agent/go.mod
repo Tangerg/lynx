@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/agent
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0

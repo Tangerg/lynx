@@ -1,0 +1,130 @@
+package chat_test
+
+import (
+	"encoding/json"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/chat"
+)
+
+func TestOutputFormatConstructorsAndJSON(t *testing.T) {
+	for _, formatType := range []chat.OutputFormatType{chat.OutputFormatText, chat.OutputFormatJSON} {
+		format, err := chat.NewOutputFormat(formatType)
+		if err != nil {
+			t.Fatalf("NewOutputFormat(%q): %v", formatType, err)
+		}
+		encoded, err := json.Marshal(format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded chat.OutputFormat
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded, format) {
+			t.Fatalf("round trip = %#v, want %#v", decoded, format)
+		}
+	}
+
+	schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`)
+	format, err := chat.NewJSONSchemaOutputFormat("answer", schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	format.Description = "The answer payload"
+	schema[0] = '['
+	if format.Schema[0] != '{' {
+		t.Fatal("NewJSONSchemaOutputFormat retained caller-owned schema bytes")
+	}
+	if err := format.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOutputFormatFallbackInstruction(t *testing.T) {
+	var nilFormat *chat.OutputFormat
+	if got, err := nilFormat.FallbackInstruction(); err != nil || got != "" {
+		t.Fatalf("nil = (%q, %v)", got, err)
+	}
+	text, err := chat.NewOutputFormat(chat.OutputFormatText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := text.FallbackInstruction(); err != nil || got != "" {
+		t.Fatalf("text = (%q, %v)", got, err)
+	}
+	jsonFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := jsonFormat.FallbackInstruction(); err != nil || !strings.Contains(got, "only one valid JSON object") {
+		t.Fatalf("json = (%q, %v)", got, err)
+	}
+	schema, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{ "type": "object" }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := schema.FallbackInstruction(); err != nil || !strings.Contains(got, `{"type":"object"}`) {
+		t.Fatalf("json_schema = (%q, %v)", got, err)
+	}
+}
+
+func TestOutputFormatRejectsInvalidContracts(t *testing.T) {
+	tests := []chat.OutputFormat{
+		{},
+		{Type: "xml"},
+		{Type: chat.OutputFormatText, Schema: json.RawMessage(`{}`)},
+		{Type: chat.OutputFormatJSON, Name: "answer"},
+		{Type: chat.OutputFormatJSONSchema, Schema: json.RawMessage(`{}`)},
+		{Type: chat.OutputFormatJSONSchema, Name: " answer ", Schema: json.RawMessage(`{}`)},
+		{Type: chat.OutputFormatJSONSchema, Name: "answer", Description: " description ", Schema: json.RawMessage(`{}`)},
+		{Type: chat.OutputFormatJSONSchema, Name: "answer", Schema: json.RawMessage(`[]`)},
+		{Type: chat.OutputFormatJSONSchema, Name: "answer", Schema: json.RawMessage(`{`)},
+		{Type: chat.OutputFormatJSONSchema, Name: "answer", Schema: json.RawMessage(`{"type":"object","type":"array"}`)},
+	}
+	for _, format := range tests {
+		if err := format.Validate(); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+			t.Errorf("Validate(%#v) = %v, want ErrInvalidOutputFormat", format, err)
+		}
+		if _, err := json.Marshal(format); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+			t.Errorf("Marshal(%#v) = %v, want ErrInvalidOutputFormat", format, err)
+		}
+	}
+}
+
+func TestOutputFormatCloneAndAtomicUnmarshal(t *testing.T) {
+	format, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := format.Clone()
+	clone.Schema[0] = '['
+	if format.Schema[0] != '{' {
+		t.Fatal("OutputFormat.Clone aliases schema bytes")
+	}
+
+	before := format.Clone()
+	if err := json.Unmarshal([]byte(`{"type":"json_schema","name":"answer","schema":[]}`), &format); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+		t.Fatalf("Unmarshal = %v, want ErrInvalidOutputFormat", err)
+	}
+	if !reflect.DeepEqual(format, *before) {
+		t.Fatalf("failed Unmarshal mutated receiver: %#v", format)
+	}
+	if err := json.Unmarshal([]byte(`{"type":"text","type":"json"}`), &format); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+		t.Fatalf("duplicate field Unmarshal = %v, want ErrInvalidOutputFormat", err)
+	}
+	if !reflect.DeepEqual(format, *before) {
+		t.Fatalf("duplicate field Unmarshal mutated receiver: %#v", format)
+	}
+
+	var nilFormat *chat.OutputFormat
+	if nilFormat.Clone() != nil {
+		t.Fatal("nil OutputFormat.Clone must return nil")
+	}
+	if err := nilFormat.UnmarshalJSON([]byte(`{"type":"text"}`)); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+		t.Fatalf("nil receiver = %v, want ErrInvalidOutputFormat", err)
+	}
+}

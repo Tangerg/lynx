@@ -27,6 +27,7 @@ var updateWireFixtures = flag.Bool(
 var wireFixtureCoverage = map[string]string{
 	"chat.Message":                   "chat_request",
 	"chat.Options":                   "chat_request",
+	"chat.OutputFormat":              "chat_request",
 	"chat.Part":                      "chat_request",
 	"chat.Request":                   "chat_request",
 	"chat.Response":                  "chat_response",

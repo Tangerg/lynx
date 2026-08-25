@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/neo4j
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491

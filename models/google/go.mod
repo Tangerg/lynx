@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/models/google
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570

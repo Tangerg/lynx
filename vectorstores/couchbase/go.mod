@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/couchbase
 
-go 1.26.5
+go 1.27.0
 
 require github.com/couchbase/gocb/v2 v2.12.4
 

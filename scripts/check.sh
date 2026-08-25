@@ -11,7 +11,7 @@
 #   MODULE=app/runtime scripts/check.sh race
 #
 # Required tools:
-#   go (1.26.5)
+#   go (1.27.0)
 #   golangci-lint  — install via:
 #     go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 #   govulncheck    — install via:

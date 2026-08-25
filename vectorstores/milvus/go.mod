@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/milvus
 
-go 1.26.5
+go 1.27.0
 
 require github.com/milvus-io/milvus/client/v2 v2.6.5
 

@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores/elasticsearch
 
-go 1.26.5
+go 1.27.0
 
 require github.com/elastic/go-elasticsearch/v8 v8.19.6
 
