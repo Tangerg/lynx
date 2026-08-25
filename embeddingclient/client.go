@@ -11,10 +11,8 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 )
 
-// ErrNilModel reports that [New] received a nil model, including a typed nil.
+// ErrNilModel reports that a Client has no usable model, including a typed nil.
 var ErrNilModel = errors.New("embeddingclient: nil model")
-
-var errNilClient = errors.New("embeddingclient: nil client")
 
 // Client is an immutable convenience wrapper around an [embedding.Model]. It
 // returns independent vector values and leaves provider response metadata to
@@ -24,27 +22,18 @@ type Client struct {
 }
 
 // New constructs a Client around model.
-func New(model embedding.Model) (*Client, error) {
-	if model == nil || isNilModel(model) {
-		return nil, ErrNilModel
+func New(model embedding.Model) (Client, error) {
+	client := Client{model: model}
+	if err := client.validate(); err != nil {
+		return Client{}, err
 	}
-	return &Client{model: model}, nil
-}
-
-func isNilModel(model embedding.Model) bool {
-	value := reflect.ValueOf(model)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
+	return client, nil
 }
 
 // EmbedTexts embeds texts in one model call and returns vectors in input order.
-func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, error) {
-	if c == nil || c.model == nil {
-		return nil, errNilClient
+func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, error) {
+	if err := c.validate(); err != nil {
+		return nil, fmt.Errorf("embeddingclient: embed texts: %w", err)
 	}
 	request, err := embedding.NewRequest(texts)
 	if err != nil {
@@ -72,7 +61,7 @@ func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, e
 }
 
 // EmbedText embeds one text value.
-func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
+func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	vectors, err := c.EmbedTexts(ctx, []string{text})
 	if err != nil {
 		return nil, err
@@ -82,7 +71,7 @@ func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, error) 
 
 // Dimensions probes the model once and returns its vector width. The result is
 // deliberately not cached; callers own any cache lifetime and invalidation.
-func (c *Client) Dimensions(ctx context.Context) (int, error) {
+func (c Client) Dimensions(ctx context.Context) (int, error) {
 	vector, err := c.EmbedText(ctx, "dimension probe")
 	if err != nil {
 		return 0, fmt.Errorf("embeddingclient: dimensions: %w", err)
@@ -91,7 +80,15 @@ func (c *Client) Dimensions(ctx context.Context) (int, error) {
 }
 
 // EmbedDocuments embeds the textual content of docs in one model call.
-func (c *Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, error) {
+func (c Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, error) {
+	texts, err := c.documentTexts(docs)
+	if err != nil {
+		return nil, err
+	}
+	return c.EmbedTexts(ctx, texts)
+}
+
+func (Client) documentTexts(docs []*document.Document) ([]string, error) {
 	if len(docs) == 0 {
 		return nil, errors.New("embeddingclient: embed documents: documents must not be empty")
 	}
@@ -100,10 +97,30 @@ func (c *Client) EmbedDocuments(ctx context.Context, docs []*document.Document) 
 		if doc == nil {
 			return nil, fmt.Errorf("embeddingclient: embed documents: document %d is nil", i)
 		}
+		if err := doc.Validate(); err != nil {
+			return nil, fmt.Errorf("embeddingclient: embed documents: document %d is invalid: %w", i, err)
+		}
 		if doc.Text == "" {
 			return nil, fmt.Errorf("embeddingclient: embed documents: document %d has no text", i)
 		}
 		texts[i] = doc.Text
 	}
-	return c.EmbedTexts(ctx, texts)
+	return texts, nil
+}
+
+func (c Client) validate() error {
+	if c.model == nil || isNilModel(c.model) {
+		return ErrNilModel
+	}
+	return nil
+}
+
+func isNilModel(model embedding.Model) bool {
+	value := reflect.ValueOf(model)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

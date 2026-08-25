@@ -152,7 +152,7 @@ type Store struct {
 	contentField     string
 	embeddingField   string
 	vectorProfile    string
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	similarityMetric SimilarityMetric
 	httpClient       *http.Client

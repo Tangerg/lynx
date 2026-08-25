@@ -144,7 +144,7 @@ type Store struct {
 	embeddingField   string
 	contentField     string
 	metadataField    string
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	dimensions       int
 	similarity       SimilarityFunction

@@ -95,7 +95,7 @@ var (
 
 type Store struct {
 	index           *pinecone.IndexConnection
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	distanceMetric  DistanceMetric
 }

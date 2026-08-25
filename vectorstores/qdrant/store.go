@@ -98,7 +98,7 @@ var (
 
 type Store struct {
 	client           *qdrant.Client
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	distanceMetric   DistanceMetric

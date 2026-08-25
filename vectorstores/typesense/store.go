@@ -93,7 +93,7 @@ var (
 type Store struct {
 	client          *typesense.Client
 	collectionName  string
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	dimensions      int
 }

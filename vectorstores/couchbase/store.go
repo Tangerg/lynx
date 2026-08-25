@@ -163,7 +163,7 @@ type Store struct {
 	scopeName         string
 	collectionName    string
 	vectorIndexName   string
-	embeddingClient   *embeddingclient.Client
+	embeddingClient   embeddingclient.Client
 	documentBatcher   vectorstore.Batcher
 	dimensions        int
 	similarity        Similarity

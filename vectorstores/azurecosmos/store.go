@@ -121,7 +121,7 @@ type Store struct {
 	metadataField    string
 	embeddingField   string
 	partitionKeyPath string
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	distanceFunc     DistanceFunction
 }

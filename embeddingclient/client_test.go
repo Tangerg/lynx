@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/embeddingclient"
 )
 
@@ -67,9 +68,9 @@ func TestClientRejectsInvalidBoundaries(t *testing.T) {
 		t.Fatalf("New(typed nil) error = %v, want ErrNilModel", err)
 	}
 
-	var nilClient *embeddingclient.Client
-	if _, err := nilClient.EmbedText(t.Context(), "text"); err == nil {
-		t.Fatal("nil Client accepted EmbedText")
+	var zeroClient embeddingclient.Client
+	if _, err := zeroClient.EmbedText(t.Context(), "text"); !errors.Is(err, embeddingclient.ErrNilModel) {
+		t.Fatalf("zero Client error = %v, want ErrNilModel", err)
 	}
 
 	nilResponse, _ := embeddingclient.New(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
@@ -118,5 +119,12 @@ func TestClientValidatesResultsAndDocuments(t *testing.T) {
 		if _, err := client.EmbedDocuments(t.Context(), docs); err == nil {
 			t.Fatalf("EmbedDocuments accepted %#v", docs)
 		}
+	}
+	invalid := &document.Document{
+		Text:     "document",
+		Metadata: metadata.Map{"broken": []byte("{")},
+	}
+	if _, err := client.EmbedDocuments(t.Context(), []*document.Document{invalid}); !errors.Is(err, metadata.ErrInvalidValue) {
+		t.Fatalf("EmbedDocuments error = %v, want ErrInvalidValue", err)
 	}
 }

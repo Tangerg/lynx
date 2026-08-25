@@ -98,7 +98,7 @@ var (
 
 type Store struct {
 	client           *milvusclient.Client
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	metricType       entity.MetricType

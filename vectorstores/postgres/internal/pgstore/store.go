@@ -56,7 +56,7 @@ type Store struct {
 	pool            *pgxpool.Pool
 	metadataColumn  string
 	fullTable       string
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	distanceMetric  DistanceMetric
 }

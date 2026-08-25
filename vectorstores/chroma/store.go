@@ -104,7 +104,7 @@ type Store struct {
 	client          v2.Client
 	collection      v2.Collection
 	collectionName  string
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	distanceMetric  DistanceMetric
 }

@@ -60,7 +60,7 @@ var (
 // Store is an in-memory vector store implementing the vectorstore capability
 // interfaces. Construct one with [NewStore].
 type Store struct {
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	similarity      Similarity
 
 	mu      sync.RWMutex

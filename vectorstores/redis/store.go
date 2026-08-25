@@ -240,7 +240,7 @@ type Store struct {
 	embeddingField  string
 	metadataFields  []MetadataField
 	fieldTypes      map[string]MetadataFieldType
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric

@@ -16,7 +16,7 @@ import (
 )
 
 func TestClientSurfaceStaysVectorFocused(t *testing.T) {
-	typeOfClient := reflect.TypeFor[*embeddingclient.Client]()
+	typeOfClient := reflect.TypeFor[embeddingclient.Client]()
 	methods := make([]string, 0, typeOfClient.NumMethod())
 	for i := range typeOfClient.NumMethod() {
 		methods = append(methods, typeOfClient.Method(i).Name)

@@ -180,7 +180,7 @@ type Store struct {
 	contentColumn   string
 	embeddingColumn string
 	metadataColumns []MetadataColumn
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	dimensions      int
 	similarity      SimilarityFunction

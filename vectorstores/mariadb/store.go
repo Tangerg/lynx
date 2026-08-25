@@ -144,7 +144,7 @@ type Store struct {
 	contentColumn   string
 	metadataColumn  string
 	embeddingColumn string
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric

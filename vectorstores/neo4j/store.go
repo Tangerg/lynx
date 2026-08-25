@@ -153,7 +153,7 @@ type Store struct {
 	idProperty        string
 	textProperty      string
 	metadataPrefix    string
-	embeddingClient   *embeddingclient.Client
+	embeddingClient   embeddingclient.Client
 	documentBatcher   vectorstore.Batcher
 	dimensions        int
 	similarity        SimilarityFunction

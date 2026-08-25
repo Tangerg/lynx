@@ -114,7 +114,7 @@ var (
 
 type Store struct {
 	client           *weaviate.Client
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	className        string
 	distanceMetric   DistanceMetric

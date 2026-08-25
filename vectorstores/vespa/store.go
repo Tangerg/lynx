@@ -154,7 +154,7 @@ type Store struct {
 	idField         string
 	queryTensorName string
 	rankingProfile  string
-	embeddingClient *embeddingclient.Client
+	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	httpClient      *http.Client
 }

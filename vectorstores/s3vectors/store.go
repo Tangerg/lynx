@@ -101,7 +101,7 @@ type Store struct {
 	client           *s3vectors.Client
 	vectorBucketName string
 	indexName        string
-	embeddingClient  *embeddingclient.Client
+	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	distanceMetric   DistanceMetric
 }

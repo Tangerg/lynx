@@ -153,7 +153,7 @@ type Store struct {
 	contentField           string
 	metadataField          string
 	metadataFieldsToFilter []string
-	embeddingClient        *embeddingclient.Client
+	embeddingClient        embeddingclient.Client
 	documentBatcher        vectorstore.Batcher
 	dimensions             int
 	similarity             Similarity
