@@ -53,7 +53,7 @@ var _ toolshell.Executor = (*Workspace)(nil)
 
 // New creates a fresh isolated working copy. source may be empty; otherwise
 // its regular files, directories, and contained relative symlinks are copied
-// into the new workspace through a validated tar stream.
+// directly into the new workspace through capability-confined roots.
 func New(ctx context.Context, config Config, source string) (*Workspace, error) {
 	runner, err := platformRunner(config.UserHome, config.ReadOnlyPaths)
 	if err != nil {
@@ -86,12 +86,8 @@ func newWorkspace(ctx context.Context, config Config, source string, runner comm
 		}
 	}()
 	if source != "" {
-		archive, packErr := archiveTree(ctx, source)
-		if packErr != nil {
-			return nil, fmt.Errorf("sandbox: copy source: %w", packErr)
-		}
-		if unpackErr := extractArchive(ctx, dir, archive); unpackErr != nil {
-			return nil, fmt.Errorf("sandbox: materialize source: %w", unpackErr)
+		if copyErr := copyTree(ctx, source, dir); copyErr != nil {
+			return nil, fmt.Errorf("sandbox: copy source: %w", copyErr)
 		}
 	}
 	cleanup = false

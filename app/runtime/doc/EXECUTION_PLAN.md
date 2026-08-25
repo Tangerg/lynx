@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P178 已完成；下一阶段待独立准入。
+> 状态：P0–P179 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P178 已完成。
+> 最近基线：2026-08-25，P179 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P179 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先反例 `72ad66902` 证明 `newWorkspace` 为 16 MiB sparse source 的一次本地复制累计分配约 41.99 MiB Go heap；原因是没有独立消费者的 `archiveTree → []byte → extractArchive` 完整 tar 往返。
+- P179 的唯一根修删除 tar 中间表示、packer/extractor 与 malicious-archive 测试面，改为两个 `os.Root` 之间的单次 64 KiB chunk copy。100k entries、128 MiB/file、512 MiB aggregate、relative symlink、directory mode、opened identity/size、growth 和 cancellation 仍由同一个 copier fail closed；destination 物理位于 source 内在 walk 前拒绝。16 MiB copy 的 heap 回归稳定低于 8 MiB。
+- 对 app2 的裁决：采用其“representation/lifecycle 必须由真实 consumer 证明”的原则，删除原版只在一次调用内自产自销的 archive；不复制 facade、临时 archive、兼容 API、第二 copier 或配置层。
+- P179 封板通过 Sandbox 定向 test+race 与五次 heap 回归、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser、无临时 archive/检查器，所有验证进程均已 join。
 - P178 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先反例 `39146fd5c` 通过真实 MCP stdio server 证明 go-sdk session 正常关闭并取消 Runtime lifetime 后，server 派生的长期后代仍存活：SDK 与 `CommandContext` 都只终止直接子进程。
 - P178 的唯一根修把 `dial` 的无错误 cancel 提升为 session ledger 拥有的 fallible cleanup；Unix stdio command 在 Start 前进入独立 process group，context cancellation 和 Close 后 final cleanup 都终止整组，handshake failure、probe、detach、replacement 与 Host shutdown 复用同一路径并合并诊断。HTTP 仍只取消 session lifetime，不新增 transport wrapper、supervisor、配置或兼容分支。
 - 对 app2 的裁决：继续采用其“acquire 即登记、关闭可 join、错误可观察”的资源所有权，但不复制连接 facade 或双生命周期；Runtime 直接补足第三方 SDK 只拥有 wire/direct child 的缺口。非 Unix 保持 direct-process cleanup，Unix 的后代语义由真实 subprocess 反例锁定。
@@ -473,10 +477,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P176     | Workspace Checkpoint Git process 与 finite selection 收敛                                    | single `gitprocess.Run`；20k paths/512 MiB selection、64 KiB alternates、64 MiB index，raw NUL paths                                          |
 | P177     | Sandbox command bounded writer method-set 闭环                                               | private buffer composition；256 KiB/stream retained，`io.Copy` fast path cannot bypass `Write`                                                |
 | P178     | MCP stdio session 与派生进程生命周期闭环                                                     | fallible session cleanup；Unix process group 在 close/cancel/failure/shutdown 后完整回收                                                     |
+| P179     | Sandbox working tree 去 archive 中间表示                                                     | direct `os.Root` copy；64 KiB heap chunk，100k/128 MiB/512 MiB complete-source envelope                                                       |
 
 ## 5. 当前里程碑结论
 
-P113–P178 共同建立了以下不可回退的心智模型：
+P113–P179 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -529,7 +534,7 @@ P113–P178 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P178 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；cross-build artifacts 与临时检查器均已回收，未启动 agent-browser，所有验证进程均已 join。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P179 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；cross-build artifacts 与临时检查器均已回收，未启动 agent-browser，所有验证进程均已 join。
 
 ## 6. 新阶段准入
 
@@ -542,4 +547,4 @@ P113–P178 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P178 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P179 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

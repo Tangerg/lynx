@@ -693,3 +693,10 @@
 - 背景：go-sdk `CommandTransport.Close` 关闭 stdin 后只对直接子进程发送 TERM/KILL，Runtime 又在 `ClientSession.Close` 返回后才取消 session context。失败优先反例 `39146fd5c` 启动真实 MCP stdio server 并让它派生长期后代；旧 teardown 正常返回后该后代仍存活，证明 session ledger 只拥有 wire/leader，不拥有它启动的完整资源树。
 - 决策：`dial` 返回 fallible `sessionCleanup`，而不是把 process ownership 压缩成无错误 `context.CancelFunc`。Unix stdio command 在 Start 前建立独立 process group，并把 `CommandContext.Cancel` 指向整组终止；session ledger 与 throwaway probe 都按 `ClientSession.Close` → lifetime cancel → final process cleanup 的唯一顺序执行并合并诊断。握手失败也立即运行同一 cleanup；HTTP session 只取消 lifetime，不虚构进程 owner。
 - 后果：detach、replacement、probe、握手失败与 Host shutdown 不再把 package runner/MCP server 的后代留在宿主机；重复 cleanup 对已退出进程幂等。保留 go-sdk 的协议与 graceful-close owner，不复制 JSON-RPC transport、进程 facade、supervisor、配置旋钮或兼容路径；非 Unix 平台保持原有 direct-process termination，Unix 的完整后代语义由真实 subprocess 回归覆盖。
+
+## ADR-RT-098：Sandbox working tree 直接流式复制，不制造 archive 中间真相源
+
+- 状态：已接受并实施，P179 完成；只修改 `app/runtime` internal Sandbox workspace materialization、测试与文档，公共 Protocol、Artifact、SQLite、公共 Go API、Desktop source、Wails binding、Agent Framework 与 CLI 不变。
+- 背景：旧 `newWorkspace` 只需一次本地 source → scratch copy，却先 `archiveTree` 到完整 `[]byte`，再从同一 slice `extractArchive`。失败优先反例 `72ad66902` 用 16 MiB sparse source 测得约 41.99 MiB Go heap allocation，连续三次稳定，证明 512 MiB archive cap 允许产品路径为一次复制支付 O(source) 驻留；tar validator/determinism 也没有持久、网络或跨进程消费者。
+- 决策：删除 tar pack/unpack、archive DTO 与重复 malicious-archive validation，改为 source/destination 两个 `os.Root` 之间的单次 walk + 64 KiB chunk copy。保留并明确 100,000 entries、128 MiB/file、512 MiB aggregate content；opened-file identity/size、copy-time growth、caller cancellation、unsupported type 与 escaping symlink 全部 fail closed。目录先以 owner mode 创建，children 完成后由深到浅恢复权限；物理 destination 位于 source 内时在 walk 前拒绝。
+- 后果：Workspace copy 的 Go heap 与 source bytes 解耦，16 MiB 行为回归稳定低于 8 MiB；磁盘仍只产生最终 scratch tree，没有 512 MiB 内存或临时 archive 副本。删除的 archive round-trip 不保留 test-only API、compatibility helper、临时文件 fallback、第二 copier 或配置旋钮；app2 的“representation 必须由真实 durable/transport consumer 证明”在这里用于删除原版冗余机制，而不是复制其 facade。
