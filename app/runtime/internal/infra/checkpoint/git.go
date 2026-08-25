@@ -1,13 +1,11 @@
 package checkpoint
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
@@ -18,30 +16,52 @@ import (
 // identity + disabled signing keep commits independent of the user's global git
 // config.
 func (s *Store) git(ctx context.Context, gitDir, workTree string, args ...string) (string, error) {
-	cmd := gitprocess.CommandContext(ctx, args...)
-	env := gitprocess.Environment(
-		"GIT_DIR="+gitDir,
-		"GIT_AUTHOR_NAME=lyra", "GIT_AUTHOR_EMAIL=lyra@localhost",
-		"GIT_COMMITTER_NAME=lyra", "GIT_COMMITTER_EMAIL=lyra@localhost",
-		"GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_SYSTEM="+os.DevNull,
-	)
-	if workTree != "" {
-		env = append(env, "GIT_WORK_TREE="+workTree)
-	}
-	cmd.Env = env
-	var out, errb bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &errb
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("checkpoint: git %s: %w: %s", args[0], err, strings.TrimSpace(errb.String()))
-	}
-	return strings.TrimSpace(out.String()), nil
+	output, err := s.gitOutput(ctx, gitDir, workTree, args...)
+	return strings.TrimSpace(string(output)), err
 }
 
+func (s *Store) gitOutput(ctx context.Context, gitDir, workTree string, args ...string) ([]byte, error) {
+	environment := []string{
+		"GIT_DIR=" + gitDir,
+		"GIT_AUTHOR_NAME=lyra", "GIT_AUTHOR_EMAIL=lyra@localhost",
+		"GIT_COMMITTER_NAME=lyra", "GIT_COMMITTER_EMAIL=lyra@localhost",
+		"GIT_CONFIG_GLOBAL=" + os.DevNull, "GIT_CONFIG_SYSTEM=" + os.DevNull,
+		"LC_ALL=C", "LANG=C",
+	}
+	if workTree != "" {
+		environment = append(environment, "GIT_WORK_TREE="+workTree)
+	}
+	result, err := gitprocess.Run(ctx, environment, args...)
+	if err != nil {
+		return nil, fmt.Errorf("checkpoint: git %s: %w", args[0], err)
+	}
+	if result.ExitCode != 0 {
+		return result.Stdout, &gitCommandError{
+			operation: args[0], exitCode: result.ExitCode, diagnostic: strings.TrimSpace(result.Stderr),
+		}
+	}
+	return result.Stdout, nil
+}
+
+type gitCommandError struct {
+	operation  string
+	exitCode   int
+	diagnostic string
+}
+
+func (err *gitCommandError) Error() string {
+	if err.diagnostic == "" {
+		return fmt.Sprintf("checkpoint: git %s: exit code %d", err.operation, err.exitCode)
+	}
+	return fmt.Sprintf("checkpoint: git %s: %s: exit code %d", err.operation, err.diagnostic, err.exitCode)
+}
+
+func (err *gitCommandError) ExitCode() int { return err.exitCode }
+
 func gitExitCode(err error) int {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		return exitErr.ExitCode()
+	var exited interface{ ExitCode() int }
+	if errors.As(err, &exited) {
+		return exited.ExitCode()
 	}
 	return -1
 }
@@ -49,29 +69,36 @@ func gitExitCode(err error) int {
 // gitIn runs a git query inside the real repo at cwd (no shadow GIT_DIR), used
 // to discover what a new shadow repo can seed from. Returns trimmed stdout.
 func gitIn(ctx context.Context, cwd string, args ...string) (string, error) {
-	cmd := gitprocess.CommandContext(ctx, args...)
-	cmd.Dir = cwd
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return "", err
+	command := append([]string{"--no-pager", "--no-optional-locks", "-C", cwd}, args...)
+	result, err := gitprocess.Run(ctx, []string{"LC_ALL=C", "LANG=C"}, command...)
+	if err != nil {
+		return "", fmt.Errorf("checkpoint: git %s: %w", args[0], err)
 	}
-	return strings.TrimSpace(out.String()), nil
+	if result.ExitCode != 0 {
+		return "", &gitCommandError{
+			operation: args[0], exitCode: result.ExitCode, diagnostic: strings.TrimSpace(result.Stderr),
+		}
+	}
+	return strings.TrimSpace(string(result.Stdout)), nil
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string, maxBytes int64) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { err = errors.Join(err, in.Close()) }()
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+	defer func() { err = errors.Join(err, out.Close()) }()
+	written, err := io.CopyN(out, in, maxBytes+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
-	return out.Close()
+	if written > maxBytes {
+		return fmt.Errorf("%w: source index exceeds %d bytes", ErrSnapshotTooLarge, maxBytes)
+	}
+	return nil
 }

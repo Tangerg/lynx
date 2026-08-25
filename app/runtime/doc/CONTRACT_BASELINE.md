@@ -98,6 +98,8 @@ P174 breaking 扩展公共 Go surface，新增 `runtime/localruntime` deployment
 
 P175 只收紧 Runtime internal Knowledge crash-recovery 的资源语义：原子 stage sweep 从无界 `ReadDir(-1)` 改为 128-entry、caller-cancellable 的完整流式枚举，并由 architecture gate 禁止所有 Runtime production `os.ReadDir` 与 non-positive `File.ReadDir`。它不改变 `knowledge.list/get/update` wire、1 MiB document/CAS/revision、Protocol `2026-08-24`、公共 Go API、Artifact v23、SQLite epoch 82、generated binding、Desktop/Wails、Agent Framework 或 CLI。
 
+P176 只收紧 Runtime internal Workspace Checkpoint：私有 Git command 统一进入既有 64 MiB stdout/64 KiB stderr `gitprocess.Run`，snapshot selection 固定为 20,000 paths/512 MiB current material，source alternates/index 分别为 64 KiB/64 MiB；raw `ls-files -z` path 不再 trim。内部新增稳定 `ErrSnapshotTooLarge` 供 owner 测试与错误链识别，但不进入公共 Go/Protocol。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P175 已完成；下一阶段待独立准入。
+> 状态：P0–P176 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P175 已完成。
+> 最近基线：2026-08-25，P176 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P176 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先架构反例 `43df0c7fa` 证明从 app2 原样保留的 Checkpoint 仍通过 `gitprocess.CommandContext + bytes.Buffer` 拥有第二 Git stdout/stderr/lifetime，并在 `ls-files` 后无界积累 path set；2 MiB per-file cap 不拥有 aggregate snapshot。
+- P176 的唯一根修保留真实 history/files/both rollback consumer 与 shadow repository owner，但把 real/shadow Git 全部归并到 `gitprocess.Run` 的 64 MiB stdout/64 KiB stderr/cancellation/WaitDelay。Raw NUL path 不 trim；selection 在 index mutation 前限制 20k unique local paths/512 MiB current material，source alternates/index 限 64 KiB/64 MiB，严格 repo probe 不把 corruption/unavailable 降级为空 seed。
+- 对 app2 的裁决：保留其 cheap source-index seed、atomic shadow publish、2 MiB per-file exclusion、self-contained repack 与 reversible restore；删除其私有 unbounded runner，补上 process/list/aggregate/seed envelope 与 whitespace-path correctness。不复制 facade、配置层、partial snapshot 或 compatibility runner。
+- P176 封板通过 Checkpoint/architecture 定向 test+race、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。只观察到根 Desktop tests 的既有 macOS deployment-target linker warnings；本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其 production matrix。未启动 agent-browser、无临时检查器，所有验证进程均已 join。
 - P175 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先架构反例 `9d701070f` 证明 Knowledge cold crash recovery 会在筛选 Runtime stage 文件前以 `ReadDir(-1)` 完整物化任意 home/project/cwd 根目录；P162 的 1 MiB document cap 不拥有 sibling directory allocation。
 - P175 的唯一根修保留 Knowledge Store 的 directory lease、`os.Root` confinement 与完整 orphan cleanup owner，把枚举与 candidate set 都限制为 128-entry fixed batches；每轮关闭 scan handle 后再删除并从头复扫，避免 mutation 扰乱 directory offset。每批/每项处理前观察 caller cancellation，完整无 candidate 的 EOF 前不发布 recovered marker。全 Runtime AST gate 禁止 production `os.ReadDir` 与 non-positive `File.ReadDir`，385 个无关项后的 130 个 stage orphan 均被清理且用户文件不变。
 - 对 app2 的裁决：保留其 atomic stage/rename 思路，不复制 capabilityflow/store facade；app2 没有拥有 stage recovery 的目录资源边界，本批以原 owner 内流式扫描补齐。没有为大型合法项目设置总 entry cap，也没有后台 sweeper、partial marker 或兼容 scanner。
@@ -458,16 +462,18 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P173     | Skill progressive disclosure 与托管生命周期有限来源闭环                                      | 256 Skills/272 raw entries、1 MiB document/resource、64 KiB usage；model/Desktop/list/sweep/approval 共享单一容量                         |
 | P174     | Runtime/Desktop durable local token 部署交接闭环                                             | public `localruntime` 单一 owner；43-byte canonical token、0600 regular file、identity/growth proof 与 atomic no-overwrite publish       |
 | P175     | Knowledge crash-recovery 目录流式所有权                                                      | 128-entry cancellable complete sweep；禁止 production unbounded `ReadDir`，不拒绝大型合法项目                                               |
+| P176     | Workspace Checkpoint Git process 与 finite selection 收敛                                    | single `gitprocess.Run`；20k paths/512 MiB selection、64 KiB alternates、64 MiB index，raw NUL paths                                          |
 
 ## 5. 当前里程碑结论
 
-P113–P175 共同建立了以下不可回退的心智模型：
+P113–P176 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
 - Runtime Instance shutdown 由唯一 active generation 从 operation Endpoint/workers 连续加入 Host，Host 再由 `hostLifetime` 唯一 generation 拥有 component、executor 与 resource 跨阶段连续性；任一 caller timeout 只停止等待，不取消图。resource shutdown 只接受 one-shot terminal action，diagnostic 不改变 settlement；一个 creation-ordered Sequence 独占 reverse resource graph。失败 constructor/startup 或单次 public Close 即使不再有 cleanup caller 也不会因 timeout 丢 owner；需要多 generation 推进的 subsystem 只能在自己的 ledger 内表达。
 - 代码发现不拥有独立向量索引产品面：Agent 与客户端使用可组合、可观察的 workspace/LSP 能力；Embedding 只为 Agent Memory 提供可选 semantic ranking，关闭时 keyword fallback 仍成立。删除能力必须同步清除 contract、storage、lifecycle 与 direct consumers，不保留 disabled/compat surface。
 - Workspace VCS 是有界 complete read model：Application owns changes/file/row/material budgets，Git process owns stdout/stderr/lifetime，parser 只发布完整文件；零 limit、第一文件、binary/zero-row 文件、direct port 与 untracked symlink 都没有无界例外。资源治理不能牺牲 quoted/binary path、nested workspace 或 repository failure 语义。
+- Workspace Checkpoint 只拥有 shadow repository/snapshot/restore 语义，不拥有第二 Git process：所有命令复用同一 bounded runner，raw NUL paths、20k/512 MiB selection 与 bounded seed files 在 index mutation 前形成完整 admission；越界不能提交 partial tag 或把 Git corruption 当作 non-repository fallback。
 - Model mutation 的安全 stamp 与格式化副作用由同一个 Tool adapter stack 闭合：完整 fingerprint 流式且可取消，删除撤销授权；formatter 只接纳有限完整 input/output，第三方进程不能在验证前直接写目标。最终 Tool result、caller timeout 或 path lock 都不能替代这些资源与提交边界。
 - Model/direct file read 是 Runtime-owned bounded consumer，不继承通用 fs executor 的 unlimited zero：input、line 与 complete-line result 分别有 hard cap，窗口 metadata 对省略事实诚实。Mutation stamp 必须以相同 admission bracket 整次 read，post-read 单点 digest 不能证明模型观察过当前 generation。
 - Public Workspace file read 是 Application-owned editor consumer：zero/default、caller maximum、complete-source 与 single-line budgets 都有唯一值，64 KiB scanner 只共享机制而不混同 model complete-line 与 editor prefix 策略。Head 没有 truncation 字段就不能发布 partial preview；Desktop 深行导航必须请求目标 window 并保持响应的 source-line identity。
@@ -513,7 +519,7 @@ P113–P175 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175 的 Runtime-only delta 又独立通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；无临时检查器，未启动 agent-browser，所有验证进程均已 join。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175/P176 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；无临时检查器，未启动 agent-browser，所有验证进程均已 join。
 
 ## 6. 新阶段准入
 
@@ -526,4 +532,4 @@ P113–P175 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P175 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P176 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

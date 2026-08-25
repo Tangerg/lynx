@@ -305,7 +305,7 @@ Adapter 不能只是同名 Infra 类型的透传包装。没有翻译、组合�
 
 ### 6.4 Infra
 
-Infra 提供可被多个 Adapter 复用的底层技术机制，例如 SQLite primitive、Git、进程执行、sandbox、LSP、MCP/A2A client 和 checkpoint filesystem mechanism。
+Infra 提供可被多个 Adapter 复用的底层技术机制，例如 SQLite primitive、Git、进程执行、sandbox、LSP、MCP/A2A client 和 checkpoint filesystem mechanism。Checkpoint 拥有 Run-boundary shadow repository 语义，但不拥有第二 Git process runner：所有命令复用 `gitprocess.Run` 的 64 MiB stdout、64 KiB bounded-drain stderr、caller cancellation 与 WaitDelay。一次完整 snapshot selection 最多 20,000 paths / 512 MiB admitted current material；source alternates/index 在复制前也有独立包络，越界整体失败，不提交 partial tag。
 
 Infra：
 

@@ -17,6 +17,11 @@ import (
 // acceptable trade-off against unbounded growth.
 const maxCheckpointFileSize = 2 << 20
 
+const (
+	maxCheckpointPaths = 20_000
+	maxCheckpointBytes = 512 << 20
+)
+
 // Snapshot anchors the current state of cwd at the runID boundary: it stages
 // the run's changed files (honoring .gitignore + a backstop exclude list +
 // the size cap) and tags the boundary by run id. A run that changed nothing
@@ -114,18 +119,46 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 		// is committed; subsequent snapshots only inspect changed paths.
 		args = append(args, "--cached")
 	}
-	out, err := s.git(ctx, gitDir, cwd, args...)
+	out, err := s.gitOutput(ctx, gitDir, cwd, args...)
 	if err != nil {
 		return err
 	}
+	stage, untrack, err := checkpointCandidates(ctx, cwd, out)
+	if err != nil {
+		return err
+	}
+	if err := s.updateIndex(ctx, gitDir, cwd,
+		[]string{"rm", "-q", "-f", "--cached", "--ignore-unmatch", "--"}, untrack); err != nil {
+		return err
+	}
+	return s.updateIndex(ctx, gitDir, cwd, []string{"add", "--force", "--"}, stage)
+}
+
+func checkpointCandidates(ctx context.Context, cwd string, output []byte) ([]string, []string, error) {
+	if len(output) > 0 && output[len(output)-1] != 0 {
+		return nil, nil, errors.New("checkpoint: git ls-files returned an incomplete record")
+	}
 	var stage, untrack []string
-	seen := make(map[string]struct{})
-	for p := range strings.SplitSeq(out, "\x00") {
+	seen := make(map[string]struct{}, min(maxCheckpointPaths, len(output)/2))
+	var admittedBytes int64
+	for p := range strings.SplitSeq(string(output), "\x00") {
+		if cause := context.Cause(ctx); cause != nil {
+			return nil, nil, cause
+		}
 		if p == "" {
 			continue
 		}
 		if _, ok := seen[p]; ok {
 			continue
+		}
+		if len(seen) == maxCheckpointPaths {
+			return nil, nil, fmt.Errorf(
+				"%w: more than %d changed paths",
+				ErrSnapshotTooLarge, maxCheckpointPaths,
+			)
+		}
+		if !filepath.IsLocal(p) {
+			return nil, nil, fmt.Errorf("checkpoint: git returned non-local path %q", p)
 		}
 		seen[p] = struct{}{}
 		// A missing path is a deletion and must be staged. Other inspection
@@ -136,7 +169,7 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 				stage = append(stage, p)
 				continue
 			}
-			return fmt.Errorf("checkpoint: inspect %q: %w", p, err)
+			return nil, nil, fmt.Errorf("checkpoint: inspect %q: %w", p, err)
 		}
 		if !info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
 			continue
@@ -148,13 +181,16 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 			untrack = append(untrack, p)
 			continue
 		}
+		if info.Size() > maxCheckpointBytes-admittedBytes {
+			return nil, nil, fmt.Errorf(
+				"%w: changed file material exceeds %d bytes",
+				ErrSnapshotTooLarge, maxCheckpointBytes,
+			)
+		}
+		admittedBytes += info.Size()
 		stage = append(stage, p)
 	}
-	if err := s.updateIndex(ctx, gitDir, cwd,
-		[]string{"rm", "-q", "-f", "--cached", "--ignore-unmatch", "--"}, untrack); err != nil {
-		return err
-	}
-	return s.updateIndex(ctx, gitDir, cwd, []string{"add", "--force", "--"}, stage)
+	return stage, untrack, nil
 }
 
 func (s *Store) updateIndex(ctx context.Context, gitDir, cwd string, prefix, paths []string) error {

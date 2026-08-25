@@ -64,6 +64,81 @@ func TestStore_SnapshotRestore(t *testing.T) {
 	}
 }
 
+func TestStore_SnapshotPreservesLeadingWhitespacePath(t *testing.T) {
+	s, cwd := newTestStore(t)
+	const name = " leading-space.txt"
+	write(t, cwd, name, "before")
+	if err := s.Snapshot(t.Context(), "ses1", cwd, "run1"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, cwd, name, "after")
+	if err := s.Restore(t.Context(), "ses1", cwd, "run1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, cwd, name); got != "before" {
+		t.Fatalf("restored whitespace path = %q, want before", got)
+	}
+}
+
+func TestCheckpointCandidatesRejectPathAndAggregateOverflow(t *testing.T) {
+	t.Run("paths", func(t *testing.T) {
+		var output strings.Builder
+		for index := range maxCheckpointPaths + 1 {
+			fmt.Fprintf(&output, "missing-%05d\x00", index)
+		}
+		if _, _, err := checkpointCandidates(t.Context(), t.TempDir(), []byte(output.String())); !errors.Is(err, ErrSnapshotTooLarge) {
+			t.Fatalf("checkpointCandidates() error = %v, want ErrSnapshotTooLarge", err)
+		}
+	})
+
+	t.Run("bytes", func(t *testing.T) {
+		root := t.TempDir()
+		var output strings.Builder
+		for index := range maxCheckpointBytes/maxCheckpointFileSize + 1 {
+			name := fmt.Sprintf("material-%03d", index)
+			path := filepath.Join(root, name)
+			file, err := os.Create(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := file.Truncate(maxCheckpointFileSize); err != nil {
+				_ = file.Close()
+				t.Fatal(err)
+			}
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			output.WriteString(name)
+			output.WriteByte(0)
+		}
+		if _, _, err := checkpointCandidates(t.Context(), root, []byte(output.String())); !errors.Is(err, ErrSnapshotTooLarge) {
+			t.Fatalf("checkpointCandidates() error = %v, want ErrSnapshotTooLarge", err)
+		}
+	})
+}
+
+func TestCheckpointCandidateRecordsAndSeedFilesAreBounded(t *testing.T) {
+	if _, _, err := checkpointCandidates(t.Context(), t.TempDir(), []byte("unterminated")); err == nil {
+		t.Fatal("checkpointCandidates() accepted an unterminated Git record")
+	}
+
+	oversizedAlternates := filepath.Join(t.TempDir(), "alternates")
+	if err := os.WriteFile(oversizedAlternates, []byte(strings.Repeat("x", maxSourceAlternatesBytes+1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readSourceAlternates(oversizedAlternates); !errors.Is(err, ErrSnapshotTooLarge) {
+		t.Fatalf("readSourceAlternates() error = %v, want ErrSnapshotTooLarge", err)
+	}
+
+	source := filepath.Join(t.TempDir(), "index")
+	if err := os.WriteFile(source, []byte("12345"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyFile(source, filepath.Join(t.TempDir(), "copy"), 4); !errors.Is(err, ErrSnapshotTooLarge) {
+		t.Fatalf("copyFile() error = %v, want ErrSnapshotTooLarge", err)
+	}
+}
+
 // TestStore_SkipsLargeFiles: a file over maxCheckpointFileSize is left out of
 // the snapshot, so restore neither reverts it (it's not tracked) nor deletes it
 // (no `git clean`). A small sibling still round-trips normally.

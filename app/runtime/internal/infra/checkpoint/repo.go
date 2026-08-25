@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	workspacegit "github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
 
 // commonExcludes keep a checkpoint from ballooning into dependency / build
@@ -15,6 +18,12 @@ import (
 // must never erase a path already tracked by the source index; stageChanges
 // preserves that distinction after it has selected the exact paths.
 const commonExcludes = "node_modules/\n.venv/\nvenv/\n__pycache__/\ndist/\nbuild/\ntarget/\n.next/\n.DS_Store\n"
+
+const (
+	maxSourceAlternatesBytes = 64 << 10
+	maxSourceAlternates      = 256
+	maxSourceIndexBytes      = 64 << 20
+)
 
 // ensureRepo lazily initializes the session's shadow repo (idempotent).
 func (s *Store) ensureRepo(ctx context.Context, sessionID, cwd string) (string, error) {
@@ -94,12 +103,19 @@ func publishRepo(stagingDir, dst string) error {
 // all-or-nothing: publishing an index without every configured object store
 // would create a repository that cannot resolve unchanged files.
 func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
+	repository, err := workspacegit.IsRepo(ctx, cwd)
+	if err != nil {
+		return fmt.Errorf("checkpoint: discover source repository: %w", err)
+	}
+	if !repository {
+		return nil
+	}
 	srcObjects, err := gitIn(ctx, cwd, "rev-parse", "--path-format=absolute", "--git-path", "objects")
-	if err != nil || srcObjects == "" {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return fmt.Errorf("checkpoint: discover source repository: %w", ctxErr)
-		}
-		return nil // not a git repo we can seed from
+	if err != nil {
+		return fmt.Errorf("checkpoint: discover source object store: %w", err)
+	}
+	if srcObjects == "" {
+		return errors.New("checkpoint: source repository returned an empty object-store path")
 	}
 
 	info, err := os.Stat(srcObjects)
@@ -117,7 +133,7 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 	// stores that still exist so the chain resolves. Git interprets relative
 	// entries relative to the object database that owns the alternates file.
 	alternates := []string{srcObjects}
-	if data, err := os.ReadFile(filepath.Join(srcObjects, "info", "alternates")); err == nil {
+	if data, err := readSourceAlternates(filepath.Join(srcObjects, "info", "alternates")); err == nil {
 		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 			p := strings.TrimSpace(line)
 			if p == "" {
@@ -128,6 +144,12 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 			}
 			p = filepath.Clean(p)
 			if info, statErr := os.Stat(p); statErr == nil && info.IsDir() {
+				if len(alternates) == maxSourceAlternates {
+					return fmt.Errorf(
+						"%w: source repository has more than %d object stores",
+						ErrSnapshotTooLarge, maxSourceAlternates,
+					)
+				}
 				alternates = append(alternates, p)
 			} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 				return fmt.Errorf("checkpoint: inspect source alternate %q: %w", p, statErr)
@@ -139,8 +161,14 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 	if err := os.MkdirAll(filepath.Join(gitDir, "objects", "info"), 0o755); err != nil {
 		return fmt.Errorf("checkpoint: create alternates directory: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "objects", "info", "alternates"),
-		[]byte(strings.Join(alternates, "\n")+"\n"), 0o644); err != nil {
+	encodedAlternates := []byte(strings.Join(alternates, "\n") + "\n")
+	if len(encodedAlternates) > maxSourceAlternatesBytes {
+		return fmt.Errorf(
+			"%w: resolved source alternates exceed %d bytes",
+			ErrSnapshotTooLarge, maxSourceAlternatesBytes,
+		)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "objects", "info", "alternates"), encodedAlternates, 0o644); err != nil {
 		return fmt.Errorf("checkpoint: write source alternates: %w", err)
 	}
 
@@ -158,10 +186,48 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("checkpoint: source index %q is not a regular file", srcIndex)
 	}
-	if err := copyFile(srcIndex, filepath.Join(gitDir, "index")); err != nil {
+	if info.Size() > maxSourceIndexBytes {
+		return fmt.Errorf(
+			"%w: source index has %d bytes, maximum %d",
+			ErrSnapshotTooLarge, info.Size(), maxSourceIndexBytes,
+		)
+	}
+	if err := copyFile(srcIndex, filepath.Join(gitDir, "index"), maxSourceIndexBytes); err != nil {
 		return fmt.Errorf("checkpoint: copy source index: %w", err)
 	}
 	return nil
+}
+
+func readSourceAlternates(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("checkpoint: source alternates %q is not a regular file", path)
+	}
+	if info.Size() > maxSourceAlternatesBytes {
+		return nil, fmt.Errorf(
+			"%w: source alternates have %d bytes, maximum %d",
+			ErrSnapshotTooLarge, info.Size(), maxSourceAlternatesBytes,
+		)
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxSourceAlternatesBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSourceAlternatesBytes {
+		return nil, fmt.Errorf(
+			"%w: source alternates exceed %d bytes",
+			ErrSnapshotTooLarge, maxSourceAlternatesBytes,
+		)
+	}
+	return data, nil
 }
 
 func repoExists(gitDir string) bool {
