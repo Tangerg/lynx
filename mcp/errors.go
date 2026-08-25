@@ -16,8 +16,6 @@ var (
 	ErrNilSession = errors.New("mcp: session must not be nil")
 )
 
-var errNilDescriptor = errors.New("mcp: descriptor must not be nil")
-
 // ToolCallError is returned by tools produced by [Tools] when a remote MCP tool
 // reports IsError=true. Use [errors.AsType] to distinguish a tool-side
 // failure from transport, protocol, or argument-decoding errors:
@@ -26,7 +24,7 @@ var errNilDescriptor = errors.New("mcp: descriptor must not be nil")
 //	if tcErr, ok := errors.AsType[*mcp.ToolCallError](err); ok {
 //	    // remote tool itself failed; surface tcErr.Message
 //	} else if err != nil {
-//	    // transport / argument failure; retry or alert
+//	    // transport / argument failure; surface the infrastructure error
 //	}
 type ToolCallError struct {
 	// ToolName is the original MCP tool name as the server advertised

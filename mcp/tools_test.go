@@ -107,7 +107,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 }
 
 func TestToolsDiscoversAndCallsTool(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
@@ -129,7 +129,7 @@ func TestToolsDiscoversAndCallsTool(t *testing.T) {
 }
 
 func TestToolsTwoSourcesAreNamespaced(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs1, _, c1 := startServerWithEcho(t, ctx)
 	defer c1()
 	cs2, _, c2 := startServerWithEcho(t, ctx)
@@ -147,7 +147,7 @@ func TestToolsTwoSourcesAreNamespaced(t *testing.T) {
 }
 
 func TestToolsFailsOnDuplicateNames(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs1, _, c1 := startServerWithEcho(t, ctx)
 	defer c1()
 	cs2, _, c2 := startServerWithEcho(t, ctx)
@@ -162,13 +162,13 @@ func TestToolsFailsOnDuplicateNames(t *testing.T) {
 }
 
 func TestToolsCustomNaming(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
 	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolOptions{
-		Naming: func(_ string, t *sdkmcp.Tool) string {
-			return "mcp__" + t.Name
+		Naming: func(_, toolName string) string {
+			return "mcp__" + toolName
 		},
 	})
 	require.NoError(t, err)
@@ -183,9 +183,9 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 
 	var gotSource, gotTool, gotArguments string
 	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolOptions{
-		Concurrency: func(sourceName string, tool *sdkmcp.Tool, arguments string) (string, bool) {
+		Concurrency: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, arguments string) (string, bool) {
 			gotSource = sourceName
-			gotTool = tool.Name
+			gotTool = toolName
 			gotArguments = arguments
 			return "tenant:acme", true
 		},
@@ -203,43 +203,32 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 	assert.Equal(t, `{"tenant":"acme"}`, gotArguments)
 }
 
-func TestToolsSnapshotRemoteDescriptor(t *testing.T) {
+func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
 	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	var advertised *sdkmcp.Tool
-	var scheduledName string
-	var scheduledReadOnly bool
+	var destructive []bool
 	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolOptions{
-		Naming: func(_ string, descriptor *sdkmcp.Tool) string {
-			advertised = descriptor
-			descriptor.Name = "mutated during naming"
-			return "primary_echo"
-		},
-		Concurrency: func(_ string, descriptor *sdkmcp.Tool, _ string) (string, bool) {
-			scheduledName = descriptor.Name
-			scheduledReadOnly = descriptor.Annotations != nil && descriptor.Annotations.ReadOnlyHint
+		Concurrency: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (string, bool) {
+			destructive = append(destructive, annotations.DestructiveHint != nil && *annotations.DestructiveHint)
+			annotations.DestructiveHint = new(true)
 			return "", true
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, wrapped, 1)
-	require.NotNil(t, advertised)
-
-	advertised.Name = "mutated"
-	advertised.Description = "mutated description"
-	advertised.Annotations = &sdkmcp.ToolAnnotations{ReadOnlyHint: true}
 
 	definition := wrapped[0].Definition()
 	assert.Equal(t, "primary_echo", definition.Name)
 	assert.Equal(t, "echo the input", definition.Description)
 
 	scheduled := wrapped[0].(concurrencyKeyer)
-	_, concurrent := scheduled.ConcurrencyKey(`{}`)
-	assert.True(t, concurrent)
-	assert.Equal(t, "echo", scheduledName)
-	assert.False(t, scheduledReadOnly)
+	for range 2 {
+		_, concurrent := scheduled.ConcurrencyKey(`{}`)
+		assert.True(t, concurrent)
+	}
+	assert.Equal(t, []bool{false, false}, destructive)
 
 	out, err := wrapped[0].Call(ctx, `{"text":"stable"}`)
 	require.NoError(t, err)
@@ -263,12 +252,12 @@ func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
 }
 
 func TestToolsRejectsEmptyPublicName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
 	_, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolOptions{
-		Naming: func(string, *sdkmcp.Tool) string { return "" },
+		Naming: func(string, string) string { return "" },
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "public name")
@@ -280,13 +269,13 @@ func TestToolsRejectsInvalidPublicName(t *testing.T) {
 	defer cleanup()
 
 	_, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolOptions{
-		Naming: func(string, *sdkmcp.Tool) string { return "invalid name" },
+		Naming: func(string, string) string { return "invalid name" },
 	})
 	require.ErrorIs(t, err, corechat.ErrInvalidToolDefinition)
 }
 
 func TestToolsReadsCurrentRemoteList(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, srv, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
@@ -310,12 +299,12 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 }
 
 func TestToolsRejectsNilSession(t *testing.T) {
-	_, err := lynxmcp.Tools(context.Background(), []lynxmcp.ToolSource{{Name: "x"}}, lynxmcp.ToolOptions{})
+	_, err := lynxmcp.Tools(t.Context(), []lynxmcp.ToolSource{{Name: "x"}}, lynxmcp.ToolOptions{})
 	require.Error(t, err)
 }
 
 func TestToolsZeroOptionsUsesDefaults(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 

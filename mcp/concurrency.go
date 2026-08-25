@@ -12,11 +12,11 @@ var _ ConcurrencyFunc = AnnotatedReadOnlyConcurrency
 // caller's approval policy. MCP annotations are untrusted hints, so callers
 // should use this policy only for servers whose descriptors they are willing
 // to trust for execution ordering.
-func AnnotatedReadOnlyConcurrency(_ string, tool *sdkmcp.Tool, _ string) (key string, concurrent bool) {
-	if tool == nil || tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+func AnnotatedReadOnlyConcurrency(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (key string, concurrent bool) {
+	if !annotations.ReadOnlyHint {
 		return "", false
 	}
-	if destructive := tool.Annotations.DestructiveHint; destructive != nil && *destructive {
+	if destructive := annotations.DestructiveHint; destructive != nil && *destructive {
 		return "", false
 	}
 	return "", true

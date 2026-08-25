@@ -15,13 +15,9 @@ import (
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// progressTool exercises ReportProgress from inside a tool body.
-// ElicitFromClient needs a client-side handler, exercised separately.
-type progressTool struct {
-	calls *atomicInt
-}
+type progressTool struct{}
 
-func (t *progressTool) Definition() chat.ToolDefinition {
+func (progressTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "progress_demo",
 		Description: "Reports progress + log lines",
@@ -29,29 +25,25 @@ func (t *progressTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *progressTool) Call(ctx context.Context, _ string) (string, error) {
-	if mcp.ServerSessionFromContext(ctx) == nil {
-		return "", errors.New("expected server session in ctx")
-	}
+func (progressTool) Call(ctx context.Context, _ string) (string, error) {
 	total := 3.0
-	for i := 1; i <= 3; i++ {
-		if err := mcp.ReportProgress(ctx, float64(i), &total, "step"); err != nil &&
+	for i := range 3 {
+		if err := mcp.ReportProgress(ctx, float64(i+1), &total, "step"); err != nil &&
 			!errors.Is(err, mcp.ErrNoServerSession) {
 			return "", err
 		}
 	}
-	t.calls.inc()
 	return "ok", nil
 }
 
 func TestNotifyHelpers_Progress(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var mu sync.Mutex
 	var progress []sdkmcp.ProgressNotificationParams
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "v0.1.0"}, nil)
-	require.NoError(t, mcp.Register(server, &progressTool{calls: &atomicInt{}}))
+	require.NoError(t, mcp.Register(server, progressTool{}))
 
 	cli := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "test-cli", Version: "v0.1.0"},
@@ -92,21 +84,9 @@ func TestNotifyHelpers_Progress(t *testing.T) {
 }
 
 func TestNotifyHelpers_NoSessionReturnsSentinel(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	err := mcp.ReportProgress(ctx, 1, nil, "no session")
 	assert.ErrorIs(t, err, mcp.ErrNoServerSession)
-	_, err = mcp.ElicitFromClient(ctx, mcp.ElicitOptions{Message: "x"})
+	_, err = mcp.Elicit(ctx, sdkmcp.ElicitParams{Message: "x"})
 	assert.ErrorIs(t, err, mcp.ErrNoServerSession)
-}
-
-// atomicInt is a tiny goroutine-safe counter used by tests.
-type atomicInt struct {
-	mu sync.Mutex
-	v  int
-}
-
-func (a *atomicInt) inc() {
-	a.mu.Lock()
-	a.v++
-	a.mu.Unlock()
 }

@@ -4,7 +4,7 @@
 // Use the official Go SDK package (github.com/modelcontextprotocol/go-sdk/mcp)
 // for protocol clients, servers, sessions, and transports. The root lynx
 // package keeps the small adapters lynx needs around those SDK primitives:
-// context metadata, reverse-capability helpers, chat.Tool wrapping, tool
+// context metadata, reverse-capability helpers, tool.Tool wrapping, tool
 // registration and prompt conversion.
 //
 // # Naming

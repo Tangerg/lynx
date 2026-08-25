@@ -38,82 +38,64 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 		return fmt.Errorf("mcp: register tools: %w", err)
 	}
 
-	prepared := make([]preparedTool, 0, len(tools))
+	prepared := make([]serverTool, 0, len(tools))
 	for _, definition := range registry.Definitions() {
-		tool, _ := registry.Resolve(definition.Name)
-		prepared = append(prepared, prepareOne(tool, definition))
+		executable, _ := registry.Resolve(definition.Name)
+		prepared = append(prepared, serverTool{executable: executable, definition: definition})
 	}
-	for _, pt := range prepared {
-		server.AddTool(pt.tool, pt.handler)
+	for _, tool := range prepared {
+		server.AddTool(tool.descriptor(), tool.handle)
 	}
 	return nil
 }
 
-// preparedTool is one validated, ready-to-add registration — the unit
-// Register builds in its first pass.
-type preparedTool struct {
-	tool    *sdkmcp.Tool
-	handler sdkmcp.ToolHandler
+type serverTool struct {
+	executable toolcontract.Tool
+	definition corechat.ToolDefinition
 }
 
-// prepareOne builds one registration.
-//
-// The schema goes to the SDK as it stands. The low-level AddTool path panics on a
-// schema that does not declare an object, but a definition that reached here came
-// out of the Registry above, which refuses one — and the Registry's copy is a
-// fresh clone, so handing it to a server that keeps it aliases nothing. Repeating
-// either the check or the copy here would be a second answer to a question that
-// already has one, and the two would drift.
-func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) preparedTool {
-	return preparedTool{
-		tool: &sdkmcp.Tool{
-			Name:        definition.Name,
-			Description: definition.Description,
-			InputSchema: definition.InputSchema,
-		},
-		handler: serverHandler(tool, definition.Name),
-	}
+func (t serverTool) descriptor() *sdkmcp.Tool {
+	return new(sdkmcp.Tool{
+		Name:        t.definition.Name,
+		Description: t.definition.Description,
+		InputSchema: t.definition.InputSchema,
+	})
 }
 
-// serverHandler routes a tools/call RPC into a [tool.Tool]. Errors
+// handle routes a tools/call RPC into a [tool.Tool]. Errors
 // from the tool surface via [sdkmcp.CallToolResult.IsError] plus
 // a [*sdkmcp.TextContent] body — never as a Go error from the handler
 // — because the latter would be promoted to a JSON-RPC protocol error
 // and hide the failure from the LLM's view.
 //
 // The MCP server session is stamped onto the context so tool authors
-// can use the reverse-capability helpers ([ReportProgress] and
-// [ElicitFromClient]) without taking a direct
-// dependency on the SDK.
-func serverHandler(tool toolcontract.Tool, toolName string) sdkmcp.ToolHandler {
-	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
-		ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(attribute.String(attrToolName, toolName)),
-		)
-		defer span.End()
+// can use the reverse-capability helpers ([ReportProgress] and [Elicit])
+// without taking a direct dependency on the SDK session.
+func (t serverTool) handle(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+	toolName := t.definition.Name
+	ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(attribute.String(attrToolName, toolName)),
+	)
+	defer span.End()
 
-		// The SDK doesn't guarantee a non-nil request / params — guard like
-		// withProgressToken does rather than dereferencing raw.
-		ctx = withToolCall(ctx, req)
+	ctx = withServerCall(ctx, req)
 
-		var rawArgs string
-		if req != nil && req.Params != nil {
-			rawArgs = string(req.Params.Arguments)
-		}
+	var rawArgs string
+	if req != nil && req.Params != nil {
+		rawArgs = string(req.Params.Arguments)
+	}
 
-		args := cmp.Or(rawArgs, "{}")
-		out, err := tool.Call(ctx, args)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			return &sdkmcp.CallToolResult{
-				Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
-				IsError: true,
-			}, nil
-		}
+	out, err := t.executable.Call(ctx, cmp.Or(rawArgs, "{}"))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return &sdkmcp.CallToolResult{
-			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: out}},
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
+			IsError: true,
 		}, nil
 	}
+	return &sdkmcp.CallToolResult{
+		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: out}},
+	}, nil
 }

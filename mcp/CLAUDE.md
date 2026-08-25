@@ -7,7 +7,7 @@
 
 ## 定位
 
-- **根包放 lynx 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tool.Tool` 与 MCP tool 的双向适配、sampling / prompt 转换。
+- **根包放 lynx 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tool.Tool` 与 MCP tool 的双向适配、prompt 转换。
 - **应用层的事不在这里**:MCP 服务器配置、OAuth 登录、热重连、状态展示属于 app/runtime 的 infra 层 —— 本模块只做协议适配。
 
 ## 架构心智

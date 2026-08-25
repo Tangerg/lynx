@@ -1,17 +1,3 @@
-// Package-level reverse-capability helpers for MCP tool authors.
-//
-// MCP servers can send back to the connected client while a tool is running:
-//
-//   - Progress  — open-ended status updates ([ReportProgress])
-//   - Elicit    — request additional structured input from the
-//     end user via the client ([ElicitFromClient])
-// Both helpers recover the active [*sdkmcp.ServerSession] from
-// context and return [ErrNoServerSession] when the tool is invoked
-// outside an MCP dispatch (e.g. unit tests calling tool.Call
-// directly). This makes the helpers safe to sprinkle into tool bodies
-// without conditional MCP-awareness — the no-MCP path is a benign
-// no-op via the returned sentinel error which callers can ignore.
-
 package mcp
 
 import (
@@ -21,7 +7,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ErrNoServerSession is returned by [ReportProgress] and [ElicitFromClient]
+// ErrNoServerSession is returned by [ReportProgress] and [Elicit]
 // when the call happens outside an MCP server tool
 // invocation (the dispatcher did not stamp a session onto ctx).
 //
@@ -29,31 +15,30 @@ import (
 // client to notify", which is harmless in non-MCP code paths.
 var ErrNoServerSession = errors.New("mcp: no active MCP server session on context")
 
-// ElicitOptions configures an [ElicitFromClient] call. Either
-// RequestedSchema or URL must be set; pass nil/empty to fall
-// back to the SDK default.
-type ElicitOptions struct {
-	// Message is the prompt shown to the end user by the client.
-	// Required.
-	Message string
+type serverCall struct {
+	session       *sdkmcp.ServerSession
+	progressToken any
+}
 
-	// Mode selects the elicitation flow ("structured" / "url"). When
-	// empty, the SDK infers it from RequestedSchema vs RequestedURL.
-	Mode string
+type serverCallKey struct{}
 
-	// RequestedSchema is the JSON schema describing the expected
-	// response shape — flat object schemas only (per MCP spec).
-	// Mutually exclusive with URL.
-	RequestedSchema any
+func withServerCall(ctx context.Context, request *sdkmcp.CallToolRequest) context.Context {
+	if request == nil || request.Session == nil {
+		return ctx
+	}
+	call := serverCall{session: request.Session}
+	if request.Params != nil {
+		call.progressToken = request.Params.GetProgressToken()
+	}
+	return context.WithValue(ctx, serverCallKey{}, call)
+}
 
-	// URL is the URL the client should navigate the user to for
-	// URL-mode elicitation. Mutually exclusive with RequestedSchema.
-	URL string
-
-	// ElicitationID is the optional caller-supplied id used in URL
-	// elicitation to correlate the client's eventual completion
-	// notification back with the originating request.
-	ElicitationID string
+func serverCallFromContext(ctx context.Context) serverCall {
+	if ctx == nil {
+		return serverCall{}
+	}
+	call, _ := ctx.Value(serverCallKey{}).(serverCall)
+	return call
 }
 
 // ReportProgress sends a progress notification back to the client.
@@ -72,34 +57,36 @@ type ElicitOptions struct {
 //	func (t *longTool) Call(ctx context.Context, args string) (string, error) {
 //	    for i := range 100 {
 //	        // ... work ...
-//	        _ = mcp.ReportProgress(ctx, float64(i+1), ptr(100.0),
+//	        _ = mcp.ReportProgress(ctx, float64(i+1), new(100.0),
 //	            fmt.Sprintf("processed %d/100", i+1))
 //	    }
 //	    return "done", nil
 //	}
 func ReportProgress(ctx context.Context, progress float64, total *float64, message string) error {
-	session := ServerSessionFromContext(ctx)
-	if session == nil {
+	return serverCallFromContext(ctx).reportProgress(ctx, progress, total, message)
+}
+
+func (c serverCall) reportProgress(ctx context.Context, progress float64, total *float64, message string) error {
+	if c.session == nil {
 		return ErrNoServerSession
 	}
-	token := progressTokenFromContext(ctx)
-	if token == nil {
+	if c.progressToken == nil {
 		// Client did not opt in; per spec the handler stays silent.
 		return nil
 	}
 
 	params := &sdkmcp.ProgressNotificationParams{
-		ProgressToken: token,
+		ProgressToken: c.progressToken,
 		Progress:      progress,
 		Message:       message,
 	}
 	if total != nil {
 		params.Total = *total
 	}
-	return session.NotifyProgress(ctx, params)
+	return c.session.NotifyProgress(ctx, params)
 }
 
-// ElicitFromClient asks the connected client to surface a structured
+// Elicit asks the connected client to surface a structured
 // prompt to the end user and returns their response. Useful when a
 // tool needs runtime clarification it could not have asked for at
 // schema-design time (auth confirmation, ambiguous filename, ...).
@@ -109,7 +96,7 @@ func ReportProgress(ctx context.Context, progress float64, total *float64, messa
 //
 // Example — structured response:
 //
-//	res, err := mcp.ElicitFromClient(ctx, mcp.ElicitOptions{
+//	res, err := mcp.Elicit(ctx, sdkmcp.ElicitParams{
 //	    Message: "Choose a deployment target",
 //	    RequestedSchema: map[string]any{
 //	        "type": "object",
@@ -125,18 +112,13 @@ func ReportProgress(ctx context.Context, progress float64, total *float64, messa
 //	if err != nil { return "", err }
 //	if res.Action != "accept" { return "user canceled", nil }
 //	env, _ := res.Content["env"].(string)
-func ElicitFromClient(ctx context.Context, opts ElicitOptions) (*sdkmcp.ElicitResult, error) {
-	session := ServerSessionFromContext(ctx)
-	if session == nil {
+func Elicit(ctx context.Context, params sdkmcp.ElicitParams) (*sdkmcp.ElicitResult, error) {
+	return serverCallFromContext(ctx).elicit(ctx, params)
+}
+
+func (c serverCall) elicit(ctx context.Context, params sdkmcp.ElicitParams) (*sdkmcp.ElicitResult, error) {
+	if c.session == nil {
 		return nil, ErrNoServerSession
 	}
-
-	params := &sdkmcp.ElicitParams{
-		Message:         opts.Message,
-		Mode:            opts.Mode,
-		RequestedSchema: opts.RequestedSchema,
-		URL:             opts.URL,
-		ElicitationID:   opts.ElicitationID,
-	}
-	return session.Elicit(ctx, params)
+	return c.session.Elicit(ctx, new(params))
 }

@@ -17,12 +17,13 @@ lynx 需要、而官方 SDK 不应该知道的薄适配。
 mcp/
 ├── doc.go       // 包注释和 import alias 约定
 ├── meta.go      // context scoped _meta helpers
-├── session.go   // active ServerSession/progress token context helpers
-├── reverse.go   // progress / elicitation reverse helpers
-├── tool.go      // remote MCP tool -> tool.Tool
-├── tools.go     // list remote tools and wrap them as []tool.Tool
-├── server.go    // tool.Tool -> MCP server tool
-└── prompt.go    // MCP prompt messages -> []chat.Message
+├── reverse.go   // active call context + progress / elicitation reverse helpers
+├── descriptor.go // immutable remote descriptor snapshot + schema projection
+├── tool.go       // remote MCP tool -> tool.Tool
+├── result.go     // remote result -> tool result / error
+├── tools.go      // list remote tools and wrap them as []tool.Tool
+├── server.go     // tool.Tool -> MCP server tool
+└── prompt.go     // MCP prompt messages -> []chat.Message
 ```
 
 应用运行时自己的 `mcpServers` 配置、OAuth 登录、热重连和状态管理放在
@@ -44,10 +45,8 @@ import (
 | API | 说明 |
 |---|---|
 | `WithMeta` / `MetaFromContext` | 把请求级 `_meta` 放进 context，并由 `Tool` 透传到 `CallToolParams.Meta` |
-| `WithServerSession` | 自定义 dispatcher / 测试把当前 `ServerSession` 放进 context |
-| `ServerSessionFromContext` | 从 tool 调用 context 取出当前 `*sdkmcp.ServerSession` |
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
-| `ElicitFromClient` | tool 执行中向客户端发起 elicitation |
+| `Elicit` | tool 执行中使用官方 `sdkmcp.ElicitParams` 向客户端发起 elicitation |
 | `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tool.Tool` |
 | `Register(server, tools...)` | 把 lynx `tool.Tool` 暴露到 MCP server |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
@@ -120,7 +119,7 @@ JSON-RPC protocol error. `lynx/mcp` preserves that distinction:
 - 传输/协议错误 → 普通 wrapped Go error
 - 本地 `tool.Tool` 返回 error → `CallToolResult{IsError:true}`
 
-调用方用 `errors.As` 区分远端 tool 自身失败和基础设施失败。
+调用方用 `errors.AsType` 区分远端 tool 自身失败和基础设施失败。
 
 ## 测试模式
 

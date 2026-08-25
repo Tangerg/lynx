@@ -43,7 +43,7 @@ func startServerWithFailing(t *testing.T, ctx context.Context) (*sdkmcp.ClientSe
 }
 
 func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
@@ -66,7 +66,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	// Closing the session before a Call forces a transport error,
 	// which must NOT be classified as *ToolCallError.
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, cleanup := startServerWithFailing(t, ctx)
 	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 }
 
 func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
@@ -96,7 +96,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 }
 
 func TestTool_MetaForwardedToServer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	receivedMeta := make(chan map[string]any, 1)
