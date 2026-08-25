@@ -8,14 +8,14 @@ import (
 const maxCommandOutputBytes = 256 << 10
 
 type limitedBuffer struct {
-	bytes.Buffer
+	buffer  bytes.Buffer
 	dropped int
 }
 
 func (b *limitedBuffer) Write(data []byte) (int, error) {
-	available := maxCommandOutputBytes - b.Len()
+	available := maxCommandOutputBytes - b.buffer.Len()
 	if available > 0 {
-		_, _ = b.Buffer.Write(data[:min(available, len(data))])
+		_, _ = b.buffer.Write(data[:min(available, len(data))])
 	}
 	if len(data) > available {
 		b.dropped += len(data) - max(available, 0)
@@ -24,7 +24,7 @@ func (b *limitedBuffer) Write(data []byte) (int, error) {
 }
 
 func (b *limitedBuffer) BytesWithMarker() []byte {
-	out := bytes.Clone(b.Bytes())
+	out := bytes.Clone(b.buffer.Bytes())
 	if b.dropped == 0 {
 		return out
 	}

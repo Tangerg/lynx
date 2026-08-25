@@ -100,6 +100,8 @@ P175 只收紧 Runtime internal Knowledge crash-recovery 的资源语义：原�
 
 P176 只收紧 Runtime internal Workspace Checkpoint：私有 Git command 统一进入既有 64 MiB stdout/64 KiB stderr `gitprocess.Run`，snapshot selection 固定为 20,000 paths/512 MiB current material，source alternates/index 分别为 64 KiB/64 MiB；raw `ls-files -z` path 不再 trim。内部新增稳定 `ErrSnapshotTooLarge` 供 owner 测试与错误链识别，但不进入公共 Go/Protocol。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
 
+P177 只收紧 Runtime internal Sandbox command writer：stdout/stderr 各自继续完整 drain、最多保留 256 KiB 并使用既有 truncation marker；私有 storage 不再通过匿名嵌入暴露 `io.ReaderFrom`，因此 `os/exec`/`io.Copy` 不能绕过 bounded `Write`。Sandbox Tool output shape、Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval
