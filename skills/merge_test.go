@@ -39,6 +39,20 @@ type cancelAfterOpenSource struct {
 	cancel context.CancelFunc
 }
 
+type modelSource struct {
+	ResourceSource
+	summaries []Summary
+	skill     *Skill
+}
+
+func (s modelSource) List(context.Context) ([]Summary, error) {
+	return s.summaries, nil
+}
+
+func (s modelSource) Load(context.Context, string) (*Skill, error) {
+	return s.skill, nil
+}
+
 func (s cancelAfterOpenSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
 	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
 	s.cancel()
@@ -46,11 +60,11 @@ func (s cancelAfterOpenSource) OpenResource(ctx context.Context, name, resource 
 }
 
 func TestMergePrecedence(t *testing.T) {
-	project := NewFS(fstest.MapFS{
+	project := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":    skillFile("shared", "PROJECT copy", "project body"),
 		"only-proj/SKILL.md": skillFile("only-proj", "project only", "x"),
 	})
-	global := NewFS(fstest.MapFS{
+	global := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":    skillFile("shared", "GLOBAL copy", "global body"),
 		"only-glob/SKILL.md": skillFile("only-glob", "global only", "y"),
 	})
@@ -80,15 +94,48 @@ func TestMergePrecedence(t *testing.T) {
 	}
 }
 
-func TestMergeSingleAndNil(t *testing.T) {
-	only := NewFS(fstest.MapFS{})
+func TestMergeDropsNilSources(t *testing.T) {
+	only := mustNewFS(fstest.MapFS{})
 	var typedNil *panicResourceSource
-	if got := Merge(only); got != only {
-		t.Error("Merge of a single source should return it unchanged")
+	for _, source := range []ResourceSource{
+		Merge(only),
+		Merge(nil, typedNil, only, typedNil, nil),
+	} {
+		got, err := source.List(t.Context())
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("List = %v, want empty", got)
+		}
 	}
-	if got := Merge(nil, typedNil, only, typedNil, nil); got != only {
-		t.Error("Merge should drop nils and unwrap to the lone source")
-	}
+}
+
+func TestMergeRejectsInvalidSourceModels(t *testing.T) {
+	t.Run("summary", func(t *testing.T) {
+		source := modelSource{summaries: []Summary{{Name: "broken"}}}
+		_, err := Merge(source).List(t.Context())
+		if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrDescriptionEmpty) {
+			t.Fatalf("List error = %v, want invalid empty-description summary", err)
+		}
+	})
+
+	t.Run("nil skill", func(t *testing.T) {
+		_, err := Merge(modelSource{}).Load(t.Context(), "broken")
+		if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrNilSkill) {
+			t.Fatalf("Load error = %v, want invalid nil skill", err)
+		}
+	})
+
+	t.Run("name mismatch", func(t *testing.T) {
+		source := modelSource{skill: &Skill{
+			Frontmatter: Frontmatter{Name: "another", Description: "valid description"},
+		}}
+		_, err := Merge(source).Load(t.Context(), "broken")
+		if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrNameMismatch) {
+			t.Fatalf("Load error = %v, want invalid mismatched skill", err)
+		}
+	})
 }
 
 // TestListMissingDir proves a source pointed at a non-existent directory lists
@@ -108,11 +155,11 @@ func TestListMissingDir(t *testing.T) {
 // that can satisfy it: the project copy of a shared skill wins, and a
 // global-only skill's resource is still reachable through the merge.
 func TestMergeReadResource(t *testing.T) {
-	project := NewFS(fstest.MapFS{
+	project := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":           skillFile("shared", "project shared", "x"),
 		"shared/references/note.md": {Data: []byte("PROJECT note")},
 	})
-	global := NewFS(fstest.MapFS{
+	global := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":           skillFile("shared", "global shared", "y"),
 		"shared/references/note.md": {Data: []byte("GLOBAL note")},
 		"glob-only/SKILL.md":        skillFile("glob-only", "global only", "z"),
@@ -138,10 +185,10 @@ func TestMergeReadResource(t *testing.T) {
 }
 
 func TestMergeKeepsResourcesWithWinningSkill(t *testing.T) {
-	project := NewFS(fstest.MapFS{
+	project := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md": skillFile("shared", "project shared", "project body without resource"),
 	})
-	global := NewFS(fstest.MapFS{
+	global := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":           skillFile("shared", "global shared", "global body"),
 		"shared/references/note.md": {Data: []byte("GLOBAL note")},
 	})
@@ -153,10 +200,10 @@ func TestMergeKeepsResourcesWithWinningSkill(t *testing.T) {
 }
 
 func TestMergeDoesNotMaskMalformedWinningSkill(t *testing.T) {
-	project := NewFS(fstest.MapFS{
+	project := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md": {Data: []byte("---\nname: shared\ndescription: \n---\nbroken")},
 	})
-	global := NewFS(fstest.MapFS{
+	global := mustNewFS(fstest.MapFS{
 		"shared/SKILL.md":           skillFile("shared", "global shared", "global body"),
 		"shared/references/note.md": {Data: []byte("GLOBAL note")},
 	})
@@ -171,7 +218,7 @@ func TestMergeDoesNotMaskMalformedWinningSkill(t *testing.T) {
 }
 
 func TestMergeTreatsEmptyMergedSourceAsNotFound(t *testing.T) {
-	global := NewFS(fstest.MapFS{
+	global := mustNewFS(fstest.MapFS{
 		"global-skill/SKILL.md": skillFile("global-skill", "global skill", "body"),
 	})
 
@@ -185,11 +232,11 @@ func TestMergeTreatsEmptyMergedSourceAsNotFound(t *testing.T) {
 }
 
 func TestMergeObservesCancellationAfterSourceCalls(t *testing.T) {
-	base := NewFS(fstest.MapFS{
+	base := mustNewFS(fstest.MapFS{
 		"safe-skill/SKILL.md":           skillFile("safe-skill", "safe skill", "body"),
 		"safe-skill/references/note.md": {Data: []byte("note")},
 	})
-	fallback := NewFS(fstest.MapFS{})
+	fallback := mustNewFS(fstest.MapFS{})
 	tests := []struct {
 		name   string
 		source func(context.CancelFunc) ResourceSource

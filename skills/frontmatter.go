@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -53,7 +51,7 @@ func (f Frontmatter) AllowedToolList() []string {
 func (f Frontmatter) Validate() error {
 	var errs []error
 
-	if err := validateName(f.Name); err != nil {
+	if err := ValidateName(f.Name); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -75,10 +73,10 @@ func (f Frontmatter) Validate() error {
 	return errors.Join(errs...)
 }
 
-// validateName is the single owner of the specification's name rules. Source
-// implementations call it before touching a filesystem; Frontmatter.Validate
-// calls it for loaded metadata.
-func validateName(name string) error {
+// ValidateName reports whether name satisfies the Agent Skills specification.
+// It is useful at boundaries that only carry a skill identifier and should not
+// need to fabricate a [Frontmatter] value to validate it.
+func ValidateName(name string) error {
 	switch {
 	case strings.TrimSpace(name) == "":
 		return ErrNameEmpty
@@ -89,37 +87,4 @@ func validateName(name string) error {
 	default:
 		return nil
 	}
-}
-
-// Parse splits a SKILL.md document into its YAML frontmatter and Markdown
-// body. The document must open with a "---" line, hold a YAML block, and
-// close it with another "---" line; everything after the closing line is the
-// trimmed body. Parse does not validate the frontmatter — call
-// [Frontmatter.Validate] for that.
-func Parse(content []byte) (Frontmatter, string, error) {
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
-	text = strings.TrimPrefix(text, "\ufeff")
-	lines := strings.Split(text, "\n")
-
-	if len(lines) == 0 || lines[0] != "---" {
-		return Frontmatter{}, "", ErrNoFrontmatter
-	}
-	end := -1
-	for i := 1; i < len(lines); i++ {
-		if lines[i] == "---" {
-			end = i
-			break
-		}
-	}
-	if end < 0 {
-		return Frontmatter{}, "", ErrNoFrontmatter
-	}
-
-	var fm Frontmatter
-	block := strings.Join(lines[1:end], "\n")
-	if err := yaml.Unmarshal([]byte(block), &fm); err != nil {
-		return Frontmatter{}, "", fmt.Errorf("skills: parse frontmatter: %w", err)
-	}
-	body := strings.TrimSpace(strings.Join(lines[end+1:], "\n"))
-	return fm, body, nil
 }

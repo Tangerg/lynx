@@ -8,6 +8,15 @@ var (
 	// retain their specific cause (for example [ErrNoFrontmatter] or
 	// [ErrDescriptionEmpty]) for errors.Is checks.
 	ErrInvalidSkill = errors.New("skills: invalid skill")
+	// ErrNilSkill means a caller attempted to validate an absent skill model.
+	ErrNilSkill = errors.New("skills: skill must not be nil")
+	// ErrNilFilesystem means NewFS received a nil or typed-nil filesystem.
+	ErrNilFilesystem = errors.New("skills: filesystem must not be nil")
+	// ErrNilSource means a resource read received a nil or typed-nil source.
+	ErrNilSource = errors.New("skills: source must not be nil")
+	// ErrNilResourceFile means a ResourceSource violated its contract by
+	// returning a nil file and nil error.
+	ErrNilResourceFile = errors.New("skills: resource source returned a nil file without an error")
 
 	// ErrNoFrontmatter means a SKILL.md did not open and close a YAML
 	// frontmatter block with "---" fence lines.

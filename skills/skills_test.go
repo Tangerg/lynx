@@ -89,7 +89,7 @@ See references/REFERENCE.md for details.
 `
 
 func newTestFS() ResourceSource {
-	return NewFS(fstest.MapFS{
+	return mustNewFS(fstest.MapFS{
 		"pdf-processing/SKILL.md":                {Data: []byte(pdfSkill)},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("# Reference\nDetailed notes.")},
 		"data-analysis/SKILL.md":                 {Data: []byte("---\nname: data-analysis\ndescription: Analyze data.\n---\nbody")},
@@ -100,25 +100,33 @@ func newTestFS() ResourceSource {
 	})
 }
 
+func mustNewFS(fsys fs.FS) *Repository {
+	repository, err := NewFS(fsys)
+	if err != nil {
+		panic(err)
+	}
+	return repository
+}
+
 func TestParse(t *testing.T) {
-	fm, body, err := Parse([]byte(pdfSkill))
+	skill, err := Parse([]byte(pdfSkill))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if fm.Name != "pdf-processing" {
-		t.Errorf("name = %q", fm.Name)
+	if skill.Name != "pdf-processing" {
+		t.Errorf("name = %q", skill.Name)
 	}
-	if fm.License != "Apache-2.0" {
-		t.Errorf("license = %q", fm.License)
+	if skill.License != "Apache-2.0" {
+		t.Errorf("license = %q", skill.License)
 	}
-	if got := fm.Metadata["version"]; got != "1.0" {
+	if got := skill.Metadata["version"]; got != "1.0" {
 		t.Errorf("metadata.version = %q", got)
 	}
-	if got := fm.AllowedToolList(); len(got) != 2 || got[0] != "Bash(git:*)" {
+	if got := skill.AllowedToolList(); len(got) != 2 || got[0] != "Bash(git:*)" {
 		t.Errorf("allowed tools = %v", got)
 	}
-	if body == "" || body[0] != '#' {
-		t.Errorf("body should start with the markdown heading, got %q", body)
+	if skill.Instructions == "" || skill.Instructions[0] != '#' {
+		t.Errorf("instructions should start with the markdown heading, got %q", skill.Instructions)
 	}
 }
 
@@ -128,9 +136,16 @@ func TestParseNoFrontmatter(t *testing.T) {
 		" ---\nname: padded-open\ndescription: invalid fence\n---\nbody",
 		"---\nname: padded-close\ndescription: invalid fence\n ---\nbody",
 	} {
-		if _, _, err := Parse([]byte(content)); !errors.Is(err, ErrNoFrontmatter) {
+		if _, err := Parse([]byte(content)); !errors.Is(err, ErrNoFrontmatter) {
 			t.Errorf("Parse(%q) error = %v, want ErrNoFrontmatter", content, err)
 		}
+	}
+}
+
+func TestParseValidatesSkill(t *testing.T) {
+	_, err := Parse([]byte("---\nname: invalid-skill\ndescription:\n---\n"))
+	if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrDescriptionEmpty) {
+		t.Fatalf("Parse error = %v, want ErrInvalidSkill and ErrDescriptionEmpty", err)
 	}
 }
 
@@ -162,8 +177,18 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestModelValidation(t *testing.T) {
+	var skill *Skill
+	if err := skill.Validate(); !errors.Is(err, ErrNilSkill) {
+		t.Fatalf("nil Skill.Validate error = %v, want ErrNilSkill", err)
+	}
+	if err := (Summary{Name: "valid-skill"}).Validate(); !errors.Is(err, ErrDescriptionEmpty) {
+		t.Fatalf("Summary.Validate error = %v, want ErrDescriptionEmpty", err)
+	}
+}
+
 func TestSourceRejectsInvalidNamesBeforeFilesystemAccess(t *testing.T) {
-	source := NewFS(&panicFS{})
+	source := mustNewFS(&panicFS{})
 	tests := []struct {
 		name string
 		want error
@@ -202,13 +227,13 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if sk.Description == "" || sk.Body == "" {
-		t.Errorf("loaded skill missing description or body: %+v", sk)
+	if sk.Description == "" || sk.Instructions == "" {
+		t.Errorf("loaded skill missing description or instructions: %+v", sk)
 	}
 }
 
 func TestLoadClassifiesInvalidSkillAndPreservesCause(t *testing.T) {
-	source := NewFS(fstest.MapFS{
+	source := mustNewFS(fstest.MapFS{
 		"bad-description/SKILL.md": {Data: []byte("---\nname: bad-description\ndescription:\n---\nbody")},
 		"bad-document/SKILL.md":    {Data: []byte("missing frontmatter")},
 		"mismatch/SKILL.md":        skillFile("another-name", "mismatched name", "body"),
@@ -244,7 +269,7 @@ func TestListReturnsRepositoryReadFailure(t *testing.T) {
 	base := fstest.MapFS{
 		"broken/SKILL.md": skillFile("broken", "broken skill", "body"),
 	}
-	source := NewFS(failingOpenFS{FS: base, path: "broken/SKILL.md", err: readErr})
+	source := mustNewFS(failingOpenFS{FS: base, path: "broken/SKILL.md", err: readErr})
 
 	_, err := source.List(t.Context())
 	if !errors.Is(err, readErr) {
@@ -272,13 +297,13 @@ func TestReadResource(t *testing.T) {
 func TestReadResourceRejectsNilFileWithoutPanicking(t *testing.T) {
 	source := nilFileResourceSource{ResourceSource: newTestFS()}
 	_, err := ReadResource(t.Context(), source, "pdf-processing", "references/REFERENCE.md")
-	if !errors.Is(err, errNilResourceFile) {
-		t.Fatalf("ReadResource error = %v, want errNilResourceFile", err)
+	if !errors.Is(err, ErrNilResourceFile) {
+		t.Fatalf("ReadResource error = %v, want ErrNilResourceFile", err)
 	}
 }
 
 func TestResourcePathsArePortableAndRelative(t *testing.T) {
-	source := NewFS(&panicFS{})
+	source := mustNewFS(&panicFS{})
 	for _, resource := range []string{
 		"",
 		".",
@@ -299,7 +324,7 @@ func TestResourcePathsArePortableAndRelative(t *testing.T) {
 func TestOperationsHonorCanceledContextBeforeAccess(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	source := NewFS(&panicFS{})
+	source := mustNewFS(&panicFS{})
 
 	operations := []struct {
 		name string
@@ -351,7 +376,7 @@ func TestOperationsHonorCancellationDuringAccess(t *testing.T) {
 	} {
 		t.Run(operation.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
-			source := NewFS(cancelingFS{FS: base, cancel: cancel})
+			source := mustNewFS(cancelingFS{FS: base, cancel: cancel})
 			if err := operation.call(ctx, source); !errors.Is(err, context.Canceled) {
 				t.Fatalf("error = %v, want context.Canceled", err)
 			}
@@ -359,7 +384,7 @@ func TestOperationsHonorCancellationDuringAccess(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	source := cancelingResourceSource{ResourceSource: NewFS(base), cancel: cancel}
+	source := cancelingResourceSource{ResourceSource: mustNewFS(base), cancel: cancel}
 	if _, err := ReadResource(ctx, source, "safe-skill", "references/note.md"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ReadResource error = %v, want context.Canceled", err)
 	}
@@ -376,8 +401,8 @@ func TestReadResourceRejectsNilSource(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := ReadResource(t.Context(), test.source, "pdf-processing", "references/REFERENCE.md"); !errors.Is(err, errNilSource) {
-				t.Fatalf("ReadResource error = %v, want errNilSource", err)
+			if _, err := ReadResource(t.Context(), test.source, "pdf-processing", "references/REFERENCE.md"); !errors.Is(err, ErrNilSource) {
+				t.Fatalf("ReadResource error = %v, want ErrNilSource", err)
 			}
 		})
 	}
@@ -452,9 +477,18 @@ func TestNewFSRejectsNilFilesystemWithoutPanicking(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := NewFS(test.filesystem).List(t.Context()); !errors.Is(err, errNilFS) {
-				t.Fatalf("List error = %v, want errNilFS", err)
+			repository, err := NewFS(test.filesystem)
+			if repository != nil || !errors.Is(err, ErrNilFilesystem) {
+				t.Fatalf("NewFS = (%v, %v), want (nil, ErrNilFilesystem)", repository, err)
 			}
 		})
+	}
+}
+
+func TestRepositoryRejectsZeroValueWithoutPanicking(t *testing.T) {
+	for _, repository := range []*Repository{nil, {}} {
+		if _, err := repository.List(t.Context()); !errors.Is(err, ErrNilFilesystem) {
+			t.Fatalf("List error = %v, want ErrNilFilesystem", err)
+		}
 	}
 }
