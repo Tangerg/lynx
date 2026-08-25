@@ -112,8 +112,8 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request,
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if augmented == nil {
-		return nil, nil, nil, ErrNilQuery
+	if err := augmented.Validate(); err != nil {
+		return nil, nil, nil, fmt.Errorf("rag: augmented query: %w", err)
 	}
 	return prepared, augmented, docs, nil
 }

@@ -203,6 +203,31 @@ func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
 	}
 }
 
+func TestMiddlewareRejectsInvalidAugmentedQuery(t *testing.T) {
+	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &stubRetriever{},
+		Augmenter: rag.AugmenterFunc(func(context.Context, *rag.Query, []rag.Candidate) (*rag.Query, error) {
+			return &rag.Query{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		called = true
+		return textResponse("unexpected"), nil
+	})
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+
+	if _, err := callMiddleware(model).Call(t.Context(), request); !errors.Is(err, rag.ErrInvalidQuery) {
+		t.Fatalf("invalid augmented query error = %v", err)
+	}
+	if called {
+		t.Fatal("model called with an invalid augmented query")
+	}
+}
+
 func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
