@@ -8,7 +8,11 @@ import (
 )
 
 func TestNewRequiresCollection(t *testing.T) {
-	_, err := mongodb.New(t.Context(), mongodb.Config{})
+	cfg := mongodb.Config{}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Config.Validate should reject a nil Collection")
+	}
+	_, err := mongodb.New(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}

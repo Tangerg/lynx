@@ -24,6 +24,14 @@ type Config struct {
 	Container *azcosmos.ContainerClient
 }
 
+// Validate reports whether c can be used to construct a [Store].
+func (c Config) Validate() error {
+	if c.Container == nil {
+		return errors.New("cosmosdb: container is required")
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -37,8 +45,8 @@ type Store struct {
 
 // New builds a [Store] from cfg.
 func New(cfg Config) (*Store, error) {
-	if cfg.Container == nil {
-		return nil, errors.New("cosmosdb: container is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	return &Store{container: cfg.Container}, nil
 }

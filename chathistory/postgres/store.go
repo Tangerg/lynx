@@ -47,6 +47,28 @@ type Config struct {
 	InitializeSchema bool
 }
 
+// Validate reports whether c can be used to construct a [Store]. Blank
+// optional identifiers are valid and are resolved to their documented
+// defaults by [New].
+func (c Config) Validate() error {
+	if c.Pool == nil {
+		return errors.New("postgres: pool is required")
+	}
+	for _, identifier := range [...]struct {
+		name  string
+		value string
+	}{
+		{name: "schema name", value: c.SchemaName},
+		{name: "table name", value: c.TableName},
+		{name: "index name", value: c.IndexName},
+	} {
+		if identifier.value != "" && !validIdentifier(identifier.value) {
+			return fmt.Errorf("postgres: %s %q must be a valid unquoted identifier", identifier.name, identifier.value)
+		}
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -82,24 +104,12 @@ type Store struct {
 
 // New builds a [Store] from cfg. ctx bounds optional schema initialization.
 func New(ctx context.Context, cfg Config) (*Store, error) {
-	if cfg.Pool == nil {
-		return nil, errors.New("postgres: pool is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	cfg.SchemaName = cmp.Or(cfg.SchemaName, DefaultSchemaName)
 	cfg.TableName = cmp.Or(cfg.TableName, DefaultTableName)
 	cfg.IndexName = cmp.Or(cfg.IndexName, cfg.TableName+DefaultIndexNameSuffix)
-	for _, identifier := range [...]struct {
-		name  string
-		value string
-	}{
-		{name: "schema name", value: cfg.SchemaName},
-		{name: "table name", value: cfg.TableName},
-		{name: "index name", value: cfg.IndexName},
-	} {
-		if !validIdentifier(identifier.value) {
-			return nil, fmt.Errorf("postgres: %s %q must be a valid unquoted identifier", identifier.name, identifier.value)
-		}
-	}
 
 	qualified := cfg.SchemaName + "." + cfg.TableName
 	s := &Store{

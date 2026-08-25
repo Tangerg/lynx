@@ -39,6 +39,22 @@ type Config struct {
 	InitializeSchema bool
 }
 
+// Validate reports whether c can be used to construct a [Store]. Blank
+// optional identifiers are valid and are resolved to their documented
+// defaults by [New].
+func (c Config) Validate() error {
+	if c.Session == nil {
+		return errors.New("cassandra: session is required")
+	}
+	if c.Keyspace != "" && !validIdentifier(c.Keyspace) {
+		return fmt.Errorf("cassandra: keyspace %q must be a valid unquoted identifier", c.Keyspace)
+	}
+	if c.TableName != "" && !validIdentifier(c.TableName) {
+		return fmt.Errorf("cassandra: table name %q must be a valid unquoted identifier", c.TableName)
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -58,8 +74,8 @@ type Store struct {
 
 // New builds a [Store] from cfg. ctx bounds optional table initialization.
 func New(ctx context.Context, cfg Config) (*Store, error) {
-	if cfg.Session == nil {
-		return nil, errors.New("cassandra: session is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	if cfg.Keyspace == "" {
 		cfg.Keyspace = DefaultKeyspace
@@ -67,13 +83,6 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.TableName == "" {
 		cfg.TableName = DefaultTableName
 	}
-	if !validIdentifier(cfg.Keyspace) {
-		return nil, fmt.Errorf("cassandra: keyspace %q must be a valid unquoted identifier", cfg.Keyspace)
-	}
-	if !validIdentifier(cfg.TableName) {
-		return nil, fmt.Errorf("cassandra: table name %q must be a valid unquoted identifier", cfg.TableName)
-	}
-
 	qualified := cfg.Keyspace + "." + cfg.TableName
 	s := &Store{
 		session: cfg.Session,

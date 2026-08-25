@@ -20,7 +20,11 @@ import (
 func stubPool() *pgxpool.Pool { return new(pgxpool.Pool) }
 
 func TestNewRequiresPool(t *testing.T) {
-	_, err := postgres.New(t.Context(), postgres.Config{})
+	cfg := postgres.Config{}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Config.Validate should reject a nil Pool")
+	}
+	_, err := postgres.New(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Pool is nil")
 	}

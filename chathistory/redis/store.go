@@ -40,6 +40,18 @@ type Config struct {
 	TTL time.Duration
 }
 
+// Validate reports whether c can be used to construct a [Store]. A blank key
+// prefix is valid and is resolved to [DefaultKeyPrefix] by [New].
+func (c Config) Validate() error {
+	if isNilCapability(c.Client) {
+		return errors.New("redis: client is required")
+	}
+	if c.TTL < 0 {
+		return errors.New("redis: TTL must not be negative")
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -54,11 +66,8 @@ type Store struct {
 
 // New builds a [Store] from cfg.
 func New(cfg Config) (*Store, error) {
-	if isNilCapability(cfg.Client) {
-		return nil, errors.New("redis: client is required")
-	}
-	if cfg.TTL < 0 {
-		return nil, errors.New("redis: TTL must not be negative")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	if cfg.KeyPrefix == "" {
 		cfg.KeyPrefix = DefaultKeyPrefix

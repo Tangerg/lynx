@@ -34,6 +34,14 @@ type Config struct {
 	InitializeSchema bool
 }
 
+// Validate reports whether c can be used to construct a [Store].
+func (c Config) Validate() error {
+	if c.Collection == nil {
+		return errors.New("mongodb: collection is required")
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -47,8 +55,8 @@ type Store struct {
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
 func New(ctx context.Context, cfg Config) (*Store, error) {
-	if cfg.Collection == nil {
-		return nil, errors.New("mongodb: collection is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	s := &Store{collection: cfg.Collection}
 	if cfg.InitializeSchema {

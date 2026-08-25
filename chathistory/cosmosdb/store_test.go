@@ -8,7 +8,11 @@ import (
 )
 
 func TestNewRequiresContainer(t *testing.T) {
-	_, err := cosmosdb.New(cosmosdb.Config{})
+	cfg := cosmosdb.Config{}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Config.Validate should reject a nil Container")
+	}
+	_, err := cosmosdb.New(cfg)
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}

@@ -17,7 +17,11 @@ func stubDriver() neo4j.DriverWithContext {
 }
 
 func TestNewRequiresDriver(t *testing.T) {
-	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{})
+	cfg := neo4jstore.Config{}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Config.Validate should reject a nil Driver")
+	}
+	_, err := neo4jstore.New(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Driver is nil")
 	}

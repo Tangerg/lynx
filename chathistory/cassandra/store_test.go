@@ -12,7 +12,11 @@ import (
 func stubSession() *gocql.Session { return new(gocql.Session) }
 
 func TestNewRequiresSession(t *testing.T) {
-	_, err := cassandra.New(t.Context(), cassandra.Config{})
+	cfg := cassandra.Config{}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Config.Validate should reject a nil Session")
+	}
+	_, err := cassandra.New(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Session is nil")
 	}

@@ -41,6 +41,19 @@ type Config struct {
 	InitializeSchema bool
 }
 
+// Validate reports whether c can be used to construct a [Store]. Blank
+// optional values are valid and are resolved to their documented defaults by
+// [New].
+func (c Config) Validate() error {
+	if isNilCapability(c.Driver) {
+		return errors.New("neo4j: driver is required")
+	}
+	if c.Label != "" && !validIdentifier(c.Label) {
+		return fmt.Errorf("neo4j: label %q must be a valid unquoted identifier", c.Label)
+	}
+	return nil
+}
+
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
@@ -56,17 +69,14 @@ type Store struct {
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
 func New(ctx context.Context, cfg Config) (*Store, error) {
-	if isNilCapability(cfg.Driver) {
-		return nil, errors.New("neo4j: driver is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	if cfg.Database == "" {
 		cfg.Database = DefaultDatabase
 	}
 	if cfg.Label == "" {
 		cfg.Label = DefaultLabel
-	}
-	if !validIdentifier(cfg.Label) {
-		return nil, fmt.Errorf("neo4j: label %q must be a valid unquoted identifier", cfg.Label)
 	}
 	s := &Store{
 		driver:   cfg.Driver,
