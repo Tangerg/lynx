@@ -78,7 +78,7 @@ func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetr
 			if m.Unit != "" {
 				attrs = append(attrs, stdslog.String("unit", m.Unit))
 			}
-			attrs = append(attrs, stdslog.String("value", summarize(m.Data)))
+			attrs = append(attrs, stdslog.String("value", e.summarize(m.Data)))
 			e.logger.LogAttrs(ctx, stdslog.LevelInfo, "metric", attrs...)
 		}
 	}
@@ -103,49 +103,48 @@ func (e *MetricExporter) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// summarize renders a metric's aggregation as a compact human string for
-// the dev log line — point count plus per-point value/sum/count, enough to
-// eyeball a counter or histogram without a full backend.
-func summarize(data metricdata.Aggregation) string {
+// summarize renders a metric's aggregation as a compact human string for the
+// exporter's dev log line.
+func (e *MetricExporter) summarize(data metricdata.Aggregation) string {
 	switch d := data.(type) {
 	case metricdata.Sum[int64]:
-		return sumStr(d.DataPoints)
+		return e.summarizeSum(d.DataPoints)
 	case metricdata.Sum[float64]:
-		return sumStr(d.DataPoints)
+		return e.summarizeSum(d.DataPoints)
 	case metricdata.Gauge[int64]:
-		return gaugeStr(d.DataPoints)
+		return e.summarizeGauge(d.DataPoints)
 	case metricdata.Gauge[float64]:
-		return gaugeStr(d.DataPoints)
+		return e.summarizeGauge(d.DataPoints)
 	case metricdata.Histogram[int64]:
-		return histStr(d.DataPoints)
+		return e.summarizeHistogram(d.DataPoints)
 	case metricdata.Histogram[float64]:
-		return histStr(d.DataPoints)
+		return e.summarizeHistogram(d.DataPoints)
 	default:
 		return fmt.Sprintf("%T", data)
 	}
 }
 
-func sumStr[N int64 | float64](pts []metricdata.DataPoint[N]) string {
+func (e *MetricExporter) summarizeSum[N int64 | float64](points []metricdata.DataPoint[N]) string {
 	var total N
-	for _, p := range pts {
-		total += p.Value
+	for _, point := range points {
+		total += point.Value
 	}
-	return fmt.Sprintf("sum=%v points=%d", total, len(pts))
+	return fmt.Sprintf("sum=%v points=%d", total, len(points))
 }
 
-func gaugeStr[N int64 | float64](pts []metricdata.DataPoint[N]) string {
-	if len(pts) == 0 {
+func (e *MetricExporter) summarizeGauge[N int64 | float64](points []metricdata.DataPoint[N]) string {
+	if len(points) == 0 {
 		return "gauge=<none>"
 	}
-	return fmt.Sprintf("gauge=%v points=%d", pts[len(pts)-1].Value, len(pts))
+	return fmt.Sprintf("gauge=%v points=%d", points[len(points)-1].Value, len(points))
 }
 
-func histStr[N int64 | float64](pts []metricdata.HistogramDataPoint[N]) string {
+func (e *MetricExporter) summarizeHistogram[N int64 | float64](points []metricdata.HistogramDataPoint[N]) string {
 	var count uint64
 	var sum N
-	for _, p := range pts {
-		count += p.Count
-		sum += p.Sum
+	for _, point := range points {
+		count += point.Count
+		sum += point.Sum
 	}
-	return fmt.Sprintf("hist count=%d sum=%v points=%d", count, sum, len(pts))
+	return fmt.Sprintf("hist count=%d sum=%v points=%d", count, sum, len(points))
 }
