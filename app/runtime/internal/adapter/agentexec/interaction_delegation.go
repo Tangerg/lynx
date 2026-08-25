@@ -151,7 +151,7 @@ func runtimeContractSchema[T any]() (agent.Schema, error) {
 	if err != nil {
 		return agent.Schema{}, err
 	}
-	return agent.ParseSchema([]byte(raw))
+	return agent.ParseSchema(raw)
 }
 
 func (definition *delegatedInteractionDefinition) Descriptor() agent.Descriptor {

@@ -106,7 +106,7 @@ func newRuntimeSearchTools(root string) runtimeSearchTools {
 func mustRuntimeSearchFunc[Input, Output any](
 	config toolcontract.FuncConfig,
 	call func(context.Context, Input) (Output, error),
-) *toolcontract.Func[Input, Output] {
+) toolcontract.Func[Input, Output] {
 	result, err := toolcontract.NewFunc(config, call)
 	if err != nil {
 		panic(err)
