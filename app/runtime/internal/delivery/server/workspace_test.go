@@ -369,6 +369,9 @@ func TestWorkspaceGrep(t *testing.T) {
 	if _, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Errorf("empty query err = %v, want ErrInvalidParams", err)
 	}
+	if _, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{Query: "["}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Errorf("invalid regex err = %v, want ErrInvalidParams", err)
+	}
 
 	got, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{Query: "Needle"})
 	if err != nil {

@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,6 +98,47 @@ func TestFileBrowserGrepReturnsStableRootRelativePaths(t *testing.T) {
 		if filepath.IsAbs(match.Path) {
 			t.Fatalf("match leaked an absolute host path: %+v", match)
 		}
+	}
+}
+
+func TestFileBrowserGrepReturnsExactTotalBeyondSharedExecutorCountCap(t *testing.T) {
+	root := t.TempDir()
+	for index := range 300 {
+		name := fmt.Sprintf("match-%03d.txt", index)
+		if err := os.WriteFile(filepath.Join(root, name), []byte("needle\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepInput{Query: "needle", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 300 || len(got.Matches) != 1 {
+		t.Fatalf("Grep = %d retained / total %d, want 1/300", len(got.Matches), got.Total)
+	}
+}
+
+func TestFileBrowserGrepBoundsRetainedMatchMaterial(t *testing.T) {
+	root := t.TempDir()
+	line := "needle" + strings.Repeat("x", (1<<20)-len("needle"))
+	for index := range 9 {
+		name := fmt.Sprintf("large-%02d.txt", index)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(line), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepInput{Query: "needle", Limit: 9})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material := 0
+	for _, match := range got.Matches {
+		material += len(match.Path) + len(match.Text)
+	}
+	if got.Total != 9 || material > 8<<20 || len(got.Matches) >= got.Total {
+		t.Fatalf("Grep = %d retained / total %d / %d bytes, want exact total and an 8 MiB whole-row prefix", len(got.Matches), got.Total, material)
 	}
 }
 
