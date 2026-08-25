@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -22,11 +21,8 @@ import (
 // tool valid for a client-driven call.
 func directTools(root string) []toolcontract.Tool {
 	executor := fs.NewLocalExecutor(root)
-	return []toolcontract.Tool{
-		newRuntimeReadTool(root, executor),
-		fs.NewGlobTool(executor),
-		fs.NewGrepTool(executor),
-	}
+	search := newRuntimeSearchTools(root)
+	return []toolcontract.Tool{newRuntimeReadTool(root, executor), search.glob, search.grep}
 }
 
 // normalizeDirectArguments validates every filesystem path a direct tool
@@ -47,12 +43,9 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		request.Path = path
 		return encodeDirectArguments(request)
 	case tool.Glob:
-		request, err := decodeToolArguments[fs.GlobRequest](arguments)
+		request, err := decodeToolArguments[runtimeGlobRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct glob arguments: %w", err)
-		}
-		if err := validateDirectGlobPattern(request.Pattern); err != nil {
-			return "", err
 		}
 		if request.Path != "" {
 			path, err := directPath(root, request.Path)
@@ -63,7 +56,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		}
 		return encodeDirectArguments(request)
 	case tool.Grep:
-		request, err := decodeToolArguments[fs.GrepRequest](arguments)
+		request, err := decodeToolArguments[runtimeGrepRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct grep arguments: %w", err)
 		}
@@ -94,22 +87,6 @@ func decodeToolArguments[T any](arguments string) (T, error) {
 		return request, err
 	}
 	return request, nil
-}
-
-// validateDirectGlobPattern closes the second path channel accepted by glob.
-// Glob.Path chooses a root, but Pattern also contributes the find anchor (for
-// example "../**/*"), so checking Path alone would leave a root escape.
-func validateDirectGlobPattern(pattern string) error {
-	if filepath.IsAbs(pattern) {
-		return fmt.Errorf("%w: absolute glob pattern %q", workspaceapp.ErrPathOutsideRoot, pattern)
-	}
-	segments := strings.FieldsFunc(pattern, func(r rune) bool {
-		return r == '/' || r == filepath.Separator
-	})
-	if slices.Contains(segments, "..") {
-		return fmt.Errorf("%w: glob pattern %q", workspaceapp.ErrPathOutsideRoot, pattern)
-	}
-	return nil
 }
 
 func encodeDirectArguments(value any) (string, error) {

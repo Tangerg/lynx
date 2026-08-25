@@ -26,6 +26,7 @@ type cwdTools struct {
 
 func buildCWDTools(cwd string, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker) cwdTools {
 	fsExec := fs.NewLocalExecutor(cwd)
+	searchTools := newRuntimeSearchTools(cwd)
 
 	// Guard stack, innermost → outermost: auto-format the applied
 	// change; diagnostics type-check it; read/staleness guard gates before the
@@ -36,8 +37,8 @@ func buildCWDTools(cwd string, ci *codeintel.Analyzer, tracker *readTracker, loc
 	families := cwdTools{
 		readSearch: []toolcontract.Tool{
 			withPathLock(withReadTracking(newRuntimeReadTool(cwd, fsExec), tracker, cwd), locker, cwd),
-			fs.NewGlobTool(fsExec),
-			fs.NewGrepTool(fsExec),
+			searchTools.glob,
+			searchTools.grep,
 		},
 		applyPatch: applyPatch,
 	}

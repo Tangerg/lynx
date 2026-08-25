@@ -1,13 +1,17 @@
 package toolset
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
+
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 type runtimeSearchMatch struct {
@@ -88,6 +92,26 @@ func TestRuntimeGrepReportsExactTotalBeyondRetainedPrefix(t *testing.T) {
 	}
 }
 
+func TestRuntimeGlobReportsExactTotalBeyondRetainedPrefix(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"a.go", "b.go", "c.go"} {
+		if err := os.WriteFile(filepath.Join(root, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := namedDirectTool(t, root, "glob").Call(t.Context(), `{"pattern":"*.go","max_results":2}`)
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	var response runtimeGlobResponse
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		t.Fatalf("decode glob response: %v", err)
+	}
+	if len(response.Paths) != 2 || response.Total != 3 || !response.Truncated {
+		t.Fatalf("glob response = {paths:%d total:%d truncated:%t}, want 2/3/true", len(response.Paths), response.Total, response.Truncated)
+	}
+}
+
 func TestRuntimeGrepExcludesUnpageableTextFileAsAWhole(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "pathological.txt"), []byte(strings.Repeat("needle", (1<<20)/6+1)), 0o600); err != nil {
@@ -109,11 +133,34 @@ func TestRuntimeGrepExcludesUnpageableTextFileAsAWhole(t *testing.T) {
 	}
 }
 
-func TestRuntimeGrepContractContainsOnlyComposableLineSearchInputs(t *testing.T) {
+func TestRuntimeGrepBoundsEncodedToolResult(t *testing.T) {
+	root := t.TempDir()
+	line := strings.Repeat("\x01", 2<<10) + "needle\n"
+	if err := os.WriteFile(filepath.Join(root, "escaped.txt"), []byte(strings.Repeat(line, 1000)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	body, err := namedDirectTool(t, root, "grep").Call(t.Context(), `{"pattern":"needle","max_results":1000}`)
+	if err != nil {
+		t.Fatalf("grep: %v", err)
+	}
+	if len(body) > 1<<20 {
+		t.Fatalf("encoded grep response = %d bytes, want at most 1 MiB", len(body))
+	}
+	var response runtimeGrepResponse
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		t.Fatalf("decode grep response: %v", err)
+	}
+	if response.Total != 1000 || !response.Truncated || len(response.Matches) == 0 || len(response.Matches) >= response.Total {
+		t.Fatalf("grep response = {matches:%d total:%d truncated:%t}, want bounded non-empty prefix of 1000", len(response.Matches), response.Total, response.Truncated)
+	}
+}
+
+func TestRuntimeSearchContractsContainOnlyComposableInputs(t *testing.T) {
 	definition := namedDirectTool(t, t.TempDir(), "grep").Definition()
 	schema := string(definition.InputSchema)
 	for _, retired := range []string{
-		`"file_type"`, `"multiline"`, `"before_context_lines"`, `"after_context_lines"`, `"output_mode"`,
+		`"file_glob"`, `"file_type"`, `"ignore_case"`, `"multiline"`,
+		`"before_context_lines"`, `"after_context_lines"`, `"output_mode"`,
 	} {
 		if strings.Contains(schema, retired) {
 			t.Errorf("grep schema retains process-specific or overlapping field %s: %s", retired, schema)
@@ -123,6 +170,56 @@ func TestRuntimeGrepContractContainsOnlyComposableLineSearchInputs(t *testing.T)
 		if !strings.Contains(schema, required) {
 			t.Errorf("grep schema is missing %s: %s", required, schema)
 		}
+	}
+	globSchema := string(namedDirectTool(t, t.TempDir(), "glob").Definition().InputSchema)
+	if strings.Contains(globSchema, `"ignore_case"`) {
+		t.Errorf("glob schema retains overlapping field ignore_case: %s", globSchema)
+	}
+	for _, required := range []string{`"pattern"`, `"path"`, `"max_results"`} {
+		if !strings.Contains(globSchema, required) {
+			t.Errorf("glob schema is missing %s: %s", required, globSchema)
+		}
+	}
+}
+
+func TestRuntimeSearchConfinesPathsAndPreservesCancellation(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "outside")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	for _, name := range []string{"glob", "grep"} {
+		t.Run(name+" lexical escape", func(t *testing.T) {
+			arguments := `{"pattern":"*","path":"../"}`
+			if name == "grep" {
+				arguments = `{"pattern":"secret","path":"../"}`
+			}
+			_, err := namedDirectTool(t, root, name).Call(t.Context(), arguments)
+			if !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
+				t.Fatalf("%s error = %v, want ErrPathOutsideRoot", name, err)
+			}
+		})
+		t.Run(name+" symlink escape", func(t *testing.T) {
+			arguments := `{"pattern":"*","path":"outside"}`
+			if name == "grep" {
+				arguments = `{"pattern":"secret","path":"outside"}`
+			}
+			_, err := namedDirectTool(t, root, name).Call(t.Context(), arguments)
+			if !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
+				t.Fatalf("%s error = %v, want ErrPathOutsideRoot", name, err)
+			}
+		})
+		t.Run(name+" canceled", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			_, err := namedDirectTool(t, root, name).Call(ctx, `{"pattern":"*"}`)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("%s error = %v, want context.Canceled", name, err)
+			}
+		})
 	}
 }
 

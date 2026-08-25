@@ -139,7 +139,7 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 	}
 
 	if opts.Recursive || opts.Glob != "" {
-		return recursiveFiles(root, files, opts.Glob)
+		return recursiveFiles(root, files, opts.Glob, sub)
 	}
 	return levelEntries(root, files, sub)
 }
@@ -241,11 +241,15 @@ func walkFiles(ctx context.Context, root, sub string, includeIgnored bool) ([]st
 }
 
 // recursiveFiles turns flat candidate paths into inspected file entries.
-func recursiveFiles(root string, files []string, glob string) ([]FileEntry, error) {
+func recursiveFiles(root string, files []string, glob, sub string) ([]FileEntry, error) {
 	out := make([]FileEntry, 0, len(files))
 	for _, f := range files {
 		if glob != "" {
-			matched, err := matchGlob(glob, f)
+			candidate, ok := listingRelativePath(f, sub)
+			if !ok {
+				continue
+			}
+			matched, err := matchGlob(glob, candidate)
 			if err != nil {
 				return nil, fmt.Errorf("%w %q: %v", ErrInvalidGlob, glob, err)
 			}
@@ -263,6 +267,16 @@ func recursiveFiles(root string, files []string, glob string) ([]FileEntry, erro
 	}
 	sortFileEntries(out)
 	return out, nil
+}
+
+func listingRelativePath(file, sub string) (string, bool) {
+	if sub == "" {
+		return file, true
+	}
+	if file == sub {
+		return path.Base(file), true
+	}
+	return strings.CutPrefix(file, sub+"/")
 }
 
 // levelEntries derives the immediate children of sub from the flat candidate
@@ -340,15 +354,67 @@ func sortFileEntries(entries []FileEntry) {
 	})
 }
 
-// matchGlob matches a doublestar-ish pattern against a slash path. Covers the
-// shapes that actually occur ("**/*.go" → suffix on the basename, "*.ts" →
-// basename, "src/*.go" → full path); not a complete doublestar engine.
+// matchGlob matches a slash-separated workspace path. A complete segment named
+// ** consumes zero or more path segments; every other segment follows
+// path.Match syntax. Keeping the matcher here gives every finite-catalog
+// consumer one glob dialect without adding a second filesystem walker.
 func matchGlob(pattern, relPath string) (bool, error) {
-	if rest, ok := strings.CutPrefix(pattern, "**/"); ok {
-		return path.Match(rest, path.Base(relPath))
+	if pattern == "" || path.IsAbs(pattern) || strings.ContainsRune(pattern, 0) {
+		return false, path.ErrBadPattern
 	}
-	if strings.Contains(pattern, "/") {
-		return path.Match(pattern, relPath)
+	patternParts := strings.Split(pattern, "/")
+	for _, part := range patternParts {
+		if part == "" || part == "." || part == ".." {
+			return false, path.ErrBadPattern
+		}
+		if part != "**" {
+			if _, err := path.Match(part, ""); err != nil {
+				return false, err
+			}
+		}
 	}
-	return path.Match(pattern, path.Base(relPath))
+	pathParts := []string{}
+	if relPath != "" {
+		pathParts = strings.Split(relPath, "/")
+	}
+
+	type state struct{ pattern, path int }
+	known := make(map[state]bool)
+	memo := make(map[state]bool)
+	var match func(int, int) (bool, error)
+	match = func(patternIndex, pathIndex int) (bool, error) {
+		key := state{pattern: patternIndex, path: pathIndex}
+		if known[key] {
+			return memo[key], nil
+		}
+		known[key] = true
+		if patternIndex == len(patternParts) {
+			memo[key] = pathIndex == len(pathParts)
+			return memo[key], nil
+		}
+		if patternParts[patternIndex] == "**" {
+			matched, err := match(patternIndex+1, pathIndex)
+			if err != nil || matched {
+				memo[key] = matched
+				return matched, err
+			}
+			if pathIndex < len(pathParts) {
+				matched, err = match(patternIndex, pathIndex+1)
+				memo[key] = matched
+				return matched, err
+			}
+			return false, nil
+		}
+		if pathIndex >= len(pathParts) {
+			return false, nil
+		}
+		matched, err := path.Match(patternParts[patternIndex], pathParts[pathIndex])
+		if err != nil || !matched {
+			return false, err
+		}
+		matched, err = match(patternIndex+1, pathIndex+1)
+		memo[key] = matched
+		return matched, err
+	}
+	return match(0, 0)
 }

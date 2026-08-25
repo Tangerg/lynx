@@ -154,6 +154,36 @@ func TestListFiles_GlobFilters(t *testing.T) {
 	}
 }
 
+func TestListFilesGlobUsesDoublestarRelativeToSelectedPath(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{
+		"project/src/root.ts",
+		"project/src/nested/deep.ts",
+		"project/src/nested/deep.go",
+		"project/other.ts",
+	} {
+		filename := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{
+		Path: "project", Glob: "src/**/*.ts",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPaths := paths(got); !slices.Equal(gotPaths, []string{
+		"project/src/nested/deep.ts",
+		"project/src/root.ts",
+	}) {
+		t.Fatalf("scoped doublestar paths = %v", gotPaths)
+	}
+}
+
 func TestListFilesRejectsInvalidGlob(t *testing.T) {
 	t.Parallel()
 

@@ -606,6 +606,23 @@ func TestWorkspaceFileReadsDoNotInheritModelExecutorSemantics(t *testing.T) {
 	})
 }
 
+// TestModelSearchUsesTheFiniteWorkspaceCorpus prevents glob/grep from drifting
+// back to tools/fs, whose LocalExecutor owns a generic subprocess contract and
+// applies max_results only after complete stdout materialization. Runtime's
+// model tools share the bounded, ignore-aware workspace catalog and scanner.
+func TestModelSearchUsesTheFiniteWorkspaceCorpus(t *testing.T) {
+	root := moduleRoot(t)
+	toolset := filepath.Join(root, "internal", "adapter", "toolset")
+	forbidQualifiedCalls(t, toolset, map[string]string{
+		"fs.NewGlobTool": "Runtime model glob must use the finite workspace catalog",
+		"fs.NewGrepTool": "Runtime model grep must use the bounded workspace text scanner",
+	})
+	forbidExternalImports(t, filepath.Join(toolset, "bounded_search.go"), []string{
+		"os/exec",
+		"github.com/Tangerg/lynx/tools/fs",
+	})
+}
+
 // TestDeliveryServerDoesNotOwnFilesystemTechnology keeps filesystem traversal,
 // path policy, and file-notification lifecycle in the workspace application
 // and its adapter. Server handlers may project use-case values only.
