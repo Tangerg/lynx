@@ -106,6 +106,9 @@ func TestSchemaRejectsUnsupportedContracts(t *testing.T) {
 	type badPattern struct {
 		Value string `json:"value" jsonschema:"pattern=["`
 	}
+	type unsupportedJSONOption struct {
+		Value int `json:"value,string"`
+	}
 	if _, err := tool.Schema[recursive](); err == nil {
 		t.Fatal("recursive schema succeeded")
 	}
@@ -117,6 +120,9 @@ func TestSchemaRejectsUnsupportedContracts(t *testing.T) {
 	}
 	if _, err := tool.Schema[badPattern](); err == nil {
 		t.Fatal("invalid pattern succeeded")
+	}
+	if _, err := tool.Schema[unsupportedJSONOption](); err == nil {
+		t.Fatal("unsupported encoding/json option succeeded")
 	}
 	if _, err := tool.Schema[chan int](); err == nil {
 		t.Fatal("unsupported Go type succeeded")

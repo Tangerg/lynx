@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -52,11 +53,19 @@ type schemaBuilder struct {
 	visiting map[reflect.Type]bool
 }
 
+type jsonField struct {
+	name     string
+	explicit bool
+	skipped  bool
+	optional bool
+}
+
 // Schema returns a strict, fully inlined JSON Schema for T. Struct fields use
 // their encoding/json names. Fields without omitempty or omitzero are required.
-// The jsonschema tag supports required, enum, minLength, maxLength, pattern,
-// minimum, maximum, minItems, and maxItems; jsonschema_description supplies
-// field descriptions.
+// JSON field options outside that pair are rejected because this schema subset
+// cannot advertise their decoding semantics exactly. The jsonschema tag
+// supports required, enum, minLength, maxLength, pattern, minimum, maximum,
+// minItems, and maxItems; jsonschema_description supplies field descriptions.
 func Schema[T any]() (json.RawMessage, error) {
 	contract, err := newSchemaContract(reflect.TypeFor[T]())
 	if err != nil {
@@ -103,12 +112,7 @@ func (s schemaContract) decode[T any](arguments string) (T, error) {
 	if err := s.root.validate(value, "arguments"); err != nil {
 		return input, fmt.Errorf("arguments violate input schema: %w", err)
 	}
-	decoder = json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&input); err != nil {
-		return input, err
-	}
-	if err := s.consumeEOF(decoder); err != nil {
+	if err := jsonv2.Unmarshal(raw, &input, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return input, err
 	}
 	return input, nil
@@ -209,15 +213,18 @@ func (b schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 			continue
 		}
 
-		name, explicit, skip, optional := jsonField(field)
-		if skip {
+		jsonField, err := parseJSONField(field)
+		if err != nil {
+			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
+		}
+		if jsonField.skipped {
 			continue
 		}
 		fieldType := field.Type
 		for fieldType.Kind() == reflect.Pointer {
 			fieldType = fieldType.Elem()
 		}
-		if field.Anonymous && !explicit && fieldType.Kind() == reflect.Struct {
+		if field.Anonymous && !jsonField.explicit && fieldType.Kind() == reflect.Struct {
 			embedded, err := b.buildStruct(fieldType)
 			if err != nil {
 				return schemaNode{}, err
@@ -241,32 +248,38 @@ func (b schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 		if err != nil {
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
-		if _, duplicate := node.Properties[name]; duplicate {
-			return schemaNode{}, fmt.Errorf("duplicate JSON property %q", name)
+		if _, duplicate := node.Properties[jsonField.name]; duplicate {
+			return schemaNode{}, fmt.Errorf("duplicate JSON property %q", jsonField.name)
 		}
-		node.Properties[name] = property
-		if !optional || explicitlyRequired {
-			node.Required = append(node.Required, name)
+		node.Properties[jsonField.name] = property
+		if !jsonField.optional || explicitlyRequired {
+			node.Required = append(node.Required, jsonField.name)
 		}
 	}
 	return node, nil
 }
 
-func jsonField(field reflect.StructField) (name string, explicit, skip, optional bool) {
+func parseJSONField(field reflect.StructField) (jsonField, error) {
 	tag := field.Tag.Get("json")
 	name, options, _ := strings.Cut(tag, ",")
 	if name == "-" {
-		return "", false, true, false
+		return jsonField{skipped: true}, nil
+	}
+	result := jsonField{name: field.Name}
+	if name != "" {
+		result.name = name
+		result.explicit = true
 	}
 	for option := range strings.SplitSeq(options, ",") {
-		if option == "omitempty" || option == "omitzero" {
-			optional = true
+		switch option {
+		case "":
+		case "omitempty", "omitzero":
+			result.optional = true
+		default:
+			return jsonField{}, fmt.Errorf("unsupported json option %q", option)
 		}
 	}
-	if name != "" {
-		return name, true, false, optional
-	}
-	return field.Name, false, false, optional
+	return result, nil
 }
 
 func (node *schemaNode) applyTag(tag string) (bool, error) {

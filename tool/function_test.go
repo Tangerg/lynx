@@ -125,7 +125,7 @@ func TestFuncDecodesStrictObjectArguments(t *testing.T) {
 			t.Fatalf("Call(%q) = %q, %v", arguments, result, err)
 		}
 	}
-	for _, arguments := range []string{`null`, `[]`, `"text"`, `{"unknown":true}`, `{} {}`, `{`} {
+	for _, arguments := range []string{`null`, `[]`, `"text"`, `{"unknown":true}`, `{"value":"first","value":"second"}`, `{} {}`, `{`} {
 		if _, err := function.Call(t.Context(), arguments); err == nil {
 			t.Errorf("Call(%q) succeeded, want decode error", arguments)
 		}
