@@ -383,7 +383,7 @@ func (termination *Termination) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", errInvalidTermination, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidTermination, err)
 	}
 	status, err := parseStatus(wire.Status)

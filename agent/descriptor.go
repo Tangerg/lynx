@@ -160,7 +160,7 @@ func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidDescriptor, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidDescriptor, err)
 	}
 	inputSchema, err := ParseSchema(wire.InputSchema)

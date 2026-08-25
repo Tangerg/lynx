@@ -127,7 +127,7 @@ func newEvent(
 	if occurredAt.IsZero() {
 		return Event{}, fmt.Errorf("%w: occurrence time is required", ErrInvalidEvent)
 	}
-	normalized, err := normalizeJSON(payload, maxEventBytes)
+	normalized, err := wireJSON.normalize(payload, maxEventBytes)
 	if err != nil {
 		return Event{}, fmt.Errorf("%w: payload: %w", ErrInvalidEvent, err)
 	}
@@ -220,7 +220,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidEvent, err)
 	}
 	phase, err := parseEventPhase(wire.Phase)

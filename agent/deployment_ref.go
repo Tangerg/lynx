@@ -114,7 +114,7 @@ func (reference *DeploymentRef) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidDeploymentRef, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidDeploymentRef, err)
 	}
 	value := DeploymentRef{

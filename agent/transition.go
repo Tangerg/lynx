@@ -222,7 +222,7 @@ func (t *Transition) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidTransition, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidTransition, err)
 	}
 	kind, err := parseTransitionKind(wire.Kind)

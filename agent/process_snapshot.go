@@ -211,7 +211,7 @@ func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {
 	if err := decoder.Decode(&wire); err != nil {
 		return processSnapshotWire{}, fmt.Errorf("%w: decode: %w", ErrInvalidSnapshot, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return processSnapshotWire{}, fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 	}
 	if err := validateProcessSnapshot(wire); err != nil {

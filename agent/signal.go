@@ -30,7 +30,7 @@ func newSignal(id SignalID, waitID WaitID, receivedAt time.Time, payload json.Ra
 	if receivedAt.IsZero() {
 		return Signal{}, fmt.Errorf("%w: received time is required", ErrInvalidSignal)
 	}
-	normalized, err := normalizeJSON(payload, maxWireBytes)
+	normalized, err := wireJSON.normalize(payload, maxWireBytes)
 	if err != nil {
 		return Signal{}, fmt.Errorf("%w: payload: %w", ErrInvalidSignal, err)
 	}
@@ -89,7 +89,7 @@ func (s *Signal) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidSignal, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidSignal, err)
 	}
 	var waitID WaitID

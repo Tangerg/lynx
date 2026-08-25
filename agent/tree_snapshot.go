@@ -46,7 +46,7 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 	if err := decoder.Decode(&wire); err != nil {
 		return TreeSnapshot{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return TreeSnapshot{}, fmt.Errorf("%w: %w", ErrInvalidTreeSnapshot, err)
 	}
 	if err := validateTreeSnapshot(wire); err != nil {
@@ -122,7 +122,7 @@ func (snapshot TreeSnapshot) wire() (treeSnapshotWire, error) {
 	if err := decoder.Decode(&wire); err != nil {
 		return treeSnapshotWire{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return treeSnapshotWire{}, fmt.Errorf("%w: %w", ErrInvalidTreeSnapshot, err)
 	}
 	return wire, validateTreeSnapshot(wire)

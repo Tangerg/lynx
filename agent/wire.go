@@ -26,7 +26,7 @@ type Input struct {
 
 // ParseInput validates one JSON value and returns an independently owned Input.
 func ParseInput(data json.RawMessage) (Input, error) {
-	normalized, err := normalizeJSON(data, maxWireBytes)
+	normalized, err := wireJSON.normalize(data, maxWireBytes)
 	if err != nil {
 		return Input{}, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
@@ -45,7 +45,7 @@ func EncodeInput[T any](value T) (Input, error) {
 // Decode strictly decodes i into a typed value. Unknown object fields are
 // rejected when T is a struct.
 func (i Input) Decode[T any]() (T, error) {
-	value, err := decodeJSON[T](i.data)
+	value, err := wireJSON.decode[T](i.data)
 	if err != nil {
 		return value, fmt.Errorf("%w: decode: %w", ErrInvalidInput, err)
 	}
@@ -87,7 +87,7 @@ type Output struct {
 
 // ParseOutput validates one JSON value and returns an independently owned Output.
 func ParseOutput(data json.RawMessage) (Output, error) {
-	normalized, err := normalizeJSON(data, maxWireBytes)
+	normalized, err := wireJSON.normalize(data, maxWireBytes)
 	if err != nil {
 		return Output{}, fmt.Errorf("%w: %w", ErrInvalidOutput, err)
 	}
@@ -106,7 +106,7 @@ func EncodeOutput[T any](value T) (Output, error) {
 // Decode strictly decodes o into a typed value. Unknown object fields are
 // rejected when T is a struct.
 func (o Output) Decode[T any]() (T, error) {
-	value, err := decodeJSON[T](o.data)
+	value, err := wireJSON.decode[T](o.data)
 	if err != nil {
 		return value, fmt.Errorf("%w: decode: %w", ErrInvalidOutput, err)
 	}
@@ -140,7 +140,11 @@ func (o *Output) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func normalizeJSON(data []byte, limit int) (json.RawMessage, error) {
+type jsonCodec struct{}
+
+var wireJSON jsonCodec
+
+func (codec jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
 	if len(data) == 0 {
 		return nil, errors.New("JSON value is empty")
 	}
@@ -153,7 +157,7 @@ func normalizeJSON(data []byte, limit int) (json.RawMessage, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return nil, fmt.Errorf("decode JSON value: %w", err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := codec.requireEOF(decoder); err != nil {
 		return nil, err
 	}
 	normalized, err := json.Marshal(value)
@@ -166,7 +170,7 @@ func normalizeJSON(data []byte, limit int) (json.RawMessage, error) {
 	return normalized, nil
 }
 
-func decodeJSON[T any](data []byte) (T, error) {
+func (codec jsonCodec) decode[T any](data []byte) (T, error) {
 	var value T
 	if len(data) == 0 {
 		return value, errors.New("JSON value is empty")
@@ -177,13 +181,13 @@ func decodeJSON[T any](data []byte) (T, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return value, err
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := codec.requireEOF(decoder); err != nil {
 		return value, err
 	}
 	return value, nil
 }
 
-func requireJSONEOF(decoder *json.Decoder) error {
+func (jsonCodec) requireEOF(decoder *json.Decoder) error {
 	var extra any
 	err := decoder.Decode(&extra)
 	if errors.Is(err, io.EOF) {

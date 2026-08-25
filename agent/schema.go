@@ -27,7 +27,7 @@ type Schema struct {
 
 // ParseSchema validates and resolves one JSON Schema.
 func ParseSchema(data json.RawMessage) (Schema, error) {
-	normalized, err := normalizeJSON(data, maxSchemaBytes)
+	normalized, err := wireJSON.normalize(data, maxSchemaBytes)
 	if err != nil {
 		return Schema{}, fmt.Errorf("%w: %w", ErrInvalidSchema, err)
 	}

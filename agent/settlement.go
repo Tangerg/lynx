@@ -69,7 +69,7 @@ func NewSettlement(effectID EffectID, status SettlementStatus, payload json.RawM
 	if status < SettlementStatusSucceeded || status > SettlementStatusUnknown {
 		return Settlement{}, fmt.Errorf("%w: status is required", ErrInvalidSettlement)
 	}
-	normalized, err := normalizeJSON(payload, maxWireBytes)
+	normalized, err := wireJSON.normalize(payload, maxWireBytes)
 	if err != nil {
 		return Settlement{}, fmt.Errorf("%w: payload: %w", ErrInvalidSettlement, err)
 	}
@@ -110,7 +110,7 @@ func (s *Settlement) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidSettlement, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidSettlement, err)
 	}
 	status, err := parseSettlementStatus(wire.Status)

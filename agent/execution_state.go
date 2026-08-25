@@ -28,7 +28,7 @@ func NewExecutionState(kind string, schemaVersion uint16, payload json.RawMessag
 	if schemaVersion == 0 {
 		return ExecutionState{}, fmt.Errorf("%w: schema version must be greater than zero", ErrInvalidExecutionState)
 	}
-	normalized, err := normalizeJSON(payload, maxWireBytes)
+	normalized, err := wireJSON.normalize(payload, maxWireBytes)
 	if err != nil {
 		return ExecutionState{}, fmt.Errorf("%w: payload: %w", ErrInvalidExecutionState, err)
 	}
@@ -78,7 +78,7 @@ func (s *ExecutionState) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 	}
 	value, err := NewExecutionState(wire.Kind, wire.SchemaVersion, wire.Payload)

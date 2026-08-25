@@ -126,7 +126,7 @@ func (set *CapabilitySet) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&values); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
 	}
 	value, err := NewCapabilitySet(values...)

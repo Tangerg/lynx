@@ -187,5 +187,5 @@ func decodeStrictJSON(data []byte, destination any) error {
 	if err := decoder.Decode(destination); err != nil {
 		return err
 	}
-	return requireJSONEOF(decoder)
+	return wireJSON.requireEOF(decoder)
 }
