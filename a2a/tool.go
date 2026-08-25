@@ -2,10 +2,9 @@ package a2a
 
 import (
 	"context"
-	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
@@ -18,28 +17,13 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-var (
-	errNilClient     = errors.New("a2a: client must not be nil")
-	errEmptyToolName = errors.New("a2a: tool name must not be empty")
-)
+var errEmptyToolName = errors.New("a2a: tool name must not be empty")
 
-type callInput struct {
-	Message string `json:"message"`
+type callArguments struct {
+	Message string `json:"message" jsonschema_description:"The natural-language request to send to the remote agent."`
 }
 
-const callInputSchema = `{
-  "type": "object",
-  "properties": {
-    "message": {
-      "type": "string",
-      "description": "The natural-language request to send to the remote agent."
-    }
-  },
-  "required": ["message"],
-  "additionalProperties": false
-}`
-
-// tool wraps a remote A2A agent as a [tool.Tool]. Each Call sends the
+// remoteTool wraps a remote A2A agent as a [tool.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A task that does not complete successfully is mapped to
@@ -47,53 +31,51 @@ const callInputSchema = `{
 // continuation is not fed back as a successful result.
 //
 // The wrapper is immutable after construction and does not own the client.
-type tool struct {
+type remoteTool struct {
 	client     *a2aclient.Client
 	definition corechat.ToolDefinition
 }
 
-var _ toolcontract.Tool = (*tool)(nil)
+var _ toolcontract.Tool = remoteTool{}
 
-type toolConfig struct {
-	Client *a2aclient.Client
-	Card   *sdka2a.AgentCard
-	Name   string
+type remoteToolConfig struct {
+	client *a2aclient.Client
+	card   *sdka2a.AgentCard
+	name   string
 }
 
-func newTool(cfg toolConfig) (*tool, error) {
-	if cfg.Client == nil {
-		return nil, errNilClient
+func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
+	if config.name == "" {
+		config.name = sanitizeToolName(config.card.Name)
 	}
-	if cfg.Card == nil {
-		return nil, ErrNilCard
+	if config.name == "" {
+		return remoteTool{}, errEmptyToolName
 	}
-	if cfg.Name == "" {
-		cfg.Name = sanitizeToolName(cfg.Card.Name)
-	}
-	if cfg.Name == "" {
-		return nil, errEmptyToolName
+	inputSchema, err := toolcontract.Schema[callArguments]()
+	if err != nil {
+		return remoteTool{}, fmt.Errorf("a2a: derive input schema: %w", err)
 	}
 	definition := corechat.ToolDefinition{
-		Name:        cfg.Name,
-		Description: describeAgent(cfg.Card),
-		InputSchema: json.RawMessage(callInputSchema),
+		Name:        config.name,
+		Description: describeAgent(config.card),
+		InputSchema: inputSchema,
 	}
 	if err := definition.Validate(); err != nil {
-		return nil, fmt.Errorf("a2a: build tool for agent %q: %w", cfg.Card.Name, err)
+		return remoteTool{}, fmt.Errorf("a2a: build tool for agent %q: %w", config.card.Name, err)
 	}
-	return &tool{
-		client:     cfg.Client,
+	return remoteTool{
+		client:     config.client,
 		definition: definition,
 	}, nil
 }
 
-func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
+func (t remoteTool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
 // ConcurrencyKey declares A2A invocations independent: every SendMessage owns
 // a distinct remote task, and the remote server retains authority over its own
 // execution limit. The lynx Agent ToolLoop may therefore overlap calls while
 // still committing their observable results in request order.
-func (t *tool) ConcurrencyKey(string) (key string, concurrent bool) {
+func (t remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
 	return "", true
 }
 
@@ -101,53 +83,44 @@ func (t *tool) ConcurrencyKey(string) (key string, concurrent bool) {
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
 // error and sets the span status to Error.
-func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
+func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
 	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+t.definition.Name,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String(attrAgentName, t.definition.Name)),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
-	input, err := decodeCallInput(arguments)
+	input, err := parseCallArguments(arguments)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", t.definition.Name, err)
 	}
 
 	req := &sdka2a.SendMessageRequest{Message: userMessage(input.Message)}
 	result, err := t.client.SendMessage(ctx, req)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("a2a: call agent %q: %w", t.definition.Name, err)
 	}
 
 	text, err := textOfResult(result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("a2a: decode result from agent %q: %w", t.definition.Name, err)
 	}
 	return text, nil
 }
 
-func decodeCallInput(arguments string) (callInput, error) {
-	decoder := json.NewDecoder(strings.NewReader(arguments))
-	decoder.DisallowUnknownFields()
-
-	var input callInput
-	if err := decoder.Decode(&input); err != nil {
-		return callInput{}, fmt.Errorf("decode arguments: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		if err == nil {
-			return callInput{}, errors.New("arguments must contain exactly one JSON object")
-		}
-		return callInput{}, fmt.Errorf("decode trailing arguments: %w", err)
+func parseCallArguments(arguments string) (callArguments, error) {
+	var input callArguments
+	if err := jsonv2.Unmarshal([]byte(arguments), &input, jsonv2.RejectUnknownMembers(true)); err != nil {
+		return callArguments{}, err
 	}
 	if strings.TrimSpace(input.Message) == "" {
-		return callInput{}, errors.New("message must not be empty")
+		return callArguments{}, errors.New("message must not be empty")
 	}
 	return input, nil
 }

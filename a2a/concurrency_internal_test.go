@@ -9,13 +9,13 @@ import (
 
 func TestToolConcurrencyKeyDeclaresIndependentTasks(t *testing.T) {
 	client := new(a2aclient.Client)
-	tool, err := newTool(toolConfig{
-		Client: client,
-		Card:   &sdka2a.AgentCard{Name: "Remote Agent"},
-		Name:   "remote_agent",
+	tool, err := newRemoteTool(remoteToolConfig{
+		client: client,
+		card:   &sdka2a.AgentCard{Name: "Remote Agent"},
+		name:   "remote_agent",
 	})
 	if err != nil {
-		t.Fatalf("newTool: %v", err)
+		t.Fatalf("newRemoteTool: %v", err)
 	}
 
 	key, concurrent := tool.ConcurrencyKey(`{"message":"one"}`)

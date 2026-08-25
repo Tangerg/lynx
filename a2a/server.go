@@ -48,7 +48,7 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 	if cfg.Card == nil {
 		return nil, ErrNilCard
 	}
-	card, err := snapshotAgentCard(cfg.Card)
+	cardHandler, err := newStaticAgentCardHandler(cfg.Card)
 	if err != nil {
 		return nil, err
 	}
@@ -59,23 +59,18 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 	requestHandler := a2asrv.NewHandler(exec, cfg.HandlerOptions...)
 
 	mux := http.NewServeMux()
-	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
+	mux.Handle(a2asrv.WellKnownAgentCardPath, cardHandler)
 	if err := registerRPCHandler(mux, cfg.RPCPattern, a2asrv.NewJSONRPCHandler(requestHandler)); err != nil {
 		return nil, err
 	}
 	return mux, nil
 }
 
-func snapshotAgentCard(card *sdka2a.AgentCard) (*sdka2a.AgentCard, error) {
-	data, err := json.Marshal(card)
-	if err != nil {
+func newStaticAgentCardHandler(card *sdka2a.AgentCard) (http.Handler, error) {
+	if _, err := json.Marshal(card); err != nil {
 		return nil, fmt.Errorf("%w %q: encode: %w", ErrInvalidCard, card.Name, err)
 	}
-	var snapshot sdka2a.AgentCard
-	if err := json.Unmarshal(data, &snapshot); err != nil {
-		return nil, fmt.Errorf("%w %q: decode snapshot: %w", ErrInvalidCard, card.Name, err)
-	}
-	return &snapshot, nil
+	return a2asrv.NewStaticAgentCardHandler(card), nil
 }
 
 func registerRPCHandler(mux *http.ServeMux, pattern string, handler http.Handler) (err error) {

@@ -4,68 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-// Endpoint describes one remote A2A agent to expose as a chat tool.
-type Endpoint struct {
-	Name       string
-	CardURL    string
-	HTTPClient *http.Client
-
-	// Policy optionally customizes bounded card resolution and explicitly
-	// trusted cross-origin RPC interfaces. Nil selects secure defaults.
-	Policy *EndpointPolicy
-}
-
-// EndpointPolicy customizes an endpoint's discovery lifecycle and trust
-// boundary. A nil policy selects the secure defaults.
-type EndpointPolicy struct {
-	// CardTimeout bounds Agent Card resolution only. Zero selects 30 seconds;
-	// it does not impose a timeout on long-running agent RPC calls.
-	CardTimeout time.Duration
-
-	// AllowedRPCOrigins adds trusted RPC origins beyond CardURL's own origin.
-	// Entries use the exact "scheme://host[:port]" form. Empty keeps discovery
-	// same-origin, preventing an Agent Card from redirecting calls elsewhere.
-	AllowedRPCOrigins []string
-}
-
 // Tools resolves every endpoint and wraps each remote agent as a chat tool.
 // The returned close function releases all opened agent clients. It is always
 // non-nil and safe to call once startup succeeds.
 func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, func() error, error) {
-	clients := make([]*a2aclient.Client, 0, len(endpoints))
-	tools := make([]toolcontract.Tool, 0, len(endpoints))
+	var clients []*a2aclient.Client
+	var tools []toolcontract.Tool
 	seen := make(map[string]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
-		opts := dialOptions{HTTPClient: endpoint.HTTPClient}
-		if endpoint.Policy != nil {
-			opts.CardTimeout = endpoint.Policy.CardTimeout
-			opts.AllowedRPCOrigins = endpoint.Policy.AllowedRPCOrigins
-		}
-		client, card, err := dial(ctx, endpoint.CardURL, opts)
+		client, card, err := dial(ctx, endpoint)
 		if err != nil {
 			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		clients = append(clients, client)
 
-		tool, err := newTool(toolConfig{Client: client, Card: card, Name: endpoint.Name})
+		remote, err := newRemoteTool(remoteToolConfig{client: client, card: card, name: endpoint.Name})
 		if err != nil {
 			return nil, nil, errors.Join(err, closeClients(clients))
 		}
-		name := tool.Definition().Name
+		name := remote.Definition().Name
 		if _, dup := seen[name]; dup {
 			err := fmt.Errorf("a2a: duplicate remote-agent tool name %q", name)
 			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		seen[name] = struct{}{}
-		tools = append(tools, tool)
+		tools = append(tools, remote)
 	}
 	return tools, func() error { return closeClients(clients) }, nil
 }
@@ -73,9 +42,6 @@ func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, fun
 func closeClients(clients []*a2aclient.Client) error {
 	var errs []error
 	for _, client := range clients {
-		if client == nil {
-			continue
-		}
 		if err := client.Destroy(); err != nil {
 			errs = append(errs, err)
 		}

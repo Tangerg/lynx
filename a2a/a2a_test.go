@@ -133,7 +133,7 @@ func TestNewHTTPHandlerSnapshotsAgentCard(t *testing.T) {
 // against it — proving the full A2A loop: tool call → JSON-RPC → executor →
 // task lifecycle → reply text, with the AgentCard resolved over the wire.
 func TestRoundTrip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// A mutable delegate lets us learn the server URL (needed for the card's
 	// transport interface) before installing the real handler.
@@ -202,6 +202,7 @@ func TestRoundTrip(t *testing.T) {
 		"empty message":      `{"message":" "}`,
 		"unknown property":   `{"message":"hello","extra":true}`,
 		"multiple objects":   `{"message":"hello"} {}`,
+		"duplicate message":  `{"message":"hello","message":"again"}`,
 		"malformed argument": `{"message":`,
 	} {
 		t.Run(name, func(t *testing.T) {

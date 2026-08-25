@@ -11,12 +11,12 @@ import (
 )
 
 func TestNewToolValidatesPublicDefinition(t *testing.T) {
-	_, err := newTool(toolConfig{
-		Client: new(a2aclient.Client),
-		Card:   &sdka2a.AgentCard{Name: "Remote Agent"},
-		Name:   "invalid name",
+	_, err := newRemoteTool(remoteToolConfig{
+		client: new(a2aclient.Client),
+		card:   &sdka2a.AgentCard{Name: "Remote Agent"},
+		name:   "invalid name",
 	})
 	if !errors.Is(err, corechat.ErrInvalidToolDefinition) {
-		t.Fatalf("newTool error = %v, want chat.ErrInvalidToolDefinition", err)
+		t.Fatalf("newRemoteTool error = %v, want chat.ErrInvalidToolDefinition", err)
 	}
 }

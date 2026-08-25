@@ -13,14 +13,6 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-func TestEndpointRemainsComparable(t *testing.T) {
-	endpoint := Endpoint{CardURL: "https://agent.example"}
-	set := map[Endpoint]struct{}{endpoint: {}}
-	if _, ok := set[endpoint]; !ok {
-		t.Fatal("Endpoint map lookup failed")
-	}
-}
-
 func TestDialBoundsAgentCardResolution(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -29,7 +21,7 @@ func TestDialBoundsAgentCardResolution(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, _, err := dial(t.Context(), server.URL, dialOptions{CardTimeout: 20 * time.Millisecond})
+	_, _, err := dial(t.Context(), Endpoint{CardURL: server.URL, CardTimeout: 20 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("dial error = %v, want context deadline exceeded", err)
 	}
@@ -42,19 +34,18 @@ func TestDialBoundsAgentCardResolution(t *testing.T) {
 
 func TestDialRejectsInvalidCardConfiguration(t *testing.T) {
 	tests := []struct {
-		name    string
-		cardURL string
-		opts    dialOptions
-		want    error
+		name     string
+		endpoint Endpoint
+		want     error
 	}{
-		{name: "relative card URL", cardURL: "/agent", want: ErrInvalidCardURL},
-		{name: "non-HTTP card URL", cardURL: "file:///tmp/card.json", want: ErrInvalidCardURL},
-		{name: "negative timeout", cardURL: "https://agent.example", opts: dialOptions{CardTimeout: -time.Second}, want: ErrInvalidCardTimeout},
-		{name: "RPC origin with path", cardURL: "https://agent.example", opts: dialOptions{AllowedRPCOrigins: []string{"https://rpc.example/path"}}, want: ErrInvalidRPCOrigin},
+		{name: "relative card URL", endpoint: Endpoint{CardURL: "/agent"}, want: ErrInvalidCardURL},
+		{name: "non-HTTP card URL", endpoint: Endpoint{CardURL: "file:///tmp/card.json"}, want: ErrInvalidCardURL},
+		{name: "negative timeout", endpoint: Endpoint{CardURL: "https://agent.example", CardTimeout: -time.Second}, want: ErrInvalidCardTimeout},
+		{name: "RPC origin with path", endpoint: Endpoint{CardURL: "https://agent.example", AllowedRPCOrigins: []string{"https://rpc.example/path"}}, want: ErrInvalidRPCOrigin},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, err := dial(t.Context(), test.cardURL, test.opts)
+			_, _, err := dial(t.Context(), test.endpoint)
 			if !errors.Is(err, test.want) {
 				t.Fatalf("dial error = %v, want %v", err, test.want)
 			}
@@ -73,7 +64,7 @@ func TestDialRejectsCrossOriginAgentCardRedirect(t *testing.T) {
 	}))
 	t.Cleanup(source.Close)
 
-	_, _, err := dial(t.Context(), source.URL, dialOptions{})
+	_, _, err := dial(t.Context(), Endpoint{CardURL: source.URL})
 	if !errors.Is(err, ErrOriginNotAllowed) {
 		t.Fatalf("dial error = %v, want ErrOriginNotAllowed", err)
 	}
@@ -88,12 +79,12 @@ func TestDialRequiresExplicitTrustForCrossOriginRPC(t *testing.T) {
 	card := testAgentCard(rpc.URL)
 	cardServer := serveAgentCard(t, card)
 
-	_, _, err := dial(t.Context(), cardServer.URL, dialOptions{})
+	_, _, err := dial(t.Context(), Endpoint{CardURL: cardServer.URL})
 	if !errors.Is(err, ErrOriginNotAllowed) {
 		t.Fatalf("strict dial error = %v, want ErrOriginNotAllowed", err)
 	}
 
-	client, _, err := dial(t.Context(), cardServer.URL, dialOptions{AllowedRPCOrigins: []string{rpc.URL}})
+	client, _, err := dial(t.Context(), Endpoint{CardURL: cardServer.URL, AllowedRPCOrigins: []string{rpc.URL}})
 	if err != nil {
 		t.Fatalf("explicitly trusted dial: %v", err)
 	}
@@ -112,12 +103,12 @@ func TestRestrictedHTTPClientDoesNotMutateCallerClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newEndpointOriginPolicy: %v", err)
 	}
-	restricted := restrictedHTTPClient(base, policy.cardOrigins)
+	restricted := policy.cardOrigins.restrict(base)
 	if restricted == base {
-		t.Fatal("restrictedHTTPClient returned caller-owned client")
+		t.Fatal("originSet.restrict returned caller-owned client")
 	}
 	if base.Transport != nil || base.CheckRedirect == nil {
-		t.Fatal("restrictedHTTPClient mutated caller-owned client")
+		t.Fatal("originSet.restrict mutated caller-owned client")
 	}
 	req, err := http.NewRequest(http.MethodGet, "https://other.example/card", nil)
 	if err != nil {

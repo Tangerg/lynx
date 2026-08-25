@@ -11,59 +11,69 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 )
 
-type dialOptions struct {
+// Endpoint describes one remote A2A agent to expose as a chat tool. Its zero
+// policy keeps discovery and RPC traffic on CardURL's origin.
+type Endpoint struct {
+	// Name overrides the model-visible tool name. Empty derives it from the
+	// resolved AgentCard.
+	Name string
+
+	// CardURL is the absolute HTTP(S) URL used to resolve the AgentCard.
+	CardURL string
+
 	// HTTPClient is the client used for both card resolution and RPC calls.
-	// nil uses a default client.
+	// Nil uses http.DefaultClient. The caller retains ownership; a restricted
+	// shallow copy is used internally.
 	HTTPClient *http.Client
 
-	CardTimeout       time.Duration
-	AllowedRPCOrigins []string
-}
+	// CardTimeout bounds AgentCard resolution only. Zero selects 30 seconds; it
+	// does not impose a timeout on long-running agent RPC calls.
+	CardTimeout time.Duration
 
-// httpClient returns the HTTP client to use, defaulting to the shared
-// http.DefaultClient when none was supplied.
-func (o dialOptions) httpClient() *http.Client {
-	if o.HTTPClient != nil {
-		return o.HTTPClient
-	}
-	return http.DefaultClient
+	// AllowedRPCOrigins adds trusted RPC origins beyond CardURL's own origin.
+	// Entries use the exact "scheme://host[:port]" form. Empty prevents an
+	// AgentCard from redirecting calls to another origin.
+	AllowedRPCOrigins []string
 }
 
 const defaultCardTimeout = 30 * time.Second
 
-func dial(ctx context.Context, cardURL string, opts dialOptions) (*a2aclient.Client, *sdka2a.AgentCard, error) {
-	if cardURL == "" {
+func dial(ctx context.Context, endpoint Endpoint) (*a2aclient.Client, *sdka2a.AgentCard, error) {
+	if endpoint.CardURL == "" {
 		return nil, nil, ErrEmptyCardURL
 	}
-	if opts.CardTimeout < 0 {
+	if endpoint.CardTimeout < 0 {
 		return nil, nil, ErrInvalidCardTimeout
 	}
-	policy, err := newEndpointOriginPolicy(cardURL, opts.AllowedRPCOrigins)
+	policy, err := newEndpointOriginPolicy(endpoint.CardURL, endpoint.AllowedRPCOrigins)
 	if err != nil {
 		return nil, nil, err
 	}
-	baseClient := opts.httpClient()
-	cardClient := restrictedHTTPClient(baseClient, policy.cardOrigins)
+	baseClient := endpoint.HTTPClient
+	if baseClient == nil {
+		baseClient = http.DefaultClient
+	}
+	cardClient := policy.cardOrigins.restrict(baseClient)
 
-	cardTimeout := opts.CardTimeout
+	cardTimeout := endpoint.CardTimeout
 	if cardTimeout == 0 {
 		cardTimeout = defaultCardTimeout
 	}
 	resolveCtx, cancelResolve := context.WithTimeout(ctx, cardTimeout)
 	defer cancelResolve()
 	resolver := agentcard.NewResolver(cardClient)
-	card, err := resolver.Resolve(resolveCtx, cardURL)
+	card, err := resolver.Resolve(resolveCtx, endpoint.CardURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("a2a: resolve agent card at %q: %w", cardURL, err)
+		return nil, nil, fmt.Errorf("a2a: resolve agent card at %q: %w", endpoint.CardURL, err)
 	}
 	if card == nil {
 		return nil, nil, ErrNilCard
 	}
-	if err := validateCardRPCOrigins(card, policy.rpcOrigins); err != nil {
+	if err := policy.validateCard(card); err != nil {
 		return nil, nil, err
 	}
 
-	rpcClient := restrictedHTTPClient(baseClient, policy.rpcOrigins)
+	rpcClient := policy.rpcOrigins.restrict(baseClient)
 	client, err := a2aclient.NewFromCard(ctx, card,
 		a2aclient.WithJSONRPCTransport(rpcClient),
 		a2aclient.WithRESTTransport(rpcClient),
@@ -72,25 +82,4 @@ func dial(ctx context.Context, cardURL string, opts dialOptions) (*a2aclient.Cli
 		return nil, nil, fmt.Errorf("a2a: open client for agent %q: %w", card.Name, err)
 	}
 	return client, card, nil
-}
-
-func validateCardRPCOrigins(card *sdka2a.AgentCard, allowed originSet) error {
-	for i, iface := range card.SupportedInterfaces {
-		if iface == nil {
-			return fmt.Errorf("%w: supported interface %d is nil", ErrInvalidCard, i)
-		}
-		switch iface.ProtocolBinding {
-		case sdka2a.TransportProtocolJSONRPC, sdka2a.TransportProtocolHTTPJSON:
-		default:
-			continue
-		}
-		origin, err := originFromURLString(iface.URL)
-		if err != nil {
-			return fmt.Errorf("%w: supported interface %d URL %q: %v", ErrInvalidCard, i, iface.URL, err)
-		}
-		if !allowed.contains(origin) {
-			return fmt.Errorf("%w: supported interface %d uses %s", ErrOriginNotAllowed, i, origin)
-		}
-	}
-	return nil
 }
