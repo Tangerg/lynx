@@ -29,6 +29,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -37,7 +38,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -184,7 +184,9 @@ func main() {
 			}
 			models = append(models, toModelInfo(m, augs[provider][id]))
 		}
-		sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+		slices.SortFunc(models, func(a, b modelcatalog.Model) int {
+			return cmp.Compare(a.ID, b.ID)
+		})
 
 		out := filepath.Join("configs", provider+".json")
 		if err := writeJSON(out, config{Provider: provider, Models: models}); err != nil {
@@ -267,7 +269,9 @@ func toPricing(c apiCost) modelcatalog.PricingSchedule {
 			CacheWritePer1M: t.CacheWrite,
 		})
 	}
-	sort.Slice(bands, func(i, j int) bool { return bands[i].Threshold < bands[j].Threshold })
+	slices.SortFunc(bands, func(a, b modelcatalog.Pricing) int {
+		return cmp.Compare(a.Threshold, b.Threshold)
+	})
 	return bands
 }
 
