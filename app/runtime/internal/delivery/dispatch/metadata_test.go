@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
 func testID(value string) transport.ID {

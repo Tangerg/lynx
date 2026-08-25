@@ -109,21 +109,21 @@ func decodeOAuthSession(payload []byte) (*oauth2.Config, *oauth2.Token, error) {
 		return nil, nil, err
 	}
 	return &oauth2.Config{
-			ClientID:     session.Config.ClientID,
-			ClientSecret: session.Config.ClientSecret,
-			Endpoint: oauth2.Endpoint{
-				AuthURL:   session.Config.AuthURL,
-				TokenURL:  session.Config.TokenURL,
-				AuthStyle: session.Config.AuthStyle,
-			},
-			RedirectURL: session.Config.RedirectURL,
-			Scopes:      slices.Clone(session.Config.Scopes),
-		}, &oauth2.Token{
-			AccessToken:  session.Token.AccessToken,
-			TokenType:    session.Token.TokenType,
-			RefreshToken: session.Token.RefreshToken,
-			Expiry:       session.Token.Expiry,
-		}, nil
+		ClientID:     session.Config.ClientID,
+		ClientSecret: session.Config.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   session.Config.AuthURL,
+			TokenURL:  session.Config.TokenURL,
+			AuthStyle: session.Config.AuthStyle,
+		},
+		RedirectURL: session.Config.RedirectURL,
+		Scopes:      slices.Clone(session.Config.Scopes),
+	}, &oauth2.Token{
+		AccessToken:  session.Token.AccessToken,
+		TokenType:    session.Token.TokenType,
+		RefreshToken: session.Token.RefreshToken,
+		Expiry:       session.Token.Expiry,
+	}, nil
 }
 
 func (session storedOAuthSession) validate() error {
