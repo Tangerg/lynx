@@ -14,14 +14,18 @@ import (
 // fakeVectorSearcher captures the request the retriever issues so
 // tests can assert that filters / topK / minScore are wired through.
 type fakeVectorSearcher struct {
-	got *vectorstore.SearchRequest
-	err error
+	got         *vectorstore.SearchRequest
+	err         error
+	nilResponse bool
 }
 
 func (f *fakeVectorSearcher) Search(_ context.Context, req *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 	f.got = req
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.nilResponse {
+		return nil, nil
 	}
 	doc, _ := document.NewDocument("hit", nil)
 	doc.ID = "hit"
@@ -135,6 +139,16 @@ func TestRetrieverPropagatesError(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
 	if _, err := r.Retrieve(t.Context(), q); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRetrieverRejectsNilVectorStoreResponse(t *testing.T) {
+	store := &fakeVectorSearcher{nilResponse: true}
+	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{VectorStore: store})
+	query, _ := rag.NewQuery("hi")
+
+	if _, err := r.Retrieve(t.Context(), query); !errors.Is(err, vectorstore.ErrInvalidResponse) {
+		t.Fatalf("nil response error = %v", err)
 	}
 }
 

@@ -99,6 +99,15 @@ func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candida
 	return r.docs, nil
 }
 
+func TestRetrieveValidatesCandidates(t *testing.T) {
+	retriever := &fakeRetriever{docs: []rag.Candidate{{}}}
+	query, _ := rag.NewQuery("query")
+
+	if _, err := rag.Retrieve(t.Context(), retriever, query); !errors.Is(err, rag.ErrInvalidCandidate) {
+		t.Fatalf("invalid candidate error = %v", err)
+	}
+}
+
 // fakeTransformer mocks Transformer.
 type fakeTransformer struct {
 	suffix string

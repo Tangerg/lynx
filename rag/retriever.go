@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Retrieve calls r.Retrieve after checking that r is non-nil.
+// Retrieve validates the complete input and output boundary around r.
 func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, error) {
 	if isNil(r) {
 		return nil, ErrNilRetriever
@@ -18,7 +18,16 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, erro
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	return r.Retrieve(ctx, query)
+	candidates, err := r.Retrieve(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	for index, candidate := range candidates {
+		if err := candidate.Validate(); err != nil {
+			return nil, fmt.Errorf("rag: candidate %d: %w", index, err)
+		}
+	}
+	return candidates, nil
 }
 
 // Parallel returns a [Retriever] that runs retrievers concurrently and unions
