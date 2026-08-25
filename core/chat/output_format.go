@@ -61,6 +61,27 @@ func (f *OutputFormat) Clone() *OutputFormat {
 	return &clone
 }
 
+// SchemaAs decodes f's JSON Schema into T. It lets protocol adapters choose
+// the representation required by their SDK without taking ownership of schema
+// validation or decoding. Only json_schema formats have a schema.
+func (f *OutputFormat) SchemaAs[T any]() (T, error) {
+	var zero T
+	if f == nil {
+		return zero, fmt.Errorf("%w: nil receiver", ErrInvalidOutputFormat)
+	}
+	if err := f.Validate(); err != nil {
+		return zero, err
+	}
+	if f.Type != OutputFormatJSONSchema {
+		return zero, fmt.Errorf("%w: %s output has no schema", ErrInvalidOutputFormat, f.Type)
+	}
+	var schema T
+	if err := jsonv2.Unmarshal(f.Schema, &schema); err != nil {
+		return zero, fmt.Errorf("chat.OutputFormat.SchemaAs: %w", err)
+	}
+	return schema, nil
+}
+
 // FallbackInstruction returns an equivalent model instruction for adapters
 // whose native protocol cannot represent f. A nil or text format needs no
 // instruction.

@@ -16,6 +16,10 @@ request.Options.OutputFormat = &format
 `chat.NewOutputFormat(chat.OutputFormatText)`。`OutputFormat` 是深拷贝、可校验的充血值，
 JSON Schema 的 name/schema 不变量由它自己维护。
 
+provider SDK 对 Schema 的目标类型不同时，adapter 通过 Go 1.27 方法泛型
+`format.SchemaAs[T]()` 获取所需表示；Schema 的校验与解码仍归 `OutputFormat` 所有，
+adapter 不再各自维护 `json.Unmarshal` 过程。
+
 provider adapter 的映射如下：
 
 | Provider API | 原生字段 |

@@ -72,6 +72,32 @@ func TestOutputFormatFallbackInstruction(t *testing.T) {
 	}
 }
 
+func TestOutputFormatSchemaAs(t *testing.T) {
+	format, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := format.SchemaAs[map[string]any]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if schema["type"] != "object" {
+		t.Fatalf("schema type = %#v, want object", schema["type"])
+	}
+
+	text, err := chat.NewOutputFormat(chat.OutputFormatText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := text.SchemaAs[any](); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+		t.Fatalf("text SchemaAs = %v, want ErrInvalidOutputFormat", err)
+	}
+	var nilFormat *chat.OutputFormat
+	if _, err := nilFormat.SchemaAs[any](); !errors.Is(err, chat.ErrInvalidOutputFormat) {
+		t.Fatalf("nil SchemaAs = %v, want ErrInvalidOutputFormat", err)
+	}
+}
+
 func TestOutputFormatRejectsInvalidContracts(t *testing.T) {
 	tests := []chat.OutputFormat{
 		{},
