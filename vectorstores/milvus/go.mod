@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect

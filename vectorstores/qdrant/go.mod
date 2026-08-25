@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect

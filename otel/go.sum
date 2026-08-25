@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260825065905-a02034eb7570 h1:0o6rrzJzG733dm4JAOpK/I9MD+5FD+WoqKTY5xoYk6I=
-github.com/Tangerg/lynx v0.0.0-20260825065905-a02034eb7570/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491 h1:R/j2axlO203qAJAky3mT/MUdlAv5Yb2HMxKqoYdVDr4=
+github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

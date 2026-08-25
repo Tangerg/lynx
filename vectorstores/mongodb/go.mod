@@ -5,7 +5,7 @@ go 1.26.5
 require go.mongodb.org/mongo-driver/v2 v2.8.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect

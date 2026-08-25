@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.34 // indirect
 	github.com/aws/smithy-go v1.27.6 // indirect

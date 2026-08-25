@@ -6,7 +6,7 @@ require github.com/amikos-tech/chroma-go v0.4.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803143604-9a9aab032db9
+	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/amikos-tech/chroma-go-local v0.3.5 // indirect
 	github.com/amikos-tech/pure-onnx v0.0.1 // indirect
 	github.com/amikos-tech/pure-tokenizers v0.1.5 // indirect
