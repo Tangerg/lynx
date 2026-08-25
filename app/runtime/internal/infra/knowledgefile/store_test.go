@@ -536,6 +536,38 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 	}
 }
 
+func TestStoreRecoveryScansLargeDirectoriesWithoutLeavingOrphans(t *testing.T) {
+	home := t.TempDir()
+	for index := range 385 {
+		path := filepath.Join(home, fmt.Sprintf("unrelated-%03d", index))
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	staged := make([]string, 0, 130)
+	for index := range 130 {
+		suffix := strings.Repeat("A", 24) + string(rune('A'+index/26)) + string(rune('A'+index%26))
+		path := filepath.Join(home, ".LYRA.md.lyra-stage-"+suffix)
+		if err := os.WriteFile(path, []byte("orphan"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		staged = append(staged, path)
+	}
+
+	store := newKnowledgeStore(t, home, t.TempDir())
+	if _, err := store.Get(t.Context(), knowledge.ScopeHome, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range staged {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("orphan staging file %q remains: %v", path, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, "unrelated-384")); err != nil {
+		t.Fatalf("recovery changed unrelated project material: %v", err)
+	}
+}
+
 func TestStoreListIncludesEmptyAddressableScopes(t *testing.T) {
 	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()

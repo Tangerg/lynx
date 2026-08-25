@@ -96,6 +96,8 @@ P173 收紧 Runtime internal Skill source/lifecycle 行为，不改变 `skills.d
 
 P174 breaking 扩展公共 Go surface，新增 `runtime/localruntime` deployment handoff package；`contract/go-api.json` 同批冻结 `ErrInvalidToken`、`Token.Value/Path`、`OpenToken` 与 `ReadToken`。Durable token 文件唯一合法内容为 43-byte canonical RawURL encoding of exactly 32 bytes，必须是 0600 regular file；reader 用 path/open `SameFile` identity 与固定 44-byte probe 拒绝 symlink、替换、增长、空白、padding 和 non-canonical encoding。Runtime executable 与 Desktop 共用该 package；internal HTTP `LocalToken/OpenLocalToken` 与 Desktop private parser 已删除，不保留兼容入口。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated TypeScript binding、Wails binding、Agent Framework 与 CLI 不变。
 
+P175 只收紧 Runtime internal Knowledge crash-recovery 的资源语义：原子 stage sweep 从无界 `ReadDir(-1)` 改为 128-entry、caller-cancellable 的完整流式枚举，并由 architecture gate 禁止所有 Runtime production `os.ReadDir` 与 non-positive `File.ReadDir`。它不改变 `knowledge.list/get/update` wire、1 MiB document/CAS/revision、Protocol `2026-08-24`、公共 Go API、Artifact v23、SQLite epoch 82、generated binding、Desktop/Wails、Agent Framework 或 CLI。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

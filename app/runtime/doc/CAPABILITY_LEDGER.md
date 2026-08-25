@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P174 已完成。
+> 状态：当前能力快照；P175 已完成。
 >
 > 基线日期：2026-08-25。
 
@@ -44,6 +44,7 @@
 - P172 让 model/direct `glob`/`grep` 也消费同一有限、ignore-aware Workspace catalog/text corpus：宿主 `find/rg/grep`、完整 stdout 与 post-hoc slice 已退出 Runtime 模型搜索链；schema 收敛为 `pattern/path/max_results`，两种结果都提供 exact total。
 - P173 让 project/user Skill discovery、模型 progressive disclosure 与用户托管生命周期消费同一有限来源事实：256 Skill candidates、272 raw entries、1 MiB document/resource，以及 64 KiB/256-record usage sidecar；approval 不能再写出下一次 list/sweep 必然拒绝的库。
 - P174 让 Runtime executable 与 Desktop 共用唯一 durable local token owner：43-byte canonical RawURL/32-byte value、0600 regular file、path/open identity 与 fixed sentinel 共同拒绝 symlink、替换、增长和 non-canonical material；HTTP/Desktop parser 已删除。
+- P175 让 Knowledge crash recovery 以 128-entry cancellable batches 完整扫描任意项目目录；Runtime production 已无 `os.ReadDir` 或 non-positive `File.ReadDir` 的完整目录物化。
 
 ## 2. 架构与所有权
 
@@ -338,6 +339,10 @@ P174 完成 Runtime/Desktop durable local token 部署交接闭环。失败优�
 
 P174 封板通过 `localruntime` 独立模块 test/race/vet/build、Runtime 与 Desktop workspace/standalone full test/vet/build/Staticcheck、Runtime full race、根 workspace Runtime+Desktop tests、architecture/external-consumer gate、三模块 tidy 与 Runtime generate 零漂移、Frontend 313 files / 1952 tests 和全部静态/bundle 门禁，以及纯 Wails v3 production build。仅观察到既有 macOS deployment-target linker warning；未启动 agent-browser、无临时检查器，本批 test/build/frontend 进程均已 join，`app/cli` 零修改。
 
+P175 完成 Knowledge crash-recovery directory resource closure。失败优先架构反例 `9d701070f` 唯一命中 `knowledgefile.Store` 的 `ReadDir(-1)`：每次 cold home/project/cwd read 都可能在筛选 Runtime-owned stage 文件前完整物化大型用户目录。Store 现于既有 directory lease 与 `os.Root` confinement 内以 128-entry fixed batches 连续枚举，每轮只收集最多 128 个 verified regular candidate，关闭 scan handle 后再删除并从头复扫，避免 mutation 扰乱 directory offset；每批/每项观察 context，只有完整无 candidate 的 EOF 后才记录 recovered，read/remove/cancel/close failure 可重试且不发布 partial marker。385 个无关项后的 130 个 orphan 会完整清理，用户文件不变；全 Runtime AST gate 禁止 production `os.ReadDir` 与 non-positive `File.ReadDir`。Protocol/Artifact/SQLite/public Go/Desktop/Wails/Agent Framework/CLI 不变。
+
+P175 封板通过 Knowledge/architecture 定向测试、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。只观察到根 Desktop tests 的既有 macOS deployment-target linker warnings；本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其 production matrix。未启动 agent-browser、无临时检查器，所有验证进程均已 join，`app/desktop` 与 `app/cli` 零修改。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -368,13 +373,15 @@ P173 进一步证明“多个 consumer 共用同一 SDK Source”仍不等于共
 
 P174 进一步证明 durable file handoff 也不能由两个 consumer 各自“简单读取”：只要 grammar、文件身份和资源准入分裂，producer 接受的 credential 与 Desktop 投影的 bearer 就不是同一事实。部署交接 package 必须同时拥有 producer publish 与所有 reader，而 transport 只消费已验证值。
 
+P175 进一步证明 complete-document 上限不能替代 sibling-directory 上限：atomic writer 的 crash recovery 即使只关心自己命名的 stage 文件，也必须流式拥有任意用户目录，不能先用 `ReadDir(-1)` 物化所有无关 entry。这里总 entry cap 会错误拒绝合法大型项目，因此正确边界是固定批次、可取消的完整 sweep。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
 
-P174 在既有 P0–P173 结论上把 local credential 从 HTTP/Desktop 双 parser 收敛为公共 `localruntime` 单一 deployment handoff；Runtime 与 Desktop 现在消费同一 canonical、finite、identity-checked durable token。当前完成范围因此为 P0–P174。
+P175 在既有 P0–P174 结论上补齐 Knowledge atomic writer 的 cold recovery：任意项目根现在以 fixed-batch、caller-cancellable 的完整 sweep 清理 stage orphan，不再完整物化 sibling directory。当前完成范围因此为 P0–P175。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

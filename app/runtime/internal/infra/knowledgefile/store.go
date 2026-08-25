@@ -28,6 +28,8 @@ const knowledgeFileName = "LYRA.md"
 
 const stagedFilePrefix = ".LYRA.md.lyra-stage-"
 
+const stagedRecoveryReadBatchSize = 128
+
 // Store persists human-authored knowledge to markdown files:
 //
 //   - <cwd>/LYRA.md — workspace-local knowledge
@@ -237,7 +239,7 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: acquire document lease: %w", err)
 	}
 	defer func() { _ = lease.Release() }()
-	if err := s.recoverStagedFilesAt(root, doc, true); err != nil {
+	if err := s.recoverStagedFilesAt(ctx, root, doc, true); err != nil {
 		return knowledge.Entry{}, err
 	}
 	current, mode, err := readDocumentAt(ctx, root, doc)
@@ -320,37 +322,80 @@ func createTemporary(root *os.Root, target string) (*os.File, string, error) {
 	return nil, "", errors.New("knowledge store: temporary file name collisions exhausted")
 }
 
-func removeStagedFiles(root *os.Root, target string) error {
-	directoryPath := filepath.Dir(target)
-	directory, err := root.Open(directoryPath)
-	if err != nil {
-		return err
-	}
-	entries, readErr := directory.ReadDir(-1)
-	closeErr := directory.Close()
-	if err := errors.Join(readErr, closeErr); err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if !isStagedFileName(entry.Name()) {
-			continue
-		}
-		path := filepath.Join(directoryPath, entry.Name())
-		info, err := root.Lstat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
+func removeStagedFiles(ctx context.Context, root *os.Root, target string) error {
+	for {
+		paths, err := stagedFilesForRemoval(ctx, root, target)
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() {
-			continue
+		if len(paths) == 0 {
+			return nil
 		}
-		if err := root.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
+		for _, path := range paths {
+			if cause := context.Cause(ctx); cause != nil {
+				return cause
+			}
+			info, err := root.Lstat(path)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				continue
+			}
+			if err := root.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 		}
 	}
-	return nil
+}
+
+func stagedFilesForRemoval(ctx context.Context, root *os.Root, target string) (paths []string, err error) {
+	directoryPath := filepath.Dir(target)
+	directory, err := root.Open(directoryPath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = errors.Join(err, directory.Close()) }()
+
+	for len(paths) < stagedRecoveryReadBatchSize {
+		if cause := context.Cause(ctx); cause != nil {
+			return nil, cause
+		}
+		entries, readErr := directory.ReadDir(stagedRecoveryReadBatchSize)
+		for _, entry := range entries {
+			if cause := context.Cause(ctx); cause != nil {
+				return nil, cause
+			}
+			if !isStagedFileName(entry.Name()) {
+				continue
+			}
+			path := filepath.Join(directoryPath, entry.Name())
+			info, err := root.Lstat(path)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if !info.Mode().IsRegular() {
+				continue
+			}
+			paths = append(paths, path)
+			if len(paths) == stagedRecoveryReadBatchSize {
+				return paths, nil
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return paths, nil
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
+	}
+	return paths, nil
 }
 
 func (s *Store) recoverStagedFiles(ctx context.Context, doc document, force bool) error {
@@ -373,15 +418,15 @@ func (s *Store) recoverStagedFiles(ctx context.Context, doc document, force bool
 		return fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
 	}
 	defer func() { _ = root.Close() }()
-	return s.recoverStagedFilesAt(root, doc, force)
+	return s.recoverStagedFilesAt(ctx, root, doc, force)
 }
 
-func (s *Store) recoverStagedFilesAt(root *os.Root, doc document, force bool) error {
+func (s *Store) recoverStagedFilesAt(ctx context.Context, root *os.Root, doc document, force bool) error {
 	directoryPath := filepath.Dir(doc.path)
 	if _, recovered := s.recoveredDirectories[directoryPath]; recovered && !force {
 		return nil
 	}
-	if err := removeStagedFiles(root, doc.relative); err != nil {
+	if err := removeStagedFiles(ctx, root, doc.relative); err != nil {
 		return fmt.Errorf("knowledge store: recover staged files: %w", err)
 	}
 	s.recoveredDirectories[directoryPath] = struct{}{}

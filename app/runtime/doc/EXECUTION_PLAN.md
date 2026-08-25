@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P174 已完成；下一阶段待独立准入。
+> 状态：P0–P175 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P174 已完成。
+> 最近基线：2026-08-25，P175 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P175 已完成，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 未修改、未暂存。失败优先架构反例 `9d701070f` 证明 Knowledge cold crash recovery 会在筛选 Runtime stage 文件前以 `ReadDir(-1)` 完整物化任意 home/project/cwd 根目录；P162 的 1 MiB document cap 不拥有 sibling directory allocation。
+- P175 的唯一根修保留 Knowledge Store 的 directory lease、`os.Root` confinement 与完整 orphan cleanup owner，把枚举与 candidate set 都限制为 128-entry fixed batches；每轮关闭 scan handle 后再删除并从头复扫，避免 mutation 扰乱 directory offset。每批/每项处理前观察 caller cancellation，完整无 candidate 的 EOF 前不发布 recovered marker。全 Runtime AST gate 禁止 production `os.ReadDir` 与 non-positive `File.ReadDir`，385 个无关项后的 130 个 stage orphan 均被清理且用户文件不变。
+- 对 app2 的裁决：保留其 atomic stage/rename 思路，不复制 capabilityflow/store facade；app2 没有拥有 stage recovery 的目录资源边界，本批以原 owner 内流式扫描补齐。没有为大型合法项目设置总 entry cap，也没有后台 sweeper、partial marker 或兼容 scanner。
+- P175 封板通过 Knowledge/architecture 定向测试、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。只观察到根 Desktop tests 的既有 macOS deployment-target linker warnings；本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser、无临时检查器，所有验证进程均已 join。
 - P174 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`；`app/cli` 未修改、未暂存。失败优先反例 `58ddbeeaf` 证明 Runtime trim 空白，而 Desktop 以无界读取接受任意文本、1 MiB 文件、0644 文件和 symlink，双方并未共享同一 durable credential truth。
 - P174 的唯一根修是公共 `runtime/localruntime` Go 1.27 独立子模块与 deployment handoff：精确 43-byte canonical RawURL/32-byte credential、0600 regular-file admission、`Lstat`→open/fstat/`SameFile` identity 与固定 44-byte growth probe、synced candidate + no-overwrite hard-link + parent sync。HTTP token lifecycle 已删除，Desktop 只消费同一 verified `Token`；missing 与 invalid 明确分离，Desktop 不吸收 Runtime 后端 module graph。
 - 对 app2 的裁决：采用其 `localruntime` ownership 与 atomic durable handoff；补上其 128-byte allowance、`TrimSpace`、`os.ReadFile`、inspect/open race 与 non-canonical Base64 缺口。原版 Desktop 不监管 Runtime，故不复制 descriptor/supervisor；也不保留第二 parser、兼容 whitespace 或 HTTP facade。
@@ -453,10 +457,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P172     | Model/direct glob/grep 有限语料与可组合合同收敛                                              | Runtime typed tools 复用 20k ignore-aware catalog/P171 scanner；移除 subprocess-specific fields，exact total，无 `find/rg/grep` stdout |
 | P173     | Skill progressive disclosure 与托管生命周期有限来源闭环                                      | 256 Skills/272 raw entries、1 MiB document/resource、64 KiB usage；model/Desktop/list/sweep/approval 共享单一容量                         |
 | P174     | Runtime/Desktop durable local token 部署交接闭环                                             | public `localruntime` 单一 owner；43-byte canonical token、0600 regular file、identity/growth proof 与 atomic no-overwrite publish       |
+| P175     | Knowledge crash-recovery 目录流式所有权                                                      | 128-entry cancellable complete sweep；禁止 production unbounded `ReadDir`，不拒绝大型合法项目                                               |
 
 ## 5. 当前里程碑结论
 
-P113–P174 共同建立了以下不可回退的心智模型：
+P113–P175 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -470,7 +475,7 @@ P113–P174 共同建立了以下不可回退的心智模型：
 - Model/direct search 是 Runtime Tool consumer，不是共享 `tools/fs.LocalExecutor` 的薄包装：glob/grep 复用有限 Workspace catalog/text corpus，在 I/O 前完成 pattern/path/count 准入与 root confinement，并发布 exact total。模型只选择 `pattern/path/max_results`，文件过滤、regex flag 与上下文由 glob/RE2/read 原语组合，不把 `rg/find` 的 option surface 变成产品合同。
 - LSP document synchronization 自己拥有 8 MiB 完整输入包络；通用 workspace read 的 caller window 不能替代外部进程 adapter 的 admission。超限、读取中增长或取消必须在 digest、JSON-RPC 通知与 client state 之前失败，不发送截断文档。
 - MCP remote capability discovery 是有限 complete-list：每 server 的工具数、单项 description 与 schema 由 Domain 唯一限定，模型目录和管理目录不得各自截断或容忍不同 material；跨 server public-name collision 继续由同一 atomic live commit 决定。
-- Knowledge `LYRA.md` 是有限 complete document：Domain 的 1 MiB 上限同时约束 command admission、direct store write、外部文件 read、管理投影与 prompt material；transport cap、静默 skip 或 truncation 都不是替代 owner。
+- Knowledge `LYRA.md` 是有限 complete document：Domain 的 1 MiB 上限同时约束 command admission、direct store write、外部文件 read、管理投影与 prompt material；atomic stage recovery 对任意 home/project/cwd 根只做固定批次、可取消的完整流式枚举，不把 sibling directory 物化为集合。transport cap、静默 skip 或 truncation 都不是替代 owner。
 - Lifecycle Hook 配置是有限 complete policy cascade：Domain 同时限制 encoded file、per-file count、global + project total、matcher/action/timeout，filesystem loader 在 decode/materialization 前验证完整 UTF-8 bytes；管理页、trust binding 与 Run execution 不得各自截断或接受不同策略前缀。
 - Lifecycle Hook command 是有界外部进程：stdout/stderr 必须 drain 而非无界保留，decision 必须 strict whole-object decode，invalid output 不得贡献 partial policy；timeout/cancellation 必须回收可拥有的完整进程树，exit-2 deny 与 broken-hook non-blocking 是两个独立语义。
 - Lifecycle Hook command input 是独立 consumer projection：Domain 约束 prompt/arguments/result/reason material，prompt/result 只发布带 marker 的 UTF-8 prefix，arguments 必须完整；Application 只为命中的 command hook 懒投影，Shell 在 marshal 前后共同守住 512 KiB stdin 并在 spawn 前拒绝。declarative inject 不经过该边界。
@@ -508,7 +513,7 @@ P113–P174 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；无临时检查器，未启动 agent-browser，所有验证进程均已 join。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175 的 Runtime-only delta 又独立通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；无临时检查器，未启动 agent-browser，所有验证进程均已 join。
 
 ## 6. 新阶段准入
 
@@ -521,4 +526,4 @@ P113–P174 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P173 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P175 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
