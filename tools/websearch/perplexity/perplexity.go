@@ -96,6 +96,9 @@ func (c *Client) search(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("perplexity: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -107,14 +110,10 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 // search_domain_filter field.
 const maxDomainFilters = 20
 
-// maxResultsCap matches Perplexity's documented upper bound; the API
-// rejects values outside [1, 20].
-const maxResultsCap = 20
-
 func buildRequest(req *websearch.Request) *request {
 	r := &request{Query: req.Query}
 	if req.MaxResults > 0 {
-		r.MaxResults = min(req.MaxResults, maxResultsCap)
+		r.MaxResults = req.MaxResults
 	}
 	switch {
 	case len(req.AllowedDomains) > 0:

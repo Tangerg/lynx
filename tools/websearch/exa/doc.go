@@ -11,7 +11,7 @@
 //
 // [websearch.Request] → Exa request:
 //   - Query          → query (required)
-//   - MaxResults     → numResults (clamped to [1, 100])
+//   - MaxResults     → numResults (default 10 when omitted)
 //   - AllowedDomains → includeDomains (Exa caps at 1200)
 //   - BlockedDomains → excludeDomains (same cap)
 //   - Recency        → startPublishedDate (RFC3339, computed from

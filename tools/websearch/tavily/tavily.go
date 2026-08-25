@@ -101,6 +101,9 @@ func (c *Client) search(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("tavily: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -108,14 +111,12 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	return raw.toWebSearch(), nil
 }
 
-const maxResultsCap = 20
-
 func buildRequest(req *websearch.Request) *request {
 	r := &request{
 		Query:          req.Query,
 		SearchDepth:    "basic",
 		Topic:          "general",
-		MaxResults:     clampResults(req.MaxResults),
+		MaxResults:     cmp.Or(req.MaxResults, 5),
 		IncludeFavicon: true,
 	}
 	if len(req.AllowedDomains) > 0 {
@@ -126,11 +127,6 @@ func buildRequest(req *websearch.Request) *request {
 	}
 	r.TimeRange = recencyToTimeRange(req.Recency)
 	return r
-}
-
-// clampResults applies Tavily's [1, 20] bound with a 5 default.
-func clampResults(n int) int {
-	return min(cmp.Or(n, 5), maxResultsCap)
 }
 
 func recencyToTimeRange(r websearch.Recency) string {

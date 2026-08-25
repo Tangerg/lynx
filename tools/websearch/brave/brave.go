@@ -124,6 +124,9 @@ func addIntParam(params map[string]string, key string, value int) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("brave: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -131,13 +134,10 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	return raw.toWebSearch(req.Query), nil
 }
 
-// maxResultsCap matches Brave's documented per-page upper bound.
-const maxResultsCap = 20
-
 func buildRequest(req *websearch.Request) *request {
 	r := &request{
-		Q:     websearch.BuildSiteOperatorQuery(req.Query, req.AllowedDomains, req.BlockedDomains),
-		Count: min(cmp.Or(req.MaxResults, 10), maxResultsCap),
+		Q:     req.QueryWithSiteOperators(),
+		Count: cmp.Or(req.MaxResults, 10),
 	}
 	r.Freshness = recencyToFreshness(req.Recency)
 	return r

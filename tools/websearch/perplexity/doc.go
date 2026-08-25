@@ -11,7 +11,7 @@
 //
 // [websearch.Request] → Perplexity request:
 //   - Query          → query (required)
-//   - MaxResults     → max_results (clamped to [1, 20])
+//   - MaxResults     → max_results (omitted when unset)
 //   - AllowedDomains → search_domain_filter (capped at 20 entries)
 //   - BlockedDomains → search_domain_filter with "-" prefix
 //     (capped at 20 entries). The allow- and block-list share the

@@ -20,6 +20,24 @@ const (
 	FormatText ResponseFormat = "text"
 )
 
+// Validate reports whether the format is empty or supported.
+func (f ResponseFormat) Validate() error {
+	switch f {
+	case "", FormatMarkdown, FormatHTML, FormatText:
+		return nil
+	default:
+		return ErrInvalidFormat
+	}
+}
+
+// Resolve applies the default format.
+func (f ResponseFormat) Resolve() ResponseFormat {
+	if f == "" {
+		return FormatMarkdown
+	}
+	return f
+}
+
 // Request is the shape every [Provider] consumes AND the LLM-facing
 // argument shape — the two were identical so they're one type now.
 // The JSON / jsonschema tags drive [Tool]'s input schema; provider
@@ -47,22 +65,7 @@ func (r *Request) Validate() error {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return ErrInvalidURL
 	}
-	switch r.Format {
-	case "", FormatMarkdown, FormatHTML, FormatText:
-	default:
-		return ErrInvalidFormat
-	}
-	return nil
-}
-
-// ResolvedFormat returns the effective response format, applying the markdown
-// default when Format is unset. Providers call it so the default lives in one
-// place instead of each backend re-deciding it.
-func (r *Request) ResolvedFormat() ResponseFormat {
-	if r == nil || r.Format == "" {
-		return FormatMarkdown
-	}
-	return r.Format
+	return r.Format.Validate()
 }
 
 // Response is the normalized scrape result. Used as both the SPI

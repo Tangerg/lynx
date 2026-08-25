@@ -110,6 +110,9 @@ func (c *Client) search(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("exa: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -117,13 +120,11 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	return raw.toWebSearch(req.Query), nil
 }
 
-const maxResultsCap = 100
-
 func buildRequest(req *websearch.Request) *request {
 	r := &request{
 		Query:      req.Query,
 		Type:       "fast",
-		NumResults: clampResults(req.MaxResults),
+		NumResults: cmp.Or(req.MaxResults, 10),
 		Contents: &contentsOptions{
 			Summary: &summaryOptions{Query: req.Query},
 		},
@@ -138,11 +139,6 @@ func buildRequest(req *websearch.Request) *request {
 		r.StartPublishedDate = start.Format(time.RFC3339)
 	}
 	return r
-}
-
-// clampResults applies Exa's [1, 100] bound with a 10 default.
-func clampResults(n int) int {
-	return min(cmp.Or(n, 10), maxResultsCap)
 }
 
 func recencyToStart(r websearch.Recency) time.Time {

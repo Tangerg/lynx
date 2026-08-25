@@ -100,6 +100,9 @@ func (c *Client) search(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("serper: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -109,7 +112,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 
 func buildRequest(req *websearch.Request) *request {
 	r := &request{
-		Q:           websearch.BuildSiteOperatorQuery(req.Query, req.AllowedDomains, req.BlockedDomains),
+		Q:           req.QueryWithSiteOperators(),
 		Autocorrect: true,
 	}
 	if req.MaxResults > 0 {

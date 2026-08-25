@@ -122,3 +122,15 @@ func TestTool_Call_ProviderError(t *testing.T) {
 		t.Errorf("err = %v, want wrapped 'fetch boom'", err)
 	}
 }
+
+func TestResponseFormat(t *testing.T) {
+	if got := ResponseFormat("").Resolve(); got != FormatMarkdown {
+		t.Fatalf("empty ResponseFormat.Resolve() = %q, want %q", got, FormatMarkdown)
+	}
+	if err := FormatText.Validate(); err != nil {
+		t.Fatalf("FormatText.Validate() error = %v", err)
+	}
+	if err := ResponseFormat("json").Validate(); !errors.Is(err, ErrInvalidFormat) {
+		t.Fatalf("ResponseFormat(json).Validate() error = %v, want ErrInvalidFormat", err)
+	}
+}

@@ -30,7 +30,7 @@ func TestProvider(t *testing.T) {
 			t.Errorf("decode body: %v", err)
 			return
 		}
-		if body.Query != "lynx" || body.Type != "fast" || body.NumResults != 100 || len(body.Domains) != 1 {
+		if body.Query != "lynx" || body.Type != "fast" || body.NumResults != 20 || len(body.Domains) != 1 {
 			t.Errorf("body = %#v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -42,7 +42,7 @@ func TestProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &websearch.Request{Query: "lynx", MaxResults: 101, AllowedDomains: []string{"example.com"}})
+	response, err := client.Search(t.Context(), &websearch.Request{Query: "lynx", MaxResults: 20, AllowedDomains: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -149,7 +149,7 @@ func TestTool_Call_ProviderError(t *testing.T) {
 	}
 }
 
-func TestBuildSiteOperatorQuery(t *testing.T) {
+func TestRequest_QueryWithSiteOperators(t *testing.T) {
 	cases := []struct {
 		name    string
 		query   string
@@ -166,11 +166,21 @@ func TestBuildSiteOperatorQuery(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := BuildSiteOperatorQuery(tc.query, tc.allowed, tc.blocked)
+			request := &Request{Query: tc.query, AllowedDomains: tc.allowed, BlockedDomains: tc.blocked}
+			got := request.QueryWithSiteOperators()
 			if got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRecency_Validate(t *testing.T) {
+	if err := RecencyWeek.Validate(); err != nil {
+		t.Fatalf("RecencyWeek.Validate() error = %v", err)
+	}
+	if err := Recency("recent").Validate(); !errors.Is(err, ErrInvalidRecency) {
+		t.Fatalf("Recency(recent).Validate() error = %v, want ErrInvalidRecency", err)
 	}
 }
 

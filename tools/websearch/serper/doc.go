@@ -11,7 +11,7 @@
 //
 // [websearch.Request] → Serper request:
 //   - Query          → q (after Google site:/-site: rewriting via
-//     [websearch.BuildSiteOperatorQuery])
+//     [websearch.Request.QueryWithSiteOperators])
 //   - MaxResults     → num (forwarded as-is)
 //   - AllowedDomains → inlined into q as `site:foo.com site:bar.com`
 //   - BlockedDomains → inlined into q as `-site:foo.com -site:bar.com`

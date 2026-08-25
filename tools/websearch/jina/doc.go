@@ -14,7 +14,7 @@
 //
 // [websearch.Request] → Jina query params:
 //   - Query          → URL path segment
-//   - MaxResults     → count (clamped to [1, 20])
+//   - MaxResults     → count (default 10 when omitted)
 //   - AllowedDomains → site=comma,separated (Jina's allow-list)
 //   - BlockedDomains → not directly supported; ignored
 //   - Recency        → noCache=true (forces fresh crawl)

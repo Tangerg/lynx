@@ -15,7 +15,7 @@
 // [websearch.Request] → Firecrawl request:
 //   - Query          → query (after Google-style site:/-site:
 //     rewriting; Firecrawl has no native allow/block fields)
-//   - MaxResults     → limit (clamped to [1, 100]; default 10)
+//   - MaxResults     → limit (default 10 when omitted)
 //   - AllowedDomains → inlined as `site:foo.com` operators
 //   - BlockedDomains → inlined as `-site:foo.com` operators
 //   - Recency        → tbs=qdr:h|d|w|m|y

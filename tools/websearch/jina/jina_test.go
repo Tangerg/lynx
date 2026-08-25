@@ -37,7 +37,7 @@ func TestProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &websearch.Request{Query: "lynx agent", MaxResults: 99, AllowedDomains: []string{"example.com"}})
+	response, err := client.Search(t.Context(), &websearch.Request{Query: "lynx agent", MaxResults: 20, AllowedDomains: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}

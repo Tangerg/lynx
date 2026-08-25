@@ -93,7 +93,10 @@ func (c *Client) fetch(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Response, error) {
-	format := req.ResolvedFormat()
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("tavily: %w", err)
+	}
+	format := req.Format.Resolve()
 	if format == webfetch.FormatHTML {
 		format = webfetch.FormatMarkdown
 	}

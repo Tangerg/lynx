@@ -132,6 +132,9 @@ func addCSVParam(params map[string]string, key string, values []string) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("jina: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -139,13 +142,10 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	return raw.toWebSearch(req.Query), nil
 }
 
-const maxResultsCap = 20
-
 func buildRequest(req *websearch.Request) *request {
-	num := min(cmp.Or(req.MaxResults, 10), maxResultsCap)
 	r := &request{
 		Query: req.Query,
-		Count: num,
+		Count: cmp.Or(req.MaxResults, 10),
 		Page:  1,
 	}
 	if len(req.AllowedDomains) > 0 {

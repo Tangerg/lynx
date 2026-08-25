@@ -10,7 +10,7 @@
 //
 // [websearch.Request] → Brave query parameters:
 //   - Query          → q (after Google-style site:/-site: rewriting)
-//   - MaxResults     → count (clamped to [1, 20]; default 10)
+//   - MaxResults     → count (default 10 when omitted)
 //   - AllowedDomains → inlined as `site:foo.com` operators
 //   - BlockedDomains → inlined as `-site:foo.com` operators
 //   - Recency        → freshness=pd/pw/pm/py (hour collapses to "pd"

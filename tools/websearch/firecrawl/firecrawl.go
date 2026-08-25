@@ -101,6 +101,9 @@ func (c *Client) search(ctx context.Context, req *request) (*response, error) {
 }
 
 func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("firecrawl: %w", err)
+	}
 	raw, err := c.search(ctx, buildRequest(req))
 	if err != nil {
 		return nil, err
@@ -108,12 +111,10 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	return raw.toWebSearch(req.Query), nil
 }
 
-const maxResultsCap = 100
-
 func buildRequest(req *websearch.Request) *request {
 	r := &request{
-		Query: websearch.BuildSiteOperatorQuery(req.Query, req.AllowedDomains, req.BlockedDomains),
-		Limit: min(cmp.Or(req.MaxResults, 10), maxResultsCap),
+		Query: req.QueryWithSiteOperators(),
+		Limit: cmp.Or(req.MaxResults, 10),
 	}
 	r.Tbs = recencyToTbs(req.Recency)
 	return r

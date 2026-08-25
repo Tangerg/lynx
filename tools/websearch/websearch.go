@@ -7,32 +7,6 @@ import (
 	"time"
 )
 
-// BuildSiteOperatorQuery inlines Google-style site:/-site: operators
-// into a query string. Providers that have no native domain
-// allow/block fields (Brave, Serper, Firecrawl search) use this to
-// translate [Request.AllowedDomains] / [Request.BlockedDomains] into
-// query-level filters.
-//
-// Empty strings inside the slices are skipped; the original query
-// is preserved as-is in front.
-func BuildSiteOperatorQuery(query string, allowed, blocked []string) string {
-	var b strings.Builder
-	b.WriteString(query)
-	for _, s := range allowed {
-		if s == "" {
-			continue
-		}
-		fmt.Fprintf(&b, " site:%s", s)
-	}
-	for _, s := range blocked {
-		if s == "" {
-			continue
-		}
-		fmt.Fprintf(&b, " -site:%s", s)
-	}
-	return b.String()
-}
-
 // Recency is a coarse "last N period" filter. Providers map this to
 // their native syntax (e.g. Tavily's time_range, Serper's tbs=qdr:).
 type Recency string
@@ -44,6 +18,17 @@ const (
 	RecencyMonth Recency = "month"
 	RecencyYear  Recency = "year"
 )
+
+// Validate reports whether the recency is empty or one of the supported
+// coarse windows.
+func (r Recency) Validate() error {
+	switch r {
+	case "", RecencyHour, RecencyDay, RecencyWeek, RecencyMonth, RecencyYear:
+		return nil
+	default:
+		return ErrInvalidRecency
+	}
+}
 
 // Request is the shape every [Provider] consumes AND the LLM-facing
 // argument shape — the two were identical so they're one type now.
@@ -89,12 +74,29 @@ func (r *Request) Validate() error {
 	if len(r.AllowedDomains) > 20 || len(r.BlockedDomains) > 20 {
 		return ErrTooManyDomains
 	}
-	switch r.Recency {
-	case "", RecencyHour, RecencyDay, RecencyWeek, RecencyMonth, RecencyYear:
-	default:
-		return ErrInvalidRecency
+	return r.Recency.Validate()
+}
+
+// QueryWithSiteOperators returns Query with Google-style site:/-site:
+// operators for the request's domain filters. Providers without native domain
+// fields use this projection; empty domain entries are ignored.
+func (r *Request) QueryWithSiteOperators() string {
+	if r == nil {
+		return ""
 	}
-	return nil
+	var b strings.Builder
+	b.WriteString(r.Query)
+	for _, domain := range r.AllowedDomains {
+		if domain != "" {
+			fmt.Fprintf(&b, " site:%s", domain)
+		}
+	}
+	for _, domain := range r.BlockedDomains {
+		if domain != "" {
+			fmt.Fprintf(&b, " -site:%s", domain)
+		}
+	}
+	return b.String()
 }
 
 // Result is one normalized search hit.

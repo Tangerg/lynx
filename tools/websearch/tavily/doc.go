@@ -11,7 +11,7 @@
 //
 // [websearch.Request] → Tavily request:
 //   - Query          → query (required)
-//   - MaxResults     → max_results (clamped to [1, 20]; default 5 when 0)
+//   - MaxResults     → max_results (default 5 when omitted)
 //   - AllowedDomains → include_domains (Tavily caps at 300)
 //   - BlockedDomains → exclude_domains (Tavily caps at 150)
 //   - Recency        → time_range: hour/day → "day", week→"week",
