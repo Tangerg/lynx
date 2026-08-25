@@ -366,11 +366,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 
 	if req.Options.Filter != nil {
-		filterExpr, filterErr := ToFilter(req.Options.Filter)
-		if filterErr != nil {
-			return nil, fmt.Errorf("milvus: convert filter: %w", filterErr)
+		visitor := NewVisitor()
+		if err := req.Options.Filter.Accept(visitor); err != nil {
+			return nil, fmt.Errorf("milvus: convert filter: %w", err)
 		}
-		searchOpt = searchOpt.WithFilter(filterExpr)
+		searchOpt = searchOpt.WithFilter(visitor.Result())
 	}
 
 	results, err := s.client.Search(ctx, searchOpt)
@@ -398,13 +398,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("milvus.Store.DeleteWhere: %w", err)
 	}
 
-	var filterExpr string
-	filterExpr, err = ToFilter(expr)
-	if err != nil {
+	visitor := NewVisitor()
+	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("milvus: convert filter: %w", err)
 	}
 
-	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(filterExpr))
+	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(visitor.Result()))
 	if err != nil {
 		return fmt.Errorf("milvus: delete from collection %s: %w", s.collectionName, err)
 	}

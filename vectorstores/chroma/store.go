@@ -297,12 +297,12 @@ func (s *Store) buildQueryOptions(req *vectorstore.SearchRequest, queryVector []
 	}
 
 	if req.Options.Filter != nil {
-		filter, err := ToFilter(req.Options.Filter)
-		if err != nil {
+		visitor := NewVisitor()
+		if err := req.Options.Filter.Accept(visitor); err != nil {
 			return nil, fmt.Errorf("chroma: convert filter: %w", err)
 		}
-		if filter != nil {
-			opts = append(opts, v2.WithWhere(filter))
+		if result := visitor.Result(); result != nil {
+			opts = append(opts, v2.WithWhere(result))
 		}
 	}
 
@@ -435,15 +435,14 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("chroma.Store.DeleteWhere: %w", err)
 	}
 
-	var filter v2.WhereFilter
-	filter, err = ToFilter(expr)
-	if err != nil {
+	visitor := NewVisitor()
+	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("chroma: convert filter: %w", err)
 	}
 
 	var opts []v2.CollectionDeleteOption
-	if filter != nil {
-		opts = append(opts, v2.WithWhere(filter))
+	if result := visitor.Result(); result != nil {
+		opts = append(opts, v2.WithWhere(result))
 	}
 
 	if err = s.collection.Delete(ctx, opts...); err != nil {

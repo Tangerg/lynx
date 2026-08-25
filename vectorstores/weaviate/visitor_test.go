@@ -11,6 +11,14 @@ import (
 	"github.com/Tangerg/lynx/vectorstores/weaviate"
 )
 
+func compileFilter(predicate filter.Predicate) (*filters.WhereBuilder, error) {
+	visitor := weaviate.NewVisitor()
+	if err := predicate.Accept(visitor); err != nil {
+		return nil, err
+	}
+	return visitor.Result(), nil
+}
+
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
 		expr, err := filter.Parse(src)
@@ -28,9 +36,9 @@ func TestVisitor_IsNull(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	got, err := weaviate.ToFilter(expr)
+	got, err := compileFilter(expr)
 	if err != nil {
-		t.Fatalf("ToFilter: %v", err)
+		t.Fatalf("Visit: %v", err)
 	}
 	if got == nil {
 		t.Fatal("expected a filter, got nil")
@@ -54,9 +62,9 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	got, err := weaviate.ToFilter(expr)
+	got, err := compileFilter(expr)
 	if err != nil {
-		t.Fatalf("ToFilter: %v", err)
+		t.Fatalf("Visit: %v", err)
 	}
 	if got == nil {
 		t.Fatal("expected a filter, got nil")
@@ -85,14 +93,14 @@ func TestVisitor_IsNotNull(t *testing.T) {
 }
 
 func TestVisitor_RejectsIntegerThatNumberFilterCannotRepresent(t *testing.T) {
-	_, err := weaviate.ToFilter(filter.EQ("id", uint64(1)<<63))
+	_, err := compileFilter(filter.EQ("id", uint64(1)<<63))
 	if err == nil {
 		t.Fatal("Weaviate accepted an integer larger than its int64 data type")
 	}
 }
 
 func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
-	integer, err := weaviate.ToFilter(filter.GT("count", 42))
+	integer, err := compileFilter(filter.GT("count", 42))
 	if err != nil {
 		t.Fatalf("integer filter: %v", err)
 	}
@@ -100,7 +108,7 @@ func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
 		t.Fatalf("ValueInt = %v, want 42", got)
 	}
 
-	number, err := weaviate.ToFilter(filter.GT("score", 4.2))
+	number, err := compileFilter(filter.GT("score", 4.2))
 	if err != nil {
 		t.Fatalf("number filter: %v", err)
 	}
@@ -116,7 +124,7 @@ func TestVisitor_RejectsMixedMembershipTypes(t *testing.T) {
 }
 
 func TestVisitor_DistinguishesInFromCollectionMembership(t *testing.T) {
-	inFilter, err := weaviate.ToFilter(filter.In("status", []string{"active", "pending"}))
+	inFilter, err := compileFilter(filter.In("status", []string{"active", "pending"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +138,7 @@ func TestVisitor_DistinguishesInFromCollectionMembership(t *testing.T) {
 		}
 	}
 
-	hasFilter, err := weaviate.ToFilter(filter.Has("visible_to", "user-42"))
+	hasFilter, err := compileFilter(filter.Has("visible_to", "user-42"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,9 +154,9 @@ func TestVisitor_TranslatesSQLLikeWildcards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	got, err := weaviate.ToFilter(expr)
+	got, err := compileFilter(expr)
 	if err != nil {
-		t.Fatalf("ToFilter: %v", err)
+		t.Fatalf("Visit: %v", err)
 	}
 	if value := got.Build().ValueText; value == nil || *value != "intro?*" {
 		t.Fatalf("ValueText = %v, want intro?*", value)
@@ -160,7 +168,7 @@ func TestVisitor_RejectsUnrepresentableLikeLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	_, err = weaviate.ToFilter(expr)
+	_, err = compileFilter(expr)
 	if err == nil || !strings.Contains(err.Error(), "cannot represent") {
 		t.Fatalf("error = %v, want unrepresentable-pattern error", err)
 	}

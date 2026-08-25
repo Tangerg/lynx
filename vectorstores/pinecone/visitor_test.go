@@ -4,10 +4,20 @@ import (
 	"reflect"
 	"testing"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/pinecone"
 )
+
+func compileFilter(predicate filter.Predicate) (*structpb.Struct, error) {
+	visitor := pinecone.NewVisitor()
+	if err := predicate.Accept(visitor); err != nil {
+		return nil, err
+	}
+	return visitor.Result(), nil
+}
 
 // TestVisitor_Conformance runs the shared visitor suite. Pinecone
 // metadata filters don't support LIKE — that conformance case is
@@ -30,7 +40,7 @@ func TestVisitor_Conformance(t *testing.T) {
 }
 
 func TestVisitor_CollectionMembershipUsesScalarEquality(t *testing.T) {
-	result, err := pinecone.ToFilter(filter.Has("visible_to", "user-42"))
+	result, err := compileFilter(filter.Has("visible_to", "user-42"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +48,7 @@ func TestVisitor_CollectionMembershipUsesScalarEquality(t *testing.T) {
 	if got := result.AsMap(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("filter = %#v, want %#v", got, want)
 	}
-	if _, err := pinecone.ToFilter(filter.Has("visible_to", 42)); err == nil {
+	if _, err := compileFilter(filter.Has("visible_to", 42)); err == nil {
 		t.Fatal("Pinecone accepted a non-string list member")
 	}
 }
@@ -75,7 +85,7 @@ func TestVisitor_NotUsesOnlyPineconeOperators(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := pinecone.ToFilter(test.predicate)
+			result, err := compileFilter(test.predicate)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -87,7 +97,7 @@ func TestVisitor_NotUsesOnlyPineconeOperators(t *testing.T) {
 }
 
 func TestVisitor_RejectsIntegerThatStructPBCannotRepresent(t *testing.T) {
-	_, err := pinecone.ToFilter(filter.EQ("id", uint64(1<<53+1)))
+	_, err := compileFilter(filter.EQ("id", uint64(1<<53+1)))
 	if err == nil {
 		t.Fatal("Pinecone silently rounded a large integer")
 	}

@@ -40,15 +40,6 @@ func (v *Visitor) Result() *filters.WhereBuilder {
 	return v.result
 }
 
-// ToFilter compiles a Lynx filter expression into a Weaviate where filter.
-func ToFilter(expr filter.Predicate) (*filters.WhereBuilder, error) {
-	visitor := NewVisitor()
-	if err := expr.Accept(visitor); err != nil {
-		return nil, err
-	}
-	return visitor.Result(), nil
-}
-
 func compileFilter(expr filter.Expr) (*filters.WhereBuilder, error) {
 	if expr == nil {
 		return nil, errors.New("weaviate.filter: expression must not be nil")

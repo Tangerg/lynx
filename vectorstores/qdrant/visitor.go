@@ -23,14 +23,6 @@ import (
 //   - Each visit method directly appends conditions to the filter
 //   - Nested expressions (logical operators, NOT) create isolated converters
 //   - Field extraction methods preserve state during recursive calls
-//
-// Usage example:
-//
-//	expr := parseFilterExpression("age > 18 AND status == 'active'")
-//	filter, err := ToFilter(expr)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
 var _ filter.Visitor = (*Visitor)(nil)
 
 type Visitor struct {
@@ -46,10 +38,10 @@ func NewVisitor() *Visitor {
 	}
 }
 
-// Filter returns the constructed Qdrant filter.
+// Result returns the constructed Qdrant filter.
 // Returns nil if an error occurred during conversion.
 // Should only be called after Visit() completes.
-func (v *Visitor) Filter() *qdrant.Filter {
+func (v *Visitor) Result() *qdrant.Filter {
 	if v.err != nil {
 		return nil
 	}

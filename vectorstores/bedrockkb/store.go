@@ -140,11 +140,11 @@ func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.Knowl
 	}
 
 	if req.Options.Filter != nil {
-		retrievalFilter, err := BuildRetrievalFilter(req.Options.Filter)
-		if err != nil {
+		visitor := NewVisitor()
+		if err := req.Options.Filter.Accept(visitor); err != nil {
 			return nil, fmt.Errorf("bedrockkb.Store.Search: compile metadata filter: %w", err)
 		}
-		cfg.Filter = retrievalFilter
+		cfg.Filter = visitor.Result()
 	}
 	return cfg, nil
 }

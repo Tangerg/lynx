@@ -23,14 +23,6 @@ import (
 //   - Each visit method sets result to the expression string for the current node
 //   - Nested expressions (logical operators, NOT) create isolated converters
 //   - Field extraction methods preserve state during recursive calls
-//
-// Usage example:
-//
-//	expr := parseFilterExpression("age > 18 AND status == 'active'")
-//	filter, err := ToFilter(expr)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
 var _ filter.Visitor = (*Visitor)(nil)
 
 type Visitor struct {
@@ -474,39 +466,4 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 
 	return "", fmt.Errorf("milvus: unsupported literal type '%s' at %s",
 		lit.Kind(), lit.Start().String())
-}
-
-// ToFilter converts an AST filter expression into a Milvus filter expression string.
-//
-// This is the main entry point for converting filter expressions written in
-// the Lynx filter DSL into Milvus's native string expression format.
-//
-// Supported operations:
-//   - Logical:          AND, OR, NOT
-//   - Equality:         ==, !=
-//   - Ordering:         <, <=, >, >=
-//   - Membership:       IN
-//   - Pattern matching: LIKE
-//
-// Field access:
-//   - Simple field:    age                   → age
-//   - JSON key:        metadata["key"]       → metadata["key"]
-//   - Nested JSON:     metadata["a"]["b"]    → metadata["a"]["b"]
-//
-// Value encoding:
-//   - Strings: double-quoted with escaped internal double quotes
-//   - Numbers: integer if whole, %g otherwise
-//   - Booleans: True / False
-//
-// Example:
-//
-//	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
-//	filter, err := milvus.ToFilter(expr)
-//	// filter: (age > 18) and (status == "active")
-func ToFilter(expr filter.Predicate) (string, error) {
-	conv := NewVisitor()
-	if err := expr.Accept(conv); err != nil {
-		return "", err
-	}
-	return conv.Result(), nil
 }

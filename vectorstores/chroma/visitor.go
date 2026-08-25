@@ -527,19 +527,3 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	}
 	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind())
 }
-
-// ToFilter converts an AST filter expression into a Chroma WhereClause.
-//
-// Returns (nil, nil) when expr is nil (no filter applied).
-// The returned WhereClause satisfies the v2.WhereFilter interface required by
-// v2.WithWhere.
-func ToFilter(expr filter.Predicate) (v2.WhereClause, error) {
-	if expr == nil {
-		return nil, nil
-	}
-	vis := NewVisitor()
-	if err := expr.Accept(vis); err != nil {
-		return nil, err
-	}
-	return vis.Result(), nil
-}

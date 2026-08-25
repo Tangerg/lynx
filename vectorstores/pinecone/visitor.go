@@ -15,7 +15,7 @@ import (
 // into Pinecone's native metadata filter format (structpb.Struct).
 //
 // The converter maintains internal state during traversal:
-//   - result: The filter condition map being built
+//   - condition: The filter condition map being built
 //   - currentFieldKey: Temporary storage for extracted field identifiers
 //   - currentFieldValue: Temporary storage for extracted literal values
 //   - err: The last error encountered during conversion
@@ -28,38 +28,26 @@ import (
 //   - HAS uses scalar equality on list-valued string metadata
 //   - NOT is lowered into inverse comparison operators and De Morgan rewrites
 //   - LIKE is not supported by Pinecone metadata filters
-//
-// Usage example:
-//
-//	expr := parseFilterExpression("age > 18 AND status == 'active'")
-//	filter, err := ToFilter(expr)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
 var _ filter.Visitor = (*Visitor)(nil)
 
 type Visitor struct {
-	err               error          // Last error encountered during conversion
-	result            map[string]any // The Pinecone filter condition being constructed
-	currentFieldKey   string         // Temporary storage for field paths during extraction
-	currentFieldValue any            // Temporary storage for field values during extraction
+	err               error
+	condition         map[string]any
+	result            *structpb.Struct
+	currentFieldKey   string
+	currentFieldValue any
 }
 
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
 
-// Filter converts the accumulated result into a Pinecone MetadataFilter (*structpb.Struct).
-// Returns nil if an error occurred or if no result was produced.
-// Should only be called after Visit() completes.
-func (v *Visitor) Filter() (*structpb.Struct, error) {
+// Result returns the filter produced by the most recent successful Visit.
+func (v *Visitor) Result() *structpb.Struct {
 	if v.err != nil {
-		return nil, v.err
+		return nil
 	}
-	if v.result == nil {
-		return nil, nil
-	}
-	return structpb.NewStruct(v.result)
+	return v.result
 }
 
 // Visit translates one semantic filter expression.
@@ -67,10 +55,14 @@ func (v *Visitor) Filter() (*structpb.Struct, error) {
 // encountered, or nil when the entire expression was accepted.
 func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
+	v.condition = nil
 	v.result = nil
 	v.currentFieldKey = ""
 	v.currentFieldValue = nil
-	v.err = v.visit(expr)
+	if v.err = v.visit(expr); v.err != nil {
+		return v.err
+	}
+	v.result, v.err = structpb.NewStruct(v.condition)
 	return v.err
 }
 
@@ -129,7 +121,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	if _, ok := fieldValue.(string); !ok {
 		return fmt.Errorf("pinecone: HAS requires a string member because Pinecone collection metadata is string-only at %s", expr.Start().String())
 	}
-	v.result = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
+	v.condition = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
 	return nil
 }
 
@@ -218,9 +210,9 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 
 	switch expr.Operator() {
 	case filter.OpAnd:
-		v.result = map[string]any{"$and": []any{left, right}}
+		v.condition = map[string]any{"$and": []any{left, right}}
 	case filter.OpOr:
-		v.result = map[string]any{"$or": []any{left, right}}
+		v.condition = map[string]any{"$or": []any{left, right}}
 	default:
 		return fmt.Errorf("pinecone: unexpected logical operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -238,7 +230,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 		return fmt.Errorf("pinecone: process NOT operand at %s: %w",
 			expr.Start().String(), err)
 	}
-	v.result = condition
+	v.condition = condition
 	return nil
 }
 
@@ -317,9 +309,9 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 
 	switch expr.Operator() {
 	case filter.OpEqual:
-		v.result = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
 	case filter.OpNotEqual:
-		v.result = map[string]any{fieldKey: map[string]any{"$ne": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$ne": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected equality operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -347,13 +339,13 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 
 	switch expr.Operator() {
 	case filter.OpLess:
-		v.result = map[string]any{fieldKey: map[string]any{"$lt": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$lt": fieldValue}}
 	case filter.OpLessEqual:
-		v.result = map[string]any{fieldKey: map[string]any{"$lte": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$lte": fieldValue}}
 	case filter.OpGreater:
-		v.result = map[string]any{fieldKey: map[string]any{"$gt": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$gt": fieldValue}}
 	case filter.OpGreaterEqual:
-		v.result = map[string]any{fieldKey: map[string]any{"$gte": fieldValue}}
+		v.condition = map[string]any{fieldKey: map[string]any{"$gte": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected ordering operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -370,7 +362,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	v.result = result
+	v.condition = result
 	return nil
 }
 
@@ -401,8 +393,8 @@ func (v *Visitor) buildNestedExpr(expr filter.Expr) (map[string]any, error) {
 	if err := nested.visit(expr); err != nil {
 		return nil, err
 	}
-	if nested.result != nil {
-		return nested.result, nil
+	if nested.condition != nil {
+		return nested.condition, nil
 	}
 	return nil, fmt.Errorf("pinecone: unsupported expression type %T for nested expression", expr)
 }
@@ -491,48 +483,4 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsBool()
 	}
 	return nil, fmt.Errorf("pinecone: unsupported literal type '%s'", lit.Kind())
-}
-
-// ToFilter converts an AST filter expression into a Pinecone MetadataFilter (*structpb.Struct).
-//
-// This is the main entry point for converting filter expressions written in
-// the Lynx filter DSL into Pinecone's native metadata filter format.
-//
-// Supported operations:
-//   - Logical:    AND, OR, NOT (lowered through inverse operators)
-//   - Equality:   ==, !=
-//   - Ordering:   <, <=, >, >=
-//   - Membership: IN, HAS
-//
-// Note: The LIKE operator is not supported by Pinecone metadata filters.
-//
-// Conversion semantics:
-//   - AND: {"$and": [left, right]}
-//   - OR:  {"$or":  [left, right]}
-//   - NOT: lowered with inverse comparisons, $nin, and De Morgan rewrites
-//   - ==:  {"field": {"$eq": value}}
-//   - !=:  {"field": {"$ne": value}}
-//   - <:   {"field": {"$lt": value}}
-//   - <=:  {"field": {"$lte": value}}
-//   - >:   {"field": {"$gt": value}}
-//   - >=:  {"field": {"$gte": value}}
-//   - IN:  {"field": {"$in": [values...]}}
-//   - HAS: {"field": {"$eq": value}} for list-valued string metadata
-//
-// Field access:
-//   - Simple field:  age                   → "age"
-//   - Indexed key:   metadata["key"]       → "metadata.key"
-//   - Nested key:    metadata["a"]["b"]    → "metadata.a.b"
-//
-// Example usage:
-//
-//	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
-//	filter, err := pinecone.ToFilter(expr)
-//	// filter encodes: {"$and": [{"age": {"$gt": 18}}, {"status": {"$eq": "active"}}]}
-func ToFilter(expr filter.Predicate) (*structpb.Struct, error) {
-	conv := NewVisitor()
-	if err := expr.Accept(conv); err != nil {
-		return nil, err
-	}
-	return conv.Filter()
 }

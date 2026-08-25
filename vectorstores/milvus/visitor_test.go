@@ -21,10 +21,11 @@ func TestVisitor_Conformance(t *testing.T) {
 }
 
 func TestVisitor_PreservesLargeIntegerText(t *testing.T) {
-	actual, err := milvus.ToFilter(filter.EQ("id", uint64(math.MaxUint64)))
-	if err != nil {
+	visitor := milvus.NewVisitor()
+	if err := filter.EQ("id", uint64(math.MaxUint64)).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
+	actual := visitor.Result()
 	if actual != "id == 18446744073709551615" {
 		t.Fatalf("filter = %q", actual)
 	}

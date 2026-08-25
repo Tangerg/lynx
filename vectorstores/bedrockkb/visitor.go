@@ -11,15 +11,34 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// BuildRetrievalFilter transforms an AST filter expression into a
-// Bedrock RetrievalFilter. Bedrock Knowledge Bases address metadata
-// keys directly by name; nested paths are not supported, so the left
-// operand must be a bare identifier.
-func BuildRetrievalFilter(expr filter.Predicate) (types.RetrievalFilter, error) {
-	if expr == nil {
-		return nil, nil
+// Visitor compiles Lynx filter expressions into Bedrock retrieval filters.
+// Bedrock Knowledge Bases address metadata keys directly by name; nested paths
+// are not supported, so the left operand must be a bare identifier.
+type Visitor struct {
+	result types.RetrievalFilter
+}
+
+var _ filter.Visitor = (*Visitor)(nil)
+
+// NewVisitor creates a Bedrock filter compiler.
+func NewVisitor() *Visitor {
+	return &Visitor{}
+}
+
+// Visit compiles the complete expression tree rooted at predicate.
+func (v *Visitor) Visit(predicate filter.Predicate) error {
+	v.result = nil
+	result, err := convertExpr(predicate)
+	if err != nil {
+		return err
 	}
-	return convertExpr(expr)
+	v.result = result
+	return nil
+}
+
+// Result returns the filter produced by the most recent successful Visit.
+func (v *Visitor) Result() types.RetrievalFilter {
+	return v.result
 }
 
 func convertExpr(expr filter.Expr) (types.RetrievalFilter, error) {

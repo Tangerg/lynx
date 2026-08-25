@@ -39,7 +39,7 @@ func TestVisitor_RejectsLossyNumbers(t *testing.T) {
 	}
 	for name, predicate := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := chroma.ToFilter(predicate); err == nil {
+			if err := predicate.Accept(chroma.NewVisitor()); err == nil {
 				t.Fatal("Chroma silently accepted a lossy number")
 			}
 		})

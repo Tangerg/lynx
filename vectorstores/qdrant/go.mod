@@ -3,12 +3,12 @@ module github.com/Tangerg/lynx/vectorstores/qdrant
 go 1.27.0
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
 	github.com/google/uuid v1.6.0
 	github.com/qdrant/go-client v1.18.3
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect

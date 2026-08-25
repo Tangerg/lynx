@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/fault"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -310,11 +309,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		WithLimit(req.Options.TopK)
 
 	if req.Options.Filter != nil {
-		whereFilter, filterErr := ToFilter(req.Options.Filter)
-		if filterErr != nil {
-			return nil, fmt.Errorf("weaviate: convert filter: %w", filterErr)
+		visitor := NewVisitor()
+		if err := req.Options.Filter.Accept(visitor); err != nil {
+			return nil, fmt.Errorf("weaviate: convert filter: %w", err)
 		}
-		getBuilder = getBuilder.WithWhere(whereFilter)
+		getBuilder = getBuilder.WithWhere(visitor.Result())
 	}
 
 	result, err := getBuilder.Do(ctx)
@@ -427,15 +426,14 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("weaviate.Store.DeleteWhere: %w", err)
 	}
 
-	var whereFilter *filters.WhereBuilder
-	whereFilter, err = ToFilter(expr)
-	if err != nil {
+	visitor := NewVisitor()
+	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("weaviate: convert filter: %w", err)
 	}
 
 	_, err = s.client.Batch().ObjectsBatchDeleter().
 		WithClassName(s.className).
-		WithWhere(whereFilter).
+		WithWhere(visitor.Result()).
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("weaviate: delete from class %s: %w", s.className, err)

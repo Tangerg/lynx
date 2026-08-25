@@ -38,7 +38,7 @@ func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 	if err := expr.Accept(v); err != nil {
 		t.Fatalf("visit %q: %v", src, err)
 	}
-	return v.Filter()
+	return v.Result()
 }
 
 // isNullKey returns the key of an IsNull condition, or "" if cond is not one.
@@ -118,7 +118,7 @@ func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
 	if err := filter.Like("title", "guide").Accept(visitor); err != nil {
 		t.Fatalf("visit exact LIKE pattern: %v", err)
 	}
-	conditions := visitor.Filter().GetMust()
+	conditions := visitor.Result().GetMust()
 	if len(conditions) != 1 || conditions[0].GetField().GetKey() != "title" ||
 		conditions[0].GetField().GetMatch().GetKeyword() != "guide" {
 		t.Fatalf("exact LIKE condition = %#v, want keyword title=guide", conditions)

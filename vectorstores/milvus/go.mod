@@ -2,16 +2,12 @@ module github.com/Tangerg/lynx/vectorstores/milvus
 
 go 1.27.0
 
-require github.com/milvus-io/milvus/client/v2 v2.6.5
-
 require (
-	github.com/containerd/log v0.1.0 // indirect
-	github.com/moby/sys/userns v0.1.0 // indirect
-	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
+	github.com/milvus-io/milvus/client/v2 v2.6.5
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -21,6 +17,7 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/containerd/cgroups/v3 v3.1.3 // indirect
+	github.com/containerd/log v0.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -38,6 +35,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/milvus-io/milvus-proto/go-api/v2 v2.6.22 // indirect
 	github.com/milvus-io/milvus/pkg/v2 v2.6.22 // indirect
+	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -87,4 +85,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.36.3 // indirect
+	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 )

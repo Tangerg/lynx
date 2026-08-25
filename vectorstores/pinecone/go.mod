@@ -3,12 +3,12 @@ module github.com/Tangerg/lynx/vectorstores/pinecone
 go 1.27.0
 
 require (
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
 	github.com/pinecone-io/go-pinecone/v4 v4.1.4
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect

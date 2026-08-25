@@ -8,11 +8,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/bedrockkb"
 )
 
-func TestBuildRetrievalFilter_PreservesLargeInteger(t *testing.T) {
-	result, err := bedrockkb.BuildRetrievalFilter(filter.EQ("id", uint64(math.MaxUint64)))
+func compileFilter(predicate filter.Predicate) (types.RetrievalFilter, error) {
+	visitor := bedrockkb.NewVisitor()
+	if err := predicate.Accept(visitor); err != nil {
+		return nil, err
+	}
+	return visitor.Result(), nil
+}
+
+func TestVisitor_Conformance(t *testing.T) {
+	storetest.VisitorConformance(t,
+		func(src string) error {
+			predicate, err := filter.Parse(src)
+			if err != nil {
+				return err
+			}
+			return predicate.Accept(bedrockkb.NewVisitor())
+		},
+		storetest.Options{Unsupported: []string{"indexed_key", "nested_index"}},
+	)
+}
+
+func TestVisitor_PreservesLargeInteger(t *testing.T) {
+	result, err := compileFilter(filter.EQ("id", uint64(math.MaxUint64)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +51,7 @@ func TestBuildRetrievalFilter_PreservesLargeInteger(t *testing.T) {
 	}
 }
 
-func TestBuildRetrievalFilter_LikePreservesSemantics(t *testing.T) {
+func TestVisitor_LikePreservesSemantics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -45,7 +67,7 @@ func TestBuildRetrievalFilter_LikePreservesSemantics(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := bedrockkb.BuildRetrievalFilter(filter.Like("name", test.pattern))
+			result, err := compileFilter(filter.Like("name", test.pattern))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -56,20 +78,20 @@ func TestBuildRetrievalFilter_LikePreservesSemantics(t *testing.T) {
 	}
 }
 
-func TestBuildRetrievalFilter_RejectsLossyLikePatterns(t *testing.T) {
+func TestVisitor_RejectsLossyLikePatterns(t *testing.T) {
 	t.Parallel()
 
 	for _, pattern := range []string{"%suffix", "a_b", "a%b", "%"} {
-		if _, err := bedrockkb.BuildRetrievalFilter(filter.Like("name", pattern)); err == nil {
-			t.Errorf("BuildRetrievalFilter(LIKE %q) error = nil, want unsupported pattern", pattern)
+		if _, err := compileFilter(filter.Like("name", pattern)); err == nil {
+			t.Errorf("Visit(LIKE %q) error = nil, want unsupported pattern", pattern)
 		}
 	}
 }
 
-func TestBuildRetrievalFilter_NotIn(t *testing.T) {
+func TestVisitor_NotIn(t *testing.T) {
 	t.Parallel()
 
-	result, err := bedrockkb.BuildRetrievalFilter(filter.Not(filter.In("status", []string{"draft", "deleted"})))
+	result, err := compileFilter(filter.Not(filter.In("status", []string{"draft", "deleted"})))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,10 +100,10 @@ func TestBuildRetrievalFilter_NotIn(t *testing.T) {
 	}
 }
 
-func TestBuildRetrievalFilter_CollectionMembership(t *testing.T) {
+func TestVisitor_CollectionMembership(t *testing.T) {
 	t.Parallel()
 
-	result, err := bedrockkb.BuildRetrievalFilter(filter.Has("visible_to", "user-42"))
+	result, err := compileFilter(filter.Has("visible_to", "user-42"))
 	if err != nil {
 		t.Fatal(err)
 	}

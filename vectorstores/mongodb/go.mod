@@ -2,10 +2,12 @@ module github.com/Tangerg/lynx/vectorstores/mongodb
 
 go 1.27.0
 
-require go.mongodb.org/mongo-driver/v2 v2.8.0
+require (
+	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
+	go.mongodb.org/mongo-driver/v2 v2.8.0
+)
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825083324-4521a28e0491
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
