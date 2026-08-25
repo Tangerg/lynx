@@ -23,13 +23,40 @@ const (
 	// most JSON / text payloads without flooding the context window.
 	DefaultMaxResponseBytes int64 = 256 * 1024
 
-	maxRedirects = 10
+	maxRedirects      = 10
+	maxRequestTimeout = 120_000
 )
 
-// safeMethods are the methods callers get by default — read-only ops
-// only. Write methods (POST / PUT / PATCH / DELETE) must be opted-in
-// explicitly via [Config.AllowedMethods].
-var safeMethods = []string{http.MethodGet, http.MethodHead}
+// Method is an HTTP method exposed by the tool contract.
+type Method string
+
+const (
+	MethodGET    Method = http.MethodGet
+	MethodHEAD   Method = http.MethodHead
+	MethodPOST   Method = http.MethodPost
+	MethodPUT    Method = http.MethodPut
+	MethodPATCH  Method = http.MethodPatch
+	MethodDELETE Method = http.MethodDelete
+)
+
+// Resolve normalizes the method and applies GET when it is empty.
+func (m Method) Resolve() Method {
+	resolved := Method(strings.ToUpper(strings.TrimSpace(string(m))))
+	if resolved == "" {
+		return MethodGET
+	}
+	return resolved
+}
+
+// Validate reports whether the method is empty or supported by the tool.
+func (m Method) Validate() error {
+	switch m.Resolve() {
+	case MethodGET, MethodHEAD, MethodPOST, MethodPUT, MethodPATCH, MethodDELETE:
+		return nil
+	default:
+		return ErrInvalidMethod
+	}
+}
 
 // Config controls the tool's network policy and resty client.
 type Config struct {
@@ -42,7 +69,7 @@ type Config struct {
 
 	// AllowedMethods is the allowlist of permitted HTTP methods. When
 	// nil/empty defaults to GET + HEAD. Comparison is case-insensitive.
-	AllowedMethods []string
+	AllowedMethods []Method
 
 	// DefaultHeaders are added to every outgoing request unless the
 	// per-call [Request.Headers] overrides them. Use this for
@@ -63,18 +90,40 @@ type Config struct {
 	HTTPClient *http.Client
 }
 
+// Validate checks the network policy before a client is constructed.
+func (c Config) Validate() error {
+	if len(c.AllowedHosts) == 0 {
+		return ErrMissingHosts
+	}
+	if _, err := NewAllowlist(c.AllowedHosts); err != nil {
+		return fmt.Errorf("%w: AllowedHosts: %w", ErrInvalidConfig, err)
+	}
+	for _, method := range c.AllowedMethods {
+		if strings.TrimSpace(string(method)) == "" {
+			return fmt.Errorf("%w: AllowedMethods contains a blank method", ErrInvalidConfig)
+		}
+		if err := method.Validate(); err != nil {
+			return fmt.Errorf("%w: AllowedMethods: %w", ErrInvalidConfig, err)
+		}
+	}
+	if c.DefaultTimeout < 0 {
+		return fmt.Errorf("%w: DefaultTimeout must not be negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
 // Client executes HTTP requests through the configured allowlist.
 type Client struct {
 	http             *resty.Client
 	allowedHosts     Allowlist
-	allowedMethods   map[string]struct{}
+	allowedMethods   map[Method]struct{}
 	maxResponseBytes int64
 	defaultTimeout   time.Duration
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	if len(cfg.AllowedHosts) == 0 {
-		return nil, ErrMissingHosts
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	allow, err := NewAllowlist(cfg.AllowedHosts)
@@ -84,11 +133,11 @@ func NewClient(cfg Config) (*Client, error) {
 
 	methods := cfg.AllowedMethods
 	if len(methods) == 0 {
-		methods = safeMethods
+		methods = []Method{MethodGET, MethodHEAD}
 	}
-	allowedMethods := make(map[string]struct{}, len(methods))
-	for _, m := range methods {
-		allowedMethods[strings.ToUpper(strings.TrimSpace(m))] = struct{}{}
+	allowedMethods := make(map[Method]struct{}, len(methods))
+	for _, method := range methods {
+		allowedMethods[method.Resolve()] = struct{}{}
 	}
 
 	var rc *resty.Client
@@ -128,7 +177,7 @@ func NewClient(cfg Config) (*Client, error) {
 // drive the tool's input schema.
 type Request struct {
 	URL       string            `json:"url" jsonschema:"minLength=1" jsonschema_description:"Absolute http(s) URL. Host must match the configured allowlist."`
-	Method    string            `json:"method,omitempty" jsonschema:"enum=GET,enum=HEAD,enum=POST,enum=PUT,enum=PATCH,enum=DELETE" jsonschema_description:"HTTP method: GET (default), HEAD, POST, PUT, PATCH, or DELETE. Must be in the configured method allowlist."`
+	Method    Method            `json:"method,omitempty" jsonschema:"enum=GET,enum=HEAD,enum=POST,enum=PUT,enum=PATCH,enum=DELETE" jsonschema_description:"HTTP method: GET (default), HEAD, POST, PUT, PATCH, or DELETE. Must be in the configured method allowlist."`
 	Headers   map[string]string `json:"headers,omitempty" jsonschema_description:"Optional request headers. Values here override this tool's configured default headers."`
 	Query     map[string]string `json:"query,omitempty" jsonschema_description:"Optional query parameters appended to the URL."`
 	Body      string            `json:"body,omitempty" jsonschema_description:"Optional request body — for JSON, pass a JSON-encoded string and set Content-Type via Headers."`
@@ -146,6 +195,12 @@ func (r *Request) Validate() error {
 	u, err := url.Parse(r.URL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return ErrInvalidURL
+	}
+	if err := r.Method.Validate(); err != nil {
+		return err
+	}
+	if r.TimeoutMS < 0 || r.TimeoutMS > maxRequestTimeout {
+		return ErrInvalidTimeout
 	}
 	return nil
 }
@@ -168,10 +223,7 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	method := strings.ToUpper(strings.TrimSpace(req.Method))
-	if method == "" {
-		method = http.MethodGet
-	}
+	method := req.Method.Resolve()
 	if _, ok := c.allowedMethods[method]; !ok {
 		return nil, fmt.Errorf("%w: %s", ErrMethodNotAllowed, method)
 	}
@@ -204,7 +256,7 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	r.SetContext(callCtx)
 
 	start := time.Now()
-	resp, err := r.Execute(method, req.URL)
+	resp, err := r.Execute(string(method), req.URL)
 	duration := time.Since(start)
 	if err != nil {
 		return nil, fmt.Errorf("httpreq: request failed: %w", err)

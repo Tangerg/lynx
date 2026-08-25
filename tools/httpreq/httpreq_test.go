@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestToolUsesStrictTypedContract(t *testing.T) {
@@ -49,6 +50,44 @@ func TestToolUsesStrictTypedContract(t *testing.T) {
 func TestNewClient_RequiresAllowlist(t *testing.T) {
 	if _, err := NewClient(Config{}); !errors.Is(err, ErrMissingHosts) {
 		t.Fatalf("want ErrMissingHosts, got %v", err)
+	}
+}
+
+func TestConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		want   error
+	}{
+		{name: "valid", config: Config{AllowedHosts: []string{"example.com"}}},
+		{name: "missing hosts", config: Config{}, want: ErrMissingHosts},
+		{name: "invalid host", config: Config{AllowedHosts: []string{"bad*host"}}, want: ErrInvalidConfig},
+		{name: "blank method", config: Config{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{""}}, want: ErrInvalidConfig},
+		{name: "unsupported method", config: Config{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{"CONNECT"}}, want: ErrInvalidMethod},
+		{name: "negative timeout", config: Config{AllowedHosts: []string{"example.com"}, DefaultTimeout: -time.Second}, want: ErrInvalidConfig},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.config.Validate()
+			if test.want == nil && err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+			if test.want != nil && !errors.Is(err, test.want) {
+				t.Fatalf("Validate() error = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+func TestMethod(t *testing.T) {
+	if got := Method("").Resolve(); got != MethodGET {
+		t.Fatalf("empty Method.Resolve() = %q, want %q", got, MethodGET)
+	}
+	if got := Method(" post ").Resolve(); got != MethodPOST {
+		t.Fatalf("Method(post).Resolve() = %q, want %q", got, MethodPOST)
+	}
+	if err := Method("CONNECT").Validate(); !errors.Is(err, ErrInvalidMethod) {
+		t.Fatalf("Method(CONNECT).Validate() error = %v, want ErrInvalidMethod", err)
 	}
 }
 
@@ -183,7 +222,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 
 	writeClient, err := NewClient(Config{
 		AllowedHosts:   []string{hostOnly},
-		AllowedMethods: []string{"GET", "POST"},
+		AllowedMethods: []Method{MethodGET, MethodPOST},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -194,6 +233,28 @@ func TestDo_MethodAllowlist(t *testing.T) {
 	}
 	if resp.Body != "POST" {
 		t.Fatalf("server saw method %q, want POST", resp.Body)
+	}
+}
+
+func TestDo_ValidatesMethodAndTimeout(t *testing.T) {
+	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name    string
+		request Request
+		want    error
+	}{
+		{name: "method", request: Request{URL: "https://example.com", Method: "CONNECT"}, want: ErrInvalidMethod},
+		{name: "negative timeout", request: Request{URL: "https://example.com", TimeoutMS: -1}, want: ErrInvalidTimeout},
+		{name: "large timeout", request: Request{URL: "https://example.com", TimeoutMS: maxRequestTimeout + 1}, want: ErrInvalidTimeout},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := client.Do(t.Context(), &test.request); !errors.Is(err, test.want) {
+				t.Fatalf("Do() error = %v, want %v", err, test.want)
+			}
+		})
 	}
 }
 
