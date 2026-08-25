@@ -37,43 +37,38 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 		Request: newCoreChatRequest,
 		AssertCall: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if _, found := response.Extensions["test/openai_response"]; !found {
+			if _, found := response.Metadata.Extra["test/openai_response"]; !found {
 				t.Fatal("compatible response did not preserve the provider-scoped official response")
 			}
-			if _, found := response.Extensions[lynxopenai.ResponseExtensionKey]; found {
+			if _, found := response.Metadata.Extra[lynxopenai.ResponseExtensionKey]; found {
 				t.Fatal("compatible response leaked into OpenAI's native extension namespace")
 			}
-			if response.ID != "chatcmpl-core" || response.Model != "gpt-5.2" {
-				t.Fatalf("identity = %q/%q", response.ID, response.Model)
+			if response.Metadata.ID != "chatcmpl-core" || response.Metadata.Model != "gpt-5.2" {
+				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 			}
-			if len(response.Choices) != 2 {
-				t.Fatalf("choices = %d; want 2", len(response.Choices))
+			result := response.Result
+			if result.FinishReason != corechat.FinishReasonToolCalls {
+				t.Errorf("finish reason = %q", result.FinishReason)
 			}
-			first := response.Choices[0]
-			if first.FinishReason != corechat.FinishReasonToolCalls {
-				t.Errorf("finish reason = %q", first.FinishReason)
+			if result.Message == nil || len(result.Message.Parts) != 4 {
+				t.Fatalf("result message = %#v; want reasoning/text/tool/media", result.Message)
 			}
-			if first.Message == nil || len(first.Message.Parts) != 4 {
-				t.Fatalf("first message = %#v; want reasoning/text/tool/media", first.Message)
+			if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "checking sources" {
+				t.Errorf("reasoning part = %#v", result.Message.Parts[0])
 			}
-			if first.Message.Parts[0].Kind != corechat.PartReasoning || first.Message.Parts[0].Text != "checking sources" {
-				t.Errorf("reasoning part = %#v", first.Message.Parts[0])
-			}
-			call := first.Message.Parts[2].ToolCall
+			call := result.Message.Parts[2].ToolCall
 			if call == nil || call.ID != "call-2" || call.Name != "search" {
 				t.Errorf("tool call = %#v", call)
 			}
-			audio := first.Message.Parts[3].Media
+			audio := result.Message.Parts[3].Media
 			if audio == nil || audio.MIME != "audio/wav" || audio.Source.Kind != media.SourceReference || audio.Source.Ref != "audio-1" {
 				t.Errorf("audio = %#v", audio)
 			}
-			if response.Usage.InputTokens != 12 || response.Usage.OutputTokens != 7 ||
-				response.Usage.ReasoningTokens == nil || *response.Usage.ReasoningTokens != 3 ||
-				response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 5 {
-				t.Errorf("usage = %#v", response.Usage)
-			}
-			if response.Choices[1].Text() != "alternate" {
-				t.Errorf("alternate text = %q", response.Choices[1].Text())
+			usage := response.Metadata.Usage
+			if usage.InputTokens != 12 || usage.OutputTokens != 7 ||
+				usage.ReasoningTokens == nil || *usage.ReasoningTokens != 3 ||
+				usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 5 {
+				t.Errorf("usage = %#v", usage)
 			}
 		},
 		AssertStream: func(t *testing.T, responses []*corechat.Response) {
@@ -82,26 +77,24 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			var toolIDs []string
 			var finalUsage corechat.Usage
 			for _, response := range responses {
-				if _, found := response.Extensions["test/openai_stream_chunk"]; !found {
+				if _, found := response.Metadata.Extra["test/openai_stream_chunk"]; !found {
 					t.Error("compatible stream did not preserve a provider-scoped official chunk")
 				}
-				if _, found := response.Extensions[lynxopenai.StreamChunkExtensionKey]; found {
+				if _, found := response.Metadata.Extra[lynxopenai.StreamChunkExtensionKey]; found {
 					t.Error("compatible stream leaked into OpenAI's native extension namespace")
 				}
-				finalUsage = response.Usage
-				for i := range response.Choices {
-					if response.Choices[i].Message == nil {
-						continue
-					}
-					for _, part := range response.Choices[i].Message.Parts {
-						switch part.Kind {
-						case corechat.PartText:
-							text.WriteString(part.Text)
-						case corechat.PartReasoning:
-							reasoning.WriteString(part.Text)
-						case corechat.PartToolCall:
-							toolIDs = append(toolIDs, part.ToolCall.ID)
-						}
+				finalUsage = response.Metadata.Usage
+				if response.Result == nil || response.Result.Message == nil {
+					continue
+				}
+				for _, part := range response.Result.Message.Parts {
+					switch part.Kind {
+					case corechat.PartText:
+						text.WriteString(part.Text)
+					case corechat.PartReasoning:
+						reasoning.WriteString(part.Text)
+					case corechat.PartToolCall:
+						toolIDs = append(toolIDs, part.ToolCall.ID)
 					}
 				}
 			}
@@ -122,22 +115,68 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 		},
 		AssertAggregated: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.ID != "chatcmpl-stream" || response.Model != "gpt-5.2" || len(response.Choices) != 1 {
-				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			if response.Metadata.ID != "chatcmpl-stream" || response.Metadata.Model != "gpt-5.2" || response.Result == nil {
+				t.Fatalf("aggregated response = %#v", response)
 			}
-			choice := response.Choices[0]
-			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonToolCalls {
-				t.Fatalf("aggregated choice = %#v", choice)
+			result := response.Result
+			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonToolCalls {
+				t.Fatalf("aggregated result = %#v", result)
 			}
-			call := choice.Message.Parts[2].ToolCall
-			if choice.Message.Parts[0].Text != "think " || choice.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"lynx"}` {
-				t.Errorf("aggregated parts = %#v; call = %#v", choice.Message.Parts, call)
+			call := result.Message.Parts[2].ToolCall
+			if result.Message.Parts[0].Text != "think " || result.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"lynx"}` {
+				t.Errorf("aggregated parts = %#v; call = %#v", result.Message.Parts, call)
 			}
-			if response.Usage.InputTokens != 8 || response.Usage.OutputTokens != 4 {
-				t.Errorf("aggregated usage = %#v", response.Usage)
+			if response.Metadata.Usage.InputTokens != 8 || response.Metadata.Usage.OutputTokens != 4 {
+				t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
 			}
 		},
 	}.Run(t)
+}
+
+func TestCompatibleChatRejectsMultipleProviderChoices(t *testing.T) {
+	server := modeltest.JSONServer(http.StatusOK, `{
+		"id":"chatcmpl-multiple","model":"gpt-5.2","choices":[
+			{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"first"}},
+			{"index":1,"finish_reason":"stop","message":{"role":"assistant","content":"second"}}
+		]
+	}`)
+	t.Cleanup(server.Close)
+	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
+		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
+	}, lynxopenai.Dialect{Provider: "test"})
+	if err != nil {
+		t.Fatalf("NewCompatibleChat: %v", err)
+	}
+	request, err := corechat.NewRequest(corechat.NewUserMessage(corechat.NewTextPart("hello")))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one result") {
+		t.Fatalf("Call error = %v; want multiple-choice rejection", err)
+	}
+}
+
+func TestCompatibleChatRejectsResultCountOption(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request must fail before provider I/O")
+	}))
+	t.Cleanup(server.Close)
+	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
+		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
+	}, lynxopenai.Dialect{Provider: "test"})
+	if err != nil {
+		t.Fatalf("NewCompatibleChat: %v", err)
+	}
+	request, err := corechat.NewRequest(corechat.NewUserMessage(corechat.NewTextPart("hello")))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	if err := request.Options.SetExtension("test/openai_request", map[string]any{"n": 2}); err != nil {
+		t.Fatalf("SetExtension: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "produces one result") {
+		t.Fatalf("Call error = %v; want result-count rejection", err)
+	}
 }
 
 func newCoreChatRequest(t *testing.T) *corechat.Request {
@@ -180,7 +219,7 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		Description: "Search the index",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`),
 	}}
-	if err := request.SetExtension("test/openai_request", map[string]any{
+	if err := request.Options.SetExtension("test/openai_request", map[string]any{
 		"modalities": []string{"text", "audio"},
 		"audio":      map[string]any{"format": "wav", "voice": "alloy"},
 		"response_format": map[string]any{
@@ -271,12 +310,6 @@ var coreChatCompletionJSON = `{
         "tool_calls":[{"id":"call-2","type":"function","function":{"name":"search","arguments":"{\"q\":\"more\"}"}}],
         "audio":{"id":"audio-1","data":"` + base64.StdEncoding.EncodeToString([]byte("audio")) + `","expires_at":1770000100,"transcript":"spoken"}
       },
-      "logprobs":{"content":[],"refusal":[]}
-    },
-    {
-      "index":1,
-      "finish_reason":"content_filter",
-      "message":{"role":"assistant","content":"alternate","refusal":""},
       "logprobs":{"content":[],"refusal":[]}
     }
   ],

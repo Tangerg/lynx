@@ -16,7 +16,7 @@ type recordingModel struct {
 func (model *recordingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	model.request = request
 	message := chat.NewAssistantMessage(chat.NewTextPart("completed"))
-	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	return chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
 func (model *recordingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {

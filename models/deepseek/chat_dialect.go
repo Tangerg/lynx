@@ -66,7 +66,7 @@ type ToolChoice struct {
 
 // RequestOptions contains documented DeepSeek Chat Completions fields that
 // have no provider-neutral Core equivalent. Store it in
-// [chat.Request.Extensions] under [RequestExtensionKey].
+// [chat.Options.Extensions] under [RequestExtensionKey].
 type RequestOptions struct {
 	Thinking        *ThinkingConfig `json:"thinking,omitempty"`
 	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
@@ -83,11 +83,14 @@ type requestDialect struct {
 }
 
 func (dialect requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
-	options, _, err := metadata.Decode[RequestOptions](request.Extensions, RequestExtensionKey)
+	options, _, err := metadata.Decode[RequestOptions](request.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}
-	effective := dialect.defaults.Overlay(request.Options)
+	effective, err := dialect.defaults.Merged(request.Options)
+	if err != nil {
+		return fmt.Errorf("options: %w", err)
+	}
 	if err := options.validate(effective, request.Tools, target.Stream()); err != nil {
 		return err
 	}

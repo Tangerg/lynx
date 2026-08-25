@@ -71,12 +71,11 @@ func request(model string) *chat.Request {
 func response(text string, finish chat.FinishReason, input, output int64) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
 	return &chat.Response{
-		ID:    "response-1",
-		Model: "served-model",
-		Choices: []chat.Choice{
-			{Index: 0, Message: &message, FinishReason: finish},
+		Result: &chat.Result{Message: &message, FinishReason: finish},
+		Metadata: &chat.ResponseMetadata{
+			ID: "response-1", Model: "served-model",
+			Usage: chat.Usage{InputTokens: input, OutputTokens: output},
 		},
-		Usage: chat.Usage{InputTokens: input, OutputTokens: output},
 	}
 }
 
@@ -121,13 +120,11 @@ func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 func TestCallRecordsCurrentGenAISemantics(t *testing.T) {
 	middleware, rig := newRig(t, "anthropic")
 	want := &chat.Response{
-		ID:    "response-1",
-		Model: "claude-served",
-		Choices: []chat.Choice{
-			{Index: 0, FinishReason: chat.FinishReasonStop},
-			{Index: 1, FinishReason: chat.FinishReasonLength},
+		Result: &chat.Result{FinishReason: chat.FinishReasonStop},
+		Metadata: &chat.ResponseMetadata{
+			ID: "response-1", Model: "claude-served",
+			Usage: chat.Usage{InputTokens: 12, OutputTokens: 7},
 		},
-		Usage: chat.Usage{InputTokens: 12, OutputTokens: 7},
 	}
 	var sawSpanContext bool
 	model := chat.ModelFunc(func(ctx context.Context, got *chat.Request) (*chat.Response, error) {
@@ -160,7 +157,7 @@ func TestCallRecordsCurrentGenAISemantics(t *testing.T) {
 	assertStringAttr(t, attrs, "gen_ai.request.model", "claude-requested")
 	assertStringAttr(t, attrs, "gen_ai.response.model", "claude-served")
 	assertStringAttr(t, attrs, "gen_ai.response.id", "response-1")
-	if got := attrs["gen_ai.response.finish_reasons"].AsStringSlice(); len(got) != 2 || got[0] != "stop" || got[1] != "length" {
+	if got := attrs["gen_ai.response.finish_reasons"].AsStringSlice(); len(got) != 1 || got[0] != "stop" {
 		t.Fatalf("finish reasons = %v", got)
 	}
 	if got := attrs["gen_ai.usage.input_tokens"].AsInt64(); got != 12 {
@@ -213,8 +210,8 @@ func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 		called = true
 		return func(yield func(*chat.Response, error) bool) {
 			first := response("hel", "", 0, 0)
-			first.ID = ""
-			first.Model = ""
+			first.Metadata.ID = ""
+			first.Metadata.Model = ""
 			second := response("lo", chat.FinishReasonStop, 9, 3)
 			yield(first, nil)
 			yield(second, nil)
@@ -333,7 +330,7 @@ func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 
 func TestStreamDoesNotTurnObservationFailureIntoBusinessFailure(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
-	invalid := &chat.Response{Choices: []chat.Choice{{Index: -1, FinishReason: chat.FinishReasonStop}}}
+	invalid := &chat.Response{Result: &chat.Result{}}
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) { yield(invalid, nil) }
 	})

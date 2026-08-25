@@ -18,24 +18,26 @@ var (
 	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
 )
 
-// DocumentContextKey is the [chat.Response.Extensions] key under which the
+// DocumentContextKey is the [chat.ResponseMetadata.Extra] key under which the
 // middleware stashes retrieved documents so downstream callers can re-render or
 // audit the context the LLM saw.
 const DocumentContextKey = "rag/document_context"
 
 var (
-	chatHistoryValueKey       = MustValueKey[[]chat.Message]("chat history")
-	requestExtensionsValueKey = MustValueKey[metadata.Map]("chat request extensions")
+	chatHistoryValueKey              = MustValueKey[[]chat.Message]("chat history")
+	requestOptionsExtensionsValueKey = MustValueKey[metadata.Map]("chat request options extensions")
 )
 
 // ChatHistoryValueKey returns the immutable message snapshot slot populated
 // when a query originates from [NewMiddleware].
 func ChatHistoryValueKey() ValueKey[[]chat.Message] { return chatHistoryValueKey }
 
-// RequestExtensionsValueKey returns the request extension envelope slot. The
-// envelope remains separate from the RAG value namespace rather than being
-// flattened into a weakly typed map.
-func RequestExtensionsValueKey() ValueKey[metadata.Map] { return requestExtensionsValueKey }
+// RequestOptionsExtensionsValueKey returns the request Options extension
+// envelope slot. The envelope remains separate from the RAG value namespace
+// rather than being flattened into a weakly typed map.
+func RequestOptionsExtensionsValueKey() ValueKey[metadata.Map] {
+	return requestOptionsExtensionsValueKey
+}
 
 type MiddlewareConfig struct {
 	// Retriever fetches documents for the latest user message. Required.
@@ -53,7 +55,7 @@ type middleware struct {
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieved documents to
-// response extensions under [DocumentContextKey].
+// [chat.ResponseMetadata.Extra] under [DocumentContextKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if isNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever
@@ -86,10 +88,10 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request,
 		return nil, nil, nil, fmt.Errorf("rag: build query from final user message: %w", err)
 	}
 
-	if len(prepared.Extensions) != 0 {
-		query, err = WithValue(query, requestExtensionsValueKey, prepared.Extensions.Clone())
+	if len(prepared.Options.Extensions) != 0 {
+		query, err = WithValue(query, requestOptionsExtensionsValueKey, prepared.Options.Extensions.Clone())
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("rag: attach request extensions: %w", err)
+			return nil, nil, nil, fmt.Errorf("rag: attach request Options extensions: %w", err)
 		}
 	}
 	query, err = WithValue(query, chatHistoryValueKey, slices.Clone(prepared.Messages))
@@ -117,7 +119,7 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request,
 }
 
 // executeCall is the synchronous flow: retrieve → augment → call next → attach
-// docs to response extensions.
+// docs to response metadata.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.Model) (*chat.Response, error) {
 	prepared, augmented, docs, err := m.run(ctx, req)
 	if err != nil {
@@ -133,14 +135,18 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 		}
 		return nil, ErrNilChatResponse
 	}
-	if extensionErr := resp.SetExtension(DocumentContextKey, docs); extensionErr != nil {
+	if resp.Metadata == nil {
+		resp.Metadata = &chat.ResponseMetadata{}
+	}
+	if extensionErr := resp.Metadata.Set(DocumentContextKey, docs); extensionErr != nil {
 		return resp, errors.Join(err, extensionErr)
 	}
 	return resp, err
 }
 
 // executeStream is the streaming flow: retrieve once before the stream begins,
-// swap the user message, then forward chunks while attaching docs to extensions.
+// swap the user message, then forward chunks while attaching docs to response
+// metadata.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		prepared, augmented, docs, err := m.run(ctx, req)
@@ -165,7 +171,10 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 				yield(nil, ErrNilChatResponse)
 				return
 			}
-			if extensionErr := resp.SetExtension(DocumentContextKey, docs); extensionErr != nil {
+			if resp.Metadata == nil {
+				resp.Metadata = &chat.ResponseMetadata{}
+			}
+			if extensionErr := resp.Metadata.Set(DocumentContextKey, docs); extensionErr != nil {
 				yield(resp, errors.Join(err, extensionErr))
 				return
 			}

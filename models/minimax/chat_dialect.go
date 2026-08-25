@@ -57,7 +57,7 @@ func (options ChatRequestOptions) validate() error {
 // reasoningSplitDialect keeps MiniMax thinking separate from answer content.
 // The official API otherwise embeds thinking in content inside <think> tags.
 func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
-	extension, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
+	extension, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("minimax: extension %q: %w", RequestExtensionKey, err)
 	}

@@ -278,9 +278,9 @@ func (model *planningDelegateModel) Call(_ context.Context, request *chat.Reques
 				ID: "call_planning_risks", Name: "review_with_planning", Arguments: string(second),
 			}),
 		)
-		return chat.NewResponse(chat.Choice{
-			Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
-		})
+		return chat.NewResponse(&chat.Result{
+			Message: &message, FinishReason: chat.FinishReasonToolCalls,
+		}, nil)
 	}
 	if len(request.Messages) != 3 || request.Messages[2].Role != chat.RoleTool ||
 		len(request.Messages[2].Parts) != 2 {
@@ -297,9 +297,9 @@ func (model *planningDelegateModel) Call(_ context.Context, request *chat.Reques
 		}
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart("planning workers achieved 2 tasks"))
-	return chat.NewResponse(chat.Choice{
-		Index: 0, Message: &message, FinishReason: chat.FinishReasonStop,
-	})
+	return chat.NewResponse(&chat.Result{
+		Message: &message, FinishReason: chat.FinishReasonStop,
+	}, nil)
 }
 
 func (model *planningDelegateModel) Calls() int {

@@ -2,7 +2,7 @@
 
 > 状态：持续维护
 > 建立日期：2026-08-06
-> 最后更新：2026-08-09
+> 最后更新：2026-08-25
 
 本文只记录影响长期结构的架构决策及其理由，不复述目标架构，不记录任务进度。
 
@@ -638,3 +638,12 @@
 - 决策：Interaction 新增中性 sentinel `ErrHostFailure` 与构造函数 `HostFailure(cause)`。它只标记 Host 在模型/Tool 外部调用尚未发生前拒绝自己的前置边界，不携带 transaction、journal、Runtime、Run、RPC、数据库或产品 failure kind。普通模型错误仍按 provider 失败处理，普通 Tool error 仍是模型可见结果；外部调用已经发生而 Host 无法确定投影结果时，仍由 consumer 使用既有 unknown settlement/recovery 合同，不能套用该标记。
 - 决策：Dispatcher protocol 从 v4 直接升级到 v5。model/tool settlement 各增加与 success/error/unknown 互斥的 `host_error` 模式；Dispatcher 识别 wrapped sentinel 并产生确定 settlement，Execution 以稳定 code `interaction.host.failed` 终止，不再进入下一模型轮次。旧 v4 不双读，非法多模式 payload 直接拒绝。
 - 后果：Interaction public API/GoDoc 形成 Baseline 22，Interaction private protocol wire 切换到 v5；ExecutionState 保持 v6。Process Snapshot v6、TreeSnapshot v4、Kernel、其他 Strategy 和 observation wire 均不改变。Runtime 只在 `adapter/agentexec` 消费中性标记并把稳定 code 投影为产品 internal failure，Agent production package 继续没有任何 Runtime import 或 Host persistence 实现依赖。
+
+## ADR-A2-077：Interaction 只接受 Core Chat 的单 Result 合同
+
+- 状态：已接受并实施；形成 Baseline 23。
+- 证据：Core Chat 从未支持调用方请求多个候选结果，真实 provider、`chatclient`、Interaction 与 Runtime 也只消费一个语义结果。旧 `Choice`/`Choices`/`Index` 模型允许构造多个候选这一非法状态，迫使 Interaction 在本不成立的分支上循环、仲裁和报错，并把 provider wire 的复数候选细节泄漏到共同协议。
+- 决策：Core Chat 的唯一完成模型是 `Response.Result`；provider 若返回多个候选必须在 provider adapter 边界明确失败，不能截断或挑选。Interaction 直接消费这个单 Result，不保留 Choice alias、多候选循环或兼容分支。由于 Interaction ExecutionState、model settlement 与 stream Delta 都嵌入 Core Chat Request/Response wire，ExecutionState 从 v6 升为 v7，dispatcher protocol 从 v5 升为 v6；旧版本直接拒绝，不双读、不转换。
+- 决策：这次依赖协议修订不改变 Agent 公共 identifier、签名或 owner 边界。Kernel 继续把 Strategy state 当 opaque payload；Planning、Workflow、Process Snapshot、TreeSnapshot 与 observation wire 不随 Core Chat 的具体建模升级。
+- 原因：单结果是不变量，不是便利默认值。由类型和 adapter 边界排除多结果状态，才能让 Core、provider、Client、Interaction 与 Host 使用同一领域语言，并删除所有消费者侧的过程式防御逻辑。
+- 后果：形成 Baseline 23；Interaction state/protocol 为 v7/v6，其 owner wire baseline 显式更新。其他七个公共 package、Kernel/Planning/Workflow owner wire、Process Snapshot v6、TreeSnapshot v4 与 Event/Delta wire均不变。

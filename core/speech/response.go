@@ -1,6 +1,7 @@
 package speech
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,6 +26,41 @@ func (m *ResultMetadata) Set(key string, value any) error {
 	return nil
 }
 
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&m).validate(); err != nil {
+		return nil, err
+	}
+	type wireResultMetadata ResultMetadata
+	return json.Marshal(wireResultMetadata(m))
+}
+
+func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+	}
+	type wireResultMetadata ResultMetadata
+	var decoded wireResultMetadata
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+	}
+	candidate := ResultMetadata(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*m = candidate
+	return nil
+}
+
 // Result is one chunk of generated audio. For synchronous calls the
 // chunk is the entire audio; for streaming calls Audio is whatever
 // segment the provider just produced.
@@ -41,10 +77,49 @@ type Result struct {
 // or metadata is nil.
 func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Audio: slices.Clone(audio), Metadata: metadata}
-	if err := result.validate(); err != nil {
+	if err := result.Validate(); err != nil {
 		return nil, fmt.Errorf("speech.NewResult: %w", err)
 	}
 	return result, nil
+}
+
+// Validate verifies audio content and result metadata.
+func (r *Result) Validate() error {
+	if r == nil {
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+	}
+	if len(r.Audio) == 0 {
+		return fmt.Errorf("%w: audio must not be empty", ErrInvalidResponse)
+	}
+	if err := r.Metadata.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r Result) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireResult Result
+	return json.Marshal(wireResult(r))
+}
+
+func (r *Result) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+	}
+	type wireResult Result
+	var decoded wireResult
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+	}
+	candidate := Result(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*r = candidate
+	return nil
 }
 
 // ResponseMetadata holds response-level metadata for a TTS call.
@@ -67,6 +142,47 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	if err := m.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("speech.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m ResponseMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&m).validate(); err != nil {
+		return nil, err
+	}
+	type wireResponseMetadata ResponseMetadata
+	return json.Marshal(wireResponseMetadata(m))
+}
+
+func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
+	}
+	type wireResponseMetadata ResponseMetadata
+	var decoded wireResponseMetadata
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode response metadata: %w", ErrInvalidResponse, err)
+	}
+	candidate := ResponseMetadata(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*m = candidate
 	return nil
 }
 
@@ -95,7 +211,7 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if err := r.Result.validate(); err != nil {
+	if err := r.Result.Validate(); err != nil {
 		return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
 	}
 	if err := r.Metadata.validate(); err != nil {
@@ -104,41 +220,27 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func (r *Result) validate() error {
+func (r Response) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireResponse Response
+	return json.Marshal(wireResponse(r))
+}
+
+func (r *Response) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Response receiver", ErrInvalidResponse)
 	}
-	if len(r.Audio) == 0 {
-		return fmt.Errorf("%w: audio must not be empty", ErrInvalidResponse)
+	type wireResponse Response
+	var decoded wireResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode response: %w", ErrInvalidResponse, err)
 	}
-	if err := r.Metadata.validate(); err != nil {
+	candidate := Response(decoded)
+	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	return nil
-}
-
-func (m *ResultMetadata) validate() error {
-	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (m *ResponseMetadata) validate() error {
-	if m == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
-	}
-	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
-		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
-	}
-	if m.Created < 0 {
-		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
-	}
-	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
-	}
+	*r = candidate
 	return nil
 }

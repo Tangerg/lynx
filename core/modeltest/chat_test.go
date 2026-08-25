@@ -12,12 +12,12 @@ import (
 type scriptedChat struct{}
 
 func (scriptedChat) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	return &chat.Response{ID: "call"}, nil
+	return &chat.Response{Metadata: &chat.ResponseMetadata{ID: "call"}}, nil
 }
 
 func (scriptedChat) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		yield(&chat.Response{ID: "stream"}, nil)
+		yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "stream"}}, nil)
 	}
 }
 
@@ -43,13 +43,13 @@ func TestChatSuite(t *testing.T) {
 		},
 		AssertCall: func(t *testing.T, response *chat.Response) {
 			callAsserted = true
-			if response.ID != "call" {
-				t.Fatalf("Call response ID = %q", response.ID)
+			if response.Metadata.ID != "call" {
+				t.Fatalf("Call response ID = %q", response.Metadata.ID)
 			}
 		},
 		AssertStream: func(t *testing.T, responses []*chat.Response) {
 			streamAsserted = true
-			if len(responses) != 1 || responses[0].ID != "stream" {
+			if len(responses) != 1 || responses[0].Metadata.ID != "stream" {
 				t.Fatalf("Stream responses = %#v", responses)
 			}
 		},

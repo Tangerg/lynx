@@ -111,7 +111,7 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: request: %w", err)
 	}
-	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Extensions, ResponsesRequestExtensionKey)
+	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Options.Extensions, ResponsesRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
 	}
@@ -119,7 +119,10 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		params = responses.ResponseNewParams{}
 	}
 
-	options := c.defaults.Overlay(req.Options)
+	options, err := c.defaults.Merged(req.Options)
+	if err != nil {
+		return nil, fmt.Errorf("openai responses: options: %w", err)
+	}
 	if options.Model == "" {
 		return nil, errors.New("openai responses: model is required in defaults or request options")
 	}
@@ -327,21 +330,24 @@ func mapResponsesResponse(response *responses.Response) (*corechat.Response, err
 	if err != nil {
 		return nil, err
 	}
-	choice := corechat.Choice{Index: 0, FinishReason: responsesFinishReason(response, hasToolCalls)}
+	result := &corechat.Result{FinishReason: responsesFinishReason(response, hasToolCalls)}
 	if len(parts) != 0 {
 		message := corechat.NewAssistantMessage(parts...)
-		choice.Message = &message
+		result.Message = &message
 	}
-	result := &corechat.Response{
-		ID: response.ID, Model: string(response.Model), Choices: []corechat.Choice{choice}, Usage: responsesUsage(response.Usage),
+	mapped := &corechat.Response{
+		Result: result,
+		Metadata: &corechat.ResponseMetadata{
+			ID: response.ID, Model: string(response.Model), Usage: responsesUsage(response.Usage),
+		},
 	}
-	if err := result.SetExtension(ResponsesResponseExtensionKey, response); err != nil {
+	if err := mapped.Metadata.Set(ResponsesResponseExtensionKey, response); err != nil {
 		return nil, fmt.Errorf("openai responses: preserve native response: %w", err)
 	}
-	if err := result.Validate(); err != nil {
+	if err := mapped.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: response: %w", err)
 	}
-	return result, nil
+	return mapped, nil
 }
 
 func responsesOutputParts(output []responses.ResponseOutputItemUnion) ([]corechat.Part, bool, error) {
@@ -502,11 +508,12 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 			return item.Type == "function_call"
 		})
 		response := &corechat.Response{
-			ID: s.responseID, Model: s.model,
-			Choices: []corechat.Choice{{Index: 0, FinishReason: responsesFinishReason(&typed.Response, hasToolCall)}},
-			Usage:   responsesUsage(typed.Response.Usage),
+			Result: &corechat.Result{FinishReason: responsesFinishReason(&typed.Response, hasToolCall)},
+			Metadata: &corechat.ResponseMetadata{
+				ID: s.responseID, Model: s.model, Usage: responsesUsage(typed.Response.Usage),
+			},
 		}
-		if err := response.SetExtension(ResponsesResponseExtensionKey, typed.Response); err != nil {
+		if err := response.Metadata.Set(ResponsesResponseExtensionKey, typed.Response); err != nil {
 			return nil, false, fmt.Errorf("openai responses: preserve completed response: %w", err)
 		}
 		if err := response.Validate(); err != nil {
@@ -566,8 +573,8 @@ func decodeResponsesReasoningFrames(signature []byte) ([]responses.ResponseReaso
 func (s *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {
 	message := corechat.NewAssistantMessage(part)
 	response := &corechat.Response{
-		ID: s.responseID, Model: s.model,
-		Choices: []corechat.Choice{{Index: 0, Message: &message}},
+		Result:   &corechat.Result{Message: &message},
+		Metadata: &corechat.ResponseMetadata{ID: s.responseID, Model: s.model},
 	}
 	if err := response.Validate(); err != nil {
 		return nil, false, err

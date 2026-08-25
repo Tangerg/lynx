@@ -100,9 +100,7 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 	request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("fuzz"))}}
 	call := chat.ToolCall{ID: "call_fuzz", Name: "delegate_fuzz", Arguments: `{"task":"check"}`}
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(call))
-	response := &chat.Response{Choices: []chat.Choice{{
-		Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
-	}}}
+	response := &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonToolCalls}}
 	key, _ := DelegateChildKey(1, call)
 	processID, _ := agent.ParseProcessID("process:fuzz-child")
 	waitID, _ := agent.ParseWaitID("wait:fuzz-child")

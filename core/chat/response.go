@@ -9,128 +9,114 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-var (
-	// ErrInvalidResponse reports malformed provider response data.
-	ErrInvalidResponse = errors.New("chat: invalid response")
-	// ErrInvalidChoice reports a malformed generation choice.
-	ErrInvalidChoice = errors.New("chat: invalid choice")
-)
+// ErrInvalidResponse reports malformed provider response data.
+var ErrInvalidResponse = errors.New("chat: invalid response")
 
-// FinishReason explains why generation stopped. The empty value means that a
-// streaming choice has not finished yet.
-type FinishReason string
-
-const (
-	FinishReasonStop          FinishReason = "stop"
-	FinishReasonLength        FinishReason = "length"
-	FinishReasonToolCalls     FinishReason = "tool_calls"
-	FinishReasonContentFilter FinishReason = "content_filter"
-	FinishReasonOther         FinishReason = "other"
-)
-
-func (r FinishReason) String() string { return string(r) }
-
-// Valid reports whether r is empty (not finished) or a known normalized
-// finish reason. Provider-native reasons map to Other and a choice extension.
-func (r FinishReason) Valid() bool {
-	switch r {
-	case "", FinishReasonStop, FinishReasonLength, FinishReasonToolCalls, FinishReasonContentFilter, FinishReasonOther:
-		return true
-	default:
-		return false
-	}
+// ResponseMetadata holds provider identity, usage, and response-scoped extras.
+type ResponseMetadata struct {
+	ID    string       `json:"id,omitempty"`
+	Model string       `json:"model,omitempty"`
+	Usage Usage        `json:"usage,omitzero"`
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Choice is one provider generation. Message may be nil on a streaming chunk
-// that only carries a finish reason or choice extensions.
-type Choice struct {
-	Index        int          `json:"index"`
-	Message      *Message     `json:"message,omitempty"`
-	FinishReason FinishReason `json:"finish_reason,omitempty"`
-	Extensions   metadata.Map `json:"extensions,omitzero"`
-}
-
-// SetExtension JSON-encodes a choice-scoped provider value.
-func (c *Choice) SetExtension(key string, value any) error {
-	if c == nil {
-		return fmt.Errorf("%w: nil choice", ErrInvalidChoice)
+// Set encodes provider-specific response metadata into Extra.
+func (m *ResponseMetadata) Set(key string, value any) error {
+	if m == nil {
+		return fmt.Errorf("chat.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return setExtension(&c.Extensions, key, value)
-}
-
-// Text returns the choice's assistant text, or an empty string when absent.
-func (c *Choice) Text() string {
-	if c == nil || c.Message == nil {
-		return ""
-	}
-	return c.Message.Text()
-}
-
-// Validate verifies choice identity, normalized finish reason, assistant
-// message content, and JSON-safe extensions.
-func (c *Choice) Validate() error {
-	if c == nil {
-		return fmt.Errorf("%w: nil choice", ErrInvalidChoice)
-	}
-	if c.Index < 0 {
-		return fmt.Errorf("%w: index must not be negative", ErrInvalidChoice)
-	}
-	if c.Message == nil && c.FinishReason == "" && len(c.Extensions) == 0 {
-		return fmt.Errorf("%w: choice has no message, finish reason, or extensions", ErrInvalidChoice)
-	}
-	if c.Message != nil {
-		if err := c.Message.Validate(); err != nil {
-			return fmt.Errorf("%w: message: %w", ErrInvalidChoice, err)
-		}
-		if c.Message.Role != RoleAssistant {
-			return fmt.Errorf("%w: message role must be %q, got %q", ErrInvalidChoice, RoleAssistant, c.Message.Role)
-		}
-	}
-	if !c.FinishReason.Valid() {
-		return fmt.Errorf("%w: unknown finish reason %q", ErrInvalidChoice, c.FinishReason)
-	}
-	if err := validateExtensions(c.Extensions); err != nil {
-		return fmt.Errorf("%w: extensions: %w", ErrInvalidChoice, err)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("chat.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-// MarshalJSON validates Choice before writing its wire representation.
-func (c Choice) MarshalJSON() ([]byte, error) {
-	if err := (&c).Validate(); err != nil {
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return nil
+	}
+	if m.ID != "" && strings.TrimSpace(m.ID) != m.ID {
+		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if err := m.Usage.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidResponse, err)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m *ResponseMetadata) merge(src ResponseMetadata) error {
+	if src.ID != "" {
+		m.ID = src.ID
+	}
+	if src.Model != "" {
+		m.Model = src.Model
+	}
+	if !src.Usage.isZero() {
+		m.Usage = src.Usage.clone()
+	}
+	if err := m.Extra.Merge(src.Extra); err != nil {
+		return fmt.Errorf("merge extras: %w", err)
+	}
+	return nil
+}
+
+func (m ResponseMetadata) clone() *ResponseMetadata {
+	clone := m
+	clone.Usage = m.Usage.clone()
+	clone.Extra = m.Extra.Clone()
+	return &clone
+}
+
+// MarshalJSON validates ResponseMetadata before writing its wire representation.
+func (m ResponseMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&m).validate(); err != nil {
 		return nil, err
 	}
-	type wireChoice Choice
-	return json.Marshal(wireChoice(c))
+	type wireResponseMetadata ResponseMetadata
+	return json.Marshal(wireResponseMetadata(m))
 }
 
-// UnmarshalJSON decodes and validates Choice before replacing the receiver.
-func (c *Choice) UnmarshalJSON(data []byte) error {
-	if c == nil {
-		return fmt.Errorf("%w: nil receiver", ErrInvalidChoice)
+// UnmarshalJSON decodes and validates ResponseMetadata before replacing the receiver.
+func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
 	}
-	type wireChoice Choice
-	var decoded wireChoice
+	type wireResponseMetadata ResponseMetadata
+	var decoded wireResponseMetadata
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode: %w", ErrInvalidChoice, err)
+		return fmt.Errorf("%w: decode response metadata: %w", ErrInvalidResponse, err)
 	}
-	candidate := Choice(decoded)
-	if err := candidate.Validate(); err != nil {
+	candidate := ResponseMetadata(decoded)
+	if err := candidate.validate(); err != nil {
 		return err
 	}
-	*c = candidate
+	*m = candidate
 	return nil
 }
 
-// Response is provider output. It never contains tool execution results,
-// pause/resume signals, or other orchestration events. Its zero value is valid
-// so a stream can represent an empty or usage-only chunk.
+// Response is provider output with at most one generation result. Its zero
+// value is valid so a stream can represent an empty or metadata-only chunk.
 type Response struct {
-	ID         string       `json:"id,omitempty"`
-	Model      string       `json:"model,omitempty"`
-	Choices    []Choice     `json:"choices,omitempty"`
-	Usage      Usage        `json:"usage,omitzero"`
-	Extensions metadata.Map `json:"extensions,omitzero"`
+	Result   *Result           `json:"result,omitempty"`
+	Metadata *ResponseMetadata `json:"metadata,omitempty"`
+}
+
+// NewResponse builds and validates a response from one result and shared metadata.
+func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+	if result == nil {
+		return nil, fmt.Errorf("chat.NewResponse: %w: result must not be nil", ErrInvalidResponse)
+	}
+	response := &Response{Result: result, Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("chat.NewResponse: %w", err)
+	}
+	return response, nil
 }
 
 // Clone returns an independent copy of r. It is nil-safe.
@@ -138,71 +124,37 @@ func (r *Response) Clone() *Response {
 	if r == nil {
 		return nil
 	}
-	clone := r.cloneHeader()
-	clone.Choices = make([]Choice, len(r.Choices))
-	for index := range r.Choices {
-		clone.Choices[index] = r.Choices[index].clone()
+	clone := &Response{}
+	if r.Result != nil {
+		clone.Result = r.Result.clone()
 	}
-	return &clone
+	if r.Metadata != nil {
+		clone.Metadata = r.Metadata.clone()
+	}
+	return clone
 }
 
-// NewResponse validates a Response containing choices.
-func NewResponse(choices ...Choice) (*Response, error) {
-	response := &Response{Choices: append([]Choice(nil), choices...)}
-	if err := response.Validate(); err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-// SetExtension JSON-encodes a response-scoped provider value.
-func (r *Response) SetExtension(key string, value any) error {
-	if r == nil {
-		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
-	}
-	return setExtension(&r.Extensions, key, value)
-}
-
-// First returns the first provider choice or nil when no choice is present.
-func (r *Response) First() *Choice {
-	if r == nil || len(r.Choices) == 0 {
-		return nil
-	}
-	return &r.Choices[0]
-}
-
-// Text returns the first choice's assistant text. It is nil/empty-safe.
+// Text returns the result's assistant text. It is nil/empty-safe.
 func (r *Response) Text() string {
-	return r.First().Text()
+	if r == nil {
+		return ""
+	}
+	return r.Result.Text()
 }
 
-// Validate recursively verifies response data. Empty Choices is valid for
+// Validate recursively verifies response data. A nil Result is valid for
 // stream chunks that only carry usage or provider metadata.
 func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if r.ID != "" && strings.TrimSpace(r.ID) != r.ID {
-		return fmt.Errorf("%w: ID must not have surrounding whitespace", ErrInvalidResponse)
-	}
-	if r.Model != "" && strings.TrimSpace(r.Model) != r.Model {
-		return fmt.Errorf("%w: model must not have surrounding whitespace", ErrInvalidResponse)
-	}
-	indices := make(map[int]struct{}, len(r.Choices))
-	for i := range r.Choices {
-		if err := r.Choices[i].Validate(); err != nil {
-			return fmt.Errorf("%w: choices[%d]: %w", ErrInvalidResponse, i, err)
+	if r.Result != nil {
+		if err := r.Result.Validate(); err != nil {
+			return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
 		}
-		if _, duplicate := indices[r.Choices[i].Index]; duplicate {
-			return fmt.Errorf("%w: duplicate choice index %d", ErrInvalidResponse, r.Choices[i].Index)
-		}
-		indices[r.Choices[i].Index] = struct{}{}
 	}
-	if err := r.Usage.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidResponse, err)
-	}
-	if err := validateExtensions(r.Extensions); err != nil {
-		return fmt.Errorf("%w: extensions: %w", ErrInvalidResponse, err)
+	if err := r.Metadata.validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -219,12 +171,12 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes and validates Response before replacing the receiver.
 func (r *Response) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Response receiver", ErrInvalidResponse)
 	}
 	type wireResponse Response
 	var decoded wireResponse
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode response: %w", ErrInvalidResponse, err)
 	}
 	candidate := Response(decoded)
 	if err := candidate.Validate(); err != nil {

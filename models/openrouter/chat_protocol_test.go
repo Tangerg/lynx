@@ -58,7 +58,7 @@ func TestOpenAIChatPreservesStructuredReasoningDetails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Call: %v", err)
 	}
-	message := firstResponse.Choices[0].Message
+	message := firstResponse.Result.Message
 	if message == nil || len(message.Parts) != 4 {
 		t.Fatalf("response message = %#v", message)
 	}
@@ -139,10 +139,10 @@ func TestOpenAIChatCoalescesStreamedReasoningDetailsForReplay(t *testing.T) {
 		}
 	}
 	aggregated := accumulator.Response()
-	if aggregated == nil || len(aggregated.Choices) != 1 || aggregated.Choices[0].Message == nil {
+	if aggregated == nil || aggregated.Result == nil || aggregated.Result.Message == nil {
 		t.Fatalf("aggregated response = %#v", aggregated)
 	}
-	message := aggregated.Choices[0].Message
+	message := aggregated.Result.Message
 	if len(message.Parts) != 2 || message.Parts[0].Text != "step two" || message.Parts[1].Text != "answer" {
 		t.Fatalf("aggregated parts = %#v", message.Parts)
 	}

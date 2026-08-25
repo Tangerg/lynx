@@ -193,7 +193,7 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 	request := mustRequest(t, user)
 	request.Tools = []chat.ToolDefinition{{Name: "weather", InputSchema: []byte(`{"type":"object"}`)}}
 	request.Options = chat.Options{Temperature: &temperature, Stop: []string{"END"}}
-	if err := request.SetExtension("test/value", "original"); err != nil {
+	if err := request.Options.SetExtension("test/value", "original"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -205,13 +205,13 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 		got.Tools[0].InputSchema[0] = '['
 		*got.Options.Temperature = 1.5
 		got.Options.Stop[0] = "MUTATED"
-		got.Extensions["test/value"][1] = 'X'
+		got.Options.Extensions["test/value"][1] = 'X'
 		return response(chat.NewAssistantMessage(chat.NewTextPart("answer"))), nil
 	})).Call(boundContext(t), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(request.Messages[0].Metadata["turn"]) != "1" || request.Messages[0].Parts[0].Media.Source.Bytes[0] != 1 || request.Tools[0].InputSchema[0] != '{' || *request.Options.Temperature != 0.5 || request.Options.Stop[0] != "END" || string(request.Extensions["test/value"]) != `"original"` {
+	if string(request.Messages[0].Metadata["turn"]) != "1" || request.Messages[0].Parts[0].Media.Source.Bytes[0] != 1 || request.Tools[0].InputSchema[0] != '{' || *request.Options.Temperature != 0.5 || request.Options.Stop[0] != "END" || string(request.Options.Extensions["test/value"]) != `"original"` {
 		t.Fatalf("caller request was mutated: %#v", request)
 	}
 	writes := store.writesSnapshot()
@@ -352,7 +352,7 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 		middleware := mustMiddleware(t, store)
 		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			return func(yield func(*chat.Response, error) bool) {
-				yield(&chat.Response{Choices: []chat.Choice{{Index: -1}}}, nil)
+				yield(&chat.Response{Result: &chat.Result{}}, nil)
 			}
 		})
 		var errorsSeen int
@@ -514,10 +514,10 @@ func boundContext(t *testing.T) context.Context {
 }
 
 func response(message chat.Message) *chat.Response {
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop}}}
+	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
 func chunk(text string, finish chat.FinishReason) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: &message, FinishReason: finish}}}
+	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: finish}}
 }

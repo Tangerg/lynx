@@ -339,9 +339,9 @@ func jsonResponse(value any) (*chat.Response, error) {
 		return nil, err
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart(string(data)))
-	return chat.NewResponse(chat.Choice{
-		Index: 0, Message: &message, FinishReason: chat.FinishReasonStop,
-	})
+	return chat.NewResponse(&chat.Result{
+		Message: &message, FinishReason: chat.FinishReasonStop,
+	}, nil)
 }
 
 type deploymentResolver map[agent.DeploymentRef]agent.Deployment

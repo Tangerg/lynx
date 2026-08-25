@@ -5,7 +5,7 @@
 // Together-specific knobs reachable through the namespaced OpenAI request
 // extension:
 //
-//   - "echo" / "n" / "min_p" / "repetition_penalty" / "top_k" are
+//   - "echo" / "min_p" / "repetition_penalty" / "top_k" are
 //     accepted on top of the standard openai surface.
 //   - The "safety_model" field enables Llama Guard prefilter / postfilter
 //     by naming a guard model.

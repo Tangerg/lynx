@@ -48,7 +48,7 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 		),
 		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: "found"}),
 	}}
-	if err := request.SetExtension(xiaomi.RequestExtensionKey, xiaomi.ChatRequestOptions{Thinking: xiaomi.ThinkingEnabled}); err != nil {
+	if err := request.Options.SetExtension(xiaomi.RequestExtensionKey, xiaomi.ChatRequestOptions{Thinking: xiaomi.ThinkingEnabled}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	response, err := model.Call(t.Context(), request)
@@ -69,7 +69,7 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 	if messages[1].(map[string]any)["reasoning_content"] != "tool thinking" {
 		t.Fatalf("assistant history = %#v", messages[1])
 	}
-	parts := response.Choices[0].Message.Parts
+	parts := response.Result.Message.Parts
 	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" {
 		t.Fatalf("response parts = %#v", parts)
 	}

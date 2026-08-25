@@ -471,29 +471,20 @@ func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message,
 	var calls []chat.ToolCall
 	var message *chat.Message
 	seenCallIDs := make(map[string]struct{})
-	for index := range response.Choices {
-		choice := &response.Choices[index]
-		if choice.Message == nil {
-			continue
-		}
-		var choiceCalls []chat.ToolCall
-		for _, part := range choice.Message.Parts {
-			if part.Kind == chat.PartToolCall {
-				if _, duplicate := seenCallIDs[part.ToolCall.ID]; duplicate {
-					return nil, nil, fmt.Errorf("interaction: duplicate tool call ID %q", part.ToolCall.ID)
-				}
-				seenCallIDs[part.ToolCall.ID] = struct{}{}
-				choiceCalls = append(choiceCalls, *part.ToolCall)
+	if response.Result == nil || response.Result.Message == nil {
+		return nil, nil, nil
+	}
+	for _, part := range response.Result.Message.Parts {
+		if part.Kind == chat.PartToolCall {
+			if _, duplicate := seenCallIDs[part.ToolCall.ID]; duplicate {
+				return nil, nil, fmt.Errorf("interaction: duplicate tool call ID %q", part.ToolCall.ID)
 			}
+			seenCallIDs[part.ToolCall.ID] = struct{}{}
+			calls = append(calls, *part.ToolCall)
 		}
-		if len(choiceCalls) == 0 {
-			continue
-		}
-		if len(calls) > 0 {
-			return nil, nil, errors.New("interaction: multiple response choices request tools")
-		}
-		calls = choiceCalls
-		cloned := choice.Message.Clone()
+	}
+	if len(calls) > 0 {
+		cloned := response.Result.Message.Clone()
 		message = &cloned
 	}
 	return calls, message, nil

@@ -3,28 +3,26 @@ package chat
 import (
 	"errors"
 	"fmt"
-
-	"github.com/Tangerg/lynx/core/internal/ptr"
+	"maps"
 )
 
 // ResponseAccumulator merges response deltas into one provider-neutral
-// response. Its zero value is ready to use. It retains no package-level state
-// and never mutates chunks supplied to Add.
+// response. Its zero value is ready to use and it never mutates supplied
+// chunks.
 //
-// Text and reasoning merge only while adjacent within a choice. Tool-call
-// arguments merge by stable call ID even when parallel calls are interleaved.
-// Identity and finish fields use the latest non-empty value, extensions merge
-// last-write-wins, and Usage is a cumulative snapshot whose latest non-zero
-// value replaces the previous snapshot.
+// Text and reasoning merge only while adjacent. Tool-call arguments merge by
+// stable call ID even when parallel calls are interleaved. Identity and finish
+// fields use the latest non-empty value, metadata merges last-write-wins, and
+// Usage is a cumulative snapshot whose latest non-zero value replaces the
+// previous snapshot.
 type ResponseAccumulator struct {
-	response Response
-	choices  []accumulatedChoice
-	byIndex  map[int]int
+	metadata *ResponseMetadata
+	result   *accumulatedResult
 	seen     bool
 }
 
-type accumulatedChoice struct {
-	choice    Choice
+type accumulatedResult struct {
+	result    Result
 	toolParts map[string]int
 }
 
@@ -63,88 +61,73 @@ func (a *ResponseAccumulator) Response() *Response {
 
 func (a *ResponseAccumulator) merge(chunk *Response) error {
 	a.seen = true
-	if chunk.ID != "" {
-		a.response.ID = chunk.ID
-	}
-	if chunk.Model != "" {
-		a.response.Model = chunk.Model
-	}
-	if !chunk.Usage.isZero() {
-		a.response.Usage = chunk.Usage.clone()
-	}
-	if err := a.response.Extensions.Merge(chunk.Extensions); err != nil {
-		return fmt.Errorf("chat: accumulate response extensions: %w", err)
-	}
-
-	if a.byIndex == nil {
-		a.byIndex = make(map[int]int)
-	}
-	for i := range chunk.Choices {
-		delta := chunk.Choices[i]
-		position, exists := a.byIndex[delta.Index]
-		if !exists {
-			position = len(a.choices)
-			a.byIndex[delta.Index] = position
-			a.choices = append(a.choices, accumulatedChoice{
-				choice:    Choice{Index: delta.Index},
-				toolParts: make(map[string]int),
-			})
+	if chunk.Metadata != nil {
+		if a.metadata == nil {
+			a.metadata = &ResponseMetadata{}
 		}
-		if err := a.choices[position].merge(delta); err != nil {
-			return fmt.Errorf("chat: accumulate choice %d: %w", delta.Index, err)
+		if err := a.metadata.merge(*chunk.Metadata); err != nil {
+			return fmt.Errorf("chat: accumulate response metadata: %w", err)
 		}
+	}
+	if chunk.Result == nil {
+		return nil
+	}
+	if a.result == nil {
+		a.result = &accumulatedResult{toolParts: make(map[string]int)}
+	}
+	if err := a.result.merge(*chunk.Result); err != nil {
+		return fmt.Errorf("chat: accumulate result: %w", err)
 	}
 	return nil
 }
 
 func (a *ResponseAccumulator) snapshot() *Response {
-	response := a.response.cloneHeader()
-	response.Choices = make([]Choice, len(a.choices))
-	for i := range a.choices {
-		response.Choices[i] = a.choices[i].choice.clone()
+	response := &Response{}
+	if a.metadata != nil {
+		response.Metadata = a.metadata.clone()
 	}
-	return &response
+	if a.result != nil {
+		response.Result = a.result.result.clone()
+	}
+	return response
 }
 
 func (a *ResponseAccumulator) clone() ResponseAccumulator {
 	if a == nil {
 		return ResponseAccumulator{}
 	}
-	clone := ResponseAccumulator{
-		response: a.response.cloneHeader(),
-		choices:  make([]accumulatedChoice, len(a.choices)),
-		byIndex:  make(map[int]int, len(a.byIndex)),
-		seen:     a.seen,
+	clone := ResponseAccumulator{seen: a.seen}
+	if a.metadata != nil {
+		clone.metadata = a.metadata.clone()
 	}
-	for index, position := range a.byIndex {
-		clone.byIndex[index] = position
-	}
-	for i := range a.choices {
-		clone.choices[i] = accumulatedChoice{
-			choice:    a.choices[i].choice.clone(),
-			toolParts: make(map[string]int, len(a.choices[i].toolParts)),
-		}
-		for id, position := range a.choices[i].toolParts {
-			clone.choices[i].toolParts[id] = position
+	if a.result != nil {
+		clone.result = &accumulatedResult{
+			result:    *a.result.result.clone(),
+			toolParts: maps.Clone(a.result.toolParts),
 		}
 	}
 	return clone
 }
 
-func (a *accumulatedChoice) merge(delta Choice) error {
+func (a *accumulatedResult) merge(delta Result) error {
 	if delta.FinishReason != "" {
-		a.choice.FinishReason = delta.FinishReason
+		a.result.FinishReason = delta.FinishReason
 	}
-	if err := a.choice.Extensions.Merge(delta.Extensions); err != nil {
-		return fmt.Errorf("choice extensions: %w", err)
+	if delta.Metadata != nil {
+		if a.result.Metadata == nil {
+			a.result.Metadata = &ResultMetadata{}
+		}
+		if err := a.result.Metadata.Extra.Merge(delta.Metadata.Extra); err != nil {
+			return fmt.Errorf("result metadata: %w", err)
+		}
 	}
 	if delta.Message == nil {
 		return nil
 	}
-	if a.choice.Message == nil {
-		a.choice.Message = &Message{Role: RoleAssistant}
+	if a.result.Message == nil {
+		a.result.Message = &Message{Role: RoleAssistant}
 	}
-	if err := a.choice.Message.Metadata.Merge(delta.Message.Metadata); err != nil {
+	if err := a.result.Message.Metadata.Merge(delta.Message.Metadata); err != nil {
 		return fmt.Errorf("message metadata: %w", err)
 	}
 	for i := range delta.Message.Parts {
@@ -155,8 +138,8 @@ func (a *accumulatedChoice) merge(delta Choice) error {
 	return nil
 }
 
-func (a *accumulatedChoice) mergePart(delta Part) error {
-	parts := &a.choice.Message.Parts
+func (a *accumulatedResult) mergePart(delta Part) error {
+	parts := &a.result.Message.Parts
 	switch delta.Kind {
 	case PartText:
 		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartText && (*parts)[len(*parts)-1].Metadata.Equal(delta.Metadata) {
@@ -190,40 +173,4 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 	}
 	*parts = append(*parts, delta.Clone())
 	return nil
-}
-
-// cloneHeader deep-copies every response field except Choices. The accumulator
-// carries choices separately in its own indexed slice.
-func (r Response) cloneHeader() Response {
-	return Response{
-		ID:         r.ID,
-		Model:      r.Model,
-		Usage:      r.Usage.clone(),
-		Extensions: r.Extensions.Clone(),
-	}
-}
-
-func (c Choice) clone() Choice {
-	clone := Choice{
-		Index:        c.Index,
-		FinishReason: c.FinishReason,
-		Extensions:   c.Extensions.Clone(),
-	}
-	if c.Message != nil {
-		clone.Message = new(c.Message.Clone())
-	}
-	return clone
-}
-
-func (u Usage) clone() Usage {
-	clone := u
-	clone.ReasoningTokens = ptr.Clone(u.ReasoningTokens)
-	clone.CacheReadInputTokens = ptr.Clone(u.CacheReadInputTokens)
-	clone.CacheWriteInputTokens = ptr.Clone(u.CacheWriteInputTokens)
-	return clone
-}
-
-func (u Usage) isZero() bool {
-	return u.InputTokens == 0 && u.OutputTokens == 0 && u.ReasoningTokens == nil &&
-		u.CacheReadInputTokens == nil && u.CacheWriteInputTokens == nil
 }

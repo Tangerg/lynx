@@ -114,9 +114,7 @@ func pendingSteerTestState(t testing.TB) executionState {
 	t.Helper()
 	call := chat.ToolCall{ID: "call_pending_steer", Name: "delegate_fuzz", Arguments: `{"task":"check"}`}
 	assistant := chat.NewAssistantMessage(chat.NewToolCallPart(call))
-	response := &chat.Response{Choices: []chat.Choice{{
-		Index: 0, Message: &assistant, FinishReason: chat.FinishReasonToolCalls,
-	}}}
+	response := &chat.Response{Result: &chat.Result{Message: &assistant, FinishReason: chat.FinishReasonToolCalls}}
 	key, err := DelegateChildKey(1, call)
 	if err != nil {
 		t.Fatal(err)

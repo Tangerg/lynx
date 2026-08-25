@@ -2,7 +2,7 @@
 
 > 状态：持续维护的实施事实
 > 建立日期：2026-08-06
-> 最后更新：2026-08-11
+> 最后更新：2026-08-25
 
 本文只追踪旧能力是否被新 Framework 认领、归谁拥有、如何裁决和在哪一阶段验收。它不定义目标架构、不复制 ADR、不记录逐提交进度。
 
@@ -654,3 +654,10 @@
 - Interaction 以中性的 `ErrHostFailure`/`HostFailure` 标记这一唯一语义，Dispatcher protocol v5 将其结算为互斥、确定的 `host_error`，Execution 以稳定 `interaction.host.failed` 终止。Tool 路径不会继续下一模型轮次，模型路径不会误报 provider unavailable。
 - 普通模型错误、普通 Tool error 和外部调用后结果不明的 unknown settlement 保持原合同。Runtime 只在 `adapter/agentexec` 消费该标记并投影产品 internal failure；Agent 内层没有 Runtime、RPC、数据库、事务、Run 或 Desktop 抽象。
 - Interaction public contract 形成 Baseline 22，ExecutionState 保持 v6，private protocol 从 v4 直接升级到 v5且拒绝旧格式；Process Snapshot v6、TreeSnapshot v4、Kernel/其他 Strategy/observation wire 均不变。
+
+## 22. P20 Core Chat 单 Result 迁移证据
+
+- Core Chat 的真实调用合同始终只产生一个结果；旧 `Choice`/`Choices`/`Index` 只是从 provider wire 泄漏出的多候选表示，没有调用方 `n` 能力或真实多结果消费者。Core 现只公开 `Response.Result`，provider adapter 对多个候选明确失败，不能静默截断。
+- Interaction 的模型完成、ToolCall 提取、WorkingContext 推进与最终 Output 都直接由同一个 `Result` owner 提供，不再循环候选或维护“多个候选中只有一个可请求 Tool”的过程式分支。
+- Interaction ExecutionState 与 protocol 都嵌入 Core Chat Request/Response，因此分别升级为 v7/v6并拒绝旧版本；这是真实恢复协议变化，不以外层 Kernel snapshot 版本掩盖，也不提供 dual-read、alias 或转换 helper。
+- Agent 公共 API、Kernel、Planning、Workflow、Process Snapshot v6、TreeSnapshot v4 与 observation wire 均未改变。Runtime 和 examples 已在同一批次迁移单 Result 使用，未复制 Core 类型或引入第二响应模型。

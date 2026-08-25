@@ -62,7 +62,7 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 		}},
 	}
 	parallel := false
-	if err := firstRequest.SetExtension(mistral.RequestExtensionKey, mistral.ChatRequestOptions{
+	if err := firstRequest.Options.SetExtension(mistral.RequestExtensionKey, mistral.ChatRequestOptions{
 		ReasoningEffort:   mistral.ReasoningEffortHigh,
 		ParallelToolCalls: &parallel,
 	}); err != nil {
@@ -75,27 +75,28 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" || requests[0]["parallel_tool_calls"] != false {
 		t.Fatalf("first wire request = %#v", requests)
 	}
-	choice := firstResponse.Choices[0]
-	if choice.FinishReason != corechat.FinishReasonToolCalls || choice.Message == nil || len(choice.Message.Parts) != 3 {
-		t.Fatalf("choice = %#v", choice)
+	result := firstResponse.Result
+	if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil || len(result.Message.Parts) != 3 {
+		t.Fatalf("result = %#v", result)
 	}
-	if choice.Message.Parts[0].Kind != corechat.PartReasoning || choice.Message.Parts[0].Text != "inspect inputs" || len(choice.Message.Parts[0].Signature) == 0 {
-		t.Errorf("reasoning = %#v", choice.Message.Parts[0])
+	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect inputs" || len(result.Message.Parts[0].Signature) == 0 {
+		t.Errorf("reasoning = %#v", result.Message.Parts[0])
 	}
-	if choice.Message.Parts[1].Text != "I need a lookup." {
-		t.Errorf("text = %#v", choice.Message.Parts[1])
+	if result.Message.Parts[1].Text != "I need a lookup." {
+		t.Errorf("text = %#v", result.Message.Parts[1])
 	}
-	call := choice.Message.Parts[2].ToolCall
+	call := result.Message.Parts[2].ToolCall
 	if call == nil || call.ID != "call-1" || call.Name != "lookup" || call.Arguments != `{"id":7}` {
 		t.Errorf("tool call = %#v", call)
 	}
-	if firstResponse.Usage.InputTokens != 10 || firstResponse.Usage.OutputTokens != 6 || firstResponse.Usage.CacheReadInputTokens == nil || *firstResponse.Usage.CacheReadInputTokens != 4 {
-		t.Errorf("usage = %#v", firstResponse.Usage)
+	usage := firstResponse.Metadata.Usage
+	if usage.InputTokens != 10 || usage.OutputTokens != 6 || usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 4 {
+		t.Errorf("usage = %#v", usage)
 	}
 
 	secondRequest := &corechat.Request{Messages: []corechat.Message{
 		firstRequest.Messages[0],
-		choice.Message.Clone(),
+		result.Message.Clone(),
 		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: `{"name":"lynx"}`}),
 	}}
 	if _, err := model.Call(t.Context(), secondRequest); err != nil {
@@ -160,10 +161,10 @@ func TestChatCoalescesStreamedThinkingForReplay(t *testing.T) {
 		}
 	}
 	aggregated := accumulator.Response()
-	if aggregated == nil || aggregated.Choices[0].Message == nil {
+	if aggregated == nil || aggregated.Result == nil || aggregated.Result.Message == nil {
 		t.Fatalf("aggregated = %#v", aggregated)
 	}
-	message := aggregated.Choices[0].Message
+	message := aggregated.Result.Message
 	if len(message.Parts) != 2 || message.Parts[0].Text != "plan next" || message.Parts[1].Text != "answer done" {
 		t.Fatalf("aggregated parts = %#v", message.Parts)
 	}

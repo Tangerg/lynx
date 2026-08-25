@@ -35,7 +35,7 @@ func TestRequestGolden(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"string"}}}`),
 	}}
 	request.Options = chat.Options{Model: "provider-model", Temperature: new(0.2), MaxTokens: new(int64(256))}
-	if err := request.SetExtension("openai/response_format", map[string]string{"type": "text"}); err != nil {
+	if err := request.Options.SetExtension("openai/response_format", map[string]string{"type": "text"}); err != nil {
 		t.Fatal(err)
 	}
 	assertChatGolden(t, "request.golden.json", request)
@@ -43,23 +43,20 @@ func TestRequestGolden(t *testing.T) {
 
 func TestResponseGolden(t *testing.T) {
 	firstMessage := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
-	secondMessage := chat.NewAssistantMessage(chat.NewTextPart("A wild cat."))
 	response, err := chat.NewResponse(
-		chat.Choice{Index: 0, Message: &firstMessage, FinishReason: chat.FinishReasonStop},
-		chat.Choice{Index: 1, Message: &secondMessage, FinishReason: chat.FinishReasonLength},
+		&chat.Result{Message: &firstMessage, FinishReason: chat.FinishReasonStop, Metadata: &chat.ResultMetadata{}},
+		&chat.ResponseMetadata{ID: "response-1", Model: "provider-model"},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.ID = "response-1"
-	response.Model = "provider-model"
 	reasoning := int64(4)
 	cacheRead := int64(8)
-	response.Usage = chat.Usage{InputTokens: 32, OutputTokens: 12, ReasoningTokens: &reasoning, CacheReadInputTokens: &cacheRead}
-	if err := response.SetExtension("openai/system_fingerprint", "fp-1"); err != nil {
+	response.Metadata.Usage = chat.Usage{InputTokens: 32, OutputTokens: 12, ReasoningTokens: &reasoning, CacheReadInputTokens: &cacheRead}
+	if err := response.Metadata.Set("openai/system_fingerprint", "fp-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Choices[0].SetExtension("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
+	if err := response.Result.Metadata.Set("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
 		t.Fatal(err)
 	}
 	assertChatGolden(t, "response.golden.json", response)

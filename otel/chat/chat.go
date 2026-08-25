@@ -226,16 +226,19 @@ func (m *Middleware) recordMetrics(
 	if err != nil || response == nil {
 		return
 	}
-	if response.Usage.InputTokens > 0 {
-		m.tokens.Record(ctx, response.Usage.InputTokens,
+	if response.Metadata == nil {
+		return
+	}
+	if response.Metadata.Usage.InputTokens > 0 {
+		m.tokens.Record(ctx, response.Metadata.Usage.InputTokens,
 			genaiconv.OperationNameChat,
 			genaiconv.ProviderNameAttr(m.provider),
 			genaiconv.TokenTypeInput,
 			attrs...,
 		)
 	}
-	if response.Usage.OutputTokens > 0 {
-		m.tokens.Record(ctx, response.Usage.OutputTokens,
+	if response.Metadata.Usage.OutputTokens > 0 {
+		m.tokens.Record(ctx, response.Metadata.Usage.OutputTokens,
 			genaiconv.OperationNameChat,
 			genaiconv.ProviderNameAttr(m.provider),
 			genaiconv.TokenTypeOutput,
@@ -282,26 +285,22 @@ func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 		return nil
 	}
 	attrs := make([]attribute.KeyValue, 0, 5)
-	if response.ID != "" {
-		attrs = append(attrs, semconv.GenAIResponseID(response.ID))
-	}
-	if response.Model != "" {
-		attrs = append(attrs, semconv.GenAIResponseModel(response.Model))
-	}
-	finishReasons := make([]string, 0, len(response.Choices))
-	for i := range response.Choices {
-		if reason := response.Choices[i].FinishReason; reason != "" {
-			finishReasons = append(finishReasons, reason.String())
+	if response.Metadata != nil {
+		if response.Metadata.ID != "" {
+			attrs = append(attrs, semconv.GenAIResponseID(response.Metadata.ID))
+		}
+		if response.Metadata.Model != "" {
+			attrs = append(attrs, semconv.GenAIResponseModel(response.Metadata.Model))
+		}
+		if response.Metadata.Usage.InputTokens > 0 {
+			attrs = append(attrs, semconv.GenAIUsageInputTokensKey.Int64(response.Metadata.Usage.InputTokens))
+		}
+		if response.Metadata.Usage.OutputTokens > 0 {
+			attrs = append(attrs, semconv.GenAIUsageOutputTokensKey.Int64(response.Metadata.Usage.OutputTokens))
 		}
 	}
-	if len(finishReasons) > 0 {
-		attrs = append(attrs, semconv.GenAIResponseFinishReasons(finishReasons...))
-	}
-	if response.Usage.InputTokens > 0 {
-		attrs = append(attrs, semconv.GenAIUsageInputTokensKey.Int64(response.Usage.InputTokens))
-	}
-	if response.Usage.OutputTokens > 0 {
-		attrs = append(attrs, semconv.GenAIUsageOutputTokensKey.Int64(response.Usage.OutputTokens))
+	if response.Result != nil && response.Result.FinishReason != "" {
+		attrs = append(attrs, semconv.GenAIResponseFinishReasons(response.Result.FinishReason.String()))
 	}
 	return attrs
 }
@@ -312,8 +311,8 @@ func metricAttributes(request *corechat.Request, response *corechat.Response) []
 		attrs = append(attrs, semconv.GenAIRequestModel(model))
 	}
 	responseModel := ""
-	if response != nil {
-		responseModel = response.Model
+	if response != nil && response.Metadata != nil {
+		responseModel = response.Metadata.Model
 	}
 	if responseModel == "" {
 		responseModel = requestModel(request)
@@ -335,13 +334,7 @@ func hasGeneratedContent(response *corechat.Response) bool {
 	if response == nil {
 		return false
 	}
-	for i := range response.Choices {
-		message := response.Choices[i].Message
-		if message != nil && len(message.Parts) > 0 {
-			return true
-		}
-	}
-	return false
+	return response.Result != nil && response.Result.Message != nil && len(response.Result.Message.Parts) > 0
 }
 
 func errorType(err error) string {

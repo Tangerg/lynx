@@ -398,9 +398,9 @@ func (compositionModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 		return nil, errors.New("composition model requires one message")
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart("model: " + request.Messages[len(request.Messages)-1].Text()))
-	return &chat.Response{Choices: []chat.Choice{{
-		Index: 0, Message: &message, FinishReason: "stop",
-	}}}, nil
+	return &chat.Response{Result: &chat.Result{
+		Message: &message, FinishReason: chat.FinishReasonStop,
+	}}, nil
 }
 
 type rejectingDispatcher struct{}

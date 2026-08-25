@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-15
-> 当前阶段：P1–P19 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化与 Host 前置边界失败合同均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-25
+> 当前阶段：P1–P20 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败与 Core Chat 单 Result 协议迁移均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -87,6 +87,7 @@ go test ./...
 | P17 外层产品化 | 完成 | 2/2 | 提供确定性 consumer fixture 与完整 Workflow 静态投影，不建立第二 runtime |
 | P18 行为所有权精修 | 完成 | 2/2 | 让 fixture step 与 sealed Stage 自己拥有匹配、执行和投影行为，保持公共 DTO 与 wire 纯数据 |
 | P19 Host 前置边界失败合同 | 完成 | 2/2 | 让外部调用前的 Host 拒绝确定终止，不伪装 provider/Tool 业务结果 |
+| P20 Core Chat 单 Result 协议迁移 | 完成 | 2/2 | 删除多候选假抽象，并显式升级 Interaction owner wire |
 
 ---
 
@@ -264,6 +265,11 @@ go test ./...
 - [x] P19-01 用真实 Runtime consumer 反例证明模型/Tool 调用前的 Host 自有前置边界失败不能复用普通 provider/Tool error；新增中性 `ErrHostFailure`/`HostFailure`，使 Interaction 确定终止且 Tool 路径不继续下一模型轮次。
 - [x] P19-02 将 Dispatcher protocol 从 v4 直接升级到 v5，冻结互斥 `host_error` settlement、stable failure code、旧版本拒绝、Baseline 22、ADR 与 package boundary；完成定向、重复与 race 门禁。
 
+### P20：Core Chat 单 Result 协议迁移
+
+- [x] P20-01 将 Interaction 的完成、ToolCall 提取、WorkingContext 推进与 Output 校验统一迁移到 Core Chat `Response.Result`，删除多候选循环、仲裁和兼容分支。
+- [x] P20-02 将嵌入 Core Chat Request/Response 的 Interaction ExecutionState/protocol 升级到 v7/v6，拒绝旧版本并冻结 Baseline 23；同步 Runtime、examples、ADR、台账和 owner wire 门禁。
+
 ---
 
 ## 6. 最终完成定义
@@ -309,6 +315,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-25 | P20（Baseline 23） | Core Chat 从从未被调用能力支持的复数 Choice 模型收敛为唯一 `Response.Result`；Interaction 直接消费单 Result，删除多候选 ToolCall 分支。因 Strategy state、model settlement 与 stream Delta 嵌入 Core Chat wire，ExecutionState/protocol 显式升级为 v7/v6且不双读旧版本；Agent 公共 API、Kernel、Planning、Workflow 与共同 snapshot/observation wire不变 | Core、models、root consumer 全量测试通过；Agent Interaction 定向协议、恢复与行为测试通过。干净 HEAD 对照证明当前 Agent GoDoc 及 Kernel/Observation/Planning/Workflow hash failures 是本批前已存在的独立基线漂移，本批没有更新或掩盖这些无关合同 |
 | 2026-08-15 | P19（Baseline 22） | 真实 Runtime consumer 证明模型/Tool 外部调用前的 Host 权威前置边界失败原先会被误作 provider/Tool 业务错误；Tool 路径甚至会继续下一模型轮次。Interaction 现以中性 host-failure marker、protocol v5 互斥 settlement 与稳定 terminal code 收敛该事实，不引入 Runtime、RPC、数据库、transaction 或产品终态 | Agent/Runtime 定向场景 10 轮与 race 全绿；Agent 全包测试、public/private baseline、prior-version、协议互斥和 architecture gate 全绿。独立 module build/vet/staticcheck/test/race/tidy-diff 随 canonical source 提交前门禁完成；形成 Baseline 22，P19 2/2 完成 |
 | 2026-08-11 | P18（behavior ownership refinement） | `dispatchStep` 自己拥有 Effect 匹配、按序 Delta 与最终 settlement；`Stage`、`childBinding`、`stageKind` 自己投影 sealed Workflow Topology。公开 config/topology 继续是函数无关 DTO，没有引入 service hierarchy、第二 runtime、Host import 或 wire 变化 | Agent standalone build/vet/test/tidy/lint/race 全绿，lint 0 issue；staticcheck 零输出，deadcode 只报告 Baseline 已冻结的外部 `DeltaListenerFunc.OnDelta` adapter；真实 Engine fixture、六种 Topology、生成物与重复代码门禁通过。Baseline 20 保持不变，P18 2/2 完成 |
 | 2026-08-11 | P17（Baseline 20） | `agenttest` 以有限脚本和只读记录器产品化公共测试 seam；Workflow Definition 以完整无函数 Topology 投影 sealed algebra，现有 command 输出阶段诊断。没有 façade、任意图、第二 scheduler、Host import 或 Runtime 产品词汇 | chathistory、Agent fixture/Workflow/example、Runtime provenance 定向测试通过；Agent/Runtime/root 完整 build/vet/test/race/static/hygiene 与最终 digest 见本批验收结果。Baseline 20 冻结，P17 2/2 完成 |
@@ -407,4 +414,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P19 已完成，Baseline 22 冻结 Interaction 的唯一 Host 前置边界失败合同。该标记只适用于模型/Tool 尚未调用时的 Host 拒绝；普通模型/Tool error 与调用后结果不明仍走原合同。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P20 已完成，Baseline 23 冻结 Interaction 对 Core Chat 单 Result 的唯一依赖协议。旧 state/protocol 不双读，provider 多候选在 Core adapter 边界明确失败。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

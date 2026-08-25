@@ -32,7 +32,7 @@ const (
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialect Dialect) (*anthropicsdk.MessageNewParams, error) {
 	extensionKey := protocolRequestExtensionKey(dialect.Provider)
-	fields, _, err := metadata.Decode[map[string]any](req.Extensions, extensionKey)
+	fields, _, err := metadata.Decode[map[string]any](req.Options.Extensions, extensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: extension %q: %w", extensionKey, err)
 	}
@@ -44,7 +44,10 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	params := anthropicsdk.MessageNewParams{}
 	params.SetExtraFields(fields)
 
-	options := defaults.Overlay(req.Options)
+	options, err := defaults.Merged(req.Options)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: options: %w", err)
+	}
 	if options.Model == "" {
 		return nil, errors.New("anthropic: model is required in defaults or request options")
 	}

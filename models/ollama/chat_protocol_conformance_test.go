@@ -43,21 +43,17 @@ func TestChat_CoreConformance(t *testing.T) {
 			var final *corechat.Response
 			for _, response := range responses {
 				final = response
-				for i := range response.Choices {
-					message := response.Choices[i].Message
-					if message == nil {
-						continue
-					}
-					for j := range message.Parts {
-						part := message.Parts[j]
-						switch part.Kind {
-						case corechat.PartReasoning:
-							reasoning.WriteString(part.Text)
-						case corechat.PartText:
-							content.WriteString(part.Text)
-						case corechat.PartToolCall:
-							toolCall = part.ToolCall
-						}
+				if response.Result == nil || response.Result.Message == nil {
+					continue
+				}
+				for _, part := range response.Result.Message.Parts {
+					switch part.Kind {
+					case corechat.PartReasoning:
+						reasoning.WriteString(part.Text)
+					case corechat.PartText:
+						content.WriteString(part.Text)
+					case corechat.PartToolCall:
+						toolCall = part.ToolCall
 					}
 				}
 			}
@@ -67,7 +63,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			if toolCall == nil || toolCall.ID != "ollama/generated/0" || toolCall.Name != "inspect" || toolCall.Arguments != `{"detail":true}` {
 				t.Errorf("stream tool call = %#v", toolCall)
 			}
-			if final == nil || final.Usage.InputTokens != 11 || final.Usage.OutputTokens != 5 {
+			if final == nil || final.Metadata == nil || final.Metadata.Usage.InputTokens != 11 || final.Metadata.Usage.OutputTokens != 5 {
 				t.Errorf("final usage = %#v", final)
 			}
 		},
@@ -177,7 +173,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Inspect image details",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"boolean"}}}`),
 	}}
-	if err := request.SetExtension(ollama.RequestExtensionKey, map[string]any{
+	if err := request.Options.SetExtension(ollama.RequestExtensionKey, map[string]any{
 		"keep_alive": "10m",
 		"format":     "json",
 		"think":      true,
@@ -281,41 +277,41 @@ func assertProtocolRequestWire(t *testing.T, body protocolChatRequestWire) {
 
 func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 	t.Helper()
-	if response.Model != "qwen3:8b" || len(response.Choices) != 1 {
-		t.Fatalf("response identity/choices = %q/%d", response.Model, len(response.Choices))
+	if response.Metadata.Model != "qwen3:8b" || response.Result == nil {
+		t.Fatalf("response = %#v", response)
 	}
-	choice := response.Choices[0]
-	if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonStop {
-		t.Fatalf("choice = %#v", choice)
+	result := response.Result
+	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+		t.Fatalf("result = %#v", result)
 	}
-	if choice.Message.Parts[0].Kind != corechat.PartReasoning || choice.Message.Parts[0].Text != "inspect colors" ||
-		choice.Message.Parts[1].Kind != corechat.PartText || choice.Message.Parts[1].Text != "It is a blue square." {
-		t.Errorf("reasoning/text = %#v", choice.Message.Parts)
+	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect colors" ||
+		result.Message.Parts[1].Kind != corechat.PartText || result.Message.Parts[1].Text != "It is a blue square." {
+		t.Errorf("reasoning/text = %#v", result.Message.Parts)
 	}
-	call := choice.Message.Parts[2].ToolCall
+	call := result.Message.Parts[2].ToolCall
 	if call == nil || call.ID != "ollama/generated/0" || call.Name != "inspect" || call.Arguments != `{"detail":true}` {
 		t.Errorf("tool call = %#v", call)
 	}
-	if response.Usage.InputTokens != 11 || response.Usage.OutputTokens != 5 {
-		t.Errorf("usage = %#v", response.Usage)
+	if response.Metadata.Usage.InputTokens != 11 || response.Metadata.Usage.OutputTokens != 5 {
+		t.Errorf("usage = %#v", response.Metadata.Usage)
 	}
-	createdAt := decodeExtension[string](t, response.Extensions, "ollama/created_at")
+	createdAt := decodeExtension[string](t, response.Metadata.Extra, "ollama/created_at")
 	if createdAt != "2026-07-14T12:00:00Z" {
 		t.Errorf("created_at = %q", createdAt)
 	}
-	durations := decodeExtension[map[string]int64](t, response.Extensions, "ollama/durations_ns")
+	durations := decodeExtension[map[string]int64](t, response.Metadata.Extra, "ollama/durations_ns")
 	if durations["total"] != 1_250_000_000 || durations["load"] != 100_000_000 || durations["prompt_eval"] != 300_000_000 || durations["eval"] != 700_000_000 {
 		t.Errorf("durations = %#v", durations)
 	}
-	metrics := decodeExtension[map[string]int](t, response.Extensions, "ollama/metrics")
+	metrics := decodeExtension[map[string]int](t, response.Metadata.Extra, "ollama/metrics")
 	if metrics["prompt_eval_count"] != 11 || metrics["eval_count"] != 5 {
 		t.Errorf("metrics = %#v", metrics)
 	}
-	nativeReason := decodeExtension[string](t, choice.Extensions, "ollama/native_done_reason")
+	nativeReason := decodeExtension[string](t, result.Metadata.Extra, "ollama/native_done_reason")
 	if nativeReason != "stop" {
 		t.Errorf("native done reason = %q", nativeReason)
 	}
-	nativeResponse := decodeExtension[map[string]any](t, response.Extensions, ollama.ResponseExtensionKey)
+	nativeResponse := decodeExtension[map[string]any](t, response.Metadata.Extra, ollama.ResponseExtensionKey)
 	future, ok := nativeResponse["future_field"].(map[string]any)
 	if !ok || future["kept"] != true {
 		t.Errorf("native response extension lost unknown provider fields: %#v", nativeResponse)

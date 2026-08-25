@@ -1,6 +1,7 @@
 package moderation
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -18,6 +19,38 @@ type Verdict struct {
 
 	// Score is the provider's confidence in the violation, 0–1.
 	Score float64 `json:"score"`
+}
+
+func (v Verdict) validate() error {
+	if math.IsNaN(v.Score) || math.IsInf(v.Score, 0) || v.Score < 0 || v.Score > 1 {
+		return fmt.Errorf("%w: score must be finite and in [0, 1], got %v", ErrInvalidResponse, v.Score)
+	}
+	return nil
+}
+
+func (v Verdict) MarshalJSON() ([]byte, error) {
+	if err := v.validate(); err != nil {
+		return nil, err
+	}
+	type wireVerdict Verdict
+	return json.Marshal(wireVerdict(v))
+}
+
+func (v *Verdict) UnmarshalJSON(data []byte) error {
+	if v == nil {
+		return fmt.Errorf("%w: nil Verdict receiver", ErrInvalidResponse)
+	}
+	type wireVerdict Verdict
+	var decoded wireVerdict
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode verdict: %w", ErrInvalidResponse, err)
+	}
+	candidate := Verdict(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*v = candidate
+	return nil
 }
 
 // Categories is the provider-reported category set. Keys retain provider
@@ -50,10 +83,28 @@ func (c Categories) validate() error {
 	return nil
 }
 
-func (v Verdict) validate() error {
-	if math.IsNaN(v.Score) || math.IsInf(v.Score, 0) || v.Score < 0 || v.Score > 1 {
-		return fmt.Errorf("%w: score must be finite and in [0, 1], got %v", ErrInvalidResponse, v.Score)
+func (c Categories) MarshalJSON() ([]byte, error) {
+	if err := c.validate(); err != nil {
+		return nil, err
 	}
+	type wireCategories Categories
+	return json.Marshal(wireCategories(c))
+}
+
+func (c *Categories) UnmarshalJSON(data []byte) error {
+	if c == nil {
+		return fmt.Errorf("%w: nil Categories receiver", ErrInvalidResponse)
+	}
+	type wireCategories Categories
+	var decoded wireCategories
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode categories: %w", ErrInvalidResponse, err)
+	}
+	candidate := Categories(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*c = candidate
 	return nil
 }
 
@@ -74,6 +125,41 @@ func (m *ResultMetadata) Set(key string, value any) error {
 	return nil
 }
 
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&m).validate(); err != nil {
+		return nil, err
+	}
+	type wireResultMetadata ResultMetadata
+	return json.Marshal(wireResultMetadata(m))
+}
+
+func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+	}
+	type wireResultMetadata ResultMetadata
+	var decoded wireResultMetadata
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+	}
+	candidate := ResultMetadata(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*m = candidate
+	return nil
+}
+
 // Result is one input's moderation verdict plus metadata.
 type Result struct {
 	// Categories holds the per-category verdict.
@@ -87,10 +173,49 @@ type Result struct {
 // metadata is nil.
 func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Categories: maps.Clone(categories), Metadata: metadata}
-	if err := result.validate(); err != nil {
+	if err := result.Validate(); err != nil {
 		return nil, fmt.Errorf("moderation.NewResult: %w", err)
 	}
 	return result, nil
+}
+
+// Validate verifies category verdicts and result metadata.
+func (r *Result) Validate() error {
+	if r == nil {
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+	}
+	if err := r.Categories.validate(); err != nil {
+		return err
+	}
+	if err := r.Metadata.validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r Result) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireResult Result
+	return json.Marshal(wireResult(r))
+}
+
+func (r *Result) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+	}
+	type wireResult Result
+	var decoded wireResult
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+	}
+	candidate := Result(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*r = candidate
+	return nil
 }
 
 // ResponseMetadata holds response-level metadata for a moderation call.
@@ -116,6 +241,50 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	if err := m.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("moderation.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.ID != "" && strings.TrimSpace(m.ID) != m.ID {
+		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m ResponseMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&m).validate(); err != nil {
+		return nil, err
+	}
+	type wireResponseMetadata ResponseMetadata
+	return json.Marshal(wireResponseMetadata(m))
+}
+
+func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
+	}
+	type wireResponseMetadata ResponseMetadata
+	var decoded wireResponseMetadata
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode response metadata: %w", ErrInvalidResponse, err)
+	}
+	candidate := ResponseMetadata(decoded)
+	if err := candidate.validate(); err != nil {
+		return err
+	}
+	*m = candidate
 	return nil
 }
 
@@ -148,54 +317,12 @@ func (r *Response) Validate() error {
 		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
 	}
 	for i, result := range r.Results {
-		if err := result.validate(); err != nil {
+		if err := result.Validate(); err != nil {
 			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
 		}
 	}
 	if err := r.Metadata.validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (r *Result) validate() error {
-	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
-	}
-	if err := r.Categories.validate(); err != nil {
-		return err
-	}
-	if err := r.Metadata.validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *ResultMetadata) validate() error {
-	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (m *ResponseMetadata) validate() error {
-	if m == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
-	}
-	if m.ID != "" && strings.TrimSpace(m.ID) != m.ID {
-		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)
-	}
-	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
-		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
-	}
-	if m.Created < 0 {
-		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
-	}
-	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -207,4 +334,29 @@ func (r *Response) First() *Result {
 		return nil
 	}
 	return r.Results[0]
+}
+
+func (r Response) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireResponse Response
+	return json.Marshal(wireResponse(r))
+}
+
+func (r *Response) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return fmt.Errorf("%w: nil Response receiver", ErrInvalidResponse)
+	}
+	type wireResponse Response
+	var decoded wireResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode response: %w", ErrInvalidResponse, err)
+	}
+	candidate := Response(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*r = candidate
+	return nil
 }

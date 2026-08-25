@@ -75,7 +75,7 @@ func FuzzMessageJSON(f *testing.F) {
 func FuzzRequestJSON(f *testing.F) {
 	for _, seed := range []string{
 		`{"messages":[{"role":"user","parts":[{"kind":"text","text":"hello"}]}]}`,
-		`{"messages":[{"role":"user","parts":[{"kind":"text","text":"hello"}]}],"extensions":{"openai/key":{"enabled":true}}}`,
+		`{"messages":[{"role":"user","parts":[{"kind":"text","text":"hello"}]}],"options":{"extensions":{"openai/key":{"enabled":true}}}}`,
 		`{"messages":[]}`,
 		`{}`,
 	} {
@@ -87,9 +87,9 @@ func FuzzRequestJSON(f *testing.F) {
 func FuzzResponseJSON(f *testing.F) {
 	for _, seed := range []string{
 		`{}`,
-		`{"choices":[{"index":0,"message":{"role":"assistant","parts":[{"kind":"text","text":"hello"}]},"finish_reason":"stop"}]}`,
-		`{"choices":[{"index":0,"finish_reason":"stop"}],"usage":{"input_tokens":1,"output_tokens":2}}`,
-		`{"choices":[{"index":0,"finish_reason":"future"}]}`,
+		`{"result":{"message":{"role":"assistant","parts":[{"kind":"text","text":"hello"}]},"finish_reason":"stop"}}`,
+		`{"result":{"finish_reason":"stop"},"metadata":{"usage":{"input_tokens":1,"output_tokens":2}}}`,
+		`{"result":{"finish_reason":"future"}}`,
 	} {
 		f.Add([]byte(seed))
 	}

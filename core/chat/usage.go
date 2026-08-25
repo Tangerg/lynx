@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/Tangerg/lynx/core/internal/ptr"
 )
 
 var ErrInvalidUsage = errors.New("chat: invalid usage")
@@ -46,6 +48,19 @@ func (u Usage) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (u Usage) clone() Usage {
+	clone := u
+	clone.ReasoningTokens = ptr.Clone(u.ReasoningTokens)
+	clone.CacheReadInputTokens = ptr.Clone(u.CacheReadInputTokens)
+	clone.CacheWriteInputTokens = ptr.Clone(u.CacheWriteInputTokens)
+	return clone
+}
+
+func (u Usage) isZero() bool {
+	return u.InputTokens == 0 && u.OutputTokens == 0 && u.ReasoningTokens == nil &&
+		u.CacheReadInputTokens == nil && u.CacheWriteInputTokens == nil
 }
 
 func validateTokenSubset(name string, value *int64, total int64) error {

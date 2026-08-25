@@ -74,13 +74,13 @@ func TestBuildClient_DeepSeekReasoningSurvivesOrdinarySecondTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Call: %v", err)
 	}
-	if len(first.Choices) != 1 || first.Choices[0].Message == nil || len(first.Choices[0].Message.Parts) != 2 || first.Choices[0].Message.Parts[0].Kind != chat.PartReasoning {
+	if first.Result == nil || first.Result.Message == nil || len(first.Result.Message.Parts) != 2 || first.Result.Message.Parts[0].Kind != chat.PartReasoning {
 		t.Fatalf("first response did not preserve reasoning: %#v", first)
 	}
 
 	second, err := client.Call(t.Context(), &chat.Request{Messages: []chat.Message{
 		firstUser,
-		*first.Choices[0].Message,
+		*first.Result.Message,
 		chat.NewUserMessage(chat.NewTextPart("second")),
 	}})
 	if err != nil {

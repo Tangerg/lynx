@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/moderation"
@@ -22,6 +23,14 @@ func TestModalityWireValuesValidateAtJSONBoundary(t *testing.T) {
 		marshaler   any
 		unmarshaler any
 	}{
+		{"chat.Options", chat.Options{}, new(chat.Options)},
+		{"chat.Request", chat.Request{}, new(chat.Request)},
+		{"chat.ResultMetadata", chat.ResultMetadata{}, new(chat.ResultMetadata)},
+		{"chat.Result", chat.Result{}, new(chat.Result)},
+		{"chat.Usage", chat.Usage{}, new(chat.Usage)},
+		{"chat.ResponseMetadata", chat.ResponseMetadata{}, new(chat.ResponseMetadata)},
+		{"chat.Response", chat.Response{}, new(chat.Response)},
+
 		{"embedding.Options", embedding.Options{}, new(embedding.Options)},
 		{"embedding.Request", embedding.Request{}, new(embedding.Request)},
 		{"embedding.ResultMetadata", embedding.ResultMetadata{}, new(embedding.ResultMetadata)},

@@ -25,12 +25,14 @@ var updateWireFixtures = flag.Bool(
 // root that exercises it in wire_contracts.golden.json. Adding a JSON DTO is a
 // compatibility decision and must update both this inventory and the fixture.
 var wireFixtureCoverage = map[string]string{
-	"chat.Choice":                    "chat_response",
 	"chat.Message":                   "chat_request",
 	"chat.Options":                   "chat_request",
 	"chat.Part":                      "chat_request",
 	"chat.Request":                   "chat_request",
 	"chat.Response":                  "chat_response",
+	"chat.ResponseMetadata":          "chat_response",
+	"chat.Result":                    "chat_response",
+	"chat.ResultMetadata":            "chat_response",
 	"chat.ToolCall":                  "chat_request",
 	"chat.ToolDefinition":            "chat_request",
 	"chat.ToolResult":                "chat_request",

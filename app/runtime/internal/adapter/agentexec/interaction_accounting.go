@@ -180,14 +180,18 @@ func (meter *interactionAccounting) accountModelCall(
 			invocation.ModelCallSequence(), total.Calls,
 		)
 	}
-	choice := response.First()
-	if choice == nil || choice.Message == nil {
+	result := response.Result
+	if result == nil || result.Message == nil {
 		return runs.ModelCallCompleted{}, errors.New("agentexec: account model call without an assistant message")
 	}
+	var usage corechat.Usage
+	if response.Metadata != nil {
+		usage = response.Metadata.Usage
+	}
 	return runs.ModelCallCompleted{
-		CallID: callID, Message: choice.Message.Clone(), TokenUsage: total.TokenUsage,
+		CallID: callID, Message: result.Message.Clone(), TokenUsage: total.TokenUsage,
 		ByModel: slices.Clone(models), CostUSD: total.CostUSD, Steps: total.Calls,
-		ContextTokens: response.Usage.InputTokens,
+		ContextTokens: usage.InputTokens,
 	}, nil
 }
 

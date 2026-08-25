@@ -20,13 +20,13 @@ func TestProtocolMetadataUsesEndpointNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mapResponse: %v", err)
 	}
-	if _, found := mapped.Extensions["vertexai/response"]; !found {
+	if _, found := mapped.Metadata.Extra["vertexai/response"]; !found {
 		t.Fatal("response metadata does not use the endpoint namespace")
 	}
-	if _, leaked := mapped.Extensions[ResponseExtensionKey]; leaked {
+	if _, leaked := mapped.Metadata.Extra[ResponseExtensionKey]; leaked {
 		t.Fatal("response metadata leaked the Google provider namespace")
 	}
-	if _, found := mapped.Choices[0].Message.Parts[0].Metadata["vertexai/native_part"]; !found {
+	if _, found := mapped.Result.Message.Parts[0].Metadata["vertexai/native_part"]; !found {
 		t.Fatal("part metadata does not use the endpoint namespace")
 	}
 }
@@ -64,7 +64,7 @@ func TestNativePartRoundTripPreservesThoughtSignaturePosition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			corePart, err := mapProtocolCandidatePart("google", 0, 3, tt.part)
+			corePart, err := mapProtocolCandidatePart("google", 3, tt.part)
 			if err != nil {
 				t.Fatalf("map response part: %v", err)
 			}

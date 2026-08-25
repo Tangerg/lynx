@@ -41,11 +41,10 @@ func (m *echoChatModel) capture(req *chat.Request) string {
 
 func textResponse(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, err := chat.NewResponse(chat.Choice{
-		Index:        0,
+	response, err := chat.NewResponse(&chat.Result{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
-	})
+	}, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -107,7 +106,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey)
+	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +123,7 @@ func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
 	var capturedHistory []chat.Message
 	retriever := rag.RetrieverFunc(func(_ context.Context, query *rag.Query) ([]rag.Candidate, error) {
 		var err error
-		capturedExtensions, _, err = rag.LookupValue(query, rag.RequestExtensionsValueKey())
+		capturedExtensions, _, err = rag.LookupValue(query, rag.RequestOptionsExtensionsValueKey())
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +135,7 @@ func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
-	if err := request.SetExtension("test/tenant", "acme"); err != nil {
+	if err := request.Options.SetExtension("test/tenant", "acme"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := callMiddleware(&echoChatModel{}).Call(t.Context(), request); err != nil {
@@ -168,7 +167,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 		chunks++
-		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey); decodeErr != nil || !ok {
+		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey); decodeErr != nil || !ok {
 			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
 		}
 	}
@@ -223,7 +222,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	if response != partial || !errors.Is(err, wantErr) {
 		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
 	}
-	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey); decodeErr != nil || !found {
+	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }

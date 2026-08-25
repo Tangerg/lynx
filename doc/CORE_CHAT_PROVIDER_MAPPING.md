@@ -1,31 +1,31 @@
 # Core Chat 四 Provider 映射契约
 
 > 状态：当前 conformance 契约（最初建立于 P1-07）
-> 日期：2026-07-14
+> 日期：2026-08-25
 > 范围：OpenAI、Anthropic、Google Gemini、Ollama Native Chat
 
 本文锁定当前 `core/chat` 协议对四个差异 provider 的表达能力。可执行契约由各 provider 自己的协议测试拥有；不存在跨 provider 的第二套实现或集中式 conformance 包。
 
-“无损”限定为：Lynx 当前公开并实际映射的能力不得丢失，同时修复旧 Response 只保留首个 choice/candidate 的缺陷；不承诺把 SDK 的每个实验字段提升为 Core 公共字段。provider 原生但仍需保留的 JSON-safe 数据进入唯一的 namespaced Extensions。
+Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用参数和 provider 扩展，`Response.Result` 承载唯一生成结果，`Response.Metadata` 承载响应身份、用量和响应级扩展。provider 原生但仍需保留的 JSON-safe 数据进入对应 metadata 的 namespaced `Extra`，不提升为 Core 公共字段。
 
 ## 1. 统一映射规则
 
 1. Request/Response 在进入 SDK 或离开 SDK 时必须先通过递归 `Validate`。
 2. provider 不支持的 role、Part 或 Media source 必须返回带 provider 名称和字段位置的错误，不再静默跳过。
 3. Message.Parts 的顺序是语义；原生协议保序时逐 Part 映射，不保序时采用 provider 文档化的规范顺序，并在测试中冻结。
-4. 所有 choice/candidate 均保留 `Index`；不得再取 `[0]` 后静默丢弃其余结果。
-5. provider 原生 finish reason 归一化到 Core `FinishReason`，原值同时写入 `<provider>/native_*_reason` Choice Extension。
+4. Core 只接受一个结果。provider 同步响应含多个候选，或单个流式 chunk 含多个候选时，adapter 必须在协议边界明确报错，不得截断或静默丢弃。
+5. provider 原生 finish reason 归一化到 Core `FinishReason`，原值同时写入 `Result.Metadata.Extra` 的 `<provider>/native_*_reason`。
 6. ToolCall.Arguments 保留 provider 原始 JSON 文本。请求侧 SDK 如果要求 JSON object，adapter 在该边界解析并报告错误；响应侧允许模型产生的 malformed/partial JSON 继续序列化。
 7. 流式 tool-call delta 必须由 provider accumulator 补齐稳定 ID/Name 后再产生合法 Core Part，或缓冲到信息完整；不能把缺字段的临时对象泄露进协议。
-8. 原生协议没有 tool-call ID 时，adapter 使用 `<provider>/<choice-index>/<part-index>` 生成确定性 ID，并在同一轮 ToolResult 中沿用。不得使用全局计数器。
-9. 通用 token 数进入 `Usage`；provider 原始 usage 和未提升的计数进入 `<provider>/usage` Response Extension。
-10. provider 特有请求参数只进入 `<provider>/request`，adapter 只读取自己的 namespace。
+8. 原生协议没有 tool-call ID 时，adapter 使用 `<provider>/<part-index>` 生成确定性 ID，并在同一轮 ToolResult 中沿用。不得使用全局计数器。
+9. 通用 token 数进入 `Response.Metadata.Usage`；provider 原始 usage 和未提升的计数进入 `Response.Metadata.Extra` 的 `<provider>/usage`。
+10. provider 特有请求参数只进入 `Request.Options.Extensions` 的 `<provider>/request`，adapter 只读取自己的 namespace。
 
 ## 2. 能力矩阵
 
 | 能力 | OpenAI | Anthropic | Google | Ollama |
 |---|---|---|---|---|
-| 多结果 | 保留全部 Choices | 单 Message → Choice 0 | 保留全部 Candidates | 单 Message → Choice 0 |
+| 生成结果 | 原生结果必须唯一 | 原生 Message → Result | 原生候选必须唯一 | 原生 Message → Result |
 | 推理内容 | `reasoning_content` → Reasoning Part | thinking + signature；redacted block → Message Metadata | Thought + ThoughtSignature → Reasoning Part | thinking → Reasoning Part |
 | 多模态输入 | image/audio/file；bytes/URI/reference 按 SDK 能力 | image/PDF；bytes/URI | inline bytes/URI | image bytes |
 | 多模态输出 | audio → Media Part；transcript → Text Part | 当前无 | 当前 chat 输出按已支持 Part 映射 | 当前无 |
@@ -40,8 +40,8 @@
 ### 3.1 OpenAI
 
 - Chat Completions 的 content、reasoning、tool_calls 原生不保留交错顺序，Core 规范顺序为 reasoning → text → tool calls → output media。
-- refusal、annotations 和可重放 audio identity 属于 Message Metadata；logprobs 属于 Choice Extensions。
-- created、service tier 与原始 usage 属于 Response Extensions。
+- refusal、annotations 和可重放 audio identity 属于 Message Metadata；logprobs 属于 `Result.Metadata.Extra`。
+- created、service tier 与原始 usage 属于 `Response.Metadata.Extra`。
 - image bytes 映射为 data URL，URI 保持 URI；file reference 映射为 provider file ID；不兼容组合返回错误。
 
 ### 3.2 Anthropic
@@ -54,17 +54,17 @@
 ### 3.3 Google Gemini
 
 - Content.Parts 原生保序；Thought/ThoughtSignature 直接映射 Reasoning Part。
-- Candidates 全量映射为 Choices，并保留 Candidate.Index、native finish reason 与 safety ratings。
+- 原生候选必须唯一且 index 为 0；多个候选明确报错。native finish reason 与 safety ratings 进入结果 metadata。
 - FunctionCall.ID 缺失时按统一规则生成稳定 ID；FunctionResponse 仍按 provider 要求以 name/object 下沉。
 - 原生 `prompt_token_count + tool_use_prompt_token_count` 归一化为 Core 总 `InputTokens`，`candidates_token_count + thoughts_token_count` 归一化为总 `OutputTokens`；cache/thoughts 作为 breakdown，原始分项进入 `google/usage`。
-- model version 和 tool-use prompt token 另行进入 Response Extensions。
+- model version 和 tool-use prompt token 另行进入 `Response.Metadata.Extra`。
 
 ### 3.4 Ollama Native Chat
 
 - content、thinking、tool_calls 是分离字段，Core 规范顺序为 reasoning → text → tool calls。
 - Native API 没有稳定 ID 时使用确定性合成 ID。
 - keep_alive、format、think 和额外 options 保留在 `ollama/request`。
-- created_at、各阶段 duration 和原始 metrics 保留在 Response Extensions。
+- created_at、各阶段 duration 和原始 metrics 保留在 `Response.Metadata.Extra`。
 
 ## 4. 可执行证据与后续使用
 

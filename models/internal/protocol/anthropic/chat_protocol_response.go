@@ -25,31 +25,33 @@ func mapProtocolMessage(message *anthropicsdk.Message, provider string) (*corech
 	if err != nil {
 		return nil, err
 	}
-	choice := corechat.Choice{
-		Index:        0,
+	result := &corechat.Result{
 		FinishReason: normalizeProtocolStopReason(message.StopReason),
+		Metadata:     &corechat.ResultMetadata{},
 	}
-	if err := choice.SetExtension(protocolNativeStopReasonKey, message.StopReason); err != nil {
+	if err := result.Metadata.Set(protocolNativeStopReasonKey, message.StopReason); err != nil {
 		return nil, err
 	}
 	if len(parts) > 0 {
-		choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
 	response := &corechat.Response{
-		ID:      message.ID,
-		Model:   string(message.Model),
-		Choices: []corechat.Choice{choice},
-		Usage:   mapProtocolUsage(message.Usage),
+		Result: result,
+		Metadata: &corechat.ResponseMetadata{
+			ID:    message.ID,
+			Model: string(message.Model),
+			Usage: mapProtocolUsage(message.Usage),
+		},
 	}
-	if err := response.SetExtension(protocolResponseExtensionKey(provider), message); err != nil {
+	if err := response.Metadata.Set(protocolResponseExtensionKey(provider), message); err != nil {
 		return nil, err
 	}
 	if message.StopSequence != "" {
-		if err := response.SetExtension(protocolStopSequenceKey, message.StopSequence); err != nil {
+		if err := response.Metadata.Set(protocolStopSequenceKey, message.StopSequence); err != nil {
 			return nil, err
 		}
 	}
-	if err := response.SetExtension(protocolUsageKey, message.Usage); err != nil {
+	if err := response.Metadata.Set(protocolUsageKey, message.Usage); err != nil {
 		return nil, err
 	}
 	if err := response.Validate(); err != nil {
@@ -179,22 +181,22 @@ func newProtocolStreamState(provider string) *protocolStreamState {
 }
 
 func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, bool, error) {
-	response := &corechat.Response{ID: s.id, Model: s.model}
-	if err := response.SetExtension(s.streamEventKey, event); err != nil {
+	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{ID: s.id, Model: s.model}}
+	if err := response.Metadata.Set(s.streamEventKey, event); err != nil {
 		return nil, false, err
 	}
-	var choice *corechat.Choice
+	var result *corechat.Result
 	include := true
 
 	switch value := event.AsAny().(type) {
 	case anthropicsdk.MessageStartEvent:
 		s.id = value.Message.ID
 		s.model = string(value.Message.Model)
-		response.ID = s.id
-		response.Model = s.model
+		response.Metadata.ID = s.id
+		response.Metadata.Model = s.model
 		s.usage = mapProtocolUsage(value.Message.Usage)
-		response.Usage = s.usage
-		if err := response.SetExtension(protocolUsageKey, value.Message.Usage); err != nil {
+		response.Metadata.Usage = s.usage
+		if err := response.Metadata.Set(protocolUsageKey, value.Message.Usage); err != nil {
 			return nil, false, err
 		}
 		if len(value.Message.Content) > 0 {
@@ -207,7 +209,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 				if err != nil {
 					return nil, false, err
 				}
-				choice = &corechat.Choice{Index: 0, Message: message}
+				result = &corechat.Result{Message: message}
 			}
 		}
 		include = true
@@ -222,7 +224,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 			if err != nil {
 				return nil, false, err
 			}
-			choice = &corechat.Choice{Index: 0, Message: message}
+			result = &corechat.Result{Message: message}
 			include = true
 		}
 
@@ -236,37 +238,38 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 			if err != nil {
 				return nil, false, err
 			}
-			choice = &corechat.Choice{Index: 0, Message: message}
+			result = &corechat.Result{Message: message}
 			include = true
 		} else if extension != nil {
-			choice = &corechat.Choice{Index: 0}
-			if err := choice.SetExtension(protocolCitationDeltaKey, extension); err != nil {
+			result = &corechat.Result{Metadata: &corechat.ResultMetadata{}}
+			if err := result.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
 				return nil, false, err
 			}
 			include = true
 		}
 
 	case anthropicsdk.MessageDeltaEvent:
-		choice = &corechat.Choice{Index: 0, FinishReason: normalizeProtocolStopReason(value.Delta.StopReason)}
+		result = &corechat.Result{FinishReason: normalizeProtocolStopReason(value.Delta.StopReason)}
 		if value.Delta.StopReason != "" {
-			if err := choice.SetExtension(protocolNativeStopReasonKey, value.Delta.StopReason); err != nil {
+			result.Metadata = &corechat.ResultMetadata{}
+			if err := result.Metadata.Set(protocolNativeStopReasonKey, value.Delta.StopReason); err != nil {
 				return nil, false, err
 			}
 		}
 		s.mergeDeltaUsage(value.Usage)
-		response.Usage = s.usage
-		if err := response.SetExtension(protocolUsageKey, value.Usage); err != nil {
+		response.Metadata.Usage = s.usage
+		if err := response.Metadata.Set(protocolUsageKey, value.Usage); err != nil {
 			return nil, false, err
 		}
 		if value.Delta.StopSequence != "" {
-			if err := response.SetExtension(protocolStopSequenceKey, value.Delta.StopSequence); err != nil {
+			if err := response.Metadata.Set(protocolStopSequenceKey, value.Delta.StopSequence); err != nil {
 				return nil, false, err
 			}
 		}
-		if choice.FinishReason == "" && len(choice.Extensions) == 0 {
-			choice = nil
+		if result.FinishReason == "" && result.Metadata == nil {
+			result = nil
 		}
-		include = choice != nil || len(response.Extensions) > 0
+		include = result != nil || len(response.Metadata.Extra) > 0
 
 	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
 
@@ -274,8 +277,8 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 		// Preserve forward-compatible events in StreamEventExtensionKey.
 	}
 
-	if choice != nil {
-		response.Choices = []corechat.Choice{*choice}
+	if result != nil {
+		response.Result = result
 	}
 	if !include {
 		return nil, false, nil
@@ -283,7 +286,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 	// Usage is a cumulative stream snapshot. Event-only chunks still carry the
 	// latest known value so observing native lifecycle events cannot make a
 	// consumer's view of usage move backwards.
-	response.Usage = s.usage
+	response.Metadata.Usage = s.usage
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("anthropic: mapped stream response: %w", err)
 	}

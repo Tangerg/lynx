@@ -94,7 +94,7 @@ type echoModel struct{ prefix string }
 func (model echoModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	last := request.Messages[len(request.Messages)-1]
 	message := chat.NewAssistantMessage(chat.NewTextPart(model.prefix + " " + last.Text()))
-	return &chat.Response{Choices: []chat.Choice{{
-		Index: 0, Message: &message, FinishReason: "stop",
-	}}}, nil
+	return &chat.Response{Result: &chat.Result{
+		Message: &message, FinishReason: chat.FinishReasonStop,
+	}}, nil
 }

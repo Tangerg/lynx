@@ -229,8 +229,8 @@ func (model *observedInteractionModel) complete(
 	callID string,
 	response *corechat.Response,
 ) error {
-	choice := response.First()
-	if choice == nil || choice.Message == nil {
+	result := response.Result
+	if result == nil || result.Message == nil {
 		return errors.New("agentexec: completed model call has no assistant message")
 	}
 	// Agent owns Delta validation, ordering, buffering, and listener observation. Wait on its
@@ -253,7 +253,7 @@ func (model *observedInteractionModel) complete(
 	if !invocation.Relation().IsRoot() {
 		model.session.committedReplies.record(invocation.Relation().ProcessID(), fact.Message)
 	}
-	return model.session.registerDelegateCalls(invocation, choice.Message)
+	return model.session.registerDelegateCalls(invocation, result.Message)
 }
 
 type observedInteractionTool struct {
@@ -806,7 +806,11 @@ func modelUsage(
 	fallbackModel string,
 	pricing accounting.Pricing,
 ) accounting.ModelUsage {
-	servedModel := response.Model
+	var metadata corechat.ResponseMetadata
+	if response.Metadata != nil {
+		metadata = *response.Metadata
+	}
+	servedModel := metadata.Model
 	if servedModel == "" {
 		servedModel = fallbackModel
 	}
@@ -815,10 +819,10 @@ func modelUsage(
 	}
 	cost := 0.0
 	if pricing != nil {
-		cost = pricing(provider, servedModel, &response.Usage)
+		cost = pricing(provider, servedModel, &metadata.Usage)
 	}
 	return accounting.ModelUsage{
-		Model: servedModel, TokenUsage: accountingTokenUsage(response.Usage), CostUSD: cost, Calls: 1,
+		Model: servedModel, TokenUsage: accountingTokenUsage(metadata.Usage), CostUSD: cost, Calls: 1,
 	}
 }
 

@@ -374,15 +374,15 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 			Name:      "ask_user",
 			Arguments: `{"questions":[{"question":"Continue the lifecycle check?"}]}`,
 		}))
-		return chat.NewResponse(chat.Choice{
-			Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
-		})
+		return chat.NewResponse(&chat.Result{
+			Message: &message, FinishReason: chat.FinishReasonToolCalls,
+		}, nil)
 	default:
 		m.resumedStartedOnce.Do(func() { close(m.resumedCallStarted) })
 		select {
 		case <-m.releaseResumedCall:
 			message := chat.NewAssistantMessage(chat.NewTextPart("settled before cancellation"))
-			return chat.NewResponse(chat.Choice{Index: 0, Message: &message})
+			return chat.NewResponse(&chat.Result{Message: &message}, nil)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}

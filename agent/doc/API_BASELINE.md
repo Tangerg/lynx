@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 22 已冻结
-> 冻结日期：2026-08-15
-> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v6/v5、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 状态：Baseline 23 已冻结
+> 冻结日期：2026-08-25
+> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v7/v6、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 22 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 23 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -45,9 +45,9 @@ Baseline 22 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 22 public digest：
+`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 23 public digest：
 
-P91 只显式修订 Interaction：
+P20 不改变任何 Agent 公共 API：
 
 - root kernel：`e18f5ac4da51cc0b2edc36f66ced969fb0bb7998f0b67ef80c5f3ce7a6ad7d72`
 - agenttest：`4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490`
@@ -58,13 +58,13 @@ P91 只显式修订 Interaction：
 - otel：`aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60`
 - platform：`5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 22 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 23 wire digest：
 
-P91 只改变 Interaction protocol wire：
+P20 只改变 Interaction state/protocol wire：
 
 - Kernel snapshot/protocol wire：`56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d`
 - Framework Event/Delta observation wire：`152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e`
-- Interaction state/protocol wire：`b74916e9f67796fa24e2dc640d9ec8db0176d4fa1636324ff7907d2bcb8163b3`
+- Interaction state/protocol wire：`73a91aca91d2a968636d90aebd11041c149e0e06afc2f8efc0eac6f4b42b64de`
 - Planning state/protocol wire：`6b9bf130b4f8869074c5e988d34899a142551b0edda46dccd883e0c2e44682eb`
 - Workflow state wire：`1e223dcfeeca7751f3d440a771364879bdeba2e7a5367c978c9568d31be0c3da`
 
@@ -140,6 +140,8 @@ P19 依据 ADR-A2-075 形成 Baseline 21。Kernel 新增 `Engine.FlushDeltas(ctx
 
 P91 依据 ADR-A2-076 形成 Baseline 22。Interaction 新增中性的 `ErrHostFailure`/`HostFailure` 标记，供真实 Host 在模型或 Tool 尚未被调用、其自有前置边界已经拒绝时要求确定终止。Dispatcher protocol 从 v4 直接升级到 v5，模型与 Tool settlement 以互斥的 `host_error` 模式承载该事实；Execution 统一产出 `interaction.host.failed`，不把它误判为 provider failure 或模型可见 Tool output。普通模型/Tool 错误与已经跨越外部调用后的 unknown settlement 均不改变；Process Snapshot v6、TreeSnapshot v4、Interaction ExecutionState v6、Kernel/其他 Strategy/observation wire 和另外七个 public package 全部不变。
 
+P20 依据 ADR-A2-077 形成 Baseline 23。Core Chat 将从未被真实能力支持的复数 `Choice` 模型收敛为唯一 `Response.Result`；Interaction 的 ExecutionState、model settlement 与 stream Delta 都嵌入该 Request/Response wire，因此 state/protocol 从 v6/v5 直接升级为 v7/v6并拒绝旧版本。Interaction 直接读取单 Result，删除多候选循环与仲裁分支。Agent 公共 API、Process Snapshot v6、TreeSnapshot v4、Kernel/Planning/Workflow/observation wire 和另外七个公共 package均不改变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 22 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 23 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Result 是 Interaction 唯一模型响应合同，不提供复数候选兼容读取。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

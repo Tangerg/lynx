@@ -23,11 +23,11 @@ func TestModelFuncDelegates(t *testing.T) {
 func TestStreamerFuncDelegates(t *testing.T) {
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			yield(&chat.Response{ID: "chunk"}, nil)
+			yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "chunk"}}, nil)
 		}
 	})
 	for response, err := range streamer.Stream(context.Background(), nil) {
-		if err != nil || response.ID != "chunk" {
+		if err != nil || response.Metadata.ID != "chunk" {
 			t.Fatalf("Stream yielded %#v, %v", response, err)
 		}
 		return

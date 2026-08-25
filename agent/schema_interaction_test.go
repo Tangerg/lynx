@@ -17,15 +17,14 @@ func TestSchemaForAcceptsInteractionProviderMetadataAndReasoningSignature(t *tes
 		"openai/reasoning_provider": json.RawMessage(`"deepseek"`),
 	}
 	message := chat.NewAssistantMessage(reasoning, chat.NewTextPart("provider answer"))
-	response, err := chat.NewResponse(chat.Choice{
-		Index:        0,
+	response, err := chat.NewResponse(&chat.Result{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
-	})
+	}, &chat.ResponseMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Extensions = metadata.Map{
+	response.Metadata.Extra = metadata.Map{
 		"deepseek/openai_stream_chunk": json.RawMessage(`{"id":"chunk-1","choices":[]}`),
 	}
 	value := interaction.Output{

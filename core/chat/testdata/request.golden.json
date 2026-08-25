@@ -77,11 +77,11 @@
   "options": {
     "model": "provider-model",
     "max_tokens": 256,
-    "temperature": 0.2
-  },
-  "extensions": {
-    "openai/response_format": {
-      "type": "text"
+    "temperature": 0.2,
+    "extensions": {
+      "openai/response_format": {
+        "type": "text"
+      }
     }
   }
 }

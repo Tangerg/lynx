@@ -23,8 +23,8 @@ const (
 )
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream bool) (*nativeChatRequest, error) {
-	options := defaults.Overlay(req.Options)
-	if err := options.Validate(); err != nil {
+	options, err := defaults.Merged(req.Options)
+	if err != nil {
 		return nil, fmt.Errorf("ollama: options: %w", err)
 	}
 	if options.Model == "" {
@@ -85,7 +85,7 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 
 func decodeProtocolRequestExtension(req *corechat.Request) (*nativeChatRequest, error) {
 	apiReq := new(nativeChatRequest)
-	raw, found := req.Extensions[RequestExtensionKey]
+	raw, found := req.Options.Extensions[RequestExtensionKey]
 	if !found {
 		return apiReq, nil
 	}

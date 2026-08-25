@@ -72,7 +72,7 @@ func TestOllamaCompatibleChatUsesProviderScopedV1Protocol(t *testing.T) {
 	if got := response.Text(); got != "ok" {
 		t.Fatalf("response text = %q, want ok", got)
 	}
-	if _, ok := response.Extensions["ollama/openai_response"]; !ok {
+	if _, ok := response.Metadata.Extra["ollama/openai_response"]; !ok {
 		t.Fatal("response did not retain provider-scoped ollama/openai_response")
 	}
 }

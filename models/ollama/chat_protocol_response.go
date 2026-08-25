@@ -31,25 +31,27 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 		modelName = requestModel
 	}
 	mapped := &corechat.Response{
-		Model: modelName,
-		Usage: corechat.Usage{
-			InputTokens:  int64(response.PromptEvalCount),
-			OutputTokens: int64(response.EvalCount),
+		Metadata: &corechat.ResponseMetadata{
+			Model: modelName,
+			Usage: corechat.Usage{
+				InputTokens:  int64(response.PromptEvalCount),
+				OutputTokens: int64(response.EvalCount),
+			},
 		},
 	}
-	if err := mapped.SetExtension(ResponseExtensionKey, response.raw); err != nil {
+	if err := mapped.Metadata.Set(ResponseExtensionKey, response.raw); err != nil {
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
 
-	choice, present, err := m.mapChoice(response)
+	result, present, err := m.mapResult(response)
 	if err != nil {
 		return nil, err
 	}
 	if present {
-		mapped.Choices = []corechat.Choice{choice}
+		mapped.Result = result
 	}
 	if !response.CreatedAt.IsZero() {
-		if err := mapped.SetExtension(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+		if err := mapped.Metadata.Set(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
 			return nil, err
 		}
 	}
@@ -60,7 +62,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			"prompt_eval": int64(response.PromptEvalDuration),
 			"eval":        int64(response.EvalDuration),
 		}
-		if err := mapped.SetExtension(protocolDurationsKey, durations); err != nil {
+		if err := mapped.Metadata.Set(protocolDurationsKey, durations); err != nil {
 			return nil, err
 		}
 	}
@@ -69,7 +71,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			PromptEvalCount: response.PromptEvalCount,
 			EvalCount:       response.EvalCount,
 		}
-		if err := mapped.SetExtension(protocolMetricsKey, metrics); err != nil {
+		if err := mapped.Metadata.Set(protocolMetricsKey, metrics); err != nil {
 			return nil, err
 		}
 	}
@@ -79,11 +81,12 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 	return mapped, nil
 }
 
-func (m *protocolResponseMapper) mapChoice(response nativeChatResponse) (corechat.Choice, bool, error) {
-	choice := corechat.Choice{Index: 0, FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
+func (m *protocolResponseMapper) mapResult(response nativeChatResponse) (*corechat.Result, bool, error) {
+	result := &corechat.Result{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
-		if err := choice.SetExtension(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
-			return corechat.Choice{}, false, err
+		result.Metadata = &corechat.ResultMetadata{}
+		if err := result.Metadata.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
+			return nil, false, err
 		}
 	}
 
@@ -97,11 +100,11 @@ func (m *protocolResponseMapper) mapChoice(response nativeChatResponse) (corecha
 	for i := range response.Message.ToolCalls {
 		toolCall := response.Message.ToolCalls[i]
 		if toolCall.Function.Name == "" {
-			return corechat.Choice{}, false, fmt.Errorf("ollama: message.tool_calls[%d]: empty function name", i)
+			return nil, false, fmt.Errorf("ollama: message.tool_calls[%d]: empty function name", i)
 		}
 		arguments, err := json.Marshal(toolCall.Function.Arguments)
 		if err != nil {
-			return corechat.Choice{}, false, fmt.Errorf("ollama: message.tool_calls[%d].arguments: %w", i, err)
+			return nil, false, fmt.Errorf("ollama: message.tool_calls[%d].arguments: %w", i, err)
 		}
 		id := toolCall.ID
 		if id == "" {
@@ -114,10 +117,10 @@ func (m *protocolResponseMapper) mapChoice(response nativeChatResponse) (corecha
 		}))
 	}
 	if len(parts) > 0 {
-		choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
-	present := choice.Message != nil || choice.FinishReason != "" || len(choice.Extensions) > 0
-	return choice, present, nil
+	present := result.Message != nil || result.FinishReason != "" || result.Metadata != nil
+	return result, present, nil
 }
 
 func normalizeProtocolDoneReason(reason string) corechat.FinishReason {

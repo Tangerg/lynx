@@ -269,7 +269,10 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrock: request: %w", err)
 	}
-	options := c.defaults.Overlay(req.Options)
+	options, err := c.defaults.Merged(req.Options)
+	if err != nil {
+		return nil, fmt.Errorf("bedrock: options: %w", err)
+	}
 	if options.Model == "" {
 		return nil, errors.New("bedrock: model is required in defaults or request options")
 	}
@@ -277,7 +280,7 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 		return nil, errors.New("bedrock: frequency_penalty, presence_penalty, and top_k are not supported by Converse inference configuration")
 	}
 
-	native, found, err := metadata.Decode[ChatRequestOptions](req.Extensions, ChatRequestExtensionKey)
+	native, found, err := metadata.Decode[ChatRequestOptions](req.Options.Extensions, ChatRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("bedrock: extension %q: %w", ChatRequestExtensionKey, err)
 	}
@@ -449,18 +452,22 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 	if err != nil {
 		return nil, err
 	}
-	choice := corechat.Choice{Index: 0, FinishReason: mapProtocolStopReason(output.StopReason)}
+	result := &corechat.Result{FinishReason: mapProtocolStopReason(output.StopReason)}
 	if len(parts) != 0 {
 		message := corechat.NewAssistantMessage(parts...)
-		choice.Message = &message
+		result.Message = &message
 	}
-	if choice.FinishReason == corechat.FinishReasonOther {
-		if err := choice.SetExtension(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
+	if result.FinishReason == corechat.FinishReasonOther {
+		result.Metadata = &corechat.ResultMetadata{}
+		if err := result.Metadata.Set(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
 			return nil, err
 		}
 	}
-	response := &corechat.Response{Model: model, Choices: []corechat.Choice{choice}, Usage: mapProtocolUsage(output.Usage)}
-	if err := response.SetExtension(ChatResponseExtensionKey, output); err != nil {
+	response := &corechat.Response{
+		Result:   result,
+		Metadata: &corechat.ResponseMetadata{Model: model, Usage: mapProtocolUsage(output.Usage)},
+	}
+	if err := response.Metadata.Set(ChatResponseExtensionKey, output); err != nil {
 		return nil, fmt.Errorf("bedrock: preserve native response: %w", err)
 	}
 	if err := response.Validate(); err != nil {
@@ -581,8 +588,8 @@ func newProtocolChunkAccumulator(model string) *protocolChunkAccumulator {
 }
 
 func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.Response, bool, error) {
-	response := &corechat.Response{Model: a.model}
-	var choice *corechat.Choice
+	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{Model: a.model}}
+	var result *corechat.Result
 
 	switch typed := event.(type) {
 	case *types.ConverseStreamOutputMemberContentBlockStart:
@@ -594,18 +601,19 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		a.tools[*typed.Value.ContentBlockIndex] = identity
 		part := corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name})
 		message := corechat.NewAssistantMessage(part)
-		choice = &corechat.Choice{Index: 0, Message: &message}
+		result = &corechat.Result{Message: &message}
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
 		part, include, err := a.mapDelta(typed.Value)
 		if err != nil || !include {
 			return nil, false, err
 		}
 		message := corechat.NewAssistantMessage(part)
-		choice = &corechat.Choice{Index: 0, Message: &message}
+		result = &corechat.Result{Message: &message}
 	case *types.ConverseStreamOutputMemberMessageStop:
-		choice = &corechat.Choice{Index: 0, FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
-		if choice.FinishReason == corechat.FinishReasonOther {
-			if err := choice.SetExtension(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
+		result = &corechat.Result{FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
+		if result.FinishReason == corechat.FinishReasonOther {
+			result.Metadata = &corechat.ResultMetadata{}
+			if err := result.Metadata.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
 				return nil, false, err
 			}
 		}
@@ -613,13 +621,13 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		if typed.Value.Usage == nil {
 			return nil, false, nil
 		}
-		response.Usage = mapProtocolUsage(typed.Value.Usage)
+		response.Metadata.Usage = mapProtocolUsage(typed.Value.Usage)
 	default:
 		return nil, false, nil
 	}
 
-	if choice != nil {
-		response.Choices = []corechat.Choice{*choice}
+	if result != nil {
+		response.Result = result
 	}
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("bedrock: stream response: %w", err)

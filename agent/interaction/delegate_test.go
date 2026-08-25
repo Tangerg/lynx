@@ -347,9 +347,9 @@ func (model *delegateFailureModel) Call(_ context.Context, request *chat.Request
 				ID: "call_unavailable", Name: "delegate_unavailable", Arguments: `{"value":"valid"}`,
 			}),
 		)
-		return &chat.Response{Choices: []chat.Choice{{
-			Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
-		}}}, nil
+		return &chat.Response{Result: &chat.Result{
+			Message: &message, FinishReason: chat.FinishReasonToolCalls,
+		}}, nil
 	}
 	if len(request.Messages) != 3 || len(request.Messages[2].Parts) != 2 {
 		return nil, errors.New("Delegate failures were not returned as one Tool result batch")
@@ -384,9 +384,9 @@ func (model *mixedDelegateModel) Call(_ context.Context, request *chat.Request) 
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_worker_2", Name: "delegate_uppercase", Arguments: `{"value":"second"}`}),
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_after", Name: "echo", Arguments: `{"value":"after"}`}),
 		)
-		return &chat.Response{Choices: []chat.Choice{{
-			Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
-		}}}, nil
+		return &chat.Response{Result: &chat.Result{
+			Message: &message, FinishReason: chat.FinishReasonToolCalls,
+		}}, nil
 	}
 	if len(request.Messages) != 3 || request.Messages[2].Role != chat.RoleTool ||
 		len(request.Messages[2].Parts) != 4 {

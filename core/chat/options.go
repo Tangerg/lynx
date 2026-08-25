@@ -8,7 +8,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/internal/extension"
 	"github.com/Tangerg/lynx/core/internal/ptr"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 var ErrInvalidOptions = errors.New("chat: invalid options")
@@ -16,14 +18,38 @@ var ErrInvalidOptions = errors.New("chat: invalid options")
 // Options contains provider-neutral per-request generation overrides. Its zero
 // value is valid and means that the model/provider defaults apply.
 type Options struct {
-	Model            string   `json:"model,omitempty"`
-	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
-	MaxTokens        *int64   `json:"max_tokens,omitempty"`
-	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
-	Stop             []string `json:"stop,omitempty"`
-	Temperature      *float64 `json:"temperature,omitempty"`
-	TopK             *int64   `json:"top_k,omitempty"`
-	TopP             *float64 `json:"top_p,omitempty"`
+	Model            string       `json:"model,omitempty"`
+	FrequencyPenalty *float64     `json:"frequency_penalty,omitempty"`
+	MaxTokens        *int64       `json:"max_tokens,omitempty"`
+	PresencePenalty  *float64     `json:"presence_penalty,omitempty"`
+	Stop             []string     `json:"stop,omitempty"`
+	Temperature      *float64     `json:"temperature,omitempty"`
+	TopK             *int64       `json:"top_k,omitempty"`
+	TopP             *float64     `json:"top_p,omitempty"`
+	Extensions       metadata.Map `json:"extensions,omitzero"`
+}
+
+// NewOptions builds Options for the given model id.
+func NewOptions(model string) (Options, error) {
+	if model == "" {
+		return Options{}, fmt.Errorf("chat.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
+	}
+	options := Options{Model: model}
+	if err := options.Validate(); err != nil {
+		return Options{}, fmt.Errorf("chat.NewOptions: %w", err)
+	}
+	return options, nil
+}
+
+// SetExtension encodes a provider-specific option under a namespace/name key.
+func (o *Options) SetExtension(key string, value any) error {
+	if o == nil {
+		return fmt.Errorf("chat.Options.SetExtension: %w: nil receiver", ErrInvalidOptions)
+	}
+	if err := extension.Set(&o.Extensions, key, value); err != nil {
+		return fmt.Errorf("chat.Options.SetExtension: %w: %w", ErrInvalidOptions, err)
+	}
+	return nil
 }
 
 // Clone returns an independent copy of o.
@@ -37,42 +63,55 @@ func (o Options) Clone() Options {
 		Temperature:      ptr.Clone(o.Temperature),
 		TopK:             ptr.Clone(o.TopK),
 		TopP:             ptr.Clone(o.TopP),
+		Extensions:       o.Extensions.Clone(),
 	}
 }
 
-// Overlay returns a copy of o with every explicitly-set field of other applied
-// on top: a non-empty Model, each non-nil pointer, and a non-nil Stop slice in
-// other override o, while other's unset fields leave o's value intact. It is
-// the field-aware merge that convenience layers use to apply per-request
-// options over client defaults; keeping it beside Clone/Validate means a new
-// Options field is handled here, not silently dropped by a distant merger.
-func (o Options) Overlay(other Options) Options {
+// Merged clones o and applies each override left-to-right.
+func (o Options) Merged(overrides ...Options) (Options, error) {
 	merged := o.Clone()
-	if other.Model != "" {
-		merged.Model = other.Model
+	for _, override := range overrides {
+		if err := merged.applyOverride(override); err != nil {
+			return Options{}, fmt.Errorf("chat.Options.Merged: %w: %w", ErrInvalidOptions, err)
+		}
 	}
-	if other.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = ptr.Clone(other.FrequencyPenalty)
+	if err := merged.Validate(); err != nil {
+		return Options{}, fmt.Errorf("chat.Options.Merged: %w", err)
 	}
-	if other.MaxTokens != nil {
-		merged.MaxTokens = ptr.Clone(other.MaxTokens)
+	return merged, nil
+}
+
+func (o *Options) applyOverride(src Options) error {
+	if src.Model != "" {
+		o.Model = src.Model
 	}
-	if other.PresencePenalty != nil {
-		merged.PresencePenalty = ptr.Clone(other.PresencePenalty)
+	if src.FrequencyPenalty != nil {
+		o.FrequencyPenalty = ptr.Clone(src.FrequencyPenalty)
 	}
-	if other.Stop != nil {
-		merged.Stop = slices.Clone(other.Stop)
+	if src.MaxTokens != nil {
+		o.MaxTokens = ptr.Clone(src.MaxTokens)
 	}
-	if other.Temperature != nil {
-		merged.Temperature = ptr.Clone(other.Temperature)
+	if src.PresencePenalty != nil {
+		o.PresencePenalty = ptr.Clone(src.PresencePenalty)
 	}
-	if other.TopK != nil {
-		merged.TopK = ptr.Clone(other.TopK)
+	if src.Stop != nil {
+		o.Stop = slices.Clone(src.Stop)
 	}
-	if other.TopP != nil {
-		merged.TopP = ptr.Clone(other.TopP)
+	if src.Temperature != nil {
+		o.Temperature = ptr.Clone(src.Temperature)
 	}
-	return merged
+	if src.TopK != nil {
+		o.TopK = ptr.Clone(src.TopK)
+	}
+	if src.TopP != nil {
+		o.TopP = ptr.Clone(src.TopP)
+	}
+	if len(src.Extensions) > 0 {
+		if err := o.Extensions.Merge(src.Extensions); err != nil {
+			return fmt.Errorf("merge extensions: %w", err)
+		}
+	}
+	return nil
 }
 
 // Validate verifies explicitly supplied overrides. Options{} is valid.
@@ -102,6 +141,9 @@ func (o Options) Validate() error {
 	}
 	if err := validateFloat("top_p", o.TopP, 0, 1); err != nil {
 		return err
+	}
+	if err := extension.Validate(o.Extensions); err != nil {
+		return fmt.Errorf("%w: extensions: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }

@@ -314,9 +314,9 @@ func (m *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 		return &chat.Response{}, nil
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
-	return &chat.Response{Choices: []chat.Choice{{
-		Index: 0, Message: &message, FinishReason: chat.FinishReasonStop,
-	}}}, nil
+	return &chat.Response{Result: &chat.Result{
+		Message: &message, FinishReason: chat.FinishReasonStop,
+	}}, nil
 }
 
 func (m *fakeModel) lastRequest() *chat.Request {

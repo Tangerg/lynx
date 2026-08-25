@@ -51,7 +51,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	}}
 	returnImages := true
 	disableSearch := false
-	if err := request.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
+	if err := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
 		SearchMode:            perplexity.SearchModeWeb,
 		ReturnImages:          &returnImages,
 		DisableSearch:         &disableSearch,
@@ -78,7 +78,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	if !ok || webOptions["search_context_size"] != "high" || webOptions["search_type"] != "fast" {
 		t.Fatalf("web_search_options = %#v", body["web_search_options"])
 	}
-	raw, found, err := metadata.Decode[map[string]any](response.Extensions, perplexity.OpenAIResponseExtensionKey)
+	raw, found, err := metadata.Decode[map[string]any](response.Metadata.Extra, perplexity.OpenAIResponseExtensionKey)
 	if err != nil {
 		t.Fatalf("decode response extension: %v", err)
 	} else if !found {
@@ -100,7 +100,7 @@ func TestOpenAIChatRejectsProSearchWithoutStreaming(t *testing.T) {
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("question")),
 	}}
-	if err := request.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
+	if err := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
 		WebSearchOptions: &perplexity.WebSearchOptions{SearchType: perplexity.SearchTypePro},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)

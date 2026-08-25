@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-func assistantChoice(index int, text string) chat.Choice {
+func assistantResult(text string) *chat.Result {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return chat.Choice{Index: index, Message: &message, FinishReason: chat.FinishReasonStop}
+	return &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}
 }
 
 func TestFinishReason(t *testing.T) {
@@ -32,7 +32,7 @@ func TestFinishReason(t *testing.T) {
 		}
 	}
 	if chat.FinishReason("provider-native").Valid() {
-		t.Fatal("provider-native reason must map to Other plus an extension")
+		t.Fatal("provider-native reason must map to Other plus result metadata")
 	}
 }
 
@@ -51,40 +51,12 @@ func TestMessageText(t *testing.T) {
 	}
 }
 
-func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
-	reasoningTokens := int64(2)
-	response, err := chat.NewResponse(assistantChoice(0, "original"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	response.Usage.ReasoningTokens = &reasoningTokens
-	if err := response.SetExtension("test/value", map[string]int{"count": 1}); err != nil {
-		t.Fatal(err)
-	}
-
-	cloned := response.Clone()
-	cloned.Model = "mutated"
-	cloned.Choices[0].Message.Parts[0].Text = "mutated"
-	*cloned.Usage.ReasoningTokens = 9
-	cloned.Extensions["test/value"][0] = 'x'
-
-	if response.Model != "" ||
-		response.Text() != "original" ||
-		*response.Usage.ReasoningTokens != 2 ||
-		response.Extensions["test/value"][0] == 'x' {
-		t.Fatalf("mutating clone changed source response: %#v", response)
-	}
-	var nilResponse *chat.Response
-	if nilResponse.Clone() != nil {
-		t.Fatal("nil Response.Clone returned a non-nil value")
-	}
-}
-
-func TestChoiceValidate(t *testing.T) {
-	valid := []chat.Choice{
-		assistantChoice(0, "hello"),
-		{Index: 0, FinishReason: chat.FinishReasonStop},
-		{Index: 0, Extensions: metadata.Map{"openai/logprobs": json.RawMessage(`[]`)}},
+func TestResultValidate(t *testing.T) {
+	metadataOnly := &chat.ResultMetadata{}
+	valid := []*chat.Result{
+		assistantResult("hello"),
+		{FinishReason: chat.FinishReasonStop},
+		{Metadata: metadataOnly},
 	}
 	for i := range valid {
 		if err := valid[i].Validate(); err != nil {
@@ -93,27 +65,26 @@ func TestChoiceValidate(t *testing.T) {
 	}
 }
 
-func TestChoiceValidateRejectsInvalidValues(t *testing.T) {
+func TestResultValidateRejectsInvalidValues(t *testing.T) {
 	user := chat.NewUserMessage(chat.NewTextPart("hello"))
 	invalidMessage := chat.Message{Role: chat.RoleAssistant}
 	tests := []struct {
 		name   string
-		choice *chat.Choice
+		result *chat.Result
 		also   error
 	}{
-		{name: "nil", choice: nil},
-		{name: "negative index", choice: &chat.Choice{Index: -1, FinishReason: chat.FinishReasonStop}},
-		{name: "empty", choice: &chat.Choice{}},
-		{name: "invalid message", choice: &chat.Choice{Message: &invalidMessage}, also: chat.ErrInvalidMessage},
-		{name: "user message", choice: &chat.Choice{Message: &user}},
-		{name: "unknown finish", choice: &chat.Choice{FinishReason: "future"}},
-		{name: "invalid extension", choice: &chat.Choice{Extensions: metadata.Map{"bad": json.RawMessage(`1`)}}, also: chat.ErrInvalidExtension},
+		{name: "nil", result: nil},
+		{name: "empty", result: &chat.Result{}},
+		{name: "invalid message", result: &chat.Result{Message: &invalidMessage}, also: chat.ErrInvalidMessage},
+		{name: "user message", result: &chat.Result{Message: &user}},
+		{name: "unknown finish", result: &chat.Result{FinishReason: "future"}},
+		{name: "invalid metadata", result: &chat.Result{Metadata: &chat.ResultMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.choice.Validate()
-			if !errors.Is(err, chat.ErrInvalidChoice) {
-				t.Fatalf("Validate error = %v, want ErrInvalidChoice", err)
+			err := tt.result.Validate()
+			if !errors.Is(err, chat.ErrInvalidResponse) {
+				t.Fatalf("Validate error = %v, want ErrInvalidResponse", err)
 			}
 			if tt.also != nil && !errors.Is(err, tt.also) {
 				t.Fatalf("Validate error = %v, also want %v", err, tt.also)
@@ -122,73 +93,81 @@ func TestChoiceValidateRejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestChoiceHelpersAndJSON(t *testing.T) {
-	choice := assistantChoice(2, "hello")
-	if choice.Text() != "hello" {
-		t.Fatalf("Text = %q", choice.Text())
+func TestResultHelpersAndJSON(t *testing.T) {
+	result := assistantResult("hello")
+	result.Metadata = &chat.ResultMetadata{}
+	if result.Text() != "hello" {
+		t.Fatalf("Text = %q", result.Text())
 	}
-	if err := choice.SetExtension("openai/logprobs", []float64{-0.1}); err != nil {
+	if err := result.Metadata.Set("openai/logprobs", []float64{-0.1}); err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := json.Marshal(choice)
+	encoded, err := json.Marshal(result)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got chat.Choice
+	var got chat.Result
 	if err := json.Unmarshal(encoded, &got); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, choice) {
-		t.Fatalf("round trip = %#v, want %#v", got, choice)
+	if !reflect.DeepEqual(got, *result) {
+		t.Fatalf("round trip = %#v, want %#v", got, *result)
 	}
 
-	var nilChoice *chat.Choice
-	if nilChoice.Text() != "" {
-		t.Fatal("nil Choice.Text must be empty")
-	}
-	if err := nilChoice.SetExtension("openai/key", 1); !errors.Is(err, chat.ErrInvalidChoice) {
-		t.Fatalf("nil SetExtension error = %v", err)
+	var nilResult *chat.Result
+	if nilResult.Text() != "" {
+		t.Fatal("nil Result.Text must be empty")
 	}
 }
 
-func TestChoiceUnmarshalIsAtomic(t *testing.T) {
-	choice := assistantChoice(0, "keep")
-	if err := json.Unmarshal([]byte(`{"index":-1,"finish_reason":"stop"}`), &choice); !errors.Is(err, chat.ErrInvalidChoice) {
+func TestResultUnmarshalIsAtomic(t *testing.T) {
+	result := assistantResult("keep")
+	if err := json.Unmarshal([]byte(`{"finish_reason":"future"}`), result); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}
-	if choice.Text() != "keep" {
-		t.Fatalf("failed Unmarshal mutated choice: %+v", choice)
+	if result.Text() != "keep" {
+		t.Fatalf("failed Unmarshal mutated result: %+v", result)
 	}
-	var nilChoice *chat.Choice
-	if err := nilChoice.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidChoice) {
+	var nilResult *chat.Result
+	if err := nilResult.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("nil UnmarshalJSON error = %v", err)
 	}
 }
 
-func TestResponsePreservesAllChoices(t *testing.T) {
-	choices := []chat.Choice{assistantChoice(0, "first"), assistantChoice(1, "second"), assistantChoice(2, "third")}
-	response, err := chat.NewResponse(choices...)
+func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
+	reasoningTokens := int64(2)
+	response, err := chat.NewResponse(assistantResult("original"), &chat.ResponseMetadata{
+		Model: "model",
+		Usage: chat.Usage{OutputTokens: 2, ReasoningTokens: &reasoningTokens},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	choices[0] = assistantChoice(0, "mutated")
-	if len(response.Choices) != 3 || response.Choices[0].Text() != "first" || response.Choices[2].Text() != "third" {
-		t.Fatalf("choices not preserved: %+v", response.Choices)
+	if err := response.Metadata.Set("test/value", map[string]int{"count": 1}); err != nil {
+		t.Fatal(err)
 	}
-	if response.First() != &response.Choices[0] {
-		t.Fatal("First must return the first stored choice")
+
+	cloned := response.Clone()
+	cloned.Metadata.Model = "mutated"
+	cloned.Result.Message.Parts[0].Text = "mutated"
+	*cloned.Metadata.Usage.ReasoningTokens = 9
+	cloned.Metadata.Extra["test/value"][0] = 'x'
+
+	if response.Metadata.Model != "model" ||
+		response.Text() != "original" ||
+		*response.Metadata.Usage.ReasoningTokens != 2 ||
+		response.Metadata.Extra["test/value"][0] == 'x' {
+		t.Fatalf("mutating clone changed source response: %#v", response)
 	}
-	if response.Text() != "first" {
-		t.Fatalf("Text = %q, want first", response.Text())
+	var nilResponse *chat.Response
+	if nilResponse.Clone() != nil {
+		t.Fatal("nil Response.Clone returned a non-nil value")
 	}
 }
 
 func TestResponseZeroAndNilHelpers(t *testing.T) {
-	response, err := chat.NewResponse()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.First() != nil || response.Text() != "" {
+	response := &chat.Response{}
+	if response.Result != nil || response.Text() != "" {
 		t.Fatal("empty response helpers must be nil/empty")
 	}
 	encoded, err := json.Marshal(response)
@@ -196,13 +175,12 @@ func TestResponseZeroAndNilHelpers(t *testing.T) {
 		t.Fatalf("zero Response JSON = %s, %v", encoded, err)
 	}
 	var nilResponse *chat.Response
-	if nilResponse.First() != nil || nilResponse.Text() != "" {
-		t.Fatal("nil response helpers must be nil/empty")
+	if nilResponse.Text() != "" {
+		t.Fatal("nil response text must be empty")
 	}
 }
 
 func TestResponseValidateRejectsInvalidValues(t *testing.T) {
-	validChoice := assistantChoice(0, "hello")
 	invalidUsage := chat.Usage{InputTokens: -1}
 	tests := []struct {
 		name     string
@@ -210,12 +188,11 @@ func TestResponseValidateRejectsInvalidValues(t *testing.T) {
 		also     error
 	}{
 		{name: "nil", response: nil},
-		{name: "ID whitespace", response: &chat.Response{ID: " id"}},
-		{name: "model whitespace", response: &chat.Response{Model: "model "}},
-		{name: "invalid choice", response: &chat.Response{Choices: []chat.Choice{{}}}, also: chat.ErrInvalidChoice},
-		{name: "duplicate index", response: &chat.Response{Choices: []chat.Choice{validChoice, validChoice}}},
-		{name: "invalid usage", response: &chat.Response{Usage: invalidUsage}, also: chat.ErrInvalidUsage},
-		{name: "invalid extension", response: &chat.Response{Extensions: metadata.Map{"bad": json.RawMessage(`1`)}}, also: chat.ErrInvalidExtension},
+		{name: "ID whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{ID: " id"}}},
+		{name: "model whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{Model: "model "}}},
+		{name: "invalid result", response: &chat.Response{Result: &chat.Result{}}},
+		{name: "invalid usage", response: &chat.Response{Metadata: &chat.ResponseMetadata{Usage: invalidUsage}}, also: chat.ErrInvalidUsage},
+		{name: "invalid metadata", response: &chat.Response{Metadata: &chat.ResponseMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,11 +210,15 @@ func TestResponseValidateRejectsInvalidValues(t *testing.T) {
 func TestResponseJSONRoundTrip(t *testing.T) {
 	reasoning := int64(4)
 	cacheRead := int64(3)
-	response, _ := chat.NewResponse(assistantChoice(0, "hello"), assistantChoice(1, "alternate"))
-	response.ID = "response-1"
-	response.Model = "model"
-	response.Usage = chat.Usage{InputTokens: 10, OutputTokens: 6, ReasoningTokens: &reasoning, CacheReadInputTokens: &cacheRead}
-	if err := response.SetExtension("openai/system_fingerprint", "fp-1"); err != nil {
+	response, err := chat.NewResponse(assistantResult("hello"), &chat.ResponseMetadata{
+		ID:    "response-1",
+		Model: "model",
+		Usage: chat.Usage{InputTokens: 10, OutputTokens: 6, ReasoningTokens: &reasoning, CacheReadInputTokens: &cacheRead},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := response.Metadata.Set("openai/system_fingerprint", "fp-1"); err != nil {
 		t.Fatal(err)
 	}
 	encoded, err := json.Marshal(response)
@@ -253,30 +234,15 @@ func TestResponseJSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestResponseSetExtensionAndUnmarshalAreSafe(t *testing.T) {
-	response := &chat.Response{}
-	if err := response.SetExtension("openai/usage", map[string]int{"cached": 3}); err != nil {
-		t.Fatal(err)
-	}
-	before := response.Extensions.Clone()
-	if err := response.SetExtension("bad", 1); !errors.Is(err, chat.ErrInvalidExtension) {
-		t.Fatalf("invalid extension error = %v", err)
-	}
-	if !reflect.DeepEqual(response.Extensions, before) {
-		t.Fatal("failed SetExtension mutated response")
-	}
-
-	response.ID = "keep"
-	if err := json.Unmarshal([]byte(`{"choices":[{}]}`), response); !errors.Is(err, chat.ErrInvalidResponse) {
+func TestResponseUnmarshalIsAtomic(t *testing.T) {
+	response := &chat.Response{Metadata: &chat.ResponseMetadata{ID: "keep"}}
+	if err := json.Unmarshal([]byte(`{"result":{}}`), response); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}
-	if response.ID != "keep" {
+	if response.Metadata.ID != "keep" {
 		t.Fatalf("failed Unmarshal mutated response: %+v", response)
 	}
 	var nilResponse *chat.Response
-	if err := nilResponse.SetExtension("openai/key", 1); !errors.Is(err, chat.ErrInvalidResponse) {
-		t.Fatalf("nil SetExtension error = %v", err)
-	}
 	if err := nilResponse.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("nil UnmarshalJSON error = %v", err)
 	}
@@ -284,7 +250,7 @@ func TestResponseSetExtensionAndUnmarshalAreSafe(t *testing.T) {
 
 func TestResponseProtocolFieldsExcludeToolLoopState(t *testing.T) {
 	typ := reflect.TypeFor[chat.Response]()
-	want := []string{"ID", "Model", "Choices", "Usage", "Extensions"}
+	want := []string{"Result", "Metadata"}
 	if typ.NumField() != len(want) {
 		t.Fatalf("Response has %d fields, want %d", typ.NumField(), len(want))
 	}

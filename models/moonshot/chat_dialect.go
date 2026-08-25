@@ -94,7 +94,7 @@ func (options ChatRequestOptions) validate(model string) error {
 }
 
 func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
-	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
+	options, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
 	}

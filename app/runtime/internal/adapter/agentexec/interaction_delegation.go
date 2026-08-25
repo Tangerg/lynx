@@ -240,11 +240,11 @@ func delegatedInteractionReply(output interaction.Output) (string, error) {
 	}
 	switch output.Source {
 	case interaction.CompletionSourceModelResponse:
-		choice := output.ModelResponse.First()
-		if choice == nil || choice.Message == nil || choice.Message.Text() == "" {
+		result := output.ModelResponse.Result
+		if result == nil || result.Message == nil || result.Message.Text() == "" {
 			return "", errors.New("agentexec: delegated Interaction completed without a textual answer")
 		}
-		return choice.Message.Text(), nil
+		return result.Message.Text(), nil
 	case interaction.CompletionSourceDirectToolResults:
 		encoded, err := json.Marshal(output.DirectToolResults)
 		if err != nil {

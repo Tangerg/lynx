@@ -26,7 +26,10 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if err != nil {
 		return "", nil, nil, err
 	}
-	options := defaults.Overlay(req.Options)
+	options, err := defaults.Merged(req.Options)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("google: options: %w", err)
+	}
 	if options.Model == "" {
 		return "", nil, nil, errors.New("google: model is required in defaults or request options")
 	}
@@ -81,7 +84,7 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 
 func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.GenerateContentConfig, error) {
 	extensionKey := protocolKey(provider, "request")
-	raw, found := req.Extensions[extensionKey]
+	raw, found := req.Options.Extensions[extensionKey]
 	if !found {
 		return &genai.GenerateContentConfig{}, nil
 	}

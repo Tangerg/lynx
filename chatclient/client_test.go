@@ -126,9 +126,8 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 			MaxTokens: &requestMaxTokens,
 			Stop:      []string{},
 		},
-		Extensions: metadata.Map{},
 	}
-	if err := request.Extensions.Set("test/value", "caller"); err != nil {
+	if err := request.Options.Extensions.Set("test/value", "caller"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,11 +169,11 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		received.Messages[1].Parts[1].ToolCall.Name = "mutated"
 		received.Messages[2].Parts[0].ToolResult.Result = "mutated"
 		received.Tools[0].InputSchema[2] = 'X'
-		received.Extensions["test/value"][1] = 'X'
+		received.Options.Extensions["test/value"][1] = 'X'
 		*received.Options.MaxTokens = 8
 		*received.Options.Temperature = 2
 
-		return &chat.Response{ID: "response-1"}, nil
+		return &chat.Response{Metadata: &chat.ResponseMetadata{ID: "response-1"}}, nil
 	}}
 	client, err := New(model, Config{Defaults: defaults})
 	if err != nil {
@@ -187,8 +186,8 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.ID != "response-1" {
-		t.Fatalf("response ID = %q", response.ID)
+	if response.Metadata.ID != "response-1" {
+		t.Fatalf("response ID = %q", response.Metadata.ID)
 	}
 
 	if got := request.Messages[0].Metadata["turn"]; string(got) != "1" {
@@ -212,7 +211,7 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if got := string(request.Tools[0].InputSchema); got != `{"type":"object"}` {
 		t.Fatalf("caller schema mutated: %s", got)
 	}
-	if got := request.Extensions["test/value"]; string(got) != `"caller"` {
+	if got := request.Options.Extensions["test/value"]; string(got) != `"caller"` {
 		t.Fatalf("caller extension mutated: %s", got)
 	}
 	if requestMaxTokens != 7 {
@@ -272,7 +271,7 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 	}
 }
 
-func TestMergeOptionsUsesEveryExplicitOverride(t *testing.T) {
+func TestOptionsMergedUsesEveryExplicitOverride(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
 		FrequencyPenalty: pointer(0.1),
@@ -294,7 +293,10 @@ func TestMergeOptionsUsesEveryExplicitOverride(t *testing.T) {
 		TopP:             pointer(0.9),
 	}
 
-	merged := mergeOptions(defaults, overrides)
+	merged, err := defaults.Merged(overrides)
+	if err != nil {
+		t.Fatalf("Merged: %v", err)
+	}
 	if !reflect.DeepEqual(merged, overrides) {
 		t.Fatalf("merged = %#v, want %#v", merged, overrides)
 	}
@@ -312,7 +314,7 @@ func TestMergeOptionsUsesEveryExplicitOverride(t *testing.T) {
 	}
 }
 
-func TestMergeOptionsKeepsDefaultsForUnspecifiedFields(t *testing.T) {
+func TestOptionsMergedKeepsDefaultsForUnspecifiedFields(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
 		FrequencyPenalty: pointer(0.1),
@@ -323,7 +325,10 @@ func TestMergeOptionsKeepsDefaultsForUnspecifiedFields(t *testing.T) {
 		TopK:             pointer(int64(2)),
 		TopP:             pointer(0.4),
 	}
-	merged := mergeOptions(defaults, chat.Options{})
+	merged, err := defaults.Merged(chat.Options{})
+	if err != nil {
+		t.Fatalf("Merged: %v", err)
+	}
 	if !reflect.DeepEqual(merged, defaults) {
 		t.Fatalf("merged = %#v, want %#v", merged, defaults)
 	}
@@ -374,10 +379,10 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 			return func(yield func(*chat.Response, error) bool) {
 				defer close(released)
 				seenText = request.Messages[0].Text()
-				if !yield(&chat.Response{ID: "first"}, nil) {
+				if !yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "first"}}, nil) {
 					return
 				}
-				yield(&chat.Response{ID: "second"}, nil)
+				yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "second"}}, nil)
 			}
 		}},
 	}
@@ -394,8 +399,8 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
-		if response.ID != "first" {
-			t.Fatalf("response ID = %q", response.ID)
+		if response.Metadata.ID != "first" {
+			t.Fatalf("response ID = %q", response.Metadata.ID)
 		}
 		count++
 		break
@@ -432,7 +437,7 @@ func TestConfiguredStreamerOverridesModelCapability(t *testing.T) {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
-		id = response.ID
+		id = response.Metadata.ID
 	}
 	if id != "explicit" || modelStreamCalled {
 		t.Fatalf("ID/model stream called = %q/%v, want explicit/false", id, modelStreamCalled)
@@ -588,7 +593,7 @@ func successfulCall(context.Context, *chat.Request) (*chat.Response, error) {
 
 func oneResponse(id string) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		yield(&chat.Response{ID: id}, nil)
+		yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: id}}, nil)
 	}
 }
 

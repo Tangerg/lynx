@@ -63,7 +63,7 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		candidateText := ""
 		if output.ModelResponse != nil {
 			candidateText = output.ModelResponse.Text()
-			output.ModelResponse.Choices[0].Message = nil
+			output.ModelResponse.Result.Message = nil
 			if candidate.Output().ModelResponse.Text() != candidateText {
 				return interaction.CompletionDecision{}, errors.New("candidate Output aliases validator-owned copy")
 			}

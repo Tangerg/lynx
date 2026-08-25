@@ -168,15 +168,12 @@ func (m *Middleware) scanOutput(ctx context.Context, response *chat.Response) (*
 	if !m.config.Scope.inspects(ScopeOutput) || response == nil {
 		return nil, nil
 	}
-	for i := range response.Choices {
-		choice := &response.Choices[i]
-		if choice.Message == nil {
-			continue
-		}
-		block, err := m.match(ctx, ScopeOutput, choice.Message.Text())
-		if err != nil || block != nil {
-			return block, err
-		}
+	if response.Result == nil || response.Result.Message == nil {
+		return nil, nil
+	}
+	block, err := m.match(ctx, ScopeOutput, response.Result.Message.Text())
+	if err != nil || block != nil {
+		return block, err
 	}
 	return nil, nil
 }

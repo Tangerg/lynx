@@ -34,15 +34,12 @@ func TestNativeClaudeSamplingContract(t *testing.T) {
 	}
 }
 
-func TestNativeClaudePreservesExplicitZeroMaxTokens(t *testing.T) {
+func TestNativeClaudeRejectsZeroMaxTokens(t *testing.T) {
 	request := validNativeRequest(t)
 	request.Options.MaxTokens = int64Pointer(0)
-	params, err := mapProtocolRequest(corechat.Options{Model: "claude-opus-4-6"}, request, Dialect{Provider: "anthropic"})
-	if err != nil {
-		t.Fatalf("mapProtocolRequest: %v", err)
-	}
-	if params.MaxTokens != 0 {
-		t.Fatalf("max_tokens = %d, want explicit 0", params.MaxTokens)
+	_, err := mapProtocolRequest(corechat.Options{Model: "claude-opus-4-6"}, request, Dialect{Provider: "anthropic"})
+	if err == nil || !strings.Contains(err.Error(), "max_tokens must be greater than zero") {
+		t.Fatalf("error = %v, want max_tokens validation failure", err)
 	}
 }
 
@@ -60,10 +57,10 @@ func TestNativeClaudePreservesServerToolResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mapProtocolMessage: %v", err)
 	}
-	if response.First().Message == nil || response.First().Message.Text() != "result" {
-		t.Fatalf("Core response = %#v", response.First())
+	if response.Result.Message == nil || response.Result.Message.Text() != "result" {
+		t.Fatalf("Core response = %#v", response.Result)
 	}
-	preserved, found, err := metadata.Decode[anthropicsdk.Message](response.Extensions, ResponseExtensionKey)
+	preserved, found, err := metadata.Decode[anthropicsdk.Message](response.Metadata.Extra, ResponseExtensionKey)
 	if err != nil || !found {
 		t.Fatalf("decode native response = found %v, error %v", found, err)
 	}
@@ -83,7 +80,7 @@ func TestReasoningReplayIsScopedToIssuingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mapProtocolMessage: %v", err)
 	}
-	assistant := *response.First().Message
+	assistant := *response.Result.Message
 
 	matching, err := mapProtocolAssistant(assistant, "minimax")
 	if err != nil || len(matching) != 1 || matching[0].GetSignature() == nil || *matching[0].GetSignature() != "provider-signature" {

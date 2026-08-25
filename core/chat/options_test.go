@@ -8,7 +8,21 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/metadata"
 )
+
+func TestNewOptions(t *testing.T) {
+	options, err := chat.NewOptions("model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Model != "model" {
+		t.Fatalf("Model = %q", options.Model)
+	}
+	if _, err := chat.NewOptions(""); !errors.Is(err, chat.ErrInvalidOptions) {
+		t.Fatalf("NewOptions empty model error = %v", err)
+	}
+}
 
 func TestOptionsZeroValueIsValid(t *testing.T) {
 	var options chat.Options
@@ -62,6 +76,10 @@ func TestOptionsClone(t *testing.T) {
 		Temperature:      new(0.3),
 		TopK:             new(int64(4)),
 		TopP:             new(0.9),
+		Extensions:       metadata.Map{},
+	}
+	if err := options.SetExtension("test/value", "original"); err != nil {
+		t.Fatal(err)
 	}
 	clone := options.Clone()
 
@@ -72,6 +90,7 @@ func TestOptionsClone(t *testing.T) {
 	*clone.Temperature = 1
 	*clone.TopK = 8
 	*clone.TopP = 0.5
+	clone.Extensions["test/value"][0] = 'x'
 
 	if *options.FrequencyPenalty != 0.1 ||
 		*options.MaxTokens != 10 ||
@@ -79,12 +98,13 @@ func TestOptionsClone(t *testing.T) {
 		options.Stop[0] != "END" ||
 		*options.Temperature != 0.3 ||
 		*options.TopK != 4 ||
-		*options.TopP != 0.9 {
+		*options.TopP != 0.9 ||
+		options.Extensions["test/value"][0] == 'x' {
 		t.Fatalf("clone mutated source options: %+v", options)
 	}
 }
 
-func TestOptionsOverlay(t *testing.T) {
+func TestOptionsMerged(t *testing.T) {
 	base := chat.Options{
 		Model:            "base-model",
 		FrequencyPenalty: new(0.1),
@@ -96,8 +116,12 @@ func TestOptionsOverlay(t *testing.T) {
 		TopP:             new(0.9),
 	}
 
-	if got := base.Overlay(chat.Options{}); !reflect.DeepEqual(got, base) {
-		t.Fatalf("Overlay(empty) = %#v, want unchanged %#v", got, base)
+	got, err := base.Merged(chat.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, base) {
+		t.Fatalf("Merged(empty) = %#v, want unchanged %#v", got, base)
 	}
 
 	override := chat.Options{
@@ -106,24 +130,45 @@ func TestOptionsOverlay(t *testing.T) {
 		Stop:        []string{"OVERRIDE"},
 		Temperature: new(0.7),
 	}
-	got := base.Overlay(override)
+	got, err = base.Merged(override)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got.Model != "override-model" || *got.MaxTokens != 20 ||
 		got.Stop[0] != "OVERRIDE" || *got.Temperature != 0.7 {
-		t.Fatalf("Overlay did not apply set fields: %#v", got)
+		t.Fatalf("Merged did not apply set fields: %#v", got)
 	}
 	if *got.FrequencyPenalty != 0.1 || *got.PresencePenalty != 0.2 ||
 		*got.TopK != 4 || *got.TopP != 0.9 {
-		t.Fatalf("Overlay dropped base fields the override left unset: %#v", got)
+		t.Fatalf("Merged dropped base fields the override left unset: %#v", got)
 	}
 
 	*got.MaxTokens = 99
 	got.Stop[0] = "MUTATED"
 	*got.FrequencyPenalty = 99
 	if *override.MaxTokens != 20 || override.Stop[0] != "OVERRIDE" {
-		t.Fatalf("Overlay aliased the override: %#v", override)
+		t.Fatalf("Merged aliased the override: %#v", override)
 	}
 	if *base.FrequencyPenalty != 0.1 || base.Stop[0] != "BASE" {
-		t.Fatalf("Overlay aliased the base: %#v", base)
+		t.Fatalf("Merged aliased the base: %#v", base)
+	}
+}
+
+func TestOptionsSetExtension(t *testing.T) {
+	var options chat.Options
+	if err := options.SetExtension("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
+		t.Fatal(err)
+	}
+	value, ok, err := metadata.Decode[map[string]string](options.Extensions, "openai/response_format")
+	if err != nil || !ok || value["type"] != "json_object" {
+		t.Fatalf("Decode extension = (%v, %v, %v)", value, ok, err)
+	}
+	if err := options.SetExtension("not-namespaced", 1); !errors.Is(err, chat.ErrInvalidOptions) {
+		t.Fatalf("unscoped key error = %v", err)
+	}
+	var nilOptions *chat.Options
+	if err := nilOptions.SetExtension("openai/key", 1); !errors.Is(err, chat.ErrInvalidOptions) {
+		t.Fatalf("nil options error = %v", err)
 	}
 }
 

@@ -121,7 +121,7 @@ func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		}},
 	}
-	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
 		Thinking:        &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
 		ReasoningEffort: deepseek.ReasoningEffortMax,
 		ResponseFormat:  deepseek.ResponseFormatJSONObject,
@@ -186,7 +186,7 @@ func TestOpenAIChatThinkingDisabledAllowsSampling(t *testing.T) {
 		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
 		Options:  corechat.Options{Temperature: &temperature},
 	}
-	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
 		Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
@@ -222,7 +222,7 @@ func TestOpenAIChatMapsStreamingUsageOption(t *testing.T) {
 	}
 	includeUsage := true
 	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
-	if err := request.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{IncludeUsage: &includeUsage}); err != nil {
+	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{IncludeUsage: &includeUsage}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	for _, streamErr := range model.Stream(t.Context(), request) {
@@ -268,7 +268,7 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 				Options:  test.core,
 				Tools:    test.tools,
 			}
-			if err := request.SetExtension(deepseek.RequestExtensionKey, test.options); err != nil {
+			if err := request.Options.SetExtension(deepseek.RequestExtensionKey, test.options); err != nil {
 				t.Fatalf("SetExtension: %v", err)
 			}
 			if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), test.want) {

@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 22
-	currentAPIBaselineFrozenOn = "2026-08-15"
+	currentAPIBaseline         = 23
+	currentAPIBaselineFrozenOn = "2026-08-25"
 )
 
 var exportedAPIBaselines = []struct {

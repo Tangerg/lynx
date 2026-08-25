@@ -74,7 +74,7 @@ type WebSearchOptions struct {
 }
 
 // RequestOptions contains the documented Sonar fields without a neutral Core
-// equivalent. Store it in [chat.Request.Extensions] under RequestExtensionKey.
+// equivalent. Store it in [chat.Options.Extensions] under RequestExtensionKey.
 type RequestOptions struct {
 	ResponseFormat          json.RawMessage   `json:"response_format,omitempty"`
 	WebSearchOptions        *WebSearchOptions `json:"web_search_options,omitempty"`
@@ -138,7 +138,7 @@ func prepareRequest(source *corechat.Request, target *openai.CompatibleRequest) 
 }
 
 func decodeRequestOptions(request *corechat.Request) (RequestOptions, error) {
-	options, _, err := metadata.Decode[RequestOptions](request.Extensions, RequestExtensionKey)
+	options, _, err := metadata.Decode[RequestOptions](request.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return RequestOptions{}, fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}

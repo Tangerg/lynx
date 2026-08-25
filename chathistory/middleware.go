@@ -185,16 +185,15 @@ func splitMessages(messages []chat.Message) (systems, nonSystems []chat.Message)
 }
 
 func persistableAssistant(response *chat.Response) (chat.Message, bool) {
-	choice := response.First()
-	if choice == nil || choice.Message == nil || choice.Message.Role != chat.RoleAssistant {
+	if response == nil || response.Result == nil || response.Result.Message == nil || response.Result.Message.Role != chat.RoleAssistant {
 		return chat.Message{}, false
 	}
-	for _, part := range choice.Message.Parts {
+	for _, part := range response.Result.Message.Parts {
 		if part.Kind == chat.PartToolCall {
 			return chat.Message{}, false
 		}
 	}
-	return choice.Message.Clone(), true
+	return response.Result.Message.Clone(), true
 }
 
 func forward(sequence iter.Seq2[*chat.Response, error], yield func(*chat.Response, error) bool) {

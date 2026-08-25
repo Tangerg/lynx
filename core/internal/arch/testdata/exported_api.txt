@@ -6,11 +6,6 @@ chat: const ( PartText PartKind = "text" PartMedia PartKind = "media" PartReason
 chat: const ( RoleSystem Role = "system" RoleUser Role = "user" RoleAssistant Role = "assistant" RoleTool Role = "tool" )
 chat: func (a *ResponseAccumulator) Add(chunk *Response) error
 chat: func (a *ResponseAccumulator) Response() *Response
-chat: func (c *Choice) SetExtension(key string, value any) error
-chat: func (c *Choice) Text() string
-chat: func (c *Choice) UnmarshalJSON(data []byte) error
-chat: func (c *Choice) Validate() error
-chat: func (c Choice) MarshalJSON() ([]byte, error)
 chat: func (c ToolCall) Validate() error
 chat: func (d *ToolDefinition) UnmarshalJSON(data []byte) error
 chat: func (d ToolDefinition) Clone() ToolDefinition
@@ -21,32 +16,40 @@ chat: func (f StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[
 chat: func (k PartKind) Valid() bool
 chat: func (m *Message) Text() string
 chat: func (m *Message) UnmarshalJSON(data []byte) error
+chat: func (m *ResponseMetadata) Set(key string, value any) error
+chat: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
+chat: func (m *ResultMetadata) Set(key string, value any) error
+chat: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 chat: func (m Message) Clone() Message
 chat: func (m Message) MarshalJSON() ([]byte, error)
 chat: func (m Message) Validate() error
+chat: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+chat: func (m ResultMetadata) MarshalJSON() ([]byte, error)
+chat: func (o *Options) SetExtension(key string, value any) error
 chat: func (o *Options) UnmarshalJSON(data []byte) error
 chat: func (o Options) Clone() Options
 chat: func (o Options) MarshalJSON() ([]byte, error)
-chat: func (o Options) Overlay(other Options) Options
+chat: func (o Options) Merged(overrides ...Options) (Options, error)
 chat: func (o Options) Validate() error
 chat: func (p *Part) UnmarshalJSON(data []byte) error
 chat: func (p Part) Clone() Part
 chat: func (p Part) MarshalJSON() ([]byte, error)
 chat: func (p Part) Validate() error
 chat: func (r *Request) Clone() *Request
-chat: func (r *Request) SetExtension(key string, value any) error
 chat: func (r *Request) UnmarshalJSON(data []byte) error
 chat: func (r *Request) Validate() error
 chat: func (r *Response) Clone() *Response
-chat: func (r *Response) First() *Choice
-chat: func (r *Response) SetExtension(key string, value any) error
 chat: func (r *Response) Text() string
 chat: func (r *Response) UnmarshalJSON(data []byte) error
 chat: func (r *Response) Validate() error
+chat: func (r *Result) Text() string
+chat: func (r *Result) UnmarshalJSON(data []byte) error
+chat: func (r *Result) Validate() error
 chat: func (r FinishReason) String() string
 chat: func (r FinishReason) Valid() bool
 chat: func (r Request) MarshalJSON() ([]byte, error)
 chat: func (r Response) MarshalJSON() ([]byte, error)
+chat: func (r Result) MarshalJSON() ([]byte, error)
 chat: func (r Role) Valid() bool
 chat: func (r ToolResult) Validate() error
 chat: func (u *Usage) UnmarshalJSON(data []byte) error
@@ -55,9 +58,11 @@ chat: func (u Usage) TotalTokens() int64
 chat: func (u Usage) Validate() error
 chat: func NewAssistantMessage(parts ...Part) Message
 chat: func NewMediaPart(value *media.Media) Part
+chat: func NewOptions(model string) (Options, error)
 chat: func NewReasoningPart(text string, signature []byte) Part
 chat: func NewRequest(messages ...Message) (*Request, error)
-chat: func NewResponse(choices ...Choice) (*Response, error)
+chat: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
+chat: func NewResult(message *Message, finishReason FinishReason, metadata *ResultMetadata) (*Result, error)
 chat: func NewSystemMessage(text string) Message
 chat: func NewTextPart(text string) Part
 chat: func NewToolCallPart(call ToolCall) Part
@@ -67,17 +72,19 @@ chat: func NewUserMessage(parts ...Part) Message
 chat: func Wrap(model Model, middlewares ...CallMiddleware) Model
 chat: func WrapStream(streamer Streamer, middlewares ...StreamMiddleware) Streamer
 chat: type CallMiddleware func(next Model) Model
-chat: type Choice struct { Index int `json:"index"` Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type FinishReason string
 chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type Model interface { Call(ctx context.Context, req *Request) (*Response, error) }
 chat: type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
-chat: type Options struct { Model string `json:"model,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` }
+chat: type Options struct { Model string `json:"model,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type Part struct { Kind PartKind `json:"kind"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Signature []byte `json:"signature,omitempty"` ToolCall *ToolCall `json:"tool_call,omitempty"` ToolResult *ToolResult `json:"tool_result,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type PartKind string
-chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` Extensions metadata.Map `json:"extensions,omitzero"` }
-chat: type Response struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Choices []Choice `json:"choices,omitempty"` Usage Usage `json:"usage,omitzero"` Extensions metadata.Map `json:"extensions,omitzero"` }
-chat: type ResponseAccumulator struct { response Response choices []accumulatedChoice byIndex map[int]int seen bool }
+chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` }
+chat: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+chat: type ResponseAccumulator struct { metadata *ResponseMetadata result *accumulatedResult seen bool }
+chat: type ResponseMetadata struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Usage Usage `json:"usage,omitzero"` Extra metadata.Map `json:"extra,omitzero"` }
+chat: type Result struct { Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+chat: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 chat: type Role string
 chat: type StreamMiddleware func(next Streamer) Streamer
 chat: type Streamer interface { Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] }
@@ -87,9 +94,9 @@ chat: type ToolDefinition struct { Name string `json:"name"` Description string 
 chat: type ToolResult struct { ID string `json:"id"` Name string `json:"name"` Result string `json:"result"` IsError bool `json:"is_error,omitempty"` }
 chat: type Usage struct { InputTokens int64 `json:"input_tokens,omitempty"` OutputTokens int64 `json:"output_tokens,omitempty"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` }
 chat: var ( ErrInvalidMessage = errors.New("chat: invalid message") ErrInvalidPart = errors.New("chat: invalid part") ErrInvalidToolCall = errors.New("chat: invalid tool call") ErrInvalidToolResult = errors.New("chat: invalid tool result") )
-chat: var ( ErrInvalidRequest = errors.New("chat: invalid request") ErrInvalidExtension = errors.New("chat: invalid extension") )
-chat: var ( ErrInvalidResponse = errors.New("chat: invalid response") ErrInvalidChoice = errors.New("chat: invalid choice") )
 chat: var ErrInvalidOptions = errors.New("chat: invalid options")
+chat: var ErrInvalidRequest = errors.New("chat: invalid request")
+chat: var ErrInvalidResponse = errors.New("chat: invalid response")
 chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
 chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
 document: func (d *Document) Validate() error
@@ -114,6 +121,7 @@ embedding: func (r *Response) First() *Result
 embedding: func (r *Response) UnmarshalJSON(data []byte) error
 embedding: func (r *Response) Validate() error
 embedding: func (r *Result) UnmarshalJSON(data []byte) error
+embedding: func (r *Result) Validate() error
 embedding: func (r Request) MarshalJSON() ([]byte, error)
 embedding: func (r Response) MarshalJSON() ([]byte, error)
 embedding: func (r Result) MarshalJSON() ([]byte, error)
@@ -153,6 +161,7 @@ image: func (r *Response) First() *Result
 image: func (r *Response) UnmarshalJSON(data []byte) error
 image: func (r *Response) Validate() error
 image: func (r *Result) UnmarshalJSON(data []byte) error
+image: func (r *Result) Validate() error
 image: func (r Request) MarshalJSON() ([]byte, error)
 image: func (r Response) MarshalJSON() ([]byte, error)
 image: func (r Result) MarshalJSON() ([]byte, error)
@@ -248,6 +257,7 @@ moderation: func (r *Response) First() *Result
 moderation: func (r *Response) UnmarshalJSON(data []byte) error
 moderation: func (r *Response) Validate() error
 moderation: func (r *Result) UnmarshalJSON(data []byte) error
+moderation: func (r *Result) Validate() error
 moderation: func (r Request) MarshalJSON() ([]byte, error)
 moderation: func (r Response) MarshalJSON() ([]byte, error)
 moderation: func (r Result) MarshalJSON() ([]byte, error)
@@ -287,6 +297,7 @@ speech: func (r *Request) Validate() error
 speech: func (r *Response) UnmarshalJSON(data []byte) error
 speech: func (r *Response) Validate() error
 speech: func (r *Result) UnmarshalJSON(data []byte) error
+speech: func (r *Result) Validate() error
 speech: func (r Request) MarshalJSON() ([]byte, error)
 speech: func (r Response) MarshalJSON() ([]byte, error)
 speech: func (r Result) MarshalJSON() ([]byte, error)
@@ -323,6 +334,7 @@ transcription: func (r *Request) Validate() error
 transcription: func (r *Response) UnmarshalJSON(data []byte) error
 transcription: func (r *Response) Validate() error
 transcription: func (r *Result) UnmarshalJSON(data []byte) error
+transcription: func (r *Result) Validate() error
 transcription: func (r Request) MarshalJSON() ([]byte, error)
 transcription: func (r Response) MarshalJSON() ([]byte, error)
 transcription: func (r Result) MarshalJSON() ([]byte, error)

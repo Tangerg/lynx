@@ -160,17 +160,23 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 	params := openaisdk.ChatCompletionNewParams{}
 	if !c.dialect.DisableRawRequestExtension {
 		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
-		fields, err := decodeRequestFields(req.Extensions, extensionKey,
+		fields, err := decodeRequestFields(req.Options.Extensions, extensionKey,
 			"model", "messages", "tools", "frequency_penalty", "max_tokens",
 			"max_completion_tokens", "presence_penalty", "stop", "temperature", "top_p",
 		)
 		if err != nil {
 			return nil, err
 		}
+		if _, exists := fields["n"]; exists {
+			return nil, fmt.Errorf("openai: extension %q field %q is unsupported; Core Chat produces one result", extensionKey, "n")
+		}
 		params.SetExtraFields(fields)
 	}
 
-	options := c.defaults.Overlay(req.Options)
+	options, err := c.defaults.Merged(req.Options)
+	if err != nil {
+		return nil, fmt.Errorf("openai: options: %w", err)
+	}
 	if options.Model == "" {
 		return nil, errors.New("openai: model is required in defaults or request options")
 	}
@@ -204,7 +210,6 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 		params.TopP = openaisdk.Float(*options.TopP)
 	}
 
-	var err error
 	params.Messages, err = mapRequestMessages(req.Messages, c.dialect.Provider)
 	if err != nil {
 		return nil, err
@@ -450,20 +455,22 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 	if len(response.Choices) == 0 {
 		return nil, errors.New("openai: response has no choices")
 	}
+	if len(response.Choices) > 1 {
+		return nil, fmt.Errorf("openai: response has %d choices; Core supports one result", len(response.Choices))
+	}
+	result, err := mapCompletionResult(params, response.Choices[0], dialect.Provider, dialect.response)
+	if err != nil {
+		return nil, fmt.Errorf("openai: result: %w", err)
+	}
 	mapped := &corechat.Response{
-		ID:      response.ID,
-		Model:   response.Model,
-		Choices: make([]corechat.Choice, 0, len(response.Choices)),
-		Usage:   mapUsage(response.Usage),
+		Result: result,
+		Metadata: &corechat.ResponseMetadata{
+			ID:    response.ID,
+			Model: response.Model,
+			Usage: mapUsage(response.Usage),
+		},
 	}
-	for i := range response.Choices {
-		choice, err := mapCompletionChoice(params, response.Choices[i], dialect.Provider, dialect.response)
-		if err != nil {
-			return nil, fmt.Errorf("openai: choices[%d]: %w", i, err)
-		}
-		mapped.Choices = append(mapped.Choices, choice)
-	}
-	if err := mapped.SetExtension(protocolResponseExtensionKey(dialect.Provider), exactProviderResponse(response.RawJSON(), response)); err != nil {
+	if err := mapped.Metadata.Set(protocolResponseExtensionKey(dialect.Provider), exactProviderResponse(response.RawJSON(), response)); err != nil {
 		return nil, err
 	}
 	if err := mapped.Validate(); err != nil {
@@ -472,14 +479,14 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 	return mapped, nil
 }
 
-func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect responseDialect) (corechat.Choice, error) {
-	mapped := corechat.Choice{
-		Index:        int(choice.Index),
-		FinishReason: normalizeFinishReason(choice.FinishReason),
+func mapCompletionResult(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect responseDialect) (*corechat.Result, error) {
+	if choice.Index != 0 {
+		return nil, fmt.Errorf("choice index is %d, want 0", choice.Index)
 	}
+	mapped := &corechat.Result{FinishReason: normalizeFinishReason(choice.FinishReason)}
 	message, err := mapCompletionMessage(params, choice.Message, provider, dialect)
 	if err != nil {
-		return corechat.Choice{}, err
+		return nil, err
 	}
 	mapped.Message = message
 	return mapped, nil
@@ -628,7 +635,7 @@ type openAIStreamTool struct {
 }
 
 type openAIStreamState struct {
-	tools       map[int]map[int64]openAIStreamTool
+	tools       map[int64]openAIStreamTool
 	dialect     responseDialect
 	chunkKey    string
 	refusalKey  string
@@ -637,7 +644,7 @@ type openAIStreamState struct {
 
 func newOpenAIStreamState(dialect Dialect) *openAIStreamState {
 	return &openAIStreamState{
-		tools:       make(map[int]map[int64]openAIStreamTool),
+		tools:       make(map[int64]openAIStreamTool),
 		dialect:     dialect.response,
 		chunkKey:    protocolStreamChunkExtensionKey(dialect.Provider),
 		refusalKey:  protocolRefusalDeltaExtensionKey(dialect.Provider),
@@ -647,21 +654,25 @@ func newOpenAIStreamState(dialect Dialect) *openAIStreamState {
 
 func (s *openAIStreamState) mapChunk(chunk openaisdk.ChatCompletionChunk) (*corechat.Response, error) {
 	mapped := &corechat.Response{
-		ID:      chunk.ID,
-		Model:   chunk.Model,
-		Choices: make([]corechat.Choice, 0, len(chunk.Choices)),
-		Usage:   mapUsage(chunk.Usage),
+		Metadata: &corechat.ResponseMetadata{
+			ID:    chunk.ID,
+			Model: chunk.Model,
+			Usage: mapUsage(chunk.Usage),
+		},
 	}
-	for i := range chunk.Choices {
-		choice, include, err := s.mapChunkChoice(chunk.Choices[i])
+	if len(chunk.Choices) > 1 {
+		return nil, fmt.Errorf("openai: stream chunk has %d choices; Core supports one result", len(chunk.Choices))
+	}
+	if len(chunk.Choices) == 1 {
+		result, include, err := s.mapChunkResult(chunk.Choices[0])
 		if err != nil {
-			return nil, fmt.Errorf("openai: stream choices[%d]: %w", i, err)
+			return nil, fmt.Errorf("openai: stream result: %w", err)
 		}
 		if include {
-			mapped.Choices = append(mapped.Choices, choice)
+			mapped.Result = result
 		}
 	}
-	if err := mapped.SetExtension(s.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
+	if err := mapped.Metadata.Set(s.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
 		return nil, err
 	}
 	if err := mapped.Validate(); err != nil {
@@ -677,17 +688,19 @@ func exactProviderResponse(raw string, fallback any) any {
 	return fallback
 }
 
-func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkChoice) (corechat.Choice, bool, error) {
-	index := int(choice.Index)
-	mapped := corechat.Choice{Index: index, FinishReason: normalizeFinishReason(choice.FinishReason)}
+func (s *openAIStreamState) mapChunkResult(choice openaisdk.ChatCompletionChunkChoice) (*corechat.Result, bool, error) {
+	if choice.Index != 0 {
+		return nil, false, fmt.Errorf("choice index is %d, want 0", choice.Index)
+	}
+	mapped := &corechat.Result{FinishReason: normalizeFinishReason(choice.FinishReason)}
 	parts := make([]corechat.Part, 0, 2+len(choice.Delta.ToolCalls))
 	if choice.Delta.Content != "" {
 		parts = append(parts, corechat.NewTextPart(choice.Delta.Content))
 	}
 	for i := range choice.Delta.ToolCalls {
-		call, include, err := s.mapChunkTool(index, choice.Delta.ToolCalls[i])
+		call, include, err := s.mapChunkTool(choice.Delta.ToolCalls[i])
 		if err != nil {
-			return corechat.Choice{}, false, fmt.Errorf("tool_calls[%d]: %w", i, err)
+			return nil, false, fmt.Errorf("tool_calls[%d]: %w", i, err)
 		}
 		if include {
 			parts = append(parts, corechat.NewToolCallPart(call))
@@ -696,36 +709,32 @@ func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkC
 	message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	if s.dialect != nil {
 		if err := s.dialect.FinalizeDelta(choice.Delta, message); err != nil {
-			return corechat.Choice{}, false, fmt.Errorf("response dialect: %w", err)
+			return nil, false, fmt.Errorf("response dialect: %w", err)
 		}
 	}
 	if len(message.Parts) > 0 {
 		if choice.Delta.Refusal != "" {
 			if err := message.Metadata.Set(s.refusalPart, choice.Delta.Refusal); err != nil {
-				return corechat.Choice{}, false, err
+				return nil, false, err
 			}
 		}
 		mapped.Message = message
 	} else if choice.Delta.Refusal != "" {
-		if err := mapped.SetExtension(s.refusalKey, choice.Delta.Refusal); err != nil {
-			return corechat.Choice{}, false, err
+		mapped.Metadata = &corechat.ResultMetadata{}
+		if err := mapped.Metadata.Set(s.refusalKey, choice.Delta.Refusal); err != nil {
+			return nil, false, err
 		}
 	}
 
-	include := mapped.Message != nil || mapped.FinishReason != "" || len(mapped.Extensions) > 0
+	include := mapped.Message != nil || mapped.FinishReason != "" || mapped.Metadata != nil
 	return mapped, include, nil
 }
 
-func (s *openAIStreamState) mapChunkTool(choiceIndex int, delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCall, bool, error) {
+func (s *openAIStreamState) mapChunkTool(delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCall, bool, error) {
 	if delta.Type != "" && delta.Type != "function" {
 		return corechat.ToolCall{}, false, fmt.Errorf("unsupported type %q", delta.Type)
 	}
-	choiceTools := s.tools[choiceIndex]
-	if choiceTools == nil {
-		choiceTools = make(map[int64]openAIStreamTool)
-		s.tools[choiceIndex] = choiceTools
-	}
-	state := choiceTools[delta.Index]
+	state := s.tools[delta.Index]
 	if delta.ID != "" {
 		state.id = delta.ID
 	}
@@ -733,13 +742,13 @@ func (s *openAIStreamState) mapChunkTool(choiceIndex int, delta openaisdk.ChatCo
 		state.name = delta.Function.Name
 	}
 	state.pendingArguments += delta.Function.Arguments
-	choiceTools[delta.Index] = state
+	s.tools[delta.Index] = state
 	if state.id == "" || state.name == "" {
 		return corechat.ToolCall{}, false, nil
 	}
 	arguments := state.pendingArguments
 	state.pendingArguments = ""
-	choiceTools[delta.Index] = state
+	s.tools[delta.Index] = state
 	return corechat.ToolCall{
 		ID:        state.id,
 		Name:      state.name,

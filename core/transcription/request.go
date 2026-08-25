@@ -1,6 +1,7 @@
 package transcription
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -100,6 +101,31 @@ func (o Options) Validate() error {
 	return nil
 }
 
+func (o Options) MarshalJSON() ([]byte, error) {
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	type wireOptions Options
+	return json.Marshal(wireOptions(o))
+}
+
+func (o *Options) UnmarshalJSON(data []byte) error {
+	if o == nil {
+		return fmt.Errorf("%w: nil Options receiver", ErrInvalidOptions)
+	}
+	type wireOptions Options
+	var decoded wireOptions
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode options: %w", ErrInvalidOptions, err)
+	}
+	candidate := Options(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*o = candidate
+	return nil
+}
+
 // Request is one transcription call: the audio payload and explicit options.
 type Request struct {
 	// Audio carries the audio bytes (or URL) to transcribe.
@@ -132,5 +158,30 @@ func (r *Request) Validate() error {
 	if err := r.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
 	}
+	return nil
+}
+
+func (r Request) MarshalJSON() ([]byte, error) {
+	if err := (&r).Validate(); err != nil {
+		return nil, err
+	}
+	type wireRequest Request
+	return json.Marshal(wireRequest(r))
+}
+
+func (r *Request) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return fmt.Errorf("%w: nil Request receiver", ErrInvalidRequest)
+	}
+	type wireRequest Request
+	var decoded wireRequest
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode request: %w", ErrInvalidRequest, err)
+	}
+	candidate := Request(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*r = candidate
 	return nil
 }

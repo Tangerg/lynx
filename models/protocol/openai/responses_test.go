@@ -76,7 +76,7 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 		t.Errorf("URL = %q; want /v1/responses", seenURL)
 	}
 
-	msg := resp.First().Message
+	msg := resp.Result.Message
 	if msg == nil {
 		t.Fatal("AssistantMessage is nil")
 	}
@@ -115,14 +115,15 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 		t.Errorf("tool call = %+v", tc)
 	}
 
-	if resp.First().FinishReason != chat.FinishReasonToolCalls {
-		t.Errorf("FinishReason = %q; want tool_calls", resp.First().FinishReason)
+	if resp.Result.FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("FinishReason = %q; want tool_calls", resp.Result.FinishReason)
 	}
-	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 8 {
-		t.Errorf("usage tokens = %+v", resp.Usage)
+	usage := resp.Metadata.Usage
+	if usage.InputTokens != 12 || usage.OutputTokens != 8 {
+		t.Errorf("usage tokens = %+v", usage)
 	}
-	if resp.Usage.ReasoningTokens == nil || *resp.Usage.ReasoningTokens != 3 {
-		t.Errorf("reasoning tokens not surfaced: %+v", resp.Usage.ReasoningTokens)
+	if usage.ReasoningTokens == nil || *usage.ReasoningTokens != 3 {
+		t.Errorf("reasoning tokens not surfaced: %+v", usage.ReasoningTokens)
 	}
 }
 
@@ -170,7 +171,7 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	}
 
 	response := acc.Response()
-	msg := response.First().Message
+	msg := response.Result.Message
 	if msg == nil {
 		t.Fatal("AssistantMessage nil after accumulation")
 	}
@@ -199,11 +200,11 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 		t.Errorf("text2 = %q", msg.Parts[3].Text)
 	}
 
-	if response.First().FinishReason != chat.FinishReasonToolCalls {
-		t.Errorf("FinishReason = %q", response.First().FinishReason)
+	if response.Result.FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("FinishReason = %q", response.Result.FinishReason)
 	}
-	if response.Usage.InputTokens != 12 {
-		t.Errorf("usage = %+v", response.Usage)
+	if response.Metadata.Usage.InputTokens != 12 {
+		t.Errorf("usage = %+v", response.Metadata.Usage)
 	}
 }
 
@@ -230,7 +231,7 @@ func TestResponsesChatReplaysProviderIssuedReasoningItem(t *testing.T) {
 	}
 	if _, err := model.Call(t.Context(), &chat.Request{Messages: []chat.Message{
 		userMessage,
-		response.First().Message.Clone(),
+		response.Result.Message.Clone(),
 		chat.NewToolMessage(chat.ToolResult{ID: "call_w", Name: "weather", Result: "sunny"}),
 	}}); err != nil {
 		t.Fatalf("second Call: %v", err)

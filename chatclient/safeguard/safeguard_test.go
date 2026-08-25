@@ -110,9 +110,9 @@ func TestCallBlocksInputBeforeModelAndReportsBlock(t *testing.T) {
 	}
 }
 
-func TestCallScansEveryOutputChoiceBeforeDisclosure(t *testing.T) {
+func TestCallScansOutputResultBeforeDisclosure(t *testing.T) {
 	middleware := mustMiddleware(t, mustSubstring(t, "blocked"), safeguard.Config{Scope: safeguard.ScopeOutput})
-	modelResponse := response("safe", "second is blocked")
+	modelResponse := response("result is blocked")
 	got, err := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return modelResponse, nil
 	})).Call(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello"))))
@@ -259,7 +259,7 @@ func TestStreamReportsNilSequenceAndMalformedChunk(t *testing.T) {
 
 	badStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			yield(&chat.Response{Choices: []chat.Choice{{Index: -1}}}, nil)
+			yield(&chat.Response{Result: &chat.Result{}}, nil)
 		}
 	})
 	gotErr = nil
@@ -305,16 +305,12 @@ func mustRequest(t *testing.T, messages ...chat.Message) *chat.Request {
 	return request
 }
 
-func response(texts ...string) *chat.Response {
-	choices := make([]chat.Choice, len(texts))
-	for i, text := range texts {
-		message := chat.NewAssistantMessage(chat.NewTextPart(text))
-		choices[i] = chat.Choice{Index: i, Message: &message, FinishReason: chat.FinishReasonStop}
-	}
-	return &chat.Response{Choices: choices}
+func response(text string) *chat.Response {
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
 func chunk(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: &message}}}
+	return &chat.Response{Result: &chat.Result{Message: &message}}
 }

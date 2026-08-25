@@ -2,7 +2,7 @@
 
 > 状态：已接受的目标设计基线
 > 建立日期：2026-08-06
-> 最后更新：2026-08-09
+> 最后更新：2026-08-25
 > 实施范围：唯一的 `agent` Framework module
 
 本文只定义新 Agent Framework 的定位、领域语言、边界、目标结构和不可变量，不记录阶段进度、提交或临时实施细节。
@@ -159,7 +159,7 @@ Lynx 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condit
 
 ### 5.2 基础模块拥有
 
-- `core/chat`：provider-neutral 请求、响应和流协议。
+- `core/chat`：provider-neutral 请求、单 `Result` 响应和流协议。
 - `chatclient`：直接模型调用、middleware 和结构化输出。
 - `embeddingclient`：直接 embedding 能力。
 - `tool`/`tools`：工具协议、schema、调用和具体工具。

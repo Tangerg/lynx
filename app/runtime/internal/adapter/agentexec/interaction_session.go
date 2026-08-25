@@ -413,29 +413,27 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 		return
 	}
 	response := parsed.Response()
-	for _, choice := range response.Choices {
-		if choice.Message == nil {
+	if response.Result == nil || response.Result.Message == nil {
+		return
+	}
+	for _, part := range response.Result.Message.Parts {
+		var payload runs.ExecutionFact
+		switch part.Kind {
+		case corechat.PartText:
+			payload = runs.MessageDelta{Text: part.Text}
+		case corechat.PartReasoning:
+			payload = runs.ReasoningDelta{Text: part.Text}
+		default:
 			continue
 		}
-		for _, part := range choice.Message.Parts {
-			var payload runs.ExecutionFact
-			switch part.Kind {
-			case corechat.PartText:
-				payload = runs.MessageDelta{Text: part.Text}
-			case corechat.PartReasoning:
-				payload = runs.ReasoningDelta{Text: part.Text}
-			default:
-				continue
-			}
-			member, found := session.executorMemberByProcessID(delta.ProcessID())
-			if found && session.lifetime.offer(runs.ExecutorEvent{Member: member, Payload: payload}) {
-				continue
-			}
-			trace.SpanFromContext(ctx).AddEvent(
-				"agentexec.delta.dropped",
-				trace.WithAttributes(attribute.String("process.id", delta.ProcessID().String())),
-			)
+		member, found := session.executorMemberByProcessID(delta.ProcessID())
+		if found && session.lifetime.offer(runs.ExecutorEvent{Member: member, Payload: payload}) {
+			continue
 		}
+		trace.SpanFromContext(ctx).AddEvent(
+			"agentexec.delta.dropped",
+			trace.WithAttributes(attribute.String("process.id", delta.ProcessID().String())),
+		)
 	}
 }
 
@@ -689,12 +687,12 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 		if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil {
 			return fmt.Errorf("unsupported Interaction completion source %q", output.Source)
 		}
-		choice := output.ModelResponse.First()
-		if choice == nil || choice.Message == nil {
+		result := output.ModelResponse.Result
+		if result == nil || result.Message == nil {
 			return errors.New("agentexec: Interaction output has no assistant message")
 		}
 		if !session.lifetime.send(runs.ExecutorEvent{
-			Member: member, Payload: runs.AssistantMessageCompleted{Message: choice.Message.Clone()},
+			Member: member, Payload: runs.AssistantMessageCompleted{Message: result.Message.Clone()},
 		}) {
 			return nil
 		}

@@ -90,44 +90,45 @@
       ],
       "temperature": 0.3,
       "top_k": 40,
-      "top_p": 0.9
-    },
-    "extensions": {
-      "provider/request": {
-        "mode": "strict"
+      "top_p": 0.9,
+      "extensions": {
+        "provider/request": {
+          "mode": "strict"
+        }
       }
     }
   },
   "chat_response": {
-    "id": "response-1",
-    "model": "chat-model",
-    "choices": [
-      {
-        "index": 0,
-        "message": {
-          "role": "assistant",
-          "parts": [
-            {
-              "kind": "text",
-              "text": "A lynx."
-            }
-          ]
-        },
-        "finish_reason": "stop",
-        "extensions": {
+    "result": {
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "A lynx."
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "metadata": {
+        "extra": {
           "provider/logprob": -0.25
         }
       }
-    ],
-    "usage": {
-      "input_tokens": 10,
-      "output_tokens": 5,
-      "reasoning_tokens": 2,
-      "cache_read_input_tokens": 3,
-      "cache_write_input_tokens": 4
     },
-    "extensions": {
-      "provider/response": "fixture"
+    "metadata": {
+      "id": "response-1",
+      "model": "chat-model",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "reasoning_tokens": 2,
+        "cache_read_input_tokens": 3,
+        "cache_write_input_tokens": 4
+      },
+      "extra": {
+        "provider/response": "fixture"
+      }
     }
   },
   "document": {

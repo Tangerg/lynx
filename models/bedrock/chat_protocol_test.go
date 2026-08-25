@@ -37,7 +37,7 @@ func TestChatBuildConverseInput(t *testing.T) {
 		}},
 		Options: corechat.Options{Temperature: &temperature},
 	}
-	if err := request.SetExtension(ChatRequestExtensionKey, ChatRequestOptions{
+	if err := request.Options.SetExtension(ChatRequestExtensionKey, ChatRequestOptions{
 		AdditionalModelRequestFields: map[string]any{"thinking": true},
 		RequestMetadata:              map[string]string{"tenant": "test"},
 	}); err != nil {
@@ -91,11 +91,11 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Model != "model" || response.First().FinishReason != corechat.FinishReasonToolCalls {
+	if response.Metadata.Model != "model" || response.Result.FinishReason != corechat.FinishReasonToolCalls {
 		t.Fatalf("response = %#v", response)
 	}
 	wantKinds := []corechat.PartKind{corechat.PartReasoning, corechat.PartReasoning, corechat.PartText, corechat.PartToolCall}
-	parts := response.First().Message.Parts
+	parts := response.Result.Message.Parts
 	for index, want := range wantKinds {
 		if parts[index].Kind != want {
 			t.Fatalf("part[%d] = %q, want %q", index, parts[index].Kind, want)
@@ -105,8 +105,9 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 	if err != nil || !found || kind != ReasoningBlockRedacted || string(parts[1].Signature) != "opaque" {
 		t.Fatalf("redacted reasoning = %#v/%q/%v/%v", parts[1], kind, found, err)
 	}
-	if response.Usage.InputTokens != 11 || response.Usage.OutputTokens != 7 || response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 3 {
-		t.Fatalf("usage = %#v", response.Usage)
+	usage := response.Metadata.Usage
+	if usage.InputTokens != 11 || usage.OutputTokens != 7 || usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 3 {
+		t.Fatalf("usage = %#v", usage)
 	}
 }
 
@@ -120,7 +121,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 		}},
 	}}
 	response, include, err := accumulator.add(start)
-	if err != nil || !include || response.First().Message.Parts[0].ToolCall.Name != "weather" {
+	if err != nil || !include || response.Result.Message.Parts[0].ToolCall.Name != "weather" {
 		t.Fatalf("start = %#v, %v, %v", response, include, err)
 	}
 
@@ -133,7 +134,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 	if err != nil || !include {
 		t.Fatalf("delta = %#v, %v, %v", response, include, err)
 	}
-	call := response.First().Message.Parts[0].ToolCall
+	call := response.Result.Message.Parts[0].ToolCall
 	if call.ID != "call-1" || call.Name != "weather" || call.Arguments != arguments {
 		t.Fatalf("tool call = %#v", call)
 	}

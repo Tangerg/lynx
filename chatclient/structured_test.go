@@ -149,11 +149,10 @@ func TestCallStructuredAppendsInstructionsToMediaOnlyUser(t *testing.T) {
 func responseWithText(t *testing.T, text string) *chat.Response {
 	t.Helper()
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, err := chat.NewResponse(chat.Choice{
-		Index:        0,
+	response, err := chat.NewResponse(&chat.Result{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

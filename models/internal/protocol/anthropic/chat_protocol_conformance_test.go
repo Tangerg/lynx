@@ -33,37 +33,35 @@ func TestChat_CoreConformance(t *testing.T) {
 		Request: newProtocolChatRequest,
 		AssertCall: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.ID != "msg-1" || response.Model != "claude-opus-4-6" {
-				t.Fatalf("identity = %q/%q", response.ID, response.Model)
+			if response.Metadata.ID != "msg-1" || response.Metadata.Model != "claude-opus-4-6" {
+				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 			}
-			if len(response.Choices) != 1 {
-				t.Fatalf("choices = %d; want 1", len(response.Choices))
+			result := response.Result
+			if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil {
+				t.Fatalf("result = %#v", result)
 			}
-			choice := response.Choices[0]
-			if choice.FinishReason != corechat.FinishReasonToolCalls || choice.Message == nil {
-				t.Fatalf("choice = %#v", choice)
+			if len(result.Message.Parts) != 4 {
+				t.Fatalf("parts = %#v", result.Message.Parts)
 			}
-			if len(choice.Message.Parts) != 4 {
-				t.Fatalf("parts = %#v", choice.Message.Parts)
-			}
-			reasoning := choice.Message.Parts[0]
+			reasoning := result.Message.Parts[0]
 			if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "compare the evidence" || string(reasoning.Signature) != "sig-response" {
 				t.Errorf("reasoning = %#v", reasoning)
 			}
-			redacted := choice.Message.Parts[1]
+			redacted := result.Message.Parts[1]
 			kind, found, err := anthropic.ReasoningBlockKindOf(redacted)
 			if err != nil || !found || kind != anthropic.ReasoningBlockRedacted || string(redacted.Signature) != "opaque-redacted-block" {
 				t.Errorf("redacted reasoning = %#v/%q/%v/%v", redacted, kind, found, err)
 			}
-			call := choice.Message.Parts[3].ToolCall
+			call := result.Message.Parts[3].ToolCall
 			if call == nil || call.ID != "toolu-2" || call.Name != "lookup" || call.Arguments != `{"id":8}` {
 				t.Errorf("tool call = %#v", call)
 			}
-			if response.Usage.InputTokens != 160 || response.Usage.OutputTokens != 30 ||
-				response.Usage.ReasoningTokens == nil || *response.Usage.ReasoningTokens != 10 ||
-				response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 40 ||
-				response.Usage.CacheWriteInputTokens == nil || *response.Usage.CacheWriteInputTokens != 20 {
-				t.Errorf("usage = %#v", response.Usage)
+			usage := response.Metadata.Usage
+			if usage.InputTokens != 160 || usage.OutputTokens != 30 ||
+				usage.ReasoningTokens == nil || *usage.ReasoningTokens != 10 ||
+				usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 40 ||
+				usage.CacheWriteInputTokens == nil || *usage.CacheWriteInputTokens != 20 {
+				t.Errorf("usage = %#v", usage)
 			}
 		},
 		AssertStream: func(t *testing.T, responses []*corechat.Response) {
@@ -73,31 +71,28 @@ func TestChat_CoreConformance(t *testing.T) {
 			var sawRedacted bool
 			var finalUsage corechat.Usage
 			for _, response := range responses {
-				finalUsage = response.Usage
-				for i := range response.Choices {
-					message := response.Choices[i].Message
-					if message == nil {
-						continue
-					}
-					for _, part := range message.Parts {
-						switch part.Kind {
-						case corechat.PartText:
-							text.WriteString(part.Text)
-						case corechat.PartReasoning:
-							kind, found, err := anthropic.ReasoningBlockKindOf(part)
-							if err != nil || !found {
-								t.Errorf("reasoning kind = %q/%v/%v", kind, found, err)
-								continue
-							}
-							if kind == anthropic.ReasoningBlockRedacted {
-								sawRedacted = string(part.Signature) == "opaque-stream"
-								continue
-							}
-							reasoning.WriteString(part.Text)
-							signature.Write(part.Signature)
-						case corechat.PartToolCall:
-							toolIDs = append(toolIDs, part.ToolCall.ID)
+				finalUsage = response.Metadata.Usage
+				if response.Result == nil || response.Result.Message == nil {
+					continue
+				}
+				for _, part := range response.Result.Message.Parts {
+					switch part.Kind {
+					case corechat.PartText:
+						text.WriteString(part.Text)
+					case corechat.PartReasoning:
+						kind, found, err := anthropic.ReasoningBlockKindOf(part)
+						if err != nil || !found {
+							t.Errorf("reasoning kind = %q/%v/%v", kind, found, err)
+							continue
 						}
+						if kind == anthropic.ReasoningBlockRedacted {
+							sawRedacted = string(part.Signature) == "opaque-stream"
+							continue
+						}
+						reasoning.WriteString(part.Text)
+						signature.Write(part.Signature)
+					case corechat.PartToolCall:
+						toolIDs = append(toolIDs, part.ToolCall.ID)
 					}
 				}
 			}
@@ -121,22 +116,22 @@ func TestChat_CoreConformance(t *testing.T) {
 		},
 		AssertAggregated: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.ID != "msg-stream" || response.Model != "claude-opus-4-6" || len(response.Choices) != 1 {
-				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			if response.Metadata.ID != "msg-stream" || response.Metadata.Model != "claude-opus-4-6" || response.Result == nil {
+				t.Fatalf("aggregated response = %#v", response)
 			}
-			choice := response.Choices[0]
-			if choice.Message == nil || len(choice.Message.Parts) != 4 || choice.FinishReason != corechat.FinishReasonToolCalls {
-				t.Fatalf("aggregated choice = %#v", choice)
+			result := response.Result
+			if result.Message == nil || len(result.Message.Parts) != 4 || result.FinishReason != corechat.FinishReasonToolCalls {
+				t.Fatalf("aggregated result = %#v", result)
 			}
-			reasoning := choice.Message.Parts[0]
-			redacted := choice.Message.Parts[1]
-			call := choice.Message.Parts[3].ToolCall
-			if reasoning.Text != "compare evidence" || string(reasoning.Signature) != "sig-stream" || string(redacted.Signature) != "opaque-stream" || choice.Message.Parts[2].Text != "need another lookup" ||
+			reasoning := result.Message.Parts[0]
+			redacted := result.Message.Parts[1]
+			call := result.Message.Parts[3].ToolCall
+			if reasoning.Text != "compare evidence" || string(reasoning.Signature) != "sig-stream" || string(redacted.Signature) != "opaque-stream" || result.Message.Parts[2].Text != "need another lookup" ||
 				call == nil || call.ID != "toolu-stream" || call.Arguments != `{"id":9}` {
-				t.Errorf("aggregated parts = %#v; call = %#v", choice.Message.Parts, call)
+				t.Errorf("aggregated parts = %#v; call = %#v", result.Message.Parts, call)
 			}
-			if response.Usage.InputTokens != 160 || response.Usage.OutputTokens != 30 {
-				t.Errorf("aggregated usage = %#v", response.Usage)
+			if response.Metadata.Usage.InputTokens != 160 || response.Metadata.Usage.OutputTokens != 30 {
+				t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
 			}
 		},
 	}.Run(t)
@@ -191,7 +186,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Look up a record",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}}}`),
 	}}
-	if err := request.SetExtension(anthropic.RequestExtensionKey, map[string]any{
+	if err := request.Options.SetExtension(anthropic.RequestExtensionKey, map[string]any{
 		"thinking":      map[string]any{"type": "enabled", "budget_tokens": 512},
 		"cache_control": map[string]any{"type": "ephemeral"},
 	}); err != nil {

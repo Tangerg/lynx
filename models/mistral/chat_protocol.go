@@ -176,7 +176,7 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: request: %w", err)
 	}
-	extension, found, err := metadata.Decode[ChatRequestOptions](request.Extensions, RequestExtensionKey)
+	extension, found, err := metadata.Decode[ChatRequestOptions](request.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 	}
@@ -185,7 +185,10 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 		}
 	}
-	options := chat.defaults.Overlay(request.Options)
+	options, err := chat.defaults.Merged(request.Options)
+	if err != nil {
+		return nil, fmt.Errorf("mistral: options: %w", err)
+	}
 	if options.Model == "" {
 		return nil, errors.New("mistral: model is required in defaults or request options")
 	}
@@ -413,34 +416,33 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 	if completion == nil {
 		return nil, errors.New("mistral: nil chat completion response")
 	}
-	response := &corechat.Response{
-		ID:      completion.ID,
-		Model:   completion.Model,
-		Choices: make([]corechat.Choice, 0, len(completion.Choices)),
-		Usage:   mapMistralUsage(completion.Usage),
+	if len(completion.Choices) != 1 {
+		return nil, fmt.Errorf("mistral: response has %d choices; Core requires one result", len(completion.Choices))
 	}
-	if err := response.SetExtension(responseExtensionKey, completion); err != nil {
+	response := &corechat.Response{
+		Metadata: &corechat.ResponseMetadata{
+			ID: completion.ID, Model: completion.Model, Usage: mapMistralUsage(completion.Usage),
+		},
+	}
+	if err := response.Metadata.Set(responseExtensionKey, completion); err != nil {
 		return nil, err
 	}
-	for choiceIndex := range completion.Choices {
-		wireChoice := completion.Choices[choiceIndex]
-		parts, err := mapMistralContent(wireChoice.Message.Content)
-		if err != nil {
-			return nil, fmt.Errorf("mistral: choices[%d].message.content: %w", choiceIndex, err)
-		}
-		toolParts, err := mapMistralToolCalls(wireChoice.Message.ToolCalls)
-		if err != nil {
-			return nil, fmt.Errorf("mistral: choices[%d].message.tool_calls: %w", choiceIndex, err)
-		}
-		parts = append(parts, toolParts...)
-		choice := corechat.Choice{
-			Index:        wireChoice.Index,
-			FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason),
-		}
-		if len(parts) > 0 {
-			choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-		}
-		response.Choices = append(response.Choices, choice)
+	wireChoice := completion.Choices[0]
+	if wireChoice.Index != 0 {
+		return nil, fmt.Errorf("mistral: choice index is %d, want 0", wireChoice.Index)
+	}
+	parts, err := mapMistralContent(wireChoice.Message.Content)
+	if err != nil {
+		return nil, fmt.Errorf("mistral: result message content: %w", err)
+	}
+	toolParts, err := mapMistralToolCalls(wireChoice.Message.ToolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("mistral: result message tool calls: %w", err)
+	}
+	parts = append(parts, toolParts...)
+	response.Result = &corechat.Result{FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason)}
+	if len(parts) > 0 {
+		response.Result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: mapped chat completion: %w", err)
@@ -597,42 +599,45 @@ type chatStreamTool struct {
 }
 
 type chatStreamState struct {
-	tools map[int]map[int]chatStreamTool
+	tools map[int]chatStreamTool
 }
 
 func newChatStreamState() *chatStreamState {
-	return &chatStreamState{tools: make(map[int]map[int]chatStreamTool)}
+	return &chatStreamState{tools: make(map[int]chatStreamTool)}
 }
 
 func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Response, error) {
 	response := &corechat.Response{
-		ID:      chunk.ID,
-		Model:   chunk.Model,
-		Choices: make([]corechat.Choice, 0, len(chunk.Choices)),
-		Usage:   mapMistralUsage(chunk.Usage),
+		Metadata: &corechat.ResponseMetadata{
+			ID: chunk.ID, Model: chunk.Model, Usage: mapMistralUsage(chunk.Usage),
+		},
 	}
-	if err := response.SetExtension(streamChunkExtensionKey, chunk); err != nil {
+	if err := response.Metadata.Set(streamChunkExtensionKey, chunk); err != nil {
 		return nil, err
 	}
-	for choicePosition := range chunk.Choices {
-		wireChoice := chunk.Choices[choicePosition]
+	if len(chunk.Choices) > 1 {
+		return nil, fmt.Errorf("mistral: stream chunk has %d choices; Core supports one result", len(chunk.Choices))
+	}
+	if len(chunk.Choices) == 1 {
+		wireChoice := chunk.Choices[0]
+		if wireChoice.Index != 0 {
+			return nil, fmt.Errorf("mistral: stream choice index is %d, want 0", wireChoice.Index)
+		}
 		parts, err := mapMistralContent(wireChoice.Delta.Content)
 		if err != nil {
-			return nil, fmt.Errorf("mistral: stream choices[%d].delta.content: %w", choicePosition, err)
+			return nil, fmt.Errorf("mistral: stream result content: %w", err)
 		}
-		toolParts, err := state.mapToolDeltas(wireChoice.Index, wireChoice.Delta.ToolCalls)
+		toolParts, err := state.mapToolDeltas(wireChoice.Delta.ToolCalls)
 		if err != nil {
-			return nil, fmt.Errorf("mistral: stream choices[%d].delta.tool_calls: %w", choicePosition, err)
+			return nil, fmt.Errorf("mistral: stream result tool calls: %w", err)
 		}
 		parts = append(parts, toolParts...)
-		choice := corechat.Choice{
-			Index:        wireChoice.Index,
+		response.Result = &corechat.Result{
 			FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason),
 		}
 		if len(parts) > 0 {
-			choice.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+			response.Result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 		}
-		response.Choices = append(response.Choices, choice)
 	}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: mapped stream chunk: %w", err)
@@ -640,15 +645,12 @@ func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Res
 	return response, nil
 }
 
-func (state *chatStreamState) mapToolDeltas(choiceIndex int, calls []chatToolCall) ([]corechat.Part, error) {
-	if state.tools[choiceIndex] == nil {
-		state.tools[choiceIndex] = make(map[int]chatStreamTool)
-	}
+func (state *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, error) {
 	parts := make([]corechat.Part, 0, len(calls))
 	for position := range calls {
 		call := calls[position]
 		index := call.Index
-		tool := state.tools[choiceIndex][index]
+		tool := state.tools[index]
 		if call.ID != "" {
 			tool.id = call.ID
 		}
@@ -660,13 +662,13 @@ func (state *chatStreamState) mapToolDeltas(choiceIndex int, calls []chatToolCal
 			return nil, fmt.Errorf("tool call %d arguments: %w", index, err)
 		}
 		tool.pendingArguments += arguments
-		state.tools[choiceIndex][index] = tool
+		state.tools[index] = tool
 		if tool.id == "" || tool.name == "" {
 			continue
 		}
 		deltaArguments := tool.pendingArguments
 		tool.pendingArguments = ""
-		state.tools[choiceIndex][index] = tool
+		state.tools[index] = tool
 		parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
 			ID: tool.id, Name: tool.name, Arguments: deltaArguments,
 		}))

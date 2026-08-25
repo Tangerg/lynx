@@ -35,32 +35,26 @@ func TestChat_CoreConformance(t *testing.T) {
 		Request: newProtocolChatRequest,
 		AssertCall: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.ID != "response-1" || response.Model != "gemini-3-pro-001" {
-				t.Fatalf("identity = %q/%q", response.ID, response.Model)
+			if response.Metadata.ID != "response-1" || response.Metadata.Model != "gemini-3-pro-001" {
+				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 			}
-			if len(response.Choices) != 2 {
-				t.Fatalf("choices = %d; want 2", len(response.Choices))
+			result := response.Result
+			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+				t.Fatalf("result = %#v", result)
 			}
-			first := response.Choices[0]
-			if first.Message == nil || len(first.Message.Parts) != 3 || first.FinishReason != corechat.FinishReasonStop {
-				t.Fatalf("first choice = %#v", first)
-			}
-			reasoning := first.Message.Parts[0]
+			reasoning := result.Message.Parts[0]
 			if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "verify result" || string(reasoning.Signature) != "sig-google" {
 				t.Errorf("reasoning = %#v", reasoning)
 			}
-			call := first.Message.Parts[2].ToolCall
-			if call == nil || call.ID != "google/generated/0/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
+			call := result.Message.Parts[2].ToolCall
+			if call == nil || call.ID != "google/generated/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
 				t.Errorf("tool call = %#v", call)
 			}
-			second := response.Choices[1]
-			if second.Message != nil || second.FinishReason != corechat.FinishReasonContentFilter {
-				t.Errorf("filtered choice = %#v", second)
-			}
-			if response.Usage.InputTokens != 23 || response.Usage.OutputTokens != 13 ||
-				response.Usage.ReasoningTokens == nil || *response.Usage.ReasoningTokens != 4 ||
-				response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 6 {
-				t.Errorf("usage = %#v", response.Usage)
+			usage := response.Metadata.Usage
+			if usage.InputTokens != 23 || usage.OutputTokens != 13 ||
+				usage.ReasoningTokens == nil || *usage.ReasoningTokens != 4 ||
+				usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 6 {
+				t.Errorf("usage = %#v", usage)
 			}
 		},
 		AssertStream: func(t *testing.T, responses []*corechat.Response) {
@@ -70,29 +64,26 @@ func TestChat_CoreConformance(t *testing.T) {
 			var toolID string
 			var finalUsage corechat.Usage
 			for _, response := range responses {
-				finalUsage = response.Usage
-				for i := range response.Choices {
-					message := response.Choices[i].Message
-					if message == nil {
-						continue
-					}
-					for _, part := range message.Parts {
-						switch part.Kind {
-						case corechat.PartText:
-							text.WriteString(part.Text)
-						case corechat.PartReasoning:
-							reasoning.WriteString(part.Text)
-							signature = append(signature, part.Signature...)
-						case corechat.PartToolCall:
-							toolID = part.ToolCall.ID
-						}
+				finalUsage = response.Metadata.Usage
+				if response.Result == nil || response.Result.Message == nil {
+					continue
+				}
+				for _, part := range response.Result.Message.Parts {
+					switch part.Kind {
+					case corechat.PartText:
+						text.WriteString(part.Text)
+					case corechat.PartReasoning:
+						reasoning.WriteString(part.Text)
+						signature = append(signature, part.Signature...)
+					case corechat.PartToolCall:
+						toolID = part.ToolCall.ID
 					}
 				}
 			}
 			if reasoning.String() != "verify result" || string(signature) != "sig-google" || text.String() != "The value is four." {
 				t.Errorf("stream reasoning/signature/text = %q/%q/%q", reasoning.String(), signature, text.String())
 			}
-			if toolID != "google/generated/0/2" {
+			if toolID != "google/generated/2" {
 				t.Errorf("synthetic stream tool ID = %q", toolID)
 			}
 			if finalUsage.InputTokens != 23 || finalUsage.OutputTokens != 13 {
@@ -101,23 +92,47 @@ func TestChat_CoreConformance(t *testing.T) {
 		},
 		AssertAggregated: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.ID != "response-stream" || response.Model != "gemini-3-pro-001" || len(response.Choices) != 1 {
-				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			if response.Metadata.ID != "response-stream" || response.Metadata.Model != "gemini-3-pro-001" || response.Result == nil {
+				t.Fatalf("aggregated response = %#v", response)
 			}
-			choice := response.Choices[0]
-			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonStop {
-				t.Fatalf("aggregated choice = %#v", choice)
+			result := response.Result
+			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+				t.Fatalf("aggregated result = %#v", result)
 			}
-			call := choice.Message.Parts[2].ToolCall
-			if choice.Message.Parts[0].Text != "verify result" || string(choice.Message.Parts[0].Signature) != "sig-google" ||
-				choice.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/0/2" {
-				t.Errorf("aggregated parts = %#v", choice.Message.Parts)
+			call := result.Message.Parts[2].ToolCall
+			if result.Message.Parts[0].Text != "verify result" || string(result.Message.Parts[0].Signature) != "sig-google" ||
+				result.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/2" {
+				t.Errorf("aggregated parts = %#v", result.Message.Parts)
 			}
-			if response.Usage.InputTokens != 23 || response.Usage.OutputTokens != 13 {
-				t.Errorf("aggregated usage = %#v", response.Usage)
+			if response.Metadata.Usage.InputTokens != 23 || response.Metadata.Usage.OutputTokens != 13 {
+				t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
 			}
 		},
 	}.Run(t)
+}
+
+func TestChatRejectsMultipleProviderCandidates(t *testing.T) {
+	server := modeltest.JSONServer(http.StatusOK, `{
+		"responseId":"response-multiple","modelVersion":"gemini-3-pro-001","candidates":[
+			{"index":0,"content":{"role":"model","parts":[{"text":"first"}]}},
+			{"index":1,"content":{"role":"model","parts":[{"text":"second"}]}}
+		]
+	}`)
+	t.Cleanup(server.Close)
+	model, err := google.NewChat(google.ChatConfig{
+		Provider: "google", APIKey: "test-key", BaseURL: server.URL,
+		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},
+	})
+	if err != nil {
+		t.Fatalf("NewChat: %v", err)
+	}
+	request, err := corechat.NewRequest(corechat.NewUserMessage(corechat.NewTextPart("hello")))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one result") {
+		t.Fatalf("Call error = %v; want multiple-candidate rejection", err)
+	}
 }
 
 func newProtocolChatRequest(t *testing.T) *corechat.Request {
@@ -160,7 +175,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Run a calculation",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"x":{"type":"number"}}}`),
 	}}
-	if err := request.SetExtension("google/request", map[string]any{
+	if err := request.Options.SetExtension("google/request", map[string]any{
 		"safety_settings": []map[string]any{{
 			"category":  "HARM_CATEGORY_DANGEROUS_CONTENT",
 			"threshold": "BLOCK_ONLY_HIGH",
@@ -280,11 +295,6 @@ const protocolChatResponseJSON = `{
         {"functionCall":{"name":"calculate","args":{"x":2}}}
       ]},
       "finishReason":"STOP"
-    },
-    {
-      "index":1,
-      "finishReason":"SAFETY",
-      "safetyRatings":[{"category":"HARM_CATEGORY_DANGEROUS_CONTENT","blocked":true}]
     }
   ],
   "usageMetadata":{

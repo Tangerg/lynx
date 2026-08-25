@@ -38,7 +38,7 @@ func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleReq
 	if temperature, ok := target.Temperature(); ok && temperature > 1.5 {
 		return errors.New("xiaomi: temperature must be between 0 and 1.5")
 	}
-	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
+	options, found, err := metadata.Decode[ChatRequestOptions](source.Options.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("xiaomi: extension %q: %w", RequestExtensionKey, err)
 	}

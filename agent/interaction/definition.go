@@ -11,7 +11,7 @@ import (
 
 const (
 	executionStateKind          = "interaction"
-	executionStateSchemaVersion = 6
+	executionStateSchemaVersion = 7
 )
 
 // DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is

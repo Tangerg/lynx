@@ -10,58 +10,45 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-func TestResponseAccumulatorAggregatesChoicesAndDeltas(t *testing.T) {
+func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 	chunks := []*chat.Response{
 		{
-			ID:    "response-1",
-			Model: "model-initial",
-			Choices: []chat.Choice{
-				{
-					Index:   0,
-					Message: assistant(chat.NewReasoningPart("step ", []byte("sig-"))),
-				},
-				{
-					Index:   1,
-					Message: assistant(chat.NewTextPart("alter")),
-				},
+			Result: responseResult(chat.NewReasoningPart("step ", []byte("sig-"))),
+			Metadata: &chat.ResponseMetadata{
+				ID:    "response-1",
+				Model: "model-initial",
 			},
 		},
 		{
-			Choices: []chat.Choice{
-				{
-					Index:   1,
-					Message: assistant(chat.NewTextPart("native")),
-				},
-				{
-					Index: 0,
-					Message: assistant(
-						chat.NewReasoningPart("one", []byte("nature")),
-						chat.NewTextPart("hel"),
-						chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"`}),
-					),
-				},
-			},
+			Result: responseResult(
+				chat.NewReasoningPart("one", []byte("nature")),
+				chat.NewTextPart("hel"),
+				chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"`}),
+			),
 		},
 		{
-			Model: "model-final",
-			Choices: []chat.Choice{{
-				Index: 0,
+			Result: &chat.Result{
 				Message: assistant(
 					chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `lynx"}`}),
 					chat.NewTextPart("lo"),
 				),
 				FinishReason: chat.FinishReasonToolCalls,
-			}},
-			Usage: chat.Usage{InputTokens: 12, OutputTokens: 5},
+				Metadata:     &chat.ResultMetadata{},
+			},
+			Metadata: &chat.ResponseMetadata{
+				Model: "model-final",
+				Usage: chat.Usage{InputTokens: 12, OutputTokens: 5},
+			},
 		},
 	}
-	if err := chunks[0].SetExtension("test/value", "first"); err != nil {
+	chunks[0].Metadata.Extra = metadata.Map{}
+	if err := chunks[0].Metadata.Set("test/value", "first"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chunks[2].SetExtension("test/value", "last"); err != nil {
+	if err := chunks[2].Metadata.Set("test/value", "last"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chunks[2].Choices[0].SetExtension("test/finish", true); err != nil {
+	if err := chunks[2].Result.Metadata.Set("test/finish", true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,38 +62,34 @@ func TestResponseAccumulatorAggregatesChoicesAndDeltas(t *testing.T) {
 	if response == nil {
 		t.Fatal("Response returned nil")
 	}
-	if response.ID != "response-1" || response.Model != "model-final" {
-		t.Errorf("identity = %q/%q", response.ID, response.Model)
+	if response.Metadata.ID != "response-1" || response.Metadata.Model != "model-final" {
+		t.Errorf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 	}
-	if len(response.Choices) != 2 || response.Choices[0].Index != 0 || response.Choices[1].Index != 1 {
-		t.Fatalf("choice order = %#v", response.Choices)
-	}
-	first := response.Choices[0]
 	wantKinds := []chat.PartKind{chat.PartReasoning, chat.PartText, chat.PartToolCall, chat.PartText}
-	if got := partKinds(first.Message); !slices.Equal(got, wantKinds) {
+	if got := partKinds(response.Result.Message); !slices.Equal(got, wantKinds) {
 		t.Fatalf("part kinds = %v; want %v", got, wantKinds)
 	}
-	if first.Message.Parts[0].Text != "step one" || string(first.Message.Parts[0].Signature) != "sig-nature" {
-		t.Errorf("reasoning = %#v", first.Message.Parts[0])
+	if response.Result.Message.Parts[0].Text != "step one" || string(response.Result.Message.Parts[0].Signature) != "sig-nature" {
+		t.Errorf("reasoning = %#v", response.Result.Message.Parts[0])
 	}
-	if first.Message.Parts[1].Text != "hel" || first.Message.Parts[3].Text != "lo" {
-		t.Errorf("text boundaries = %#v", first.Message.Parts)
+	if response.Result.Message.Parts[1].Text != "hel" || response.Result.Message.Parts[3].Text != "lo" {
+		t.Errorf("text boundaries = %#v", response.Result.Message.Parts)
 	}
-	call := first.Message.Parts[2].ToolCall
+	call := response.Result.Message.Parts[2].ToolCall
 	if call == nil || call.ID != "call-1" || call.Name != "search" || call.Arguments != `{"q":"lynx"}` {
 		t.Errorf("tool call = %#v", call)
 	}
-	if first.FinishReason != chat.FinishReasonToolCalls || response.Choices[1].Text() != "alternative" {
-		t.Errorf("finish/alternative = %q/%q", first.FinishReason, response.Choices[1].Text())
+	if response.Result.FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("finish = %q", response.Result.FinishReason)
 	}
-	if response.Usage.InputTokens != 12 || response.Usage.OutputTokens != 5 {
-		t.Errorf("usage = %#v", response.Usage)
+	if response.Metadata.Usage.InputTokens != 12 || response.Metadata.Usage.OutputTokens != 5 {
+		t.Errorf("usage = %#v", response.Metadata.Usage)
 	}
-	if got := decode[string](t, response.Extensions, "test/value"); got != "last" {
-		t.Errorf("response extension = %q", got)
+	if got := decode[string](t, response.Metadata.Extra, "test/value"); got != "last" {
+		t.Errorf("response metadata = %q", got)
 	}
-	if got := decode[bool](t, first.Extensions, "test/finish"); !got {
-		t.Error("choice extension was not merged")
+	if got := decode[bool](t, response.Result.Metadata.Extra, "test/finish"); !got {
+		t.Error("result metadata was not merged")
 	}
 	if err := response.Validate(); err != nil {
 		t.Fatalf("Response.Validate: %v", err)
@@ -130,7 +113,7 @@ func TestResponseAccumulatorMergesInterleavedParallelToolCalls(t *testing.T) {
 			t.Fatalf("Add: %v", err)
 		}
 	}
-	parts := accumulator.Response().Choices[0].Message.Parts
+	parts := accumulator.Response().Result.Message.Parts
 	if len(parts) != 2 || parts[0].ToolCall.Arguments != `{"a":1}` || parts[1].ToolCall.Arguments != `{"b":2}` {
 		t.Fatalf("parallel tools = %#v", parts)
 	}
@@ -139,9 +122,9 @@ func TestResponseAccumulatorMergesInterleavedParallelToolCalls(t *testing.T) {
 func TestResponseAccumulatorTreatsUsageAsLatestSnapshot(t *testing.T) {
 	reasoning := int64(2)
 	chunks := []*chat.Response{
-		{Usage: chat.Usage{InputTokens: 8}},
+		{Metadata: &chat.ResponseMetadata{Usage: chat.Usage{InputTokens: 8}}},
 		{},
-		{Usage: chat.Usage{InputTokens: 8, OutputTokens: 3, ReasoningTokens: &reasoning}},
+		{Metadata: &chat.ResponseMetadata{Usage: chat.Usage{InputTokens: 8, OutputTokens: 3, ReasoningTokens: &reasoning}}},
 	}
 	var accumulator chat.ResponseAccumulator
 	for _, chunk := range chunks {
@@ -149,7 +132,7 @@ func TestResponseAccumulatorTreatsUsageAsLatestSnapshot(t *testing.T) {
 			t.Fatalf("Add: %v", err)
 		}
 	}
-	usage := accumulator.Response().Usage
+	usage := accumulator.Response().Metadata.Usage
 	if usage.InputTokens != 8 || usage.OutputTokens != 3 || usage.ReasoningTokens == nil || *usage.ReasoningTokens != 2 {
 		t.Fatalf("usage = %#v", usage)
 	}
@@ -176,7 +159,7 @@ func TestResponseAccumulatorDoesNotAliasChunksOrSnapshots(t *testing.T) {
 	}
 
 	snapshot := first.Response()
-	snapshot.Choices[0].Message.Parts[0].Text = "mutated"
+	snapshot.Result.Message.Parts[0].Text = "mutated"
 	if got := first.Response().Text(); got != "pong" {
 		t.Fatalf("snapshot mutation changed accumulator to %q", got)
 	}
@@ -192,18 +175,18 @@ func TestResponseAccumulatorClonesMediaAndMessageMetadata(t *testing.T) {
 	if err := message.Metadata.Set("test/value", "original"); err != nil {
 		t.Fatal(err)
 	}
-	chunk := &chat.Response{Choices: []chat.Choice{{Index: 0, Message: message}}}
+	chunk := &chat.Response{Result: &chat.Result{Message: message}}
 
 	var accumulator chat.ResponseAccumulator
 	if err := accumulator.Add(chunk); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := accumulator.Response()
-	snapshotMedia := snapshot.Choices[0].Message.Parts[0].Media
+	snapshotMedia := snapshot.Result.Message.Parts[0].Media
 	snapshotMedia.Source.Bytes[0] = 'X'
-	snapshot.Choices[0].Message.Metadata["test/value"][0] = 'X'
+	snapshot.Result.Message.Metadata["test/value"][0] = 'X'
 
-	got := accumulator.Response().Choices[0].Message
+	got := accumulator.Response().Result.Message
 	if string(got.Parts[0].Media.Source.Bytes) != "image" || decode[string](t, got.Metadata, "test/value") != "original" {
 		t.Fatalf("snapshot aliases accumulator: %#v", got)
 	}
@@ -225,7 +208,7 @@ func TestResponseAccumulatorRejectsConflictingToolIdentityAtomically(t *testing.
 	if err == nil {
 		t.Fatal("Add accepted conflicting tool name")
 	}
-	call := accumulator.Response().Choices[0].Message.Parts[0].ToolCall
+	call := accumulator.Response().Result.Message.Parts[0].ToolCall
 	if call.Name != "search" || call.Arguments != "{" {
 		t.Fatalf("failed Add mutated accumulator: %#v", call)
 	}
@@ -239,7 +222,7 @@ func TestResponseAccumulatorNilAndZeroBehavior(t *testing.T) {
 	if err := accumulator.Add(nil); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Add(nil) error = %v; want ErrInvalidResponse", err)
 	}
-	invalid := &chat.Response{Choices: []chat.Choice{{Index: -1, FinishReason: chat.FinishReasonStop}}}
+	invalid := &chat.Response{Result: &chat.Result{}}
 	if err := accumulator.Add(invalid); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Add(invalid) error = %v; want ErrInvalidResponse", err)
 	}
@@ -249,7 +232,7 @@ func TestResponseAccumulatorNilAndZeroBehavior(t *testing.T) {
 	if err := accumulator.Add(&chat.Response{}); err != nil {
 		t.Fatalf("Add zero response: %v", err)
 	}
-	if response := accumulator.Response(); response == nil || response.ID != "" || len(response.Choices) != 0 {
+	if response := accumulator.Response(); response == nil || response.Result != nil || response.Metadata != nil {
 		t.Fatalf("zero response snapshot = %#v", response)
 	}
 	var nilAccumulator *chat.ResponseAccumulator
@@ -263,8 +246,12 @@ func assistant(parts ...chat.Part) *chat.Message {
 	return &message
 }
 
+func responseResult(parts ...chat.Part) *chat.Result {
+	return &chat.Result{Message: assistant(parts...)}
+}
+
 func responseWithParts(parts ...chat.Part) *chat.Response {
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: assistant(parts...)}}}
+	return &chat.Response{Result: responseResult(parts...)}
 }
 
 func partKinds(message *chat.Message) []chat.PartKind {

@@ -36,12 +36,12 @@ func (m *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Respon
 	if m.err != nil {
 		return nil, m.err
 	}
-	choice := chat.Choice{Index: 0, FinishReason: chat.FinishReasonStop}
+	result := &chat.Result{FinishReason: chat.FinishReasonStop}
 	if m.reply != "" {
 		message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
-		choice.Message = &message
+		result.Message = &message
 	}
-	return chat.NewResponse(choice)
+	return chat.NewResponse(result, nil)
 }
 
 // --- ContextualAugmenter -------------------------------------------

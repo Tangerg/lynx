@@ -5,27 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-
-	"github.com/Tangerg/lynx/core/internal/extension"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
-var (
-	// ErrInvalidRequest reports a malformed chat request.
-	ErrInvalidRequest = errors.New("chat: invalid request")
-	// ErrInvalidExtension reports an extension key outside the namespace/name
-	// convention.
-	ErrInvalidExtension = errors.New("chat: invalid extension")
-)
+// ErrInvalidRequest reports a malformed chat request.
+var ErrInvalidRequest = errors.New("chat: invalid request")
 
 // Request is the complete provider-neutral input to a chat model. It contains
 // only serializable protocol values; executable tools and invocation state are
 // supplied separately by higher-level runtimes.
 type Request struct {
-	Messages   []Message        `json:"messages"`
-	Tools      []ToolDefinition `json:"tools,omitempty"`
-	Options    Options          `json:"options,omitzero"`
-	Extensions metadata.Map     `json:"extensions,omitzero"`
+	Messages []Message        `json:"messages"`
+	Tools    []ToolDefinition `json:"tools,omitempty"`
+	Options  Options          `json:"options,omitzero"`
 }
 
 // Clone returns an independent copy of r. It is nil-safe.
@@ -34,10 +25,9 @@ func (r *Request) Clone() *Request {
 		return nil
 	}
 	clone := &Request{
-		Messages:   make([]Message, len(r.Messages)),
-		Tools:      make([]ToolDefinition, len(r.Tools)),
-		Options:    r.Options.Clone(),
-		Extensions: r.Extensions.Clone(),
+		Messages: make([]Message, len(r.Messages)),
+		Tools:    make([]ToolDefinition, len(r.Tools)),
+		Options:  r.Options.Clone(),
 	}
 	for index := range r.Messages {
 		clone.Messages[index] = r.Messages[index].Clone()
@@ -57,24 +47,8 @@ func NewRequest(messages ...Message) (*Request, error) {
 	return r, nil
 }
 
-// SetExtension JSON-encodes value and stores it under a namespace/name key.
-// Failed encodes do not modify the request.
-func (r *Request) SetExtension(key string, value any) error {
-	if r == nil {
-		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
-	}
-	return setExtension(&r.Extensions, key, value)
-}
-
-func setExtension(target *metadata.Map, key string, value any) error {
-	if err := extension.Set(target, key, value); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
-	}
-	return nil
-}
-
 // Validate recursively verifies messages, tool definitions, options, and
-// extensions. Tool names must be unique within one request.
+// provider options. Tool names must be unique within one request.
 func (r *Request) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
@@ -100,16 +74,6 @@ func (r *Request) Validate() error {
 	}
 	if err := r.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)
-	}
-	if err := validateExtensions(r.Extensions); err != nil {
-		return fmt.Errorf("%w: extensions: %w", ErrInvalidRequest, err)
-	}
-	return nil
-}
-
-func validateExtensions(extensions metadata.Map) error {
-	if err := extension.Validate(extensions); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil
 }

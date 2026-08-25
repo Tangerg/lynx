@@ -72,28 +72,30 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		TopK:             new(int64(40)),
 		TopP:             new(0.9),
 	}
-	mustSetChatExtension(t, chatRequest.SetExtension("provider/request", map[string]any{"mode": "strict"}))
+	mustSetChatExtension(t, chatRequest.Options.SetExtension("provider/request", map[string]any{"mode": "strict"}))
 
 	assistant := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
-	chatResponse, err := chat.NewResponse(chat.Choice{
-		Index:        0,
+	chatResponse, err := chat.NewResponse(&chat.Result{
 		Message:      &assistant,
 		FinishReason: chat.FinishReasonStop,
-		Extensions:   mustMetadata(t, map[string]any{"provider/logprob": -0.25}),
+		Metadata: &chat.ResultMetadata{
+			Extra: mustMetadata(t, map[string]any{"provider/logprob": -0.25}),
+		},
+	}, &chat.ResponseMetadata{
+		ID:    "response-1",
+		Model: "chat-model",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	chatResponse.ID = "response-1"
-	chatResponse.Model = "chat-model"
-	chatResponse.Usage = chat.Usage{
+	chatResponse.Metadata.Usage = chat.Usage{
 		InputTokens:           10,
 		OutputTokens:          5,
 		ReasoningTokens:       new(int64(2)),
 		CacheReadInputTokens:  new(int64(3)),
 		CacheWriteInputTokens: new(int64(4)),
 	}
-	mustSetChatExtension(t, chatResponse.SetExtension("provider/response", "fixture"))
+	mustSetChatExtension(t, chatResponse.Metadata.Set("provider/response", "fixture"))
 
 	doc := &document.Document{
 		ID:       "doc-1",

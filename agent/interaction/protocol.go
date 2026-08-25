@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 5
+const protocolSchemaVersion uint16 = 6
 
 type operation string
 
