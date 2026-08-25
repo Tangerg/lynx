@@ -31,8 +31,6 @@ type FileWriterConfig struct {
 	Append bool
 	// Formatter renders each document. Nil writes document text only.
 	Formatter Formatter
-	// Mode is passed to Formatter. The zero value is MetadataModeAll.
-	Mode MetadataMode
 }
 
 // FileWriter persists documents as plain text. It honors Append,
@@ -52,7 +50,6 @@ type FileWriter struct {
 	documentMarkers bool
 	append          bool
 	formatter       Formatter
-	mode            MetadataMode
 }
 
 func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
@@ -60,20 +57,15 @@ func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 		return nil, errors.New("document pipeline: output path is required")
 	}
 	if config.Formatter == nil {
-		config.Formatter = FormatterFunc(formatText)
+		config.Formatter = TextFormatter{}
 	} else if isNil(config.Formatter) {
 		return nil, errors.New("document pipeline: formatter must not be a typed nil")
-	}
-	mode, err := normalizeMetadataMode(config.Mode)
-	if err != nil {
-		return nil, err
 	}
 	return &FileWriter{
 		path:            config.Path,
 		documentMarkers: config.DocumentMarkers,
 		append:          config.Append,
 		formatter:       config.Formatter,
-		mode:            mode,
 	}, nil
 }
 
@@ -116,6 +108,9 @@ func (f *FileWriter) write(ctx context.Context, docs []*document.Document, file 
 		if doc == nil {
 			return fmt.Errorf("document %d: %w", i, ErrNilDocument)
 		}
+		if err := doc.Validate(); err != nil {
+			return fmt.Errorf("validate document %d: %w", i, err)
+		}
 		rendered, err := f.renderDocument(i, doc)
 		if err != nil {
 			return fmt.Errorf("render document %d: %w", i, err)
@@ -140,7 +135,7 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 		buf.WriteString("### Index: ")
 		buf.WriteString(strconv.Itoa(index))
 
-		start, end, hasRange, err := documentPageRange(doc)
+		start, end, hasRange, err := f.documentPageRange(doc)
 		if err != nil {
 			return "", err
 		}
@@ -154,7 +149,7 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 		buf.WriteString("\n")
 	}
 
-	rendered, err := f.formatter.Format(doc, f.mode)
+	rendered, err := f.formatter.Format(doc)
 	if err != nil {
 		return "", err
 	}
@@ -163,7 +158,7 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 	return buf.String(), nil
 }
 
-func documentPageRange(doc *document.Document) (string, string, bool, error) {
+func (*FileWriter) documentPageRange(doc *document.Document) (string, string, bool, error) {
 	if doc == nil || doc.Metadata == nil {
 		return "", "", false, nil
 	}
@@ -172,11 +167,11 @@ func documentPageRange(doc *document.Document) (string, string, bool, error) {
 	if !startFound || !endFound {
 		return "", "", false, nil
 	}
-	start, err := metadataValueText(startValue)
+	start, err := metadataValue(startValue).text()
 	if err != nil {
 		return "", "", false, fmt.Errorf("format start page number: %w", err)
 	}
-	end, err := metadataValueText(endValue)
+	end, err := metadataValue(endValue).text()
 	if err != nil {
 		return "", "", false, fmt.Errorf("format end page number: %w", err)
 	}

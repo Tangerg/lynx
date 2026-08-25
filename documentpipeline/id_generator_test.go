@@ -122,7 +122,7 @@ func TestGeneratorsHonorCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	doc := newDocument(t, "doc")
-	for _, generator := range []documentpipeline.IDGenerator{documentpipeline.NewSHA256IDGenerator(nil), documentpipeline.NewUUIDGenerator()} {
+	for _, generator := range []documentpipeline.IDGenerator{documentpipeline.NewSHA256IDGenerator(nil), documentpipeline.UUIDGenerator{}} {
 		if _, err := generator.Generate(ctx, doc); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Generate() error = %v, want context.Canceled", err)
 		}
@@ -130,7 +130,7 @@ func TestGeneratorsHonorCancellation(t *testing.T) {
 }
 
 func TestUUIDGeneratorReturnsUniqueIDs(t *testing.T) {
-	generator := documentpipeline.NewUUIDGenerator()
+	generator := documentpipeline.UUIDGenerator{}
 	doc := newDocument(t, "same input")
 	first, err := generator.Generate(t.Context(), doc)
 	if err != nil {

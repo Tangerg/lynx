@@ -186,7 +186,7 @@ func TestTransformPreservesLineageAndAssignsIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	chunks, err := splitter.Transform(t.Context(), []*document.Document{doc})
+	chunks, err := splitter.Split(t.Context(), []*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)
 	}

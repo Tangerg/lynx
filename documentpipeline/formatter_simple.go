@@ -1,7 +1,6 @@
 package documentpipeline
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -12,18 +11,13 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// SimpleFormatterConfig configures a [SimpleFormatter]'s metadata
-// filtering. Each list names keys that should be hidden in the
-// corresponding mode — useful for keeping internal ids or timestamps
-// out of embeddings while still surfacing them at inference time.
+// SimpleFormatterConfig configures a [SimpleFormatter]'s metadata policy.
 type SimpleFormatterConfig struct {
-	// ExcludeFromInference lists metadata keys omitted in inference mode.
-	ExcludeFromInference []string
-	// ExcludeFromEmbedding lists metadata keys omitted in embedding mode.
-	ExcludeFromEmbedding []string
+	// ExcludedMetadata lists metadata keys omitted from rendered output.
+	ExcludedMetadata []string
 }
 
-var _ Formatter = (*SimpleFormatter)(nil)
+var _ Formatter = SimpleFormatter{}
 
 // SimpleFormatter renders a [*document.Document] as
 //
@@ -32,26 +26,23 @@ var _ Formatter = (*SimpleFormatter)(nil)
 //
 //	<document text>
 //
-// Metadata keys can be filtered per-mode to keep embeddings clean while
-// still showing extras at inference time.
+// Metadata keys can be excluded when constructing the formatter. Use
+// independently configured formatters when different consumers need different
+// representations.
 //
 // Example:
 //
 //	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{
-//	    ExcludeFromEmbedding: []string{"row_id", "internal"},
+//	    ExcludedMetadata: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
-	excludeFromInference map[string]struct{}
-	excludeFromEmbedding map[string]struct{}
+	excludedMetadata map[string]struct{}
 }
 
 // NewSimpleFormatter builds a [SimpleFormatter]. The zero config emits every
-// metadata key in every mode.
-func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
-	return &SimpleFormatter{
-		excludeFromInference: keySet(config.ExcludeFromInference),
-		excludeFromEmbedding: keySet(config.ExcludeFromEmbedding),
-	}
+// metadata key.
+func NewSimpleFormatter(config SimpleFormatterConfig) SimpleFormatter {
+	return SimpleFormatter{excludedMetadata: keySet(config.ExcludedMetadata)}
 }
 
 // Format renders doc by emitting filtered metadata as `key: value` lines
@@ -59,25 +50,21 @@ func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 // and thus embedding inputs and token counts, non-deterministic)
 // followed by a blank line and the document text. With no metadata
 // (filtered empty), the output is just doc.Text — no leading newlines.
-func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (string, error) {
+func (s SimpleFormatter) Format(doc *document.Document) (string, error) {
 	if doc == nil {
 		return "", ErrNilDocument
 	}
-	mode, err := normalizeMetadataMode(mode)
-	if err != nil {
-		return "", err
+	if err := doc.Validate(); err != nil {
+		return "", fmt.Errorf("document pipeline: format document: %w", err)
 	}
-	if err := doc.Metadata.Validate(); err != nil {
-		return "", fmt.Errorf("document pipeline: validate metadata: %w", err)
-	}
-	filtered := s.filterMetadataByMode(doc.Metadata, mode)
+	filtered := s.filterMetadata(doc.Metadata)
 	if len(filtered) == 0 {
 		return doc.Text, nil
 	}
 
 	entries := make([]string, 0, len(filtered))
 	for _, key := range slices.Sorted(maps.Keys(filtered)) {
-		value, err := metadataValueText(filtered[key])
+		value, err := metadataValue(filtered[key]).text()
 		if err != nil {
 			return "", fmt.Errorf("document pipeline: format metadata %q: %w", key, err)
 		}
@@ -86,27 +73,11 @@ func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (str
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text, nil
 }
 
-func (s *SimpleFormatter) filterMetadataByMode(values metadata.Map, mode MetadataMode) metadata.Map {
-	switch mode {
-	case MetadataModeAll:
-		return values.Clone()
-	case MetadataModeNone:
-		return metadata.Map{}
-	}
-
+func (s SimpleFormatter) filterMetadata(values metadata.Map) metadata.Map {
 	filtered := values.Clone()
-
-	var excluded map[string]struct{}
-	switch mode {
-	case MetadataModeInference:
-		excluded = s.excludeFromInference
-	case MetadataModeEmbed:
-		excluded = s.excludeFromEmbedding
-	}
-
-	if len(excluded) > 0 {
+	if len(s.excludedMetadata) > 0 {
 		maps.DeleteFunc(filtered, func(key string, _ json.RawMessage) bool {
-			_, found := excluded[key]
+			_, found := s.excludedMetadata[key]
 			return found
 		})
 	}
@@ -122,26 +93,4 @@ func keySet(keys []string) map[string]struct{} {
 		set[key] = struct{}{}
 	}
 	return set
-}
-
-func metadataValueText(value json.RawMessage) (string, error) {
-	value = bytes.TrimSpace(value)
-	if !json.Valid(value) {
-		return "", metadata.ErrInvalidValue
-	}
-	if bytes.Equal(value, []byte("null")) {
-		return "", nil
-	}
-	if value[0] == '"' {
-		var text string
-		if err := json.Unmarshal(value, &text); err != nil {
-			return "", err
-		}
-		return text, nil
-	}
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, value); err != nil {
-		return "", err
-	}
-	return compact.String(), nil
 }

@@ -24,11 +24,7 @@ type TokenCountBatcherConfig struct {
 	// Formatter renders each document before estimation. Nil uses document
 	// text without metadata.
 	Formatter Formatter
-	// Mode is passed to Formatter. The zero value is MetadataModeAll.
-	Mode MetadataMode
 }
-
-var _ Batcher = (*TokenCountBatcher)(nil)
 
 // TokenCountBatcher carves a document slice into batches that fit
 // downstream embedding-service token limits. Document order is
@@ -42,7 +38,11 @@ type TokenCountBatcher struct {
 	estimator tokenizer.TextEstimator
 	maxTokens int
 	formatter Formatter
-	mode      MetadataMode
+}
+
+type sizedDocument struct {
+	document *document.Document
+	tokens   int
 }
 
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
@@ -59,13 +59,9 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 		return nil, errors.New("document pipeline: token reserve must be in [0, 1)")
 	}
 	if config.Formatter == nil {
-		config.Formatter = FormatterFunc(formatText)
+		config.Formatter = TextFormatter{}
 	} else if isNil(config.Formatter) {
 		return nil, errors.New("document pipeline: formatter must not be a typed nil")
-	}
-	mode, err := normalizeMetadataMode(config.Mode)
-	if err != nil {
-		return nil, err
 	}
 
 	effective := max(1, int(float64(config.MaxTokens)*(1-config.Reserve)))
@@ -73,17 +69,19 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 		estimator: config.Estimator,
 		maxTokens: effective,
 		formatter: config.Formatter,
-		mode:      mode,
 	}, nil
 }
 
 func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document) ([][]*document.Document, error) {
-	type sized struct {
-		doc    *document.Document
-		tokens int
+	sized, err := b.measure(ctx, docs)
+	if err != nil {
+		return nil, err
 	}
+	return b.partition(sized), nil
+}
 
-	scored := make([]sized, 0, len(docs))
+func (b *TokenCountBatcher) measure(ctx context.Context, docs []*document.Document) ([]sizedDocument, error) {
+	sized := make([]sizedDocument, 0, len(docs))
 	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -91,7 +89,10 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 		if doc == nil {
 			return nil, fmt.Errorf("document pipeline: size document %d: %w", index, ErrNilDocument)
 		}
-		rendered, err := b.formatter.Format(doc, b.mode)
+		if err := doc.Validate(); err != nil {
+			return nil, fmt.Errorf("document pipeline: size document %d: %w", index, err)
+		}
+		rendered, err := b.formatter.Format(doc)
 		if err != nil {
 			return nil, fmt.Errorf("document pipeline: format document %d for sizing: %w", index, err)
 		}
@@ -107,16 +108,19 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 			return nil, fmt.Errorf("document pipeline: document %q has %d tokens, exceeding the batch budget of %d",
 				doc.ID, count, b.maxTokens)
 		}
-		scored = append(scored, sized{doc: doc, tokens: count})
+		sized = append(sized, sizedDocument{document: doc, tokens: count})
 	}
+	return sized, nil
+}
 
+func (b *TokenCountBatcher) partition(sized []sizedDocument) [][]*document.Document {
 	var (
 		batches      [][]*document.Document
 		currentBatch []*document.Document
 		currentSum   int
 	)
 
-	for _, item := range scored {
+	for _, item := range sized {
 		if currentSum+item.tokens > b.maxTokens {
 			if len(currentBatch) > 0 {
 				batches = append(batches, currentBatch)
@@ -124,12 +128,12 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 			currentBatch = nil
 			currentSum = 0
 		}
-		currentBatch = append(currentBatch, item.doc)
+		currentBatch = append(currentBatch, item.document)
 		currentSum += item.tokens
 	}
 
 	if len(currentBatch) > 0 {
 		batches = append(batches, currentBatch)
 	}
-	return batches, nil
+	return batches
 }

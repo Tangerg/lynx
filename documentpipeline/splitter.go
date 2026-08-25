@@ -10,44 +10,32 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// Chunk-lineage metadata keys. A [Splitter] stamps every emitted chunk
-// with these so downstream stages (retrieval, reranking, citation) can
-// trace a chunk back to the document it came from and reconstruct
-// ordering. They mirror the de-facto field names used across the
-// ecosystem.
+// Chunk-lineage metadata keys stamped by [Splitter] on every emitted chunk.
 const (
-	// MetadataKeyParentID holds the source document's ID. Only set when
-	// the source document carried a non-empty ID.
+	// MetadataKeyParentID holds the source document's ID. It is omitted when
+	// the source document has no ID.
 	MetadataKeyParentID = "parent_document_id"
 
-	// MetadataKeyChunkIndex holds the 0-based position of this chunk
-	// among its siblings (counts only emitted, non-empty chunks).
+	// MetadataKeyChunkIndex holds the zero-based position among emitted chunks.
 	MetadataKeyChunkIndex = "chunk_index"
 
-	// MetadataKeyChunkTotal holds the count of emitted (non-empty) chunks
-	// produced from the source document.
+	// MetadataKeyChunkTotal holds the number of chunks emitted for the source.
 	MetadataKeyChunkTotal = "chunk_total"
 )
 
-// SplitterConfig configures a generic text-to-chunks transformation.
+// SplitterConfig configures a generic text-to-document splitter.
 type SplitterConfig struct {
-	// SplitFunc is required.
-	SplitFunc func(ctx context.Context, text string) ([]string, error)
+	// SplitFunc is required and owns the text splitting policy.
+	SplitFunc func(context.Context, string) ([]string, error)
 
 	// IDGenerator, when set, assigns an ID to each emitted chunk.
 	IDGenerator IDGenerator
 }
 
-var _ Transformer = (*Splitter)(nil)
-
-// Splitter is a [Transformer] that calls a configurable SplitFunc on
-// each input document's text and emits one new document per non-empty
-// chunk. Original metadata is cloned onto every chunk and stamped with
-// chunk-lineage keys ([MetadataKeyParentID], [MetadataKeyChunkIndex],
-// [MetadataKeyChunkTotal]) so callers can trace chunks back to their
-// source.
+// Splitter applies a text splitting policy to documents, clones source
+// metadata onto every chunk, and records chunk lineage.
 type Splitter struct {
-	splitFunc   func(ctx context.Context, text string) ([]string, error)
+	splitFunc   func(context.Context, string) ([]string, error)
 	idGenerator IDGenerator
 }
 
@@ -64,10 +52,17 @@ func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	}, nil
 }
 
-// Transform splits every input document and concatenates the resulting
-// chunks. Order is preserved — chunks of doc[i] all appear before
-// chunks of doc[i+1].
-func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+// SplitText applies the configured text splitting policy directly.
+func (s *Splitter) SplitText(ctx context.Context, text string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.splitFunc(ctx, text)
+}
+
+// Split emits chunks for every input document. Input order and per-document
+// chunk order are preserved.
+func (s *Splitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	out := make([]*document.Document, 0, len(docs))
 	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
@@ -76,7 +71,10 @@ func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]
 		if doc == nil {
 			return nil, fmt.Errorf("document pipeline: split document %d: %w", index, ErrNilDocument)
 		}
-		chunks, err := s.splitOne(ctx, doc)
+		if err := doc.Validate(); err != nil {
+			return nil, fmt.Errorf("document pipeline: split document %d: %w", index, err)
+		}
+		chunks, err := s.splitDocument(ctx, doc)
 		if err != nil {
 			return nil, fmt.Errorf("document pipeline: split document %d: %w", index, err)
 		}
@@ -85,8 +83,8 @@ func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]
 	return out, nil
 }
 
-func (s *Splitter) splitOne(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
-	chunks, err := s.splitFunc(ctx, doc.Text)
+func (s *Splitter) splitDocument(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
+	chunks, err := s.SplitText(ctx, doc.Text)
 	if err != nil {
 		return nil, err
 	}

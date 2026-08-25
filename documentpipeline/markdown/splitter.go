@@ -38,8 +38,6 @@ type SplitterConfig struct {
 	IDGenerator       documentpipeline.IDGenerator
 }
 
-var _ documentpipeline.Transformer = (*Splitter)(nil)
-
 // Splitter produces token-bounded Markdown chunks without severing tables,
 // list items, or code lines. Active heading ancestry is repeated in each chunk
 // so independently retrieved chunks retain their section context.
@@ -108,10 +106,10 @@ func (s *Splitter) SplitText(ctx context.Context, source string) ([]string, erro
 	return chunks, nil
 }
 
-// Transform preserves source metadata and stamps standard chunk-lineage
+// Split preserves source metadata and stamps standard chunk-lineage
 // metadata through the base document pipeline splitter.
-func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return s.base.Transform(ctx, docs)
+func (s *Splitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return s.base.Split(ctx, docs)
 }
 
 type blockKind uint8

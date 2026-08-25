@@ -77,12 +77,13 @@ func TestFileWriterPreservesEncodedPageRange(t *testing.T) {
 	}
 }
 
-func TestFileWriterRejectsInvalidMode(t *testing.T) {
+func TestFileWriterRejectsTypedNilFormatter(t *testing.T) {
+	var formatter *documentpipeline.SimpleFormatter
 	if _, err := documentpipeline.NewFileWriter(documentpipeline.FileWriterConfig{
-		Path: filepath.Join(t.TempDir(), "documents.txt"),
-		Mode: "unknown",
+		Path:      filepath.Join(t.TempDir(), "documents.txt"),
+		Formatter: formatter,
 	}); err == nil {
-		t.Fatal("expected invalid mode error")
+		t.Fatal("expected typed nil formatter error")
 	}
 }
 

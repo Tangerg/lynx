@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentpipeline"
 )
 
 func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 	assigner, err := documentpipeline.NewIDAssigner(documentpipeline.IDAssignerConfig{
-		Generator: documentpipeline.NewUUIDGenerator(),
+		Generator: documentpipeline.UUIDGenerator{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -18,8 +19,9 @@ func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 	withID, _ := document.NewDocument("a", nil)
 	withID.ID = "keep-me"
 	withoutID, _ := document.NewDocument("b", nil)
+	_ = withoutID.Metadata.Set("source", "original")
 
-	out, err := assigner.Transform(t.Context(), []*document.Document{withID, withoutID})
+	out, err := assigner.Assign(t.Context(), []*document.Document{withID, withoutID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,11 +31,21 @@ func TestIDAssigner_FillsEmptyOnly(t *testing.T) {
 	if out[1].ID == "" {
 		t.Fatal("empty id must be assigned")
 	}
+	if out[0] == withID || out[1] == withoutID {
+		t.Fatal("Assign must return independent document copies")
+	}
+	if withoutID.ID != "" {
+		t.Fatalf("Assign mutated caller-owned document ID: %q", withoutID.ID)
+	}
+	_ = out[1].Metadata.Set("source", "changed")
+	if source, _, _ := metadata.Decode[string](withoutID.Metadata, "source"); source != "original" {
+		t.Fatalf("output metadata aliases caller-owned metadata: %q", source)
+	}
 }
 
 func TestIDAssigner_Overwrite(t *testing.T) {
 	assigner, err := documentpipeline.NewIDAssigner(documentpipeline.IDAssignerConfig{
-		Generator: documentpipeline.NewUUIDGenerator(),
+		Generator: documentpipeline.UUIDGenerator{},
 		Overwrite: true,
 	})
 	if err != nil {
@@ -42,9 +54,12 @@ func TestIDAssigner_Overwrite(t *testing.T) {
 
 	doc, _ := document.NewDocument("a", nil)
 	doc.ID = "old"
-	out, _ := assigner.Transform(t.Context(), []*document.Document{doc})
+	out, _ := assigner.Assign(t.Context(), []*document.Document{doc})
 	if out[0].ID == "old" || out[0].ID == "" {
 		t.Fatalf("Overwrite must replace id, got %q", out[0].ID)
+	}
+	if doc.ID != "old" {
+		t.Fatalf("Overwrite mutated caller-owned document ID: %q", doc.ID)
 	}
 }
 

@@ -68,9 +68,6 @@ func TestTokenCountBatcherValidatesConstructorInput(t *testing.T) {
 		{name: "invalid reserve", config: documentpipeline.TokenCountBatcherConfig{
 			Estimator: textLengthEstimator{}, Reserve: 1,
 		}},
-		{name: "invalid mode", config: documentpipeline.TokenCountBatcherConfig{
-			Estimator: textLengthEstimator{}, Mode: "unknown",
-		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

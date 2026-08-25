@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// IDAssignerConfig configures document ID generation.
+// IDAssignerConfig configures document ID assignment.
 type IDAssignerConfig struct {
 	// Generator is required.
 	Generator IDGenerator
@@ -18,16 +18,8 @@ type IDAssignerConfig struct {
 	Overwrite bool
 }
 
-var _ Transformer = (*IDAssigner)(nil)
-
-// IDAssigner is a [Transformer] that fills in document ids — the
-// pipeline-stage form of [Document.EnsureID]. Drop it after a [Reader]
-// or [Splitter] so every document carries an id before it reaches a
-// vector store. Documents pass through in place (same slice, same
-// pointers); only the ID field is touched.
-//
-// Pair an [SHA256IDGenerator] for content-addressable, dedup-friendly
-// ids, or an [UUIDGenerator] for unconditional uniqueness.
+// IDAssigner assigns identifiers to independent copies of input documents.
+// Caller-owned documents, metadata, and media remain untouched.
 type IDAssigner struct {
 	generator IDGenerator
 	overwrite bool
@@ -43,7 +35,10 @@ func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 	}, nil
 }
 
-func (a *IDAssigner) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+// Assign validates and clones every document before assigning IDs. It returns
+// no partial output on failure and never mutates the input slice or documents.
+func (a *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	owned := make([]*document.Document, len(docs))
 	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -51,16 +46,33 @@ func (a *IDAssigner) Transform(ctx context.Context, docs []*document.Document) (
 		if doc == nil {
 			return nil, fmt.Errorf("document pipeline: assign ID to document %d: %w", index, ErrNilDocument)
 		}
+		if err := doc.Validate(); err != nil {
+			return nil, fmt.Errorf("document pipeline: assign ID to document %d: %w", index, err)
+		}
+		owned[index] = a.cloneDocument(doc)
+	}
+
+	for index, doc := range owned {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if a.overwrite {
 			doc.ID = ""
 		} else if doc.ID != "" {
 			continue
 		}
 		if err := assignID(ctx, doc, a.generator); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("document pipeline: assign ID to document %d: %w", index, err)
 		}
 	}
-	return docs, nil
+	return owned, nil
+}
+
+func (*IDAssigner) cloneDocument(doc *document.Document) *document.Document {
+	clone := *doc
+	clone.Media = doc.Media.Clone()
+	clone.Metadata = doc.Metadata.Clone()
+	return &clone
 }
 
 func assignID(ctx context.Context, doc *document.Document, generator IDGenerator) error {

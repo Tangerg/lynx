@@ -30,13 +30,13 @@ type SHA256IDGenerator struct {
 
 // NewSHA256IDGenerator returns a generator with an independent snapshot of
 // salt. Salt can separate otherwise identical content-addressed streams.
-func NewSHA256IDGenerator(salt []byte) *SHA256IDGenerator {
-	return &SHA256IDGenerator{salt: bytes.Clone(salt)}
+func NewSHA256IDGenerator(salt []byte) SHA256IDGenerator {
+	return SHA256IDGenerator{salt: bytes.Clone(salt)}
 }
 
 // Generate hashes a canonical JSON projection of document and returns the
 // SHA-256 hex digest.
-func (g *SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
+func (g SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -70,11 +70,8 @@ func (g *SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document
 // UUIDGenerator returns a fresh random v4 UUID for every document.
 type UUIDGenerator struct{}
 
-// NewUUIDGenerator constructs a random document ID generator.
-func NewUUIDGenerator() *UUIDGenerator { return &UUIDGenerator{} }
-
 // Generate returns a new UUID after validating the call boundary.
-func (*UUIDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
+func (UUIDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}

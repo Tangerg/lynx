@@ -35,8 +35,6 @@ type TokenSplitterConfig struct {
 	IDGenerator           IDGenerator
 }
 
-var _ Transformer = (*TokenSplitter)(nil)
-
 // TokenSplitter splits document text into token-bounded chunks and prefers a
 // sentence boundary once the configured minimum token count has been reached.
 type TokenSplitter struct {
@@ -86,7 +84,7 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 		preserveNewlines:      config.PreserveNewlines,
 	}
 	base, err := NewSplitter(SplitterConfig{
-		SplitFunc:   splitter.splitText,
+		SplitFunc:   splitter.SplitText,
 		IDGenerator: config.IDGenerator,
 	})
 	if err != nil {
@@ -96,7 +94,11 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	return splitter, nil
 }
 
-func (s *TokenSplitter) splitText(ctx context.Context, text string) ([]string, error) {
+// SplitText tokenizes text and emits chunks within the configured bounds.
+func (s *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(text) == "" {
 		return nil, nil
 	}
@@ -123,7 +125,7 @@ func (s *TokenSplitter) splitText(ctx context.Context, text string) ([]string, e
 
 		selected := windowText
 		consumedCount := len(windowTokens)
-		if boundary := lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
+		if boundary := s.lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
 			prefix := windowText[:boundary]
 			prefixTokens, err := s.tokenizer.Encode(ctx, prefix)
 			if err != nil {
@@ -161,7 +163,7 @@ func (s *TokenSplitter) clean(text string) string {
 	return strings.TrimSpace(text)
 }
 
-func lastSentenceBoundary(text string) int {
+func (*TokenSplitter) lastSentenceBoundary(text string) int {
 	boundary := -1
 	for _, punctuation := range []string{".", "?", "!", "\n", "。", "？", "！"} {
 		if index := strings.LastIndex(text, punctuation); index >= 0 {
@@ -171,6 +173,7 @@ func lastSentenceBoundary(text string) int {
 	return boundary
 }
 
-func (s *TokenSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return s.splitter.Transform(ctx, docs)
+// Split emits token-bounded document chunks with cloned metadata and lineage.
+func (s *TokenSplitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return s.splitter.Split(ctx, docs)
 }
