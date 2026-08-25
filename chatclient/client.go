@@ -3,6 +3,7 @@ package chatclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"reflect"
 
@@ -33,11 +34,6 @@ type Client struct {
 	model    chat.Model
 	streamer chat.Streamer
 	defaults chat.Options
-}
-
-// Output binds format to a typed generation without modifying c.
-func (c *Client) Output[T any](format OutputFormat[T]) Generation[T] {
-	return Generation[T]{client: c, format: format}
 }
 
 // New constructs a Client around model. When model also implements
@@ -92,6 +88,11 @@ func isNil(value any) bool {
 	}
 }
 
+// Output binds format to a typed generation without modifying c.
+func (c *Client) Output[T any](format OutputFormat[T]) Generation[T] {
+	return Generation[T]{client: c, format: format}
+}
+
 // Call snapshots and validates req, applies client defaults to fields the
 // request leaves unspecified, and invokes the synchronous model capability.
 func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
@@ -107,6 +108,28 @@ func (c *Client) call(ctx context.Context, req *chat.Request, format *chat.Outpu
 		return nil, err
 	}
 	return c.model.Call(ctx, prepared)
+}
+
+func (c *Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputFormat) (*chat.Request, error) {
+	if request == nil {
+		return nil, fmt.Errorf("%w: nil request", chat.ErrInvalidRequest)
+	}
+	if outputFormat != nil && request.Options.OutputFormat != nil {
+		return nil, fmt.Errorf("%w: request options already define output_format", ErrInvalidOutputFormat)
+	}
+	prepared := request.Clone()
+	merged, err := c.defaults.Merged(request.Options)
+	if err != nil {
+		return nil, err
+	}
+	if outputFormat != nil {
+		merged.OutputFormat = outputFormat.Clone()
+	}
+	prepared.Options = merged
+	if err := prepared.Validate(); err != nil {
+		return nil, err
+	}
+	return prepared, nil
 }
 
 // Stream snapshots and validates req, applies client defaults, and returns a

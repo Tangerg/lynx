@@ -20,15 +20,11 @@ func TestClientKeepsSmallCallSurface(t *testing.T) {
 	if methods := declaredMethods(t, "Client"); !slices.Equal(methods, []string{"Call", "Output", "Stream"}) {
 		t.Fatalf("Client methods = %v, want Call/Output/Stream only", methods)
 	}
-	if methods := declaredMethodsInFile(t, "Client", "client.go"); !slices.Equal(methods, []string{"Call", "Output", "Stream"}) {
-		t.Fatalf("Client methods in client.go = %v, want Call/Output/Stream", methods)
-	}
+	assertReceiverMethodsInFile(t, "Client", "client.go")
 	if methods := reflectedMethods(reflect.TypeFor[chatclient.Generation[string]]()); !slices.Equal(methods, []string{"Call", "Stream"}) {
 		t.Fatalf("Generation methods = %v, want Call/Stream only", methods)
 	}
-	if methods := declaredMethodsInFile(t, "Generation", "generation.go"); !slices.Equal(methods, []string{"Call", "Stream"}) {
-		t.Fatalf("Generation methods in generation.go = %v, want Call/Stream", methods)
-	}
+	assertReceiverMethodsInFile(t, "Generation", "generation.go")
 	if methods := reflectedMethods(reflect.TypeFor[chatclient.OutputFormat[string]]()); len(methods) != 0 {
 		t.Fatalf("OutputFormat methods = %v, want opaque format value", methods)
 	}
@@ -36,17 +32,9 @@ func TestClientKeepsSmallCallSurface(t *testing.T) {
 
 func declaredMethods(t *testing.T, receiver string) []string {
 	t.Helper()
-	return declaredMethodsInFile(t, receiver, "")
-}
-
-func declaredMethodsInFile(t *testing.T, receiver, filename string) []string {
-	t.Helper()
 	fset := token.NewFileSet()
 	var methods []string
 	for _, path := range productionGoFiles(t) {
-		if filename != "" && filepath.Base(path) != filename {
-			continue
-		}
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
@@ -63,6 +51,26 @@ func declaredMethodsInFile(t *testing.T, receiver, filename string) []string {
 	}
 	slices.Sort(methods)
 	return methods
+}
+
+func assertReceiverMethodsInFile(t *testing.T, receiver, filename string) {
+	t.Helper()
+	fset := token.NewFileSet()
+	for _, path := range productionGoFiles(t) {
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Recv == nil || len(function.Recv.List) != 1 || receiverName(function.Recv.List[0].Type) != receiver {
+				continue
+			}
+			if filepath.Base(path) != filename {
+				t.Errorf("%s.%s is declared in %s, want %s", receiver, function.Name.Name, filepath.Base(path), filename)
+			}
+		}
+	}
 }
 
 func receiverName(expression ast.Expr) string {
