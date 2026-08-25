@@ -7,38 +7,38 @@ import (
 )
 
 func TestModels(t *testing.T) {
-	models := catalog.Models("anthropic")
+	models := catalog.Default.Models("anthropic")
 	if len(models) == 0 {
 		t.Fatal("anthropic should have cataloged models")
 	}
 	// Case-insensitive on the provider name (adapter consts are capitalized).
-	if len(catalog.Models("Anthropic")) != len(models) {
+	if len(catalog.Default.Models("Anthropic")) != len(models) {
 		t.Fatal("provider name must match case-insensitively")
 	}
-	if catalog.Models("does-not-exist") != nil {
+	if catalog.Default.Models("does-not-exist") != nil {
 		t.Fatal("unknown provider must return nil")
 	}
 }
 
 func TestLookup(t *testing.T) {
-	info, ok := catalog.Lookup("anthropic", "claude-opus-5")
+	info, ok := catalog.Default.Lookup("anthropic", "claude-opus-5")
 	if !ok {
 		t.Fatal("known model must be found")
 	}
 	if len(info.Pricing) == 0 {
 		t.Fatal("model info must carry pricing")
 	}
-	if _, ok := catalog.Lookup("anthropic", "no-such-model"); ok {
+	if _, ok := catalog.Default.Lookup("anthropic", "no-such-model"); ok {
 		t.Fatal("unknown model must report ok=false")
 	}
 }
 
-func TestGet(t *testing.T) {
-	p, ok := catalog.Get("anthropic")
+func TestProvider(t *testing.T) {
+	p, ok := catalog.Default.Provider("anthropic")
 	if !ok || p.ID != "anthropic" || len(p.Models) == 0 {
-		t.Fatalf("Get(anthropic) = %+v, %v", p, ok)
+		t.Fatalf("Provider(anthropic) = %+v, %v", p, ok)
 	}
-	if _, ok := catalog.Get("does-not-exist"); ok {
-		t.Fatal("Get of unknown provider must report ok=false")
+	if _, ok := catalog.Default.Provider("does-not-exist"); ok {
+		t.Fatal("Provider of unknown provider must report ok=false")
 	}
 }

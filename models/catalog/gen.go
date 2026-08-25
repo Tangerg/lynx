@@ -242,14 +242,14 @@ func toModelInfo(m apiModel, aug augEntry) modelcatalog.Model {
 
 // toPricing maps a models.dev [cost] block to a banded rate card: the
 // base band (threshold 0) plus a band per context tier, sorted ascending
-// by threshold (CostOf scans back to front). Non-context tiers are
+// by threshold ([modelcatalog.PricingSchedule.Cost] scans back to front). Non-context tiers are
 // skipped — only prompt-size repricing is modeled. Returns nil when there's
 // no input rate (unknown pricing).
-func toPricing(c apiCost) []modelcatalog.Pricing {
+func toPricing(c apiCost) modelcatalog.PricingSchedule {
 	if c.Input == 0 && c.Output == 0 {
 		return nil
 	}
-	bands := []modelcatalog.Pricing{{
+	bands := modelcatalog.PricingSchedule{{
 		InputPer1M:      c.Input,
 		OutputPer1M:     c.Output,
 		CacheReadPer1M:  c.CacheRead,

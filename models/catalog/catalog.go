@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"slices"
 	"strings"
 )
 
@@ -18,6 +17,22 @@ type Provider struct {
 	Models []Model `json:"models"`
 }
 
+// Clone returns a caller-owned copy of the provider and all nested models.
+func (p Provider) Clone() Provider {
+	p.Models = make([]Model, len(p.Models))
+	for index := range p.Models {
+		p.Models[index] = p.Models[index].Clone()
+	}
+	return p
+}
+
+// Catalog owns access to the repository's embedded provider and model data.
+// Its zero value is ready to use and carries no mutable per-caller state.
+type Catalog struct{}
+
+// Default is the repository's embedded model catalog.
+var Default Catalog
+
 type providerConfig struct {
 	Provider string  `json:"provider"`
 	Models   []Model `json:"models"`
@@ -26,14 +41,19 @@ type providerConfig struct {
 //go:embed configs/*.json
 var configs embed.FS
 
+type catalogEntry struct {
+	provider Provider
+	models   map[string]Model
+}
+
 var entries = mustLoad()
 
-func mustLoad() map[string]map[string]Model {
+func mustLoad() map[string]catalogEntry {
 	files, err := fs.Glob(configs, "configs/*.json")
 	if err != nil {
 		panic(fmt.Errorf("catalog: glob configs: %w", err))
 	}
-	providers := make(map[string]map[string]Model, len(files))
+	providers := make(map[string]catalogEntry, len(files))
 	for _, name := range files {
 		raw, err := configs.ReadFile(name)
 		if err != nil {
@@ -47,52 +67,45 @@ func mustLoad() map[string]map[string]Model {
 		for _, model := range config.Models {
 			models[model.ID] = model
 		}
-		providers[strings.ToLower(config.Provider)] = models
+		providers[strings.ToLower(config.Provider)] = catalogEntry{
+			provider: Provider{ID: config.Provider, Models: config.Models},
+			models:   models,
+		}
 	}
 	return providers
 }
 
 // Lookup returns one model for a provider/model pair. Provider matching is
 // case-insensitive. The returned value owns its slices.
-func Lookup(provider, modelID string) (Model, bool) {
-	models, ok := entries[strings.ToLower(provider)]
+func (Catalog) Lookup(provider, modelID string) (Model, bool) {
+	entry, ok := entries[strings.ToLower(provider)]
 	if !ok {
 		return Model{}, false
 	}
-	model, ok := models[modelID]
+	model, ok := entry.models[modelID]
 	if !ok {
 		return Model{}, false
 	}
-	return cloneModel(model), true
+	return model.Clone(), true
 }
 
 // Models returns every cataloged model for provider, or nil when unknown.
 // Order is unspecified and returned values own their slices.
-func Models(provider string) []Model {
-	models, ok := entries[strings.ToLower(provider)]
+func (Catalog) Models(provider string) []Model {
+	entry, ok := entries[strings.ToLower(provider)]
 	if !ok {
 		return nil
 	}
-	out := make([]Model, 0, len(models))
-	for _, model := range models {
-		out = append(out, cloneModel(model))
-	}
-	return out
+	return entry.provider.Clone().Models
 }
 
-// Get returns a provider's full catalog entry.
-func Get(provider string) (Provider, bool) {
-	models := Models(provider)
-	if models == nil {
+// Provider returns one provider's complete catalog entry. Provider matching is
+// case-insensitive, while the returned ID preserves the catalog's canonical
+// spelling.
+func (Catalog) Provider(provider string) (Provider, bool) {
+	entry, ok := entries[strings.ToLower(provider)]
+	if !ok {
 		return Provider{}, false
 	}
-	return Provider{ID: provider, Models: models}, true
-}
-
-func cloneModel(model Model) Model {
-	model.Pricing = slices.Clone(model.Pricing)
-	model.Reasoning.Levels = slices.Clone(model.Reasoning.Levels)
-	model.Modalities.Input = slices.Clone(model.Modalities.Input)
-	model.Modalities.Output = slices.Clone(model.Modalities.Output)
-	return model
+	return entry.provider.Clone(), true
 }

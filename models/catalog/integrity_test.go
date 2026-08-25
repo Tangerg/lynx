@@ -6,11 +6,11 @@ func TestCatalogIntegrity(t *testing.T) {
 	if len(entries) == 0 {
 		t.Fatal("catalog is empty")
 	}
-	for provider, models := range entries {
-		if len(models) == 0 {
+	for provider, entry := range entries {
+		if len(entry.models) == 0 {
 			t.Errorf("provider %q has no models", provider)
 		}
-		for id, model := range models {
+		for id, model := range entry.models {
 			if id == "" || model.ID == "" {
 				t.Errorf("provider %q has a model with empty id", provider)
 			}
@@ -29,12 +29,12 @@ func TestCatalogIntegrity(t *testing.T) {
 }
 
 func TestLookupReturnsOwnedSlices(t *testing.T) {
-	first, ok := Lookup("anthropic", "claude-opus-5")
+	first, ok := Default.Lookup("anthropic", "claude-opus-5")
 	if !ok || len(first.Pricing) == 0 {
 		t.Fatal("fixture missing")
 	}
 	first.Pricing[0].InputPer1M = -1
-	second, _ := Lookup("anthropic", "claude-opus-5")
+	second, _ := Default.Lookup("anthropic", "claude-opus-5")
 	if second.Pricing[0].InputPer1M == -1 {
 		t.Fatal("Lookup returned catalog-owned pricing slice")
 	}

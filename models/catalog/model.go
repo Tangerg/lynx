@@ -7,18 +7,18 @@ import (
 
 // Model is one cataloged provider model and its commercial/capability data.
 type Model struct {
-	ID               string     `json:"id,omitempty"`
-	DisplayName      string     `json:"display_name,omitempty"`
-	KnowledgeCutoff  time.Time  `json:"knowledge_cutoff,omitzero"`
-	ReleaseDate      time.Time  `json:"release_date,omitzero"`
-	LastUpdated      time.Time  `json:"last_updated,omitzero"`
-	Deprecated       bool       `json:"deprecated,omitempty"`
-	Pricing          []Pricing  `json:"pricing,omitempty"`
-	Reasoning        Reasoning  `json:"reasoning,omitzero"`
-	Modalities       Modalities `json:"modalities,omitzero"`
-	ToolCall         bool       `json:"tool_call,omitempty"`
-	StructuredOutput bool       `json:"structured_output,omitempty"`
-	Limits           Limits     `json:"limits,omitzero"`
+	ID               string          `json:"id,omitempty"`
+	DisplayName      string          `json:"display_name,omitempty"`
+	KnowledgeCutoff  time.Time       `json:"knowledge_cutoff,omitzero"`
+	ReleaseDate      time.Time       `json:"release_date,omitzero"`
+	LastUpdated      time.Time       `json:"last_updated,omitzero"`
+	Deprecated       bool            `json:"deprecated,omitempty"`
+	Pricing          PricingSchedule `json:"pricing,omitempty"`
+	Reasoning        Reasoning       `json:"reasoning,omitzero"`
+	Modalities       Modalities      `json:"modalities,omitzero"`
+	ToolCall         bool            `json:"tool_call,omitempty"`
+	StructuredOutput bool            `json:"structured_output,omitempty"`
+	Limits           Limits          `json:"limits,omitzero"`
 }
 
 func (m Model) IsZero() bool {
@@ -26,6 +26,15 @@ func (m Model) IsZero() bool {
 		m.ReleaseDate.IsZero() && m.LastUpdated.IsZero() && !m.Deprecated &&
 		len(m.Pricing) == 0 && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
 		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
+}
+
+// Clone returns a caller-owned copy of the model and all of its collections.
+func (m Model) Clone() Model {
+	m.Pricing = m.Pricing.Clone()
+	m.Reasoning.Levels = slices.Clone(m.Reasoning.Levels)
+	m.Modalities.Input = slices.Clone(m.Modalities.Input)
+	m.Modalities.Output = slices.Clone(m.Modalities.Output)
+	return m
 }
 
 // Reasoning describes extended-thinking support.

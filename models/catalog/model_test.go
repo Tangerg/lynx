@@ -45,12 +45,12 @@ func TestPricingCacheFallbackAndBands(t *testing.T) {
 		t.Fatalf("cache fallback cost = %v", got)
 	}
 
-	bands := []catalog.Pricing{
+	bands := catalog.PricingSchedule{
 		{InputPer1M: 1.25, OutputPer1M: 10},
 		{Threshold: 200_000, InputPer1M: 2.5, OutputPer1M: 15},
 	}
-	below := catalog.CostOf(bands, catalog.Usage{InputTokens: 100_000, OutputTokens: 10_000})
-	above := catalog.CostOf(bands, catalog.Usage{InputTokens: 250_000, OutputTokens: 10_000})
+	below := bands.Cost(catalog.Usage{InputTokens: 100_000, OutputTokens: 10_000})
+	above := bands.Cost(catalog.Usage{InputTokens: 250_000, OutputTokens: 10_000})
 	if !approximately(below, 0.225) || !approximately(above, 0.775) {
 		t.Fatalf("tier costs = %v, %v", below, above)
 	}

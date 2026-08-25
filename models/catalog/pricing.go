@@ -1,5 +1,7 @@
 package catalog
 
+import "slices"
+
 // Pricing is one rate-card band in USD per one million tokens. Threshold is
 // the input-token count at which the band reprices the whole call.
 type Pricing struct {
@@ -12,6 +14,15 @@ type Pricing struct {
 
 func (p Pricing) IsZero() bool { return p == Pricing{} }
 
+// PricingSchedule is a threshold-ordered rate card. Each applicable threshold
+// reprices the complete call rather than only the tokens above that threshold.
+type PricingSchedule []Pricing
+
+// Clone returns a caller-owned copy of the complete rate card.
+func (schedule PricingSchedule) Clone() PricingSchedule {
+	return slices.Clone(schedule)
+}
+
 // Usage is the provider-neutral token breakdown required for pricing.
 type Usage struct {
 	InputTokens           int64
@@ -20,15 +31,15 @@ type Usage struct {
 	CacheWriteInputTokens int64
 }
 
-// CostOf selects the highest applicable pricing band and computes USD cost.
-func CostOf(bands []Pricing, usage Usage) float64 {
-	if len(bands) == 0 {
+// Cost selects the highest applicable pricing band and computes USD cost.
+func (schedule PricingSchedule) Cost(usage Usage) float64 {
+	if len(schedule) == 0 {
 		return 0
 	}
-	band := bands[0]
-	for i := len(bands) - 1; i >= 0; i-- {
-		if usage.InputTokens >= bands[i].Threshold {
-			band = bands[i]
+	band := schedule[0]
+	for i := len(schedule) - 1; i >= 0; i-- {
+		if usage.InputTokens >= schedule[i].Threshold {
+			band = schedule[i]
 			break
 		}
 	}
