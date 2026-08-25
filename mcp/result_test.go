@@ -11,12 +11,20 @@ import (
 
 func TestRemoteResultContent(t *testing.T) {
 	tests := []struct {
-		name    string
-		content []sdkmcp.Content
-		want    string
+		name       string
+		content    []sdkmcp.Content
+		structured any
+		want       string
 	}{
 		{name: "empty"},
 		{name: "single text", content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "hi"}}, want: "hi"},
+		{name: "structured fallback", structured: map[string]any{"answer": 42}, want: `{"answer":42}`},
+		{
+			name:       "content precedes structured fallback",
+			content:    []sdkmcp.Content{&sdkmcp.TextContent{Text: "visible"}},
+			structured: map[string]any{"answer": 42},
+			want:       "visible",
+		},
 		{
 			name: "multiple",
 			content: []sdkmcp.Content{
@@ -31,7 +39,10 @@ func TestRemoteResultContent(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := (remoteResult{value: &sdkmcp.CallToolResult{Content: test.content}}).content()
+			got, err := (remoteResult{value: &sdkmcp.CallToolResult{
+				Content:           test.content,
+				StructuredContent: test.structured,
+			}}).content()
 			require.NoError(t, err)
 			if test.want != "" || len(test.content) == 0 {
 				assert.Equal(t, test.want, got)

@@ -27,7 +27,14 @@ func (r remoteResult) unwrap() (string, error) {
 
 func (r remoteResult) content() (string, error) {
 	if len(r.value.Content) == 0 {
-		return "", nil
+		if r.value.StructuredContent == nil {
+			return "", nil
+		}
+		encoded, err := json.Marshal(r.value.StructuredContent)
+		if err != nil {
+			return "", fmt.Errorf("mcp: encode structured tool content: %w", err)
+		}
+		return string(encoded), nil
 	}
 	if len(r.value.Content) == 1 {
 		if text, ok := r.value.Content[0].(*sdkmcp.TextContent); ok {
