@@ -102,6 +102,8 @@ P176 只收紧 Runtime internal Workspace Checkpoint：私有 Git command 统一
 
 P177 只收紧 Runtime internal Sandbox command writer：stdout/stderr 各自继续完整 drain、最多保留 256 KiB 并使用既有 truncation marker；私有 storage 不再通过匿名嵌入暴露 `io.ReaderFrom`，因此 `os/exec`/`io.Copy` 不能绕过 bounded `Write`。Sandbox Tool output shape、Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
 
+P178 只收紧 Runtime internal MCP stdio session teardown：`dial` 的 lifecycle release 现在是可报告错误的 cleanup；Unix command 在 Start 前独占 process group，context cancellation 与 session Close 后 cleanup 都终止整组后代，handshake failure、probe、replacement、detach 与 Host shutdown 共用该 owner。非 Unix 保持 direct-process termination。MCP config/operation/tool shape、Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval

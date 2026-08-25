@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 func TestStdioSessionCleanupKillsDescendants(t *testing.T) {
 	pidFile := t.TempDir() + "/descendant.pid"
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "process-owner-test", Version: "v1"}, nil)
-	session, cancel, err := dial(t.Context(), t.Context(), client, ServerConfig{
+	session, cleanup, err := dial(t.Context(), t.Context(), client, ServerConfig{
 		Name:      "process-owner-test",
 		Transport: TransportStdio,
 		Command:   os.Args[0],
@@ -53,7 +53,7 @@ func TestStdioSessionCleanupKillsDescendants(t *testing.T) {
 	}
 	defer func() {
 		_ = session.Close()
-		cancel()
+		_ = cleanup()
 	}()
 
 	pid := waitForStdioDescendantPID(t, pidFile)
@@ -66,7 +66,9 @@ func TestStdioSessionCleanupKillsDescendants(t *testing.T) {
 	if err := session.Close(); err != nil {
 		t.Fatalf("close session: %v", err)
 	}
-	cancel()
+	if err := cleanup(); err != nil {
+		t.Fatalf("cleanup session process: %v", err)
+	}
 	if waitForStdioProcessExit(pid, 2*time.Second) {
 		return
 	}

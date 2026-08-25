@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"sync/atomic"
@@ -132,7 +133,7 @@ func dial(
 	lifetime context.Context,
 	client *sdkmcp.Client,
 	cfg ServerConfig,
-) (*sdkmcp.ClientSession, context.CancelFunc, error) {
+) (*sdkmcp.ClientSession, sessionCleanup, error) {
 	if ctx == nil {
 		return nil, nil, errors.New("mcp: dial context is required")
 	}
@@ -145,6 +146,7 @@ func dial(
 	if client == nil {
 		return nil, nil, errors.New("mcp: client must not be nil")
 	}
+	var command *exec.Cmd
 	connect := func(sessionCtx context.Context) (*sdkmcp.ClientSession, error) {
 		switch cfg.Transport {
 		case TransportHTTP:
@@ -167,13 +169,34 @@ func dial(
 			if cfg.Dir != "" {
 				cmd.Dir = cfg.Dir
 			}
+			prepareStdioProcess(cmd)
+			command = cmd
 			return client.Connect(sessionCtx, &sdkmcp.CommandTransport{Command: cmd}, nil)
 		default:
 			return nil, fmt.Errorf("mcp: unknown transport %d", cfg.Transport)
 		}
 	}
-	return connectSession(ctx, lifetime, cfg.Timeout, connect)
+	session, cancelLifetime, err := connectSession(ctx, lifetime, cfg.Timeout, connect)
+	cleanup := sessionCleanup(func() error {
+		if cancelLifetime != nil {
+			cancelLifetime()
+		}
+		if command == nil {
+			return nil
+		}
+		err := stopStdioProcess(command)
+		if errors.Is(err, os.ErrProcessDone) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return nil, nil, errors.Join(err, cleanup())
+	}
+	return session, cleanup, nil
 }
+
+type sessionCleanup func() error
 
 // connectSession gives an MCP session a lifecycle distinct from the operation
 // that establishes it. Parent cancellation and the configured timeout still

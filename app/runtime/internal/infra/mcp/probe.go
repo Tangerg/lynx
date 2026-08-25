@@ -41,14 +41,13 @@ func probe(ctx context.Context, cfg ServerConfig) (err error) {
 	defer span.End()
 
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime-probe", Version: "v0.1.0"}, nil)
-	session, cancelSession, err := dial(ctx, ctx, client, cfg)
+	session, cleanupSession, err := dial(ctx, ctx, client, cfg)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	defer cancelSession()
 	defer func() {
-		if closeErr := session.Close(); closeErr != nil {
+		if closeErr := errors.Join(session.Close(), cleanupSession()); closeErr != nil {
 			recordCleanupError(ctx, closeErr)
 			err = errors.Join(err, closeErr)
 		}

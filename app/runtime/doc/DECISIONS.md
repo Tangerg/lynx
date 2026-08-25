@@ -686,3 +686,10 @@
 - 背景：Sandbox command 已声明 stdout/stderr 各只保留 256 KiB，但私有 `limitedBuffer` 匿名嵌入 `bytes.Buffer`，因此自动提升了 `ReadFrom`。`os/exec` 为非文件 writer 建立 pipe 后使用 `io.Copy`；其 source file 的 generic fallback 会优先调用 destination `ReadFrom`，完全绕过 `limitedBuffer.Write`。失败优先反例 `05580d624` 直接通过同一 method dispatch 写入 512 KiB，旧实现全部保留且 `dropped=0`，证明 timeout、truncation marker 与事后读取都没有拥有驻留上限。
 - 决策：Sandbox runner 保留单一 `limitedBuffer` owner，但把 `bytes.Buffer` 改为私有命名字段；生产类型不再实现 `io.ReaderFrom`，所有 pipe copy 只能经过返回完整 consumed length 的 bounded `Write`。每条 stream 最多保留 256 KiB，其余 bytes 继续 drain 并准确累计到既有 marker；不新增 process facade、shared generic writer、配置旋钮或 output compatibility shape。
 - 后果：任意 stdout/stderr 体积不再通过标准库 fast path 扩大 Runtime 驻留，Seatbelt process-group cancellation、`WaitDelay`、exit classification、duration 和 Tool output shape 保持。行为测试同时守住 method set 与 `io.Copy` 结果，不用历史文件位置或局部变量 AST marker 代替真实回归。app2 没有提供该隐藏方法集证据，本批沿用其“资源 owner 必须可审查”的经验并补足原版具体 process boundary。
+
+## ADR-RT-097：MCP stdio session 必须拥有派生进程生命周期
+
+- 状态：已接受并实施，P178 完成；只修改 `app/runtime` internal MCP process/session owner、测试与文档，公共 Protocol、Artifact、SQLite、公共 Go API、Desktop source、Wails binding、Agent Framework 与 CLI 不变。
+- 背景：go-sdk `CommandTransport.Close` 关闭 stdin 后只对直接子进程发送 TERM/KILL，Runtime 又在 `ClientSession.Close` 返回后才取消 session context。失败优先反例 `39146fd5c` 启动真实 MCP stdio server 并让它派生长期后代；旧 teardown 正常返回后该后代仍存活，证明 session ledger 只拥有 wire/leader，不拥有它启动的完整资源树。
+- 决策：`dial` 返回 fallible `sessionCleanup`，而不是把 process ownership 压缩成无错误 `context.CancelFunc`。Unix stdio command 在 Start 前建立独立 process group，并把 `CommandContext.Cancel` 指向整组终止；session ledger 与 throwaway probe 都按 `ClientSession.Close` → lifetime cancel → final process cleanup 的唯一顺序执行并合并诊断。握手失败也立即运行同一 cleanup；HTTP session 只取消 lifetime，不虚构进程 owner。
+- 后果：detach、replacement、probe、握手失败与 Host shutdown 不再把 package runner/MCP server 的后代留在宿主机；重复 cleanup 对已退出进程幂等。保留 go-sdk 的协议与 graceful-close owner，不复制 JSON-RPC transport、进程 facade、supervisor、配置旋钮或兼容路径；非 Unix 平台保持原有 direct-process termination，Unix 的完整后代语义由真实 subprocess 回归覆盖。

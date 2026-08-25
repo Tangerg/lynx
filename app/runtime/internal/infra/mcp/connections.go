@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -106,7 +107,7 @@ func (c *Connections) find(name string) *server {
 	return nil
 }
 
-func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession, cancel context.CancelFunc) {
+func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession, cleanup sessionCleanup) {
 	if session == nil {
 		return
 	}
@@ -115,8 +116,7 @@ func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession, cancel con
 	}
 	if c.sessions[session] == nil {
 		c.sessions[session] = &ownedSession{closeFn: func() error {
-			defer cancel()
-			return session.Close()
+			return errors.Join(session.Close(), cleanup())
 		}}
 	}
 }

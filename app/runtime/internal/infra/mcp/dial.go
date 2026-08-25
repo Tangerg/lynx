@@ -92,7 +92,7 @@ func Dial(
 	for _, srv := range servers {
 		configuredServer := &server{config: srv, oauth: srv.OAuthHandler}
 		configuredServer.config.OAuthHandler = nil
-		session, cancelSession, derr := dial(ctx, lifetime, client, srv)
+		session, cleanupSession, derr := dial(ctx, lifetime, client, srv)
 		if derr != nil {
 			configuredServer.state = dialStatus(derr)
 			if configuredServer.state == mcpserver.ConnectionNeedsAuth {
@@ -102,7 +102,7 @@ func Dial(
 			c.servers = append(c.servers, configuredServer)
 			continue
 		}
-		c.ownSessionLocked(session, cancelSession)
+		c.ownSessionLocked(session, cleanupSession)
 		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
 		if terr == nil {
 			terr = validateToolCatalog(c.servers, nil, srv.Name, srcTools)

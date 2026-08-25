@@ -185,7 +185,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 // just-authorized handler for this session's later reconnects; the plain dials
 // reuse an existing one and pass false).
 func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, keepHandler bool) error {
-	session, cancelSession, err := dial(attempt.ctx, c.lifetime, c.client, cfg)
+	session, cleanupSession, err := dial(attempt.ctx, c.lifetime, c.client, cfg)
 	var verifiedTools []toolcontract.Tool
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
@@ -193,7 +193,7 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	}
 
 	c.mu.Lock()
-	c.ownSessionLocked(session, cancelSession)
+	c.ownSessionLocked(session, cleanupSession)
 	current := c.currentAttempt(attempt)
 	closed := c.closed
 	if closed || !current {

@@ -106,6 +106,20 @@ func TestDialNilClient(t *testing.T) {
 	assert.Contains(t, err.Error(), "client must not be nil")
 }
 
+func TestDialConnectionFailureSettlesAbsentLifetimeCleanup(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "failure-test", Version: "v1"}, nil)
+	_, cleanup, err := dial(t.Context(), t.Context(), client, ServerConfig{
+		Name: "x", Transport: TransportHTTP, Endpoint: server.URL,
+	})
+	require.Error(t, err)
+	assert.Nil(t, cleanup)
+}
+
 func TestHeaderHTTPClientSetsAuthorization(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

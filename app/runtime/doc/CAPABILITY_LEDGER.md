@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P177 已完成。
+> 状态：当前能力快照；P178 已完成。
 >
 > 基线日期：2026-08-25。
 
@@ -47,6 +47,7 @@
 - P175 让 Knowledge crash recovery 以 128-entry cancellable batches 完整扫描任意项目目录；Runtime production 已无 `os.ReadDir` 或 non-positive `File.ReadDir` 的完整目录物化。
 - P176 让 Workspace Checkpoint 复用唯一 bounded Git process owner，并在 index mutation 前守住 20k paths/512 MiB selection、64 KiB alternates 与 64 MiB source index；raw NUL path 不再 trim。
 - P177 让 Sandbox command 的 bounded writer 方法集与容量 owner 一致：stdout/stderr 各保留 256 KiB，私有 buffer composition 阻止 `io.ReaderFrom` fast path 绕过 `Write`。
+- P178 让 MCP stdio session ledger 同时拥有 subprocess cleanup：Unix command 独占 process group，正常 close、context cancel、dial failure、probe、replacement、detach 与 shutdown 都回收后代并保留 cleanup diagnostic。
 
 ## 2. 架构与所有权
 
@@ -353,6 +354,10 @@ P177 完成 Sandbox command output writer 的资源闭环。失败优先反例 `
 
 P177 封板通过 Sandbox 定向 test+race、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser、无临时检查器，所有验证进程均已 join，`app/desktop` 与 `app/cli` 零修改。
 
+P178 完成 MCP stdio 派生进程生命周期闭环。失败优先反例 `39146fd5c` 启动真实 SDK server 与长期后代，证明旧 `ClientSession.Close` + context cancel 只回收直接子进程。`dial` 现在返回 fallible session cleanup；Unix command 在 Start 前建立独立 process group，`CommandContext.Cancel` 与 Close 后 cleanup 都终止整组，session ledger 和 probe 将 cleanup error 与既有 one-shot close diagnostic 合并。HTTP session 仍只取消 lifetime；公共 Protocol/Artifact/SQLite/Go API/Desktop/Wails/Agent Framework/CLI 均不改变。
+
+P178 封板通过 MCP 定向 test+race、Unix 后代行为回归、Windows/Linux cross-build、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser，cross-build artifacts 与所有验证进程均已回收，`app/desktop` 与 `app/cli` 零修改。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -393,7 +398,7 @@ Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production packa
 
 ## 10. 当前结论
 
-P177 在既有 P0–P176 结论上闭合 Sandbox bounded writer 的方法集，标准库 `io.Copy` 不再绕过 retained-output owner。当前完成范围因此为 P0–P177。
+P178 在既有 P0–P177 结论上闭合 MCP stdio session 的 Unix 派生进程 owner，SDK wire close 不再被误当成完整资源 teardown。当前完成范围因此为 P0–P178。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 
