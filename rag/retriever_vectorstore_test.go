@@ -87,7 +87,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	q, err = rag.WithValue(q, rag.VectorStoreFilterValueKey(), parsed)
+	q, err = q.WithValue(rag.VectorStoreFilterValueKey(), parsed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestRetrieverUsesParsedQueryFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	q, err = rag.WithValue(q, rag.VectorStoreFilterValueKey(), parsed)
+	q, err = q.WithValue(rag.VectorStoreFilterValueKey(), parsed)
 	if err != nil {
 		t.Fatal(err)
 	}

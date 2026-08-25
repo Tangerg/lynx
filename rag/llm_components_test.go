@@ -74,7 +74,7 @@ func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("what is GOAP?")
-	q, err = rag.WithValue(q, routeKey, "docs")
+	q, err = q.WithValue(routeKey, "docs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, _, _ := rag.LookupValue(got, routeKey); v != "docs" {
+	if v, _, _ := got.Value(routeKey); v != "docs" {
 		t.Fatalf("query metadata was not preserved: route=%v", v)
 	}
 }
@@ -187,7 +187,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
-	q, err = rag.WithValue(q, routeKey, "docs")
+	q, err = q.WithValue(routeKey, "docs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	if got[0].Text() != "variant 1" {
 		t.Fatalf("first variant = %q", got[0].Text())
 	}
-	if v, _, _ := rag.LookupValue(got[0], routeKey); v != "docs" {
+	if v, _, _ := got[0].Value(routeKey); v != "docs" {
 		t.Fatalf("variant metadata was not preserved: route=%v", v)
 	}
 }
@@ -247,7 +247,7 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("follow-up")
-	q, err = rag.WithValue(q, rag.ChatHistoryValueKey(), []chat.Message{
+	q, err = q.WithValue(rag.ChatHistoryValueKey(), []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("first turn")),
 		chat.NewAssistantMessage(chat.NewTextPart("first reply")),
 	})

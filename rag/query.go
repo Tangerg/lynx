@@ -115,17 +115,17 @@ func (q *Query) Text() string {
 	return q.text
 }
 
-// LookupValue returns the value stored under key. Missing values are distinct
-// from invalid keys and same-name/different-type collisions.
-func LookupValue[T any](query *Query, key ValueKey[T]) (T, bool, error) {
+// Value returns the value stored under key. Missing values are distinct from
+// invalid keys and same-name/different-type collisions.
+func (q *Query) Value[T any](key ValueKey[T]) (T, bool, error) {
 	var zero T
-	if err := query.Validate(); err != nil {
+	if err := q.Validate(); err != nil {
 		return zero, false, err
 	}
 	if err := key.validate(); err != nil {
 		return zero, false, err
 	}
-	entry, found := query.values[key.name]
+	entry, found := q.values[key.name]
 	if !found {
 		return zero, false, nil
 	}
@@ -152,8 +152,8 @@ func LookupValue[T any](query *Query, key ValueKey[T]) (T, bool, error) {
 }
 
 // WithValue returns an independent query containing value under key.
-func WithValue[T any](query *Query, key ValueKey[T], value T) (*Query, error) {
-	if err := query.Validate(); err != nil {
+func (q *Query) WithValue[T any](key ValueKey[T], value T) (*Query, error) {
+	if err := q.Validate(); err != nil {
 		return nil, err
 	}
 	if err := key.validate(); err != nil {
@@ -162,7 +162,7 @@ func WithValue[T any](query *Query, key ValueKey[T], value T) (*Query, error) {
 	if isNil(value) {
 		return nil, fmt.Errorf("%w for %q", ErrNilQueryValue, key.name)
 	}
-	if current, found := query.values[key.name]; found && current.typ != key.typ {
+	if current, found := q.values[key.name]; found && current.typ != key.typ {
 		return nil, fmt.Errorf(
 			"%w for %q: stored %s, new %s",
 			ErrQueryValueTypeMismatch,
@@ -171,7 +171,7 @@ func WithValue[T any](query *Query, key ValueKey[T], value T) (*Query, error) {
 			key.typ,
 		)
 	}
-	clone := &Query{text: query.text, values: maps.Clone(query.values)}
+	clone := &Query{text: q.text, values: maps.Clone(q.values)}
 	if clone.values == nil {
 		clone.values = make(map[string]queryValue, 1)
 	}

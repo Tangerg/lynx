@@ -61,7 +61,7 @@
 //	    docsR, logsR rag.Retriever
 //	}
 //	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]Candidate, error) {
-//	    route, _, err := rag.LookupValue(q, routeKey)
+//	    route, _, err := q.Value(routeKey)
 //	    if err != nil {
 //	        return nil, err
 //	    }

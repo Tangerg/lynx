@@ -89,12 +89,12 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*chat.Request,
 	}
 
 	if len(prepared.Options.Extensions) != 0 {
-		query, err = WithValue(query, requestOptionsExtensionsValueKey, prepared.Options.Extensions.Clone())
+		query, err = query.WithValue(requestOptionsExtensionsValueKey, prepared.Options.Extensions.Clone())
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("rag: attach request Options extensions: %w", err)
 		}
 	}
-	query, err = WithValue(query, chatHistoryValueKey, slices.Clone(prepared.Messages))
+	query, err = query.WithValue(chatHistoryValueKey, slices.Clone(prepared.Messages))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("rag: attach chat history: %w", err)
 	}

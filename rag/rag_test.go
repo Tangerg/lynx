@@ -27,27 +27,27 @@ func TestQueryValidateRejectsZeroValue(t *testing.T) {
 func TestQueryValue(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
 
-	if value, found, err := rag.LookupValue(q, testQueryValueKey); err != nil || found || value != "" {
-		t.Fatalf("LookupValue(missing) = (%q, %v, %v)", value, found, err)
+	if value, found, err := q.Value(testQueryValueKey); err != nil || found || value != "" {
+		t.Fatalf("Value(missing) = (%q, %v, %v)", value, found, err)
 	}
-	q, err := rag.WithValue(q, testQueryValueKey, "v")
+	q, err := q.WithValue(testQueryValueKey, "v")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value, found, err := rag.LookupValue(q, testQueryValueKey); err != nil || !found || value != "v" {
-		t.Fatalf("LookupValue(test value) = (%q, %v, %v)", value, found, err)
+	if value, found, err := q.Value(testQueryValueKey); err != nil || !found || value != "v" {
+		t.Fatalf("Value(test value) = (%q, %v, %v)", value, found, err)
 	}
 }
 
 func TestWithValueReturnsIndependentQuery(t *testing.T) {
 	a, _ := rag.NewQuery("hi")
-	a, _ = rag.WithValue(a, testQueryValueKey, "v")
-	b, _ := rag.WithValue(a, testQueryValueKey, "modified")
+	a, _ = a.WithValue(testQueryValueKey, "v")
+	b, _ := a.WithValue(testQueryValueKey, "modified")
 
-	if value, _, _ := rag.LookupValue(a, testQueryValueKey); value != "v" {
+	if value, _, _ := a.Value(testQueryValueKey); value != "v" {
 		t.Fatalf("update leaked into source query: a.k = %v", value)
 	}
-	if value, _, _ := rag.LookupValue(b, testQueryValueKey); value != "modified" {
+	if value, _, _ := b.Value(testQueryValueKey); value != "modified" {
 		t.Fatalf("updated value = %v", value)
 	}
 }
@@ -58,16 +58,16 @@ func TestQueryValueKeyRejectsUntypedAndConflictingValues(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
-	q, _ = rag.WithValue(q, testQueryValueKey, "v")
+	q, _ = q.WithValue(testQueryValueKey, "v")
 	conflicting := rag.MustValueKey[int](testQueryValueKey.Name())
-	if _, err := rag.WithValue(q, conflicting, 1); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
+	if _, err := q.WithValue(conflicting, 1); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
 		t.Fatalf("WithValue conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
 	}
-	if _, _, err := rag.LookupValue(q, conflicting); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
+	if _, _, err := q.Value(conflicting); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
 		t.Fatalf("LookupValue conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
 	}
 	nilSliceKey := rag.MustValueKey[[]string]("nil slice")
-	if _, err := rag.WithValue(q, nilSliceKey, nil); !errors.Is(err, rag.ErrNilQueryValue) {
+	if _, err := q.WithValue(nilSliceKey, nil); !errors.Is(err, rag.ErrNilQueryValue) {
 		t.Fatalf("WithValue nil error = %v, want ErrNilQueryValue", err)
 	}
 }

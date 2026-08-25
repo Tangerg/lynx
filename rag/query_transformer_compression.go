@@ -102,7 +102,7 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 // [ChatHistoryValueKey] and renders them as one string.
 // Returns "" when the slot is missing.
 func (c *compressionTransformer) extractHistory(query *Query) (string, error) {
-	messages, exists, err := LookupValue(query, chatHistoryValueKey)
+	messages, exists, err := query.Value(chatHistoryValueKey)
 	if err != nil {
 		return "", fmt.Errorf("rag: read chat history: %w", err)
 	}

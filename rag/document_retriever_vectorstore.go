@@ -103,7 +103,7 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 // preferring the per-query [VectorStoreFilterValueKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
 func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
-	expression, exists, err := LookupValue(query, vectorStoreFilterValueKey)
+	expression, exists, err := query.Value(vectorStoreFilterValueKey)
 	if err != nil {
 		return nil, fmt.Errorf("rag: read vector-store filter: %w", err)
 	}
