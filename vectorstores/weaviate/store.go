@@ -45,6 +45,19 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceCosine:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	case DistanceDot:
+		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
+	case DistanceL2Squared, DistanceHamming, DistanceManhattan:
+		return vectorstore.ScoreFromDistance(distance)
+	default:
+		return vectorstore.ScoreFromValue(distance)
+	}
+}
+
 // StoreConfig contains configuration options for Weaviate vector store.
 type StoreConfig struct {
 	// Client is the Weaviate client instance.
@@ -382,7 +395,7 @@ func (s *Store) buildDocumentsFromResult(
 		if !ok {
 			return nil, fmt.Errorf("weaviate: result distance has type %T, want number", additional[additionalDistance])
 		}
-		score := s.normalizeDistance(distance)
+		score := s.distanceMetric.score(distance)
 		if score < minScore {
 			continue
 		}
@@ -403,19 +416,6 @@ func (s *Store) buildDocumentsFromResult(
 	}
 
 	return docs, nil
-}
-
-func (s *Store) normalizeDistance(distance float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceCosine:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	case DistanceDot:
-		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
-	case DistanceL2Squared, DistanceHamming, DistanceManhattan:
-		return vectorstore.ScoreFromDistance(distance)
-	default:
-		return vectorstore.ScoreFromValue(distance)
-	}
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {

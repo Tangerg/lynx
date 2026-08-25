@@ -38,6 +38,32 @@ const (
 	DistanceNegativeIP DistanceMetric = "NEGATIVE_INNER_PRODUCT"
 )
 
+func (metric DistanceMetric) function() string {
+	switch metric {
+	case DistanceL2:
+		return "VEC_L2_DISTANCE"
+	case DistanceNegativeIP:
+		return "VEC_NEGATIVE_INNER_PRODUCT"
+	case DistanceCosine:
+		fallthrough
+	default:
+		return "VEC_COSINE_DISTANCE"
+	}
+}
+
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceL2:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceNegativeIP:
+		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 // StoreConfig contains configuration options for the TiDB Vector
 // store (TiDB 7.4+ with vector support enabled).
 type StoreConfig struct {
@@ -190,7 +216,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	// TiDB's vector ANN index requires the function expression form.
 	idxStmt := fmt.Sprintf(
 		`CREATE VECTOR INDEX IF NOT EXISTS %s_idx ON %s ((%s(%s))) USING HNSW`,
-		s.tableName, s.fullTable, distanceFunc(s.distanceMetric), s.embeddingColumn,
+		s.tableName, s.fullTable, s.distanceMetric.function(), s.embeddingColumn,
 	)
 	if _, err := s.db.ExecContext(ctx, idxStmt); err != nil {
 		// Older TiDB versions may not yet support the HNSW vector
@@ -199,19 +225,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return fmt.Errorf("create vector index on %s: %w", s.fullTable, err)
 	}
 	return nil
-}
-
-func distanceFunc(metric DistanceMetric) string {
-	switch metric {
-	case DistanceL2:
-		return "VEC_L2_DISTANCE"
-	case DistanceNegativeIP:
-		return "VEC_NEGATIVE_INNER_PRODUCT"
-	case DistanceCosine:
-		fallthrough
-	default:
-		return "VEC_COSINE_DISTANCE"
-	}
 }
 
 // Index embeds documents and upserts them.
@@ -299,7 +312,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		wherePart = " AND " + wherePredicate
 	}
 
-	distExpr := fmt.Sprintf("%s(%s, ?)", distanceFunc(s.distanceMetric), s.embeddingColumn)
+	distExpr := fmt.Sprintf("%s(%s, ?)", s.distanceMetric.function(), s.embeddingColumn)
 	stmt := fmt.Sprintf(
 		`SELECT %s, %s, %s, %s AS distance FROM %s WHERE 1=1%s ORDER BY distance ASC LIMIT ?`,
 		s.idColumn, s.contentColumn, s.metadataColumn, distExpr,
@@ -328,7 +341,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		if err = rows.Scan(&id, &content, &metaRaw, &distance); err != nil {
 			return nil, fmt.Errorf("tidb: scan row: %w", err)
 		}
-		score := distanceToScore(s.distanceMetric, distance)
+		score := s.distanceMetric.score(distance)
 		if score < req.Options.MinScore {
 			continue
 		}
@@ -415,21 +428,6 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 }
 
 func (s *Store) Close() error { return nil }
-
-// distanceToScore maps a VEC_*_DISTANCE result onto a [0, 1]
-// similarity score.
-func distanceToScore(metric DistanceMetric, distance float64) vectorstore.Score {
-	switch metric {
-	case DistanceL2:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceNegativeIP:
-		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
-}
 
 func marshalMetadata(m metadata.Map) ([]byte, error) {
 	if m == nil {

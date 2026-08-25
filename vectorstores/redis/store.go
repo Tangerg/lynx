@@ -57,6 +57,20 @@ const (
 	DistanceIP DistanceMetric = "IP"
 )
 
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceL2:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceIP:
+		// Redis defines IP distance as 1-dot-product.
+		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 // IndexAlgorithm selects the RediSearch vector indexing algorithm.
 type IndexAlgorithm string
 
@@ -87,6 +101,19 @@ const (
 	// FieldNumeric — numeric range field.
 	FieldNumeric
 )
+
+func (fieldType MetadataFieldType) searchFieldType() goredis.SearchFieldType {
+	switch fieldType {
+	case FieldNumeric:
+		return goredis.SearchFieldTypeNumeric
+	case FieldText:
+		return goredis.SearchFieldTypeText
+	case FieldTag:
+		fallthrough
+	default:
+		return goredis.SearchFieldTypeTag
+	}
+}
 
 // MetadataField declares one filterable metadata key. the framework's
 // builder calls this a "MetadataField".
@@ -350,7 +377,7 @@ func (s *Store) buildSchema() []*goredis.FieldSchema {
 	for _, f := range s.metadataFields {
 		fs := &goredis.FieldSchema{
 			FieldName: f.Name,
-			FieldType: searchFieldType(f.Type),
+			FieldType: f.Type.searchFieldType(),
 			Sortable:  f.Sortable,
 		}
 		schema = append(schema, fs)
@@ -379,35 +406,6 @@ func (s *Store) vectorArgs() *goredis.FTVectorArgs {
 		}
 	}
 	return args
-}
-
-func searchFieldType(t MetadataFieldType) goredis.SearchFieldType {
-	switch t {
-	case FieldNumeric:
-		return goredis.SearchFieldTypeNumeric
-	case FieldText:
-		return goredis.SearchFieldTypeText
-	case FieldTag:
-		fallthrough
-	default:
-		return goredis.SearchFieldTypeTag
-	}
-}
-
-// distanceToScore maps the raw distance returned by RediSearch to a
-// "higher = more similar" score in [0, 1].
-func (s *Store) distanceToScore(distance float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceL2:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceIP:
-		// Redis defines IP distance as 1-dot-product.
-		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
 }
 
 // Index embeds documents and writes them as Redis HASHes keyed by
@@ -623,7 +621,7 @@ func (s *Store) scoreFromFields(fields map[string]string) (vectorstore.Score, er
 	if err != nil {
 		return 0, fmt.Errorf("redis: parse distance %q: %w", raw, err)
 	}
-	return s.distanceToScore(dist), nil
+	return s.distanceMetric.score(dist), nil
 }
 
 func (s *Store) toDocument(hit goredis.Document) (*document.Document, error) {

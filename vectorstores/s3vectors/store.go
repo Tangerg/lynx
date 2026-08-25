@@ -60,6 +60,17 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceEuclidean:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 func (c StoreConfig) Validate() error {
 	c.applyDefaults()
 	if c.Client == nil {
@@ -319,7 +330,7 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore vectorstore.Score)
 		return nil, errors.New("s3vectors: query result is missing distance")
 	}
 	doc := &document.Document{ID: *hit.Key}
-	score := s.distanceToScore(float64(*hit.Distance))
+	score := s.distanceMetric.score(float64(*hit.Distance))
 	if score < minScore {
 		return nil, nil
 	}
@@ -345,17 +356,6 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore vectorstore.Score)
 		return nil, errors.New("s3vectors: query result is missing document text metadata")
 	}
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
-}
-
-func (s *Store) distanceToScore(distance float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceEuclidean:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
 }
 
 func (s *Store) Close() error { return nil }

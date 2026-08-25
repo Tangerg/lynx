@@ -30,6 +30,20 @@ const (
 	SimilarityEuclidean SimilarityMetric = "euclidean"
 )
 
+func (metric SimilarityMetric) score(raw float64) vectorstore.Score {
+	switch metric {
+	case SimilarityCosine:
+		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
+		// then apply Lynx's [-1,1] to [0,1] normalization.
+		return vectorstore.ScoreFromCosineSimilarity(2 - 1/raw)
+	case SimilarityDot, SimilarityEuclidean:
+		// Azure documents both native vector scores as [0,1].
+		return vectorstore.ScoreFromValue(raw)
+	default:
+		return vectorstore.ScoreFromValue(raw)
+	}
+}
+
 const (
 	Provider = "AzureAISearch"
 
@@ -414,7 +428,7 @@ func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 	if !ok {
 		return nil, errors.New("azureaisearch: result is missing numeric @search.score")
 	}
-	score := s.normalizeScore(rawScore)
+	score := s.similarityMetric.score(rawScore)
 
 	// Metadata is everything except the reserved fields and the
 	// embedding vector itself.
@@ -436,20 +450,6 @@ func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 		}
 	}
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
-}
-
-func (s *Store) normalizeScore(raw float64) vectorstore.Score {
-	switch s.similarityMetric {
-	case SimilarityCosine:
-		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
-		// then apply Lynx's [-1,1] to [0,1] normalization.
-		return vectorstore.ScoreFromCosineSimilarity(2 - 1/raw)
-	case SimilarityDot, SimilarityEuclidean:
-		// Azure documents both native vector scores as [0,1].
-		return vectorstore.ScoreFromValue(raw)
-	default:
-		return vectorstore.ScoreFromValue(raw)
-	}
 }
 
 // do issues a JSON request to the Search REST surface and returns the

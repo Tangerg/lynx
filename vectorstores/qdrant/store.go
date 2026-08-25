@@ -33,6 +33,58 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
+func (metric DistanceMetric) qdrant() (qdrant.Distance, error) {
+	switch metric {
+	case DistanceCosine:
+		return qdrant.Distance_Cosine, nil
+	case DistanceDot:
+		return qdrant.Distance_Dot, nil
+	case DistanceEuclid:
+		return qdrant.Distance_Euclid, nil
+	case DistanceManhattan:
+		return qdrant.Distance_Manhattan, nil
+	default:
+		return qdrant.Distance_UnknownDistance, fmt.Errorf("%w, got %q", ErrInvalidDistanceMetric, metric)
+	}
+}
+
+func (metric DistanceMetric) score(raw float64) vectorstore.Score {
+	switch metric {
+	case DistanceDot:
+		return vectorstore.ScoreFromInnerProduct(raw)
+	case DistanceEuclid, DistanceManhattan:
+		return vectorstore.ScoreFromDistance(raw)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineSimilarity(raw)
+	}
+}
+
+// rawScoreThreshold converts Lynx's normalized minimum score back into the
+// collection metric. Qdrant interprets thresholds according to metric
+// direction, so Euclidean and Manhattan correctly use a maximum distance.
+func (metric DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
+	value := minScore.Float64()
+	if value <= vectorstore.MinSimilarityScore {
+		return 0, false
+	}
+
+	switch metric {
+	case DistanceDot:
+		if value >= vectorstore.MaxSimilarityScore {
+			return stdmath.MaxFloat32, true
+		}
+		return stdmath.Log(value / (1 - value)), true
+	case DistanceEuclid, DistanceManhattan:
+		return 1/value - 1, true
+	case DistanceCosine:
+		fallthrough
+	default:
+		return 2*value - 1, true
+	}
+}
+
 const (
 	// payloadDocumentContentKey is the payload key for saving document content
 	payloadDocumentContentKey = "lynx:ai:vectorstore:qdrant:payload_document_content"
@@ -292,7 +344,7 @@ func (s *Store) buildQueryPoints(ctx context.Context, req *vectorstore.SearchReq
 		Limit:          new(uint64(req.Options.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
-	if threshold, ok := s.rawScoreThreshold(req.Options.MinScore); ok {
+	if threshold, ok := s.distanceMetric.rawScoreThreshold(req.Options.MinScore); ok {
 		threshold32 := float32(max(-stdmath.MaxFloat32, min(stdmath.MaxFloat32, threshold)))
 		queryPoints.ScoreThreshold = &threshold32
 	}
@@ -407,7 +459,7 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 
 		docs = append(docs, &vectorstore.SearchResult{
 			Document: doc,
-			Score:    s.normalizeScore(float64(point.GetScore())),
+			Score:    s.distanceMetric.score(float64(point.GetScore())),
 		})
 	}
 
@@ -498,58 +550,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 func (s *Store) Close() error {
 	return s.client.Close()
-}
-
-func (m DistanceMetric) qdrant() (qdrant.Distance, error) {
-	switch m {
-	case DistanceCosine:
-		return qdrant.Distance_Cosine, nil
-	case DistanceDot:
-		return qdrant.Distance_Dot, nil
-	case DistanceEuclid:
-		return qdrant.Distance_Euclid, nil
-	case DistanceManhattan:
-		return qdrant.Distance_Manhattan, nil
-	default:
-		return qdrant.Distance_UnknownDistance, fmt.Errorf("%w, got %q", ErrInvalidDistanceMetric, m)
-	}
-}
-
-func (s *Store) normalizeScore(raw float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceDot:
-		return vectorstore.ScoreFromInnerProduct(raw)
-	case DistanceEuclid, DistanceManhattan:
-		return vectorstore.ScoreFromDistance(raw)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineSimilarity(raw)
-	}
-}
-
-// rawScoreThreshold converts Lynx's normalized minimum score back into the
-// collection metric. Qdrant interprets thresholds according to metric
-// direction, so Euclidean and Manhattan correctly use a maximum distance.
-func (s *Store) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
-	value := minScore.Float64()
-	if value <= vectorstore.MinSimilarityScore {
-		return 0, false
-	}
-
-	switch s.distanceMetric {
-	case DistanceDot:
-		if value >= vectorstore.MaxSimilarityScore {
-			return stdmath.MaxFloat32, true
-		}
-		return stdmath.Log(value / (1 - value)), true
-	case DistanceEuclid, DistanceManhattan:
-		return 1/value - 1, true
-	case DistanceCosine:
-		fallthrough
-	default:
-		return 2*value - 1, true
-	}
 }
 
 func parsePointID(id string) (*qdrant.PointId, error) {

@@ -95,11 +95,8 @@ func (d DistanceMetric) operator() string {
 	}
 }
 
-// distanceToScore maps the raw distance returned by pgvector onto a
-// "higher = more similar" score in [0, 1], matching the rest of the
-// lynx vectorstore providers.
-func (s *Store) distanceToScore(distance float64) vectorstore.Score {
-	switch s.distanceMetric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceL2:
 		return vectorstore.ScoreFromDistance(distance)
 	case DistanceIP:
@@ -231,7 +228,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			return nil, fmt.Errorf("%s.Store.Search: scan row: %w", s.provider, err)
 		}
 
-		score := s.distanceToScore(distance)
+		score := s.distanceMetric.score(distance)
 		if score < req.Options.MinScore {
 			continue
 		}

@@ -34,6 +34,19 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
+func (metric DistanceMetric) score(raw float64) vectorstore.Score {
+	switch metric {
+	case DistanceCosine:
+		return vectorstore.ScoreFromCosineSimilarity(raw)
+	case DistanceDot:
+		return vectorstore.ScoreFromInnerProduct(raw)
+	case DistanceEuclidean:
+		return vectorstore.ScoreFromDistance(raw)
+	default:
+		return vectorstore.ScoreFromValue(raw)
+	}
+}
+
 // StoreConfig contains configuration options for Pinecone vector store.
 type StoreConfig struct {
 	// Client is the Pinecone client instance.
@@ -126,19 +139,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-func (s *Store) normalizeScore(raw float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceCosine:
-		return vectorstore.ScoreFromCosineSimilarity(raw)
-	case DistanceDot:
-		return vectorstore.ScoreFromInnerProduct(raw)
-	case DistanceEuclidean:
-		return vectorstore.ScoreFromDistance(raw)
-	default:
-		return vectorstore.ScoreFromValue(raw)
-	}
-}
-
 func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
 	result := make([]*pinecone.Vector, len(docs))
 
@@ -211,7 +211,7 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 		if sv == nil || sv.Vector == nil {
 			return nil, fmt.Errorf("pinecone: query result %d is missing its vector record", i)
 		}
-		score := s.normalizeScore(float64(sv.Score))
+		score := s.distanceMetric.score(float64(sv.Score))
 		if score < minScore {
 			continue
 		}

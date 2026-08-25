@@ -54,6 +54,27 @@ const (
 	SpaceTypeLInf SpaceType = "linf"
 )
 
+func (space SpaceType) score(raw float64) vectorstore.Score {
+	if space != SpaceTypeIP {
+		// OpenSearch already maps cosine and distance spaces to [0,1].
+		return vectorstore.ScoreFromValue(raw)
+	}
+
+	// For every supported engine, inner-product scores above 1 encode a
+	// positive product as product+1. Scores at or below 1 encode a
+	// non-positive product as 1/(1-product). Recover the product before
+	// applying Lynx's unbounded inner-product normalization.
+	var product float64
+	if raw > 1 {
+		product = raw - 1
+	} else if raw > 0 {
+		product = 1 - 1/raw
+	} else {
+		return vectorstore.ScoreFromValue(raw)
+	}
+	return vectorstore.ScoreFromInnerProduct(product)
+}
+
 // Engine selects the underlying ANN library that backs the knn_vector
 // field. Lucene is the default — it ships with every recent OpenSearch
 // release and supports cosine / l2 / innerproduct. The nmslib and
@@ -454,7 +475,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	docs = make([]*vectorstore.SearchResult, 0, len(resp.Hits.Hits))
 	for _, hit := range resp.Hits.Hits {
-		score := s.normalizeScore(float64(hit.Score))
+		score := s.spaceType.score(float64(hit.Score))
 		if score < req.Options.MinScore {
 			continue
 		}
@@ -465,27 +486,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		docs = append(docs, &vectorstore.SearchResult{Document: doc, Score: score})
 	}
 	return &vectorstore.SearchResponse{Results: docs}, nil
-}
-
-func (s *Store) normalizeScore(raw float64) vectorstore.Score {
-	if s.spaceType != SpaceTypeIP {
-		// OpenSearch already maps cosine and distance spaces to [0,1].
-		return vectorstore.ScoreFromValue(raw)
-	}
-
-	// For every supported engine, inner-product scores above 1 encode a
-	// positive product as product+1. Scores at or below 1 encode a
-	// non-positive product as 1/(1-product). Recover the product before
-	// applying Lynx's unbounded inner-product normalization.
-	var product float64
-	if raw > 1 {
-		product = raw - 1
-	} else if raw > 0 {
-		product = 1 - 1/raw
-	} else {
-		return vectorstore.ScoreFromValue(raw)
-	}
-	return vectorstore.ScoreFromInnerProduct(product)
 }
 
 // Delete removes documents matching the filter expression via

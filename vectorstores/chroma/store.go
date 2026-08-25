@@ -32,6 +32,22 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
+// score converts a Chroma distance value into a similarity score in which
+// higher values indicate greater similarity.
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceCosine:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	case DistanceL2:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceIP:
+		// Chroma reports 1 - inner product as a distance.
+		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
+	default:
+		return vectorstore.ScoreFromValue(distance)
+	}
+}
+
 // StoreConfig contains configuration options for the Chroma vector store.
 type StoreConfig struct {
 	// Client is the Chroma HTTP client.
@@ -156,25 +172,6 @@ func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 
 	s.collection = col
 	return nil
-}
-
-// distanceToScore converts a Chroma distance value into a similarity score
-// in which higher values indicate greater similarity.
-//
-// Chroma returns distances (lower = more similar) for cosine and L2 metrics.
-// For IP it returns inner-product values (higher = more similar).
-func (s *Store) distanceToScore(distance float64) vectorstore.Score {
-	switch s.distanceMetric {
-	case DistanceCosine:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	case DistanceL2:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceIP:
-		// Chroma reports 1 - inner product as a distance.
-		return vectorstore.ScoreFromOneMinusInnerProductDistance(distance)
-	default:
-		return vectorstore.ScoreFromValue(distance)
-	}
 }
 
 // metadataToMap converts a Chroma DocumentMetadata into a plain map.
@@ -361,7 +358,7 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore vectors
 			return nil, fmt.Errorf("chroma: query result %d is missing ID", i)
 		}
 		distance := float64(distGroup[i])
-		score := s.distanceToScore(distance)
+		score := s.distanceMetric.score(distance)
 		if score < minScore {
 			continue
 		}

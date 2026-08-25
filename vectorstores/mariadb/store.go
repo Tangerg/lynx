@@ -41,6 +41,17 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceEuclidean:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 // StoreConfig contains configuration options for the MariaDB vector
 // store.
 type StoreConfig struct {
@@ -350,7 +361,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			return nil, fmt.Errorf("mariadb: scan row: %w", err)
 		}
 
-		score := distanceToScore(s.distanceMetric, distance)
+		score := s.distanceMetric.score(distance)
 		if score < req.Options.MinScore {
 			continue
 		}
@@ -441,19 +452,6 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 }
 
 func (s *Store) Close() error { return nil }
-
-// distanceToScore maps a vec_distance_* result into a [0, 1]
-// similarity score.
-func distanceToScore(metric DistanceMetric, distance float64) vectorstore.Score {
-	switch metric {
-	case DistanceEuclidean:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
-}
 
 func marshalMetadata(m metadata.Map) ([]byte, error) {
 	if m == nil {

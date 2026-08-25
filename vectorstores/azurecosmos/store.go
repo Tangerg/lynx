@@ -39,6 +39,19 @@ const (
 	DistanceEuclidean  DistanceFunction = "euclidean"
 )
 
+func (function DistanceFunction) score(raw float64) vectorstore.Score {
+	switch function {
+	case DistanceEuclidean:
+		return vectorstore.ScoreFromDistance(raw)
+	case DistanceDotProduct:
+		return vectorstore.ScoreFromInnerProduct(raw)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineSimilarity(raw)
+	}
+}
+
 // StoreConfig contains configuration options for the Azure Cosmos DB
 // NoSQL vector store.
 type StoreConfig struct {
@@ -123,7 +136,7 @@ type Store struct {
 	partitionKeyPath string
 	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
-	distanceFunc     DistanceFunction
+	distanceFunction DistanceFunction
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
@@ -146,7 +159,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 		partitionKeyPath: config.PartitionKeyPath,
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
-		distanceFunc:     config.DistanceFunction,
+		distanceFunction: config.DistanceFunction,
 	}, nil
 }
 
@@ -224,7 +237,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	distanceCall := fmt.Sprintf("VectorDistance(c.%s, @queryVec, false, {'distanceFunction':'%s'})",
-		s.embeddingField, s.distanceFunc)
+		s.embeddingField, s.distanceFunction)
 
 	query := fmt.Sprintf(
 		"SELECT TOP @topK c.%s AS _id, c.%s AS _content, c.%s AS _metadata, %s AS _vector_score FROM c%s ORDER BY %s",
@@ -339,7 +352,7 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore vectorstore.Score) (*vec
 	if row.VectorScore == nil {
 		return nil, errors.New("azurecosmos: result is missing numeric _vector_score")
 	}
-	score := s.normalizeScore(*row.VectorScore)
+	score := s.distanceFunction.score(*row.VectorScore)
 	if score < minScore {
 		return nil, nil
 	}
@@ -357,19 +370,6 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore vectorstore.Score) (*vec
 		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: metadata},
 		Score:    score,
 	}, nil
-}
-
-func (s *Store) normalizeScore(raw float64) vectorstore.Score {
-	switch s.distanceFunc {
-	case DistanceEuclidean:
-		return vectorstore.ScoreFromDistance(raw)
-	case DistanceDotProduct:
-		return vectorstore.ScoreFromInnerProduct(raw)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineSimilarity(raw)
-	}
 }
 
 func (s *Store) Close() error { return nil }

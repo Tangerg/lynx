@@ -47,6 +47,21 @@ const (
 	DistanceDot DistanceMetric = "DOT"
 )
 
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceEuclidean:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceDot:
+		// Oracle defines VECTOR_DISTANCE(..., DOT) as the negative inner
+		// product, not as a bounded similarity.
+		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 // StoreConfig contains configuration options for the Oracle 23ai
 // vector store.
 type StoreConfig struct {
@@ -354,7 +369,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			return nil, fmt.Errorf("oracle: scan row: %w", err)
 		}
 
-		score := distanceToScore(s.distanceMetric, distance)
+		score := s.distanceMetric.score(distance)
 		if score < req.Options.MinScore {
 			continue
 		}
@@ -478,23 +493,6 @@ func renumberPlaceholders(fragment string, offset int) string {
 }
 
 func (s *Store) Close() error { return nil }
-
-// distanceToScore maps a VECTOR_DISTANCE result onto a [0, 1]
-// similarity score consistent with the rest of the lynx providers.
-func distanceToScore(metric DistanceMetric, distance float64) vectorstore.Score {
-	switch metric {
-	case DistanceEuclidean:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceDot:
-		// Oracle defines VECTOR_DISTANCE(..., DOT) as the negative inner
-		// product, not as a bounded similarity.
-		return vectorstore.ScoreFromNegativeInnerProductDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
-}
 
 func marshalMetadata(m metadata.Map) ([]byte, error) {
 	if m == nil {

@@ -43,6 +43,28 @@ const (
 	DistanceL2 DistanceMetric = "l2"
 )
 
+func (metric DistanceMetric) function() string {
+	switch metric {
+	case DistanceL2:
+		return "L2Distance"
+	case DistanceCosine:
+		fallthrough
+	default:
+		return "cosineDistance"
+	}
+}
+
+func (metric DistanceMetric) score(distance float64) vectorstore.Score {
+	switch metric {
+	case DistanceL2:
+		return vectorstore.ScoreFromDistance(distance)
+	case DistanceCosine:
+		fallthrough
+	default:
+		return vectorstore.ScoreFromCosineDistance(distance)
+	}
+}
+
 // StoreConfig contains configuration options for the ClickHouse
 // vector store. The default schema uses `Map(String, String)` for
 // metadata to keep the visitor's column-subscript syntax simple;
@@ -198,37 +220,13 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		s.metadataColumn,
 		s.embeddingColumn,
 		s.embeddingColumn, s.dimensions,
-		s.embeddingColumn, indexDistance(s.distanceMetric), s.dimensions,
+		s.embeddingColumn, s.distanceMetric.function(), s.dimensions,
 		s.idColumn,
 	)
 	if err := s.conn.Exec(ctx, stmt); err != nil {
 		return fmt.Errorf("create table %s: %w", s.fullTable, err)
 	}
 	return nil
-}
-
-// indexDistance maps a DistanceMetric to ClickHouse's
-// vector_similarity index distance parameter name.
-func indexDistance(metric DistanceMetric) string {
-	switch metric {
-	case DistanceL2:
-		return "L2Distance"
-	case DistanceCosine:
-		fallthrough
-	default:
-		return "cosineDistance"
-	}
-}
-
-func distanceFunc(metric DistanceMetric) string {
-	switch metric {
-	case DistanceL2:
-		return "L2Distance"
-	case DistanceCosine:
-		fallthrough
-	default:
-		return "cosineDistance"
-	}
 }
 
 // Index embeds documents and inserts them as a single batch.
@@ -313,7 +311,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	stmt := fmt.Sprintf(
 		`SELECT %s, %s, %s, %s(%s, ?) AS distance FROM %s WHERE 1=1%s ORDER BY distance ASC LIMIT ?`,
 		s.idColumn, s.contentColumn, s.metadataColumn,
-		distanceFunc(s.distanceMetric), s.embeddingColumn,
+		s.distanceMetric.function(), s.embeddingColumn,
 		s.fullTable, wherePart,
 	)
 
@@ -339,7 +337,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		if err := rows.Scan(&id, &content, &metaRaw, &distance); err != nil {
 			return nil, fmt.Errorf("clickhouse: scan row: %w", err)
 		}
-		score := distanceToScore(s.distanceMetric, distance)
+		score := s.distanceMetric.score(distance)
 		if score < req.Options.MinScore {
 			continue
 		}
@@ -433,18 +431,6 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 }
 
 func (s *Store) Close() error { return nil }
-
-// distanceToScore maps a raw distance onto a [0, 1] similarity score.
-func distanceToScore(metric DistanceMetric, distance float64) vectorstore.Score {
-	switch metric {
-	case DistanceL2:
-		return vectorstore.ScoreFromDistance(distance)
-	case DistanceCosine:
-		fallthrough
-	default:
-		return vectorstore.ScoreFromCosineDistance(distance)
-	}
-}
 
 // metadataAsStringMap stringifies metadata values so they fit the
 // `Map(String, String)` column. Complex values get JSON-encoded.

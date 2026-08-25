@@ -34,6 +34,17 @@ const (
 	DistanceIP     DistanceMetric = "ip"
 )
 
+func (metric DistanceMetric) indexOpClass() string {
+	switch metric {
+	case DistanceL2:
+		return "vector_l2_ops"
+	case DistanceIP:
+		return "vector_ip_ops"
+	default:
+		return "vector_cosine_ops"
+	}
+}
+
 // StoreConfig configures a native CockroachDB vector store.
 type StoreConfig struct {
 	Pool             *pgxpool.Pool
@@ -152,22 +163,11 @@ func initialize(ctx context.Context, config StoreConfig) error {
 		%s JSONB,
 		embedding VECTOR(%d),
 		VECTOR INDEX %s (embedding %s)
-	)`, fullTable, config.MetadataColumn, dimensions, config.IndexName, indexOpClass(config.DistanceMetric))
+	)`, fullTable, config.MetadataColumn, dimensions, config.IndexName, config.DistanceMetric.indexOpClass())
 	if _, err := config.Pool.Exec(ctx, statement); err != nil {
 		return fmt.Errorf("create table %s: %w", fullTable, err)
 	}
 	return nil
-}
-
-func indexOpClass(metric DistanceMetric) string {
-	switch metric {
-	case DistanceL2:
-		return "vector_l2_ops"
-	case DistanceIP:
-		return "vector_ip_ops"
-	default:
-		return "vector_cosine_ops"
-	}
 }
 
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) error {
