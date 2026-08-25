@@ -35,13 +35,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-// NewOpenAIChat constructs a Core chat adapter for Perplexity.
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func (config OpenAIChatConfig) Validate() error {
 	if config.APIKey == "" {
-		return nil, errors.New("perplexity: APIKey is required")
+		return errors.New("perplexity: APIKey is required")
 	}
 	if err := validateCoreOptions(config.DefaultOptions); err != nil {
-		return nil, fmt.Errorf("perplexity: DefaultOptions: %w", err)
+		return fmt.Errorf("perplexity: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
+// NewOpenAIChat constructs a Core chat adapter for Perplexity.
+func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := openai.NewCompatibleChat(
 		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient},

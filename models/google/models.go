@@ -103,11 +103,21 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("google: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("google: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 type OpenAIChat struct{ protocol *openaiprotocol.Chat }
 
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("google: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	model, err := openaiprotocol.NewCompatibleChat(
 		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},

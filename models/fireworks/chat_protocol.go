@@ -36,10 +36,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("fireworks: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("fireworks: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs a Core chat adapter for Fireworks.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("fireworks: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, openai.ReasoningContentReplayDialect("fireworks"))
 	if err != nil {

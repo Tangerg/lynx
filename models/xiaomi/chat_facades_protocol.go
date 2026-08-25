@@ -47,10 +47,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("xiaomi: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("xiaomi: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for MiMo.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("xiaomi: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	dialect := openai.ReasoningContentToolReplayDialect("xiaomi")
 	dialect.PrepareRequest = prepareOpenAIRequest
@@ -70,10 +80,20 @@ type AnthropicChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config AnthropicChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("xiaomi: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("xiaomi: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewAnthropicChat constructs an Anthropic-wire Core chat adapter for MiMo.
 func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("xiaomi: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "xiaomi"})
 	if err != nil {

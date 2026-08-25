@@ -3,6 +3,7 @@ package vertexai
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 
@@ -21,6 +22,19 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config ChatConfig) Validate() error {
+	if config.Project == "" {
+		return errors.New("vertexai: Project is required")
+	}
+	if config.Location == "" {
+		return errors.New("vertexai: Location is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("vertexai: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 var (
 	_ corechat.Model    = (*Chat)(nil)
 	_ corechat.Streamer = (*Chat)(nil)
@@ -31,11 +45,8 @@ type Chat struct{ protocol *google.Chat }
 // NewChat constructs a Core chat adapter backed by Vertex AI and Application
 // Default Credentials.
 func NewChat(cfg ChatConfig) (*Chat, error) {
-	if cfg.Project == "" {
-		return nil, errors.New("vertexai: Project is required")
-	}
-	if cfg.Location == "" {
-		return nil, errors.New("vertexai: Location is required")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := google.NewChat(google.ChatConfig{
 		Provider:       "vertexai",

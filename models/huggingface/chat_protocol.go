@@ -36,10 +36,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("huggingface: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("huggingface: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs a Core chat adapter for the Hugging Face router.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("huggingface: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, DefaultBaseURL), HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "huggingface"})
 	if err != nil {

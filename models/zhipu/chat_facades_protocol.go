@@ -47,10 +47,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("zhipu: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("zhipu: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Zhipu.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("zhipu: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, openai.ReasoningContentReplayDialect("zhipu"))
 	if err != nil {
@@ -67,10 +77,20 @@ type AnthropicChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config AnthropicChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("zhipu: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("zhipu: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewAnthropicChat constructs an Anthropic-wire Core chat adapter for Zhipu.
 func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("zhipu: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "zhipu"})
 	if err != nil {

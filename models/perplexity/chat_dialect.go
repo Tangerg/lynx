@@ -117,7 +117,7 @@ func prepareRequest(source *corechat.Request, target *openai.CompatibleRequest) 
 	if err != nil {
 		return err
 	}
-	if err := options.validate(target.Model(), target.Stream()); err != nil {
+	if err := options.ValidateFor(target.Model(), target.Stream()); err != nil {
 		return err
 	}
 	encoded, err := json.Marshal(options)
@@ -164,7 +164,7 @@ func validateCoreOptions(options corechat.Options) error {
 	return nil
 }
 
-func (options RequestOptions) validate(model string, stream bool) error {
+func (options RequestOptions) ValidateFor(model string, stream bool) error {
 	if err := validateEnum("search_mode", string(options.SearchMode), "web", "academic", "sec"); err != nil {
 		return err
 	}
@@ -223,14 +223,14 @@ func (options RequestOptions) validate(model string, stream bool) error {
 		return errors.New("image filters require return_images=true")
 	}
 	if options.WebSearchOptions != nil {
-		if err := options.WebSearchOptions.validate(model, stream); err != nil {
+		if err := options.WebSearchOptions.ValidateFor(model, stream); err != nil {
 			return fmt.Errorf("web_search_options: %w", err)
 		}
 	}
 	return nil
 }
 
-func (options WebSearchOptions) validate(model string, stream bool) error {
+func (options WebSearchOptions) ValidateFor(model string, stream bool) error {
 	if err := validateEnum("search_context_size", string(options.SearchContextSize), "low", "medium", "high"); err != nil {
 		return err
 	}
@@ -244,14 +244,14 @@ func (options WebSearchOptions) validate(model string, stream bool) error {
 		return fmt.Errorf("search_type %q requires streaming", options.SearchType)
 	}
 	if options.UserLocation != nil {
-		if err := options.UserLocation.validate(); err != nil {
+		if err := options.UserLocation.Validate(); err != nil {
 			return fmt.Errorf("user_location: %w", err)
 		}
 	}
 	return nil
 }
 
-func (location UserLocation) validate() error {
+func (location UserLocation) Validate() error {
 	if location.Country != "" && (len(location.Country) != 2 || strings.ToUpper(location.Country) != location.Country) {
 		return errors.New("country must be an uppercase ISO 3166-1 alpha-2 code")
 	}

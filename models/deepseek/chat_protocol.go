@@ -25,6 +25,19 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("deepseek: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
+	}
+	if err := (RequestOptions{}).ValidateFor(config.DefaultOptions, nil, false); err != nil {
+		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 var (
 	_ corechat.Model    = (*OpenAIChat)(nil)
 	_ corechat.Streamer = (*OpenAIChat)(nil)
@@ -37,11 +50,8 @@ type OpenAIChat struct {
 
 // NewOpenAIChat constructs a Core chat adapter for DeepSeek.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("deepseek: APIKey is required")
-	}
-	if err := (RequestOptions{}).validate(config.DefaultOptions, nil, false); err != nil {
-		return nil, fmt.Errorf("deepseek: DefaultOptions: %w", err)
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	dialect := openai.ReasoningContentToolReplayDialect("deepseek")
 	dialect.NativeOutputFormat = func(formatType corechat.OutputFormatType) bool {

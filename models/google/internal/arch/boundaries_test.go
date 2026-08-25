@@ -19,6 +19,10 @@ import (
 
 const modulePath = "github.com/Tangerg/lynx/models/google"
 
+type configValidator interface {
+	Validate() error
+}
+
 func TestProviderConstructorsCompile(t *testing.T) {
 	t.Parallel()
 
@@ -26,6 +30,15 @@ func TestProviderConstructorsCompile(t *testing.T) {
 		_ func(google.ChatConfig) (*google.Chat, error)             = google.NewChat
 		_ func(google.OpenAIChatConfig) (*google.OpenAIChat, error) = google.NewOpenAIChat
 		_ func(vertexai.ChatConfig) (*vertexai.Chat, error)         = vertexai.NewChat
+	)
+}
+
+func TestProviderConfigsValidate(t *testing.T) {
+	t.Parallel()
+	var (
+		_ configValidator = google.ChatConfig{}
+		_ configValidator = google.OpenAIChatConfig{}
+		_ configValidator = vertexai.ChatConfig{}
 	)
 }
 

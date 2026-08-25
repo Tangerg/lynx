@@ -37,8 +37,18 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("ollama: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Ollama.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	apiKey := config.APIKey
 	if apiKey == "" {
 		apiKey = "ollama"

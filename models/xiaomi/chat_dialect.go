@@ -25,7 +25,7 @@ type ChatRequestOptions struct {
 	Thinking ThinkingType `json:"thinking,omitempty"`
 }
 
-func (options ChatRequestOptions) validate() error {
+func (options ChatRequestOptions) Validate() error {
 	switch options.Thinking {
 	case "", ThinkingEnabled, ThinkingDisabled:
 		return nil
@@ -45,7 +45,7 @@ func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleReq
 	if !found {
 		return nil
 	}
-	if err := options.validate(); err != nil {
+	if err := options.Validate(); err != nil {
 		return fmt.Errorf("xiaomi: extension %q: %w", RequestExtensionKey, err)
 	}
 	if options.Thinking == "" {

@@ -35,10 +35,23 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config ChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("azureopenai: APIKey is required")
+	}
+	if _, err := normalizeBaseURL(config.BaseURL); err != nil {
+		return err
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("azureopenai: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewChat constructs a Core chat adapter for Azure OpenAI's v1 endpoint.
 func NewChat(config ChatConfig) (*Chat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("azureopenai: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	baseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {

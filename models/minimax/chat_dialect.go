@@ -40,7 +40,7 @@ type ChatRequestOptions struct {
 	ServiceTier    ServiceTier  `json:"service_tier,omitempty"`
 }
 
-func (options ChatRequestOptions) validate() error {
+func (options ChatRequestOptions) Validate() error {
 	switch options.Thinking {
 	case "", ThinkingAdaptive, ThinkingDisabled:
 	default:
@@ -62,7 +62,7 @@ func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleReq
 		return fmt.Errorf("minimax: extension %q: %w", RequestExtensionKey, err)
 	}
 	if found {
-		if err := extension.validate(); err != nil {
+		if err := extension.Validate(); err != nil {
 			return fmt.Errorf("minimax: extension %q: %w", RequestExtensionKey, err)
 		}
 	}

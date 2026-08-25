@@ -48,7 +48,7 @@ type ChatRequestOptions struct {
 	Partial          *bool           `json:"partial,omitempty"`
 }
 
-func (options ChatRequestOptions) validate(model string) error {
+func (options ChatRequestOptions) ValidateFor(model string) error {
 	if options.Thinking != nil {
 		switch options.Thinking.Type {
 		case ThinkingEnabled, ThinkingDisabled:
@@ -101,7 +101,7 @@ func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleReq
 	if !found {
 		return nil
 	}
-	if err := options.validate(target.Model()); err != nil {
+	if err := options.ValidateFor(target.Model()); err != nil {
 		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
 	}
 	if options.Thinking != nil {

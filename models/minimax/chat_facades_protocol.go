@@ -47,10 +47,20 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config OpenAIChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("minimax: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("minimax: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for MiniMax.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("minimax: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	reasoningDialect, err := openai.ReasoningDetailsDialect(openai.ReasoningDetailsConfig{
 		Provider:     "minimax",
@@ -80,10 +90,20 @@ type AnthropicChatConfig struct {
 	HTTPClient     *http.Client
 }
 
+func (config AnthropicChatConfig) Validate() error {
+	if config.APIKey == "" {
+		return errors.New("minimax: APIKey is required")
+	}
+	if err := config.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("minimax: DefaultOptions: %w", err)
+	}
+	return nil
+}
+
 // NewAnthropicChat constructs an Anthropic-wire Core chat adapter for MiniMax.
 func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
-	if config.APIKey == "" {
-		return nil, errors.New("minimax: APIKey is required")
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLIntlAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "minimax"})
 	if err != nil {

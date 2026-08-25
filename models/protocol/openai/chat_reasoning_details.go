@@ -28,25 +28,32 @@ type ReasoningDetailsConfig struct {
 	ReplayPlainText bool
 }
 
+func (config ReasoningDetailsConfig) Validate() error {
+	if strings.TrimSpace(config.Provider) == "" {
+		return errors.New("openai: reasoning details provider is required")
+	}
+	if strings.TrimSpace(config.Provider) != config.Provider {
+		return errors.New("openai: reasoning details provider must not have surrounding whitespace")
+	}
+	if len(config.Provider) > int(^uint16(0)) {
+		return errors.New("openai: reasoning details provider exceeds framing limit")
+	}
+	if config.TextField == "" {
+		return errors.New("openai: reasoning details text field is required")
+	}
+	if config.DetailsField == "" {
+		return errors.New("openai: reasoning details field is required")
+	}
+	return nil
+}
+
 // ReasoningDetailsDialect preserves structured reasoning details losslessly in
 // Core reasoning signatures. The resulting signatures are safe to concatenate
 // while accumulating streaming deltas and are replayed only to the provider
 // that produced them.
 func ReasoningDetailsDialect(config ReasoningDetailsConfig) (Dialect, error) {
-	if strings.TrimSpace(config.Provider) == "" {
-		return Dialect{}, errors.New("openai: reasoning details provider is required")
-	}
-	if strings.TrimSpace(config.Provider) != config.Provider {
-		return Dialect{}, errors.New("openai: reasoning details provider must not have surrounding whitespace")
-	}
-	if len(config.Provider) > int(^uint16(0)) {
-		return Dialect{}, errors.New("openai: reasoning details provider exceeds framing limit")
-	}
-	if config.TextField == "" {
-		return Dialect{}, errors.New("openai: reasoning details text field is required")
-	}
-	if config.DetailsField == "" {
-		return Dialect{}, errors.New("openai: reasoning details field is required")
+	if err := config.Validate(); err != nil {
+		return Dialect{}, err
 	}
 	codec := reasoningDetailsCodec{config: config}
 	return Dialect{Provider: config.Provider, request: codec, response: codec}, nil

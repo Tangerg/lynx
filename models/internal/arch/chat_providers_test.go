@@ -23,6 +23,10 @@ import (
 	"github.com/Tangerg/lynx/models/zhipu"
 )
 
+type configValidator interface {
+	Validate() error
+}
+
 func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 	t.Parallel()
 
@@ -51,5 +55,35 @@ func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 		_ func(xiaomi.AnthropicChatConfig) (*xiaomi.AnthropicChat, error)         = xiaomi.NewAnthropicChat
 		_ func(zhipu.OpenAIChatConfig) (*zhipu.OpenAIChat, error)                 = zhipu.NewOpenAIChat
 		_ func(zhipu.AnthropicChatConfig) (*zhipu.AnthropicChat, error)           = zhipu.NewAnthropicChat
+	)
+}
+
+func TestTargetChatProviderConfigsValidate(t *testing.T) {
+	t.Parallel()
+
+	var (
+		_ configValidator = alibaba.OpenAIChatConfig{}
+		_ configValidator = anthropic.ChatConfig{}
+		_ configValidator = anthropic.OpenAIChatConfig{}
+		_ configValidator = azureopenai.ChatConfig{}
+		_ configValidator = deepseek.OpenAIChatConfig{}
+		_ configValidator = fireworks.OpenAIChatConfig{}
+		_ configValidator = groq.OpenAIChatConfig{}
+		_ configValidator = huggingface.OpenAIChatConfig{}
+		_ configValidator = minimax.OpenAIChatConfig{}
+		_ configValidator = minimax.AnthropicChatConfig{}
+		_ configValidator = mistral.ChatConfig{}
+		_ configValidator = moonshot.OpenAIChatConfig{}
+		_ configValidator = moonshot.AnthropicChatConfig{}
+		_ configValidator = openai.ChatConfig{}
+		_ configValidator = openrouter.OpenAIChatConfig{}
+		_ configValidator = openrouter.AnthropicChatConfig{}
+		_ configValidator = perplexity.OpenAIChatConfig{}
+		_ configValidator = together.OpenAIChatConfig{}
+		_ configValidator = xai.OpenAIChatConfig{}
+		_ configValidator = xiaomi.OpenAIChatConfig{}
+		_ configValidator = xiaomi.AnthropicChatConfig{}
+		_ configValidator = zhipu.OpenAIChatConfig{}
+		_ configValidator = zhipu.AnthropicChatConfig{}
 	)
 }

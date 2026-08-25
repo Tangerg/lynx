@@ -35,7 +35,7 @@ const (
 	ReasoningEffortNone ReasoningEffort = "none"
 )
 
-func (effort ReasoningEffort) validate() error {
+func (effort ReasoningEffort) Validate() error {
 	switch effort {
 	case "", ReasoningEffortHigh, ReasoningEffortNone:
 		return nil
@@ -57,8 +57,8 @@ type ChatRequestOptions struct {
 	Guardrails        []json.RawMessage `json:"guardrails,omitempty"`
 }
 
-func (options ChatRequestOptions) validate() error {
-	if err := options.ReasoningEffort.validate(); err != nil {
+func (options ChatRequestOptions) Validate() error {
+	if err := options.ReasoningEffort.Validate(); err != nil {
 		return err
 	}
 	for name, raw := range map[string]json.RawMessage{
@@ -84,7 +84,7 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config ChatConfig) validate() error {
+func (config ChatConfig) Validate() error {
 	if config.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
@@ -108,7 +108,7 @@ type Chat struct {
 
 // NewChat constructs a Mistral Chat Completions adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := newAPI(apiConfig{
@@ -186,7 +186,7 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 		if _, exists := fields["response_format"]; exists {
 			return nil, fmt.Errorf("mistral: extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
 		}
-		if err := extension.validate(); err != nil {
+		if err := extension.Validate(); err != nil {
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 		}
 	}

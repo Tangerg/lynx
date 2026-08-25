@@ -28,6 +28,15 @@ type ThinkingConfig struct {
 	Type ThinkingMode `json:"type"`
 }
 
+func (config ThinkingConfig) Validate() error {
+	switch config.Type {
+	case ThinkingEnabled, ThinkingDisabled:
+		return nil
+	default:
+		return fmt.Errorf("thinking.type has unsupported value %q", config.Type)
+	}
+}
+
 // ReasoningEffort controls the amount of reasoning performed in thinking
 // mode. DeepSeek V4 Flash supports all three levels. V4 Pro currently accepts
 // low but maps it to high.
@@ -89,7 +98,7 @@ func (dialect requestDialect) prepareRequest(request *corechat.Request, target *
 	if err != nil {
 		return fmt.Errorf("options: %w", err)
 	}
-	if err := options.validate(effective, request.Tools, target.Stream()); err != nil {
+	if err := options.ValidateFor(effective, request.Tools, target.Stream()); err != nil {
 		return err
 	}
 
@@ -142,13 +151,11 @@ func (dialect requestDialect) prepareRequest(request *corechat.Request, target *
 	return nil
 }
 
-func (options RequestOptions) validate(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {
+func (options RequestOptions) ValidateFor(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {
 	thinkingEnabled := options.Thinking == nil || options.Thinking.Type != ThinkingDisabled
 	if options.Thinking != nil {
-		switch options.Thinking.Type {
-		case ThinkingEnabled, ThinkingDisabled:
-		default:
-			return fmt.Errorf("thinking.type has unsupported value %q", options.Thinking.Type)
+		if err := options.Thinking.Validate(); err != nil {
+			return err
 		}
 	}
 	switch options.ReasoningEffort {
@@ -178,7 +185,7 @@ func (options RequestOptions) validate(generation corechat.Options, tools []core
 		return errors.New("tools must contain at most 128 functions for DeepSeek")
 	}
 
-	if err := options.ToolChoice.validate(tools); err != nil {
+	if err := options.ToolChoice.ValidateFor(tools); err != nil {
 		return fmt.Errorf("tool_choice: %w", err)
 	}
 	if options.TopLogProbs != nil {
@@ -203,7 +210,7 @@ func (options RequestOptions) validate(generation corechat.Options, tools []core
 	return nil
 }
 
-func (choice *ToolChoice) validate(tools []corechat.ToolDefinition) error {
+func (choice *ToolChoice) ValidateFor(tools []corechat.ToolDefinition) error {
 	if choice == nil {
 		return nil
 	}
