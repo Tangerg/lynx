@@ -6,8 +6,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
@@ -16,8 +14,8 @@ import (
 // a single server's tools/list failure stays its own.
 func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]toolcontract.Tool, error) {
 	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolOptions{
-		Naming: func(server string, tool *sdkmcp.Tool) string {
-			return mcpserver.ToolName(server, tool.Name)
+		Naming: func(server, toolName string) string {
+			return mcpserver.ToolName(server, toolName)
 		},
 		Concurrency: lynxmcp.AnnotatedReadOnlyConcurrency,
 	})

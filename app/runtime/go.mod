@@ -7,7 +7,7 @@ require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
-	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71
 	github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570
