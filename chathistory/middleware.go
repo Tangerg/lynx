@@ -21,18 +21,18 @@ type Middleware struct {
 }
 
 // NewMiddleware constructs history middleware around store.
-func NewMiddleware(store ReadWriter) (*Middleware, error) {
+func NewMiddleware(store ReadWriter) (Middleware, error) {
 	if isNilCapability(store) {
-		return nil, ErrNilStore
+		return Middleware{}, ErrNilStore
 	}
-	return &Middleware{store: store}, nil
+	return Middleware{store: store}, nil
 }
 
-// Call is a [chat.CallMiddleware]. The first response choice is the canonical
-// history choice, matching [chat.Response.First] and [chat.Response.Text].
-func (m *Middleware) Call(next chat.Model) chat.Model {
+// Call is a [chat.CallMiddleware]. The response result is the canonical
+// assistant message persisted to history.
+func (m Middleware) Call(next chat.Model) chat.Model {
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-		conversationID, bound := ConversationID(ctx)
+		conversationID, bound := ConversationIDFromContext(ctx)
 		if !bound {
 			return next.Call(ctx, request)
 		}
@@ -45,7 +45,7 @@ func (m *Middleware) Call(next chat.Model) chat.Model {
 		if err != nil {
 			return response, err
 		}
-		assistant, persist := persistableAssistant(response)
+		assistant, persist := m.persistableAssistant(response)
 		if !persist {
 			return response, nil
 		}
@@ -59,12 +59,12 @@ func (m *Middleware) Call(next chat.Model) chat.Model {
 // Stream is a [chat.StreamMiddleware]. History I/O remains lazy: no read occurs
 // until the returned sequence is iterated. Fresh input and the accumulated
 // assistant response are persisted only after natural, error-free completion.
-func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
+func (m Middleware) Stream(next chat.Streamer) chat.Streamer {
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			conversationID, bound := ConversationID(ctx)
+			conversationID, bound := ConversationIDFromContext(ctx)
 			if !bound {
-				forward(next.Stream(ctx, request), yield)
+				m.forward(next.Stream(ctx, request), yield)
 				return
 			}
 
@@ -105,7 +105,7 @@ func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 				return
 			}
 
-			assistant, persist := persistableAssistant(accumulator.Response())
+			assistant, persist := m.persistableAssistant(accumulator.Response())
 			if !persist {
 				return
 			}
@@ -116,15 +116,15 @@ func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	})
 }
 
-func (m *Middleware) prepare(
+func (m Middleware) prepare(
 	ctx context.Context,
-	conversationID string,
+	conversationID ConversationID,
 	request *chat.Request,
 ) (*chat.Request, []chat.Message, error) {
-	if err := ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return nil, nil, err
 	}
-	prepared, err := snapshotRequest(request)
+	prepared, err := m.snapshotRequest(request)
 	if err != nil {
 		return nil, nil, fmt.Errorf("chathistory: middleware: prepare request: %w", err)
 	}
@@ -132,13 +132,13 @@ func (m *Middleware) prepare(
 	if err != nil {
 		return nil, nil, fmt.Errorf("chathistory: middleware: read history: %w", err)
 	}
-	stored, err = snapshotMessages(stored)
+	stored, err = historyMessages(stored).snapshot()
 	if err != nil {
 		return nil, nil, fmt.Errorf("chathistory: middleware: validate stored history: %w", err)
 	}
 
-	systems, fresh := splitMessages(prepared.Messages)
-	freshSnapshot, err := snapshotMessages(fresh)
+	systems, fresh := historyMessages(prepared.Messages).split()
+	freshSnapshot, err := fresh.snapshot()
 	if err != nil {
 		return nil, nil, fmt.Errorf("chathistory: middleware: snapshot fresh messages: %w", err)
 	}
@@ -156,9 +156,9 @@ func (m *Middleware) prepare(
 	return prepared, freshSnapshot, nil
 }
 
-func (m *Middleware) persist(
+func (m Middleware) persist(
 	ctx context.Context,
-	conversationID string,
+	conversationID ConversationID,
 	fresh []chat.Message,
 	assistant chat.Message,
 ) error {
@@ -171,7 +171,39 @@ func (m *Middleware) persist(
 	return nil
 }
 
-func splitMessages(messages []chat.Message) (systems, nonSystems []chat.Message) {
+func (m Middleware) snapshotRequest(request *chat.Request) (*chat.Request, error) {
+	if request == nil {
+		return nil, fmt.Errorf("%w: nil request", chat.ErrInvalidRequest)
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	return request.Clone(), nil
+}
+
+func (m Middleware) persistableAssistant(response *chat.Response) (chat.Message, bool) {
+	if response == nil || response.Result == nil || response.Result.Message == nil || response.Result.Message.Role != chat.RoleAssistant {
+		return chat.Message{}, false
+	}
+	for _, part := range response.Result.Message.Parts {
+		if part.Kind == chat.PartToolCall {
+			return chat.Message{}, false
+		}
+	}
+	return response.Result.Message.Clone(), true
+}
+
+func (m Middleware) forward(sequence iter.Seq2[*chat.Response, error], yield func(*chat.Response, error) bool) {
+	if sequence == nil {
+		yield(nil, ErrNilStream)
+		return
+	}
+	sequence(yield)
+}
+
+type historyMessages []chat.Message
+
+func (messages historyMessages) split() (systems, nonSystems historyMessages) {
 	systems = make([]chat.Message, 0, len(messages))
 	nonSystems = make([]chat.Message, 0, len(messages))
 	for _, message := range messages {
@@ -184,22 +216,13 @@ func splitMessages(messages []chat.Message) (systems, nonSystems []chat.Message)
 	return systems, nonSystems
 }
 
-func persistableAssistant(response *chat.Response) (chat.Message, bool) {
-	if response == nil || response.Result == nil || response.Result.Message == nil || response.Result.Message.Role != chat.RoleAssistant {
-		return chat.Message{}, false
-	}
-	for _, part := range response.Result.Message.Parts {
-		if part.Kind == chat.PartToolCall {
-			return chat.Message{}, false
+func (messages historyMessages) snapshot() ([]chat.Message, error) {
+	cloned := make([]chat.Message, len(messages))
+	for index := range messages {
+		if err := messages[index].Validate(); err != nil {
+			return nil, fmt.Errorf("chathistory: messages[%d]: %w", index, err)
 		}
+		cloned[index] = messages[index].Clone()
 	}
-	return response.Result.Message.Clone(), true
-}
-
-func forward(sequence iter.Seq2[*chat.Response, error], yield func(*chat.Response, error) bool) {
-	if sequence == nil {
-		yield(nil, ErrNilStream)
-		return
-	}
-	sequence(yield)
+	return cloned, nil
 }

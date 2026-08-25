@@ -10,24 +10,28 @@ import (
 )
 
 func TestConversationIDContextAndValidation(t *testing.T) {
-	if id, ok := chathistory.ConversationID(t.Context()); ok || id != "" {
+	if id, ok := chathistory.ConversationIDFromContext(t.Context()); ok || id != "" {
 		t.Fatalf("unbound context = %q/%v", id, ok)
 	}
 	ctx := chathistory.WithConversationID(t.Context(), "conversation-1")
-	if id, ok := chathistory.ConversationID(ctx); !ok || id != "conversation-1" {
+	if id, ok := chathistory.ConversationIDFromContext(ctx); !ok || id != "conversation-1" {
 		t.Fatalf("ConversationID = %q/%v", id, ok)
 	}
 	ctx = chathistory.WithConversationID(ctx, "")
-	if _, ok := chathistory.ConversationID(ctx); ok {
+	if _, ok := chathistory.ConversationIDFromContext(ctx); ok {
 		t.Fatal("empty child ID did not shadow parent")
 	}
 	for _, id := range []string{"", " padded", "padded ", "\tvalue", "value\x00", string([]byte{0xff})} {
-		if err := chathistory.ValidateConversationID(id); !errors.Is(err, chathistory.ErrInvalidConversationID) {
-			t.Fatalf("ValidateConversationID(%q) = %v", id, err)
+		if _, err := chathistory.NewConversationID(id); !errors.Is(err, chathistory.ErrInvalidConversationID) {
+			t.Fatalf("NewConversationID(%q) = %v", id, err)
 		}
 	}
-	if err := chathistory.ValidateConversationID("opaque/id:1"); err != nil {
+	conversationID, err := chathistory.NewConversationID("opaque/id:1")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if conversationID.String() != "opaque/id:1" {
+		t.Fatalf("ConversationID.String() = %q", conversationID.String())
 	}
 }
 
@@ -66,16 +70,16 @@ type basicStore struct {
 	clears   int
 }
 
-func (s *basicStore) Write(_ context.Context, _ string, messages ...chat.Message) error {
+func (s *basicStore) Write(_ context.Context, _ chathistory.ConversationID, messages ...chat.Message) error {
 	s.messages = append(s.messages, messages...)
 	return nil
 }
 
-func (s *basicStore) Read(context.Context, string) ([]chat.Message, error) {
+func (s *basicStore) Read(context.Context, chathistory.ConversationID) ([]chat.Message, error) {
 	return append([]chat.Message(nil), s.messages...), nil
 }
 
-func (s *basicStore) Clear(context.Context, string) error {
+func (s *basicStore) Clear(context.Context, chathistory.ConversationID) error {
 	s.clears++
 	s.messages = nil
 	return nil

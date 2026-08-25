@@ -107,11 +107,11 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 // Write appends every message under conversationID in one single-partition
 // unlogged batch. Client-generated TIMEUUIDs are strictly increasing within
 // one call; concurrent calls have no defined relative order.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -126,7 +126,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	sequenceBase := s.sequence.Reserve(len(encoded) * 100)
 	for index, raw := range encoded {
 		messageSequence := sequenceUUID(sequenceBase, index)
-		batch.Query(s.writeCQL, conversationID, messageSequence, string(raw))
+		batch.Query(s.writeCQL, conversationID.String(), messageSequence, string(raw))
 	}
 	if err = s.session.ExecuteBatch(batch); err != nil {
 		return fmt.Errorf("cassandra: write: execute batch: %w", err)
@@ -140,15 +140,15 @@ func sequenceUUID(base int64, index int) gocql.UUID {
 
 // Read returns every message stored under conversationID in
 // insertion order (TIMEUUID ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
-	iterator := s.session.Query(s.readCQL, conversationID).WithContext(ctx).Iter()
+	iterator := s.session.Query(s.readCQL, conversationID.String()).WithContext(ctx).Iter()
 	defer closeIterator(iterator, "read", &err)
 
 	storedMessages = []chat.Message{}
@@ -165,15 +165,15 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 }
 
 // Clear drops every row for conversationID. Unknown ids are a no-op.
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
-	if err = s.session.Query(s.clearCQL, conversationID).WithContext(ctx).Exec(); err != nil {
+	if err = s.session.Query(s.clearCQL, conversationID.String()).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("cassandra: clear: delete partition: %w", err)
 	}
 	return nil
@@ -183,7 +183,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 //
 // SELECT DISTINCT on the partition key reads only partition metadata,
 // so no ALLOW FILTERING is needed.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -191,13 +191,14 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	iterator := s.session.Query(s.listCQL).WithContext(ctx).Iter()
 	defer closeIterator(iterator, "list conversations", &err)
 
-	ids = []string{}
+	ids = []chathistory.ConversationID{}
 	var id string
 	for iterator.Scan(&id) {
-		if err := chathistory.ValidateConversationID(id); err != nil {
+		conversationID := chathistory.ConversationID(id)
+		if err := conversationID.Validate(); err != nil {
 			return nil, fmt.Errorf("cassandra: list conversations: invalid stored ID %q: %w", id, err)
 		}
-		ids = append(ids, id)
+		ids = append(ids, conversationID)
 	}
 	slices.Sort(ids)
 	return ids, nil

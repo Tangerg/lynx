@@ -428,7 +428,7 @@ type recordingStore struct {
 	writeCalls int
 }
 
-func (s *recordingStore) Read(context.Context, string) ([]chat.Message, error) {
+func (s *recordingStore) Read(context.Context, chathistory.ConversationID) ([]chat.Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.readCalls++
@@ -438,7 +438,7 @@ func (s *recordingStore) Read(context.Context, string) ([]chat.Message, error) {
 	return cloneMessages(s.read), nil
 }
 
-func (s *recordingStore) Write(_ context.Context, _ string, messages ...chat.Message) error {
+func (s *recordingStore) Write(_ context.Context, _ chathistory.ConversationID, messages ...chat.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeCalls++
@@ -490,7 +490,7 @@ func assertMessages(t *testing.T, messages []chat.Message, want ...messageKey) {
 	}
 }
 
-func mustMiddleware(t *testing.T, store chathistory.ReadWriter) *chathistory.Middleware {
+func mustMiddleware(t *testing.T, store chathistory.ReadWriter) chathistory.Middleware {
 	t.Helper()
 	middleware, err := chathistory.NewMiddleware(store)
 	if err != nil {

@@ -99,11 +99,11 @@ func (s *Store) initIndex(ctx context.Context) error {
 // Write creates a new node per message under conversationID. A reserved
 // sequence range preserves argument order and remains monotonic if the local
 // clock moves backward.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -118,7 +118,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	rows := make([]map[string]any, 0, len(encoded))
 	for index, raw := range encoded {
 		rows = append(rows, map[string]any{
-			fieldConversationID: conversationID,
+			fieldConversationID: conversationID.String(),
 			fieldSequence:       sequenceBase + int64(index),
 			fieldMessage:        string(raw),
 		})
@@ -146,11 +146,11 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order (seq ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -160,7 +160,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 	)
 	var result *neo4j.EagerResult
 	result, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
-		map[string]any{fieldConversationID: conversationID},
+		map[string]any{fieldConversationID: conversationID.String()},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
@@ -197,11 +197,11 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 
 // Clear deletes every node for conversationID under the configured
 // label. Unknown ids are a no-op.
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
@@ -210,7 +210,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		s.label,
 	)
 	_, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
-		map[string]any{fieldConversationID: conversationID},
+		map[string]any{fieldConversationID: conversationID.String()},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
 	)
@@ -221,7 +221,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 }
 
 // Conversations returns every stored conversation ID in lexical order.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 		return nil, fmt.Errorf("neo4j: list conversations: query IDs: %w", err)
 	}
 
-	ids = make([]string, 0, len(result.Records))
+	ids = make([]chathistory.ConversationID, 0, len(result.Records))
 	for index, record := range result.Records {
 		raw, ok := record.Get("id")
 		if !ok {
@@ -249,10 +249,11 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 		if !ok {
 			return nil, fmt.Errorf("neo4j: list conversations: record %d ID has type %T, want string", index, raw)
 		}
-		if err := chathistory.ValidateConversationID(id); err != nil {
+		conversationID := chathistory.ConversationID(id)
+		if err := conversationID.Validate(); err != nil {
 			return nil, fmt.Errorf("neo4j: list conversations: record %d has invalid ID %q: %w", index, id, err)
 		}
-		ids = append(ids, id)
+		ids = append(ids, conversationID)
 	}
 	slices.Sort(ids)
 	return ids, nil

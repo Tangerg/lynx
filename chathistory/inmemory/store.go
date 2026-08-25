@@ -22,7 +22,7 @@ var (
 // use; New is provided for discoverability.
 type Store struct {
 	mu       sync.RWMutex
-	messages map[string][]chat.Message
+	messages map[chathistory.ConversationID][]chat.Message
 }
 
 // New returns an empty in-memory history store.
@@ -31,11 +31,11 @@ func New() *Store {
 }
 
 // Write validates, snapshots, and appends messages in order.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := chathistory.ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -49,7 +49,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.messages == nil {
-		s.messages = make(map[string][]chat.Message)
+		s.messages = make(map[chathistory.ConversationID][]chat.Message)
 	}
 	s.messages[conversationID] = append(s.messages[conversationID], messageSnapshot...)
 	return nil
@@ -57,11 +57,11 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns a deep caller-owned snapshot. Unknown IDs return a non-nil
 // empty slice.
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) ([]chat.Message, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := chathistory.ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -75,11 +75,11 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 }
 
 // Clear removes a conversation. Unknown IDs are ignored.
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := chathistory.ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -89,11 +89,11 @@ func (s *Store) Clear(ctx context.Context, conversationID string) error {
 }
 
 // Replace atomically swaps a conversation's complete message set.
-func (s *Store) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (s *Store) Replace(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := chathistory.ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return err
 	}
 	messageSnapshot, err := snapshotMessages(messages)
@@ -108,18 +108,18 @@ func (s *Store) Replace(ctx context.Context, conversationID string, messages ...
 		return nil
 	}
 	if s.messages == nil {
-		s.messages = make(map[string][]chat.Message)
+		s.messages = make(map[chathistory.ConversationID][]chat.Message)
 	}
 	s.messages[conversationID] = messageSnapshot
 	return nil
 }
 
 // Count returns the stored cardinality without cloning message values.
-func (s *Store) Count(ctx context.Context, conversationID string) (int, error) {
+func (s *Store) Count(ctx context.Context, conversationID chathistory.ConversationID) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if err := chathistory.ValidateConversationID(conversationID); err != nil {
+	if err := conversationID.Validate(); err != nil {
 		return 0, err
 	}
 	s.mu.RLock()
@@ -128,12 +128,12 @@ func (s *Store) Count(ctx context.Context, conversationID string) (int, error) {
 }
 
 // Conversations returns a sorted snapshot of all conversation IDs.
-func (s *Store) Conversations(ctx context.Context) ([]string, error) {
+func (s *Store) Conversations(ctx context.Context) ([]chathistory.ConversationID, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
-	ids := make([]string, 0, len(s.messages))
+	ids := make([]chathistory.ConversationID, 0, len(s.messages))
 	for conversationID := range s.messages {
 		ids = append(ids, conversationID)
 	}

@@ -17,7 +17,7 @@ var (
 	ErrWindowTooSmall = errors.New("chathistory: message window too small")
 )
 
-var _ Store = (*WindowStore)(nil)
+var _ Store = WindowStore{}
 
 // WindowStore projects reads to at most limit messages while preserving a
 // merged system message followed by a suffix of complete conversation turns.
@@ -31,24 +31,24 @@ type WindowStore struct {
 
 // NewWindowStore returns a read-side sliding-window decorator. Limit counts
 // the merged system message when one exists and must be greater than zero.
-func NewWindowStore(store Store, limit int) (*WindowStore, error) {
+func NewWindowStore(store Store, limit int) (WindowStore, error) {
 	if isNilCapability(store) {
-		return nil, ErrNilStore
+		return WindowStore{}, ErrNilStore
 	}
 	if limit <= 0 {
-		return nil, fmt.Errorf("%w: limit must be greater than zero", ErrInvalidWindow)
+		return WindowStore{}, fmt.Errorf("%w: limit must be greater than zero", ErrInvalidWindow)
 	}
-	return &WindowStore{store: store, limit: limit}, nil
+	return WindowStore{store: store, limit: limit}, nil
 }
 
 // Write delegates to the underlying Store.
-func (s *WindowStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error {
 	return s.store.Write(ctx, conversationID, messages...)
 }
 
 // Read returns the windowed projection. It returns ErrWindowTooSmall rather
 // than splitting the newest turn when that turn does not fit.
-func (s *WindowStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
+func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) {
 	messages, err := s.store.Read(ctx, conversationID)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (s *WindowStore) Read(ctx context.Context, conversationID string) ([]chat.M
 }
 
 // Clear delegates to the underlying Store.
-func (s *WindowStore) Clear(ctx context.Context, conversationID string) error {
+func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error {
 	return s.store.Clear(ctx, conversationID)
 }
 

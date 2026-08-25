@@ -3,6 +3,7 @@ package chathistory
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -19,7 +20,7 @@ var (
 // return a non-nil empty slice for an unknown conversation and transfer
 // ownership of returned protocol values to the caller.
 type Reader interface {
-	Read(ctx context.Context, conversationID string) ([]chat.Message, error)
+	Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
 }
 
 // Writer appends messages to one conversation. Implementations preserve the
@@ -28,7 +29,7 @@ type Reader interface {
 // The relative order of concurrent calls and writes issued through distinct
 // Store instances is implementation-defined.
 type Writer interface {
-	Write(ctx context.Context, conversationID string, messages ...chat.Message) error
+	Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
 }
 
 // ReadWriter combines the capabilities required by components that replay and
@@ -40,7 +41,7 @@ type ReadWriter interface {
 
 // Clearer removes every message for one conversation.
 type Clearer interface {
-	Clear(ctx context.Context, conversationID string) error
+	Clear(ctx context.Context, conversationID ConversationID) error
 }
 
 // Store is the ordinary per-conversation read/write/clear contract. Optional
@@ -54,24 +55,24 @@ type Store interface {
 // return a non-nil empty slice when no conversations exist. Concurrent
 // mutations may affect the result.
 type Lister interface {
-	Conversations(ctx context.Context) ([]string, error)
+	Conversations(ctx context.Context) ([]ConversationID, error)
 }
 
 // Replacer atomically sets a conversation's messages to exactly messages.
 type Replacer interface {
-	Replace(ctx context.Context, conversationID string, messages ...chat.Message) error
+	Replace(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
 }
 
 // Counter reports a conversation's stored message count without requiring
 // callers to materialize its messages.
 type Counter interface {
-	Count(ctx context.Context, conversationID string) (int, error)
+	Count(ctx context.Context, conversationID ConversationID) (int, error)
 }
 
 // Replace uses store's optional atomic Replacer capability. It returns
 // ErrReplacementUnsupported without modifying history when store does not
 // implement Replacer.
-func Replace(ctx context.Context, store Store, conversationID string, messages ...chat.Message) error {
+func Replace(ctx context.Context, store Store, conversationID ConversationID, messages ...chat.Message) error {
 	if isNilCapability(store) {
 		return ErrNilStore
 	}
@@ -83,7 +84,7 @@ func Replace(ctx context.Context, store Store, conversationID string, messages .
 
 // Count uses store's optional Counter capability and otherwise falls back to
 // reading the conversation.
-func Count(ctx context.Context, store Store, conversationID string) (int, error) {
+func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error) {
 	if isNilCapability(store) {
 		return 0, ErrNilStore
 	}
@@ -95,4 +96,17 @@ func Count(ctx context.Context, store Store, conversationID string) (int, error)
 		return 0, err
 	}
 	return len(messages), nil
+}
+
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

@@ -75,14 +75,14 @@ func (m *Middleware) Store(next corehistory.Store) corehistory.Store {
 		return nil
 	}
 	return historyStore{
-		read: func(ctx context.Context, conversationID string) ([]chat.Message, error) {
+		read: func(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
 			ctx, span := m.start(ctx, "read", conversationID)
 			messages, err := next.Read(ctx, conversationID)
 			span.SetAttributes(attribute.Int("chat_history.message.count", len(messages)))
 			finishHistorySpan(span, err)
 			return messages, err
 		},
-		write: func(ctx context.Context, conversationID string, messages ...chat.Message) error {
+		write: func(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
 			ctx, span := m.start(ctx, "write", conversationID,
 				attribute.Int("chat_history.message.count", len(messages)),
 			)
@@ -90,7 +90,7 @@ func (m *Middleware) Store(next corehistory.Store) corehistory.Store {
 			finishHistorySpan(span, err)
 			return err
 		},
-		clear: func(ctx context.Context, conversationID string) error {
+		clear: func(ctx context.Context, conversationID corehistory.ConversationID) error {
 			ctx, span := m.start(ctx, "clear", conversationID)
 			err := next.Clear(ctx, conversationID)
 			finishHistorySpan(span, err)
@@ -105,7 +105,7 @@ func (m *Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyListerFunc(func(ctx context.Context) ([]string, error) {
+	return historyListerFunc(func(ctx context.Context) ([]corehistory.ConversationID, error) {
 		ctx, span := m.start(ctx, "list", "")
 		ids, err := next.Conversations(ctx)
 		span.SetAttributes(attribute.Int("chat_history.conversation.count", len(ids)))
@@ -119,7 +119,7 @@ func (m *Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyReplacerFunc(func(ctx context.Context, conversationID string, messages ...chat.Message) error {
+	return historyReplacerFunc(func(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
 		ctx, span := m.start(ctx, "replace", conversationID,
 			attribute.Int("chat_history.message.count", len(messages)),
 		)
@@ -134,7 +134,7 @@ func (m *Middleware) Count(next corehistory.Counter) corehistory.Counter {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyCounterFunc(func(ctx context.Context, conversationID string) (int, error) {
+	return historyCounterFunc(func(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
 		ctx, span := m.start(ctx, "count", conversationID)
 		count, err := next.Count(ctx, conversationID)
 		span.SetAttributes(attribute.Int("chat_history.message.count", count))
@@ -146,7 +146,7 @@ func (m *Middleware) Count(next corehistory.Counter) corehistory.Counter {
 func (m *Middleware) start(
 	ctx context.Context,
 	operation string,
-	conversationID string,
+	conversationID corehistory.ConversationID,
 	extra ...attribute.KeyValue,
 ) (context.Context, trace.Span) {
 	attrs := make([]attribute.KeyValue, 0, 3+len(extra))
@@ -155,7 +155,7 @@ func (m *Middleware) start(
 		attribute.String("chat_history.operation.name", operation),
 	)
 	if conversationID != "" {
-		attrs = append(attrs, semconv.GenAIConversationID(conversationID))
+		attrs = append(attrs, semconv.GenAIConversationID(conversationID.String()))
 	}
 	attrs = append(attrs, extra...)
 	return m.tracer.Start(ctx, "chathistory."+operation,
@@ -174,37 +174,37 @@ func finishHistorySpan(span trace.Span, err error) {
 }
 
 type historyStore struct {
-	read  func(context.Context, string) ([]chat.Message, error)
-	write func(context.Context, string, ...chat.Message) error
-	clear func(context.Context, string) error
+	read  func(context.Context, corehistory.ConversationID) ([]chat.Message, error)
+	write func(context.Context, corehistory.ConversationID, ...chat.Message) error
+	clear func(context.Context, corehistory.ConversationID) error
 }
 
-func (s historyStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
+func (s historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
 	return s.read(ctx, conversationID)
 }
 
-func (s historyStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (s historyStore) Write(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
 	return s.write(ctx, conversationID, messages...)
 }
 
-func (s historyStore) Clear(ctx context.Context, conversationID string) error {
+func (s historyStore) Clear(ctx context.Context, conversationID corehistory.ConversationID) error {
 	return s.clear(ctx, conversationID)
 }
 
-type historyListerFunc func(context.Context) ([]string, error)
+type historyListerFunc func(context.Context) ([]corehistory.ConversationID, error)
 
-func (f historyListerFunc) Conversations(ctx context.Context) ([]string, error) {
+func (f historyListerFunc) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
 	return f(ctx)
 }
 
-type historyReplacerFunc func(context.Context, string, ...chat.Message) error
+type historyReplacerFunc func(context.Context, corehistory.ConversationID, ...chat.Message) error
 
-func (f historyReplacerFunc) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (f historyReplacerFunc) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
 	return f(ctx, conversationID, messages...)
 }
 
-type historyCounterFunc func(context.Context, string) (int, error)
+type historyCounterFunc func(context.Context, corehistory.ConversationID) (int, error)
 
-func (f historyCounterFunc) Count(ctx context.Context, conversationID string) (int, error) {
+func (f historyCounterFunc) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
 	return f(ctx, conversationID)
 }

@@ -157,11 +157,11 @@ func (s *Store) initSchema(ctx context.Context) error {
 // Write appends every message under conversationID. Messages within one call
 // are queued in order; concurrent calls may interleave. Empty writes are a
 // no-op.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -174,7 +174,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	}
 	batch := &pgx.Batch{}
 	for _, raw := range encoded {
-		batch.Queue(s.writeSQL, conversationID, raw)
+		batch.Queue(s.writeSQL, conversationID.String(), raw)
 	}
 
 	results := s.pool.SendBatch(ctx, batch)
@@ -186,15 +186,15 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
-	rows, err := s.pool.Query(ctx, s.readSQL, conversationID)
+	rows, err := s.pool.Query(ctx, s.readSQL, conversationID.String())
 	if err != nil {
 		return nil, fmt.Errorf("postgres: read: query: %w", err)
 	}
@@ -220,22 +220,22 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 
 // Clear drops every message stored under conversationID. Unknown ids
 // are silently ignored.
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
-	if _, err = s.pool.Exec(ctx, s.clearSQL, conversationID); err != nil {
+	if _, err = s.pool.Exec(ctx, s.clearSQL, conversationID.String()); err != nil {
 		return fmt.Errorf("postgres: clear: delete messages: %w", err)
 	}
 	return nil
 }
 
 // Conversations returns every stored conversation ID in lexical order.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -246,16 +246,17 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	}
 	defer rows.Close()
 
-	ids = []string{}
+	ids = []chathistory.ConversationID{}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, fmt.Errorf("postgres: list conversations: scan ID: %w", err)
 		}
-		if err := chathistory.ValidateConversationID(id); err != nil {
+		conversationID := chathistory.ConversationID(id)
+		if err := conversationID.Validate(); err != nil {
 			return nil, fmt.Errorf("postgres: list conversations: invalid stored ID %q: %w", id, err)
 		}
-		ids = append(ids, id)
+		ids = append(ids, conversationID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("postgres: list conversations: iterate rows: %w", err)

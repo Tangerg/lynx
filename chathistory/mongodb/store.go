@@ -76,11 +76,11 @@ func (s *Store) initIndex(ctx context.Context) error {
 // Write inserts every message under conversationID via InsertMany. A reserved
 // sequence range preserves argument order and remains monotonic if the local
 // clock moves backward.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -96,7 +96,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	docs := make([]any, 0, len(encoded))
 	for index, raw := range encoded {
 		docs = append(docs, bson.M{
-			fieldConversationID: conversationID,
+			fieldConversationID: conversationID.String(),
 			fieldSequence:       sequenceBase + int64(index),
 			fieldMessage:        string(raw),
 			fieldCreatedAt:      now,
@@ -111,17 +111,17 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
 	var cursor *mongo.Cursor
 	cursor, err = s.collection.Find(ctx,
-		bson.M{fieldConversationID: conversationID},
+		bson.M{fieldConversationID: conversationID.String()},
 		options.Find().SetSort(bson.D{
 			{Key: fieldSequence, Value: 1},
 			{Key: fieldID, Value: 1},
@@ -158,15 +158,15 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 
 // Clear drops every document for conversationID. Unknown ids result
 // in a no-op (DeleteMany matches zero docs).
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
-	if _, err = s.collection.DeleteMany(ctx, bson.M{fieldConversationID: conversationID}); err != nil {
+	if _, err = s.collection.DeleteMany(ctx, bson.M{fieldConversationID: conversationID.String()}); err != nil {
 		return fmt.Errorf("mongodb: clear: delete messages: %w", err)
 	}
 	return nil
@@ -174,19 +174,22 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 
 // Conversations returns distinct conversation IDs in lexical order. It is a
 // deliberate cross-conversation scan for operational tasks.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	ids = []string{}
-	if err = s.collection.Distinct(ctx, fieldConversationID, bson.D{}).Decode(&ids); err != nil {
+	var storedIDs []string
+	if err = s.collection.Distinct(ctx, fieldConversationID, bson.D{}).Decode(&storedIDs); err != nil {
 		return nil, fmt.Errorf("mongodb: list conversations: query distinct IDs: %w", err)
 	}
-	for _, id := range ids {
-		if err := chathistory.ValidateConversationID(id); err != nil {
+	ids = make([]chathistory.ConversationID, 0, len(storedIDs))
+	for _, id := range storedIDs {
+		conversationID := chathistory.ConversationID(id)
+		if err := conversationID.Validate(); err != nil {
 			return nil, fmt.Errorf("mongodb: list conversations: invalid stored ID %q: %w", id, err)
 		}
+		ids = append(ids, conversationID)
 	}
 	slices.Sort(ids)
 	return ids, nil

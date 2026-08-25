@@ -21,22 +21,22 @@ type historyRecorder struct {
 	err      error
 }
 
-func (s *historyRecorder) Read(context.Context, string) ([]chat.Message, error) {
+func (s *historyRecorder) Read(context.Context, chathistory.ConversationID) ([]chat.Message, error) {
 	return s.messages, s.err
 }
 
-func (s *historyRecorder) Write(_ context.Context, _ string, messages ...chat.Message) error {
+func (s *historyRecorder) Write(_ context.Context, _ chathistory.ConversationID, messages ...chat.Message) error {
 	s.messages = messages
 	return s.err
 }
 
-func (s *historyRecorder) Clear(context.Context, string) error {
+func (s *historyRecorder) Clear(context.Context, chathistory.ConversationID) error {
 	s.messages = nil
 	return s.err
 }
 
-func (s *historyRecorder) Conversations(context.Context) ([]string, error) {
-	return []string{"one", "two"}, s.err
+func (s *historyRecorder) Conversations(context.Context) ([]chathistory.ConversationID, error) {
+	return []chathistory.ConversationID{"one", "two"}, s.err
 }
 
 func newHistoryMiddleware(t *testing.T) (*historyotel.Middleware, *tracetest.SpanRecorder) {

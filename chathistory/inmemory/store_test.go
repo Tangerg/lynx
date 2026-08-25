@@ -42,7 +42,7 @@ func TestStoreOwnsMessagesAndSupportsOptionalCapabilities(t *testing.T) {
 	if count, err := store.Count(t.Context(), "conversation"); err != nil || count != 1 {
 		t.Fatalf("Count = %d, %v", count, err)
 	}
-	if ids, err := store.Conversations(t.Context()); err != nil || !slices.Equal(ids, []string{"conversation"}) {
+	if ids, err := store.Conversations(t.Context()); err != nil || !slices.Equal(ids, []chathistory.ConversationID{"conversation"}) {
 		t.Fatalf("Conversations = %v, %v", ids, err)
 	}
 

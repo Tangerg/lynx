@@ -71,18 +71,18 @@ func New(cfg Config) (*Store, error) {
 }
 
 // key returns the namespaced Redis key for a conversation id.
-func (s *Store) key(conversationID string) string {
-	return s.keyPrefix + conversationID
+func (s *Store) key(conversationID chathistory.ConversationID) string {
+	return s.keyPrefix + conversationID.String()
 }
 
 // Write appends every message under conversationID. When TTL is set, append
 // and expiry refresh execute in one Redis transaction. Empty writes are a
 // no-op.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -116,11 +116,11 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -143,11 +143,11 @@ func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages
 
 // Clear drops the entire list for conversationID. Unknown ids are
 // silently ignored (DEL on a missing key is a no-op in Redis).
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
@@ -160,7 +160,7 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 // Conversations enumerates stored conversation IDs via SCAN and returns them
 // in lexical order. SCAN may observe concurrent mutations and repeat keys, so
 // results are de-duplicated.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	seen := make(map[string]struct{})
 	// Non-nil even when no conversations exist — every backend's
 	// Conversations returns an empty slice, not nil.
-	ids = []string{}
+	ids = []chathistory.ConversationID{}
 
 	var cursor uint64
 	for {
@@ -190,14 +190,15 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 				// prefix incidentally matching unintended keys.
 				continue
 			}
-			if chathistory.ValidateConversationID(id) != nil {
+			conversationID := chathistory.ConversationID(id)
+			if conversationID.Validate() != nil {
 				continue
 			}
 			if _, duplicate := seen[id]; duplicate {
 				continue
 			}
 			seen[id] = struct{}{}
-			ids = append(ids, id)
+			ids = append(ids, conversationID)
 		}
 
 		if cursor == 0 {

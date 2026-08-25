@@ -56,11 +56,11 @@ type document struct {
 // Write creates one document per message. Random document IDs prevent
 // concurrent writers from overwriting each other; seq preserves argument order
 // within one call. Retried calls append fresh documents and are not idempotent.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -71,7 +71,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	if err != nil {
 		return fmt.Errorf("cosmosdb: write: encode messages: %w", err)
 	}
-	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID.String())
 	now := time.Now().UTC()
 	sequenceBase := s.sequence.Reserve(len(encoded))
 	createdAt := now.Format(time.RFC3339Nano)
@@ -80,7 +80,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		messageSequence := sequenceBase + int64(index)
 		storedDocument := document{
 			ID:             rand.Text(),
-			ConversationID: conversationID,
+			ConversationID: conversationID.String(),
 			Sequence:       formatSequence(messageSequence),
 			Message:        string(raw),
 			CreatedAt:      createdAt,
@@ -99,19 +99,19 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) (storedMessages []chat.Message, err error) {
+func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) (storedMessages []chat.Message, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return nil, err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID.String())
 	query := "SELECT c.id, c.seq, c.message FROM c WHERE c.conversation_id = @cid"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
-			{Name: "@cid", Value: conversationID},
+			{Name: "@cid", Value: conversationID.String()},
 		},
 	}
 
@@ -166,7 +166,7 @@ func compareDocuments(left, right document) int {
 
 // Conversations gathers distinct IDs with a cross-partition query and returns
 // them in lexical order.
-func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+func (s *Store) Conversations(ctx context.Context) (ids []chathistory.ConversationID, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 	// SELECT DISTINCT VALUE is a simple projection the gateway can serve.
 	query := "SELECT DISTINCT VALUE c.conversation_id FROM c"
 
-	ids = []string{}
+	ids = []chathistory.ConversationID{}
 	pager := s.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 	for pager.More() {
 		response, pageErr := pager.NextPage(ctx)
@@ -187,10 +187,11 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 			if err = json.Unmarshal(item, &id); err != nil {
 				return nil, fmt.Errorf("cosmosdb: list conversations: decode ID: %w", err)
 			}
-			if err = chathistory.ValidateConversationID(id); err != nil {
+			conversationID := chathistory.ConversationID(id)
+			if err = conversationID.Validate(); err != nil {
 				return nil, fmt.Errorf("cosmosdb: list conversations: invalid stored ID %q: %w", id, err)
 			}
-			ids = append(ids, id)
+			ids = append(ids, conversationID)
 		}
 	}
 	slices.Sort(ids)
@@ -200,19 +201,19 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 // Clear deletes every document for conversationID. Cosmos has no
 // bulk-delete for a partition, so each id is enumerated and
 // deleted individually — fine for chat history sizes.
-func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+	if err = conversationID.Validate(); err != nil {
 		return err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyString(conversationID)
+	partitionKey := azcosmos.NewPartitionKeyString(conversationID.String())
 	query := "SELECT c.id FROM c WHERE c.conversation_id = @cid"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
-			{Name: "@cid", Value: conversationID},
+			{Name: "@cid", Value: conversationID.String()},
 		},
 	}
 
