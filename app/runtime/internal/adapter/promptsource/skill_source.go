@@ -124,17 +124,14 @@ func (s *runtimeSkillSource) Load(ctx context.Context, name string) (*sdk.Skill,
 			domainskills.MaxAuthoredSkillDocumentBytes,
 		)
 	}
-	frontmatter, body, err := sdk.Parse(content)
+	skill, err := sdk.Parse(content)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", sdk.ErrInvalidSkill, name, err)
 	}
-	if err := frontmatter.Validate(); err != nil {
-		return nil, fmt.Errorf("%w %q: %w", sdk.ErrInvalidSkill, name, err)
-	}
-	if frontmatter.Name != name {
+	if skill.Name != name {
 		return nil, fmt.Errorf("%w %q: %w", sdk.ErrInvalidSkill, name, sdk.ErrNameMismatch)
 	}
-	return &sdk.Skill{Frontmatter: frontmatter, Body: body}, nil
+	return skill, nil
 }
 
 func (s *runtimeSkillSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
@@ -209,7 +206,7 @@ func (s *runtimeSkillSource) directoryEntries(ctx context.Context) ([]fs.DirEntr
 }
 
 func validRuntimeSkillName(name string) bool {
-	return (sdk.Frontmatter{Name: name, Description: "Runtime Skill source entry"}).Validate() == nil
+	return sdk.ValidateName(name) == nil
 }
 
 func skillSourceContextError(ctx context.Context, operation string) error {

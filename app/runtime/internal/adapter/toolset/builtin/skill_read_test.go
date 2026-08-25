@@ -31,7 +31,7 @@ func (s stubResourceSource) Load(_ context.Context, name string) (*skillspec.Ski
 	if s.loadErr != nil {
 		return nil, s.loadErr
 	}
-	return &skillspec.Skill{Frontmatter: skillspec.Frontmatter{Name: name, Description: "d"}, Body: "b"}, nil
+	return &skillspec.Skill{Frontmatter: skillspec.Frontmatter{Name: name, Description: "d"}, Instructions: "b"}, nil
 }
 
 func (stubResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {

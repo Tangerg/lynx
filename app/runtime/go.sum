@@ -22,12 +22,12 @@ github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb757
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570/go.mod h1:JUgR+hb2X66xXY3Ps0BistNCoZtPAL48OJ+Gb/gdXkw=
 github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570 h1:1DyagyNOaXNMaSTykCihtBbjqaaCXXYN8+pGeqvaqDA=
 github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570/go.mod h1:UXI2XrKwbfErvCVOQm0rFaq9pbok+Bd4kGxAwZ7HBck=
-github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af h1:UgctZqpKFJfF/s8h0SVNq49qyFaYVKWpOpzmicotKuc=
-github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
+github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb h1:sQbs8OiihfA0EHxxuPxZg4r1CvDxjA4yF2AHYfXr174=
+github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb/go.mod h1:tC1ZBi90XbieDEecd1ol+pKQxbkJIbPjXeHLPPtw51M=
 github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad h1:xpipsUJB6G8hpFh6h/5IJDU3zf1X+pgxOkCKKC2nbRQ=
 github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad/go.mod h1:YEIJ8xp+ZBh72ehLNitNtJJfT7TEp1Kq++ghsgKqRlM=
-github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c h1:5lfMnfFI5khpKEJl2IqOT+ZIVyAgHsCqE5Mx7ft6OP4=
-github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c/go.mod h1:T8AEqkWqeXQXDUfTy0kNC+GhaK73M6lfUbm1XWZlcyg=
+github.com/Tangerg/lynx/tools/skills v0.0.0-20260825142415-d09c68692be1 h1:x1H0/p+gb0QCZQHF0zZqU7OAwC/t2PQKiFD9J3WBRz4=
+github.com/Tangerg/lynx/tools/skills v0.0.0-20260825142415-d09c68692be1/go.mod h1:W4lj7VcI3vBCQxu2OkYQrxil3zjH2S3YBKanVP34OqQ=
 github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12 h1:lXULwVoLsimCsfJXWNjd2p/+8xPajYySzCKE6gcHl58=
 github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12/go.mod h1:bna9IB4xMSPu9rh+Adw/ylTo9iQxmMHIRhAe8vpcHSM=
 github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803212807-75ccd6a3db12 h1:3bfI6h/Uzt5FBRqRgpEl5zMyD5IsizJVhXNaKHtHJ7Y=

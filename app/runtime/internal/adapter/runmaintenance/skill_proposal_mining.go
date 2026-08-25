@@ -147,15 +147,15 @@ func (m *SkillProposalMiner) MineIfDue(ctx context.Context, sessionID, cwd strin
 
 // mineNew submits a freshly distilled Skill as a non-revising proposal.
 func (m *SkillProposalMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
-	front, body, err := skillspec.Parse([]byte(unfence(document)))
+	skill, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
 	}
 	return m.submitProposal(ctx, cwd, skills.Proposal{
 		Scope:         skills.ScopeUser,
-		Name:          front.Name,
-		Description:   front.Description,
-		Instructions:  body,
+		Name:          skill.Name,
+		Description:   skill.Description,
+		Instructions:  skill.Instructions,
 		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
 	}, skillProposalNew)
@@ -185,15 +185,15 @@ func (m *SkillProposalMiner) mineRevision(ctx context.Context, name string, mess
 	if document == "" {
 		return nil
 	}
-	front, body, err := skillspec.Parse([]byte(unfence(document)))
+	skill, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
 	}
 	return m.submitProposal(ctx, cwd, skills.Proposal{
 		Scope:         skills.ScopeUser,
 		Name:          name, // a revision is OF this skill; never let the model rename it
-		Description:   front.Description,
-		Instructions:  body,
+		Description:   skill.Description,
+		Instructions:  skill.Instructions,
 		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
 		Revises:       true,
@@ -316,7 +316,7 @@ func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skills
 	input.WriteString("\ndescription: ")
 	input.WriteString(current.Description)
 	input.WriteString("\n\n")
-	input.WriteString(current.Body)
+	input.WriteString(current.Instructions)
 	input.WriteString("\n\nCONVERSATION\n---\n")
 	input.WriteString(renderTranscript(messages))
 	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{

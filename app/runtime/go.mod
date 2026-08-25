@@ -12,9 +12,9 @@ require (
 	github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570
-	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
+	github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
-	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c
+	github.com/Tangerg/lynx/tools/skills v0.0.0-20260825142415-d09c68692be1
 	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12
 	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803212807-75ccd6a3db12
 	github.com/Tangerg/sse v0.0.5

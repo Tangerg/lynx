@@ -23,21 +23,21 @@ func TestRenderProposalEmitsProvenanceMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	front, instructions, err := skillspec.Parse(content)
+	skill, err := skillspec.Parse(content)
 	if err != nil {
 		t.Fatalf("rendered proposal does not parse: %v", err)
 	}
-	if front.Name != proposal.Name || front.Description != proposal.Description {
-		t.Fatalf("frontmatter round-trip mismatch: %+v", front)
+	if skill.Name != proposal.Name || skill.Description != proposal.Description {
+		t.Fatalf("frontmatter round-trip mismatch: %+v", skill.Frontmatter)
 	}
-	if got := front.Metadata[metadataOrigin]; got != string(skills.ProposalOriginMined) {
+	if got := skill.Metadata[metadataOrigin]; got != string(skills.ProposalOriginMined) {
 		t.Errorf("metadata[%q] = %q, want %q", metadataOrigin, got, skills.ProposalOriginMined)
 	}
-	if got := front.Metadata[metadataSourceSession]; got != "ses_1" {
+	if got := skill.Metadata[metadataSourceSession]; got != "ses_1" {
 		t.Errorf("metadata[%q] = %q, want %q", metadataSourceSession, got, "ses_1")
 	}
-	if !strings.Contains(instructions, "go test") {
-		t.Errorf("instructions round-trip lost the instruction: %q", instructions)
+	if !strings.Contains(skill.Instructions, "go test") {
+		t.Errorf("instructions round-trip lost the instruction: %q", skill.Instructions)
 	}
 }
 
@@ -52,12 +52,12 @@ func TestRenderProposalEmitsRevisesMarker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	front, _, err := skillspec.Parse(content)
+	skill, err := skillspec.Parse(content)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if front.Metadata[metadataRevises] != metadataTrue {
-		t.Fatalf("metadata[%q] = %q, want %q", metadataRevises, front.Metadata[metadataRevises], metadataTrue)
+	if skill.Metadata[metadataRevises] != metadataTrue {
+		t.Fatalf("metadata[%q] = %q, want %q", metadataRevises, skill.Metadata[metadataRevises], metadataTrue)
 	}
 }
 
@@ -73,12 +73,12 @@ func TestRenderProposalOmitsEmptyProvenance(t *testing.T) {
 	if strings.Contains(string(content), "metadata:") {
 		t.Fatalf("rendered an empty metadata block:\n%s", content)
 	}
-	front, _, err := skillspec.Parse(content)
+	skill, err := skillspec.Parse(content)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(front.Metadata) != 0 {
-		t.Fatalf("expected no metadata, got %v", front.Metadata)
+	if len(skill.Metadata) != 0 {
+		t.Fatalf("expected no metadata, got %v", skill.Metadata)
 	}
 }
 

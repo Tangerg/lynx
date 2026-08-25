@@ -197,8 +197,8 @@ func TestSkillMinerFencedReplyStillParses(t *testing.T) {
 func TestSkillMinerRevisionLoadsRealBodyAndMarksRevises(t *testing.T) {
 	source := fakeSkillSource{skills: map[string]*skillspec.Skill{
 		"run-tests": {
-			Frontmatter: skillspec.Frontmatter{Name: "run-tests", Description: "old"},
-			Body:        "old body: use make test",
+			Frontmatter:  skillspec.Frontmatter{Name: "run-tests", Description: "old"},
+			Instructions: "old body: use make test",
 		},
 	}}
 	corrected := "---\nname: run-tests\ndescription: Run the suite. Use when asked to run tests.\n---\nUse `go test ./...`."

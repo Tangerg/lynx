@@ -122,11 +122,11 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 		if !found {
 			continue
 		}
-		front, _, err := skillspec.Parse(content)
+		skill, err := skillspec.Parse(content)
 		if err != nil {
 			continue
 		}
-		if skills.ProposalOrigin(front.Metadata[metadataOrigin]).Validate() != nil {
+		if skills.ProposalOrigin(skill.Metadata[metadataOrigin]).Validate() != nil {
 			continue // provenance gate: only agent-authored skills auto-curate
 		}
 		record := usage[name]

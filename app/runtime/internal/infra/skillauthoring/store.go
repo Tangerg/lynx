@@ -206,11 +206,11 @@ func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]
 // proposalRevises reports whether staged content is marked as a revision of the
 // active skill of the same name (frontmatter metadata revises: "true").
 func proposalRevises(content []byte) (bool, error) {
-	front, _, err := skillspec.Parse(content)
+	skill, err := skillspec.Parse(content)
 	if err != nil {
 		return false, fmt.Errorf("skillauthoring: parse proposal frontmatter: %w", err)
 	}
-	return front.Metadata[metadataRevises] == metadataTrue, nil
+	return skill.Metadata[metadataRevises] == metadataTrue, nil
 }
 
 // replaceActive installs a revising proposal as the active skill, archiving the
@@ -531,11 +531,11 @@ func managedEntries(ctx context.Context, root *os.Root, directory string, names 
 		if !found {
 			continue
 		}
-		frontmatter, _, err := skillspec.Parse(content)
-		if err != nil || frontmatter.Validate() != nil || frontmatter.Name != name {
+		skill, err := skillspec.Parse(content)
+		if err != nil || skill.Name != name {
 			continue
 		}
-		out = append(out, skills.Entry{Name: name, Description: frontmatter.Description, Lifecycle: lifecycle})
+		out = append(out, skills.Entry{Name: name, Description: skill.Description, Lifecycle: lifecycle})
 	}
 	return out, nil
 }
@@ -651,25 +651,25 @@ func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalReview, err
 		if !found {
 			continue
 		}
-		front, instructions, err := skillspec.Parse(content)
+		skill, err := skillspec.Parse(content)
 		if err != nil {
 			continue
 		}
-		origin := skills.ProposalOrigin(front.Metadata[metadataOrigin])
+		origin := skills.ProposalOrigin(skill.Metadata[metadataOrigin])
 		if origin != "" && origin.Validate() != nil {
 			continue
 		}
-		ref := skills.NewProposalRef(s.scope, front.Name, content)
+		ref := skills.NewProposalRef(s.scope, skill.Name, content)
 		if ref.Name != name {
 			continue
 		}
 		out = append(out, skills.ProposalReview{
 			Ref:           ref,
-			Description:   front.Description,
-			Instructions:  instructions,
+			Description:   skill.Description,
+			Instructions:  skill.Instructions,
 			Origin:        origin,
-			SourceSession: front.Metadata[metadataSourceSession],
-			Revises:       front.Metadata[metadataRevises] == metadataTrue,
+			SourceSession: skill.Metadata[metadataSourceSession],
+			Revises:       skill.Metadata[metadataRevises] == metadataTrue,
 		})
 	}
 	return out, nil
@@ -868,20 +868,17 @@ func validateSkill(name string, content []byte) error {
 			skills.MaxAuthoredSkillDocumentBytes,
 		)
 	}
-	frontmatter, instructions, err := skillspec.Parse(content)
+	skill, err := skillspec.Parse(content)
 	if err != nil {
 		return fmt.Errorf("skillauthoring: parse skill %q: %w", name, err)
 	}
-	if err := (skillspec.Frontmatter{Name: frontmatter.Name, Description: frontmatter.Description}).Validate(); err != nil {
-		return fmt.Errorf("skillauthoring: validate skill %q: %w", name, err)
-	}
-	if strings.TrimSpace(instructions) == "" {
+	if strings.TrimSpace(skill.Instructions) == "" {
 		return fmt.Errorf("skillauthoring: validate skill %q: skill instructions are required", name)
 	}
-	if frontmatter.Name != name {
-		return fmt.Errorf("skillauthoring: skill name mismatch: frontmatter %q, path %q", frontmatter.Name, name)
+	if skill.Name != name {
+		return fmt.Errorf("skillauthoring: skill name mismatch: frontmatter %q, path %q", skill.Name, name)
 	}
-	proposal := skills.Proposal{Name: frontmatter.Name, Description: frontmatter.Description, Instructions: instructions}
+	proposal := skills.Proposal{Name: skill.Name, Description: skill.Description, Instructions: skill.Instructions}
 	if issue := proposal.SafetyIssue(); issue != skills.ProposalSafe {
 		return proposalSafetyError(name, issue)
 	}
@@ -905,5 +902,5 @@ func contextError(ctx context.Context, operation string) error {
 }
 
 func validName(name string) bool {
-	return (skillspec.Frontmatter{Name: name, Description: "managed Skill"}).Validate() == nil
+	return skillspec.ValidateName(name) == nil
 }

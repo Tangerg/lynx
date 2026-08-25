@@ -140,7 +140,7 @@ func (r ProposalRef) Validate() error {
 	if err := r.Scope.Validate(); err != nil {
 		return err
 	}
-	if err := (skillspec.Frontmatter{Name: r.Name, Description: "proposal reference"}).Validate(); err != nil {
+	if err := skillspec.ValidateName(r.Name); err != nil {
 		return fmt.Errorf("proposal reference name: %w", err)
 	}
 	if len(r.Revision) != sha256.Size*2 {
