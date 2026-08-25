@@ -35,6 +35,23 @@ type executor struct {
 
 var _ a2asrv.AgentExecutor = (*executor)(nil)
 
+// textArtifact owns the identity of one streamed text result. The first chunk
+// creates the artifact; later chunks update that same artifact so the SDK can
+// assemble one logical result instead of storing every delta separately.
+type textArtifact struct {
+	id sdka2a.ArtifactID
+}
+
+func (a *textArtifact) append(info sdka2a.TaskInfoProvider, chunk string) *sdka2a.TaskArtifactUpdateEvent {
+	part := sdka2a.NewTextPart(chunk)
+	if a.id != "" {
+		return sdka2a.NewArtifactUpdateEvent(info, a.id, part)
+	}
+	event := sdka2a.NewArtifactEvent(info, part)
+	a.id = event.Artifact.ID
+	return event
+}
+
 func newExecutor(agent Agent) (*executor, error) {
 	if isNilAgent(agent) {
 		return nil, ErrNilAgent
@@ -99,6 +116,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 			fail(errNilAgentSequence)
 			return
 		}
+		var artifact textArtifact
 		for chunk, err := range sequence {
 			if err != nil {
 				fail(err)
@@ -107,7 +125,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 			if chunk == "" {
 				continue
 			}
-			if !yield(sdka2a.NewArtifactEvent(execCtx, sdka2a.NewTextPart(chunk)), nil) {
+			if !yield(artifact.append(execCtx, chunk), nil) {
 				return
 			}
 		}
