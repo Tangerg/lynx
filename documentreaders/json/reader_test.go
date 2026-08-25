@@ -1,6 +1,8 @@
 package json_test
 
 import (
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -23,6 +25,34 @@ func TestReaderArray(t *testing.T) {
 	}
 	if len(docs) != 2 || docs[0].Text != `{"id":1}` || docs[1].Text != `{"id":2}` {
 		t.Fatalf("documents = %#v", docs)
+	}
+}
+
+func TestReaderSingleValue(t *testing.T) {
+	for _, input := range []string{`{"id":1}`, `42`, `"text"`, `null`} {
+		reader, err := jsonreader.New(strings.NewReader(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs, err := reader.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Read(%s): %v", input, err)
+		}
+		if len(docs) != 1 || docs[0].Text != input {
+			t.Fatalf("Read(%s) = %#v", input, docs)
+		}
+	}
+}
+
+func TestReaderHonorsCanceledContext(t *testing.T) {
+	reader, err := jsonreader.New(strings.NewReader(`{"id":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := reader.Read(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Read error = %v, want context.Canceled", err)
 	}
 }
 

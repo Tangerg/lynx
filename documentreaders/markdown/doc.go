@@ -14,7 +14,7 @@
 //
 // Example:
 //
-//	r, _ := markdown.NewReader(strings.NewReader(src),
+//	r, _ := markdown.New(strings.NewReader(src),
 //	    markdown.Config{HeadingSplitLevel: 2}) // split on H1+H2
 //	docs, _ := r.Read(ctx)
 package markdown

@@ -12,7 +12,7 @@ import (
 
 func TestConfigMetadataAppliedToEveryDocument(t *testing.T) {
 	metadata := mustMetadata(t, map[string]any{"source": "page.html", "tenant": "acme"})
-	r, err := html.NewReader(strings.NewReader(samplePage),
+	r, err := html.New(strings.NewReader(samplePage),
 		html.Config{Metadata: metadata},
 	)
 	if err != nil {
@@ -34,12 +34,12 @@ func TestConfigMetadataAppliedToEveryDocument(t *testing.T) {
 }
 
 func TestConfigMetadataRejectsInvalidValueAtConstruction(t *testing.T) {
-	_, err := html.NewReader(
+	_, err := html.New(
 		strings.NewReader(samplePage),
 		html.Config{Metadata: coremetadata.Map{"broken": []byte("{")}},
 	)
 	if !errors.Is(err, coremetadata.ErrInvalidValue) {
-		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
+		t.Fatalf("New error = %v, want ErrInvalidValue", err)
 	}
 }
 
@@ -53,7 +53,7 @@ func mustMetadata(t *testing.T, values map[string]any) coremetadata.Map {
 }
 
 func TestRead_HonorsContextCancellation(t *testing.T) {
-	r, _ := html.NewReader(strings.NewReader(samplePage), html.Config{})
+	r, _ := html.New(strings.NewReader(samplePage), html.Config{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Read(ctx); err == nil {

@@ -15,7 +15,6 @@ import (
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
 )
 
-// Metadata keys written onto emitted documents.
 const (
 	MetadataTitle       = "html.title"
 	MetadataDescription = "html.description"
@@ -26,7 +25,7 @@ const (
 
 // Config controls HTML extraction. By default whitespace runs are collapsed;
 // PreserveWhitespace retains the source spacing instead. Metadata is cloned
-// by NewReader, and reader-derived html.* keys take precedence on conflict.
+// by New, and reader-derived html.* keys take precedence on conflict.
 type Config struct {
 	Selector           string
 	SourceName         string
@@ -36,7 +35,7 @@ type Config struct {
 
 // Reader extracts documents from HTML.
 type Reader struct {
-	reader          io.Reader
+	source          io.Reader
 	selector        string
 	matcher         goquery.Matcher
 	sourceName      string
@@ -44,13 +43,13 @@ type Reader struct {
 	extraMetadata   coremetadata.Map
 }
 
-// NewReader builds an HTML reader over src.
-func NewReader(src io.Reader, config Config) (*Reader, error) {
-	if isNil(src) {
+// New builds an HTML reader over source.
+func New(source io.Reader, config Config) (*Reader, error) {
+	if isNil(source) {
 		return nil, errors.New("html reader: source must not be nil")
 	}
 	r := &Reader{
-		reader:          src,
+		source:          source,
 		selector:        config.Selector,
 		sourceName:      config.SourceName,
 		stripWhitespace: !config.PreserveWhitespace,
@@ -69,38 +68,39 @@ func NewReader(src io.Reader, config Config) (*Reader, error) {
 	return r, nil
 }
 
-// Read parses the source and emits documents according to the
-// configured mode. ctx cancellation is honored before parsing and
-// between matched elements.
+// Read parses the source and emits documents according to the configuration.
+// Context cancellation is honored around parsing and between matches.
 func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	doc, err := goquery.NewDocumentFromReader(r.reader)
+	doc, err := goquery.NewDocumentFromReader(r.source)
 	if err != nil {
 		return nil, fmt.Errorf("html: parse: %w", err)
 	}
 
-	page := pageMetadata(doc)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	page := newPageInfo(doc)
 
 	if r.selector == "" {
-		return r.readWhole(doc, page)
+		return r.readWhole(ctx, doc, page)
 	}
 	return r.readSelector(ctx, doc, page)
 }
 
-func (r *Reader) readWhole(doc *goquery.Document, page pageInfo) ([]*document.Document, error) {
+func (r *Reader) readWhole(ctx context.Context, doc *goquery.Document, page pageInfo) ([]*document.Document, error) {
 	body := r.extractText(doc.Selection)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if body == "" {
 		return nil, nil
 	}
-	d, err := document.NewDocument(body, nil)
+	d, err := r.buildDocument(body, page, "")
 	if err != nil {
 		return nil, fmt.Errorf("html: build document: %w", err)
-	}
-	d.Metadata, err = r.buildMetadata(page, "")
-	if err != nil {
-		return nil, fmt.Errorf("html: encode metadata: %w", err)
 	}
 	return []*document.Document{d}, nil
 }
@@ -118,14 +118,9 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 		if body == "" {
 			return true
 		}
-		d, err := document.NewDocument(body, nil)
+		d, err := r.buildDocument(body, page, r.selector)
 		if err != nil {
 			buildErr = err
-			return false
-		}
-		d.Metadata, err = r.buildMetadata(page, r.selector)
-		if err != nil {
-			buildErr = fmt.Errorf("encode metadata: %w", err)
 			return false
 		}
 		docs = append(docs, d)
@@ -140,35 +135,22 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 	return docs, nil
 }
 
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
+func (r *Reader) buildDocument(body string, page pageInfo, selector string) (*document.Document, error) {
+	doc, err := document.NewDocument(body, nil)
+	if err != nil {
+		return nil, err
 	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
+	doc.Metadata, err = r.buildMetadata(page, selector)
+	if err != nil {
+		return nil, fmt.Errorf("encode metadata: %w", err)
 	}
+	return doc, nil
 }
 
 func (r *Reader) buildMetadata(page pageInfo, selector string) (coremetadata.Map, error) {
 	md := r.extraMetadata.Clone()
-	if page.title != "" {
-		if err := md.Set(MetadataTitle, page.title); err != nil {
-			return nil, err
-		}
-	}
-	if page.description != "" {
-		if err := md.Set(MetadataDescription, page.description); err != nil {
-			return nil, err
-		}
-	}
-	if page.canonical != "" {
-		if err := md.Set(MetadataCanonical, page.canonical); err != nil {
-			return nil, err
-		}
+	if err := page.applyTo(&md); err != nil {
+		return nil, err
 	}
 	if r.sourceName != "" {
 		if err := md.Set(MetadataSourceName, r.sourceName); err != nil {
@@ -193,7 +175,7 @@ func (r *Reader) extractText(sel *goquery.Selection) string {
 	clone.Find("script, style, noscript, template, head").Remove()
 	text := clone.Text()
 	if r.stripWhitespace {
-		text = collapseWhitespace(text)
+		text = strings.Join(strings.Fields(text), " ")
 	}
 	return strings.TrimSpace(text)
 }
@@ -204,7 +186,7 @@ type pageInfo struct {
 	canonical   string
 }
 
-func pageMetadata(doc *goquery.Document) pageInfo {
+func newPageInfo(doc *goquery.Document) pageInfo {
 	var p pageInfo
 	p.title = strings.TrimSpace(doc.Find("head > title").First().Text())
 
@@ -221,24 +203,33 @@ func pageMetadata(doc *goquery.Document) pageInfo {
 	return p
 }
 
-// collapseWhitespace replaces runs of whitespace (space, tab, newline)
-// with a single space — keeps the text embedding-friendly without
-// preserving HTML formatting.
-func collapseWhitespace(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	prevSpace := false
-	for _, r := range s {
-		switch r {
-		case ' ', '\t', '\n', '\r', '\v', '\f':
-			if !prevSpace {
-				b.WriteByte(' ')
-				prevSpace = true
+func (p pageInfo) applyTo(metadata *coremetadata.Map) error {
+	for _, field := range [...]struct {
+		key   string
+		value string
+	}{
+		{MetadataTitle, p.title},
+		{MetadataDescription, p.description},
+		{MetadataCanonical, p.canonical},
+	} {
+		if field.value != "" {
+			if err := metadata.Set(field.key, field.value); err != nil {
+				return err
 			}
-		default:
-			b.WriteRune(r)
-			prevSpace = false
 		}
 	}
-	return b.String()
+	return nil
+}
+
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

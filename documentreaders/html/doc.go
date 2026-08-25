@@ -12,10 +12,10 @@
 //
 // Example:
 //
-//	r, _ := html.NewReader(strings.NewReader(htmlSrc), html.Config{})
+//	r, _ := html.New(strings.NewReader(htmlSrc), html.Config{})
 //	docs, _ := r.Read(ctx)
 //
-//	r, _ := html.NewReader(strings.NewReader(htmlSrc),
+//	r, _ := html.New(strings.NewReader(htmlSrc),
 //	    html.Config{Selector: "article"})
 //	docs, _ := r.Read(ctx) // one doc per <article>
 package html

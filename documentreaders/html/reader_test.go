@@ -1,12 +1,17 @@
 package html_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/html"
 )
+
+type pointerReader struct{}
+
+func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) T {
 	t.Helper()
@@ -41,7 +46,7 @@ const samplePage = `<!doctype html>
 </html>`
 
 func TestWholePage(t *testing.T) {
-	r, err := html.NewReader(strings.NewReader(samplePage), html.Config{SourceName: "test.html"})
+	r, err := html.New(strings.NewReader(samplePage), html.Config{SourceName: "test.html"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +76,7 @@ func TestWholePage(t *testing.T) {
 }
 
 func TestSelector(t *testing.T) {
-	r, err := html.NewReader(
+	r, err := html.New(
 		strings.NewReader(samplePage),
 		html.Config{Selector: "article"},
 	)
@@ -98,9 +103,19 @@ func TestSelector(t *testing.T) {
 	}
 }
 
-func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+func TestNewRejectsInvalidConfiguration(t *testing.T) {
 	config := html.Config{Selector: "["}
-	if _, err := html.NewReader(strings.NewReader(samplePage), config); err == nil {
-		t.Fatalf("NewReader(%+v) error = nil", config)
+	if _, err := html.New(strings.NewReader(samplePage), config); err == nil {
+		t.Fatalf("New(%+v) error = nil", config)
+	}
+}
+
+func TestNewRejectsNilSource(t *testing.T) {
+	var typedNil *pointerReader
+	if _, err := html.New(nil, html.Config{}); err == nil {
+		t.Fatal("nil source must fail")
+	}
+	if _, err := html.New(typedNil, html.Config{}); err == nil {
+		t.Fatal("typed nil source must fail")
 	}
 }

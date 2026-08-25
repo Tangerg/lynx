@@ -14,6 +14,6 @@
 //
 // Example:
 //
-//	r, _ := pdf.NewReader(file, fileSize, pdf.Config{PerPage: true})
+//	r, _ := pdf.New(file, fileSize, pdf.Config{PerPage: true})
 //	docs, _ := r.Read(ctx)
 package pdf

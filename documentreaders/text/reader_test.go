@@ -1,6 +1,8 @@
 package text_test
 
 import (
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -23,6 +25,32 @@ func TestReader(t *testing.T) {
 	}
 	if len(docs) != 1 || docs[0].Text != "hello" {
 		t.Fatalf("documents = %#v", docs)
+	}
+}
+
+func TestReaderEmptySourceReturnsNoDocuments(t *testing.T) {
+	reader, err := text.New(strings.NewReader(" \n\t"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := reader.Read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if docs != nil {
+		t.Fatalf("documents = %#v, want nil", docs)
+	}
+}
+
+func TestReaderHonorsCanceledContext(t *testing.T) {
+	reader, err := text.New(strings.NewReader("never read"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := reader.Read(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Read error = %v, want context.Canceled", err)
 	}
 }
 

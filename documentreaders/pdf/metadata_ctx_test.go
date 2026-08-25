@@ -17,7 +17,7 @@ func TestRead_HonorsContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := pdf.NewReader(bytes.NewReader([]byte("%PDF-1.4")), 8, pdf.Config{Metadata: metadata})
+	r, err := pdf.New(bytes.NewReader([]byte("%PDF-1.4")), 8, pdf.Config{Metadata: metadata})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,12 +29,12 @@ func TestRead_HonorsContextCancellation(t *testing.T) {
 }
 
 func TestConfigMetadataRejectsInvalidValueAtConstruction(t *testing.T) {
-	_, err := pdf.NewReader(
+	_, err := pdf.New(
 		bytes.NewReader([]byte("%PDF-1.4")),
 		8,
 		pdf.Config{Metadata: coremetadata.Map{"broken": []byte("{")}},
 	)
 	if !errors.Is(err, coremetadata.ErrInvalidValue) {
-		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
+		t.Fatalf("New error = %v, want ErrInvalidValue", err)
 	}
 }

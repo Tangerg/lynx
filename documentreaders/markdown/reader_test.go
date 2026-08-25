@@ -1,12 +1,17 @@
 package markdown_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/markdown"
 )
+
+type pointerReader struct{}
+
+func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) (T, bool) {
 	t.Helper()
@@ -35,7 +40,7 @@ Body of section B.
 `
 
 func TestWholeDocument(t *testing.T) {
-	r, err := markdown.NewReader(strings.NewReader(sample), markdown.Config{})
+	r, err := markdown.New(strings.NewReader(sample), markdown.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +57,7 @@ func TestWholeDocument(t *testing.T) {
 }
 
 func TestHeadingSplitH2(t *testing.T) {
-	r, err := markdown.NewReader(
+	r, err := markdown.New(
 		strings.NewReader(sample),
 		markdown.Config{HeadingSplitLevel: 2, SourceName: "test.md"},
 	)
@@ -95,13 +100,23 @@ func TestHeadingSplitH2(t *testing.T) {
 	}
 }
 
-func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+func TestNewRejectsInvalidConfiguration(t *testing.T) {
 	for _, config := range []markdown.Config{
 		{HeadingSplitLevel: -1},
 		{HeadingSplitLevel: 7},
 	} {
-		if _, err := markdown.NewReader(strings.NewReader(sample), config); err == nil {
-			t.Fatalf("NewReader(%+v) error = nil", config)
+		if _, err := markdown.New(strings.NewReader(sample), config); err == nil {
+			t.Fatalf("New(%+v) error = nil", config)
 		}
+	}
+}
+
+func TestNewRejectsNilSource(t *testing.T) {
+	var typedNil *pointerReader
+	if _, err := markdown.New(nil, markdown.Config{}); err == nil {
+		t.Fatal("nil source must fail")
+	}
+	if _, err := markdown.New(typedNil, markdown.Config{}); err == nil {
+		t.Fatal("typed nil source must fail")
 	}
 }

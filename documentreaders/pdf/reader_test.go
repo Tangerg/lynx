@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -12,23 +13,31 @@ import (
 	"github.com/Tangerg/lynx/documentreaders/pdf"
 )
 
-func TestNewReader_ValidatesInputs(t *testing.T) {
-	if _, err := pdf.NewReader(nil, 100, pdf.Config{}); err == nil {
+type pointerReaderAt struct{}
+
+func (*pointerReaderAt) ReadAt([]byte, int64) (int, error) { return 0, io.EOF }
+
+func TestNewValidatesInputs(t *testing.T) {
+	var typedNil *pointerReaderAt
+	if _, err := pdf.New(nil, 100, pdf.Config{}); err == nil {
 		t.Error("nil src: expected error, got nil")
 	}
-	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), 0, pdf.Config{}); err == nil {
+	if _, err := pdf.New(typedNil, 100, pdf.Config{}); err == nil {
+		t.Error("typed nil src: expected error, got nil")
+	}
+	if _, err := pdf.New(bytes.NewReader([]byte{}), 0, pdf.Config{}); err == nil {
 		t.Error("zero size: expected error, got nil")
 	}
-	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), -1, pdf.Config{}); err == nil {
+	if _, err := pdf.New(bytes.NewReader([]byte{}), -1, pdf.Config{}); err == nil {
 		t.Error("negative size: expected error, got nil")
 	}
 }
 
-func TestNewReaderAcceptsConfig(t *testing.T) {
+func TestNewAcceptsConfig(t *testing.T) {
 	// Just verify configuration plumbing — no parsing here. Pass an empty
 	// reader so the constructor succeeds; Read() failing is fine.
 	src := bytes.NewReader([]byte("not really a pdf"))
-	if _, err := pdf.NewReader(src, int64(src.Len()),
+	if _, err := pdf.New(src, int64(src.Len()),
 		pdf.Config{PerPage: true, SourceName: "ignored.pdf", Password: "hunter2"},
 	); err != nil {
 		t.Fatalf("constructor rejected valid config: %v", err)
@@ -45,12 +54,12 @@ func TestReadWholeExtractsRealPDFAndOwnsMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("metadata: %v", err)
 	}
-	reader, err := pdf.NewReader(bytes.NewReader(payload), int64(len(payload)), pdf.Config{
+	reader, err := pdf.New(bytes.NewReader(payload), int64(len(payload)), pdf.Config{
 		SourceName: "actual.pdf",
 		Metadata:   metadata,
 	})
 	if err != nil {
-		t.Fatalf("NewReader: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if err := metadata.Set("custom", "mutated"); err != nil {
 		t.Fatalf("mutate input metadata: %v", err)
@@ -71,9 +80,9 @@ func TestReadWholeExtractsRealPDFAndOwnsMetadata(t *testing.T) {
 
 func TestReadPerPageExtractsPageIdentity(t *testing.T) {
 	payload := testPDF(t, "Alpha", "Beta")
-	reader, err := pdf.NewReader(bytes.NewReader(payload), int64(len(payload)), pdf.Config{PerPage: true})
+	reader, err := pdf.New(bytes.NewReader(payload), int64(len(payload)), pdf.Config{PerPage: true})
 	if err != nil {
-		t.Fatalf("NewReader: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	docs, err := reader.Read(t.Context())
 	if err != nil {
@@ -90,9 +99,9 @@ func TestReadPerPageExtractsPageIdentity(t *testing.T) {
 
 func TestReadHonorsCanceledContextBeforeParsing(t *testing.T) {
 	payload := testPDF(t, "Never parsed")
-	reader, err := pdf.NewReader(bytes.NewReader(payload), int64(len(payload)), pdf.Config{})
+	reader, err := pdf.New(bytes.NewReader(payload), int64(len(payload)), pdf.Config{})
 	if err != nil {
-		t.Fatalf("NewReader: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -103,9 +112,9 @@ func TestReadHonorsCanceledContextBeforeParsing(t *testing.T) {
 
 func TestReadMalformedPDFReturnsError(t *testing.T) {
 	payload := []byte("not a PDF")
-	reader, err := pdf.NewReader(bytes.NewReader(payload), int64(len(payload)), pdf.Config{})
+	reader, err := pdf.New(bytes.NewReader(payload), int64(len(payload)), pdf.Config{})
 	if err != nil {
-		t.Fatalf("NewReader: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if docs, err := reader.Read(t.Context()); docs != nil || err == nil {
 		t.Fatalf("Read = %+v, %v", docs, err)

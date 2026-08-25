@@ -12,7 +12,7 @@ import (
 
 func TestConfigMetadataAppliedToEveryDocument(t *testing.T) {
 	metadata := mustMetadata(t, map[string]any{"source": "manual.md", "tenant": "acme"})
-	r, err := markdown.NewReader(strings.NewReader(sample),
+	r, err := markdown.New(strings.NewReader(sample),
 		markdown.Config{HeadingSplitLevel: 2, Metadata: metadata},
 	)
 	if err != nil {
@@ -37,7 +37,7 @@ func TestConfigMetadataAppliedToEveryDocument(t *testing.T) {
 
 func TestConfigMetadataDoesNotClobberReaderKeys(t *testing.T) {
 	// A user key colliding with a reader-namespaced key must not win.
-	r, _ := markdown.NewReader(strings.NewReader(sample),
+	r, _ := markdown.New(strings.NewReader(sample),
 		markdown.Config{
 			HeadingSplitLevel: 1,
 			Metadata:          mustMetadata(t, map[string]any{markdown.MetadataHeading: "HIJACK"}),
@@ -55,12 +55,12 @@ func TestConfigMetadataDoesNotClobberReaderKeys(t *testing.T) {
 }
 
 func TestConfigMetadataRejectsInvalidValueAtConstruction(t *testing.T) {
-	_, err := markdown.NewReader(
+	_, err := markdown.New(
 		strings.NewReader(sample),
 		markdown.Config{Metadata: coremetadata.Map{"broken": []byte("{")}},
 	)
 	if !errors.Is(err, coremetadata.ErrInvalidValue) {
-		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
+		t.Fatalf("New error = %v, want ErrInvalidValue", err)
 	}
 }
 
@@ -74,7 +74,7 @@ func mustMetadata(t *testing.T, values map[string]any) coremetadata.Map {
 }
 
 func TestRead_HonorsContextCancellation(t *testing.T) {
-	r, _ := markdown.NewReader(strings.NewReader(sample), markdown.Config{HeadingSplitLevel: 2})
+	r, _ := markdown.New(strings.NewReader(sample), markdown.Config{HeadingSplitLevel: 2})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Read(ctx); err == nil {
