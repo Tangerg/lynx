@@ -110,8 +110,8 @@ prompt, err := chatclient.ParseTemplate("Explain {{.Topic}} in one sentence.")
 message, err := prompt.UserMessage(struct{ Topic string }{Topic: "Go interfaces"})
 ```
 
-`OutputFormat` 同时拥有请求格式和结果 decoder。同步结果通过 `Once` 提升为
-单元素流，因此同步、流式只有一条累积与 decode 路径：
+`OutputFormat` 同时拥有请求格式和结果 decoder。`Client.Output` 将它绑定为一个不可变的
+短链，因此同步、流式只有一条累积与 decode 路径：
 
 ```go
 type Answer struct {
@@ -119,14 +119,16 @@ type Answer struct {
 }
 
 format := chatclient.JSON[Answer]()
-request.Options.OutputFormat = format.Contract()
 
 // 同步：完整响应是一种只有一个元素的流。
-answer, err := format.Decode(chatclient.Once(client.Call(ctx, request)))
+answer, err := client.Output(format).Call(ctx, request)
 
 // 流式：复用完全相同的 decoder。
-answer, err = format.Decode(client.Stream(ctx, request))
+answer, err = client.Output(format).Stream(ctx, request)
 ```
+
+流式短链在响应序列结束后返回完整的 `Answer`；需要逐块处理响应时直接使用
+`Client.Stream`。
 
 provider 优先映射为原生格式控制；只有协议不支持所请求格式时才注入等价 prompt。
 decoder 接受完整 JSON、JSON markdown fence 和单个被说明文字包围的完整 JSON，拒绝

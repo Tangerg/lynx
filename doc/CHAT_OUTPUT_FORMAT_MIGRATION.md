@@ -36,19 +36,20 @@ adapter 优先使用原生字段；只有目标协议不能表达请求格式时
 
 ## Typed decode
 
-删除 `CallStructured` 等额外调用面，改为拥有 contract 与 decoder 的
-`chatclient.OutputFormat[T]`：
+删除 `CallStructured` 以及手工组合 `Contract`、`Decode`、`Once` 的调用面。
+`chatclient.OutputFormat[T]` 通过不可变的短链同时绑定 provider contract 与 decoder：
 
 ```go
 format := chatclient.JSON[Answer]()
-request.Options.OutputFormat = format.Contract()
 
 // 非流式
-answer, err := format.Decode(chatclient.Once(client.Call(ctx, request)))
+answer, err := client.Output(format).Call(ctx, request)
 
 // 流式
-answer, err = format.Decode(client.Stream(ctx, request))
+answer, err = client.Output(format).Stream(ctx, request)
 ```
 
-`Once` 只把一个完整响应提升成单元素序列；两种调用最终经过同一套累积、JSON 提取、
-校验和 decode 逻辑，不再维护同步/流式两份实现。
+`Output` 只绑定输出契约，不修改 Client 或调用者持有的 Request，也不重新建模 messages、
+options 或 middleware。`Call` 在内部把完整响应提升成单元素序列；`Stream` 消费原生响应流，
+两者最终经过同一套累积、JSON 提取、校验和 decode 逻辑。需要逐块消费响应时继续直接使用
+`Client.Stream`。

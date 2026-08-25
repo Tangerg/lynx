@@ -72,7 +72,7 @@ func ExampleTemplate() {
 	// Output: Explain Go interfaces in one sentence.
 }
 
-func ExampleOutputFormat_Decode() {
+func ExampleClient_Output() {
 	type answer struct {
 		Value int `json:"value"`
 	}
@@ -87,9 +87,9 @@ func ExampleOutputFormat_Decode() {
 	if err != nil {
 		panic(err)
 	}
-	format := chatclient.JSON[answer]()
-	request.Options.OutputFormat = format.Contract()
-	result, err := format.Decode(chatclient.Once(client.Call(context.Background(), request)))
+	result, err := client.
+		Output(chatclient.JSON[answer]()).
+		Call(context.Background(), request)
 	if err != nil {
 		panic(err)
 	}

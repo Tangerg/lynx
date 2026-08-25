@@ -15,11 +15,10 @@ import (
 var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 
 // OutputFormat couples a provider-neutral request contract with the decoder
-// that consumes its response stream. Non-streaming responses use the same path
-// via [Once].
+// that consumes its response stream. Pass one to [Client.Output].
 type OutputFormat[T any] struct {
 	contract chat.OutputFormat
-	decode   func([]byte) (T, error)
+	decoder  func([]byte) (T, error)
 }
 
 // outputDecoder owns the stateless algorithms used to interpret accumulated
@@ -31,14 +30,14 @@ func Text() OutputFormat[string] {
 	decoder := outputDecoder{}
 	return OutputFormat[string]{
 		contract: chat.OutputFormat{Type: chat.OutputFormatText},
-		decode:   decoder.text,
+		decoder:  decoder.text,
 	}
 }
 
 // JSON returns a result format for one JSON object.
 func JSON[T any]() OutputFormat[T] {
 	decoder := outputDecoder{}
-	return OutputFormat[T]{contract: chat.OutputFormat{Type: chat.OutputFormatJSON}, decode: decoder.json[T]}
+	return OutputFormat[T]{contract: chat.OutputFormat{Type: chat.OutputFormatJSON}, decoder: decoder.json[T]}
 }
 
 // JSONSchema returns a result format coupled to a named JSON Schema contract.
@@ -48,34 +47,21 @@ func JSONSchema[T any](name string, schema []byte) (OutputFormat[T], error) {
 		return OutputFormat[T]{}, fmt.Errorf("%w: %w", ErrInvalidOutputFormat, err)
 	}
 	decoder := outputDecoder{}
-	return OutputFormat[T]{contract: contract, decode: decoder.json[T]}, nil
+	return OutputFormat[T]{contract: contract, decoder: decoder.json[T]}, nil
 }
 
-// Validate verifies both the Core request contract and the result decoder.
-func (f OutputFormat[T]) Validate() error {
+func (f OutputFormat[T]) validate() error {
 	if err := f.contract.Validate(); err != nil {
 		return fmt.Errorf("%w: contract: %w", ErrInvalidOutputFormat, err)
 	}
-	if f.decode == nil {
+	if f.decoder == nil {
 		return fmt.Errorf("%w: nil decoder", ErrInvalidOutputFormat)
 	}
 	return nil
 }
 
-// Contract returns an independent Core contract for
-// [chat.Options.OutputFormat].
-func (f OutputFormat[T]) Contract() *chat.OutputFormat {
-	return f.contract.Clone()
-}
-
-// Decode consumes a complete response stream and decodes its accumulated text.
-// The first upstream error terminates processing and takes precedence over any
-// partial output. The sequence may be single-use.
-func (f OutputFormat[T]) Decode(responses iter.Seq2[*chat.Response, error]) (T, error) {
+func (f OutputFormat[T]) decode(responses iter.Seq2[*chat.Response, error]) (T, error) {
 	var zero T
-	if err := f.Validate(); err != nil {
-		return zero, err
-	}
 	if responses == nil {
 		return zero, fmt.Errorf("%w: nil response sequence", ErrInvalidOutputFormat)
 	}
@@ -98,16 +84,14 @@ func (f OutputFormat[T]) Decode(responses iter.Seq2[*chat.Response, error]) (T, 
 	if !seen {
 		return zero, fmt.Errorf("%w: empty response sequence", ErrInvalidOutputFormat)
 	}
-	value, err := f.decode([]byte(text.String()))
+	value, err := f.decoder([]byte(text.String()))
 	if err != nil {
 		return zero, fmt.Errorf("chatclient: decode result: %w", err)
 	}
 	return value, nil
 }
 
-// Once lifts one synchronous response into the response-stream abstraction.
-// When err is non-nil it is the sequence's sole yielded error.
-func Once(response *chat.Response, err error) iter.Seq2[*chat.Response, error] {
+func once(response *chat.Response, err error) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		if err != nil {
 			yield(nil, err)

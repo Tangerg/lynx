@@ -2,6 +2,7 @@
 package arch
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -15,16 +16,77 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-func TestClientKeepsDirectCallSurface(t *testing.T) {
-	typeOfClient := reflect.TypeFor[*chatclient.Client]()
-	methods := make([]string, 0, typeOfClient.NumMethod())
-	for i := range typeOfClient.NumMethod() {
-		methods = append(methods, typeOfClient.Method(i).Name)
+func TestClientKeepsSmallCallSurface(t *testing.T) {
+	if methods := declaredMethods(t, "Client"); !slices.Equal(methods, []string{"Call", "Output", "Stream"}) {
+		t.Fatalf("Client methods = %v, want Call/Output/Stream only", methods)
+	}
+	if methods := declaredMethodsInFile(t, "Client", "client.go"); !slices.Equal(methods, []string{"Call", "Output", "Stream"}) {
+		t.Fatalf("Client methods in client.go = %v, want Call/Output/Stream", methods)
+	}
+	if methods := reflectedMethods(reflect.TypeFor[chatclient.Generation[string]]()); !slices.Equal(methods, []string{"Call", "Stream"}) {
+		t.Fatalf("Generation methods = %v, want Call/Stream only", methods)
+	}
+	if methods := declaredMethodsInFile(t, "Generation", "generation.go"); !slices.Equal(methods, []string{"Call", "Stream"}) {
+		t.Fatalf("Generation methods in generation.go = %v, want Call/Stream", methods)
+	}
+	if methods := reflectedMethods(reflect.TypeFor[chatclient.OutputFormat[string]]()); len(methods) != 0 {
+		t.Fatalf("OutputFormat methods = %v, want opaque format value", methods)
+	}
+}
+
+func declaredMethods(t *testing.T, receiver string) []string {
+	t.Helper()
+	return declaredMethodsInFile(t, receiver, "")
+}
+
+func declaredMethodsInFile(t *testing.T, receiver, filename string) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	var methods []string
+	for _, path := range productionGoFiles(t) {
+		if filename != "" && filepath.Base(path) != filename {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Recv == nil || !ast.IsExported(function.Name.Name) || len(function.Recv.List) != 1 {
+				continue
+			}
+			if receiverName(function.Recv.List[0].Type) == receiver {
+				methods = append(methods, function.Name.Name)
+			}
+		}
 	}
 	slices.Sort(methods)
-	if !slices.Equal(methods, []string{"Call", "Stream"}) {
-		t.Fatalf("Client methods = %v, want direct Call/Stream only", methods)
+	return methods
+}
+
+func receiverName(expression ast.Expr) string {
+	switch expression := expression.(type) {
+	case *ast.Ident:
+		return expression.Name
+	case *ast.StarExpr:
+		return receiverName(expression.X)
+	case *ast.IndexExpr:
+		return receiverName(expression.X)
+	case *ast.IndexListExpr:
+		return receiverName(expression.X)
+	default:
+		return ""
 	}
+}
+
+func reflectedMethods(typ reflect.Type) []string {
+	methods := make([]string, 0, typ.NumMethod())
+	for i := range typ.NumMethod() {
+		methods = append(methods, typ.Method(i).Name)
+	}
+	slices.Sort(methods)
+	return methods
 }
 
 func TestProductionImportsOnlyStandardLibraryAndCore(t *testing.T) {

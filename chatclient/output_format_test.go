@@ -17,31 +17,31 @@ type recipe struct {
 
 func TestOutputFormatContracts(t *testing.T) {
 	text := Text()
-	if err := text.Validate(); err != nil || text.Contract().Type != chat.OutputFormatText {
-		t.Fatalf("Text = (%#v, %v)", text.Contract(), err)
+	if err := text.validate(); err != nil || text.contract.Type != chat.OutputFormatText {
+		t.Fatalf("Text = (%#v, %v)", text.contract, err)
 	}
 	jsonFormat := JSON[recipe]()
-	if err := jsonFormat.Validate(); err != nil || jsonFormat.Contract().Type != chat.OutputFormatJSON {
-		t.Fatalf("JSON = (%#v, %v)", jsonFormat.Contract(), err)
+	if err := jsonFormat.validate(); err != nil || jsonFormat.contract.Type != chat.OutputFormatJSON {
+		t.Fatalf("JSON = (%#v, %v)", jsonFormat.contract, err)
 	}
 	schema := json.RawMessage(`{"type":"object"}`)
 	schemaFormat, err := JSONSchema[recipe]("recipe", schema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract := schemaFormat.Contract()
+	contract := schemaFormat.contract.Clone()
 	schema[0] = '['
 	if contract.Type != chat.OutputFormatJSONSchema || contract.Name != "recipe" || contract.Schema[0] != '{' {
 		t.Fatalf("JSONSchema contract = %#v", contract)
 	}
 	contract.Schema[0] = '['
-	if schemaFormat.Contract().Schema[0] != '{' {
+	if schemaFormat.contract.Schema[0] != '{' {
 		t.Fatal("Contract returned aliased schema bytes")
 	}
 	if _, err := JSONSchema[recipe]("", json.RawMessage(`{}`)); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("invalid JSONSchema error = %v", err)
 	}
-	if err := (OutputFormat[recipe]{}).Validate(); !errors.Is(err, ErrInvalidOutputFormat) {
+	if err := (OutputFormat[recipe]{}).validate(); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("zero OutputFormat error = %v", err)
 	}
 }
@@ -51,7 +51,7 @@ func TestOutputFormatDecodeUsesOneStreamPath(t *testing.T) {
 	want := recipe{Name: "tea", Steps: []string{"boil", "steep"}}
 
 	complete := responseWithText(t, `{"name":"tea","steps":["boil","steep"]}`)
-	got, err := format.Decode(Once(complete, nil))
+	got, err := format.decode(once(complete, nil))
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Decode complete = (%#v, %v), want %#v", got, err, want)
 	}
@@ -63,7 +63,7 @@ func TestOutputFormatDecodeUsesOneStreamPath(t *testing.T) {
 			}
 		}
 	})
-	got, err = format.Decode(stream)
+	got, err = format.decode(stream)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Decode stream = (%#v, %v), want %#v", got, err, want)
 	}
@@ -83,7 +83,7 @@ func TestOutputFormatDecodeIsIndependentOfStreamChunking(t *testing.T) {
 				yield(responseWithText(t, raw[split:]), nil)
 			}
 		})
-		got, err := format.Decode(stream)
+		got, err := format.decode(stream)
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatalf("split %d: Decode = (%#v, %v), want %#v", split, got, err, want)
 		}
@@ -103,7 +103,7 @@ func TestOutputFormatDecodeRobustJSON(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := JSON[recipe]().Decode(Once(responseWithText(t, test.raw), nil))
+			got, err := JSON[recipe]().decode(once(responseWithText(t, test.raw), nil))
 			if err != nil || !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("Decode = (%#v, %v), want %#v", got, err, test.want)
 			}
@@ -118,7 +118,7 @@ func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 		`{"name":"tea","name":"coffee","steps":[]}`,
 		string([]byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', ',', '"', 's', 't', 'e', 'p', 's', '"', ':', '[', ']', '}'}),
 	} {
-		if _, err := JSON[recipe]().Decode(Once(responseWithText(t, raw), nil)); err == nil {
+		if _, err := JSON[recipe]().decode(once(responseWithText(t, raw), nil)); err == nil {
 			t.Fatalf("Decode(%q) unexpectedly succeeded", raw)
 		}
 	}
@@ -127,20 +127,20 @@ func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 func TestOutputFormatDecodeBoundaries(t *testing.T) {
 	upstream := errors.New("upstream")
 	format := JSON[recipe]()
-	if _, err := format.Decode(nil); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := format.decode(nil); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("nil sequence error = %v", err)
 	}
-	if _, err := format.Decode(Once(nil, nil)); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := format.decode(once(nil, nil)); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("nil response error = %v", err)
 	}
-	if _, err := format.Decode(Once(nil, upstream)); !errors.Is(err, upstream) {
+	if _, err := format.decode(once(nil, upstream)); !errors.Is(err, upstream) {
 		t.Fatalf("upstream error = %v", err)
 	}
 	empty := iter.Seq2[*chat.Response, error](func(func(*chat.Response, error) bool) {})
-	if _, err := format.Decode(empty); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := format.decode(empty); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("empty sequence error = %v", err)
 	}
-	if got, err := Text().Decode(Once(responseWithText(t, " exact \n"), nil)); err != nil || got != " exact \n" {
+	if got, err := Text().decode(once(responseWithText(t, " exact \n"), nil)); err != nil || got != " exact \n" {
 		t.Fatalf("text Decode = (%q, %v)", got, err)
 	}
 }

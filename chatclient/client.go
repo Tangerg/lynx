@@ -12,6 +12,8 @@ import (
 var (
 	// ErrNilModel reports that New was called without a synchronous model.
 	ErrNilModel = errors.New("chatclient: nil model")
+	// ErrNilClient reports an operation created without a Client.
+	ErrNilClient = errors.New("chatclient: nil client")
 	// ErrStreamingUnsupported reports that a Client has no streaming
 	// capability. Pass a model that also implements [chat.Streamer], or set
 	// [Config.Streamer] when call and stream capabilities are separate values.
@@ -31,6 +33,11 @@ type Client struct {
 	model    chat.Model
 	streamer chat.Streamer
 	defaults chat.Options
+}
+
+// Output binds format to a typed generation without modifying c.
+func (c *Client) Output[T any](format OutputFormat[T]) Generation[T] {
+	return Generation[T]{client: c, format: format}
 }
 
 // New constructs a Client around model. When model also implements
@@ -88,7 +95,14 @@ func isNil(value any) bool {
 // Call snapshots and validates req, applies client defaults to fields the
 // request leaves unspecified, and invokes the synchronous model capability.
 func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	prepared, err := prepareRequest(req, c.defaults)
+	if c == nil {
+		return nil, ErrNilClient
+	}
+	return c.call(ctx, req, nil)
+}
+
+func (c *Client) call(ctx context.Context, req *chat.Request, format *chat.OutputFormat) (*chat.Response, error) {
+	prepared, err := c.prepareRequest(req, format)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +113,14 @@ func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, e
 // lazy response sequence. If the client has no real streaming capability, the
 // sequence yields (nil, ErrStreamingUnsupported) once and terminates.
 func (c *Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	prepared, err := prepareRequest(req, c.defaults)
+	if c == nil {
+		return errorSequence(ErrNilClient)
+	}
+	return c.stream(ctx, req, nil)
+}
+
+func (c *Client) stream(ctx context.Context, req *chat.Request, format *chat.OutputFormat) iter.Seq2[*chat.Response, error] {
+	prepared, err := c.prepareRequest(req, format)
 	if err != nil {
 		return errorSequence(err)
 	}
