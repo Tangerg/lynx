@@ -87,7 +87,10 @@ func TestShells_TimeoutKills(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("timed-out command did not finish")
 	}
-	_, killed, dur := sh.Outcome()
+	_, killed, dur, cleanupErr := sh.Outcome()
+	if cleanupErr != nil {
+		t.Fatalf("Outcome cleanup error = %v", cleanupErr)
+	}
 	if !killed {
 		t.Error("Outcome.killed = false, want true (terminated by timeout)")
 	}

@@ -10,11 +10,11 @@
 // mechanism backs both the synchronous shell result and the read_shell_output /
 // stop_shell tools — the auto-background design.
 //
-// No PTY: plain pipes into a bounded ring buffer. Kill is a plain process kill,
-// so a command that itself forks grandchildren may leave them, acceptable for
-// the local single-user runtime. The base path is cross-platform; an opt-in
-// [Sandbox] wraps each command in an in-place OS jail (macOS Seatbelt today,
-// fail-closed elsewhere).
+// No PTY: plain pipes into a bounded ring buffer. Unix commands own an isolated
+// process group so timeout, stop, natural parent exit, and shutdown reclaim
+// their descendants. The base path is cross-platform; an opt-in [Sandbox]
+// wraps each command in an in-place OS jail (macOS Seatbelt today, fail-closed
+// elsewhere).
 package exec
 
 import (
@@ -98,6 +98,7 @@ func (s *Shells) command(cwd, command string, isolated bool) (name string, args,
 type Shell struct {
 	cancel    context.CancelFunc
 	cmd       *exec.Cmd
+	process   *shellProcessOwner
 	started   time.Time
 	id        string        // the owner-map key, mirrored here for RunningForSession
 	sessionID string        // session that launched it; scopes RunningForSession
@@ -113,6 +114,7 @@ type Shell struct {
 	exitCode int           // process exit code; -1 when it never ran / wasn't an exit
 	killed   bool          // terminated by ctx/timeout/kill rather than exiting on its own
 	duration time.Duration // wall time from launch to completion
+	cleanup  error         // terminal process-tree cleanup diagnostic
 }
 
 // Launch starts command under cwd in the background and returns its shell id.
@@ -152,7 +154,11 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 	// (and thus Done) returns promptly even when a child the shell spawned still
 	// holds them — otherwise Wait blocks until that child exits.
 	cmd.WaitDelay = time.Second
-	sh := &Shell{cancel: cancel, cmd: cmd, started: time.Now(), sessionID: sessionID, command: command, done: make(chan struct{})}
+	process := newShellProcessOwner(cmd)
+	sh := &Shell{
+		cancel: cancel, cmd: cmd, process: process, started: time.Now(),
+		sessionID: sessionID, command: command, done: make(chan struct{}),
+	}
 	cmd.Stdout = sh
 	cmd.Stderr = sh
 
@@ -171,7 +177,7 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 	startErr := cmd.Start()
 	if startErr != nil {
 		cancel()
-		sh.finish("start failed: "+startErr.Error(), -1, false)
+		sh.finish("start failed: "+startErr.Error(), -1, false, nil)
 		s.shells[id] = sh
 		s.mu.Unlock()
 		return id, nil
@@ -182,8 +188,15 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 		err := cmd.Wait()
 		killed := runCtx.Err() != nil // ctx done = timeout or an explicit Kill
 		cancel()
+		cleanupErr := process.stop()
 		code, info := 0, "exit 0"
-		if err != nil {
+		if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil {
+			// The leader exited successfully but one of its descendants retained a
+			// copied pipe. Final process-group cleanup above owns that descendant;
+			// the pipe backstop must not rewrite the leader's real exit status.
+			code = cmd.ProcessState.ExitCode()
+			info = "exit " + strconv.Itoa(code)
+		} else if err != nil {
 			if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 				code = exitErr.ExitCode()
 				info = "exit " + strconv.Itoa(code)
@@ -191,7 +204,7 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 				code, info = -1, err.Error()
 			}
 		}
-		sh.finish(info, code, killed)
+		sh.finish(info, code, killed, cleanupErr)
 	}()
 	return id, nil
 }
@@ -253,10 +266,7 @@ func (s *Shells) Kill(id string) (running bool, err error) {
 		return false, nil
 	}
 	sh.cancel()
-	if sh.cmd.Process == nil {
-		return true, fmt.Errorf("exec: kill shell %q: process is unavailable", id)
-	}
-	if err := sh.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+	if err := sh.process.stop(); err != nil {
 		return true, fmt.Errorf("exec: kill shell %q: %w", id, err)
 	}
 	return true, nil
@@ -291,21 +301,46 @@ func (s *Shells) KillAll() error {
 		for _, id := range ids {
 			sh := shells[id]
 			sh.cancel()
-			if sh.cmd.Process != nil {
-				if err := sh.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-					errs = append(errs, fmt.Errorf("exec: kill shell %q during shutdown: %w", id, err))
-				}
+			if err := sh.process.stop(); err != nil {
+				errs = append(errs, fmt.Errorf("exec: kill shell %q during shutdown: %w", id, err))
 			}
 		}
 		for _, id := range ids {
-			<-shells[id].done
+			sh := shells[id]
+			<-sh.done
+			if err := sh.cleanupFailure(); err != nil {
+				errs = append(errs, fmt.Errorf("exec: clean shell %q during shutdown: %w", id, err))
+			}
 		}
 		s.closeErr = errors.Join(errs...)
 	})
 	return s.closeErr
 }
 
-func (s *Shell) finish(info string, code int, killed bool) {
+type shellProcessOwner struct {
+	command *exec.Cmd
+	once    sync.Once
+	err     error
+}
+
+func newShellProcessOwner(command *exec.Cmd) *shellProcessOwner {
+	configureShellProcess(command)
+	owner := &shellProcessOwner{command: command}
+	command.Cancel = owner.stop
+	return owner
+}
+
+func (owner *shellProcessOwner) stop() error {
+	owner.once.Do(func() {
+		owner.err = stopShellProcess(owner.command)
+		if errors.Is(owner.err, os.ErrProcessDone) {
+			owner.err = nil
+		}
+	})
+	return owner.err
+}
+
+func (s *Shell) finish(info string, code int, killed bool, cleanup error) {
 	s.mu.Lock()
 	if s.finished {
 		s.mu.Unlock()
@@ -316,6 +351,7 @@ func (s *Shell) finish(info string, code int, killed bool) {
 	s.exitCode = code
 	s.killed = killed
 	s.duration = time.Since(s.started)
+	s.cleanup = cleanup
 	s.mu.Unlock()
 	close(s.done)
 }
@@ -325,12 +361,19 @@ func (s *Shell) finish(info string, code int, killed bool) {
 func (s *Shell) Done() <-chan struct{} { return s.done }
 
 // Outcome reports a finished shell's exit code, whether it was killed
-// (timeout / explicit kill) rather than exiting on its own, and its wall-clock
-// duration. Meaningful only after [Shell.Done] is closed.
-func (s *Shell) Outcome() (exitCode int, killed bool, duration time.Duration) {
+// (timeout / explicit kill) rather than exiting on its own, its wall-clock
+// duration, and any terminal process-tree cleanup failure. Meaningful only
+// after [Shell.Done] is closed.
+func (s *Shell) Outcome() (exitCode int, killed bool, duration time.Duration, cleanup error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.exitCode, s.killed, s.duration
+	return s.exitCode, s.killed, s.duration, s.cleanup
+}
+
+func (s *Shell) cleanupFailure() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cleanup
 }
 
 // Read returns the output not yet returned to the caller and whether earlier

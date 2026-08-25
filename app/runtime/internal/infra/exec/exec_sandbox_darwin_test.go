@@ -39,7 +39,7 @@ func TestLaunchSandboxConfinesWrites(t *testing.T) {
 	}
 
 	sh := run("printf inside > inside.txt")
-	if code, _, _ := sh.Outcome(); code != 0 {
+	if code, _, _, _ := sh.Outcome(); code != 0 {
 		out, _ := sh.Read()
 		t.Fatalf("inside write exited %d: %q", code, out)
 	}
@@ -49,7 +49,7 @@ func TestLaunchSandboxConfinesWrites(t *testing.T) {
 	}
 
 	sh = run("printf outside > " + strconv.Quote(outside))
-	if code, _, _ := sh.Outcome(); code == 0 {
+	if code, _, _, _ := sh.Outcome(); code == 0 {
 		t.Fatal("write outside the workspace unexpectedly succeeded")
 	}
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {
@@ -80,7 +80,7 @@ func TestLaunchIsolatedJailsWithoutGlobalFlag(t *testing.T) {
 		t.Fatal("launched shell vanished")
 	}
 	<-sh.Done()
-	if code, _, _ := sh.Outcome(); code == 0 {
+	if code, _, _, _ := sh.Outcome(); code == 0 {
 		t.Fatal("isolated command wrote outside its jail despite the global flag being off")
 	}
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {

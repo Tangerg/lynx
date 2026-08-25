@@ -175,9 +175,10 @@ func (t *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
 
 func (t *commandTools) completed(id string, sh *exec.Shell) (string, error) {
 	out, dropped := sh.Read()
-	code, killed, dur := sh.Outcome()
+	code, killed, dur, cleanupErr := sh.Outcome()
 	t.shells.Remove(id)
-	return completedJSON(out, dropped, code, killed, dur)
+	result, resultErr := completedJSON(out, dropped, code, killed, dur)
+	return result, errors.Join(resultErr, cleanupErr)
 }
 
 func (t *commandTools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
@@ -188,14 +189,16 @@ func (t *commandTools) cancelForeground(ctx context.Context, id string, sh *exec
 	case <-sh.Done():
 		return t.completed(id, sh)
 	default:
-		// Canceled mid-run: kill AND remove. A killed-and-discarded foreground
-		// command is not a background job the model will query later, so leaving
-		// it in the shell set just leaks a dead entry until engine shutdown.
+		// Canceled mid-run: kill, join the process-tree cleanup, then remove. A
+		// discarded foreground command has no background handle that could retain
+		// ownership after this call returns.
 		if _, err := t.shells.Kill(id); err != nil && !errors.Is(err, exec.ErrShellNotFound) {
 			return "", errors.Join(ctx.Err(), fmt.Errorf("shell: stop canceled foreground command %q: %w", id, err))
 		}
+		<-sh.Done()
+		_, _, _, cleanupErr := sh.Outcome()
 		t.shells.Remove(id)
-		return "", ctx.Err()
+		return "", errors.Join(ctx.Err(), cleanupErr)
 	}
 }
 
@@ -216,6 +219,9 @@ func (t *commandTools) output(ctx context.Context, a shellOutputArgs) (string, e
 	done, info := sh.Status()
 	state := "still running"
 	if done {
+		if _, _, _, cleanupErr := sh.Outcome(); cleanupErr != nil {
+			return "", fmt.Errorf("shell: clean background shell %q: %w", a.ShellID, cleanupErr)
+		}
 		state = "finished (" + info + ")"
 	}
 	var b []byte

@@ -3,9 +3,11 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
@@ -208,6 +210,47 @@ func TestShell_AutoBackground(t *testing.T) {
 	}
 	if running, err := shells.Kill("bg_1"); err != nil || !running {
 		t.Fatalf("kill = (running=%v err=%v), want the backgrounded shell still running", running, err)
+	}
+}
+
+func TestShellCanceledForegroundJoinsBeforeRemoval(t *testing.T) {
+	shells := exec.NewShells(nil, false)
+	cleanupShells(t, shells)
+	tools := &commandTools{shells: shells}
+	ctx, cancel := context.WithCancel(t.Context())
+	result := make(chan error, 1)
+	go func() {
+		_, err := tools.run(ctx, shellArgs{
+			Command: "sleep 30", Description: "Wait for cancellation",
+			AutoBackgroundAfterSeconds: 30,
+		})
+		result <- err
+	}()
+
+	var running *exec.Shell
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if shell, ok := shells.Get("bg_1"); ok {
+			running = shell
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if running == nil {
+		cancel()
+		t.Fatal("foreground shell was not registered")
+	}
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled shell error = %v, want context.Canceled", err)
+	}
+	select {
+	case <-running.Done():
+	default:
+		t.Fatal("foreground shell was removed before process cleanup joined")
+	}
+	if _, ok := shells.Get("bg_1"); ok {
+		t.Fatal("canceled foreground shell remained in the owner ledger")
 	}
 }
 

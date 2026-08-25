@@ -106,6 +106,8 @@ P178 只收紧 Runtime internal MCP stdio session teardown：`dial` 的 lifecycl
 
 P179 只替换 Runtime internal Sandbox working-tree materialization：删除 in-memory tar pack/unpack，改为 source/destination `os.Root` 间的 64 KiB chunk copy；既有 100,000 entries、128 MiB/file、512 MiB aggregate 与 relative-symlink/mode 语义保留，并新增 opened identity/size、growth、cancellation 和 destination-inside-source fail-closed guard。Sandbox constructor/Tool output shape、Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
 
+P180 breaking 收紧 Runtime internal `infra/exec.Shell.Outcome`，增加 terminal process-tree cleanup error；唯一 Tool consumer 同批迁移，不保留旧三返回值 method。Unix Model Shell 在 Start 前独占 process group，timeout/stop/foreground cancel/natural leader exit/Host shutdown 都 group-stop 并 join；successful leader 的 descendant-held pipe 不改写其 exit code。Model-facing `shell/read_shell_output/stop_shell` name、request/result JSON shape、Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、public Go/generated binding、Desktop/Wails、Agent Framework 与 CLI 不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval
