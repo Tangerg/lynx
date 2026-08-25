@@ -27,11 +27,15 @@ func (*panicSource) OpenResource(context.Context, string, string) (fs.File, erro
 }
 
 func newToolFS() skillsrc.ResourceSource {
-	return skillsrc.NewFS(fstest.MapFS{
+	repository, err := skillsrc.NewFS(fstest.MapFS{
 		"pdf-processing/SKILL.md":                {Data: []byte("---\nname: pdf-processing\ndescription: Handle PDFs.\n---\n# PDF\nDo the thing. See references/REFERENCE.md.")},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("detailed reference")},
 		"data-analysis/SKILL.md":                 {Data: []byte("---\nname: data-analysis\ndescription: Analyze data.\n---\nanalysis body")},
 	})
+	if err != nil {
+		panic(err)
+	}
+	return repository
 }
 
 func newTools(t *testing.T) map[string]toolcontract.Tool {

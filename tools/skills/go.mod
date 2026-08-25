@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
-	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
+	github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb
 )
 
 require (

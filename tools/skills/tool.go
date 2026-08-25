@@ -92,7 +92,7 @@ func (t *toolSet) load(ctx context.Context, request LoadSkillRequest) (string, e
 	if err != nil {
 		return "", err
 	}
-	return skill.Body, nil
+	return skill.Instructions, nil
 }
 
 func (t *toolSet) readResource(ctx context.Context, request ReadSkillResourceRequest) (string, error) {
