@@ -8,15 +8,20 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-func userMessage(text string) *sdka2a.Message {
+// textProjection owns the package's fixed, text-first projection between A2A
+// protocol content and the lynx tool/agent boundaries. Its zero value is ready
+// for use.
+type textProjection struct{}
+
+func (textProjection) userMessage(text string) *sdka2a.Message {
 	return sdka2a.NewMessage(sdka2a.MessageRoleUser, sdka2a.NewTextPart(text))
 }
 
-// textOfParts renders A2A content parts to a single string: text parts are
+// parts renders A2A content parts to a single string: text parts are
 // concatenated verbatim, structured data parts are JSON-encoded, and other
 // kinds (raw bytes, file URLs) are described compactly. tools and the
 // chat loop are text-first, so this is the lossy-but-faithful projection.
-func textOfParts(parts sdka2a.ContentParts) string {
+func (textProjection) parts(parts sdka2a.ContentParts) string {
 	if len(parts) == 0 {
 		return ""
 	}
@@ -46,54 +51,54 @@ func textOfParts(parts sdka2a.ContentParts) string {
 	return b.String()
 }
 
-// textOfResult extracts the reply text from a SendMessageResult and reports a
+// result extracts the reply text from a SendMessageResult and reports a
 // *RemoteAgentError unless a returned task completed successfully. A direct
 // Message reply yields its parts; a completed Task reply prefers its artifacts,
 // falling back to the status message.
-func textOfResult(result sdka2a.SendMessageResult) (string, error) {
+func (p textProjection) result(result sdka2a.SendMessageResult) (string, error) {
 	switch r := result.(type) {
 	case *sdka2a.Message:
 		if r == nil {
 			return "", fmt.Errorf("%w: nil message", ErrInvalidResult)
 		}
-		return textOfParts(r.Parts), nil
+		return p.parts(r.Parts), nil
 	case *sdka2a.Task:
 		if r == nil {
 			return "", fmt.Errorf("%w: nil task", ErrInvalidResult)
 		}
 		if r.Status.State != sdka2a.TaskStateCompleted {
-			return "", &RemoteAgentError{State: r.Status.State, Detail: statusDetail(r)}
+			return "", &RemoteAgentError{State: r.Status.State, Detail: p.status(r)}
 		}
-		return taskText(r), nil
+		return p.task(r), nil
 	default:
 		return "", fmt.Errorf("%w: unexpected %T", ErrInvalidResult, result)
 	}
 }
 
-// taskText concatenates a task's artifact parts, falling back to its status
+// task concatenates a task's artifact parts, falling back to its status
 // message when no artifacts are present.
-func taskText(task *sdka2a.Task) string {
+func (p textProjection) task(task *sdka2a.Task) string {
 	if task == nil {
 		return ""
 	}
 	var b strings.Builder
 	for _, artifact := range task.Artifacts {
 		if artifact != nil {
-			b.WriteString(textOfParts(artifact.Parts))
+			b.WriteString(p.parts(artifact.Parts))
 		}
 	}
 	if b.Len() == 0 {
-		return statusDetail(task)
+		return p.status(task)
 	}
 	return b.String()
 }
 
-func statusDetail(task *sdka2a.Task) string {
+func (p textProjection) status(task *sdka2a.Task) string {
 	if task == nil {
 		return ""
 	}
 	if task.Status.Message == nil {
 		return ""
 	}
-	return textOfParts(task.Status.Message.Parts)
+	return p.parts(task.Status.Message.Parts)
 }

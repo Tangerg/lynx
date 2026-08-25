@@ -101,13 +101,14 @@ func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err
 		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", t.definition.Name, err)
 	}
 
-	req := &sdka2a.SendMessageRequest{Message: userMessage(input.Message)}
+	projection := textProjection{}
+	req := &sdka2a.SendMessageRequest{Message: projection.userMessage(input.Message)}
 	result, err := t.client.SendMessage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("a2a: call agent %q: %w", t.definition.Name, err)
 	}
 
-	text, err := textOfResult(result)
+	text, err := projection.result(result)
 	if err != nil {
 		return "", fmt.Errorf("a2a: decode result from agent %q: %w", t.definition.Name, err)
 	}

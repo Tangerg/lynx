@@ -7,7 +7,8 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-func TestTextOfResultRequiresSuccessfulResult(t *testing.T) {
+func TestTextProjectionRequiresSuccessfulResult(t *testing.T) {
+	projection := textProjection{}
 	detail := sdka2a.NewMessage(sdka2a.MessageRoleAgent, sdka2a.NewTextPart("more input needed"))
 	states := []sdka2a.TaskState{
 		sdka2a.TaskStateUnspecified,
@@ -21,10 +22,10 @@ func TestTextOfResultRequiresSuccessfulResult(t *testing.T) {
 	}
 	for _, state := range states {
 		t.Run(string(state), func(t *testing.T) {
-			_, err := textOfResult(&sdka2a.Task{Status: sdka2a.TaskStatus{State: state, Message: detail}})
+			_, err := projection.result(&sdka2a.Task{Status: sdka2a.TaskStatus{State: state, Message: detail}})
 			remote, ok := errors.AsType[*RemoteAgentError](err)
 			if !ok || remote.State != state || remote.Detail != "more input needed" {
-				t.Fatalf("textOfResult error = %#v, want RemoteAgentError for %q", err, state)
+				t.Fatalf("textProjection.result error = %#v, want RemoteAgentError for %q", err, state)
 			}
 		})
 	}
@@ -35,17 +36,18 @@ func TestTextOfResultRequiresSuccessfulResult(t *testing.T) {
 			Parts: sdka2a.ContentParts{sdka2a.NewTextPart("done")},
 		}},
 	}
-	if text, err := textOfResult(completed); err != nil || text != "done" {
-		t.Fatalf("textOfResult(completed) = %q, %v; want done, nil", text, err)
+	if text, err := projection.result(completed); err != nil || text != "done" {
+		t.Fatalf("textProjection.result(completed) = %q, %v; want done, nil", text, err)
 	}
 }
 
-func TestTextOfResultRejectsNilProtocolValues(t *testing.T) {
+func TestTextProjectionRejectsNilProtocolValues(t *testing.T) {
+	projection := textProjection{}
 	var message *sdka2a.Message
 	var task *sdka2a.Task
 	for _, result := range []sdka2a.SendMessageResult{nil, message, task} {
-		if _, err := textOfResult(result); !errors.Is(err, ErrInvalidResult) {
-			t.Fatalf("textOfResult(%T) error = %v, want ErrInvalidResult", result, err)
+		if _, err := projection.result(result); !errors.Is(err, ErrInvalidResult) {
+			t.Fatalf("textProjection.result(%T) error = %v, want ErrInvalidResult", result, err)
 		}
 	}
 }

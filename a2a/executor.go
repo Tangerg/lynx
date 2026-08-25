@@ -78,6 +78,7 @@ func isNilAgent(agent Agent) bool {
 // status carrying the error message if the agent errors mid-stream.
 func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[sdka2a.Event, error] {
 	return func(yield func(sdka2a.Event, error) bool) {
+		projection := textProjection{}
 		// One server span per task execution. Opened when the SDK drains the
 		// sequence, closed at the terminal event; a mid-stream agent error is
 		// recorded before the Failed terminal goes out.
@@ -92,7 +93,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 
 		input := ""
 		if execCtx.Message != nil {
-			input = textOfParts(execCtx.Message.Parts)
+			input = projection.parts(execCtx.Message.Parts)
 		}
 
 		// The task must exist before any status/artifact event, then move to
