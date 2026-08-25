@@ -2,6 +2,7 @@ package skillauthoring_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -156,6 +157,18 @@ func TestArchiveRestoreAndList(t *testing.T) {
 	list, _ = store.List(t.Context())
 	if lc, _ := lifecycleOf(list, "alpha-skill"); lc != skills.Active {
 		t.Fatalf("restored alpha should be active, got %q", lc)
+	}
+}
+
+func TestManagedLibraryListRejectsOverCapacitySnapshot(t *testing.T) {
+	root := t.TempDir()
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
+	for index := range governedManagedSkills + 1 {
+		writeActiveSkillFixture(t, root, fmt.Sprintf("skill-%03d", index))
+	}
+
+	if _, err := store.List(t.Context()); err == nil {
+		t.Fatalf("List accepted more than %d managed skills", governedManagedSkills)
 	}
 }
 

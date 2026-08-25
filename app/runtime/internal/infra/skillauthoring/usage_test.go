@@ -2,14 +2,33 @@ package skillauthoring_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
+
+const (
+	governedManagedSkills = 256
+	governedUsageBytes    = 64 << 10
+)
+
+func writeActiveSkillFixture(t *testing.T, root, name string) {
+	t.Helper()
+	directory := filepath.Join(root, name)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create active skill %q: %v", name, err)
+	}
+	document := fmt.Sprintf("---\nname: %s\ndescription: A valid managed Skill used by the capacity counterexample.\n---\ninstructions", name)
+	if err := os.WriteFile(filepath.Join(directory, "SKILL.md"), []byte(document), 0o644); err != nil {
+		t.Fatalf("write active skill %q: %v", name, err)
+	}
+}
 
 func TestRecordUseAccumulatesUsage(t *testing.T) {
 	root := t.TempDir()
@@ -46,5 +65,38 @@ func TestRecordUseDisabledStoreNoOps(t *testing.T) {
 	store := skillauthoring.NewStore("", skills.ScopeUser)
 	if err := store.RecordUse(t.Context(), "x", time.Unix(1, 0)); err != nil {
 		t.Fatalf("disabled RecordUse: %v", err)
+	}
+}
+
+func TestRecordUseRejectsOversizedUsageMetadata(t *testing.T) {
+	root := t.TempDir()
+	oversized := `{"` + strings.Repeat("x", governedUsageBytes) + `":{"firstSeen":1}}`
+	if err := os.WriteFile(filepath.Join(root, ".usage.json"), []byte(oversized), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
+	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); err == nil {
+		t.Fatalf("RecordUse accepted usage metadata larger than %d bytes", governedUsageBytes)
+	}
+}
+
+func TestRecordUseRejectsOverCapacityUsageMap(t *testing.T) {
+	root := t.TempDir()
+	usage := make(map[string]map[string]int64, governedManagedSkills+1)
+	for index := range governedManagedSkills + 1 {
+		usage[fmt.Sprintf("skill-%03d", index)] = map[string]int64{"firstSeen": 1}
+	}
+	data, err := json.Marshal(usage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".usage.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
+	if err := store.RecordUse(t.Context(), "run-tests", time.Unix(2, 0)); err == nil {
+		t.Fatalf("RecordUse accepted more than %d usage records", governedManagedSkills)
 	}
 }
