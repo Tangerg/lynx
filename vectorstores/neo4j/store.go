@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "Neo4j"
@@ -116,7 +117,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("neo4j: unsupported Similarity %q", c.Similarity)
 	}
-	return validateIdentifiers("neo4j", map[string]string{
+	return identifier.Strict.Validate("neo4j", map[string]string{
 		"Label":             c.Label,
 		"EmbeddingProperty": c.EmbeddingProperty,
 		"IDProperty":        c.IDProperty,

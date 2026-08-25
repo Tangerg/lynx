@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/vectorstores/cassandra
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef
+	github.com/Tangerg/lynx v0.0.0-20260825211145-8c312a1c76db
 	github.com/gocql/gocql v1.7.0
 )
 

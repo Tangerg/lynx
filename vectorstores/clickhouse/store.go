@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "ClickHouse"
@@ -121,7 +122,7 @@ func (c StoreConfig) Validate() error {
 	if c.DatabaseName != "" {
 		checks["DatabaseName"] = c.DatabaseName
 	}
-	return validateIdentifiers("clickhouse", checks)
+	return identifier.Strict.Validate("clickhouse", checks)
 }
 
 // applyDefaults fills zero fields with documented defaults.

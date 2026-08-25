@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "AzureCosmosDB"
@@ -100,7 +101,7 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", c.DistanceFunction)
 	}
-	return validateIdentifiers("azurecosmos", map[string]string{
+	return identifier.Strict.Validate("azurecosmos", map[string]string{
 		"IDField":        c.IDField,
 		"ContentField":   c.ContentField,
 		"MetadataField":  c.MetadataField,

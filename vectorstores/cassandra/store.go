@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/vectorstores/internal/identifier"
 )
 
 const Provider = "Cassandra"
@@ -146,7 +147,7 @@ func (c StoreConfig) Validate() error {
 			return fmt.Errorf("cassandra: MetadataColumn %q must have a CQLType", m.Name)
 		}
 	}
-	return validateIdentifiers("cassandra", checks)
+	return identifier.Strict.Validate("cassandra", checks)
 }
 
 var (
