@@ -173,9 +173,13 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Inspect image details",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"boolean"}}}`),
 	}}
+	format, err := corechat.NewOutputFormat(corechat.OutputFormatJSON)
+	if err != nil {
+		t.Fatalf("NewOutputFormat: %v", err)
+	}
+	request.Options.OutputFormat = &format
 	if err := request.Options.SetExtension(ollama.RequestExtensionKey, map[string]any{
 		"keep_alive": "10m",
-		"format":     "json",
 		"think":      true,
 		"options": map[string]any{
 			"seed":        42,

@@ -37,7 +37,6 @@ type ChatRequestOptions struct {
 	AdditionalModelResponseFieldPaths []string                `json:"additional_model_response_field_paths,omitempty"`
 	Guardrail                         *GuardrailOptions       `json:"guardrail,omitempty"`
 	StreamGuardrail                   *StreamGuardrailOptions `json:"stream_guardrail,omitempty"`
-	JSONSchema                        *JSONSchemaOptions      `json:"json_schema,omitempty"`
 	PerformanceLatency                string                  `json:"performance_latency,omitempty"`
 	RequestMetadata                   map[string]string       `json:"request_metadata,omitempty"`
 	ServiceTier                       string                  `json:"service_tier,omitempty"`
@@ -57,13 +56,6 @@ type StreamGuardrailOptions struct {
 	Version        string `json:"version"`
 	Trace          string `json:"trace,omitempty"`
 	ProcessingMode string `json:"processing_mode,omitempty"`
-}
-
-// JSONSchemaOptions constrains Bedrock output to the supplied JSON schema.
-type JSONSchemaOptions struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Schema      json.RawMessage `json:"schema"`
 }
 
 // ChatConfig configures the Bedrock Converse Core chat adapter.
@@ -171,7 +163,7 @@ func (c *Chat) buildConverseInput(req *corechat.Request) (*bedrockruntime.Conver
 		GuardrailConfig:                   mapGuardrailOptions(prepared.native.Guardrail),
 		InferenceConfig:                   prepared.inference,
 		Messages:                          prepared.messages,
-		OutputConfig:                      mapOutputOptions(prepared.native.JSONSchema),
+		OutputConfig:                      mapOutputFormat(prepared.outputFormat),
 		PerformanceConfig:                 mapPerformanceOptions(prepared.native.PerformanceLatency),
 		RequestMetadata:                   maps.Clone(prepared.native.RequestMetadata),
 		ServiceTier:                       mapServiceTier(prepared.native.ServiceTier),
@@ -192,7 +184,7 @@ func (c *Chat) buildConverseStreamInput(req *corechat.Request) (*bedrockruntime.
 		GuardrailConfig:                   mapStreamGuardrailOptions(prepared.native.StreamGuardrail),
 		InferenceConfig:                   prepared.inference,
 		Messages:                          prepared.messages,
-		OutputConfig:                      mapOutputOptions(prepared.native.JSONSchema),
+		OutputConfig:                      mapOutputFormat(prepared.outputFormat),
 		PerformanceConfig:                 mapPerformanceOptions(prepared.native.PerformanceLatency),
 		RequestMetadata:                   maps.Clone(prepared.native.RequestMetadata),
 		ServiceTier:                       mapServiceTier(prepared.native.ServiceTier),
@@ -202,12 +194,13 @@ func (c *Chat) buildConverseStreamInput(req *corechat.Request) (*bedrockruntime.
 }
 
 type preparedChatRequest struct {
-	model     string
-	system    []types.SystemContentBlock
-	messages  []types.Message
-	inference *types.InferenceConfiguration
-	tools     *types.ToolConfiguration
-	native    ChatRequestOptions
+	model        string
+	system       []types.SystemContentBlock
+	messages     []types.Message
+	inference    *types.InferenceConfiguration
+	tools        *types.ToolConfiguration
+	outputFormat *corechat.OutputFormat
+	native       ChatRequestOptions
 }
 
 func mapGuardrailOptions(options *GuardrailOptions) *types.GuardrailConfiguration {
@@ -233,16 +226,16 @@ func mapStreamGuardrailOptions(options *StreamGuardrailOptions) *types.Guardrail
 	}
 }
 
-func mapOutputOptions(options *JSONSchemaOptions) *types.OutputConfig {
-	if options == nil {
+func mapOutputFormat(format *corechat.OutputFormat) *types.OutputConfig {
+	if format == nil || format.Type != corechat.OutputFormatJSONSchema {
 		return nil
 	}
-	schema := string(options.Schema)
+	schema := string(format.Schema)
 	return &types.OutputConfig{TextFormat: &types.OutputFormat{
 		Type: types.OutputFormatTypeJsonSchema,
 		Structure: &types.OutputFormatStructureMemberJsonSchema{Value: types.JsonSchemaDefinition{
-			Name:        aws.String(options.Name),
-			Description: aws.String(options.Description),
+			Name:        aws.String(format.Name),
+			Description: aws.String(format.Description),
 			Schema:      aws.String(schema),
 		}},
 	}}
@@ -286,6 +279,14 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	}
 	if !found {
 		native = ChatRequestOptions{}
+	} else {
+		fields, _, decodeErr := metadata.Decode[map[string]json.RawMessage](req.Options.Extensions, ChatRequestExtensionKey)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("bedrock: extension %q: %w", ChatRequestExtensionKey, decodeErr)
+		}
+		if _, exists := fields["json_schema"]; exists {
+			return nil, fmt.Errorf("bedrock: extension %q field %q is owned by options.output_format", ChatRequestExtensionKey, "json_schema")
+		}
 	}
 
 	system, messages, err := mapProtocolMessages(req.Messages)
@@ -296,13 +297,21 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	if err != nil {
 		return nil, err
 	}
+	if options.OutputFormat != nil && options.OutputFormat.Type == corechat.OutputFormatJSON {
+		instruction, err := options.OutputFormat.FallbackInstruction()
+		if err != nil {
+			return nil, fmt.Errorf("bedrock: output format fallback: %w", err)
+		}
+		system = append(system, &types.SystemContentBlockMemberText{Value: instruction})
+	}
 	return &preparedChatRequest{
-		model:     options.Model,
-		system:    system,
-		messages:  messages,
-		inference: mapInferenceOptions(options),
-		tools:     tools,
-		native:    native,
+		model:        options.Model,
+		system:       system,
+		messages:     messages,
+		inference:    mapInferenceOptions(options),
+		tools:        tools,
+		outputFormat: options.OutputFormat,
+		native:       native,
 	}, nil
 }
 

@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260825065905-a02034eb7570 h1:0o6rrzJzG733dm4JAOpK/I9MD+5FD+WoqKTY5xoYk6I=
-github.com/Tangerg/lynx v0.0.0-20260825065905-a02034eb7570/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260825102631-28cf6163c4da h1:Oy5aGnN20hhDgIBOw/3ey9Ig4E26bRQvmGRASECWiVo=
+github.com/Tangerg/lynx v0.0.0-20260825102631-28cf6163c4da/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/aws/aws-sdk-go-v2 v1.43.3 h1:XJIcfv8uDs2ukdQsoAC8/Ebu1ejxwzlayl2ZsiFns2A=
 github.com/aws/aws-sdk-go-v2 v1.43.3/go.mod h1:70vwSy16txshwG+g55WkpgPKDIByzHI8ccBsOteo3bQ=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 h1:aiuaKlDweRC5qExJondpWjOgyzMHpofpwspGXUtwn4c=

@@ -37,6 +37,10 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	}
 	apiReq.Model = options.Model
 	apiReq.Stream = &stream
+	apiReq.Format, err = mapProtocolOutputFormat(options.OutputFormat)
+	if err != nil {
+		return nil, err
+	}
 	apiReq.Messages, err = mapProtocolMessages(req.Messages)
 	if err != nil {
 		return nil, err
@@ -83,11 +87,32 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	return apiReq, nil
 }
 
+func mapProtocolOutputFormat(format *corechat.OutputFormat) (json.RawMessage, error) {
+	if format == nil || format.Type == corechat.OutputFormatText {
+		return nil, nil
+	}
+	switch format.Type {
+	case corechat.OutputFormatJSON:
+		return json.RawMessage(`"json"`), nil
+	case corechat.OutputFormatJSONSchema:
+		return bytes.Clone(format.Schema), nil
+	default:
+		return nil, fmt.Errorf("ollama: unsupported output format %q", format.Type)
+	}
+}
+
 func decodeProtocolRequestExtension(req *corechat.Request) (*nativeChatRequest, error) {
 	apiReq := new(nativeChatRequest)
 	raw, found := req.Options.Extensions[RequestExtensionKey]
 	if !found {
 		return apiReq, nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)
+	}
+	if _, exists := fields["format"]; exists {
+		return nil, fmt.Errorf("ollama: extension %q field %q is owned by options.output_format", RequestExtensionKey, "format")
 	}
 	if err := json.Unmarshal(raw, apiReq); err != nil {
 		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)

@@ -62,6 +62,9 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if len(options.Stop) > 0 {
 		config.StopSequences = slices.Clone(options.Stop)
 	}
+	if err := mapProtocolOutputFormat(options.OutputFormat, config); err != nil {
+		return "", nil, nil, err
+	}
 
 	system, contents, err := mapProtocolMessages(provider, req.Messages)
 	if err != nil {
@@ -82,11 +85,44 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	return options.Model, contents, config, nil
 }
 
+func mapProtocolOutputFormat(format *corechat.OutputFormat, config *genai.GenerateContentConfig) error {
+	if format == nil {
+		return nil
+	}
+	config.ResponseSchema = nil
+	config.ResponseJsonSchema = nil
+	switch format.Type {
+	case corechat.OutputFormatText:
+		config.ResponseMIMEType = "text/plain"
+	case corechat.OutputFormatJSON:
+		config.ResponseMIMEType = "application/json"
+	case corechat.OutputFormatJSONSchema:
+		schema, err := format.SchemaAs[any]()
+		if err != nil {
+			return fmt.Errorf("google: output schema: %w", err)
+		}
+		config.ResponseMIMEType = "application/json"
+		config.ResponseJsonSchema = schema
+	default:
+		return fmt.Errorf("google: unsupported output format %q", format.Type)
+	}
+	return nil
+}
+
 func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.GenerateContentConfig, error) {
 	extensionKey := protocolKey(provider, "request")
 	raw, found := req.Options.Extensions[extensionKey]
 	if !found {
 		return &genai.GenerateContentConfig{}, nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, fmt.Errorf("google: extension %q: %w", extensionKey, err)
+	}
+	for _, name := range []string{"responseMimeType", "response_mime_type", "responseSchema", "response_schema", "responseJsonSchema", "response_json_schema"} {
+		if _, exists := fields[name]; exists {
+			return nil, fmt.Errorf("google: extension %q field %q is owned by options.output_format", extensionKey, name)
+		}
 	}
 	var config genai.GenerateContentConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
