@@ -36,9 +36,6 @@ func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {
 	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{}); err == nil {
 		t.Fatal("nil config must error")
 	}
-	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{}); err == nil {
-		t.Fatal("missing VectorStore must error")
-	}
 	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: &fakeVectorSearcher{},
 		MinScore:    1.5,

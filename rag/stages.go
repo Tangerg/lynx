@@ -40,8 +40,8 @@ var (
 // Candidate relates a document to the retrieval operation that produced it.
 // Score is query-specific and therefore does not belong on document.Document.
 type Candidate struct {
-	Document *document.Document
-	Score    float64
+	Document *document.Document `json:"document"`
+	Score    float64            `json:"score"`
 }
 
 // Validate checks the candidate's document and score.

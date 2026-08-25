@@ -8,15 +8,19 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// Formatter is the narrow rendering policy required by contextual RAG.
-type Formatter interface {
+// DocumentFormatter renders one retrieved document for contextual RAG.
+type DocumentFormatter interface {
 	Format(*document.Document) (string, error)
 }
 
-// FormatterFunc adapts a function to Formatter.
-type FormatterFunc func(*document.Document) (string, error)
+// DocumentFormatterFunc adapts a function to [DocumentFormatter].
+type DocumentFormatterFunc func(*document.Document) (string, error)
 
-func (f FormatterFunc) Format(doc *document.Document) (string, error) { return f(doc) }
+func (f DocumentFormatterFunc) Format(doc *document.Document) (string, error) { return f(doc) }
+
+type textDocumentFormatter struct{}
+
+func (textDocumentFormatter) Format(doc *document.Document) (string, error) { return doc.Text, nil }
 
 // contextualDefaultTemplate is the default RAG augmentation prompt: it
 // drops the retrieved docs into a Context block, asks the LLM to
@@ -62,7 +66,7 @@ type ContextualAugmenterConfig struct {
 	AllowEmptyContext bool
 
 	// Formatter renders each retrieved document. It defaults to Text only.
-	Formatter Formatter
+	Formatter DocumentFormatter
 }
 
 var _ Augmenter = (*contextualAugmenter)(nil)
@@ -71,7 +75,7 @@ type contextualAugmenter struct {
 	promptTemplate             *chatclient.Template
 	emptyContextPromptTemplate *chatclient.Template
 	allowEmptyContext          bool
-	formatter                  Formatter
+	formatter                  DocumentFormatter
 }
 
 type contextualPromptVariables struct {
@@ -100,9 +104,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 	}
 	formatter := cfg.Formatter
 	if isNil(formatter) {
-		formatter = FormatterFunc(func(doc *document.Document) (string, error) {
-			return doc.Text, nil
-		})
+		formatter = textDocumentFormatter{}
 	}
 
 	return &contextualAugmenter{

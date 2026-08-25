@@ -106,15 +106,19 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey)
+	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
-		t.Fatal("DocumentContextKey not attached to response extensions")
+		t.Fatal("RetrievedCandidatesKey not attached to response extensions")
 	}
 	if len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
+	}
+	raw := response.Metadata.Extra[rag.RetrievedCandidatesKey]
+	if !strings.Contains(string(raw), `"document"`) || strings.Contains(string(raw), `"Document"`) {
+		t.Fatalf("candidate metadata does not use the stable JSON model: %s", raw)
 	}
 }
 
@@ -167,7 +171,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 		chunks++
-		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey); decodeErr != nil || !ok {
+		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey); decodeErr != nil || !ok {
 			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
 		}
 	}
@@ -247,7 +251,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	if response != partial || !errors.Is(err, wantErr) {
 		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
 	}
-	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.DocumentContextKey); decodeErr != nil || !found {
+	if _, found, decodeErr := metadata.Decode[[]rag.Candidate](response.Metadata.Extra, rag.RetrievedCandidatesKey); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }

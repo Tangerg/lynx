@@ -18,10 +18,9 @@ var (
 	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
 )
 
-// DocumentContextKey is the [chat.ResponseMetadata.Extra] key under which the
-// middleware stashes retrieved documents so downstream callers can re-render or
-// audit the context the LLM saw.
-const DocumentContextKey = "rag/document_context"
+// RetrievedCandidatesKey is the [chat.ResponseMetadata.Extra] key under which
+// the middleware stores the candidates used to augment the model request.
+const RetrievedCandidatesKey = "rag/retrieved_candidates"
 
 var (
 	chatHistoryValueKey              = MustValueKey[[]chat.Message]("chat history")
@@ -106,12 +105,12 @@ func (p preparedChatRequest) attachDocuments(response *chat.Response) error {
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	return response.Metadata.Set(DocumentContextKey, p.candidates)
+	return response.Metadata.Set(RetrievedCandidatesKey, p.candidates)
 }
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieved documents to
-// [chat.ResponseMetadata.Extra] under [DocumentContextKey].
+// [chat.ResponseMetadata.Extra] under [RetrievedCandidatesKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if isNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever

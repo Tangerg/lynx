@@ -30,7 +30,7 @@
 // Lynx deliberately does not ship a separate "DocumentJoiner"
 // abstraction. Use [Parallel] to run retrievers concurrently and union their
 // result lists into a flat slice; use refiners to re-organize that slice.
-// The canonical "join overlapping retriever results" pattern is:
+// A typical "join overlapping retriever results" pattern is:
 //
 //	top, err := rag.TopK(topK)
 //	combined, err := rag.Parallel(vectorR1, vectorR2)
@@ -39,14 +39,9 @@
 // TopK keeps the highest-scoring candidate for each non-empty document ID
 // before ranking and capping, so duplicate hits cannot consume result slots.
 // Use [Dedup] separately only when unique documents are needed without score
-// ordering or a result cap. This works for any number of retrievers whose
-// scores live on the same scale (e.g. all are vector-similarity stores).
-// Reciprocal Rank Fusion (RRF) — the rank-based fusion algorithm — only adds value
-// when retriever scores are NOT comparable (BM25 mixed with dense
-// vectors, sparse mixed with hybrid, etc.). Until lynx ships a non-
-// vector retriever, RRF doesn't solve a real problem; a dedicated
-// DocumentJoiner abstraction will land at that point so it can be
-// designed against real constraints rather than guessed.
+// ordering or a result cap. Score-based refiners assume all retrievers use a
+// comparable score scale; callers combining unlike ranking systems should
+// supply a custom [Refiner] with an explicit fusion policy.
 //
 // # Per-query retriever routing
 //
@@ -60,7 +55,7 @@
 //	type routingRetriever struct {
 //	    docsR, logsR rag.Retriever
 //	}
-//	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]Candidate, error) {
+//	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]rag.Candidate, error) {
 //	    route, _, err := q.Value(routeKey)
 //	    if err != nil {
 //	        return nil, err
