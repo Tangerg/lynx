@@ -30,6 +30,15 @@ type Config struct {
 	TracerProvider trace.TracerProvider
 }
 
+// Validate verifies the database-system identity required by history
+// instrumentation.
+func (config Config) Validate() error {
+	if strings.TrimSpace(config.System) == "" {
+		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
+	}
+	return nil
+}
+
 // Middleware instruments chathistory capabilities without entering a
 // provider package or changing the wrapped operation's result.
 type Middleware struct {
@@ -38,16 +47,16 @@ type Middleware struct {
 }
 
 // New constructs history instrumentation for a composition root.
-func New(config Config) (*Middleware, error) {
-	system := strings.ToLower(strings.TrimSpace(config.System))
-	if system == "" {
-		return nil, fmt.Errorf("%w: system is required", ErrInvalidConfig)
+func New(config Config) (Middleware, error) {
+	if err := config.Validate(); err != nil {
+		return Middleware{}, err
 	}
+	system := strings.ToLower(strings.TrimSpace(config.System))
 	tracerProvider := config.TracerProvider
 	if isNilCapability(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
-	return &Middleware{
+	return Middleware{
 		system: system,
 		tracer: tracerProvider.Tracer(
 			instrumentationName,
@@ -70,80 +79,39 @@ func isNilCapability(value any) bool {
 }
 
 // Store instruments the ordinary read, write, and clear capabilities.
-func (m *Middleware) Store(next corehistory.Store) corehistory.Store {
+func (m Middleware) Store(next corehistory.Store) corehistory.Store {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyStore{
-		read: func(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
-			ctx, span := m.start(ctx, "read", conversationID)
-			messages, err := next.Read(ctx, conversationID)
-			span.SetAttributes(attribute.Int("chat_history.message.count", len(messages)))
-			finishHistorySpan(span, err)
-			return messages, err
-		},
-		write: func(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-			ctx, span := m.start(ctx, "write", conversationID,
-				attribute.Int("chat_history.message.count", len(messages)),
-			)
-			err := next.Write(ctx, conversationID, messages...)
-			finishHistorySpan(span, err)
-			return err
-		},
-		clear: func(ctx context.Context, conversationID corehistory.ConversationID) error {
-			ctx, span := m.start(ctx, "clear", conversationID)
-			err := next.Clear(ctx, conversationID)
-			finishHistorySpan(span, err)
-			return err
-		},
-	}
+	return historyStore{middleware: m, next: next}
 }
 
 // Conversations instruments the optional cross-conversation listing
 // capability without synthesizing it for stores that do not provide it.
-func (m *Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
+func (m Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyListerFunc(func(ctx context.Context) ([]corehistory.ConversationID, error) {
-		ctx, span := m.start(ctx, "list", "")
-		ids, err := next.Conversations(ctx)
-		span.SetAttributes(attribute.Int("chat_history.conversation.count", len(ids)))
-		finishHistorySpan(span, err)
-		return ids, err
-	})
+	return historyLister{middleware: m, next: next}
 }
 
 // Replace instruments the optional atomic replacement capability.
-func (m *Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
+func (m Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyReplacerFunc(func(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-		ctx, span := m.start(ctx, "replace", conversationID,
-			attribute.Int("chat_history.message.count", len(messages)),
-		)
-		err := next.Replace(ctx, conversationID, messages...)
-		finishHistorySpan(span, err)
-		return err
-	})
+	return historyReplacer{middleware: m, next: next}
 }
 
 // Count instruments the optional message-count capability.
-func (m *Middleware) Count(next corehistory.Counter) corehistory.Counter {
+func (m Middleware) Count(next corehistory.Counter) corehistory.Counter {
 	if isNilCapability(next) {
 		return nil
 	}
-	return historyCounterFunc(func(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
-		ctx, span := m.start(ctx, "count", conversationID)
-		count, err := next.Count(ctx, conversationID)
-		span.SetAttributes(attribute.Int("chat_history.message.count", count))
-		finishHistorySpan(span, err)
-		return count, err
-	})
+	return historyCounter{middleware: m, next: next}
 }
 
-func (m *Middleware) start(
+func (m Middleware) start(
 	ctx context.Context,
 	operation string,
 	conversationID corehistory.ConversationID,
@@ -174,37 +142,70 @@ func finishHistorySpan(span trace.Span, err error) {
 }
 
 type historyStore struct {
-	read  func(context.Context, corehistory.ConversationID) ([]chat.Message, error)
-	write func(context.Context, corehistory.ConversationID, ...chat.Message) error
-	clear func(context.Context, corehistory.ConversationID) error
+	middleware Middleware
+	next       corehistory.Store
 }
 
 func (s historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
-	return s.read(ctx, conversationID)
+	ctx, span := s.middleware.start(ctx, "read", conversationID)
+	messages, err := s.next.Read(ctx, conversationID)
+	span.SetAttributes(attribute.Int("chat_history.message.count", len(messages)))
+	finishHistorySpan(span, err)
+	return messages, err
 }
 
 func (s historyStore) Write(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	return s.write(ctx, conversationID, messages...)
+	ctx, span := s.middleware.start(ctx, "write", conversationID,
+		attribute.Int("chat_history.message.count", len(messages)),
+	)
+	err := s.next.Write(ctx, conversationID, messages...)
+	finishHistorySpan(span, err)
+	return err
 }
 
 func (s historyStore) Clear(ctx context.Context, conversationID corehistory.ConversationID) error {
-	return s.clear(ctx, conversationID)
+	ctx, span := s.middleware.start(ctx, "clear", conversationID)
+	err := s.next.Clear(ctx, conversationID)
+	finishHistorySpan(span, err)
+	return err
 }
 
-type historyListerFunc func(context.Context) ([]corehistory.ConversationID, error)
-
-func (f historyListerFunc) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
-	return f(ctx)
+type historyLister struct {
+	middleware Middleware
+	next       corehistory.Lister
 }
 
-type historyReplacerFunc func(context.Context, corehistory.ConversationID, ...chat.Message) error
-
-func (f historyReplacerFunc) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	return f(ctx, conversationID, messages...)
+func (l historyLister) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
+	ctx, span := l.middleware.start(ctx, "list", "")
+	ids, err := l.next.Conversations(ctx)
+	span.SetAttributes(attribute.Int("chat_history.conversation.count", len(ids)))
+	finishHistorySpan(span, err)
+	return ids, err
 }
 
-type historyCounterFunc func(context.Context, corehistory.ConversationID) (int, error)
+type historyReplacer struct {
+	middleware Middleware
+	next       corehistory.Replacer
+}
 
-func (f historyCounterFunc) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
-	return f(ctx, conversationID)
+func (r historyReplacer) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
+	ctx, span := r.middleware.start(ctx, "replace", conversationID,
+		attribute.Int("chat_history.message.count", len(messages)),
+	)
+	err := r.next.Replace(ctx, conversationID, messages...)
+	finishHistorySpan(span, err)
+	return err
+}
+
+type historyCounter struct {
+	middleware Middleware
+	next       corehistory.Counter
+}
+
+func (c historyCounter) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
+	ctx, span := c.middleware.start(ctx, "count", conversationID)
+	count, err := c.next.Count(ctx, conversationID)
+	span.SetAttributes(attribute.Int("chat_history.message.count", count))
+	finishHistorySpan(span, err)
+	return count, err
 }

@@ -25,7 +25,7 @@ type telemetryRig struct {
 	meters *sdkmetric.MeterProvider
 }
 
-func newRig(t *testing.T, provider string) (*otelchat.Middleware, *telemetryRig) {
+func newRig(t *testing.T, provider string) (otelchat.Middleware, *telemetryRig) {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))

@@ -28,7 +28,7 @@ func (f searcherFunc) Search(ctx context.Context, request *vectorstore.SearchReq
 	return f(ctx, request)
 }
 
-func newVectorStoreMiddleware(t *testing.T) (*vectorotel.Middleware, *tracetest.SpanRecorder) {
+func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))

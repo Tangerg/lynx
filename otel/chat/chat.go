@@ -40,6 +40,14 @@ type Config struct {
 	MeterProvider  metric.MeterProvider
 }
 
+// Validate verifies the provider identity required by chat instrumentation.
+func (config Config) Validate() error {
+	if strings.TrimSpace(config.Provider) == "" {
+		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
+	}
+	return nil
+}
+
 // Middleware adds GenAI spans and metrics to synchronous and streaming
 // chat capabilities. It is immutable after construction and safe for
 // concurrent use.
@@ -52,11 +60,11 @@ type Middleware struct {
 
 // New constructs chat instrumentation. Provider is required at the
 // composition root instead of being added to the Core Model contract.
-func New(config Config) (*Middleware, error) {
-	provider := strings.ToLower(strings.TrimSpace(config.Provider))
-	if provider == "" {
-		return nil, fmt.Errorf("%w: provider is required", ErrInvalidConfig)
+func New(config Config) (Middleware, error) {
+	if err := config.Validate(); err != nil {
+		return Middleware{}, err
 	}
+	provider := strings.ToLower(strings.TrimSpace(config.Provider))
 
 	tracerProvider := config.TracerProvider
 	if isNilCapability(tracerProvider) {
@@ -70,14 +78,14 @@ func New(config Config) (*Middleware, error) {
 	meter := meterProvider.Meter(instrumentationName)
 	duration, err := genaiconv.NewClientOperationDuration(meter)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create duration histogram: %w", ErrInvalidConfig, err)
+		return Middleware{}, fmt.Errorf("%w: create duration histogram: %w", ErrInvalidConfig, err)
 	}
 	tokens, err := genaiconv.NewClientTokenUsage(meter)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create token histogram: %w", ErrInvalidConfig, err)
+		return Middleware{}, fmt.Errorf("%w: create token histogram: %w", ErrInvalidConfig, err)
 	}
 
-	return &Middleware{
+	return Middleware{
 		provider: provider,
 		tracer:   tracerProvider.Tracer(instrumentationName),
 		duration: duration,
@@ -87,7 +95,7 @@ func New(config Config) (*Middleware, error) {
 
 // Call is a [corechat.CallMiddleware]. It preserves the wrapped model's response
 // and error exactly; observation is a read-only side effect.
-func (m *Middleware) Call(next corechat.Model) corechat.Model {
+func (m Middleware) Call(next corechat.Model) corechat.Model {
 	if isNilCapability(next) {
 		return nil
 	}
@@ -105,7 +113,7 @@ func (m *Middleware) Call(next corechat.Model) corechat.Model {
 // early consumer stop. Invalid deltas are still forwarded unchanged; an
 // accumulation problem is recorded as an event and never becomes a business
 // error.
-func (m *Middleware) Stream(next corechat.Streamer) corechat.Streamer {
+func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 	if isNilCapability(next) {
 		return nil
 	}
@@ -170,7 +178,7 @@ func isNilCapability(value any) bool {
 	}
 }
 
-func (m *Middleware) start(
+func (m Middleware) start(
 	ctx context.Context,
 	request *corechat.Request,
 ) (context.Context, trace.Span) {
@@ -190,7 +198,7 @@ func (m *Middleware) start(
 	)
 }
 
-func (m *Middleware) finish(
+func (m Middleware) finish(
 	ctx context.Context,
 	span trace.Span,
 	request *corechat.Request,
@@ -207,7 +215,7 @@ func (m *Middleware) finish(
 	m.recordMetrics(ctx, request, response, elapsed, err)
 }
 
-func (m *Middleware) recordMetrics(
+func (m Middleware) recordMetrics(
 	ctx context.Context,
 	request *corechat.Request,
 	response *corechat.Response,

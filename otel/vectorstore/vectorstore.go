@@ -33,6 +33,15 @@ type Config struct {
 	TracerProvider trace.TracerProvider
 }
 
+// Validate verifies the database-system identity required by vector-store
+// instrumentation.
+func (config Config) Validate() error {
+	if strings.TrimSpace(config.System) == "" {
+		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
+	}
+	return nil
+}
+
 // Middleware instruments vector-store capabilities without changing
 // the capability set of the wrapped value.
 type Middleware struct {
@@ -44,17 +53,17 @@ type Middleware struct {
 
 // New constructs vector-store instrumentation. It belongs at the
 // composition root; providers remain unaware of OpenTelemetry.
-func New(config Config) (*Middleware, error) {
-	system := strings.ToLower(strings.TrimSpace(config.System))
-	if system == "" {
-		return nil, fmt.Errorf("%w: system is required", ErrInvalidConfig)
+func New(config Config) (Middleware, error) {
+	if err := config.Validate(); err != nil {
+		return Middleware{}, err
 	}
+	system := strings.ToLower(strings.TrimSpace(config.System))
 
 	tracerProvider := config.TracerProvider
 	if isNilCapability(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
-	return &Middleware{
+	return Middleware{
 		system:     system,
 		collection: strings.TrimSpace(config.Collection),
 		namespace:  strings.TrimSpace(config.Namespace),
@@ -76,78 +85,38 @@ func isNilCapability(value any) bool {
 }
 
 // Index instruments only the [corevectorstore.Indexer] capability.
-func (m *Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer {
+func (m Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer {
 	if isNilCapability(next) {
 		return nil
 	}
-	return indexerFunc(func(ctx context.Context, request *corevectorstore.IndexRequest) error {
-		extra := make([]attribute.KeyValue, 0, 1)
-		if request != nil && len(request.Documents) > 1 {
-			extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(request.Documents)))
-		}
-		ctx, span := m.start(ctx, "index", extra...)
-		err := next.Index(ctx, request)
-		finishVectorStoreSpan(span, err)
-		return err
-	})
+	return indexer{middleware: m, next: next}
 }
 
 // Search instruments only the [corevectorstore.Searcher] capability.
-func (m *Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searcher {
+func (m Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searcher {
 	if isNilCapability(next) {
 		return nil
 	}
-	return searcherFunc(func(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
-		var topK int
-		var minScore float64
-		if request != nil {
-			topK = request.Options.TopK
-			minScore = request.Options.MinScore.Float64()
-		}
-		ctx, span := m.start(ctx, "search",
-			attribute.Int("db.vector.query.top_k", topK),
-			attribute.Float64("db.vector.query.similarity_threshold", minScore),
-		)
-		response, err := next.Search(ctx, request)
-		if err == nil && response != nil {
-			span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(response.Results)))
-		}
-		finishVectorStoreSpan(span, err)
-		return response, err
-	})
+	return searcher{middleware: m, next: next}
 }
 
 // DeleteIDs instruments only the [corevectorstore.IDDeleter] capability.
-func (m *Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.IDDeleter {
+func (m Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.IDDeleter {
 	if isNilCapability(next) {
 		return nil
 	}
-	return idDeleterFunc(func(ctx context.Context, ids []string) error {
-		extra := make([]attribute.KeyValue, 0, 1)
-		if len(ids) > 1 {
-			extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(ids)))
-		}
-		ctx, span := m.start(ctx, "delete_ids", extra...)
-		err := next.DeleteIDs(ctx, ids)
-		finishVectorStoreSpan(span, err)
-		return err
-	})
+	return idDeleter{middleware: m, next: next}
 }
 
 // DeleteWhere instruments only the [corevectorstore.FilterDeleter] capability.
-func (m *Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorstore.FilterDeleter {
+func (m Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorstore.FilterDeleter {
 	if isNilCapability(next) {
 		return nil
 	}
-	return filterDeleterFunc(func(ctx context.Context, predicate filter.Predicate) error {
-		ctx, span := m.start(ctx, "delete_where")
-		err := next.DeleteWhere(ctx, predicate)
-		finishVectorStoreSpan(span, err)
-		return err
-	})
+	return filterDeleter{middleware: m, next: next}
 }
 
-func (m *Middleware) start(
+func (m Middleware) start(
 	ctx context.Context,
 	operation string,
 	extra ...attribute.KeyValue,
@@ -189,26 +158,70 @@ func finishVectorStoreSpan(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-type indexerFunc func(context.Context, *corevectorstore.IndexRequest) error
-
-func (f indexerFunc) Index(ctx context.Context, request *corevectorstore.IndexRequest) error {
-	return f(ctx, request)
+type indexer struct {
+	middleware Middleware
+	next       corevectorstore.Indexer
 }
 
-type searcherFunc func(context.Context, *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error)
-
-func (f searcherFunc) Search(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
-	return f(ctx, request)
+func (i indexer) Index(ctx context.Context, request *corevectorstore.IndexRequest) error {
+	extra := make([]attribute.KeyValue, 0, 1)
+	if request != nil && len(request.Documents) > 1 {
+		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(request.Documents)))
+	}
+	ctx, span := i.middleware.start(ctx, "index", extra...)
+	err := i.next.Index(ctx, request)
+	finishVectorStoreSpan(span, err)
+	return err
 }
 
-type idDeleterFunc func(context.Context, []string) error
-
-func (f idDeleterFunc) DeleteIDs(ctx context.Context, ids []string) error {
-	return f(ctx, ids)
+type searcher struct {
+	middleware Middleware
+	next       corevectorstore.Searcher
 }
 
-type filterDeleterFunc func(context.Context, filter.Predicate) error
+func (s searcher) Search(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
+	var topK int
+	var minScore float64
+	if request != nil {
+		topK = request.Options.TopK
+		minScore = request.Options.MinScore.Float64()
+	}
+	ctx, span := s.middleware.start(ctx, "search",
+		attribute.Int("db.vector.query.top_k", topK),
+		attribute.Float64("db.vector.query.similarity_threshold", minScore),
+	)
+	response, err := s.next.Search(ctx, request)
+	if err == nil && response != nil {
+		span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(response.Results)))
+	}
+	finishVectorStoreSpan(span, err)
+	return response, err
+}
 
-func (f filterDeleterFunc) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
-	return f(ctx, predicate)
+type idDeleter struct {
+	middleware Middleware
+	next       corevectorstore.IDDeleter
+}
+
+func (d idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
+	extra := make([]attribute.KeyValue, 0, 1)
+	if len(ids) > 1 {
+		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(ids)))
+	}
+	ctx, span := d.middleware.start(ctx, "delete_ids", extra...)
+	err := d.next.DeleteIDs(ctx, ids)
+	finishVectorStoreSpan(span, err)
+	return err
+}
+
+type filterDeleter struct {
+	middleware Middleware
+	next       corevectorstore.FilterDeleter
+}
+
+func (d filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
+	ctx, span := d.middleware.start(ctx, "delete_where")
+	err := d.next.DeleteWhere(ctx, predicate)
+	finishVectorStoreSpan(span, err)
+	return err
 }

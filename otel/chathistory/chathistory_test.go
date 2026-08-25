@@ -39,7 +39,7 @@ func (s *historyRecorder) Conversations(context.Context) ([]chathistory.Conversa
 	return []chathistory.ConversationID{"one", "two"}, s.err
 }
 
-func newHistoryMiddleware(t *testing.T) (*historyotel.Middleware, *tracetest.SpanRecorder) {
+func newHistoryMiddleware(t *testing.T) (historyotel.Middleware, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
