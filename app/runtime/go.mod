@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Tangerg/lynx v0.0.0-20260825124053-c2a41e743d43
-	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/a2a v0.0.0-20260825133344-d508117a2e44
 	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
 	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71

@@ -64,13 +64,9 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []toolcontr
 	endpoints := make([]lynxa2a.Endpoint, len(agents))
 	for i, agent := range agents {
 		endpoints[i] = lynxa2a.Endpoint{
-			Name:    agent.Name,
-			CardURL: agent.CardURL,
-		}
-		if len(agent.AllowedRPCOrigins) > 0 {
-			endpoints[i].Policy = &lynxa2a.EndpointPolicy{
-				AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
-			}
+			Name:              agent.Name,
+			CardURL:           agent.CardURL,
+			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
 		}
 	}
 	tools, closeTools, derr := lynxa2a.Tools(ctx, endpoints...)
