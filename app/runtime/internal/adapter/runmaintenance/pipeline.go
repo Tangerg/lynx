@@ -52,7 +52,7 @@ func (p *Pipeline) Maintain(ctx context.Context, input agentexec.RunMaintenanceI
 	}
 
 	contextWindow := 0
-	if info, ok := catalog.Lookup(input.ModelSelection.Provider(), input.ModelSelection.Model()); ok {
+	if info, ok := catalog.Default.Lookup(input.ModelSelection.Provider(), input.ModelSelection.Model()); ok {
 		contextWindow = int(info.Limits.ContextWindow)
 	}
 	compaction, err := p.compactor.CompactIfNeeded(ctx, input.SessionID, contextWindow, input.PreCompact)

@@ -14,12 +14,12 @@ github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570 h1:qXN0+SWcf9pI
 github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570/go.mod h1:VNqsORyI9JmNoQISrOJtxKjPCiM7U5LGXuo6BTX3nv0=
 github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71 h1:kcoOy75UF7XCK438q42GZ1ut4oGNao1YYwnkQ+3NZqw=
 github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71/go.mod h1:AaYeeq50cbecqPzqcWM8NIlbsxo6Ttl468uRM2NpHoQ=
-github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570 h1:asWr6i+U7V9tC8XO2TjSzKxxnuFZsfyIYs2uAPOEoGA=
-github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570/go.mod h1:J07l44SAv9hxL3oTs52H6iBjzPeeV7+VIV3a6KB1/Vo=
+github.com/Tangerg/lynx/models v0.0.0-20260825160730-8f2c3f38aaab h1:aMiQW8Cs2GwZaPPqSXmOiBAFARi239NhhqmH5/Utwug=
+github.com/Tangerg/lynx/models v0.0.0-20260825160730-8f2c3f38aaab/go.mod h1:YHdxwjPGmddzTYVPgSAum0RBdqHEIAslXstOcdCxCSw=
 github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570 h1:/ncG4WfwnxKGVuuTbI9TIZYXIbKHZk+QTe690+Kaw48=
 github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570/go.mod h1:IXQ+4SCvtpWVWBsN3zHAcGmwQ8lC5qSXhcrFvJWVFdw=
-github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570 h1:wle1gLugflPBO8KwWf/wKA1mwRHSU4Vtre02uqmwf2o=
-github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570/go.mod h1:JUgR+hb2X66xXY3Ps0BistNCoZtPAL48OJ+Gb/gdXkw=
+github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825102734-e077fb7a91a5 h1:2SGAqNGDpbD3/WVwFqNyWIazmOU/C68i/NyQU4+XpD8=
+github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825102734-e077fb7a91a5/go.mod h1:lf/tvwqKGpbk/4ta0Y+wAp1yqPkprho+kCEjKpxurYs=
 github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570 h1:1DyagyNOaXNMaSTykCihtBbjqaaCXXYN8+pGeqvaqDA=
 github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570/go.mod h1:UXI2XrKwbfErvCVOQm0rFaq9pbok+Bd4kGxAwZ7HBck=
 github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb h1:sQbs8OiihfA0EHxxuPxZg4r1CvDxjA4yF2AHYfXr174=

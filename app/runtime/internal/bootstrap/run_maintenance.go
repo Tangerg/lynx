@@ -27,7 +27,7 @@ func buildRunMaintenance(
 		return cfg.Maintenance
 	}
 	window := 0
-	if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
+	if info, ok := catalog.Default.Lookup(cfg.Provider, cfg.Model); ok {
 		window = int(info.Limits.ContextWindow)
 	}
 	compactor := runmaintenance.NewCompactor(

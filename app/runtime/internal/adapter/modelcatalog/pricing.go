@@ -11,7 +11,7 @@ import (
 // reports CostUSD against the model that actually answered.
 func Pricing() accounting.Pricing {
 	return func(provider, servedModel string, usage *chat.Usage) float64 {
-		if info, ok := catalog.Lookup(provider, servedModel); ok {
+		if info, ok := catalog.Default.Lookup(provider, servedModel); ok {
 			catalogUsage := catalog.Usage{
 				InputTokens:  usage.InputTokens,
 				OutputTokens: usage.OutputTokens,
@@ -22,7 +22,7 @@ func Pricing() accounting.Pricing {
 			if usage.CacheWriteInputTokens != nil {
 				catalogUsage.CacheWriteInputTokens = *usage.CacheWriteInputTokens
 			}
-			return catalog.CostOf(info.Pricing, catalogUsage)
+			return info.Pricing.Cost(catalogUsage)
 		}
 		return 0
 	}

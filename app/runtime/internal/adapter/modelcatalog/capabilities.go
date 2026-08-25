@@ -39,7 +39,7 @@ func (Capabilities) Metadata(id string) (modelsapp.ProviderMetadata, bool) {
 }
 
 func (Capabilities) Models(providerID string) []modelsapp.Model {
-	entries := catalog.Models(providerID)
+	entries := catalog.Default.Models(providerID)
 	out := make([]modelsapp.Model, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, catalogModel(providerID, entry))
@@ -48,7 +48,7 @@ func (Capabilities) Models(providerID string) []modelsapp.Model {
 }
 
 func (Capabilities) LookupModel(providerID, modelID string) (modelsapp.Model, bool) {
-	entry, ok := catalog.Lookup(providerID, modelID)
+	entry, ok := catalog.Default.Lookup(providerID, modelID)
 	if !ok {
 		return modelsapp.Model{}, false
 	}

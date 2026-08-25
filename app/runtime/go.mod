@@ -8,9 +8,9 @@ require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
 	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71
-	github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx/models v0.0.0-20260825160730-8f2c3f38aaab
 	github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825102734-e077fb7a91a5
 	github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad

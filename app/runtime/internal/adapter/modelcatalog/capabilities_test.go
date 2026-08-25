@@ -17,7 +17,7 @@ func TestCatalogContainsProviderDefaults(t *testing.T) {
 		if model == "" {
 			continue
 		}
-		if _, ok := catalog.Lookup(string(provider), model); !ok {
+		if _, ok := catalog.Default.Lookup(string(provider), model); !ok {
 			t.Errorf("catalog has no default model %q for provider %q", model, provider)
 		}
 	}
