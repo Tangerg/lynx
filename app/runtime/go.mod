@@ -3,15 +3,15 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00
+	github.com/Tangerg/lynx v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/agent v0.0.0-20260815012052-a9f35b30656a
+	github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/otel v0.0.0-20260803122848-6ade352dda10
+	github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570
+	github.com/Tangerg/lynx/otel v0.0.0-20260825065905-a02034eb7570
 	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c
