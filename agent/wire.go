@@ -42,10 +42,10 @@ func EncodeInput[T any](value T) (Input, error) {
 	return ParseInput(data)
 }
 
-// DecodeInput strictly decodes an Input into a typed value. Unknown object
-// fields are rejected when T is a struct.
-func DecodeInput[T any](input Input) (T, error) {
-	value, err := decodeJSON[T](input.data)
+// Decode strictly decodes i into a typed value. Unknown object fields are
+// rejected when T is a struct.
+func (i Input) Decode[T any]() (T, error) {
+	value, err := decodeJSON[T](i.data)
 	if err != nil {
 		return value, fmt.Errorf("%w: decode: %w", ErrInvalidInput, err)
 	}
@@ -103,10 +103,10 @@ func EncodeOutput[T any](value T) (Output, error) {
 	return ParseOutput(data)
 }
 
-// DecodeOutput strictly decodes an Output into a typed value. Unknown object
-// fields are rejected when T is a struct.
-func DecodeOutput[T any](output Output) (T, error) {
-	value, err := decodeJSON[T](output.data)
+// Decode strictly decodes o into a typed value. Unknown object fields are
+// rejected when T is a struct.
+func (o Output) Decode[T any]() (T, error) {
+	value, err := decodeJSON[T](o.data)
 	if err != nil {
 		return value, fmt.Errorf("%w: decode: %w", ErrInvalidOutput, err)
 	}

@@ -30,7 +30,7 @@ type externalState struct {
 func (definition externalDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
 
 func (externalDefinition) Start(input agent.Input) (agent.Execution, error) {
-	value, err := agent.DecodeInput[externalInput](input)
+	value, err := input.Decode[externalInput]()
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := agent.EncodeInput(externalInput{Value: "done"})
+	input, err := deployment.Descriptor().EncodeInput(externalInput{Value: "done"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	if !ok {
 		t.Fatal("completed Result has no Output")
 	}
-	value, err := agent.DecodeOutput[externalOutput](output)
+	value, err := deployment.Descriptor().DecodeOutput[externalOutput](output)
 	if err != nil || value.Value != "done" {
 		t.Fatalf("output=%+v err=%v", value, err)
 	}

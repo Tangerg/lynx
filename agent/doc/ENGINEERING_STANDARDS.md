@@ -347,7 +347,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 小型不可变值优先按值返回；有身份、可变或较大的对象按指针返回。
 - `context.Context` 是可能阻塞/I/O 操作的首参数，不存入 struct 或 snapshot。
 - 流式拉取优先 `iter.Seq2`；不要用 channel 伪装普通迭代。
-- Framework 窄腰保持非泛型：Definition/Execution 的输入、输出和 snapshot wire 使用受大小限制的 `json.RawMessage`，Descriptor 提供权威 schema、版本和 digest；泛型 `Typed[I, O]` 只存在于注册与调用边缘。
+- Framework 窄腰保持非泛型：Definition/Execution 的输入、输出和 snapshot wire 使用受大小限制的 `json.RawMessage`，Descriptor 提供权威 schema、版本和 digest；Go 1.27 方法泛型只用于 `Descriptor`、`Input`、`Output` 等类型擦除边缘，不把 Kernel 或 Strategy runtime 泛型化。
 - Engine 依据目标 Definition 的 Descriptor 校验输入、输出和 child result，不用 Go 类型断言、反射或 `map[string]any` 代替 wire 合同。
 - raw JSON 的解释权必须唯一：共同层只复制、限长、校验 envelope/schema digest，不窥探 Strategy payload。
 - 不使用 fluent builder、全局注册表、隐式默认 Strategy 或 package-global Engine。

@@ -58,7 +58,7 @@ func newEngineTestDefinition(t testing.TB, name, mode string) *engineTestDefinit
 func (definition *engineTestDefinition) Descriptor() Descriptor { return definition.descriptor }
 
 func (definition *engineTestDefinition) Start(input Input) (Execution, error) {
-	value, err := DecodeInput[engineTestInput](input)
+	value, err := input.Decode[engineTestInput]()
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func TestEngineRunsEffectToValidatedOutput(t *testing.T) {
 	if !ok {
 		t.Fatal("completed result has no Output")
 	}
-	value, err := DecodeOutput[engineTestOutput](output)
+	value, err := output.Decode[engineTestOutput]()
 	if err != nil || value.Value != "hello:done" {
 		t.Fatalf("output=%+v err=%v", value, err)
 	}
@@ -377,7 +377,7 @@ func TestEngineMintsWaitIDAndRequiresAddressedAnswer(t *testing.T) {
 	}
 	result := awaitResult(t, process)
 	output, _ := result.Output()
-	value, _ := DecodeOutput[engineTestOutput](output)
+	value, _ := output.Decode[engineTestOutput]()
 	if value.Value != "approved" {
 		t.Fatalf("output=%q", value.Value)
 	}
@@ -443,7 +443,7 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	}
 	result := awaitResult(t, restored)
 	output, _ := result.Output()
-	value, _ := DecodeOutput[engineTestOutput](output)
+	value, _ := output.Decode[engineTestOutput]()
 	if value.Value != "resolved" {
 		t.Fatalf("resolved output=%q", value.Value)
 	}
@@ -488,7 +488,7 @@ func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T)
 	}
 	result := awaitResult(t, restored)
 	output, _ := result.Output()
-	value, _ := DecodeOutput[engineTestOutput](output)
+	value, _ := output.Decode[engineTestOutput]()
 	if value.Value != "first+second" {
 		t.Fatalf("ordered batch output=%q", value.Value)
 	}

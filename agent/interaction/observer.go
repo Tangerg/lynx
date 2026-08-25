@@ -12,9 +12,9 @@ import (
 // bounded time. A Dispatcher may invoke it concurrently for explicitly
 // concurrent Tool calls.
 type ExecutionObserver interface {
-	OnModelResponse(context.Context, ModelInvocation, *chat.Response)
-	OnToolStarted(context.Context, ToolInvocation)
-	OnToolSettled(context.Context, ToolInvocation, ToolSettlement)
+	OnModelResponse(ctx context.Context, invocation ModelInvocation, response *chat.Response)
+	OnToolStarted(ctx context.Context, invocation ToolInvocation)
+	OnToolSettled(ctx context.Context, invocation ToolInvocation, settlement ToolSettlement)
 }
 
 // ToolSettlement is the conclusive outcome visible at the Tool host boundary.
@@ -22,10 +22,14 @@ type ExecutionObserver interface {
 // the Tool paused durably before producing a result. Failure is reserved for a
 // host/cancellation failure for which no ordinary ToolResult was produced.
 type ToolSettlement struct {
-	Result        *chat.ToolResult
+	// Result is the exact ordinary Tool result fed back to the model.
+	Result *chat.ToolResult
+	// InputRequired reports that the Tool paused before producing Result.
 	InputRequired bool
-	Failure       string
-	Unknown       bool
+	// Failure describes a host or cancellation failure that produced no Result.
+	Failure string
+	// Unknown reports that the external Tool settlement could not be determined.
+	Unknown bool
 }
 
 func (dispatcher *Dispatcher) observeModel(ctx context.Context, invocation ModelInvocation, response *chat.Response) {

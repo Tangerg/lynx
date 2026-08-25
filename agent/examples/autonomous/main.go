@@ -73,7 +73,7 @@ func run(ctx context.Context, output io.Writer) error {
 	if !ok {
 		return fmt.Errorf("autonomous Process ended with %s", result.Status())
 	}
-	decoded, err := agent.DecodeOutput[interaction.Output](erased)
+	decoded, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		return err
 	}

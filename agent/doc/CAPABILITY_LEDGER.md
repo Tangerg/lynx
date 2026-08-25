@@ -661,3 +661,10 @@
 - Interaction 的模型完成、ToolCall 提取、WorkingContext 推进与最终 Output 都直接由同一个 `Result` owner 提供，不再循环候选或维护“多个候选中只有一个可请求 Tool”的过程式分支。
 - Interaction ExecutionState 与 protocol 都嵌入 Core Chat Request/Response，因此分别升级为 v7/v6并拒绝旧版本；这是真实恢复协议变化，不以外层 Kernel snapshot 版本掩盖，也不提供 dual-read、alias 或转换 helper。
 - Agent 公共 API、Kernel、Planning、Workflow、Process Snapshot v6、TreeSnapshot v4 与 observation wire 均未改变。Runtime 和 examples 已在同一批次迁移单 Result 使用，未复制 Core 类型或引入第二响应模型。
+
+## 23. P21 Go 1.27 typed-edge ownership 证据
+
+- 全仓 production consumer 搜索证明 `Typed[I,O]`、`NewTyped` 与 `ErrInvalidTypedAdapter` 只有自身测试，没有 Strategy、command 或外部 module 消费。它不拥有 identity、lifecycle 或独立 invariant，只转发 `Definition.Descriptor()` 的 schema 校验，因此整体删除比继续冻结空包装更符合 direct-first。
+- `Descriptor.EncodeInput[T]`/`DecodeOutput[T]` 直接复用权威 Input/Output Schema；`Input.Decode[T]`、`Output.Decode[T]` 与 `Artifact.Decode[T]` 让值对象自己拥有严格 JSON 解码。Engine、Definition、Execution、snapshot 与所有 Strategy state 仍保持 erased/non-generic，异构存储和恢复合同不变。
+- Workflow Map 的 stage ID、item limit 和四份 schema 收敛到 `mapValueCodec`，Fork/Map 共同输出解码收敛到 `fanoutOutputDecoder`；两者使用 Go 1.27 方法泛型，但不进入公共代数或 runtime state。泛型 Stage constructors、Schema factory 和无合法 receiver 的跨类型投影继续保持自由函数，没有为追求方法数量制造 builder/service。
+- clean HEAD 的前置 race gate已暴露 `ExecutionObserver` 公开参数/字段 GoDoc未通过守卫，以及 Go 1.27 标准库 raw JSON 类型名导致的 Kernel/observation/Planning/Workflow 摘要漂移。本批先核对字段、tag、version 与 strict codec，再冻结 Baseline 24；没有直接改 hash 掩盖语义变化，也没有升级实际 wire。

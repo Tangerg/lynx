@@ -113,7 +113,7 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 	if !definition.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
-	decoded, err := agent.DecodeInput[Input](input)
+	decoded, err := input.Decode[Input]()
 	if err != nil {
 		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidInput, err)
 	}

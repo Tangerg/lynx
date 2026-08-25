@@ -109,6 +109,35 @@ func (d Descriptor) ValidateOutput(output Output) error {
 	return d.outputSchema.ValidateOutput(output)
 }
 
+// EncodeInput converts value into an Input and validates it against this
+// Descriptor's authoritative input schema.
+func (d Descriptor) EncodeInput[T any](value T) (Input, error) {
+	if !d.Valid() {
+		return Input{}, ErrInvalidDescriptor
+	}
+	input, err := EncodeInput(value)
+	if err != nil {
+		return Input{}, err
+	}
+	if err := d.ValidateInput(input); err != nil {
+		return Input{}, err
+	}
+	return input, nil
+}
+
+// DecodeOutput validates output against this Descriptor's authoritative
+// output schema and strictly decodes it into T.
+func (d Descriptor) DecodeOutput[T any](output Output) (T, error) {
+	var zero T
+	if !d.Valid() {
+		return zero, ErrInvalidDescriptor
+	}
+	if err := d.ValidateOutput(output); err != nil {
+		return zero, err
+	}
+	return output.Decode[T]()
+}
+
 // MarshalJSON returns the validated static Definition contract.
 func (d Descriptor) MarshalJSON() ([]byte, error) {
 	if !d.Valid() {

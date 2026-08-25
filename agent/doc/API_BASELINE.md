@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 23 已冻结
-> 冻结日期：2026-08-25
+> 状态：Baseline 24 已冻结
+> 冻结日期：2026-08-26
 > 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v7/v6、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 23 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 24 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -33,7 +33,7 @@ Baseline 23 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读、context-aware 且不能修改 Framework 资源的启动准入边界。
 - ProcessStartOutcome/ProcessStartOutcomeAcknowledger：每个 accepted admission 唯一的 started/aborted 初始化结论，以及 Process 发布前的同步中性 acknowledgment。
 - Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
-- Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
+- Descriptor.EncodeInput/DecodeOutput 与 Input/Output.Decode：只存在于类型擦除边缘的 Go 1.27 方法泛型；不改变非泛型 Engine 窄腰。
 
 `interaction` package 冻结为一个 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ModelInvocation.AppliedSteerSignalIDs` 只归因首次进入当前模型请求的 steer Signal；`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID。两者都不暴露 private wire，也不保存 Engine handle 或 Host identity。`HostFailure` 只标记 Host 在尚未跨越模型或 Tool 外部边界前已经拒绝的自有前置条件；Dispatcher 必须把它结算为确定的 terminal failure，不能伪装成 provider 错误或模型可见 Tool output。普通模型/Tool 错误的既有语义不变。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
 
@@ -45,28 +45,28 @@ Baseline 23 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 23 public digest：
+`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 24 public digest：
 
-P20 不改变任何 Agent 公共 API：
+P21 以 Go 1.27 方法泛型替换无消费者的 typed wrapper，并冻结此前未审计的 ExecutionObserver：
 
-- root kernel：`e18f5ac4da51cc0b2edc36f66ced969fb0bb7998f0b67ef80c5f3ce7a6ad7d72`
+- root kernel：`41349ae9445b03de660e4f1f1360c92aa17ed4f7ca7de97fc553406831002125`
 - agenttest：`4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490`
-- interaction：`d93a50a483ca66e6ea0f54dbe9ef9b6e1d19e014a4c583d24b0d9b80fa41a542`
+- interaction：`24c0f438579ea0b1af1323500090916db82c29e6b64b2fb4dee30df418da1518`
 - planning：`48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a`
 - planning/goap：`4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529`
 - workflow：`82dd31a06d26b01877f1c3df631083921fe59f58b0472f39e272897d2231b231`
 - otel：`aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60`
 - platform：`5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 23 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 24 wire digest：
 
-P20 只改变 Interaction state/protocol wire：
+P21 不改变 JSON 字段、schema version 或协议语义；下列 digest 显式切换到 Go 1.27 标准库呈现的 `jsontext.Value` 类型名：
 
-- Kernel snapshot/protocol wire：`56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d`
-- Framework Event/Delta observation wire：`152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e`
+- Kernel snapshot/protocol wire：`b5cb67c9b840addb0785fe97d96de0fbc6a7ce8278e93b1724eb6a5e74892c54`
+- Framework Event/Delta observation wire：`4167463188bdc4fcfac6cbadc94abb8bf81d2bb0da3b78870b5953237d137353`
 - Interaction state/protocol wire：`73a91aca91d2a968636d90aebd11041c149e0e06afc2f8efc0eac6f4b42b64de`
-- Planning state/protocol wire：`6b9bf130b4f8869074c5e988d34899a142551b0edda46dccd883e0c2e44682eb`
-- Workflow state wire：`1e223dcfeeca7751f3d440a771364879bdeba2e7a5367c978c9568d31be0c3da`
+- Planning state/protocol wire：`dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e`
+- Workflow state wire：`2d4d33d0c9996077abb594f3d2aab47d37059c6e126ad5e971ee8d484bb4442d`
 
 Digest 只用于发现未审计漂移，不替代 strict codec、round-trip、malformed input、restore、fuzz 或 consumer behavior tests。
 
@@ -142,6 +142,8 @@ P91 依据 ADR-A2-076 形成 Baseline 22。Interaction 新增中性的 `ErrHostF
 
 P20 依据 ADR-A2-077 形成 Baseline 23。Core Chat 将从未被真实能力支持的复数 `Choice` 模型收敛为唯一 `Response.Result`；Interaction 的 ExecutionState、model settlement 与 stream Delta 都嵌入该 Request/Response wire，因此 state/protocol 从 v6/v5 直接升级为 v7/v6并拒绝旧版本。Interaction 直接读取单 Result，删除多候选循环与仲裁分支。Agent 公共 API、Process Snapshot v6、TreeSnapshot v4、Kernel/Planning/Workflow/observation wire 和另外七个公共 package均不改变。
 
+P21 依据 ADR-A2-078 形成 Baseline 24。Go 1.27 方法泛型让 schema owner `Descriptor` 直接提供 typed encode/decode，`Input`、`Output` 与 `Artifact` 也各自拥有自己的严格解码；没有生产消费者的 `Typed[I,O]`、`NewTyped`、`ErrInvalidTypedAdapter` 以及三个自由解码函数整体删除，不保留 alias。Workflow 的 Map/Fork 泛型 codec 同步收回有状态 owner。此前已进入 HEAD 但未通过文档守卫的 `ExecutionObserver` 参数和 `ToolSettlement` 字段完成准确 GoDoc/命名审计。Go 1.27 标准库类型名使四组 wire digest 重新冻结，但 JSON 字段、版本和行为不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 23 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Result 是 Interaction 唯一模型响应合同，不提供复数候选兼容读取。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 24 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Result 是 Interaction 唯一模型响应合同，不提供复数候选兼容读取。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

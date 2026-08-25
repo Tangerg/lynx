@@ -38,7 +38,7 @@ func run(ctx context.Context, output io.Writer) error {
 	}
 	defer engine.Close()
 
-	input, err := agent.EncodeInput(request{Text: "  ship managed workflow  "})
+	input, err := root.Descriptor().EncodeInput(request{Text: "  ship managed workflow  "})
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func run(ctx context.Context, output io.Writer) error {
 	if !present {
 		return fmt.Errorf("workflow Process ended with %s", result.Status())
 	}
-	report, err := agent.DecodeOutput[reviewReport](erased)
+	report, err := root.Descriptor().DecodeOutput[reviewReport](erased)
 	if err != nil {
 		return err
 	}

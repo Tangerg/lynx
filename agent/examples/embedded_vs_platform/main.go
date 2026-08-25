@@ -31,7 +31,7 @@ func run(ctx context.Context, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	input, err := agent.EncodeInput(request{Text: "  platform  "})
+	input, err := root.Descriptor().EncodeInput(request{Text: "  platform  "})
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func execute(
 	if !present {
 		return executionFacts{}, fmt.Errorf("process ended with %s", result.Status())
 	}
-	decoded, err := agent.DecodeOutput[response](erased)
+	decoded, err := erased.Decode[response]()
 	if err != nil {
 		return executionFacts{}, err
 	}

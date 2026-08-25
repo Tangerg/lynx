@@ -68,8 +68,9 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 		!schemasEqual(schemas.itemOutput, descriptor.OutputSchema()) {
 		return Stage{}, fmt.Errorf("%w: Map %q child schema mismatch", ErrInvalidStage, config.ID)
 	}
+	codec := mapValueCodec{id: config.ID, itemLimit: config.ItemLimit, schemas: schemas}
 	decodeValues := func(raw json.RawMessage) ([]I, error) {
-		return decodeMapValues[I](raw, schemas.input, config.ItemLimit)
+		return codec.decode[I](raw)
 	}
 	count := func(raw json.RawMessage) (uint32, error) {
 		values, err := decodeValues(raw)
@@ -83,10 +84,10 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 		if err != nil {
 			return nil, errors.Join(ErrInvalidExecutionState, err)
 		}
-		return encodeMapWindow(config.ID, schemas.itemInput, values, start, end)
+		return codec.encodeWindow(values, start, end)
 	}
 	collect := func(raw []json.RawMessage) (json.RawMessage, error) {
-		return collectMapOutputs[O](config.ID, schemas.itemOutput, schemas.output, raw)
+		return codec.collect[O](raw)
 	}
 	return Stage{
 		id: config.ID, kind: stageKindMap,
@@ -130,27 +131,31 @@ func mapSchemasFor[I, O any](id string) (mapSchemas, error) {
 	return mapSchemas{input: input, itemInput: itemInput, itemOutput: itemOutput, output: output}, nil
 }
 
-func decodeMapValues[I any](raw json.RawMessage, schema agent.Schema, limit uint32) ([]I, error) {
+type mapValueCodec struct {
+	id        string
+	itemLimit uint32
+	schemas   mapSchemas
+}
+
+func (codec mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
 	input, err := agent.ParseInput(raw)
 	if err != nil {
 		return nil, err
 	}
-	if err := schema.ValidateInput(input); err != nil {
+	if err := codec.schemas.input.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	values, err := agent.DecodeInput[[]I](input)
+	values, err := input.Decode[[]I]()
 	if err != nil {
 		return nil, err
 	}
-	if uint64(len(values)) > uint64(limit) || uint64(len(values)) > math.MaxUint32 {
-		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: limit}
+	if uint64(len(values)) > uint64(codec.itemLimit) || uint64(len(values)) > math.MaxUint32 {
+		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: codec.itemLimit}
 	}
 	return values, nil
 }
 
-func encodeMapWindow[I any](
-	id string,
-	schema agent.Schema,
+func (codec mapValueCodec) encodeWindow[I any](
 	values []I,
 	start uint32,
 	end uint32,
@@ -162,32 +167,30 @@ func encodeMapWindow[I any](
 	for index := start; index < end; index++ {
 		item, err := agent.EncodeInput(values[index])
 		if err != nil {
-			return nil, fmt.Errorf("Map %q item %d: %w", id, index, err)
+			return nil, fmt.Errorf("Map %q item %d: %w", codec.id, index, err)
 		}
-		if err := schema.ValidateInput(item); err != nil {
-			return nil, fmt.Errorf("Map %q item %d contract: %w", id, index, err)
+		if err := codec.schemas.itemInput.ValidateInput(item); err != nil {
+			return nil, fmt.Errorf("Map %q item %d contract: %w", codec.id, index, err)
 		}
 		items = append(items, item)
 	}
 	return items, nil
 }
 
-func collectMapOutputs[O any](
-	id string,
-	itemSchema agent.Schema,
-	outputSchema agent.Schema,
-	raw []json.RawMessage,
-) (json.RawMessage, error) {
-	values, err := decodeFanoutOutputs[O]("Map", id, "item", itemSchema, raw)
+func (codec mapValueCodec) collect[O any](raw []json.RawMessage) (json.RawMessage, error) {
+	decoder := fanoutOutputDecoder{
+		stageName: "Map", stageID: codec.id, memberName: "item", schema: codec.schemas.itemOutput,
+	}
+	values, err := decoder.decode[O](raw)
 	if err != nil {
 		return nil, err
 	}
 	erased, err := agent.EncodeOutput(values)
 	if err != nil {
-		return nil, fmt.Errorf("Map %q encode result: %w", id, err)
+		return nil, fmt.Errorf("Map %q encode result: %w", codec.id, err)
 	}
-	if err := outputSchema.ValidateOutput(erased); err != nil {
-		return nil, fmt.Errorf("Map %q result contract: %w", id, err)
+	if err := codec.schemas.output.ValidateOutput(erased); err != nil {
+		return nil, fmt.Errorf("Map %q result contract: %w", codec.id, err)
 	}
 	return erased.JSON(), nil
 }

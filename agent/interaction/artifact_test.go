@@ -47,16 +47,16 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		if candidate.Artifacts().All()[0].DelegateName() != "delegate_artifact" {
 			return interaction.CompletionDecision{}, errors.New("Artifact snapshot aliases validator-owned slice")
 		}
-		decoded, err := interaction.DecodeArtifact[delegateResponse](artifact)
+		decoded, err := artifact.Decode[delegateResponse]()
 		if err != nil {
 			return interaction.CompletionDecision{}, fmt.Errorf("decode artifact: %w", err)
 		}
 		if decoded.Value != "artifact:evidence" {
 			return interaction.CompletionDecision{}, fmt.Errorf("decoded artifact = %#v", decoded)
 		}
-		if _, err := interaction.DecodeArtifact[struct {
+		if _, err := artifact.Decode[struct {
 			Other string `json:"other"`
-		}](artifact); !errors.Is(err, interaction.ErrInvalidArtifact) || !errors.Is(err, agent.ErrInvalidOutput) {
+		}](); !errors.Is(err, interaction.ErrInvalidArtifact) || !errors.Is(err, agent.ErrInvalidOutput) {
 			return interaction.CompletionDecision{}, fmt.Errorf("wrong typed decode error = %v", err)
 		}
 		output := candidate.Output()
@@ -95,7 +95,7 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		t.Fatalf("status=%s model calls=%d", result.Status(), model.Calls())
 	}
 	erased, _ := result.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil || output.ModelResponse == nil || output.ModelResponse.Text() != "artifact:evidence supports the answer" {
 		t.Fatalf("output=%#v error=%v", output, err)
 	}
@@ -146,7 +146,7 @@ func TestCompletionDecisionContract(t *testing.T) {
 			}
 		})
 	}
-	if _, err := interaction.DecodeArtifact[delegateResponse](interaction.Artifact{}); !errors.Is(err, interaction.ErrInvalidArtifact) {
+	if _, err := (interaction.Artifact{}).Decode[delegateResponse](); !errors.Is(err, interaction.ErrInvalidArtifact) {
 		t.Fatalf("DecodeArtifact(zero) error=%v", err)
 	}
 }

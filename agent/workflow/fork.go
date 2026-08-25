@@ -120,8 +120,11 @@ func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 		})
 	}
 	reducer := config.Reduce
+	decoder := fanoutOutputDecoder{
+		stageName: "Fork", stageID: config.ID, memberName: "branch", schema: branchSchema,
+	}
 	reduce := func(raw []json.RawMessage) (json.RawMessage, error) {
-		values, err := decodeFanoutOutputs[B]("Fork", config.ID, "branch", branchSchema, raw)
+		values, err := decoder.decode[B](raw)
 		if err != nil {
 			return nil, err
 		}

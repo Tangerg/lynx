@@ -27,15 +27,15 @@ func (artifact Artifact) DelegateName() string { return artifact.delegateName }
 // Output returns the immutable, schema-validated child output.
 func (artifact Artifact) Output() agent.Output { return artifact.output }
 
-// DecodeArtifact strictly decodes an Artifact output into T. The output was
-// already validated against the exact Delegate Descriptor before the Artifact
-// was admitted to Interaction state; T is only an edge convenience.
-func DecodeArtifact[T any](artifact Artifact) (T, error) {
+// Decode strictly decodes artifact's output into T. The output was already
+// validated against the exact Delegate Descriptor before the Artifact was
+// admitted to Interaction state; T is only an edge convenience.
+func (artifact Artifact) Decode[T any]() (T, error) {
 	var zero T
 	if !artifact.valid() {
 		return zero, ErrInvalidArtifact
 	}
-	value, err := agent.DecodeOutput[T](artifact.output)
+	value, err := artifact.output.Decode[T]()
 	if err != nil {
 		return zero, fmt.Errorf("%w: decode: %w", ErrInvalidArtifact, err)
 	}

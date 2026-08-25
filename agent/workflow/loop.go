@@ -88,7 +88,7 @@ func Loop[T any](config LoopConfig[T]) (Stage, error) {
 		if err := valueSchema.ValidateOutput(output); err != nil {
 			return false, err
 		}
-		value, err := agent.DecodeOutput[T](output)
+		value, err := output.Decode[T]()
 		if err != nil {
 			return false, err
 		}
@@ -103,7 +103,7 @@ func Loop[T any](config LoopConfig[T]) (Stage, error) {
 		if err != nil {
 			return nil, err
 		}
-		value, err := agent.DecodeOutput[T](output)
+		value, err := output.Decode[T]()
 		if err != nil {
 			return nil, err
 		}

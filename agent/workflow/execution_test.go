@@ -52,7 +52,7 @@ func TestTransformAndCallRunAsManagedChildProcess(t *testing.T) {
 	if !present {
 		t.Fatal("Workflow completed without Output")
 	}
-	output, err := agent.DecodeOutput[textValue](erased)
+	output, err := erased.Decode[textValue]()
 	if err != nil {
 		t.Fatal(err)
 	}

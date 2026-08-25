@@ -16,7 +16,7 @@ import (
 func TestWorkflowWireBaseline(t *testing.T) {
 	shape := workflowWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "1e223dcfeeca7751f3d440a771364879bdeba2e7a5367c978c9568d31be0c3da"
+	const want = "2d4d33d0c9996077abb594f3d2aab47d37059c6e126ad5e971ee8d484bb4442d"
 	if got != want {
 		t.Fatalf("Workflow wire changed: got %s, want %s\n%s", got, want, shape)
 	}

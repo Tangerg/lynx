@@ -65,7 +65,7 @@ func run(ctx context.Context, output io.Writer) error {
 		return err
 	}
 	defer engine.Close()
-	input, err := agent.EncodeInput(interaction.Input{Messages: request.Messages})
+	input, err := deployment.Descriptor().EncodeInput(interaction.Input{Messages: request.Messages})
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func run(ctx context.Context, output io.Writer) error {
 	if !ok {
 		return fmt.Errorf("managed Process ended with %s", result.Status())
 	}
-	managed, err := agent.DecodeOutput[interaction.Output](erased)
+	managed, err := deployment.Descriptor().DecodeOutput[interaction.Output](erased)
 	if err != nil {
 		return err
 	}

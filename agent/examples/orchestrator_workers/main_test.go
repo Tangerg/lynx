@@ -53,7 +53,7 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 			return interaction.CompletionDecision{Feedback: "Complete both planned review tasks."}, nil
 		}
 		for index, artifact := range artifacts {
-			output, err := interaction.DecodeArtifact[planning.Output](artifact)
+			output, err := artifact.Decode[planning.Output]()
 			if err != nil {
 				return interaction.CompletionDecision{}, err
 			}
@@ -199,7 +199,7 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 		_ context.Context,
 		request planning.ObservationRequest,
 	) (planning.WorldState, error) {
-		task, err := agent.DecodeInput[workerTask](request.Input)
+		task, err := request.Input.Decode[workerTask]()
 		if err != nil {
 			return planning.WorldState{}, err
 		}
@@ -219,7 +219,7 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 		if request.ActionName != "review" {
 			return planning.ActionResult{}, errors.New("unexpected planning action")
 		}
-		task, err := agent.DecodeInput[workerTask](request.Input)
+		task, err := request.Input.Decode[workerTask]()
 		if err != nil {
 			return planning.ActionResult{}, err
 		}

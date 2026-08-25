@@ -658,7 +658,7 @@ func newChildTestDeploymentWithDispatcher(t *testing.T, dispatcher Dispatcher) D
 func (definition *childTestDefinition) Descriptor() Descriptor { return definition.descriptor }
 
 func (definition *childTestDefinition) Start(input Input) (Execution, error) {
-	decoded, err := DecodeInput[childTestInput](input)
+	decoded, err := input.Decode[childTestInput]()
 	if err != nil {
 		return nil, err
 	}
@@ -1130,7 +1130,7 @@ func childTestResult(t *testing.T, result Result) childTestOutput {
 	if !ok {
 		t.Fatal("completed result has no Output")
 	}
-	decoded, err := DecodeOutput[childTestOutput](erased)
+	decoded, err := erased.Decode[childTestOutput]()
 	if err != nil {
 		t.Fatal(err)
 	}

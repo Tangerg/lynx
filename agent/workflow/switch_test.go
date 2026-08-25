@@ -134,7 +134,7 @@ func decodeCompleted[O any](t *testing.T, result agent.Result) O {
 	if !present {
 		t.Fatal("completed Process has no Output")
 	}
-	decoded, err := agent.DecodeOutput[O](output)
+	decoded, err := output.Decode[O]()
 	if err != nil {
 		t.Fatal(err)
 	}

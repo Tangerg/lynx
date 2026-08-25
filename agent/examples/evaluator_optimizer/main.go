@@ -456,7 +456,7 @@ func decodeCompleted[T any](result agent.Result) (T, error) {
 	if !present {
 		return zero, errors.New("completed Process has no Output")
 	}
-	return agent.DecodeOutput[T](output)
+	return output.Decode[T]()
 }
 
 type deploymentResolver map[agent.DeploymentRef]agent.Deployment

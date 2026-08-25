@@ -309,7 +309,7 @@ func (definition *pausingBranchDefinition) Descriptor() agent.Descriptor {
 }
 
 func (definition *pausingBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
-	decoded, err := agent.DecodeInput[forkInput](input)
+	decoded, err := input.Decode[forkInput]()
 	if err != nil {
 		return nil, err
 	}

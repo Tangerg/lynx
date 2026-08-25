@@ -112,7 +112,7 @@ func newTextDeployment() (agent.Deployment, error) {
 func (definition *textDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
 
 func (*textDefinition) Start(input agent.Input) (agent.Execution, error) {
-	decoded, err := agent.DecodeInput[textInput](input)
+	decoded, err := input.Decode[textInput]()
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func newCompositionDeployment(local, model agent.DeploymentRef) (agent.Deploymen
 func (definition *compositionDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
 
 func (definition *compositionDefinition) Start(input agent.Input) (agent.Execution, error) {
-	decoded, err := agent.DecodeInput[compositionInput](input)
+	decoded, err := input.Decode[compositionInput]()
 	if err != nil {
 		return nil, err
 	}
@@ -363,13 +363,13 @@ func (execution *compositionExecution) complete(
 		erased, _ := result.Output()
 		switch outcome.Key().String() {
 		case "local":
-			decoded, err := agent.DecodeOutput[textOutput](erased)
+			decoded, err := erased.Decode[textOutput]()
 			if err != nil {
 				return agent.Transition{}, err
 			}
 			output.Local = decoded.Text
 		case "model":
-			decoded, err := agent.DecodeOutput[interaction.Output](erased)
+			decoded, err := erased.Decode[interaction.Output]()
 			if err != nil {
 				return agent.Transition{}, err
 			}
@@ -435,5 +435,5 @@ func decodeCompleted[T any](result agent.Result) (T, error) {
 	if !ok {
 		return zero, fmt.Errorf("process ended with %s", result.Status())
 	}
-	return agent.DecodeOutput[T](erased)
+	return erased.Decode[T]()
 }

@@ -40,7 +40,7 @@ func TestTypedInputRejectsUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeInput[wireFixture](input); !errors.Is(err, ErrInvalidInput) {
+	if _, err := input.Decode[wireFixture](); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("DecodeInput error = %v, want ErrInvalidInput", err)
 	}
 }
@@ -51,7 +51,7 @@ func TestOutputTypedRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := DecodeOutput[wireFixture](output)
+	got, err := output.Decode[wireFixture]()
 	if err != nil {
 		t.Fatal(err)
 	}

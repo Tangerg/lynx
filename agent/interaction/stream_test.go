@@ -39,7 +39,7 @@ func TestStreamingOutputDoesNotDependOnDeltaListeners(t *testing.T) {
 		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())
 	}
 	erased, _ := result.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestStreamingUsesBoundedBestEffortDeltaQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	erased, _ := result.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -117,7 +117,7 @@ func Switch[I any](config SwitchConfig[I]) (Stage, error) {
 		if err := inputSchema.ValidateInput(input); err != nil {
 			return "", err
 		}
-		decoded, err := agent.DecodeInput[I](input)
+		decoded, err := input.Decode[I]()
 		if err != nil {
 			return "", err
 		}

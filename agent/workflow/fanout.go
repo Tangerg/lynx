@@ -128,25 +128,26 @@ func (stage Stage) fanoutMemberNoun() string {
 	return "item"
 }
 
-func decodeFanoutOutputs[T any](
-	stageName string,
-	stageID string,
-	memberName string,
-	schema agent.Schema,
-	encodedOutputs []json.RawMessage,
-) ([]T, error) {
+type fanoutOutputDecoder struct {
+	stageName  string
+	stageID    string
+	memberName string
+	schema     agent.Schema
+}
+
+func (decoder fanoutOutputDecoder) decode[T any](encodedOutputs []json.RawMessage) ([]T, error) {
 	values := make([]T, len(encodedOutputs))
 	for index, encoded := range encodedOutputs {
 		output, err := agent.ParseOutput(encoded)
 		if err != nil {
-			return nil, fmt.Errorf("%s %q %s %d output: %w", stageName, stageID, memberName, index, err)
+			return nil, fmt.Errorf("%s %q %s %d output: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
 		}
-		if err := schema.ValidateOutput(output); err != nil {
-			return nil, fmt.Errorf("%s %q %s %d output contract: %w", stageName, stageID, memberName, index, err)
+		if err := decoder.schema.ValidateOutput(output); err != nil {
+			return nil, fmt.Errorf("%s %q %s %d output contract: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
 		}
-		decoded, err := agent.DecodeOutput[T](output)
+		decoded, err := output.Decode[T]()
 		if err != nil {
-			return nil, fmt.Errorf("%s %q %s %d decode output: %w", stageName, stageID, memberName, index, err)
+			return nil, fmt.Errorf("%s %q %s %d decode output: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
 		}
 		values[index] = decoded
 	}

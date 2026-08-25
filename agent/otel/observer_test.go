@@ -176,7 +176,7 @@ type testDefinition struct {
 func (definition testDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
 
 func (testDefinition) Start(input agent.Input) (agent.Execution, error) {
-	value, err := agent.DecodeInput[testInput](input)
+	value, err := input.Decode[testInput]()
 	if err != nil {
 		return nil, err
 	}

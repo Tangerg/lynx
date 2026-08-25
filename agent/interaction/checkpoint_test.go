@@ -135,7 +135,7 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 		t.Fatalf("model calls = %d, want 2", model.Calls())
 	}
 	erased, _ := result.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil {
 		t.Fatal(err)
 	}

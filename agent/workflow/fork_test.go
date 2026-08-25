@@ -240,7 +240,7 @@ func (definition *managedBranchDefinition) Descriptor() agent.Descriptor {
 }
 
 func (definition *managedBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
-	decoded, err := agent.DecodeInput[forkInput](input)
+	decoded, err := input.Decode[forkInput]()
 	if err != nil {
 		return nil, err
 	}

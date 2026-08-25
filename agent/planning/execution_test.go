@@ -635,7 +635,7 @@ func managedOutput(t testing.TB, result agent.Result) planning.Output {
 	if !ok {
 		t.Fatal("completed Planning Process has no output")
 	}
-	output, err := agent.DecodeOutput[planning.Output](erased)
+	output, err := erased.Decode[planning.Output]()
 	if err != nil {
 		t.Fatal(err)
 	}

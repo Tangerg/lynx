@@ -647,3 +647,12 @@
 - 决策：这次依赖协议修订不改变 Agent 公共 identifier、签名或 owner 边界。Kernel 继续把 Strategy state 当 opaque payload；Planning、Workflow、Process Snapshot、TreeSnapshot 与 observation wire 不随 Core Chat 的具体建模升级。
 - 原因：单结果是不变量，不是便利默认值。由类型和 adapter 边界排除多结果状态，才能让 Core、provider、Client、Interaction 与 Host 使用同一领域语言，并删除所有消费者侧的过程式防御逻辑。
 - 后果：形成 Baseline 23；Interaction state/protocol 为 v7/v6，其 owner wire baseline 显式更新。其他七个公共 package、Kernel/Planning/Workflow owner wire、Process Snapshot v6、TreeSnapshot v4 与 Event/Delta wire均不变。
+
+## ADR-A2-078：Go 1.27 方法泛型只进入类型擦除边缘的真实 owner
+
+- 状态：已接受并实施；形成 Baseline 24。
+- 证据：`Typed[I,O]` 自 P1 建立后只有自身测试，没有生产或独立 command consumer；它只是为取得 `Definition.Descriptor()` 再转发输入编码和输出解码，形成一层无身份、无生命周期、无额外不变量的泛型包装。与此同时 `DecodeInput[T](input)`、`DecodeOutput[T](output)` 与 `DecodeArtifact[T](artifact)` 把明确属于值对象的行为留在 package 级自由函数；Workflow Map/Fork 的泛型编解码还以多参数 helper 传递 stage 名称、ID 和 schema。Go 1.27 已允许非泛型 receiver 声明方法类型参数，原包装不再是语言限制所需的妥协。
+- 决策：共同 Kernel 的 `Definition`、`Execution`、`Engine`、snapshot 和 Strategy state 继续保持 erased/non-generic。权威 schema owner `Descriptor` 直接提供 `EncodeInput[T]` 与 `DecodeOutput[T]`；`Input`、`Output`、Interaction `Artifact` 各自提供 `Decode[T]`。删除 `Typed[I,O]`、`NewTyped`、`ErrInvalidTypedAdapter` 和三个自由解码函数，不保留 alias 或转发。泛型构造器 `SchemaFor`、Workflow Stage constructors、Tool capability projection 等没有合法 receiver 的跨类型操作仍保留自由函数。
+- 决策：Workflow 只把确有共同状态的泛型行为收回 `mapValueCodec` 与 `fanoutOutputDecoder`；不建立 generic service、builder、registry 或把 sealed Stage/runtime 泛型化。此前已进入当前 HEAD 的 `ExecutionObserver` 同批完成具名参数和 `ToolSettlement` 字段 GoDoc 审计，而不是直接更新 digest 掩盖公共合同漂移。
+- 决策：模块统一以 Go 1.27 编译。标准库在该版本把相关 raw JSON 字段的反射类型名呈现为 `jsontext.Value`，因此 Kernel、observation、Planning 与 Workflow 的结构摘要 digest 显式重新冻结；JSON tag、字段集合、schema version、strict codec 与恢复语义均未改变，不升级 wire version或提供双读。
+- 后果：形成 Baseline 24。typed edge 由真实领域 owner 提供，删除无消费者包装并减少自由泛型入口；Engine 仍能异构保存所有 Definition。Root/Interaction public digest 与四组 Go 1.27 wire 表示 digest 更新，其他六个 public package、Interaction private wire、Process Snapshot v6、TreeSnapshot v4 及全部协议语义保持不变。

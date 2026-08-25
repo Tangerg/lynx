@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 23
-	currentAPIBaselineFrozenOn = "2026-08-25"
+	currentAPIBaseline         = 24
+	currentAPIBaselineFrozenOn = "2026-08-26"
 )
 
 var exportedAPIBaselines = []struct {
@@ -27,9 +27,9 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "e18f5ac4da51cc0b2edc36f66ced969fb0bb7998f0b67ef80c5f3ce7a6ad7d72"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "41349ae9445b03de660e4f1f1360c92aa17ed4f7ca7de97fc553406831002125"},
 	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "d93a50a483ca66e6ea0f54dbe9ef9b6e1d19e014a4c583d24b0d9b80fa41a542"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "24c0f438579ea0b1af1323500090916db82c29e6b64b2fb4dee30df418da1518"},
 	{name: "planning", label: "planning", directory: "planning", want: "48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529"},
 	{name: "workflow", label: "workflow", directory: "workflow", want: "82dd31a06d26b01877f1c3df631083921fe59f58b0472f39e272897d2231b231"},
@@ -330,7 +330,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d"
+	const want = "b5cb67c9b840addb0785fe97d96de0fbc6a7ce8278e93b1724eb6a5e74892c54"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -381,7 +381,7 @@ func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e"
+	const want = "4167463188bdc4fcfac6cbadc94abb8bf81d2bb0da3b78870b5953237d137353"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}

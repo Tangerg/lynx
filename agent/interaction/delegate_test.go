@@ -69,7 +69,7 @@ func TestManagedDelegatePreservesMixedToolCallOrder(t *testing.T) {
 		t.Fatalf("result status = %s, termination = %#v, model calls = %d", result.Status(), result.Termination(), model.Calls())
 	}
 	erased, _ := result.Output()
-	output, err := agent.DecodeOutput[interaction.Output](erased)
+	output, err := erased.Decode[interaction.Output]()
 	if err != nil || output.ModelResponse == nil || output.ModelResponse.Text() != "mixed batch settled" {
 		t.Fatalf("output = %#v, error = %v", output, err)
 	}
@@ -534,7 +534,7 @@ func (definition *pausingDelegateDefinition) Descriptor() agent.Descriptor {
 }
 
 func (*pausingDelegateDefinition) Start(input agent.Input) (agent.Execution, error) {
-	decoded, err := agent.DecodeInput[delegateRequest](input)
+	decoded, err := input.Decode[delegateRequest]()
 	if err != nil {
 		return nil, err
 	}

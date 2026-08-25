@@ -43,28 +43,14 @@ func (execution *typedFixtureExecution) Snapshot() (ExecutionState, error) {
 	return NewExecutionState("fixture", 1, execution.state)
 }
 
-func TestTypedAdapterKeepsDefinitionErased(t *testing.T) {
-	messageDefinition := newTypedFixtureDefinition[wireFixture](t, "fixture.message")
-	countDefinition := newTypedFixtureDefinition[typedCount](t, "fixture.count")
-
-	message, err := NewTyped[wireFixture, wireFixture](messageDefinition)
+func TestDescriptorOwnsTypedEdges(t *testing.T) {
+	definition := newTypedFixtureDefinition[wireFixture](t, "fixture.message")
+	descriptor := definition.Descriptor()
+	input, err := descriptor.EncodeInput(wireFixture{Message: "hello"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	count, err := NewTyped[typedCount, typedCount](countDefinition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	erased := []Definition{message.Definition(), count.Definition()}
-	if len(erased) != 2 || erased[0].Descriptor().Name() != "fixture.message" || erased[1].Descriptor().Name() != "fixture.count" {
-		t.Fatalf("heterogeneous erased Definitions = %+v", erased)
-	}
-
-	input, err := message.EncodeInput(wireFixture{Message: "hello"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	execution, err := message.Definition().Start(input)
+	execution, err := definition.Start(input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +62,7 @@ func TestTypedAdapterKeepsDefinitionErased(t *testing.T) {
 	if !ok {
 		t.Fatal("fixture did not complete")
 	}
-	decoded, err := message.DecodeOutput(output)
+	decoded, err := descriptor.DecodeOutput[wireFixture](output)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,24 +71,26 @@ func TestTypedAdapterKeepsDefinitionErased(t *testing.T) {
 	}
 }
 
-func TestTypedAdapterRejectsSchemaMismatchAtEdge(t *testing.T) {
+func TestDescriptorRejectsTypedSchemaMismatchAtEdge(t *testing.T) {
 	definition := newTypedFixtureDefinition[wireFixture](t, "fixture.message")
-	adapter, err := NewTyped[typedCount, wireFixture](definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := adapter.EncodeInput(typedCount{Count: 3}); !errors.Is(err, ErrInvalidTypedAdapter) {
-		t.Fatalf("EncodeInput schema mismatch error = %v, want ErrInvalidTypedAdapter", err)
+	if _, err := definition.Descriptor().EncodeInput(typedCount{Count: 3}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("EncodeInput schema mismatch error = %v, want ErrInvalidInput", err)
 	}
 	if definition.starts != 0 {
 		t.Fatalf("Definition.Start called %d times after edge validation failed", definition.starts)
 	}
 }
 
-func TestTypedAdapterRejectsTypedNilDefinition(t *testing.T) {
-	var definition *typedFixtureDefinition
-	if _, err := NewTyped[wireFixture, wireFixture](definition); !errors.Is(err, ErrInvalidTypedAdapter) {
-		t.Fatalf("NewTyped(typed nil) error = %v, want ErrInvalidTypedAdapter", err)
+func TestInvalidDescriptorRejectsTypedEdges(t *testing.T) {
+	if _, err := (Descriptor{}).EncodeInput(wireFixture{}); !errors.Is(err, ErrInvalidDescriptor) {
+		t.Fatalf("EncodeInput error = %v, want ErrInvalidDescriptor", err)
+	}
+	output, err := EncodeOutput(wireFixture{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Descriptor{}).DecodeOutput[wireFixture](output); !errors.Is(err, ErrInvalidDescriptor) {
+		t.Fatalf("DecodeOutput error = %v, want ErrInvalidDescriptor", err)
 	}
 }
 
@@ -113,11 +101,8 @@ func newTypedFixtureDefinition[T any](t *testing.T, name string) *typedFixtureDe
 		t.Fatal(err)
 	}
 	descriptor, err := NewDescriptor(DescriptorConfig{
-		Name:         name,
-		Description:  "A typed adapter contract test fixture.",
-		Version:      "1.0.0",
-		InputSchema:  schema,
-		OutputSchema: schema,
+		Name: name, Description: "A typed edge contract test fixture.", Version: "1.0.0",
+		InputSchema: schema, OutputSchema: schema,
 	})
 	if err != nil {
 		t.Fatal(err)

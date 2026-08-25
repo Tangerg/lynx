@@ -16,7 +16,7 @@ import (
 func TestPlanningWireBaseline(t *testing.T) {
 	shape := planningWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "6b9bf130b4f8869074c5e988d34899a142551b0edda46dccd883e0c2e44682eb"
+	const want = "dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e"
 	if got != want {
 		t.Fatalf("Planning wire changed: got %s, want %s\n%s", got, want, shape)
 	}
