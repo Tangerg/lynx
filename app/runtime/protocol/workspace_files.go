@@ -12,7 +12,11 @@ type GetFileHeadRequest struct {
 	Lines     int          `json:"lines,omitempty"`
 }
 
-// GrepRequest — workspace.files.search body.
+// GrepRequest — workspace.files.search body. Query is a Go/RE2-compatible
+// regular expression of at most 64 KiB. A zero Limit selects 100 retained
+// matches; larger values are capped at 1000. The service may retain fewer rows
+// when the 8 MiB result-material budget is reached while still reporting the
+// exact Total for its admitted text corpus.
 type GrepRequest struct {
 	Workspace WorkspaceRef `json:"workspace"`
 	Query     string       `json:"query"`
@@ -93,8 +97,9 @@ type FileLine struct {
 	Text       string `json:"text"`
 }
 
-// GrepResult is the workspace.files.search result (API.md §4.5). Total may exceed
-// len(Matches) when limited.
+// GrepResult is the workspace.files.search result (API.md §4.5). Matches is a
+// stable whole-line prefix; Total is the exact count across admitted UTF-8 text
+// files and may exceed len(Matches) when count or material limits apply.
 type GrepResult struct {
 	Matches []GrepMatch `json:"matches"`
 	Total   int         `json:"total"`

@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P170 已完成。
+> 状态：当前能力快照；P171 已完成。
 >
 > 基线日期：2026-08-25。
 
@@ -40,6 +40,7 @@
 - P168 让 model mutation post-processing 形成唯一 adapter envelope：read stamp 使用 64 KiB streaming/cancellable SHA-256 并在删除时撤销；auto-format 只接纳 8 MiB complete input/output，Prettier 以 64 KiB bounded diagnostics、caller context 与 `WaitDelay` 运行且不能在验证前写目标。
 - P169 让 model/direct file read 形成 Runtime-owned consumer envelope：8 MiB complete file、1 MiB line/default complete-line result、64 KiB streaming scan 与 caller cancellation；read stamp 只在相同 8 MiB admission 下用 pre/post exact digest bracket 成功调用。
 - P170 让 public Workspace file read 形成 Application-owned editor envelope：default/max result 1/8 MiB、complete source 64 MiB、single line 8 MiB；共享 bounded scanner 保留消费端输出语义，Head 完整失败，Desktop 深行按真实 `startLine` 读取目标窗口。
+- P171 让 public Workspace search 形成 Application-owned compiled/bounded read model：64 KiB regex、100/1000 retained rows、8 MiB whole-row material、20k candidates 与 8/1/512 MiB file/line/scan corpus；single-pass exact total 取代共享 executor 的 unbounded stdout + capped recount。
 
 ## 2. 架构与所有权
 
@@ -318,6 +319,10 @@ P170 完成 public Workspace file read 与 Desktop target-window 的资源闭环
 
 P170 封板通过 Runtime standalone/full-race/test/vet/build、根 workspace Runtime+Desktop tests、Desktop standalone test/vet/build、Go 1.27-built Staticcheck 2026.2.1、tidy/generate 零漂移、Frontend 313 files / 1952 tests 与完整静态/bundle 门禁，以及 Wails v3 production build。仅观察到既有 macOS deployment-target linker warnings；临时检查器与构建进程已回收，未启动 agent-browser，`tools/fs` 与 `app/cli` 零修改。
 
+P171 完成 public Workspace search 的编译准入、有限语料与精确总数闭环。失败优先反例 `d5fe5eef1` 证明 300 个命中文件只报告 250、9 条 1 MiB 匹配在截断前先保留约 9 MiB、无效 regex 泄漏底层 `rg` 错误，caller limit 与 direct-port material/path/total 也没有 Application 复验。Application 现先把最多 64 KiB regex 编译为 `GrepPlan`，收敛 default/max 100/1000 rows，并复验完整结果；Workspace adapter 删除公共搜索对 `tools/fs`/`rg`/`grep` 的依赖，复用 ignore-aware finite catalog 与 `textread.VisitLines`，在 8 MiB file、1 MiB line、512 MiB actual scan 和 8 MiB whole-row result 内单程计算 exact Total。Binary/invalid/oversized individual source 整体排除，catalog/aggregate 越界明确失败。Protocol/Artifact/SQLite/Desktop source/Agent Framework、`tools/fs` 与 CLI 不变。
+
+P171 封板通过 Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、architecture gate、tidy/generate 零漂移，Desktop workspace/standalone test/vet/build/Staticcheck、根 workspace Runtime+Desktop tests、Frontend 313 files / 1952 tests 与全部静态/bundle 门禁，以及 Wails v3 production build。仅观察到既有 macOS deployment-target linker warnings；临时检查器已移入 Trash，未启动 agent-browser，未遗留 test/build/frontend 进程，`tools/fs` 与 `app/cli` 零修改。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -340,13 +345,15 @@ P169 进一步证明 bounded-memory fingerprint 仍不等于 bounded model read�
 
 P170 进一步证明共享 filesystem executor 的“返回后截断”不等于产品资源包络：默认值、caller maximum、完整扫描与单行都必须有 owner；共享 scanner 只复用机制，不能把模型 continuation 与编辑器可见 prefix 强行合成一种结果语义。
 
+P171 进一步证明 external grep 的结果 cap 不等于 read-model cap：stdout 在 slice 前已经 materialize，第二次 count 还可能继承另一个隐藏上限。Compiled query、finite corpus、actual scan、whole-row output 与 exact total 必须属于同一次 Application/adapter 纵切，不能由 subprocess defaults、客户端 overflow 或 direct-port trust 拼接。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
 
-P170 在既有 P0–P169 结论上继续封闭 Workspace file API：Application-owned editor budgets、Runtime-shared bounded scanner、Head 完整性与 Desktop target window 共同替代通用 executor unlimited-zero、whole-file `os.ReadFile`、无标记 partial preview 和深行导航读取错误前缀。当前完成范围因此为 P0–P170。
+P171 在既有 P0–P170 结论上继续封闭 Workspace search：Application-owned compiled plan 与 direct-result validation、Runtime-owned finite text corpus、single-pass exact total 和 bounded whole-row prefix 共同替代通用 executor 的 raw regex、unbounded stdout 与 capped recount。当前完成范围因此为 P0–P171。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

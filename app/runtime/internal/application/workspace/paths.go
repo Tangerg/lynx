@@ -9,13 +9,15 @@ import (
 
 // Workspace input failures are stable application errors.
 var (
-	ErrCWDUnavailable   = errors.New("workspace: cwd unavailable")
-	ErrPathRequired     = errors.New("workspace: path required")
-	ErrPathOutsideRoot  = errors.New("workspace: path outside root")
-	ErrInvalidFileRange = errors.New("workspace: invalid file range")
-	ErrFileReadTooLarge = errors.New("workspace: file read exceeds its resource limit")
-	ErrUnsupportedText  = errors.New("workspace: file is not UTF-8 text")
-	ErrGrepQueryMissing = errors.New("workspace: grep query required")
+	ErrCWDUnavailable     = errors.New("workspace: cwd unavailable")
+	ErrPathRequired       = errors.New("workspace: path required")
+	ErrPathOutsideRoot    = errors.New("workspace: path outside root")
+	ErrInvalidFileRange   = errors.New("workspace: invalid file range")
+	ErrFileReadTooLarge   = errors.New("workspace: file read exceeds its resource limit")
+	ErrUnsupportedText    = errors.New("workspace: file is not UTF-8 text")
+	ErrGrepQueryMissing   = errors.New("workspace: grep query required")
+	ErrInvalidGrepQuery   = errors.New("workspace: invalid grep query")
+	ErrGrepResultTooLarge = errors.New("workspace: file search exceeds its resource limit")
 )
 
 // Paths resolves the externally-observed filesystem identity used by workspace

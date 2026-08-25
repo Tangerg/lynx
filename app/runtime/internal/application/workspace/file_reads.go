@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,7 +64,7 @@ type FileListOptions struct {
 type FileBrowser interface {
 	List(ctx context.Context, root string, options FileListOptions) ([]FileEntry, error)
 	Read(ctx context.Context, root string, input FileReadInput) (FileReadResult, error)
-	Grep(ctx context.Context, root string, input GrepInput) (GrepResult, error)
+	Grep(ctx context.Context, root string, input GrepPlan) (GrepResult, error)
 }
 
 // FileListInput is one paged workspace listing request.
@@ -105,6 +107,15 @@ type GrepInput struct {
 	Limit int
 }
 
+// GrepPlan is the normalized, compiled search accepted by the filesystem port.
+// Keeping it separate from GrepInput prevents the filesystem port from
+// receiving raw, unbounded regular expressions or caller-owned result limits.
+type GrepPlan struct {
+	Path    string
+	Pattern *regexp.Regexp
+	Limit   int
+}
+
 // GrepMatch is one content-search match.
 type GrepMatch struct {
 	Path       string
@@ -133,7 +144,6 @@ const (
 	defaultFileListPageLimit = 1000
 	defaultFileHeadLines     = 200
 	maxFileHeadLines         = 400
-	defaultGrepLimit         = 100
 	fileListPageNamespace    = "workspace.files"
 )
 
@@ -146,6 +156,20 @@ const (
 	MaxFileReadBytes       = 8 << 20
 	MaxFileReadSourceBytes = 64 << 20
 	MaxFileReadLineBytes   = MaxFileReadBytes
+)
+
+// Workspace search returns an exact total over a finite searchable corpus and
+// retains only a bounded, whole-row prefix for its caller. Oversized/non-text
+// individual files are outside that corpus; crossing its aggregate source or
+// candidate boundary fails explicitly instead of publishing a partial total.
+const (
+	DefaultGrepLimit         = 100
+	MaxGrepLimit             = 1000
+	MaxGrepQueryBytes        = 64 << 10
+	MaxGrepResultBytes       = 8 << 20
+	MaxGrepFileBytes   int64 = 8 << 20
+	MaxGrepLineBytes         = 1 << 20
+	MaxGrepSourceBytes       = 512 << 20
 )
 
 // List returns one stable cursor page of entries below a workspace root.
@@ -313,8 +337,18 @@ func (input FileReadInput) validate() error {
 // Grep searches a workspace root or an existing subdirectory. A truncated
 // search returns an honest total rather than silently under-reporting hits.
 func (f *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResult, error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return GrepResult{}, cause
+	}
 	if input.Query == "" {
 		return GrepResult{}, ErrGrepQueryMissing
+	}
+	if len(input.Query) > MaxGrepQueryBytes || !utf8.ValidString(input.Query) || strings.ContainsRune(input.Query, 0) {
+		return GrepResult{}, ErrInvalidGrepQuery
+	}
+	pattern, err := regexp.Compile(input.Query)
+	if err != nil {
+		return GrepResult{}, fmt.Errorf("%w: %v", ErrInvalidGrepQuery, err)
 	}
 	root, err := f.scope.root(cwd)
 	if err != nil {
@@ -327,12 +361,65 @@ func (f *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResu
 		}
 	}
 	if input.Limit <= 0 {
-		input.Limit = defaultGrepLimit
+		input.Limit = DefaultGrepLimit
 	}
+	input.Limit = min(input.Limit, MaxGrepLimit)
 	if f.files == nil {
 		return GrepResult{}, errors.New("workspace: file browser is not configured")
 	}
-	return f.files.Grep(ctx, root, input)
+	result, err := f.files.Grep(ctx, root, GrepPlan{Path: input.Path, Pattern: pattern, Limit: input.Limit})
+	if err != nil {
+		return GrepResult{}, err
+	}
+	if err := validateGrepResult(pattern, input.Limit, result); err != nil {
+		return GrepResult{}, err
+	}
+	return result, nil
+}
+
+func validateGrepResult(pattern *regexp.Regexp, limit int, result GrepResult) error {
+	if result.Total < 0 || result.Total < len(result.Matches) {
+		return errors.New("workspace: file search returned an invalid total")
+	}
+	if result.Total > 0 && len(result.Matches) == 0 {
+		return errors.New("workspace: file search omitted its entire bounded prefix")
+	}
+	if len(result.Matches) > limit {
+		return ErrGrepResultTooLarge
+	}
+	material := 0
+	for index, match := range result.Matches {
+		if match.Path == "" || match.Path == "." || !utf8.ValidString(match.Path) || strings.ContainsRune(match.Path, 0) ||
+			path.IsAbs(match.Path) || path.Clean(match.Path) != match.Path ||
+			match.Path == ".." || strings.HasPrefix(match.Path, "../") {
+			return ErrPathOutsideRoot
+		}
+		if match.LineNumber <= 0 {
+			return errors.New("workspace: file search returned an invalid line number")
+		}
+		if len(match.Text) > MaxGrepLineBytes {
+			return ErrGrepResultTooLarge
+		}
+		if !utf8.ValidString(match.Text) || strings.ContainsRune(match.Text, 0) {
+			return ErrUnsupportedText
+		}
+		if pattern == nil || !pattern.MatchString(match.Text) {
+			return errors.New("workspace: file search returned a row that does not match its query")
+		}
+		if index > 0 {
+			previous := result.Matches[index-1]
+			if order := cmp.Compare(previous.Path, match.Path); order > 0 ||
+				order == 0 && previous.LineNumber >= match.LineNumber {
+				return errors.New("workspace: file search returned unstable or duplicate rows")
+			}
+		}
+		rowBytes := len(match.Path) + len(match.Text)
+		if rowBytes > MaxGrepResultBytes-material {
+			return ErrGrepResultTooLarge
+		}
+		material += rowBytes
+	}
+	return nil
 }
 
 func previewLines(read FileReadResult) []FileLine {

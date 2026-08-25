@@ -595,6 +595,17 @@ func TestDeliveryDoesNotBypassWorkspaceUseCases(t *testing.T) {
 	})
 }
 
+// TestWorkspaceFileReadsDoNotInheritModelExecutorSemantics keeps public
+// list/read/search resource policy inside the Workspace Application/adapter
+// vertical. The model-facing filesystem executor has different zero values,
+// output shapes, and subprocess behavior and cannot be reused as this port.
+func TestWorkspaceFileReadsDoNotInheritModelExecutorSemantics(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "adapter", "workspace"), []string{
+		"github.com/Tangerg/lynx/tools/fs",
+	})
+}
+
 // TestDeliveryServerDoesNotOwnFilesystemTechnology keeps filesystem traversal,
 // path policy, and file-notification lifecycle in the workspace application
 // and its adapter. Server handlers may project use-case values only.

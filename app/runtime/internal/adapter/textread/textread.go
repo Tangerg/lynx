@@ -48,6 +48,14 @@ type Options struct {
 	PartialLine bool
 }
 
+// Limits define one complete UTF-8 line scan without prescribing what a
+// consumer retains. InputBytes includes line separators and a UTF-8 BOM;
+// LineBytes applies after BOM/CRLF normalization.
+type Limits struct {
+	InputBytes int64
+	LineBytes  int
+}
+
 // Result reports normalized LF text and the whole-file line count. StartLine
 // is zero-based and EndLine is exclusive.
 type Result struct {
@@ -62,18 +70,9 @@ type Result struct {
 // Scan validates and counts the complete admitted input while retaining only
 // the selected output window.
 func Scan(ctx context.Context, source io.Reader, options Options) (Result, error) {
-	if cause := context.Cause(ctx); cause != nil {
-		return Result{}, cause
-	}
-	if source == nil || options.InputBytes <= 0 || options.LineBytes <= 0 || options.OutputBytes <= 0 {
+	if options.OutputBytes <= 0 {
 		return Result{}, errors.New("textread: positive input, line, and output limits are required")
 	}
-
-	counter := &byteCounter{reader: contextReader{
-		ctx:    ctx,
-		reader: io.LimitReader(source, options.InputBytes+1),
-	}}
-	reader := bufio.NewReaderSize(counter, 64<<10)
 	start := max(options.StartLine, 0)
 	collector := lineCollector{
 		start:       start,
@@ -81,24 +80,62 @@ func Scan(ctx context.Context, source io.Reader, options Options) (Result, error
 		maxBytes:    options.OutputBytes,
 		partialLine: options.PartialLine,
 	}
+	err := VisitLines(ctx, source, Limits{InputBytes: options.InputBytes, LineBytes: options.LineBytes},
+		func(_ int, line []byte) error {
+			collector.consume(line)
+			return nil
+		})
+	if err != nil {
+		return Result{}, err
+	}
+	return collector.result(), nil
+}
 
+// VisitLines validates and normalizes a complete bounded input, then calls
+// visit for each one-based line. The line slice is valid only until visit
+// returns. A trailing newline contributes a final empty line, matching Scan's
+// editor-facing line identity.
+func VisitLines(ctx context.Context, source io.Reader, limits Limits, visit func(number int, line []byte) error) error {
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	if source == nil || limits.InputBytes <= 0 || limits.LineBytes <= 0 || visit == nil {
+		return errors.New("textread: positive input and line limits plus a visitor are required")
+	}
+
+	counter := &byteCounter{reader: contextReader{
+		ctx:    ctx,
+		reader: io.LimitReader(source, limits.InputBytes+1),
+	}}
+	reader := bufio.NewReaderSize(counter, 64<<10)
 	line := make([]byte, 0, 64<<10)
+	lineNumber := 0
 	endedWithNewline := false
+	consume := func(line []byte) error {
+		lineNumber++
+		if len(line) > limits.LineBytes {
+			return &lineError{number: lineNumber, cause: ErrLineTooLarge}
+		}
+		if !utf8.Valid(line) || bytes.IndexByte(line, 0) >= 0 {
+			return ErrInvalidText
+		}
+		return visit(lineNumber, line)
+	}
 	for {
 		fragment, readErr := reader.ReadSlice('\n')
-		rawLineLimit := options.LineBytes + 2
-		if collector.total == 0 {
+		rawLineLimit := limits.LineBytes + 2
+		if lineNumber == 0 {
 			rawLineLimit += 3
 		}
 		if len(line)+len(fragment) > rawLineLimit {
-			return Result{}, &lineError{number: collector.total + 1, cause: ErrLineTooLarge}
+			return &lineError{number: lineNumber + 1, cause: ErrLineTooLarge}
 		}
 		line = append(line, fragment...)
 		switch {
 		case readErr == nil:
-			line = normalizeLine(line[:len(line)-1], collector.total == 0)
-			if err := collector.consume(line, options.LineBytes); err != nil {
-				return Result{}, err
+			line = normalizeLine(line[:len(line)-1], lineNumber == 0)
+			if err := consume(line); err != nil {
+				return err
 			}
 			line = line[:0]
 			endedWithNewline = true
@@ -106,25 +143,25 @@ func Scan(ctx context.Context, source io.Reader, options Options) (Result, error
 			endedWithNewline = false
 			continue
 		case errors.Is(readErr, io.EOF):
-			if counter.bytes > options.InputBytes {
-				return Result{}, ErrInputTooLarge
+			if counter.bytes > limits.InputBytes {
+				return ErrInputTooLarge
 			}
 			if len(line) > 0 {
-				line = normalizeLine(line, collector.total == 0)
-				if err := collector.consume(line, options.LineBytes); err != nil {
-					return Result{}, err
+				line = normalizeLine(line, lineNumber == 0)
+				if err := consume(line); err != nil {
+					return err
 				}
-			} else if collector.total == 0 || endedWithNewline {
-				if err := collector.consume(nil, options.LineBytes); err != nil {
-					return Result{}, err
+			} else if lineNumber == 0 || endedWithNewline {
+				if err := consume(nil); err != nil {
+					return err
 				}
 			}
 			if cause := context.Cause(ctx); cause != nil {
-				return Result{}, cause
+				return cause
 			}
-			return collector.result(), nil
+			return nil
 		default:
-			return Result{}, readErr
+			return readErr
 		}
 	}
 }
@@ -140,23 +177,16 @@ type lineCollector struct {
 	clipped     bool
 }
 
-func (collector *lineCollector) consume(line []byte, maxLineBytes int) error {
-	if len(line) > maxLineBytes {
-		return &lineError{number: collector.total + 1, cause: ErrLineTooLarge}
-	}
-	if !utf8.Valid(line) || bytes.IndexByte(line, 0) >= 0 {
-		return ErrInvalidText
-	}
+func (collector *lineCollector) consume(line []byte) {
 	index := collector.total
 	collector.total++
 	if index < collector.start || collector.clipped ||
 		(collector.maxLines > 0 && collector.selected >= collector.maxLines) {
-		return nil
+		return
 	}
 	if collector.append(line) {
 		collector.selected++
 	}
-	return nil
 }
 
 func (collector *lineCollector) append(line []byte) bool {

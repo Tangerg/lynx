@@ -3,6 +3,7 @@ package textread
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -66,5 +67,32 @@ func TestScanSupportsConsumerSpecificOutputBoundaries(t *testing.T) {
 	}
 	if partial.Content != "abcd\nef" || partial.EndLine != 2 || !partial.Truncated {
 		t.Fatalf("partial-line result = %+v", partial)
+	}
+}
+
+func TestVisitLinesSharesNormalizedBoundedValidation(t *testing.T) {
+	var numbers []int
+	var lines []string
+	err := VisitLines(t.Context(), strings.NewReader("\xef\xbb\xbfneedle\r\nlast\r\n"), Limits{
+		InputBytes: 32,
+		LineBytes:  16,
+	}, func(number int, line []byte) error {
+		numbers = append(numbers, number)
+		lines = append(lines, string(line))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(numbers, []int{1, 2, 3}) || !slices.Equal(lines, []string{"needle", "last", ""}) {
+		t.Fatalf("VisitLines = %v %q, want normalized one-based lines", numbers, lines)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := VisitLines(ctx, strings.NewReader("text"), Limits{InputBytes: 4, LineBytes: 4}, func(int, []byte) error {
+		return nil
+	}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("pre-canceled VisitLines error = %v, want context.Canceled", err)
 	}
 }

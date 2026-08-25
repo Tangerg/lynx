@@ -1,10 +1,12 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -84,7 +86,7 @@ func TestFileBrowserGrepReturnsStableRootRelativePaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepInput{Query: "needle", Limit: 10})
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepPlan{Pattern: regexp.MustCompile("needle"), Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +112,7 @@ func TestFileBrowserGrepReturnsExactTotalBeyondSharedExecutorCountCap(t *testing
 		}
 	}
 
-	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepInput{Query: "needle", Limit: 1})
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepPlan{Pattern: regexp.MustCompile("needle"), Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +131,7 @@ func TestFileBrowserGrepBoundsRetainedMatchMaterial(t *testing.T) {
 		}
 	}
 
-	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepInput{Query: "needle", Limit: 9})
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepPlan{Pattern: regexp.MustCompile("needle"), Limit: 9})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +141,51 @@ func TestFileBrowserGrepBoundsRetainedMatchMaterial(t *testing.T) {
 	}
 	if got.Total != 9 || material > 8<<20 || len(got.Matches) >= got.Total {
 		t.Fatalf("Grep = %d retained / total %d / %d bytes, want exact total and an 8 MiB whole-row prefix", len(got.Matches), got.Total, material)
+	}
+}
+
+func TestFileBrowserGrepSearchesOnlyCompleteAdmittedTextFiles(t *testing.T) {
+	root := t.TempDir()
+	files := map[string][]byte{
+		"valid.txt":  []byte("\xef\xbb\xbfneedle\r\n"),
+		"binary.txt": []byte("needle\n\x00broken"),
+		"long.txt":   []byte("needle" + strings.Repeat("x", workspaceapp.MaxGrepLineBytes)),
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(root, name), content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oversized, err := os.Create(filepath.Join(root, "oversized.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := oversized.Truncate(workspaceapp.MaxGrepFileBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := oversized.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepPlan{
+		Pattern: regexp.MustCompile("^needle$"), Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total != 1 || len(got.Matches) != 1 || got.Matches[0].Path != "valid.txt" || got.Matches[0].LineNumber != 1 {
+		t.Fatalf("Grep = %+v, want only the complete normalized UTF-8 file", got)
+	}
+}
+
+func TestFileBrowserGrepHonorsPreCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := (FileBrowser{}).Grep(ctx, t.TempDir(), workspaceapp.GrepPlan{
+		Pattern: regexp.MustCompile("needle"), Limit: 10,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Grep error = %v, want context.Canceled", err)
 	}
 }
 

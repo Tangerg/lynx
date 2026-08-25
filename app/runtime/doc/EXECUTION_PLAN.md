@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P170 已完成；下一阶段待独立准入。
+> 状态：P0–P171 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P170 已完成。
+> 最近基线：2026-08-25，P171 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P171 已完成，修改范围仅为 `app/runtime`；`app/desktop` 既有 exact-total/overflow/error consumer 无需源码变更，`tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `d5fe5eef1` 证明搜索 stdout 在截断前完整 materialize、300 个命中文件只报告 250、无效 regex 泄漏底层错误、caller limit 与 direct-port 结果无 Application 包络。
+- 唯一根修复是 Application-compiled bounded search plan + Runtime-owned streaming text corpus：query 最多 64 KiB，default/max rows 100/1000，retained whole-row material 8 MiB；ignore-aware catalog 最多 20,000 candidates，searchable file/line 为 8/1 MiB，一次实际 scan 最多 512 MiB。单程精确累计 Total，Application 复验 result material/path/line/order/text/query correspondence；公共搜索不再启动 `rg/grep` 或依赖 `tools/fs`。
+- 对 app2 的裁决：采用 `workspaceflow` 的 in-process catalog scan，保留原版 regex 与 filesystem confinement；补上 app2 无 aggregate scan cap、fixed `bufio.Scanner` 让任一长行使整次请求失败、silent per-file omission、caller limit/direct-port validation 与 trailing-line normalization 缺口。没有复制 facade、第二 service、兼容 API 或配置层。
+- P171 的 Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、architecture gate、tidy/generate 零漂移，Desktop workspace/standalone test/vet/build/Staticcheck、根 workspace Runtime+Desktop tests、Frontend 313 files / 1952 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。仅观察到既有 macOS deployment-target linker warnings；临时检查器已移入 Trash，未启动 agent-browser，未遗留 test/build/frontend 进程。
 - P170 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`；`tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `c2ef7dfe5` 证明 Workspace read 的 unlimited zero、caller-raised 9 MiB result、预取消与 invalid UTF-8 均会越过旧产品边界。
 - 唯一根修复是 Application-owned editor read envelope + Runtime-shared bounded text scanner：default/max output 1/8 MiB、complete source 64 MiB、single line 8 MiB；64 KiB reader 验证 cancellation、growth、UTF-8/NUL、BOM/CRLF/trailing line 与 total/window，Application 对 direct port result 再验 budget/text/window/truncation。model consumer 保持 complete-line paging，Workspace consumer 允许 UTF-8-safe last-line prefix；Head 默认/最高 200/400 行且不能静默 partial。
 - 对 app2 的裁决：采用 `workspaceflow` 的 1 MiB default、8 MiB maximum、streaming scan 与 target line window 思路；补上 app2 无 complete-source cap、Scanner trailing-empty-line 丢失、partial-line continuation 不透明、Head 无 truncation signal、invalid source error ownership和 Desktop 深行仍读默认前缀的缺口。保留原版 Application/Delivery/Protocol shape与 filesystem confinement，不复制 facade、第二 request 或配置层。
@@ -435,10 +439,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P168     | Model mutation stamp 与 auto-format 资源闭环                                                  | streaming/cancellable fingerprint、delete-forget；8 MiB complete formatter I/O、64 KiB diagnostics 与 validate-before-atomic-replace |
 | P169     | Model/direct file read 资源与 stamp 线性区间闭环                                             | 8 MiB file/1 MiB line+result、64 KiB streaming scan、complete-line paging 与 pre/post exact digest admission                         |
 | P170     | Workspace file API 与 Desktop target-window 资源闭环                                         | 1/8 MiB result、64 MiB source、8 MiB line、shared bounded scanner；Head 完整性与真实 start-line gutter                               |
+| P171     | Workspace search 编译准入、语料与精确总数闭环                                               | 64 KiB regex、100/1000 rows、8 MiB result、8/1/512 MiB file/line/scan；single-pass exact total，无共享 executor subprocess          |
 
 ## 5. 当前里程碑结论
 
-P113–P170 共同建立了以下不可回退的心智模型：
+P113–P171 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -448,6 +453,7 @@ P113–P170 共同建立了以下不可回退的心智模型：
 - Model mutation 的安全 stamp 与格式化副作用由同一个 Tool adapter stack 闭合：完整 fingerprint 流式且可取消，删除撤销授权；formatter 只接纳有限完整 input/output，第三方进程不能在验证前直接写目标。最终 Tool result、caller timeout 或 path lock 都不能替代这些资源与提交边界。
 - Model/direct file read 是 Runtime-owned bounded consumer，不继承通用 fs executor 的 unlimited zero：input、line 与 complete-line result 分别有 hard cap，窗口 metadata 对省略事实诚实。Mutation stamp 必须以相同 admission bracket 整次 read，post-read 单点 digest 不能证明模型观察过当前 generation。
 - Public Workspace file read 是 Application-owned editor consumer：zero/default、caller maximum、complete-source 与 single-line budgets 都有唯一值，64 KiB scanner 只共享机制而不混同 model complete-line 与 editor prefix 策略。Head 没有 truncation 字段就不能发布 partial preview；Desktop 深行导航必须请求目标 window 并保持响应的 source-line identity。
+- Public Workspace search 是 Application-owned bounded read model：raw regex 与 caller limit 必须先收敛为 compiled plan；ignore-aware finite catalog、file/line/aggregate scan 与 whole-row output 分别有 owner。`Total` 只能由同一次完整 admitted-corpus scan 精确产生，不能依赖外部 stdout 的事后截断或第二次 capped count。
 - LSP document synchronization 自己拥有 8 MiB 完整输入包络；通用 workspace read 的 caller window 不能替代外部进程 adapter 的 admission。超限、读取中增长或取消必须在 digest、JSON-RPC 通知与 client state 之前失败，不发送截断文档。
 - MCP remote capability discovery 是有限 complete-list：每 server 的工具数、单项 description 与 schema 由 Domain 唯一限定，模型目录和管理目录不得各自截断或容忍不同 material；跨 server public-name collision 继续由同一 atomic live commit 决定。
 - Knowledge `LYRA.md` 是有限 complete document：Domain 的 1 MiB 上限同时约束 command admission、direct store write、外部文件 read、管理投影与 prompt material；transport cap、静默 skip 或 truncation 都不是替代 owner。
@@ -488,7 +494,7 @@ P113–P170 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1950 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、1.27-compatible `staticcheck ./...`、Runtime full `go test -race ./...` 与 `GOWORK=off go test ./...` 通过；根 workspace 对两个 app module 的全量 test、Runtime generator/go mod 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；临时检查器已回收，未启动 agent-browser。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1、Runtime full `go test -race ./...` 与 `GOWORK=off` test/vet/build 通过；根 workspace 对两个 app module 的全量 test、Runtime generator/go mod 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；临时检查器已回收，未启动 agent-browser。
 
 ## 6. 新阶段准入
 
@@ -501,4 +507,4 @@ P113–P170 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P170 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P171 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
