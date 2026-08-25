@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P173 已完成；下一阶段待独立准入。
+> 状态：P0–P174 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-25，P173 已完成。
+> 最近基线：2026-08-25，P174 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P174 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`；`app/cli` 未修改、未暂存。失败优先反例 `58ddbeeaf` 证明 Runtime trim 空白，而 Desktop 以无界读取接受任意文本、1 MiB 文件、0644 文件和 symlink，双方并未共享同一 durable credential truth。
+- P174 的唯一根修是公共 `runtime/localruntime` Go 1.27 独立子模块与 deployment handoff：精确 43-byte canonical RawURL/32-byte credential、0600 regular-file admission、`Lstat`→open/fstat/`SameFile` identity 与固定 44-byte growth probe、synced candidate + no-overwrite hard-link + parent sync。HTTP token lifecycle 已删除，Desktop 只消费同一 verified `Token`；missing 与 invalid 明确分离，Desktop 不吸收 Runtime 后端 module graph。
+- 对 app2 的裁决：采用其 `localruntime` ownership 与 atomic durable handoff；补上其 128-byte allowance、`TrimSpace`、`os.ReadFile`、inspect/open race 与 non-canonical Base64 缺口。原版 Desktop 不监管 Runtime，故不复制 descriptor/supervisor；也不保留第二 parser、兼容 whitespace 或 HTTP facade。
+- P174 封板通过 `localruntime` 独立模块 test/race/vet/build、Runtime 与 Desktop workspace/standalone full test/vet/build/Staticcheck、Runtime full race、根 workspace Runtime+Desktop tests、architecture/external-consumer gate、三模块 tidy 与 Runtime generate 零漂移、Frontend 313 files / 1952 tests 及全部静态/bundle 门禁，以及纯 Wails v3 production build。仅观察到既有 macOS deployment-target linker warning；未启动 agent-browser、无临时检查器，本批 test/build/frontend 进程均已 join。
 - P171 已完成，修改范围仅为 `app/runtime`；`app/desktop` 既有 exact-total/overflow/error consumer 无需源码变更，`tools/fs` 与 `app/cli` 未修改、未暂存。失败优先反例 `d5fe5eef1` 证明搜索 stdout 在截断前完整 materialize、300 个命中文件只报告 250、无效 regex 泄漏底层错误、caller limit 与 direct-port 结果无 Application 包络。
 - 唯一根修复是 Application-compiled bounded search plan + Runtime-owned streaming text corpus：query 最多 64 KiB，default/max rows 100/1000，retained whole-row material 8 MiB；ignore-aware catalog 最多 20,000 candidates，searchable file/line 为 8/1 MiB，一次实际 scan 最多 512 MiB。单程精确累计 Total，Application 复验 result material/path/line/order/text/query correspondence；公共搜索不再启动 `rg/grep` 或依赖 `tools/fs`。
 - 对 app2 的裁决：采用 `workspaceflow` 的 in-process catalog scan，保留原版 regex 与 filesystem confinement；补上 app2 无 aggregate scan cap、fixed `bufio.Scanner` 让任一长行使整次请求失败、silent per-file omission、caller limit/direct-port validation 与 trailing-line normalization 缺口。没有复制 facade、第二 service、兼容 API 或配置层。
@@ -448,10 +452,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P171     | Workspace search 编译准入、语料与精确总数闭环                                               | 64 KiB regex、100/1000 rows、8 MiB result、8/1/512 MiB file/line/scan；single-pass exact total，无共享 executor subprocess          |
 | P172     | Model/direct glob/grep 有限语料与可组合合同收敛                                              | Runtime typed tools 复用 20k ignore-aware catalog/P171 scanner；移除 subprocess-specific fields，exact total，无 `find/rg/grep` stdout |
 | P173     | Skill progressive disclosure 与托管生命周期有限来源闭环                                      | 256 Skills/272 raw entries、1 MiB document/resource、64 KiB usage；model/Desktop/list/sweep/approval 共享单一容量                         |
+| P174     | Runtime/Desktop durable local token 部署交接闭环                                             | public `localruntime` 单一 owner；43-byte canonical token、0600 regular file、identity/growth proof 与 atomic no-overwrite publish       |
 
 ## 5. 当前里程碑结论
 
-P113–P173 共同建立了以下不可回退的心智模型：
+P113–P174 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -503,7 +508,7 @@ P113–P173 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime/Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1、Runtime full `go test -race ./...` 与 `GOWORK=off` test/vet/build 通过；根 workspace 对两个 app module 的全量 test、Runtime generator/go mod 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；临时检查器已回收，未启动 agent-browser。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；无临时检查器，未启动 agent-browser，所有验证进程均已 join。
 
 ## 6. 新阶段准入
 

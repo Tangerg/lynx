@@ -39,6 +39,23 @@ func TestPublicGoAPICapturesExactRuntimeBinding(t *testing.T) {
 		t.Fatal("Runtime public API does not contain Close")
 	}
 
+	localRuntime := publicGoPackageByPath(t, api, runtimeModulePath+"/localruntime")
+	for _, name := range []string{"OpenToken", "ReadToken"} {
+		if !slices.ContainsFunc(localRuntime.Functions, func(function publicGoFunction) bool {
+			return function.Name == name && function.Signature == "func(path string) (*Token, error)"
+		}) {
+			t.Fatalf("localruntime public API does not contain %s", name)
+		}
+	}
+	token := publicGoTypeByName(t, localRuntime, "Token")
+	for _, name := range []string{"Path", "Value"} {
+		if !slices.ContainsFunc(token.Methods, func(method publicGoFunction) bool {
+			return method.Name == name && method.Signature == "func() string"
+		}) {
+			t.Fatalf("localruntime.Token public API does not contain %s", name)
+		}
+	}
+
 	protocol := publicGoPackageByPath(t, api, runtimeModulePath+"/protocol")
 	if len(protocol.Types) == 0 || len(protocol.Constants) == 0 {
 		t.Fatal("protocol Go baseline is vacuous")

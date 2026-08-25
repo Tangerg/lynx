@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P173 已完成。
+> 状态：当前能力快照；P174 已完成。
 >
 > 基线日期：2026-08-25。
 
@@ -12,7 +12,7 @@
 ## 1. 总体 verdict
 
 - Runtime 是 Lyra 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
-- 公共 Go API 仅由 `runtime/protocol` 和 `runtime/embedded` 拥有；内部 exported identifiers 不构成兼容承诺。
+- 公共 Go API 仅由 `runtime/protocol`、`runtime/embedded` 和窄部署交接包 `runtime/localruntime` 拥有；内部 exported identifiers 不构成兼容承诺。
 - 当前合同为 Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、Agent Framework Baseline 20。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
 - Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v23 只接受当前显式 `plan` shape。
@@ -43,6 +43,7 @@
 - P171 让 public Workspace search 形成 Application-owned compiled/bounded read model：64 KiB regex、100/1000 retained rows、8 MiB whole-row material、20k candidates 与 8/1/512 MiB file/line/scan corpus；single-pass exact total 取代共享 executor 的 unbounded stdout + capped recount。
 - P172 让 model/direct `glob`/`grep` 也消费同一有限、ignore-aware Workspace catalog/text corpus：宿主 `find/rg/grep`、完整 stdout 与 post-hoc slice 已退出 Runtime 模型搜索链；schema 收敛为 `pattern/path/max_results`，两种结果都提供 exact total。
 - P173 让 project/user Skill discovery、模型 progressive disclosure 与用户托管生命周期消费同一有限来源事实：256 Skill candidates、272 raw entries、1 MiB document/resource，以及 64 KiB/256-record usage sidecar；approval 不能再写出下一次 list/sweep 必然拒绝的库。
+- P174 让 Runtime executable 与 Desktop 共用唯一 durable local token owner：43-byte canonical RawURL/32-byte value、0600 regular file、path/open identity 与 fixed sentinel 共同拒绝 symlink、替换、增长和 non-canonical material；HTTP/Desktop parser 已删除。
 
 ## 2. 架构与所有权
 
@@ -333,6 +334,10 @@ P173 完成 Skill progressive disclosure 与托管生命周期的有限来源闭
 
 P173 封板通过 Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、architecture gate、tidy/generate 零漂移，Desktop workspace/standalone test/vet/build/Staticcheck、根 workspace Runtime+Desktop tests、Frontend 313 files / 1952 tests 与全部静态/bundle 门禁，以及纯 Wails v3 production build。仅观察到既有 macOS deployment-target linker warnings；临时检查器已删除，未启动 agent-browser，本批 test/build/frontend 进程均已 join，`app/desktop` 与 `app/cli` 零修改。
 
+P174 完成 Runtime/Desktop durable local token 部署交接闭环。失败优先反例 `58ddbeeaf` 证明 Runtime 接受 whitespace-wrapped token，而 Desktop 接受任意文本、1 MiB material、0644 file 与 symlink。新公共 `runtime/localruntime` Go 1.27 独立子模块唯一拥有创建、原子发布、读取和 grammar；43-byte canonical RawURL/32-byte value、0600 regular-file check、`Lstat`/fstat `SameFile` 与 44-byte probe 在常量内存中拒绝 invalid、replacement 与 growth。Runtime cmd 和 Desktop 只消费 validated `Token`，HTTP 层旧 token API/reader 与 Desktop `ReadFile`/trim 同批删除；独立 module boundary 防止 Desktop 吸收 Runtime 后端依赖图。Protocol/Artifact/SQLite/Wails binding/Agent Framework/CLI 不变。
+
+P174 封板通过 `localruntime` 独立模块 test/race/vet/build、Runtime 与 Desktop workspace/standalone full test/vet/build/Staticcheck、Runtime full race、根 workspace Runtime+Desktop tests、architecture/external-consumer gate、三模块 tidy 与 Runtime generate 零漂移、Frontend 313 files / 1952 tests 和全部静态/bundle 门禁，以及纯 Wails v3 production build。仅观察到既有 macOS deployment-target linker warning；未启动 agent-browser、无临时检查器，本批 test/build/frontend 进程均已 join，`app/cli` 零修改。
+
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
 
 P161 进一步把外部 capability discovery 纳入有限 complete-list 原则：MCP server 的描述符集合与单项 schema/prose 都必须先通过 Domain envelope，不能让 provider context、Desktop 渲染或 transport body limit 充当隐式 owner。
@@ -361,13 +366,15 @@ P172 进一步证明同一缺陷也存在于模型工具：通用 executor 的 s
 
 P173 进一步证明“多个 consumer 共用同一 SDK Source”仍不等于共用有限产品事实：SDK 可以正确拥有格式与路径 confinement，却不知道 Runtime 的非分页页面、模型上下文、托管写事务和 sidecar 预算。完整读取上限必须在 Runtime consumer 边界建立，并由 producer transaction 反向守住。
 
+P174 进一步证明 durable file handoff 也不能由两个 consumer 各自“简单读取”：只要 grammar、文件身份和资源准入分裂，producer 接受的 credential 与 Desktop 投影的 bearer 就不是同一事实。部署交接 package 必须同时拥有 producer publish 与所有 reader，而 transport 只消费已验证值。
+
 普通 ToolCall 现在一律投影为透明 activity row，identity mark、summary、真实 accessory 与末尾按需 disclosure 构成单一阅读序列；展开体由 shell、patch 或 reasoning material 自己声明 reading-edge inset。denied、error 与非零 exit code 保留 exact verdict，但不再创建 warning badge、negative card、完成勾或常驻 action chrome。`card`/`flagged` 只保留给 delegated Run 等有独立层级和生命周期的复合产品边界。
 
 Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production package 和 strict codesign verification 通过。fresh HOME/SQLite smoke 中 renderer reload 后权威 `sessions.list` 与 SQLite 均保持唯一 Session；Runtime PID 89768→93411、`instanceId` 换代，Desktop PID 90579 保持，0600 durable token digest 不变。同一 renderer 在锁屏后台且没有 reload 或手工刷新时自动连接后继 Runtime 并恢复 RPC。数字只表示最近一次封板证据，不替代后续改动必须重跑受影响门禁。
 
 ## 10. 当前结论
 
-P173 在既有 P0–P172 结论上把有限 complete-source 原则扩展到 Skill 全消费链：Runtime-owned source 让 Desktop discovery 与模型 progressive disclosure 共用 bounded directory/document/resource，托管 Store 再让 list/sweep/approval/usage 共用同一容量。当前完成范围因此为 P0–P173。
+P174 在既有 P0–P173 结论上把 local credential 从 HTTP/Desktop 双 parser 收敛为公共 `localruntime` 单一 deployment handoff；Runtime 与 Desktop 现在消费同一 canonical、finite、identity-checked durable token。当前完成范围因此为 P0–P174。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

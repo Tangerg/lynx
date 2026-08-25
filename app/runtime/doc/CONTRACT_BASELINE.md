@@ -10,9 +10,9 @@
 
 ## 1. 基线含义
 
-Runtime 是应用后端，同时提供公共 Go binding。只有 `protocol` 与 `embedded` 的 exported surface 构成 Go API；`internal` exported identifiers 仍只服务模块内组合。因此本基线不冻结全部内部 `go doc`，而冻结四类真实合同：
+Runtime 是应用后端，同时提供公共 Go binding。只有 `protocol`、`embedded` 与窄部署交接包 `localruntime` 的 exported surface 构成 Go API；`internal` exported identifiers 仍只服务模块内组合。因此本基线不冻结全部内部 `go doc`，而冻结四类真实合同：
 
-1. 外部 Runtime Protocol、公共 Go protocol/embedded surface 和生成制品；
+1. 外部 Runtime Protocol、公共 Go protocol/embedded/localruntime surface 和生成制品；
 2. SQLite/artifact/checkpoint 等持久 shape；
 3. Application 与 Agent adapter 的防腐边界；
 4. Clean Architecture import DAG 和外部 SDK isolation。
@@ -38,7 +38,7 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 | `contract/manifest.json` | `f2264bd241ea2bdd19f72061f290e21ce41319b1b8ff4b4a1c033beb55af1441` |
 | `contract/openrpc.json` | `94af81a7fcb8cdc3c3ce8d16624110fb71df44e070a75c830b33e3ffd7f0105d` |
 | `contract/schema.json` | `c7e4004c928d2bf73d606e1b67ba87b5a407ac296c8d279726a0337c974fe428` |
-| `contract/go-api.json` | `0ef8f46e656a4b24f2f51093a1b10f457af3dfb31c018a43393dc7edb6f25bf2` |
+| `contract/go-api.json` | `744ab3c0753bba2dbb3e0e7a01082d32e1edc197c05b6681641d0634d234eff6` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -94,6 +94,8 @@ P172 breaking 收敛 model/direct filesystem search Tool contract；这不是 Ly
 
 P173 收紧 Runtime internal Skill source/lifecycle 行为，不改变 `skills.discovered.list`、`skills.library.list/archive/restore`、`skills.proposals.*`、`Skill`/`ManagedSkill`/`Page` wire shape 或 model Tool 名/schema。每个 project/user complete-list 当前最多 256 个 valid-name candidate、272 个 raw top-level entries；完整 `SKILL.md` 与 `read_skill_resource` 文件各最多 1 MiB。用户托管 active+archived 总量、approval、完整 list 与 idle sweep 共用 256-entry strict snapshot；`.usage.json` 最多 64 KiB/256 records。越界使用稳定 internal capacity/size error 整体失败，不分页、不截断、不回退共享 SDK 的 unbounded reader。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding、公共 Go API、Desktop source、Agent Framework、共享 `skills`/`tools/skills` 与 CLI 均不改变。
 
+P174 breaking 扩展公共 Go surface，新增 `runtime/localruntime` deployment handoff package；`contract/go-api.json` 同批冻结 `ErrInvalidToken`、`Token.Value/Path`、`OpenToken` 与 `ReadToken`。Durable token 文件唯一合法内容为 43-byte canonical RawURL encoding of exactly 32 bytes，必须是 0600 regular file；reader 用 path/open `SameFile` identity 与固定 44-byte probe 拒绝 symlink、替换、增长、空白、padding 和 non-canonical encoding。Runtime executable 与 Desktop 共用该 package；internal HTTP `LocalToken/OpenLocalToken` 与 Desktop private parser 已删除，不保留兼容入口。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated TypeScript binding、Wails binding、Agent Framework 与 CLI 不变。
+
 `sessions.snapshot` 是挂载 Session material view 的命名用例，不是通用展开机制：Application 校验
 Session/Item/Run/open Interrupt/Plan/Goal 的跨投影关系，并与启动恢复复用唯一 Pending projection closure；每个 waiting
 Run 必须由 root Pending 拥有，每个 Interrupt 必须精确解析到同 Session/Run/Item/occurrence 与匹配的 Question/Approval
@@ -120,7 +122,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 新 revision。
 这些 topic 是失效事实，不携带配置值。Provider/model role、approval policy 与 agent-memory review 同样在所属 Application use case 提交后发布专用失效事实；Delivery 才将中性 notice 映射为 wire topic，Desktop Workspace events Adapter 再映射到各 context 公开 query identity，Agent Framework 零感知。
 
-公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。同一 canonical data directory 可由另一个 embedded/HTTP Runtime 同时打开，因此旧的 `embedded.ErrDataDirectoryInUse` 已 breaking 删除；实际冲突在对应 Session operation 上投影既有 `session_busy`。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。P113 对 Assembly、operation、Interaction、Toolset、LSP、MCP 以及 Runs/Sessions/Runsegment constructor 的 breaking correction 只收紧 internal valid construction 与 lifetime ownership；P148/P149 先分离 terminal diagnostic、再按 SDK 合同纠正 MCP close，P150 删除失去生产消费者的 Retryable/settlement 双态并让 terminal Sequence 在失败 Assembly timeout 后继续完成逆序资源图，P151 让 Host 整体 shutdown generation 独立于 caller wait，P152 再让 Instance 以同一 owner 规则从 operation Endpoint 穿过 workers 加入 Host；公共/CLI Close timeout 不再遗弃下层图。这些批次均不改变生成的 public Go API、Protocol method/event、Artifact 或 SQLite shape。
+公共 Go surface 只有 `runtime/protocol`、`runtime/embedded` 与 `runtime/localruntime`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods；`localruntime` 只公开 durable token 的 validated `Token`、`OpenToken`、`ReadToken` 与稳定 `ErrInvalidToken`，不公开 transport/server 或 host-directory discovery。同一 canonical data directory 可由另一个 embedded/HTTP Runtime 同时打开，因此旧的 `embedded.ErrDataDirectoryInUse` 已 breaking 删除；实际冲突在对应 Session operation 上投影既有 `session_busy`。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。P113 对 Assembly、operation、Interaction、Toolset、LSP、MCP 以及 Runs/Sessions/Runsegment constructor 的 breaking correction 只收紧 internal valid construction 与 lifetime ownership；P148/P149 先分离 terminal diagnostic、再按 SDK 合同纠正 MCP close，P150 删除失去生产消费者的 Retryable/settlement 双态并让 terminal Sequence 在失败 Assembly timeout 后继续完成逆序资源图，P151 让 Host 整体 shutdown generation 独立于 caller wait，P152 再让 Instance 以同一 owner 规则从 operation Endpoint 穿过 workers 加入 Host；公共/CLI Close timeout 不再遗弃下层图。P174 breaking 增加唯一 deployment handoff package 并删除 HTTP internal token owner；Protocol method/event、Artifact 与 SQLite shape 不变。
 
 ## 3. 持久化 Baseline 1
 

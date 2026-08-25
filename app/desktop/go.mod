@@ -2,7 +2,10 @@ module github.com/Tangerg/lynx/app/desktop
 
 go 1.27.0
 
-require github.com/wailsapp/wails/v3 v3.0.0-beta.4
+require (
+	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
+	github.com/wailsapp/wails/v3 v3.0.0-beta.4
+)
 
 require (
 	github.com/adrg/xdg v0.5.3 // indirect
@@ -14,3 +17,5 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+replace github.com/Tangerg/lynx/app/runtime/localruntime => ../runtime/localruntime

@@ -14,6 +14,7 @@ const runtimeModulePath = "github.com/Tangerg/lynx/app/runtime"
 
 var publicPackagePaths = []string{
 	runtimeModulePath + "/embedded",
+	runtimeModulePath + "/localruntime",
 	runtimeModulePath + "/protocol",
 }
 

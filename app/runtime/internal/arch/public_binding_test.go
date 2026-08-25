@@ -13,7 +13,7 @@ import (
 
 func TestPublicPackageSetIsExact(t *testing.T) {
 	root := moduleRoot(t)
-	want := []string{"embedded", "protocol"}
+	want := []string{"embedded", "localruntime", "protocol"}
 	var got []string
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -68,30 +68,36 @@ func directoryHasProductionGo(directory string) (bool, error) {
 	return false, err
 }
 
-// TestEmbeddedBindingCompilesForAnExternalModule proves the public Go binding
-// is usable without the Runtime module's internal-package privilege. Exact
+// TestPublicBindingsCompileForAnExternalModule proves the public Go bindings
+// are usable without the Runtime module's internal-package privilege. Exact
 // operation coverage is enforced by embedded's own surface test.
-func TestEmbeddedBindingCompilesForAnExternalModule(t *testing.T) {
+func TestPublicBindingsCompileForAnExternalModule(t *testing.T) {
 	directory := t.TempDir()
 	goMod := fmt.Sprintf(`module example.com/runtimeconsumer
 
 go 1.27.0
 
-require github.com/Tangerg/lynx/app/runtime v0.0.0
+require (
+	github.com/Tangerg/lynx/app/runtime v0.0.0
+	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
+)
 
 replace github.com/Tangerg/lynx/app/runtime => %s
-`, filepath.ToSlash(moduleRoot(t)))
+replace github.com/Tangerg/lynx/app/runtime/localruntime => %s
+`, filepath.ToSlash(moduleRoot(t)), filepath.ToSlash(filepath.Join(moduleRoot(t), "localruntime")))
 	source := `package runtimeconsumer
 
 import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
+	"github.com/Tangerg/lynx/app/runtime/localruntime"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 var _ = embedded.Open
 var _ *embedded.Runtime
+var _ = localruntime.ReadToken
 var _ protocol.RunEvent
 
 func consume(ctx context.Context, runtime *embedded.Runtime) error {

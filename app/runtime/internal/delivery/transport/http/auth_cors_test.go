@@ -2,11 +2,8 @@ package http_test
 
 import (
 	"bytes"
-	"encoding/base64"
 	netHTTP "net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -271,82 +268,5 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	defer resp.Body.Close()
 	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Allow-Origin = %q, want empty for disallowed origin", got)
-	}
-}
-
-// TestOpenLocalToken — OpenLocalToken creates the file at the
-// requested path with mode 0600 and returns a non-empty token.
-func TestOpenLocalToken(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "nested", "token")
-
-	tok, err := lyrahttp.OpenLocalToken(path)
-	if err != nil {
-		t.Fatalf("OpenLocalToken: %v", err)
-	}
-	if tok.Value == "" {
-		t.Fatalf("empty token value")
-	}
-	if tok.Path != path {
-		t.Fatalf("path = %q, want %q", tok.Path, path)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Fatalf("mode = %o, want 600", mode)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	if string(data) != tok.Value {
-		t.Fatalf("file content mismatch")
-	}
-}
-
-func TestOpenLocalTokenSurvivesRuntimeReplacement(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "local-token")
-	predecessor, err := lyrahttp.OpenLocalToken(path)
-	if err != nil {
-		t.Fatalf("open predecessor local token: %v", err)
-	}
-	successor, err := lyrahttp.OpenLocalToken(path)
-	if err != nil {
-		t.Fatalf("open successor local token: %v", err)
-	}
-	if successor.Value != predecessor.Value {
-		t.Fatalf("successor token = %q, want durable predecessor token %q", successor.Value, predecessor.Value)
-	}
-}
-
-func TestOpenLocalTokenRejectsInvalidDurableCredential(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "local-token")
-	if err := os.WriteFile(path, []byte("not-a-token"), 0o600); err != nil {
-		t.Fatalf("write invalid local token: %v", err)
-	}
-	if _, err := lyrahttp.OpenLocalToken(path); err == nil {
-		t.Fatal("OpenLocalToken accepted an invalid durable credential")
-	}
-}
-
-func TestOpenLocalTokenRejectsNonCanonicalDurableCredential(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "local-token")
-	value := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
-	if err := os.WriteFile(path, []byte("\n"+value+"\n"), 0o600); err != nil {
-		t.Fatalf("write whitespace-wrapped local token: %v", err)
-	}
-	if _, err := lyrahttp.OpenLocalToken(path); err == nil {
-		t.Fatal("OpenLocalToken accepted a non-canonical durable credential")
-	}
-}
-
-func TestOpenLocalTokenRequiresExplicitPath(t *testing.T) {
-	if _, err := lyrahttp.OpenLocalToken(""); err == nil {
-		t.Fatal("OpenLocalToken accepted an empty path")
-	}
-	if _, err := lyrahttp.OpenLocalToken("relative-token"); err == nil {
-		t.Fatal("OpenLocalToken accepted a relative path")
 	}
 }

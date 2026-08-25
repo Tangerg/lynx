@@ -473,6 +473,41 @@
       ]
     },
     {
+      "path": "github.com/Tangerg/lynx/app/runtime/localruntime",
+      "variables": [
+        {
+          "name": "ErrInvalidToken",
+          "type": "error"
+        }
+      ],
+      "functions": [
+        {
+          "name": "OpenToken",
+          "signature": "func(path string) (*Token, error)"
+        },
+        {
+          "name": "ReadToken",
+          "signature": "func(path string) (*Token, error)"
+        }
+      ],
+      "types": [
+        {
+          "name": "Token",
+          "kind": "struct",
+          "methods": [
+            {
+              "name": "Path",
+              "signature": "func() string"
+            },
+            {
+              "name": "Value",
+              "signature": "func() string"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "github.com/Tangerg/lynx/app/runtime/protocol",
       "imports": [
         "encoding/json",

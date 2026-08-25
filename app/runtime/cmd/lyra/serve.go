@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/telemetry"
+	"github.com/Tangerg/lynx/app/runtime/localruntime"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -34,13 +35,13 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if srv.Listen == "" {
 		return errors.New("server.listen is empty (set config server.listen or LYRA_SERVER_LISTEN)")
 	}
-	var token *lyrahttp.LocalToken
+	var token *localruntime.Token
 	if !srv.NoLocalToken {
 		tokenPath := srv.LocalTokenPath
 		if tokenPath == "" {
 			tokenPath = filepath.Join(paths.dataDirectory, "local-token")
 		}
-		t, err := lyrahttp.OpenLocalToken(tokenPath)
+		t, err := localruntime.OpenToken(tokenPath)
 		if err != nil {
 			return err
 		}
@@ -49,7 +50,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 
 	tokenValue := ""
 	if token != nil {
-		tokenValue = token.Value
+		tokenValue = token.Value()
 	}
 	httpServer, err := buildHTTPServer(instance, srv, tokenValue)
 	if err != nil {
@@ -82,7 +83,7 @@ func resolvedVersion() string {
 
 // runServer launches the server, blocks until it returns or a shutdown signal
 // arrives, then drains with a 10s budget.
-func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, addr string, token *lyrahttp.LocalToken) error {
+func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, addr string, token *localruntime.Token) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -94,7 +95,7 @@ func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server,
 		fmt.Fprintf(errw, "[lyra]   GET  /v2/health/live      liveness\n")
 		fmt.Fprintf(errw, "[lyra]   GET  /v2/health/ready     dependency readiness\n")
 		if token != nil {
-			fmt.Fprintf(errw, "[lyra] local-token gate active; token at %s\n", token.Path)
+			fmt.Fprintf(errw, "[lyra] local-token gate active; token at %s\n", token.Path())
 		} else {
 			fmt.Fprintln(errw, "[lyra] local-token gate disabled")
 		}

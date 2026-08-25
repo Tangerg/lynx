@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -72,6 +73,9 @@ func TestDesktopHostBootstrapRejectsInvalidDurableCredentials(t *testing.T) {
 			}
 			if test.link {
 				if err := os.Symlink(writePath, tokenPath); err != nil {
+					if runtime.GOOS == "windows" {
+						t.Skipf("symlink creation is unavailable: %v", err)
+					}
 					t.Fatal(err)
 				}
 			}

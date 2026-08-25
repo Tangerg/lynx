@@ -22,6 +22,7 @@ Runtime 必须同时满足：
 - Delivery 只把协议请求投影为应用命令，把应用事实投影为协议响应；
 - Bootstrap 是唯一组合根，不承载业务行为；
 - streamable HTTP 与公共 embedded binding 只承载协议，且不改变应用语义；二者必须复用同一 binding-neutral operation 入口与 Application 用例；
+- 公共 `localruntime` 只承载本地部署交接：Runtime executable 与 Desktop 共同消费同一严格凭据文件合同，不把 token 生命周期塞进 HTTP transport、Protocol 或 Desktop 壳；
 - Agent Framework 是唯一托管执行内核，Runtime 不复制它的 Process loop、tree scheduler 或 snapshot 解释器。
 
 ## 2. 设计原则
@@ -549,6 +550,7 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 - HTTP/SSE 与 embedded 都驱动同一 binding-neutral operation 和 Application use case；binding 只投影 metadata、options 与结果流，不得复制业务路径。Contract Registry 同时拥有 idempotency 与 run replay cursor 的方法适用性，operation 在 capability/handler admission 前拒绝不相容的带外元数据；binding 不得静默忽略或自行扩大这些承诺。
 - embedded 不经过 JSON-RPC/SSE 编解码，但必须遵守同一严格验证、capability、idempotency、replay cursor 与 problem 语义。
 - 同一 canonical data directory 可以由少量 embedded/HTTP Runtime 同时打开；目录 setup 只在 schema/config seeding 期间串行。冲突操作由 Session writer、working-tree shared/exclusive lease、Goal drive 和数据库事务共同 fail closed，跨进程提交通过既有 resync event 促使消费者重读。
+- durable local token 只有 `localruntime` 一个 owner：文件必须是未替换的 0600 regular file，内容必须精确为 43-byte canonical RawURL encoding of 32 random bytes；读取通过 `Lstat`/opened-file identity 与固定 44-byte probe 同时拒绝 symlink、竞态替换、增长、空白、padding 和 non-canonical Base64。HTTP 只消费已验证 bearer value，Desktop 只投影同一 value；缺失文件对 Desktop 表示 Runtime 尚未发布凭据，不触发第二创建者。
 
 ## 13. 目标目录
 
@@ -556,6 +558,7 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 app/runtime/
 ├── protocol/
 ├── embedded/
+├── localruntime/
 ├── cmd/
 ├── contract/
 ├── doc/

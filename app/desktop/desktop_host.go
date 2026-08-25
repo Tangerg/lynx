@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"unsafe"
+
+	"github.com/Tangerg/lynx/app/runtime/localruntime"
 )
 
 const localRuntimeEndpoint = "http://127.0.0.1:17171"
@@ -187,12 +188,12 @@ func (h *DesktopHost) Bootstrap() (DesktopBootstrap, error) {
 }
 
 func (h *DesktopHost) localToken() (string, error) {
-	data, err := os.ReadFile(h.localTokenPath)
+	token, err := localruntime.ReadToken(h.localTokenPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
 	if err != nil {
 		return "", fmt.Errorf("desktop host: read local runtime token: %w", err)
 	}
-	return strings.TrimSpace(string(data)), nil
+	return token.Value(), nil
 }

@@ -6,6 +6,7 @@ require (
 	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/agent v0.0.0-20260815012052-a9f35b30656a
+	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
@@ -107,3 +108,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/Tangerg/lynx/app/runtime/localruntime => ./localruntime
