@@ -53,7 +53,7 @@ func (a *api) chatCompletion(ctx context.Context, req *anthropicsdk.MessageNewPa
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return wrapResult(a.client.Messages.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Messages.New(ctx, *req, opts...))
 }
 
 func (a *api) chatCompletionStream(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) *ssestream.Stream[anthropicsdk.MessageStreamEventUnion] {
@@ -67,5 +67,5 @@ func (a *api) countTokens(ctx context.Context, req *anthropicsdk.MessageCountTok
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return wrapResult(a.client.Messages.CountTokens(ctx, *req, opts...))
+	return a.wrapResult(a.client.Messages.CountTokens(ctx, *req, opts...))
 }

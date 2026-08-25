@@ -97,17 +97,17 @@ func newAPI(cfg apiConfig) (*api, error) {
 }
 
 func (a *api) chatCompletion(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-	return wrapResult(a.client.Models.GenerateContent(ctx, modelName, contents, config))
+	return a.wrapResult(a.client.Models.GenerateContent(ctx, modelName, contents, config))
 }
 
 func (a *api) chatCompletionStream(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) iter.Seq2[*genai.GenerateContentResponse, error] {
-	return wrapSequence(a.client.Models.GenerateContentStream(ctx, modelName, contents, config))
+	return a.wrapSequence(a.client.Models.GenerateContentStream(ctx, modelName, contents, config))
 }
 
 func (a *api) embedding(ctx context.Context, modelName string, contents []*genai.Content, config *genai.EmbedContentConfig) (*genai.EmbedContentResponse, error) {
-	return wrapResult(a.client.Models.EmbedContent(ctx, modelName, contents, config))
+	return a.wrapResult(a.client.Models.EmbedContent(ctx, modelName, contents, config))
 }
 
 func (a *api) countTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.CountTokensConfig) (*genai.CountTokensResponse, error) {
-	return wrapResult(a.client.Models.CountTokens(ctx, modelName, contents, config))
+	return a.wrapResult(a.client.Models.CountTokens(ctx, modelName, contents, config))
 }

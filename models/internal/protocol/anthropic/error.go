@@ -18,7 +18,7 @@ func (err *responseError) Unwrap() error           { return err.err }
 func (err *responseError) HTTPStatus() int         { return err.status }
 func (err *responseError) HTTPHeader() http.Header { return err.header.Clone() }
 
-func wrapError(err error) error {
+func (*api) wrapError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -40,6 +40,6 @@ func wrapError(err error) error {
 	return &responseError{err: err, status: apiErr.StatusCode, header: header}
 }
 
-func wrapResult[T any](value *T, err error) (*T, error) {
-	return value, wrapError(err)
+func (a *api) wrapResult[T any](value *T, err error) (*T, error) {
+	return value, a.wrapError(err)
 }

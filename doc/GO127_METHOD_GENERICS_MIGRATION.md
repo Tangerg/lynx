@@ -23,4 +23,6 @@ result, err := deployment.Descriptor().DecodeOutput[Response](output)
 artifactValue, err := artifact.Decode[Evidence]()
 ```
 
-这些迁移不提供 alias 或兼容 wrapper。构造器、DSL 运算符、schema factory 和跨类型 capability projection 没有合法 receiver，继续保留自由函数。
+这些迁移不提供 alias 或兼容 wrapper。Provider adapter 也直接拥有 SDK 结果与流的泛型桥接：OpenAI、Anthropic、Google 通过各自的 `api.wrapResult[T]` / `api.wrapSequence[T]` 转换 provider error，不再把行为留在 owner 旁边的包级泛型函数中。
+
+构造器、DSL 运算符、schema factory 和跨类型 capability projection 没有合法 receiver，继续保留自由函数。

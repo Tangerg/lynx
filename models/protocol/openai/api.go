@@ -54,7 +54,7 @@ func (a *api) chatCompletion(ctx context.Context, req *openai.ChatCompletionNewP
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Chat.Completions.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Chat.Completions.New(ctx, *req, opts...))
 }
 
 func (a *api) chatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
@@ -68,7 +68,7 @@ func (a *api) responseNew(ctx context.Context, req *responses.ResponseNewParams,
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Responses.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Responses.New(ctx, *req, opts...))
 }
 
 func (a *api) responseNewStream(ctx context.Context, req *responses.ResponseNewParams, opts ...option.RequestOption) (*ssestream.Stream[responses.ResponseStreamEventUnion], error) {
@@ -82,40 +82,40 @@ func (a *api) embedding(ctx context.Context, req *openai.EmbeddingNewParams, opt
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Embeddings.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Embeddings.New(ctx, *req, opts...))
 }
 
 func (a *api) image(ctx context.Context, req *openai.ImageGenerateParams, opts ...option.RequestOption) (*openai.ImagesResponse, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Images.Generate(ctx, *req, opts...))
+	return a.wrapResult(a.client.Images.Generate(ctx, *req, opts...))
 }
 
 func (a *api) moderation(ctx context.Context, req *openai.ModerationNewParams, opts ...option.RequestOption) (*openai.ModerationNewResponse, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Moderations.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Moderations.New(ctx, *req, opts...))
 }
 
 func (a *api) audioTTS(ctx context.Context, req *openai.AudioSpeechNewParams, opts ...option.RequestOption) (*http.Response, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Audio.Speech.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Audio.Speech.New(ctx, *req, opts...))
 }
 
 func (a *api) audioTranscription(ctx context.Context, req *openai.AudioTranscriptionNewParams, opts ...option.RequestOption) (*openai.AudioTranscriptionNewResponseUnion, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Audio.Transcriptions.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Audio.Transcriptions.New(ctx, *req, opts...))
 }
 
 func (a *api) audioTranslation(ctx context.Context, req *openai.AudioTranslationNewParams, opts ...option.RequestOption) (*openai.Translation, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")
 	}
-	return wrapResult(a.client.Audio.Translations.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Audio.Translations.New(ctx, *req, opts...))
 }

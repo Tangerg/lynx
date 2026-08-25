@@ -18,7 +18,7 @@ func (err *responseError) Unwrap() error           { return err.err }
 func (err *responseError) HTTPStatus() int         { return err.status }
 func (err *responseError) HTTPHeader() http.Header { return nil }
 
-func wrapError(err error) error {
+func (*api) wrapError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -36,14 +36,14 @@ func wrapError(err error) error {
 	return &responseError{err: err, status: apiErr.Code}
 }
 
-func wrapResult[T any](value *T, err error) (*T, error) {
-	return value, wrapError(err)
+func (a *api) wrapResult[T any](value *T, err error) (*T, error) {
+	return value, a.wrapError(err)
 }
 
-func wrapSequence[T any](sequence iter.Seq2[*T, error]) iter.Seq2[*T, error] {
+func (a *api) wrapSequence[T any](sequence iter.Seq2[*T, error]) iter.Seq2[*T, error] {
 	return func(yield func(*T, error) bool) {
 		for value, err := range sequence {
-			if !yield(value, wrapError(err)) {
+			if !yield(value, a.wrapError(err)) {
 				return
 			}
 		}

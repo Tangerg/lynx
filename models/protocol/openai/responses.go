@@ -99,7 +99,7 @@ func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.
 			}
 		}
 		if streamErr := stream.Err(); streamErr != nil {
-			yield(nil, wrapError(streamErr))
+			yield(nil, c.api.wrapError(streamErr))
 		}
 	}
 }
