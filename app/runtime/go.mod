@@ -6,7 +6,7 @@ require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/agent v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b
-	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2
 	github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/models/alibaba v0.0.0-20260826074620-641b4fc16dbb
 	github.com/Tangerg/lynx/models/anthropic v0.0.0-20260826074620-641b4fc16dbb
@@ -30,7 +30,7 @@ require (
 	github.com/Tangerg/lynx/models/zhipu v0.0.0-20260826074620-641b4fc16dbb
 	github.com/Tangerg/lynx/otel v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b
-	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec
+	github.com/Tangerg/lynx/tools v0.0.0-20260826083855-adf089f2e7f2
 	github.com/Tangerg/sse v0.0.5
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1
