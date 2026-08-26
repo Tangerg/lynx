@@ -16,11 +16,11 @@ type fetchRequest struct {
 	Format       string   `json:"format,omitempty"`
 }
 
-func (r *fetchRequest) validate() error {
-	if r == nil {
+func (f *fetchRequest) validate() error {
+	if f == nil {
 		return errors.New("tavily: Request must not be nil")
 	}
-	if len(r.URLs) == 0 {
+	if len(f.URLs) == 0 {
 		return errors.New("tavily: URLs must not be empty")
 	}
 	return nil

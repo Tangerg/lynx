@@ -27,14 +27,14 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "4ecc3a5c3a1c70dcfce53330962615b10e3c3cd078f38b72eb2d2625944de458"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "24c0f438579ea0b1af1323500090916db82c29e6b64b2fb4dee30df418da1518"},
-	{name: "planning", label: "planning", directory: "planning", want: "a56891ec681f2b7f7b290060d17e12e4e29c11e9a8de404b98f1bcfdef117f4c"},
-	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529"},
-	{name: "workflow", label: "workflow", directory: "workflow", want: "82dd31a06d26b01877f1c3df631083921fe59f58b0472f39e272897d2231b231"},
-	{name: "otel", label: "otel", directory: "otel", want: "aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60"},
-	{name: "platform", label: "platform", directory: "platform", want: "5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "963478c1e6482add789c2385841af9572b21446ed64d83a2b308c85f9f5a035e"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "873d620bf325608d5035027262754c838f3f73edab7913472c45b715826158b4"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "0c01a609eb1af0b95a99f805807217d5bbd876dbb7a49843938b4e91a324b0af"},
+	{name: "planning", label: "planning", directory: "planning", want: "9851987240fb60a630433f0b9e36197eba2c7f91428c490ccb1b3b6023204308"},
+	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0576feedc1e8ffb1f0c6fd5426ddee8fc269aec69f1a92521c6ea9da21258a0d"},
+	{name: "workflow", label: "workflow", directory: "workflow", want: "06af49d58f68cd82075e72ac1f6d14a42d40c77cb0a77afc86c9816a35818566"},
+	{name: "otel", label: "otel", directory: "otel", want: "6bb2eae75c7f7c4d8cde426672200fac68b965376d94e61ef3d283607a83b6ec"},
+	{name: "platform", label: "platform", directory: "platform", want: "46d030411c966805e158e24f1a05fa8b16750ded2eafd0d4f03ea24e3b589408"},
 }
 
 var frameworkPackageDirectories = []string{

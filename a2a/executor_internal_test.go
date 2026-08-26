@@ -16,9 +16,9 @@ func (nilSequenceAgent) Run(context.Context, string) iter.Seq2[string, error] { 
 
 type chunkedAgent []string
 
-func (chunks chunkedAgent) Run(context.Context, string) iter.Seq2[string, error] {
+func (c chunkedAgent) Run(context.Context, string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		for _, chunk := range chunks {
+		for _, chunk := range c {
 			if !yield(chunk, nil) {
 				return
 			}

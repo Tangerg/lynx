@@ -31,13 +31,13 @@ type DeploymentCandidate struct {
 }
 
 // DeploymentRef returns the candidate's exact immutable Deployment identity.
-func (candidate DeploymentCandidate) DeploymentRef() agent.DeploymentRef {
-	return candidate.reference
+func (d DeploymentCandidate) DeploymentRef() agent.DeploymentRef {
+	return d.reference
 }
 
 // Descriptor returns the candidate's frozen static Definition contract.
-func (candidate DeploymentCandidate) Descriptor() agent.Descriptor {
-	return candidate.descriptor
+func (d DeploymentCandidate) Descriptor() agent.Descriptor {
+	return d.descriptor
 }
 
 // DeploymentSelector chooses one exact reference from a stable active
@@ -54,42 +54,42 @@ type DeploymentSelectorFunc func(
 	candidates []DeploymentCandidate,
 ) (agent.DeploymentRef, error)
 
-// Select invokes selector.
-func (selector DeploymentSelectorFunc) Select(
+// Select invokes d.
+func (d DeploymentSelectorFunc) Select(
 	ctx context.Context,
 	candidates []DeploymentCandidate,
 ) (agent.DeploymentRef, error) {
-	return selector(ctx, candidates)
+	return d(ctx, candidates)
 }
 
 // DeploymentCandidates returns a stable snapshot of active, non-executable
 // candidates. Replaced, undeployed, and other historical Catalog bindings are
 // intentionally excluded. The returned slice is independently owned.
-func (platform *Platform) DeploymentCandidates() []DeploymentCandidate {
-	if platform == nil {
+func (p *Platform) DeploymentCandidates() []DeploymentCandidate {
+	if p == nil {
 		return nil
 	}
-	platform.mu.RLock()
-	defer platform.mu.RUnlock()
-	return candidatesFrom(platform.state.ordered)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return candidatesFrom(p.state.ordered)
 }
 
 // SelectDeployment asks selector to choose from one stable active snapshot and
 // returns the exact Deployment captured in that snapshot. Concurrent Replace or
 // Undeploy cannot redirect the completed selection to a different binding.
-func (platform *Platform) SelectDeployment(
+func (p *Platform) SelectDeployment(
 	ctx context.Context,
 	selector DeploymentSelector,
 ) (agent.Deployment, error) {
-	if platform == nil {
+	if p == nil {
 		return agent.Deployment{}, ErrNilPlatform
 	}
 	if nilDeploymentSelector(selector) {
 		return agent.Deployment{}, ErrNilDeploymentSelector
 	}
-	platform.mu.RLock()
-	deployments := slices.Clone(platform.state.ordered)
-	platform.mu.RUnlock()
+	p.mu.RLock()
+	deployments := slices.Clone(p.state.ordered)
+	p.mu.RUnlock()
 	if len(deployments) == 0 {
 		return agent.Deployment{}, ErrNoDeploymentCandidates
 	}

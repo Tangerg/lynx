@@ -55,41 +55,41 @@ type SearchRequest struct {
 // provider enforce: non-nil, non-empty query, and domain allow/block
 // mutual exclusion. Returns one of the sentinel errors in errors.go
 // so callers can match with errors.Is.
-func (r *SearchRequest) Validate() error {
-	if r == nil {
+func (s *SearchRequest) Validate() error {
+	if s == nil {
 		return ErrMissingSearchRequest
 	}
-	r.Query = strings.TrimSpace(r.Query)
-	if r.Query == "" {
+	s.Query = strings.TrimSpace(s.Query)
+	if s.Query == "" {
 		return ErrEmptyQuery
 	}
-	if r.MaxResults < 0 || r.MaxResults > 20 {
+	if s.MaxResults < 0 || s.MaxResults > 20 {
 		return ErrInvalidMaxResults
 	}
-	if len(r.AllowedDomains) > 0 && len(r.BlockedDomains) > 0 {
+	if len(s.AllowedDomains) > 0 && len(s.BlockedDomains) > 0 {
 		return ErrDomainsBothSides
 	}
-	if len(r.AllowedDomains) > 20 || len(r.BlockedDomains) > 20 {
+	if len(s.AllowedDomains) > 20 || len(s.BlockedDomains) > 20 {
 		return ErrTooManyDomains
 	}
-	return r.Recency.Validate()
+	return s.Recency.Validate()
 }
 
 // QueryWithSiteOperators returns Query with Google-style site:/-site:
 // operators for the request's domain filters. Providers without native domain
 // fields use this projection; empty domain entries are ignored.
-func (r *SearchRequest) QueryWithSiteOperators() string {
-	if r == nil {
+func (s *SearchRequest) QueryWithSiteOperators() string {
+	if s == nil {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(r.Query)
-	for _, domain := range r.AllowedDomains {
+	b.WriteString(s.Query)
+	for _, domain := range s.AllowedDomains {
 		if domain != "" {
 			fmt.Fprintf(&b, " site:%s", domain)
 		}
 	}
-	for _, domain := range r.BlockedDomains {
+	for _, domain := range s.BlockedDomains {
 		if domain != "" {
 			fmt.Fprintf(&b, " -site:%s", domain)
 		}

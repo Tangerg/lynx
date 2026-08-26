@@ -24,31 +24,31 @@ type PendingToolInput struct {
 }
 
 // WaitID returns the Engine-minted identity required to address the response.
-func (pending PendingToolInput) WaitID() agent.WaitID { return pending.waitID }
+func (p PendingToolInput) WaitID() agent.WaitID { return p.waitID }
 
 // Prompt returns an independently owned Tool-defined JSON prompt.
-func (pending PendingToolInput) Prompt() json.RawMessage { return bytes.Clone(pending.prompt) }
+func (p PendingToolInput) Prompt() json.RawMessage { return bytes.Clone(p.prompt) }
 
 // ResponseSchema returns the authoritative JSON Schema for a response.
-func (pending PendingToolInput) ResponseSchema() json.RawMessage {
-	return bytes.Clone(pending.responseSchema)
+func (p PendingToolInput) ResponseSchema() json.RawMessage {
+	return bytes.Clone(p.responseSchema)
 }
 
 // Valid reports whether the value identifies one complete current wait.
-func (pending PendingToolInput) Valid() bool {
-	return pending.waitID.Valid() && len(pending.prompt) > 0 && len(pending.responseSchema) > 0
+func (p PendingToolInput) Valid() bool {
+	return p.waitID.Valid() && len(p.prompt) > 0 && len(p.responseSchema) > 0
 }
 
 // ResponseSignal validates response locally against ResponseSchema and returns
 // one WaitID-addressed SignalRequest with caller-supplied deduplication ID.
-func (pending PendingToolInput) ResponseSignal(
+func (p PendingToolInput) ResponseSignal(
 	id agent.SignalID,
 	response json.RawMessage,
 ) (agent.SignalRequest, error) {
-	if !pending.Valid() {
+	if !p.Valid() {
 		return agent.SignalRequest{}, ErrInvalidPendingToolInput
 	}
-	request, err := NewToolInputRequest(pending.prompt, pending.responseSchema, json.RawMessage("null"))
+	request, err := NewToolInputRequest(p.prompt, p.responseSchema, json.RawMessage("null"))
 	if err != nil {
 		return agent.SignalRequest{}, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}
@@ -56,7 +56,7 @@ func (pending PendingToolInput) ResponseSignal(
 	if err != nil {
 		return agent.SignalRequest{}, err
 	}
-	return NewToolInputResponseSignal(id, pending.waitID, response)
+	return NewToolInputResponseSignal(id, p.waitID, response)
 }
 
 // PendingToolInputFromProcess captures process and interprets its committed

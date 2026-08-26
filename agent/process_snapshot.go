@@ -67,46 +67,46 @@ func newSnapshot(wire processSnapshotWire) (Snapshot, error) {
 }
 
 // JSON returns an independently owned snapshot representation.
-func (snapshot Snapshot) JSON() json.RawMessage { return bytes.Clone(snapshot.data) }
+func (s Snapshot) JSON() json.RawMessage { return bytes.Clone(s.data) }
 
 // ProcessID returns the captured Process identity.
-func (snapshot Snapshot) ProcessID() ProcessID { return snapshot.processID }
+func (s Snapshot) ProcessID() ProcessID { return s.processID }
 
 // DeploymentRef returns the exact execution binding required for restoration.
-func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deploymentRef }
+func (s Snapshot) DeploymentRef() DeploymentRef { return s.deploymentRef }
 
 // Relation returns the immutable parent/root/depth location captured with the
 // Process.
-func (snapshot Snapshot) Relation() ProcessRelation { return snapshot.relation }
+func (s Snapshot) Relation() ProcessRelation { return s.relation }
 
 // Budget returns the Process work allocation captured by this snapshot.
-func (snapshot Snapshot) Budget() Budget { return snapshot.budget }
+func (s Snapshot) Budget() Budget { return s.budget }
 
 // Capabilities returns the Process authority set captured by this snapshot.
-func (snapshot Snapshot) Capabilities() CapabilitySet { return snapshot.capabilities }
+func (s Snapshot) Capabilities() CapabilitySet { return s.capabilities }
 
 // Status returns the captured common lifecycle state.
-func (snapshot Snapshot) Status() Status { return snapshot.status }
+func (s Snapshot) Status() Status { return s.status }
 
 // CommittedExecutionState returns the latest committed opaque Strategy state.
 // A prepared candidate, when present, remains an uncommitted Engine detail.
 // Only the owning Definition or its typed inspection helpers may interpret the
 // returned state's payload.
-func (snapshot Snapshot) CommittedExecutionState() ExecutionState {
-	return snapshot.executionState.clone()
+func (s Snapshot) CommittedExecutionState() ExecutionState {
+	return s.executionState.clone()
 }
 
 // WaitID returns the current Engine-minted wait identity and true when the
 // captured Process is Waiting.
-func (snapshot Snapshot) WaitID() (WaitID, bool) {
-	return snapshot.waitID, snapshot.status == StatusWaiting && snapshot.waitID.Valid()
+func (s Snapshot) WaitID() (WaitID, bool) {
+	return s.waitID, s.status == StatusWaiting && s.waitID.Valid()
 }
 
 // Valid reports whether the snapshot passed the strict wire boundary.
-func (snapshot Snapshot) Valid() bool {
-	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deploymentRef.Valid() &&
-		snapshot.status.Valid() && snapshot.executionState.Valid() && snapshot.relation.Valid() &&
-		snapshot.budget.Valid() && snapshot.capabilities.Valid()
+func (s Snapshot) Valid() bool {
+	return len(s.data) > 0 && s.processID.Valid() && s.deploymentRef.Valid() &&
+		s.status.Valid() && s.executionState.Valid() && s.relation.Valid() &&
+		s.budget.Valid() && s.capabilities.Valid()
 }
 
 func mustProcessRelation(processID ProcessID, wire processRelationWire) ProcessRelation {
@@ -122,31 +122,31 @@ func snapshotWaitID(waitID *WaitID) WaitID {
 }
 
 // MarshalJSON returns the validated portable Process snapshot.
-func (snapshot Snapshot) MarshalJSON() ([]byte, error) {
-	if !snapshot.Valid() {
+func (s Snapshot) MarshalJSON() ([]byte, error) {
+	if !s.Valid() {
 		return nil, ErrInvalidSnapshot
 	}
-	return bytes.Clone(snapshot.data), nil
+	return bytes.Clone(s.data), nil
 }
 
-// UnmarshalJSON replaces snapshot with a strictly decoded Process snapshot.
-func (snapshot *Snapshot) UnmarshalJSON(data []byte) error {
-	if snapshot == nil {
+// UnmarshalJSON replaces s with a strictly decoded Process snapshot.
+func (s *Snapshot) UnmarshalJSON(data []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)
 	}
 	value, err := ParseSnapshot(data)
 	if err != nil {
 		return err
 	}
-	*snapshot = value
+	*s = value
 	return nil
 }
 
-func (snapshot Snapshot) wire() (processSnapshotWire, error) {
-	if !snapshot.Valid() {
+func (s Snapshot) wire() (processSnapshotWire, error) {
+	if !s.Valid() {
 		return processSnapshotWire{}, ErrInvalidSnapshot
 	}
-	return decodeProcessSnapshot(snapshot.data)
+	return decodeProcessSnapshot(s.data)
 }
 
 type preparedEffectWire struct {
@@ -243,50 +243,50 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 	return nil
 }
 
-func (wire processSnapshotWire) validateContract() error {
-	if wire.SchemaVersion != processSnapshotSchemaVersion {
-		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidSnapshot, wire.SchemaVersion)
+func (p processSnapshotWire) validateContract() error {
+	if p.SchemaVersion != processSnapshotSchemaVersion {
+		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidSnapshot, p.SchemaVersion)
 	}
-	if !wire.ProcessID.Valid() || !wire.DeploymentRef.Valid() || wire.StartedAt.IsZero() ||
-		!wire.Status.Valid() || wire.Status == StatusNotStarted || !wire.LastStableState.Valid() ||
-		!wire.Limits.Valid() || !wire.TreeLimits.Valid() || !wire.Budget.Valid() ||
-		!wire.Capabilities.Valid() || !wire.Usage.validFor(wire.Limits) ||
-		wire.Usage.CommittedSteps != wire.CommittedSteps ||
-		wire.Limits.MaxSteps != wire.Budget.Steps ||
-		wire.Limits.MaxEffects != wire.Budget.Effects ||
-		wire.Limits.MaxSignals != wire.Budget.Signals ||
-		!wire.Budget.contains(wire.Usage, wire.ReservedBudget) {
+	if !p.ProcessID.Valid() || !p.DeploymentRef.Valid() || p.StartedAt.IsZero() ||
+		!p.Status.Valid() || p.Status == StatusNotStarted || !p.LastStableState.Valid() ||
+		!p.Limits.Valid() || !p.TreeLimits.Valid() || !p.Budget.Valid() ||
+		!p.Capabilities.Valid() || !p.Usage.validFor(p.Limits) ||
+		p.Usage.CommittedSteps != p.CommittedSteps ||
+		p.Limits.MaxSteps != p.Budget.Steps ||
+		p.Limits.MaxEffects != p.Budget.Effects ||
+		p.Limits.MaxSignals != p.Budget.Signals ||
+		!p.Budget.contains(p.Usage, p.ReservedBudget) {
 		return fmt.Errorf("%w: incomplete Process identity or state", ErrInvalidSnapshot)
 	}
 	return nil
 }
 
-func (wire processSnapshotWire) validateRelation() error {
-	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
+func (p processSnapshotWire) validateRelation() error {
+	relation, err := processRelationFromWire(p.ProcessID, p.Relation)
 	if err != nil {
 		return fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
 	}
-	if relation.IsRoot() != (wire.ChildRequestDigest == nil) ||
-		wire.ChildRequestDigest != nil && !wire.ChildRequestDigest.Valid() {
+	if relation.IsRoot() != (p.ChildRequestDigest == nil) ||
+		p.ChildRequestDigest != nil && !p.ChildRequestDigest.Valid() {
 		return fmt.Errorf("%w: child request digest does not match relation", ErrInvalidSnapshot)
 	}
 	return nil
 }
 
-func (wire processSnapshotWire) validateProgress(mailbox signalMailbox) error {
-	if wire.Usage.AcceptedSignals != mailbox.arrivalSequence() {
+func (p processSnapshotWire) validateProgress(mailbox signalMailbox) error {
+	if p.Usage.AcceptedSignals != mailbox.arrivalSequence() {
 		return fmt.Errorf("%w: accepted Signal count does not match mailbox", ErrInvalidSnapshot)
 	}
-	if wire.Prepared != nil {
-		if wire.Status != StatusRunning || wire.Termination != nil || wire.FinishedAt != nil {
+	if p.Prepared != nil {
+		if p.Status != StatusRunning || p.Termination != nil || p.FinishedAt != nil {
 			return fmt.Errorf("%w: prepared Step requires a nonterminal Running Process", ErrInvalidSnapshot)
 		}
 		const maxUint64 = ^uint64(0)
-		if !resourceQuantitiesFit(maxUint64, wire.CommittedSteps, 1) {
+		if !resourceQuantitiesFit(maxUint64, p.CommittedSteps, 1) {
 			return fmt.Errorf("%w: prepared Step sequence overflows", ErrInvalidSnapshot)
 		}
 		if err := validatePreparedStep(
-			wire.ProcessID, wire.CommittedSteps+1, wire.LastStableState, mailbox, *wire.Prepared,
+			p.ProcessID, p.CommittedSteps+1, p.LastStableState, mailbox, *p.Prepared,
 		); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 		}

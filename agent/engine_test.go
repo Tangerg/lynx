@@ -55,25 +55,25 @@ func newEngineTestDefinition(t testing.TB, name, mode string) *engineTestDefinit
 	return &engineTestDefinition{descriptor: descriptor, mode: mode}
 }
 
-func (definition *engineTestDefinition) Descriptor() Descriptor { return definition.descriptor }
+func (e *engineTestDefinition) Descriptor() Descriptor { return e.descriptor }
 
-func (definition *engineTestDefinition) Start(input Input) (Execution, error) {
+func (e *engineTestDefinition) Start(input Input) (Execution, error) {
 	value, err := input.Decode[engineTestInput]()
 	if err != nil {
 		return nil, err
 	}
-	return &engineTestExecution{mode: definition.mode, state: engineTestState{Phase: "ready", Value: value.Value}}, nil
+	return &engineTestExecution{mode: e.mode, state: engineTestState{Phase: "ready", Value: value.Value}}, nil
 }
 
-func (definition *engineTestDefinition) Restore(state ExecutionState) (Execution, error) {
-	if state.Kind() != definition.descriptor.Name() || state.SchemaVersion() != 1 {
+func (e *engineTestDefinition) Restore(state ExecutionState) (Execution, error) {
+	if state.Kind() != e.descriptor.Name() || state.SchemaVersion() != 1 {
 		return nil, ErrInvalidExecutionState
 	}
 	value, err := wireJSON.decode[engineTestState](state.Payload())
 	if err != nil {
 		return nil, err
 	}
-	return &engineTestExecution{mode: definition.mode, state: value}, nil
+	return &engineTestExecution{mode: e.mode, state: value}, nil
 }
 
 type engineTestExecution struct {
@@ -81,26 +81,26 @@ type engineTestExecution struct {
 	state engineTestState
 }
 
-func (execution *engineTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
-	switch execution.mode {
+func (e *engineTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
+	switch e.mode {
 	case "effect":
-		return execution.stepEffect(signals)
+		return e.stepEffect(signals)
 	case "wait":
-		return execution.stepWait(signals)
+		return e.stepWait(signals)
 	case "batch":
-		return execution.stepBatch(signals)
+		return e.stepBatch(signals)
 	case "fail":
-		execution.state.Phase = "corrupted"
+		e.state.Phase = "corrupted"
 		return Transition{}, errors.New("injected Step failure")
 	default:
 		return Transition{}, errors.New("unknown test mode")
 	}
 }
 
-func (execution *engineTestExecution) stepBatch(signals []Signal) (Transition, error) {
-	switch execution.state.Phase {
+func (e *engineTestExecution) stepBatch(signals []Signal) (Transition, error) {
+	switch e.state.Phase {
 	case "ready":
-		execution.state.Phase = "batch"
+		e.state.Phase = "batch"
 		var effects []Effect
 		for _, value := range []string{"first", "second"} {
 			payload, _ := json.Marshal(engineTestMessage{Kind: "request", Value: value})
@@ -123,7 +123,7 @@ func (execution *engineTestExecution) stepBatch(signals []Signal) (Transition, e
 		if err != nil {
 			return Transition{}, err
 		}
-		execution.state.Phase = "done"
+		e.state.Phase = "done"
 		output, _ := EncodeOutput(engineTestOutput{Value: first.Value + "+" + second.Value})
 		return Complete(2, output)
 	default:
@@ -131,14 +131,14 @@ func (execution *engineTestExecution) stepBatch(signals []Signal) (Transition, e
 	}
 }
 
-func (execution *engineTestExecution) stepEffect(signals []Signal) (Transition, error) {
-	switch execution.state.Phase {
+func (e *engineTestExecution) stepEffect(signals []Signal) (Transition, error) {
+	switch e.state.Phase {
 	case "ready":
 		if len(signals) != 0 {
 			return Transition{}, errors.New("ready phase expected no Signal")
 		}
-		execution.state.Phase = "effect"
-		payload, _ := json.Marshal(engineTestMessage{Kind: "request", Value: execution.state.Value})
+		e.state.Phase = "effect"
+		payload, _ := json.Marshal(engineTestMessage{Kind: "request", Value: e.state.Value})
 		effect, err := NewDispatcherEffect(payload)
 		if err != nil {
 			return Transition{}, err
@@ -152,7 +152,7 @@ func (execution *engineTestExecution) stepEffect(signals []Signal) (Transition, 
 		if err != nil {
 			return Transition{}, err
 		}
-		execution.state.Phase = "done"
+		e.state.Phase = "done"
 		output, _ := EncodeOutput(engineTestOutput{Value: message.Value})
 		return Complete(1, output)
 	default:
@@ -160,10 +160,10 @@ func (execution *engineTestExecution) stepEffect(signals []Signal) (Transition, 
 	}
 }
 
-func (execution *engineTestExecution) stepWait(signals []Signal) (Transition, error) {
-	switch execution.state.Phase {
+func (e *engineTestExecution) stepWait(signals []Signal) (Transition, error) {
+	switch e.state.Phase {
 	case "ready":
-		execution.state.Phase = "wait_id"
+		e.state.Phase = "wait_id"
 		key, _ := ParseWaitKey("approval")
 		payload, _ := json.Marshal(engineTestMessage{Kind: "wait_opened"})
 		effect, err := RequestWait(key, payload)
@@ -179,22 +179,22 @@ func (execution *engineTestExecution) stepWait(signals []Signal) (Transition, er
 		if !ok {
 			return Transition{}, errors.New("wait identity Signal has no WaitID")
 		}
-		execution.state.Phase = "answer"
-		execution.state.WaitID = waitID.String()
+		e.state.Phase = "answer"
+		e.state.WaitID = waitID.String()
 		return Wait(1, waitID)
 	case "answer":
 		if len(signals) == 0 {
 			return Transition{}, errors.New("answer Signal is required")
 		}
 		waitID, _ := signals[0].WaitID()
-		if waitID.String() != execution.state.WaitID {
+		if waitID.String() != e.state.WaitID {
 			return Transition{}, errors.New("answer addressed another wait")
 		}
 		message, err := wireJSON.decode[engineTestMessage](signals[0].Payload())
 		if err != nil {
 			return Transition{}, err
 		}
-		execution.state.Phase = "done"
+		e.state.Phase = "done"
 		output, _ := EncodeOutput(engineTestOutput{Value: message.Value})
 		return Complete(1, output)
 	default:
@@ -202,13 +202,13 @@ func (execution *engineTestExecution) stepWait(signals []Signal) (Transition, er
 	}
 }
 
-func (execution *engineTestExecution) Snapshot() (ExecutionState, error) {
-	payload, err := json.Marshal(execution.state)
+func (e *engineTestExecution) Snapshot() (ExecutionState, error) {
+	payload, err := json.Marshal(e.state)
 	if err != nil {
 		return ExecutionState{}, err
 	}
 	name := "engine.effect"
-	switch execution.mode {
+	switch e.mode {
 	case "wait":
 		name = "engine.wait"
 	case "fail":
@@ -228,29 +228,29 @@ type engineTestDispatcher struct {
 	deltas  int
 }
 
-func (dispatcher *engineTestDispatcher) Dispatch(
+func (e *engineTestDispatcher) Dispatch(
 	_ context.Context,
 	request EffectRequest,
 	emit DeltaEmitter,
 ) (Settlement, error) {
-	dispatcher.calls.Add(1)
-	if dispatcher.started != nil {
-		dispatcher.started <- struct{}{}
+	e.calls.Add(1)
+	if e.started != nil {
+		e.started <- struct{}{}
 	}
-	if dispatcher.check != nil {
-		if err := dispatcher.check(); err != nil {
+	if e.check != nil {
+		if err := e.check(); err != nil {
 			return Settlement{}, err
 		}
 	}
-	if dispatcher.block != nil {
-		<-dispatcher.block
+	if e.block != nil {
+		<-e.block
 	}
 	message, err := wireJSON.decode[engineTestMessage](request.Effect().Payload())
 	if err != nil {
 		return Settlement{}, err
 	}
 	delta, _ := json.Marshal(engineTestMessage{Kind: "delta", Value: message.Value})
-	count := dispatcher.deltas
+	count := e.deltas
 	if count == 0 {
 		count = 1
 	}
@@ -261,7 +261,7 @@ func (dispatcher *engineTestDispatcher) Dispatch(
 	return NewSettlement(request.ID(), SettlementStatusSucceeded, payload)
 }
 
-func (dispatcher *engineTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return dispatcher.policy }
+func (e *engineTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return e.policy }
 
 type failingEngineTestDispatcher struct {
 	calls atomic.Int32
@@ -271,12 +271,12 @@ type partialBatchDispatcher struct {
 	calls atomic.Int32
 }
 
-func (dispatcher *partialBatchDispatcher) Dispatch(
+func (p *partialBatchDispatcher) Dispatch(
 	_ context.Context,
 	request EffectRequest,
 	_ DeltaEmitter,
 ) (Settlement, error) {
-	dispatcher.calls.Add(1)
+	p.calls.Add(1)
 	message, err := wireJSON.decode[engineTestMessage](request.Effect().Payload())
 	if err != nil {
 		return Settlement{}, err
@@ -290,12 +290,12 @@ func (dispatcher *partialBatchDispatcher) Dispatch(
 
 func (*partialBatchDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
 
-func (dispatcher *failingEngineTestDispatcher) Dispatch(
+func (f *failingEngineTestDispatcher) Dispatch(
 	context.Context,
 	EffectRequest,
 	DeltaEmitter,
 ) (Settlement, error) {
-	dispatcher.calls.Add(1)
+	f.calls.Add(1)
 	return Settlement{}, errors.New("external result is unknown")
 }
 
@@ -307,18 +307,18 @@ type engineTestAcknowledger struct {
 	called   atomic.Bool
 }
 
-func (acknowledger *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snapshot Snapshot) error {
-	acknowledger.mu.Lock()
-	acknowledger.snapshot = snapshot
-	acknowledger.mu.Unlock()
-	acknowledger.called.Store(true)
+func (e *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snapshot Snapshot) error {
+	e.mu.Lock()
+	e.snapshot = snapshot
+	e.mu.Unlock()
+	e.called.Store(true)
 	return nil
 }
 
-func (acknowledger *engineTestAcknowledger) captured() Snapshot {
-	acknowledger.mu.Lock()
-	defer acknowledger.mu.Unlock()
-	return acknowledger.snapshot
+func (e *engineTestAcknowledger) captured() Snapshot {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.snapshot
 }
 
 func TestEngineRunsEffectToValidatedOutput(t *testing.T) {
@@ -766,26 +766,26 @@ type recordingEventListener struct {
 	panic  bool
 }
 
-func (listener *recordingEventListener) snapshot() []Event {
-	listener.mu.Lock()
-	defer listener.mu.Unlock()
-	return append([]Event(nil), listener.events...)
+func (r *recordingEventListener) snapshot() []Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Event(nil), r.events...)
 }
 
-func (listener *recordingEventListener) OnEvent(_ context.Context, event Event) {
-	listener.mu.Lock()
-	listener.events = append(listener.events, event)
-	shouldPanic := listener.panic
-	listener.mu.Unlock()
+func (r *recordingEventListener) OnEvent(_ context.Context, event Event) {
+	r.mu.Lock()
+	r.events = append(r.events, event)
+	shouldPanic := r.panic
+	r.mu.Unlock()
 	if shouldPanic {
 		panic("observer failure")
 	}
 }
 
-func (listener *recordingEventListener) has(name string) bool {
-	listener.mu.Lock()
-	defer listener.mu.Unlock()
-	for _, event := range listener.events {
+func (r *recordingEventListener) has(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, event := range r.events {
 		if event.Name() == name {
 			return true
 		}
@@ -799,9 +799,9 @@ type blockingDeltaListener struct {
 	once    sync.Once
 }
 
-func (listener *blockingDeltaListener) OnDelta(context.Context, Delta) {
-	listener.once.Do(func() { close(listener.entered) })
-	<-listener.release
+func (b *blockingDeltaListener) OnDelta(context.Context, Delta) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
 }
 
 func TestDeltaBufferDropsAreObservableAndListenerPanicIsIsolated(t *testing.T) {

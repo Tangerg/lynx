@@ -36,11 +36,11 @@ func New(source io.Reader) (*Reader, error) {
 }
 
 // Read consumes the source and converts its top-level value to documents.
-func (j *Reader) Read(ctx context.Context) ([]*document.Document, error) {
+func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(j.source)
+	data, err := io.ReadAll(r.source)
 	if err != nil {
 		return nil, fmt.Errorf("json reader: read source: %w", err)
 	}
@@ -50,7 +50,7 @@ func (j *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
-		return j.parseArray(ctx, trimmed)
+		return r.parseArray(ctx, trimmed)
 	}
 	if err := json.Unmarshal(trimmed, new(any)); err != nil {
 		return nil, fmt.Errorf("json reader: decode source: %w", err)

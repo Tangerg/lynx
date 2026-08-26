@@ -42,11 +42,11 @@ func NewMetricExporter(logger *stdslog.Logger) *MetricExporter {
 
 // Temporality / Aggregation defer to the SDK defaults — this is a passive
 // dev sink with no opinion on accumulation semantics.
-func (e *MetricExporter) Temporality(k sdkmetric.InstrumentKind) metricdata.Temporality {
+func (m *MetricExporter) Temporality(k sdkmetric.InstrumentKind) metricdata.Temporality {
 	return sdkmetric.DefaultTemporalitySelector(k)
 }
 
-func (e *MetricExporter) Aggregation(k sdkmetric.InstrumentKind) sdkmetric.Aggregation {
+func (m *MetricExporter) Aggregation(k sdkmetric.InstrumentKind) sdkmetric.Aggregation {
 	return sdkmetric.DefaultAggregationSelector(k)
 }
 
@@ -85,46 +85,46 @@ func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetr
 	return nil
 }
 
-func (e *MetricExporter) ForceFlush(ctx context.Context) error {
-	if e.shutdown.Load() {
+func (m *MetricExporter) ForceFlush(ctx context.Context) error {
+	if m.shutdown.Load() {
 		return sdkmetric.ErrExporterShutdown
 	}
 	return ctx.Err()
 }
 
-func (e *MetricExporter) Shutdown(ctx context.Context) error {
-	if e.shutdown.Load() {
+func (m *MetricExporter) Shutdown(ctx context.Context) error {
+	if m.shutdown.Load() {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.shutdown.Store(true)
+	m.shutdown.Store(true)
 	return nil
 }
 
 // summarize renders a metric's aggregation as a compact human string for the
 // exporter's dev log line.
-func (e *MetricExporter) summarize(data metricdata.Aggregation) string {
+func (m *MetricExporter) summarize(data metricdata.Aggregation) string {
 	switch d := data.(type) {
 	case metricdata.Sum[int64]:
-		return e.summarizeSum(d.DataPoints)
+		return m.summarizeSum(d.DataPoints)
 	case metricdata.Sum[float64]:
-		return e.summarizeSum(d.DataPoints)
+		return m.summarizeSum(d.DataPoints)
 	case metricdata.Gauge[int64]:
-		return e.summarizeGauge(d.DataPoints)
+		return m.summarizeGauge(d.DataPoints)
 	case metricdata.Gauge[float64]:
-		return e.summarizeGauge(d.DataPoints)
+		return m.summarizeGauge(d.DataPoints)
 	case metricdata.Histogram[int64]:
-		return e.summarizeHistogram(d.DataPoints)
+		return m.summarizeHistogram(d.DataPoints)
 	case metricdata.Histogram[float64]:
-		return e.summarizeHistogram(d.DataPoints)
+		return m.summarizeHistogram(d.DataPoints)
 	default:
 		return fmt.Sprintf("%T", data)
 	}
 }
 
-func (e *MetricExporter) summarizeSum[N int64 | float64](points []metricdata.DataPoint[N]) string {
+func (m *MetricExporter) summarizeSum[N int64 | float64](points []metricdata.DataPoint[N]) string {
 	var total N
 	for _, point := range points {
 		total += point.Value
@@ -132,14 +132,14 @@ func (e *MetricExporter) summarizeSum[N int64 | float64](points []metricdata.Dat
 	return fmt.Sprintf("sum=%v points=%d", total, len(points))
 }
 
-func (e *MetricExporter) summarizeGauge[N int64 | float64](points []metricdata.DataPoint[N]) string {
+func (m *MetricExporter) summarizeGauge[N int64 | float64](points []metricdata.DataPoint[N]) string {
 	if len(points) == 0 {
 		return "gauge=<none>"
 	}
 	return fmt.Sprintf("gauge=%v points=%d", points[len(points)-1].Value, len(points))
 }
 
-func (e *MetricExporter) summarizeHistogram[N int64 | float64](points []metricdata.HistogramDataPoint[N]) string {
+func (m *MetricExporter) summarizeHistogram[N int64 | float64](points []metricdata.HistogramDataPoint[N]) string {
 	var count uint64
 	var sum N
 	for _, point := range points {

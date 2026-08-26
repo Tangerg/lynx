@@ -21,8 +21,8 @@ const (
 )
 
 // Validate reports whether the format is empty or supported.
-func (f ContentFormat) Validate() error {
-	switch f {
+func (c ContentFormat) Validate() error {
+	switch c {
 	case "", FormatMarkdown, FormatHTML, FormatText:
 		return nil
 	default:
@@ -31,11 +31,11 @@ func (f ContentFormat) Validate() error {
 }
 
 // Resolve applies the default format.
-func (f ContentFormat) Resolve() ContentFormat {
-	if f == "" {
+func (c ContentFormat) Resolve() ContentFormat {
+	if c == "" {
 		return FormatMarkdown
 	}
-	return f
+	return c
 }
 
 // FetchRequest is both the provider-neutral fetch contract and the
@@ -51,19 +51,19 @@ type FetchRequest struct {
 // Validate checks that the request carries enough to act on. Returns
 // one of the sentinel errors in errors.go so callers can match with
 // errors.Is.
-func (r *FetchRequest) Validate() error {
-	if r == nil {
+func (f *FetchRequest) Validate() error {
+	if f == nil {
 		return ErrMissingFetchRequest
 	}
-	r.URL = strings.TrimSpace(r.URL)
-	if r.URL == "" {
+	f.URL = strings.TrimSpace(f.URL)
+	if f.URL == "" {
 		return ErrEmptyURL
 	}
-	parsed, err := url.Parse(r.URL)
+	parsed, err := url.Parse(f.URL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return ErrInvalidURL
 	}
-	return r.Format.Validate()
+	return f.Format.Validate()
 }
 
 // FetchResponse is the normalized scrape result. Used as both the SPI

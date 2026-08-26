@@ -56,13 +56,13 @@ type forkStage struct {
 	reduce       func([]json.RawMessage) (json.RawMessage, error)
 }
 
-func (stage forkStage) valid() bool {
-	if len(stage.branches) == 0 || stage.windowSize == 0 || !stage.branchSchema.Valid() ||
-		uint64(stage.windowSize) > uint64(len(stage.branches)) || stage.reduce == nil {
+func (f forkStage) valid() bool {
+	if len(f.branches) == 0 || f.windowSize == 0 || !f.branchSchema.Valid() ||
+		uint64(f.windowSize) > uint64(len(f.branches)) || f.reduce == nil {
 		return false
 	}
-	seen := make(map[string]struct{}, len(stage.branches))
-	for _, branch := range stage.branches {
+	seen := make(map[string]struct{}, len(f.branches))
+	for _, branch := range f.branches {
 		if !validStageID(branch.id) || !branch.binding.valid() {
 			return false
 		}

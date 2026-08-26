@@ -135,13 +135,13 @@ func New(config Config) (*Observer, error) {
 
 // OnEvent records one valid Framework fact. Invalid events and calls after
 // Close are ignored because observation cannot affect Process correctness.
-func (observer *Observer) OnEvent(ctx context.Context, event agent.Event) {
-	if observer == nil || !event.Valid() {
+func (o *Observer) OnEvent(ctx context.Context, event agent.Event) {
+	if o == nil || !event.Valid() {
 		return
 	}
-	observer.mu.Lock()
-	closed := observer.closed
-	observer.mu.Unlock()
+	o.mu.Lock()
+	closed := o.closed
+	o.mu.Unlock()
 	if closed {
 		return
 	}
@@ -150,50 +150,50 @@ func (observer *Observer) OnEvent(ctx context.Context, event agent.Event) {
 	}
 	switch event.Name() {
 	case agent.EventProcessStarted, agent.EventProcessRestored:
-		observer.startProcess(ctx, event)
+		o.startProcess(ctx, event)
 	case agent.EventProcessFinished:
-		observer.finishProcess(ctx, event)
+		o.finishProcess(ctx, event)
 	case agent.EventStepStarted:
-		observer.startStep(event)
+		o.startStep(event)
 	case agent.EventStepFinished:
-		observer.finishStep(ctx, event)
+		o.finishStep(ctx, event)
 	case agent.EventEffectStarted:
-		observer.startEffect(event)
+		o.startEffect(event)
 	case agent.EventEffectFinished:
-		observer.finishEffect(ctx, event)
+		o.finishEffect(ctx, event)
 	case agent.EventDeltaDropped:
-		observer.recordDeltaDrop(ctx, event)
+		o.recordDeltaDrop(ctx, event)
 	default:
-		observer.addProcessEvent(event)
+		o.addProcessEvent(event)
 	}
 }
 
 // Close ends any incomplete spans and prevents further observation. It is
 // idempotent; normally Engine.Close leaves no incomplete Process spans.
-func (observer *Observer) Close() {
-	if observer == nil {
+func (o *Observer) Close() {
+	if o == nil {
 		return
 	}
-	observer.mu.Lock()
-	if observer.closed {
-		observer.mu.Unlock()
+	o.mu.Lock()
+	if o.closed {
+		o.mu.Unlock()
 		return
 	}
-	observer.closed = true
-	records := make([]spanRecord, 0, len(observer.effects)+len(observer.steps)+len(observer.processes))
-	for _, record := range observer.effects {
+	o.closed = true
+	records := make([]spanRecord, 0, len(o.effects)+len(o.steps)+len(o.processes))
+	for _, record := range o.effects {
 		records = append(records, record)
 	}
-	for _, record := range observer.steps {
+	for _, record := range o.steps {
 		records = append(records, record)
 	}
-	for _, record := range observer.processes {
+	for _, record := range o.processes {
 		records = append(records, record)
 	}
-	clear(observer.effects)
-	clear(observer.steps)
-	clear(observer.processes)
-	observer.mu.Unlock()
+	clear(o.effects)
+	clear(o.steps)
+	clear(o.processes)
+	o.mu.Unlock()
 	endedAt := time.Now()
 	for _, record := range records {
 		record.span.SetStatus(codes.Error, "OpenTelemetry observer closed before span completion")
@@ -201,18 +201,18 @@ func (observer *Observer) Close() {
 	}
 }
 
-func (observer *Observer) startProcess(ctx context.Context, event agent.Event) {
+func (o *Observer) startProcess(ctx context.Context, event agent.Event) {
 	relation := event.Relation()
 	parentContext := ctx
 	if parentID, child := relation.ParentID(); child {
-		observer.mu.Lock()
-		parent, found := observer.processes[parentID]
-		observer.mu.Unlock()
+		o.mu.Lock()
+		parent, found := o.processes[parentID]
+		o.mu.Unlock()
 		if found {
 			parentContext = parent.ctx
 		}
 	}
-	spanContext, span := observer.tracer.Start(
+	spanContext, span := o.tracer.Start(
 		parentContext, "agent.process",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithTimestamp(event.OccurredAt()),
@@ -222,36 +222,36 @@ func (observer *Observer) startProcess(ctx context.Context, event agent.Event) {
 		processID: event.ProcessID(), ctx: spanContext, span: span,
 		startedAt: event.OccurredAt(),
 	}
-	observer.mu.Lock()
-	if observer.closed {
-		observer.mu.Unlock()
+	o.mu.Lock()
+	if o.closed {
+		o.mu.Unlock()
 		span.End(trace.WithTimestamp(event.OccurredAt()))
 		return
 	}
-	if _, exists := observer.processes[event.ProcessID()]; exists {
-		observer.mu.Unlock()
+	if _, exists := o.processes[event.ProcessID()]; exists {
+		o.mu.Unlock()
 		span.End(trace.WithTimestamp(event.OccurredAt()))
 		return
 	}
-	observer.processes[event.ProcessID()] = record
-	observer.mu.Unlock()
+	o.processes[event.ProcessID()] = record
+	o.mu.Unlock()
 	attributes := metric.WithAttributes(deploymentMetricAttributes(event)...)
-	observer.processStarts.Add(ctx, 1, attributes)
+	o.processStarts.Add(ctx, 1, attributes)
 }
 
-func (observer *Observer) finishProcess(ctx context.Context, event agent.Event) {
+func (o *Observer) finishProcess(ctx context.Context, event agent.Event) {
 	payload := decodePayload(event)
-	observer.mu.Lock()
-	record, found := observer.processes[event.ProcessID()]
+	o.mu.Lock()
+	record, found := o.processes[event.ProcessID()]
 	if found {
-		delete(observer.processes, event.ProcessID())
+		delete(o.processes, event.ProcessID())
 	}
-	observer.mu.Unlock()
+	o.mu.Unlock()
 	attributes := append(deploymentMetricAttributes(event),
 		attribute.String("agent.process.status", payload.ProcessStatus.String()),
 		attribute.String("agent.process.cause", payload.TerminationCause.String()),
 	)
-	observer.processExits.Add(ctx, 1, metric.WithAttributes(attributes...))
+	o.processExits.Add(ctx, 1, metric.WithAttributes(attributes...))
 	if !found {
 		return
 	}
@@ -265,45 +265,45 @@ func (observer *Observer) finishProcess(ctx context.Context, event agent.Event) 
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 }
 
-func (observer *Observer) startStep(event agent.Event) {
+func (o *Observer) startStep(event agent.Event) {
 	sequence, ok := event.StepSequence()
 	if !ok {
 		return
 	}
-	observer.mu.Lock()
-	process, found := observer.processes[event.ProcessID()]
-	if !found || observer.closed {
-		observer.mu.Unlock()
+	o.mu.Lock()
+	process, found := o.processes[event.ProcessID()]
+	if !found || o.closed {
+		o.mu.Unlock()
 		return
 	}
 	key := stepKey{processID: event.ProcessID(), sequence: sequence}
-	if _, exists := observer.steps[key]; exists {
-		observer.mu.Unlock()
+	if _, exists := o.steps[key]; exists {
+		o.mu.Unlock()
 		return
 	}
-	ctx, span := observer.tracer.Start(
+	ctx, span := o.tracer.Start(
 		process.ctx, "agent.step",
 		trace.WithTimestamp(event.OccurredAt()),
 		trace.WithAttributes(uint64Attribute("agent.step.sequence", sequence)),
 	)
-	observer.steps[key] = spanRecord{
+	o.steps[key] = spanRecord{
 		processID: event.ProcessID(), ctx: ctx, span: span, startedAt: event.OccurredAt(),
 	}
-	observer.mu.Unlock()
+	o.mu.Unlock()
 }
 
-func (observer *Observer) finishStep(ctx context.Context, event agent.Event) {
+func (o *Observer) finishStep(ctx context.Context, event agent.Event) {
 	sequence, ok := event.StepSequence()
 	if !ok {
 		return
 	}
 	key := stepKey{processID: event.ProcessID(), sequence: sequence}
-	observer.mu.Lock()
-	record, found := observer.steps[key]
+	o.mu.Lock()
+	record, found := o.steps[key]
 	if found {
-		delete(observer.steps, key)
+		delete(o.steps, key)
 	}
-	observer.mu.Unlock()
+	o.mu.Unlock()
 	if !found {
 		return
 	}
@@ -313,29 +313,29 @@ func (observer *Observer) finishStep(ctx context.Context, event agent.Event) {
 		record.span.SetStatus(codes.Error, "Execution Step failed")
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
-	observer.stepDuration.Record(
+	o.stepDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
 		metric.WithAttributes(attribute.String("agent.step.status", payload.StepStatus.String())),
 	)
 }
 
-func (observer *Observer) startEffect(event agent.Event) {
+func (o *Observer) startEffect(event agent.Event) {
 	effectID, ok := event.EffectID()
 	if !ok {
 		return
 	}
 	payload := decodePayload(event)
-	observer.mu.Lock()
-	process, found := observer.processes[event.ProcessID()]
-	if !found || observer.closed {
-		observer.mu.Unlock()
+	o.mu.Lock()
+	process, found := o.processes[event.ProcessID()]
+	if !found || o.closed {
+		o.mu.Unlock()
 		return
 	}
-	if _, exists := observer.effects[effectID]; exists {
-		observer.mu.Unlock()
+	if _, exists := o.effects[effectID]; exists {
+		o.mu.Unlock()
 		return
 	}
-	ctx, span := observer.tracer.Start(
+	ctx, span := o.tracer.Start(
 		process.ctx, "agent.effect",
 		trace.WithTimestamp(event.OccurredAt()),
 		trace.WithAttributes(
@@ -343,23 +343,23 @@ func (observer *Observer) startEffect(event agent.Event) {
 			attribute.String("agent.effect.target", payload.EffectTarget.String()),
 		),
 	)
-	observer.effects[effectID] = spanRecord{
+	o.effects[effectID] = spanRecord{
 		processID: event.ProcessID(), ctx: ctx, span: span, startedAt: event.OccurredAt(),
 	}
-	observer.mu.Unlock()
+	o.mu.Unlock()
 }
 
-func (observer *Observer) finishEffect(ctx context.Context, event agent.Event) {
+func (o *Observer) finishEffect(ctx context.Context, event agent.Event) {
 	effectID, ok := event.EffectID()
 	if !ok {
 		return
 	}
-	observer.mu.Lock()
-	record, found := observer.effects[effectID]
+	o.mu.Lock()
+	record, found := o.effects[effectID]
 	if found {
-		delete(observer.effects, effectID)
+		delete(o.effects, effectID)
 	}
-	observer.mu.Unlock()
+	o.mu.Unlock()
 	if !found {
 		return
 	}
@@ -372,7 +372,7 @@ func (observer *Observer) finishEffect(ctx context.Context, event agent.Event) {
 		record.span.SetStatus(codes.Error, "Effect attempt "+payload.SettlementStatus.String())
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
-	observer.effectDuration.Record(
+	o.effectDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
 		metric.WithAttributes(
 			attribute.String("agent.effect.target", payload.EffectTarget.String()),
@@ -381,18 +381,18 @@ func (observer *Observer) finishEffect(ctx context.Context, event agent.Event) {
 	)
 }
 
-func (observer *Observer) recordDeltaDrop(ctx context.Context, event agent.Event) {
+func (o *Observer) recordDeltaDrop(ctx context.Context, event agent.Event) {
 	payload := decodePayload(event)
 	if payload.DroppedDeltaCount > 0 {
-		observer.deltaDrops.Add(ctx, saturatingInt64(payload.DroppedDeltaCount))
+		o.deltaDrops.Add(ctx, saturatingInt64(payload.DroppedDeltaCount))
 	}
-	observer.addProcessEvent(event)
+	o.addProcessEvent(event)
 }
 
-func (observer *Observer) addProcessEvent(event agent.Event) {
-	observer.mu.Lock()
-	record, found := observer.processes[event.ProcessID()]
-	observer.mu.Unlock()
+func (o *Observer) addProcessEvent(event agent.Event) {
+	o.mu.Lock()
+	record, found := o.processes[event.ProcessID()]
+	o.mu.Unlock()
 	if !found {
 		return
 	}

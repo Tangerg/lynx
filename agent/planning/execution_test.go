@@ -486,21 +486,21 @@ func newManagedWorld(t testing.TB, conditions ...planning.Condition) *managedWor
 	return &managedWorld{state: state}
 }
 
-func (world *managedWorld) Observe(_ context.Context, _ planning.ObservationRequest) (planning.WorldState, error) {
-	world.mu.Lock()
-	defer world.mu.Unlock()
-	world.observations++
-	return planning.NewWorldState(world.state.Conditions()...)
+func (m *managedWorld) Observe(_ context.Context, _ planning.ObservationRequest) (planning.WorldState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.observations++
+	return planning.NewWorldState(m.state.Conditions()...)
 }
 
-func (world *managedWorld) apply(action planning.Action) planning.ActionExecutor {
+func (m *managedWorld) apply(action planning.Action) planning.ActionExecutor {
 	return planning.ActionExecutorFunc(func(_ context.Context, _ planning.ActionRequest) (planning.ActionResult, error) {
-		world.mu.Lock()
-		next, err := world.state.Apply(action.Effects()...)
+		m.mu.Lock()
+		next, err := m.state.Apply(action.Effects()...)
 		if err == nil {
-			world.state = next
+			m.state = next
 		}
-		world.mu.Unlock()
+		m.mu.Unlock()
 		if err != nil {
 			return planning.ActionResult{}, err
 		}
@@ -508,27 +508,27 @@ func (world *managedWorld) apply(action planning.Action) planning.ActionExecutor
 	})
 }
 
-func (world *managedWorld) applyState(t testing.TB, action planning.Action) {
+func (m *managedWorld) applyState(t testing.TB, action planning.Action) {
 	t.Helper()
-	world.mu.Lock()
-	defer world.mu.Unlock()
-	next, err := world.state.Apply(action.Effects()...)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	next, err := m.state.Apply(action.Effects()...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	world.state = next
+	m.state = next
 }
 
-func (world *managedWorld) observationCount() int {
-	world.mu.Lock()
-	defer world.mu.Unlock()
-	return world.observations
+func (m *managedWorld) observationCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.observations
 }
 
-func (world *managedWorld) truth(key string) planning.Truth {
-	world.mu.Lock()
-	defer world.mu.Unlock()
-	return world.state.Truth(key)
+func (m *managedWorld) truth(key string) planning.Truth {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state.Truth(key)
 }
 
 type managedDeploymentConfig struct {
@@ -666,8 +666,8 @@ func attemptNames(attempts []planning.Attempt) []string {
 
 type managedResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver managedResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
-	deployment, found := resolver[reference]
+func (m managedResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
+	deployment, found := m[reference]
 	if !found {
 		return agent.Deployment{}, errors.New("deployment not found")
 	}

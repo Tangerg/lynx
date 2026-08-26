@@ -56,11 +56,11 @@ type searchRequest struct {
 	Freshness string `json:"-"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("brave: Request must not be nil")
 	}
-	if r.Q == "" {
+	if s.Q == "" {
 		return errors.New("brave: Q must not be empty")
 	}
 	return nil
@@ -101,10 +101,10 @@ func (c *Client) search(ctx context.Context, req *searchRequest) (*searchRespons
 	return &raw, nil
 }
 
-func (r *searchRequest) params() map[string]string {
-	p := map[string]string{"q": r.Q}
-	addIntParam(p, "count", r.Count)
-	addStringParam(p, "freshness", r.Freshness)
+func (s *searchRequest) params() map[string]string {
+	p := map[string]string{"q": s.Q}
+	addIntParam(p, "count", s.Count)
+	addStringParam(p, "freshness", s.Freshness)
 	return p
 }
 
@@ -154,11 +154,11 @@ func recencyToFreshness(r web.Recency) string {
 	return ""
 }
 
-func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	var results []*web.SearchResult
-	if r.Web != nil {
-		results = make([]*web.SearchResult, 0, len(r.Web.Results))
-		for _, searchResult := range r.Web.Results {
+	if s.Web != nil {
+		results = make([]*web.SearchResult, 0, len(s.Web.Results))
+		for _, searchResult := range s.Web.Results {
 			results = append(results, &web.SearchResult{
 				Title:         searchResult.Title,
 				URL:           searchResult.URL,
@@ -167,7 +167,7 @@ func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 			})
 		}
 	}
-	return &web.SearchResponse{Query: cmp.Or(r.Query.Original, query), Results: results}
+	return &web.SearchResponse{Query: cmp.Or(s.Query.Original, query), Results: results}
 }
 
 func parseAge(s string) time.Time {

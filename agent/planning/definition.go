@@ -90,29 +90,29 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 }
 
 // Descriptor returns the immutable managed Planning contract.
-func (definition *Definition) Descriptor() agent.Descriptor {
-	if definition == nil {
+func (d *Definition) Descriptor() agent.Descriptor {
+	if d == nil {
 		return agent.Descriptor{}
 	}
-	return definition.descriptor
+	return d.descriptor
 }
 
 // Start creates a fresh Planning Execution from validated opaque task input.
-func (definition *Definition) Start(input agent.Input) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Start(input agent.Input) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
-	if err := definition.descriptor.ValidateInput(input); err != nil {
+	if err := d.descriptor.ValidateInput(input); err != nil {
 		return nil, err
 	}
 	state := executionState{Phase: phaseReadyObservation, Input: input.JSON()}
-	return &execution{definition: definition, state: state}, nil
+	return &execution{definition: d, state: state}, nil
 }
 
 // Restore recreates a Planning Execution solely from its opaque, versioned
 // state and this exact Definition.
-func (definition *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
@@ -122,38 +122,38 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
 		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
-	if err := decoded.validate(definition); err != nil {
+	if err := decoded.validate(d); err != nil {
 		return nil, err
 	}
-	return &execution{definition: definition, state: decoded}, nil
+	return &execution{definition: d, state: decoded}, nil
 }
 
-func (definition *Definition) valid() bool {
-	if definition == nil || !definition.descriptor.Valid() || !definition.goal.Valid() ||
-		isNilImplementation(definition.planner) || definition.maxActionAttempts == 0 || len(definition.bindings) != len(definition.byName) {
+func (d *Definition) valid() bool {
+	if d == nil || !d.descriptor.Valid() || !d.goal.Valid() ||
+		isNilImplementation(d.planner) || d.maxActionAttempts == 0 || len(d.bindings) != len(d.byName) {
 		return false
 	}
-	for _, binding := range definition.bindings {
-		if !binding.Valid() || definition.byName[binding.action.name].action.name != binding.action.name {
+	for _, binding := range d.bindings {
+		if !binding.Valid() || d.byName[binding.action.name].action.name != binding.action.name {
 			return false
 		}
 	}
 	return true
 }
 
-func (definition *Definition) binding(name string) (ActionBinding, bool) {
-	binding, found := definition.byName[name]
+func (d *Definition) binding(name string) (ActionBinding, bool) {
+	binding, found := d.byName[name]
 	return binding, found
 }
 
-func (definition *Definition) problem(state WorldState, excluded []string) (Problem, error) {
-	actions := make([]Action, 0, len(definition.bindings))
-	for _, binding := range definition.bindings {
+func (d *Definition) problem(state WorldState, excluded []string) (Problem, error) {
+	actions := make([]Action, 0, len(d.bindings))
+	for _, binding := range d.bindings {
 		if !slices.Contains(excluded, binding.action.name) {
 			actions = append(actions, binding.action)
 		}
 	}
-	return NewProblem(state, definition.goal, actions...)
+	return NewProblem(state, d.goal, actions...)
 }
 
 func encodeExecutionState(state executionState) (agent.ExecutionState, error) {

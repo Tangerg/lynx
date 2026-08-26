@@ -36,11 +36,11 @@ const (
 )
 
 // String returns the stable lifecycle-state name.
-func (status Status) String() string {
-	if !status.Valid() {
+func (s Status) String() string {
+	if !s.Valid() {
 		return "invalid"
 	}
-	return string(status)
+	return string(s)
 }
 
 func parseStatus(value string) (Status, error) {
@@ -51,9 +51,9 @@ func parseStatus(value string) (Status, error) {
 	return status, nil
 }
 
-// Valid reports whether status is a defined lifecycle value.
-func (status Status) Valid() bool {
-	switch status {
+// Valid reports whether s is a defined lifecycle value.
+func (s Status) Valid() bool {
+	switch s {
 	case StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused,
 		StatusCompleted, StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled:
 		return true
@@ -63,8 +63,8 @@ func (status Status) Valid() bool {
 }
 
 // Terminal reports whether the Process may never transition again.
-func (status Status) Terminal() bool {
-	switch status {
+func (s Status) Terminal() bool {
+	switch s {
 	case StatusCompleted, StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled:
 		return true
 	default:
@@ -72,8 +72,8 @@ func (status Status) Terminal() bool {
 	}
 }
 
-func (status Status) canTransitionTo(next Status) bool {
-	switch status {
+func (s Status) canTransitionTo(next Status) bool {
+	switch s {
 	case StatusNotStarted:
 		return next == StatusRunning
 	case StatusRunning:
@@ -88,22 +88,22 @@ func (status Status) canTransitionTo(next Status) bool {
 }
 
 // MarshalText returns the validated stable lifecycle-state name.
-func (status Status) MarshalText() ([]byte, error) {
-	if !status.Valid() {
+func (s Status) MarshalText() ([]byte, error) {
+	if !s.Valid() {
 		return nil, ErrInvalidStatus
 	}
-	return []byte(status), nil
+	return []byte(s), nil
 }
 
-// UnmarshalText replaces status with a parsed lifecycle state.
-func (status *Status) UnmarshalText(text []byte) error {
-	if status == nil {
+// UnmarshalText replaces s with a parsed lifecycle state.
+func (s *Status) UnmarshalText(text []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidStatus)
 	}
 	value, err := parseStatus(string(text))
 	if err != nil {
 		return err
 	}
-	*status = value
+	*s = value
 	return nil
 }

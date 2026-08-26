@@ -22,8 +22,8 @@ const (
 	stageKindLoop
 )
 
-func (kind stageKind) String() string {
-	switch kind {
+func (s stageKind) String() string {
+	switch s {
 	case stageKindTransform:
 		return "transform"
 	case stageKindCall:
@@ -150,25 +150,25 @@ func Call(config CallConfig) (Stage, error) {
 }
 
 // Valid reports whether the Stage was constructed successfully.
-func (stage Stage) Valid() bool {
-	if !validStageID(stage.id) || !stage.inputSchema.Valid() || !stage.outputSchema.Valid() {
+func (s Stage) Valid() bool {
+	if !validStageID(s.id) || !s.inputSchema.Valid() || !s.outputSchema.Valid() {
 		return false
 	}
-	behaviorKind, exclusivelyOwned := stage.behaviorKind()
-	return exclusivelyOwned && behaviorKind == stage.kind
+	behaviorKind, exclusivelyOwned := s.behaviorKind()
+	return exclusivelyOwned && behaviorKind == s.kind
 }
 
-func (stage Stage) behaviorKind() (stageKind, bool) {
+func (s Stage) behaviorKind() (stageKind, bool) {
 	behaviors := [...]struct {
 		kind   stageKind
 		active bool
 	}{
-		{kind: stageKindTransform, active: stage.transform != nil},
-		{kind: stageKindCall, active: stage.call.valid()},
-		{kind: stageKindSwitch, active: stage.switcher.valid()},
-		{kind: stageKindFork, active: stage.fork.valid()},
-		{kind: stageKindMap, active: stage.mapper.valid()},
-		{kind: stageKindLoop, active: stage.loop.valid()},
+		{kind: stageKindTransform, active: s.transform != nil},
+		{kind: stageKindCall, active: s.call.valid()},
+		{kind: stageKindSwitch, active: s.switcher.valid()},
+		{kind: stageKindFork, active: s.fork.valid()},
+		{kind: stageKindMap, active: s.mapper.valid()},
+		{kind: stageKindLoop, active: s.loop.valid()},
 	}
 	selected := stageKindInvalid
 	for _, behavior := range behaviors {
@@ -183,8 +183,8 @@ func (stage Stage) behaviorKind() (stageKind, bool) {
 	return selected, selected != stageKindInvalid
 }
 
-func (stage Stage) accepts(schema agent.Schema) bool {
-	return schema.Valid() && bytes.Equal(stage.inputSchema.JSON(), schema.JSON())
+func (s Stage) accepts(schema agent.Schema) bool {
+	return schema.Valid() && bytes.Equal(s.inputSchema.JSON(), schema.JSON())
 }
 
 func validStageID(value string) bool {

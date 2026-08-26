@@ -298,35 +298,35 @@ type singleToolCallModel struct {
 	call  chat.ToolCall
 }
 
-func (model *singleToolCallModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	return toolCallResponse(model.call), nil
+func (s *singleToolCallModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	return toolCallResponse(s.call), nil
 }
 
-func (model *singleToolCallModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (s *singleToolCallModel) Calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
 type directTool struct {
 	tool.Tool
 }
 
-func (value directTool) Unwrap() tool.Tool { return value.Tool }
+func (d directTool) Unwrap() tool.Tool { return d.Tool }
 
 func (directTool) ReturnsDirectResult() bool { return true }
 
-func (model *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
+func (s *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
 	if len(request.Tools) != 1 || request.Tools[0].Name != "add" {
 		return nil, errors.New("tool manifest is not frozen into model request")
 	}
-	if model.calls == 1 {
+	if s.calls == 1 {
 		if len(request.Messages) != 1 {
 			return nil, errors.New("first request has unexpected WorkingContext")
 		}
@@ -342,10 +342,10 @@ func (model *scriptedModel) Call(_ context.Context, request *chat.Request) (*cha
 	return textResponse("5"), nil
 }
 
-func (model *scriptedModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (s *scriptedModel) Calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
 func newDeployment(t *testing.T, model chat.Model, tools []tool.Tool, maxModelCalls uint32) agent.Deployment {

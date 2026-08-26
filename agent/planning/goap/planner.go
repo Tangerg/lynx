@@ -40,8 +40,8 @@ func New(config Config) *Planner {
 // Problem Goal. An exhausted frontier returns found=false; hitting the bounded
 // expansion limit returns ErrExpansionLimitReached because reachability remains
 // unknown.
-func (planner *Planner) Plan(ctx context.Context, problem planning.Problem) (planning.Plan, bool, error) {
-	if planner == nil || planner.maxExpansions == 0 || !problem.Valid() {
+func (p *Planner) Plan(ctx context.Context, problem planning.Problem) (planning.Plan, bool, error) {
+	if p == nil || p.maxExpansions == 0 || !problem.Valid() {
 		return planning.Plan{}, false, planning.ErrInvalidProblem
 	}
 	if err := ctx.Err(); err != nil {
@@ -51,7 +51,7 @@ func (planner *Planner) Plan(ctx context.Context, problem planning.Problem) (pla
 		plan, err := planning.NewPlan(nil, 0)
 		return plan, true, err
 	}
-	search := newSearch(problem, planner.maxExpansions)
+	search := newSearch(problem, p.maxExpansions)
 	if !search.hasGoalProducers() {
 		return planning.Plan{}, false, nil
 	}

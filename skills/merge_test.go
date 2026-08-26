@@ -17,9 +17,9 @@ type cancelAfterListSource struct {
 	cancel context.CancelFunc
 }
 
-func (s cancelAfterListSource) List(ctx context.Context) ([]Summary, error) {
-	summaries, err := s.ResourceSource.List(ctx)
-	s.cancel()
+func (c cancelAfterListSource) List(ctx context.Context) ([]Summary, error) {
+	summaries, err := c.ResourceSource.List(ctx)
+	c.cancel()
 	return summaries, err
 }
 
@@ -28,9 +28,9 @@ type cancelAfterLoadSource struct {
 	cancel context.CancelFunc
 }
 
-func (s cancelAfterLoadSource) Load(ctx context.Context, name string) (*Skill, error) {
-	skill, err := s.ResourceSource.Load(ctx, name)
-	s.cancel()
+func (c cancelAfterLoadSource) Load(ctx context.Context, name string) (*Skill, error) {
+	skill, err := c.ResourceSource.Load(ctx, name)
+	c.cancel()
 	return skill, err
 }
 
@@ -45,17 +45,17 @@ type modelSource struct {
 	skill     *Skill
 }
 
-func (s modelSource) List(context.Context) ([]Summary, error) {
-	return s.summaries, nil
+func (m modelSource) List(context.Context) ([]Summary, error) {
+	return m.summaries, nil
 }
 
-func (s modelSource) Load(context.Context, string) (*Skill, error) {
-	return s.skill, nil
+func (m modelSource) Load(context.Context, string) (*Skill, error) {
+	return m.skill, nil
 }
 
-func (s cancelAfterOpenSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
-	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
-	s.cancel()
+func (c cancelAfterOpenSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	file, err := c.ResourceSource.OpenResource(ctx, name, resource)
+	c.cancel()
 	return file, err
 }
 

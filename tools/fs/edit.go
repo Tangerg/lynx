@@ -53,8 +53,8 @@ func NewEditTool(executor Executor) *EditTool {
 	return t
 }
 
-func (t *EditTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (e *EditTool) Definition() chat.ToolDefinition {
+	return e.typed.Definition()
 }
 
 // ConcurrencyKey opts edit into concurrent execution keyed on its target file
@@ -63,7 +63,7 @@ func (t *EditTool) Definition() chat.ToolDefinition {
 // parallelizes edits to DISTINCT files and serializes edits to the SAME file.
 // An unparseable / empty path yields no key (no known conflict); the call still
 // fails its own validation in Call.
-func (t *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (e *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	var req EditRequest
 	_ = json.Unmarshal([]byte(arguments), &req)
 	return req.Path, true
@@ -81,12 +81,12 @@ func (*EditTool) MutationPaths(arguments string) ([]string, error) {
 	return []string{req.Path}, nil
 }
 
-func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (e *EditTool) Call(ctx context.Context, arguments string) (string, error) {
+	return e.typed.Call(ctx, arguments)
 }
 
-func (t *EditTool) edit(ctx context.Context, req EditRequest) (EditResponse, error) {
-	res, err := t.executor.Edit(ctx, req)
+func (e *EditTool) edit(ctx context.Context, req EditRequest) (EditResponse, error) {
+	res, err := e.executor.Edit(ctx, req)
 	if err != nil {
 		return EditResponse{}, fmt.Errorf("fs.edit: %w", err)
 	}

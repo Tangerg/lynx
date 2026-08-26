@@ -42,13 +42,13 @@ type textArtifact struct {
 	id sdka2a.ArtifactID
 }
 
-func (a *textArtifact) append(info sdka2a.TaskInfoProvider, chunk string) *sdka2a.TaskArtifactUpdateEvent {
+func (t *textArtifact) append(info sdka2a.TaskInfoProvider, chunk string) *sdka2a.TaskArtifactUpdateEvent {
 	part := sdka2a.NewTextPart(chunk)
-	if a.id != "" {
-		return sdka2a.NewArtifactUpdateEvent(info, a.id, part)
+	if t.id != "" {
+		return sdka2a.NewArtifactUpdateEvent(info, t.id, part)
 	}
 	event := sdka2a.NewArtifactEvent(info, part)
-	a.id = event.Artifact.ID
+	t.id = event.Artifact.ID
 	return event
 }
 

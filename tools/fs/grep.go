@@ -69,20 +69,20 @@ func NewGrepTool(executor Executor) *GrepTool {
 	return t
 }
 
-func (t *GrepTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (g *GrepTool) Definition() chat.ToolDefinition {
+	return g.typed.Definition()
 }
 
 // ConcurrencyKey opts grep into parallel execution — a read-only content
 // search has no conflict (the tool loop's optional concurrency contract).
-func (t *GrepTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (g *GrepTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
-func (t *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (g *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
+	return g.typed.Call(ctx, arguments)
 }
 
-func (t *GrepTool) grep(ctx context.Context, req GrepRequest) (GrepResponse, error) {
-	res, err := t.executor.Grep(ctx, GrepInput{
+func (g *GrepTool) grep(ctx context.Context, req GrepRequest) (GrepResponse, error) {
+	res, err := g.executor.Grep(ctx, GrepInput{
 		Pattern:       req.Pattern,
 		Root:          req.Path,
 		Glob:          req.FileGlob,

@@ -20,41 +20,41 @@ type execution struct {
 
 // Step advances exactly one pure Interaction boundary. Model and tool I/O are
 // represented as dispatcher Effects and therefore never occur in this method.
-func (execution *execution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
-	if execution == nil || !execution.definition.valid() {
+func (e *execution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
+	if e == nil || !e.definition.valid() {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
-	if err := execution.state.Validate(execution.definition); err != nil {
+	if err := e.state.Validate(e.definition); err != nil {
 		return agent.Transition{}, err
 	}
-	switch execution.state.Phase {
+	switch e.state.Phase {
 	case phaseReadyModel:
 		steer, consumedSignals, err := collectSteerSignals(signals)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		if err := execution.addSteer(steer); err != nil {
+		if err := e.addSteer(steer); err != nil {
 			return agent.Transition{}, err
 		}
-		appliedSteerSignalIDs, err := execution.applyPendingSteer()
+		appliedSteerSignalIDs, err := e.applyPendingSteer()
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		return execution.requestModel(consumedSignals, appliedSteerSignalIDs)
+		return e.requestModel(consumedSignals, appliedSteerSignalIDs)
 	case phaseAwaitingModel:
-		return execution.acceptModel(signals)
+		return e.acceptModel(signals)
 	case phaseAwaitingTools:
-		return execution.acceptTools(signals)
+		return e.acceptTools(signals)
 	case phaseAwaitingWaitID:
-		return execution.acceptWaitID(signals)
+		return e.acceptWaitID(signals)
 	case phaseWaitingInput:
-		return execution.acceptInputResponse(signals)
+		return e.acceptInputResponse(signals)
 	case phaseAwaitingDelegateStarts:
-		return execution.acceptDelegateStarts(signals)
+		return e.acceptDelegateStarts(signals)
 	case phaseAwaitingDelegateWaitID:
-		return execution.acceptDelegateWaitID(signals)
+		return e.acceptDelegateWaitID(signals)
 	case phaseWaitingDelegates:
-		return execution.acceptDelegates(signals)
+		return e.acceptDelegates(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed execution cannot advance", ErrInvalidExecutionState)
 	default:
@@ -63,33 +63,33 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 }
 
 // Snapshot returns a complete, self-sufficient WorkingContext and checkpoint.
-func (execution *execution) Snapshot() (agent.ExecutionState, error) {
-	if execution == nil || !execution.definition.valid() {
+func (e *execution) Snapshot() (agent.ExecutionState, error) {
+	if e == nil || !e.definition.valid() {
 		return agent.ExecutionState{}, ErrInvalidExecutionState
 	}
-	if err := execution.state.Validate(execution.definition); err != nil {
+	if err := e.state.Validate(e.definition); err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return encodeState(execution.state)
+	return encodeState(e.state)
 }
 
-func (execution *execution) requestModel(
+func (e *execution) requestModel(
 	consumedSignals uint32,
 	appliedSteerSignalIDs []agent.SignalID,
 ) (agent.Transition, error) {
-	if execution.state.ModelCallCount >= execution.definition.maxModelCalls {
-		return execution.fail(
+	if e.state.ModelCallCount >= e.definition.maxModelCalls {
+		return e.fail(
 			consumedSignals,
 			agent.FailureKindExecution,
 			"interaction.limit.model_calls",
 			"Interaction reached its configured model-call limit before a final response",
 		)
 	}
-	modelCallSequence := execution.state.ModelCallCount + 1
+	modelCallSequence := e.state.ModelCallCount + 1
 	envelope, err := newModelEffect(
-		execution.state.WorkingContext,
+		e.state.WorkingContext,
 		modelCallSequence,
-		execution.state.AdvertisedToolNames,
+		e.state.AdvertisedToolNames,
 		appliedSteerSignalIDs,
 	)
 	if err != nil {
@@ -103,22 +103,22 @@ func (execution *execution) requestModel(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.ModelCallCount = modelCallSequence
-	execution.state.Phase = phaseAwaitingModel
+	e.state.ModelCallCount = modelCallSequence
+	e.state.Phase = phaseAwaitingModel
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error) {
 	envelope, steer, consumedSignals, err := collectExpectedSignal(signals, operationModelCall)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
 	if envelope.ModelResult.HostError != "" {
-		execution.state.PendingSteer = nil
-		return execution.fail(
+		e.state.PendingSteer = nil
+		return e.fail(
 			consumedSignals,
 			agent.FailureKindExternal,
 			"interaction.host.failed",
@@ -126,8 +126,8 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		)
 	}
 	if envelope.ModelResult.Error != "" {
-		execution.state.PendingSteer = nil
-		return execution.fail(
+		e.state.PendingSteer = nil
+		return e.fail(
 			consumedSignals,
 			agent.FailureKindExternal,
 			"interaction.model.failed",
@@ -140,58 +140,58 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	if len(calls) == 0 {
-		if execution.state.PendingSteer != nil {
+		if e.state.PendingSteer != nil {
 			modelOutput := response.Output
 			if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 				return agent.Transition{}, fmt.Errorf("%w: steered response has no finished assistant message", ErrInvalidExecutionState)
 			}
-			request := execution.state.WorkingContext.Clone()
+			request := e.state.WorkingContext.Clone()
 			request.Messages = append(request.Messages, modelOutput.Message.Clone())
-			execution.state.WorkingContext = request
-			appliedSteerSignalIDs, err := execution.applyPendingSteer()
+			e.state.WorkingContext = request
+			appliedSteerSignalIDs, err := e.applyPendingSteer()
 			if err != nil {
 				return agent.Transition{}, err
 			}
-			execution.state.Phase = phaseReadyModel
-			return execution.requestModel(consumedSignals, appliedSteerSignalIDs)
+			e.state.Phase = phaseReadyModel
+			return e.requestModel(consumedSignals, appliedSteerSignalIDs)
 		}
 		modelOutput := response.Output
 		if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 			return agent.Transition{}, fmt.Errorf("%w: final response has no finished assistant message", ErrInvalidExecutionState)
 		}
-		return execution.finishOrRetry(consumedSignals, Output{
+		return e.finishOrRetry(consumedSignals, Output{
 			Source:        CompletionSourceModelResponse,
 			ModelResponse: response,
-			ModelCalls:    execution.state.ModelCallCount,
+			ModelCalls:    e.state.ModelCallCount,
 		}, []chat.Message{modelOutput.Message.Clone()})
 	}
 
-	execution.state.PendingModelResponse = response
-	execution.state.NextToolCallIndex = 0
-	execution.state.ActiveToolCallEndIndex = 0
-	execution.state.SettledToolResults = nil
-	execution.state.DirectToolResultEligible = true
-	return execution.advanceToolCallBatch(consumedSignals)
+	e.state.PendingModelResponse = response
+	e.state.NextToolCallIndex = 0
+	e.state.ActiveToolCallEndIndex = 0
+	e.state.SettledToolResults = nil
+	e.state.DirectToolResultEligible = true
+	return e.advanceToolCallBatch(consumedSignals)
 }
 
-func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptTools(signals []agent.Signal) (agent.Transition, error) {
 	envelope, steer, consumedSignals, err := collectExpectedSignal(signals, operationToolBatch)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
 	if envelope.ToolResult.HostError != "" {
-		execution.state.PendingSteer = nil
-		return execution.fail(
+		e.state.PendingSteer = nil
+		return e.fail(
 			consumedSignals,
 			agent.FailureKindExternal,
 			"interaction.host.failed",
 			envelope.ToolResult.HostError,
 		)
 	}
-	calls, err := execution.activeCallSegment()
+	calls, err := e.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -200,35 +200,35 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 		if err := checkpoint.validate(calls); err != nil {
 			return agent.Transition{}, err
 		}
-		return execution.requestInputWait(consumedSignals, checkpoint)
+		return e.requestInputWait(consumedSignals, checkpoint)
 	}
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
 	advertisedToolNames, err := mergeAdvertisedToolNames(
-		execution.state.AdvertisedToolNames,
+		e.state.AdvertisedToolNames,
 		envelope.ToolResult.AdvertisedToolNames,
 	)
 	if err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: advertised Tools: %w", ErrInvalidExecutionState, err)
 	}
-	execution.state.AdvertisedToolNames = advertisedToolNames
-	execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
-	execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
-	execution.state.DirectToolResultEligible = execution.state.DirectToolResultEligible && envelope.ToolResult.Direct
-	execution.state.ToolCheckpoint = nil
-	execution.state.WaitID = nil
-	return execution.advanceToolCallBatch(consumedSignals)
+	e.state.AdvertisedToolNames = advertisedToolNames
+	e.state.SettledToolResults = append(e.state.SettledToolResults, results...)
+	e.state.NextToolCallIndex = e.state.ActiveToolCallEndIndex
+	e.state.DirectToolResultEligible = e.state.DirectToolResultEligible && envelope.ToolResult.Direct
+	e.state.ToolCheckpoint = nil
+	e.state.WaitID = nil
+	return e.advanceToolCallBatch(consumedSignals)
 }
 
-func (execution *execution) requestInputWait(
+func (e *execution) requestInputWait(
 	consumedSignals uint32,
 	checkpoint *toolCheckpoint,
 ) (agent.Transition, error) {
 	if checkpoint == nil {
 		return agent.Transition{}, fmt.Errorf("%w: missing Tool checkpoint", ErrInvalidExecutionState)
 	}
-	calls, err := execution.activeCallSegment()
+	calls, err := e.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -244,7 +244,7 @@ func (execution *execution) requestInputWait(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	waitKey, err := checkpointWaitKey(execution.state.ModelCallCount, calls[checkpoint.NextToolCallIndex].ID, checkpoint.PauseCount)
+	waitKey, err := checkpointWaitKey(e.state.ModelCallCount, calls[checkpoint.NextToolCallIndex].ID, checkpoint.PauseCount)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -253,18 +253,18 @@ func (execution *execution) requestInputWait(
 		return agent.Transition{}, err
 	}
 	cloned := checkpoint.clone()
-	execution.state.ToolCheckpoint = &cloned
-	execution.state.WaitID = nil
-	execution.state.Phase = phaseAwaitingWaitID
+	e.state.ToolCheckpoint = &cloned
+	e.state.WaitID = nil
+	e.state.Phase = phaseAwaitingWaitID
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptWaitID(signals []agent.Signal) (agent.Transition, error) {
 	envelope, steer, consumedSignals, err := collectExpectedSignal(signals, operationWaitOpened)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
 	var waitID agent.WaitID
@@ -279,7 +279,7 @@ func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transiti
 	if !ok {
 		return agent.Transition{}, fmt.Errorf("%w: Engine did not attach a WaitID", ErrInvalidExecutionState)
 	}
-	want, err := execution.state.ToolCheckpoint.InputRequest.inputRequest()
+	want, err := e.state.ToolCheckpoint.InputRequest.inputRequest()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -287,12 +287,12 @@ func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transiti
 	if err != nil || !sameInputRequest(want, got) {
 		return agent.Transition{}, fmt.Errorf("%w: wait-opened payload does not match Tool checkpoint", ErrInvalidExecutionState)
 	}
-	execution.state.WaitID = &waitID
-	execution.state.Phase = phaseWaitingInput
+	e.state.WaitID = &waitID
+	e.state.Phase = phaseWaitingInput
 	return agent.Wait(consumedSignals, waitID)
 }
 
-func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptInputResponse(signals []agent.Signal) (agent.Transition, error) {
 	envelope, steer, consumedSignals, err := collectExpectedSignal(signals, operationInputResponse)
 	if err != nil {
 		return agent.Transition{}, err
@@ -305,10 +305,10 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 		return agent.Transition{}, fmt.Errorf("%w: input-response Signal is missing", ErrInvalidExecutionState)
 	}
 	waitID, addressed := inputSignal.WaitID()
-	if !addressed || execution.state.WaitID == nil || waitID != *execution.state.WaitID {
+	if !addressed || e.state.WaitID == nil || waitID != *e.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: input response addressed the wrong wait", ErrInvalidExecutionState)
 	}
-	request, err := execution.state.ToolCheckpoint.InputRequest.inputRequest()
+	request, err := e.state.ToolCheckpoint.InputRequest.inputRequest()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -316,15 +316,15 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	calls, err := execution.activeCallSegment()
+	calls, err := e.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	effectEnvelope, err := newToolBatchEffect(
-		execution.state.ModelCallCount,
-		execution.state.NextToolCallIndex,
+		e.state.ModelCallCount,
+		e.state.NextToolCallIndex,
 		calls,
-		execution.state.ToolCheckpoint,
+		e.state.ToolCheckpoint,
 		response,
 	)
 	if err != nil {
@@ -338,12 +338,12 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.WaitID = nil
-	execution.state.Phase = phaseAwaitingTools
+	e.state.WaitID = nil
+	e.state.Phase = phaseAwaitingTools
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) complete(consumedSignals uint32, output Output) (agent.Transition, error) {
+func (e *execution) complete(consumedSignals uint32, output Output) (agent.Transition, error) {
 	if err := output.Validate(); err != nil {
 		return agent.Transition{}, err
 	}
@@ -351,15 +351,15 @@ func (execution *execution) complete(consumedSignals uint32, output Output) (age
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = phaseCompleted
-	execution.clearToolCallBatch()
-	execution.state.WaitID = nil
-	execution.state.PendingSteer = nil
-	execution.state.FinalOutput = &output
+	e.state.Phase = phaseCompleted
+	e.clearToolCallBatch()
+	e.state.WaitID = nil
+	e.state.PendingSteer = nil
+	e.state.FinalOutput = &output
 	return agent.Complete(consumedSignals, encoded)
 }
 
-func (execution *execution) finishOrRetry(
+func (e *execution) finishOrRetry(
 	consumedSignals uint32,
 	output Output,
 	completionContext []chat.Message,
@@ -368,16 +368,16 @@ func (execution *execution) finishOrRetry(
 		return agent.Transition{}, err
 	}
 	candidate := CompletionCandidate{
-		workingContext: execution.state.WorkingContext.Clone(),
+		workingContext: e.state.WorkingContext.Clone(),
 		output:         cloneOutput(output),
-		artifacts:      newArtifacts(execution.state.ArtifactRecords),
+		artifacts:      newArtifacts(e.state.ArtifactRecords),
 	}
 	decision := CompletionDecision{Accepted: true}
-	if execution.definition.completionValidator != nil {
+	if e.definition.completionValidator != nil {
 		var err error
-		decision, err = execution.definition.completionValidator(candidate)
+		decision, err = e.definition.completionValidator(candidate)
 		if err != nil {
-			return execution.fail(
+			return e.fail(
 				consumedSignals,
 				agent.FailureKindExecution,
 				"interaction.completion.validator_failed",
@@ -386,7 +386,7 @@ func (execution *execution) finishOrRetry(
 		}
 	}
 	if !decision.Valid() {
-		return execution.fail(
+		return e.fail(
 			consumedSignals,
 			agent.FailureKindContract,
 			"interaction.completion.decision_invalid",
@@ -394,35 +394,35 @@ func (execution *execution) finishOrRetry(
 		)
 	}
 	if decision.Accepted {
-		return execution.complete(consumedSignals, output)
+		return e.complete(consumedSignals, output)
 	}
-	request := execution.state.WorkingContext.Clone()
+	request := e.state.WorkingContext.Clone()
 	request.Messages = append(request.Messages, cloneMessages(completionContext)...)
 	request.Messages = append(request.Messages, chat.NewUserMessage(chat.NewTextPart(decision.Feedback)))
 	if err := request.Validate(); err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: completion retry request: %w", ErrInvalidExecutionState, err)
 	}
-	execution.state.WorkingContext = request
-	execution.clearToolCallBatch()
-	execution.state.WaitID = nil
-	execution.state.PendingSteer = nil
-	execution.state.Phase = phaseReadyModel
-	return execution.requestModel(consumedSignals, nil)
+	e.state.WorkingContext = request
+	e.clearToolCallBatch()
+	e.state.WaitID = nil
+	e.state.PendingSteer = nil
+	e.state.Phase = phaseReadyModel
+	return e.requestModel(consumedSignals, nil)
 }
 
-func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.Transition, error) {
+func (e *execution) advanceToolCallBatch(consumedSignals uint32) (agent.Transition, error) {
 	for {
-		calls, assistant, err := responseToolCalls(execution.state.PendingModelResponse)
+		calls, assistant, err := responseToolCalls(e.state.PendingModelResponse)
 		if err != nil || uint64(len(calls)) > uint64(^uint32(0)) ||
-			uint64(execution.state.NextToolCallIndex) > uint64(len(calls)) {
+			uint64(e.state.NextToolCallIndex) > uint64(len(calls)) {
 			return agent.Transition{}, fmt.Errorf("%w: invalid pending ToolCall batch", ErrInvalidExecutionState)
 		}
-		if execution.state.NextToolCallIndex == uint32(len(calls)) {
-			return execution.finishToolCallBatch(consumedSignals, assistant)
+		if e.state.NextToolCallIndex == uint32(len(calls)) {
+			return e.finishToolCallBatch(consumedSignals, assistant)
 		}
-		if _, delegated := execution.definition.delegate(calls[execution.state.NextToolCallIndex].Name); delegated {
-			execution.state.DirectToolResultEligible = false
-			transition, started, err := execution.startDelegateSegment(consumedSignals, calls)
+		if _, delegated := e.definition.delegate(calls[e.state.NextToolCallIndex].Name); delegated {
+			e.state.DirectToolResultEligible = false
+			transition, started, err := e.startDelegateSegment(consumedSignals, calls)
 			if err != nil {
 				return agent.Transition{}, err
 			}
@@ -431,53 +431,53 @@ func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.
 			}
 			continue
 		}
-		return execution.requestToolCallSegment(consumedSignals, calls)
+		return e.requestToolCallSegment(consumedSignals, calls)
 	}
 }
 
-func (execution *execution) finishToolCallBatch(
+func (e *execution) finishToolCallBatch(
 	consumedSignals uint32,
 	assistant *chat.Message,
 ) (agent.Transition, error) {
-	results := append([]chat.ToolResult(nil), execution.state.SettledToolResults...)
+	results := append([]chat.ToolResult(nil), e.state.SettledToolResults...)
 	completionContext := []chat.Message{assistant.Clone(), chat.NewToolMessage(results...)}
-	if execution.state.DirectToolResultEligible && execution.state.PendingSteer == nil {
-		return execution.finishOrRetry(consumedSignals, Output{
+	if e.state.DirectToolResultEligible && e.state.PendingSteer == nil {
+		return e.finishOrRetry(consumedSignals, Output{
 			Source:            CompletionSourceDirectToolResults,
 			DirectToolResults: results,
-			ModelCalls:        execution.state.ModelCallCount,
+			ModelCalls:        e.state.ModelCallCount,
 		}, completionContext)
 	}
-	request := execution.state.WorkingContext.Clone()
+	request := e.state.WorkingContext.Clone()
 	request.Messages = append(request.Messages, completionContext...)
-	execution.state.WorkingContext = request
-	execution.clearToolCallBatch()
-	appliedSteerSignalIDs, err := execution.applyPendingSteer()
+	e.state.WorkingContext = request
+	e.clearToolCallBatch()
+	appliedSteerSignalIDs, err := e.applyPendingSteer()
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.state.WorkingContext.Validate(); err != nil {
+	if err := e.state.WorkingContext.Validate(); err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: continuation request: %w", ErrInvalidExecutionState, err)
 	}
-	execution.state.Phase = phaseReadyModel
-	return execution.requestModel(consumedSignals, appliedSteerSignalIDs)
+	e.state.Phase = phaseReadyModel
+	return e.requestModel(consumedSignals, appliedSteerSignalIDs)
 }
 
-func (execution *execution) requestToolCallSegment(
+func (e *execution) requestToolCallSegment(
 	consumedSignals uint32,
 	calls []chat.ToolCall,
 ) (agent.Transition, error) {
-	end := execution.state.NextToolCallIndex + 1
+	end := e.state.NextToolCallIndex + 1
 	for end < uint32(len(calls)) {
-		if _, delegated := execution.definition.delegate(calls[end].Name); delegated {
+		if _, delegated := e.definition.delegate(calls[end].Name); delegated {
 			break
 		}
 		end++
 	}
 	envelope, err := newToolBatchEffect(
-		execution.state.ModelCallCount,
-		execution.state.NextToolCallIndex,
-		calls[execution.state.NextToolCallIndex:end],
+		e.state.ModelCallCount,
+		e.state.NextToolCallIndex,
+		calls[e.state.NextToolCallIndex:end],
 		nil,
 		nil,
 	)
@@ -492,71 +492,71 @@ func (execution *execution) requestToolCallSegment(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.ActiveToolCallEndIndex = end
-	execution.state.Phase = phaseAwaitingTools
+	e.state.ActiveToolCallEndIndex = end
+	e.state.Phase = phaseAwaitingTools
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) activeCallSegment() ([]chat.ToolCall, error) {
-	calls, _, err := responseToolCalls(execution.state.PendingModelResponse)
-	if err != nil || execution.state.NextToolCallIndex >= execution.state.ActiveToolCallEndIndex ||
-		uint64(execution.state.ActiveToolCallEndIndex) > uint64(len(calls)) {
+func (e *execution) activeCallSegment() ([]chat.ToolCall, error) {
+	calls, _, err := responseToolCalls(e.state.PendingModelResponse)
+	if err != nil || e.state.NextToolCallIndex >= e.state.ActiveToolCallEndIndex ||
+		uint64(e.state.ActiveToolCallEndIndex) > uint64(len(calls)) {
 		return nil, fmt.Errorf("%w: invalid active ToolCall segment", ErrInvalidExecutionState)
 	}
-	return calls[execution.state.NextToolCallIndex:execution.state.ActiveToolCallEndIndex], nil
+	return calls[e.state.NextToolCallIndex:e.state.ActiveToolCallEndIndex], nil
 }
 
-func (execution *execution) clearToolCallBatch() {
-	execution.state.PendingModelResponse = nil
-	execution.state.NextToolCallIndex = 0
-	execution.state.ActiveToolCallEndIndex = 0
-	execution.state.SettledToolResults = nil
-	execution.state.DirectToolResultEligible = false
-	execution.state.ToolCheckpoint = nil
-	execution.state.DelegateSegment = nil
+func (e *execution) clearToolCallBatch() {
+	e.state.PendingModelResponse = nil
+	e.state.NextToolCallIndex = 0
+	e.state.ActiveToolCallEndIndex = 0
+	e.state.SettledToolResults = nil
+	e.state.DirectToolResultEligible = false
+	e.state.ToolCheckpoint = nil
+	e.state.DelegateSegment = nil
 }
 
-func (execution *execution) addSteer(batch steerBatch) error {
+func (e *execution) addSteer(batch steerBatch) error {
 	if batch.empty() {
 		return nil
 	}
 	if err := batch.validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 	}
-	if execution.state.PendingSteer == nil {
+	if e.state.PendingSteer == nil {
 		cloned := batch.clone()
-		execution.state.PendingSteer = &cloned
+		e.state.PendingSteer = &cloned
 		return nil
 	}
-	execution.state.PendingSteer.Messages = append(
-		execution.state.PendingSteer.Messages,
+	e.state.PendingSteer.Messages = append(
+		e.state.PendingSteer.Messages,
 		cloneMessages(batch.Messages)...,
 	)
-	execution.state.PendingSteer.SignalIDs = append(
-		execution.state.PendingSteer.SignalIDs,
+	e.state.PendingSteer.SignalIDs = append(
+		e.state.PendingSteer.SignalIDs,
 		batch.SignalIDs...,
 	)
-	if err := execution.state.PendingSteer.validate(); err != nil {
+	if err := e.state.PendingSteer.validate(); err != nil {
 		return fmt.Errorf("%w: merged pending steer: %w", ErrInvalidExecutionState, err)
 	}
 	return nil
 }
 
-func (execution *execution) applyPendingSteer() ([]agent.SignalID, error) {
-	if execution.state.PendingSteer == nil {
+func (e *execution) applyPendingSteer() ([]agent.SignalID, error) {
+	if e.state.PendingSteer == nil {
 		return nil, nil
 	}
-	if err := execution.state.PendingSteer.validate(); err != nil {
+	if err := e.state.PendingSteer.validate(); err != nil {
 		return nil, fmt.Errorf("%w: pending steer: %w", ErrInvalidExecutionState, err)
 	}
-	request := execution.state.WorkingContext.Clone()
-	request.Messages = append(request.Messages, cloneMessages(execution.state.PendingSteer.Messages)...)
+	request := e.state.WorkingContext.Clone()
+	request.Messages = append(request.Messages, cloneMessages(e.state.PendingSteer.Messages)...)
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: steered model request: %w", ErrInvalidExecutionState, err)
 	}
-	appliedSignalIDs := append([]agent.SignalID(nil), execution.state.PendingSteer.SignalIDs...)
-	execution.state.WorkingContext = request
-	execution.state.PendingSteer = nil
+	appliedSignalIDs := append([]agent.SignalID(nil), e.state.PendingSteer.SignalIDs...)
+	e.state.WorkingContext = request
+	e.state.PendingSteer = nil
 	return appliedSignalIDs, nil
 }
 
@@ -653,7 +653,7 @@ func validateToolResults(calls []chat.ToolCall, results []chat.ToolResult) error
 	return nil
 }
 
-func (execution *execution) fail(
+func (e *execution) fail(
 	consumedSignals uint32,
 	kind agent.FailureKind,
 	code string,

@@ -39,17 +39,17 @@ func NewProblem(initial WorldState, goal Goal, actions ...Action) (Problem, erro
 }
 
 // InitialState returns the immutable starting observation.
-func (problem Problem) InitialState() WorldState { return problem.initial }
+func (p Problem) InitialState() WorldState { return p.initial }
 
 // Goal returns the immutable desired state.
-func (problem Problem) Goal() Goal { return problem.goal }
+func (p Problem) Goal() Goal { return p.goal }
 
 // Actions returns an independently owned slice in declaration order.
-func (problem Problem) Actions() []Action { return slices.Clone(problem.actions) }
+func (p Problem) Actions() []Action { return slices.Clone(p.actions) }
 
 // Action returns the named Action and true, or the zero Action and false.
-func (problem Problem) Action(name string) (Action, bool) {
-	for _, action := range problem.actions {
+func (p Problem) Action(name string) (Action, bool) {
+	for _, action := range p.actions {
 		if action.name == name {
 			return action, true
 		}
@@ -58,12 +58,12 @@ func (problem Problem) Action(name string) (Action, bool) {
 }
 
 // Valid reports whether the Problem satisfies its construction invariants.
-func (problem Problem) Valid() bool {
-	if !problem.initial.Valid() || !problem.goal.Valid() {
+func (p Problem) Valid() bool {
+	if !p.initial.Valid() || !p.goal.Valid() {
 		return false
 	}
-	seen := make(map[string]struct{}, len(problem.actions))
-	for _, action := range problem.actions {
+	seen := make(map[string]struct{}, len(p.actions))
+	for _, action := range p.actions {
 		if !action.Valid() {
 			return false
 		}
@@ -78,14 +78,14 @@ func (problem Problem) Valid() bool {
 // ValidatePlan verifies that every referenced Action exists and is applicable
 // in sequence, the reported cost equals the evaluated path cost, and the
 // predicted final state satisfies the Goal.
-func (problem Problem) ValidatePlan(plan Plan) error {
-	if !problem.Valid() || !plan.Valid() {
+func (p Problem) ValidatePlan(plan Plan) error {
+	if !p.Valid() || !plan.Valid() {
 		return ErrInvalidPlan
 	}
-	state := problem.initial
+	state := p.initial
 	totalCost := 0.0
 	for index, planned := range plan.actions {
-		action, found := problem.Action(planned.name)
+		action, found := p.Action(planned.name)
 		if !found {
 			return fmt.Errorf("%w: Action %d references unknown %q", ErrInvalidPlan, index, planned.name)
 		}
@@ -108,8 +108,8 @@ func (problem Problem) ValidatePlan(plan Plan) error {
 	if totalCost != plan.totalCost {
 		return fmt.Errorf("%w: total cost %v does not equal evaluated cost %v", ErrInvalidPlan, plan.totalCost, totalCost)
 	}
-	if !problem.goal.SatisfiedBy(state) {
-		return fmt.Errorf("%w: predicted final state does not satisfy Goal %q", ErrInvalidPlan, problem.goal.name)
+	if !p.goal.SatisfiedBy(state) {
+		return fmt.Errorf("%w: predicted final state does not satisfy Goal %q", ErrInvalidPlan, p.goal.name)
 	}
 	return nil
 }

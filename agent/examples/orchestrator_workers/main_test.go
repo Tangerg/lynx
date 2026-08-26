@@ -146,10 +146,10 @@ type planningTaskState struct {
 	completed map[string]bool
 }
 
-func (state *planningTaskState) CompletedCount() int {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	return len(state.completed)
+func (p *planningTaskState) CompletedCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.completed)
 }
 
 func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
@@ -250,11 +250,11 @@ type planningDelegateModel struct {
 	calls int
 }
 
-func (model *planningDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
+func (p *planningDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	if p.calls == 1 {
 		if len(request.Tools) != 1 || request.Tools[0].Name != "review_with_planning" {
 			return nil, fmt.Errorf("planning Delegate manifest=%#v", request.Tools)
 		}
@@ -302,8 +302,8 @@ func (model *planningDelegateModel) Call(_ context.Context, request *chat.Reques
 	}, nil)
 }
 
-func (model *planningDelegateModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (p *planningDelegateModel) Calls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
 }

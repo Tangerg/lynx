@@ -26,29 +26,29 @@ func ParseCapability(name string) (Capability, error) {
 }
 
 // String returns the stable qualified name.
-func (capability Capability) String() string { return capability.name }
+func (c Capability) String() string { return c.name }
 
 // Valid reports whether the capability has a valid qualified name.
-func (capability Capability) Valid() bool { return validQualifiedName(capability.name) }
+func (c Capability) Valid() bool { return validQualifiedName(c.name) }
 
 // MarshalText returns the validated qualified capability name.
-func (capability Capability) MarshalText() ([]byte, error) {
-	if !capability.Valid() {
+func (c Capability) MarshalText() ([]byte, error) {
+	if !c.Valid() {
 		return nil, ErrInvalidCapability
 	}
-	return []byte(capability.name), nil
+	return []byte(c.name), nil
 }
 
-// UnmarshalText replaces capability with a validated qualified name.
-func (capability *Capability) UnmarshalText(text []byte) error {
-	if capability == nil {
+// UnmarshalText replaces c with a validated qualified name.
+func (c *Capability) UnmarshalText(text []byte) error {
+	if c == nil {
 		return ErrInvalidCapability
 	}
 	value, err := ParseCapability(string(text))
 	if err != nil {
 		return err
 	}
-	*capability = value
+	*c = value
 	return nil
 }
 
@@ -72,26 +72,26 @@ func NewCapabilitySet(capabilities ...Capability) (CapabilitySet, error) {
 }
 
 // Values returns an independently owned, sorted capability slice.
-func (set CapabilitySet) Values() []Capability { return slices.Clone(set.values) }
+func (c CapabilitySet) Values() []Capability { return slices.Clone(c.values) }
 
 // Contains reports whether capability belongs to the set.
-func (set CapabilitySet) Contains(capability Capability) bool {
+func (c CapabilitySet) Contains(capability Capability) bool {
 	if !capability.Valid() {
 		return false
 	}
-	_, found := slices.BinarySearchFunc(set.values, capability, func(left, right Capability) int {
+	_, found := slices.BinarySearchFunc(c.values, capability, func(left, right Capability) int {
 		return strings.Compare(left.name, right.name)
 	})
 	return found
 }
 
-// Allows reports whether requested is a subset of set.
-func (set CapabilitySet) Allows(requested CapabilitySet) bool {
-	if !set.Valid() || !requested.Valid() {
+// Allows reports whether requested is a subset of c.
+func (c CapabilitySet) Allows(requested CapabilitySet) bool {
+	if !c.Valid() || !requested.Valid() {
 		return false
 	}
 	for _, capability := range requested.values {
-		if !set.Contains(capability) {
+		if !c.Contains(capability) {
 			return false
 		}
 	}
@@ -99,9 +99,9 @@ func (set CapabilitySet) Allows(requested CapabilitySet) bool {
 }
 
 // Valid reports whether values are sorted, unique, and individually valid.
-func (set CapabilitySet) Valid() bool {
-	for index, capability := range set.values {
-		if !capability.Valid() || index > 0 && set.values[index-1].name >= capability.name {
+func (c CapabilitySet) Valid() bool {
+	for index, capability := range c.values {
+		if !capability.Valid() || index > 0 && c.values[index-1].name >= capability.name {
 			return false
 		}
 	}
@@ -109,16 +109,16 @@ func (set CapabilitySet) Valid() bool {
 }
 
 // MarshalJSON returns the canonical ordered capability set.
-func (set CapabilitySet) MarshalJSON() ([]byte, error) {
-	if !set.Valid() {
+func (c CapabilitySet) MarshalJSON() ([]byte, error) {
+	if !c.Valid() {
 		return nil, ErrInvalidCapability
 	}
-	return json.Marshal(set.values)
+	return json.Marshal(c.values)
 }
 
-// UnmarshalJSON replaces set with a validated canonical capability set.
-func (set *CapabilitySet) UnmarshalJSON(data []byte) error {
-	if set == nil {
+// UnmarshalJSON replaces c with a validated canonical capability set.
+func (c *CapabilitySet) UnmarshalJSON(data []byte) error {
+	if c == nil {
 		return ErrInvalidCapability
 	}
 	var values []Capability
@@ -133,6 +133,6 @@ func (set *CapabilitySet) UnmarshalJSON(data []byte) error {
 	if err != nil || len(value.values) != len(values) {
 		return ErrInvalidCapability
 	}
-	*set = value
+	*c = value
 	return nil
 }

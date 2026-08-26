@@ -31,8 +31,8 @@ func failureKindForError(err error) FailureKind {
 
 type executionPanicError struct{ value any }
 
-func (panicError executionPanicError) Error() string {
-	return fmt.Sprintf("execution panicked: %v", panicError.value)
+func (e executionPanicError) Error() string {
+	return fmt.Sprintf("execution panicked: %v", e.value)
 }
 
 func startExecution(definition Definition, input Input) (execution Execution, err error) {

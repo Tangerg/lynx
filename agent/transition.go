@@ -32,9 +32,9 @@ const (
 	TransitionKindFail TransitionKind = "fail"
 )
 
-// Valid reports whether kind is a supported lifecycle intent.
-func (kind TransitionKind) Valid() bool {
-	switch kind {
+// Valid reports whether t is a supported lifecycle intent.
+func (t TransitionKind) Valid() bool {
+	switch t {
 	case TransitionKindContinue, TransitionKindWait, TransitionKindPause,
 		TransitionKindComplete, TransitionKindFail:
 		return true
@@ -44,11 +44,11 @@ func (kind TransitionKind) Valid() bool {
 }
 
 // String returns the stable Transition kind name.
-func (kind TransitionKind) String() string {
-	if !kind.Valid() {
+func (t TransitionKind) String() string {
+	if !t.Valid() {
 		return "invalid"
 	}
-	return string(kind)
+	return string(t)
 }
 
 // Transition is an immutable candidate lifecycle intent. The Engine validates

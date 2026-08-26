@@ -69,22 +69,22 @@ func NewDelegate(config DelegateConfig) (Delegate, error) {
 
 // Valid reports whether the Delegate contains one exact, internally
 // consistent model and child-execution contract.
-func (delegate Delegate) Valid() bool {
-	return delegate.definition.Validate() == nil && delegate.definition.Description != "" &&
-		strings.TrimSpace(delegate.definition.Description) == delegate.definition.Description &&
-		len(delegate.definition.Description) <= maxDelegateDescriptionBytes &&
-		delegate.deploymentRef.Valid() && delegate.inputSchema.Valid() && delegate.outputSchema.Valid() &&
-		delegate.budget.Valid() && delegate.capabilities.Valid()
+func (d Delegate) Valid() bool {
+	return d.definition.Validate() == nil && d.definition.Description != "" &&
+		strings.TrimSpace(d.definition.Description) == d.definition.Description &&
+		len(d.definition.Description) <= maxDelegateDescriptionBytes &&
+		d.deploymentRef.Valid() && d.inputSchema.Valid() && d.outputSchema.Valid() &&
+		d.budget.Valid() && d.capabilities.Valid()
 }
 
-func (delegate Delegate) clone() Delegate {
-	delegate.definition = delegate.definition.Clone()
-	return delegate
+func (d Delegate) clone() Delegate {
+	d.definition = d.definition.Clone()
+	return d
 }
 
-func (delegate Delegate) validateInput(input agent.Input) error {
-	if !delegate.Valid() {
+func (d Delegate) validateInput(input agent.Input) error {
+	if !d.Valid() {
 		return ErrInvalidDelegate
 	}
-	return delegate.inputSchema.ValidateInput(input)
+	return d.inputSchema.ValidateInput(input)
 }

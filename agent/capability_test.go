@@ -75,18 +75,18 @@ func newCapabilityTestDefinition(t *testing.T, required Capability) *capabilityT
 	return &capabilityTestDefinition{descriptor: descriptor, required: required}
 }
 
-func (definition *capabilityTestDefinition) Descriptor() Descriptor { return definition.descriptor }
+func (c *capabilityTestDefinition) Descriptor() Descriptor { return c.descriptor }
 
-func (definition *capabilityTestDefinition) Start(Input) (Execution, error) {
-	return &capabilityTestExecution{required: definition.required}, nil
+func (c *capabilityTestDefinition) Start(Input) (Execution, error) {
+	return &capabilityTestExecution{required: c.required}, nil
 }
 
-func (definition *capabilityTestDefinition) Restore(state ExecutionState) (Execution, error) {
+func (c *capabilityTestDefinition) Restore(state ExecutionState) (Execution, error) {
 	var phase uint8
 	if err := json.Unmarshal(state.Payload(), &phase); err != nil {
 		return nil, err
 	}
-	return &capabilityTestExecution{required: definition.required, phase: phase}, nil
+	return &capabilityTestExecution{required: c.required, phase: phase}, nil
 }
 
 type capabilityTestExecution struct {
@@ -94,33 +94,33 @@ type capabilityTestExecution struct {
 	phase    uint8
 }
 
-func (execution *capabilityTestExecution) Step(context.Context, []Signal) (Transition, error) {
-	if execution.phase == 0 {
-		effect, err := NewDispatcherEffect(json.RawMessage(`{}`), execution.required)
+func (c *capabilityTestExecution) Step(context.Context, []Signal) (Transition, error) {
+	if c.phase == 0 {
+		effect, err := NewDispatcherEffect(json.RawMessage(`{}`), c.required)
 		if err != nil {
 			return Transition{}, err
 		}
-		execution.phase = 1
+		c.phase = 1
 		return Continue(0, effect)
 	}
-	execution.phase = 2
+	c.phase = 2
 	output, _ := EncodeOutput(struct{}{})
 	return Complete(1, output)
 }
 
-func (execution *capabilityTestExecution) Snapshot() (ExecutionState, error) {
-	payload, _ := json.Marshal(execution.phase)
+func (c *capabilityTestExecution) Snapshot() (ExecutionState, error) {
+	payload, _ := json.Marshal(c.phase)
 	return NewExecutionState("test.capability", 1, payload)
 }
 
 type capabilityTestDispatcher struct{ calls atomic.Int32 }
 
-func (dispatcher *capabilityTestDispatcher) Dispatch(
+func (c *capabilityTestDispatcher) Dispatch(
 	_ context.Context,
 	request EffectRequest,
 	_ DeltaEmitter,
 ) (Settlement, error) {
-	dispatcher.calls.Add(1)
+	c.calls.Add(1)
 	return NewSettlement(request.ID(), SettlementStatusSucceeded, json.RawMessage(`{}`))
 }
 

@@ -38,26 +38,26 @@ func validIdentity(value string) bool {
 	return true
 }
 
-func (id identity) String() string { return id.value }
+func (i identity) String() string { return i.value }
 
-func (id identity) Valid() bool { return validIdentity(id.value) }
+func (i identity) Valid() bool { return validIdentity(i.value) }
 
-func (id identity) MarshalText() ([]byte, error) {
-	if !id.Valid() {
+func (i identity) MarshalText() ([]byte, error) {
+	if !i.Valid() {
 		return nil, ErrInvalidIdentity
 	}
-	return []byte(id.value), nil
+	return []byte(i.value), nil
 }
 
-func (id *identity) UnmarshalText(text []byte) error {
-	if id == nil {
+func (i *identity) UnmarshalText(text []byte) error {
+	if i == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidIdentity)
 	}
 	value, err := parseIdentity("value", string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*i = value
 	return nil
 }
 
@@ -71,24 +71,24 @@ func ParseProcessID(value string) (ProcessID, error) {
 }
 
 // String returns the stable Process identity.
-func (id ProcessID) String() string { return id.identity.String() }
+func (p ProcessID) String() string { return p.identity.String() }
 
-// Valid reports whether id contains a valid Process identity.
-func (id ProcessID) Valid() bool { return id.identity.Valid() }
+// Valid reports whether p contains a valid Process identity.
+func (p ProcessID) Valid() bool { return p.identity.Valid() }
 
 // MarshalText returns the validated Process identity.
-func (id ProcessID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (p ProcessID) MarshalText() ([]byte, error) { return p.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated Process identity.
-func (id *ProcessID) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces p with a validated Process identity.
+func (p *ProcessID) UnmarshalText(text []byte) error {
+	if p == nil {
 		return fmt.Errorf("%w: nil ProcessID receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseProcessID(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*p = value
 	return nil
 }
 
@@ -103,24 +103,24 @@ func ParseSignalID(value string) (SignalID, error) {
 }
 
 // String returns the stable Signal delivery identity.
-func (id SignalID) String() string { return id.identity.String() }
+func (s SignalID) String() string { return s.identity.String() }
 
-// Valid reports whether id contains a valid Signal delivery identity.
-func (id SignalID) Valid() bool { return id.identity.Valid() }
+// Valid reports whether s contains a valid Signal delivery identity.
+func (s SignalID) Valid() bool { return s.identity.Valid() }
 
 // MarshalText returns the validated Signal delivery identity.
-func (id SignalID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (s SignalID) MarshalText() ([]byte, error) { return s.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated Signal delivery identity.
-func (id *SignalID) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces s with a validated Signal delivery identity.
+func (s *SignalID) UnmarshalText(text []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil SignalID receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseSignalID(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*s = value
 	return nil
 }
 
@@ -135,24 +135,24 @@ func ParseWaitID(value string) (WaitID, error) {
 }
 
 // String returns the Engine-created wait identity.
-func (id WaitID) String() string { return id.identity.String() }
+func (w WaitID) String() string { return w.identity.String() }
 
-// Valid reports whether id contains a valid wait identity.
-func (id WaitID) Valid() bool { return id.identity.Valid() }
+// Valid reports whether w contains a valid wait identity.
+func (w WaitID) Valid() bool { return w.identity.Valid() }
 
 // MarshalText returns the validated wait identity.
-func (id WaitID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (w WaitID) MarshalText() ([]byte, error) { return w.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated wait identity.
-func (id *WaitID) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces w with a validated wait identity.
+func (w *WaitID) UnmarshalText(text []byte) error {
+	if w == nil {
 		return fmt.Errorf("%w: nil WaitID receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseWaitID(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*w = value
 	return nil
 }
 
@@ -166,24 +166,24 @@ func ParseEffectID(value string) (EffectID, error) {
 }
 
 // String returns the stable Effect identity.
-func (id EffectID) String() string { return id.identity.String() }
+func (e EffectID) String() string { return e.identity.String() }
 
-// Valid reports whether id contains a valid Effect identity.
-func (id EffectID) Valid() bool { return id.identity.Valid() }
+// Valid reports whether e contains a valid Effect identity.
+func (e EffectID) Valid() bool { return e.identity.Valid() }
 
 // MarshalText returns the validated Effect identity.
-func (id EffectID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (e EffectID) MarshalText() ([]byte, error) { return e.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated Effect identity.
-func (id *EffectID) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces e with a validated Effect identity.
+func (e *EffectID) UnmarshalText(text []byte) error {
+	if e == nil {
 		return fmt.Errorf("%w: nil EffectID receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseEffectID(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*e = value
 	return nil
 }
 
@@ -198,24 +198,24 @@ func ParseWaitKey(value string) (WaitKey, error) {
 }
 
 // String returns the Execution-owned logical wait key.
-func (id WaitKey) String() string { return id.identity.String() }
+func (w WaitKey) String() string { return w.identity.String() }
 
-// Valid reports whether id contains a valid logical wait key.
-func (id WaitKey) Valid() bool { return id.identity.Valid() }
+// Valid reports whether w contains a valid logical wait key.
+func (w WaitKey) Valid() bool { return w.identity.Valid() }
 
 // MarshalText returns the validated logical wait key.
-func (id WaitKey) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (w WaitKey) MarshalText() ([]byte, error) { return w.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated logical wait key.
-func (id *WaitKey) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces w with a validated logical wait key.
+func (w *WaitKey) UnmarshalText(text []byte) error {
+	if w == nil {
 		return fmt.Errorf("%w: nil WaitKey receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseWaitKey(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*w = value
 	return nil
 }
 
@@ -231,23 +231,23 @@ func ParseChildKey(value string) (ChildKey, error) {
 }
 
 // String returns the Execution-owned logical child key.
-func (id ChildKey) String() string { return id.identity.String() }
+func (c ChildKey) String() string { return c.identity.String() }
 
-// Valid reports whether id contains a valid logical child key.
-func (id ChildKey) Valid() bool { return id.identity.Valid() }
+// Valid reports whether c contains a valid logical child key.
+func (c ChildKey) Valid() bool { return c.identity.Valid() }
 
 // MarshalText returns the validated logical child key.
-func (id ChildKey) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+func (c ChildKey) MarshalText() ([]byte, error) { return c.identity.MarshalText() }
 
-// UnmarshalText replaces id with a validated logical child key.
-func (id *ChildKey) UnmarshalText(text []byte) error {
-	if id == nil {
+// UnmarshalText replaces c with a validated logical child key.
+func (c *ChildKey) UnmarshalText(text []byte) error {
+	if c == nil {
 		return fmt.Errorf("%w: nil ChildKey receiver", ErrInvalidIdentity)
 	}
 	value, err := ParseChildKey(string(text))
 	if err != nil {
 		return err
 	}
-	*id = value
+	*c = value
 	return nil
 }

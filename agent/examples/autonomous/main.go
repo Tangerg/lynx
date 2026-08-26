@@ -109,9 +109,9 @@ func (additionTool) Call(_ context.Context, arguments string) (string, error) {
 
 type calculatorModel struct{ calls int }
 
-func (model *calculatorModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.calls++
-	switch model.calls {
+func (c *calculatorModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	c.calls++
+	switch c.calls {
 	case 1:
 		message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
 			ID: "calculation_1", Name: "add", Arguments: `{"left":20,"right":22}`,

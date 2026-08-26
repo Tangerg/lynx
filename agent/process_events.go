@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (loop *processLoop) publishEvent(
+func (p *processLoop) publishEvent(
 	ctx context.Context,
 	name string,
 	phase EventPhase,
@@ -15,33 +15,33 @@ func (loop *processLoop) publishEvent(
 	effectID EffectID,
 	payload json.RawMessage,
 ) {
-	if loop.processEventSequence == math.MaxUint64 {
+	if p.processEventSequence == math.MaxUint64 {
 		return
 	}
-	nextSequence := loop.processEventSequence + 1
+	nextSequence := p.processEventSequence + 1
 	event, err := newEvent(
-		nextSequence, loop.controller.processID, loop.deployment.DeploymentRef(),
-		loop.controller.relation, step, effectID, name, phase, time.Now(), payload,
+		nextSequence, p.controller.processID, p.deployment.DeploymentRef(),
+		p.controller.relation, step, effectID, name, phase, time.Now(), payload,
 	)
 	if err != nil {
 		return
 	}
-	loop.processEventSequence = nextSequence
-	loop.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
+	p.processEventSequence = nextSequence
+	p.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
 }
 
-func (loop *processLoop) publishEffectStarted(
+func (p *processLoop) publishEffectStarted(
 	ctx context.Context,
 	step uint64,
 	effectID EffectID,
 	target EffectTarget,
 ) time.Time {
 	payload, _ := json.Marshal(effectStartedEventPayload{EffectTarget: target})
-	loop.publishEvent(ctx, EventEffectStarted, EventPhaseAttempt, step, effectID, payload)
+	p.publishEvent(ctx, EventEffectStarted, EventPhaseAttempt, step, effectID, payload)
 	return time.Now()
 }
 
-func (loop *processLoop) publishSettlementEvent(
+func (p *processLoop) publishSettlementEvent(
 	ctx context.Context,
 	effectID EffectID,
 	target EffectTarget,
@@ -55,9 +55,9 @@ func (loop *processLoop) publishSettlementEvent(
 	if err != nil {
 		return
 	}
-	loop.publishEvent(
+	p.publishEvent(
 		ctx, EventEffectFinished, EventPhaseAttempt,
-		loop.prepared.wire.StepSequence, effectID, payload,
+		p.prepared.wire.StepSequence, effectID, payload,
 	)
 }
 

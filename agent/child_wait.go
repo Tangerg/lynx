@@ -42,27 +42,27 @@ func ChildQuorum(count uint32) (ChildWaitCondition, error) {
 	return condition, nil
 }
 
-// Valid reports whether condition is one supported completion predicate.
-func (condition ChildWaitCondition) Valid() bool {
-	return condition.kind == childWaitAll && condition.quorum == 0 ||
-		condition.kind == childWaitAny && condition.quorum == 0 ||
-		condition.kind == childWaitQuorum && condition.quorum > 0
+// Valid reports whether c is one supported completion predicate.
+func (c ChildWaitCondition) Valid() bool {
+	return c.kind == childWaitAll && c.quorum == 0 ||
+		c.kind == childWaitAny && c.quorum == 0 ||
+		c.kind == childWaitQuorum && c.quorum > 0
 }
 
-func (condition ChildWaitCondition) required(total int) (uint32, error) {
-	if !condition.Valid() || total <= 0 || uint64(total) > uint64(^uint32(0)) {
+func (c ChildWaitCondition) required(total int) (uint32, error) {
+	if !c.Valid() || total <= 0 || uint64(total) > uint64(^uint32(0)) {
 		return 0, ErrInvalidChildWait
 	}
-	switch condition.kind {
+	switch c.kind {
 	case childWaitAll:
 		return uint32(total), nil
 	case childWaitAny:
 		return 1, nil
 	case childWaitQuorum:
-		if condition.quorum > uint32(total) {
+		if c.quorum > uint32(total) {
 			return 0, ErrInvalidChildWait
 		}
-		return condition.quorum, nil
+		return c.quorum, nil
 	default:
 		return 0, ErrInvalidChildWait
 	}
@@ -81,15 +81,15 @@ type ChildWaitSpec struct {
 
 // Valid reports whether the wait has a usable key, unique child identities,
 // and a condition satisfiable by the declared child count.
-func (spec ChildWaitSpec) Valid() bool {
-	if !spec.Key.Valid() {
+func (c ChildWaitSpec) Valid() bool {
+	if !c.Key.Valid() {
 		return false
 	}
-	if _, err := spec.Condition.required(len(spec.Children)); err != nil {
+	if _, err := c.Condition.required(len(c.Children)); err != nil {
 		return false
 	}
-	seen := make(map[ProcessID]struct{}, len(spec.Children))
-	for _, childID := range spec.Children {
+	seen := make(map[ProcessID]struct{}, len(c.Children))
+	for _, childID := range c.Children {
 		if !childID.Valid() {
 			return false
 		}
@@ -126,17 +126,17 @@ type ChildWaitOpened struct {
 }
 
 // WaitID returns the Engine-minted wait identity to store in Execution state.
-func (opened ChildWaitOpened) WaitID() WaitID { return opened.waitID }
+func (c ChildWaitOpened) WaitID() WaitID { return c.waitID }
 
 // Spec returns the immutable child-wait request acknowledged by Engine.
-func (opened ChildWaitOpened) Spec() ChildWaitSpec {
-	spec := opened.spec
-	spec.Children = slices.Clone(opened.spec.Children)
+func (c ChildWaitOpened) Spec() ChildWaitSpec {
+	spec := c.spec
+	spec.Children = slices.Clone(c.spec.Children)
 	return spec
 }
 
 // Valid reports whether the acknowledgement contains one complete wait.
-func (opened ChildWaitOpened) Valid() bool { return opened.waitID.Valid() && opened.spec.Valid() }
+func (c ChildWaitOpened) Valid() bool { return c.waitID.Valid() && c.spec.Valid() }
 
 // ParseChildWaitOpened decodes the settlement Signal produced by
 // WaitForChildren and verifies its Engine-attached WaitID.
@@ -169,13 +169,13 @@ type ChildOutcome struct {
 }
 
 // Key returns the parent-scoped logical child identity.
-func (outcome ChildOutcome) Key() ChildKey { return outcome.key }
+func (c ChildOutcome) Key() ChildKey { return c.key }
 
 // Result returns the child's immutable terminal result.
-func (outcome ChildOutcome) Result() Result { return outcome.result }
+func (c ChildOutcome) Result() Result { return c.result }
 
 // Valid reports whether both logical identity and terminal result are complete.
-func (outcome ChildOutcome) Valid() bool { return outcome.key.Valid() && outcome.result.Valid() }
+func (c ChildOutcome) Valid() bool { return c.key.Valid() && c.result.Valid() }
 
 // ChildrenCompleted is one condition-satisfying, request-ordered child result
 // set. For any or quorum it includes every child already terminal at the atomic
@@ -187,23 +187,23 @@ type ChildrenCompleted struct {
 }
 
 // WaitID returns the addressed wait identity.
-func (completed ChildrenCompleted) WaitID() WaitID { return completed.waitID }
+func (c ChildrenCompleted) WaitID() WaitID { return c.waitID }
 
 // Key returns the logical wait key declared by the Execution.
-func (completed ChildrenCompleted) Key() WaitKey { return completed.key }
+func (c ChildrenCompleted) Key() WaitKey { return c.key }
 
 // Outcomes returns terminal children in the original ChildWaitSpec order.
-func (completed ChildrenCompleted) Outcomes() []ChildOutcome {
-	return slices.Clone(completed.outcomes)
+func (c ChildrenCompleted) Outcomes() []ChildOutcome {
+	return slices.Clone(c.outcomes)
 }
 
 // Valid reports whether the completion contains at least one ordered result.
-func (completed ChildrenCompleted) Valid() bool {
-	if !completed.waitID.Valid() || !completed.key.Valid() || len(completed.outcomes) == 0 {
+func (c ChildrenCompleted) Valid() bool {
+	if !c.waitID.Valid() || !c.key.Valid() || len(c.outcomes) == 0 {
 		return false
 	}
-	seen := make(map[ProcessID]struct{}, len(completed.outcomes))
-	for _, outcome := range completed.outcomes {
+	seen := make(map[ProcessID]struct{}, len(c.outcomes))
+	for _, outcome := range c.outcomes {
 		if !outcome.Valid() {
 			return false
 		}
@@ -300,10 +300,10 @@ func childWaitSpecWireFromValue(spec ChildWaitSpec) childWaitSpecWire {
 	}
 }
 
-func (wire childWaitSpecWire) value() (ChildWaitSpec, error) {
+func (c childWaitSpecWire) value() (ChildWaitSpec, error) {
 	spec := ChildWaitSpec{
-		Key: wire.Key, Children: slices.Clone(wire.Children),
-		Condition: ChildWaitCondition{kind: wire.Condition.Kind, quorum: wire.Condition.Quorum},
+		Key: c.Key, Children: slices.Clone(c.Children),
+		Condition: ChildWaitCondition{kind: c.Condition.Kind, quorum: c.Condition.Quorum},
 	}
 	if !spec.Valid() {
 		return ChildWaitSpec{}, ErrInvalidChildWait
@@ -339,12 +339,12 @@ func encodeChildWaitOpened(spec ChildWaitSpec) (json.RawMessage, error) {
 	})
 }
 
-func (wire childOutcomeWire) value() (ChildOutcome, error) {
-	result, err := wire.Result.value()
+func (c childOutcomeWire) value() (ChildOutcome, error) {
+	result, err := c.Result.value()
 	if err != nil {
 		return ChildOutcome{}, err
 	}
-	outcome := ChildOutcome{key: wire.Key, result: result}
+	outcome := ChildOutcome{key: c.Key, result: result}
 	if !outcome.Valid() {
 		return ChildOutcome{}, ErrInvalidChildWait
 	}
@@ -363,14 +363,14 @@ func resultWireFromValue(result Result) resultWire {
 	return wire
 }
 
-func (wire resultWire) value() (Result, error) {
+func (r resultWire) value() (Result, error) {
 	var output Output
-	if wire.Output != nil {
-		output = *wire.Output
+	if r.Output != nil {
+		output = *r.Output
 	}
 	result := Result{
-		processID: wire.ProcessID, startedAt: wire.StartedAt, finishedAt: wire.FinishedAt,
-		output: output, termination: wire.Termination, usage: wire.Usage,
+		processID: r.ProcessID, startedAt: r.StartedAt, finishedAt: r.FinishedAt,
+		output: output, termination: r.Termination, usage: r.Usage,
 	}
 	if !result.Valid() {
 		return Result{}, ErrInvalidChildWait

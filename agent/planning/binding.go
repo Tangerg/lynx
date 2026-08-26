@@ -85,27 +85,27 @@ func NewChildBinding(config ChildBindingConfig) (ActionBinding, error) {
 }
 
 // Action returns the immutable predictive Action owned by the binding.
-func (binding ActionBinding) Action() Action { return binding.action }
+func (a ActionBinding) Action() Action { return a.action }
 
 // Valid reports whether the binding has one complete execution target.
-func (binding ActionBinding) Valid() bool {
-	if !binding.action.Valid() || !binding.required.Valid() {
+func (a ActionBinding) Valid() bool {
+	if !a.action.Valid() || !a.required.Valid() {
 		return false
 	}
-	switch binding.target {
+	switch a.target {
 	case bindingTargetDispatcher:
-		return !binding.child.DeploymentRef.Valid() && !binding.child.Budget.Valid() &&
-			binding.childInput == nil
+		return !a.child.DeploymentRef.Valid() && !a.child.Budget.Valid() &&
+			a.childInput == nil
 	case bindingTargetChild:
-		return len(binding.required.Values()) == 0 && binding.child.DeploymentRef.Valid() &&
-			binding.child.Budget.Valid() && binding.child.Capabilities.Valid()
+		return len(a.required.Values()) == 0 && a.child.DeploymentRef.Valid() &&
+			a.child.Budget.Valid() && a.child.Capabilities.Valid()
 	default:
 		return false
 	}
 }
 
-func (binding ActionBinding) childSpec(key agent.ChildKey, input agent.Input) agent.ChildSpec {
-	spec := binding.child
+func (a ActionBinding) childSpec(key agent.ChildKey, input agent.Input) agent.ChildSpec {
+	spec := a.child
 	spec.Key = key
 	spec.Input = input
 	return spec

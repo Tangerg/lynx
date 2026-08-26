@@ -71,29 +71,29 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 }
 
 // Descriptor returns the immutable erased Workflow contract.
-func (definition *Definition) Descriptor() agent.Descriptor {
-	if definition == nil {
+func (d *Definition) Descriptor() agent.Descriptor {
+	if d == nil {
 		return agent.Descriptor{}
 	}
-	return definition.descriptor
+	return d.descriptor
 }
 
 // Start creates a fresh Workflow from validated caller input.
-func (definition *Definition) Start(input agent.Input) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Start(input agent.Input) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
-	if err := definition.descriptor.ValidateInput(input); err != nil {
+	if err := d.descriptor.ValidateInput(input); err != nil {
 		return nil, err
 	}
 	state := executionState{Phase: phaseReady, CurrentValue: input.JSON()}
-	return &execution{definition: definition, state: state}, nil
+	return &execution{definition: d, state: state}, nil
 }
 
 // Restore recreates a Workflow solely from its opaque state and this exact
 // Definition.
-func (definition *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
@@ -103,22 +103,22 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
 		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
-	if err := decoded.validate(definition); err != nil {
+	if err := decoded.validate(d); err != nil {
 		return nil, err
 	}
-	return &execution{definition: definition, state: decoded}, nil
+	return &execution{definition: d, state: decoded}, nil
 }
 
-func (definition *Definition) valid() bool {
-	if definition == nil || !definition.descriptor.Valid() || len(definition.stages) == 0 {
+func (d *Definition) valid() bool {
+	if d == nil || !d.descriptor.Valid() || len(d.stages) == 0 {
 		return false
 	}
-	for index, stage := range definition.stages {
-		if !stage.Valid() || index > 0 && !stage.accepts(definition.stages[index-1].outputSchema) {
+	for index, stage := range d.stages {
+		if !stage.Valid() || index > 0 && !stage.accepts(d.stages[index-1].outputSchema) {
 			return false
 		}
 	}
-	return definition.descriptor.InputSchema().Valid() && definition.descriptor.OutputSchema().Valid()
+	return d.descriptor.InputSchema().Valid() && d.descriptor.OutputSchema().Valid()
 }
 
 func encodeExecutionState(state executionState) (agent.ExecutionState, error) {

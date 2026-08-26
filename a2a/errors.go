@@ -53,12 +53,12 @@ type RemoteAgentError struct {
 	Detail string
 }
 
-func (e *RemoteAgentError) Error() string {
-	if e == nil {
+func (r *RemoteAgentError) Error() string {
+	if r == nil {
 		return "a2a: remote agent task did not complete successfully"
 	}
-	if e.Detail != "" {
-		return fmt.Sprintf("a2a: remote agent task did not complete successfully (state %s): %s", e.State, e.Detail)
+	if r.Detail != "" {
+		return fmt.Sprintf("a2a: remote agent task did not complete successfully (state %s): %s", r.State, r.Detail)
 	}
-	return fmt.Sprintf("a2a: remote agent task did not complete successfully (state %s)", e.State)
+	return fmt.Sprintf("a2a: remote agent task did not complete successfully (state %s)", r.State)
 }

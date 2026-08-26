@@ -58,32 +58,32 @@ func NewToolInputRequest(
 }
 
 // Prompt returns an independently owned consumer-facing JSON value.
-func (request ToolInputRequest) Prompt() json.RawMessage { return bytes.Clone(request.prompt) }
+func (t ToolInputRequest) Prompt() json.RawMessage { return bytes.Clone(t.prompt) }
 
 // ResponseSchema returns the authoritative JSON Schema for an answer.
-func (request ToolInputRequest) ResponseSchema() json.RawMessage {
-	return bytes.Clone(request.responseSchema)
+func (t ToolInputRequest) ResponseSchema() json.RawMessage {
+	return bytes.Clone(t.responseSchema)
 }
 
 // ContinuationState returns opaque state owned by the requesting Tool.
-func (request ToolInputRequest) ContinuationState() json.RawMessage {
-	return bytes.Clone(request.continuationState)
+func (t ToolInputRequest) ContinuationState() json.RawMessage {
+	return bytes.Clone(t.continuationState)
 }
 
 // Valid reports whether the request was constructed through NewToolInputRequest.
-func (request ToolInputRequest) Valid() bool {
-	return len(request.prompt) > 0 && len(request.responseSchema) > 0 && len(request.continuationState) > 0
+func (t ToolInputRequest) Valid() bool {
+	return len(t.prompt) > 0 && len(t.responseSchema) > 0 && len(t.continuationState) > 0
 }
 
-func (request ToolInputRequest) validateResponse(response json.RawMessage) (json.RawMessage, error) {
-	if !request.Valid() {
+func (t ToolInputRequest) validateResponse(response json.RawMessage) (json.RawMessage, error) {
+	if !t.Valid() {
 		return nil, ErrInvalidToolInputRequest
 	}
 	response, err := canonicalJSON(response)
 	if err != nil {
 		return nil, fmt.Errorf("%w: response: %w", ErrInvalidToolInputRequest, err)
 	}
-	schema, err := agent.ParseSchema(request.responseSchema)
+	schema, err := agent.ParseSchema(t.responseSchema)
 	if err != nil {
 		return nil, fmt.Errorf("%w: response schema: %w", ErrInvalidToolInputRequest, err)
 	}
@@ -119,8 +119,8 @@ func RequireToolInput(
 }
 
 // Error returns the stable Tool input control-flow sentinel text.
-func (required *ToolInputRequiredError) Error() string {
-	if required == nil {
+func (t *ToolInputRequiredError) Error() string {
+	if t == nil {
 		return ErrToolInputRequired.Error()
 	}
 	return ErrToolInputRequired.Error()
@@ -129,11 +129,11 @@ func (required *ToolInputRequiredError) Error() string {
 // Unwrap supports errors.Is(err, ErrToolInputRequired).
 func (*ToolInputRequiredError) Unwrap() error { return ErrToolInputRequired }
 
-func (required *ToolInputRequiredError) inputRequest() (ToolInputRequest, bool) {
-	if required == nil || !required.request.Valid() {
+func (t *ToolInputRequiredError) inputRequest() (ToolInputRequest, bool) {
+	if t == nil || !t.request.Valid() {
 		return ToolInputRequest{}, false
 	}
-	return required.request, true
+	return t.request, true
 }
 
 // ToolInputContinuation is the immutable state and validated external response
@@ -144,13 +144,13 @@ type ToolInputContinuation struct {
 }
 
 // State returns the Tool-owned continuation state captured at suspension.
-func (continuation ToolInputContinuation) State() json.RawMessage {
-	return bytes.Clone(continuation.state)
+func (t ToolInputContinuation) State() json.RawMessage {
+	return bytes.Clone(t.state)
 }
 
 // Response returns the schema-validated external input.
-func (continuation ToolInputContinuation) Response() json.RawMessage {
-	return bytes.Clone(continuation.response)
+func (t ToolInputContinuation) Response() json.RawMessage {
+	return bytes.Clone(t.response)
 }
 
 type toolContinuationContextKey struct{}

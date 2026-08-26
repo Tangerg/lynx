@@ -44,11 +44,11 @@ type mapStage struct {
 	collect          func([]json.RawMessage) (json.RawMessage, error)
 }
 
-func (stage mapStage) valid() bool {
-	return stage.binding.valid() && stage.windowSize > 0 && stage.itemLimit > 0 &&
-		stage.windowSize <= stage.itemLimit && stage.itemInputSchema.Valid() &&
-		stage.itemOutputSchema.Valid() &&
-		stage.count != nil && stage.windowInputs != nil && stage.collect != nil
+func (m mapStage) valid() bool {
+	return m.binding.valid() && m.windowSize > 0 && m.itemLimit > 0 &&
+		m.windowSize <= m.itemLimit && m.itemInputSchema.Valid() &&
+		m.itemOutputSchema.Valid() &&
+		m.count != nil && m.windowInputs != nil && m.collect != nil
 }
 
 // Map constructs one bounded managed item fan-out Stage. Empty input is valid
@@ -137,25 +137,25 @@ type mapValueCodec struct {
 	schemas   mapSchemas
 }
 
-func (codec mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
+func (m mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
 	input, err := agent.ParseInput(raw)
 	if err != nil {
 		return nil, err
 	}
-	if err := codec.schemas.input.ValidateInput(input); err != nil {
+	if err := m.schemas.input.ValidateInput(input); err != nil {
 		return nil, err
 	}
 	values, err := input.Decode[[]I]()
 	if err != nil {
 		return nil, err
 	}
-	if uint64(len(values)) > uint64(codec.itemLimit) || uint64(len(values)) > math.MaxUint32 {
-		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: codec.itemLimit}
+	if uint64(len(values)) > uint64(m.itemLimit) || uint64(len(values)) > math.MaxUint32 {
+		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: m.itemLimit}
 	}
 	return values, nil
 }
 
-func (codec mapValueCodec) encodeWindow[I any](
+func (m mapValueCodec) encodeWindow[I any](
 	values []I,
 	start uint32,
 	end uint32,
@@ -167,19 +167,19 @@ func (codec mapValueCodec) encodeWindow[I any](
 	for index := start; index < end; index++ {
 		item, err := agent.EncodeInput(values[index])
 		if err != nil {
-			return nil, fmt.Errorf("Map %q item %d: %w", codec.id, index, err)
+			return nil, fmt.Errorf("Map %q item %d: %w", m.id, index, err)
 		}
-		if err := codec.schemas.itemInput.ValidateInput(item); err != nil {
-			return nil, fmt.Errorf("Map %q item %d contract: %w", codec.id, index, err)
+		if err := m.schemas.itemInput.ValidateInput(item); err != nil {
+			return nil, fmt.Errorf("Map %q item %d contract: %w", m.id, index, err)
 		}
 		items = append(items, item)
 	}
 	return items, nil
 }
 
-func (codec mapValueCodec) collect[O any](raw []json.RawMessage) (json.RawMessage, error) {
+func (m mapValueCodec) collect[O any](raw []json.RawMessage) (json.RawMessage, error) {
 	decoder := fanoutOutputDecoder{
-		stageName: "Map", stageID: codec.id, memberName: "item", schema: codec.schemas.itemOutput,
+		stageName: "Map", stageID: m.id, memberName: "item", schema: m.schemas.itemOutput,
 	}
 	values, err := decoder.decode[O](raw)
 	if err != nil {
@@ -187,10 +187,10 @@ func (codec mapValueCodec) collect[O any](raw []json.RawMessage) (json.RawMessag
 	}
 	erased, err := agent.EncodeOutput(values)
 	if err != nil {
-		return nil, fmt.Errorf("Map %q encode result: %w", codec.id, err)
+		return nil, fmt.Errorf("Map %q encode result: %w", m.id, err)
 	}
-	if err := codec.schemas.output.ValidateOutput(erased); err != nil {
-		return nil, fmt.Errorf("Map %q result contract: %w", codec.id, err)
+	if err := m.schemas.output.ValidateOutput(erased); err != nil {
+		return nil, fmt.Errorf("Map %q result contract: %w", m.id, err)
 	}
 	return erased.JSON(), nil
 }
@@ -200,6 +200,6 @@ type mapItemLimitExceededError struct {
 	limit uint32
 }
 
-func (failure mapItemLimitExceededError) Error() string {
-	return fmt.Sprintf("Map input contains %d items, exceeding limit %d", failure.count, failure.limit)
+func (m mapItemLimitExceededError) Error() string {
+	return fmt.Sprintf("Map input contains %d items, exceeding limit %d", m.count, m.limit)
 }

@@ -48,12 +48,12 @@ type switchStage struct {
 	cases      []switchCase
 }
 
-func (stage switchStage) valid() bool {
-	if stage.selectCase == nil || len(stage.cases) == 0 {
+func (s switchStage) valid() bool {
+	if s.selectCase == nil || len(s.cases) == 0 {
 		return false
 	}
-	seen := make(map[string]struct{}, len(stage.cases))
-	for _, candidate := range stage.cases {
+	seen := make(map[string]struct{}, len(s.cases))
+	for _, candidate := range s.cases {
 		if !validStageID(candidate.id) || !candidate.binding.valid() {
 			return false
 		}
@@ -65,8 +65,8 @@ func (stage switchStage) valid() bool {
 	return true
 }
 
-func (binding childBinding) valid() bool {
-	return binding.deploymentRef.Valid() && binding.budget.Valid() && binding.capabilities.Valid()
+func (c childBinding) valid() bool {
+	return c.deploymentRef.Valid() && c.budget.Valid() && c.capabilities.Valid()
 }
 
 // Switch constructs one selected managed child-Process Stage. Every case must
@@ -137,8 +137,8 @@ func Switch[I any](config SwitchConfig[I]) (Stage, error) {
 	}, nil
 }
 
-func (stage switchStage) binding(caseID string) (childBinding, bool) {
-	for _, candidate := range stage.cases {
+func (s switchStage) binding(caseID string) (childBinding, bool) {
+	for _, candidate := range s.cases {
 		if candidate.id == caseID {
 			return candidate.binding, true
 		}
@@ -148,6 +148,6 @@ func (stage switchStage) binding(caseID string) (childBinding, bool) {
 
 type unknownSwitchCaseError struct{ id string }
 
-func (failure unknownSwitchCaseError) Error() string {
-	return fmt.Sprintf("Switch selector returned undeclared case %q", failure.id)
+func (u unknownSwitchCaseError) Error() string {
+	return fmt.Sprintf("Switch selector returned undeclared case %q", u.id)
 }

@@ -56,11 +56,11 @@ type searchRequest struct {
 	SearchRecencyFilter string   `json:"search_recency_filter,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("perplexity: Request must not be nil")
 	}
-	if r.Query == "" {
+	if s.Query == "" {
 		return errors.New("perplexity: Query must not be empty")
 	}
 	return nil
@@ -141,9 +141,9 @@ func recencyToString(r web.Recency) string {
 	return ""
 }
 
-func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Results))
-	for _, searchResult := range r.Results {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Results))
+	for _, searchResult := range s.Results {
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.URL,

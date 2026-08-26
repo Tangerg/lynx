@@ -183,10 +183,10 @@ func newBranchTracker(ids ...string) *branchTracker {
 	return tracker
 }
 
-func (tracker *branchTracker) awaitStart(t *testing.T) string {
+func (b *branchTracker) awaitStart(t *testing.T) string {
 	t.Helper()
 	select {
-	case id := <-tracker.started:
+	case id := <-b.started:
 		return id
 	case <-time.After(5 * time.Second):
 		t.Fatal("branch did not start")
@@ -194,17 +194,17 @@ func (tracker *branchTracker) awaitStart(t *testing.T) string {
 	}
 }
 
-func (tracker *branchTracker) assertNotStarted(t *testing.T) {
+func (b *branchTracker) assertNotStarted(t *testing.T) {
 	t.Helper()
 	synctest.Wait()
 	select {
-	case id := <-tracker.started:
+	case id := <-b.started:
 		t.Fatalf("branch %q escaped the execution window", id)
 	default:
 	}
 }
 
-func (tracker *branchTracker) release(id string) { close(tracker.releases[id]) }
+func (b *branchTracker) release(id string) { close(b.releases[id]) }
 
 type managedBranchDefinition struct {
 	descriptor agent.Descriptor
@@ -235,19 +235,19 @@ func newManagedBranchDeployment(t *testing.T, branch string, tracker *branchTrac
 	return deployment
 }
 
-func (definition *managedBranchDefinition) Descriptor() agent.Descriptor {
-	return definition.descriptor
+func (m *managedBranchDefinition) Descriptor() agent.Descriptor {
+	return m.descriptor
 }
 
-func (definition *managedBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
+func (m *managedBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
 	decoded, err := input.Decode[forkInput]()
 	if err != nil {
 		return nil, err
 	}
-	return &managedBranchExecution{Branch: definition.branch, Value: decoded.Value}, nil
+	return &managedBranchExecution{Branch: m.branch, Value: decoded.Value}, nil
 }
 
-func (definition *managedBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+func (m *managedBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if state.Kind() != "test.workflow.branch" || state.SchemaVersion() != 1 {
 		return nil, agent.ErrInvalidExecutionState
 	}
@@ -255,7 +255,7 @@ func (definition *managedBranchDefinition) Restore(state agent.ExecutionState) (
 	if err := json.Unmarshal(state.Payload(), &execution); err != nil {
 		return nil, err
 	}
-	if execution.Branch != definition.branch || execution.Phase > 2 {
+	if execution.Branch != m.branch || execution.Phase > 2 {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	return &execution, nil
@@ -267,18 +267,18 @@ type managedBranchExecution struct {
 	Phase  uint8  `json:"phase"`
 }
 
-func (execution *managedBranchExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
-	switch execution.Phase {
+func (m *managedBranchExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
+	switch m.Phase {
 	case 0:
 		payload, _ := json.Marshal(struct {
 			Branch string `json:"branch"`
 			Value  int    `json:"value"`
-		}{Branch: execution.Branch, Value: execution.Value})
+		}{Branch: m.Branch, Value: m.Value})
 		effect, err := agent.NewDispatcherEffect(payload)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.Phase = 1
+		m.Phase = 1
 		return agent.Continue(0, effect)
 	case 1:
 		if len(signals) != 1 {
@@ -288,15 +288,15 @@ func (execution *managedBranchExecution) Step(_ context.Context, signals []agent
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.Phase = 2
+		m.Phase = 2
 		return agent.Complete(1, output)
 	default:
 		return agent.Transition{}, errors.New("managed branch already completed")
 	}
 }
 
-func (execution *managedBranchExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution)
+func (m *managedBranchExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(m)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
@@ -305,7 +305,7 @@ func (execution *managedBranchExecution) Snapshot() (agent.ExecutionState, error
 
 type managedBranchDispatcher struct{ tracker *branchTracker }
 
-func (dispatcher managedBranchDispatcher) Dispatch(
+func (m managedBranchDispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	_ agent.DeltaEmitter,
@@ -317,9 +317,9 @@ func (dispatcher managedBranchDispatcher) Dispatch(
 	if err := json.Unmarshal(request.Effect().Payload(), &call); err != nil {
 		return agent.Settlement{}, err
 	}
-	dispatcher.tracker.started <- call.Branch
+	m.tracker.started <- call.Branch
 	select {
-	case <-dispatcher.tracker.releases[call.Branch]:
+	case <-m.tracker.releases[call.Branch]:
 	case <-ctx.Done():
 		return agent.Settlement{}, ctx.Err()
 	}

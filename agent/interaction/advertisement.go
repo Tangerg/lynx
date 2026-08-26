@@ -49,34 +49,34 @@ func newToolAdvertiser(allowed map[string]struct{}) *toolAdvertiser {
 	}
 }
 
-func (advertiser *toolAdvertiser) advertise(names []string) error {
+func (t *toolAdvertiser) advertise(names []string) error {
 	if len(names) == 0 {
 		return fmt.Errorf("%w: at least one Tool name is required", ErrInvalidToolAdvertisement)
 	}
-	advertiser.mu.Lock()
-	defer advertiser.mu.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for _, name := range names {
 		if name == "" || strings.TrimSpace(name) != name {
 			return fmt.Errorf("%w: tool name %q is empty or has surrounding whitespace", ErrInvalidToolAdvertisement, name)
 		}
-		if _, allowed := advertiser.allowed[name]; !allowed {
+		if _, allowed := t.allowed[name]; !allowed {
 			return fmt.Errorf("%w: tool %q is not deferred", ErrInvalidToolAdvertisement, name)
 		}
 	}
 	for _, name := range names {
-		if _, duplicate := advertiser.seen[name]; duplicate {
+		if _, duplicate := t.seen[name]; duplicate {
 			continue
 		}
-		advertiser.seen[name] = struct{}{}
-		advertiser.names = append(advertiser.names, name)
+		t.seen[name] = struct{}{}
+		t.names = append(t.names, name)
 	}
 	return nil
 }
 
-func (advertiser *toolAdvertiser) advertisedNames() []string {
-	advertiser.mu.Lock()
-	defer advertiser.mu.Unlock()
-	return slices.Clone(advertiser.names)
+func (t *toolAdvertiser) advertisedNames() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return slices.Clone(t.names)
 }
 
 func withToolAdvertiser(ctx context.Context, advertiser *toolAdvertiser) context.Context {

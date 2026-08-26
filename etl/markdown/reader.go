@@ -215,16 +215,16 @@ type sectionRef struct {
 
 type headingPath []sectionRef
 
-func (p *headingPath) push(level int, title string) {
-	for len(*p) > 0 && (*p)[len(*p)-1].level >= level {
-		*p = (*p)[:len(*p)-1]
+func (h *headingPath) push(level int, title string) {
+	for len(*h) > 0 && (*h)[len(*h)-1].level >= level {
+		*h = (*h)[:len(*h)-1]
 	}
-	*p = append(*p, sectionRef{level: level, title: title})
+	*h = append(*h, sectionRef{level: level, title: title})
 }
 
-func (p headingPath) String() string {
-	titles := make([]string, len(p))
-	for i, ref := range p {
+func (h headingPath) String() string {
+	titles := make([]string, len(h))
+	for i, ref := range h {
 		titles[i] = ref.title
 	}
 	return strings.Join(titles, " > ")

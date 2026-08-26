@@ -48,20 +48,20 @@ func NewGlobTool(executor Executor) *GlobTool {
 	return t
 }
 
-func (t *GlobTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (g *GlobTool) Definition() chat.ToolDefinition {
+	return g.typed.Definition()
 }
 
 // ConcurrencyKey opts glob into parallel execution — a read-only filename
 // search has no conflict (the tool loop's optional concurrency contract).
-func (t *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (g *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
-func (t *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (g *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
+	return g.typed.Call(ctx, arguments)
 }
 
-func (t *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
-	res, err := t.executor.Glob(ctx, GlobInput{
+func (g *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
+	res, err := g.executor.Glob(ctx, GlobInput{
 		Pattern:    req.Pattern,
 		Root:       req.Path,
 		IgnoreCase: req.IgnoreCase,

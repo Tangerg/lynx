@@ -429,7 +429,7 @@ func newBlockingChildStartAcknowledger() *blockingChildStartAcknowledger {
 	}
 }
 
-func (acknowledger *blockingChildStartAcknowledger) AcknowledgePreparedStep(
+func (b *blockingChildStartAcknowledger) AcknowledgePreparedStep(
 	_ context.Context,
 	snapshot Snapshot,
 ) error {
@@ -441,12 +441,12 @@ func (acknowledger *blockingChildStartAcknowledger) AcknowledgePreparedStep(
 	if err != nil || operation != frameworkEffectStartChild {
 		return err
 	}
-	acknowledger.once.Do(func() { acknowledger.captured <- snapshot })
-	<-acknowledger.gate
+	b.once.Do(func() { b.captured <- snapshot })
+	<-b.gate
 	return nil
 }
 
-func (acknowledger *blockingChildStartAcknowledger) release() { close(acknowledger.gate) }
+func (b *blockingChildStartAcknowledger) release() { close(b.gate) }
 
 func assertNoChildWaitRegistrations(t *testing.T, engine *Engine) {
 	t.Helper()

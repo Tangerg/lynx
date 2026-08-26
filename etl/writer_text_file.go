@@ -74,34 +74,34 @@ func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 // Write persists docs to the configured file. Close errors after a
 // successful write are surfaced (joined with any earlier error) so
 // callers can detect partial flushes that fail at close time.
-func (f *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (err error) {
+func (t *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
+	file, err := os.OpenFile(t.path, t.openFlags(), 0o666)
 	if err != nil {
-		return fmt.Errorf("etl: open output %q: %w", f.path, err)
+		return fmt.Errorf("etl: open output %q: %w", t.path, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("etl: close output %q: %w", f.path, closeErr))
+			err = errors.Join(err, fmt.Errorf("etl: close output %q: %w", t.path, closeErr))
 		}
 	}()
 
-	if writeErr := f.write(ctx, docs, file); writeErr != nil {
-		return fmt.Errorf("etl: write output %q: %w", f.path, writeErr)
+	if writeErr := t.write(ctx, docs, file); writeErr != nil {
+		return fmt.Errorf("etl: write output %q: %w", t.path, writeErr)
 	}
 	return nil
 }
 
-func (f *TextFileWriter) openFlags() int {
-	if f.append {
+func (t *TextFileWriter) openFlags() int {
+	if t.append {
 		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	}
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (f *TextFileWriter) write(ctx context.Context, docs []*document.Document, file *os.File) error {
+func (t *TextFileWriter) write(ctx context.Context, docs []*document.Document, file *os.File) error {
 	buffered := bufio.NewWriter(file)
 	for i, doc := range docs {
 		if err := ctx.Err(); err != nil {
@@ -113,7 +113,7 @@ func (f *TextFileWriter) write(ctx context.Context, docs []*document.Document, f
 		if err := doc.Validate(); err != nil {
 			return fmt.Errorf("validate document %d: %w", i, err)
 		}
-		rendered, err := f.renderDocument(i, doc)
+		rendered, err := t.renderDocument(i, doc)
 		if err != nil {
 			return fmt.Errorf("render document %d: %w", i, err)
 		}
@@ -130,14 +130,14 @@ func (f *TextFileWriter) write(ctx context.Context, docs []*document.Document, f
 	return file.Sync()
 }
 
-func (f *TextFileWriter) renderDocument(index int, doc *document.Document) (string, error) {
+func (t *TextFileWriter) renderDocument(index int, doc *document.Document) (string, error) {
 	var buf strings.Builder
 
-	if f.documentMarkers {
+	if t.documentMarkers {
 		buf.WriteString("### Index: ")
 		buf.WriteString(strconv.Itoa(index))
 
-		start, end, hasRange, err := f.documentPageRange(doc)
+		start, end, hasRange, err := t.documentPageRange(doc)
 		if err != nil {
 			return "", err
 		}
@@ -151,7 +151,7 @@ func (f *TextFileWriter) renderDocument(index int, doc *document.Document) (stri
 		buf.WriteString("\n")
 	}
 
-	rendered, err := f.formatter.Format(doc)
+	rendered, err := t.formatter.Format(doc)
 	if err != nil {
 		return "", err
 	}

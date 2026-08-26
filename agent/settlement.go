@@ -25,9 +25,9 @@ const (
 	SettlementStatusUnknown SettlementStatus = "unknown"
 )
 
-// Valid reports whether status is a definite or indeterminate settlement fact.
-func (status SettlementStatus) Valid() bool {
-	switch status {
+// Valid reports whether s is a definite or indeterminate settlement fact.
+func (s SettlementStatus) Valid() bool {
+	switch s {
 	case SettlementStatusSucceeded, SettlementStatusFailed, SettlementStatusUnknown:
 		return true
 	default:
@@ -36,11 +36,11 @@ func (status SettlementStatus) Valid() bool {
 }
 
 // String returns the stable settlement-status name.
-func (status SettlementStatus) String() string {
-	if !status.Valid() {
+func (s SettlementStatus) String() string {
+	if !s.Valid() {
 		return "invalid"
 	}
-	return string(status)
+	return string(s)
 }
 
 // Settlement is the immutable final fact for one EffectID. Payload is owned by

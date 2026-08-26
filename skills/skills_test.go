@@ -36,9 +36,9 @@ type cancelingFS struct {
 	cancel context.CancelFunc
 }
 
-func (f cancelingFS) Open(name string) (fs.File, error) {
-	file, err := f.FS.Open(name)
-	f.cancel()
+func (c cancelingFS) Open(name string) (fs.File, error) {
+	file, err := c.FS.Open(name)
+	c.cancel()
 	return file, err
 }
 
@@ -60,15 +60,15 @@ func (f failingOpenFS) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-func (s cancelingResourceSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
-	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
-	s.cancel()
+func (c cancelingResourceSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	file, err := c.ResourceSource.OpenResource(ctx, name, resource)
+	c.cancel()
 	return file, err
 }
 
 type nilFileResourceSource struct{ ResourceSource }
 
-func (s nilFileResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
+func (n nilFileResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
 	return nil, nil
 }
 

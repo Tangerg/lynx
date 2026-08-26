@@ -36,40 +36,40 @@ func NewExecutionState(kind string, schemaVersion uint16, payload json.RawMessag
 }
 
 // Kind returns the Strategy that exclusively interprets Payload.
-func (s ExecutionState) Kind() string { return s.kind }
+func (e ExecutionState) Kind() string { return e.kind }
 
 // SchemaVersion returns the Strategy-owned payload schema version.
-func (s ExecutionState) SchemaVersion() uint16 { return s.schemaVersion }
+func (e ExecutionState) SchemaVersion() uint16 { return e.schemaVersion }
 
 // Payload returns an independently owned copy of the opaque Strategy state.
-func (s ExecutionState) Payload() json.RawMessage { return bytes.Clone(s.payload) }
+func (e ExecutionState) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
 // Valid reports whether the state was created through its validated boundary.
-func (s ExecutionState) Valid() bool {
-	return validQualifiedName(s.kind) && s.schemaVersion > 0 && len(s.payload) > 0
+func (e ExecutionState) Valid() bool {
+	return validQualifiedName(e.kind) && e.schemaVersion > 0 && len(e.payload) > 0
 }
 
-func (s ExecutionState) clone() ExecutionState {
+func (e ExecutionState) clone() ExecutionState {
 	return ExecutionState{
-		kind: s.kind, schemaVersion: s.schemaVersion, payload: bytes.Clone(s.payload),
+		kind: e.kind, schemaVersion: e.schemaVersion, payload: bytes.Clone(e.payload),
 	}
 }
 
 // MarshalJSON returns the validated Strategy-owned state envelope.
-func (s ExecutionState) MarshalJSON() ([]byte, error) {
-	if !s.Valid() {
+func (e ExecutionState) MarshalJSON() ([]byte, error) {
+	if !e.Valid() {
 		return nil, ErrInvalidExecutionState
 	}
 	return json.Marshal(executionStateWire{
-		Kind:          s.kind,
-		SchemaVersion: s.schemaVersion,
-		Payload:       s.payload,
+		Kind:          e.kind,
+		SchemaVersion: e.schemaVersion,
+		Payload:       e.payload,
 	})
 }
 
-// UnmarshalJSON replaces s with a strictly decoded ExecutionState.
-func (s *ExecutionState) UnmarshalJSON(data []byte) error {
-	if s == nil {
+// UnmarshalJSON replaces e with a strictly decoded ExecutionState.
+func (e *ExecutionState) UnmarshalJSON(data []byte) error {
+	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidExecutionState)
 	}
 	var wire executionStateWire
@@ -85,7 +85,7 @@ func (s *ExecutionState) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	*s = value
+	*e = value
 	return nil
 }
 

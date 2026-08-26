@@ -19,8 +19,8 @@ type Input struct {
 }
 
 // Validate verifies the provider-neutral model request represented by Input.
-func (input Input) Validate() error {
-	request := &chat.Request{Messages: input.Messages, Options: input.Options}
+func (i Input) Validate() error {
+	request := &chat.Request{Messages: i.Messages, Options: i.Options}
 	if err := request.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}

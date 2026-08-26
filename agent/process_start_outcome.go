@@ -20,17 +20,17 @@ const (
 	ProcessStartOutcomeStatusAborted ProcessStartOutcomeStatus = "aborted"
 )
 
-// Valid reports whether status conclusively settles Process initialization.
-func (status ProcessStartOutcomeStatus) Valid() bool {
-	return status == ProcessStartOutcomeStatusStarted || status == ProcessStartOutcomeStatusAborted
+// Valid reports whether p conclusively settles Process initialization.
+func (p ProcessStartOutcomeStatus) Valid() bool {
+	return p == ProcessStartOutcomeStatusStarted || p == ProcessStartOutcomeStatusAborted
 }
 
 // String returns the stable Process-start outcome status name.
-func (status ProcessStartOutcomeStatus) String() string {
-	if !status.Valid() {
+func (p ProcessStartOutcomeStatus) String() string {
+	if !p.Valid() {
 		return "invalid"
 	}
-	return string(status)
+	return string(p)
 }
 
 // ProcessStartOutcome is the immutable conclusive Framework result for one
@@ -43,27 +43,27 @@ type ProcessStartOutcome struct {
 }
 
 // Admission returns the exact accepted admission concluded by this outcome.
-func (outcome ProcessStartOutcome) Admission() ProcessAdmission { return outcome.admission }
+func (p ProcessStartOutcome) Admission() ProcessAdmission { return p.admission }
 
 // Status returns the conclusive started or aborted initialization result.
-func (outcome ProcessStartOutcome) Status() ProcessStartOutcomeStatus { return outcome.status }
+func (p ProcessStartOutcome) Status() ProcessStartOutcomeStatus { return p.status }
 
 // Failure returns the stable initialization failure for an aborted outcome.
-func (outcome ProcessStartOutcome) Failure() (Failure, bool) {
-	return outcome.failure, outcome.status == ProcessStartOutcomeStatusAborted
+func (p ProcessStartOutcome) Failure() (Failure, bool) {
+	return p.failure, p.status == ProcessStartOutcomeStatusAborted
 }
 
 // Valid reports whether the outcome conclusively matches one accepted
 // admission. Only the Engine constructs outcome values.
-func (outcome ProcessStartOutcome) Valid() bool {
-	if !outcome.admission.Valid() {
+func (p ProcessStartOutcome) Valid() bool {
+	if !p.admission.Valid() {
 		return false
 	}
-	switch outcome.status {
+	switch p.status {
 	case ProcessStartOutcomeStatusStarted:
-		return !outcome.failure.Valid()
+		return !p.failure.Valid()
 	case ProcessStartOutcomeStatusAborted:
-		return outcome.failure.Valid()
+		return p.failure.Valid()
 	default:
 		return false
 	}
@@ -90,12 +90,12 @@ type ProcessStartOutcomeAcknowledgerFunc func(
 	outcome ProcessStartOutcome,
 ) error
 
-// AcknowledgeProcessStartOutcome invokes acknowledger.
-func (acknowledger ProcessStartOutcomeAcknowledgerFunc) AcknowledgeProcessStartOutcome(
+// AcknowledgeProcessStartOutcome invokes p.
+func (p ProcessStartOutcomeAcknowledgerFunc) AcknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome ProcessStartOutcome,
 ) error {
-	return acknowledger(ctx, outcome)
+	return p(ctx, outcome)
 }
 
 func startedProcessOutcome(admission ProcessAdmission) ProcessStartOutcome {

@@ -311,27 +311,27 @@ type scheduledTool struct {
 	call func(context.Context, string) (string, error)
 }
 
-func (value *scheduledTool) Definition() chat.ToolDefinition {
-	return concurrencyToolDefinition(value.name)
+func (s *scheduledTool) Definition() chat.ToolDefinition {
+	return concurrencyToolDefinition(s.name)
 }
 
-func (value *scheduledTool) Call(ctx context.Context, arguments string) (string, error) {
-	return value.call(ctx, arguments)
+func (s *scheduledTool) Call(ctx context.Context, arguments string) (string, error) {
+	return s.call(ctx, arguments)
 }
 
-func (value *scheduledTool) ConcurrencyKey(string) (string, bool) { return value.key, true }
+func (s *scheduledTool) ConcurrencyKey(string) (string, bool) { return s.key, true }
 
 type exclusiveTool struct {
 	name string
 	call func(context.Context, string) (string, error)
 }
 
-func (value *exclusiveTool) Definition() chat.ToolDefinition {
-	return concurrencyToolDefinition(value.name)
+func (e *exclusiveTool) Definition() chat.ToolDefinition {
+	return concurrencyToolDefinition(e.name)
 }
 
-func (value *exclusiveTool) Call(ctx context.Context, arguments string) (string, error) {
-	return value.call(ctx, arguments)
+func (e *exclusiveTool) Call(ctx context.Context, arguments string) (string, error) {
+	return e.call(ctx, arguments)
 }
 
 type toolRelease struct {
@@ -341,7 +341,7 @@ type toolRelease struct {
 
 func newToolRelease() *toolRelease { return &toolRelease{done: make(chan struct{})} }
 
-func (release *toolRelease) Release() { release.once.Do(func() { close(release.done) }) }
+func (t *toolRelease) Release() { t.once.Do(func() { close(t.done) }) }
 
 type orderedBatchModel struct {
 	mu    sync.Mutex
@@ -349,22 +349,22 @@ type orderedBatchModel struct {
 	names []string
 }
 
-func (model *orderedBatchModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
-		calls := make([]chat.ToolCall, len(model.names))
-		for index, name := range model.names {
+func (o *orderedBatchModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.calls++
+	if o.calls == 1 {
+		calls := make([]chat.ToolCall, len(o.names))
+		for index, name := range o.names {
 			calls[index] = chat.ToolCall{ID: "call_" + name, Name: name, Arguments: `{}`}
 		}
 		return toolBatchResponse(calls...), nil
 	}
 	last := request.Messages[len(request.Messages)-1]
-	if last.Role != chat.RoleTool || len(last.Parts) != len(model.names) {
+	if last.Role != chat.RoleTool || len(last.Parts) != len(o.names) {
 		return nil, errors.New("model did not receive the complete ordered Tool batch")
 	}
-	for index, name := range model.names {
+	for index, name := range o.names {
 		result := last.Parts[index].ToolResult
 		if result == nil || result.ID != "call_"+name || result.Name != name || result.Result != name+" result" {
 			return nil, errors.New("Tool results did not preserve model call order")

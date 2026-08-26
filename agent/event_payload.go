@@ -13,17 +13,17 @@ const (
 	StepStatusFailed StepStatus = "failed"
 )
 
-// Valid reports whether status is a supported Step outcome.
-func (status StepStatus) Valid() bool {
-	return status == StepStatusSucceeded || status == StepStatusFailed
+// Valid reports whether s is a supported Step outcome.
+func (s StepStatus) Valid() bool {
+	return s == StepStatusSucceeded || s == StepStatusFailed
 }
 
 // String returns the stable Step outcome name.
-func (status StepStatus) String() string {
-	if !status.Valid() {
+func (s StepStatus) String() string {
+	if !s.Valid() {
 		return "invalid"
 	}
-	return string(status)
+	return string(s)
 }
 
 type effectStartedEventPayload struct {

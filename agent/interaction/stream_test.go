@@ -223,22 +223,22 @@ type deltaCollector struct {
 	responses []*chat.Response
 }
 
-func (collector *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) {
+func (d *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) {
 	decoded, err := interaction.ParseModelResponseDelta(delta.Payload())
 	if err != nil {
 		return
 	}
-	collector.mu.Lock()
-	collector.responses = append(collector.responses, decoded.Response())
-	collector.mu.Unlock()
+	d.mu.Lock()
+	d.responses = append(d.responses, decoded.Response())
+	d.mu.Unlock()
 }
 
-func (collector *deltaCollector) Responses() []*chat.Response {
-	collector.mu.Lock()
-	defer collector.mu.Unlock()
-	responses := make([]*chat.Response, len(collector.responses))
-	for index := range collector.responses {
-		responses[index] = collector.responses[index].Clone()
+func (d *deltaCollector) Responses() []*chat.Response {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	responses := make([]*chat.Response, len(d.responses))
+	for index := range d.responses {
+		responses[index] = d.responses[index].Clone()
 	}
 	return responses
 }
@@ -274,13 +274,13 @@ func newBlockingDeltaListener() *blockingDeltaListener {
 	return &blockingDeltaListener{started: make(chan struct{}), release: make(chan struct{})}
 }
 
-func (listener *blockingDeltaListener) OnDelta(context.Context, agent.Delta) {
-	listener.startedOnce.Do(func() { close(listener.started) })
-	<-listener.release
+func (b *blockingDeltaListener) OnDelta(context.Context, agent.Delta) {
+	b.startedOnce.Do(func() { close(b.started) })
+	<-b.release
 }
 
-func (listener *blockingDeltaListener) Release() {
-	listener.releaseOnce.Do(func() { close(listener.release) })
+func (b *blockingDeltaListener) Release() {
+	b.releaseOnce.Do(func() { close(b.release) })
 }
 
 type eventRecorder struct {
@@ -288,16 +288,16 @@ type eventRecorder struct {
 	names []string
 }
 
-func (recorder *eventRecorder) OnEvent(_ context.Context, event agent.Event) {
-	recorder.mu.Lock()
-	recorder.names = append(recorder.names, event.Name())
-	recorder.mu.Unlock()
+func (e *eventRecorder) OnEvent(_ context.Context, event agent.Event) {
+	e.mu.Lock()
+	e.names = append(e.names, event.Name())
+	e.mu.Unlock()
 }
 
-func (recorder *eventRecorder) Contains(name string) bool {
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	for _, candidate := range recorder.names {
+func (e *eventRecorder) Contains(name string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, candidate := range e.names {
 		if candidate == name {
 			return true
 		}

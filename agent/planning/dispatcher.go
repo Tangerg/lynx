@@ -72,26 +72,26 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 // Dispatch executes one validated Planning protocol operation. Observer errors
 // and valid ActionResult failures are definite failed settlements; an
 // ActionExecutor error leaves the Effect outcome unknown.
-func (dispatcher *Dispatcher) Dispatch(
+func (d *Dispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	_ agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	if dispatcher == nil || !dispatcher.descriptor.Valid() || isNilImplementation(dispatcher.observer) {
+	if d == nil || !d.descriptor.Valid() || isNilImplementation(d.observer) {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
 	}
 	envelope, err := decodeEffect(request.Effect().Payload())
 	if err != nil {
 		return agent.Settlement{}, err
 	}
-	if err := dispatcher.descriptor.ValidateInput(envelope.Input); err != nil {
+	if err := d.descriptor.ValidateInput(envelope.Input); err != nil {
 		return agent.Settlement{}, fmt.Errorf("%w: Effect Input: %w", ErrInvalidProtocol, err)
 	}
 	switch envelope.Operation {
 	case operationObserve:
-		return dispatcher.observe(ctx, request.ID(), envelope.Input)
+		return d.observe(ctx, request.ID(), envelope.Input)
 	case operationAction:
-		return dispatcher.execute(ctx, request.ID(), envelope.Input, *envelope.Action)
+		return d.execute(ctx, request.ID(), envelope.Input, *envelope.Action)
 	default:
 		return agent.Settlement{}, ErrInvalidProtocol
 	}
@@ -108,7 +108,7 @@ func (*Dispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
 	return agent.ReplayPolicyNever
 }
 
-func (dispatcher *Dispatcher) observe(
+func (d *Dispatcher) observe(
 	ctx context.Context,
 	effectID agent.EffectID,
 	input agent.Input,
@@ -117,7 +117,7 @@ func (dispatcher *Dispatcher) observe(
 	if err := validateObservationRequest(request); err != nil {
 		return agent.Settlement{}, err
 	}
-	state, observeErr := dispatcher.observer.Observe(ctx, request)
+	state, observeErr := d.observer.Observe(ctx, request)
 	if observeErr == nil && !state.Valid() {
 		return agent.Settlement{}, errors.New("planning: Observer returned an invalid WorldState")
 	}
@@ -132,13 +132,13 @@ func (dispatcher *Dispatcher) observe(
 	return agent.NewSettlement(effectID, status, payload)
 }
 
-func (dispatcher *Dispatcher) execute(
+func (d *Dispatcher) execute(
 	ctx context.Context,
 	effectID agent.EffectID,
 	input agent.Input,
 	call actionCall,
 ) (agent.Settlement, error) {
-	bound, found := dispatcher.executors[call.Name]
+	bound, found := d.executors[call.Name]
 	if !found || bound.action.description != call.Description || !bound.action.Applicable(call.WorldState) {
 		return agent.Settlement{}, fmt.Errorf("%w: Action %q does not match frozen binding", ErrInvalidProtocol, call.Name)
 	}

@@ -130,11 +130,11 @@ func newSteeredModel() *steeredModel {
 	return &steeredModel{firstStarted: make(chan struct{}), firstRelease: make(chan struct{})}
 }
 
-func (model *steeredModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	model.calls++
-	call := model.calls
-	model.mu.Unlock()
+func (s *steeredModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	s.mu.Lock()
+	s.calls++
+	call := s.calls
+	s.mu.Unlock()
 	invocation, ok := interaction.ModelInvocationFromContext(ctx)
 	if !ok {
 		return nil, errors.New("model invocation attribution is missing")
@@ -147,8 +147,8 @@ func (model *steeredModel) Call(ctx context.Context, request *chat.Request) (*ch
 		if len(request.Messages) != 1 {
 			return nil, errors.New("steer reached the in-flight model request")
 		}
-		close(model.firstStarted)
-		<-model.firstRelease
+		close(s.firstStarted)
+		<-s.firstRelease
 		return textResponse("draft"), nil
 	}
 	if len(appliedSteerSignalIDs) != 1 || appliedSteerSignalIDs[0].String() != "signal:model-steer" {
@@ -166,14 +166,14 @@ func (model *steeredModel) Call(ctx context.Context, request *chat.Request) (*ch
 	return textResponse("revised"), nil
 }
 
-func (model *steeredModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (s *steeredModel) Calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
-func (model *steeredModel) ReleaseFirst() {
-	model.releaseOnce.Do(func() { close(model.firstRelease) })
+func (s *steeredModel) ReleaseFirst() {
+	s.releaseOnce.Do(func() { close(s.firstRelease) })
 }
 
 type steeredTool struct {
@@ -196,15 +196,15 @@ func (*steeredTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (value *steeredTool) Call(context.Context, string) (string, error) {
-	value.calls.Add(1)
-	value.startedOnce.Do(func() { close(value.started) })
-	<-value.release
+func (s *steeredTool) Call(context.Context, string) (string, error) {
+	s.calls.Add(1)
+	s.startedOnce.Do(func() { close(s.started) })
+	<-s.release
 	return "settled", nil
 }
 
-func (value *steeredTool) Release() {
-	value.releaseOnce.Do(func() { close(value.release) })
+func (s *steeredTool) Release() {
+	s.releaseOnce.Do(func() { close(s.release) })
 }
 
 type toolSteerModel struct {
@@ -212,15 +212,15 @@ type toolSteerModel struct {
 	calls int
 }
 
-func (model *toolSteerModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
+func (t *toolSteerModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.calls++
 	invocation, ok := interaction.ModelInvocationFromContext(ctx)
 	if !ok {
 		return nil, errors.New("model invocation attribution is missing")
 	}
-	if model.calls == 1 {
+	if t.calls == 1 {
 		if len(invocation.AppliedSteerSignalIDs()) != 0 {
 			return nil, errors.New("initial model call reports applied steer input")
 		}
@@ -238,8 +238,8 @@ func (model *toolSteerModel) Call(ctx context.Context, request *chat.Request) (*
 	return textResponse("settled and steered"), nil
 }
 
-func (model *toolSteerModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (t *toolSteerModel) Calls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.calls
 }

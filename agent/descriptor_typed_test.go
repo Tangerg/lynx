@@ -16,14 +16,14 @@ type typedFixtureDefinition struct {
 	starts     int
 }
 
-func (definition *typedFixtureDefinition) Descriptor() Descriptor { return definition.descriptor }
+func (t *typedFixtureDefinition) Descriptor() Descriptor { return t.descriptor }
 
-func (definition *typedFixtureDefinition) Start(input Input) (Execution, error) {
-	definition.starts++
+func (t *typedFixtureDefinition) Start(input Input) (Execution, error) {
+	t.starts++
 	return &typedFixtureExecution{state: input.JSON()}, nil
 }
 
-func (definition *typedFixtureDefinition) Restore(state ExecutionState) (Execution, error) {
+func (t *typedFixtureDefinition) Restore(state ExecutionState) (Execution, error) {
 	return &typedFixtureExecution{state: state.Payload()}, nil
 }
 
@@ -31,16 +31,16 @@ type typedFixtureExecution struct {
 	state json.RawMessage
 }
 
-func (execution *typedFixtureExecution) Step(context.Context, []Signal) (Transition, error) {
-	output, err := ParseOutput(execution.state)
+func (t *typedFixtureExecution) Step(context.Context, []Signal) (Transition, error) {
+	output, err := ParseOutput(t.state)
 	if err != nil {
 		return Transition{}, err
 	}
 	return Complete(0, output)
 }
 
-func (execution *typedFixtureExecution) Snapshot() (ExecutionState, error) {
-	return NewExecutionState("fixture", 1, execution.state)
+func (t *typedFixtureExecution) Snapshot() (ExecutionState, error) {
+	return NewExecutionState("fixture", 1, t.state)
 }
 
 func TestDescriptorOwnsTypedEdges(t *testing.T) {

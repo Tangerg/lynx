@@ -19,30 +19,30 @@ const (
 	True Truth = "true"
 )
 
-// Valid reports whether truth is one of the three supported values.
-func (truth Truth) Valid() bool { return truth == Unknown || truth == False || truth == True }
+// Valid reports whether t is one of the three supported values.
+func (t Truth) Valid() bool { return t == Unknown || t == False || t == True }
 
-func (truth Truth) known() bool { return truth == False || truth == True }
+func (t Truth) known() bool { return t == False || t == True }
 
 // String returns the stable lower-case truth name.
-func (truth Truth) String() string {
-	if !truth.Valid() {
+func (t Truth) String() string {
+	if !t.Valid() {
 		return "invalid"
 	}
-	return string(truth)
+	return string(t)
 }
 
-// MarshalJSON encodes truth as its stable string name.
-func (truth Truth) MarshalJSON() ([]byte, error) {
-	if !truth.Valid() {
-		return nil, fmt.Errorf("%w: truth value %q", ErrInvalidCondition, truth)
+// MarshalJSON encodes t as its stable string name.
+func (t Truth) MarshalJSON() ([]byte, error) {
+	if !t.Valid() {
+		return nil, fmt.Errorf("%w: truth value %q", ErrInvalidCondition, t)
 	}
-	return json.Marshal(truth.String())
+	return json.Marshal(t.String())
 }
 
 // UnmarshalJSON decodes one strict truth string.
-func (truth *Truth) UnmarshalJSON(data []byte) error {
-	if truth == nil {
+func (t *Truth) UnmarshalJSON(data []byte) error {
+	if t == nil {
 		return fmt.Errorf("%w: nil Truth receiver", ErrInvalidCondition)
 	}
 	var encoded string
@@ -53,6 +53,6 @@ func (truth *Truth) UnmarshalJSON(data []byte) error {
 	if !decoded.Valid() {
 		return fmt.Errorf("%w: unsupported truth %q", ErrInvalidCondition, encoded)
 	}
-	*truth = decoded
+	*t = decoded
 	return nil
 }

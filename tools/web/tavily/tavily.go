@@ -60,11 +60,11 @@ type searchRequest struct {
 	IncludeFavicon bool     `json:"include_favicon,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("tavily: Request must not be nil")
 	}
-	if r.Query == "" {
+	if s.Query == "" {
 		return errors.New("tavily: Query must not be empty")
 	}
 	return nil
@@ -140,9 +140,9 @@ func recencyToTimeRange(r web.Recency) string {
 	return ""
 }
 
-func (r *searchResponse) toSearchResponse() *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Results))
-	for _, searchResult := range r.Results {
+func (s *searchResponse) toSearchResponse() *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Results))
+	for _, searchResult := range s.Results {
 		results = append(results, &web.SearchResult{
 			Title:      searchResult.Title,
 			URL:        searchResult.URL,
@@ -150,5 +150,5 @@ func (r *searchResponse) toSearchResponse() *web.SearchResponse {
 			FaviconURL: searchResult.Favicon,
 		})
 	}
-	return &web.SearchResponse{Query: r.Query, Results: results}
+	return &web.SearchResponse{Query: s.Query, Results: results}
 }

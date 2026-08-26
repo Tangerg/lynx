@@ -49,8 +49,8 @@ func NewSpanExporter(logger *stdslog.Logger) *SpanExporter {
 // ExportSpans writes each provided span as a single slog record. It returns
 // context cancellation/deadline errors; slog handler failures are not exposed
 // by log/slog. After Shutdown it performs no work.
-func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
-	if e.shutdown.Load() {
+func (s *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	if s.shutdown.Load() {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
@@ -60,7 +60,7 @@ func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnl
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if e.shutdown.Load() {
+		if s.shutdown.Load() {
 			return nil
 		}
 		attrs := make([]stdslog.Attr, 0, 6+len(span.Attributes()))
@@ -100,18 +100,18 @@ func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnl
 			}
 		}
 
-		e.logger.LogAttrs(ctx, level, msg, attrs...)
+		s.logger.LogAttrs(ctx, level, msg, attrs...)
 	}
 	return nil
 }
 
-func (e *SpanExporter) Shutdown(ctx context.Context) error {
-	if e.shutdown.Load() {
+func (s *SpanExporter) Shutdown(ctx context.Context) error {
+	if s.shutdown.Load() {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.shutdown.Store(true)
+	s.shutdown.Store(true)
 	return nil
 }

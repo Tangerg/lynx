@@ -397,22 +397,22 @@ type attributionCapture struct {
 	tools  []interaction.ToolInvocation
 }
 
-func (capture *attributionCapture) addModel(invocation interaction.ModelInvocation) {
-	capture.mu.Lock()
-	defer capture.mu.Unlock()
-	capture.models = append(capture.models, invocation)
+func (a *attributionCapture) addModel(invocation interaction.ModelInvocation) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.models = append(a.models, invocation)
 }
 
-func (capture *attributionCapture) addTool(invocation interaction.ToolInvocation) {
-	capture.mu.Lock()
-	defer capture.mu.Unlock()
-	capture.tools = append(capture.tools, invocation)
+func (a *attributionCapture) addTool(invocation interaction.ToolInvocation) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tools = append(a.tools, invocation)
 }
 
-func (capture *attributionCapture) values() ([]interaction.ModelInvocation, []interaction.ToolInvocation) {
-	capture.mu.Lock()
-	defer capture.mu.Unlock()
-	return slices.Clone(capture.models), slices.Clone(capture.tools)
+func (a *attributionCapture) values() ([]interaction.ModelInvocation, []interaction.ToolInvocation) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.models), slices.Clone(a.tools)
 }
 
 type attributionModel struct {
@@ -421,16 +421,16 @@ type attributionModel struct {
 	capture *attributionCapture
 }
 
-func (model *attributionModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+func (a *attributionModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	invocation, found := interaction.ModelInvocationFromContext(ctx)
 	if !found {
 		return nil, errors.New("model invocation attribution is missing")
 	}
-	model.capture.addModel(invocation)
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	switch model.calls {
+	a.capture.addModel(invocation)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.calls++
+	switch a.calls {
 	case 1:
 		if !slices.Equal(toolNames(request.Tools), []string{"discover"}) {
 			return nil, fmt.Errorf("first manifest = %v", toolNames(request.Tools))
@@ -462,16 +462,16 @@ type manifestScriptModel struct {
 	scripts []manifestScript
 }
 
-func (model *manifestScriptModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	if model.calls >= len(model.scripts) {
+func (m *manifestScriptModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.calls >= len(m.scripts) {
 		return nil, errors.New("unexpected model call")
 	}
-	script := model.scripts[model.calls]
-	model.calls++
+	script := m.scripts[m.calls]
+	m.calls++
 	if got := toolNames(request.Tools); !slices.Equal(got, script.wantTools) {
-		return nil, fmt.Errorf("model call %d manifest = %v, want %v", model.calls, got, script.wantTools)
+		return nil, fmt.Errorf("model call %d manifest = %v, want %v", m.calls, got, script.wantTools)
 	}
 	return script.response.Clone(), nil
 }
@@ -481,15 +481,15 @@ type callbackTool struct {
 	call func(context.Context, string) (string, error)
 }
 
-func (value *callbackTool) Definition() chat.ToolDefinition {
+func (c *callbackTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
-		Name: value.name, Description: "Exercise Interaction invocation and advertisement contracts.",
+		Name: c.name, Description: "Exercise Interaction invocation and advertisement contracts.",
 		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
 	}
 }
 
-func (value *callbackTool) Call(ctx context.Context, arguments string) (string, error) {
-	return value.call(ctx, arguments)
+func (c *callbackTool) Call(ctx context.Context, arguments string) (string, error) {
+	return c.call(ctx, arguments)
 }
 
 func successfulCallback(context.Context, string) (string, error) { return "done", nil }

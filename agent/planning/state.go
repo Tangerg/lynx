@@ -23,8 +23,8 @@ const (
 	phaseCompleted             phase = "completed"
 )
 
-func (value phase) valid() bool {
-	switch value {
+func (p phase) valid() bool {
+	switch p {
 	case phaseReadyObservation, phaseAwaitingObservation, phaseAwaitingAction,
 		phaseAwaitingChildStart, phaseAwaitingChildWaitOpen, phaseWaitingChild, phaseCompleted:
 		return true
@@ -48,32 +48,32 @@ type executionState struct {
 	FinalOutput               *Output          `json:"final_output,omitempty"`
 }
 
-func (state executionState) validate(definition *Definition) error {
-	if !state.Phase.valid() || !definition.valid() || !state.WorldState.Valid() {
+func (e executionState) validate(definition *Definition) error {
+	if !e.Phase.valid() || !definition.valid() || !e.WorldState.Valid() {
 		return ErrInvalidExecutionState
 	}
-	input, err := agent.ParseInput(state.Input)
+	input, err := agent.ParseInput(e.Input)
 	if err != nil || definition.descriptor.ValidateInput(input) != nil {
 		return fmt.Errorf("%w: Input", ErrInvalidExecutionState)
 	}
-	if err := state.validateAttemptFacts(definition); err != nil {
+	if err := e.validateAttemptFacts(definition); err != nil {
 		return err
 	}
-	if err := state.validateCurrentAction(definition); err != nil {
+	if err := e.validateCurrentAction(definition); err != nil {
 		return err
 	}
-	if err := state.validateProgress(); err != nil {
+	if err := e.validateProgress(); err != nil {
 		return err
 	}
-	if err := state.validatePhase(); err != nil {
+	if err := e.validatePhase(); err != nil {
 		return err
 	}
-	return state.validateCompletion(definition)
+	return e.validateCompletion(definition)
 }
 
-func (state executionState) validateAttemptFacts(definition *Definition) error {
+func (e executionState) validateAttemptFacts(definition *Definition) error {
 	previouslyExcluded := make(map[string]struct{})
-	for index, attempt := range state.Attempts {
+	for index, attempt := range e.Attempts {
 		if err := attempt.Validate(); err != nil {
 			return fmt.Errorf("%w: attempt %d: %w", ErrInvalidExecutionState, index, err)
 		}
@@ -87,76 +87,76 @@ func (state executionState) validateAttemptFacts(definition *Definition) error {
 			previouslyExcluded[attempt.ActionName] = struct{}{}
 		}
 	}
-	if uint64(len(state.Attempts)) > uint64(definition.maxActionAttempts) ||
-		!validExcludedActionNames(state.ExcludedActionNames, definition) {
+	if uint64(len(e.Attempts)) > uint64(definition.maxActionAttempts) ||
+		!validExcludedActionNames(e.ExcludedActionNames, definition) {
 		return ErrInvalidExecutionState
 	}
-	wantExcluded := make([]string, 0, len(state.Attempts))
-	for _, attempt := range state.Attempts {
+	wantExcluded := make([]string, 0, len(e.Attempts))
+	for _, attempt := range e.Attempts {
 		if attempt.Status != AttemptSucceeded {
 			wantExcluded = append(wantExcluded, attempt.ActionName)
 		}
 	}
 	slices.Sort(wantExcluded)
 	wantExcluded = slices.Compact(wantExcluded)
-	if !slices.Equal(state.ExcludedActionNames, wantExcluded) {
+	if !slices.Equal(e.ExcludedActionNames, wantExcluded) {
 		return fmt.Errorf("%w: excluded Actions do not match attempt facts", ErrInvalidExecutionState)
 	}
 	return nil
 }
 
-func (state executionState) validateCurrentAction(definition *Definition) error {
-	if state.CurrentActionName == "" {
+func (e executionState) validateCurrentAction(definition *Definition) error {
+	if e.CurrentActionName == "" {
 		return nil
 	}
-	binding, found := definition.binding(state.CurrentActionName)
+	binding, found := definition.binding(e.CurrentActionName)
 	if !found {
-		return fmt.Errorf("%w: unknown current Action %q", ErrInvalidExecutionState, state.CurrentActionName)
+		return fmt.Errorf("%w: unknown current Action %q", ErrInvalidExecutionState, e.CurrentActionName)
 	}
-	if slices.Contains(state.ExcludedActionNames, state.CurrentActionName) {
+	if slices.Contains(e.ExcludedActionNames, e.CurrentActionName) {
 		return fmt.Errorf("%w: current Action is excluded", ErrInvalidExecutionState)
 	}
-	if state.Phase == phaseAwaitingAction && binding.target != bindingTargetDispatcher ||
-		(state.Phase == phaseAwaitingChildStart || state.Phase == phaseAwaitingChildWaitOpen ||
-			state.Phase == phaseWaitingChild) && binding.target != bindingTargetChild {
+	if e.Phase == phaseAwaitingAction && binding.target != bindingTargetDispatcher ||
+		(e.Phase == phaseAwaitingChildStart || e.Phase == phaseAwaitingChildWaitOpen ||
+			e.Phase == phaseWaitingChild) && binding.target != bindingTargetChild {
 		return fmt.Errorf("%w: current Action does not match the execution phase", ErrInvalidExecutionState)
 	}
-	if binding.target != bindingTargetChild || state.ChildKey == nil {
+	if binding.target != bindingTargetChild || e.ChildKey == nil {
 		return nil
 	}
-	wantKey, err := planningChildKey(state.CurrentActionName, uint32(len(state.Attempts)+1))
-	if err != nil || *state.ChildKey != wantKey {
+	wantKey, err := planningChildKey(e.CurrentActionName, uint32(len(e.Attempts)+1))
+	if err != nil || *e.ChildKey != wantKey {
 		return fmt.Errorf("%w: child key does not match the Action attempt", ErrInvalidExecutionState)
 	}
 	return nil
 }
 
-func (state executionState) validateCompletion(definition *Definition) error {
-	if state.Phase == phaseCompleted {
-		if state.FinalOutput == nil || state.FinalOutput.Validate() != nil ||
-			state.FinalOutput.WorldState.Key() != state.WorldState.Key() ||
-			state.FinalOutput.PlanningPasses != state.PlanningPasses ||
-			!slices.Equal(state.FinalOutput.Attempts, state.Attempts) ||
-			state.FinalOutput.Outcome == OutcomeAchieved && !definition.goal.SatisfiedBy(state.WorldState) {
+func (e executionState) validateCompletion(definition *Definition) error {
+	if e.Phase == phaseCompleted {
+		if e.FinalOutput == nil || e.FinalOutput.Validate() != nil ||
+			e.FinalOutput.WorldState.Key() != e.WorldState.Key() ||
+			e.FinalOutput.PlanningPasses != e.PlanningPasses ||
+			!slices.Equal(e.FinalOutput.Attempts, e.Attempts) ||
+			e.FinalOutput.Outcome == OutcomeAchieved && !definition.goal.SatisfiedBy(e.WorldState) {
 			return ErrInvalidExecutionState
 		}
-	} else if state.FinalOutput != nil {
+	} else if e.FinalOutput != nil {
 		return ErrInvalidExecutionState
 	}
 	return nil
 }
 
-func (state executionState) validateProgress() error {
-	attempts := uint64(len(state.Attempts))
-	passes := uint64(state.PlanningPasses)
-	switch state.Phase {
+func (e executionState) validateProgress() error {
+	attempts := uint64(len(e.Attempts))
+	passes := uint64(e.PlanningPasses)
+	switch e.Phase {
 	case phaseReadyObservation:
 		if attempts != 0 || passes != 0 {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingObservation:
-		if state.ActionConfirmationPending && passes != attempts+1 ||
-			!state.ActionConfirmationPending && (attempts == 0 && passes != 0 || attempts > 0 && passes != attempts) {
+		if e.ActionConfirmationPending && passes != attempts+1 ||
+			!e.ActionConfirmationPending && (attempts == 0 && passes != 0 || attempts > 0 && passes != attempts) {
 			return fmt.Errorf("%w: observation phase counters are inconsistent", ErrInvalidExecutionState)
 		}
 	case phaseAwaitingAction, phaseAwaitingChildStart, phaseAwaitingChildWaitOpen, phaseWaitingChild:
@@ -164,10 +164,10 @@ func (state executionState) validateProgress() error {
 			return fmt.Errorf("%w: active Action counters are inconsistent", ErrInvalidExecutionState)
 		}
 	case phaseCompleted:
-		if state.FinalOutput == nil {
+		if e.FinalOutput == nil {
 			return ErrInvalidExecutionState
 		}
-		switch state.FinalOutput.Outcome {
+		switch e.FinalOutput.Outcome {
 		case OutcomeAchieved:
 			if passes != attempts {
 				return fmt.Errorf("%w: achieved counters are inconsistent", ErrInvalidExecutionState)
@@ -185,38 +185,38 @@ func (state executionState) validateProgress() error {
 	return nil
 }
 
-func (state executionState) validatePhase() error {
-	hasChildKey := state.ChildKey != nil && state.ChildKey.Valid()
-	hasChildID := state.ChildProcessID != nil && state.ChildProcessID.Valid()
-	hasWaitID := state.WaitID != nil && state.WaitID.Valid()
-	noChild := state.ChildKey == nil && state.ChildProcessID == nil && state.WaitID == nil
-	switch state.Phase {
+func (e executionState) validatePhase() error {
+	hasChildKey := e.ChildKey != nil && e.ChildKey.Valid()
+	hasChildID := e.ChildProcessID != nil && e.ChildProcessID.Valid()
+	hasWaitID := e.WaitID != nil && e.WaitID.Valid()
+	noChild := e.ChildKey == nil && e.ChildProcessID == nil && e.WaitID == nil
+	switch e.Phase {
 	case phaseReadyObservation:
-		if state.CurrentActionName != "" || state.ActionConfirmationPending || !noChild || state.PlanningPasses != 0 || len(state.Attempts) != 0 {
+		if e.CurrentActionName != "" || e.ActionConfirmationPending || !noChild || e.PlanningPasses != 0 || len(e.Attempts) != 0 {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingObservation:
-		if !noChild || state.ActionConfirmationPending != (state.CurrentActionName != "") {
+		if !noChild || e.ActionConfirmationPending != (e.CurrentActionName != "") {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingAction:
-		if state.CurrentActionName == "" || state.ActionConfirmationPending || !noChild {
+		if e.CurrentActionName == "" || e.ActionConfirmationPending || !noChild {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildStart:
-		if state.CurrentActionName == "" || state.ActionConfirmationPending || !hasChildKey || state.ChildProcessID != nil || state.WaitID != nil {
+		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || e.ChildProcessID != nil || e.WaitID != nil {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildWaitOpen:
-		if state.CurrentActionName == "" || state.ActionConfirmationPending || !hasChildKey || !hasChildID || state.WaitID != nil {
+		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || !hasChildID || e.WaitID != nil {
 			return ErrInvalidExecutionState
 		}
 	case phaseWaitingChild:
-		if state.CurrentActionName == "" || state.ActionConfirmationPending || !hasChildKey || !hasChildID || !hasWaitID {
+		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || !hasChildID || !hasWaitID {
 			return ErrInvalidExecutionState
 		}
 	case phaseCompleted:
-		if state.CurrentActionName != "" || state.ActionConfirmationPending || !noChild {
+		if e.CurrentActionName != "" || e.ActionConfirmationPending || !noChild {
 			return ErrInvalidExecutionState
 		}
 	default:
@@ -237,16 +237,16 @@ func validExcludedActionNames(actionNames []string, definition *Definition) bool
 	return true
 }
 
-func (state *executionState) excludeAction(name string) {
-	index, found := slices.BinarySearch(state.ExcludedActionNames, name)
+func (e *executionState) excludeAction(name string) {
+	index, found := slices.BinarySearch(e.ExcludedActionNames, name)
 	if found {
 		return
 	}
-	state.ExcludedActionNames = slices.Insert(state.ExcludedActionNames, index, name)
+	e.ExcludedActionNames = slices.Insert(e.ExcludedActionNames, index, name)
 }
 
-func (state executionState) input() (agent.Input, error) {
-	return agent.ParseInput(bytes.Clone(state.Input))
+func (e executionState) input() (agent.Input, error) {
+	return agent.ParseInput(bytes.Clone(e.Input))
 }
 
 func diagnostic(value string) string {

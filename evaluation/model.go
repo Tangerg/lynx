@@ -92,26 +92,26 @@ func newModelEvaluator(
 	}, nil
 }
 
-func (e *modelEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
+func (m *modelEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
 	if err := ctx.Err(); err != nil {
 		return Report{}, err
 	}
-	if err := e.validateSample(sample); err != nil {
+	if err := m.validateSample(sample); err != nil {
 		return Report{}, err
 	}
 
-	message, err := e.prompt.UserMessage(promptVariables{
+	message, err := m.prompt.UserMessage(promptVariables{
 		Input: sample.Input, Output: sample.Output, Context: sample.ContextText(),
 	})
 	if err != nil {
 		return Report{}, fmt.Errorf("evaluation: render prompt: %w", err)
 	}
-	output, err := e.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	output, err := m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
 		return Report{}, fmt.Errorf("evaluation: generate report: %w", err)
 	}
 	report := Report{
-		Passed:   output.Score.Passes(e.threshold),
+		Passed:   output.Score.Passes(m.threshold),
 		Score:    output.Score,
 		Feedback: strings.TrimSpace(output.Feedback),
 	}

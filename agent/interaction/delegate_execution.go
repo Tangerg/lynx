@@ -11,14 +11,14 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func (execution *execution) startDelegateSegment(
+func (e *execution) startDelegateSegment(
 	consumedSignals uint32,
 	calls []chat.ToolCall,
 ) (agent.Transition, bool, error) {
-	start := execution.state.NextToolCallIndex
+	start := e.state.NextToolCallIndex
 	end := start
 	for end < uint32(len(calls)) {
-		if _, delegated := execution.definition.delegate(calls[end].Name); !delegated {
+		if _, delegated := e.definition.delegate(calls[end].Name); !delegated {
 			break
 		}
 		end++
@@ -27,7 +27,7 @@ func (execution *execution) startDelegateSegment(
 	effects := make([]agent.Effect, 0, len(segment.Invocations))
 	for offset := range segment.Invocations {
 		call := calls[start+uint32(offset)]
-		delegate, _ := execution.definition.delegate(call.Name)
+		delegate, _ := e.definition.delegate(call.Name)
 		arguments := strings.TrimSpace(call.Arguments)
 		if arguments == "" {
 			arguments = "{}"
@@ -43,7 +43,7 @@ func (execution *execution) startDelegateSegment(
 			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
-		key, err := DelegateChildKey(execution.state.ModelCallCount, call)
+		key, err := DelegateChildKey(e.state.ModelCallCount, call)
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
@@ -57,39 +57,39 @@ func (execution *execution) startDelegateSegment(
 		segment.Invocations[offset].ChildKey = &key
 		effects = append(effects, effect)
 	}
-	execution.state.ActiveToolCallEndIndex = end
-	execution.state.DelegateSegment = &segment
+	e.state.ActiveToolCallEndIndex = end
+	e.state.DelegateSegment = &segment
 	if len(effects) == 0 {
 		results, err := delegateSegmentResults(segment)
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
-		execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
-		execution.state.NextToolCallIndex = end
-		execution.state.ActiveToolCallEndIndex = 0
-		execution.state.DelegateSegment = nil
+		e.state.SettledToolResults = append(e.state.SettledToolResults, results...)
+		e.state.NextToolCallIndex = end
+		e.state.ActiveToolCallEndIndex = 0
+		e.state.DelegateSegment = nil
 		return agent.Transition{}, false, nil
 	}
-	execution.state.Phase = phaseAwaitingDelegateStarts
+	e.state.Phase = phaseAwaitingDelegateStarts
 	transition, err := agent.Continue(consumedSignals, effects...)
 	return transition, true, err
 }
 
-func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transition, error) {
 	starts, steer, consumedSignals, err := collectChildStarts(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
-	calls, err := execution.activeCallSegment()
-	if err != nil || execution.state.DelegateSegment == nil {
+	calls, err := e.activeCallSegment()
+	if err != nil || e.state.DelegateSegment == nil {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
 	next := 0
-	for index := range execution.state.DelegateSegment.Invocations {
-		invocation := &execution.state.DelegateSegment.Invocations[index]
+	for index := range e.state.DelegateSegment.Invocations {
+		invocation := &e.state.DelegateSegment.Invocations[index]
 		if invocation.ChildKey == nil || invocation.ToolResult != nil {
 			continue
 		}
@@ -98,7 +98,7 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		}
 		start := starts[next]
 		next++
-		delegate, _ := execution.definition.delegate(calls[index].Name)
+		delegate, _ := e.definition.delegate(calls[index].Name)
 		if start.Key() != *invocation.ChildKey || start.DeploymentRef() != delegate.deploymentRef {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child-start result mismatch", ErrInvalidExecutionState)
 		}
@@ -118,19 +118,19 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 	if next != len(starts) {
 		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child-start result", ErrInvalidExecutionState)
 	}
-	children := execution.delegateChildren()
+	children := e.delegateChildren()
 	if len(children) == 0 {
-		results, err := delegateSegmentResults(*execution.state.DelegateSegment)
+		results, err := delegateSegmentResults(*e.state.DelegateSegment)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
-		execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
-		execution.state.ActiveToolCallEndIndex = 0
-		execution.state.DelegateSegment = nil
-		return execution.advanceToolCallBatch(consumedSignals)
+		e.state.SettledToolResults = append(e.state.SettledToolResults, results...)
+		e.state.NextToolCallIndex = e.state.ActiveToolCallEndIndex
+		e.state.ActiveToolCallEndIndex = 0
+		e.state.DelegateSegment = nil
+		return e.advanceToolCallBatch(consumedSignals)
 	}
-	waitKey, err := delegateWaitKey(execution.state.ModelCallCount, *execution.state.DelegateSegment)
+	waitKey, err := delegateWaitKey(e.state.ModelCallCount, *e.state.DelegateSegment)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -140,19 +140,19 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = phaseAwaitingDelegateWaitID
+	e.state.Phase = phaseAwaitingDelegateWaitID
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transition, error) {
 	opened, steer, consumedSignals, err := collectChildWaitOpened(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
-	want, err := execution.delegateWaitSpec()
+	want, err := e.delegateWaitSpec()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -161,27 +161,27 @@ func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child-wait opening mismatch", ErrInvalidExecutionState)
 	}
 	waitID := opened.WaitID()
-	execution.state.WaitID = &waitID
-	execution.state.Phase = phaseWaitingDelegates
+	e.state.WaitID = &waitID
+	e.state.Phase = phaseWaitingDelegates
 	return agent.Wait(consumedSignals, waitID)
 }
 
-func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, error) {
 	completed, steer, consumedSignals, err := collectChildrenCompleted(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := execution.addSteer(steer); err != nil {
+	if err := e.addSteer(steer); err != nil {
 		return agent.Transition{}, err
 	}
-	if execution.state.WaitID == nil || completed.WaitID() != *execution.state.WaitID {
+	if e.state.WaitID == nil || completed.WaitID() != *e.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion addressed the wrong wait", ErrInvalidExecutionState)
 	}
-	want, err := execution.delegateWaitSpec()
+	want, err := e.delegateWaitSpec()
 	if err != nil || completed.Key() != want.Key {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion wait mismatch", ErrInvalidExecutionState)
 	}
-	calls, err := execution.activeCallSegment()
+	calls, err := e.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -189,7 +189,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 	next := 0
 	results := make([]chat.ToolResult, len(calls))
 	artifacts := make([]artifactRecord, 0, len(calls))
-	for index, invocation := range execution.state.DelegateSegment.Invocations {
+	for index, invocation := range e.state.DelegateSegment.Invocations {
 		if invocation.ToolResult != nil {
 			results[index] = *invocation.ToolResult
 			continue
@@ -214,7 +214,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 			continue
 		}
 		output, present := result.Output()
-		delegate, found := execution.definition.delegate(calls[index].Name)
+		delegate, found := e.definition.delegate(calls[index].Name)
 		if !present || !found || delegate.outputSchema.ValidateOutput(output) != nil {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child output violates its frozen contract", ErrInvalidExecutionState)
 		}
@@ -222,29 +222,29 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 			ID: calls[index].ID, Name: calls[index].Name, Result: string(output.JSON()),
 		}
 		artifacts = append(artifacts, artifactRecord{
-			ModelCallSequence: execution.state.ModelCallCount,
-			ToolCallIndex:     execution.state.NextToolCallIndex + uint32(index),
+			ModelCallSequence: e.state.ModelCallCount,
+			ToolCallIndex:     e.state.NextToolCallIndex + uint32(index),
 			ToolCallID:        calls[index].ID, DelegateName: calls[index].Name, Output: output,
 		})
 	}
 	if next != len(outcomes) {
 		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child outcome", ErrInvalidExecutionState)
 	}
-	execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
-	execution.state.ArtifactRecords = append(execution.state.ArtifactRecords, artifacts...)
-	execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
-	execution.state.ActiveToolCallEndIndex = 0
-	execution.state.DelegateSegment = nil
-	execution.state.WaitID = nil
-	return execution.advanceToolCallBatch(consumedSignals)
+	e.state.SettledToolResults = append(e.state.SettledToolResults, results...)
+	e.state.ArtifactRecords = append(e.state.ArtifactRecords, artifacts...)
+	e.state.NextToolCallIndex = e.state.ActiveToolCallEndIndex
+	e.state.ActiveToolCallEndIndex = 0
+	e.state.DelegateSegment = nil
+	e.state.WaitID = nil
+	return e.advanceToolCallBatch(consumedSignals)
 }
 
-func (execution *execution) delegateChildren() []agent.ProcessID {
-	if execution.state.DelegateSegment == nil {
+func (e *execution) delegateChildren() []agent.ProcessID {
+	if e.state.DelegateSegment == nil {
 		return nil
 	}
-	children := make([]agent.ProcessID, 0, len(execution.state.DelegateSegment.Invocations))
-	for _, invocation := range execution.state.DelegateSegment.Invocations {
+	children := make([]agent.ProcessID, 0, len(e.state.DelegateSegment.Invocations))
+	for _, invocation := range e.state.DelegateSegment.Invocations {
 		if invocation.ChildProcessID != nil {
 			children = append(children, *invocation.ChildProcessID)
 		}
@@ -252,16 +252,16 @@ func (execution *execution) delegateChildren() []agent.ProcessID {
 	return children
 }
 
-func (execution *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
-	if execution.state.DelegateSegment == nil {
+func (e *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
+	if e.state.DelegateSegment == nil {
 		return agent.ChildWaitSpec{}, ErrInvalidExecutionState
 	}
-	key, err := delegateWaitKey(execution.state.ModelCallCount, *execution.state.DelegateSegment)
+	key, err := delegateWaitKey(e.state.ModelCallCount, *e.state.DelegateSegment)
 	if err != nil {
 		return agent.ChildWaitSpec{}, err
 	}
 	spec := agent.ChildWaitSpec{
-		Key: key, Children: execution.delegateChildren(), Condition: agent.AllChildren(),
+		Key: key, Children: e.delegateChildren(), Condition: agent.AllChildren(),
 	}
 	if !spec.Valid() {
 		return agent.ChildWaitSpec{}, ErrInvalidExecutionState

@@ -22,29 +22,29 @@ type Artifact struct {
 }
 
 // DelegateName returns the exact model-facing Delegate name.
-func (artifact Artifact) DelegateName() string { return artifact.delegateName }
+func (a Artifact) DelegateName() string { return a.delegateName }
 
 // Output returns the immutable, schema-validated child output.
-func (artifact Artifact) Output() agent.Output { return artifact.output }
+func (a Artifact) Output() agent.Output { return a.output }
 
-// Decode strictly decodes artifact's output into T. The output was already
+// Decode strictly decodes a's output into T. The output was already
 // validated against the exact Delegate Descriptor before the Artifact was
 // admitted to Interaction state; T is only an edge convenience.
-func (artifact Artifact) Decode[T any]() (T, error) {
+func (a Artifact) Decode[T any]() (T, error) {
 	var zero T
-	if !artifact.valid() {
+	if !a.valid() {
 		return zero, ErrInvalidArtifact
 	}
-	value, err := artifact.output.Decode[T]()
+	value, err := a.output.Decode[T]()
 	if err != nil {
 		return zero, fmt.Errorf("%w: decode: %w", ErrInvalidArtifact, err)
 	}
 	return value, nil
 }
 
-func (artifact Artifact) valid() bool {
-	return artifact.modelCallSequence > 0 && artifact.toolCallID != "" &&
-		artifact.delegateName != "" && artifact.output.Valid()
+func (a Artifact) valid() bool {
+	return a.modelCallSequence > 0 && a.toolCallID != "" &&
+		a.delegateName != "" && a.output.Valid()
 }
 
 // Artifacts is an immutable, ordered snapshot of successful Delegate outputs.
@@ -54,10 +54,10 @@ type Artifacts struct {
 }
 
 // Len returns the number of successful Delegate outputs accumulated so far.
-func (artifacts Artifacts) Len() int { return len(artifacts.values) }
+func (a Artifacts) Len() int { return len(a.values) }
 
 // All returns Artifacts in original model ToolCall order across model calls.
-func (artifacts Artifacts) All() []Artifact { return slices.Clone(artifacts.values) }
+func (a Artifacts) All() []Artifact { return slices.Clone(a.values) }
 
 func newArtifacts(records []artifactRecord) Artifacts {
 	values := make([]Artifact, len(records))
@@ -82,15 +82,15 @@ type CompletionCandidate struct {
 // WorkingContext returns an independently owned copy of the model context
 // preceding this candidate. It is Interaction state, not Host conversation or
 // transcript history, and it does not yet contain the candidate Output.
-func (candidate CompletionCandidate) WorkingContext() *chat.Request {
-	return candidate.workingContext.Clone()
+func (c CompletionCandidate) WorkingContext() *chat.Request {
+	return c.workingContext.Clone()
 }
 
 // Output returns an independently owned candidate Output.
-func (candidate CompletionCandidate) Output() Output { return cloneOutput(candidate.output) }
+func (c CompletionCandidate) Output() Output { return cloneOutput(c.output) }
 
 // Artifacts returns the immutable Delegate output snapshot.
-func (candidate CompletionCandidate) Artifacts() Artifacts { return candidate.artifacts }
+func (c CompletionCandidate) Artifacts() Artifacts { return c.artifacts }
 
 // CompletionDecision is the explicit result of a CompletionValidator.
 // Accepted=true requires empty Feedback. Accepted=false requires concise,
@@ -104,12 +104,12 @@ type CompletionDecision struct {
 }
 
 // Valid reports whether the decision is internally consistent and bounded.
-func (decision CompletionDecision) Valid() bool {
-	if decision.Accepted {
-		return decision.Feedback == ""
+func (c CompletionDecision) Valid() bool {
+	if c.Accepted {
+		return c.Feedback == ""
 	}
-	return decision.Feedback != "" && strings.TrimSpace(decision.Feedback) == decision.Feedback &&
-		len(decision.Feedback) <= maxCompletionFeedbackBytes
+	return c.Feedback != "" && strings.TrimSpace(c.Feedback) == c.Feedback &&
+		len(c.Feedback) <= maxCompletionFeedbackBytes
 }
 
 // CompletionValidator decides whether a model or direct-Tool candidate is a

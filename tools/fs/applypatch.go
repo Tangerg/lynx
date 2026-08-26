@@ -61,8 +61,8 @@ func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
 	return t
 }
 
-func (t *ApplyPatchTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (a *ApplyPatchTool) Definition() chat.ToolDefinition {
+	return a.typed.Definition()
 }
 
 func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
@@ -73,12 +73,12 @@ func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
 	return patchPaths(req.Patch)
 }
 
-func (t *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (a *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, error) {
+	return a.typed.Call(ctx, arguments)
 }
 
-func (t *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (ApplyPatchResponse, error) {
-	res, err := t.executor.ApplyPatch(ctx, req)
+func (a *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (ApplyPatchResponse, error) {
+	res, err := a.executor.ApplyPatch(ctx, req)
 	if err != nil {
 		return ApplyPatchResponse{}, fmt.Errorf("fs.apply_patch: %w", err)
 	}

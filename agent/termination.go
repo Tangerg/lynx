@@ -23,15 +23,15 @@ const (
 	deadlineOwnerHost    deadlineOwner = "host"
 )
 
-func (owner deadlineOwner) valid() bool {
-	return owner == deadlineOwnerProcess || owner == deadlineOwnerParent || owner == deadlineOwnerHost
+func (d deadlineOwner) valid() bool {
+	return d == deadlineOwnerProcess || d == deadlineOwnerParent || d == deadlineOwnerHost
 }
 
-func (owner deadlineOwner) String() string {
-	if !owner.valid() {
+func (d deadlineOwner) String() string {
+	if !d.valid() {
 		return "invalid"
 	}
-	return string(owner)
+	return string(d)
 }
 
 // cancellationOwner identifies a non-deadline cancellation source.
@@ -43,15 +43,15 @@ const (
 	cancellationOwnerHost    cancellationOwner = "host"
 )
 
-func (owner cancellationOwner) valid() bool {
-	return owner == cancellationOwnerParent || owner == cancellationOwnerHost
+func (c cancellationOwner) valid() bool {
+	return c == cancellationOwnerParent || c == cancellationOwnerHost
 }
 
-func (owner cancellationOwner) String() string {
-	if !owner.valid() {
+func (c cancellationOwner) String() string {
+	if !c.valid() {
 		return "invalid"
 	}
-	return string(owner)
+	return string(c)
 }
 
 // killIntent records an explicit Engine kill request.
@@ -64,7 +64,7 @@ func newKillIntent(reason string) (killIntent, error) {
 	return killIntent{reason: reason}, nil
 }
 
-func (intent killIntent) valid() bool { return intent.reason != "" }
+func (k killIntent) valid() bool { return k.reason != "" }
 
 // deadlineIntent records that a specific Process lifecycle deadline was
 // reached. A local Effect timeout remains a settlement Signal unless promoted
@@ -84,8 +84,8 @@ func newDeadlineIntent(owner deadlineOwner, reason string) (deadlineIntent, erro
 	return deadlineIntent{owner: owner, reason: reason}, nil
 }
 
-func (intent deadlineIntent) valid() bool {
-	return intent.owner.valid() && intent.reason != ""
+func (d deadlineIntent) valid() bool {
+	return d.owner.valid() && d.reason != ""
 }
 
 // cancellationIntent records a non-deadline cancellation from a parent Process
@@ -105,8 +105,8 @@ func newCancellationIntent(owner cancellationOwner, reason string) (cancellation
 	return cancellationIntent{owner: owner, reason: reason}, nil
 }
 
-func (intent cancellationIntent) valid() bool {
-	return intent.owner.valid() && intent.reason != ""
+func (c cancellationIntent) valid() bool {
+	return c.owner.valid() && c.reason != ""
 }
 
 // stepOutcomeKind describes the valid terminal result of a Step. A zero outcome
@@ -134,10 +134,10 @@ func failedOutcome(failure Failure) (stepOutcome, error) {
 	return stepOutcome{kind: stepOutcomeFailed, failure: failure}, nil
 }
 
-func (outcome stepOutcome) valid() bool {
-	return outcome.kind == stepOutcomeNone && !outcome.failure.Valid() ||
-		outcome.kind == stepOutcomeCompleted && !outcome.failure.Valid() ||
-		outcome.kind == stepOutcomeFailed && outcome.failure.Valid()
+func (s stepOutcome) valid() bool {
+	return s.kind == stepOutcomeNone && !s.failure.Valid() ||
+		s.kind == stepOutcomeCompleted && !s.failure.Valid() ||
+		s.kind == stepOutcomeFailed && s.failure.Valid()
 }
 
 // terminationFacts are the independently recorded facts used by the Engine's
@@ -180,9 +180,9 @@ const (
 	TerminationCausePanic TerminationCause = "panic"
 )
 
-// Valid reports whether cause is a terminal Process category.
-func (cause TerminationCause) Valid() bool {
-	switch cause {
+// Valid reports whether t is a terminal Process category.
+func (t TerminationCause) Valid() bool {
+	switch t {
 	case TerminationCauseCompletion, TerminationCauseEngineKill,
 		TerminationCauseProcessDeadline, TerminationCauseParentDeadline,
 		TerminationCauseHostDeadline, TerminationCauseParentCancellation,
@@ -196,11 +196,11 @@ func (cause TerminationCause) Valid() bool {
 }
 
 // String returns the stable termination-cause name.
-func (cause TerminationCause) String() string {
-	if !cause.Valid() {
+func (t TerminationCause) String() string {
+	if !t.Valid() {
 		return "invalid"
 	}
-	return string(cause)
+	return string(t)
 }
 
 // Termination is the immutable result of applying the terminal priority matrix.
@@ -276,67 +276,67 @@ func validateTerminationReason(reason string) error {
 }
 
 // Status returns the resolved terminal Process status.
-func (termination Termination) Status() Status { return termination.status }
+func (t Termination) Status() Status { return t.status }
 
 // Cause returns the stable machine-readable terminal category.
-func (termination Termination) Cause() TerminationCause { return termination.cause }
+func (t Termination) Cause() TerminationCause { return t.cause }
 
 // Reason returns a bounded diagnostic reason. Completion has an empty reason.
-func (termination Termination) Reason() string { return termination.reason }
+func (t Termination) Reason() string { return t.reason }
 
 // Failure returns the classified failure for StatusFailed.
-func (termination Termination) Failure() (Failure, bool) {
-	return termination.failure, termination.status == StatusFailed
+func (t Termination) Failure() (Failure, bool) {
+	return t.failure, t.status == StatusFailed
 }
 
 // Valid reports whether the resolved status, cause, and optional Failure agree.
-func (termination Termination) Valid() bool {
-	if !termination.status.Terminal() || !termination.cause.Valid() {
+func (t Termination) Valid() bool {
+	if !t.status.Terminal() || !t.cause.Valid() {
 		return false
 	}
-	switch termination.status {
+	switch t.status {
 	case StatusCompleted:
-		return termination.cause == TerminationCauseCompletion && termination.reason == "" && !termination.failure.Valid()
+		return t.cause == TerminationCauseCompletion && t.reason == "" && !t.failure.Valid()
 	case StatusFailed:
-		if !termination.failure.Valid() || termination.reason != termination.failure.Message() {
+		if !t.failure.Valid() || t.reason != t.failure.Message() {
 			return false
 		}
-		return termination.cause == TerminationCauseExecutionFailure ||
-			termination.cause == TerminationCauseContractFailure ||
-			termination.cause == TerminationCauseExternalFailure ||
-			termination.cause == TerminationCausePanic
+		return t.cause == TerminationCauseExecutionFailure ||
+			t.cause == TerminationCauseContractFailure ||
+			t.cause == TerminationCauseExternalFailure ||
+			t.cause == TerminationCausePanic
 	case StatusCanceled:
-		return (termination.cause == TerminationCauseParentCancellation || termination.cause == TerminationCauseHostCancellation) &&
-			termination.reason != "" && !termination.failure.Valid()
+		return (t.cause == TerminationCauseParentCancellation || t.cause == TerminationCauseHostCancellation) &&
+			t.reason != "" && !t.failure.Valid()
 	case StatusTimedOut:
-		return (termination.cause == TerminationCauseProcessDeadline || termination.cause == TerminationCauseParentDeadline || termination.cause == TerminationCauseHostDeadline) &&
-			termination.reason != "" && !termination.failure.Valid()
+		return (t.cause == TerminationCauseProcessDeadline || t.cause == TerminationCauseParentDeadline || t.cause == TerminationCauseHostDeadline) &&
+			t.reason != "" && !t.failure.Valid()
 	case StatusKilled:
-		return termination.cause == TerminationCauseEngineKill && termination.reason != "" && !termination.failure.Valid()
+		return t.cause == TerminationCauseEngineKill && t.reason != "" && !t.failure.Valid()
 	default:
 		return false
 	}
 }
 
 // MarshalJSON returns the validated immutable terminal fact.
-func (termination Termination) MarshalJSON() ([]byte, error) {
-	if !termination.Valid() {
+func (t Termination) MarshalJSON() ([]byte, error) {
+	if !t.Valid() {
 		return nil, errInvalidTermination
 	}
 	wire := terminationWire{
-		Status: termination.status,
-		Cause:  termination.cause,
-		Reason: termination.reason,
+		Status: t.status,
+		Cause:  t.cause,
+		Reason: t.reason,
 	}
-	if termination.failure.Valid() {
-		wire.Failure = &termination.failure
+	if t.failure.Valid() {
+		wire.Failure = &t.failure
 	}
 	return json.Marshal(wire)
 }
 
-// UnmarshalJSON replaces termination with a strictly decoded terminal fact.
-func (termination *Termination) UnmarshalJSON(data []byte) error {
-	if termination == nil {
+// UnmarshalJSON replaces t with a strictly decoded terminal fact.
+func (t *Termination) UnmarshalJSON(data []byte) error {
+	if t == nil {
 		return fmt.Errorf("%w: nil receiver", errInvalidTermination)
 	}
 	var wire terminationWire
@@ -355,7 +355,7 @@ func (termination *Termination) UnmarshalJSON(data []byte) error {
 	if !value.Valid() {
 		return errInvalidTermination
 	}
-	*termination = value
+	*t = value
 	return nil
 }
 

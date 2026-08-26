@@ -12,7 +12,7 @@ type processStartReservation struct {
 	childRequestDigest Digest
 }
 
-func (engine *Engine) reserveProcessStart(
+func (e *Engine) reserveProcessStart(
 	relation ProcessRelation,
 	deploymentRef DeploymentRef,
 	treeLimits TreeLimits,
@@ -27,35 +27,35 @@ func (engine *Engine) reserveProcessStart(
 		treeLimits:         treeLimits,
 		childRequestDigest: childRequestDigest,
 	}
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	if engine.closed {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
 		return ErrEngineClosed
 	}
 	processID := relation.ProcessID()
-	if _, exists := engine.processes[processID]; exists {
+	if _, exists := e.processes[processID]; exists {
 		return ErrProcessAlreadyExists
 	}
-	if _, exists := engine.startReservations[processID]; exists {
+	if _, exists := e.startReservations[processID]; exists {
 		return ErrProcessAlreadyExists
 	}
 	if relation.IsRoot() {
-		return engine.reserveRootStart(reservation)
+		return e.reserveRootStart(reservation)
 	}
-	return engine.reserveChildStart(reservation)
+	return e.reserveChildStart(reservation)
 }
 
-// reserveRootStart requires engine.mu to be held.
-func (engine *Engine) reserveRootStart(reservation processStartReservation) error {
+// reserveRootStart requires e.mu to be held.
+func (e *Engine) reserveRootStart(reservation processStartReservation) error {
 	if reservation.childRequestDigest.Valid() {
 		return ErrInvalidProcessRelation
 	}
-	engine.startReservations[reservation.relation.ProcessID()] = reservation
+	e.startReservations[reservation.relation.ProcessID()] = reservation
 	return nil
 }
 
-// reserveChildStart requires engine.mu to be held.
-func (engine *Engine) reserveChildStart(reservation processStartReservation) error {
+// reserveChildStart requires e.mu to be held.
+func (e *Engine) reserveChildStart(reservation processStartReservation) error {
 	relation := reservation.relation
 	treeLimits := reservation.treeLimits
 	if !reservation.childRequestDigest.Valid() {
@@ -67,38 +67,38 @@ func (engine *Engine) reserveChildStart(reservation processStartReservation) err
 		return ErrInvalidProcessRelation
 	}
 	identity := childIdentity{parent: parentID, key: key}
-	if _, exists := engine.children[identity]; exists {
+	if _, exists := e.children[identity]; exists {
 		return ErrInvalidChildStart
 	}
-	if _, exists := engine.childStartReservations[identity]; exists {
+	if _, exists := e.childStartReservations[identity]; exists {
 		return ErrInvalidChildStart
 	}
-	parent := engine.processes[parentID]
+	parent := e.processes[parentID]
 	if parent == nil {
 		return ErrInvalidProcessRelation
 	}
 	if treeLimits != parent.treeLimits || relation.depth > treeLimits.MaxDepth {
 		return ErrResourceLimitExceeded
 	}
-	childCount, activeChildCount, treeProcessCount := engine.reservedTreeCounts(relation.rootID, parentID)
+	childCount, activeChildCount, treeProcessCount := e.reservedTreeCounts(relation.rootID, parentID)
 	if childCount >= treeLimits.MaxChildren ||
 		activeChildCount >= treeLimits.MaxActiveChildren ||
 		treeProcessCount >= treeLimits.MaxTreeProcesses {
 		return ErrResourceLimitExceeded
 	}
 	processID := relation.ProcessID()
-	engine.startReservations[processID] = reservation
-	engine.childStartReservations[identity] = processID
+	e.startReservations[processID] = reservation
+	e.childStartReservations[identity] = processID
 	return nil
 }
 
-// reservedTreeCounts requires engine.mu to be held.
-func (engine *Engine) reservedTreeCounts(rootID, parentID ProcessID) (
+// reservedTreeCounts requires e.mu to be held.
+func (e *Engine) reservedTreeCounts(rootID, parentID ProcessID) (
 	childCount uint32,
 	activeChildCount uint32,
 	treeProcessCount uint32,
 ) {
-	for _, existing := range engine.processes {
+	for _, existing := range e.processes {
 		if existing.relation.rootID == rootID {
 			treeProcessCount++
 		}
@@ -109,7 +109,7 @@ func (engine *Engine) reservedTreeCounts(rootID, parentID ProcessID) (
 			}
 		}
 	}
-	for _, pending := range engine.startReservations {
+	for _, pending := range e.startReservations {
 		if pending.relation.rootID == rootID {
 			treeProcessCount++
 		}
@@ -121,31 +121,31 @@ func (engine *Engine) reservedTreeCounts(rootID, parentID ProcessID) (
 	return childCount, activeChildCount, treeProcessCount
 }
 
-func (engine *Engine) discardProcessStartReservation(processID ProcessID) {
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	reservation, exists := engine.startReservations[processID]
+func (e *Engine) discardProcessStartReservation(processID ProcessID) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	reservation, exists := e.startReservations[processID]
 	if !exists {
 		return
 	}
-	delete(engine.startReservations, processID)
+	delete(e.startReservations, processID)
 	if parentID, child := reservation.relation.ParentID(); child {
 		key, _ := reservation.relation.ChildKey()
 		identity := childIdentity{parent: parentID, key: key}
-		if engine.childStartReservations[identity] == processID {
-			delete(engine.childStartReservations, identity)
+		if e.childStartReservations[identity] == processID {
+			delete(e.childStartReservations, identity)
 		}
 	}
 }
 
-func (engine *Engine) publishReservedProcess(controller *processController) {
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	reservation, exists := engine.startReservations[controller.processID]
+func (e *Engine) publishReservedProcess(controller *processController) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	reservation, exists := e.startReservations[controller.processID]
 	if !exists || reservation.relation != controller.relation ||
 		reservation.deploymentRef != controller.deploymentRef ||
-		reservation.treeLimits != controller.treeLimits || engine.closed ||
-		engine.processes[controller.processID] != nil {
+		reservation.treeLimits != controller.treeLimits || e.closed ||
+		e.processes[controller.processID] != nil {
 		panic("agent: invalid Process start reservation")
 	}
 	var identity childIdentity
@@ -153,39 +153,39 @@ func (engine *Engine) publishReservedProcess(controller *processController) {
 	if isChild {
 		key, _ := controller.relation.ChildKey()
 		identity = childIdentity{parent: parentID, key: key}
-		if engine.childStartReservations[identity] != controller.processID ||
-			engine.children[identity].Valid() {
+		if e.childStartReservations[identity] != controller.processID ||
+			e.children[identity].Valid() {
 			panic("agent: invalid child Process start reservation")
 		}
 	}
-	delete(engine.startReservations, controller.processID)
+	delete(e.startReservations, controller.processID)
 	controller.childRequestDigest = reservation.childRequestDigest
-	engine.processes[controller.processID] = controller
+	e.processes[controller.processID] = controller
 	if isChild {
-		delete(engine.childStartReservations, identity)
-		engine.children[identity] = controller.processID
+		delete(e.childStartReservations, identity)
+		e.children[identity] = controller.processID
 	}
 }
 
-func (engine *Engine) acknowledgeStartedProcessOutcome(
+func (e *Engine) acknowledgeStartedProcessOutcome(
 	ctx context.Context,
 	admission ProcessAdmission,
 ) error {
 	if err := acknowledgeProcessStartOutcome(
-		ctx, engine.startOutcomeAcknowledger, startedProcessOutcome(admission),
+		ctx, e.startOutcomeAcknowledger, startedProcessOutcome(admission),
 	); err != nil {
 		return fmt.Errorf("agent: acknowledge started Process: %w", err)
 	}
 	return nil
 }
 
-func (engine *Engine) acknowledgeAbortedProcessOutcome(
+func (e *Engine) acknowledgeAbortedProcessOutcome(
 	ctx context.Context,
 	admission ProcessAdmission,
 	failure Failure,
 ) error {
 	if err := acknowledgeProcessStartOutcome(
-		ctx, engine.startOutcomeAcknowledger, abortedProcessOutcome(admission, failure),
+		ctx, e.startOutcomeAcknowledger, abortedProcessOutcome(admission, failure),
 	); err != nil {
 		return fmt.Errorf("agent: acknowledge aborted Process: %w", err)
 	}

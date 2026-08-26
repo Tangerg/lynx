@@ -66,24 +66,24 @@ func ReportProgress(ctx context.Context, progress float64, total *float64, messa
 	return serverCallFromContext(ctx).reportProgress(ctx, progress, total, message)
 }
 
-func (c serverCall) reportProgress(ctx context.Context, progress float64, total *float64, message string) error {
-	if c.session == nil {
+func (s serverCall) reportProgress(ctx context.Context, progress float64, total *float64, message string) error {
+	if s.session == nil {
 		return ErrNoServerSession
 	}
-	if c.progressToken == nil {
+	if s.progressToken == nil {
 		// Client did not opt in; per spec the handler stays silent.
 		return nil
 	}
 
 	params := &sdkmcp.ProgressNotificationParams{
-		ProgressToken: c.progressToken,
+		ProgressToken: s.progressToken,
 		Progress:      progress,
 		Message:       message,
 	}
 	if total != nil {
 		params.Total = *total
 	}
-	return c.session.NotifyProgress(ctx, params)
+	return s.session.NotifyProgress(ctx, params)
 }
 
 // Elicit asks the connected client to surface a structured
@@ -116,9 +116,9 @@ func Elicit(ctx context.Context, params sdkmcp.ElicitParams) (*sdkmcp.ElicitResu
 	return serverCallFromContext(ctx).elicit(ctx, params)
 }
 
-func (c serverCall) elicit(ctx context.Context, params sdkmcp.ElicitParams) (*sdkmcp.ElicitResult, error) {
-	if c.session == nil {
+func (s serverCall) elicit(ctx context.Context, params sdkmcp.ElicitParams) (*sdkmcp.ElicitResult, error) {
+	if s.session == nil {
 		return nil, ErrNoServerSession
 	}
-	return c.session.Elicit(ctx, new(params))
+	return s.session.Elicit(ctx, new(params))
 }

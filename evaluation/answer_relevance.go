@@ -40,8 +40,8 @@ func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator,
 }
 
 // Evaluate scores sample for answer relevance.
-func (e *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
-	return e.evaluator.Evaluate(ctx, sample)
+func (a *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
+	return a.evaluator.Evaluate(ctx, sample)
 }
 
 func validateAnswerRelevanceSample(sample TextSample) error {

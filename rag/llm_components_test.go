@@ -29,16 +29,16 @@ func newFakeChatModel(_ *testing.T, reply string) *fakeChatModel {
 	return &fakeChatModel{reply: reply}
 }
 
-func (m *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+func (f *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	if len(req.Messages) != 0 {
-		m.captured = req.Messages[len(req.Messages)-1].Text()
+		f.captured = req.Messages[len(req.Messages)-1].Text()
 	}
-	if m.err != nil {
-		return nil, m.err
+	if f.err != nil {
+		return nil, f.err
 	}
 	result := &chat.Output{FinishReason: chat.FinishReasonStop}
-	if m.reply != "" {
-		message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	if f.reply != "" {
+		message := chat.NewAssistantMessage(chat.NewTextPart(f.reply))
 		result.Message = &message
 	}
 	return chat.NewResponse(result, nil)

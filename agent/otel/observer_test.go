@@ -173,7 +173,7 @@ type testDefinition struct {
 	descriptor agent.Descriptor
 }
 
-func (definition testDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
+func (t testDefinition) Descriptor() agent.Descriptor { return t.descriptor }
 
 func (testDefinition) Start(input agent.Input) (agent.Execution, error) {
 	value, err := input.Decode[testInput]()
@@ -199,28 +199,28 @@ type testExecution struct {
 	Phase uint8  `json:"phase"`
 }
 
-func (execution *testExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
-	if execution.Phase == 0 {
+func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
+	if t.Phase == 0 {
 		effect, err := agent.NewDispatcherEffect(json.RawMessage(`{"operation":"observe"}`))
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.Phase = 1
+		t.Phase = 1
 		return agent.Continue(0, effect)
 	}
-	output, err := agent.EncodeOutput(testOutput{Value: execution.Value})
+	output, err := agent.EncodeOutput(testOutput{Value: t.Value})
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.Phase = 2
+	t.Phase = 2
 	return agent.Complete(1, output)
 }
 
-func (execution *testExecution) Snapshot() (agent.ExecutionState, error) {
+func (t *testExecution) Snapshot() (agent.ExecutionState, error) {
 	payload, err := json.Marshal(struct {
 		Value string `json:"value"`
 		Phase uint8  `json:"phase"`
-	}{Value: execution.Value, Phase: execution.Phase})
+	}{Value: t.Value, Phase: t.Phase})
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}

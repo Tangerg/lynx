@@ -36,7 +36,7 @@ func NewSHA256IDGenerator(salt []byte) SHA256IDGenerator {
 
 // Generate hashes a canonical JSON projection of document and returns the
 // SHA-256 hex digest.
-func (g SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
+func (s SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -45,8 +45,8 @@ func (g SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document)
 	}
 
 	hasher := sha256.New()
-	if len(g.salt) > 0 {
-		_, _ = hasher.Write(g.salt)
+	if len(s.salt) > 0 {
+		_, _ = hasher.Write(s.salt)
 		_, _ = hasher.Write([]byte{0})
 	}
 	projection := struct {

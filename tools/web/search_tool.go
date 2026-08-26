@@ -37,7 +37,7 @@ func NewSearchTool(searcher Searcher) (*SearchTool, error) {
 	return t, nil
 }
 
-func (t *SearchTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
+func (s *SearchTool) Definition() chat.ToolDefinition { return s.inner.Definition() }
 
 // webSearchDescription is the LLM-facing prompt. Structure follows
 // the standard WebSearch prompt: short bullets + a CRITICAL block
@@ -62,18 +62,18 @@ Search hygiene:
 // ConcurrencyKey opts web_search into parallel execution — a read-only search
 // has no local resource conflict (the tool loop's optional concurrency
 // contract), so the loop runs several searches at once.
-func (t *SearchTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (s *SearchTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
-func (t *SearchTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.inner.Call(ctx, arguments)
+func (s *SearchTool) Call(ctx context.Context, arguments string) (string, error) {
+	return s.inner.Call(ctx, arguments)
 }
 
-func (t *SearchTool) search(ctx context.Context, req SearchRequest) (*SearchResponse, error) {
+func (s *SearchTool) search(ctx context.Context, req SearchRequest) (*SearchResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("web: search: %w", err)
 	}
 
-	res, err := t.searcher.Search(ctx, &req)
+	res, err := s.searcher.Search(ctx, &req)
 	if err != nil {
 		return nil, fmt.Errorf("web: search: %w", err)
 	}

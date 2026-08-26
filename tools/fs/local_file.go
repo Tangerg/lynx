@@ -139,38 +139,38 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditRequest) (EditResponse, e
 	return EditResponse{Replacements: replacements}, nil
 }
 
-func (op editOperation) apply(content, path string) (string, int, error) {
-	if op.OldString == "" {
+func (e editOperation) apply(content, path string) (string, int, error) {
+	if e.OldString == "" {
 		return "", 0, errors.New("old_string must not be empty")
 	}
-	occurrences := strings.Count(content, op.OldString)
+	occurrences := strings.Count(content, e.OldString)
 	switch {
 	case occurrences == 0:
 		// Exact match failed — fall back to a whitespace-tolerant match so a
 		// snippet that drifted on indentation / trailing whitespace still edits,
 		// but ONLY when it's unambiguous: a near-match that hits several regions
 		// is refused, never guessed (a wrong edit is worse than a clear failure).
-		start, end, matches := fuzzyEditRegion(content, op.OldString)
+		start, end, matches := fuzzyEditRegion(content, e.OldString)
 		switch matches {
 		case 0:
 			return "", 0, fmt.Errorf("old_string not found in %s", path)
 		case 1:
-			return content[:start] + op.NewString + content[end:], 1, nil
+			return content[:start] + e.NewString + content[end:], 1, nil
 		default:
 			return "", 0, fmt.Errorf("old_string not found exactly in %s; %d regions match apart from whitespace — copy it verbatim (or add surrounding lines to disambiguate)", path, matches)
 		}
-	case occurrences > 1 && !op.ReplaceAll:
+	case occurrences > 1 && !e.ReplaceAll:
 		return "", 0, fmt.Errorf("old_string matches %d times in %s — set replace_all=true to confirm", occurrences, path)
 	default:
 		n := 1
-		if op.ReplaceAll {
+		if e.ReplaceAll {
 			n = -1
 		}
 		replacements := occurrences
-		if !op.ReplaceAll {
+		if !e.ReplaceAll {
 			replacements = 1
 		}
-		return strings.Replace(content, op.OldString, op.NewString, n), replacements, nil
+		return strings.Replace(content, e.OldString, e.NewString, n), replacements, nil
 	}
 }
 

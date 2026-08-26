@@ -43,21 +43,21 @@ func NewGoal(config GoalConfig) (Goal, error) {
 }
 
 // Name returns the stable goal identity.
-func (goal Goal) Name() string { return goal.name }
+func (g Goal) Name() string { return g.name }
 
 // Description returns the human-readable desired state.
-func (goal Goal) Description() string { return goal.description }
+func (g Goal) Description() string { return g.description }
 
 // Conditions returns an independently owned, key-sorted requirement set.
-func (goal Goal) Conditions() []Condition { return slices.Clone(goal.conditions) }
+func (g Goal) Conditions() []Condition { return slices.Clone(g.conditions) }
 
 // SatisfiedBy reports whether state establishes every goal condition.
-func (goal Goal) SatisfiedBy(state WorldState) bool {
-	return goal.Valid() && state.Valid() && state.Satisfies(goal.conditions...)
+func (g Goal) SatisfiedBy(state WorldState) bool {
+	return g.Valid() && state.Valid() && state.Satisfies(g.conditions...)
 }
 
 // Valid reports whether the Goal satisfies its construction invariants.
-func (goal Goal) Valid() bool {
-	return validName(goal.name) && validDescription(goal.description) && len(goal.conditions) > 0 &&
-		canonicalConditionSlice(goal.conditions)
+func (g Goal) Valid() bool {
+	return validName(g.name) && validDescription(g.description) && len(g.conditions) > 0 &&
+		canonicalConditionSlice(g.conditions)
 }

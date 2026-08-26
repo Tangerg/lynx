@@ -109,7 +109,7 @@ func newTextDeployment() (agent.Deployment, error) {
 	})
 }
 
-func (definition *textDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
+func (t *textDefinition) Descriptor() agent.Descriptor { return t.descriptor }
 
 func (*textDefinition) Start(input agent.Input) (agent.Execution, error) {
 	decoded, err := input.Decode[textInput]()
@@ -135,17 +135,17 @@ type textExecution struct {
 	Done bool   `json:"done"`
 }
 
-func (execution *textExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
-	if execution.Done {
+func (t *textExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
+	if t.Done {
 		return agent.Transition{}, errors.New("uppercase execution already completed")
 	}
-	execution.Done = true
-	value, _ := agent.EncodeOutput(textOutput{Text: strings.ToUpper(execution.Text)})
+	t.Done = true
+	value, _ := agent.EncodeOutput(textOutput{Text: strings.ToUpper(t.Text)})
 	return agent.Complete(0, value)
 }
 
-func (execution *textExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution)
+func (t *textExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(t)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
@@ -216,20 +216,20 @@ func newCompositionDeployment(local, model agent.DeploymentRef) (agent.Deploymen
 	})
 }
 
-func (definition *compositionDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
+func (c *compositionDefinition) Descriptor() agent.Descriptor { return c.descriptor }
 
-func (definition *compositionDefinition) Start(input agent.Input) (agent.Execution, error) {
+func (c *compositionDefinition) Start(input agent.Input) (agent.Execution, error) {
 	decoded, err := input.Decode[compositionInput]()
 	if err != nil {
 		return nil, err
 	}
 	return &compositionExecution{
-		local: definition.local, model: definition.model,
+		local: c.local, model: c.model,
 		state: compositionState{Phase: "ready", Prompt: decoded.Prompt},
 	}, nil
 }
 
-func (definition *compositionDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+func (c *compositionDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if state.Kind() != "example.composition" || state.SchemaVersion() != 1 {
 		return nil, agent.ErrInvalidExecutionState
 	}
@@ -237,7 +237,7 @@ func (definition *compositionDefinition) Restore(state agent.ExecutionState) (ag
 	if err := json.Unmarshal(state.Payload(), &decoded); err != nil {
 		return nil, err
 	}
-	return &compositionExecution{local: definition.local, model: definition.model, state: decoded}, nil
+	return &compositionExecution{local: c.local, model: c.model, state: decoded}, nil
 }
 
 type compositionState struct {
@@ -253,15 +253,15 @@ type compositionExecution struct {
 	state compositionState
 }
 
-func (execution *compositionExecution) Step(
+func (c *compositionExecution) Step(
 	_ context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
-	switch execution.state.Phase {
+	switch c.state.Phase {
 	case "ready":
-		return execution.startChildren()
+		return c.startChildren()
 	case "children_started":
-		return execution.waitForChildren(signals)
+		return c.waitForChildren(signals)
 	case "wait_opened":
 		if len(signals) == 0 {
 			return agent.Transition{}, errors.New("composition wait was not opened")
@@ -270,44 +270,44 @@ func (execution *compositionExecution) Step(
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.WaitID = opened.WaitID().String()
+		c.state.WaitID = opened.WaitID().String()
 		if len(signals) > 1 {
-			return execution.complete(signals, uint32(len(signals)))
+			return c.complete(signals, uint32(len(signals)))
 		}
-		execution.state.Phase = "waiting"
+		c.state.Phase = "waiting"
 		return agent.Wait(1, opened.WaitID())
 	case "waiting":
-		return execution.complete(signals, uint32(len(signals)))
+		return c.complete(signals, uint32(len(signals)))
 	default:
 		return agent.Transition{}, errors.New("composition execution cannot advance")
 	}
 }
 
-func (execution *compositionExecution) startChildren() (agent.Transition, error) {
-	localInput, _ := agent.EncodeInput(textInput{Text: execution.state.Prompt})
+func (c *compositionExecution) startChildren() (agent.Transition, error) {
+	localInput, _ := agent.EncodeInput(textInput{Text: c.state.Prompt})
 	modelInput, _ := agent.EncodeInput(interaction.Input{Messages: []chat.Message{
-		chat.NewUserMessage(chat.NewTextPart(execution.state.Prompt)),
+		chat.NewUserMessage(chat.NewTextPart(c.state.Prompt)),
 	}})
 	localKey, _ := agent.ParseChildKey("local")
 	modelKey, _ := agent.ParseChildKey("model")
 	budget, _ := agent.NewBudget(20, 20, 40)
 	localEffect, err := agent.StartChild(agent.ChildSpec{
-		Key: localKey, DeploymentRef: execution.local, Input: localInput, Budget: budget,
+		Key: localKey, DeploymentRef: c.local, Input: localInput, Budget: budget,
 	})
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	modelEffect, err := agent.StartChild(agent.ChildSpec{
-		Key: modelKey, DeploymentRef: execution.model, Input: modelInput, Budget: budget,
+		Key: modelKey, DeploymentRef: c.model, Input: modelInput, Budget: budget,
 	})
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = "children_started"
+	c.state.Phase = "children_started"
 	return agent.Continue(0, localEffect, modelEffect)
 }
 
-func (execution *compositionExecution) waitForChildren(signals []agent.Signal) (agent.Transition, error) {
+func (c *compositionExecution) waitForChildren(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 2 {
 		return agent.Transition{}, errors.New("composition requires two child-start results")
 	}
@@ -320,10 +320,10 @@ func (execution *compositionExecution) waitForChildren(signals []agent.Signal) (
 			return agent.Fail(2, failure)
 		}
 		childID, _ := started.ProcessID()
-		execution.state.ChildIDs = append(execution.state.ChildIDs, childID.String())
+		c.state.ChildIDs = append(c.state.ChildIDs, childID.String())
 	}
-	children := make([]agent.ProcessID, len(execution.state.ChildIDs))
-	for index, encoded := range execution.state.ChildIDs {
+	children := make([]agent.ProcessID, len(c.state.ChildIDs))
+	for index, encoded := range c.state.ChildIDs {
 		children[index], _ = agent.ParseProcessID(encoded)
 	}
 	waitKey, _ := agent.ParseWaitKey("composition")
@@ -333,11 +333,11 @@ func (execution *compositionExecution) waitForChildren(signals []agent.Signal) (
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = "wait_opened"
+	c.state.Phase = "wait_opened"
 	return agent.Continue(2, waitEffect)
 }
 
-func (execution *compositionExecution) complete(
+func (c *compositionExecution) complete(
 	signals []agent.Signal,
 	consumedSignals uint32,
 ) (agent.Transition, error) {
@@ -348,7 +348,7 @@ func (execution *compositionExecution) complete(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if completed.WaitID().String() != execution.state.WaitID {
+	if completed.WaitID().String() != c.state.WaitID {
 		return agent.Transition{}, errors.New("composition received another wait's result")
 	}
 	var output compositionOutput
@@ -378,13 +378,13 @@ func (execution *compositionExecution) complete(
 			return agent.Transition{}, errors.New("composition received an unknown child key")
 		}
 	}
-	execution.state.Phase = "done"
+	c.state.Phase = "done"
 	erased, _ := agent.EncodeOutput(output)
 	return agent.Complete(consumedSignals, erased)
 }
 
-func (execution *compositionExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution.state)
+func (c *compositionExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(c.state)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
@@ -419,10 +419,10 @@ func (rejectingDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
 
 type deploymentResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver deploymentResolver) Resolve(
+func (d deploymentResolver) Resolve(
 	reference agent.DeploymentRef,
 ) (agent.Deployment, error) {
-	deployment, found := resolver[reference]
+	deployment, found := d[reference]
 	if !found {
 		return agent.Deployment{}, errors.New("exact Deployment is unavailable")
 	}

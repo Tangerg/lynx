@@ -19,11 +19,11 @@ type fetchRequest struct {
 	Text fetchTextOptions `json:"text,omitempty"`
 }
 
-func (r *fetchRequest) validate() error {
-	if r == nil {
+func (f *fetchRequest) validate() error {
+	if f == nil {
 		return errors.New("exa: Request must not be nil")
 	}
-	if len(r.URLs) == 0 {
+	if len(f.URLs) == 0 {
 		return errors.New("exa: URLs must be non-empty")
 	}
 	return nil

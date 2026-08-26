@@ -41,14 +41,14 @@ func NewTextSplitter(config TextSplitterConfig) (*TextSplitter, error) {
 }
 
 // SplitText splits text on the configured separator.
-func (s *TextSplitter) SplitText(ctx context.Context, text string) ([]string, error) {
+func (t *TextSplitter) SplitText(ctx context.Context, text string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return strings.Split(text, s.separator), nil
+	return strings.Split(text, t.separator), nil
 }
 
 // Split emits document chunks with cloned metadata and lineage fields.
-func (s *TextSplitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return s.splitter.Split(ctx, docs)
+func (t *TextSplitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return t.splitter.Split(ctx, docs)
 }

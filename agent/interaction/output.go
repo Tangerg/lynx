@@ -22,9 +22,9 @@ const (
 	CompletionSourceDirectToolResults CompletionSource = "direct_tool_results"
 )
 
-// Valid reports whether source is a supported Interaction completion source.
-func (source CompletionSource) Valid() bool {
-	return source == CompletionSourceModelResponse || source == CompletionSourceDirectToolResults
+// Valid reports whether c is a supported Interaction completion source.
+func (c CompletionSource) Valid() bool {
+	return c == CompletionSourceModelResponse || c == CompletionSourceDirectToolResults
 }
 
 // Output is the final semantic Interaction result. Response is accumulated
@@ -48,32 +48,32 @@ type Output struct {
 
 // Validate verifies that Output contains exactly the semantic result selected
 // by Source and a positive model-call count.
-func (output Output) Validate() error {
-	if !output.Source.Valid() {
+func (o Output) Validate() error {
+	if !o.Source.Valid() {
 		return errors.New("interaction: output source is invalid")
 	}
-	if output.ModelCalls == 0 {
+	if o.ModelCalls == 0 {
 		return errors.New("interaction: output model_calls must be positive")
 	}
-	switch output.Source {
+	switch o.Source {
 	case CompletionSourceModelResponse:
-		if output.ModelResponse == nil || len(output.DirectToolResults) != 0 {
+		if o.ModelResponse == nil || len(o.DirectToolResults) != 0 {
 			return errors.New("interaction: model_response output requires only ModelResponse")
 		}
-		if err := output.ModelResponse.Validate(); err != nil {
+		if err := o.ModelResponse.Validate(); err != nil {
 			return fmt.Errorf("interaction: output model response: %w", err)
 		}
-		modelOutput := output.ModelResponse.Output
+		modelOutput := o.ModelResponse.Output
 		if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 			return errors.New("interaction: output has no finished assistant response")
 		}
 	case CompletionSourceDirectToolResults:
-		if output.ModelResponse != nil || len(output.DirectToolResults) == 0 {
+		if o.ModelResponse != nil || len(o.DirectToolResults) == 0 {
 			return errors.New("interaction: direct_tool_results output requires only DirectToolResults")
 		}
-		seen := make(map[string]struct{}, len(output.DirectToolResults))
-		for index := range output.DirectToolResults {
-			result := output.DirectToolResults[index]
+		seen := make(map[string]struct{}, len(o.DirectToolResults))
+		for index := range o.DirectToolResults {
+			result := o.DirectToolResults[index]
 			if err := result.Validate(); err != nil {
 				return fmt.Errorf("interaction: direct tool result %d: %w", index, err)
 			}

@@ -54,27 +54,27 @@ func NewReadTool(executor Executor) *ReadTool {
 	return t
 }
 
-func (t *ReadTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (r *ReadTool) Definition() chat.ToolDefinition {
+	return r.typed.Definition()
 }
 
 // ConcurrencyKey opts read into parallel execution — a pure read has no
 // resource conflict (the tool loop's optional concurrency contract), so the
 // loop runs several reads (and reads alongside other parallel tools) at once.
-func (t *ReadTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (r *ReadTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
-func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (r *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
+	return r.typed.Call(ctx, arguments)
 }
 
-func (t *ReadTool) read(ctx context.Context, req ReadRequest) (ReadResponse, error) {
+func (r *ReadTool) read(ctx context.Context, req ReadRequest) (ReadResponse, error) {
 	// The model-facing start line is 1-based; the executor SPI is 0-based.
 	spiOffset := 0
 	if req.StartLine > 0 {
 		spiOffset = req.StartLine - 1
 	}
 
-	res, err := t.executor.Read(ctx, ReadInput{
+	res, err := r.executor.Read(ctx, ReadInput{
 		Path:   req.Path,
 		Offset: spiOffset,
 		Limit:  req.MaxLines,

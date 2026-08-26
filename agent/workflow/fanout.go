@@ -8,54 +8,54 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 )
 
-func (stage Stage) fanoutCount(raw json.RawMessage) (uint32, error) {
-	switch stage.kind {
+func (s Stage) fanoutCount(raw json.RawMessage) (uint32, error) {
+	switch s.kind {
 	case stageKindFork:
-		if !stage.fork.valid() {
+		if !s.fork.valid() {
 			return 0, ErrInvalidStage
 		}
-		return uint32(len(stage.fork.branches)), nil
+		return uint32(len(s.fork.branches)), nil
 	case stageKindMap:
-		if !stage.mapper.valid() {
+		if !s.mapper.valid() {
 			return 0, ErrInvalidStage
 		}
-		return stage.mapper.count(raw)
+		return s.mapper.count(raw)
 	default:
 		return 0, ErrInvalidStage
 	}
 }
 
-func (stage Stage) fanoutWindowSize() uint32 {
-	switch stage.kind {
+func (s Stage) fanoutWindowSize() uint32 {
+	switch s.kind {
 	case stageKindFork:
-		return stage.fork.windowSize
+		return s.fork.windowSize
 	case stageKindMap:
-		return stage.mapper.windowSize
+		return s.mapper.windowSize
 	default:
 		return 0
 	}
 }
 
-func (stage Stage) fanoutBinding(index uint32) (childBinding, bool) {
-	switch stage.kind {
+func (s Stage) fanoutBinding(index uint32) (childBinding, bool) {
+	switch s.kind {
 	case stageKindFork:
-		if uint64(index) >= uint64(len(stage.fork.branches)) {
+		if uint64(index) >= uint64(len(s.fork.branches)) {
 			return childBinding{}, false
 		}
-		return stage.fork.branches[index].binding, true
+		return s.fork.branches[index].binding, true
 	case stageKindMap:
-		return stage.mapper.binding, stage.mapper.valid()
+		return s.mapper.binding, s.mapper.valid()
 	default:
 		return childBinding{}, false
 	}
 }
 
-func (stage Stage) fanoutWindowInputs(
+func (s Stage) fanoutWindowInputs(
 	start uint32,
 	end uint32,
 	raw json.RawMessage,
 ) ([]agent.Input, error) {
-	switch stage.kind {
+	switch s.kind {
 	case stageKindFork:
 		input, err := agent.ParseInput(raw)
 		if err != nil {
@@ -67,41 +67,41 @@ func (stage Stage) fanoutWindowInputs(
 		}
 		return inputs, nil
 	case stageKindMap:
-		return stage.mapper.windowInputs(raw, start, end)
+		return s.mapper.windowInputs(raw, start, end)
 	default:
 		return nil, ErrInvalidStage
 	}
 }
 
-func (stage Stage) fanoutOutputSchema() agent.Schema {
-	switch stage.kind {
+func (s Stage) fanoutOutputSchema() agent.Schema {
+	switch s.kind {
 	case stageKindFork:
-		return stage.fork.branchSchema
+		return s.fork.branchSchema
 	case stageKindMap:
-		return stage.mapper.itemOutputSchema
+		return s.mapper.itemOutputSchema
 	default:
 		return agent.Schema{}
 	}
 }
 
-func (stage Stage) fanoutComplete(outputs []json.RawMessage) (json.RawMessage, error) {
-	switch stage.kind {
+func (s Stage) fanoutComplete(outputs []json.RawMessage) (json.RawMessage, error) {
+	switch s.kind {
 	case stageKindFork:
-		return stage.fork.reduce(outputs)
+		return s.fork.reduce(outputs)
 	case stageKindMap:
-		return stage.mapper.collect(outputs)
+		return s.mapper.collect(outputs)
 	default:
 		return nil, ErrInvalidStage
 	}
 }
 
-func (stage Stage) fanoutMemberID(index uint32) (string, bool) {
-	switch stage.kind {
+func (s Stage) fanoutMemberID(index uint32) (string, bool) {
+	switch s.kind {
 	case stageKindFork:
-		if uint64(index) >= uint64(len(stage.fork.branches)) {
+		if uint64(index) >= uint64(len(s.fork.branches)) {
 			return "", false
 		}
-		return stage.fork.branches[index].id, true
+		return s.fork.branches[index].id, true
 	case stageKindMap:
 		return strconv.FormatUint(uint64(index), 10), true
 	default:
@@ -109,20 +109,20 @@ func (stage Stage) fanoutMemberID(index uint32) (string, bool) {
 	}
 }
 
-func (stage Stage) fanoutMemberLabel(index uint32) string {
-	id, _ := stage.fanoutMemberID(index)
-	if stage.kind == stageKindFork {
+func (s Stage) fanoutMemberLabel(index uint32) string {
+	id, _ := s.fanoutMemberID(index)
+	if s.kind == stageKindFork {
 		return "branch " + id
 	}
 	return "item " + id
 }
 
-func (stage Stage) fanoutFailureCode(suffix string) string {
-	return fmt.Sprintf("workflow.%s.%s_%s", stage.kind.String(), stage.fanoutMemberNoun(), suffix)
+func (s Stage) fanoutFailureCode(suffix string) string {
+	return fmt.Sprintf("workflow.%s.%s_%s", s.kind.String(), s.fanoutMemberNoun(), suffix)
 }
 
-func (stage Stage) fanoutMemberNoun() string {
-	if stage.kind == stageKindFork {
+func (s Stage) fanoutMemberNoun() string {
+	if s.kind == stageKindFork {
 		return "branch"
 	}
 	return "item"
@@ -135,19 +135,19 @@ type fanoutOutputDecoder struct {
 	schema     agent.Schema
 }
 
-func (decoder fanoutOutputDecoder) decode[T any](encodedOutputs []json.RawMessage) ([]T, error) {
+func (f fanoutOutputDecoder) decode[T any](encodedOutputs []json.RawMessage) ([]T, error) {
 	values := make([]T, len(encodedOutputs))
 	for index, encoded := range encodedOutputs {
 		output, err := agent.ParseOutput(encoded)
 		if err != nil {
-			return nil, fmt.Errorf("%s %q %s %d output: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
+			return nil, fmt.Errorf("%s %q %s %d output: %w", f.stageName, f.stageID, f.memberName, index, err)
 		}
-		if err := decoder.schema.ValidateOutput(output); err != nil {
-			return nil, fmt.Errorf("%s %q %s %d output contract: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
+		if err := f.schema.ValidateOutput(output); err != nil {
+			return nil, fmt.Errorf("%s %q %s %d output contract: %w", f.stageName, f.stageID, f.memberName, index, err)
 		}
 		decoded, err := output.Decode[T]()
 		if err != nil {
-			return nil, fmt.Errorf("%s %q %s %d decode output: %w", decoder.stageName, decoder.stageID, decoder.memberName, index, err)
+			return nil, fmt.Errorf("%s %q %s %d decode output: %w", f.stageName, f.stageID, f.memberName, index, err)
 		}
 		values[index] = decoded
 	}

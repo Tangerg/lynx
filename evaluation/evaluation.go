@@ -81,15 +81,15 @@ func NewTextSample(input, output string, context []string) TextSample {
 }
 
 // Clone returns an independent copy of the sample.
-func (s TextSample) Clone() TextSample {
-	s.Context = slices.Clone(s.Context)
-	return s
+func (t TextSample) Clone() TextSample {
+	t.Context = slices.Clone(t.Context)
+	return t
 }
 
 // ContextText returns non-blank context entries joined in caller order.
-func (s TextSample) ContextText() string {
-	texts := make([]string, 0, len(s.Context))
-	for _, text := range s.Context {
+func (t TextSample) ContextText() string {
+	texts := make([]string, 0, len(t.Context))
+	for _, text := range t.Context {
 		if strings.TrimSpace(text) != "" {
 			texts = append(texts, text)
 		}
@@ -143,7 +143,7 @@ type Evaluator[T any] interface {
 // EvaluatorFunc adapts an ordinary function to Evaluator.
 type EvaluatorFunc[T any] func(context.Context, T) (Report, error)
 
-// Evaluate invokes f.
-func (f EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	return f(ctx, subject)
+// Evaluate invokes e.
+func (e EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
+	return e(ctx, subject)
 }

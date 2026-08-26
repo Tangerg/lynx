@@ -135,18 +135,18 @@ func newScriptedEffectDefinition(t *testing.T, effect agent.Effect) *scriptedEff
 	return &scriptedEffectDefinition{descriptor: descriptor, effect: effect}
 }
 
-func (definition *scriptedEffectDefinition) Descriptor() agent.Descriptor {
-	return definition.descriptor
+func (s *scriptedEffectDefinition) Descriptor() agent.Descriptor {
+	return s.descriptor
 }
 
-func (definition *scriptedEffectDefinition) Start(input agent.Input) (agent.Execution, error) {
-	if err := definition.descriptor.ValidateInput(input); err != nil {
+func (s *scriptedEffectDefinition) Start(input agent.Input) (agent.Execution, error) {
+	if err := s.descriptor.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	return &scriptedEffectExecution{effect: definition.effect}, nil
+	return &scriptedEffectExecution{effect: s.effect}, nil
 }
 
-func (definition *scriptedEffectDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+func (s *scriptedEffectDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if state.Kind() != "agenttest.scripted_effect" || state.SchemaVersion() != 1 {
 		return nil, errors.New("unexpected scripted-effect state")
 	}
@@ -154,7 +154,7 @@ func (definition *scriptedEffectDefinition) Restore(state agent.ExecutionState) 
 	if err := json.Unmarshal(state.Payload(), &restored); err != nil {
 		return nil, fmt.Errorf("decode scripted-effect state: %w", err)
 	}
-	return &scriptedEffectExecution{effect: definition.effect, dispatched: restored.Dispatched}, nil
+	return &scriptedEffectExecution{effect: s.effect, dispatched: restored.Dispatched}, nil
 }
 
 type scriptedEffectState struct {
@@ -166,13 +166,13 @@ type scriptedEffectExecution struct {
 	dispatched bool
 }
 
-func (execution *scriptedEffectExecution) Step(
+func (s *scriptedEffectExecution) Step(
 	_ context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
-	if !execution.dispatched {
-		execution.dispatched = true
-		return agent.Continue(0, execution.effect)
+	if !s.dispatched {
+		s.dispatched = true
+		return agent.Continue(0, s.effect)
 	}
 	output, err := agent.EncodeOutput("done")
 	if err != nil {
@@ -181,8 +181,8 @@ func (execution *scriptedEffectExecution) Step(
 	return agent.Complete(uint32(len(signals)), output)
 }
 
-func (execution *scriptedEffectExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(scriptedEffectState{Dispatched: execution.dispatched})
+func (s *scriptedEffectExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(scriptedEffectState{Dispatched: s.dispatched})
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}

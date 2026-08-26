@@ -54,58 +54,58 @@ func NewDeploymentRef(descriptor Descriptor, implementationDigest, configuration
 }
 
 // Name returns the stable Definition name.
-func (reference DeploymentRef) Name() string { return reference.name }
+func (d DeploymentRef) Name() string { return d.name }
 
 // Version returns the canonical semantic Definition version.
-func (reference DeploymentRef) Version() string { return reference.version }
+func (d DeploymentRef) Version() string { return d.version }
 
 // ContractDigest returns the exact Descriptor contract identity.
-func (reference DeploymentRef) ContractDigest() Digest { return reference.contractDigest }
+func (d DeploymentRef) ContractDigest() Digest { return d.contractDigest }
 
 // ImplementationDigest returns the exact executable implementation identity.
-func (reference DeploymentRef) ImplementationDigest() Digest { return reference.implementationDigest }
+func (d DeploymentRef) ImplementationDigest() Digest { return d.implementationDigest }
 
 // ConfigurationDigest returns the frozen behavior-affecting configuration
 // identity, including dispatcher configuration.
-func (reference DeploymentRef) ConfigurationDigest() Digest { return reference.configurationDigest }
+func (d DeploymentRef) ConfigurationDigest() Digest { return d.configurationDigest }
 
 // Digest returns the complete Deployment value identity.
-func (reference DeploymentRef) Digest() Digest { return reference.digest }
+func (d DeploymentRef) Digest() Digest { return d.digest }
 
 // String returns a compact diagnostic form containing the stable name,
 // semantic version, and complete Deployment digest. It is not a wire encoding.
-func (reference DeploymentRef) String() string {
-	if !reference.Valid() {
+func (d DeploymentRef) String() string {
+	if !d.Valid() {
 		return invalidDeploymentRefText
 	}
-	return reference.name + "@" + reference.version + "+" + reference.digest.String()
+	return d.name + "@" + d.version + "+" + d.digest.String()
 }
 
 // Valid reports whether all identity components and their derived digest agree.
-func (reference DeploymentRef) Valid() bool {
-	if !validQualifiedName(reference.name) || !validSemanticVersion(reference.version) ||
-		!reference.contractDigest.Valid() || !reference.implementationDigest.Valid() ||
-		!reference.configurationDigest.Valid() || !reference.digest.Valid() {
+func (d DeploymentRef) Valid() bool {
+	if !validQualifiedName(d.name) || !validSemanticVersion(d.version) ||
+		!d.contractDigest.Valid() || !d.implementationDigest.Valid() ||
+		!d.configurationDigest.Valid() || !d.digest.Valid() {
 		return false
 	}
-	want, err := deploymentDigest(reference)
-	return err == nil && want == reference.digest
+	want, err := deploymentDigest(d)
+	return err == nil && want == d.digest
 }
 
 // MarshalJSON returns the validated exact Deployment identity.
-func (reference DeploymentRef) MarshalJSON() ([]byte, error) {
-	if !reference.Valid() {
+func (d DeploymentRef) MarshalJSON() ([]byte, error) {
+	if !d.Valid() {
 		return nil, ErrInvalidDeploymentRef
 	}
 	return json.Marshal(deploymentRefWire{
-		deploymentIdentityWire: reference.identityWire(),
-		Digest:                 reference.digest,
+		deploymentIdentityWire: d.identityWire(),
+		Digest:                 d.digest,
 	})
 }
 
-// UnmarshalJSON replaces reference with a strictly decoded exact identity.
-func (reference *DeploymentRef) UnmarshalJSON(data []byte) error {
-	if reference == nil {
+// UnmarshalJSON replaces d with a strictly decoded exact identity.
+func (d *DeploymentRef) UnmarshalJSON(data []byte) error {
+	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDeploymentRef)
 	}
 	var wire deploymentRefWire
@@ -128,7 +128,7 @@ func (reference *DeploymentRef) UnmarshalJSON(data []byte) error {
 	if !value.Valid() {
 		return fmt.Errorf("%w: digest or identity component does not match", ErrInvalidDeploymentRef)
 	}
-	*reference = value
+	*d = value
 	return nil
 }
 
@@ -145,13 +145,13 @@ type deploymentRefWire struct {
 	Digest Digest `json:"digest"`
 }
 
-func (reference DeploymentRef) identityWire() deploymentIdentityWire {
+func (d DeploymentRef) identityWire() deploymentIdentityWire {
 	return deploymentIdentityWire{
-		Name:                 reference.name,
-		Version:              reference.version,
-		ContractDigest:       reference.contractDigest,
-		ImplementationDigest: reference.implementationDigest,
-		ConfigurationDigest:  reference.configurationDigest,
+		Name:                 d.name,
+		Version:              d.version,
+		ContractDigest:       d.contractDigest,
+		ImplementationDigest: d.implementationDigest,
+		ConfigurationDigest:  d.configurationDigest,
 	}
 }
 

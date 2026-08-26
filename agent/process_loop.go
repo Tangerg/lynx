@@ -75,170 +75,170 @@ func newProcessLoop(
 	}
 }
 
-func (loop *processLoop) run(ctx context.Context) {
-	if loop.restored {
-		loop.publishEvent(ctx, EventProcessRestored, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+func (p *processLoop) run(ctx context.Context) {
+	if p.restored {
+		p.publishEvent(ctx, EventProcessRestored, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	} else {
-		loop.publishEvent(ctx, EventProcessStarted, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+		p.publishEvent(ctx, EventProcessStarted, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	}
 	hostDone := ctx.Done()
-	for !loop.status.Terminal() {
-		loop.observeHostContext(ctx, &hostDone)
+	for !p.status.Terminal() {
+		p.observeHostContext(ctx, &hostDone)
 		switch {
-		case loop.quiescence != nil && loop.prepared == nil:
-			loop.holdQuiescence(ctx, &hostDone)
-		case loop.prepared != nil:
-			loop.advancePrepared(ctx, &hostDone)
+		case p.quiescence != nil && p.prepared == nil:
+			p.holdQuiescence(ctx, &hostDone)
+		case p.prepared != nil:
+			p.advancePrepared(ctx, &hostDone)
 		default:
-			if !loop.applyPendingControl(ctx) {
-				loop.advanceStatus(ctx, &hostDone)
+			if !p.applyPendingControl(ctx) {
+				p.advanceStatus(ctx, &hostDone)
 			}
 		}
 	}
-	loop.finish(ctx)
+	p.finish(ctx)
 }
 
-func (loop *processLoop) advancePrepared(ctx context.Context, hostDone *<-chan struct{}) {
-	if loop.pendingControl.hasTerminalIntent() && loop.prepared.hasUnknownSettlement() {
-		loop.discardPrepared()
-		loop.commitTermination(stepOutcome{})
+func (p *processLoop) advancePrepared(ctx context.Context, hostDone *<-chan struct{}) {
+	if p.pendingControl.hasTerminalIntent() && p.prepared.hasUnknownSettlement() {
+		p.discardPrepared()
+		p.commitTermination(stepOutcome{})
 		return
 	}
-	if !loop.prepared.acknowledged && !loop.acknowledgePrepared(ctx) {
+	if !p.prepared.acknowledged && !p.acknowledgePrepared(ctx) {
 		return
 	}
-	if loop.prepared.hasUnknownSettlement() {
-		loop.waitForCommand(ctx, hostDone)
+	if p.prepared.hasUnknownSettlement() {
+		p.waitForCommand(ctx, hostDone)
 		return
 	}
-	if !loop.prepared.allEffectsSettled() {
-		loop.dispatchPrepared(ctx, hostDone)
+	if !p.prepared.allEffectsSettled() {
+		p.dispatchPrepared(ctx, hostDone)
 		return
 	}
-	if err := loop.finalizePrepared(ctx); err != nil {
-		loop.discardPrepared()
-		loop.fail(FailureKindContract, "engine.finalize.invalid", err)
+	if err := p.finalizePrepared(ctx); err != nil {
+		p.discardPrepared()
+		p.fail(FailureKindContract, "engine.finalize.invalid", err)
 	}
 }
 
-func (loop *processLoop) applyPendingControl(ctx context.Context) bool {
-	if loop.pendingControl.hasTerminalIntent() {
-		loop.commitTermination(stepOutcome{})
+func (p *processLoop) applyPendingControl(ctx context.Context) bool {
+	if p.pendingControl.hasTerminalIntent() {
+		p.commitTermination(stepOutcome{})
 		return true
 	}
-	if loop.pendingControl.pauseReason == "" || loop.status != StatusRunning {
+	if p.pendingControl.pauseReason == "" || p.status != StatusRunning {
 		return false
 	}
-	loop.status = StatusPaused
-	loop.pauseReason = loop.pendingControl.pauseReason
-	loop.pendingControl.pauseReason = ""
-	loop.updateView()
-	loop.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+	p.status = StatusPaused
+	p.pauseReason = p.pendingControl.pauseReason
+	p.pendingControl.pauseReason = ""
+	p.updateView()
+	p.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	return true
 }
 
-func (loop *processLoop) advanceStatus(ctx context.Context, hostDone *<-chan struct{}) {
-	switch loop.status {
+func (p *processLoop) advanceStatus(ctx context.Context, hostDone *<-chan struct{}) {
+	switch p.status {
 	case StatusWaiting, StatusPaused:
-		loop.waitForCommand(ctx, hostDone)
+		p.waitForCommand(ctx, hostDone)
 	case StatusRunning:
 		select {
-		case command := <-loop.controller.commands:
-			loop.applyCommand(ctx, command)
+		case command := <-p.controller.commands:
+			p.applyCommand(ctx, command)
 		default:
-			loop.prepareNextStep(ctx)
+			p.prepareNextStep(ctx)
 		}
 	default:
-		loop.fail(FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", loop.status))
+		p.fail(FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", p.status))
 	}
 }
 
-func (loop *processLoop) waitForCommand(ctx context.Context, hostDone *<-chan struct{}) {
+func (p *processLoop) waitForCommand(ctx context.Context, hostDone *<-chan struct{}) {
 	select {
-	case command := <-loop.controller.commands:
-		loop.applyCommand(ctx, command)
+	case command := <-p.controller.commands:
+		p.applyCommand(ctx, command)
 	case <-*hostDone:
-		loop.recordHostTermination(ctx.Err())
+		p.recordHostTermination(ctx.Err())
 		*hostDone = nil
 	}
 }
 
-func (loop *processLoop) observeHostContext(ctx context.Context, hostDone *<-chan struct{}) {
+func (p *processLoop) observeHostContext(ctx context.Context, hostDone *<-chan struct{}) {
 	if *hostDone == nil {
 		return
 	}
 	select {
 	case <-*hostDone:
-		loop.recordHostTermination(ctx.Err())
+		p.recordHostTermination(ctx.Err())
 		*hostDone = nil
 	default:
 	}
 }
 
-func (loop *processLoop) recordHostTermination(err error) {
+func (p *processLoop) recordHostTermination(err error) {
 	if errors.Is(err, context.DeadlineExceeded) {
 		intent, _ := newDeadlineIntent(deadlineOwnerHost, "host context deadline reached")
-		if !loop.pendingControl.deadline.valid() {
-			loop.pendingControl.deadline = intent
+		if !p.pendingControl.deadline.valid() {
+			p.pendingControl.deadline = intent
 		}
 		return
 	}
 	intent, _ := newCancellationIntent(cancellationOwnerHost, "host context canceled")
-	if !loop.pendingControl.cancellation.valid() {
-		loop.pendingControl.cancellation = intent
+	if !p.pendingControl.cancellation.valid() {
+		p.pendingControl.cancellation = intent
 	}
 }
 
-func (loop *processLoop) applyCommand(ctx context.Context, command processCommand) {
-	if loop.status.Terminal() {
+func (p *processLoop) applyCommand(ctx context.Context, command processCommand) {
+	if p.status.Terminal() {
 		command.reply(processResponse{err: ErrProcessFinished})
 		return
 	}
 	switch command.kind {
 	case commandDeliver:
-		loop.deliver(ctx, command)
+		p.deliver(ctx, command)
 	case commandDeliverBatch:
-		loop.deliverBatch(ctx, command)
+		p.deliverBatch(ctx, command)
 	case commandPause:
-		loop.requestPause(command)
+		p.requestPause(command)
 	case commandResume:
-		loop.resume(ctx, command)
+		p.resume(ctx, command)
 	case commandCancel:
-		loop.requestCancellation(command.cancellationIntent)
+		p.requestCancellation(command.cancellationIntent)
 	case commandKill:
-		loop.requestKill(command)
+		p.requestKill(command)
 	case commandResolveEffect:
-		loop.resolveEffect(command)
+		p.resolveEffect(command)
 	case commandQueryUnknownEffectIDs:
-		command.reply(processResponse{unknownEffectIDs: loop.unknownEffectIDs()})
+		command.reply(processResponse{unknownEffectIDs: p.unknownEffectIDs()})
 	case commandCapture:
-		snapshot, err := loop.capture()
+		snapshot, err := p.capture()
 		command.reply(processResponse{snapshot: snapshot, err: err})
 	case commandChildrenCompleted:
-		delivered := loop.deliverChildrenCompleted(ctx, command.internalSignal)
+		delivered := p.deliverChildrenCompleted(ctx, command.internalSignal)
 		command.reply(processResponse{accepted: delivered})
 	case commandParentTerminated:
-		loop.recordParentTermination(command.parentTermination)
+		p.recordParentTermination(command.parentTermination)
 		command.reply(processResponse{accepted: true})
 	case commandQuiesce:
-		if command.release == nil || loop.quiescence != nil {
+		if command.release == nil || p.quiescence != nil {
 			command.reply(processResponse{err: ErrProcessNotRunning})
 			return
 		}
-		loop.quiescence = &processQuiescence{command: command}
+		p.quiescence = &processQuiescence{command: command}
 	default:
 		command.reply(processResponse{err: ErrProcessNotRunning})
 	}
 }
 
-func (loop *processLoop) recordParentTermination(parent Termination) {
+func (p *processLoop) recordParentTermination(parent Termination) {
 	if !parent.Valid() {
 		return
 	}
 	if parent.Status() == StatusTimedOut {
 		intent, _ := newDeadlineIntent(deadlineOwnerParent, "parent Process reached a deadline")
-		if !loop.pendingControl.deadline.valid() {
-			loop.pendingControl.deadline = intent
+		if !p.pendingControl.deadline.valid() {
+			p.pendingControl.deadline = intent
 		}
 		return
 	}
@@ -246,43 +246,43 @@ func (loop *processLoop) recordParentTermination(parent Termination) {
 		cancellationOwnerParent,
 		"parent Process reached terminal status "+parent.Status().String(),
 	)
-	if !loop.pendingControl.cancellation.valid() {
-		loop.pendingControl.cancellation = intent
+	if !p.pendingControl.cancellation.valid() {
+		p.pendingControl.cancellation = intent
 	}
 }
 
-func (loop *processLoop) deliverChildrenCompleted(ctx context.Context, signal Signal) bool {
-	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, 1) ||
-		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), 1) ||
+func (p *processLoop) deliverChildrenCompleted(ctx context.Context, signal Signal) bool {
+	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, 1) ||
+		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), 1) ||
 		!resourceQuantitiesFit(
-			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, 1,
+			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, 1,
 		) {
-		loop.fail(FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
+		p.fail(FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
 		return false
 	}
-	accepted, err := loop.mailbox.enqueueChildCompletion(loop.status, signal)
+	accepted, err := p.mailbox.enqueueChildCompletion(p.status, signal)
 	if err != nil {
-		loop.fail(FailureKindContract, "engine.child.completion.invalid", err)
+		p.fail(FailureKindContract, "engine.child.completion.invalid", err)
 		return false
 	}
 	if !accepted {
-		return loop.mailbox.contains(signal.ID())
+		return p.mailbox.contains(signal.ID())
 	}
-	loop.usage.AcceptedSignals++
-	if loop.status == StatusWaiting {
-		loop.status = StatusRunning
-		loop.currentWaitID = WaitID{}
+	p.usage.AcceptedSignals++
+	if p.status == StatusWaiting {
+		p.status = StatusRunning
+		p.currentWaitID = WaitID{}
 	}
-	loop.updateView()
+	p.updateView()
 	payload, _ := json.Marshal(signalAcceptedEventPayload{
 		SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal),
 	})
-	loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
+	p.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	return true
 }
 
-func (loop *processLoop) holdQuiescence(ctx context.Context, hostDone *<-chan struct{}) {
-	quiescence := loop.quiescence
+func (p *processLoop) holdQuiescence(ctx context.Context, hostDone *<-chan struct{}) {
+	quiescence := p.quiescence
 	quiescence.command.reply(processResponse{accepted: true})
 	for {
 		var applyGate <-chan struct{}
@@ -291,31 +291,31 @@ func (loop *processLoop) holdQuiescence(ctx context.Context, hostDone *<-chan st
 		}
 		select {
 		case <-applyGate:
-			quiescence.preparedStateChange.apply(ctx, loop)
+			quiescence.preparedStateChange.apply(ctx, p)
 			close(quiescence.preparedStateChange.applied)
 			quiescence.preparedStateChange = nil
 		case <-quiescence.command.release:
-			loop.quiescence = nil
-			if quiescence.deferredHostErr != nil && !loop.status.Terminal() {
-				loop.recordHostTermination(quiescence.deferredHostErr)
+			p.quiescence = nil
+			if quiescence.deferredHostErr != nil && !p.status.Terminal() {
+				p.recordHostTermination(quiescence.deferredHostErr)
 			}
 			for _, command := range quiescence.deferred {
-				loop.applyCommand(ctx, command)
-				if loop.status.Terminal() {
+				p.applyCommand(ctx, command)
+				if p.status.Terminal() {
 					return
 				}
 			}
 			return
-		case command := <-loop.controller.commands:
+		case command := <-p.controller.commands:
 			switch command.kind {
 			case commandCapture, commandChildrenCompleted, commandParentTerminated:
-				loop.applyCommand(ctx, command)
+				p.applyCommand(ctx, command)
 			case commandStagePreparedProcessState:
 				if quiescence.preparedStateChange != nil || command.preparedStateChange == nil {
 					command.reply(processResponse{err: ErrInvalidPreparedWaitingSubtreeCancellation})
 					continue
 				}
-				if err := command.preparedStateChange.validateSource(loop); err != nil {
+				if err := command.preparedStateChange.validateSource(p); err != nil {
 					command.reply(processResponse{err: err})
 					continue
 				}
@@ -336,20 +336,20 @@ func commandSignalWaitID(signal Signal) string {
 	return waitID.String()
 }
 
-func (loop *processLoop) deliver(ctx context.Context, command processCommand) {
+func (p *processLoop) deliver(ctx context.Context, command processCommand) {
 	if !command.signalRequest.Valid() {
 		command.reply(processResponse{err: ErrInvalidSignalRequest})
 		return
 	}
-	if loop.mailbox.contains(command.signalRequest.ID()) {
+	if p.mailbox.contains(command.signalRequest.ID()) {
 		command.reply(processResponse{accepted: false})
 		return
 	}
-	reserved := loop.reservedSettlementSignals()
-	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, reserved, 1) ||
-		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), reserved, 1) ||
+	reserved := p.reservedSettlementSignals()
+	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, reserved, 1) ||
+		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), reserved, 1) ||
 		!resourceQuantitiesFit(
-			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, reserved, 1,
+			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, reserved, 1,
 		) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
@@ -359,42 +359,42 @@ func (loop *processLoop) deliver(ctx context.Context, command processCommand) {
 		command.reply(processResponse{err: err})
 		return
 	}
-	accepted, err := loop.mailbox.enqueue(loop.status, signal)
+	accepted, err := p.mailbox.enqueue(p.status, signal)
 	if err != nil {
 		command.reply(processResponse{err: err})
 		return
 	}
-	if accepted && loop.status == StatusWaiting {
-		loop.status = StatusRunning
-		loop.currentWaitID = WaitID{}
-		loop.updateView()
+	if accepted && p.status == StatusWaiting {
+		p.status = StatusRunning
+		p.currentWaitID = WaitID{}
+		p.updateView()
 	}
 	if accepted {
-		loop.usage.AcceptedSignals++
-		loop.updateView()
+		p.usage.AcceptedSignals++
+		p.updateView()
 		payload, _ := json.Marshal(signalAcceptedEventPayload{
 			SignalID: signal.ID().String(), WaitID: commandWaitID(command.signalRequest),
 		})
-		loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
+		p.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	}
 	command.reply(processResponse{accepted: accepted})
 }
 
-func (loop *processLoop) deliverBatch(ctx context.Context, command processCommand) {
+func (p *processLoop) deliverBatch(ctx context.Context, command processCommand) {
 	if len(command.signalRequests) == 0 {
 		command.reply(processResponse{err: ErrInvalidSignalRequest})
 		return
 	}
 	count := uint64(len(command.signalRequests))
-	reserved := loop.reservedSettlementSignals()
-	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, reserved, count) ||
-		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), reserved, count) ||
-		!resourceQuantitiesFit(loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, reserved, count) {
+	reserved := p.reservedSettlementSignals()
+	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, reserved, count) ||
+		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), reserved, count) ||
+		!resourceQuantitiesFit(p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, reserved, count) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
 	}
-	candidate := loop.mailbox.clone()
-	status := loop.status
+	candidate := p.mailbox.clone()
+	status := p.status
 	signals := make([]Signal, 0, len(command.signalRequests))
 	for _, request := range command.signalRequests {
 		if !request.Valid() {
@@ -422,73 +422,73 @@ func (loop *processLoop) deliverBatch(ctx context.Context, command processComman
 		}
 		signals = append(signals, signal)
 	}
-	loop.mailbox = candidate
-	if loop.status == StatusWaiting && status == StatusRunning {
-		loop.status = StatusRunning
-		loop.currentWaitID = WaitID{}
+	p.mailbox = candidate
+	if p.status == StatusWaiting && status == StatusRunning {
+		p.status = StatusRunning
+		p.currentWaitID = WaitID{}
 	}
-	loop.usage.AcceptedSignals += count
-	loop.updateView()
+	p.usage.AcceptedSignals += count
+	p.updateView()
 	for index, signal := range signals {
 		payload, _ := json.Marshal(signalAcceptedEventPayload{SignalID: signal.ID().String(), WaitID: commandWaitID(command.signalRequests[index])})
-		loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
+		p.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	}
 	command.reply(processResponse{accepted: true})
 }
 
-func (loop *processLoop) requestPause(command processCommand) {
+func (p *processLoop) requestPause(command processCommand) {
 	if err := validateTerminationReason(command.reason); err != nil {
 		command.reply(processResponse{err: fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)})
 		return
 	}
-	if loop.status != StatusRunning {
+	if p.status != StatusRunning {
 		command.reply(processResponse{err: ErrProcessNotRunning})
 		return
 	}
-	if loop.pendingControl.pauseReason == "" {
-		loop.pendingControl.pauseReason = command.reason
+	if p.pendingControl.pauseReason == "" {
+		p.pendingControl.pauseReason = command.reason
 	}
 	command.reply(processResponse{})
 }
 
-func (loop *processLoop) resume(ctx context.Context, command processCommand) {
-	if loop.status != StatusPaused {
+func (p *processLoop) resume(ctx context.Context, command processCommand) {
+	if p.status != StatusPaused {
 		command.reply(processResponse{err: ErrProcessNotRunning})
 		return
 	}
-	loop.status = StatusRunning
-	loop.pauseReason = ""
-	loop.pendingControl.pauseReason = ""
-	loop.updateView()
-	loop.publishEvent(ctx, EventProcessResumed, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+	p.status = StatusRunning
+	p.pauseReason = ""
+	p.pendingControl.pauseReason = ""
+	p.updateView()
+	p.publishEvent(ctx, EventProcessResumed, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	command.reply(processResponse{})
 }
 
-func (loop *processLoop) requestCancellation(intent cancellationIntent) {
-	if !loop.pendingControl.cancellation.valid() {
-		loop.pendingControl.cancellation = intent
+func (p *processLoop) requestCancellation(intent cancellationIntent) {
+	if !p.pendingControl.cancellation.valid() {
+		p.pendingControl.cancellation = intent
 	}
 }
 
-func (loop *processLoop) requestKill(command processCommand) {
+func (p *processLoop) requestKill(command processCommand) {
 	intent, err := newKillIntent(command.reason)
 	if err != nil {
 		command.reply(processResponse{err: fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)})
 		return
 	}
-	if !loop.pendingControl.kill.valid() {
-		loop.pendingControl.kill = intent
+	if !p.pendingControl.kill.valid() {
+		p.pendingControl.kill = intent
 	}
 	command.reply(processResponse{})
 }
 
-func (loop *processLoop) resolveEffect(command processCommand) {
-	if loop.prepared == nil || !command.settlement.Valid() || command.settlement.Status() == SettlementStatusUnknown {
+func (p *processLoop) resolveEffect(command processCommand) {
+	if p.prepared == nil || !command.settlement.Valid() || command.settlement.Status() == SettlementStatusUnknown {
 		command.reply(processResponse{err: ErrEffectNotPending})
 		return
 	}
-	for index := range loop.prepared.wire.Effects {
-		effect := &loop.prepared.wire.Effects[index]
+	for index := range p.prepared.wire.Effects {
+		effect := &p.prepared.wire.Effects[index]
 		if effect.ID != command.settlement.EffectID() {
 			continue
 		}
@@ -504,27 +504,27 @@ func (loop *processLoop) resolveEffect(command processCommand) {
 	command.reply(processResponse{err: ErrEffectNotPending})
 }
 
-func (loop *processLoop) finish(ctx context.Context) {
+func (p *processLoop) finish(ctx context.Context) {
 	payload, _ := json.Marshal(processFinishedEventPayload{
-		ProcessStatus: loop.status, TerminationCause: loop.termination.Cause(),
+		ProcessStatus: p.status, TerminationCause: p.termination.Cause(),
 	})
-	loop.publishEvent(ctx, EventProcessFinished, EventPhaseCommitted, 0, EffectID{}, payload)
-	snapshot, err := loop.capture()
-	loop.controller.complete(loop.result(), snapshot, err)
-	loop.engine.processFinished(loop.controller)
-	loop.controller.markTreeSettled()
+	p.publishEvent(ctx, EventProcessFinished, EventPhaseCommitted, 0, EffectID{}, payload)
+	snapshot, err := p.capture()
+	p.controller.complete(p.result(), snapshot, err)
+	p.engine.processFinished(p.controller)
+	p.controller.markTreeSettled()
 }
 
-func (loop *processLoop) updateView() {
-	loop.controller.updateView(loop.status, loop.currentWaitID, loop.usage)
+func (p *processLoop) updateView() {
+	p.controller.updateView(p.status, p.currentWaitID, p.usage)
 }
 
-func (loop *processLoop) unknownEffectIDs() []EffectID {
-	if loop.prepared == nil {
+func (p *processLoop) unknownEffectIDs() []EffectID {
+	if p.prepared == nil {
 		return nil
 	}
 	var ids []EffectID
-	for _, effect := range loop.prepared.wire.Effects {
+	for _, effect := range p.prepared.wire.Effects {
 		if effect.Settlement != nil && effect.Settlement.Status() == SettlementStatusUnknown {
 			ids = append(ids, effect.ID)
 		}
@@ -532,19 +532,19 @@ func (loop *processLoop) unknownEffectIDs() []EffectID {
 	return ids
 }
 
-func (loop *processLoop) reservedSettlementSignals() uint64 {
-	if loop.prepared == nil {
+func (p *processLoop) reservedSettlementSignals() uint64 {
+	if p.prepared == nil {
 		return 0
 	}
-	return uint64(len(loop.prepared.wire.Effects))
+	return uint64(len(p.prepared.wire.Effects))
 }
 
-func (control pendingControl) hasTerminalIntent() bool {
-	return control.kill.valid() || control.deadline.valid() || control.cancellation.valid()
+func (p pendingControl) hasTerminalIntent() bool {
+	return p.kill.valid() || p.deadline.valid() || p.cancellation.valid()
 }
 
-func (prepared *preparedStep) hasUnknownSettlement() bool {
-	for _, effect := range prepared.wire.Effects {
+func (p *preparedStep) hasUnknownSettlement() bool {
+	for _, effect := range p.wire.Effects {
 		if effect.Settlement != nil && effect.Settlement.Status() == SettlementStatusUnknown {
 			return true
 		}
@@ -552,8 +552,8 @@ func (prepared *preparedStep) hasUnknownSettlement() bool {
 	return false
 }
 
-func (prepared *preparedStep) allEffectsSettled() bool {
-	for _, effect := range prepared.wire.Effects {
+func (p *preparedStep) allEffectsSettled() bool {
+	for _, effect := range p.wire.Effects {
 		if effect.Settlement == nil || effect.Settlement.Status() == SettlementStatusUnknown {
 			return false
 		}

@@ -17,32 +17,32 @@ type steerBatch struct {
 	SignalIDs []agent.SignalID `json:"signal_ids"`
 }
 
-func (batch steerBatch) empty() bool {
-	return len(batch.Messages) == 0 && len(batch.SignalIDs) == 0
+func (s steerBatch) empty() bool {
+	return len(s.Messages) == 0 && len(s.SignalIDs) == 0
 }
 
-func (batch steerBatch) validate() error {
-	if err := validateSteeringMessages(batch.Messages); err != nil {
+func (s steerBatch) validate() error {
+	if err := validateSteeringMessages(s.Messages); err != nil {
 		return err
 	}
-	return validateSteerSignalIDs(batch.SignalIDs)
+	return validateSteerSignalIDs(s.SignalIDs)
 }
 
-func (batch steerBatch) clone() steerBatch {
+func (s steerBatch) clone() steerBatch {
 	return steerBatch{
-		Messages: cloneMessages(batch.Messages), SignalIDs: slices.Clone(batch.SignalIDs),
+		Messages: cloneMessages(s.Messages), SignalIDs: slices.Clone(s.SignalIDs),
 	}
 }
 
-func (batch *steerBatch) appendSignal(signal agent.Signal, messages []chat.Message) error {
-	if batch == nil || !signal.ID().Valid() {
+func (s *steerBatch) appendSignal(signal agent.Signal, messages []chat.Message) error {
+	if s == nil || !signal.ID().Valid() {
 		return ErrInvalidSteer
 	}
 	if _, addressed := signal.WaitID(); addressed {
 		return fmt.Errorf("%w: steer Signal must not address a wait", ErrInvalidSteer)
 	}
-	batch.Messages = append(batch.Messages, cloneMessages(messages)...)
-	batch.SignalIDs = append(batch.SignalIDs, signal.ID())
+	s.Messages = append(s.Messages, cloneMessages(messages)...)
+	s.SignalIDs = append(s.SignalIDs, signal.ID())
 	return nil
 }
 

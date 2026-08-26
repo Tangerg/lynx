@@ -14,10 +14,10 @@ type Planner interface {
 // PlannerFunc adapts a function to Planner.
 type PlannerFunc func(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 
-// Plan calls function with problem.
-func (function PlannerFunc) Plan(
+// Plan calls p with problem.
+func (p PlannerFunc) Plan(
 	ctx context.Context,
 	problem Problem,
 ) (Plan, bool, error) {
-	return function(ctx, problem)
+	return p(ctx, problem)
 }

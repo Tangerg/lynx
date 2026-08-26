@@ -58,12 +58,12 @@ func resolvePromptTemplate(current *chatclient.Template, fallback string, requir
 	return current, nil
 }
 
-func (p modelPrompt) call(ctx context.Context, data any) (string, error) {
-	message, err := p.template.UserMessage(data)
+func (m modelPrompt) call(ctx context.Context, data any) (string, error) {
+	message, err := m.template.UserMessage(data)
 	if err != nil {
 		return "", err
 	}
-	text, err := p.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	text, err := m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
 		return "", err
 	}

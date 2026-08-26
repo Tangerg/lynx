@@ -350,34 +350,34 @@ type fakeModel struct {
 	calls       int
 }
 
-func (m *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.calls++
-	m.request = request
-	if m.err != nil {
-		return nil, m.err
+func (f *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.request = request
+	if f.err != nil {
+		return nil, f.err
 	}
-	if m.nilResponse {
+	if f.nilResponse {
 		return nil, nil
 	}
-	if m.reply == "" {
+	if f.reply == "" {
 		return &chat.Response{}, nil
 	}
-	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	message := chat.NewAssistantMessage(chat.NewTextPart(f.reply))
 	return &chat.Response{Output: &chat.Output{
 		Message: &message, FinishReason: chat.FinishReasonStop,
 	}}, nil
 }
 
-func (m *fakeModel) lastRequest() *chat.Request {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.request
+func (f *fakeModel) lastRequest() *chat.Request {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.request
 }
 
-func (m *fakeModel) callCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.calls
+func (f *fakeModel) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
 }

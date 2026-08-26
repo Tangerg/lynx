@@ -34,8 +34,8 @@ func NewGroundednessEvaluator(config ModelConfig) (*GroundednessEvaluator, error
 }
 
 // Evaluate scores sample for factual support.
-func (e *GroundednessEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
-	return e.evaluator.Evaluate(ctx, sample)
+func (g *GroundednessEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
+	return g.evaluator.Evaluate(ctx, sample)
 }
 
 func validateGroundednessSample(sample TextSample) error {

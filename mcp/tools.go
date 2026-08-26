@@ -62,9 +62,9 @@ type ToolsConfig struct {
 // publicName returns the configured public name or a provider-safe default.
 // MCP itself permits names that model providers reject, while calls still need
 // to route by the unchanged raw MCP name.
-func (c ToolsConfig) publicName(sourceName, toolName string) string {
-	if c.Naming != nil {
-		return c.Naming(sourceName, toolName)
+func (t ToolsConfig) publicName(sourceName, toolName string) string {
+	if t.Naming != nil {
+		return t.Naming(sourceName, toolName)
 	}
 	if sourceName == "" {
 		return sanitizeToolName(toolName)

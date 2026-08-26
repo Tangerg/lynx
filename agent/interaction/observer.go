@@ -32,29 +32,29 @@ type ToolSettlement struct {
 	Unknown bool
 }
 
-func (dispatcher *Dispatcher) observeModel(ctx context.Context, invocation ModelInvocation, response *chat.Response) {
-	if dispatcher.observer == nil {
+func (d *Dispatcher) observeModel(ctx context.Context, invocation ModelInvocation, response *chat.Response) {
+	if d.observer == nil {
 		return
 	}
 	defer func() { _ = recover() }()
-	dispatcher.observer.OnModelResponse(ctx, invocation, response.Clone())
+	d.observer.OnModelResponse(ctx, invocation, response.Clone())
 }
 
-func (dispatcher *Dispatcher) observeToolStarted(ctx context.Context, invocation ToolInvocation) {
-	if dispatcher.observer == nil {
+func (d *Dispatcher) observeToolStarted(ctx context.Context, invocation ToolInvocation) {
+	if d.observer == nil {
 		return
 	}
 	defer func() { _ = recover() }()
-	dispatcher.observer.OnToolStarted(ctx, invocation)
+	d.observer.OnToolStarted(ctx, invocation)
 }
 
-func (dispatcher *Dispatcher) observeToolSettled(ctx context.Context, invocation ToolInvocation, settlement ToolSettlement) {
-	if dispatcher.observer == nil {
+func (d *Dispatcher) observeToolSettled(ctx context.Context, invocation ToolInvocation, settlement ToolSettlement) {
+	if d.observer == nil {
 		return
 	}
 	if settlement.Result != nil {
 		settlement.Result = new(*settlement.Result)
 	}
 	defer func() { _ = recover() }()
-	dispatcher.observer.OnToolSettled(ctx, invocation, settlement)
+	d.observer.OnToolSettled(ctx, invocation, settlement)
 }

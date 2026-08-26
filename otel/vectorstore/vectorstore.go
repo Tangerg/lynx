@@ -35,8 +35,8 @@ type Config struct {
 
 // Validate verifies the database-system identity required by vector-store
 // instrumentation.
-func (config Config) Validate() error {
-	if strings.TrimSpace(config.System) == "" {
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
 	return nil
@@ -203,13 +203,13 @@ type idDeleter struct {
 	next       corevectorstore.IDDeleter
 }
 
-func (d idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
+func (i idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
 	extra := make([]attribute.KeyValue, 0, 1)
 	if len(ids) > 1 {
 		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(ids)))
 	}
-	ctx, span := d.middleware.start(ctx, "delete_ids", extra...)
-	err := d.next.DeleteIDs(ctx, ids)
+	ctx, span := i.middleware.start(ctx, "delete_ids", extra...)
+	err := i.next.DeleteIDs(ctx, ids)
 	finishVectorStoreSpan(span, err)
 	return err
 }
@@ -219,9 +219,9 @@ type filterDeleter struct {
 	next       corevectorstore.FilterDeleter
 }
 
-func (d filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
-	ctx, span := d.middleware.start(ctx, "delete_where")
-	err := d.next.DeleteWhere(ctx, predicate)
+func (f filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
+	ctx, span := f.middleware.start(ctx, "delete_where")
+	err := f.next.DeleteWhere(ctx, predicate)
 	finishVectorStoreSpan(span, err)
 	return err
 }

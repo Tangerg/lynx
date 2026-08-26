@@ -18,38 +18,38 @@ type httpOrigin struct {
 	host   string
 }
 
-func (o httpOrigin) String() string {
-	return o.scheme + "://" + o.host
+func (h httpOrigin) String() string {
+	return h.scheme + "://" + h.host
 }
 
 type originSet map[httpOrigin]struct{}
 
-func (s originSet) contains(origin httpOrigin) bool {
-	_, ok := s[origin]
+func (o originSet) contains(origin httpOrigin) bool {
+	_, ok := o[origin]
 	return ok
 }
 
-func (s originSet) validate(target *url.URL) error {
+func (o originSet) validate(target *url.URL) error {
 	origin, err := originFromURL(target)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrOriginNotAllowed, err)
 	}
-	if !s.contains(origin) {
+	if !o.contains(origin) {
 		return fmt.Errorf("%w: %s", ErrOriginNotAllowed, origin)
 	}
 	return nil
 }
 
-func (s originSet) restrict(base *http.Client) *http.Client {
+func (o originSet) restrict(base *http.Client) *http.Client {
 	client := *base
 	transport := client.Transport
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	client.Transport = &originRoundTripper{base: transport, allowed: s}
+	client.Transport = &originRoundTripper{base: transport, allowed: o}
 	previousRedirectPolicy := client.CheckRedirect
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if err := s.validate(req.URL); err != nil {
+		if err := o.validate(req.URL); err != nil {
 			return err
 		}
 		if previousRedirectPolicy != nil {
@@ -87,7 +87,7 @@ func newEndpointOriginPolicy(cardURL string, allowedRPCOrigins []string) (endpoi
 	return policy, nil
 }
 
-func (p endpointOriginPolicy) validateCard(card *sdka2a.AgentCard) error {
+func (e endpointOriginPolicy) validateCard(card *sdka2a.AgentCard) error {
 	for i, iface := range card.SupportedInterfaces {
 		if iface == nil {
 			return fmt.Errorf("%w: supported interface %d is nil", ErrInvalidCard, i)
@@ -101,7 +101,7 @@ func (p endpointOriginPolicy) validateCard(card *sdka2a.AgentCard) error {
 		if err != nil {
 			return fmt.Errorf("%w: supported interface %d URL %q: %v", ErrInvalidCard, i, iface.URL, err)
 		}
-		if !p.rpcOrigins.contains(origin) {
+		if !e.rpcOrigins.contains(origin) {
 			return fmt.Errorf("%w: supported interface %d uses %s", ErrOriginNotAllowed, i, origin)
 		}
 	}
@@ -155,9 +155,9 @@ type originRoundTripper struct {
 	allowed originSet
 }
 
-func (t *originRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := t.allowed.validate(req.URL); err != nil {
+func (o *originRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := o.allowed.validate(req.URL); err != nil {
 		return nil, err
 	}
-	return t.base.RoundTrip(req)
+	return o.base.RoundTrip(req)
 }

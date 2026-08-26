@@ -55,11 +55,11 @@ type searchRequest struct {
 	Tbs         string `json:"tbs,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("serper: Request must not be nil")
 	}
-	if r.Q == "" {
+	if s.Q == "" {
 		return errors.New("serper: Q must not be empty")
 	}
 	return nil
@@ -135,9 +135,9 @@ func recencyToTbs(r web.Recency) string {
 	return ""
 }
 
-func (r *searchResponse) toSearchResponse() *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Organic))
-	for _, searchResult := range r.Organic {
+func (s *searchResponse) toSearchResponse() *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Organic))
+	for _, searchResult := range s.Organic {
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.Link,
@@ -145,7 +145,7 @@ func (r *searchResponse) toSearchResponse() *web.SearchResponse {
 			PublishedTime: parseDate(searchResult.Date),
 		})
 	}
-	return &web.SearchResponse{Query: r.SearchParameters.Q, Results: results}
+	return &web.SearchResponse{Query: s.SearchParameters.Q, Results: results}
 }
 
 // parseDate tries Serper's common date formats. Relative strings

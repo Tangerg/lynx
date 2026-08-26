@@ -18,14 +18,14 @@ import (
 
 type indexerFunc func(context.Context, *vectorstore.IndexRequest) error
 
-func (f indexerFunc) Index(ctx context.Context, request *vectorstore.IndexRequest) error {
-	return f(ctx, request)
+func (i indexerFunc) Index(ctx context.Context, request *vectorstore.IndexRequest) error {
+	return i(ctx, request)
 }
 
 type searcherFunc func(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error)
 
-func (f searcherFunc) Search(ctx context.Context, request *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
-	return f(ctx, request)
+func (s searcherFunc) Search(ctx context.Context, request *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
+	return s(ctx, request)
 }
 
 func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *tracetest.SpanRecorder) {

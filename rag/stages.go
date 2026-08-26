@@ -68,9 +68,9 @@ type Transformer interface {
 // TransformerFunc adapts a function to [Transformer].
 type TransformerFunc func(context.Context, *Query) (*Query, error)
 
-// Transform calls f(ctx, query).
-func (f TransformerFunc) Transform(ctx context.Context, query *Query) (*Query, error) {
-	return f(ctx, query)
+// Transform calls t(ctx, query).
+func (t TransformerFunc) Transform(ctx context.Context, query *Query) (*Query, error) {
+	return t(ctx, query)
 }
 
 // Expander turns one query into many — useful for poorly formed inputs
@@ -83,9 +83,9 @@ type Expander interface {
 // ExpanderFunc adapts a function to [Expander].
 type ExpanderFunc func(context.Context, *Query) ([]*Query, error)
 
-// Expand calls f(ctx, query).
-func (f ExpanderFunc) Expand(ctx context.Context, query *Query) ([]*Query, error) {
-	return f(ctx, query)
+// Expand calls e(ctx, query).
+func (e ExpanderFunc) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+	return e(ctx, query)
 }
 
 // Retriever pulls candidate documents from a knowledge source.
@@ -97,9 +97,9 @@ type Retriever interface {
 // RetrieverFunc adapts a function to [Retriever].
 type RetrieverFunc func(context.Context, *Query) ([]Candidate, error)
 
-// Retrieve calls f(ctx, query).
-func (f RetrieverFunc) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
-	return f(ctx, query)
+// Retrieve calls r(ctx, query).
+func (r RetrieverFunc) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
+	return r(ctx, query)
 }
 
 // Refiner narrows candidate documents down to what the LLM should see.
@@ -111,9 +111,9 @@ type Refiner interface {
 // RefinerFunc adapts a function to [Refiner].
 type RefinerFunc func(context.Context, *Query, []Candidate) ([]Candidate, error)
 
-// Refine calls f(ctx, query, documents).
-func (f RefinerFunc) Refine(ctx context.Context, query *Query, documents []Candidate) ([]Candidate, error) {
-	return f(ctx, query, documents)
+// Refine calls r(ctx, query, documents).
+func (r RefinerFunc) Refine(ctx context.Context, query *Query, documents []Candidate) ([]Candidate, error) {
+	return r(ctx, query, documents)
 }
 
 // Augmenter folds retrieved documents into the query so the LLM has the right
@@ -126,7 +126,7 @@ type Augmenter interface {
 // AugmenterFunc adapts a function to [Augmenter].
 type AugmenterFunc func(context.Context, *Query, []Candidate) (*Query, error)
 
-// Augment calls f(ctx, query, documents).
-func (f AugmenterFunc) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
-	return f(ctx, query, documents)
+// Augment calls a(ctx, query, documents).
+func (a AugmenterFunc) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
+	return a(ctx, query, documents)
 }

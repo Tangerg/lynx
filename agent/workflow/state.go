@@ -22,8 +22,8 @@ const (
 	phaseCompleted              phase = "completed"
 )
 
-func (value phase) valid() bool {
-	switch value {
+func (p phase) valid() bool {
+	switch p {
 	case phaseReady, phaseAwaitingChildStart, phaseAwaitingChildWaitOpen,
 		phaseWaitingChild, phaseAwaitingFanoutStarts, phaseAwaitingFanoutWaitOpen,
 		phaseWaitingFanout, phaseCompleted:
@@ -52,124 +52,124 @@ type fanoutChildState struct {
 	Failure        *agent.Failure   `json:"failure,omitempty"`
 }
 
-func (state executionState) validate(definition *Definition) error {
-	if !state.Phase.valid() || !definition.valid() || uint64(state.StageIndex) > uint64(len(definition.stages)) {
+func (e executionState) validate(definition *Definition) error {
+	if !e.Phase.valid() || !definition.valid() || uint64(e.StageIndex) > uint64(len(definition.stages)) {
 		return ErrInvalidExecutionState
 	}
-	input, err := agent.ParseInput(state.CurrentValue)
+	input, err := agent.ParseInput(e.CurrentValue)
 	if err != nil {
 		return fmt.Errorf("%w: current value: %w", ErrInvalidExecutionState, err)
 	}
-	if state.StageIndex < uint32(len(definition.stages)) {
-		if err := definition.stages[state.StageIndex].inputSchema.ValidateInput(input); err != nil {
+	if e.StageIndex < uint32(len(definition.stages)) {
+		if err := definition.stages[e.StageIndex].inputSchema.ValidateInput(input); err != nil {
 			return fmt.Errorf("%w: current value does not satisfy current Stage: %w", ErrInvalidExecutionState, err)
 		}
 	} else {
-		output, err := agent.ParseOutput(state.CurrentValue)
+		output, err := agent.ParseOutput(e.CurrentValue)
 		if err != nil || definition.descriptor.ValidateOutput(output) != nil {
 			return fmt.Errorf("%w: final value", ErrInvalidExecutionState)
 		}
 	}
-	return state.validatePhaseState(definition)
+	return e.validatePhaseState(definition)
 }
 
-func (state executionState) validatePhaseState(definition *Definition) error {
-	hasChild := state.ChildProcessID != nil && state.ChildProcessID.Valid()
-	hasWait := state.WaitID != nil && state.WaitID.Valid()
-	switch state.Phase {
+func (e executionState) validatePhaseState(definition *Definition) error {
+	hasChild := e.ChildProcessID != nil && e.ChildProcessID.Valid()
+	hasWait := e.WaitID != nil && e.WaitID.Valid()
+	switch e.Phase {
 	case phaseReady:
-		if state.StageIndex >= uint32(len(definition.stages)) || !state.noProgress() {
+		if e.StageIndex >= uint32(len(definition.stages)) || !e.noProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildStart:
-		if !state.singleChildStage(definition) || state.ChildProcessID != nil || state.WaitID != nil || state.hasFanoutProgress() {
+		if !e.singleChildStage(definition) || e.ChildProcessID != nil || e.WaitID != nil || e.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildWaitOpen:
-		if !state.singleChildStage(definition) || !hasChild || state.WaitID != nil || state.hasFanoutProgress() {
+		if !e.singleChildStage(definition) || !hasChild || e.WaitID != nil || e.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseWaitingChild:
-		if !state.singleChildStage(definition) || !hasChild || !hasWait || state.hasFanoutProgress() {
+		if !e.singleChildStage(definition) || !hasChild || !hasWait || e.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingFanoutStarts, phaseAwaitingFanoutWaitOpen, phaseWaitingFanout:
-		if state.SelectedCaseID != "" || state.ChildProcessID != nil || state.LoopIteration != 0 {
+		if e.SelectedCaseID != "" || e.ChildProcessID != nil || e.LoopIteration != 0 {
 			return ErrInvalidExecutionState
 		}
-		if err := state.validateFanout(definition); err != nil {
+		if err := e.validateFanout(definition); err != nil {
 			return ErrInvalidExecutionState
 		}
 	case phaseCompleted:
-		if state.StageIndex != uint32(len(definition.stages)) || !state.noProgress() {
+		if e.StageIndex != uint32(len(definition.stages)) || !e.noProgress() {
 			return ErrInvalidExecutionState
 		}
 	}
 	return nil
 }
 
-func (state executionState) singleChildStage(definition *Definition) bool {
-	if state.StageIndex >= uint32(len(definition.stages)) {
+func (e executionState) singleChildStage(definition *Definition) bool {
+	if e.StageIndex >= uint32(len(definition.stages)) {
 		return false
 	}
-	stage := definition.stages[state.StageIndex]
+	stage := definition.stages[e.StageIndex]
 	switch stage.kind {
 	case stageKindCall:
-		return state.SelectedCaseID == "" && state.LoopIteration == 0
+		return e.SelectedCaseID == "" && e.LoopIteration == 0
 	case stageKindSwitch:
-		_, found := stage.switcher.binding(state.SelectedCaseID)
-		return found && state.LoopIteration == 0
+		_, found := stage.switcher.binding(e.SelectedCaseID)
+		return found && e.LoopIteration == 0
 	case stageKindLoop:
-		return state.SelectedCaseID == "" && state.LoopIteration > 0 &&
-			state.LoopIteration <= stage.loop.maxIterations
+		return e.SelectedCaseID == "" && e.LoopIteration > 0 &&
+			e.LoopIteration <= stage.loop.maxIterations
 	default:
 		return false
 	}
 }
 
-func (state executionState) noProgress() bool {
-	return state.SelectedCaseID == "" && state.ChildProcessID == nil && state.WaitID == nil &&
-		state.NextFanoutIndex == 0 && state.ActiveFanoutWindow == nil && state.FanoutOutputs == nil &&
-		state.LoopIteration == 0
+func (e executionState) noProgress() bool {
+	return e.SelectedCaseID == "" && e.ChildProcessID == nil && e.WaitID == nil &&
+		e.NextFanoutIndex == 0 && e.ActiveFanoutWindow == nil && e.FanoutOutputs == nil &&
+		e.LoopIteration == 0
 }
 
-func (state executionState) hasFanoutProgress() bool {
-	return state.NextFanoutIndex != 0 || state.ActiveFanoutWindow != nil || state.FanoutOutputs != nil
+func (e executionState) hasFanoutProgress() bool {
+	return e.NextFanoutIndex != 0 || e.ActiveFanoutWindow != nil || e.FanoutOutputs != nil
 }
 
-func (state executionState) validateFanout(definition *Definition) error {
-	stage, windowStart, err := state.validateFanoutBoundary(definition)
+func (e executionState) validateFanout(definition *Definition) error {
+	stage, windowStart, err := e.validateFanoutBoundary(definition)
 	if err != nil {
 		return err
 	}
-	resolved, started, err := state.validateFanoutChildren(windowStart)
+	resolved, started, err := e.validateFanoutChildren(windowStart)
 	if err != nil {
 		return err
 	}
-	if err := state.validateFanoutOutputs(stage, windowStart); err != nil {
+	if err := e.validateFanoutOutputs(stage, windowStart); err != nil {
 		return err
 	}
-	return state.validateFanoutPhase(resolved, started)
+	return e.validateFanoutPhase(resolved, started)
 }
 
-func (state executionState) validateFanoutBoundary(definition *Definition) (Stage, uint32, error) {
-	if state.StageIndex >= uint32(len(definition.stages)) {
+func (e executionState) validateFanoutBoundary(definition *Definition) (Stage, uint32, error) {
+	if e.StageIndex >= uint32(len(definition.stages)) {
 		return Stage{}, 0, ErrInvalidExecutionState
 	}
-	stage := definition.stages[state.StageIndex]
-	count, err := stage.fanoutCount(state.CurrentValue)
-	if err != nil || count == 0 || state.NextFanoutIndex == 0 || state.NextFanoutIndex > count ||
-		len(state.ActiveFanoutWindow) == 0 || uint64(len(state.ActiveFanoutWindow)) > uint64(stage.fanoutWindowSize()) ||
-		uint64(len(state.FanoutOutputs)) != uint64(count) {
+	stage := definition.stages[e.StageIndex]
+	count, err := stage.fanoutCount(e.CurrentValue)
+	if err != nil || count == 0 || e.NextFanoutIndex == 0 || e.NextFanoutIndex > count ||
+		len(e.ActiveFanoutWindow) == 0 || uint64(len(e.ActiveFanoutWindow)) > uint64(stage.fanoutWindowSize()) ||
+		uint64(len(e.FanoutOutputs)) != uint64(count) {
 		return Stage{}, 0, ErrInvalidExecutionState
 	}
-	return stage, state.NextFanoutIndex - uint32(len(state.ActiveFanoutWindow)), nil
+	return stage, e.NextFanoutIndex - uint32(len(e.ActiveFanoutWindow)), nil
 }
 
-func (state executionState) validateFanoutChildren(windowStart uint32) (int, int, error) {
+func (e executionState) validateFanoutChildren(windowStart uint32) (int, int, error) {
 	resolved := 0
 	started := 0
-	for offset, child := range state.ActiveFanoutWindow {
+	for offset, child := range e.ActiveFanoutWindow {
 		if child.FanoutIndex != windowStart+uint32(offset) {
 			return 0, 0, ErrInvalidExecutionState
 		}
@@ -185,14 +185,14 @@ func (state executionState) validateFanoutChildren(windowStart uint32) (int, int
 			started++
 		}
 	}
-	if resolved != 0 && resolved != len(state.ActiveFanoutWindow) {
+	if resolved != 0 && resolved != len(e.ActiveFanoutWindow) {
 		return 0, 0, ErrInvalidExecutionState
 	}
 	return resolved, started, nil
 }
 
-func (state executionState) validateFanoutOutputs(stage Stage, windowStart uint32) error {
-	for index, output := range state.FanoutOutputs {
+func (e executionState) validateFanoutOutputs(stage Stage, windowStart uint32) error {
+	for index, output := range e.FanoutOutputs {
 		if uint32(index) < windowStart {
 			if output == nil {
 				return ErrInvalidExecutionState
@@ -211,23 +211,23 @@ func (state executionState) validateFanoutOutputs(stage Stage, windowStart uint3
 	return nil
 }
 
-func (state executionState) validateFanoutPhase(resolved, started int) error {
-	switch state.Phase {
+func (e executionState) validateFanoutPhase(resolved, started int) error {
+	switch e.Phase {
 	case phaseAwaitingFanoutStarts:
-		if state.WaitID != nil || resolved != 0 && started != 0 {
+		if e.WaitID != nil || resolved != 0 && started != 0 {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingFanoutWaitOpen:
-		if state.WaitID != nil || resolved != len(state.ActiveFanoutWindow) || started == 0 {
+		if e.WaitID != nil || resolved != len(e.ActiveFanoutWindow) || started == 0 {
 			return ErrInvalidExecutionState
 		}
-		for _, child := range state.ActiveFanoutWindow {
+		for _, child := range e.ActiveFanoutWindow {
 			if child.ChildProcessID != nil && child.Failure != nil {
 				return ErrInvalidExecutionState
 			}
 		}
 	case phaseWaitingFanout:
-		if state.WaitID == nil || !state.WaitID.Valid() || resolved != len(state.ActiveFanoutWindow) || started == 0 {
+		if e.WaitID == nil || !e.WaitID.Valid() || resolved != len(e.ActiveFanoutWindow) || started == 0 {
 			return ErrInvalidExecutionState
 		}
 	default:

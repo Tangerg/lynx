@@ -111,7 +111,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 	return dispatcher, nil
 }
 
-func (dispatcher *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
+func (d *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
 	if isNilTool(executable) {
 		return errors.New("tool is nil")
 	}
@@ -119,7 +119,7 @@ func (dispatcher *Dispatcher) bindTool(executable tool.Tool, deferred bool) erro
 	if err != nil {
 		return err
 	}
-	if _, duplicate := dispatcher.tools[definition.Name]; duplicate {
+	if _, duplicate := d.tools[definition.Name]; duplicate {
 		return fmt.Errorf("duplicate tool name %q", definition.Name)
 	}
 	direct, err := directResultCapability(executable)
@@ -131,14 +131,14 @@ func (dispatcher *Dispatcher) bindTool(executable tool.Tool, deferred bool) erro
 		return err
 	}
 	definition = definition.Clone()
-	dispatcher.tools[definition.Name] = boundTool{
+	d.tools[definition.Name] = boundTool{
 		executable: executable, definition: definition.Clone(), deferred: deferred,
 		direct: direct, concurrent: concurrent,
 	}
 	if deferred {
-		dispatcher.deferredToolNames[definition.Name] = struct{}{}
+		d.deferredToolNames[definition.Name] = struct{}{}
 	} else {
-		dispatcher.initialDefinitions = append(dispatcher.initialDefinitions, definition.Clone())
+		d.initialDefinitions = append(d.initialDefinitions, definition.Clone())
 	}
 	return nil
 }
@@ -147,12 +147,12 @@ func (dispatcher *Dispatcher) bindTool(executable tool.Tool, deferred bool) erro
 // definite owner-defined Signal payload. An error means the external outcome
 // is not provable; Engine therefore records an unknown settlement instead of
 // retrying the operation.
-func (dispatcher *Dispatcher) Dispatch(
+func (d *Dispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	if dispatcher == nil || dispatcher.client == nil {
+	if d == nil || d.client == nil {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
 	}
 	envelope, err := decodeEffect(request.Effect().Payload())
@@ -161,9 +161,9 @@ func (dispatcher *Dispatcher) Dispatch(
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		return dispatcher.dispatchModel(ctx, request, envelope.ModelCall, emit)
+		return d.dispatchModel(ctx, request, envelope.ModelCall, emit)
 	case operationToolBatch:
-		return dispatcher.dispatchToolBatch(ctx, request, envelope.ToolBatch)
+		return d.dispatchToolBatch(ctx, request, envelope.ToolBatch)
 	default:
 		return agent.Settlement{}, errors.New("interaction: unsupported dispatcher operation")
 	}
@@ -176,14 +176,14 @@ func (*Dispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
 	return agent.ReplayPolicyNever
 }
 
-func (dispatcher *Dispatcher) dispatchModel(
+func (d *Dispatcher) dispatchModel(
 	ctx context.Context,
 	request agent.EffectRequest,
 	call *modelCall,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
 	modelRequest := call.Request.Clone()
-	definitions, err := dispatcher.modelDefinitions(call.AdvertisedToolNames)
+	definitions, err := d.modelDefinitions(call.AdvertisedToolNames)
 	if err != nil {
 		return agent.Settlement{}, err
 	}
@@ -199,7 +199,7 @@ func (dispatcher *Dispatcher) dispatchModel(
 			call.AppliedSteerSignalIDs,
 		),
 	)
-	response, err := dispatcher.callModel(ctx, modelRequest, emit)
+	response, err := d.callModel(ctx, modelRequest, emit)
 	if err != nil {
 		if errors.Is(err, ErrHostFailure) {
 			return modelHostFailureSettlement(request.ID(), err)
@@ -212,7 +212,7 @@ func (dispatcher *Dispatcher) dispatchModel(
 	if err := response.Validate(); err != nil {
 		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", err))
 	}
-	dispatcher.observeModel(ctx, modelInvocationFromRequest(
+	d.observeModel(ctx, modelInvocationFromRequest(
 		request, call.ModelCallSequence, call.AppliedSteerSignalIDs,
 	), response)
 	payload, err := encodeProtocol(signalEnvelope{
@@ -226,13 +226,13 @@ func (dispatcher *Dispatcher) dispatchModel(
 	return agent.NewSettlement(request.ID(), agent.SettlementStatusSucceeded, payload)
 }
 
-func (dispatcher *Dispatcher) modelDefinitions(advertisedToolNames []string) ([]chat.ToolDefinition, error) {
+func (d *Dispatcher) modelDefinitions(advertisedToolNames []string) ([]chat.ToolDefinition, error) {
 	if err := validateAdvertisedToolNames(advertisedToolNames); err != nil {
 		return nil, fmt.Errorf("interaction: advertised Tools: %w", err)
 	}
-	definitions := cloneDefinitions(dispatcher.initialDefinitions)
+	definitions := cloneDefinitions(d.initialDefinitions)
 	for _, name := range advertisedToolNames {
-		hosted, found := dispatcher.tools[name]
+		hosted, found := d.tools[name]
 		if !found || !hosted.deferred {
 			return nil, fmt.Errorf("interaction: tool %q is not a bound deferred Tool", name)
 		}
@@ -265,12 +265,12 @@ func modelHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Set
 	return agent.NewSettlement(effectID, agent.SettlementStatusFailed, payload)
 }
 
-func (dispatcher *Dispatcher) dispatchToolBatch(
+func (d *Dispatcher) dispatchToolBatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
-	dispatch, err := newToolBatchDispatch(ctx, dispatcher, request, batch)
+	dispatch, err := newToolBatchDispatch(ctx, d, request, batch)
 	if err != nil {
 		return agent.Settlement{}, err
 	}
@@ -329,20 +329,20 @@ func newToolBatchDispatch(
 	return dispatch, nil
 }
 
-func (dispatch *toolBatchDispatch) run() (agent.Settlement, error) {
-	if settlement, paused, err := dispatch.resume(); err != nil || paused {
+func (t *toolBatchDispatch) run() (agent.Settlement, error) {
+	if settlement, paused, err := t.resume(); err != nil || paused {
 		if errors.Is(err, ErrHostFailure) {
-			return toolHostFailureSettlement(dispatch.request.ID(), err)
+			return toolHostFailureSettlement(t.request.ID(), err)
 		}
 		return settlement, err
 	}
-	if settlement, paused, err := dispatch.dispatchRemaining(); err != nil || paused {
+	if settlement, paused, err := t.dispatchRemaining(); err != nil || paused {
 		if errors.Is(err, ErrHostFailure) {
-			return toolHostFailureSettlement(dispatch.request.ID(), err)
+			return toolHostFailureSettlement(t.request.ID(), err)
 		}
 		return settlement, err
 	}
-	return dispatch.complete()
+	return t.complete()
 }
 
 func toolHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
@@ -357,57 +357,57 @@ func toolHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Sett
 	return agent.NewSettlement(effectID, agent.SettlementStatusFailed, payload)
 }
 
-func (dispatch *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
-	if dispatch.continuation == nil {
+func (t *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
+	if t.continuation == nil {
 		return agent.Settlement{}, false, nil
 	}
-	callContext := withToolInputContinuation(dispatch.ctx, *dispatch.continuation)
-	result, newlyAdvertised, required, err := dispatch.dispatcher.callTool(
+	callContext := withToolInputContinuation(t.ctx, *t.continuation)
+	result, newlyAdvertised, required, err := t.dispatcher.callTool(
 		callContext,
-		dispatch.request,
-		dispatch.batch.ModelCallSequence,
-		dispatch.batch.FirstToolCallIndex+uint32(dispatch.start),
-		dispatch.batch.Calls[dispatch.start],
+		t.request,
+		t.batch.ModelCallSequence,
+		t.batch.FirstToolCallIndex+uint32(t.start),
+		t.batch.Calls[t.start],
 	)
 	if err != nil {
 		return agent.Settlement{}, false, fmt.Errorf(
-			"interaction: tool call %q: %w", dispatch.batch.Calls[dispatch.start].ID, err,
+			"interaction: tool call %q: %w", t.batch.Calls[t.start].ID, err,
 		)
 	}
 	if required != nil {
-		settlement, err := dispatch.pause(uint32(dispatch.start), *required)
+		settlement, err := t.pause(uint32(t.start), *required)
 		return settlement, true, err
 	}
-	dispatch.results = append(dispatch.results, result)
-	dispatch.advertisedToolNames, err = mergeAdvertisedToolNames(
-		dispatch.advertisedToolNames, newlyAdvertised,
+	t.results = append(t.results, result)
+	t.advertisedToolNames, err = mergeAdvertisedToolNames(
+		t.advertisedToolNames, newlyAdvertised,
 	)
 	if err != nil {
 		return agent.Settlement{}, false, err
 	}
-	dispatch.start++
+	t.start++
 	return agent.Settlement{}, false, nil
 }
 
-func (dispatch *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) {
-	plans, err := dispatch.dispatcher.planToolCalls(dispatch.batch.Calls[dispatch.start:])
+func (t *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) {
+	plans, err := t.dispatcher.planToolCalls(t.batch.Calls[t.start:])
 	if err != nil {
 		return agent.Settlement{}, false, err
 	}
 	for offset := 0; offset < len(plans); {
 		end := offset + 1
-		if dispatch.dispatcher.maxParallel > 1 {
+		if t.dispatcher.maxParallel > 1 {
 			end = concurrentBatchEnd(plans, offset)
 		}
-		outcomes := dispatch.dispatcher.callToolBatch(
-			dispatch.ctx,
-			dispatch.request,
-			dispatch.batch.ModelCallSequence,
-			dispatch.batch.FirstToolCallIndex+uint32(dispatch.start+offset),
-			dispatch.batch.Calls[dispatch.start+offset:dispatch.start+end],
+		outcomes := t.dispatcher.callToolBatch(
+			t.ctx,
+			t.request,
+			t.batch.ModelCallSequence,
+			t.batch.FirstToolCallIndex+uint32(t.start+offset),
+			t.batch.Calls[t.start+offset:t.start+end],
 		)
 		for index, outcome := range outcomes {
-			call := dispatch.batch.Calls[dispatch.start+offset+index]
+			call := t.batch.Calls[t.start+offset+index]
 			if outcome.err != nil {
 				return agent.Settlement{}, false, fmt.Errorf("interaction: tool call %q: %w", call.ID, outcome.err)
 			}
@@ -418,14 +418,14 @@ func (dispatch *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, 
 						call.ID,
 					)
 				}
-				settlement, err := dispatch.pause(uint32(dispatch.start+offset), *outcome.required)
+				settlement, err := t.pause(uint32(t.start+offset), *outcome.required)
 				return settlement, true, err
 			}
 		}
 		for _, outcome := range outcomes {
-			dispatch.results = append(dispatch.results, outcome.result)
-			dispatch.advertisedToolNames, err = mergeAdvertisedToolNames(
-				dispatch.advertisedToolNames,
+			t.results = append(t.results, outcome.result)
+			t.advertisedToolNames, err = mergeAdvertisedToolNames(
+				t.advertisedToolNames,
 				outcome.advertisedToolNames,
 			)
 			if err != nil {
@@ -437,33 +437,33 @@ func (dispatch *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, 
 	return agent.Settlement{}, false, nil
 }
 
-func (dispatch *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent.Settlement, error) {
-	if dispatch.pauseCount == math.MaxUint32 {
+func (t *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent.Settlement, error) {
+	if t.pauseCount == math.MaxUint32 {
 		return agent.Settlement{}, errors.New("interaction: Tool input pause count is exhausted")
 	}
 	checkpoint := &toolCheckpoint{
-		CompletedResults:    append([]chat.ToolResult(nil), dispatch.results...),
-		AdvertisedToolNames: append([]string(nil), dispatch.advertisedToolNames...),
+		CompletedResults:    append([]chat.ToolResult(nil), t.results...),
+		AdvertisedToolNames: append([]string(nil), t.advertisedToolNames...),
 		NextToolCallIndex:   index,
-		PauseCount:          dispatch.pauseCount + 1,
+		PauseCount:          t.pauseCount + 1,
 		InputRequest:        wireInputRequest(request),
 	}
-	return toolCheckpointSettlement(dispatch.request.ID(), checkpoint)
+	return toolCheckpointSettlement(t.request.ID(), checkpoint)
 }
 
-func (dispatch *toolBatchDispatch) complete() (agent.Settlement, error) {
+func (t *toolBatchDispatch) complete() (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
 		ToolResult: &toolBatchResult{
-			Results: dispatch.results, Direct: dispatch.allDirect,
-			AdvertisedToolNames: dispatch.advertisedToolNames,
+			Results: t.results, Direct: t.allDirect,
+			AdvertisedToolNames: t.advertisedToolNames,
 		},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
 	}
-	return agent.NewSettlement(dispatch.request.ID(), agent.SettlementStatusSucceeded, payload)
+	return agent.NewSettlement(t.request.ID(), agent.SettlementStatusSucceeded, payload)
 }
 
 func toolCheckpointSettlement(
@@ -481,7 +481,7 @@ func toolCheckpointSettlement(
 	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
 }
 
-func (dispatcher *Dispatcher) callTool(
+func (d *Dispatcher) callTool(
 	ctx context.Context,
 	request agent.EffectRequest,
 	modelCallSequence uint32,
@@ -496,7 +496,7 @@ func (dispatcher *Dispatcher) callTool(
 	invocation := toolInvocationFromRequest(
 		request, modelCallSequence, toolCallIndex, call,
 	)
-	dispatcher.observeToolStarted(ctx, invocation)
+	d.observeToolStarted(ctx, invocation)
 	defer func() {
 		settlement := ToolSettlement{}
 		switch {
@@ -508,16 +508,16 @@ func (dispatcher *Dispatcher) callTool(
 			settlement.Failure = boundedDiagnostic(err.Error())
 			settlement.Unknown = errors.Is(err, ErrHostFailure)
 		}
-		dispatcher.observeToolSettled(ctx, invocation, settlement)
+		d.observeToolSettled(ctx, invocation, settlement)
 	}()
-	hosted, found := dispatcher.tools[call.Name]
+	hosted, found := d.tools[call.Name]
 	if !found {
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
 		}, nil, nil, nil
 	}
-	advertiser := newToolAdvertiser(dispatcher.deferredToolNames)
+	advertiser := newToolAdvertiser(d.deferredToolNames)
 	ctx = withToolInvocation(ctx, invocation)
 	ctx = withToolAdvertiser(ctx, advertiser)
 	defer func() {
@@ -553,12 +553,12 @@ func (dispatcher *Dispatcher) callTool(
 		advertiser.advertisedNames(), nil, nil
 }
 
-func (dispatcher *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {
+func (d *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {
 	if len(calls) == 0 {
 		return false
 	}
 	for _, call := range calls {
-		hosted, found := dispatcher.tools[call.Name]
+		hosted, found := d.tools[call.Name]
 		if !found || !hosted.direct {
 			return false
 		}

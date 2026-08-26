@@ -118,7 +118,7 @@ type catalogDefinition struct {
 	descriptor agent.Descriptor
 }
 
-func (definition catalogDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
+func (c catalogDefinition) Descriptor() agent.Descriptor { return c.descriptor }
 
 func (catalogDefinition) Start(agent.Input) (agent.Execution, error) {
 	return nil, errors.New("catalog fixture is not executable")

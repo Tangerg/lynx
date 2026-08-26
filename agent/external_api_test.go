@@ -27,7 +27,7 @@ type externalState struct {
 	Value string `json:"value"`
 }
 
-func (definition externalDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
+func (e externalDefinition) Descriptor() agent.Descriptor { return e.descriptor }
 
 func (externalDefinition) Start(input agent.Input) (agent.Execution, error) {
 	value, err := input.Decode[externalInput]()
@@ -52,10 +52,10 @@ type externalExecution struct {
 	state externalState
 }
 
-func (execution *externalExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
-	switch execution.state.Phase {
+func (e *externalExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
+	switch e.state.Phase {
 	case "ready":
-		payload, err := json.Marshal(externalInput{Value: execution.state.Value})
+		payload, err := json.Marshal(externalInput{Value: e.state.Value})
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -63,7 +63,7 @@ func (execution *externalExecution) Step(_ context.Context, signals []agent.Sign
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.Phase = "dispatched"
+		e.state.Phase = "dispatched"
 		return agent.Continue(0, effect)
 	case "dispatched":
 		if len(signals) != 1 {
@@ -77,15 +77,15 @@ func (execution *externalExecution) Step(_ context.Context, signals []agent.Sign
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.Phase = "completed"
+		e.state.Phase = "completed"
 		return agent.Complete(1, output)
 	default:
 		return agent.Transition{}, agent.ErrInvalidExecutionState
 	}
 }
 
-func (execution *externalExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution.state)
+func (e *externalExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(e.state)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}

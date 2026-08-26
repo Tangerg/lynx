@@ -54,11 +54,11 @@ type searchRequest struct {
 	Tbs   string `json:"tbs,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("firecrawl: Request must not be nil")
 	}
-	if r.Query == "" {
+	if s.Query == "" {
 		return errors.New("firecrawl: Query must not be empty")
 	}
 	return nil
@@ -133,9 +133,9 @@ func recencyToTbs(r web.Recency) string {
 	return ""
 }
 
-func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Data.Web))
-	for _, searchResult := range r.Data.Web {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Data.Web))
+	for _, searchResult := range s.Data.Web {
 		results = append(results, &web.SearchResult{
 			Title:   searchResult.Title,
 			URL:     searchResult.URL,

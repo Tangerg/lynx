@@ -17,9 +17,9 @@ type EventListener interface {
 // EventListenerFunc adapts a function to EventListener.
 type EventListenerFunc func(ctx context.Context, event Event)
 
-// OnEvent invokes listener.
-func (listener EventListenerFunc) OnEvent(ctx context.Context, event Event) {
-	listener(ctx, event)
+// OnEvent invokes e.
+func (e EventListenerFunc) OnEvent(ctx context.Context, event Event) {
+	e(ctx, event)
 }
 
 // DeltaListener observes best-effort Strategy streaming increments. Panics are
@@ -31,9 +31,9 @@ type DeltaListener interface {
 // DeltaListenerFunc adapts a function to DeltaListener.
 type DeltaListenerFunc func(ctx context.Context, delta Delta)
 
-// OnDelta invokes listener.
-func (listener DeltaListenerFunc) OnDelta(ctx context.Context, delta Delta) {
-	listener(ctx, delta)
+// OnDelta invokes d.
+func (d DeltaListenerFunc) OnDelta(ctx context.Context, delta Delta) {
+	d(ctx, delta)
 }
 
 type observationBus struct {
@@ -67,8 +67,8 @@ func newObservationBus(events []EventListener, deltas []DeltaListener, capacity 
 	return bus
 }
 
-func (bus *observationBus) publishEvent(ctx context.Context, event Event) {
-	for _, listener := range bus.events {
+func (o *observationBus) publishEvent(ctx context.Context, event Event) {
+	for _, listener := range o.events {
 		callEventListener(ctx, listener, event)
 	}
 }
@@ -78,54 +78,54 @@ func callEventListener(ctx context.Context, listener EventListener, event Event)
 	listener.OnEvent(ctx, event)
 }
 
-func (bus *observationBus) offerDelta(delta Delta) bool {
-	if len(bus.deltas) == 0 {
+func (o *observationBus) offerDelta(delta Delta) bool {
+	if len(o.deltas) == 0 {
 		return true
 	}
-	bus.deltaMu.RLock()
-	defer bus.deltaMu.RUnlock()
-	if bus.deltaClosed {
+	o.deltaMu.RLock()
+	defer o.deltaMu.RUnlock()
+	if o.deltaClosed {
 		return false
 	}
 	select {
-	case bus.deltaQueue <- deltaObservation{delta: delta}:
+	case o.deltaQueue <- deltaObservation{delta: delta}:
 		return true
 	default:
 		return false
 	}
 }
 
-func (bus *observationBus) deliverDeltas() {
-	defer close(bus.deltaDone)
-	for observation := range bus.deltaQueue {
+func (o *observationBus) deliverDeltas() {
+	defer close(o.deltaDone)
+	for observation := range o.deltaQueue {
 		if observation.barrier != nil {
 			close(observation.barrier)
 			continue
 		}
-		for _, listener := range bus.deltas {
+		for _, listener := range o.deltas {
 			callDeltaListener(listener, observation.delta)
 		}
 	}
 }
 
-func (bus *observationBus) flushDeltas(ctx context.Context) error {
-	if bus.deltaQueue == nil {
+func (o *observationBus) flushDeltas(ctx context.Context) error {
+	if o.deltaQueue == nil {
 		return nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	barrier := make(chan struct{})
-	bus.deltaMu.RLock()
-	if bus.deltaClosed {
-		bus.deltaMu.RUnlock()
+	o.deltaMu.RLock()
+	if o.deltaClosed {
+		o.deltaMu.RUnlock()
 		return ErrEngineClosed
 	}
 	select {
-	case bus.deltaQueue <- deltaObservation{barrier: barrier}:
-		bus.deltaMu.RUnlock()
+	case o.deltaQueue <- deltaObservation{barrier: barrier}:
+		o.deltaMu.RUnlock()
 	case <-ctx.Done():
-		bus.deltaMu.RUnlock()
+		o.deltaMu.RUnlock()
 		return ctx.Err()
 	}
 	select {
@@ -141,15 +141,15 @@ func callDeltaListener(listener DeltaListener, delta Delta) {
 	listener.OnDelta(context.Background(), delta)
 }
 
-func (bus *observationBus) close() {
-	if bus.deltaQueue == nil {
+func (o *observationBus) close() {
+	if o.deltaQueue == nil {
 		return
 	}
-	bus.deltaMu.Lock()
-	if !bus.deltaClosed {
-		bus.deltaClosed = true
-		close(bus.deltaQueue)
+	o.deltaMu.Lock()
+	if !o.deltaClosed {
+		o.deltaClosed = true
+		close(o.deltaQueue)
 	}
-	bus.deltaMu.Unlock()
-	<-bus.deltaDone
+	o.deltaMu.Unlock()
+	<-o.deltaDone
 }

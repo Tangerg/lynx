@@ -36,10 +36,10 @@ func DefaultLimits() Limits {
 }
 
 // Valid reports whether every growth dimension has a positive bound.
-func (limits Limits) Valid() bool {
-	return limits.MaxSteps > 0 && limits.MaxEffects > 0 &&
-		limits.MaxSignals > 0 && limits.MaxPendingSignals > 0 &&
-		limits.MaxPendingSignals <= limits.MaxSignals
+func (l Limits) Valid() bool {
+	return l.MaxSteps > 0 && l.MaxEffects > 0 &&
+		l.MaxSignals > 0 && l.MaxPendingSignals > 0 &&
+		l.MaxPendingSignals <= l.MaxSignals
 }
 
 func effectiveLimits(configured Limits) (Limits, error) {
@@ -79,10 +79,10 @@ type Usage struct {
 	DroppedDeltas uint64 `json:"dropped_deltas"`
 }
 
-func (usage Usage) validFor(limits Limits) bool {
-	return usage.CommittedSteps <= limits.MaxSteps &&
-		usage.PreparedEffects <= limits.MaxEffects &&
-		usage.AcceptedSignals <= limits.MaxSignals
+func (u Usage) validFor(limits Limits) bool {
+	return u.CommittedSteps <= limits.MaxSteps &&
+		u.PreparedEffects <= limits.MaxEffects &&
+		u.AcceptedSignals <= limits.MaxSignals
 }
 
 // Budget is a non-renewable allocation of Framework-owned work units. A child
@@ -107,8 +107,8 @@ func NewBudget(steps, effects, signals uint64) (Budget, error) {
 }
 
 // Valid reports whether every governed resource has a positive allocation.
-func (budget Budget) Valid() bool {
-	return budget.Steps > 0 && budget.Effects > 0 && budget.Signals > 0
+func (b Budget) Valid() bool {
+	return b.Steps > 0 && b.Effects > 0 && b.Signals > 0
 }
 
 func budgetFromLimits(limits Limits) Budget {
@@ -130,29 +130,29 @@ func limitsFromBudget(parent Limits, budget Budget) (Limits, error) {
 	return limits, nil
 }
 
-func (budget Budget) contains(usage Usage, reserved Budget) bool {
-	return resourceQuantitiesFit(budget.Steps, usage.CommittedSteps, reserved.Steps) &&
-		resourceQuantitiesFit(budget.Effects, usage.PreparedEffects, reserved.Effects) &&
-		resourceQuantitiesFit(budget.Signals, usage.AcceptedSignals, reserved.Signals)
+func (b Budget) contains(usage Usage, reserved Budget) bool {
+	return resourceQuantitiesFit(b.Steps, usage.CommittedSteps, reserved.Steps) &&
+		resourceQuantitiesFit(b.Effects, usage.PreparedEffects, reserved.Effects) &&
+		resourceQuantitiesFit(b.Signals, usage.AcceptedSignals, reserved.Signals)
 }
 
-func (budget Budget) canAllocate(usage Usage, reserved, requested Budget) bool {
+func (b Budget) canAllocate(usage Usage, reserved, requested Budget) bool {
 	return requested.Valid() &&
-		resourceQuantitiesFit(budget.Steps, usage.CommittedSteps, reserved.Steps, requested.Steps) &&
-		resourceQuantitiesFit(budget.Effects, usage.PreparedEffects, reserved.Effects, requested.Effects) &&
-		resourceQuantitiesFit(budget.Signals, usage.AcceptedSignals, reserved.Signals, requested.Signals)
+		resourceQuantitiesFit(b.Steps, usage.CommittedSteps, reserved.Steps, requested.Steps) &&
+		resourceQuantitiesFit(b.Effects, usage.PreparedEffects, reserved.Effects, requested.Effects) &&
+		resourceQuantitiesFit(b.Signals, usage.AcceptedSignals, reserved.Signals, requested.Signals)
 }
 
-func (budget Budget) add(other Budget) (Budget, bool) {
+func (b Budget) add(other Budget) (Budget, bool) {
 	const maxUint64 = ^uint64(0)
-	if !resourceQuantitiesFit(maxUint64, budget.Steps, other.Steps) ||
-		!resourceQuantitiesFit(maxUint64, budget.Effects, other.Effects) ||
-		!resourceQuantitiesFit(maxUint64, budget.Signals, other.Signals) {
+	if !resourceQuantitiesFit(maxUint64, b.Steps, other.Steps) ||
+		!resourceQuantitiesFit(maxUint64, b.Effects, other.Effects) ||
+		!resourceQuantitiesFit(maxUint64, b.Signals, other.Signals) {
 		return Budget{}, false
 	}
 	result := Budget{
-		Steps: budget.Steps + other.Steps, Effects: budget.Effects + other.Effects,
-		Signals: budget.Signals + other.Signals,
+		Steps: b.Steps + other.Steps, Effects: b.Effects + other.Effects,
+		Signals: b.Signals + other.Signals,
 	}
 	return result, true
 }
@@ -197,10 +197,10 @@ func DefaultTreeLimits() TreeLimits {
 }
 
 // Valid reports whether all tree growth dimensions are positive and coherent.
-func (limits TreeLimits) Valid() bool {
-	return limits.MaxDepth > 0 && limits.MaxChildren > 0 &&
-		limits.MaxActiveChildren > 0 && limits.MaxActiveChildren <= limits.MaxChildren &&
-		limits.MaxTreeProcesses > 0
+func (t TreeLimits) Valid() bool {
+	return t.MaxDepth > 0 && t.MaxChildren > 0 &&
+		t.MaxActiveChildren > 0 && t.MaxActiveChildren <= t.MaxChildren &&
+		t.MaxTreeProcesses > 0
 }
 
 func effectiveTreeLimits(configured TreeLimits) (TreeLimits, error) {

@@ -72,15 +72,15 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 	}, nil
 }
 
-func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document) ([][]*document.Document, error) {
-	sized, err := b.measure(ctx, docs)
+func (t *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document) ([][]*document.Document, error) {
+	sized, err := t.measure(ctx, docs)
 	if err != nil {
 		return nil, err
 	}
-	return b.partition(sized), nil
+	return t.partition(sized), nil
 }
 
-func (b *TokenCountBatcher) measure(ctx context.Context, docs []*document.Document) ([]sizedDocument, error) {
+func (t *TokenCountBatcher) measure(ctx context.Context, docs []*document.Document) ([]sizedDocument, error) {
 	sized := make([]sizedDocument, 0, len(docs))
 	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
@@ -92,28 +92,28 @@ func (b *TokenCountBatcher) measure(ctx context.Context, docs []*document.Docume
 		if err := doc.Validate(); err != nil {
 			return nil, fmt.Errorf("etl: size document %d: %w", index, err)
 		}
-		rendered, err := b.formatter.Format(doc)
+		rendered, err := t.formatter.Format(doc)
 		if err != nil {
 			return nil, fmt.Errorf("etl: format document %d for sizing: %w", index, err)
 		}
 
-		count, err := b.estimator.EstimateText(ctx, rendered)
+		count, err := t.estimator.EstimateText(ctx, rendered)
 		if err != nil {
 			return nil, fmt.Errorf("etl: estimate document %d tokens: %w", index, err)
 		}
 		if count < 0 {
 			return nil, fmt.Errorf("etl: token estimator returned %d for document %d", count, index)
 		}
-		if count > b.maxTokens {
+		if count > t.maxTokens {
 			return nil, fmt.Errorf("etl: document %q has %d tokens, exceeding the batch budget of %d",
-				doc.ID, count, b.maxTokens)
+				doc.ID, count, t.maxTokens)
 		}
 		sized = append(sized, sizedDocument{document: doc, tokens: count})
 	}
 	return sized, nil
 }
 
-func (b *TokenCountBatcher) partition(sized []sizedDocument) [][]*document.Document {
+func (t *TokenCountBatcher) partition(sized []sizedDocument) [][]*document.Document {
 	var (
 		batches      [][]*document.Document
 		currentBatch []*document.Document
@@ -121,7 +121,7 @@ func (b *TokenCountBatcher) partition(sized []sizedDocument) [][]*document.Docum
 	)
 
 	for _, item := range sized {
-		if currentSum+item.tokens > b.maxTokens {
+		if currentSum+item.tokens > t.maxTokens {
 			if len(currentBatch) > 0 {
 				batches = append(batches, currentBatch)
 			}

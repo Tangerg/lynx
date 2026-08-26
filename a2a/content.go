@@ -55,21 +55,21 @@ func (textProjection) parts(parts sdka2a.ContentParts) string {
 // *RemoteAgentError unless a returned task completed successfully. A direct
 // Message reply yields its parts; a completed Task reply prefers its artifacts,
 // falling back to the status message.
-func (p textProjection) result(result sdka2a.SendMessageResult) (string, error) {
+func (t textProjection) result(result sdka2a.SendMessageResult) (string, error) {
 	switch r := result.(type) {
 	case *sdka2a.Message:
 		if r == nil {
 			return "", fmt.Errorf("%w: nil message", ErrInvalidResult)
 		}
-		return p.parts(r.Parts), nil
+		return t.parts(r.Parts), nil
 	case *sdka2a.Task:
 		if r == nil {
 			return "", fmt.Errorf("%w: nil task", ErrInvalidResult)
 		}
 		if r.Status.State != sdka2a.TaskStateCompleted {
-			return "", &RemoteAgentError{State: r.Status.State, Detail: p.status(r)}
+			return "", &RemoteAgentError{State: r.Status.State, Detail: t.status(r)}
 		}
-		return p.task(r), nil
+		return t.task(r), nil
 	default:
 		return "", fmt.Errorf("%w: unexpected %T", ErrInvalidResult, result)
 	}
@@ -77,28 +77,28 @@ func (p textProjection) result(result sdka2a.SendMessageResult) (string, error) 
 
 // task concatenates a task's artifact parts, falling back to its status
 // message when no artifacts are present.
-func (p textProjection) task(task *sdka2a.Task) string {
+func (t textProjection) task(task *sdka2a.Task) string {
 	if task == nil {
 		return ""
 	}
 	var b strings.Builder
 	for _, artifact := range task.Artifacts {
 		if artifact != nil {
-			b.WriteString(p.parts(artifact.Parts))
+			b.WriteString(t.parts(artifact.Parts))
 		}
 	}
 	if b.Len() == 0 {
-		return p.status(task)
+		return t.status(task)
 	}
 	return b.String()
 }
 
-func (p textProjection) status(task *sdka2a.Task) string {
+func (t textProjection) status(task *sdka2a.Task) string {
 	if task == nil {
 		return ""
 	}
 	if task.Status.Message == nil {
 		return ""
 	}
-	return p.parts(task.Status.Message.Parts)
+	return t.parts(task.Status.Message.Parts)
 }

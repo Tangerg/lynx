@@ -37,7 +37,7 @@ func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 
 // Assign validates and clones every document before assigning IDs. It returns
 // no partial output on failure and never mutates the input slice or documents.
-func (a *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+func (i *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	owned := make([]*document.Document, len(docs))
 	for index, doc := range docs {
 		if err := ctx.Err(); err != nil {
@@ -49,19 +49,19 @@ func (a *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*
 		if err := doc.Validate(); err != nil {
 			return nil, fmt.Errorf("etl: assign ID to document %d: %w", index, err)
 		}
-		owned[index] = a.cloneDocument(doc)
+		owned[index] = i.cloneDocument(doc)
 	}
 
 	for index, doc := range owned {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if a.overwrite {
+		if i.overwrite {
 			doc.ID = ""
 		} else if doc.ID != "" {
 			continue
 		}
-		if err := assignID(ctx, doc, a.generator); err != nil {
+		if err := assignID(ctx, doc, i.generator); err != nil {
 			return nil, fmt.Errorf("etl: assign ID to document %d: %w", index, err)
 		}
 	}

@@ -19,17 +19,17 @@ const (
 	ReplayPolicySameIdentity ReplayPolicy = "same_identity"
 )
 
-// Valid reports whether policy declares a supported replay contract.
-func (policy ReplayPolicy) Valid() bool {
-	return policy == ReplayPolicyNever || policy == ReplayPolicySameIdentity
+// Valid reports whether r declares a supported replay contract.
+func (r ReplayPolicy) Valid() bool {
+	return r == ReplayPolicyNever || r == ReplayPolicySameIdentity
 }
 
 // String returns the stable replay-policy name.
-func (policy ReplayPolicy) String() string {
-	if !policy.Valid() {
+func (r ReplayPolicy) String() string {
+	if !r.Valid() {
 		return "invalid"
 	}
-	return string(policy)
+	return string(r)
 }
 
 // EffectRequest is the immutable dispatch context prepared by the Engine.
@@ -60,30 +60,30 @@ func newEffectRequest(
 }
 
 // ProcessID returns the Process that owns the Effect.
-func (request EffectRequest) ProcessID() ProcessID { return request.processID }
+func (e EffectRequest) ProcessID() ProcessID { return e.processID }
 
 // DeploymentRef returns the exact behavior binding executing the Effect.
-func (request EffectRequest) DeploymentRef() DeploymentRef { return request.deploymentRef }
+func (e EffectRequest) DeploymentRef() DeploymentRef { return e.deploymentRef }
 
 // Relation returns the immutable Process tree location executing the Effect.
-func (request EffectRequest) Relation() ProcessRelation { return request.relation }
+func (e EffectRequest) Relation() ProcessRelation { return e.relation }
 
 // StepSequence returns the one-based Step sequence that declared the Effect.
-func (request EffectRequest) StepSequence() uint64 { return request.stepSequence }
+func (e EffectRequest) StepSequence() uint64 { return e.stepSequence }
 
 // BatchIndex returns the zero-based declaration order within the Step Effect batch.
-func (request EffectRequest) BatchIndex() uint32 { return request.batchIndex }
+func (e EffectRequest) BatchIndex() uint32 { return e.batchIndex }
 
 // ID returns the stable identity assigned during Step preparation.
-func (request EffectRequest) ID() EffectID { return request.id }
+func (e EffectRequest) ID() EffectID { return e.id }
 
 // Effect returns an independently owned copy of the frozen intent.
-func (request EffectRequest) Effect() Effect { return request.effect.clone() }
+func (e EffectRequest) Effect() Effect { return e.effect.clone() }
 
-func (request EffectRequest) valid() bool {
-	return request.processID.Valid() && request.deploymentRef.Valid() &&
-		request.relation.Valid() && request.relation.ProcessID() == request.processID &&
-		request.stepSequence > 0 && request.id.Valid() && request.effect.Valid()
+func (e EffectRequest) valid() bool {
+	return e.processID.Valid() && e.deploymentRef.Valid() &&
+		e.relation.Valid() && e.relation.ProcessID() == e.processID &&
+		e.stepSequence > 0 && e.id.Valid() && e.effect.Valid()
 }
 
 // DeltaEmitter accepts Strategy-owned streaming payloads while Dispatch is

@@ -92,65 +92,65 @@ func restoreProcessLoop(
 	return loop, nil
 }
 
-func (loop *processLoop) capture() (Snapshot, error) {
+func (p *processLoop) capture() (Snapshot, error) {
 	wire := processSnapshotWire{
-		SchemaVersion: processSnapshotSchemaVersion, ProcessID: loop.controller.processID,
-		Relation:      loop.controller.relation.wire(),
-		DeploymentRef: loop.deployment.DeploymentRef(), StartedAt: loop.startedAt,
-		Status: loop.status, CommittedSteps: loop.committedSteps, ProcessEventSequence: loop.processEventSequence,
-		Limits: loop.limits, TreeLimits: loop.treeLimits,
-		Budget: loop.budget, ReservedBudget: loop.reservedBudget,
-		Capabilities: loop.capabilities, Usage: loop.usage,
-		LastStableState: loop.lastStableState, Mailbox: loop.mailbox.snapshot(),
-		PauseReason: loop.pauseReason, PendingControl: loop.pendingControl.wire(),
+		SchemaVersion: processSnapshotSchemaVersion, ProcessID: p.controller.processID,
+		Relation:      p.controller.relation.wire(),
+		DeploymentRef: p.deployment.DeploymentRef(), StartedAt: p.startedAt,
+		Status: p.status, CommittedSteps: p.committedSteps, ProcessEventSequence: p.processEventSequence,
+		Limits: p.limits, TreeLimits: p.treeLimits,
+		Budget: p.budget, ReservedBudget: p.reservedBudget,
+		Capabilities: p.capabilities, Usage: p.usage,
+		LastStableState: p.lastStableState, Mailbox: p.mailbox.snapshot(),
+		PauseReason: p.pauseReason, PendingControl: p.pendingControl.wire(),
 	}
-	if loop.controller.childRequestDigest.Valid() {
-		digest := loop.controller.childRequestDigest
+	if p.controller.childRequestDigest.Valid() {
+		digest := p.controller.childRequestDigest
 		wire.ChildRequestDigest = &digest
 	}
-	if !loop.finishedAt.IsZero() {
-		finishedAt := loop.finishedAt
+	if !p.finishedAt.IsZero() {
+		finishedAt := p.finishedAt
 		wire.FinishedAt = &finishedAt
 	}
-	if loop.currentWaitID.Valid() {
-		waitID := loop.currentWaitID
+	if p.currentWaitID.Valid() {
+		waitID := p.currentWaitID
 		wire.CurrentWaitID = &waitID
 	}
-	if loop.finalOutput.Valid() {
-		output := loop.finalOutput
+	if p.finalOutput.Valid() {
+		output := p.finalOutput
 		wire.Output = &output
 	}
-	if loop.termination.Valid() {
-		termination := loop.termination
+	if p.termination.Valid() {
+		termination := p.termination
 		wire.Termination = &termination
 	}
-	if loop.prepared != nil {
-		prepared := clonePreparedStep(loop.prepared.wire)
+	if p.prepared != nil {
+		prepared := clonePreparedStep(p.prepared.wire)
 		wire.Prepared = &prepared
 	}
 	return newSnapshot(wire)
 }
 
-func (loop *processLoop) result() Result {
+func (p *processLoop) result() Result {
 	return Result{
-		processID: loop.controller.processID, startedAt: loop.startedAt,
-		finishedAt: loop.finishedAt, output: loop.finalOutput,
-		termination: loop.termination, usage: loop.usage,
+		processID: p.controller.processID, startedAt: p.startedAt,
+		finishedAt: p.finishedAt, output: p.finalOutput,
+		termination: p.termination, usage: p.usage,
 	}
 }
 
-func (control pendingControl) wire() pendingControlWire {
-	wire := pendingControlWire{PauseReason: control.pauseReason}
-	if control.kill.valid() {
-		wire.KillReason = control.kill.reason
+func (p pendingControl) wire() pendingControlWire {
+	wire := pendingControlWire{PauseReason: p.pauseReason}
+	if p.kill.valid() {
+		wire.KillReason = p.kill.reason
 	}
-	if control.deadline.valid() {
-		wire.DeadlineOwner = control.deadline.owner
-		wire.DeadlineReason = control.deadline.reason
+	if p.deadline.valid() {
+		wire.DeadlineOwner = p.deadline.owner
+		wire.DeadlineReason = p.deadline.reason
 	}
-	if control.cancellation.valid() {
-		wire.CancellationOwner = control.cancellation.owner
-		wire.CancellationReason = control.cancellation.reason
+	if p.cancellation.valid() {
+		wire.CancellationOwner = p.cancellation.owner
+		wire.CancellationReason = p.cancellation.reason
 	}
 	return wire
 }

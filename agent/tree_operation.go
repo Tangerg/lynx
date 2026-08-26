@@ -12,24 +12,24 @@ type treeOperation struct {
 	once     sync.Once
 }
 
-func (engine *Engine) acquireTreeOperation(
+func (e *Engine) acquireTreeOperation(
 	ctx context.Context,
 	rootID ProcessID,
 ) (*treeOperation, error) {
 	ctx = contextOrBackground(ctx)
 	for {
-		engine.treeOperationsMu.Lock()
-		active := engine.treeOperations[rootID]
+		e.treeOperationsMu.Lock()
+		active := e.treeOperations[rootID]
 		if active == nil {
 			operation := &treeOperation{
-				engine: engine, rootID: rootID, released: make(chan struct{}),
+				engine: e, rootID: rootID, released: make(chan struct{}),
 			}
-			engine.treeOperations[rootID] = operation
-			engine.treeOperationsMu.Unlock()
+			e.treeOperations[rootID] = operation
+			e.treeOperationsMu.Unlock()
 			return operation, nil
 		}
 		released := active.released
-		engine.treeOperationsMu.Unlock()
+		e.treeOperationsMu.Unlock()
 		select {
 		case <-released:
 		case <-ctx.Done():
@@ -38,17 +38,17 @@ func (engine *Engine) acquireTreeOperation(
 	}
 }
 
-func (operation *treeOperation) release() {
-	if operation == nil || operation.engine == nil {
+func (t *treeOperation) release() {
+	if t == nil || t.engine == nil {
 		return
 	}
-	operation.once.Do(func() {
-		engine := operation.engine
+	t.once.Do(func() {
+		engine := t.engine
 		engine.treeOperationsMu.Lock()
-		if engine.treeOperations[operation.rootID] == operation {
-			delete(engine.treeOperations, operation.rootID)
+		if engine.treeOperations[t.rootID] == t {
+			delete(engine.treeOperations, t.rootID)
 		}
-		close(operation.released)
+		close(t.released)
 		engine.treeOperationsMu.Unlock()
 	})
 }

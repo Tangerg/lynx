@@ -19,7 +19,7 @@ type childCompletionDelivery struct {
 	signal Signal
 }
 
-func (engine *Engine) registerChildWait(
+func (e *Engine) registerChildWait(
 	parent ProcessID,
 	waitID WaitID,
 	spec ChildWaitSpec,
@@ -27,16 +27,16 @@ func (engine *Engine) registerChildWait(
 	if !parent.Valid() || !waitID.Valid() || !spec.Valid() {
 		return Signal{}, false, ErrInvalidChildWait
 	}
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	if _, duplicate := engine.childWaits[waitID]; duplicate {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, duplicate := e.childWaits[waitID]; duplicate {
 		return Signal{}, false, ErrInvalidChildWait
 	}
-	if _, exists := engine.processes[parent]; !exists {
+	if _, exists := e.processes[parent]; !exists {
 		return Signal{}, false, ErrInvalidProcessRelation
 	}
 	for _, childID := range spec.Children {
-		controller, exists := engine.processes[childID]
+		controller, exists := e.processes[childID]
 		if !exists {
 			return Signal{}, false, ErrInvalidChildWait
 		}
@@ -48,49 +48,49 @@ func (engine *Engine) registerChildWait(
 	registration := &childWaitRegistration{
 		parent: parent, waitID: waitID, spec: cloneChildWaitSpec(spec),
 	}
-	engine.childWaits[waitID] = registration
-	outcomes, satisfied := engine.childWaitOutcomesLocked(registration)
+	e.childWaits[waitID] = registration
+	outcomes, satisfied := e.childWaitOutcomesLocked(registration)
 	if !satisfied {
 		return Signal{}, false, nil
 	}
 	signal, err := encodeChildrenCompleted(waitID, spec.Key, outcomes)
 	if err != nil {
-		delete(engine.childWaits, waitID)
+		delete(e.childWaits, waitID)
 		return Signal{}, false, err
 	}
 	registration.delivered = true
 	return signal, true, nil
 }
 
-func (engine *Engine) unregisterChildWait(waitID WaitID) {
-	engine.mu.Lock()
-	delete(engine.childWaits, waitID)
-	engine.mu.Unlock()
+func (e *Engine) unregisterChildWait(waitID WaitID) {
+	e.mu.Lock()
+	delete(e.childWaits, waitID)
+	e.mu.Unlock()
 }
 
-func (engine *Engine) processFinished(controller *processController) {
-	if engine == nil || controller == nil {
+func (e *Engine) processFinished(controller *processController) {
+	if e == nil || controller == nil {
 		return
 	}
 	var deliveries []childCompletionDelivery
 	var activeChildren []*processController
-	engine.mu.Lock()
-	for waitID, registration := range engine.childWaits {
+	e.mu.Lock()
+	for waitID, registration := range e.childWaits {
 		if registration.parent == controller.processID {
-			delete(engine.childWaits, waitID)
+			delete(e.childWaits, waitID)
 		}
 	}
-	for _, candidate := range engine.processes {
+	for _, candidate := range e.processes {
 		parentID, child := candidate.relation.ParentID()
 		if child && parentID == controller.processID && !candidate.status().Terminal() {
 			activeChildren = append(activeChildren, candidate)
 		}
 	}
-	for _, registration := range engine.childWaits {
+	for _, registration := range e.childWaits {
 		if registration.delivered || !childWaitContains(registration.spec, controller.processID) {
 			continue
 		}
-		outcomes, satisfied := engine.childWaitOutcomesLocked(registration)
+		outcomes, satisfied := e.childWaitOutcomesLocked(registration)
 		if !satisfied {
 			continue
 		}
@@ -102,20 +102,20 @@ func (engine *Engine) processFinished(controller *processController) {
 			parent: registration.parent, waitID: registration.waitID, signal: signal,
 		})
 	}
-	engine.mu.Unlock()
+	e.mu.Unlock()
 	sortChildCompletionDeliveries(deliveries)
 	for _, delivery := range deliveries {
-		if engine.deliverChildCompletion(delivery) {
-			engine.mu.Lock()
-			if registration := engine.childWaits[delivery.waitID]; registration != nil {
+		if e.deliverChildCompletion(delivery) {
+			e.mu.Lock()
+			if registration := e.childWaits[delivery.waitID]; registration != nil {
 				registration.delivered = true
 			}
-			engine.mu.Unlock()
+			e.mu.Unlock()
 		}
 	}
 	parentTermination := controller.terminalResult().Termination()
 	for _, child := range activeChildren {
-		engine.deliverParentTermination(child, parentTermination)
+		e.deliverParentTermination(child, parentTermination)
 	}
 }
 
@@ -125,12 +125,12 @@ func (*Engine) deliverParentTermination(child *processController, parent Termina
 	})
 }
 
-func (engine *Engine) childWaitOutcomesLocked(
+func (e *Engine) childWaitOutcomesLocked(
 	registration *childWaitRegistration,
 ) ([]ChildOutcome, bool) {
 	outcomes := make([]ChildOutcome, 0, len(registration.spec.Children))
 	for _, childID := range registration.spec.Children {
-		controller := engine.processes[childID]
+		controller := e.processes[childID]
 		if controller == nil {
 			return nil, false
 		}
@@ -145,10 +145,10 @@ func (engine *Engine) childWaitOutcomesLocked(
 	return outcomes, err == nil && uint32(len(outcomes)) >= required
 }
 
-func (engine *Engine) deliverChildCompletion(delivery childCompletionDelivery) bool {
-	engine.mu.RLock()
-	controller := engine.processes[delivery.parent]
-	engine.mu.RUnlock()
+func (e *Engine) deliverChildCompletion(delivery childCompletionDelivery) bool {
+	e.mu.RLock()
+	controller := e.processes[delivery.parent]
+	e.mu.RUnlock()
 	if controller == nil {
 		return false
 	}

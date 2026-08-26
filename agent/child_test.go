@@ -655,20 +655,20 @@ func newChildTestDeploymentWithDispatcher(t *testing.T, dispatcher Dispatcher) D
 	return deployment
 }
 
-func (definition *childTestDefinition) Descriptor() Descriptor { return definition.descriptor }
+func (c *childTestDefinition) Descriptor() Descriptor { return c.descriptor }
 
-func (definition *childTestDefinition) Start(input Input) (Execution, error) {
+func (c *childTestDefinition) Start(input Input) (Execution, error) {
 	decoded, err := input.Decode[childTestInput]()
 	if err != nil {
 		return nil, err
 	}
 	return &childTestExecution{
-		reference: definition.reference,
+		reference: c.reference,
 		state:     childTestState{Phase: "ready", Mode: decoded.Mode},
 	}, nil
 }
 
-func (definition *childTestDefinition) Restore(state ExecutionState) (Execution, error) {
+func (c *childTestDefinition) Restore(state ExecutionState) (Execution, error) {
 	if state.Kind() != "test.child" || state.SchemaVersion() != 1 {
 		return nil, ErrInvalidExecutionState
 	}
@@ -676,7 +676,7 @@ func (definition *childTestDefinition) Restore(state ExecutionState) (Execution,
 	if err := json.Unmarshal(state.Payload(), &decoded); err != nil {
 		return nil, err
 	}
-	return &childTestExecution{reference: definition.reference, state: decoded}, nil
+	return &childTestExecution{reference: c.reference, state: decoded}, nil
 }
 
 type childTestExecution struct {
@@ -684,61 +684,61 @@ type childTestExecution struct {
 	state     childTestState
 }
 
-func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
-	switch execution.state.Phase {
+func (c *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
+	switch c.state.Phase {
 	case "ready":
-		return execution.start()
+		return c.start()
 	case "started":
-		return execution.acceptChildStarts(signals)
+		return c.acceptChildStarts(signals)
 	case "wait_opened":
-		return execution.acceptChildWait(signals)
+		return c.acceptChildWait(signals)
 	case "waiting":
-		return execution.completeChildren(signals, uint32(len(signals)))
+		return c.completeChildren(signals, uint32(len(signals)))
 	case "external_wait_opened":
-		return execution.acceptExternalWait(signals)
+		return c.acceptExternalWait(signals)
 	case "external_waiting":
-		return execution.completeAfterSignal(signals, "external wait response is required")
+		return c.completeAfterSignal(signals, "external wait response is required")
 	case "leaf_effect":
-		return execution.completeAfterSignal(signals, "leaf Effect settlement is required")
+		return c.completeAfterSignal(signals, "leaf Effect settlement is required")
 	case "leaf_paused":
-		return execution.completeEmpty(0)
+		return c.completeEmpty(0)
 	default:
 		return Transition{}, errors.New("child test execution cannot advance")
 	}
 }
 
-func (execution *childTestExecution) start() (Transition, error) {
-	mode := execution.state.Mode
+func (c *childTestExecution) start() (Transition, error) {
+	mode := c.state.Mode
 	switch {
 	case mode == "leaf" || mode == "recurse:0" || mode == "binary:0":
-		return execution.completeEmpty(0)
+		return c.completeEmpty(0)
 	case mode == "leaf_pause":
-		execution.state.Phase = "leaf_paused"
+		c.state.Phase = "leaf_paused"
 		return Pause(0, "child paused for tree capture")
 	case mode == "leaf_fail":
-		execution.state.Phase = "done"
+		c.state.Phase = "done"
 		failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
 		return Fail(0, failure)
 	case mode == "external_wait":
-		return execution.openExternalWait()
+		return c.openExternalWait()
 	case strings.HasPrefix(mode, "leaf:"):
-		return execution.startLeafEffect()
+		return c.startLeafEffect()
 	}
-	execution.state.Phase = "started"
+	c.state.Phase = "started"
 	switch {
 	case strings.HasPrefix(mode, "wait:"):
-		return execution.startWaitChildren()
+		return c.startWaitChildren()
 	case strings.HasPrefix(mode, "binary:"):
-		return execution.startBinaryChildren()
+		return c.startBinaryChildren()
 	case mode == "fanout" || mode == "fanout_blocking":
-		return execution.startFanoutChildren()
+		return c.startFanoutChildren()
 	default:
-		return execution.startSingleChild()
+		return c.startSingleChild()
 	}
 }
 
-func (execution *childTestExecution) openExternalWait() (Transition, error) {
-	execution.state.Phase = "external_wait_opened"
+func (c *childTestExecution) openExternalWait() (Transition, error) {
+	c.state.Phase = "external_wait_opened"
 	key, _ := ParseWaitKey("external_input")
 	effect, err := RequestWait(key, json.RawMessage(`{"kind":"external_input"}`))
 	if err != nil {
@@ -747,21 +747,21 @@ func (execution *childTestExecution) openExternalWait() (Transition, error) {
 	return Continue(0, effect)
 }
 
-func (execution *childTestExecution) startLeafEffect() (Transition, error) {
+func (c *childTestExecution) startLeafEffect() (Transition, error) {
 	payload, _ := json.Marshal(struct {
 		Name string `json:"name"`
-	}{Name: strings.TrimPrefix(execution.state.Mode, "leaf:")})
+	}{Name: strings.TrimPrefix(c.state.Mode, "leaf:")})
 	effect, err := NewDispatcherEffect(payload)
 	if err != nil {
 		return Transition{}, err
 	}
-	execution.state.Phase = "leaf_effect"
+	c.state.Phase = "leaf_effect"
 	return Continue(0, effect)
 }
 
-func (execution *childTestExecution) startWaitChildren() (Transition, error) {
+func (c *childTestExecution) startWaitChildren() (Transition, error) {
 	names := []string{"first", "second", "third"}
-	switch execution.state.Mode {
+	switch c.state.Mode {
 	case "wait:subtree":
 		names = []string{"target"}
 	case "wait:subtree_all":
@@ -769,7 +769,7 @@ func (execution *childTestExecution) startWaitChildren() (Transition, error) {
 	}
 	effects := make([]Effect, 0, len(names))
 	for _, name := range names {
-		effect, err := execution.childEffect(name, execution.waitChildMode(name))
+		effect, err := c.childEffect(name, c.waitChildMode(name))
 		if err != nil {
 			return Transition{}, err
 		}
@@ -778,8 +778,8 @@ func (execution *childTestExecution) startWaitChildren() (Transition, error) {
 	return Continue(0, effects...)
 }
 
-func (execution *childTestExecution) waitChildMode(name string) string {
-	switch execution.state.Mode {
+func (c *childTestExecution) waitChildMode(name string) string {
+	switch c.state.Mode {
 	case "wait:subtree":
 		return "nested_wait"
 	case "wait:subtree_all":
@@ -799,14 +799,14 @@ func (execution *childTestExecution) waitChildMode(name string) string {
 	}
 }
 
-func (execution *childTestExecution) childEffect(name, mode string) (Effect, error) {
+func (c *childTestExecution) childEffect(name, mode string) (Effect, error) {
 	childInput, _ := EncodeInput(childTestInput{Mode: mode})
 	key, _ := ParseChildKey(name)
-	return StartChild(childTestSpec(key, execution.reference, childInput))
+	return StartChild(childTestSpec(key, c.reference, childInput))
 }
 
-func (execution *childTestExecution) startBinaryChildren() (Transition, error) {
-	depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "binary:"))
+func (c *childTestExecution) startBinaryChildren() (Transition, error) {
+	depth, err := strconv.Atoi(strings.TrimPrefix(c.state.Mode, "binary:"))
 	if err != nil || depth <= 0 || depth > 16 {
 		return Transition{}, errors.New("invalid binary child depth")
 	}
@@ -815,7 +815,7 @@ func (execution *childTestExecution) startBinaryChildren() (Transition, error) {
 	for _, name := range []string{"left", "right"} {
 		childInput, _ := EncodeInput(childTestInput{Mode: fmt.Sprintf("binary:%d", depth-1)})
 		key, _ := ParseChildKey(name)
-		spec := childTestSpec(key, execution.reference, childInput)
+		spec := childTestSpec(key, c.reference, childInput)
 		spec.Budget, _ = NewBudget(units, units, units)
 		effect, err := StartChild(spec)
 		if err != nil {
@@ -826,14 +826,14 @@ func (execution *childTestExecution) startBinaryChildren() (Transition, error) {
 	return Continue(0, effects...)
 }
 
-func (execution *childTestExecution) startFanoutChildren() (Transition, error) {
+func (c *childTestExecution) startFanoutChildren() (Transition, error) {
 	effects := make([]Effect, 0, 3)
 	for _, name := range []string{"first", "second", "third"} {
 		mode := "leaf"
-		if execution.state.Mode == "fanout_blocking" {
+		if c.state.Mode == "fanout_blocking" {
 			mode = "leaf:" + name
 		}
-		effect, err := execution.childEffect(name, mode)
+		effect, err := c.childEffect(name, mode)
 		if err != nil {
 			return Transition{}, err
 		}
@@ -842,43 +842,43 @@ func (execution *childTestExecution) startFanoutChildren() (Transition, error) {
 	return Continue(0, effects...)
 }
 
-func (execution *childTestExecution) startSingleChild() (Transition, error) {
+func (c *childTestExecution) startSingleChild() (Transition, error) {
 	childMode := "leaf"
 	recursiveDepth := 0
-	if strings.HasPrefix(execution.state.Mode, "recurse:") {
-		depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "recurse:"))
+	if strings.HasPrefix(c.state.Mode, "recurse:") {
+		depth, err := strconv.Atoi(strings.TrimPrefix(c.state.Mode, "recurse:"))
 		if err != nil || depth <= 0 {
 			return Transition{}, errors.New("invalid recursive child depth")
 		}
 		recursiveDepth = depth
 		childMode = fmt.Sprintf("recurse:%d", depth-1)
 	}
-	if execution.state.Mode == "nested_wait" {
+	if c.state.Mode == "nested_wait" {
 		childMode = "external_wait"
 	}
 	childInput, _ := EncodeInput(childTestInput{Mode: childMode})
 	key, _ := ParseChildKey("worker")
-	spec := childTestSpec(key, execution.reference, childInput)
-	execution.configureSingleChild(&spec, recursiveDepth)
+	spec := childTestSpec(key, c.reference, childInput)
+	c.configureSingleChild(&spec, recursiveDepth)
 	effect, err := StartChild(spec)
 	if err != nil {
 		return Transition{}, err
 	}
-	if execution.state.Mode == "duplicate" {
+	if c.state.Mode == "duplicate" {
 		return Continue(0, effect, effect)
 	}
 	return Continue(0, effect)
 }
 
-func (execution *childTestExecution) configureSingleChild(spec *ChildSpec, recursiveDepth int) {
-	if execution.state.Mode == "nested_wait" {
+func (c *childTestExecution) configureSingleChild(spec *ChildSpec, recursiveDepth int) {
+	if c.state.Mode == "nested_wait" {
 		spec.Budget, _ = NewBudget(5, 5, 5)
 	}
 	if recursiveDepth > 0 {
 		units := uint64(recursiveDepth * 50)
 		spec.Budget, _ = NewBudget(units, units, units)
 	}
-	switch execution.state.Mode {
+	switch c.state.Mode {
 	case "capability_child":
 		capability, _ := ParseCapability("resource.read")
 		spec.Capabilities, _ = NewCapabilitySet(capability)
@@ -890,7 +890,7 @@ func (execution *childTestExecution) configureSingleChild(spec *ChildSpec, recur
 	}
 }
 
-func (execution *childTestExecution) acceptChildStarts(signals []Signal) (Transition, error) {
+func (c *childTestExecution) acceptChildStarts(signals []Signal) (Transition, error) {
 	if len(signals) == 0 {
 		return Transition{}, errors.New("child start results are required")
 	}
@@ -907,31 +907,31 @@ func (execution *childTestExecution) acceptChildStarts(signals []Signal) (Transi
 			output.FailureCodes = append(output.FailureCodes, failure.Code())
 		}
 	}
-	if len(output.ChildIDs) == 0 || !execution.requiresChildWait() {
-		execution.state.Phase = "done"
+	if len(output.ChildIDs) == 0 || !c.requiresChildWait() {
+		c.state.Phase = "done"
 		erased, _ := EncodeOutput(output)
 		return Complete(uint32(len(signals)), erased)
 	}
-	return execution.openChildWait(signals, output.ChildIDs)
+	return c.openChildWait(signals, output.ChildIDs)
 }
 
-func (execution *childTestExecution) requiresChildWait() bool {
-	mode := execution.state.Mode
+func (c *childTestExecution) requiresChildWait() bool {
+	mode := c.state.Mode
 	return strings.HasPrefix(mode, "wait:") || strings.HasPrefix(mode, "recurse:") ||
 		strings.HasPrefix(mode, "binary:") || mode == "nested_wait"
 }
 
-func (execution *childTestExecution) openChildWait(
+func (c *childTestExecution) openChildWait(
 	signals []Signal,
 	childIDs []string,
 ) (Transition, error) {
-	execution.state.ChildIDs = slices.Clone(childIDs)
+	c.state.ChildIDs = slices.Clone(childIDs)
 	children := make([]ProcessID, len(childIDs))
 	for index, encoded := range childIDs {
 		children[index], _ = ParseProcessID(encoded)
 	}
 	condition := AllChildren()
-	switch execution.state.Mode {
+	switch c.state.Mode {
 	case "wait:any":
 		condition = AnyChild()
 	case "wait:quorum":
@@ -942,11 +942,11 @@ func (execution *childTestExecution) openChildWait(
 	if err != nil {
 		return Transition{}, err
 	}
-	execution.state.Phase = "wait_opened"
+	c.state.Phase = "wait_opened"
 	return Continue(uint32(len(signals)), effect)
 }
 
-func (execution *childTestExecution) acceptChildWait(signals []Signal) (Transition, error) {
+func (c *childTestExecution) acceptChildWait(signals []Signal) (Transition, error) {
 	if len(signals) == 0 {
 		return Transition{}, errors.New("child wait-opened Signal is required")
 	}
@@ -955,7 +955,7 @@ func (execution *childTestExecution) acceptChildWait(signals []Signal) (Transiti
 		return Transition{}, err
 	}
 	openedSpec := opened.Spec()
-	if len(openedSpec.Children) != len(execution.state.ChildIDs) {
+	if len(openedSpec.Children) != len(c.state.ChildIDs) {
 		return Transition{}, errors.New("child wait acknowledgement changed the requested children")
 	}
 	if len(openedSpec.Children) > 0 {
@@ -965,15 +965,15 @@ func (execution *childTestExecution) acceptChildWait(signals []Signal) (Transiti
 			return Transition{}, errors.New("child wait acknowledgement exposed mutable children")
 		}
 	}
-	execution.state.WaitID = opened.WaitID().String()
+	c.state.WaitID = opened.WaitID().String()
 	if len(signals) > 1 {
-		return execution.completeChildren(signals, uint32(len(signals)))
+		return c.completeChildren(signals, uint32(len(signals)))
 	}
-	execution.state.Phase = "waiting"
+	c.state.Phase = "waiting"
 	return Wait(1, opened.WaitID())
 }
 
-func (execution *childTestExecution) acceptExternalWait(signals []Signal) (Transition, error) {
+func (c *childTestExecution) acceptExternalWait(signals []Signal) (Transition, error) {
 	if len(signals) != 1 {
 		return Transition{}, errors.New("external wait-opened Signal is required")
 	}
@@ -981,28 +981,28 @@ func (execution *childTestExecution) acceptExternalWait(signals []Signal) (Trans
 	if !addressed {
 		return Transition{}, errors.New("external wait-opened Signal has no WaitID")
 	}
-	execution.state.WaitID = waitID.String()
-	execution.state.Phase = "external_waiting"
+	c.state.WaitID = waitID.String()
+	c.state.Phase = "external_waiting"
 	return Wait(1, waitID)
 }
 
-func (execution *childTestExecution) completeAfterSignal(
+func (c *childTestExecution) completeAfterSignal(
 	signals []Signal,
 	missingSignalError string,
 ) (Transition, error) {
 	if len(signals) != 1 {
 		return Transition{}, errors.New(missingSignalError)
 	}
-	return execution.completeEmpty(1)
+	return c.completeEmpty(1)
 }
 
-func (execution *childTestExecution) completeEmpty(consumedSignals uint32) (Transition, error) {
-	execution.state.Phase = "done"
+func (c *childTestExecution) completeEmpty(consumedSignals uint32) (Transition, error) {
+	c.state.Phase = "done"
 	output, _ := EncodeOutput(childTestOutput{})
 	return Complete(consumedSignals, output)
 }
 
-func (execution *childTestExecution) completeChildren(signals []Signal, consumedSignals uint32) (Transition, error) {
+func (c *childTestExecution) completeChildren(signals []Signal, consumedSignals uint32) (Transition, error) {
 	if len(signals) == 0 {
 		return Transition{}, errors.New("children-completed Signal is required")
 	}
@@ -1010,19 +1010,19 @@ func (execution *childTestExecution) completeChildren(signals []Signal, consumed
 	if err != nil {
 		return Transition{}, err
 	}
-	if completed.WaitID().String() != execution.state.WaitID {
+	if completed.WaitID().String() != c.state.WaitID {
 		return Transition{}, errors.New("children completed another wait")
 	}
-	output := childTestOutput{ChildIDs: slices.Clone(execution.state.ChildIDs)}
+	output := childTestOutput{ChildIDs: slices.Clone(c.state.ChildIDs)}
 	for _, outcome := range completed.Outcomes() {
 		if outcome.Result().Status() == StatusFailed {
-			execution.state.Phase = "done"
+			c.state.Phase = "done"
 			failure, _ := NewFailure(FailureKindExecution, "test.child.failed", "a child Process failed")
 			return Fail(consumedSignals, failure)
 		}
 		output.CompletedKeys = append(output.CompletedKeys, outcome.Key().String())
 	}
-	execution.state.Phase = "done"
+	c.state.Phase = "done"
 	erased, _ := EncodeOutput(output)
 	return Complete(consumedSignals, erased)
 }
@@ -1035,8 +1035,8 @@ func childTestSpec(key ChildKey, deployment DeploymentRef, input Input) ChildSpe
 	}
 }
 
-func (execution *childTestExecution) Snapshot() (ExecutionState, error) {
-	payload, err := json.Marshal(execution.state)
+func (c *childTestExecution) Snapshot() (ExecutionState, error) {
+	payload, err := json.Marshal(c.state)
 	if err != nil {
 		return ExecutionState{}, err
 	}
@@ -1066,7 +1066,7 @@ func newBlockingChildDispatcher(names ...string) *blockingChildDispatcher {
 	return dispatcher
 }
 
-func (dispatcher *blockingChildDispatcher) Dispatch(
+func (b *blockingChildDispatcher) Dispatch(
 	_ context.Context,
 	request EffectRequest,
 	_ DeltaEmitter,
@@ -1077,26 +1077,26 @@ func (dispatcher *blockingChildDispatcher) Dispatch(
 	if err := json.Unmarshal(request.Effect().Payload(), &input); err != nil {
 		return Settlement{}, err
 	}
-	release, exists := dispatcher.releases[input.Name]
+	release, exists := b.releases[input.Name]
 	if !exists {
 		return Settlement{}, fmt.Errorf("unknown child %q", input.Name)
 	}
-	dispatcher.started <- input.Name
+	b.started <- input.Name
 	<-release.done
 	return NewSettlement(request.ID(), SettlementStatusSucceeded, json.RawMessage(`{}`))
 }
 
 func (*blockingChildDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
 
-func (dispatcher *blockingChildDispatcher) Release(name string) {
-	if release := dispatcher.releases[name]; release != nil {
+func (b *blockingChildDispatcher) Release(name string) {
+	if release := b.releases[name]; release != nil {
 		release.once.Do(func() { close(release.done) })
 	}
 }
 
-func (dispatcher *blockingChildDispatcher) ReleaseAll() {
-	for name := range dispatcher.releases {
-		dispatcher.Release(name)
+func (b *blockingChildDispatcher) ReleaseAll() {
+	for name := range b.releases {
+		b.Release(name)
 	}
 }
 

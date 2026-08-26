@@ -114,11 +114,11 @@ type Engine struct {
 // queue remain dropped; the method is an ordering barrier, not a reliability
 // upgrade. Callers use it before publishing a final value that must not overtake
 // its already-accepted streaming observations.
-func (engine *Engine) FlushDeltas(ctx context.Context) error {
-	if engine == nil {
+func (e *Engine) FlushDeltas(ctx context.Context) error {
+	if e == nil {
 		return ErrEngineClosed
 	}
-	return engine.observation.flushDeltas(ctx)
+	return e.observation.flushDeltas(ctx)
 }
 
 // NewEngine validates execution infrastructure and returns an empty Engine.
@@ -191,8 +191,8 @@ func nilOrConcrete(value any) bool { return value == nil || !nilInterface(value)
 // Start validates Input, creates exactly one Execution, registers its Process,
 // and starts the Engine-owned loop. Canceling ctx records a Host cancellation
 // or deadline; use a longer-lived context for execution beyond a request.
-func (engine *Engine) Start(ctx context.Context, deployment Deployment, input Input) (*Process, error) {
-	if engine == nil {
+func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) (*Process, error) {
+	if e == nil {
 		return nil, ErrInvalidEngineConfig
 	}
 	if !deployment.Valid() {
@@ -206,37 +206,37 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 		return nil, err
 	}
 	relation := rootProcessRelation(id)
-	budget := budgetFromLimits(engine.limits)
+	budget := budgetFromLimits(e.limits)
 	startedAt := time.Now().Round(0).UTC()
 	admission := newProcessAdmission(
-		relation, deployment, budget, engine.capabilities, startedAt,
+		relation, deployment, budget, e.capabilities, startedAt,
 	)
-	if err := engine.reserveProcessStart(
-		relation, deployment.DeploymentRef(), engine.treeLimits, Digest{},
+	if err := e.reserveProcessStart(
+		relation, deployment.DeploymentRef(), e.treeLimits, Digest{},
 	); err != nil {
 		return nil, err
 	}
-	if err := requestProcessAdmission(ctx, engine.admitter, admission); err != nil {
-		engine.discardProcessStartReservation(id)
+	if err := requestProcessAdmission(ctx, e.admitter, admission); err != nil {
+		e.discardProcessStartReservation(id)
 		return nil, err
 	}
 	execution, state, failure, err := initializeExecution(deployment.Definition(), input)
 	if err != nil {
-		acknowledgeErr := engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
-		engine.discardProcessStartReservation(id)
+		acknowledgeErr := e.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
+		e.discardProcessStartReservation(id)
 		return nil, errors.Join(fmt.Errorf("agent: initialize Process: %w", err), acknowledgeErr)
 	}
 	controller := newProcessController(
-		relation, deployment.DeploymentRef(), budget, engine.capabilities,
-		engine.treeLimits,
+		relation, deployment.DeploymentRef(), budget, e.capabilities,
+		e.treeLimits,
 		startedAt, StatusRunning,
 	)
-	loop := newProcessLoop(engine, controller, deployment, execution, state, startedAt, engine.limits)
-	if err := engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
-		engine.discardProcessStartReservation(id)
+	loop := newProcessLoop(e, controller, deployment, execution, state, startedAt, e.limits)
+	if err := e.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+		e.discardProcessStartReservation(id)
 		return nil, err
 	}
-	engine.publishReservedProcess(controller)
+	e.publishReservedProcess(controller)
 	go loop.run(contextOrBackground(ctx))
 	return &Process{controller: controller}, nil
 }
@@ -244,8 +244,8 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 // Run starts one Process and waits for its terminal result. Once Start succeeds,
 // Run waits for safe finalization even if ctx is canceled; the same ctx has
 // already recorded the Process termination intent.
-func (engine *Engine) Run(ctx context.Context, deployment Deployment, input Input) (Result, error) {
-	process, err := engine.Start(ctx, deployment, input)
+func (e *Engine) Run(ctx context.Context, deployment Deployment, input Input) (Result, error) {
+	process, err := e.Start(ctx, deployment, input)
 	if err != nil {
 		return Result{}, err
 	}
@@ -254,21 +254,21 @@ func (engine *Engine) Run(ctx context.Context, deployment Deployment, input Inpu
 
 // Restore recreates one Process from a strict Snapshot and the exact bound
 // Deployment. A different implementation or configuration digest is rejected.
-func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Snapshot) (*Process, error) {
-	if engine == nil {
+func (e *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Snapshot) (*Process, error) {
+	if e == nil {
 		return nil, ErrInvalidEngineConfig
 	}
 	if !deployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
-	controller, loop, wire, err := prepareRestoredProcess(engine, deployment, snapshot)
+	controller, loop, wire, err := prepareRestoredProcess(e, deployment, snapshot)
 	if err != nil {
 		return nil, err
 	}
 	if !controller.relation.IsRoot() || wire.ReservedBudget != (Budget{}) || hasOpenChildWait(wire.Mailbox) {
 		return nil, ErrTreeSnapshotRequired
 	}
-	if err := engine.register(controller); err != nil {
+	if err := e.register(controller); err != nil {
 		return nil, err
 	}
 	if wire.Status.Terminal() {
@@ -281,13 +281,13 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 }
 
 // Process returns an Engine-issued handle for an identity known to this Engine.
-func (engine *Engine) Process(id ProcessID) (*Process, bool) {
-	if engine == nil || !id.Valid() {
+func (e *Engine) Process(id ProcessID) (*Process, bool) {
+	if e == nil || !id.Valid() {
 		return nil, false
 	}
-	engine.mu.RLock()
-	controller, exists := engine.processes[id]
-	engine.mu.RUnlock()
+	e.mu.RLock()
+	controller, exists := e.processes[id]
+	e.mu.RUnlock()
 	if !exists {
 		return nil, false
 	}
@@ -296,44 +296,44 @@ func (engine *Engine) Process(id ProcessID) (*Process, bool) {
 
 // Close releases observation workers after all Processes have reached a
 // terminal state. Process results remain readable from existing handles.
-func (engine *Engine) Close() error {
-	if engine == nil {
+func (e *Engine) Close() error {
+	if e == nil {
 		return nil
 	}
-	engine.mu.Lock()
-	if engine.closed {
-		engine.mu.Unlock()
+	e.mu.Lock()
+	if e.closed {
+		e.mu.Unlock()
 		return nil
 	}
-	if len(engine.startReservations) != 0 {
-		engine.mu.Unlock()
+	if len(e.startReservations) != 0 {
+		e.mu.Unlock()
 		return ErrEngineHasActiveProcesses
 	}
-	for _, controller := range engine.processes {
+	for _, controller := range e.processes {
 		if !controller.status().Terminal() {
-			engine.mu.Unlock()
+			e.mu.Unlock()
 			return ErrEngineHasActiveProcesses
 		}
 	}
-	engine.closed = true
-	engine.mu.Unlock()
-	engine.observation.close()
+	e.closed = true
+	e.mu.Unlock()
+	e.observation.close()
 	return nil
 }
 
-func (engine *Engine) register(controller *processController) error {
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	if engine.closed {
+func (e *Engine) register(controller *processController) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
 		return ErrEngineClosed
 	}
-	if _, exists := engine.processes[controller.processID]; exists {
+	if _, exists := e.processes[controller.processID]; exists {
 		return ErrProcessAlreadyExists
 	}
-	if _, exists := engine.startReservations[controller.processID]; exists {
+	if _, exists := e.startReservations[controller.processID]; exists {
 		return ErrProcessAlreadyExists
 	}
-	engine.processes[controller.processID] = controller
+	e.processes[controller.processID] = controller
 	return nil
 }
 

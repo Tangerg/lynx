@@ -33,8 +33,8 @@ func ParseModelResponseDelta(payload json.RawMessage) (ModelResponseDelta, error
 }
 
 // Response returns an independently owned response chunk.
-func (delta ModelResponseDelta) Response() *chat.Response {
-	return delta.response.Clone()
+func (m ModelResponseDelta) Response() *chat.Response {
+	return m.response.Clone()
 }
 
 type modelResponseDeltaWire struct {
@@ -56,17 +56,17 @@ func encodeModelResponseDelta(response *chat.Response) (json.RawMessage, error) 
 	return bytes.Clone(payload), nil
 }
 
-func (dispatcher *Dispatcher) callModel(
+func (d *Dispatcher) callModel(
 	ctx context.Context,
 	request *chat.Request,
 	emit agent.DeltaEmitter,
 ) (*chat.Response, error) {
-	if !dispatcher.stream {
-		return dispatcher.client.Call(ctx, request)
+	if !d.stream {
+		return d.client.Call(ctx, request)
 	}
 	var accumulator chat.ResponseAccumulator
 	seen := false
-	for delta, err := range dispatcher.client.Stream(ctx, request) {
+	for delta, err := range d.client.Stream(ctx, request) {
 		if err != nil {
 			return nil, err
 		}

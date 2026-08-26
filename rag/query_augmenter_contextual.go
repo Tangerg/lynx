@@ -16,7 +16,7 @@ type DocumentFormatter interface {
 // DocumentFormatterFunc adapts a function to [DocumentFormatter].
 type DocumentFormatterFunc func(*document.Document) (string, error)
 
-func (f DocumentFormatterFunc) Format(doc *document.Document) (string, error) { return f(doc) }
+func (d DocumentFormatterFunc) Format(doc *document.Document) (string, error) { return d(doc) }
 
 type textDocumentFormatter struct{}
 

@@ -112,9 +112,9 @@ type skillBundle struct {
 	skill  *Skill
 }
 
-func (b *skillBundle) openResource(ctx context.Context, resource, operation string) (fs.File, error) {
-	file, err := b.source.OpenResource(ctx, b.skill.Name, resource)
-	return checkedResourceFile(ctx, operation, b.skill.Name, resource, file, err)
+func (s *skillBundle) openResource(ctx context.Context, resource, operation string) (fs.File, error) {
+	file, err := s.source.OpenResource(ctx, s.skill.Name, resource)
+	return checkedResourceFile(ctx, operation, s.skill.Name, resource, file, err)
 }
 
 // resolve returns the first complete bundle that owns name. Only

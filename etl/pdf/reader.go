@@ -219,11 +219,11 @@ func (r *Reader) readAllText(ctx context.Context, pdfReader *ledongthuc.Reader, 
 
 type pageErrors []error
 
-func (e pageErrors) err() error {
-	if len(e) == 0 {
+func (p pageErrors) err() error {
+	if len(p) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%w: %w", ErrPartialRead, errors.Join(e...))
+	return fmt.Errorf("%w: %w", ErrPartialRead, errors.Join(p...))
 }
 
 // pageText extracts one page's plain text. The upstream parser panics

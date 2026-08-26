@@ -8,44 +8,44 @@ import (
 	"time"
 )
 
-func (loop *processLoop) startChild(
+func (p *processLoop) startChild(
 	ctx context.Context,
 	effectID EffectID,
 	spec ChildSpec,
 ) ChildStartResult {
-	if !spec.Valid() || !loop.controller.relation.Valid() {
+	if !spec.Valid() || !p.controller.relation.Valid() {
 		return failedChildStart(spec, FailureKindContract, "engine.child.request.invalid", ErrInvalidChildStart)
 	}
 	childID := deriveChildProcessID(effectID)
-	relation := childProcessRelation(childID, loop.controller.relation, spec.Key)
+	relation := childProcessRelation(childID, p.controller.relation, spec.Key)
 	requestDigest, err := childSpecDigest(spec)
 	if err != nil {
 		return failedChildStart(spec, FailureKindContract, "engine.child.request.invalid", err)
 	}
-	if existing, exists := loop.engine.Process(childID); exists {
+	if existing, exists := p.engine.Process(childID); exists {
 		if existing.Relation() == relation && existing.DeploymentRef() == spec.DeploymentRef &&
 			existing.controller.childRequestDigest == requestDigest {
 			return ChildStartResult{key: spec.Key, processID: childID, deploymentRef: spec.DeploymentRef}
 		}
 		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", ErrInvalidChildStart)
 	}
-	if !loop.capabilities.Allows(spec.Capabilities) {
+	if !p.capabilities.Allows(spec.Capabilities) {
 		return failedChildStart(spec, FailureKindContract, "engine.child.capability_escalation", ErrInvalidCapability)
 	}
-	if !loop.reserveChildBudget(spec.Budget) {
+	if !p.reserveChildBudget(spec.Budget) {
 		return failedChildStart(spec, FailureKindExecution, "engine.child.budget_exhausted", ErrResourceLimitExceeded)
 	}
 	budgetCommitted := false
 	defer func() {
 		if !budgetCommitted {
-			loop.releaseChildBudget(spec.Budget)
+			p.releaseChildBudget(spec.Budget)
 		}
 	}()
-	childLimits, err := limitsFromBudget(loop.limits, spec.Budget)
+	childLimits, err := limitsFromBudget(p.limits, spec.Budget)
 	if err != nil {
 		return failedChildStart(spec, FailureKindExecution, "engine.child.budget_invalid", err)
 	}
-	deployment, err := loop.resolveChildDeployment(spec.DeploymentRef)
+	deployment, err := p.resolveChildDeployment(spec.DeploymentRef)
 	if err != nil {
 		return failedChildStart(spec, FailureKindExternal, "engine.child.deployment_unavailable", err)
 	}
@@ -56,8 +56,8 @@ func (loop *processLoop) startChild(
 	admission := newProcessAdmission(
 		relation, deployment, spec.Budget, spec.Capabilities, startedAt,
 	)
-	if err := loop.engine.reserveProcessStart(
-		relation, deployment.DeploymentRef(), loop.treeLimits, requestDigest,
+	if err := p.engine.reserveProcessStart(
+		relation, deployment.DeploymentRef(), p.treeLimits, requestDigest,
 	); err != nil {
 		if errors.Is(err, ErrResourceLimitExceeded) {
 			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", err)
@@ -67,72 +67,72 @@ func (loop *processLoop) startChild(
 		}
 		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", err)
 	}
-	if err := requestProcessAdmission(ctx, loop.engine.admitter, admission); err != nil {
-		loop.engine.discardProcessStartReservation(childID)
+	if err := requestProcessAdmission(ctx, p.engine.admitter, admission); err != nil {
+		p.engine.discardProcessStartReservation(childID)
 		return failedChildStart(
 			spec, FailureKindExternal, "engine.child.admission.rejected", err,
 		)
 	}
 	execution, state, failure, err := initializeExecution(deployment.Definition(), spec.Input)
 	if err != nil {
-		acknowledgeErr := loop.engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
-		loop.engine.discardProcessStartReservation(childID)
+		acknowledgeErr := p.engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
+		p.engine.discardProcessStartReservation(childID)
 		return failedChildStart(
 			spec, failure.Kind(), failure.Code(), errors.Join(err, acknowledgeErr),
 		)
 	}
 	controller := newProcessController(
-		relation, deployment.DeploymentRef(), spec.Budget, spec.Capabilities, loop.treeLimits,
+		relation, deployment.DeploymentRef(), spec.Budget, spec.Capabilities, p.treeLimits,
 		startedAt, StatusRunning,
 	)
 	childLoop := newProcessLoop(
-		loop.engine, controller, deployment, execution, state, startedAt, childLimits,
+		p.engine, controller, deployment, execution, state, startedAt, childLimits,
 	)
-	if err := loop.engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
-		loop.engine.discardProcessStartReservation(childID)
+	if err := p.engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+		p.engine.discardProcessStartReservation(childID)
 		return failedChildStart(
 			spec, FailureKindExternal, "engine.child.start_outcome.unacknowledged", err,
 		)
 	}
-	loop.engine.publishReservedProcess(controller)
+	p.engine.publishReservedProcess(controller)
 	budgetCommitted = true
 	go childLoop.run(context.Background())
 	return ChildStartResult{key: spec.Key, processID: childID, deploymentRef: spec.DeploymentRef}
 }
 
-func (loop *processLoop) reserveChildBudget(requested Budget) bool {
-	if !loop.budget.canAllocate(loop.usage, loop.reservedBudget, requested) {
+func (p *processLoop) reserveChildBudget(requested Budget) bool {
+	if !p.budget.canAllocate(p.usage, p.reservedBudget, requested) {
 		return false
 	}
-	reserved, ok := loop.reservedBudget.add(requested)
+	reserved, ok := p.reservedBudget.add(requested)
 	if !ok {
 		return false
 	}
-	loop.reservedBudget = reserved
+	p.reservedBudget = reserved
 	return true
 }
 
-func (loop *processLoop) releaseChildBudget(released Budget) {
-	if released.Steps > loop.reservedBudget.Steps ||
-		released.Effects > loop.reservedBudget.Effects ||
-		released.Signals > loop.reservedBudget.Signals {
+func (p *processLoop) releaseChildBudget(released Budget) {
+	if released.Steps > p.reservedBudget.Steps ||
+		released.Effects > p.reservedBudget.Effects ||
+		released.Signals > p.reservedBudget.Signals {
 		return
 	}
-	loop.reservedBudget.Steps -= released.Steps
-	loop.reservedBudget.Effects -= released.Effects
-	loop.reservedBudget.Signals -= released.Signals
+	p.reservedBudget.Steps -= released.Steps
+	p.reservedBudget.Effects -= released.Effects
+	p.reservedBudget.Signals -= released.Signals
 }
 
-func (loop *processLoop) resolveChildDeployment(
+func (p *processLoop) resolveChildDeployment(
 	reference DeploymentRef,
 ) (Deployment, error) {
-	if reference == loop.deployment.DeploymentRef() {
-		return loop.deployment, nil
+	if reference == p.deployment.DeploymentRef() {
+		return p.deployment, nil
 	}
-	if loop.engine.resolver == nil {
+	if p.engine.resolver == nil {
 		return Deployment{}, fmt.Errorf("%w: no resolver for %s", ErrInvalidDeployment, reference.Name())
 	}
-	deployment, err := resolveDeployment(loop.engine.resolver, reference)
+	deployment, err := resolveDeployment(p.engine.resolver, reference)
 	if err != nil {
 		return Deployment{}, err
 	}

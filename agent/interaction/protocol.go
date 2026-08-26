@@ -22,9 +22,9 @@ const (
 	operationSteer         operation = "steer"
 )
 
-func (value operation) valid() bool {
-	return value == operationModelCall || value == operationToolBatch ||
-		value == operationWaitOpened || value == operationInputResponse || value == operationSteer
+func (o operation) valid() bool {
+	return o == operationModelCall || o == operationToolBatch ||
+		o == operationWaitOpened || o == operationInputResponse || o == operationSteer
 }
 
 type effectEnvelope struct {
@@ -98,8 +98,8 @@ func wireInputRequest(request ToolInputRequest) inputRequestWire {
 	}
 }
 
-func (wire inputRequestWire) inputRequest() (ToolInputRequest, error) {
-	return NewToolInputRequest(wire.Prompt, wire.ResponseSchema, wire.ContinuationState)
+func (i inputRequestWire) inputRequest() (ToolInputRequest, error) {
+	return NewToolInputRequest(i.Prompt, i.ResponseSchema, i.ContinuationState)
 }
 
 func newModelEffect(
@@ -190,90 +190,90 @@ func newToolBatchEffect(
 	}, nil
 }
 
-func (envelope effectEnvelope) validate() error {
-	if envelope.SchemaVersion != protocolSchemaVersion ||
-		(envelope.Operation != operationModelCall && envelope.Operation != operationToolBatch) {
+func (e effectEnvelope) validate() error {
+	if e.SchemaVersion != protocolSchemaVersion ||
+		(e.Operation != operationModelCall && e.Operation != operationToolBatch) {
 		return errors.New("interaction: unsupported effect protocol")
 	}
-	switch envelope.Operation {
+	switch e.Operation {
 	case operationModelCall:
-		return envelope.validateModelCall()
+		return e.validateModelCall()
 	case operationToolBatch:
-		return envelope.validateToolBatch()
+		return e.validateToolBatch()
 	}
 	return nil
 }
 
-func (envelope effectEnvelope) validateModelCall() error {
-	if envelope.ModelCall == nil || envelope.ToolBatch != nil || envelope.ModelCall.ModelCallSequence == 0 {
+func (e effectEnvelope) validateModelCall() error {
+	if e.ModelCall == nil || e.ToolBatch != nil || e.ModelCall.ModelCallSequence == 0 {
 		return errors.New("interaction: model_call effect has an invalid payload set")
 	}
-	if err := envelope.ModelCall.Request.Validate(); err != nil {
+	if err := e.ModelCall.Request.Validate(); err != nil {
 		return fmt.Errorf("interaction: model_call request: %w", err)
 	}
-	if err := validateAdvertisedToolNames(envelope.ModelCall.AdvertisedToolNames); err != nil {
+	if err := validateAdvertisedToolNames(e.ModelCall.AdvertisedToolNames); err != nil {
 		return fmt.Errorf("interaction: model_call advertised Tools: %w", err)
 	}
-	if len(envelope.ModelCall.AppliedSteerSignalIDs) > 0 {
-		if err := validateSteerSignalIDs(envelope.ModelCall.AppliedSteerSignalIDs); err != nil {
+	if len(e.ModelCall.AppliedSteerSignalIDs) > 0 {
+		if err := validateSteerSignalIDs(e.ModelCall.AppliedSteerSignalIDs); err != nil {
 			return fmt.Errorf("interaction: model_call applied steer SignalIDs: %w", err)
 		}
 	}
 	return nil
 }
 
-func (envelope effectEnvelope) validateToolBatch() error {
-	if envelope.ModelCall != nil || envelope.ToolBatch == nil ||
-		envelope.ToolBatch.ModelCallSequence == 0 || len(envelope.ToolBatch.Calls) == 0 ||
-		uint64(envelope.ToolBatch.FirstToolCallIndex)+uint64(len(envelope.ToolBatch.Calls)) > uint64(^uint32(0))+1 {
+func (e effectEnvelope) validateToolBatch() error {
+	if e.ModelCall != nil || e.ToolBatch == nil ||
+		e.ToolBatch.ModelCallSequence == 0 || len(e.ToolBatch.Calls) == 0 ||
+		uint64(e.ToolBatch.FirstToolCallIndex)+uint64(len(e.ToolBatch.Calls)) > uint64(^uint32(0))+1 {
 		return errors.New("interaction: tool_batch effect has an invalid payload set")
 	}
-	for index := range envelope.ToolBatch.Calls {
-		if err := envelope.ToolBatch.Calls[index].Validate(); err != nil {
+	for index := range e.ToolBatch.Calls {
+		if err := e.ToolBatch.Calls[index].Validate(); err != nil {
 			return fmt.Errorf("interaction: tool_batch call %d: %w", index, err)
 		}
 	}
-	if envelope.ToolBatch.Checkpoint == nil {
-		if len(envelope.ToolBatch.InputResponse) != 0 {
+	if e.ToolBatch.Checkpoint == nil {
+		if len(e.ToolBatch.InputResponse) != 0 {
 			return errors.New("interaction: tool_batch input response requires a checkpoint")
 		}
 		return nil
 	}
-	if err := envelope.ToolBatch.Checkpoint.validate(envelope.ToolBatch.Calls); err != nil {
+	if err := e.ToolBatch.Checkpoint.validate(e.ToolBatch.Calls); err != nil {
 		return err
 	}
-	request, err := envelope.ToolBatch.Checkpoint.InputRequest.inputRequest()
+	request, err := e.ToolBatch.Checkpoint.InputRequest.inputRequest()
 	if err != nil {
 		return err
 	}
-	_, err = request.validateResponse(envelope.ToolBatch.InputResponse)
+	_, err = request.validateResponse(e.ToolBatch.InputResponse)
 	return err
 }
 
-func (envelope signalEnvelope) validate() error {
-	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() {
+func (s signalEnvelope) validate() error {
+	if s.SchemaVersion != protocolSchemaVersion || !s.Operation.valid() {
 		return errors.New("interaction: unsupported signal protocol")
 	}
-	switch envelope.Operation {
+	switch s.Operation {
 	case operationModelCall:
-		return envelope.validateModelResult()
+		return s.validateModelResult()
 	case operationToolBatch:
-		return envelope.validateToolResult()
+		return s.validateToolResult()
 	case operationWaitOpened:
-		return envelope.validateWaitOpened()
+		return s.validateWaitOpened()
 	case operationInputResponse:
-		return envelope.validateInputResponse()
+		return s.validateInputResponse()
 	case operationSteer:
-		return envelope.validateSteer()
+		return s.validateSteer()
 	}
 	return nil
 }
 
-func (envelope signalEnvelope) validateModelResult() error {
-	if envelope.ModelResult == nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
+func (s signalEnvelope) validateModelResult() error {
+	if s.ModelResult == nil || s.ToolResult != nil || s.WaitOpened != nil || len(s.InputResponse) != 0 || s.Steer != nil {
 		return errors.New("interaction: model_result signal has an invalid payload set")
 	}
-	result := envelope.ModelResult
+	result := s.ModelResult
 	modes := 0
 	if result.Response != nil {
 		modes++
@@ -295,11 +295,11 @@ func (envelope signalEnvelope) validateModelResult() error {
 	return nil
 }
 
-func (envelope signalEnvelope) validateToolResult() error {
-	if envelope.ModelResult != nil || envelope.ToolResult == nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
+func (s signalEnvelope) validateToolResult() error {
+	if s.ModelResult != nil || s.ToolResult == nil || s.WaitOpened != nil || len(s.InputResponse) != 0 || s.Steer != nil {
 		return errors.New("interaction: tool_result signal has an invalid payload set")
 	}
-	result := envelope.ToolResult
+	result := s.ToolResult
 	modes := 0
 	if len(result.Results) != 0 {
 		modes++
@@ -337,54 +337,54 @@ func (envelope signalEnvelope) validateToolResult() error {
 	return nil
 }
 
-func (envelope signalEnvelope) validateWaitOpened() error {
-	if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened == nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
+func (s signalEnvelope) validateWaitOpened() error {
+	if s.ModelResult != nil || s.ToolResult != nil || s.WaitOpened == nil || len(s.InputResponse) != 0 || s.Steer != nil {
 		return errors.New("interaction: wait_opened signal has an invalid payload set")
 	}
-	_, err := envelope.WaitOpened.inputRequest()
+	_, err := s.WaitOpened.inputRequest()
 	return err
 }
 
-func (envelope signalEnvelope) validateInputResponse() error {
-	if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) == 0 || envelope.Steer != nil {
+func (s signalEnvelope) validateInputResponse() error {
+	if s.ModelResult != nil || s.ToolResult != nil || s.WaitOpened != nil || len(s.InputResponse) == 0 || s.Steer != nil {
 		return errors.New("interaction: input_response signal has an invalid payload set")
 	}
-	if _, err := canonicalJSON(envelope.InputResponse); err != nil {
+	if _, err := canonicalJSON(s.InputResponse); err != nil {
 		return fmt.Errorf("interaction: input_response: %w", err)
 	}
 	return nil
 }
 
-func (envelope signalEnvelope) validateSteer() error {
-	if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer == nil {
+func (s signalEnvelope) validateSteer() error {
+	if s.ModelResult != nil || s.ToolResult != nil || s.WaitOpened != nil || len(s.InputResponse) != 0 || s.Steer == nil {
 		return errors.New("interaction: steer signal has an invalid payload set")
 	}
-	return validateSteeringMessages(envelope.Steer.Messages)
+	return validateSteeringMessages(s.Steer.Messages)
 }
 
-func (checkpoint toolCheckpoint) clone() toolCheckpoint {
-	cloned := checkpoint
-	cloned.CompletedResults = append([]chat.ToolResult(nil), checkpoint.CompletedResults...)
-	cloned.AdvertisedToolNames = slices.Clone(checkpoint.AdvertisedToolNames)
-	cloned.InputRequest.Prompt = append(json.RawMessage(nil), checkpoint.InputRequest.Prompt...)
-	cloned.InputRequest.ResponseSchema = append(json.RawMessage(nil), checkpoint.InputRequest.ResponseSchema...)
-	cloned.InputRequest.ContinuationState = append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...)
+func (t toolCheckpoint) clone() toolCheckpoint {
+	cloned := t
+	cloned.CompletedResults = append([]chat.ToolResult(nil), t.CompletedResults...)
+	cloned.AdvertisedToolNames = slices.Clone(t.AdvertisedToolNames)
+	cloned.InputRequest.Prompt = append(json.RawMessage(nil), t.InputRequest.Prompt...)
+	cloned.InputRequest.ResponseSchema = append(json.RawMessage(nil), t.InputRequest.ResponseSchema...)
+	cloned.InputRequest.ContinuationState = append(json.RawMessage(nil), t.InputRequest.ContinuationState...)
 	return cloned
 }
 
-func (checkpoint toolCheckpoint) validate(calls []chat.ToolCall) error {
-	if checkpoint.PauseCount == 0 || checkpoint.NextToolCallIndex != uint32(len(checkpoint.CompletedResults)) ||
-		int(checkpoint.NextToolCallIndex) >= len(calls) {
+func (t toolCheckpoint) validate(calls []chat.ToolCall) error {
+	if t.PauseCount == 0 || t.NextToolCallIndex != uint32(len(t.CompletedResults)) ||
+		int(t.NextToolCallIndex) >= len(calls) {
 		return errors.New("interaction: invalid tool checkpoint position")
 	}
-	if _, err := checkpoint.InputRequest.inputRequest(); err != nil {
+	if _, err := t.InputRequest.inputRequest(); err != nil {
 		return fmt.Errorf("interaction: tool checkpoint input: %w", err)
 	}
-	if err := validateAdvertisedToolNames(checkpoint.AdvertisedToolNames); err != nil {
+	if err := validateAdvertisedToolNames(t.AdvertisedToolNames); err != nil {
 		return fmt.Errorf("interaction: tool checkpoint advertised Tools: %w", err)
 	}
-	for index := range checkpoint.CompletedResults {
-		result := checkpoint.CompletedResults[index]
+	for index := range t.CompletedResults {
+		result := t.CompletedResults[index]
 		if err := result.Validate(); err != nil {
 			return fmt.Errorf("interaction: tool checkpoint result %d: %w", index, err)
 		}

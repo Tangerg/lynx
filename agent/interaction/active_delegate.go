@@ -19,31 +19,31 @@ type ActiveDelegateChild struct {
 }
 
 // ModelCallSequence returns the one-based model call that requested the child.
-func (child ActiveDelegateChild) ModelCallSequence() uint32 {
-	return child.modelCallSequence
+func (a ActiveDelegateChild) ModelCallSequence() uint32 {
+	return a.modelCallSequence
 }
 
 // ToolCallIndex returns the zero-based ToolCall position in the model response.
-func (child ActiveDelegateChild) ToolCallIndex() uint32 { return child.toolCallIndex }
+func (a ActiveDelegateChild) ToolCallIndex() uint32 { return a.toolCallIndex }
 
 // ToolCall returns the exact model ToolCall represented by the child.
-func (child ActiveDelegateChild) ToolCall() chat.ToolCall { return child.toolCall }
+func (a ActiveDelegateChild) ToolCall() chat.ToolCall { return a.toolCall }
 
 // ChildKey returns the parent-scoped logical child identity.
-func (child ActiveDelegateChild) ChildKey() agent.ChildKey { return child.childKey }
+func (a ActiveDelegateChild) ChildKey() agent.ChildKey { return a.childKey }
 
 // ProcessID returns the Engine-minted child Process identity.
-func (child ActiveDelegateChild) ProcessID() agent.ProcessID { return child.processID }
+func (a ActiveDelegateChild) ProcessID() agent.ProcessID { return a.processID }
 
-// Valid reports whether child contains one complete, internally consistent
+// Valid reports whether a contains one complete, internally consistent
 // active Delegate attribution.
-func (child ActiveDelegateChild) Valid() bool {
-	if child.modelCallSequence == 0 || child.toolCall.Validate() != nil ||
-		!child.childKey.Valid() || !child.processID.Valid() {
+func (a ActiveDelegateChild) Valid() bool {
+	if a.modelCallSequence == 0 || a.toolCall.Validate() != nil ||
+		!a.childKey.Valid() || !a.processID.Valid() {
 		return false
 	}
-	key, err := DelegateChildKey(child.modelCallSequence, child.toolCall)
-	return err == nil && key == child.childKey
+	key, err := DelegateChildKey(a.modelCallSequence, a.toolCall)
+	return err == nil && key == a.childKey
 }
 
 // ActiveDelegateChildrenFromSnapshot interprets only Interaction-owned state.

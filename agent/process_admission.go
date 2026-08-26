@@ -25,35 +25,35 @@ type ProcessAdmission struct {
 }
 
 // Relation returns the prospective Process identity and tree location.
-func (admission ProcessAdmission) Relation() ProcessRelation { return admission.relation }
+func (p ProcessAdmission) Relation() ProcessRelation { return p.relation }
 
 // DeploymentRef returns the exact prospective Deployment identity.
-func (admission ProcessAdmission) DeploymentRef() DeploymentRef { return admission.deploymentRef }
+func (p ProcessAdmission) DeploymentRef() DeploymentRef { return p.deploymentRef }
 
 // Descriptor returns the prospective Definition's static contract.
-func (admission ProcessAdmission) Descriptor() Descriptor { return admission.descriptor }
+func (p ProcessAdmission) Descriptor() Descriptor { return p.descriptor }
 
 // Budget returns the prospective Process's fixed non-renewable allocation.
-func (admission ProcessAdmission) Budget() Budget { return admission.budget }
+func (p ProcessAdmission) Budget() Budget { return p.budget }
 
 // Capabilities returns the prospective Process's immutable authority set.
-func (admission ProcessAdmission) Capabilities() CapabilitySet { return admission.capabilities }
+func (p ProcessAdmission) Capabilities() CapabilitySet { return p.capabilities }
 
 // StartedAt returns the prospective Process start time. If the accepted
 // admission concludes with a started outcome, this exact UTC value becomes the
 // Process lifecycle start.
-func (admission ProcessAdmission) StartedAt() time.Time { return admission.startedAt }
+func (p ProcessAdmission) StartedAt() time.Time { return p.startedAt }
 
 // Valid reports whether the admission contains one coherent prospective
 // Process. Only the Engine constructs admission values.
-func (admission ProcessAdmission) Valid() bool {
-	return admission.relation.Valid() && admission.deploymentRef.Valid() &&
-		admission.descriptor.Valid() && admission.budget.Valid() &&
-		admission.capabilities.Valid() && !admission.startedAt.IsZero() &&
-		admission.startedAt.Location() == time.UTC &&
-		admission.deploymentRef.Name() == admission.descriptor.Name() &&
-		admission.deploymentRef.Version() == admission.descriptor.Version() &&
-		admission.deploymentRef.ContractDigest() == admission.descriptor.Digest()
+func (p ProcessAdmission) Valid() bool {
+	return p.relation.Valid() && p.deploymentRef.Valid() &&
+		p.descriptor.Valid() && p.budget.Valid() &&
+		p.capabilities.Valid() && !p.startedAt.IsZero() &&
+		p.startedAt.Location() == time.UTC &&
+		p.deploymentRef.Name() == p.descriptor.Name() &&
+		p.deploymentRef.Version() == p.descriptor.Version() &&
+		p.deploymentRef.ContractDigest() == p.descriptor.Digest()
 }
 
 // ProcessAdmitter decides whether one prospective root or child Process may
@@ -78,9 +78,9 @@ type ProcessAdmitter interface {
 // ProcessAdmitterFunc adapts a function to ProcessAdmitter.
 type ProcessAdmitterFunc func(ctx context.Context, admission ProcessAdmission) error
 
-// Admit invokes admitter.
-func (admitter ProcessAdmitterFunc) Admit(ctx context.Context, admission ProcessAdmission) error {
-	return admitter(ctx, admission)
+// Admit invokes p.
+func (p ProcessAdmitterFunc) Admit(ctx context.Context, admission ProcessAdmission) error {
+	return p(ctx, admission)
 }
 
 func newProcessAdmission(

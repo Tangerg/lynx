@@ -67,11 +67,11 @@ type searchRequest struct {
 	Contents           *contentsOptions `json:"contents,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("exa: Request must not be nil")
 	}
-	if r.Query == "" {
+	if s.Query == "" {
 		return errors.New("exa: Query must not be empty")
 	}
 	return nil
@@ -155,9 +155,9 @@ func recencyToStart(r web.Recency) time.Time {
 	return time.Time{}
 }
 
-func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Results))
-	for _, searchResult := range r.Results {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Results))
+	for _, searchResult := range s.Results {
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.URL,
@@ -170,11 +170,11 @@ func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	return &web.SearchResponse{Query: query, Results: results}
 }
 
-func (r *searchResult) snippet() string {
-	if len(r.Highlights) > 0 {
-		return r.Highlights[0]
+func (s *searchResult) snippet() string {
+	if len(s.Highlights) > 0 {
+		return s.Highlights[0]
 	}
-	return r.Summary
+	return s.Summary
 }
 
 func parseDate(s string) time.Time {

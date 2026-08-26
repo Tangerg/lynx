@@ -33,9 +33,9 @@ const (
 	FailureKindPanic FailureKind = "panic"
 )
 
-// Valid reports whether kind is a framework failure classification.
-func (kind FailureKind) Valid() bool {
-	switch kind {
+// Valid reports whether f is a framework failure classification.
+func (f FailureKind) Valid() bool {
+	switch f {
 	case FailureKindExecution, FailureKindContract, FailureKindExternal, FailureKindPanic:
 		return true
 	default:
@@ -44,11 +44,11 @@ func (kind FailureKind) Valid() bool {
 }
 
 // String returns the stable failure-kind name.
-func (kind FailureKind) String() string {
-	if !kind.Valid() {
+func (f FailureKind) String() string {
+	if !f.Valid() {
 		return "invalid"
 	}
-	return string(kind)
+	return string(f)
 }
 
 // Failure is an immutable, snapshot-safe classification and explanation. Code

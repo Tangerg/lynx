@@ -20,21 +20,21 @@ type captureHandler struct {
 	records []stdslog.Record
 }
 
-func (h *captureHandler) Enabled(context.Context, stdslog.Level) bool { return true }
-func (h *captureHandler) Handle(_ context.Context, r stdslog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.records = append(h.records, r.Clone())
+func (c *captureHandler) Enabled(context.Context, stdslog.Level) bool { return true }
+func (c *captureHandler) Handle(_ context.Context, r stdslog.Record) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.records = append(c.records, r.Clone())
 	return nil
 }
-func (h *captureHandler) WithAttrs([]stdslog.Attr) stdslog.Handler { return h }
-func (h *captureHandler) WithGroup(string) stdslog.Handler         { return h }
+func (c *captureHandler) WithAttrs([]stdslog.Attr) stdslog.Handler { return c }
+func (c *captureHandler) WithGroup(string) stdslog.Handler         { return c }
 
-func (h *captureHandler) Records() []stdslog.Record {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]stdslog.Record, len(h.records))
-	copy(out, h.records)
+func (c *captureHandler) Records() []stdslog.Record {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]stdslog.Record, len(c.records))
+	copy(out, c.records)
 	return out
 }
 

@@ -25,30 +25,30 @@ func NewPreparedStepRecorder(results ...error) *PreparedStepRecorder {
 }
 
 // AcknowledgePreparedStep records snapshot and returns the next scripted result.
-func (recorder *PreparedStepRecorder) AcknowledgePreparedStep(
+func (p *PreparedStepRecorder) AcknowledgePreparedStep(
 	_ context.Context,
 	snapshot agent.Snapshot,
 ) error {
-	if recorder == nil {
+	if p == nil {
 		return nil
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	recorder.snapshots = append(recorder.snapshots, snapshot)
-	if recorder.next >= len(recorder.results) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.snapshots = append(p.snapshots, snapshot)
+	if p.next >= len(p.results) {
 		return nil
 	}
-	result := recorder.results[recorder.next]
-	recorder.next++
+	result := p.results[p.next]
+	p.next++
 	return result
 }
 
 // Snapshots returns prepared boundaries in acknowledgment order.
-func (recorder *PreparedStepRecorder) Snapshots() []agent.Snapshot {
-	if recorder == nil {
+func (p *PreparedStepRecorder) Snapshots() []agent.Snapshot {
+	if p == nil {
 		return nil
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	return slices.Clone(recorder.snapshots)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.snapshots)
 }

@@ -121,7 +121,7 @@ func freezeDispatchStep(source DispatchStep) (dispatchStep, error) {
 
 // Dispatch consumes the next scripted step, emits its Deltas, and returns its
 // configured settlement or error.
-func (dispatcher *ScriptedDispatcher) Dispatch(
+func (s *ScriptedDispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
@@ -129,87 +129,87 @@ func (dispatcher *ScriptedDispatcher) Dispatch(
 	if err := ctx.Err(); err != nil {
 		return agent.Settlement{}, err
 	}
-	if dispatcher == nil {
+	if s == nil {
 		return agent.Settlement{}, ErrInvalidDispatchScript
 	}
-	step, err := dispatcher.consume(request)
+	step, err := s.consume(request)
 	if err != nil {
 		return agent.Settlement{}, err
 	}
 	return step.dispatch(request, emit)
 }
 
-func (dispatcher *ScriptedDispatcher) consume(request agent.EffectRequest) (dispatchStep, error) {
-	dispatcher.mu.Lock()
-	defer dispatcher.mu.Unlock()
-	dispatcher.requests = append(dispatcher.requests, request)
-	if dispatcher.next >= len(dispatcher.steps) {
+func (s *ScriptedDispatcher) consume(request agent.EffectRequest) (dispatchStep, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, request)
+	if s.next >= len(s.steps) {
 		return dispatchStep{}, ErrUnexpectedDispatch
 	}
-	step := dispatcher.steps[dispatcher.next]
-	dispatcher.next++
+	step := s.steps[s.next]
+	s.next++
 	return step, nil
 }
 
-func (step dispatchStep) dispatch(
+func (d dispatchStep) dispatch(
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	matches, err := step.matches(request.Effect())
+	matches, err := d.matches(request.Effect())
 	if err != nil {
 		return agent.Settlement{}, fmt.Errorf("%w: %w", ErrEffectMismatch, err)
 	}
 	if !matches {
 		return agent.Settlement{}, ErrEffectMismatch
 	}
-	if len(step.deltas) > 0 && emit == nil {
+	if len(d.deltas) > 0 && emit == nil {
 		return agent.Settlement{}, fmt.Errorf("%w: nil DeltaEmitter", ErrUnexpectedDispatch)
 	}
-	for _, delta := range step.deltas {
+	for _, delta := range d.deltas {
 		emit(bytes.Clone(delta))
 	}
-	if step.err != nil {
-		return agent.Settlement{}, step.err
+	if d.err != nil {
+		return agent.Settlement{}, d.err
 	}
-	return agent.NewSettlement(request.ID(), step.settlementStatus, step.settlementPayload)
+	return agent.NewSettlement(request.ID(), d.settlementStatus, d.settlementPayload)
 }
 
-func (step dispatchStep) matches(effect agent.Effect) (bool, error) {
-	if step.expectedEffectJSON == nil {
+func (d dispatchStep) matches(effect agent.Effect) (bool, error) {
+	if d.expectedEffectJSON == nil {
 		return true, nil
 	}
 	actual, err := json.Marshal(effect)
 	if err != nil {
 		return false, err
 	}
-	return bytes.Equal(step.expectedEffectJSON, actual), nil
+	return bytes.Equal(d.expectedEffectJSON, actual), nil
 }
 
 // ReplayPolicy returns the immutable policy declared at construction.
-func (dispatcher *ScriptedDispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
-	if dispatcher == nil || !effect.Valid() {
+func (s *ScriptedDispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
+	if s == nil || !effect.Valid() {
 		return agent.ReplayPolicyInvalid
 	}
-	return dispatcher.replayPolicy
+	return s.replayPolicy
 }
 
 // Requests returns consumed Dispatch requests in actual call order, including
 // requests that mismatch or exceed the script.
-func (dispatcher *ScriptedDispatcher) Requests() []agent.EffectRequest {
-	if dispatcher == nil {
+func (s *ScriptedDispatcher) Requests() []agent.EffectRequest {
+	if s == nil {
 		return nil
 	}
-	dispatcher.mu.Lock()
-	defer dispatcher.mu.Unlock()
-	return slices.Clone(dispatcher.requests)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.requests)
 }
 
 // Remaining reports how many scripted calls have not been consumed.
-func (dispatcher *ScriptedDispatcher) Remaining() int {
-	if dispatcher == nil {
+func (s *ScriptedDispatcher) Remaining() int {
+	if s == nil {
 		return 0
 	}
-	dispatcher.mu.Lock()
-	defer dispatcher.mu.Unlock()
-	return len(dispatcher.steps) - dispatcher.next
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.steps) - s.next
 }

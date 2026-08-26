@@ -40,9 +40,9 @@ type ChildSpec struct {
 
 // Valid reports whether the child intent contains stable identity, exact
 // deployment identity, and portable input.
-func (spec ChildSpec) Valid() bool {
-	return spec.Key.Valid() && spec.DeploymentRef.Valid() && spec.Input.Valid() &&
-		spec.Budget.Valid() && spec.Capabilities.Valid()
+func (c ChildSpec) Valid() bool {
+	return c.Key.Valid() && c.DeploymentRef.Valid() && c.Input.Valid() &&
+		c.Budget.Valid() && c.Capabilities.Valid()
 }
 
 // StartChild creates a Framework-owned Effect requesting one independently
@@ -73,26 +73,26 @@ type ChildStartResult struct {
 }
 
 // Key returns the logical child identity declared by the Execution.
-func (result ChildStartResult) Key() ChildKey { return result.key }
+func (c ChildStartResult) Key() ChildKey { return c.key }
 
 // ProcessID returns the created child identity and true on success.
-func (result ChildStartResult) ProcessID() (ProcessID, bool) {
-	return result.processID, result.processID.Valid() && !result.failure.Valid()
+func (c ChildStartResult) ProcessID() (ProcessID, bool) {
+	return c.processID, c.processID.Valid() && !c.failure.Valid()
 }
 
 // DeploymentRef returns the exact child execution binding.
-func (result ChildStartResult) DeploymentRef() DeploymentRef { return result.deploymentRef }
+func (c ChildStartResult) DeploymentRef() DeploymentRef { return c.deploymentRef }
 
 // Failure returns the definite start failure and true when no child was
 // created.
-func (result ChildStartResult) Failure() (Failure, bool) {
-	return result.failure, result.failure.Valid() && !result.processID.Valid()
+func (c ChildStartResult) Failure() (Failure, bool) {
+	return c.failure, c.failure.Valid() && !c.processID.Valid()
 }
 
-// Valid reports whether result contains exactly one success or failure.
-func (result ChildStartResult) Valid() bool {
-	return result.key.Valid() && result.deploymentRef.Valid() &&
-		(result.processID.Valid() != result.failure.Valid())
+// Valid reports whether c contains exactly one success or failure.
+func (c ChildStartResult) Valid() bool {
+	return c.key.Valid() && c.deploymentRef.Valid() &&
+		(c.processID.Valid() != c.failure.Valid())
 }
 
 // ParseChildStartResult decodes a Framework-owned child-start settlement

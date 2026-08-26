@@ -301,7 +301,7 @@ type countingDefinition struct {
 	starts *atomic.Uint32
 }
 
-func (definition *countingDefinition) Start(input Input) (Execution, error) {
-	definition.starts.Add(1)
-	return definition.Definition.Start(input)
+func (c *countingDefinition) Start(input Input) (Execution, error) {
+	c.starts.Add(1)
+	return c.Definition.Start(input)
 }

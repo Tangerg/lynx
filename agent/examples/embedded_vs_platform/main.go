@@ -152,8 +152,8 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 
 type staticResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver staticResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
-	deployment, found := resolver[reference]
+func (s staticResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
+	deployment, found := s[reference]
 	if !found {
 		return agent.Deployment{}, fmt.Errorf("deployment %s is not available", reference)
 	}
@@ -191,7 +191,7 @@ type recorder struct {
 	events     []eventFact
 }
 
-func (recorder *recorder) Admit(_ context.Context, admission agent.ProcessAdmission) error {
+func (r *recorder) Admit(_ context.Context, admission agent.ProcessAdmission) error {
 	capabilities := admission.Capabilities().Values()
 	names := make([]string, len(capabilities))
 	for index, capability := range capabilities {
@@ -203,13 +203,13 @@ func (recorder *recorder) Admit(_ context.Context, admission agent.ProcessAdmiss
 		budget:       admission.Budget(),
 		capabilities: strings.Join(names, ","),
 	}
-	recorder.mu.Lock()
-	recorder.admissions = append(recorder.admissions, fact)
-	recorder.mu.Unlock()
+	r.mu.Lock()
+	r.admissions = append(r.admissions, fact)
+	r.mu.Unlock()
 	return nil
 }
 
-func (recorder *recorder) OnEvent(_ context.Context, event agent.Event) {
+func (r *recorder) OnEvent(_ context.Context, event agent.Event) {
 	if event.Name() == agent.EventSignalAccepted {
 		return
 	}
@@ -233,16 +233,16 @@ func (recorder *recorder) OnEvent(_ context.Context, event agent.Event) {
 		status:     payload.Status,
 		target:     payload.Target,
 	}
-	recorder.mu.Lock()
-	recorder.events = append(recorder.events, fact)
-	recorder.mu.Unlock()
+	r.mu.Lock()
+	r.events = append(r.events, fact)
+	r.mu.Unlock()
 }
 
-func (recorder *recorder) facts() ([]admissionFact, []eventFact) {
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	admissions := slices.Clone(recorder.admissions)
-	events := slices.Clone(recorder.events)
+func (r *recorder) facts() ([]admissionFact, []eventFact) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	admissions := slices.Clone(r.admissions)
+	events := slices.Clone(r.events)
 	slices.SortFunc(admissions, func(left, right admissionFact) int {
 		return cmp.Or(
 			cmp.Compare(left.deployment, right.deployment),

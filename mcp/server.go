@@ -53,11 +53,11 @@ type serverTool struct {
 	definition corechat.ToolDefinition
 }
 
-func (t serverTool) descriptor() *sdkmcp.Tool {
+func (s serverTool) descriptor() *sdkmcp.Tool {
 	return new(sdkmcp.Tool{
-		Name:        t.definition.Name,
-		Description: t.definition.Description,
-		InputSchema: t.definition.InputSchema,
+		Name:        s.definition.Name,
+		Description: s.definition.Description,
+		InputSchema: s.definition.InputSchema,
 	})
 }
 
@@ -70,8 +70,8 @@ func (t serverTool) descriptor() *sdkmcp.Tool {
 // The MCP server session is stamped onto the context so tool authors
 // can use the reverse-capability helpers ([ReportProgress] and [Elicit])
 // without taking a direct dependency on the SDK session.
-func (t serverTool) handle(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
-	toolName := t.definition.Name
+func (s serverTool) handle(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+	toolName := s.definition.Name
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(attribute.String(attrToolName, toolName)),
@@ -85,7 +85,7 @@ func (t serverTool) handle(ctx context.Context, req *sdkmcp.CallToolRequest) (*s
 		rawArgs = string(req.Params.Arguments)
 	}
 
-	out, err := t.executable.Call(ctx, cmp.Or(rawArgs, "{}"))
+	out, err := s.executable.Call(ctx, cmp.Or(rawArgs, "{}"))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

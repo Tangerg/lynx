@@ -20,11 +20,11 @@ type fetchRequest struct {
 	OnlyMainContent bool          `json:"onlyMainContent"`
 }
 
-func (r *fetchRequest) validate() error {
-	if r == nil {
+func (f *fetchRequest) validate() error {
+	if f == nil {
 		return errors.New("firecrawl: Request must not be nil")
 	}
-	if r.URL == "" {
+	if f.URL == "" {
 		return errors.New("firecrawl: URL must not be empty")
 	}
 	return nil

@@ -24,9 +24,9 @@ type unifiedPatch struct {
 // these paths to serialize writes, refuse protected directories, and require a
 // prior read — so a move that reported only its destination would leave the file
 // it removes outside all three.
-func (p unifiedPatch) paths() []string {
-	paths := make([]string, 0, len(p.files))
-	for _, file := range p.files {
+func (u unifiedPatch) paths() []string {
+	paths := make([]string, 0, len(u.files))
+	for _, file := range u.files {
 		paths = append(paths, file.touches()...)
 	}
 	slices.Sort(paths)
@@ -36,9 +36,9 @@ func (p unifiedPatch) paths() []string {
 // duplicatePath reports a path two file patches both touch. Endpoints count, not
 // just destinations: patching a file and moving another one onto it are two edits
 // to one path, and applying both would make the result depend on their order.
-func (p unifiedPatch) duplicatePath() string {
-	seen := make(map[string]struct{}, len(p.files))
-	for _, file := range p.files {
+func (u unifiedPatch) duplicatePath() string {
+	seen := make(map[string]struct{}, len(u.files))
+	for _, file := range u.files {
 		for _, path := range file.touches() {
 			if _, ok := seen[path]; ok {
 				return path
@@ -55,60 +55,60 @@ type filePatch struct {
 	hunks   []patchHunk
 }
 
-func (p filePatch) path() string {
-	if p.newPath != "" && p.newPath != nullPatchPath {
-		return p.newPath
+func (f filePatch) path() string {
+	if f.newPath != "" && f.newPath != nullPatchPath {
+		return f.newPath
 	}
-	return p.oldPath
+	return f.oldPath
 }
 
-func (p filePatch) created() bool { return p.oldPath == nullPatchPath }
-func (p filePatch) deleted() bool { return p.newPath == nullPatchPath }
+func (f filePatch) created() bool { return f.oldPath == nullPatchPath }
+func (f filePatch) deleted() bool { return f.newPath == nullPatchPath }
 
 // moved reports the fourth shape: both headers name a real file and they differ,
 // so the content is read at oldPath, patched, and lands at newPath while oldPath
 // goes away. It is the one shape whose two endpoints are different files.
-func (p filePatch) moved() bool {
-	return p.oldPath != "" && p.newPath != "" &&
-		p.oldPath != nullPatchPath && p.newPath != nullPatchPath &&
-		p.oldPath != p.newPath
+func (f filePatch) moved() bool {
+	return f.oldPath != "" && f.newPath != "" &&
+		f.oldPath != nullPatchPath && f.newPath != nullPatchPath &&
+		f.oldPath != f.newPath
 }
 
 // touches is every path this file patch reads, writes or removes.
-func (p filePatch) touches() []string {
-	if p.moved() {
-		return []string{p.oldPath, p.newPath}
+func (f filePatch) touches() []string {
+	if f.moved() {
+		return []string{f.oldPath, f.newPath}
 	}
-	return []string{p.path()}
+	return []string{f.path()}
 }
 
-func (p filePatch) validate() error {
-	if p.oldPath == "" || p.newPath == "" {
+func (f filePatch) validate() error {
+	if f.oldPath == "" || f.newPath == "" {
 		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
 	}
 	// A pure rename is the one patch with nothing to apply: git emits it with two
 	// headers and no hunks, and there is no content change to describe. Every other
 	// shape without a hunk says nothing at all.
-	if len(p.hunks) == 0 && !p.moved() {
+	if len(f.hunks) == 0 && !f.moved() {
 		return errors.New("fs.ApplyPatch: file patch has no hunks")
 	}
-	if p.oldPath != nullPatchPath {
-		if err := validatePatchPath(p.oldPath); err != nil {
+	if f.oldPath != nullPatchPath {
+		if err := validatePatchPath(f.oldPath); err != nil {
 			return err
 		}
 	}
-	if p.newPath != nullPatchPath {
-		if err := validatePatchPath(p.newPath); err != nil {
+	if f.newPath != nullPatchPath {
+		if err := validatePatchPath(f.newPath); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p filePatch) apply(lines []string) ([]string, error) {
+func (f filePatch) apply(lines []string) ([]string, error) {
 	out := slices.Clone(lines)
 	delta := 0
-	for _, hunk := range p.hunks {
+	for _, hunk := range f.hunks {
 		oldLines, newLines := hunk.splitLines()
 		idx := hunk.oldStart - 1 + delta
 		if hunk.oldStart == 0 {
@@ -117,7 +117,7 @@ func (p filePatch) apply(lines []string) ([]string, error) {
 		if idx < 0 || idx+len(oldLines) > len(out) || !equalLines(out[idx:idx+len(oldLines)], oldLines) {
 			found := findUniqueLines(out, oldLines)
 			if found < 0 {
-				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", p.path())
+				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", f.path())
 			}
 			idx = found
 		}
@@ -135,8 +135,8 @@ type patchHunk struct {
 	lines    []patchLine
 }
 
-func (h patchHunk) splitLines() (oldLines, newLines []string) {
-	for _, line := range h.lines {
+func (p patchHunk) splitLines() (oldLines, newLines []string) {
+	for _, line := range p.lines {
 		switch line.kind {
 		case ' ':
 			oldLines = append(oldLines, line.text)
@@ -229,14 +229,14 @@ type patchTarget struct {
 	to   string
 }
 
-func (t patchTarget) locks() []string {
-	if t.from != "" && t.to != "" && t.from != t.to {
-		return []string{t.from, t.to}
+func (p patchTarget) locks() []string {
+	if p.from != "" && p.to != "" && p.from != p.to {
+		return []string{p.from, p.to}
 	}
-	if t.to != "" {
-		return []string{t.to}
+	if p.to != "" {
+		return []string{p.to}
 	}
-	return []string{t.from}
+	return []string{p.from}
 }
 
 func (l *LocalExecutor) resolveTarget(file filePatch) (patchTarget, error) {

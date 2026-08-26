@@ -24,17 +24,17 @@ const (
 	EffectTargetDispatcher EffectTarget = "dispatcher"
 )
 
-// Valid reports whether target identifies an Effect owner.
-func (target EffectTarget) Valid() bool {
-	return target == EffectTargetFramework || target == EffectTargetDispatcher
+// Valid reports whether e identifies an Effect owner.
+func (e EffectTarget) Valid() bool {
+	return e == EffectTargetFramework || e == EffectTargetDispatcher
 }
 
 // String returns the stable Effect target name.
-func (target EffectTarget) String() string {
-	if !target.Valid() {
+func (e EffectTarget) String() string {
+	if !e.Valid() {
 		return "invalid"
 	}
-	return string(target)
+	return string(e)
 }
 
 // Effect is an immutable request for an operation outside Execution.Step.

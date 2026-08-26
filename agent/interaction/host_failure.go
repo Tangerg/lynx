@@ -13,9 +13,9 @@ type hostFailureError struct {
 	cause error
 }
 
-func (failure hostFailureError) Error() string { return failure.cause.Error() }
+func (h hostFailureError) Error() string { return h.cause.Error() }
 
-func (failure hostFailureError) Unwrap() error { return failure.cause }
+func (h hostFailureError) Unwrap() error { return h.cause }
 
 func (hostFailureError) Is(target error) bool { return target == ErrHostFailure }
 

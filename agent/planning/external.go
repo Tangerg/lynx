@@ -43,12 +43,12 @@ type Observer interface {
 // ObserverFunc adapts a function to Observer.
 type ObserverFunc func(ctx context.Context, request ObservationRequest) (WorldState, error)
 
-// Observe calls function with request.
-func (function ObserverFunc) Observe(
+// Observe calls o with request.
+func (o ObserverFunc) Observe(
 	ctx context.Context,
 	request ObservationRequest,
 ) (WorldState, error) {
-	return function(ctx, request)
+	return o(ctx, request)
 }
 
 // ActionExecutor performs one dispatcher-bound Action. A valid ActionResult is
@@ -62,12 +62,12 @@ type ActionExecutor interface {
 // ActionExecutorFunc adapts a function to ActionExecutor.
 type ActionExecutorFunc func(ctx context.Context, request ActionRequest) (ActionResult, error)
 
-// Execute calls function with request.
-func (function ActionExecutorFunc) Execute(
+// Execute calls a with request.
+func (a ActionExecutorFunc) Execute(
 	ctx context.Context,
 	request ActionRequest,
 ) (ActionResult, error) {
-	return function(ctx, request)
+	return a(ctx, request)
 }
 
 // ActionResult is the definite external result reported by an ActionExecutor.
@@ -91,16 +91,16 @@ func ActionFailed(diagnostic string) (ActionResult, error) {
 }
 
 // Succeeded reports whether the definite Action result succeeded.
-func (result ActionResult) Succeeded() bool { return result.valid && result.succeeded }
+func (a ActionResult) Succeeded() bool { return a.valid && a.succeeded }
 
 // Diagnostic returns the definite failure explanation, or an empty string on
 // success.
-func (result ActionResult) Diagnostic() string { return result.diagnostic }
+func (a ActionResult) Diagnostic() string { return a.diagnostic }
 
-// Valid reports whether result was constructed as a definite success or failure.
-func (result ActionResult) Valid() bool {
-	return result.valid && (result.succeeded && result.diagnostic == "" ||
-		!result.succeeded && validDiagnostic(result.diagnostic))
+// Valid reports whether a was constructed as a definite success or failure.
+func (a ActionResult) Valid() bool {
+	return a.valid && (a.succeeded && a.diagnostic == "" ||
+		!a.succeeded && validDiagnostic(a.diagnostic))
 }
 
 // NewActionSettlement constructs the definite settlement used to resolve an

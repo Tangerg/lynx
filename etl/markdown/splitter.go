@@ -122,8 +122,8 @@ const (
 	blockAtomic
 )
 
-func (k blockKind) String() string {
-	switch k {
+func (b blockKind) String() string {
+	switch b {
 	case blockParagraph:
 		return "paragraph"
 	case blockTable:

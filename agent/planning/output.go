@@ -19,9 +19,9 @@ const (
 	OutcomeStuck Outcome = "stuck"
 )
 
-// Valid reports whether outcome is one supported Planning completion reason.
-func (outcome Outcome) Valid() bool {
-	return outcome == OutcomeAchieved || outcome == OutcomeUnreachable || outcome == OutcomeStuck
+// Valid reports whether o is one supported Planning completion reason.
+func (o Outcome) Valid() bool {
+	return o == OutcomeAchieved || o == OutcomeUnreachable || o == OutcomeStuck
 }
 
 // AttemptStatus records the observed result of one selected Action attempt.
@@ -38,9 +38,9 @@ const (
 	AttemptUnconfirmed AttemptStatus = "unconfirmed"
 )
 
-// Valid reports whether status is one supported Action attempt result.
-func (status AttemptStatus) Valid() bool {
-	return status == AttemptSucceeded || status == AttemptFailed || status == AttemptUnconfirmed
+// Valid reports whether a is one supported Action attempt result.
+func (a AttemptStatus) Valid() bool {
+	return a == AttemptSucceeded || a == AttemptFailed || a == AttemptUnconfirmed
 }
 
 // Attempt is one final, portable Action-attempt fact. Diagnostic is empty only
@@ -55,17 +55,17 @@ type Attempt struct {
 }
 
 // Validate verifies the Action identity, status, and bounded diagnostic.
-func (attempt Attempt) Validate() error {
-	if !validName(attempt.ActionName) || !attempt.Status.Valid() {
+func (a Attempt) Validate() error {
+	if !validName(a.ActionName) || !a.Status.Valid() {
 		return errors.New("planning: invalid Action attempt identity or status")
 	}
-	if attempt.Status == AttemptSucceeded {
-		if attempt.Diagnostic != "" {
+	if a.Status == AttemptSucceeded {
+		if a.Diagnostic != "" {
 			return errors.New("planning: succeeded Action attempt has a diagnostic")
 		}
 		return nil
 	}
-	if !validDiagnostic(attempt.Diagnostic) {
+	if !validDiagnostic(a.Diagnostic) {
 		return errors.New("planning: failed or unconfirmed Action attempt requires a bounded diagnostic")
 	}
 	return nil
@@ -86,24 +86,24 @@ type Output struct {
 }
 
 // Validate verifies that Output is internally consistent with its outcome.
-func (output Output) Validate() error {
-	if !output.Outcome.Valid() || !output.WorldState.Valid() {
+func (o Output) Validate() error {
+	if !o.Outcome.Valid() || !o.WorldState.Valid() {
 		return errors.New("planning: invalid output outcome or WorldState")
 	}
-	for index, attempt := range output.Attempts {
+	for index, attempt := range o.Attempts {
 		if err := attempt.Validate(); err != nil {
 			return fmt.Errorf("planning: output attempt %d: %w", index, err)
 		}
 	}
-	switch output.Outcome {
+	switch o.Outcome {
 	case OutcomeAchieved:
 		return nil
 	case OutcomeUnreachable:
-		if len(output.Attempts) != 0 || output.PlanningPasses != 1 {
+		if len(o.Attempts) != 0 || o.PlanningPasses != 1 {
 			return errors.New("planning: unreachable output requires one initial planning pass and no attempts")
 		}
 	case OutcomeStuck:
-		if len(output.Attempts) == 0 {
+		if len(o.Attempts) == 0 {
 			return errors.New("planning: stuck output requires at least one attempt")
 		}
 	}

@@ -34,20 +34,20 @@ func NewSignalRequest(id SignalID, waitID WaitID, payload json.RawMessage) (Sign
 }
 
 // ID returns the stable delivery and deduplication identity.
-func (request SignalRequest) ID() SignalID { return request.id }
+func (s SignalRequest) ID() SignalID { return s.id }
 
 // WaitID returns the addressed wait and true, or a zero WaitID and false.
-func (request SignalRequest) WaitID() (WaitID, bool) { return request.waitID, request.waitID.Valid() }
+func (s SignalRequest) WaitID() (WaitID, bool) { return s.waitID, s.waitID.Valid() }
 
 // Payload returns an independently owned Strategy-defined value.
-func (request SignalRequest) Payload() json.RawMessage { return bytes.Clone(request.payload) }
+func (s SignalRequest) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
 // Valid reports whether the request has a complete immutable envelope.
-func (request SignalRequest) Valid() bool { return request.id.Valid() && len(request.payload) > 0 }
+func (s SignalRequest) Valid() bool { return s.id.Valid() && len(s.payload) > 0 }
 
-func (request SignalRequest) signal(receivedAt time.Time) (Signal, error) {
-	if !request.Valid() {
+func (s SignalRequest) signal(receivedAt time.Time) (Signal, error) {
+	if !s.Valid() {
 		return Signal{}, ErrInvalidSignalRequest
 	}
-	return newSignal(request.id, request.waitID, receivedAt, request.payload)
+	return newSignal(s.id, s.waitID, receivedAt, s.payload)
 }

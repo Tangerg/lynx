@@ -23,7 +23,7 @@ type LoopResult[T any] struct {
 }
 
 // Valid reports whether at least one body iteration produced this result.
-func (result LoopResult[T]) Valid() bool { return result.Iterations > 0 }
+func (l LoopResult[T]) Valid() bool { return l.Iterations > 0 }
 
 // LoopConfig declares one at-least-once managed body iteration.
 type LoopConfig[T any] struct {
@@ -54,9 +54,9 @@ type loopStage struct {
 	result        func(json.RawMessage, uint32, bool) (json.RawMessage, error)
 }
 
-func (stage loopStage) valid() bool {
-	return stage.binding.valid() && stage.maxIterations > 0 && stage.valueSchema.Valid() &&
-		stage.predicate != nil && stage.result != nil
+func (l loopStage) valid() bool {
+	return l.binding.valid() && l.maxIterations > 0 && l.valueSchema.Valid() &&
+		l.predicate != nil && l.result != nil
 }
 
 // Loop constructs one at-least-once managed iteration Stage. Body must accept

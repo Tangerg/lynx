@@ -17,7 +17,7 @@ const (
 	operationAction  operation = "action"
 )
 
-func (value operation) valid() bool { return value == operationObserve || value == operationAction }
+func (o operation) valid() bool { return o == operationObserve || o == operationAction }
 
 type effectEnvelope struct {
 	SchemaVersion uint16      `json:"schema_version"`

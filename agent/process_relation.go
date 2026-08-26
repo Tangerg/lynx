@@ -35,42 +35,42 @@ func childProcessRelation(
 }
 
 // ProcessID returns the Process located by this relation.
-func (relation ProcessRelation) ProcessID() ProcessID { return relation.processID }
+func (p ProcessRelation) ProcessID() ProcessID { return p.processID }
 
 // ParentID returns the direct parent and true for a child, or zero and false
 // for a root.
-func (relation ProcessRelation) ParentID() (ProcessID, bool) {
-	return relation.parentID, relation.parentID.Valid()
+func (p ProcessRelation) ParentID() (ProcessID, bool) {
+	return p.parentID, p.parentID.Valid()
 }
 
 // RootID returns the stable root identity shared by the complete Process tree.
-func (relation ProcessRelation) RootID() ProcessID { return relation.rootID }
+func (p ProcessRelation) RootID() ProcessID { return p.rootID }
 
 // ChildKey returns the parent-scoped logical child identity and true for a
 // child, or zero and false for a root.
-func (relation ProcessRelation) ChildKey() (ChildKey, bool) {
-	return relation.childKey, relation.childKey.Valid()
+func (p ProcessRelation) ChildKey() (ChildKey, bool) {
+	return p.childKey, p.childKey.Valid()
 }
 
 // Depth returns zero for a root and parent depth plus one for every child.
-func (relation ProcessRelation) Depth() uint32 { return relation.depth }
+func (p ProcessRelation) Depth() uint32 { return p.depth }
 
-// IsRoot reports whether relation identifies the root of its tree.
-func (relation ProcessRelation) IsRoot() bool {
-	return relation.Valid() && relation.depth == 0
+// IsRoot reports whether p identifies the root of its tree.
+func (p ProcessRelation) IsRoot() bool {
+	return p.Valid() && p.depth == 0
 }
 
 // Valid reports whether all root or child invariants hold.
-func (relation ProcessRelation) Valid() bool {
-	if !relation.processID.Valid() || !relation.rootID.Valid() {
+func (p ProcessRelation) Valid() bool {
+	if !p.processID.Valid() || !p.rootID.Valid() {
 		return false
 	}
-	if relation.depth == 0 {
-		return relation.processID == relation.rootID &&
-			!relation.parentID.Valid() && !relation.childKey.Valid()
+	if p.depth == 0 {
+		return p.processID == p.rootID &&
+			!p.parentID.Valid() && !p.childKey.Valid()
 	}
-	return relation.parentID.Valid() && relation.childKey.Valid() &&
-		relation.processID != relation.parentID && relation.processID != relation.rootID
+	return p.parentID.Valid() && p.childKey.Valid() &&
+		p.processID != p.parentID && p.processID != p.rootID
 }
 
 type processRelationWire struct {
@@ -80,14 +80,14 @@ type processRelationWire struct {
 	Depth    uint32     `json:"depth"`
 }
 
-func (relation ProcessRelation) wire() processRelationWire {
-	wire := processRelationWire{RootID: relation.rootID, Depth: relation.depth}
-	if relation.parentID.Valid() {
-		parentID := relation.parentID
+func (p ProcessRelation) wire() processRelationWire {
+	wire := processRelationWire{RootID: p.rootID, Depth: p.depth}
+	if p.parentID.Valid() {
+		parentID := p.parentID
 		wire.ParentID = &parentID
 	}
-	if relation.childKey.Valid() {
-		childKey := relation.childKey
+	if p.childKey.Valid() {
+		childKey := p.childKey
 		wire.ChildKey = &childKey
 	}
 	return wire

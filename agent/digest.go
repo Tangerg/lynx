@@ -39,31 +39,31 @@ func digestBytes(data []byte) Digest {
 }
 
 // String returns the canonical wire representation.
-func (digest Digest) String() string { return digest.value }
+func (d Digest) String() string { return d.value }
 
 // Valid reports whether the Digest has a canonical SHA-256 representation.
-func (digest Digest) Valid() bool {
-	_, err := ParseDigest(digest.value)
+func (d Digest) Valid() bool {
+	_, err := ParseDigest(d.value)
 	return err == nil
 }
 
 // MarshalText returns the canonical sha256-prefixed identity.
-func (digest Digest) MarshalText() ([]byte, error) {
-	if !digest.Valid() {
+func (d Digest) MarshalText() ([]byte, error) {
+	if !d.Valid() {
 		return nil, ErrInvalidDigest
 	}
-	return []byte(digest.value), nil
+	return []byte(d.value), nil
 }
 
-// UnmarshalText replaces digest with a canonical SHA-256 identity.
-func (digest *Digest) UnmarshalText(text []byte) error {
-	if digest == nil {
+// UnmarshalText replaces d with a canonical SHA-256 identity.
+func (d *Digest) UnmarshalText(text []byte) error {
+	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDigest)
 	}
 	value, err := ParseDigest(string(text))
 	if err != nil {
 		return err
 	}
-	*digest = value
+	*d = value
 	return nil
 }

@@ -304,19 +304,19 @@ func newPausingBranchDeployment(t *testing.T, branch string) agent.Deployment {
 	return deployment
 }
 
-func (definition *pausingBranchDefinition) Descriptor() agent.Descriptor {
-	return definition.descriptor
+func (p *pausingBranchDefinition) Descriptor() agent.Descriptor {
+	return p.descriptor
 }
 
-func (definition *pausingBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
+func (p *pausingBranchDefinition) Start(input agent.Input) (agent.Execution, error) {
 	decoded, err := input.Decode[forkInput]()
 	if err != nil {
 		return nil, err
 	}
-	return &pausingBranchExecution{Branch: definition.branch, Value: decoded.Value}, nil
+	return &pausingBranchExecution{Branch: p.branch, Value: decoded.Value}, nil
 }
 
-func (definition *pausingBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+func (p *pausingBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if state.Kind() != "test.workflow.pausing_branch" || state.SchemaVersion() != 1 {
 		return nil, agent.ErrInvalidExecutionState
 	}
@@ -324,7 +324,7 @@ func (definition *pausingBranchDefinition) Restore(state agent.ExecutionState) (
 	if err := json.Unmarshal(state.Payload(), &execution); err != nil {
 		return nil, err
 	}
-	if execution.Branch != definition.branch || execution.Phase > 2 {
+	if execution.Branch != p.branch || execution.Phase > 2 {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	return &execution, nil
@@ -336,25 +336,25 @@ type pausingBranchExecution struct {
 	Phase  uint8  `json:"phase"`
 }
 
-func (execution *pausingBranchExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
+func (p *pausingBranchExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 0 {
 		return agent.Transition{}, errors.New("pausing branch received an unexpected Signal")
 	}
-	switch execution.Phase {
+	switch p.Phase {
 	case 0:
-		execution.Phase = 1
+		p.Phase = 1
 		return agent.Pause(0, "test branch is ready to resume")
 	case 1:
-		execution.Phase = 2
-		output, _ := agent.EncodeOutput(branchOutput{Branch: execution.Branch, Value: execution.Value})
+		p.Phase = 2
+		output, _ := agent.EncodeOutput(branchOutput{Branch: p.Branch, Value: p.Value})
 		return agent.Complete(0, output)
 	default:
 		return agent.Transition{}, errors.New("pausing branch already completed")
 	}
 }
 
-func (execution *pausingBranchExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution)
+func (p *pausingBranchExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(p)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}

@@ -95,7 +95,7 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 }
 
 // SplitText tokenizes text and emits chunks within the configured bounds.
-func (s *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, error) {
+func (t *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -103,18 +103,18 @@ func (s *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 		return nil, nil
 	}
 
-	tokens, err := s.tokenizer.Encode(ctx, text)
+	tokens, err := t.tokenizer.Encode(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("etl: tokenize text: %w", err)
 	}
 
-	chunks := make([]string, 0, min(len(tokens)/s.maxTokensPerChunk+1, s.maxChunks))
+	chunks := make([]string, 0, min(len(tokens)/t.maxTokensPerChunk+1, t.maxChunks))
 	for len(tokens) > 0 {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		windowTokens := tokens[:min(s.maxTokensPerChunk, len(tokens))]
-		windowText, err := s.tokenizer.Decode(ctx, windowTokens)
+		windowTokens := tokens[:min(t.maxTokensPerChunk, len(tokens))]
+		windowText, err := t.tokenizer.Decode(ctx, windowTokens)
 		if err != nil {
 			return nil, fmt.Errorf("etl: decode token window: %w", err)
 		}
@@ -125,14 +125,14 @@ func (s *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 
 		selected := windowText
 		consumedCount := len(windowTokens)
-		if boundary := s.lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
+		if boundary := t.lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
 			prefix := windowText[:boundary]
-			prefixTokens, err := s.tokenizer.Encode(ctx, prefix)
+			prefixTokens, err := t.tokenizer.Encode(ctx, prefix)
 			if err != nil {
 				return nil, fmt.Errorf("etl: measure sentence boundary: %w", err)
 			}
-			if len(prefixTokens) >= s.minTokensPerChunk && len(prefixTokens) < len(windowTokens) {
-				originalPrefix, err := s.tokenizer.Decode(ctx, windowTokens[:len(prefixTokens)])
+			if len(prefixTokens) >= t.minTokensPerChunk && len(prefixTokens) < len(windowTokens) {
+				originalPrefix, err := t.tokenizer.Decode(ctx, windowTokens[:len(prefixTokens)])
 				if err != nil {
 					return nil, fmt.Errorf("etl: verify sentence boundary: %w", err)
 				}
@@ -144,20 +144,20 @@ func (s *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 		}
 		tokens = tokens[consumedCount:]
 
-		chunk := s.clean(selected)
-		if utf8.RuneCountInString(chunk) < s.minCharactersPerChunk {
+		chunk := t.clean(selected)
+		if utf8.RuneCountInString(chunk) < t.minCharactersPerChunk {
 			continue
 		}
-		if len(chunks) == s.maxChunks {
-			return nil, fmt.Errorf("%w: maximum is %d", ErrChunkLimitExceeded, s.maxChunks)
+		if len(chunks) == t.maxChunks {
+			return nil, fmt.Errorf("%w: maximum is %d", ErrChunkLimitExceeded, t.maxChunks)
 		}
 		chunks = append(chunks, chunk)
 	}
 	return chunks, nil
 }
 
-func (s *TokenSplitter) clean(text string) string {
-	if !s.preserveNewlines {
+func (t *TokenSplitter) clean(text string) string {
+	if !t.preserveNewlines {
 		text = strings.ReplaceAll(text, "\n", " ")
 	}
 	return strings.TrimSpace(text)
@@ -174,6 +174,6 @@ func (*TokenSplitter) lastSentenceBoundary(text string) int {
 }
 
 // Split emits token-bounded document chunks with cloned metadata and lineage.
-func (s *TokenSplitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return s.splitter.Split(ctx, docs)
+func (t *TokenSplitter) Split(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return t.splitter.Split(ctx, docs)
 }

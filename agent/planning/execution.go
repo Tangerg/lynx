@@ -21,29 +21,29 @@ type execution struct {
 // Step advances exactly one pure Planning boundary. Observation, dispatcher
 // Action I/O, and child Process work are represented as Effects and never run
 // inside this method.
-func (execution *execution) Step(ctx context.Context, signals []agent.Signal) (agent.Transition, error) {
-	if execution == nil || !execution.definition.valid() {
+func (e *execution) Step(ctx context.Context, signals []agent.Signal) (agent.Transition, error) {
+	if e == nil || !e.definition.valid() {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
-	if err := execution.state.validate(execution.definition); err != nil {
+	if err := e.state.validate(e.definition); err != nil {
 		return agent.Transition{}, err
 	}
-	switch execution.state.Phase {
+	switch e.state.Phase {
 	case phaseReadyObservation:
 		if len(signals) != 0 {
 			return agent.Transition{}, errors.New("planning: initial observation does not accept Signals")
 		}
-		return execution.requestObservation(0)
+		return e.requestObservation(0)
 	case phaseAwaitingObservation:
-		return execution.acceptObservation(ctx, signals)
+		return e.acceptObservation(ctx, signals)
 	case phaseAwaitingAction:
-		return execution.acceptAction(signals)
+		return e.acceptAction(signals)
 	case phaseAwaitingChildStart:
-		return execution.acceptChildStart(signals)
+		return e.acceptChildStart(signals)
 	case phaseAwaitingChildWaitOpen:
-		return execution.acceptChildWaitOpen(signals)
+		return e.acceptChildWaitOpen(signals)
 	case phaseWaitingChild:
-		return execution.acceptChildCompletion(signals)
+		return e.acceptChildCompletion(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed execution cannot advance", ErrInvalidExecutionState)
 	default:
@@ -53,18 +53,18 @@ func (execution *execution) Step(ctx context.Context, signals []agent.Signal) (a
 
 // Snapshot returns the complete, self-sufficient Planning state. It contains
 // only Strategy-owned portable values and Framework child identities.
-func (execution *execution) Snapshot() (agent.ExecutionState, error) {
-	if execution == nil || !execution.definition.valid() {
+func (e *execution) Snapshot() (agent.ExecutionState, error) {
+	if e == nil || !e.definition.valid() {
 		return agent.ExecutionState{}, ErrInvalidExecutionState
 	}
-	if err := execution.state.validate(execution.definition); err != nil {
+	if err := e.state.validate(e.definition); err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return encodeExecutionState(execution.state)
+	return encodeExecutionState(e.state)
 }
 
-func (execution *execution) requestObservation(consumedSignals uint32) (agent.Transition, error) {
-	input, err := execution.state.input()
+func (e *execution) requestObservation(consumedSignals uint32) (agent.Transition, error) {
+	input, err := e.state.input()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -72,11 +72,11 @@ func (execution *execution) requestObservation(consumedSignals uint32) (agent.Tr
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = phaseAwaitingObservation
+	e.state.Phase = phaseAwaitingObservation
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) acceptObservation(
+func (e *execution) acceptObservation(
 	ctx context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
@@ -90,93 +90,93 @@ func (execution *execution) acceptObservation(
 	}
 	consumedSignals := uint32(len(signals))
 	if envelope.Observation.Error != "" {
-		return execution.fail(
+		return e.fail(
 			consumedSignals, agent.FailureKindExternal, "planning.observation.failed", envelope.Observation.Error,
 		)
 	}
-	execution.state.WorldState = *envelope.Observation.WorldState
-	if execution.state.ActionConfirmationPending {
-		if err := execution.confirmAction(); err != nil {
+	e.state.WorldState = *envelope.Observation.WorldState
+	if e.state.ActionConfirmationPending {
+		if err := e.confirmAction(); err != nil {
 			return agent.Transition{}, err
 		}
 	}
-	if execution.definition.goal.SatisfiedBy(execution.state.WorldState) {
-		return execution.complete(consumedSignals, OutcomeAchieved)
+	if e.definition.goal.SatisfiedBy(e.state.WorldState) {
+		return e.complete(consumedSignals, OutcomeAchieved)
 	}
-	if uint64(len(execution.state.Attempts)) >= uint64(execution.definition.maxActionAttempts) {
-		return execution.complete(consumedSignals, OutcomeStuck)
+	if uint64(len(e.state.Attempts)) >= uint64(e.definition.maxActionAttempts) {
+		return e.complete(consumedSignals, OutcomeStuck)
 	}
-	if execution.state.PlanningPasses == math.MaxUint32 {
-		return execution.fail(
+	if e.state.PlanningPasses == math.MaxUint32 {
+		return e.fail(
 			consumedSignals, agent.FailureKindExecution, "planning.limit.planning_passes",
 			"Planning exhausted its representable planning-pass count",
 		)
 	}
-	problem, err := execution.definition.problem(execution.state.WorldState, execution.state.ExcludedActionNames)
+	problem, err := e.definition.problem(e.state.WorldState, e.state.ExcludedActionNames)
 	if err != nil {
-		return execution.fail(consumedSignals, agent.FailureKindContract, "planning.problem.invalid", err.Error())
+		return e.fail(consumedSignals, agent.FailureKindContract, "planning.problem.invalid", err.Error())
 	}
-	plan, found, err := execution.definition.planner.Plan(ctx, problem)
+	plan, found, err := e.definition.planner.Plan(ctx, problem)
 	if err != nil {
-		return execution.fail(consumedSignals, agent.FailureKindExecution, "planning.planner.failed", err.Error())
+		return e.fail(consumedSignals, agent.FailureKindExecution, "planning.planner.failed", err.Error())
 	}
 	if !found {
-		execution.state.PlanningPasses++
+		e.state.PlanningPasses++
 		outcome := OutcomeUnreachable
-		if len(execution.state.Attempts) > 0 {
+		if len(e.state.Attempts) > 0 {
 			outcome = OutcomeStuck
 		}
-		return execution.complete(consumedSignals, outcome)
+		return e.complete(consumedSignals, outcome)
 	}
 	if err := problem.ValidatePlan(plan); err != nil {
-		return execution.fail(consumedSignals, agent.FailureKindContract, "planning.planner.contract", err.Error())
+		return e.fail(consumedSignals, agent.FailureKindContract, "planning.planner.contract", err.Error())
 	}
 	actions := plan.Actions()
-	binding, found := execution.definition.binding(actions[0].Name())
+	binding, found := e.definition.binding(actions[0].Name())
 	if !found {
-		return execution.fail(
+		return e.fail(
 			consumedSignals, agent.FailureKindContract, "planning.planner.contract",
 			"Planner selected an Action outside the Planning Definition",
 		)
 	}
-	return execution.startAction(consumedSignals, binding)
+	return e.startAction(consumedSignals, binding)
 }
 
-func (execution *execution) startAction(
+func (e *execution) startAction(
 	consumedSignals uint32,
 	binding ActionBinding,
 ) (agent.Transition, error) {
-	input, err := execution.state.input()
+	input, err := e.state.input()
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	switch binding.target {
 	case bindingTargetDispatcher:
-		effect, err := newActionEffect(input, binding, execution.state.WorldState)
+		effect, err := newActionEffect(input, binding, e.state.WorldState)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.PlanningPasses++
-		execution.state.CurrentActionName = binding.action.name
-		execution.state.Phase = phaseAwaitingAction
+		e.state.PlanningPasses++
+		e.state.CurrentActionName = binding.action.name
+		e.state.Phase = phaseAwaitingAction
 		return agent.Continue(consumedSignals, effect)
 	case bindingTargetChild:
 		childInput := input
 		if binding.childInput != nil {
-			childInput, err = binding.childInput(input, execution.state.WorldState)
+			childInput, err = binding.childInput(input, e.state.WorldState)
 			if err != nil {
-				return execution.fail(
+				return e.fail(
 					consumedSignals, agent.FailureKindContract, "planning.child.input.failed", err.Error(),
 				)
 			}
 		}
 		if !childInput.Valid() {
-			return execution.fail(
+			return e.fail(
 				consumedSignals, agent.FailureKindContract, "planning.child.input.invalid",
 				"Child input function returned an invalid Input",
 			)
 		}
-		key, err := planningChildKey(binding.action.name, uint32(len(execution.state.Attempts)+1))
+		key, err := planningChildKey(binding.action.name, uint32(len(e.state.Attempts)+1))
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -184,17 +184,17 @@ func (execution *execution) startAction(
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.PlanningPasses++
-		execution.state.CurrentActionName = binding.action.name
-		execution.state.ChildKey = &key
-		execution.state.Phase = phaseAwaitingChildStart
+		e.state.PlanningPasses++
+		e.state.CurrentActionName = binding.action.name
+		e.state.ChildKey = &key
+		e.state.Phase = phaseAwaitingChildStart
 		return agent.Continue(consumedSignals, effect)
 	default:
 		return agent.Transition{}, ErrInvalidAction
 	}
 }
 
-func (execution *execution) acceptAction(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptAction(signals []agent.Signal) (agent.Transition, error) {
 	signal, err := oneSignal(signals)
 	if err != nil {
 		return agent.Transition{}, err
@@ -205,34 +205,34 @@ func (execution *execution) acceptAction(signals []agent.Signal) (agent.Transiti
 	}
 	consumedSignals := uint32(len(signals))
 	if envelope.Action.Succeeded {
-		execution.state.ActionConfirmationPending = true
-		return execution.requestObservation(consumedSignals)
+		e.state.ActionConfirmationPending = true
+		return e.requestObservation(consumedSignals)
 	}
-	execution.recordFailedAction(envelope.Action.Diagnostic)
-	return execution.requestObservation(consumedSignals)
+	e.recordFailedAction(envelope.Action.Diagnostic)
+	return e.requestObservation(consumedSignals)
 }
 
-func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, error) {
+func (e *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 1 {
 		return agent.Transition{}, errors.New("planning: child start requires exactly one settlement Signal")
 	}
 	result, err := agent.ParseChildStartResult(signals[0])
-	binding, found := execution.definition.binding(execution.state.CurrentActionName)
-	if err != nil || !found || binding.target != bindingTargetChild || execution.state.ChildKey == nil ||
-		result.Key() != *execution.state.ChildKey || result.DeploymentRef() != binding.child.DeploymentRef {
+	binding, found := e.definition.binding(e.state.CurrentActionName)
+	if err != nil || !found || binding.target != bindingTargetChild || e.state.ChildKey == nil ||
+		result.Key() != *e.state.ChildKey || result.DeploymentRef() != binding.child.DeploymentRef {
 		return agent.Transition{}, fmt.Errorf("%w: child-start result mismatch", ErrInvalidProtocol)
 	}
 	consumedSignals := uint32(len(signals))
 	if failure, failed := result.Failure(); failed {
-		execution.recordFailedAction(failure.Code() + ": " + failure.Message())
-		execution.clearChild()
-		return execution.requestObservation(consumedSignals)
+		e.recordFailedAction(failure.Code() + ": " + failure.Message())
+		e.clearChild()
+		return e.requestObservation(consumedSignals)
 	}
 	childID, started := result.ProcessID()
 	if !started {
 		return agent.Transition{}, fmt.Errorf("%w: child-start result has no Process", ErrInvalidProtocol)
 	}
-	waitKey, err := planningChildWaitKey(*execution.state.ChildKey, childID)
+	waitKey, err := planningChildWaitKey(*e.state.ChildKey, childID)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -242,122 +242,122 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.ChildProcessID = &childID
-	execution.state.Phase = phaseAwaitingChildWaitOpen
+	e.state.ChildProcessID = &childID
+	e.state.Phase = phaseAwaitingChildWaitOpen
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) != 1 || execution.state.ChildKey == nil || execution.state.ChildProcessID == nil {
+func (e *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 1 || e.state.ChildKey == nil || e.state.ChildProcessID == nil {
 		return agent.Transition{}, errors.New("planning: child wait opening requires exactly one settlement Signal")
 	}
 	opened, err := agent.ParseChildWaitOpened(signals[0])
 	if err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: child wait opening: %w", ErrInvalidProtocol, err)
 	}
-	wantKey, err := planningChildWaitKey(*execution.state.ChildKey, *execution.state.ChildProcessID)
+	wantKey, err := planningChildWaitKey(*e.state.ChildKey, *e.state.ChildProcessID)
 	spec := opened.Spec()
 	if err != nil || spec.Key != wantKey || len(spec.Children) != 1 ||
-		spec.Children[0] != *execution.state.ChildProcessID || spec.Condition != agent.AllChildren() {
+		spec.Children[0] != *e.state.ChildProcessID || spec.Condition != agent.AllChildren() {
 		return agent.Transition{}, fmt.Errorf("%w: child wait opening mismatch", ErrInvalidProtocol)
 	}
 	waitID := opened.WaitID()
-	execution.state.WaitID = &waitID
-	execution.state.Phase = phaseWaitingChild
+	e.state.WaitID = &waitID
+	e.state.Phase = phaseWaitingChild
 	return agent.Wait(uint32(len(signals)), waitID)
 }
 
-func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) != 1 || execution.state.ChildKey == nil || execution.state.ChildProcessID == nil || execution.state.WaitID == nil {
+func (e *execution) acceptChildCompletion(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 1 || e.state.ChildKey == nil || e.state.ChildProcessID == nil || e.state.WaitID == nil {
 		return agent.Transition{}, errors.New("planning: child completion requires one active child wait Signal")
 	}
 	completed, err := agent.ParseChildrenCompleted(signals[0])
-	if err != nil || completed.WaitID() != *execution.state.WaitID {
+	if err != nil || completed.WaitID() != *e.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: child completion mismatch", ErrInvalidProtocol)
 	}
-	wantWaitKey, err := planningChildWaitKey(*execution.state.ChildKey, *execution.state.ChildProcessID)
+	wantWaitKey, err := planningChildWaitKey(*e.state.ChildKey, *e.state.ChildProcessID)
 	if err != nil || completed.Key() != wantWaitKey {
 		return agent.Transition{}, fmt.Errorf("%w: child completion wait key mismatch", ErrInvalidProtocol)
 	}
 	outcomes := completed.Outcomes()
-	if len(outcomes) != 1 || outcomes[0].Key() != *execution.state.ChildKey ||
-		outcomes[0].Result().ProcessID() != *execution.state.ChildProcessID {
+	if len(outcomes) != 1 || outcomes[0].Key() != *e.state.ChildKey ||
+		outcomes[0].Result().ProcessID() != *e.state.ChildProcessID {
 		return agent.Transition{}, fmt.Errorf("%w: child completion outcome mismatch", ErrInvalidProtocol)
 	}
 	result := outcomes[0].Result()
-	execution.clearChild()
+	e.clearChild()
 	if result.Status() == agent.StatusCompleted {
-		execution.state.ActionConfirmationPending = true
+		e.state.ActionConfirmationPending = true
 	} else {
-		execution.recordFailedAction(result.Termination().Reason())
+		e.recordFailedAction(result.Termination().Reason())
 	}
-	return execution.requestObservation(uint32(len(signals)))
+	return e.requestObservation(uint32(len(signals)))
 }
 
-func (execution *execution) confirmAction() error {
-	binding, found := execution.definition.binding(execution.state.CurrentActionName)
+func (e *execution) confirmAction() error {
+	binding, found := e.definition.binding(e.state.CurrentActionName)
 	if !found {
 		return ErrInvalidExecutionState
 	}
-	if execution.state.WorldState.Satisfies(binding.action.effects...) {
-		execution.state.Attempts = append(execution.state.Attempts, Attempt{
-			ActionName: execution.state.CurrentActionName, Status: AttemptSucceeded,
+	if e.state.WorldState.Satisfies(binding.action.effects...) {
+		e.state.Attempts = append(e.state.Attempts, Attempt{
+			ActionName: e.state.CurrentActionName, Status: AttemptSucceeded,
 		})
 	} else {
-		execution.state.Attempts = append(execution.state.Attempts, Attempt{
-			ActionName: execution.state.CurrentActionName, Status: AttemptUnconfirmed,
+		e.state.Attempts = append(e.state.Attempts, Attempt{
+			ActionName: e.state.CurrentActionName, Status: AttemptUnconfirmed,
 			Diagnostic: "Reobservation did not establish the Action's predicted effects",
 		})
-		execution.state.excludeAction(execution.state.CurrentActionName)
+		e.state.excludeAction(e.state.CurrentActionName)
 	}
-	execution.state.CurrentActionName = ""
-	execution.state.ActionConfirmationPending = false
+	e.state.CurrentActionName = ""
+	e.state.ActionConfirmationPending = false
 	return nil
 }
 
-func (execution *execution) recordFailedAction(reason string) {
-	execution.state.Attempts = append(execution.state.Attempts, Attempt{
-		ActionName: execution.state.CurrentActionName, Status: AttemptFailed, Diagnostic: diagnostic(reason),
+func (e *execution) recordFailedAction(reason string) {
+	e.state.Attempts = append(e.state.Attempts, Attempt{
+		ActionName: e.state.CurrentActionName, Status: AttemptFailed, Diagnostic: diagnostic(reason),
 	})
-	execution.state.excludeAction(execution.state.CurrentActionName)
-	execution.state.CurrentActionName = ""
-	execution.state.ActionConfirmationPending = false
+	e.state.excludeAction(e.state.CurrentActionName)
+	e.state.CurrentActionName = ""
+	e.state.ActionConfirmationPending = false
 }
 
-func (execution *execution) clearChild() {
-	execution.state.ChildKey = nil
-	execution.state.ChildProcessID = nil
-	execution.state.WaitID = nil
+func (e *execution) clearChild() {
+	e.state.ChildKey = nil
+	e.state.ChildProcessID = nil
+	e.state.WaitID = nil
 }
 
-func (execution *execution) complete(consumedSignals uint32, outcome Outcome) (agent.Transition, error) {
-	attempts := slices.Clone(execution.state.Attempts)
+func (e *execution) complete(consumedSignals uint32, outcome Outcome) (agent.Transition, error) {
+	attempts := slices.Clone(e.state.Attempts)
 	if attempts == nil {
 		attempts = []Attempt{}
 	}
 	output := Output{
-		Outcome: outcome, WorldState: execution.state.WorldState,
-		Attempts: attempts, PlanningPasses: execution.state.PlanningPasses,
+		Outcome: outcome, WorldState: e.state.WorldState,
+		Attempts: attempts, PlanningPasses: e.state.PlanningPasses,
 	}
 	if err := output.Validate(); err != nil {
 		return agent.Transition{}, err
 	}
-	if outcome == OutcomeAchieved && !execution.definition.goal.SatisfiedBy(output.WorldState) {
+	if outcome == OutcomeAchieved && !e.definition.goal.SatisfiedBy(output.WorldState) {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
 	erased, err := agent.EncodeOutput(output)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Phase = phaseCompleted
-	execution.state.CurrentActionName = ""
-	execution.state.ActionConfirmationPending = false
-	execution.clearChild()
-	execution.state.FinalOutput = &output
+	e.state.Phase = phaseCompleted
+	e.state.CurrentActionName = ""
+	e.state.ActionConfirmationPending = false
+	e.clearChild()
+	e.state.FinalOutput = &output
 	return agent.Complete(consumedSignals, erased)
 }
 
-func (execution *execution) fail(
+func (e *execution) fail(
 	consumedSignals uint32,
 	kind agent.FailureKind,
 	code string,

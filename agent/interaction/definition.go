@@ -101,16 +101,16 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 }
 
 // Descriptor returns the immutable model-visible Definition contract.
-func (definition *Definition) Descriptor() agent.Descriptor {
-	if definition == nil {
+func (d *Definition) Descriptor() agent.Descriptor {
+	if d == nil {
 		return agent.Descriptor{}
 	}
-	return definition.descriptor
+	return d.descriptor
 }
 
 // Start creates a fresh Interaction from validated caller input.
-func (definition *Definition) Start(input agent.Input) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Start(input agent.Input) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	decoded, err := input.Decode[Input]()
@@ -125,7 +125,7 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 		Options:  decoded.Options.Clone(),
 	}
 	return &execution{
-		definition: definition,
+		definition: d,
 		state: executionState{
 			Phase:          phaseReadyModel,
 			WorkingContext: request,
@@ -134,8 +134,8 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 }
 
 // Restore recreates an Interaction solely from its opaque, versioned state.
-func (definition *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if !definition.valid() {
+func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
@@ -145,30 +145,30 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
 		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
-	if err := decoded.Validate(definition); err != nil {
+	if err := decoded.Validate(d); err != nil {
 		return nil, err
 	}
-	return &execution{definition: definition, state: decoded}, nil
+	return &execution{definition: d, state: decoded}, nil
 }
 
-func (definition *Definition) valid() bool {
-	if definition == nil || !definition.descriptor.Valid() || definition.maxModelCalls == 0 ||
-		len(definition.delegates) != len(definition.delegateByName) {
+func (d *Definition) valid() bool {
+	if d == nil || !d.descriptor.Valid() || d.maxModelCalls == 0 ||
+		len(d.delegates) != len(d.delegateByName) {
 		return false
 	}
-	for _, delegate := range definition.delegates {
-		if !delegate.Valid() || definition.delegateByName[delegate.definition.Name].deploymentRef != delegate.deploymentRef {
+	for _, delegate := range d.delegates {
+		if !delegate.Valid() || d.delegateByName[delegate.definition.Name].deploymentRef != delegate.deploymentRef {
 			return false
 		}
 	}
 	return true
 }
 
-func (definition *Definition) delegate(name string) (Delegate, bool) {
-	if definition == nil {
+func (d *Definition) delegate(name string) (Delegate, bool) {
+	if d == nil {
 		return Delegate{}, false
 	}
-	delegate, found := definition.delegateByName[name]
+	delegate, found := d.delegateByName[name]
 	return delegate, found && delegate.Valid()
 }
 

@@ -69,13 +69,13 @@ func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
 	}, nil
 }
 
-func (t remoteTool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
+func (r remoteTool) Definition() corechat.ToolDefinition { return r.definition.Clone() }
 
 // ConcurrencyKey declares A2A invocations independent: every SendMessage owns
 // a distinct remote task, and the remote server retains authority over its own
 // execution limit. The lynx Agent ToolLoop may therefore overlap calls while
 // still committing their observable results in request order.
-func (t remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
+func (r remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
 	return "", true
 }
 
@@ -83,10 +83,10 @@ func (t remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
 // error and sets the span status to Error.
-func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
-	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+t.definition.Name,
+func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
+	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+r.definition.Name,
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attribute.String(attrAgentName, t.definition.Name)),
+		trace.WithAttributes(attribute.String(attrAgentName, r.definition.Name)),
 	)
 	defer func() {
 		if err != nil {
@@ -98,19 +98,19 @@ func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err
 
 	input, err := parseCallArguments(arguments)
 	if err != nil {
-		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", r.definition.Name, err)
 	}
 
 	projection := textProjection{}
 	req := &sdka2a.SendMessageRequest{Message: projection.userMessage(input.Message)}
-	result, err := t.client.SendMessage(ctx, req)
+	result, err := r.client.SendMessage(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("a2a: call agent %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: call agent %q: %w", r.definition.Name, err)
 	}
 
 	text, err := projection.result(result)
 	if err != nil {
-		return "", fmt.Errorf("a2a: decode result from agent %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a: decode result from agent %q: %w", r.definition.Name, err)
 	}
 	return text, nil
 }

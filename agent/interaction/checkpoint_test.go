@@ -241,19 +241,19 @@ func (*inputRequestTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (value *inputRequestTool) Call(ctx context.Context, _ string) (string, error) {
+func (i *inputRequestTool) Call(ctx context.Context, _ string) (string, error) {
 	continuation, resumed := interaction.ToolInputContinuationFromContext(ctx)
 	if !resumed {
-		value.initialCalls.Add(1)
+		i.initialCalls.Add(1)
 		return "", interaction.RequireToolInput(
 			json.RawMessage(`{"question":"What is your name?"}`),
 			json.RawMessage(`{"type":"string","minLength":1}`),
 			json.RawMessage(`{"stage":"awaiting_name"}`),
 		)
 	}
-	value.continuationCalls.Add(1)
-	value.startedOnce.Do(func() { close(value.continuationStarted) })
-	<-value.continuationRelease
+	i.continuationCalls.Add(1)
+	i.startedOnce.Do(func() { close(i.continuationStarted) })
+	<-i.continuationRelease
 	var state struct {
 		Stage string `json:"stage"`
 	}
@@ -267,8 +267,8 @@ func (value *inputRequestTool) Call(ctx context.Context, _ string) (string, erro
 	return "hello " + name, nil
 }
 
-func (value *inputRequestTool) Release() {
-	value.releaseOnce.Do(func() { close(value.continuationRelease) })
+func (i *inputRequestTool) Release() {
+	i.releaseOnce.Do(func() { close(i.continuationRelease) })
 }
 
 type checkpointModel struct {
@@ -276,11 +276,11 @@ type checkpointModel struct {
 	calls int
 }
 
-func (model *checkpointModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
+func (c *checkpointModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.calls == 1 {
 		return toolCallsResponse(
 			chat.ToolCall{ID: "call_prefix", Name: "prefix", Arguments: `{}`},
 			chat.ToolCall{ID: "call_name", Name: "ask_name", Arguments: `{}`},
@@ -297,10 +297,10 @@ func (model *checkpointModel) Call(_ context.Context, request *chat.Request) (*c
 	return textResponse("prefix-complete; hello Ada"), nil
 }
 
-func (model *checkpointModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (c *checkpointModel) Calls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
 }
 
 type blockingTool struct {
@@ -323,15 +323,15 @@ func (*blockingTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (value *blockingTool) Call(context.Context, string) (string, error) {
-	value.calls.Add(1)
-	value.startedOnce.Do(func() { close(value.started) })
-	<-value.release
+func (b *blockingTool) Call(context.Context, string) (string, error) {
+	b.calls.Add(1)
+	b.startedOnce.Do(func() { close(b.started) })
+	<-b.release
 	return "released", nil
 }
 
-func (value *blockingTool) Release() {
-	value.releaseOnce.Do(func() { close(value.release) })
+func (b *blockingTool) Release() {
+	b.releaseOnce.Do(func() { close(b.release) })
 }
 
 func waitForStatus(t *testing.T, process *agent.Process, want agent.Status) {

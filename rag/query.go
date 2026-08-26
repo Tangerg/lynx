@@ -57,16 +57,16 @@ func MustValueKey[T any](name string) ValueKey[T] {
 }
 
 // Name returns the stable diagnostic identity of the key.
-func (k ValueKey[T]) Name() string { return k.name }
+func (v ValueKey[T]) Name() string { return v.name }
 
-func (k ValueKey[T]) validate() error {
+func (v ValueKey[T]) validate() error {
 	switch {
-	case k.name == "", k.name != strings.TrimSpace(k.name), k.typ == nil:
+	case v.name == "", v.name != strings.TrimSpace(v.name), v.typ == nil:
 		return fmt.Errorf(
 			"%w: name must be non-empty without surrounding whitespace",
 			ErrInvalidQueryValueKey,
 		)
-	case k.typ == queryAnyType:
+	case v.typ == queryAnyType:
 		return fmt.Errorf("%w: value type must not be any", ErrInvalidQueryValueKey)
 	default:
 		return nil

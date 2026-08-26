@@ -34,23 +34,23 @@ func NewWorldState(conditions ...Condition) (WorldState, error) {
 }
 
 // Conditions returns an independently owned, key-sorted snapshot.
-func (state WorldState) Conditions() []Condition { return slices.Clone(state.conditions) }
+func (w WorldState) Conditions() []Condition { return slices.Clone(w.conditions) }
 
 // Truth returns the observed truth for key, or Unknown when key is absent.
-func (state WorldState) Truth(key string) Truth {
-	index, found := slices.BinarySearchFunc(state.conditions, key, func(condition Condition, key string) int {
+func (w WorldState) Truth(key string) Truth {
+	index, found := slices.BinarySearchFunc(w.conditions, key, func(condition Condition, key string) int {
 		return strings.Compare(condition.key, key)
 	})
 	if !found {
 		return Unknown
 	}
-	return state.conditions[index].truth
+	return w.conditions[index].truth
 }
 
-// Satisfies reports whether state establishes every required condition.
-func (state WorldState) Satisfies(requirements ...Condition) bool {
+// Satisfies reports whether w establishes every required condition.
+func (w WorldState) Satisfies(requirements ...Condition) bool {
 	for _, requirement := range requirements {
-		if !requirement.Valid() || state.Truth(requirement.key) != requirement.truth {
+		if !requirement.Valid() || w.Truth(requirement.key) != requirement.truth {
 			return false
 		}
 	}
@@ -59,12 +59,12 @@ func (state WorldState) Satisfies(requirements ...Condition) bool {
 
 // Apply returns a new state with predicted effects layered over this state.
 // The receiver is never mutated.
-func (state WorldState) Apply(effects ...Condition) (WorldState, error) {
-	if !state.Valid() {
+func (w WorldState) Apply(effects ...Condition) (WorldState, error) {
+	if !w.Valid() {
 		return WorldState{}, ErrInvalidWorldState
 	}
-	values := make(map[string]Truth, len(state.conditions)+len(effects))
-	for _, condition := range state.conditions {
+	values := make(map[string]Truth, len(w.conditions)+len(effects))
+	for _, condition := range w.conditions {
 		values[condition.key] = condition.truth
 	}
 	for index, effect := range effects {
@@ -81,9 +81,9 @@ func (state WorldState) Apply(effects ...Condition) (WorldState, error) {
 }
 
 // Key returns a stable identity derived only from canonical known truths.
-func (state WorldState) Key() string {
+func (w WorldState) Key() string {
 	var key strings.Builder
-	for _, condition := range state.conditions {
+	for _, condition := range w.conditions {
 		key.WriteString(condition.key)
 		key.WriteByte('=')
 		if condition.truth == True {
@@ -97,9 +97,9 @@ func (state WorldState) Key() string {
 }
 
 // Valid reports whether every condition is valid, sorted, and unique.
-func (state WorldState) Valid() bool {
-	for index, condition := range state.conditions {
-		if !condition.Valid() || index > 0 && state.conditions[index-1].key >= condition.key {
+func (w WorldState) Valid() bool {
+	for index, condition := range w.conditions {
+		if !condition.Valid() || index > 0 && w.conditions[index-1].key >= condition.key {
 			return false
 		}
 	}
@@ -107,20 +107,20 @@ func (state WorldState) Valid() bool {
 }
 
 // MarshalJSON returns the validated canonical world state.
-func (state WorldState) MarshalJSON() ([]byte, error) {
-	if !state.Valid() {
+func (w WorldState) MarshalJSON() ([]byte, error) {
+	if !w.Valid() {
 		return nil, ErrInvalidWorldState
 	}
-	conditions := slices.Clone(state.conditions)
+	conditions := slices.Clone(w.conditions)
 	if conditions == nil {
 		conditions = []Condition{}
 	}
 	return json.Marshal(worldStateWire{Conditions: conditions})
 }
 
-// UnmarshalJSON replaces state with a strictly decoded canonical world state.
-func (state *WorldState) UnmarshalJSON(data []byte) error {
-	if state == nil {
+// UnmarshalJSON replaces w with a strictly decoded canonical world state.
+func (w *WorldState) UnmarshalJSON(data []byte) error {
+	if w == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidWorldState)
 	}
 	var wire worldStateWire
@@ -131,7 +131,7 @@ func (state *WorldState) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	*state = value
+	*w = value
 	return nil
 }
 

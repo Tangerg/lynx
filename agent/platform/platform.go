@@ -28,7 +28,7 @@ type deploymentSlot struct {
 	version string
 }
 
-func (slot deploymentSlot) String() string { return slot.name + "@" + slot.version }
+func (d deploymentSlot) String() string { return d.name + "@" + d.version }
 
 func slotFor(reference agent.DeploymentRef) deploymentSlot {
 	return deploymentSlot{name: reference.Name(), version: reference.Version()}
@@ -47,25 +47,25 @@ func New(deployments ...agent.Deployment) (*Platform, error) {
 
 // Catalog returns the current immutable exact binding snapshot. Historical
 // Deployments remain present after Replace and Undeploy.
-func (platform *Platform) Catalog() Catalog {
-	if platform == nil {
+func (p *Platform) Catalog() Catalog {
+	if p == nil {
 		return Catalog{}
 	}
-	platform.mu.RLock()
-	defer platform.mu.RUnlock()
-	return platform.state.catalog
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.state.catalog
 }
 
 // Resolve performs one exact lookup against the current immutable Catalog and
 // satisfies agent.DeploymentResolver. Inactive historical bindings remain
 // resolvable so Process restoration never follows an active route by mistake.
-func (platform *Platform) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
-	if platform == nil {
+func (p *Platform) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
+	if p == nil {
 		return agent.Deployment{}, ErrNilPlatform
 	}
-	platform.mu.RLock()
-	catalog := platform.state.catalog
-	platform.mu.RUnlock()
+	p.mu.RLock()
+	catalog := p.state.catalog
+	p.mu.RUnlock()
 	return catalog.Resolve(reference)
 }
 

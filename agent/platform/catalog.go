@@ -59,11 +59,11 @@ func NewCatalog(deployments ...agent.Deployment) (Catalog, error) {
 
 // Resolve returns the Deployment bound to one exact reference. It performs no
 // routing or version fallback and satisfies agent.DeploymentResolver.
-func (catalog Catalog) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
+func (c Catalog) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	if !reference.Valid() {
 		return agent.Deployment{}, agent.ErrInvalidDeploymentRef
 	}
-	deployment, found := catalog.byReference[reference]
+	deployment, found := c.byReference[reference]
 	if !found {
 		return agent.Deployment{}, fmt.Errorf("%w: %s", ErrDeploymentNotFound, reference)
 	}
@@ -73,8 +73,8 @@ func (catalog Catalog) Resolve(reference agent.DeploymentRef) (agent.Deployment,
 // Deployments returns all exact bindings in stable Definition-name, semantic-
 // version, and Deployment-digest order. The returned slice is independently
 // owned and may be modified by the caller.
-func (catalog Catalog) Deployments() []agent.Deployment {
-	return slices.Clone(catalog.ordered)
+func (c Catalog) Deployments() []agent.Deployment {
+	return slices.Clone(c.ordered)
 }
 
 func compareDeployment(left, right agent.Deployment) int {

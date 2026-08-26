@@ -124,8 +124,8 @@ func TestEngineBypassesResolverForSameDeploymentChild(t *testing.T) {
 
 type deploymentMapResolver map[DeploymentRef]Deployment
 
-func (resolver deploymentMapResolver) Resolve(reference DeploymentRef) (Deployment, error) {
-	deployment, found := resolver[reference]
+func (d deploymentMapResolver) Resolve(reference DeploymentRef) (Deployment, error) {
+	deployment, found := d[reference]
 	if !found {
 		return Deployment{}, errors.New("deployment not found")
 	}
@@ -134,8 +134,8 @@ func (resolver deploymentMapResolver) Resolve(reference DeploymentRef) (Deployme
 
 type deploymentResolverFunc func(DeploymentRef) (Deployment, error)
 
-func (resolve deploymentResolverFunc) Resolve(reference DeploymentRef) (Deployment, error) {
-	return resolve(reference)
+func (d deploymentResolverFunc) Resolve(reference DeploymentRef) (Deployment, error) {
+	return d(reference)
 }
 
 type crossParentDefinition struct {
@@ -166,13 +166,13 @@ func newCrossParentDeployment(t *testing.T, target DeploymentRef) Deployment {
 	return deployment
 }
 
-func (definition *crossParentDefinition) Descriptor() Descriptor { return definition.descriptor }
+func (c *crossParentDefinition) Descriptor() Descriptor { return c.descriptor }
 
-func (definition *crossParentDefinition) Start(Input) (Execution, error) {
-	return &crossParentExecution{target: definition.target}, nil
+func (c *crossParentDefinition) Start(Input) (Execution, error) {
+	return &crossParentExecution{target: c.target}, nil
 }
 
-func (definition *crossParentDefinition) Restore(state ExecutionState) (Execution, error) {
+func (c *crossParentDefinition) Restore(state ExecutionState) (Execution, error) {
 	if state.Kind() != "test.cross_parent" || state.SchemaVersion() != 1 {
 		return nil, ErrInvalidExecutionState
 	}
@@ -180,7 +180,7 @@ func (definition *crossParentDefinition) Restore(state ExecutionState) (Executio
 	if err := json.Unmarshal(state.Payload(), &phase); err != nil {
 		return nil, err
 	}
-	return &crossParentExecution{target: definition.target, phase: phase}, nil
+	return &crossParentExecution{target: c.target, phase: phase}, nil
 }
 
 type crossParentExecution struct {
@@ -188,18 +188,18 @@ type crossParentExecution struct {
 	phase  uint8
 }
 
-func (execution *crossParentExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
-	if execution.phase == 0 {
+func (c *crossParentExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
+	if c.phase == 0 {
 		input, _ := EncodeInput(childTestInput{Mode: "leaf"})
 		key, _ := ParseChildKey("other-strategy")
-		effect, err := StartChild(childTestSpec(key, execution.target, input))
+		effect, err := StartChild(childTestSpec(key, c.target, input))
 		if err != nil {
 			return Transition{}, err
 		}
-		execution.phase = 1
+		c.phase = 1
 		return Continue(0, effect)
 	}
-	if execution.phase != 1 || len(signals) != 1 {
+	if c.phase != 1 || len(signals) != 1 {
 		return Transition{}, errors.New("cross-parent expected one child-start result")
 	}
 	start, err := ParseChildStartResult(signals[0])
@@ -213,12 +213,12 @@ func (execution *crossParentExecution) Step(_ context.Context, signals []Signal)
 		output.Failures = 1
 		output.FailureCodes = []string{failure.Code()}
 	}
-	execution.phase = 2
+	c.phase = 2
 	erased, _ := EncodeOutput(output)
 	return Complete(1, erased)
 }
 
-func (execution *crossParentExecution) Snapshot() (ExecutionState, error) {
-	payload, _ := json.Marshal(execution.phase)
+func (c *crossParentExecution) Snapshot() (ExecutionState, error) {
+	payload, _ := json.Marshal(c.phase)
 	return NewExecutionState("test.cross_parent", 1, payload)
 }

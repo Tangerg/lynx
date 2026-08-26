@@ -36,9 +36,9 @@ type ToolCallError struct {
 	Message string
 }
 
-func (e *ToolCallError) Error() string {
-	if e == nil {
+func (t *ToolCallError) Error() string {
+	if t == nil {
 		return "mcp tool call failed"
 	}
-	return fmt.Sprintf("mcp tool %q failed: %s", e.ToolName, e.Message)
+	return fmt.Sprintf("mcp tool %q failed: %s", t.ToolName, t.Message)
 }

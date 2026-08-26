@@ -12,8 +12,8 @@ import (
 // escaping root, which os.DirFS deliberately does not guarantee.
 type rootedFS string
 
-func (f rootedFS) Open(name string) (fs.File, error) {
-	return os.OpenInRoot(string(f), name)
+func (r rootedFS) Open(name string) (fs.File, error) {
+	return os.OpenInRoot(string(r), name)
 }
 
 // confinedResourceFS lets a filesystem anchor resource symlink resolution at
@@ -22,8 +22,8 @@ type confinedResourceFS interface {
 	openInDir(dir, name string) (fs.File, error)
 }
 
-func (f rootedFS) openInDir(dir, name string) (fs.File, error) {
-	root, err := os.OpenRoot(string(f))
+func (r rootedFS) openInDir(dir, name string) (fs.File, error) {
+	root, err := os.OpenRoot(string(r))
 	if err != nil {
 		return nil, err
 	}

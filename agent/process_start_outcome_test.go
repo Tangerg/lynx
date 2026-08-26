@@ -397,22 +397,22 @@ type failingInitializationDefinition struct {
 	err   error
 }
 
-func (definition *failingInitializationDefinition) Start(input Input) (Execution, error) {
-	if definition.stage == failDefinitionStart {
-		return nil, definition.err
+func (f *failingInitializationDefinition) Start(input Input) (Execution, error) {
+	if f.stage == failDefinitionStart {
+		return nil, f.err
 	}
-	execution, err := definition.Definition.Start(input)
-	if err != nil || definition.stage != failInitialSnapshot {
+	execution, err := f.Definition.Start(input)
+	if err != nil || f.stage != failInitialSnapshot {
 		return execution, err
 	}
-	return &failingInitialSnapshotExecution{Execution: execution, err: definition.err}, nil
+	return &failingInitialSnapshotExecution{Execution: execution, err: f.err}, nil
 }
 
-func (definition *failingInitializationDefinition) Restore(state ExecutionState) (Execution, error) {
-	if definition.stage == failInitialRestore {
-		return nil, definition.err
+func (f *failingInitializationDefinition) Restore(state ExecutionState) (Execution, error) {
+	if f.stage == failInitialRestore {
+		return nil, f.err
 	}
-	return definition.Definition.Restore(state)
+	return f.Definition.Restore(state)
 }
 
 type failingInitialSnapshotExecution struct {
@@ -420,8 +420,8 @@ type failingInitialSnapshotExecution struct {
 	err error
 }
 
-func (execution *failingInitialSnapshotExecution) Snapshot() (ExecutionState, error) {
-	return ExecutionState{}, execution.err
+func (f *failingInitialSnapshotExecution) Snapshot() (ExecutionState, error) {
+	return ExecutionState{}, f.err
 }
 
 func failingStartDeployment(t *testing.T, startErr error) Deployment {

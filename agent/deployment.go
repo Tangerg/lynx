@@ -60,23 +60,23 @@ func NewDeployment(config DeploymentConfig) (Deployment, error) {
 }
 
 // DeploymentRef returns the exact value identity stored in Process snapshots.
-func (deployment Deployment) DeploymentRef() DeploymentRef { return deployment.reference }
+func (d Deployment) DeploymentRef() DeploymentRef { return d.reference }
 
 // Descriptor returns the frozen static Definition contract.
-func (deployment Deployment) Descriptor() Descriptor { return deployment.descriptor }
+func (d Deployment) Descriptor() Descriptor { return d.descriptor }
 
 // Definition returns the erased behavior definition bound to this Deployment.
-func (deployment Deployment) Definition() Definition { return deployment.definition }
+func (d Deployment) Definition() Definition { return d.definition }
 
 // Valid reports whether the binding remains complete and its Definition still
 // reports the contract frozen at construction.
-func (deployment Deployment) Valid() bool {
-	return deployment.reference.Valid() && deployment.descriptor.Valid() &&
-		!nilInterface(deployment.definition) && !nilInterface(deployment.dispatcher) &&
-		deployment.definition.Descriptor().Digest() == deployment.descriptor.Digest()
+func (d Deployment) Valid() bool {
+	return d.reference.Valid() && d.descriptor.Valid() &&
+		!nilInterface(d.definition) && !nilInterface(d.dispatcher) &&
+		d.definition.Descriptor().Digest() == d.descriptor.Digest()
 }
 
-func (deployment Deployment) effectDispatcher() Dispatcher { return deployment.dispatcher }
+func (d Deployment) effectDispatcher() Dispatcher { return d.dispatcher }
 
 func nilInterface(value any) bool {
 	if value == nil {

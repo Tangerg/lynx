@@ -55,17 +55,17 @@ const (
 	EventPhaseCommitted EventPhase = "committed"
 )
 
-// Valid reports whether phase is a supported observation boundary.
-func (phase EventPhase) Valid() bool {
-	return phase == EventPhaseAttempt || phase == EventPhaseCommitted
+// Valid reports whether e is a supported observation boundary.
+func (e EventPhase) Valid() bool {
+	return e == EventPhaseAttempt || e == EventPhaseCommitted
 }
 
 // String returns the stable Event phase name.
-func (phase EventPhase) String() string {
-	if !phase.Valid() {
+func (e EventPhase) String() string {
+	if !e.Valid() {
 		return "invalid"
 	}
-	return string(phase)
+	return string(e)
 }
 
 // Event is an immutable, ordered fact published by the Framework. Observers may

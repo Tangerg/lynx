@@ -11,8 +11,8 @@ import (
 // document-marker metadata.
 type metadataValue json.RawMessage
 
-func (v metadataValue) text() (string, error) {
-	value := bytes.TrimSpace(v)
+func (m metadataValue) text() (string, error) {
+	value := bytes.TrimSpace(m)
 	if !json.Valid(value) {
 		return "", metadata.ErrInvalidValue
 	}

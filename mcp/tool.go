@@ -54,24 +54,24 @@ func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
 	}, nil
 }
 
-func (t remoteTool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
+func (r remoteTool) Definition() corechat.ToolDefinition { return r.definition.Clone() }
 
 // MCPToolIdentity returns the unsanitized source and remote tool names bound to
 // this wrapper. Consumers use the pair for policy decisions; Definition.Name is
 // a provider-constrained presentation label and is not an injective identity.
-func (t remoteTool) MCPToolIdentity() (sourceName, remoteName string) {
-	return t.sourceName, t.descriptor.name()
+func (r remoteTool) MCPToolIdentity() (sourceName, remoteName string) {
+	return r.sourceName, r.descriptor.name()
 }
 
 // ConcurrencyKey structurally satisfies schedulers that support conflict-aware
 // parallel calls without coupling this protocol adapter to a particular agent
 // runtime. Unknown remote tools remain exclusive unless the caller supplied a
 // policy through [ToolsConfig.Concurrency].
-func (t remoteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if t.concurrency == nil {
+func (r remoteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if r.concurrency == nil {
 		return "", false
 	}
-	return t.concurrency(t.sourceName, t.descriptor.name(), t.descriptor.annotations(), arguments)
+	return r.concurrency(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), arguments)
 }
 
 // Call implements [tool.Tool]. IsError=true on the remote
@@ -82,8 +82,8 @@ func (t remoteTool) ConcurrencyKey(arguments string) (key string, concurrent boo
 // `gen_ai.tool.name`; a failed call records the error and sets the span
 // status to Error (no separate bool attribute). No-op overhead when no
 // TracerProvider is configured.
-func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
-	remoteName := t.descriptor.name()
+func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
+	remoteName := r.descriptor.name()
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+remoteName,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String(attrToolName, remoteName)),
@@ -105,13 +105,13 @@ func (t remoteTool) Call(ctx context.Context, arguments string) (out string, err
 		Name:      remoteName,
 		Arguments: args,
 	}
-	if t.metaFunc != nil {
-		if meta := t.metaFunc(ctx); len(meta) > 0 {
+	if r.metaFunc != nil {
+		if meta := r.metaFunc(ctx); len(meta) > 0 {
 			params.Meta = maps.Clone(meta)
 		}
 	}
 
-	res, err := t.session.CallTool(ctx, params)
+	res, err := r.session.CallTool(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("mcp: call tool %q: %w", remoteName, err)
 	}

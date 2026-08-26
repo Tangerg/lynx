@@ -32,8 +32,8 @@ type Config struct {
 
 // Validate verifies the database-system identity required by history
 // instrumentation.
-func (config Config) Validate() error {
-	if strings.TrimSpace(config.System) == "" {
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
 	return nil
@@ -146,26 +146,26 @@ type historyStore struct {
 	next       corehistory.Store
 }
 
-func (s historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
-	ctx, span := s.middleware.start(ctx, "read", conversationID)
-	messages, err := s.next.Read(ctx, conversationID)
+func (h historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
+	ctx, span := h.middleware.start(ctx, "read", conversationID)
+	messages, err := h.next.Read(ctx, conversationID)
 	span.SetAttributes(attribute.Int("chat_history.message.count", len(messages)))
 	finishHistorySpan(span, err)
 	return messages, err
 }
 
-func (s historyStore) Write(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	ctx, span := s.middleware.start(ctx, "write", conversationID,
+func (h historyStore) Write(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
+	ctx, span := h.middleware.start(ctx, "write", conversationID,
 		attribute.Int("chat_history.message.count", len(messages)),
 	)
-	err := s.next.Write(ctx, conversationID, messages...)
+	err := h.next.Write(ctx, conversationID, messages...)
 	finishHistorySpan(span, err)
 	return err
 }
 
-func (s historyStore) Clear(ctx context.Context, conversationID corehistory.ConversationID) error {
-	ctx, span := s.middleware.start(ctx, "clear", conversationID)
-	err := s.next.Clear(ctx, conversationID)
+func (h historyStore) Clear(ctx context.Context, conversationID corehistory.ConversationID) error {
+	ctx, span := h.middleware.start(ctx, "clear", conversationID)
+	err := h.next.Clear(ctx, conversationID)
 	finishHistorySpan(span, err)
 	return err
 }
@@ -175,9 +175,9 @@ type historyLister struct {
 	next       corehistory.Lister
 }
 
-func (l historyLister) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
-	ctx, span := l.middleware.start(ctx, "list", "")
-	ids, err := l.next.Conversations(ctx)
+func (h historyLister) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
+	ctx, span := h.middleware.start(ctx, "list", "")
+	ids, err := h.next.Conversations(ctx)
 	span.SetAttributes(attribute.Int("chat_history.conversation.count", len(ids)))
 	finishHistorySpan(span, err)
 	return ids, err
@@ -188,11 +188,11 @@ type historyReplacer struct {
 	next       corehistory.Replacer
 }
 
-func (r historyReplacer) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	ctx, span := r.middleware.start(ctx, "replace", conversationID,
+func (h historyReplacer) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
+	ctx, span := h.middleware.start(ctx, "replace", conversationID,
 		attribute.Int("chat_history.message.count", len(messages)),
 	)
-	err := r.next.Replace(ctx, conversationID, messages...)
+	err := h.next.Replace(ctx, conversationID, messages...)
 	finishHistorySpan(span, err)
 	return err
 }
@@ -202,9 +202,9 @@ type historyCounter struct {
 	next       corehistory.Counter
 }
 
-func (c historyCounter) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
-	ctx, span := c.middleware.start(ctx, "count", conversationID)
-	count, err := c.next.Count(ctx, conversationID)
+func (h historyCounter) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
+	ctx, span := h.middleware.start(ctx, "count", conversationID)
+	count, err := h.next.Count(ctx, conversationID)
 	span.SetAttributes(attribute.Int("chat_history.message.count", count))
 	finishHistorySpan(span, err)
 	return count, err

@@ -32,13 +32,13 @@ type DeploymentConflictError struct {
 }
 
 // Error describes both exact bindings in the conflicting version slot.
-func (conflict *DeploymentConflictError) Error() string {
-	if conflict == nil {
+func (d *DeploymentConflictError) Error() string {
+	if d == nil {
 		return ErrDeploymentConflict.Error()
 	}
 	return fmt.Sprintf(
 		"%s: active %s, requested %s",
-		ErrDeploymentConflict, conflict.Active, conflict.Requested,
+		ErrDeploymentConflict, d.Active, d.Requested,
 	)
 }
 
@@ -53,28 +53,28 @@ func newDeploymentConflict(active, requested agent.DeploymentRef) error {
 // slot. Reapplying the exact active binding leaves the Platform unchanged; a
 // different exact binding in the same slot returns ErrDeploymentConflict and
 // requires Replace.
-func (platform *Platform) Deploy(deployment agent.Deployment) error {
-	if platform == nil {
+func (p *Platform) Deploy(deployment agent.Deployment) error {
+	if p == nil {
 		return ErrNilPlatform
 	}
-	platform.mu.Lock()
-	defer platform.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
 	reference := deployment.DeploymentRef()
 	slot := slotFor(reference)
-	if current, occupied := platform.state.active[slot]; occupied {
+	if current, occupied := p.state.active[slot]; occupied {
 		if current == reference {
 			return nil
 		}
 		return newDeploymentConflict(current, reference)
 	}
-	catalog, err := catalogWith(platform.state.catalog, deployment)
+	catalog, err := catalogWith(p.state.catalog, deployment)
 	if err != nil {
 		return fmt.Errorf("platform: deploy %s: %w", reference, err)
 	}
-	active := maps.Clone(platform.state.active)
+	active := maps.Clone(p.state.active)
 	if active == nil {
 		active = make(map[deploymentSlot]agent.DeploymentRef)
 	}
@@ -83,72 +83,72 @@ func (platform *Platform) Deploy(deployment agent.Deployment) error {
 	if err != nil {
 		return fmt.Errorf("platform: deploy %s: %w", reference, err)
 	}
-	platform.state = state
+	p.state = state
 	return nil
 }
 
 // Replace changes the active exact binding in deployment's existing name and
 // version slot. The previous binding remains in Catalog for exact restoration.
 // A new semantic version must be introduced with Deploy, not Replace.
-func (platform *Platform) Replace(deployment agent.Deployment) error {
-	if platform == nil {
+func (p *Platform) Replace(deployment agent.Deployment) error {
+	if p == nil {
 		return ErrNilPlatform
 	}
-	platform.mu.Lock()
-	defer platform.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
 	reference := deployment.DeploymentRef()
 	slot := slotFor(reference)
-	current, occupied := platform.state.active[slot]
+	current, occupied := p.state.active[slot]
 	if !occupied {
 		return fmt.Errorf("%w: %s", ErrDeploymentNotActive, slot)
 	}
 	if current == reference {
 		return nil
 	}
-	catalog, err := catalogWith(platform.state.catalog, deployment)
+	catalog, err := catalogWith(p.state.catalog, deployment)
 	if err != nil {
 		return fmt.Errorf("platform: replace %s: %w", reference, err)
 	}
-	active := maps.Clone(platform.state.active)
+	active := maps.Clone(p.state.active)
 	active[slot] = reference
 	state, err := deploymentStateFrom(catalog, active)
 	if err != nil {
 		return fmt.Errorf("platform: replace %s: %w", reference, err)
 	}
-	platform.state = state
+	p.state = state
 	return nil
 }
 
 // Undeploy removes reference only when it is the exact active binding in its
 // name/version slot. A stale reference returns ErrDeploymentConflict instead
 // of deactivating a replacement. The exact binding remains in Catalog.
-func (platform *Platform) Undeploy(reference agent.DeploymentRef) error {
-	if platform == nil {
+func (p *Platform) Undeploy(reference agent.DeploymentRef) error {
+	if p == nil {
 		return ErrNilPlatform
 	}
-	platform.mu.Lock()
-	defer platform.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if !reference.Valid() {
 		return agent.ErrInvalidDeploymentRef
 	}
 	slot := slotFor(reference)
-	current, occupied := platform.state.active[slot]
+	current, occupied := p.state.active[slot]
 	if !occupied {
 		return fmt.Errorf("%w: %s", ErrDeploymentNotActive, slot)
 	}
 	if current != reference {
 		return newDeploymentConflict(current, reference)
 	}
-	active := maps.Clone(platform.state.active)
+	active := maps.Clone(p.state.active)
 	delete(active, slot)
-	state, err := deploymentStateFrom(platform.state.catalog, active)
+	state, err := deploymentStateFrom(p.state.catalog, active)
 	if err != nil {
 		return fmt.Errorf("platform: undeploy %s: %w", reference, err)
 	}
-	platform.state = state
+	p.state = state
 	return nil
 }
 

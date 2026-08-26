@@ -47,15 +47,15 @@ func NewWriteTool(executor Executor) *WriteTool {
 	return t
 }
 
-func (t *WriteTool) Definition() chat.ToolDefinition {
-	return t.typed.Definition()
+func (w *WriteTool) Definition() chat.ToolDefinition {
+	return w.typed.Definition()
 }
 
 // ConcurrencyKey opts write into concurrent execution keyed on its target file
 // (the tool loop's optional concurrency contract): distinct-file writes run in
 // parallel, same-file writes serialize. An unparseable / empty path yields no
 // key (no known conflict).
-func (t *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (w *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	var req WriteRequest
 	_ = json.Unmarshal([]byte(arguments), &req)
 	return req.Path, true
@@ -73,12 +73,12 @@ func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
 	return []string{req.Path}, nil
 }
 
-func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (w *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
+	return w.typed.Call(ctx, arguments)
 }
 
-func (t *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {
-	res, err := t.executor.Write(ctx, WriteInput{Path: req.Path, Content: req.Content})
+func (w *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {
+	res, err := w.executor.Write(ctx, WriteInput{Path: req.Path, Content: req.Content})
 	if err != nil {
 		return WriteResponse{}, fmt.Errorf("fs.write: %w", err)
 	}

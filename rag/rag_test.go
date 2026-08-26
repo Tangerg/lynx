@@ -88,15 +88,15 @@ func candidate(doc *document.Document, score ...float64) rag.Candidate {
 	return rag.Candidate{Document: doc, Score: value}
 }
 
-func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candidate, error) {
-	r.hits++
+func (f *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candidate, error) {
+	f.hits++
 	if q != nil {
-		r.got = q.Text()
+		f.got = q.Text()
 	}
-	if r.err != nil {
-		return nil, r.err
+	if f.err != nil {
+		return nil, f.err
 	}
-	return r.docs, nil
+	return f.docs, nil
 }
 
 func TestRetrieveValidatesCandidates(t *testing.T) {
@@ -114,11 +114,11 @@ type fakeTransformer struct {
 	err    error
 }
 
-func (t *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query, error) {
-	if t.err != nil {
-		return nil, t.err
+func (f *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query, error) {
+	if f.err != nil {
+		return nil, f.err
 	}
-	return q.WithText(q.Text() + t.suffix)
+	return q.WithText(q.Text() + f.suffix)
 }
 
 func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {

@@ -83,64 +83,64 @@ func NewAction(config ActionConfig) (Action, error) {
 }
 
 // Name returns the stable Action identity.
-func (action Action) Name() string { return action.name }
+func (a Action) Name() string { return a.name }
 
 // Description returns the human-readable predicted behavior.
-func (action Action) Description() string { return action.description }
+func (a Action) Description() string { return a.description }
 
 // Preconditions returns an independently owned, key-sorted requirement set.
-func (action Action) Preconditions() []Condition { return slices.Clone(action.preconditions) }
+func (a Action) Preconditions() []Condition { return slices.Clone(a.preconditions) }
 
 // Effects returns an independently owned, key-sorted prediction set.
-func (action Action) Effects() []Condition { return slices.Clone(action.effects) }
+func (a Action) Effects() []Condition { return slices.Clone(a.effects) }
 
 // Applicable reports whether state establishes every Action precondition.
-func (action Action) Applicable(state WorldState) bool {
-	return action.Valid() && state.Valid() && state.Satisfies(action.preconditions...)
+func (a Action) Applicable(state WorldState) bool {
+	return a.Valid() && state.Valid() && state.Satisfies(a.preconditions...)
 }
 
 // Cost evaluates the Action's predicted edge cost against source. Panics,
 // errors, negative values, and non-finite values are returned as
 // ErrInvalidActionCost.
-func (action Action) Cost(source WorldState) (cost float64, err error) {
-	if !action.Valid() || !source.Valid() {
+func (a Action) Cost(source WorldState) (cost float64, err error) {
+	if !a.Valid() || !source.Valid() {
 		return 0, fmt.Errorf("%w: invalid Action or source WorldState", ErrInvalidActionCost)
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			cost = 0
 			if cause, ok := recovered.(error); ok {
-				err = fmt.Errorf("%w: Action %q panicked: %w", ErrInvalidActionCost, action.name, cause)
+				err = fmt.Errorf("%w: Action %q panicked: %w", ErrInvalidActionCost, a.name, cause)
 				return
 			}
-			err = fmt.Errorf("%w: Action %q panicked: %v", ErrInvalidActionCost, action.name, recovered)
+			err = fmt.Errorf("%w: Action %q panicked: %v", ErrInvalidActionCost, a.name, recovered)
 		}
 	}()
-	cost, err = action.cost(source)
+	cost, err = a.cost(source)
 	if err != nil {
-		return 0, fmt.Errorf("%w: Action %q: %w", ErrInvalidActionCost, action.name, err)
+		return 0, fmt.Errorf("%w: Action %q: %w", ErrInvalidActionCost, a.name, err)
 	}
 	if math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
-		return 0, fmt.Errorf("%w: Action %q returned %v", ErrInvalidActionCost, action.name, cost)
+		return 0, fmt.Errorf("%w: Action %q returned %v", ErrInvalidActionCost, a.name, cost)
 	}
 	return cost, nil
 }
 
 // Apply returns the Action's predicted successor state. It does not assert that
 // external execution actually produced the prediction.
-func (action Action) Apply(source WorldState) (WorldState, error) {
-	if !action.Valid() || !source.Valid() {
+func (a Action) Apply(source WorldState) (WorldState, error) {
+	if !a.Valid() || !source.Valid() {
 		return WorldState{}, ErrInvalidAction
 	}
-	return source.Apply(action.effects...)
+	return source.Apply(a.effects...)
 }
 
 // Valid reports whether the Action satisfies its construction invariants.
-func (action Action) Valid() bool {
-	return validName(action.name) && validDescription(action.description) &&
-		canonicalConditionSlice(action.preconditions) && len(action.effects) > 0 &&
-		canonicalConditionSlice(action.effects) && action.cost != nil &&
-		changesAnyCondition(action.preconditions, action.effects)
+func (a Action) Valid() bool {
+	return validName(a.name) && validDescription(a.description) &&
+		canonicalConditionSlice(a.preconditions) && len(a.effects) > 0 &&
+		canonicalConditionSlice(a.effects) && a.cost != nil &&
+		changesAnyCondition(a.preconditions, a.effects)
 }
 
 func changesAnyCondition(preconditions, effects []Condition) bool {

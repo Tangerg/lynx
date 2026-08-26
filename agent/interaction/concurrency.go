@@ -21,10 +21,10 @@ type toolCallOutcome struct {
 	err                 error
 }
 
-func (dispatcher *Dispatcher) planToolCalls(calls []chat.ToolCall) ([]toolCallPlan, error) {
+func (d *Dispatcher) planToolCalls(calls []chat.ToolCall) ([]toolCallPlan, error) {
 	plans := make([]toolCallPlan, len(calls))
 	for index, call := range calls {
-		hosted, found := dispatcher.tools[call.Name]
+		hosted, found := d.tools[call.Name]
 		if !found || hosted.concurrent == nil {
 			continue
 		}
@@ -77,7 +77,7 @@ func concurrentBatchEnd(plans []toolCallPlan, start int) int {
 	return end
 }
 
-func (dispatcher *Dispatcher) callToolBatch(
+func (d *Dispatcher) callToolBatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	modelCallSequence uint32,
@@ -87,20 +87,20 @@ func (dispatcher *Dispatcher) callToolBatch(
 	outcomes := make([]toolCallOutcome, len(calls))
 	if len(calls) == 1 {
 		outcomes[0].result, outcomes[0].advertisedToolNames,
-			outcomes[0].required, outcomes[0].err = dispatcher.callTool(
+			outcomes[0].required, outcomes[0].err = d.callTool(
 			ctx, request, modelCallSequence, firstToolCallIndex, calls[0],
 		)
 		return outcomes
 	}
 
-	limit := min(dispatcher.maxParallel, len(calls))
+	limit := min(d.maxParallel, len(calls))
 	jobs := make(chan int, len(calls))
 	var group sync.WaitGroup
 	for range limit {
 		group.Go(func() {
 			for index := range jobs {
 				outcomes[index].result, outcomes[index].advertisedToolNames,
-					outcomes[index].required, outcomes[index].err = dispatcher.callTool(
+					outcomes[index].required, outcomes[index].err = d.callTool(
 					ctx,
 					request,
 					modelCallSequence,

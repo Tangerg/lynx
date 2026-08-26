@@ -72,11 +72,11 @@ type searchRequest struct {
 	NoCache bool     `json:"noCache,omitempty"`
 }
 
-func (r *searchRequest) validate() error {
-	if r == nil {
+func (s *searchRequest) validate() error {
+	if s == nil {
 		return errors.New("jina: Request must not be nil")
 	}
-	if r.Query == "" {
+	if s.Query == "" {
 		return errors.New("jina: Query must not be empty")
 	}
 	return nil
@@ -112,12 +112,12 @@ func (c *Client) search(ctx context.Context, req *searchRequest) (*searchRespons
 	return &raw, nil
 }
 
-func (r *searchRequest) params() map[string]string {
+func (s *searchRequest) params() map[string]string {
 	p := map[string]string{}
-	addIntParam(p, "count", r.Count)
-	addIntParam(p, "page", r.Page)
-	addCSVParam(p, "site", r.Site)
-	addBoolParam(p, "noCache", r.NoCache)
+	addIntParam(p, "count", s.Count)
+	addIntParam(p, "page", s.Page)
+	addCSVParam(p, "site", s.Site)
+	addBoolParam(p, "noCache", s.NoCache)
 	return p
 }
 
@@ -165,9 +165,9 @@ func buildSearchRequest(req *web.SearchRequest) *searchRequest {
 	return r
 }
 
-func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
-	results := make([]*web.SearchResult, 0, len(r.Data))
-	for _, searchResult := range r.Data {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
+	results := make([]*web.SearchResult, 0, len(s.Data))
+	for _, searchResult := range s.Data {
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.URL,
@@ -178,17 +178,17 @@ func (r *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	return &web.SearchResponse{Query: query, Results: results}
 }
 
-func (r *searchResult) snippet() string {
-	if r.Description != "" {
-		return r.Description
+func (s *searchResult) snippet() string {
+	if s.Description != "" {
+		return s.Description
 	}
-	if r.Content == "" {
+	if s.Content == "" {
 		return ""
 	}
-	if len(r.Content) > 300 {
-		return r.Content[:300] + "..."
+	if len(s.Content) > 300 {
+		return s.Content[:300] + "..."
 	}
-	return r.Content
+	return s.Content
 }
 
 func parseDate(s string) time.Time {

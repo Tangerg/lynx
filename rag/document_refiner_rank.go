@@ -27,7 +27,7 @@ func TopK(topK int) (Refiner, error) {
 
 // Refine returns at most topK unique documents ordered by descending score.
 // The input slice is not mutated. Honors ctx cancellation.
-func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
+func (t topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -42,8 +42,8 @@ func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate
 		return cmp.Compare(b.Score, a.Score) // descending; stable keeps retrieval order on ties
 	})
 
-	if len(sorted) > r.topK {
-		sorted = sorted[:r.topK]
+	if len(sorted) > t.topK {
+		sorted = sorted[:t.topK]
 	}
 	return sorted, nil
 }

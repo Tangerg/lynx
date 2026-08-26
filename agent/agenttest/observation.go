@@ -22,72 +22,72 @@ type ObservationRecorder struct {
 }
 
 // OnEvent records one immutable Framework event and wakes AwaitEvent callers.
-func (recorder *ObservationRecorder) OnEvent(_ context.Context, event agent.Event) {
-	if recorder == nil {
+func (o *ObservationRecorder) OnEvent(_ context.Context, event agent.Event) {
+	if o == nil {
 		return
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	recorder.events = append(recorder.events, event)
-	recorder.notifyLocked()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+	o.notifyLocked()
 }
 
 // OnDelta records one immutable best-effort stream increment.
-func (recorder *ObservationRecorder) OnDelta(_ context.Context, delta agent.Delta) {
-	if recorder == nil {
+func (o *ObservationRecorder) OnDelta(_ context.Context, delta agent.Delta) {
+	if o == nil {
 		return
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	recorder.deltas = append(recorder.deltas, delta)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.deltas = append(o.deltas, delta)
 }
 
-func (recorder *ObservationRecorder) notifyLocked() {
-	if recorder.changed != nil {
-		close(recorder.changed)
+func (o *ObservationRecorder) notifyLocked() {
+	if o.changed != nil {
+		close(o.changed)
 	}
-	recorder.changed = make(chan struct{})
+	o.changed = make(chan struct{})
 }
 
 // Events returns recorded events in publication order.
-func (recorder *ObservationRecorder) Events() []agent.Event {
-	if recorder == nil {
+func (o *ObservationRecorder) Events() []agent.Event {
+	if o == nil {
 		return nil
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	return slices.Clone(recorder.events)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.events)
 }
 
 // Deltas returns recorded increments in delivery order.
-func (recorder *ObservationRecorder) Deltas() []agent.Delta {
-	if recorder == nil {
+func (o *ObservationRecorder) Deltas() []agent.Delta {
+	if o == nil {
 		return nil
 	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	return slices.Clone(recorder.deltas)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.deltas)
 }
 
 // AwaitEvent returns the first recorded Event accepted by predicate. It waits
 // for later events until ctx ends and never polls Process state.
-func (recorder *ObservationRecorder) AwaitEvent(
+func (o *ObservationRecorder) AwaitEvent(
 	ctx context.Context,
 	predicate func(agent.Event) bool,
 ) (agent.Event, error) {
-	if recorder == nil || predicate == nil {
+	if o == nil || predicate == nil {
 		return agent.Event{}, ErrInvalidEventPredicate
 	}
 	next := 0
 	for {
-		recorder.mu.Lock()
-		batch := slices.Clone(recorder.events[next:])
-		next = len(recorder.events)
-		if recorder.changed == nil {
-			recorder.changed = make(chan struct{})
+		o.mu.Lock()
+		batch := slices.Clone(o.events[next:])
+		next = len(o.events)
+		if o.changed == nil {
+			o.changed = make(chan struct{})
 		}
-		changed := recorder.changed
-		recorder.mu.Unlock()
+		changed := o.changed
+		o.mu.Unlock()
 
 		for _, event := range batch {
 			if predicate(event) {

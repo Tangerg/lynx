@@ -29,11 +29,11 @@ type echoChatModel struct {
 	captured string
 }
 
-func (m *echoChatModel) capture(req *chat.Request) string {
+func (e *echoChatModel) capture(req *chat.Request) string {
 	for index := len(req.Messages) - 1; index >= 0; index-- {
 		if req.Messages[index].Role == chat.RoleUser {
-			m.captured = req.Messages[index].Text()
-			return m.captured
+			e.captured = req.Messages[index].Text()
+			return e.captured
 		}
 	}
 	return ""
@@ -51,13 +51,13 @@ func textResponse(text string) *chat.Response {
 	return response
 }
 
-func (m *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	return textResponse(m.capture(req)), nil
+func (e *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	return textResponse(e.capture(req)), nil
 }
 
-func (m *echoChatModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+func (e *echoChatModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		yield(textResponse(m.capture(req)), nil)
+		yield(textResponse(e.capture(req)), nil)
 	}
 }
 
@@ -188,9 +188,9 @@ type countingRetriever struct {
 	hits int
 }
 
-func (r *countingRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
-	r.hits++
-	return r.docs, nil
+func (c *countingRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+	c.hits++
+	return c.docs, nil
 }
 
 func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
@@ -260,8 +260,8 @@ type errorRetriever struct {
 	err error
 }
 
-func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
-	return nil, r.err
+func (e *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+	return nil, e.err
 }
 
 func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {

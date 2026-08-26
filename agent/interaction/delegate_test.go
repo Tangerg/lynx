@@ -309,11 +309,11 @@ type restorableDelegateModel struct {
 	calls int
 }
 
-func (model *restorableDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
+func (r *restorableDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls++
+	if r.calls == 1 {
 		return toolCallResponse(chat.ToolCall{
 			ID: "call_paused", Name: "delegate_paused", Arguments: `{"value":"restored"}`,
 		}), nil
@@ -328,17 +328,17 @@ func (model *restorableDelegateModel) Call(_ context.Context, request *chat.Requ
 	return textResponse("restored child settled"), nil
 }
 
-func (model *restorableDelegateModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (r *restorableDelegateModel) Calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
 }
 
-func (model *delegateFailureModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
+func (d *delegateFailureModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.calls++
+	if d.calls == 1 {
 		message := chat.NewAssistantMessage(
 			chat.NewToolCallPart(chat.ToolCall{
 				ID: "call_invalid", Name: "delegate_unavailable", Arguments: `{"unknown":true}`,
@@ -363,21 +363,21 @@ func (model *delegateFailureModel) Call(_ context.Context, request *chat.Request
 	return textResponse("failures observed"), nil
 }
 
-func (model *delegateFailureModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (d *delegateFailureModel) Calls() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.calls
 }
 
-func (model *mixedDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
+func (m *mixedDelegateModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
 	if len(request.Tools) != 2 || request.Tools[0].Name != "echo" ||
 		request.Tools[1].Name != "delegate_uppercase" {
 		return nil, fmt.Errorf("model capability manifest = %#v", request.Tools)
 	}
-	if model.calls == 1 {
+	if m.calls == 1 {
 		message := chat.NewAssistantMessage(
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_before", Name: "echo", Arguments: `{"value":"before"}`}),
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_worker_1", Name: "delegate_uppercase", Arguments: `{"value":"first"}`}),
@@ -410,10 +410,10 @@ func (model *mixedDelegateModel) Call(_ context.Context, request *chat.Request) 
 	return textResponse("mixed batch settled"), nil
 }
 
-func (model *mixedDelegateModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (m *mixedDelegateModel) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
 }
 
 func delegateInteraction(
@@ -489,8 +489,8 @@ func delegateWorkflow[I, O any](t *testing.T, name string, transform workflow.Tr
 
 type delegateResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver delegateResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
-	deployment, found := resolver[reference]
+func (d delegateResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
+	deployment, found := d[reference]
 	if !found {
 		return agent.Deployment{}, errors.New("delegated Deployment is unavailable")
 	}
@@ -529,8 +529,8 @@ func pausingDelegateDeployment(t *testing.T) agent.Deployment {
 	return deployment
 }
 
-func (definition *pausingDelegateDefinition) Descriptor() agent.Descriptor {
-	return definition.descriptor
+func (p *pausingDelegateDefinition) Descriptor() agent.Descriptor {
+	return p.descriptor
 }
 
 func (*pausingDelegateDefinition) Start(input agent.Input) (agent.Execution, error) {
@@ -552,20 +552,20 @@ func (*pausingDelegateDefinition) Restore(state agent.ExecutionState) (agent.Exe
 	return &execution, nil
 }
 
-func (execution *pausingDelegateExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
-	if !execution.Ready {
-		execution.Ready = true
+func (p *pausingDelegateExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
+	if !p.Ready {
+		p.Ready = true
 		return agent.Pause(0, "test worker waits at a recoverable boundary")
 	}
-	output, err := agent.EncodeOutput(delegateResponse{Value: execution.Input.Value})
+	output, err := agent.EncodeOutput(delegateResponse{Value: p.Input.Value})
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	return agent.Complete(0, output)
 }
 
-func (execution *pausingDelegateExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(execution)
+func (p *pausingDelegateExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(p)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}

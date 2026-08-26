@@ -144,7 +144,7 @@ type jsonCodec struct{}
 
 var wireJSON jsonCodec
 
-func (codec jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
+func (j jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
 	if len(data) == 0 {
 		return nil, errors.New("JSON value is empty")
 	}
@@ -157,7 +157,7 @@ func (codec jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error
 	if err := decoder.Decode(&value); err != nil {
 		return nil, fmt.Errorf("decode JSON value: %w", err)
 	}
-	if err := codec.requireEOF(decoder); err != nil {
+	if err := j.requireEOF(decoder); err != nil {
 		return nil, err
 	}
 	normalized, err := json.Marshal(value)
@@ -170,7 +170,7 @@ func (codec jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error
 	return normalized, nil
 }
 
-func (codec jsonCodec) decode[T any](data []byte) (T, error) {
+func (j jsonCodec) decode[T any](data []byte) (T, error) {
 	var value T
 	if len(data) == 0 {
 		return value, errors.New("JSON value is empty")
@@ -181,7 +181,7 @@ func (codec jsonCodec) decode[T any](data []byte) (T, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return value, err
 	}
-	if err := codec.requireEOF(decoder); err != nil {
+	if err := j.requireEOF(decoder); err != nil {
 		return value, err
 	}
 	return value, nil

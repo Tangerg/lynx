@@ -254,8 +254,8 @@ type definitionOnceTool struct {
 	definitionCalls atomic.Int32
 }
 
-func (t *definitionOnceTool) Definition() corechat.ToolDefinition {
-	if t.definitionCalls.Add(1) != 1 {
+func (d *definitionOnceTool) Definition() corechat.ToolDefinition {
+	if d.definitionCalls.Add(1) != 1 {
 		panic("tool definition was read after registration")
 	}
 	return corechat.ToolDefinition{

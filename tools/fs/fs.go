@@ -103,8 +103,8 @@ type GrepInput struct {
 	MaxResults int
 }
 
-func (in GrepInput) contextLines() (before, after int) {
-	return cmp.Or(in.BeforeContext, in.Context), cmp.Or(in.AfterContext, in.Context)
+func (g GrepInput) contextLines() (before, after int) {
+	return cmp.Or(g.BeforeContext, g.Context), cmp.Or(g.AfterContext, g.Context)
 }
 
 type GrepMatch struct {

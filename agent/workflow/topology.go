@@ -92,73 +92,73 @@ type Topology struct {
 
 // Topology returns a fresh, function-free projection of this Definition. An
 // invalid or nil Definition returns the zero Topology.
-func (definition *Definition) Topology() Topology {
-	if !definition.valid() {
+func (d *Definition) Topology() Topology {
+	if !d.valid() {
 		return Topology{}
 	}
-	stages := make([]StageTopology, len(definition.stages))
-	for index, stage := range definition.stages {
+	stages := make([]StageTopology, len(d.stages))
+	for index, stage := range d.stages {
 		stages[index] = stage.topology()
 	}
-	return Topology{Descriptor: definition.descriptor, Stages: stages}
+	return Topology{Descriptor: d.descriptor, Stages: stages}
 }
 
-func (stage Stage) topology() StageTopology {
+func (s Stage) topology() StageTopology {
 	projected := StageTopology{
-		ID: stage.id, Kind: stage.kind.topologyKind(),
-		InputSchema: stage.inputSchema, OutputSchema: stage.outputSchema,
+		ID: s.id, Kind: s.kind.topologyKind(),
+		InputSchema: s.inputSchema, OutputSchema: s.outputSchema,
 	}
-	switch stage.kind {
+	switch s.kind {
 	case stageKindCall:
 		projected.Bindings = []BindingTopology{
-			stage.call.topology(BindingRoleCall, "", stage.inputSchema, stage.outputSchema),
+			s.call.topology(BindingRoleCall, "", s.inputSchema, s.outputSchema),
 		}
 	case stageKindSwitch:
-		projected.Bindings = make([]BindingTopology, len(stage.switcher.cases))
-		for index, candidate := range stage.switcher.cases {
+		projected.Bindings = make([]BindingTopology, len(s.switcher.cases))
+		for index, candidate := range s.switcher.cases {
 			projected.Bindings[index] = candidate.binding.topology(
-				BindingRoleCase, candidate.id, stage.inputSchema, stage.outputSchema,
+				BindingRoleCase, candidate.id, s.inputSchema, s.outputSchema,
 			)
 		}
 	case stageKindFork:
-		projected.WindowSize = stage.fork.windowSize
-		projected.Bindings = make([]BindingTopology, len(stage.fork.branches))
-		for index, branch := range stage.fork.branches {
+		projected.WindowSize = s.fork.windowSize
+		projected.Bindings = make([]BindingTopology, len(s.fork.branches))
+		for index, branch := range s.fork.branches {
 			projected.Bindings[index] = branch.binding.topology(
-				BindingRoleBranch, branch.id, stage.inputSchema, stage.fork.branchSchema,
+				BindingRoleBranch, branch.id, s.inputSchema, s.fork.branchSchema,
 			)
 		}
 	case stageKindMap:
-		projected.WindowSize = stage.mapper.windowSize
-		projected.ItemLimit = stage.mapper.itemLimit
-		projected.Bindings = []BindingTopology{stage.mapper.binding.topology(
+		projected.WindowSize = s.mapper.windowSize
+		projected.ItemLimit = s.mapper.itemLimit
+		projected.Bindings = []BindingTopology{s.mapper.binding.topology(
 			BindingRoleItem, "",
-			stage.mapper.itemInputSchema, stage.mapper.itemOutputSchema,
+			s.mapper.itemInputSchema, s.mapper.itemOutputSchema,
 		)}
 	case stageKindLoop:
-		projected.MaxIterations = stage.loop.maxIterations
-		projected.Bindings = []BindingTopology{stage.loop.binding.topology(
-			BindingRoleBody, "", stage.loop.valueSchema, stage.loop.valueSchema,
+		projected.MaxIterations = s.loop.maxIterations
+		projected.Bindings = []BindingTopology{s.loop.binding.topology(
+			BindingRoleBody, "", s.loop.valueSchema, s.loop.valueSchema,
 		)}
 	}
 	return projected
 }
 
-func (binding childBinding) topology(
+func (c childBinding) topology(
 	role BindingRole,
 	id string,
 	inputSchema agent.Schema,
 	outputSchema agent.Schema,
 ) BindingTopology {
 	return BindingTopology{
-		Role: role, ID: id, DeploymentRef: binding.deploymentRef,
+		Role: role, ID: id, DeploymentRef: c.deploymentRef,
 		InputSchema: inputSchema, OutputSchema: outputSchema,
-		Budget: binding.budget, Capabilities: binding.capabilities,
+		Budget: c.budget, Capabilities: c.capabilities,
 	}
 }
 
-func (kind stageKind) topologyKind() StageKind {
-	switch kind {
+func (s stageKind) topologyKind() StageKind {
+	switch s {
 	case stageKindTransform:
 		return StageKindTransform
 	case stageKindCall:

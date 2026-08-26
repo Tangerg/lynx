@@ -41,8 +41,8 @@ type Config struct {
 }
 
 // Validate verifies the provider identity required by chat instrumentation.
-func (config Config) Validate() error {
-	if strings.TrimSpace(config.Provider) == "" {
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 	return nil

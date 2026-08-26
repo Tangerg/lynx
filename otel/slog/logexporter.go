@@ -47,8 +47,8 @@ func NewLogExporter(logger *stdslog.Logger) *LogExporter {
 // Export writes one slog record per OTel log record. It returns only context
 // cancellation/deadline errors; after Shutdown it is a no-op as required by
 // [sdklog.Exporter].
-func (e *LogExporter) Export(ctx context.Context, records []sdklog.Record) error {
-	if e.shutdown.Load() {
+func (l *LogExporter) Export(ctx context.Context, records []sdklog.Record) error {
+	if l.shutdown.Load() {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
@@ -58,7 +58,7 @@ func (e *LogExporter) Export(ctx context.Context, records []sdklog.Record) error
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if e.shutdown.Load() {
+		if l.shutdown.Load() {
 			return nil
 		}
 		attrs := make([]stdslog.Attr, 0, rec.AttributesLen()+3)
@@ -75,26 +75,26 @@ func (e *LogExporter) Export(ctx context.Context, records []sdklog.Record) error
 			attrs = append(attrs, logKVToSlog(kv))
 			return true
 		})
-		e.logger.LogAttrs(ctx, severityToLevel(rec.Severity()), rec.Body().String(), attrs...)
+		l.logger.LogAttrs(ctx, severityToLevel(rec.Severity()), rec.Body().String(), attrs...)
 	}
 	return nil
 }
 
-func (e *LogExporter) ForceFlush(ctx context.Context) error {
-	if e.shutdown.Load() {
+func (l *LogExporter) ForceFlush(ctx context.Context) error {
+	if l.shutdown.Load() {
 		return nil
 	}
 	return ctx.Err()
 }
 
-func (e *LogExporter) Shutdown(ctx context.Context) error {
-	if e.shutdown.Load() {
+func (l *LogExporter) Shutdown(ctx context.Context) error {
+	if l.shutdown.Load() {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.shutdown.Store(true)
+	l.shutdown.Store(true)
 	return nil
 }
 

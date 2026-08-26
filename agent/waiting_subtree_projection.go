@@ -61,24 +61,24 @@ func newWaitingSubtreeProjection(
 	}, nil
 }
 
-func (projection *waitingSubtreeProjection) cancelActiveSubtree(reason string) error {
-	for _, snapshot := range projection.tree.ProcessSnapshots {
-		candidate := projection.processes[snapshot.ProcessID()]
-		if !candidate.Status.Terminal() && projection.belongsToTarget(candidate.ProcessID) {
+func (w *waitingSubtreeProjection) cancelActiveSubtree(reason string) error {
+	for _, snapshot := range w.tree.ProcessSnapshots {
+		candidate := w.processes[snapshot.ProcessID()]
+		if !candidate.Status.Terminal() && w.belongsToTarget(candidate.ProcessID) {
 			if candidate.Prepared != nil || !emptyPendingControl(candidate.PendingControl) {
 				return ErrWaitingSubtreeCancellationUnavailable
 			}
-			projection.canceled = append(projection.canceled, candidate.ProcessID)
+			w.canceled = append(w.canceled, candidate.ProcessID)
 		}
 	}
-	if len(projection.canceled) == 0 {
+	if len(w.canceled) == 0 {
 		return ErrWaitingSubtreeCancellationUnavailable
 	}
-	for _, id := range projection.canceled {
-		projection.canceledSet[id] = struct{}{}
+	for _, id := range w.canceled {
+		w.canceledSet[id] = struct{}{}
 		intentOwner := cancellationOwnerParent
 		terminationReason := "parent Process reached terminal status canceled"
-		if id == projection.targetID {
+		if id == w.targetID {
 			intentOwner = cancellationOwnerHost
 			terminationReason = reason
 		}
@@ -90,24 +90,24 @@ func (projection *waitingSubtreeProjection) cancelActiveSubtree(reason string) e
 		if err != nil {
 			return err
 		}
-		if err := projection.cancelProcess(id, termination); err != nil {
+		if err := w.cancelProcess(id, termination); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (projection *waitingSubtreeProjection) cancelProcess(
+func (w *waitingSubtreeProjection) cancelProcess(
 	processID ProcessID,
 	termination Termination,
 ) error {
-	process := projection.processes[processID]
+	process := w.processes[processID]
 	mailbox, err := restoreSignalMailbox(process.Mailbox)
 	if err != nil || process.ProcessEventSequence == ^uint64(0) {
 		return ErrWaitingSubtreeCancellationUnavailable
 	}
 	mailbox.closeAllWaits()
-	finishedAt := projection.finishedAt
+	finishedAt := w.finishedAt
 	process.Status = StatusCanceled
 	process.FinishedAt = &finishedAt
 	process.ProcessEventSequence++
@@ -118,46 +118,46 @@ func (projection *waitingSubtreeProjection) cancelProcess(
 	process.PendingControl = pendingControlWire{}
 	process.Output = nil
 	process.Termination = &termination
-	return projection.replaceProcess(process)
+	return w.replaceProcess(process)
 }
 
-func (projection *waitingSubtreeProjection) reconcileChildWaits() error {
-	surviving := make([]childWaitSnapshotWire, 0, len(projection.tree.ChildWaits))
-	for _, wait := range projection.tree.ChildWaits {
-		if _, canceledParent := projection.canceledSet[wait.ParentProcessID]; canceledParent {
+func (w *waitingSubtreeProjection) reconcileChildWaits() error {
+	surviving := make([]childWaitSnapshotWire, 0, len(w.tree.ChildWaits))
+	for _, wait := range w.tree.ChildWaits {
+		if _, canceledParent := w.canceledSet[wait.ParentProcessID]; canceledParent {
 			continue
 		}
 		surviving = append(surviving, wait)
-		if !projection.childWaitTouchesCanceledProcess(wait.Spec) {
+		if !w.childWaitTouchesCanceledProcess(wait.Spec) {
 			continue
 		}
-		if err := projection.deliverBoundaryCompletion(wait); err != nil {
+		if err := w.deliverBoundaryCompletion(wait); err != nil {
 			return err
 		}
 	}
-	projection.tree.ChildWaits = surviving
+	w.tree.ChildWaits = surviving
 	return nil
 }
 
-func (projection *waitingSubtreeProjection) deliverBoundaryCompletion(
+func (w *waitingSubtreeProjection) deliverBoundaryCompletion(
 	wait childWaitSnapshotWire,
 ) error {
 	spec, err := wait.Spec.value()
 	if err != nil {
 		return err
 	}
-	outcomes, ready, err := projection.childOutcomes(spec)
+	outcomes, ready, err := w.childOutcomes(spec)
 	if err != nil {
 		return err
 	}
 	if !ready {
 		return nil
 	}
-	signal, err := encodeChildrenCompletedAt(wait.WaitID, spec.Key, outcomes, projection.finishedAt)
+	signal, err := encodeChildrenCompletedAt(wait.WaitID, spec.Key, outcomes, w.finishedAt)
 	if err != nil {
 		return err
 	}
-	parent := projection.processes[wait.ParentProcessID]
+	parent := w.processes[wait.ParentProcessID]
 	if parent.Status.Terminal() || parent.Prepared != nil || !emptyPendingControl(parent.PendingControl) {
 		return ErrWaitingSubtreeCancellationUnavailable
 	}
@@ -195,29 +195,29 @@ func (projection *waitingSubtreeProjection) deliverBoundaryCompletion(
 		parent.PauseReason = waitingSubtreeParentPauseReason
 		parent.PendingControl = pendingControlWire{}
 		parent.ProcessEventSequence++
-		projection.pausedSet[parent.ProcessID] = struct{}{}
+		w.pausedSet[parent.ProcessID] = struct{}{}
 	}
 	parent.Mailbox = mailbox.snapshot()
-	return projection.replaceProcess(parent)
+	return w.replaceProcess(parent)
 }
 
-func (projection *waitingSubtreeProjection) result() (
+func (w *waitingSubtreeProjection) result() (
 	TreeSnapshot,
 	[]ProcessID,
 	[]ProcessID,
 	error,
 ) {
-	result, err := newTreeSnapshot(projection.tree)
+	result, err := newTreeSnapshot(w.tree)
 	if err != nil {
 		return TreeSnapshot{}, nil, nil, err
 	}
-	paused := make([]ProcessID, 0, len(projection.pausedSet))
+	paused := make([]ProcessID, 0, len(w.pausedSet))
 	for _, snapshot := range result.ProcessSnapshots() {
-		if _, exists := projection.pausedSet[snapshot.ProcessID()]; exists {
+		if _, exists := w.pausedSet[snapshot.ProcessID()]; exists {
 			paused = append(paused, snapshot.ProcessID())
 		}
 	}
-	return result, slices.Clone(projection.canceled), paused, nil
+	return result, slices.Clone(w.canceled), paused, nil
 }
 
 func processSnapshotWires(
@@ -236,22 +236,22 @@ func processSnapshotWires(
 	return wires, indexes, nil
 }
 
-func (projection *waitingSubtreeProjection) replaceProcess(process processSnapshotWire) error {
+func (w *waitingSubtreeProjection) replaceProcess(process processSnapshotWire) error {
 	snapshot, err := newSnapshot(process)
 	if err != nil {
 		return err
 	}
-	projection.processes[process.ProcessID] = process
-	projection.tree.ProcessSnapshots[projection.indexes[process.ProcessID]] = snapshot
+	w.processes[process.ProcessID] = process
+	w.tree.ProcessSnapshots[w.indexes[process.ProcessID]] = snapshot
 	return nil
 }
 
-func (projection *waitingSubtreeProjection) belongsToTarget(processID ProcessID) bool {
+func (w *waitingSubtreeProjection) belongsToTarget(processID ProcessID) bool {
 	for processID.Valid() {
-		if processID == projection.targetID {
+		if processID == w.targetID {
 			return true
 		}
-		process, exists := projection.processes[processID]
+		process, exists := w.processes[processID]
 		if !exists {
 			return false
 		}
@@ -268,23 +268,23 @@ func (projection *waitingSubtreeProjection) belongsToTarget(processID ProcessID)
 	return false
 }
 
-func (projection *waitingSubtreeProjection) childWaitTouchesCanceledProcess(
+func (w *waitingSubtreeProjection) childWaitTouchesCanceledProcess(
 	spec childWaitSpecWire,
 ) bool {
 	for _, childID := range spec.Children {
-		if _, exists := projection.canceledSet[childID]; exists {
+		if _, exists := w.canceledSet[childID]; exists {
 			return true
 		}
 	}
 	return false
 }
 
-func (projection *waitingSubtreeProjection) childOutcomes(
+func (w *waitingSubtreeProjection) childOutcomes(
 	spec ChildWaitSpec,
 ) ([]ChildOutcome, bool, error) {
 	outcomes := make([]ChildOutcome, 0, len(spec.Children))
 	for _, childID := range spec.Children {
-		process, exists := projection.processes[childID]
+		process, exists := w.processes[childID]
 		if !exists {
 			return nil, false, ErrInvalidChildWait
 		}

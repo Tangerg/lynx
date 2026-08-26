@@ -18,27 +18,27 @@ type searchNode struct {
 
 type frontier []*searchNode
 
-func (values frontier) Len() int { return len(values) }
+func (f frontier) Len() int { return len(f) }
 
-func (values frontier) Less(left, right int) bool {
-	if values[left].cost != values[right].cost {
-		return values[left].cost < values[right].cost
+func (f frontier) Less(left, right int) bool {
+	if f[left].cost != f[right].cost {
+		return f[left].cost < f[right].cost
 	}
-	return values[left].order < values[right].order
+	return f[left].order < f[right].order
 }
 
-func (values frontier) Swap(left, right int) {
-	values[left], values[right] = values[right], values[left]
+func (f frontier) Swap(left, right int) {
+	f[left], f[right] = f[right], f[left]
 }
 
-func (values *frontier) Push(value any) { *values = append(*values, value.(*searchNode)) }
+func (f *frontier) Push(value any) { *f = append(*f, value.(*searchNode)) }
 
-func (values *frontier) Pop() any {
-	old := *values
+func (f *frontier) Pop() any {
+	old := *f
 	last := len(old) - 1
 	value := old[last]
 	old[last] = nil
-	*values = old[:last]
+	*f = old[:last]
 	return value
 }
 
@@ -70,38 +70,38 @@ func newSearch(problem planning.Problem, maxExpansions uint32) *search {
 	return search
 }
 
-func (search *search) push(state planning.WorldState, cost float64) {
-	heap.Push(search.frontier, &searchNode{state: state, cost: cost, order: search.nextOrder})
-	search.nextOrder++
+func (s *search) push(state planning.WorldState, cost float64) {
+	heap.Push(s.frontier, &searchNode{state: state, cost: cost, order: s.nextOrder})
+	s.nextOrder++
 }
 
-func (search *search) run(ctx context.Context) (searchNode, bool, error) {
-	for search.frontier.Len() > 0 {
+func (s *search) run(ctx context.Context) (searchNode, bool, error) {
+	for s.frontier.Len() > 0 {
 		if err := ctx.Err(); err != nil {
 			return searchNode{}, false, err
 		}
-		current := heap.Pop(search.frontier).(*searchNode)
+		current := heap.Pop(s.frontier).(*searchNode)
 		currentKey := current.state.Key()
-		if current.cost != search.bestCosts[currentKey] {
+		if current.cost != s.bestCosts[currentKey] {
 			continue
 		}
-		if search.expansions == search.maxExpansions {
-			return searchNode{}, false, fmt.Errorf("%w: %d", ErrExpansionLimitReached, search.maxExpansions)
+		if s.expansions == s.maxExpansions {
+			return searchNode{}, false, fmt.Errorf("%w: %d", ErrExpansionLimitReached, s.maxExpansions)
 		}
-		search.expansions++
-		if search.problem.Goal().SatisfiedBy(current.state) {
+		s.expansions++
+		if s.problem.Goal().SatisfiedBy(current.state) {
 			return *current, true, nil
 		}
-		if err := search.expand(current); err != nil {
+		if err := s.expand(current); err != nil {
 			return searchNode{}, false, err
 		}
 	}
 	return searchNode{}, false, nil
 }
 
-func (search *search) expand(current *searchNode) error {
+func (s *search) expand(current *searchNode) error {
 	currentKey := current.state.Key()
-	for _, action := range search.problem.Actions() {
+	for _, action := range s.problem.Actions() {
 		if !action.Applicable(current.state) {
 			continue
 		}
@@ -121,24 +121,24 @@ func (search *search) expand(current *searchNode) error {
 		if math.IsInf(cost, 0) {
 			return fmt.Errorf("%w: Action %q overflows cumulative cost", planning.ErrInvalidActionCost, action.Name())
 		}
-		if best, known := search.bestCosts[nextKey]; known && cost >= best {
+		if best, known := s.bestCosts[nextKey]; known && cost >= best {
 			continue
 		}
 		planned, err := planning.NewPlannedAction(action.Name())
 		if err != nil {
 			return err
 		}
-		search.bestCosts[nextKey] = cost
-		search.predecessors[nextKey] = predecessor{stateKey: currentKey, action: planned}
-		search.push(nextState, cost)
+		s.bestCosts[nextKey] = cost
+		s.predecessors[nextKey] = predecessor{stateKey: currentKey, action: planned}
+		s.push(nextState, cost)
 	}
 	return nil
 }
 
-func (search *search) reconstruct(goalKey string) ([]planning.PlannedAction, error) {
+func (s *search) reconstruct(goalKey string) ([]planning.PlannedAction, error) {
 	var reversed []planning.PlannedAction
-	for cursor := goalKey; cursor != search.startKey; {
-		previous, found := search.predecessors[cursor]
+	for cursor := goalKey; cursor != s.startKey; {
+		previous, found := s.predecessors[cursor]
 		if !found {
 			return nil, fmt.Errorf("goap: predecessor missing for state %q", cursor)
 		}
@@ -149,14 +149,14 @@ func (search *search) reconstruct(goalKey string) ([]planning.PlannedAction, err
 	return reversed, nil
 }
 
-func (search *search) hasGoalProducers() bool {
-	initial := search.problem.InitialState()
-	for _, required := range search.problem.Goal().Conditions() {
+func (s *search) hasGoalProducers() bool {
+	initial := s.problem.InitialState()
+	for _, required := range s.problem.Goal().Conditions() {
 		if initial.Truth(required.Key()) == required.Truth() {
 			continue
 		}
 		produced := false
-		for _, action := range search.problem.Actions() {
+		for _, action := range s.problem.Actions() {
 			for _, effect := range action.Effects() {
 				if effect.Key() == required.Key() && effect.Truth() == required.Truth() {
 					produced = true

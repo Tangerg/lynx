@@ -36,7 +36,7 @@ func NewFetchTool(fetcher Fetcher) (*FetchTool, error) {
 	return t, nil
 }
 
-func (t *FetchTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
+func (f *FetchTool) Definition() chat.ToolDefinition { return f.inner.Definition() }
 
 // webFetchDescription is the LLM-facing prompt. Structure follows
 // the standard WebFetch prompt.
@@ -61,18 +61,18 @@ Usage notes:
 // ConcurrencyKey opts web_fetch into parallel execution — a read-only network
 // fetch has no local resource conflict (the tool loop's optional concurrency
 // contract), so the loop fetches several URLs at once.
-func (t *FetchTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (f *FetchTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
-func (t *FetchTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.inner.Call(ctx, arguments)
+func (f *FetchTool) Call(ctx context.Context, arguments string) (string, error) {
+	return f.inner.Call(ctx, arguments)
 }
 
-func (t *FetchTool) fetch(ctx context.Context, req FetchRequest) (*FetchResponse, error) {
+func (f *FetchTool) fetch(ctx context.Context, req FetchRequest) (*FetchResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("web: fetch: %w", err)
 	}
 
-	res, err := t.fetcher.Fetch(ctx, &req)
+	res, err := f.fetcher.Fetch(ctx, &req)
 	if err != nil {
 		return nil, fmt.Errorf("web: fetch: %w", err)
 	}

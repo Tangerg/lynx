@@ -80,8 +80,8 @@ func TestTokenCountBatcherValidatesConstructorInput(t *testing.T) {
 
 type failingEstimator struct{ err error }
 
-func (e failingEstimator) EstimateText(context.Context, string) (int, error) {
-	return 0, e.err
+func (f failingEstimator) EstimateText(context.Context, string) (int, error) {
+	return 0, f.err
 }
 
 type negativeEstimator struct{}

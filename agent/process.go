@@ -31,68 +31,68 @@ type Process struct {
 }
 
 // ID returns the stable Process identity.
-func (process *Process) ID() ProcessID {
-	if process == nil || process.controller == nil {
+func (p *Process) ID() ProcessID {
+	if p == nil || p.controller == nil {
 		return ProcessID{}
 	}
-	return process.controller.processID
+	return p.controller.processID
 }
 
 // DeploymentRef returns the exact Definition and dispatcher binding identity.
-func (process *Process) DeploymentRef() DeploymentRef {
-	if process == nil || process.controller == nil {
+func (p *Process) DeploymentRef() DeploymentRef {
+	if p == nil || p.controller == nil {
 		return DeploymentRef{}
 	}
-	return process.controller.deploymentRef
+	return p.controller.deploymentRef
 }
 
 // Relation returns the immutable parent/root/depth location assigned by the
 // Engine. It is a root relation for Processes created through Engine.Start.
-func (process *Process) Relation() ProcessRelation {
-	if process == nil || process.controller == nil {
+func (p *Process) Relation() ProcessRelation {
+	if p == nil || p.controller == nil {
 		return ProcessRelation{}
 	}
-	return process.controller.relation
+	return p.controller.relation
 }
 
 // StartedAt returns when the Engine created this Process.
-func (process *Process) StartedAt() time.Time {
-	if process == nil || process.controller == nil {
+func (p *Process) StartedAt() time.Time {
+	if p == nil || p.controller == nil {
 		return time.Time{}
 	}
-	return process.controller.startedAt
+	return p.controller.startedAt
 }
 
 // Status returns the latest committed common lifecycle status.
-func (process *Process) Status() Status {
-	if process == nil || process.controller == nil {
+func (p *Process) Status() Status {
+	if p == nil || p.controller == nil {
 		return StatusInvalid
 	}
-	return process.controller.status()
+	return p.controller.status()
 }
 
 // Usage returns the latest Framework-owned counters.
-func (process *Process) Usage() Usage {
-	if process == nil || process.controller == nil {
+func (p *Process) Usage() Usage {
+	if p == nil || p.controller == nil {
 		return Usage{}
 	}
-	return process.controller.usage()
+	return p.controller.usage()
 }
 
 // WaitID returns the current externally addressable wait while Status is
 // Waiting. The payload schema and meaning remain owned by the Strategy.
-func (process *Process) WaitID() (WaitID, bool) {
-	if process == nil || process.controller == nil {
+func (p *Process) WaitID() (WaitID, bool) {
+	if p == nil || p.controller == nil {
 		return WaitID{}, false
 	}
-	return process.controller.waitID()
+	return p.controller.waitID()
 }
 
 // DeliverSignal submits immutable Strategy input. Running input is consumed only at
 // the next Strategy-safe Step boundary; Waiting input must address WaitID.
 // accepted is false, with nil error, when SignalID was already accepted.
-func (process *Process) DeliverSignal(ctx context.Context, request SignalRequest) (accepted bool, err error) {
-	response, err := process.request(ctx, processCommand{kind: commandDeliver, signalRequest: request})
+func (p *Process) DeliverSignal(ctx context.Context, request SignalRequest) (accepted bool, err error) {
+	response, err := p.request(ctx, processCommand{kind: commandDeliver, signalRequest: request})
 	return response.accepted, err
 }
 
@@ -100,26 +100,26 @@ func (process *Process) DeliverSignal(ctx context.Context, request SignalRequest
 // when one WaitID-addressed response and ordinary follow-up input must become
 // visible at the same safe Strategy boundary. Either the complete batch is
 // accepted in order or the mailbox remains unchanged.
-func (process *Process) DeliverSignals(ctx context.Context, requests ...SignalRequest) (accepted bool, err error) {
+func (p *Process) DeliverSignals(ctx context.Context, requests ...SignalRequest) (accepted bool, err error) {
 	if len(requests) == 0 {
 		return false, ErrInvalidSignalRequest
 	}
 	owned := append([]SignalRequest(nil), requests...)
-	response, err := process.request(ctx, processCommand{kind: commandDeliverBatch, signalRequests: owned})
+	response, err := p.request(ctx, processCommand{kind: commandDeliverBatch, signalRequests: owned})
 	return response.accepted, err
 }
 
 // Pause requests a scheduling pause at the next safe Step boundary. An
 // in-flight Effect is allowed to settle before the pause becomes visible.
-func (process *Process) Pause(ctx context.Context, reason string) error {
-	_, err := process.request(ctx, processCommand{kind: commandPause, reason: reason})
+func (p *Process) Pause(ctx context.Context, reason string) error {
+	_, err := p.request(ctx, processCommand{kind: commandPause, reason: reason})
 	return err
 }
 
 // Resume makes an explicitly Paused Process schedulable again. Waiting is
 // resumed only by a Signal addressed to its current WaitID.
-func (process *Process) Resume(ctx context.Context) error {
-	_, err := process.request(ctx, processCommand{kind: commandResume})
+func (p *Process) Resume(ctx context.Context) error {
+	_, err := p.request(ctx, processCommand{kind: commandResume})
 	return err
 }
 
@@ -128,8 +128,8 @@ func (process *Process) Resume(ctx context.Context) error {
 // Process has reached a safe boundary or become terminal. Once submitted, ctx
 // cancellation cannot revoke the request. The first committed cancellation
 // intent maps to StatusCanceled with a host-cancellation cause.
-func (process *Process) RequestCancellation(ctx context.Context, reason string) error {
-	if process == nil || process.controller == nil {
+func (p *Process) RequestCancellation(ctx context.Context, reason string) error {
+	if p == nil || p.controller == nil {
 		return ErrProcessNotRunning
 	}
 	intent, err := newCancellationIntent(cancellationOwnerHost, reason)
@@ -141,9 +141,9 @@ func (process *Process) RequestCancellation(ctx context.Context, reason string) 
 		return err
 	}
 	select {
-	case process.controller.commands <- processCommand{kind: commandCancel, cancellationIntent: intent}:
+	case p.controller.commands <- processCommand{kind: commandCancel, cancellationIntent: intent}:
 		return nil
-	case <-process.controller.done:
+	case <-p.controller.done:
 		return ErrProcessFinished
 	case <-ctx.Done():
 		return ctx.Err()
@@ -152,63 +152,63 @@ func (process *Process) RequestCancellation(ctx context.Context, reason string) 
 
 // Kill records the Engine control plane's highest-priority terminal intent.
 // It does not silently abandon an in-flight Effect; settlement finishes first.
-func (process *Process) Kill(ctx context.Context, reason string) error {
-	_, err := process.request(ctx, processCommand{kind: commandKill, reason: reason})
+func (p *Process) Kill(ctx context.Context, reason string) error {
+	_, err := p.request(ctx, processCommand{kind: commandKill, reason: reason})
 	return err
 }
 
 // ResolveEffect supplies a definite result after an Effect attempt became
 // unknown. The Engine never converts unknown into retry or success implicitly.
-func (process *Process) ResolveEffect(ctx context.Context, settlement Settlement) error {
-	_, err := process.request(ctx, processCommand{kind: commandResolveEffect, settlement: settlement})
+func (p *Process) ResolveEffect(ctx context.Context, settlement Settlement) error {
+	_, err := p.request(ctx, processCommand{kind: commandResolveEffect, settlement: settlement})
 	return err
 }
 
 // UnknownEffectIDs returns stable identities whose external outcome requires an
 // explicit ResolveEffect decision. Payloads remain owned by the Dispatcher.
-func (process *Process) UnknownEffectIDs(ctx context.Context) ([]EffectID, error) {
-	response, err := process.request(ctx, processCommand{kind: commandQueryUnknownEffectIDs})
+func (p *Process) UnknownEffectIDs(ctx context.Context) ([]EffectID, error) {
+	response, err := p.request(ctx, processCommand{kind: commandQueryUnknownEffectIDs})
 	return response.unknownEffectIDs, err
 }
 
 // Capture returns a consistent last-stable or prepared-step snapshot. Capture
 // does not imply that the caller persisted it durably.
-func (process *Process) Capture(ctx context.Context) (Snapshot, error) {
-	if process == nil || process.controller == nil {
+func (p *Process) Capture(ctx context.Context) (Snapshot, error) {
+	if p == nil || p.controller == nil {
 		return Snapshot{}, ErrProcessNotRunning
 	}
-	if snapshot, ok, err := process.controller.finishedSnapshot(); ok {
+	if snapshot, ok, err := p.controller.finishedSnapshot(); ok {
 		return snapshot, err
 	}
-	response, err := process.request(ctx, processCommand{kind: commandCapture})
+	response, err := p.request(ctx, processCommand{kind: commandCapture})
 	return response.snapshot, err
 }
 
 // Await waits for the immutable terminal result and the Engine's immediate
 // parent/child bookkeeping for that termination. Canceling ctx stops only the
 // wait; Process cancellation is explicit or follows the context passed to Start.
-func (process *Process) Await(ctx context.Context) (Result, error) {
-	if process == nil || process.controller == nil {
+func (p *Process) Await(ctx context.Context) (Result, error) {
+	if p == nil || p.controller == nil {
 		return Result{}, ErrProcessNotRunning
 	}
 	ctx = contextOrBackground(ctx)
 	select {
-	case <-process.controller.treeSettled:
-		return process.controller.terminalResult(), nil
+	case <-p.controller.treeSettled:
+		return p.controller.terminalResult(), nil
 	case <-ctx.Done():
 		return Result{}, ctx.Err()
 	}
 }
 
-func (process *Process) request(ctx context.Context, command processCommand) (processResponse, error) {
-	if process == nil || process.controller == nil {
+func (p *Process) request(ctx context.Context, command processCommand) (processResponse, error) {
+	if p == nil || p.controller == nil {
 		return processResponse{}, ErrProcessNotRunning
 	}
 	ctx = contextOrBackground(ctx)
 	command.response = make(chan processResponse, 1)
 	select {
-	case process.controller.commands <- command:
-	case <-process.controller.done:
+	case p.controller.commands <- command:
+	case <-p.controller.done:
 		return processResponse{}, ErrProcessFinished
 	case <-ctx.Done():
 		return processResponse{}, ctx.Err()
@@ -216,7 +216,7 @@ func (process *Process) request(ctx context.Context, command processCommand) (pr
 	select {
 	case response := <-command.response:
 		return response, response.err
-	case <-process.controller.done:
+	case <-p.controller.done:
 		select {
 		case response := <-command.response:
 			return response, response.err
@@ -240,33 +240,33 @@ type Result struct {
 }
 
 // ProcessID returns the completed Process identity.
-func (result Result) ProcessID() ProcessID { return result.processID }
+func (r Result) ProcessID() ProcessID { return r.processID }
 
 // StartedAt returns the lifecycle start time.
-func (result Result) StartedAt() time.Time { return result.startedAt }
+func (r Result) StartedAt() time.Time { return r.startedAt }
 
 // FinishedAt returns the committed terminal time.
-func (result Result) FinishedAt() time.Time { return result.finishedAt }
+func (r Result) FinishedAt() time.Time { return r.finishedAt }
 
 // Status returns the terminal lifecycle state.
-func (result Result) Status() Status { return result.termination.Status() }
+func (r Result) Status() Status { return r.termination.Status() }
 
 // Termination returns the stable terminal cause and optional Failure.
-func (result Result) Termination() Termination { return result.termination }
+func (r Result) Termination() Termination { return r.termination }
 
 // Usage returns the final Framework-owned resource counters.
-func (result Result) Usage() Usage { return result.usage }
+func (r Result) Usage() Usage { return r.usage }
 
 // Output returns the final semantic result only for StatusCompleted.
-func (result Result) Output() (Output, bool) { return result.output, result.output.Valid() }
+func (r Result) Output() (Output, bool) { return r.output, r.output.Valid() }
 
 // Valid reports whether the result contains one complete terminal outcome.
-func (result Result) Valid() bool {
-	if !result.processID.Valid() || result.startedAt.IsZero() || result.finishedAt.Before(result.startedAt) || !result.termination.Valid() {
+func (r Result) Valid() bool {
+	if !r.processID.Valid() || r.startedAt.IsZero() || r.finishedAt.Before(r.startedAt) || !r.termination.Valid() {
 		return false
 	}
-	return result.termination.Status() == StatusCompleted && result.output.Valid() ||
-		result.termination.Status() != StatusCompleted && !result.output.Valid()
+	return r.termination.Status() == StatusCompleted && r.output.Valid() ||
+		r.termination.Status() != StatusCompleted && !r.output.Valid()
 }
 
 type processController struct {
@@ -309,73 +309,73 @@ func newProcessController(
 }
 
 // Budget returns the fixed non-renewable allocation assigned to this Process.
-func (process *Process) Budget() Budget {
-	if process == nil || process.controller == nil {
+func (p *Process) Budget() Budget {
+	if p == nil || p.controller == nil {
 		return Budget{}
 	}
-	return process.controller.budget
+	return p.controller.budget
 }
 
 // Capabilities returns the immutable authority set assigned to this Process.
-func (process *Process) Capabilities() CapabilitySet {
-	if process == nil || process.controller == nil {
+func (p *Process) Capabilities() CapabilitySet {
+	if p == nil || p.controller == nil {
 		return CapabilitySet{}
 	}
-	return process.controller.capabilities
+	return p.controller.capabilities
 }
 
-func (controller *processController) status() Status {
-	controller.viewMu.RLock()
-	defer controller.viewMu.RUnlock()
-	return controller.viewStatus
+func (p *processController) status() Status {
+	p.viewMu.RLock()
+	defer p.viewMu.RUnlock()
+	return p.viewStatus
 }
 
-func (controller *processController) waitID() (WaitID, bool) {
-	controller.viewMu.RLock()
-	defer controller.viewMu.RUnlock()
-	return controller.viewWaitID, controller.viewStatus == StatusWaiting && controller.viewWaitID.Valid()
+func (p *processController) waitID() (WaitID, bool) {
+	p.viewMu.RLock()
+	defer p.viewMu.RUnlock()
+	return p.viewWaitID, p.viewStatus == StatusWaiting && p.viewWaitID.Valid()
 }
 
-func (controller *processController) usage() Usage {
-	controller.viewMu.RLock()
-	defer controller.viewMu.RUnlock()
-	return controller.viewUsage
+func (p *processController) usage() Usage {
+	p.viewMu.RLock()
+	defer p.viewMu.RUnlock()
+	return p.viewUsage
 }
 
-func (controller *processController) updateView(status Status, waitID WaitID, usage Usage) {
-	controller.viewMu.Lock()
-	controller.viewStatus = status
-	controller.viewWaitID = waitID
-	controller.viewUsage = usage
-	controller.viewMu.Unlock()
+func (p *processController) updateView(status Status, waitID WaitID, usage Usage) {
+	p.viewMu.Lock()
+	p.viewStatus = status
+	p.viewWaitID = waitID
+	p.viewUsage = usage
+	p.viewMu.Unlock()
 }
 
-func (controller *processController) complete(result Result, snapshot Snapshot, captureErr error) {
-	controller.viewMu.Lock()
-	controller.viewStatus = result.Status()
-	controller.viewWaitID = WaitID{}
-	controller.viewUsage = result.usage
-	controller.result = result
-	controller.terminalSnapshot = snapshot
-	controller.terminalSnapshotErr = captureErr
-	controller.viewMu.Unlock()
-	close(controller.done)
+func (p *processController) complete(result Result, snapshot Snapshot, captureErr error) {
+	p.viewMu.Lock()
+	p.viewStatus = result.Status()
+	p.viewWaitID = WaitID{}
+	p.viewUsage = result.usage
+	p.result = result
+	p.terminalSnapshot = snapshot
+	p.terminalSnapshotErr = captureErr
+	p.viewMu.Unlock()
+	close(p.done)
 }
 
-func (controller *processController) markTreeSettled() { close(controller.treeSettled) }
+func (p *processController) markTreeSettled() { close(p.treeSettled) }
 
-func (controller *processController) terminalResult() Result {
-	controller.viewMu.RLock()
-	defer controller.viewMu.RUnlock()
-	return controller.result
+func (p *processController) terminalResult() Result {
+	p.viewMu.RLock()
+	defer p.viewMu.RUnlock()
+	return p.result
 }
 
-func (controller *processController) finishedSnapshot() (Snapshot, bool, error) {
+func (p *processController) finishedSnapshot() (Snapshot, bool, error) {
 	select {
-	case <-controller.done:
-		controller.viewMu.RLock()
-		defer controller.viewMu.RUnlock()
-		return controller.terminalSnapshot, true, controller.terminalSnapshotErr
+	case <-p.done:
+		p.viewMu.RLock()
+		defer p.viewMu.RUnlock()
+		return p.terminalSnapshot, true, p.terminalSnapshotErr
 	default:
 		return Snapshot{}, false, nil
 	}
@@ -421,11 +421,11 @@ type processResponse struct {
 	err              error
 }
 
-func (command processCommand) reply(response processResponse) {
-	if command.response == nil {
+func (p processCommand) reply(response processResponse) {
+	if p.response == nil {
 		return
 	}
-	command.response <- response
+	p.response <- response
 }
 
 func contextOrBackground(ctx context.Context) context.Context {

@@ -269,11 +269,11 @@ type artifactValidationModel struct {
 	calls int
 }
 
-func (model *artifactValidationModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	switch model.calls {
+func (a *artifactValidationModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.calls++
+	switch a.calls {
 	case 1:
 		return toolCallResponse(chat.ToolCall{
 			ID: "call_artifact", Name: "delegate_artifact", Arguments: `{"value":"evidence"}`,
@@ -292,10 +292,10 @@ func (model *artifactValidationModel) Call(_ context.Context, request *chat.Requ
 	}
 }
 
-func (model *artifactValidationModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (a *artifactValidationModel) Calls() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.calls
 }
 
 type directCompletionValidationModel struct {
@@ -303,11 +303,11 @@ type directCompletionValidationModel struct {
 	calls int
 }
 
-func (model *directCompletionValidationModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	if model.calls == 1 {
+func (d *directCompletionValidationModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.calls++
+	if d.calls == 1 {
 		return toolCallResponse(chat.ToolCall{
 			ID: "call_direct_validation", Name: "direct_echo", Arguments: `{"value":"direct"}`,
 		}), nil
@@ -320,8 +320,8 @@ func (model *directCompletionValidationModel) Call(_ context.Context, request *c
 	return textResponse("direct, explained"), nil
 }
 
-func (model *directCompletionValidationModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (d *directCompletionValidationModel) Calls() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.calls
 }
