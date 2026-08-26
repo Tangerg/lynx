@@ -22,9 +22,9 @@ type recordingRunCatalog struct {
 	queries []agent.RunQuery
 }
 
-func (runtime *recordingRunCatalog) ListRuns(ctx context.Context, query agent.RunQuery) (agent.RunPage, error) {
-	runtime.queries = append(runtime.queries, query)
-	return runtime.Runtime.ListRuns(ctx, query)
+func (r *recordingRunCatalog) ListRuns(ctx context.Context, query agent.RunQuery) (agent.RunPage, error) {
+	r.queries = append(r.queries, query)
+	return r.Runtime.ListRuns(ctx, query)
 }
 
 func TestRunsListConsumesFiltersAndStableJSON(t *testing.T) {
@@ -212,25 +212,25 @@ type uncertainRunCancellationRuntime struct {
 	attempts []agent.CancelRun
 }
 
-func (runtime *uncertainRunCancellationRuntime) CancelRun(ctx context.Context, request agent.CancelRun) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.attempts = append(runtime.attempts, request)
-	attempt := len(runtime.attempts)
-	runtime.mu.Unlock()
+func (u *uncertainRunCancellationRuntime) CancelRun(ctx context.Context, request agent.CancelRun) (agent.RunCancellation, error) {
+	u.mu.Lock()
+	u.attempts = append(u.attempts, request)
+	attempt := len(u.attempts)
+	u.mu.Unlock()
 	if attempt == 1 {
 		return agent.RunCancellation{}, fmt.Errorf("cancellation acknowledgement timed out: %w", context.DeadlineExceeded)
 	}
-	return runtime.Runtime.CancelRun(ctx, request)
+	return u.Runtime.CancelRun(ctx, request)
 }
 
-func (runtime *uncertainRunCancellationRuntime) cancelAttempts() []agent.CancelRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return append([]agent.CancelRun(nil), runtime.attempts...)
+func (u *uncertainRunCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return append([]agent.CancelRun(nil), u.attempts...)
 }
 
-func (runtime childCancellationRuntime) CancelRun(context.Context, agent.CancelRun) (agent.RunCancellation, error) {
-	return runtime.result, nil
+func (c childCancellationRuntime) CancelRun(context.Context, agent.CancelRun) (agent.RunCancellation, error) {
+	return c.result, nil
 }
 
 func TestRunsCancelPreservesSurvivingRootStateForAChild(t *testing.T) {

@@ -14,21 +14,21 @@ import (
 // unknown-effect state returns false; assembly/probe I/O failures remain errors
 // so startup never mutates facts after an inconclusive read. It deliberately
 // executes the same restoration and product-member rebinding used by resume.
-func (executor *InteractionExecutor) CanResumeWaitingExecution(
+func (i *InteractionExecutor) CanResumeWaitingExecution(
 	ctx context.Context,
 	continuation runs.WaitingContinuation,
 ) (bool, error) {
-	if executor == nil {
+	if i == nil {
 		return false, errors.New("agentexec: Interaction executor is nil")
 	}
 	if err := continuation.Validate(); err != nil {
 		return false, nil
 	}
 	checkpoint := continuation.Checkpoint
-	if checkpoint.BuildID != executor.config.BuildID || checkpoint.Scope.Isolated {
+	if checkpoint.BuildID != i.config.BuildID || checkpoint.Scope.Isolated {
 		return false, nil
 	}
-	if err := executor.validateRestoreScope(ctx, checkpoint.Scope); err != nil {
+	if err := i.validateRestoreScope(ctx, checkpoint.Scope); err != nil {
 		return false, nil
 	}
 	state, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
@@ -57,7 +57,7 @@ func (executor *InteractionExecutor) CanResumeWaitingExecution(
 		WorkingContext:           cloneChatMessages(state.instructions),
 	}
 	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: continuation.ExecutorID}
-	assembled, err := executor.assembleInteraction(ctx, ref, start)
+	assembled, err := i.assembleInteraction(ctx, ref, start)
 	if err != nil {
 		return false, fmt.Errorf("agentexec: assemble Interaction checkpoint probe: %w", err)
 	}

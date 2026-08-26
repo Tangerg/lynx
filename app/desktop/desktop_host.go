@@ -84,20 +84,20 @@ func newDesktopHost(home string) *DesktopHost {
 
 // useWindow names the window whose chrome `WindowChrome` measures. Unexported on
 // purpose: see the note on DesktopHost.
-func (h *DesktopHost) useWindow(window nativeWindow) {
-	h.window = window
+func (d *DesktopHost) useWindow(window nativeWindow) {
+	d.window = window
 }
 
 // useWorkingDirectoryPicker attaches the packaged application's native directory
 // chooser. Unexported on purpose: see the note on DesktopHost.
-func (h *DesktopHost) useWorkingDirectoryPicker(picker workingDirectoryPicker) {
-	h.workingDirectoryPicker = picker
+func (d *DesktopHost) useWorkingDirectoryPicker(picker workingDirectoryPicker) {
+	d.workingDirectoryPicker = picker
 }
 
 // useImageSaver attaches the packaged application's native image-save capability.
 // Unexported on purpose: see the note on DesktopHost.
-func (h *DesktopHost) useImageSaver(saver imageSaver) {
-	h.imageSaver = saver
+func (d *DesktopHost) useImageSaver(saver imageSaver) {
+	d.imageSaver = saver
 }
 
 func defaultDesktopHost() (*DesktopHost, error) {
@@ -115,11 +115,11 @@ func defaultDesktopHost() (*DesktopHost, error) {
 // Read on demand rather than cached: the titlebar is rebuilt on the way into and
 // out of fullscreen, and the controls go away entirely while fullscreen, so the
 // answer has a shelf life of one layout.
-func (h *DesktopHost) WindowChrome() WindowChrome {
-	if h.window == nil {
+func (d *DesktopHost) WindowChrome() WindowChrome {
+	if d.window == nil {
 		return WindowChrome{}
 	}
-	controlsCentreY, controlsInlineEnd, measured := nativeWindowChrome(h.window.NativeWindow())
+	controlsCentreY, controlsInlineEnd, measured := nativeWindowChrome(d.window.NativeWindow())
 	if !measured {
 		return WindowChrome{}
 	}
@@ -133,11 +133,11 @@ func (h *DesktopHost) WindowChrome() WindowChrome {
 // ChooseWorkingDirectory opens the platform directory picker and returns one
 // absolute, existing directory. An empty string is the explicit cancellation
 // result; it is not rewritten to the process working directory.
-func (h *DesktopHost) ChooseWorkingDirectory() (string, error) {
-	if h.workingDirectoryPicker == nil {
+func (d *DesktopHost) ChooseWorkingDirectory() (string, error) {
+	if d.workingDirectoryPicker == nil {
 		return "", errors.New("desktop host: working directory picker is not configured")
 	}
-	selected, err := h.workingDirectoryPicker.ChooseWorkingDirectory()
+	selected, err := d.workingDirectoryPicker.ChooseWorkingDirectory()
 	if err != nil {
 		return "", fmt.Errorf("desktop host: choose working directory: %w", err)
 	}
@@ -160,15 +160,15 @@ func (h *DesktopHost) ChooseWorkingDirectory() (string, error) {
 
 // SaveImage validates and decodes one inline image before handing it to the native
 // save owner. The bool distinguishes a completed write from user cancellation.
-func (h *DesktopHost) SaveImage(source string) (bool, error) {
-	if h.imageSaver == nil {
+func (d *DesktopHost) SaveImage(source string) (bool, error) {
+	if d.imageSaver == nil {
 		return false, errors.New("desktop host: image saver is not configured")
 	}
 	extension, contents, err := decodeInlineImage(source)
 	if err != nil {
 		return false, fmt.Errorf("desktop host: save image: %w", err)
 	}
-	saved, err := h.imageSaver.SaveImage(suggestedImageFilename(extension), contents)
+	saved, err := d.imageSaver.SaveImage(suggestedImageFilename(extension), contents)
 	if err != nil {
 		return false, fmt.Errorf("desktop host: save image: %w", err)
 	}
@@ -177,8 +177,8 @@ func (h *DesktopHost) SaveImage(source string) (bool, error) {
 
 // Bootstrap returns the local runtime connection the frontend needs before it
 // starts the application.
-func (h *DesktopHost) Bootstrap() (DesktopBootstrap, error) {
-	token, err := h.localToken()
+func (d *DesktopHost) Bootstrap() (DesktopBootstrap, error) {
+	token, err := d.localToken()
 	if err != nil {
 		return DesktopBootstrap{}, err
 	}
@@ -187,8 +187,8 @@ func (h *DesktopHost) Bootstrap() (DesktopBootstrap, error) {
 	}, nil
 }
 
-func (h *DesktopHost) localToken() (string, error) {
-	token, err := localruntime.ReadToken(h.localTokenPath)
+func (d *DesktopHost) localToken() (string, error) {
+	token, err := localruntime.ReadToken(d.localTokenPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}

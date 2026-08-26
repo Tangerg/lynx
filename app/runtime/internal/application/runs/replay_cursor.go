@@ -22,8 +22,8 @@ type replayPosition struct {
 	sequence  uint64
 }
 
-func (p replayPosition) valid() bool {
-	return p.epoch != "" && p.runID != "" && p.segmentID != "" && p.sequence > 0
+func (r replayPosition) valid() bool {
+	return r.epoch != "" && r.runID != "" && r.segmentID != "" && r.sequence > 0
 }
 
 // encodedReplayPosition is the versioned token payload. The compact field names

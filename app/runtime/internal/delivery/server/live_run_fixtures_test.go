@@ -64,8 +64,8 @@ func (*blockingRunRuntime) BeginRoot(context.Context, runs.ExecutorRef) error { 
 // these tests are about the live stream — but the Run record cannot be: addressing
 // a live segment resolves through the durable projection, so a run that exists only
 // in the process registry is a run nothing can subscribe to.
-func (r *blockingRunRuntime) RunSegmentEffects() *runsegment.Effects {
-	return r.stubRuntime.RunSegmentEffects()
+func (b *blockingRunRuntime) RunSegmentEffects() *runsegment.Effects {
+	return b.stubRuntime.RunSegmentEffects()
 }
 
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the

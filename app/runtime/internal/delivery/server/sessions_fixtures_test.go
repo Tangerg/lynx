@@ -303,8 +303,8 @@ func (s stubRuntime) conversationReader() runs.ConversationReader {
 
 type stubConversationReader struct{ runtime stubRuntime }
 
-func (reader stubConversationReader) Read(ctx context.Context, id string) ([]chat.Message, error) {
-	return reader.runtime.ReadHistory(ctx, id)
+func (s stubConversationReader) Read(ctx context.Context, id string) ([]chat.Message, error) {
+	return s.runtime.ReadHistory(ctx, id)
 }
 
 func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
@@ -556,8 +556,8 @@ type stubExecutionReleaser struct {
 	rt *stubRuntime
 }
 
-func (t stubExecutionReleaser) Release(ctx context.Context, ref runs.ExecutorRef) error {
-	return t.rt.Release(ctx, runs.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
+func (s stubExecutionReleaser) Release(ctx context.Context, ref runs.ExecutorRef) error {
+	return s.rt.Release(ctx, runs.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
 }
 
 type stubLifecycleStores struct {

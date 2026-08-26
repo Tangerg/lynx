@@ -24,23 +24,23 @@ type completionGate struct {
 	active     bool
 }
 
-func (gate *completionGate) Allow(query completionQuery) bool {
-	if !gate.active {
+func (c *completionGate) Allow(query completionQuery) bool {
+	if !c.active {
 		return true
 	}
-	if gate.suppressed == query {
+	if c.suppressed == query {
 		return false
 	}
-	gate.Reset()
+	c.Reset()
 	return true
 }
 
-func (gate *completionGate) Suppress(query completionQuery) {
-	gate.suppressed, gate.active = query, true
+func (c *completionGate) Suppress(query completionQuery) {
+	c.suppressed, c.active = query, true
 }
 
-func (gate *completionGate) Reset() {
-	gate.suppressed, gate.active = completionQuery{}, false
+func (c *completionGate) Reset() {
+	c.suppressed, c.active = completionQuery{}, false
 }
 
 func (a *app) refreshCompletion() {

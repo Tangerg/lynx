@@ -48,33 +48,33 @@ type Draft struct {
 }
 
 // Validate checks the complete fresh Run value before it enters the lifecycle.
-func (draft Draft) Validate() error {
+func (d Draft) Validate() error {
 	switch {
-	case strings.TrimSpace(draft.RunID) == "" || draft.RunID != strings.TrimSpace(draft.RunID):
+	case strings.TrimSpace(d.RunID) == "" || d.RunID != strings.TrimSpace(d.RunID):
 		return errors.New("run: Run ID is required without surrounding whitespace")
-	case strings.TrimSpace(draft.SessionID) == "" || draft.SessionID != strings.TrimSpace(draft.SessionID):
+	case strings.TrimSpace(d.SessionID) == "" || d.SessionID != strings.TrimSpace(d.SessionID):
 		return errors.New("run: Session ID is required without surrounding whitespace")
-	case strings.TrimSpace(draft.SegmentID) == "" || draft.SegmentID != strings.TrimSpace(draft.SegmentID):
+	case strings.TrimSpace(d.SegmentID) == "" || d.SegmentID != strings.TrimSpace(d.SegmentID):
 		return errors.New("run: opening Segment ID is required without surrounding whitespace")
-	case draft.CreatedAt.IsZero():
+	case d.CreatedAt.IsZero():
 		return errors.New("run: admission time is required")
-	case draft.GoalIncarnationID != strings.TrimSpace(draft.GoalIncarnationID):
+	case d.GoalIncarnationID != strings.TrimSpace(d.GoalIncarnationID):
 		return errors.New("run: Goal incarnation ID has surrounding whitespace")
 	}
-	lineage := draft.Lineage()
-	if err := lineage.Validate(draft.RunID); err != nil {
+	lineage := d.Lineage()
+	if err := lineage.Validate(d.RunID); err != nil {
 		return err
 	}
-	if err := draft.ModelSelection.Validate(); err != nil {
+	if err := d.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("run: model selection: %w", err)
 	}
-	if err := draft.Limits.Validate(); err != nil {
+	if err := d.Limits.Validate(); err != nil {
 		return err
 	}
-	if err := draft.Capabilities.Validate(); err != nil {
+	if err := d.Capabilities.Validate(); err != nil {
 		return err
 	}
-	if lineage.IsChild() && draft.GoalIncarnationID != "" {
+	if lineage.IsChild() && d.GoalIncarnationID != "" {
 		return errors.New("run: child carries a root Goal incarnation")
 	}
 	return nil
@@ -82,10 +82,10 @@ func (draft Draft) Validate() error {
 
 // Lineage returns the draft's immutable root/child identity as one value for
 // validation and tree routing.
-func (draft Draft) Lineage() Lineage {
+func (d Draft) Lineage() Lineage {
 	return Lineage{
-		SpawnedByItemID: draft.SpawnedByItemID,
-		ParentRunID:     draft.ParentRunID,
-		RootRunID:       draft.RootRunID,
+		SpawnedByItemID: d.SpawnedByItemID,
+		ParentRunID:     d.ParentRunID,
+		RootRunID:       d.RootRunID,
 	}
 }

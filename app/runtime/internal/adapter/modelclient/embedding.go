@@ -31,12 +31,12 @@ func NewEmbeddingResolver(providers CredentialLookup) *EmbeddingResolver {
 }
 
 // Resolve builds (or returns a cached) embedder for selection.
-func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (agentmemoryapp.Embedder, error) {
+func (e *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (agentmemoryapp.Embedder, error) {
 	if !selection.Configured() {
 		return nil, errors.New("modelclient: explicit model selection is required")
 	}
 	providerID, model := selection.Provider(), selection.Model()
-	entry, ok, err := r.providers.Get(ctx, providerID)
+	entry, ok, err := e.providers.Get(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,10 +44,10 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Sele
 		return nil, fmt.Errorf("modelclient: provider %q is not configured (set its API key first)", providerID)
 	}
 	key := providerID + "\x00" + model + "\x00" + entry.APIKey + "\x00" + entry.BaseURL
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if e, ok := r.cache[key]; ok {
-		return e, nil
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if cached, ok := e.cache[key]; ok {
+		return cached, nil
 	}
 	m, err := llm.BuildEmbeddingModel(llm.ClientSpec{
 		Provider: llm.Provider(providerID),
@@ -62,9 +62,9 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Sele
 	if err != nil {
 		return nil, err
 	}
-	e := &embedder{id: embeddingSpaceID(providerID, model, entry.BaseURL), client: client}
-	r.cache[key] = e
-	return e, nil
+	created := &embedder{id: embeddingSpaceID(providerID, model, entry.BaseURL), client: client}
+	e.cache[key] = created
+	return created, nil
 }
 
 // embeddingSpaceID fingerprints every non-secret client input that can select
@@ -79,12 +79,12 @@ func embeddingSpaceID(providerID, model, baseURL string) string {
 
 // ValidateEmbeddingModel implements the application role-validation port while
 // keeping the usable embedder inside the adapter that owns it.
-func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, providerID, model string) error {
+func (e *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, providerID, model string) error {
 	selection, err := modelref.New(providerID, model)
 	if err != nil {
 		return err
 	}
-	_, err = r.Resolve(ctx, selection)
+	_, err = e.Resolve(ctx, selection)
 	return err
 }
 

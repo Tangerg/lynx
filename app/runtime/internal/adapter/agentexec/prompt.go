@@ -62,7 +62,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // Memory and Plan remain best-effort enrichment. An existing Agent document is
 // authoritative authored input: invalid or individually unprojectable material
 // fails construction instead of silently deleting instructions.
-func (composer *WorkingContextComposer) composeSystemMessage(
+func (w *WorkingContextComposer) composeSystemMessage(
 	ctx context.Context,
 	sessionID string,
 	cwd string,
@@ -74,9 +74,9 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 	)
 
 	var knowledgeEntries []knowledge.Entry
-	if composer.config.Knowledge != nil {
+	if w.config.Knowledge != nil {
 		var err error
-		knowledgeEntries, err = composer.config.Knowledge.Entries(ctx, cwd)
+		knowledgeEntries, err = w.config.Knowledge.Entries(ctx, cwd)
 		if err != nil {
 			return corechat.Message{}, fmt.Errorf("agentexec: load knowledge cascade: %w", err)
 		}
@@ -93,16 +93,16 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 		}
 	}
 
-	if composer.config.AgentMemory != nil {
+	if w.config.AgentMemory != nil {
 		// The always-on core is the PINNED items (project + user scope). Non-pinned
 		// approved memory is surfaced per turn by relevance (the recall block), so a
 		// growing corpus never bloats every prompt.
 		var pinned []agentmemory.Item
 		if project := strings.TrimSpace(cwd); project != "" {
-			items, _ := composer.config.AgentMemory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
+			items, _ := w.config.AgentMemory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
 			pinned = appendPinned(pinned, items)
 		}
-		userItems, _ := composer.config.AgentMemory.Items(ctx, agentmemory.ScopeUser, "")
+		userItems, _ := w.config.AgentMemory.Items(ctx, agentmemory.ScopeUser, "")
 		pinned = appendPinned(pinned, userItems)
 		newPinnedMemoryPrompt(pinned, agentMemoryInjectBudget).appendTo(&prompt)
 	}
@@ -131,7 +131,7 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 	// incomplete instructions. User Home is injected rather than rediscovered
 	// inside every prompt assembly.
 	if dir := strings.TrimSpace(cwd); dir != "" {
-		files, err := promptsource.DiscoverAgentDocs(ctx, dir, composer.config.UserHome)
+		files, err := promptsource.DiscoverAgentDocs(ctx, dir, w.config.UserHome)
 		if err != nil {
 			return corechat.Message{}, fmt.Errorf("agentexec: load agent documents: %w", err)
 		}
@@ -142,21 +142,21 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 		documents.appendTo(&prompt)
 	}
 
-	composer.appendSessionPlan(ctx, &prompt, sessionID)
+	w.appendSessionPlan(ctx, &prompt, sessionID)
 	return prompt.systemMessage()
 }
 
 // appendSessionPlan appends the turn's Plan when the configured reader has
 // steps for the Session. Plan context is informative and remains best-effort.
-func (composer *WorkingContextComposer) appendSessionPlan(
+func (w *WorkingContextComposer) appendSessionPlan(
 	ctx context.Context,
 	prompt *promptComposition,
 	sessionID string,
 ) {
-	if composer.config.Plan == nil || sessionID == "" {
+	if w.config.Plan == nil || sessionID == "" {
 		return
 	}
-	steps, err := composer.config.Plan.List(ctx, sessionID)
+	steps, err := w.config.Plan.List(ctx, sessionID)
 	if err != nil || len(steps) == 0 {
 		return
 	}

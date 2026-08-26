@@ -22,15 +22,15 @@ type diagnosticToolServiceStub struct {
 	invoked chan diagnostictool.Invocation
 }
 
-func (service *diagnosticToolServiceStub) Tools(context.Context) ([]diagnostictool.Descriptor, error) {
+func (d *diagnosticToolServiceStub) Tools(context.Context) ([]diagnostictool.Descriptor, error) {
 	return []diagnostictool.Descriptor{{
 		Name: "inspect.cache", Description: "inspect cache ownership", Safety: diagnostictool.Safe,
 		Schema: json.RawMessage(`{"type":"object","properties":{"depth":{"type":"number"}}}`),
 	}}, nil
 }
 
-func (service *diagnosticToolServiceStub) Invoke(_ context.Context, invocation diagnostictool.Invocation) (diagnostictool.Result, error) {
-	service.invoked <- invocation
+func (d *diagnosticToolServiceStub) Invoke(_ context.Context, invocation diagnostictool.Invocation) (diagnostictool.Result, error) {
+	d.invoked <- invocation
 	return diagnostictool.Result{JSON: json.RawMessage(`{"entries":2,"healthy":true}`)}, nil
 }
 
@@ -131,33 +131,33 @@ type blockingHookTrustService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingHookTrustService) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
-	service.started <- trusted
+func (b *blockingHookTrustService) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
+	b.started <- trusted
 	select {
-	case <-service.release:
-		return service.Service.SetProjectTrust(ctx, projectRoot, trusted)
+	case <-b.release:
+		return b.Service.SetProjectTrust(ctx, projectRoot, trusted)
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return context.Cause(ctx)
 	}
 }
 
-func (service *hookServiceStub) Catalog(context.Context, string) (hookpolicy.Catalog, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return hookpolicy.Catalog{ProjectRoot: "/workspace", ProjectTrusted: service.trusted, Hooks: []hookpolicy.Hook{{
+func (h *hookServiceStub) Catalog(context.Context, string) (hookpolicy.Catalog, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return hookpolicy.Catalog{ProjectRoot: "/workspace", ProjectTrusted: h.trusted, Hooks: []hookpolicy.Hook{{
 		Event: hookpolicy.PreToolUse, Matcher: "shell*", Command: "./check.sh", Scope: hookpolicy.Project,
-		Source: "/workspace/.lyra/hooks.json", Active: service.trusted,
+		Source: "/workspace/.lyra/hooks.json", Active: h.trusted,
 	}}}, nil
 }
 
-func (service *hookServiceStub) SetProjectTrust(_ context.Context, _ string, trusted bool) error {
-	service.mu.Lock()
-	if !service.ignoreTrust {
-		service.trusted = trusted
+func (h *hookServiceStub) SetProjectTrust(_ context.Context, _ string, trusted bool) error {
+	h.mu.Lock()
+	if !h.ignoreTrust {
+		h.trusted = trusted
 	}
-	service.mu.Unlock()
-	service.changed <- trusted
+	h.mu.Unlock()
+	h.changed <- trusted
 	return nil
 }
 
@@ -291,19 +291,19 @@ type blockingFeedbackService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingFeedbackService) Record(ctx context.Context, signal feedback.Signal) error {
-	service.started <- signal
+func (b *blockingFeedbackService) Record(ctx context.Context, signal feedback.Signal) error {
+	b.started <- signal
 	select {
-	case <-service.release:
-		return service.Service.Record(ctx, signal)
+	case <-b.release:
+		return b.Service.Record(ctx, signal)
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return context.Cause(ctx)
 	}
 }
 
-func (service *feedbackServiceStub) Record(_ context.Context, signal feedback.Signal) error {
-	service.recorded <- signal
+func (f *feedbackServiceStub) Record(_ context.Context, signal feedback.Signal) error {
+	f.recorded <- signal
 	return nil
 }
 

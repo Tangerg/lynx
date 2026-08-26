@@ -49,14 +49,14 @@ type gitCommandError struct {
 	diagnostic string
 }
 
-func (err *gitCommandError) Error() string {
-	if err.diagnostic == "" {
-		return fmt.Sprintf("checkpoint: git %s: exit code %d", err.operation, err.exitCode)
+func (g *gitCommandError) Error() string {
+	if g.diagnostic == "" {
+		return fmt.Sprintf("checkpoint: git %s: exit code %d", g.operation, g.exitCode)
 	}
-	return fmt.Sprintf("checkpoint: git %s: %s: exit code %d", err.operation, err.diagnostic, err.exitCode)
+	return fmt.Sprintf("checkpoint: git %s: %s: exit code %d", g.operation, g.diagnostic, g.exitCode)
 }
 
-func (err *gitCommandError) ExitCode() int { return err.exitCode }
+func (g *gitCommandError) ExitCode() int { return g.exitCode }
 
 func gitExitCode(err error) int {
 	var exited interface{ ExitCode() int }

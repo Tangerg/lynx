@@ -13,9 +13,9 @@ type Backoff struct {
 	Maximum time.Duration
 }
 
-func (backoff Backoff) Delay(failure int) time.Duration {
-	base := max(backoff.Base, 0)
-	maximum := max(backoff.Maximum, base)
+func (b Backoff) Delay(failure int) time.Duration {
+	base := max(b.Base, 0)
+	maximum := max(b.Maximum, base)
 	delay := base
 	for range max(failure-1, 0) {
 		if delay >= maximum/2 {

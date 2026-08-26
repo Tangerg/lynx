@@ -32,27 +32,27 @@ const (
 	testSessionModel    = "balanced"
 )
 
-func (stub sessionCatalogStub) ListSessions(_ context.Context, query protocol.PageQuery, _ embedded.CallOptions) (*protocol.Page[protocol.Session], error) {
-	return stub.pages[query.Cursor], nil
+func (s sessionCatalogStub) ListSessions(_ context.Context, query protocol.PageQuery, _ embedded.CallOptions) (*protocol.Page[protocol.Session], error) {
+	return s.pages[query.Cursor], nil
 }
 
-func (stub sessionCatalogStub) CreateSession(_ context.Context, request protocol.CreateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
-	if stub.create != nil {
-		return stub.create(request)
+func (s sessionCatalogStub) CreateSession(_ context.Context, request protocol.CreateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if s.create != nil {
+		return s.create(request)
 	}
 	return nil, errors.New("unexpected CreateSession")
 }
 
-func (stub sessionCatalogStub) UpdateSession(_ context.Context, request protocol.UpdateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
-	if stub.update != nil {
-		return stub.update(request)
+func (s sessionCatalogStub) UpdateSession(_ context.Context, request protocol.UpdateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if s.update != nil {
+		return s.update(request)
 	}
 	return nil, errors.New("unexpected UpdateSession")
 }
 
-func (stub sessionCatalogStub) ForkSession(_ context.Context, request protocol.ForkSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
-	if stub.fork != nil {
-		return stub.fork(request)
+func (s sessionCatalogStub) ForkSession(_ context.Context, request protocol.ForkSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if s.fork != nil {
+		return s.fork(request)
 	}
 	return nil, errors.New("unexpected ForkSession")
 }
@@ -335,9 +335,9 @@ func TestProjectSessionRejectsIncompleteWorkspaceIdentity(t *testing.T) {
 	}
 }
 
-func (stub sessionCatalogStub) DeleteSession(_ context.Context, request protocol.DeleteSessionRequest, options embedded.CommandOptions) error {
-	if stub.delete != nil {
-		return stub.delete(request, options)
+func (s sessionCatalogStub) DeleteSession(_ context.Context, request protocol.DeleteSessionRequest, options embedded.CommandOptions) error {
+	if s.delete != nil {
+		return s.delete(request, options)
 	}
 	return errors.New("unexpected DeleteSession")
 }

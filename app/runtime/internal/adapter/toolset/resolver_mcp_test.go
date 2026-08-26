@@ -16,15 +16,15 @@ type mcpToolStub struct {
 	remote string
 }
 
-func (t mcpToolStub) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: t.name}
+func (m mcpToolStub) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: m.name}
 }
 
 func (mcpToolStub) Call(context.Context, string) (string, error) {
 	return "", nil
 }
 
-func (t mcpToolStub) MCPToolIdentity() (string, string) { return t.server, t.remote }
+func (m mcpToolStub) MCPToolIdentity() (string, string) { return m.server, m.remote }
 
 func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 	disabled := map[mcpserver.ToolRef]bool{}

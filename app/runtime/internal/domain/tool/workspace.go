@@ -19,10 +19,10 @@ const (
 	FileMutationUnknown          FileMutationScope = "unknown"
 )
 
-// Valid reports whether scope is one supported filesystem mutation relation.
-func (scope FileMutationScope) Valid() bool {
-	return scope == FileMutationNone || scope == FileMutationWithinWorkspace ||
-		scope == FileMutationOutsideWorkspace || scope == FileMutationUnknown
+// Valid reports whether f is one supported filesystem mutation relation.
+func (f FileMutationScope) Valid() bool {
+	return f == FileMutationNone || f == FileMutationWithinWorkspace ||
+		f == FileMutationOutsideWorkspace || f == FileMutationUnknown
 }
 
 // BypassImmunity identifies a call that must still be confirmed under an
@@ -36,10 +36,10 @@ const (
 	BypassImmuneCatastrophicCommand BypassImmunity = "catastrophicCommand"
 )
 
-// Valid reports whether immunity is one supported auto-approval exception.
-func (immunity BypassImmunity) Valid() bool {
-	return immunity == BypassAllowed || immunity == BypassImmuneOutsideWorkspace ||
-		immunity == BypassImmuneUnknownMutation || immunity == BypassImmuneCatastrophicCommand
+// Valid reports whether b is one supported auto-approval exception.
+func (b BypassImmunity) Valid() bool {
+	return b == BypassAllowed || b == BypassImmuneOutsideWorkspace ||
+		b == BypassImmuneUnknownMutation || b == BypassImmuneCatastrophicCommand
 }
 
 // BypassImmunityFor reports whether a tool call is dangerous enough to confirm

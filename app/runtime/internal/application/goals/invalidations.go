@@ -35,22 +35,22 @@ type notifyingStore struct {
 	invalidations invalidation.Publish
 }
 
-func (s notifyingStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
-	saved, applied, err := s.Store.Save(ctx, g, expected)
+func (n notifyingStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
+	saved, applied, err := n.Store.Save(ctx, g, expected)
 	if err == nil && applied {
-		s.publish(g.SessionID)
+		n.publish(g.SessionID)
 	}
 	return saved, applied, err
 }
 
-func (s notifyingStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
-	applied, err := s.Store.ClearIf(ctx, sessionID, expected)
+func (n notifyingStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
+	applied, err := n.Store.ClearIf(ctx, sessionID, expected)
 	if err == nil && applied {
-		s.publish(sessionID)
+		n.publish(sessionID)
 	}
 	return applied, err
 }
 
-func (s notifyingStore) publish(sessionID string) {
-	s.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
+func (n notifyingStore) publish(sessionID string) {
+	n.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
 }

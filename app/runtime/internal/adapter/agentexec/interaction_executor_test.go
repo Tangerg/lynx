@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 const interactionTestBuildID = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -89,11 +89,11 @@ func TestInteractionExecutorResolvesDefaultThroughResolverWithoutImplicitSelecti
 
 type interactionChatResolverFunc func(context.Context, modelref.Selection) (*chatclient.Client, error)
 
-func (resolve interactionChatResolverFunc) ResolveChat(
+func (i interactionChatResolverFunc) ResolveChat(
 	ctx context.Context,
 	selection modelref.Selection,
 ) (*chatclient.Client, error) {
-	return resolve(ctx, selection)
+	return i(ctx, selection)
 }
 
 func TestInteractionExecutorRunsRootFromCompleteWorkingContext(t *testing.T) {

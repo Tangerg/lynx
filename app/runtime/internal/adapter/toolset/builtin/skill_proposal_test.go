@@ -17,10 +17,10 @@ type recordingSubmitter struct {
 	calls    int
 }
 
-func (s *recordingSubmitter) SubmitProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
-	s.calls++
-	s.cwd = cwd
-	s.proposal = proposal
+func (r *recordingSubmitter) SubmitProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	r.calls++
+	r.cwd = cwd
+	r.proposal = proposal
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 

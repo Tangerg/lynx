@@ -227,11 +227,11 @@ type appendThenFail struct {
 	err   error
 }
 
-func (store appendThenFail) AppendItem(ctx context.Context, item transcript.Item) error {
-	if err := store.store.AppendItem(ctx, item); err != nil {
+func (a appendThenFail) AppendItem(ctx context.Context, item transcript.Item) error {
+	if err := a.store.AppendItem(ctx, item); err != nil {
 		return err
 	}
-	return store.err
+	return a.err
 }
 
 func requireChildOpeningSQLiteHealthy(t *testing.T, ctx context.Context, db *sql.DB) {

@@ -47,74 +47,74 @@ type recoveryStoreStub struct {
 	checkpointErr error
 }
 
-func (store *recoveryStoreStub) ListNonTerminalRuns(context.Context) ([]rundomain.Run, error) {
-	return append([]rundomain.Run(nil), store.runs...), nil
+func (r *recoveryStoreStub) ListNonTerminalRuns(context.Context) ([]rundomain.Run, error) {
+	return append([]rundomain.Run(nil), r.runs...), nil
 }
 
-func (store *recoveryStoreStub) ListPendingInterrupts(context.Context) ([]Pending, error) {
-	return append([]Pending(nil), store.pending...), nil
+func (r *recoveryStoreStub) ListPendingInterrupts(context.Context) ([]Pending, error) {
+	return append([]Pending(nil), r.pending...), nil
 }
 
-func (store *recoveryStoreStub) ListOpenModelInvocations(context.Context) ([]OpenModelInvocation, error) {
-	return append([]OpenModelInvocation(nil), store.models...), nil
+func (r *recoveryStoreStub) ListOpenModelInvocations(context.Context) ([]OpenModelInvocation, error) {
+	return append([]OpenModelInvocation(nil), r.models...), nil
 }
 
-func (store *recoveryStoreStub) ListOpenToolInvocations(context.Context) ([]OpenToolInvocation, error) {
-	return append([]OpenToolInvocation(nil), store.tools...), nil
+func (r *recoveryStoreStub) ListOpenToolInvocations(context.Context) ([]OpenToolInvocation, error) {
+	return append([]OpenToolInvocation(nil), r.tools...), nil
 }
 
-func (store *recoveryStoreStub) SessionByID(_ context.Context, sessionID string) (session.Session, error) {
-	if sess, ok := store.sessions[sessionID]; ok {
+func (r *recoveryStoreStub) SessionByID(_ context.Context, sessionID string) (session.Session, error) {
+	if sess, ok := r.sessions[sessionID]; ok {
 		return sess, nil
 	}
 	return sessionfixture.MustRestore(session.Snapshot{ID: sessionID, Workspace: sessionfixture.MustWorkspace("/workspace")}), nil
 }
 
-func (store *recoveryStoreStub) ListTranscript(_ context.Context, sessionID string) ([]transcript.Item, error) {
-	return append([]transcript.Item(nil), store.transcripts[sessionID]...), nil
+func (r *recoveryStoreStub) ListTranscript(_ context.Context, sessionID string) ([]transcript.Item, error) {
+	return append([]transcript.Item(nil), r.transcripts[sessionID]...), nil
 }
 
-func (store *recoveryStoreStub) CountMessages(_ context.Context, sessionID string) (int, error) {
-	if _, explicit := store.messageMarks[sessionID]; !explicit {
-		return len(store.messages[sessionID]), nil
+func (r *recoveryStoreStub) CountMessages(_ context.Context, sessionID string) (int, error) {
+	if _, explicit := r.messageMarks[sessionID]; !explicit {
+		return len(r.messages[sessionID]), nil
 	}
-	return store.messageMarks[sessionID], nil
+	return r.messageMarks[sessionID], nil
 }
 
-func (store *recoveryStoreStub) ReadMessages(
+func (r *recoveryStoreStub) ReadMessages(
 	_ context.Context,
 	sessionID string,
 ) ([]corechat.Message, error) {
-	if messages, explicit := store.messages[sessionID]; explicit {
+	if messages, explicit := r.messages[sessionID]; explicit {
 		cloned := make([]corechat.Message, len(messages))
 		for index, message := range messages {
 			cloned[index] = message.Clone()
 		}
 		return cloned, nil
 	}
-	messages := make([]corechat.Message, store.messageMarks[sessionID])
+	messages := make([]corechat.Message, r.messageMarks[sessionID])
 	for index := range messages {
 		messages[index] = corechat.NewUserMessage(corechat.NewTextPart(fmt.Sprintf("message %d", index+1)))
 	}
 	return messages, nil
 }
 
-func (store *recoveryStoreStub) LoadExecutorCheckpoint(
+func (r *recoveryStoreStub) LoadExecutorCheckpoint(
 	_ context.Context,
 	rootMemberID string,
 ) (ExecutorCheckpoint, error) {
-	if store.checkpointErr != nil {
-		return ExecutorCheckpoint{}, store.checkpointErr
+	if r.checkpointErr != nil {
+		return ExecutorCheckpoint{}, r.checkpointErr
 	}
-	if store.checkpoint != nil {
-		return store.checkpoint.Clone(), nil
+	if r.checkpoint != nil {
+		return r.checkpoint.Clone(), nil
 	}
-	for _, pending := range store.pending {
+	for _, pending := range r.pending {
 		root, found := pending.RootContinuation()
 		if !found || root.MemberID != rootMemberID {
 			continue
 		}
-		sess, found := store.sessions[pending.SessionID]
+		sess, found := r.sessions[pending.SessionID]
 		if !found {
 			sess = sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, Workspace: sessionfixture.MustWorkspace("/workspace")})
 		}
@@ -134,19 +134,19 @@ func (store *recoveryStoreStub) LoadExecutorCheckpoint(
 	return ExecutorCheckpoint{}, ErrExecutorCheckpointNotFound
 }
 
-func (store *recoveryStoreStub) CommitRecovery(_ context.Context, commit RecoveryCommit) error {
-	store.commits++
-	store.commit = commit
-	return store.commitErr
+func (r *recoveryStoreStub) CommitRecovery(_ context.Context, commit RecoveryCommit) error {
+	r.commits++
+	r.commit = commit
+	return r.commitErr
 }
 
 type waitingExecutionResumabilityFunc func(context.Context, WaitingContinuation) (bool, error)
 
-func (validate waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
+func (w waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
 	ctx context.Context,
 	continuation WaitingContinuation,
 ) (bool, error) {
-	return validate(ctx, continuation)
+	return w(ctx, continuation)
 }
 
 type selectiveRecoveryAdmissions struct {
@@ -154,11 +154,11 @@ type selectiveRecoveryAdmissions struct {
 	released map[string]int
 }
 
-func (a *selectiveRecoveryAdmissions) AcquireSession(sessionID string) (func(), bool) {
-	if a.busy[sessionID] {
+func (s *selectiveRecoveryAdmissions) AcquireSession(sessionID string) (func(), bool) {
+	if s.busy[sessionID] {
 		return nil, false
 	}
-	return func() { a.released[sessionID]++ }, true
+	return func() { s.released[sessionID]++ }, true
 }
 
 func TestRecoverySkipsFactsOwnedByAnotherRuntime(t *testing.T) {

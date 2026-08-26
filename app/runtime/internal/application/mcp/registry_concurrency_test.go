@@ -21,23 +21,23 @@ func (*liveSet) Probe(context.Context, mcpserver.Server) error {
 	return nil
 }
 
-func (s *liveSet) Configure(ctx context.Context, cfg mcpserver.Server) error {
+func (l *liveSet) Configure(ctx context.Context, cfg mcpserver.Server) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	s.servers[cfg.Name] = true
-	s.mu.Unlock()
-	if s.configured != nil {
-		s.configured <- cfg.Name
+	l.mu.Lock()
+	l.servers[cfg.Name] = true
+	l.mu.Unlock()
+	if l.configured != nil {
+		l.configured <- cfg.Name
 	}
 	return nil
 }
 
-func (s *liveSet) Detach(name string) error {
-	s.mu.Lock()
-	delete(s.servers, name)
-	s.mu.Unlock()
+func (l *liveSet) Detach(name string) error {
+	l.mu.Lock()
+	delete(l.servers, name)
+	l.mu.Unlock()
 	return nil
 }
 
@@ -51,28 +51,28 @@ type blockingProjection struct {
 	releaseReconnect chan struct{}
 }
 
-func (p *blockingProjection) Statuses() []mcpserver.ConnectionStatus {
-	return []mcpserver.ConnectionStatus{{Name: p.name}}
+func (b *blockingProjection) Statuses() []mcpserver.ConnectionStatus {
+	return []mcpserver.ConnectionStatus{{Name: b.name}}
 }
 
-func (p *blockingProjection) Reconnect(ctx context.Context, name string) error {
-	close(p.reconnectStarted)
+func (b *blockingProjection) Reconnect(ctx context.Context, name string) error {
+	close(b.reconnectStarted)
 	select {
-	case <-p.releaseReconnect:
+	case <-b.releaseReconnect:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	p.mu.Lock()
-	p.servers[name] = true
-	p.mu.Unlock()
+	b.mu.Lock()
+	b.servers[name] = true
+	b.mu.Unlock()
 	return nil
 }
 
-func (p *blockingProjection) Authorize(ctx context.Context, name string) error {
-	return p.Reconnect(ctx, name)
+func (b *blockingProjection) Authorize(ctx context.Context, name string) error {
+	return b.Reconnect(ctx, name)
 }
 
 func TestRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {

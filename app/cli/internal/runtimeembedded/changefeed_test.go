@@ -21,9 +21,9 @@ type changeBindingStub struct {
 	called  bool
 }
 
-func (stub *changeBindingStub) SubscribeRuntime(_ context.Context, request protocol.RuntimeSubscribeRequest, _ embedded.SubscriptionOptions) (*protocol.RuntimeSubscribeResponse, iter.Seq2[protocol.RuntimeEvent, error], error) {
-	stub.called, stub.request = true, request
-	return &protocol.RuntimeSubscribeResponse{}, stub.events, nil
+func (c *changeBindingStub) SubscribeRuntime(_ context.Context, request protocol.RuntimeSubscribeRequest, _ embedded.SubscriptionOptions) (*protocol.RuntimeSubscribeResponse, iter.Seq2[protocol.RuntimeEvent, error], error) {
+	c.called, c.request = true, request
+	return &protocol.RuntimeSubscribeResponse{}, c.events, nil
 }
 
 func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {

@@ -19,37 +19,37 @@ func newCommandOptionCursor(argument string) *commandOptionCursor {
 	return &commandOptionCursor{remaining: strings.TrimSpace(argument), seen: make(map[string]struct{})}
 }
 
-func (cursor *commandOptionCursor) Next() (string, bool, error) {
-	if cursor.stopped || cursor.remaining == "" {
+func (c *commandOptionCursor) Next() (string, bool, error) {
+	if c.stopped || c.remaining == "" {
 		return "", false, nil
 	}
-	token, rest := nextCommandToken(cursor.remaining)
+	token, rest := nextCommandToken(c.remaining)
 	if token == "--" {
-		cursor.remaining, cursor.stopped = strings.TrimSpace(rest), true
+		c.remaining, c.stopped = strings.TrimSpace(rest), true
 		return "", false, nil
 	}
 	if !strings.HasPrefix(token, "--") {
 		return "", false, nil
 	}
-	cursor.remaining = strings.TrimSpace(rest)
-	if _, duplicate := cursor.seen[token]; duplicate {
+	c.remaining = strings.TrimSpace(rest)
+	if _, duplicate := c.seen[token]; duplicate {
 		return "", false, fmt.Errorf("option %s was specified more than once", token)
 	}
-	cursor.seen[token] = struct{}{}
+	c.seen[token] = struct{}{}
 	return token, true, nil
 }
 
-func (cursor *commandOptionCursor) Value(option string) (string, error) {
-	value, rest := nextCommandToken(cursor.remaining)
+func (c *commandOptionCursor) Value(option string) (string, error) {
+	value, rest := nextCommandToken(c.remaining)
 	if value == "" || strings.HasPrefix(value, "--") {
 		return "", fmt.Errorf("option %s requires a value", option)
 	}
-	cursor.remaining = strings.TrimSpace(rest)
+	c.remaining = strings.TrimSpace(rest)
 	return value, nil
 }
 
-func (cursor *commandOptionCursor) PositiveInt(option string) (int, error) {
-	value, err := cursor.Value(option)
+func (c *commandOptionCursor) PositiveInt(option string) (int, error) {
+	value, err := c.Value(option)
 	if err != nil {
 		return 0, err
 	}
@@ -60,7 +60,7 @@ func (cursor *commandOptionCursor) PositiveInt(option string) (int, error) {
 	return parsed, nil
 }
 
-func (cursor *commandOptionCursor) Rest() string { return strings.TrimSpace(cursor.remaining) }
+func (c *commandOptionCursor) Rest() string { return strings.TrimSpace(c.remaining) }
 
 func nextCommandToken(value string) (string, string) {
 	value = strings.TrimSpace(value)

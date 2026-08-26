@@ -11,9 +11,9 @@ const (
 	RiskHigh   RiskLevel = "high"
 )
 
-// Valid reports whether c is a defined safety class.
-func (c SafetyClass) Valid() bool {
-	switch c {
+// Valid reports whether s is a defined safety class.
+func (s SafetyClass) Valid() bool {
+	switch s {
 	case SafetyClassSafe, SafetyClassWrite, SafetyClassExec, SafetyClassNetwork:
 		return true
 	default:
@@ -21,10 +21,10 @@ func (c SafetyClass) Valid() bool {
 	}
 }
 
-// Risk returns the conservative human-facing severity for c. An unknown class
+// Risk returns the conservative human-facing severity for s. An unknown class
 // is high risk so an uninitialized or future value never weakens a prompt.
-func (c SafetyClass) Risk() RiskLevel {
-	switch c {
+func (s SafetyClass) Risk() RiskLevel {
+	switch s {
 	case SafetyClassSafe:
 		return RiskLow
 	case SafetyClassWrite:

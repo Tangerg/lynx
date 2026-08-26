@@ -17,12 +17,12 @@ func newReplyStub(reply string) *replyStub {
 	return &replyStub{reply: reply}
 }
 
-func (m *replyStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
-	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+func (r *replyStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	message := chat.NewAssistantMessage(chat.NewTextPart(r.reply))
 	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
-func (m *replyStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	resp, err := m.Call(ctx, req)
+func (r *replyStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := r.Call(ctx, req)
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }

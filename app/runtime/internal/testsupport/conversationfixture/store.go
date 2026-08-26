@@ -6,9 +6,9 @@ package conversationfixture
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/history"
 	"github.com/Tangerg/lynx/core/history/inmemory"
-	"github.com/Tangerg/lynx/core/chat"
 )
 
 // Store adapts the reusable in-memory history store to Runtime's session-ID

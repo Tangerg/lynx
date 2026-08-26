@@ -232,8 +232,8 @@ func bindPortableToolResults(snapshot *Snapshot) error {
 
 // PortableSnapshot returns the normalized, terminal-only representation used by
 // archive encoders.
-func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
-	normalized, err := snapshot.NormalizeForRestore()
+func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
+	normalized, err := s.NormalizeForRestore()
 	if err != nil {
 		return PortableSnapshot{}, err
 	}

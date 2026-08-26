@@ -22,12 +22,12 @@ type InsufficientCapabilitiesError struct {
 	Missing Capabilities
 }
 
-func (e *InsufficientCapabilitiesError) Error() string {
-	return fmt.Sprintf("%s: run %q requires %s", ErrInsufficientCapabilities, e.RunID, e.Missing)
+func (i *InsufficientCapabilitiesError) Error() string {
+	return fmt.Sprintf("%s: run %q requires %s", ErrInsufficientCapabilities, i.RunID, i.Missing)
 }
 
 // Is lets callers branch on the category without discarding the missing set.
-func (e *InsufficientCapabilitiesError) Is(target error) bool {
+func (i *InsufficientCapabilitiesError) Is(target error) bool {
 	return target == ErrInsufficientCapabilities
 }
 
@@ -46,20 +46,20 @@ type Capabilities struct {
 }
 
 // Clone returns an ownership-isolated copy.
-func (p Capabilities) Clone() Capabilities {
-	p.InterruptKinds = slices.Clone(p.InterruptKinds)
-	return p
+func (c Capabilities) Clone() Capabilities {
+	c.InterruptKinds = slices.Clone(c.InterruptKinds)
+	return c
 }
 
 // Validate reports whether the capability set uses its one canonical
 // representation. Admission normalizes once; later boundaries can compare the
 // frozen value directly and fail closed on corruption.
-func (p Capabilities) Validate() error {
-	for index, kind := range p.InterruptKinds {
+func (c Capabilities) Validate() error {
+	for index, kind := range c.InterruptKinds {
 		if !kind.Valid() {
 			return fmt.Errorf("run: run capability interrupt kind[%d] is unknown", index)
 		}
-		if index > 0 && p.InterruptKinds[index-1] >= kind {
+		if index > 0 && c.InterruptKinds[index-1] >= kind {
 			return errors.New("run: run capability interrupt kinds must be sorted without duplicates")
 		}
 	}
@@ -70,8 +70,8 @@ func (p Capabilities) Validate() error {
 // ignores order and duplicate spelling so callers validating an external value
 // can explain a mismatch instead of accidentally comparing slice headers.
 // Persisted and admitted values should additionally pass [Validate].
-func (p Capabilities) Equal(other Capabilities) bool {
-	left := p.Normalized()
+func (c Capabilities) Equal(other Capabilities) bool {
+	left := c.Normalized()
 	right := other.Normalized()
 	return left.ChildRuns == right.ChildRuns && slices.Equal(left.InterruptKinds, right.InterruptKinds)
 }
@@ -79,27 +79,27 @@ func (p Capabilities) Equal(other Capabilities) bool {
 // Normalized returns the interrupt policy as a canonical set: sorted and without
 // duplicates. Comparing or storing a set must not depend on how a caller happened
 // to order it.
-func (p Capabilities) Normalized() Capabilities {
-	kinds := slices.Clone(p.InterruptKinds)
+func (c Capabilities) Normalized() Capabilities {
+	kinds := slices.Clone(c.InterruptKinds)
 	slices.Sort(kinds)
 	return Capabilities{
-		ChildRuns:      p.ChildRuns,
+		ChildRuns:      c.ChildRuns,
 		InterruptKinds: slices.Compact(kinds),
 	}
 }
 
 // IsEmpty reports that the Run has no optional behavior enabled.
-func (p Capabilities) IsEmpty() bool {
-	return !p.ChildRuns && len(p.InterruptKinds) == 0
+func (c Capabilities) IsEmpty() bool {
+	return !c.ChildRuns && len(c.InterruptKinds) == 0
 }
 
-// MissingFrom returns every capability in p that caller lacks.
-func (p Capabilities) MissingFrom(caller Capabilities) Capabilities {
+// MissingFrom returns every capability in c that caller lacks.
+func (c Capabilities) MissingFrom(caller Capabilities) Capabilities {
 	var missing Capabilities
-	if p.ChildRuns && !caller.ChildRuns {
+	if c.ChildRuns && !caller.ChildRuns {
 		missing.ChildRuns = true
 	}
-	for _, kind := range p.InterruptKinds {
+	for _, kind := range c.InterruptKinds {
 		if !slices.Contains(caller.InterruptKinds, kind) {
 			missing.InterruptKinds = append(missing.InterruptKinds, kind)
 		}
@@ -108,12 +108,12 @@ func (p Capabilities) MissingFrom(caller Capabilities) Capabilities {
 }
 
 // String names the enabled behaviors for an error explaining a refusal.
-func (p Capabilities) String() string {
-	parts := make([]string, 0, 1+len(p.InterruptKinds))
-	if p.ChildRuns {
+func (c Capabilities) String() string {
+	parts := make([]string, 0, 1+len(c.InterruptKinds))
+	if c.ChildRuns {
 		parts = append(parts, "child runs")
 	}
-	for _, kind := range p.InterruptKinds {
+	for _, kind := range c.InterruptKinds {
 		parts = append(parts, kind.String()+" interrupts")
 	}
 	if len(parts) == 0 {

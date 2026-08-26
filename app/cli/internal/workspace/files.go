@@ -14,8 +14,8 @@ const (
 	FileEntrySymlink   FileType = "symlink"
 )
 
-func (kind FileType) Valid() bool {
-	return kind == FileEntryFile || kind == FileEntryDirectory || kind == FileEntrySymlink
+func (f FileType) Valid() bool {
+	return f == FileEntryFile || f == FileEntryDirectory || f == FileEntrySymlink
 }
 
 type FileEntry struct {
@@ -26,15 +26,15 @@ type FileEntry struct {
 	ModifiedAt string
 }
 
-func (entry FileEntry) Validate() error {
+func (f FileEntry) Validate() error {
 	switch {
-	case strings.TrimSpace(entry.Path) == "":
+	case strings.TrimSpace(f.Path) == "":
 		return errors.New("file entry path is empty")
-	case strings.TrimSpace(entry.Name) == "":
+	case strings.TrimSpace(f.Name) == "":
 		return errors.New("file entry name is empty")
-	case !entry.Type.Valid():
-		return fmt.Errorf("file entry type %q is invalid", entry.Type)
-	case entry.SizeBytes != nil && *entry.SizeBytes < 0:
+	case !f.Type.Valid():
+		return fmt.Errorf("file entry type %q is invalid", f.Type)
+	case f.SizeBytes != nil && *f.SizeBytes < 0:
 		return errors.New("file entry size is negative")
 	default:
 		return nil
@@ -45,9 +45,9 @@ type FileListing struct {
 	Entries []FileEntry
 }
 
-func (listing FileListing) Validate() error {
-	paths := make(map[string]struct{}, len(listing.Entries))
-	for index, entry := range listing.Entries {
+func (f FileListing) Validate() error {
+	paths := make(map[string]struct{}, len(f.Entries))
+	for index, entry := range f.Entries {
 		if err := entry.Validate(); err != nil {
 			return fmt.Errorf("file entry %d: %w", index, err)
 		}
@@ -67,8 +67,8 @@ type FilesRequest struct {
 	IncludeIgnored bool
 }
 
-func (request FilesRequest) Validate() error {
-	if strings.TrimSpace(request.Workspace) == "" {
+func (f FilesRequest) Validate() error {
+	if strings.TrimSpace(f.Workspace) == "" {
 		return errors.New("file list workspace is empty")
 	}
 	return nil
@@ -82,17 +82,17 @@ type ReadRequest struct {
 	MaxBytes  int
 }
 
-func (request ReadRequest) Validate() error {
+func (r ReadRequest) Validate() error {
 	switch {
-	case strings.TrimSpace(request.Workspace) == "":
+	case strings.TrimSpace(r.Workspace) == "":
 		return errors.New("file read workspace is empty")
-	case strings.TrimSpace(request.Path) == "":
+	case strings.TrimSpace(r.Path) == "":
 		return errors.New("file read path is empty")
-	case request.StartLine < 0 || request.EndLine < 0 || request.MaxBytes < 0:
+	case r.StartLine < 0 || r.EndLine < 0 || r.MaxBytes < 0:
 		return errors.New("file read bounds cannot be negative")
-	case request.EndLine > 0 && request.StartLine == 0:
+	case r.EndLine > 0 && r.StartLine == 0:
 		return errors.New("file read end line requires a start line")
-	case request.StartLine > 0 && request.EndLine > 0 && request.EndLine < request.StartLine:
+	case r.StartLine > 0 && r.EndLine > 0 && r.EndLine < r.StartLine:
 		return errors.New("file read end line precedes start line")
 	default:
 		return nil
@@ -109,30 +109,30 @@ type FileContent struct {
 	EndLine    int
 }
 
-func (content FileContent) Validate() error {
+func (f FileContent) Validate() error {
 	switch {
-	case strings.TrimSpace(content.Path) == "":
+	case strings.TrimSpace(f.Path) == "":
 		return errors.New("file content path is empty")
-	case content.Encoding != "utf-8":
-		return fmt.Errorf("file content encoding %q is unsupported", content.Encoding)
-	case content.TotalLines < 0:
+	case f.Encoding != "utf-8":
+		return fmt.Errorf("file content encoding %q is unsupported", f.Encoding)
+	case f.TotalLines < 0:
 		return errors.New("file content line count is negative")
-	case content.StartLine < 0 || content.EndLine < 0:
+	case f.StartLine < 0 || f.EndLine < 0:
 		return errors.New("file content window is negative")
-	case content.EndLine > 0 && content.StartLine == 0:
+	case f.EndLine > 0 && f.StartLine == 0:
 		return errors.New("file content end line has no start line")
-	case content.StartLine > 0 && content.EndLine > 0 && content.EndLine < content.StartLine:
+	case f.StartLine > 0 && f.EndLine > 0 && f.EndLine < f.StartLine:
 		return errors.New("file content window is reversed")
 	default:
 		return nil
 	}
 }
 
-func (content FileContent) Window() string {
-	if content.StartLine == 0 {
-		return fmt.Sprintf("%d lines", content.TotalLines)
+func (f FileContent) Window() string {
+	if f.StartLine == 0 {
+		return fmt.Sprintf("%d lines", f.TotalLines)
 	}
-	return fmt.Sprintf("lines %d-%d/%d", content.StartLine, content.EndLine, content.TotalLines)
+	return fmt.Sprintf("lines %d-%d/%d", f.StartLine, f.EndLine, f.TotalLines)
 }
 
 type HeadRequest struct {
@@ -141,11 +141,11 @@ type HeadRequest struct {
 	Lines     int
 }
 
-func (request HeadRequest) Validate() error {
-	if strings.TrimSpace(request.Workspace) == "" || strings.TrimSpace(request.Path) == "" {
+func (h HeadRequest) Validate() error {
+	if strings.TrimSpace(h.Workspace) == "" || strings.TrimSpace(h.Path) == "" {
 		return errors.New("file head requires workspace and path")
 	}
-	if request.Lines < 0 {
+	if h.Lines < 0 {
 		return errors.New("file head line count is negative")
 	}
 	return nil
@@ -161,12 +161,12 @@ type FileHead struct {
 	Lines []FileLine
 }
 
-func (head FileHead) Validate() error {
-	if strings.TrimSpace(head.Path) == "" {
+func (f FileHead) Validate() error {
+	if strings.TrimSpace(f.Path) == "" {
 		return errors.New("file head path is empty")
 	}
 	previous := 0
-	for index, line := range head.Lines {
+	for index, line := range f.Lines {
 		if line.Number <= previous {
 			return fmt.Errorf("file head line %d is not strictly ordered", index)
 		}
@@ -182,11 +182,11 @@ type SearchRequest struct {
 	Limit     int
 }
 
-func (request SearchRequest) Validate() error {
-	if strings.TrimSpace(request.Workspace) == "" || strings.TrimSpace(request.Query) == "" {
+func (s SearchRequest) Validate() error {
+	if strings.TrimSpace(s.Workspace) == "" || strings.TrimSpace(s.Query) == "" {
 		return errors.New("workspace search requires workspace and query")
 	}
-	if request.Limit < 0 {
+	if s.Limit < 0 {
 		return errors.New("workspace search limit is negative")
 	}
 	return nil
@@ -203,11 +203,11 @@ type SearchResult struct {
 	Total   int
 }
 
-func (result SearchResult) Validate() error {
-	if result.Total < len(result.Matches) {
+func (s SearchResult) Validate() error {
+	if s.Total < len(s.Matches) {
 		return errors.New("workspace search total is smaller than its matches")
 	}
-	for index, match := range result.Matches {
+	for index, match := range s.Matches {
 		if strings.TrimSpace(match.Path) == "" || match.Line <= 0 {
 			return fmt.Errorf("workspace search match %d is invalid", index)
 		}

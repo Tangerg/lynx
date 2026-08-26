@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
@@ -30,21 +30,21 @@ func newCompactionTestStore() *compactionTestStore {
 	return &compactionTestStore{Store: conversationfixture.New()}
 }
 
-func (s *compactionTestStore) RewriteForCompaction(
+func (c *compactionTestStore) RewriteForCompaction(
 	ctx context.Context,
 	sessionID string,
 	expectedCount int,
 	_, _ int,
 	messages ...chat.Message,
 ) error {
-	current, err := s.Read(ctx, sessionID)
+	current, err := c.Read(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	if len(current) != expectedCount {
 		return fmt.Errorf("test compaction count changed from %d to %d", expectedCount, len(current))
 	}
-	return s.Replace(ctx, sessionID, messages...)
+	return c.Replace(ctx, sessionID, messages...)
 }
 
 // TestCompactor_NopBelowThreshold doesn't talk to a real LLM —
@@ -645,14 +645,14 @@ func newTextStubModel(reply string) *textStubModel {
 	return &textStubModel{reply: reply}
 }
 
-func (m *textStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	m.calls++
-	m.requests = append(m.requests, request)
-	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+func (t *textStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	t.calls++
+	t.requests = append(t.requests, request)
+	message := chat.NewAssistantMessage(chat.NewTextPart(t.reply))
 	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
-func (m *textStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	resp, err := m.Call(ctx, req)
+func (t *textStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := t.Call(ctx, req)
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }

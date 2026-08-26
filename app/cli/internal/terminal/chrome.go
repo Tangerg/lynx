@@ -34,30 +34,30 @@ func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session agent.Session)
 	return &sessionHeader{theme: theme, glyphs: glyphs, session: session}
 }
 
-func (h *sessionHeader) SetSession(session agent.Session) { h.session = session }
+func (s *sessionHeader) SetSession(session agent.Session) { s.session = session }
 
-func (h *sessionHeader) SetUsage(usage agent.Usage) { h.usage = usage.Clone() }
+func (s *sessionHeader) SetUsage(usage agent.Usage) { s.usage = usage.Clone() }
 
-func (h *sessionHeader) SetWorkspaceChanges(count int) {
-	h.changes, h.changesKnown = max(count, 0), true
+func (s *sessionHeader) SetWorkspaceChanges(count int) {
+	s.changes, s.changesKnown = max(count, 0), true
 }
 
-func (h *sessionHeader) Measure(width int) int {
+func (s *sessionHeader) Measure(width int) int {
 	if width < headerMinWidth {
 		return 0
 	}
 	return 2
 }
 
-func (h *sessionHeader) Draw(view grid.View) {
+func (s *sessionHeader) Draw(view grid.View) {
 	width, height := view.Size()
 	if width < headerMinWidth || height <= 0 {
 		return
 	}
-	right := headerRightLabel(h.usage, h.changes, h.changesKnown)
+	right := headerRightLabel(s.usage, s.changes, s.changesKnown)
 	rightWidth := text.Width(right)
 	if rightWidth > 0 && rightWidth < width {
-		view.Text(width-rightWidth, 0, right, h.theme.Subtle)
+		view.Text(width-rightWidth, 0, right, s.theme.Subtle)
 	} else {
 		rightWidth = 0
 	}
@@ -69,14 +69,14 @@ func (h *sessionHeader) Draw(view grid.View) {
 	if available <= 0 {
 		return
 	}
-	workspace := displayWorkspace(h.session.Workspace)
-	title := displayTitle(h.session)
-	separator := "  " + h.glyphs.Bullet + "  "
-	workspace = text.Truncate(workspace, available, h.glyphs.Ellipsis)
-	x := view.Text(0, 0, workspace, h.theme.Context)
+	workspace := displayWorkspace(s.session.Workspace)
+	title := displayTitle(s.session)
+	separator := "  " + s.glyphs.Bullet + "  "
+	workspace = text.Truncate(workspace, available, s.glyphs.Ellipsis)
+	x := view.Text(0, 0, workspace, s.theme.Context)
 	remaining := available - x
 	if remaining > text.Width(separator) {
-		view.Text(x, 0, separator+text.Truncate(title, remaining-text.Width(separator), h.glyphs.Ellipsis), h.theme.Muted)
+		view.Text(x, 0, separator+text.Truncate(title, remaining-text.Width(separator), s.glyphs.Ellipsis), s.theme.Muted)
 	}
 }
 

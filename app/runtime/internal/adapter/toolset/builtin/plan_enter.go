@@ -32,12 +32,12 @@ func newEnter(modes planEnterPolicy) (toolcontract.Tool, error) {
 	)
 }
 
-func (t *enterer) enter(ctx context.Context, _ enterArgs) (string, error) {
+func (e *enterer) enter(ctx context.Context, _ enterArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "", errors.New("enter_plan_mode: no active session")
 	}
-	changed, err := t.modes.EnterPlanMode(ctx, sessionID)
+	changed, err := e.modes.EnterPlanMode(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}

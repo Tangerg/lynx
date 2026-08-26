@@ -54,28 +54,28 @@ func (m Model) Clone() Model {
 	return m
 }
 
-func (capabilities ModelCapabilities) clone() ModelCapabilities {
-	capabilities.ReasoningLevels = slices.Clone(capabilities.ReasoningLevels)
-	capabilities.InputModalities = slices.Clone(capabilities.InputModalities)
-	capabilities.OutputModalities = slices.Clone(capabilities.OutputModalities)
-	return capabilities
+func (m ModelCapabilities) clone() ModelCapabilities {
+	m.ReasoningLevels = slices.Clone(m.ReasoningLevels)
+	m.InputModalities = slices.Clone(m.InputModalities)
+	m.OutputModalities = slices.Clone(m.OutputModalities)
+	return m
 }
 
-func (capabilities ModelCapabilities) validate() error {
+func (m ModelCapabilities) validate() error {
 	var problems []error
-	if err := validateUniqueModelStrings("reasoning level", capabilities.ReasoningLevels); err != nil {
+	if err := validateUniqueModelStrings("reasoning level", m.ReasoningLevels); err != nil {
 		problems = append(problems, err)
 	}
-	if !capabilities.Reasoning && (len(capabilities.ReasoningLevels) != 0 || capabilities.ReasoningDefaultLevel != "") {
+	if !m.Reasoning && (len(m.ReasoningLevels) != 0 || m.ReasoningDefaultLevel != "") {
 		problems = append(problems, errors.New("non-reasoning model carries reasoning configuration"))
 	}
-	if capabilities.ReasoningDefaultLevel != "" && !slices.Contains(capabilities.ReasoningLevels, capabilities.ReasoningDefaultLevel) {
-		problems = append(problems, fmt.Errorf("default reasoning level %q is not offered", capabilities.ReasoningDefaultLevel))
+	if m.ReasoningDefaultLevel != "" && !slices.Contains(m.ReasoningLevels, m.ReasoningDefaultLevel) {
+		problems = append(problems, fmt.Errorf("default reasoning level %q is not offered", m.ReasoningDefaultLevel))
 	}
-	if err := validateUniqueModalities("input", capabilities.InputModalities); err != nil {
+	if err := validateUniqueModalities("input", m.InputModalities); err != nil {
 		problems = append(problems, err)
 	}
-	if err := validateUniqueModalities("output", capabilities.OutputModalities); err != nil {
+	if err := validateUniqueModalities("output", m.OutputModalities); err != nil {
 		problems = append(problems, err)
 	}
 	return errors.Join(problems...)
@@ -109,12 +109,12 @@ func validateUniqueModalities(direction string, modalities []ModelModality) erro
 	return nil
 }
 
-func (pricing ModelPricing) validate() error {
+func (m ModelPricing) validate() error {
 	rates := []float64{
-		pricing.InputUSDPerMillionTokens,
-		pricing.OutputUSDPerMillionTokens,
-		pricing.CacheReadUSDPerMillionTokens,
-		pricing.CacheWriteUSDPerMillionTokens,
+		m.InputUSDPerMillionTokens,
+		m.OutputUSDPerMillionTokens,
+		m.CacheReadUSDPerMillionTokens,
+		m.CacheWriteUSDPerMillionTokens,
 	}
 	for _, rate := range rates {
 		if rate < 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
@@ -139,27 +139,27 @@ func ValidateModels(models []Model) error {
 	return nil
 }
 
-func (m ApprovalMode) Validate() error {
-	if !slices.Contains([]ApprovalMode{ApprovalModeSafe, ApprovalModeBalanced, ApprovalModeYolo}, m) {
-		return fmt.Errorf("approval mode %q is invalid", m)
+func (a ApprovalMode) Validate() error {
+	if !slices.Contains([]ApprovalMode{ApprovalModeSafe, ApprovalModeBalanced, ApprovalModeYolo}, a) {
+		return fmt.Errorf("approval mode %q is invalid", a)
 	}
 	return nil
 }
 
-func (r ApprovalRule) Validate() error {
-	if strings.TrimSpace(r.ID) == "" || strings.TrimSpace(r.Tool) == "" {
+func (a ApprovalRule) Validate() error {
+	if strings.TrimSpace(a.ID) == "" || strings.TrimSpace(a.Tool) == "" {
 		return errors.New("approval rule: id and tool are required")
 	}
-	if !slices.Contains([]ApprovalRuleDecision{ApprovalRuleAllow, ApprovalRuleDeny}, r.Decision) {
-		return fmt.Errorf("approval rule: decision %q is invalid", r.Decision)
+	if !slices.Contains([]ApprovalRuleDecision{ApprovalRuleAllow, ApprovalRuleDeny}, a.Decision) {
+		return fmt.Errorf("approval rule: decision %q is invalid", a.Decision)
 	}
-	if !slices.Contains([]RememberScope{RememberSession, RememberProject, RememberGlobal}, r.Scope) {
-		return fmt.Errorf("approval rule: scope %q is invalid", r.Scope)
+	if !slices.Contains([]RememberScope{RememberSession, RememberProject, RememberGlobal}, a.Scope) {
+		return fmt.Errorf("approval rule: scope %q is invalid", a.Scope)
 	}
-	if r.Scope == RememberProject && strings.TrimSpace(r.Dir) == "" {
+	if a.Scope == RememberProject && strings.TrimSpace(a.Dir) == "" {
 		return errors.New("approval rule: project scope requires a directory")
 	}
-	if r.Scope != RememberProject && r.Dir != "" {
+	if a.Scope != RememberProject && a.Dir != "" {
 		return errors.New("approval rule: only project scope may carry a directory")
 	}
 	return nil

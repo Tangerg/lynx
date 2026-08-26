@@ -15,39 +15,39 @@ type sessionRunObservation struct {
 	observers int
 }
 
-func (changes *sessionRunChanges) observe(sessionID string) (<-chan struct{}, func()) {
-	changes.mu.Lock()
-	if changes.sessions == nil {
-		changes.sessions = make(map[string]*sessionRunObservation)
+func (s *sessionRunChanges) observe(sessionID string) (<-chan struct{}, func()) {
+	s.mu.Lock()
+	if s.sessions == nil {
+		s.sessions = make(map[string]*sessionRunObservation)
 	}
-	observation := changes.sessions[sessionID]
+	observation := s.sessions[sessionID]
 	if observation == nil {
 		observation = &sessionRunObservation{changed: make(chan struct{})}
-		changes.sessions[sessionID] = observation
+		s.sessions[sessionID] = observation
 	}
 	observation.observers++
-	changes.mu.Unlock()
+	s.mu.Unlock()
 
 	var once sync.Once
 	return observation.changed, func() {
 		once.Do(func() {
-			changes.mu.Lock()
-			defer changes.mu.Unlock()
+			s.mu.Lock()
+			defer s.mu.Unlock()
 			observation.observers--
-			if observation.observers == 0 && changes.sessions[sessionID] == observation {
-				delete(changes.sessions, sessionID)
+			if observation.observers == 0 && s.sessions[sessionID] == observation {
+				delete(s.sessions, sessionID)
 			}
 		})
 	}
 }
 
-func (changes *sessionRunChanges) notify(sessionID string) {
-	changes.mu.Lock()
-	defer changes.mu.Unlock()
-	observation := changes.sessions[sessionID]
+func (s *sessionRunChanges) notify(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	observation := s.sessions[sessionID]
 	if observation == nil {
 		return
 	}
-	delete(changes.sessions, sessionID)
+	delete(s.sessions, sessionID)
 	close(observation.changed)
 }

@@ -22,11 +22,11 @@ func NewRoleState(initial modelref.Selection) *RoleState {
 
 // Role returns the current assignment. The zero value means no specialized
 // model is configured.
-func (s *RoleState) Role() modelref.Selection {
-	if s == nil {
+func (r *RoleState) Role() modelref.Selection {
+	if r == nil {
 		return modelref.Selection{}
 	}
-	role := s.role.Load()
+	role := r.role.Load()
 	if role == nil {
 		return modelref.Selection{}
 	}
@@ -34,6 +34,6 @@ func (s *RoleState) Role() modelref.Selection {
 }
 
 // Store atomically publishes the next immutable assignment.
-func (s *RoleState) Store(role modelref.Selection) {
-	s.role.Store(&role)
+func (r *RoleState) Store(role modelref.Selection) {
+	r.role.Store(&role)
 }

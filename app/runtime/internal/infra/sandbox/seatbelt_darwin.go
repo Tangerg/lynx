@@ -105,7 +105,7 @@ func platformRunner(userHome string, readOnlyPaths []string) (commandRunner, err
 	return seatbeltRunner{readOnlyPaths: paths, hiddenPaths: []string{hidden}}, nil
 }
 
-func (r seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Input) (toolshell.Output, error) {
+func (s seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Input) (toolshell.Output, error) {
 	if input.Cmd == "" {
 		return toolshell.Output{}, errors.New("sandbox: command is required")
 	}
@@ -119,7 +119,7 @@ func (r seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Inp
 		runCtx, cancel = context.WithTimeout(ctx, input.Timeout)
 		defer cancel()
 	}
-	confined := seatbeltCommand(realDir, input.Cmd, r.readOnlyPaths, r.hiddenPaths)
+	confined := seatbeltCommand(realDir, input.Cmd, s.readOnlyPaths, s.hiddenPaths)
 	cmd := exec.CommandContext(runCtx, confined.Name, confined.Args...)
 	cmd.Dir = realDir
 	cmd.Env = confined.Env

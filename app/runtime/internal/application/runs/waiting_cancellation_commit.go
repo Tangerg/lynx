@@ -29,8 +29,8 @@ type waitingCancellationValidation struct {
 // of ExpectedPending after TargetRunID's subtree is removed. This is application
 // policy: persistence only claims the frozen Pending snapshot and writes these
 // already-validated facts atomically.
-func (c WaitingSubtreeCancellationCommit) Validate() error {
-	validation, err := newWaitingCancellationValidation(c)
+func (w WaitingSubtreeCancellationCommit) Validate() error {
+	validation, err := newWaitingCancellationValidation(w)
 	if err != nil {
 		return err
 	}
@@ -193,18 +193,18 @@ func buildWaitingCancellationTopology(
 	}, nil
 }
 
-func (v *waitingCancellationValidation) validateTerminalRuns() error {
-	c := v.commit
-	if len(c.TerminalRuns) != len(v.canceledRunIDs) {
+func (w *waitingCancellationValidation) validateTerminalRuns() error {
+	c := w.commit
+	if len(c.TerminalRuns) != len(w.canceledRunIDs) {
 		return fmt.Errorf(
 			"runs: waiting cancellation has %d terminal Runs, target subtree requires %d",
 			len(c.TerminalRuns),
-			len(v.canceledRunIDs),
+			len(w.canceledRunIDs),
 		)
 	}
 	for index, run := range c.TerminalRuns {
-		expectedRunID := v.canceledRunIDs[index]
-		continuation := v.continuationByRunID[expectedRunID]
+		expectedRunID := w.canceledRunIDs[index]
+		continuation := w.continuationByRunID[expectedRunID]
 		switch {
 		case run.ID() != expectedRunID:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] is %q, want %q", index, run.ID(), expectedRunID)
@@ -231,17 +231,17 @@ func (v *waitingCancellationValidation) validateTerminalRuns() error {
 		if !terminal || outcome != rundomain.OutcomeCanceled {
 			return fmt.Errorf("runs: waiting cancellation Run[%d] has no canceled outcome", index)
 		}
-		if _, duplicate := v.terminalRunIDs[run.ID()]; duplicate {
+		if _, duplicate := w.terminalRunIDs[run.ID()]; duplicate {
 			return fmt.Errorf("runs: waiting cancellation repeats Run %q", run.ID())
 		}
-		v.terminalRunIDs[run.ID()] = struct{}{}
-		v.finishedAtByRunID[run.ID()] = run.FinishedAt()
+		w.terminalRunIDs[run.ID()] = struct{}{}
+		w.finishedAtByRunID[run.ID()] = run.FinishedAt()
 	}
 	return nil
 }
 
-func (v waitingCancellationValidation) validateTerminalItems() error {
-	c := v.commit
+func (w waitingCancellationValidation) validateTerminalItems() error {
+	c := w.commit
 	type expectedTool struct {
 		runID     string
 		name      string
@@ -249,7 +249,7 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 	}
 	expectedByItemID := make(map[string]expectedTool)
 	for _, request := range c.ExpectedPending.Interrupts {
-		if _, terminal := v.terminalRunIDs[request.RunID]; terminal && request.Kind == interrupt.Approval {
+		if _, terminal := w.terminalRunIDs[request.RunID]; terminal && request.Kind == interrupt.Approval {
 			expectedByItemID[request.ItemID] = expectedTool{
 				runID: request.RunID, name: request.Approval.Tool.Name,
 				arguments: request.Approval.Tool.Arguments.Canonical(),
@@ -257,7 +257,7 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 		}
 	}
 	for _, continuation := range c.ExpectedPending.Continuations {
-		if _, terminal := v.terminalRunIDs[continuation.RunID]; !terminal {
+		if _, terminal := w.terminalRunIDs[continuation.RunID]; !terminal {
 			continue
 		}
 		for _, drained := range continuation.DrainedTools {
@@ -287,7 +287,7 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 			expectedTool.name,
 			expectedTool.arguments,
 			replacement,
-			v.finishedAtByRunID[expectedTool.runID],
+			w.finishedAtByRunID[expectedTool.runID],
 		); err != nil {
 			return fmt.Errorf("runs: waiting cancellation terminal Item %q: %w", replacement.Expected.ID(), err)
 		}
@@ -320,44 +320,44 @@ func validateTerminalItemReplacement(
 	return nil
 }
 
-func (v waitingCancellationValidation) validateDisposition() error {
-	dispositionRunIDs, err := v.validateDispositionAndCollectRunIDs()
+func (w waitingCancellationValidation) validateDisposition() error {
+	dispositionRunIDs, err := w.validateDispositionAndCollectRunIDs()
 	if err != nil {
 		return err
 	}
-	if !slices.Equal(dispositionRunIDs, v.survivingRunIDs) {
-		return fmt.Errorf("runs: waiting cancellation disposition Runs %v, want %v", dispositionRunIDs, v.survivingRunIDs)
+	if !slices.Equal(dispositionRunIDs, w.survivingRunIDs) {
+		return fmt.Errorf("runs: waiting cancellation disposition Runs %v, want %v", dispositionRunIDs, w.survivingRunIDs)
 	}
-	if v.commit.RemainingPending == nil {
+	if w.commit.RemainingPending == nil {
 		return nil
 	}
-	return v.validateSurvivingContinuations()
+	return w.validateSurvivingContinuations()
 }
 
-func (v waitingCancellationValidation) validateDispositionAndCollectRunIDs() ([]string, error) {
-	if v.commit.RemainingPending != nil {
-		return v.validateReducedPendingAndCollectRunIDs()
+func (w waitingCancellationValidation) validateDispositionAndCollectRunIDs() ([]string, error) {
+	if w.commit.RemainingPending != nil {
+		return w.validateReducedPendingAndCollectRunIDs()
 	}
-	for _, binding := range v.commit.ExpectedPending.Bindings {
-		if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
+	for _, binding := range w.commit.ExpectedPending.Bindings {
+		if _, canceled := w.canceledMemberIDs[binding.MemberID]; !canceled {
 			return nil, fmt.Errorf(
 				"runs: waiting cancellation resumes while input request %q survives",
 				binding.RequestID,
 			)
 		}
 	}
-	runIDs := make([]string, 0, len(v.commit.Resume.Runs))
-	for _, draft := range v.commit.Resume.Runs {
+	runIDs := make([]string, 0, len(w.commit.Resume.Runs))
+	for _, draft := range w.commit.Resume.Runs {
 		runIDs = append(runIDs, draft.RunID)
 	}
 	return runIDs, nil
 }
 
-func (v waitingCancellationValidation) validateReducedPendingAndCollectRunIDs() ([]string, error) {
-	c := v.commit
+func (w waitingCancellationValidation) validateReducedPendingAndCollectRunIDs() ([]string, error) {
+	c := w.commit
 	var survivingRequestIndexes []int
 	for index, binding := range c.ExpectedPending.Bindings {
-		if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
+		if _, canceled := w.canceledMemberIDs[binding.MemberID]; !canceled {
 			survivingRequestIndexes = append(survivingRequestIndexes, index)
 		}
 	}
@@ -383,11 +383,11 @@ func (v waitingCancellationValidation) validateReducedPendingAndCollectRunIDs() 
 	return runIDs, nil
 }
 
-func (v waitingCancellationValidation) validateSurvivingContinuations() error {
-	c := v.commit
-	target := v.continuationByRunID[c.TargetRunID]
+func (w waitingCancellationValidation) validateSurvivingContinuations() error {
+	c := w.commit
+	target := w.continuationByRunID[c.TargetRunID]
 	for _, actual := range c.RemainingPending.Continuations {
-		expected := v.continuationByRunID[actual.RunID]
+		expected := w.continuationByRunID[actual.RunID]
 		if actual.RunID == target.Lineage.ParentRunID {
 			failure, failed := c.ParentItem.Replacement.Failure()
 			if !failed {
@@ -417,10 +417,10 @@ func (v waitingCancellationValidation) validateSurvivingContinuations() error {
 	return nil
 }
 
-func (v waitingCancellationValidation) validateOpeningEvents() error {
-	c := v.commit
-	surviving := make(map[string]struct{}, len(v.survivingRunIDs))
-	for _, runID := range v.survivingRunIDs {
+func (w waitingCancellationValidation) validateOpeningEvents() error {
+	c := w.commit
+	surviving := make(map[string]struct{}, len(w.survivingRunIDs))
+	for _, runID := range w.survivingRunIDs {
 		surviving[runID] = struct{}{}
 	}
 	for index, event := range c.OpeningEvents {
@@ -437,10 +437,10 @@ func (v waitingCancellationValidation) validateOpeningEvents() error {
 	return nil
 }
 
-func (v waitingCancellationValidation) validateParentItem() error {
-	c := v.commit
+func (w waitingCancellationValidation) validateParentItem() error {
+	c := w.commit
 	expected, replacement := c.ParentItem.Expected, c.ParentItem.Replacement
-	target := v.continuationByRunID[c.TargetRunID]
+	target := w.continuationByRunID[c.TargetRunID]
 	if expected.ID() == "" || expected.ID() != replacement.ID() ||
 		expected.ID() != target.Lineage.SpawnedByItemID || expected.SessionID() != c.SessionID ||
 		replacement.SessionID() != c.SessionID || expected.RunID() != replacement.RunID() ||
@@ -468,15 +468,15 @@ func (v waitingCancellationValidation) validateParentItem() error {
 	return nil
 }
 
-func (v waitingCancellationValidation) validateConversationMessages() error {
-	c := v.commit
+func (w waitingCancellationValidation) validateConversationMessages() error {
+	c := w.commit
 	if c.ParentItem.Expected.RunID() != c.RootRunID {
 		if len(c.ConversationMessages) != 0 {
 			return errors.New("runs: non-root child cancellation carries root conversation messages")
 		}
 		return nil
 	}
-	parentContinuation := v.continuationByRunID[c.RootRunID]
+	parentContinuation := w.continuationByRunID[c.RootRunID]
 	var committed CommittedTool
 	found := false
 	for _, drained := range parentContinuation.DrainedTools {

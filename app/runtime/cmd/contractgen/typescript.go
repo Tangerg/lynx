@@ -71,37 +71,37 @@ func newTypeScript(set *schemaSet, notifications []string) string {
 
 // httpEndpoints publishes transport locations from the same Delivery registry
 // the HTTP router uses. A vendored client never has to restate /v2 paths.
-func (e *tsEmitter) httpEndpoints() {
-	e.line("// HTTP entrypoints implemented by this runtime build.")
-	e.line("export const HTTP_ENDPOINTS = {")
+func (t *tsEmitter) httpEndpoints() {
+	t.line("// HTTP entrypoints implemented by this runtime build.")
+	t.line("export const HTTP_ENDPOINTS = {")
 	contract := runtimehttp.Contract()
 	for _, endpoint := range contract.Endpoints {
-		e.line("  %s: {", propertyKey(endpoint.Name))
-		e.line("    kind: %s,", strconv.Quote(string(endpoint.Kind)))
-		e.line("    method: %s,", strconv.Quote(endpoint.Method))
-		e.line("    path: %s,", strconv.Quote(endpoint.Path))
-		e.line("    authentication: %s,", strconv.Quote(string(endpoint.Authentication)))
+		t.line("  %s: {", propertyKey(endpoint.Name))
+		t.line("    kind: %s,", strconv.Quote(string(endpoint.Kind)))
+		t.line("    method: %s,", strconv.Quote(endpoint.Method))
+		t.line("    path: %s,", strconv.Quote(endpoint.Path))
+		t.line("    authentication: %s,", strconv.Quote(string(endpoint.Authentication)))
 		statuses := make([]string, 0, len(endpoint.ResponseStatuses))
 		for _, status := range endpoint.ResponseStatuses {
 			statuses = append(statuses, strconv.Itoa(status))
 		}
-		e.line("    responseStatuses: [%s],", strings.Join(statuses, ", "))
-		e.line("  },")
+		t.line("    responseStatuses: [%s],", strings.Join(statuses, ", "))
+		t.line("  },")
 	}
-	e.line("} as const;")
-	e.line("")
-	e.line("// Flat-JSON responses returned outside the JSON-RPC envelope.")
-	e.line("export interface HTTPSidecarResponses {")
+	t.line("} as const;")
+	t.line("")
+	t.line("// Flat-JSON responses returned outside the JSON-RPC envelope.")
+	t.line("export interface HTTPSidecarResponses {")
 	for _, endpoint := range contract.Endpoints {
 		if endpoint.Kind != runtimehttp.EndpointKindSidecar || endpoint.ResponseType == nil {
 			continue
 		}
-		e.line("  %s: %s;", propertyKey(endpoint.Name), defName(endpoint.ResponseType))
+		t.line("  %s: %s;", propertyKey(endpoint.Name), defName(endpoint.ResponseType))
 	}
-	e.line("}")
-	e.line("")
-	e.line("export type HTTPSidecarEndpointName = keyof HTTPSidecarResponses;")
-	e.line("")
+	t.line("}")
+	t.line("")
+	t.line("export type HTTPSidecarEndpointName = keyof HTTPSidecarResponses;")
+	t.line("")
 }
 
 // notifications emits the downstream method names.
@@ -110,12 +110,12 @@ func (e *tsEmitter) httpEndpoints() {
 // name is the whole contract, and a client that spells it itself is a second author
 // of the method surface. The constant name is derived mechanically so no naming
 // scheme has to be invented per notification.
-func (e *tsEmitter) notifications(methods []string) {
-	e.line("// The methods the runtime sends downstream. A client only ever subscribes.")
+func (t *tsEmitter) notifications(methods []string) {
+	t.line("// The methods the runtime sends downstream. A client only ever subscribes.")
 	for _, method := range methods {
-		e.line("export const %s = %s;", screamingSnake(method), strconv.Quote(method))
+		t.line("export const %s = %s;", screamingSnake(method), strconv.Quote(method))
 	}
-	e.line("")
+	t.line("")
 }
 
 // screamingSnake turns a dotted method name into a TypeScript constant name:
@@ -150,54 +150,54 @@ func lowerToUpper(letter rune) rune {
 // tag — cannot get one from the types alone. One record keyed by type name avoids
 // inventing a naming scheme for fifty-one separate constants, and `as const` keeps
 // each list narrowed to its own literals.
-func (e *tsEmitter) enumValues(names []string) {
-	e.line("// The closed value sets, as data: a union type does not exist at runtime.")
-	e.line("export const WIRE_ENUMS = {")
+func (t *tsEmitter) enumValues(names []string) {
+	t.line("// The closed value sets, as data: a union type does not exist at runtime.")
+	t.line("export const WIRE_ENUMS = {")
 	for _, name := range names {
-		node := e.set.defs[name]
+		node := t.set.defs[name]
 		if len(node.Enum) == 0 {
 			continue
 		}
-		e.line("  %s: [%s],", name, strings.Join(quoteAll(node.Enum), ", "))
+		t.line("  %s: [%s],", name, strings.Join(quoteAll(node.Enum), ", "))
 	}
-	e.line("} as const;")
+	t.line("} as const;")
 }
 
-func (e *tsEmitter) runEventReliability() {
+func (t *tsEmitter) runEventReliability() {
 	values, ok := contractcatalog.EnumValues(reflect.TypeFor[protocol.StreamEventType]())
 	if !ok {
 		panic("contractgen: StreamEventType is not a registered wire enum")
 	}
-	e.line("")
-	e.line("/** Reliability is owned by event type; a frame cannot promote itself. */")
-	e.line("export type RunEventReliability = \"authoritative\" | \"ephemeral\";")
-	e.line("export const RUN_EVENT_RELIABILITY = {")
+	t.line("")
+	t.line("/** Reliability is owned by event type; a frame cannot promote itself. */")
+	t.line("export type RunEventReliability = \"authoritative\" | \"ephemeral\";")
+	t.line("export const RUN_EVENT_RELIABILITY = {")
 	for _, value := range values {
 		reliability := "ephemeral"
 		if (protocol.StreamEvent{Type: protocol.StreamEventType(value)}).Authoritative() {
 			reliability = "authoritative"
 		}
-		e.line("  %s: %s,", strconv.Quote(value), strconv.Quote(reliability))
+		t.line("  %s: %s,", strconv.Quote(value), strconv.Quote(reliability))
 	}
-	e.line("} as const satisfies Record<StreamEventType, RunEventReliability>;")
-	e.line("")
-	e.line("export function runEventReliability(value: unknown): RunEventReliability | undefined {")
-	e.line("  if (typeof value !== \"string\") return undefined;")
-	e.line("  return (RUN_EVENT_RELIABILITY as Partial<Record<string, RunEventReliability>>)[value];")
-	e.line("}")
+	t.line("} as const satisfies Record<StreamEventType, RunEventReliability>;")
+	t.line("")
+	t.line("export function runEventReliability(value: unknown): RunEventReliability | undefined {")
+	t.line("  if (typeof value !== \"string\") return undefined;")
+	t.line("  return (RUN_EVENT_RELIABILITY as Partial<Record<string, RunEventReliability>>)[value];")
+	t.line("}")
 }
 
-func (e *tsEmitter) header() {
-	e.line("// Code generated by cmd/contractgen. DO NOT EDIT.")
-	e.line("//")
-	e.line("// The wire types of the Lyra Runtime Protocol, projected from the Contract")
-	e.line("// Registry. Prose lives with the Go types and protocol documentation; this file")
-	e.line("// publishes the shapes without writing into any consuming client module.")
-	e.line("//")
-	e.line("// Cross-field rules — a finished run carries an outcome, an interrupt outcome")
-	e.line("// carries no result — are NOT here: TypeScript has no way to state them. They are")
-	e.line("// in the generated validator and in schema.json.")
-	e.line("")
+func (t *tsEmitter) header() {
+	t.line("// Code generated by cmd/contractgen. DO NOT EDIT.")
+	t.line("//")
+	t.line("// The wire types of the Lyra Runtime Protocol, projected from the Contract")
+	t.line("// Registry. Prose lives with the Go types and protocol documentation; this file")
+	t.line("// publishes the shapes without writing into any consuming client module.")
+	t.line("//")
+	t.line("// Cross-field rules — a finished run carries an outcome, an interrupt outcome")
+	t.line("// carries no result — are NOT here: TypeScript has no way to state them. They are")
+	t.line("// in the generated validator and in schema.json.")
+	t.line("")
 }
 
 // protocolVersion emits the version the client states in request metadata.
@@ -206,10 +206,10 @@ func (e *tsEmitter) header() {
 // client that spells the date itself is a second author of the negotiation — and
 // the failure is a rejected handshake, not a type error. Projecting the constant
 // makes "the client sends what this build serves" true by construction.
-func (e *tsEmitter) protocolVersion() {
-	e.line("// The wire version this runtime serves; a client states it in request metadata.")
-	e.line("export const PROTOCOL_VERSION = %s;", strconv.Quote(protocol.ProtocolVersion))
-	e.line("")
+func (t *tsEmitter) protocolVersion() {
+	t.line("// The wire version this runtime serves; a client states it in request metadata.")
+	t.line("export const PROTOCOL_VERSION = %s;", strconv.Quote(protocol.ProtocolVersion))
+	t.line("")
 }
 
 // generic reconstructs a Go generic as a TypeScript generic.
@@ -220,11 +220,11 @@ func (e *tsEmitter) protocolVersion() {
 // generic helpers in consuming clients, so the shape is recovered by substituting
 // the type argument out of one instantiation, and every OTHER instantiation must
 // reproduce it exactly or generation fails.
-func (e *tsEmitter) generic(genericName string, instantiations []string) {
+func (t *tsEmitter) generic(genericName string, instantiations []string) {
 	var body, source string
 	for _, name := range instantiations {
-		argument := e.typeName(typeArgumentOf(e.set.origin[name]))
-		rendered := e.objectBody(e.set.defs[name], argument)
+		argument := t.typeName(typeArgumentOf(t.set.origin[name]))
+		rendered := t.objectBody(t.set.defs[name], argument)
 		if body == "" {
 			body, source = rendered, name
 			continue
@@ -237,46 +237,46 @@ func (e *tsEmitter) generic(genericName string, instantiations []string) {
 	if !strings.Contains(body, "T") {
 		panic(fmt.Sprintf("contractgen: %s uses its type parameter nowhere", genericName))
 	}
-	e.line("export interface %s<T> {", genericName)
-	e.out.WriteString(body)
-	e.line("}")
-	e.line("")
+	t.line("export interface %s<T> {", genericName)
+	t.out.WriteString(body)
+	t.line("}")
+	t.line("")
 }
 
-func (e *tsEmitter) alias(name string, t reflect.Type) {
-	e.line("export type %s = %s<%s>;", name, genericBaseOf(t), e.typeName(typeArgumentOf(t)))
-	e.line("")
+func (t *tsEmitter) alias(name string, shape reflect.Type) {
+	t.line("export type %s = %s<%s>;", name, genericBaseOf(shape), t.typeName(typeArgumentOf(shape)))
+	t.line("")
 }
 
-func (e *tsEmitter) define(name string, node *schema) {
+func (t *tsEmitter) define(name string, node *schema) {
 	switch {
 	case len(node.Enum) > 0:
-		e.line("export type %s = %s;", name, unionOf(quoteAll(node.Enum)))
+		t.line("export type %s = %s;", name, unionOf(quoteAll(node.Enum)))
 	case len(node.OneOf) > 0:
-		e.line("export type %s =", name)
+		t.line("export type %s =", name)
 		for _, branch := range node.OneOf {
-			e.line("  | %s", e.branch(node, branch))
+			t.line("  | %s", t.branch(node, branch))
 		}
-		e.trimTrailingNewline()
-		e.out.WriteString(";\n")
+		t.trimTrailingNewline()
+		t.out.WriteString(";\n")
 	default:
-		e.line("export interface %s {", name)
-		e.out.WriteString(e.objectBody(node, ""))
-		e.line("}")
+		t.line("export interface %s {", name)
+		t.out.WriteString(t.objectBody(node, ""))
+		t.line("}")
 	}
-	e.line("")
+	t.line("")
 }
 
 // objectBody renders an interface's fields. substitute, when set, is the type name
 // to replace with the generic parameter T.
-func (e *tsEmitter) objectBody(node *schema, substitute string) string {
+func (t *tsEmitter) objectBody(node *schema, substitute string) string {
 	var out strings.Builder
 	for _, name := range slices.Sorted(maps.Keys(node.Properties)) {
 		child, ok := node.Properties[name].(*schema)
 		if !ok {
 			continue
 		}
-		rendered := e.typeOf(child)
+		rendered := t.typeOf(child)
 		if substitute != "" {
 			rendered = substituteType(rendered, substitute)
 		}
@@ -287,7 +287,7 @@ func (e *tsEmitter) objectBody(node *schema, substitute string) string {
 
 // branch renders one variant of a discriminated union: the shared fields this tag permits,
 // with the discriminator pinned and the other tags' fields gone.
-func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
+func (t *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 	var fields []string
 	for _, name := range discriminatorFirst(unionSchema, variantSchema) {
 		unionField, ok := unionSchema.Properties[name].(*schema)
@@ -299,9 +299,9 @@ func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 			// The boolean schema `false`: this tag may not carry the field at all.
 			continue
 		}
-		rendered := e.typeOf(unionField)
+		rendered := t.typeOf(unionField)
 		if narrowing, ok := override.(*schema); mentioned && ok {
-			rendered = e.narrow(unionField, narrowing)
+			rendered = t.narrow(unionField, narrowing)
 		}
 		fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(name), optionalMark(variantSchema, name), rendered))
 	}
@@ -311,16 +311,16 @@ func (e *tsEmitter) branch(unionSchema, variantSchema *schema) string {
 // narrow applies a branch's constraint on a nested frame: the tag pins the
 // discriminator to a literal, or claims some of the frame's fields and forbids the
 // rest.
-func (e *tsEmitter) narrow(baseChild, narrowing *schema) string {
+func (t *tsEmitter) narrow(baseChild, narrowing *schema) string {
 	if narrowing.Const != "" {
 		return strconv.Quote(narrowing.Const)
 	}
 	if narrowing.TypeScriptType != "" {
 		return narrowing.TypeScriptType
 	}
-	frame := e.resolve(baseChild)
+	frame := t.resolve(baseChild)
 	if frame == nil {
-		return e.typeOf(baseChild)
+		return t.typeOf(baseChild)
 	}
 	var fields []string
 	for _, name := range slices.Sorted(maps.Keys(frame.Properties)) {
@@ -331,22 +331,22 @@ func (e *tsEmitter) narrow(baseChild, narrowing *schema) string {
 		if excluded, ok := narrowing.Properties[name].(bool); ok && !excluded {
 			continue
 		}
-		fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(name), optionalMark(narrowing, name), e.typeOf(child)))
+		fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(name), optionalMark(narrowing, name), t.typeOf(child)))
 	}
 	return "{ " + strings.Join(fields, "; ") + " }"
 }
 
 // resolve follows a reference to the definition it names.
-func (e tsTypes) resolve(node *schema) *schema {
+func (t tsTypes) resolve(node *schema) *schema {
 	name, ok := strings.CutPrefix(node.Ref, refPrefix)
 	if !ok {
 		return nil
 	}
-	return e.set.defs[name]
+	return t.set.defs[name]
 }
 
 // typeOf renders a schema node as a TypeScript type expression.
-func (e tsTypes) typeOf(node *schema) string {
+func (t tsTypes) typeOf(node *schema) string {
 	if node.TypeScriptType != "" {
 		return node.TypeScriptType
 	}
@@ -357,7 +357,7 @@ func (e tsTypes) typeOf(node *schema) string {
 	if len(node.AnyOf) > 0 {
 		parts := make([]string, 0, len(node.AnyOf))
 		for _, member := range node.AnyOf {
-			parts = append(parts, e.typeOf(member))
+			parts = append(parts, t.typeOf(member))
 		}
 		return unionOf(parts)
 	}
@@ -372,12 +372,12 @@ func (e tsTypes) typeOf(node *schema) string {
 	}
 	parts := make([]string, 0, len(names))
 	for _, name := range names {
-		parts = append(parts, e.keyword(name, node))
+		parts = append(parts, t.keyword(name, node))
 	}
 	return unionOf(parts)
 }
 
-func (e tsTypes) keyword(name schemaType, node *schema) string {
+func (t tsTypes) keyword(name schemaType, node *schema) string {
 	switch name {
 	case schemaTypeString:
 		return "string"
@@ -391,14 +391,14 @@ func (e tsTypes) keyword(name schemaType, node *schema) string {
 		if node.Items == nil {
 			return "unknown[]"
 		}
-		element := e.typeOf(node.Items)
+		element := t.typeOf(node.Items)
 		if strings.Contains(element, "|") {
 			return "(" + element + ")[]"
 		}
 		return element + "[]"
 	case schemaTypeObject:
 		if child, ok := node.AdditionalProps.(*schema); ok {
-			return "Record<string, " + e.typeOf(child) + ">"
+			return "Record<string, " + t.typeOf(child) + ">"
 		}
 		if len(node.Properties) == 0 {
 			return "Record<string, never>"
@@ -409,7 +409,7 @@ func (e tsTypes) keyword(name schemaType, node *schema) string {
 			if !ok {
 				continue
 			}
-			fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(property), optionalMark(node, property), e.typeOf(child)))
+			fields = append(fields, fmt.Sprintf("%s%s: %s", propertyKey(property), optionalMark(node, property), t.typeOf(child)))
 		}
 		return "{ " + strings.Join(fields, "; ") + " }"
 	default:
@@ -418,24 +418,24 @@ func (e tsTypes) keyword(name schemaType, node *schema) string {
 }
 
 // typeName is the published name of a Go type, as TypeScript spells it.
-func (e tsTypes) typeName(t reflect.Type) string {
-	if t == nil {
+func (t tsTypes) typeName(shape reflect.Type) string {
+	if shape == nil {
 		return "unknown"
 	}
-	if name := defName(t); name != "" {
+	if name := defName(shape); name != "" {
 		return name
 	}
-	return e.typeOf(e.set.walk(t))
+	return t.typeOf(t.set.walk(shape))
 }
 
-func (e *tsEmitter) line(format string, arguments ...any) {
-	fmt.Fprintf(&e.out, format+"\n", arguments...)
+func (t *tsEmitter) line(format string, arguments ...any) {
+	fmt.Fprintf(&t.out, format+"\n", arguments...)
 }
 
-func (e *tsEmitter) trimTrailingNewline() {
-	text := strings.TrimSuffix(e.out.String(), "\n")
-	e.out.Reset()
-	e.out.WriteString(text)
+func (t *tsEmitter) trimTrailingNewline() {
+	text := strings.TrimSuffix(t.out.String(), "\n")
+	t.out.Reset()
+	t.out.WriteString(text)
 }
 
 // genericBases groups the instantiations of each generic Go type by generic name.

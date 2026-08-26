@@ -152,7 +152,7 @@ func NewReport(reporter GoalOutcomeReporter) (toolcontract.Tool, error) {
 	)
 }
 
-func (t *creator) create(ctx context.Context, args createArgs) (goalResult, error) {
+func (c *creator) create(ctx context.Context, args createArgs) (goalResult, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return goalResult{Message: "No active session; a Goal must belong to a session."}, nil
@@ -170,7 +170,7 @@ func (t *creator) create(ctx context.Context, args createArgs) (goalResult, erro
 		}
 	}
 	capabilities, _ := executionctx.RunCapabilities(ctx)
-	g, err := t.goals.Start(ctx, sessionID, objective, modelref.Selection{}, budget, capabilities)
+	g, err := c.goals.Start(ctx, sessionID, objective, modelref.Selection{}, budget, capabilities)
 	if err != nil {
 		switch {
 		case errors.Is(err, goals.ErrGoalActive):
@@ -194,23 +194,23 @@ func (t *creator) create(ctx context.Context, args createArgs) (goalResult, erro
 	}, nil
 }
 
-func (t *getter) get(ctx context.Context, _ getArgs) (goalResult, error) {
+func (g *getter) get(ctx context.Context, _ getArgs) (goalResult, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return goalResult{Message: "No active session; there is no session Goal to inspect."}, nil
 	}
-	g, ok, err := t.goals.Current(ctx, sessionID)
+	current, ok, err := g.goals.Current(ctx, sessionID)
 	if err != nil {
 		return goalResult{}, err
 	}
 	if !ok {
 		return goalResult{Message: "No Goal exists for this session."}, nil
 	}
-	view := viewOf(g)
+	view := viewOf(current)
 	return goalResult{Goal: &view}, nil
 }
 
-func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, error) {
+func (o *outcomeReporter) report(ctx context.Context, args reportArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "No active session; cannot report a Goal outcome.", nil
@@ -229,7 +229,7 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 		return "Omit reason when reporting a completed Goal.", nil
 	}
 	incarnationID, _ := executionctx.GoalIncarnationID(ctx)
-	result, err := t.goals.Report(ctx, goals.ReportCommand{
+	result, err := o.goals.Report(ctx, goals.ReportCommand{
 		SessionID:     sessionID,
 		IncarnationID: incarnationID,
 		Outcome:       outcome,

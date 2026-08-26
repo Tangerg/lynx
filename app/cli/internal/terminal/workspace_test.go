@@ -44,9 +44,9 @@ type workspaceRecordingRuntime struct {
 	created chan string
 }
 
-func (r *workspaceRecordingRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
-	r.created <- input.Workspace
-	return r.Runtime.CreateSession(ctx, input)
+func (w *workspaceRecordingRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
+	w.created <- input.Workspace
+	return w.Runtime.CreateSession(ctx, input)
 }
 
 func TestRecentWorkspacePickerCreatesAndSwitchesToTheSelectedRoot(t *testing.T) {

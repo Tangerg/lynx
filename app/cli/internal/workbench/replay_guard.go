@@ -14,17 +14,17 @@ type ReplayGuard struct {
 	Until     time.Time `json:"until"`
 }
 
-func (guard ReplayGuard) Validate() error {
-	namespace := strings.TrimSpace(guard.Namespace)
-	if namespace == "" && guard.Until.IsZero() {
+func (r ReplayGuard) Validate() error {
+	namespace := strings.TrimSpace(r.Namespace)
+	if namespace == "" && r.Until.IsZero() {
 		return nil
 	}
-	if namespace == "" || guard.Until.IsZero() {
+	if namespace == "" || r.Until.IsZero() {
 		return errors.New("command replay guard is incomplete")
 	}
 	return nil
 }
 
-func (guard ReplayGuard) Empty() bool {
-	return strings.TrimSpace(guard.Namespace) == "" && guard.Until.IsZero()
+func (r ReplayGuard) Empty() bool {
+	return strings.TrimSpace(r.Namespace) == "" && r.Until.IsZero()
 }

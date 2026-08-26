@@ -21,37 +21,37 @@ type memoryOAuthStore struct {
 	saveErr error
 }
 
-func (store *memoryOAuthStore) LoadOAuthSession(_ context.Context, _ string, origin string) ([]byte, bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.origin != origin || len(store.payload) == 0 {
+func (m *memoryOAuthStore) LoadOAuthSession(_ context.Context, _ string, origin string) ([]byte, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.origin != origin || len(m.payload) == 0 {
 		return nil, false, nil
 	}
-	return append([]byte(nil), store.payload...), true, nil
+	return append([]byte(nil), m.payload...), true, nil
 }
 
-func (store *memoryOAuthStore) SaveOAuthSession(_ context.Context, _ string, origin string, payload []byte) error {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.saveErr != nil {
-		return store.saveErr
+func (m *memoryOAuthStore) SaveOAuthSession(_ context.Context, _ string, origin string, payload []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.saveErr != nil {
+		return m.saveErr
 	}
-	store.origin = origin
-	store.payload = append([]byte(nil), payload...)
+	m.origin = origin
+	m.payload = append([]byte(nil), payload...)
 	return nil
 }
 
-func (store *memoryOAuthStore) RemoveOAuthSession(context.Context, string) error {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.payload = nil
-	store.removed++
+func (m *memoryOAuthStore) RemoveOAuthSession(context.Context, string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.payload = nil
+	m.removed++
 	return nil
 }
 
 type tokenSourceFunc func() (*oauth2.Token, error)
 
-func (source tokenSourceFunc) Token() (*oauth2.Token, error) { return source() }
+func (t tokenSourceFunc) Token() (*oauth2.Token, error) { return t() }
 
 func oauthSessionFixture(t *testing.T, token *oauth2.Token) (*oauth2.Config, []byte) {
 	t.Helper()

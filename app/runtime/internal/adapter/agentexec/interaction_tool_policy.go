@@ -36,17 +36,17 @@ func NewToolAuthorizer(policy InteractionApprovalPolicy) (*ToolAuthorizer, error
 	return &ToolAuthorizer{policy: policy}, nil
 }
 
-func (authorizer *ToolAuthorizer) AuthorizeTool(
+func (t *ToolAuthorizer) AuthorizeTool(
 	ctx context.Context,
 	request ToolAuthorizationRequest,
 ) (ToolAuthorizationDecision, error) {
-	if authorizer == nil || authorizer.policy == nil {
+	if t == nil || t.policy == nil {
 		return ToolAuthorizationDecision{}, errors.New("agentexec: Tool authorizer is unavailable")
 	}
 	if err := validateToolAuthorizationRequest(request); err != nil {
 		return ToolAuthorizationDecision{}, err
 	}
-	mode, err := authorizer.policy.Mode(ctx, request.SessionID)
+	mode, err := t.policy.Mode(ctx, request.SessionID)
 	if err != nil {
 		return ToolAuthorizationDecision{}, fmt.Errorf("agentexec: read Tool approval mode: %w", err)
 	}
@@ -59,7 +59,7 @@ func (authorizer *ToolAuthorizer) AuthorizeTool(
 		ShellCommand: request.ShellCommand,
 	}).Plan()
 	if plan.Action == approval.GatePrompt {
-		decision, matched, err := authorizer.policy.Decide(ctx, approval.Query{
+		decision, matched, err := t.policy.Decide(ctx, approval.Query{
 			SessionID:  request.SessionID,
 			ProjectDir: request.CWD,
 			Tool:       request.ToolName,
@@ -97,13 +97,13 @@ func (authorizer *ToolAuthorizer) AuthorizeTool(
 	}
 }
 
-func (authorizer *ToolAuthorizer) ResolveToolApproval(
+func (t *ToolAuthorizer) ResolveToolApproval(
 	ctx context.Context,
 	request ToolAuthorizationRequest,
 	prompt runs.ApprovalPrompt,
 	resolution interrupt.Resolution,
 ) (ToolAuthorizationDecision, error) {
-	if authorizer == nil || authorizer.policy == nil {
+	if t == nil || t.policy == nil {
 		return ToolAuthorizationDecision{}, errors.New("agentexec: Tool authorizer is unavailable")
 	}
 	if err := validateToolAuthorizationRequest(request); err != nil {
@@ -117,7 +117,7 @@ func (authorizer *ToolAuthorizer) ResolveToolApproval(
 		return ToolAuthorizationDecision{}, errors.New("agentexec: Tool approval response differs from its invocation")
 	}
 	if prompt.Rememberable && resolution.RememberScope != "" {
-		if err := authorizer.policy.Remember(ctx, approval.RememberRequest{
+		if err := t.policy.Remember(ctx, approval.RememberRequest{
 			Scope:      resolution.RememberScope,
 			SessionID:  request.SessionID,
 			ProjectDir: request.CWD,

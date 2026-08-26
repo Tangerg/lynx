@@ -24,7 +24,7 @@ const (
 // AllowsLifecycleCommands reports whether a start, stop, or resume request can
 // be meaningful in this observed state. The runtime remains authoritative for
 // concurrent transitions between the observation and a command.
-func (status Status) AllowsLifecycleCommands() bool { return status != Completing }
+func (s Status) AllowsLifecycleCommands() bool { return s != Completing }
 
 type ReasonCode string
 
@@ -46,13 +46,13 @@ type Reason struct {
 	Detail string
 }
 
-func (reason Reason) Validate() error {
+func (r Reason) Validate() error {
 	if !slices.Contains([]ReasonCode{
 		StoppedByUser, RuntimeRestarted, RunStartFailed, AwaitingInput,
 		TerminalOutcomeMissing, RunNotCompleted, RunBudgetReached,
 		CostBudgetReached, StepBudgetReached, BlockedByModel,
-	}, reason.Code) {
-		return fmt.Errorf("goal reason %q is invalid", reason.Code)
+	}, r.Code) {
+		return fmt.Errorf("goal reason %q is invalid", r.Code)
 	}
 	return nil
 }
@@ -63,9 +63,9 @@ type Budget struct {
 	MaxSteps   int
 }
 
-func (budget Budget) Validate() error {
-	if budget.MaxRuns < 0 || budget.MaxCostUSD < 0 || budget.MaxSteps < 0 ||
-		math.IsNaN(budget.MaxCostUSD) || math.IsInf(budget.MaxCostUSD, 0) {
+func (b Budget) Validate() error {
+	if b.MaxRuns < 0 || b.MaxCostUSD < 0 || b.MaxSteps < 0 ||
+		math.IsNaN(b.MaxCostUSD) || math.IsInf(b.MaxCostUSD, 0) {
 		return errors.New("goal budget contains a non-finite or negative limit")
 	}
 	return nil
@@ -77,9 +77,9 @@ type Usage struct {
 	Steps   int
 }
 
-func (usage Usage) Validate() error {
-	if usage.Runs < 0 || usage.CostUSD < 0 || usage.Steps < 0 ||
-		math.IsNaN(usage.CostUSD) || math.IsInf(usage.CostUSD, 0) {
+func (u Usage) Validate() error {
+	if u.Runs < 0 || u.CostUSD < 0 || u.Steps < 0 ||
+		math.IsNaN(u.CostUSD) || math.IsInf(u.CostUSD, 0) {
 		return errors.New("goal usage contains a non-finite or negative value")
 	}
 	return nil
@@ -98,32 +98,32 @@ type Goal struct {
 	UpdatedAt time.Time
 }
 
-func (goal Goal) Validate() error {
+func (g Goal) Validate() error {
 	var problems []error
-	if strings.TrimSpace(goal.SessionID) == "" {
+	if strings.TrimSpace(g.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
-	if strings.TrimSpace(goal.Objective) == "" {
+	if strings.TrimSpace(g.Objective) == "" {
 		problems = append(problems, errors.New("objective is empty"))
 	}
-	if goal.Status != Active && goal.Status != Paused && goal.Status != Blocked && goal.Status != Completing {
-		problems = append(problems, fmt.Errorf("status %q is invalid", goal.Status))
+	if g.Status != Active && g.Status != Paused && g.Status != Blocked && g.Status != Completing {
+		problems = append(problems, fmt.Errorf("status %q is invalid", g.Status))
 	}
-	if (goal.Status == Active || goal.Status == Completing) && goal.Reason != nil {
+	if (g.Status == Active || g.Status == Completing) && g.Reason != nil {
 		problems = append(problems, errors.New("non-resting goal carries a stopping reason"))
 	}
-	if (goal.Status == Paused || goal.Status == Blocked) && goal.Reason == nil {
+	if (g.Status == Paused || g.Status == Blocked) && g.Reason == nil {
 		problems = append(problems, errors.New("resting goal has no reason"))
 	}
-	if goal.Reason != nil {
-		problems = append(problems, goal.Reason.Validate())
+	if g.Reason != nil {
+		problems = append(problems, g.Reason.Validate())
 	}
-	if (goal.Provider == "") != (goal.Model == "") {
+	if (g.Provider == "") != (g.Model == "") {
 		problems = append(problems, errors.New("provider and model must both be set or both be empty"))
-	} else if goal.Provider != strings.TrimSpace(goal.Provider) || goal.Model != strings.TrimSpace(goal.Model) {
+	} else if g.Provider != strings.TrimSpace(g.Provider) || g.Model != strings.TrimSpace(g.Model) {
 		problems = append(problems, errors.New("provider and model must not have surrounding whitespace"))
 	}
-	problems = append(problems, goal.Budget.Validate(), goal.Used.Validate())
+	problems = append(problems, g.Budget.Validate(), g.Used.Validate())
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("goal: %w", err)
 	}
@@ -145,32 +145,32 @@ type Update struct {
 	Objective string
 }
 
-func (update Update) Validate() error {
-	if strings.TrimSpace(update.SessionID) == "" {
+func (u Update) Validate() error {
+	if strings.TrimSpace(u.SessionID) == "" {
 		return errors.New("update goal: session id is empty")
 	}
-	if strings.TrimSpace(update.Objective) == "" {
+	if strings.TrimSpace(u.Objective) == "" {
 		return errors.New("update goal: objective is empty")
 	}
-	if update.SessionID != strings.TrimSpace(update.SessionID) || update.Objective != strings.TrimSpace(update.Objective) {
+	if u.SessionID != strings.TrimSpace(u.SessionID) || u.Objective != strings.TrimSpace(u.Objective) {
 		return errors.New("update goal: values must not have surrounding whitespace")
 	}
 	return nil
 }
 
-func (update Update) ValidateResult(result Goal) error {
-	if err := update.Validate(); err != nil {
+func (u Update) ValidateResult(result Goal) error {
+	if err := u.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.SessionID != update.SessionID {
-		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, update.SessionID))
+	if result.SessionID != u.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, u.SessionID))
 	}
-	if result.Objective != update.Objective {
-		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, update.Objective))
+	if result.Objective != u.Objective {
+		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, u.Objective))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("update goal: %w", err)
@@ -178,20 +178,20 @@ func (update Update) ValidateResult(result Goal) error {
 	return nil
 }
 
-func (start Start) Validate() error {
-	if strings.TrimSpace(start.SessionID) == "" {
+func (s Start) Validate() error {
+	if strings.TrimSpace(s.SessionID) == "" {
 		return errors.New("start goal: session id is empty")
 	}
-	if strings.TrimSpace(start.Objective) == "" {
+	if strings.TrimSpace(s.Objective) == "" {
 		return errors.New("start goal: objective is empty")
 	}
-	if (start.Provider == "") != (start.Model == "") {
+	if (s.Provider == "") != (s.Model == "") {
 		return errors.New("start goal: provider and model must both be set or both be empty")
 	}
-	if start.Provider != strings.TrimSpace(start.Provider) || start.Model != strings.TrimSpace(start.Model) {
+	if s.Provider != strings.TrimSpace(s.Provider) || s.Model != strings.TrimSpace(s.Model) {
 		return errors.New("start goal: provider and model must not have surrounding whitespace")
 	}
-	if err := start.Budget.Validate(); err != nil {
+	if err := s.Budget.Validate(); err != nil {
 		return fmt.Errorf("start goal: %w", err)
 	}
 	return nil
@@ -199,31 +199,31 @@ func (start Start) Validate() error {
 
 // ValidateResult verifies that a successful start acknowledgement represents
 // the fresh objective incarnation requested by the caller.
-func (start Start) ValidateResult(result Goal) error {
-	if err := start.Validate(); err != nil {
+func (s Start) ValidateResult(result Goal) error {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.SessionID != start.SessionID {
-		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, start.SessionID))
+	if result.SessionID != s.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, s.SessionID))
 	}
-	if result.Objective != start.Objective {
-		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, start.Objective))
+	if result.Objective != s.Objective {
+		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, s.Objective))
 	}
 	if result.Status != Active {
 		problems = append(problems, fmt.Errorf("runtime returned status %q, want %q", result.Status, Active))
 	}
-	if result.Provider != start.Provider || result.Model != start.Model {
+	if result.Provider != s.Provider || result.Model != s.Model {
 		problems = append(problems, fmt.Errorf(
 			"runtime returned model %q/%q, want %q/%q",
-			result.Provider, result.Model, start.Provider, start.Model,
+			result.Provider, result.Model, s.Provider, s.Model,
 		))
 	}
-	if result.Budget != start.Budget {
-		problems = append(problems, fmt.Errorf("runtime returned budget %+v, want %+v", result.Budget, start.Budget))
+	if result.Budget != s.Budget {
+		problems = append(problems, fmt.Errorf("runtime returned budget %+v, want %+v", result.Budget, s.Budget))
 	}
 	if result.Used != (Usage{}) {
 		problems = append(problems, fmt.Errorf("runtime returned non-zero usage %+v for a new goal", result.Used))

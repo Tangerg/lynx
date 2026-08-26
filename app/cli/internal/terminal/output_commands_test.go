@@ -37,8 +37,8 @@ type copyTestHost struct {
 	copied chan string
 }
 
-func (h *copyTestHost) Copy(value string) bool {
-	h.copied <- value
+func (c *copyTestHost) Copy(value string) bool {
+	c.copied <- value
 	return true
 }
 
@@ -51,16 +51,16 @@ type blockingOutputTransfer struct {
 	canceled chan struct{}
 }
 
-func (service *blockingOutputTransfer) ExportSession(
+func (b *blockingOutputTransfer) ExportSession(
 	ctx context.Context,
 	request sessiontransfer.ExportRequest,
 ) (sessiontransfer.Document, error) {
-	service.started <- request
+	b.started <- request
 	select {
-	case <-service.release:
-		return service.Service.ExportSession(ctx, request)
+	case <-b.release:
+		return b.Service.ExportSession(ctx, request)
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return sessiontransfer.Document{}, context.Cause(ctx)
 	}
 }

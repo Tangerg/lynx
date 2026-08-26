@@ -9,8 +9,8 @@ import (
 
 type carryingError struct{ problem *Problem }
 
-func (err carryingError) Error() string     { return "failed" }
-func (err carryingError) Failure() *Problem { return err.problem.Clone() }
+func (c carryingError) Error() string     { return "failed" }
+func (c carryingError) Failure() *Problem { return c.problem.Clone() }
 
 func TestProblemOwnsAndPresentsRecoveryMetadata(t *testing.T) {
 	t.Parallel()

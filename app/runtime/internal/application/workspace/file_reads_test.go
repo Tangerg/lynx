@@ -15,19 +15,19 @@ type fileReadPort struct {
 	grepCalled bool
 }
 
-func (port *fileReadPort) List(context.Context, string, FileListOptions) ([]FileEntry, error) {
+func (f *fileReadPort) List(context.Context, string, FileListOptions) ([]FileEntry, error) {
 	return nil, nil
 }
 
-func (port *fileReadPort) Read(_ context.Context, _ string, input FileReadInput) (FileReadResult, error) {
-	port.input = input
-	return port.result, nil
+func (f *fileReadPort) Read(_ context.Context, _ string, input FileReadInput) (FileReadResult, error) {
+	f.input = input
+	return f.result, nil
 }
 
-func (port *fileReadPort) Grep(_ context.Context, _ string, input GrepPlan) (GrepResult, error) {
-	port.grepCalled = true
-	port.grepInput = input
-	return port.grepResult, nil
+func (f *fileReadPort) Grep(_ context.Context, _ string, input GrepPlan) (GrepResult, error) {
+	f.grepCalled = true
+	f.grepInput = input
+	return f.grepResult, nil
 }
 
 type fileReadPaths struct{}

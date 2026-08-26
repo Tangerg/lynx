@@ -94,29 +94,29 @@ type recordingResponseWriter struct {
 	wroteHeader bool
 }
 
-func (w *recordingResponseWriter) WriteHeader(status int) {
-	if w.wroteHeader {
+func (r *recordingResponseWriter) WriteHeader(status int) {
+	if r.wroteHeader {
 		return
 	}
-	w.wroteHeader = true
-	w.status = status
-	w.ResponseWriter.WriteHeader(status)
+	r.wroteHeader = true
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
 }
 
-func (w *recordingResponseWriter) Write(p []byte) (int, error) {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
+func (r *recordingResponseWriter) Write(p []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
 	}
-	n, err := w.ResponseWriter.Write(p)
-	w.bytes += n
+	n, err := r.ResponseWriter.Write(p)
+	r.bytes += n
 	return n, err
 }
 
 // Flush proxies through so SSE streams keep working.
-func (w *recordingResponseWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		if !w.wroteHeader {
-			w.WriteHeader(http.StatusOK)
+func (r *recordingResponseWriter) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		if !r.wroteHeader {
+			r.WriteHeader(http.StatusOK)
 		}
 		f.Flush()
 	}
@@ -125,8 +125,8 @@ func (w *recordingResponseWriter) Flush() {
 // Unwrap exposes the wrapped writer so http.ResponseController can reach the
 // underlying connection — notably for the per-frame write deadline the SSE stream
 // relies on to bound a blocked write (see serveStream).
-func (w *recordingResponseWriter) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
+func (r *recordingResponseWriter) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
 }
 
 func handlerPanicError(recovered any) error {

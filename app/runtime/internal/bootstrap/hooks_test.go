@@ -8,8 +8,8 @@ import (
 
 type failingHookTrust struct{ err error }
 
-func (t failingHookTrust) IsTrusted(context.Context, string) (bool, error) {
-	return false, t.err
+func (f failingHookTrust) IsTrusted(context.Context, string) (bool, error) {
+	return false, f.err
 }
 
 func TestNewHookResolverPreservesTrustStoreFailure(t *testing.T) {

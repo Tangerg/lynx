@@ -71,8 +71,8 @@ const (
 	RememberGlobal  RememberPreference = "global"
 )
 
-func (p RememberPreference) Scope() agent.RememberScope {
-	switch p {
+func (r RememberPreference) Scope() agent.RememberScope {
+	switch r {
 	case RememberSession:
 		return agent.RememberSession
 	case RememberProject:
@@ -127,15 +127,15 @@ func Default() Config {
 	}
 }
 
-func (s Config) Validate() error {
+func (c Config) Validate() error {
 	var problems []error
-	if err := s.RunOptions().Validate(); err != nil {
+	if err := c.RunOptions().Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	problems = append(problems, validateApproval(s.Approval)...)
-	problems = append(problems, validateUI(s.UI)...)
-	problems = append(problems, validatePluginDirectories(s.Plugins.Directories)...)
-	problems = append(problems, validateKeys(s.Keys)...)
+	problems = append(problems, validateApproval(c.Approval)...)
+	problems = append(problems, validateUI(c.UI)...)
+	problems = append(problems, validatePluginDirectories(c.Plugins.Directories)...)
+	problems = append(problems, validateKeys(c.Keys)...)
 	return errors.Join(problems...)
 }
 
@@ -199,23 +199,23 @@ func validateKeys(keys map[string][]string) []error {
 	return problems
 }
 
-func (s Config) RunOptions() agent.RunOptions {
+func (c Config) RunOptions() agent.RunOptions {
 	return agent.RunOptions{
-		Provider: s.Provider,
-		Model:    s.Model,
+		Provider: c.Provider,
+		Model:    c.Model,
 		Limits: agent.RunLimits{
-			MaxTotalTokens: s.Run.MaxTotalTokens,
-			MaxSteps:       s.Run.MaxSteps,
-			MaxBudgetUSD:   s.Run.MaxBudgetUSD,
+			MaxTotalTokens: c.Run.MaxTotalTokens,
+			MaxSteps:       c.Run.MaxSteps,
+			MaxBudgetUSD:   c.Run.MaxBudgetUSD,
 		},
 	}
 }
 
-func (s Config) Clone() Config {
-	out := s
-	out.Plugins.Directories = slices.Clone(s.Plugins.Directories)
-	out.Keys = make(map[string][]string, len(s.Keys))
-	for action, bindings := range s.Keys {
+func (c Config) Clone() Config {
+	out := c
+	out.Plugins.Directories = slices.Clone(c.Plugins.Directories)
+	out.Keys = make(map[string][]string, len(c.Keys))
+	for action, bindings := range c.Keys {
 		out.Keys[action] = slices.Clone(bindings)
 	}
 	return out

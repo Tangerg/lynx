@@ -38,11 +38,11 @@ type usageRecord struct {
 // lastActivity is the most recent signal of relevance — a load if the skill has
 // been used, else when the store first saw it (so a brand-new, never-used skill
 // gets the grace floor before it can be judged idle).
-func (r usageRecord) lastActivity() int64 {
-	if r.LastUsed > r.FirstSeen {
-		return r.LastUsed
+func (u usageRecord) lastActivity() int64 {
+	if u.LastUsed > u.FirstSeen {
+		return u.LastUsed
 	}
-	return r.FirstSeen
+	return u.FirstSeen
 }
 
 // RecordUse marks a skill loaded at now: it updates the last-used time (seeding
@@ -296,12 +296,12 @@ type skillUsageContextReader struct {
 	reader io.Reader
 }
 
-func (r skillUsageContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(r.ctx); cause != nil {
+func (s skillUsageContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(s.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := r.reader.Read(buffer)
-	if cause := context.Cause(r.ctx); cause != nil {
+	read, err := s.reader.Read(buffer)
+	if cause := context.Cause(s.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err

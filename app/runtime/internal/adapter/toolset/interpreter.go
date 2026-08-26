@@ -83,16 +83,16 @@ func (Interpreter) ShellCommand(name, rawArguments string) string {
 // ProjectOutcome returns the application fact implied by a completed tool
 // call. It reads canonical state rather than decoding a private tool result, so
 // the published fact cannot drift from the state the tool actually wrote.
-func (s Interpreter) ProjectOutcome(
+func (i Interpreter) ProjectOutcome(
 	ctx context.Context,
 	sessionID, name string,
 	succeeded bool,
 ) (runs.ExecutionFact, error) {
 	descriptor, known := descriptorFor(name)
-	if !succeeded || !known || descriptor.outcome != planOutcomeProjection || s.plans == nil {
+	if !succeeded || !known || descriptor.outcome != planOutcomeProjection || i.plans == nil {
 		return nil, nil
 	}
-	state, err := s.plans.State(ctx, sessionID)
+	state, err := i.plans.State(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("toolset: project Plan replacement: %w", err)
 	}

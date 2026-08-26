@@ -13,23 +13,23 @@ type runScope struct {
 	members map[string]agent.RunLineage
 }
 
-func (scope *runScope) bind(run agent.Run) error {
+func (r *runScope) bind(run agent.Run) error {
 	if err := run.Validate(); err != nil {
 		return err
 	}
 	if !run.Lineage.IsRoot() {
 		return fmt.Errorf("run %s is not a root", run.ID)
 	}
-	if scope.rootID != "" && scope.rootID != run.ID {
-		return fmt.Errorf("run %s does not match %s", run.ID, scope.rootID)
+	if r.rootID != "" && r.rootID != run.ID {
+		return fmt.Errorf("run %s does not match %s", run.ID, r.rootID)
 	}
-	scope.ensureMembers()
-	scope.rootID = run.ID
-	scope.members[run.ID] = run.Lineage
+	r.ensureMembers()
+	r.rootID = run.ID
+	r.members[run.ID] = run.Lineage
 	return nil
 }
 
-func (scope *runScope) accept(envelope agent.RunEvent) error {
+func (r *runScope) accept(envelope agent.RunEvent) error {
 	started, opening := envelope.Event.(agent.SegmentStarted)
 	if opening {
 		run := started.Run
@@ -37,22 +37,22 @@ func (scope *runScope) accept(envelope agent.RunEvent) error {
 			return fmt.Errorf("segment start run %s does not match envelope %s", run.ID, envelope.RunID)
 		}
 		if run.Lineage.IsRoot() {
-			return scope.bind(run)
+			return r.bind(run)
 		}
-		if scope.rootID == "" || run.Lineage.RootRunID != scope.rootID {
-			return fmt.Errorf("child run %s does not belong to root %s", run.ID, scope.rootID)
+		if r.rootID == "" || run.Lineage.RootRunID != r.rootID {
+			return fmt.Errorf("child run %s does not belong to root %s", run.ID, r.rootID)
 		}
-		scope.ensureMembers()
-		if _, exists := scope.members[run.Lineage.ParentRunID]; !exists {
+		r.ensureMembers()
+		if _, exists := r.members[run.Lineage.ParentRunID]; !exists {
 			return fmt.Errorf("child run %s has unknown parent %s", run.ID, run.Lineage.ParentRunID)
 		}
-		if lineage, exists := scope.members[run.ID]; exists && lineage != run.Lineage {
+		if lineage, exists := r.members[run.ID]; exists && lineage != run.Lineage {
 			return fmt.Errorf("child run %s changed lineage", run.ID)
 		}
-		scope.members[run.ID] = run.Lineage
+		r.members[run.ID] = run.Lineage
 		return nil
 	}
-	if _, exists := scope.members[envelope.RunID]; !exists {
+	if _, exists := r.members[envelope.RunID]; !exists {
 		return fmt.Errorf("event references unknown run %s", envelope.RunID)
 	}
 	switch event := envelope.Event.(type) {
@@ -74,36 +74,36 @@ func (scope *runScope) accept(envelope agent.RunEvent) error {
 	return nil
 }
 
-func (scope *runScope) restore(snapshot agent.SessionSnapshot, rootID string) error {
+func (r *runScope) restore(snapshot agent.SessionSnapshot, rootID string) error {
 	run, exists := snapshot.RunByID(rootID)
 	if !exists {
 		return fmt.Errorf("run %s is absent from the snapshot", rootID)
 	}
-	if err := scope.bind(run); err != nil {
+	if err := r.bind(run); err != nil {
 		return err
 	}
 	for _, member := range snapshot.Runs {
 		if member.Lineage.RootRunID == rootID {
-			scope.members[member.ID] = member.Lineage
+			r.members[member.ID] = member.Lineage
 		}
 	}
 	return nil
 }
 
-func (scope *runScope) contains(runID string) bool {
-	_, exists := scope.members[runID]
+func (r *runScope) contains(runID string) bool {
+	_, exists := r.members[runID]
 	return exists
 }
 
-func (scope *runScope) isRoot(runID string) bool { return runID != "" && runID == scope.rootID }
+func (r *runScope) isRoot(runID string) bool { return runID != "" && runID == r.rootID }
 
-func (scope *runScope) isChild(runID string) bool {
-	lineage, exists := scope.members[runID]
+func (r *runScope) isChild(runID string) bool {
+	lineage, exists := r.members[runID]
 	return exists && !lineage.IsRoot()
 }
 
-func (scope *runScope) ensureMembers() {
-	if scope.members == nil {
-		scope.members = make(map[string]agent.RunLineage)
+func (r *runScope) ensureMembers() {
+	if r.members == nil {
+		r.members = make(map[string]agent.RunLineage)
 	}
 }

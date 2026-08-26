@@ -14,9 +14,9 @@ type mcpServerListStub struct {
 	calls   int
 }
 
-func (s *mcpServerListStub) List(context.Context) ([]mcpserver.Server, error) {
-	s.calls++
-	return s.servers, s.err
+func (m *mcpServerListStub) List(context.Context) ([]mcpserver.Server, error) {
+	m.calls++
+	return m.servers, m.err
 }
 
 func TestBuildMCPEnvironmentUsesOneRegistrySnapshot(t *testing.T) {

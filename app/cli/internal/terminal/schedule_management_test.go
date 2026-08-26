@@ -35,17 +35,17 @@ type blockingScheduleRunService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingScheduleRunService) RunNow(ctx context.Context, id string) (schedule.RunHandle, error) {
+func (b *blockingScheduleRunService) RunNow(ctx context.Context, id string) (schedule.RunHandle, error) {
 	select {
-	case service.started <- id:
+	case b.started <- id:
 	default:
 	}
 	select {
-	case <-service.release:
-		return service.scheduleServiceStub.RunNow(ctx, id)
+	case <-b.release:
+		return b.scheduleServiceStub.RunNow(ctx, id)
 	case <-ctx.Done():
 		select {
-		case service.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return schedule.RunHandle{}, context.Cause(ctx)
@@ -66,43 +66,43 @@ func newScheduleServiceStub() *scheduleServiceStub {
 	}
 }
 
-func (service *scheduleServiceStub) Schedules(context.Context) ([]schedule.Schedule, error) {
-	service.reads.Add(1)
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	result := make([]schedule.Schedule, len(service.schedules))
-	for index, scheduled := range service.schedules {
+func (s *scheduleServiceStub) Schedules(context.Context) ([]schedule.Schedule, error) {
+	s.reads.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]schedule.Schedule, len(s.schedules))
+	for index, scheduled := range s.schedules {
 		result[index] = cloneSchedule(scheduled)
 	}
 	return result, nil
 }
 
-func (service *scheduleServiceStub) Create(_ context.Context, candidate schedule.Candidate) (schedule.Schedule, error) {
+func (s *scheduleServiceStub) Create(_ context.Context, candidate schedule.Candidate) (schedule.Schedule, error) {
 	if err := candidate.Validate(); err != nil {
 		return schedule.Schedule{}, err
 	}
-	service.created <- candidate
-	next := service.now.Add(2 * time.Hour)
+	s.created <- candidate
+	next := s.now.Add(2 * time.Hour)
 	created := schedule.Schedule{
 		ID: "sch_created", Title: candidate.Title, Instructions: candidate.Instructions,
 		Workspace: candidate.Workspace, Provider: candidate.Provider, Model: candidate.Model,
-		Cron: candidate.Cron, Enabled: true, NextRunAt: &next, CreatedAt: service.now, Revision: 1,
+		Cron: candidate.Cron, Enabled: true, NextRunAt: &next, CreatedAt: s.now, Revision: 1,
 	}
-	service.mu.Lock()
-	service.schedules = append(service.schedules, created)
-	service.mu.Unlock()
+	s.mu.Lock()
+	s.schedules = append(s.schedules, created)
+	s.mu.Unlock()
 	return cloneSchedule(created), nil
 }
 
-func (service *scheduleServiceStub) Update(_ context.Context, patch schedule.Patch) (schedule.Schedule, error) {
+func (s *scheduleServiceStub) Update(_ context.Context, patch schedule.Patch) (schedule.Schedule, error) {
 	if err := patch.Validate(); err != nil {
 		return schedule.Schedule{}, err
 	}
-	service.updated <- patch
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.schedules {
-		scheduled := &service.schedules[index]
+	s.updated <- patch
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.schedules {
+		scheduled := &s.schedules[index]
 		if scheduled.ID != patch.ID {
 			continue
 		}
@@ -116,21 +116,21 @@ func (service *scheduleServiceStub) Update(_ context.Context, patch schedule.Pat
 	return schedule.Schedule{}, errors.New("schedule not found")
 }
 
-func (service *scheduleServiceStub) Delete(_ context.Context, id string) error {
-	service.deleted <- id
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.schedules {
-		if service.schedules[index].ID == id {
-			service.schedules = append(service.schedules[:index], service.schedules[index+1:]...)
+func (s *scheduleServiceStub) Delete(_ context.Context, id string) error {
+	s.deleted <- id
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.schedules {
+		if s.schedules[index].ID == id {
+			s.schedules = append(s.schedules[:index], s.schedules[index+1:]...)
 			return nil
 		}
 	}
 	return errors.New("schedule not found")
 }
 
-func (service *scheduleServiceStub) RunNow(_ context.Context, id string) (schedule.RunHandle, error) {
-	service.run <- id
+func (s *scheduleServiceStub) RunNow(_ context.Context, id string) (schedule.RunHandle, error) {
+	s.run <- id
 	return schedule.RunHandle{SessionID: "ses_scheduled", RunID: "run_scheduled"}, nil
 }
 

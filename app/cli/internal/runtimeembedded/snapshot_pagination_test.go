@@ -22,29 +22,29 @@ type snapshotBindingStub struct {
 	snapshotRequests []protocol.GetSessionSnapshotRequest
 }
 
-func (stub *snapshotBindingStub) GetSession(
+func (s *snapshotBindingStub) GetSession(
 	context.Context,
 	protocol.GetSessionRequest,
 	embedded.CallOptions,
 ) (*protocol.Session, error) {
-	stub.sessionCalls++
-	if stub.sessionAt != nil {
-		return stub.sessionAt(stub.sessionCalls), nil
+	s.sessionCalls++
+	if s.sessionAt != nil {
+		return s.sessionAt(s.sessionCalls), nil
 	}
-	if len(stub.sessions) == 0 {
+	if len(s.sessions) == 0 {
 		return nil, nil
 	}
-	index := min(stub.sessionCalls-1, len(stub.sessions)-1)
-	return stub.sessions[index], nil
+	index := min(s.sessionCalls-1, len(s.sessions)-1)
+	return s.sessions[index], nil
 }
 
-func (stub *snapshotBindingStub) GetSessionSnapshot(
+func (s *snapshotBindingStub) GetSessionSnapshot(
 	_ context.Context,
 	request protocol.GetSessionSnapshotRequest,
 	_ embedded.CallOptions,
 ) (*protocol.SessionSnapshot, error) {
-	stub.snapshotRequests = append(stub.snapshotRequests, request)
-	return stub.snapshot, stub.snapshotErr
+	s.snapshotRequests = append(s.snapshotRequests, request)
+	return s.snapshot, s.snapshotErr
 }
 
 func snapshotSession(revision uint64) *protocol.Session {

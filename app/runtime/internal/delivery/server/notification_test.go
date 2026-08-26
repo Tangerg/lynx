@@ -7,17 +7,17 @@ type testNotification[T any] struct {
 	sink func(T)
 }
 
-func (n *testNotification[T]) Publish(value T) {
-	n.mu.RLock()
-	sink := n.sink
-	n.mu.RUnlock()
+func (t *testNotification[T]) Publish(value T) {
+	t.mu.RLock()
+	sink := t.sink
+	t.mu.RUnlock()
 	if sink != nil {
 		sink(value)
 	}
 }
 
-func (n *testNotification[T]) Observe(sink func(T)) {
-	n.mu.Lock()
-	n.sink = sink
-	n.mu.Unlock()
+func (t *testNotification[T]) Observe(sink func(T)) {
+	t.mu.Lock()
+	t.sink = sink
+	t.mu.Unlock()
 }

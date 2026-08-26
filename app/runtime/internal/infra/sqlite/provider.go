@@ -22,8 +22,8 @@ func NewProviderStore(db *sql.DB) *ProviderStore {
 	return &ProviderStore{db: db}
 }
 
-func (s *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+func (p *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
+	rows, err := conn(ctx, p.db).QueryContext(ctx,
 		`SELECT id, api_key, base_url FROM providers ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list providers: %w", err)
@@ -32,11 +32,11 @@ func (s *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
 
 	var out []provider.Provider
 	for rows.Next() {
-		var p provider.Provider
-		if err := rows.Scan(&p.ID, &p.APIKey, &p.BaseURL); err != nil {
+		var record provider.Provider
+		if err := rows.Scan(&record.ID, &record.APIKey, &record.BaseURL); err != nil {
 			return nil, fmt.Errorf("sqlite: scan provider: %w", err)
 		}
-		out = append(out, p)
+		out = append(out, record)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list providers: %w", err)
@@ -44,21 +44,21 @@ func (s *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
 	return out, nil
 }
 
-func (s *ProviderStore) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
-	var p provider.Provider
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+func (p *ProviderStore) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
+	var record provider.Provider
+	err := conn(ctx, p.db).QueryRowContext(ctx,
 		`SELECT id, api_key, base_url FROM providers WHERE id = ?`, id).
-		Scan(&p.ID, &p.APIKey, &p.BaseURL)
+		Scan(&record.ID, &record.APIKey, &record.BaseURL)
 	if errors.Is(err, sql.ErrNoRows) {
 		return provider.Provider{}, false, nil
 	}
 	if err != nil {
 		return provider.Provider{}, false, fmt.Errorf("sqlite: get provider: %w", err)
 	}
-	return p, true, nil
+	return record, true, nil
 }
 
-func (s *ProviderStore) Update(ctx context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+func (p *ProviderStore) Update(ctx context.Context, id string, patch provider.Patch) (provider.Provider, error) {
 	var apiKey, baseURL string
 	updateAPIKey := patch.APIKey != nil
 	if updateAPIKey {
@@ -70,7 +70,7 @@ func (s *ProviderStore) Update(ctx context.Context, id string, patch provider.Pa
 	}
 
 	var out provider.Provider
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, p.db).QueryRowContext(ctx,
 		`INSERT INTO providers (id, api_key, base_url) VALUES (?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   api_key = CASE WHEN ? THEN excluded.api_key ELSE providers.api_key END,

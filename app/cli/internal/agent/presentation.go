@@ -134,14 +134,14 @@ type InlineImage struct {
 	Data     []byte
 }
 
-func (image InlineImage) Clone() InlineImage {
-	image.Data = bytes.Clone(image.Data)
-	return image
+func (i InlineImage) Clone() InlineImage {
+	i.Data = bytes.Clone(i.Data)
+	return i
 }
 
-func (image InlineImage) Equal(other InlineImage) bool {
-	return image.ID == other.ID && image.Name == other.Name && image.MIMEType == other.MIMEType &&
-		bytes.Equal(image.Data, other.Data)
+func (i InlineImage) Equal(other InlineImage) bool {
+	return i.ID == other.ID && i.Name == other.Name && i.MIMEType == other.MIMEType &&
+		bytes.Equal(i.Data, other.Data)
 }
 
 func cloneInlineImages(images []InlineImage) []InlineImage {

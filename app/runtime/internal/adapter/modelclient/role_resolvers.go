@@ -17,16 +17,16 @@ type RoleSource interface {
 
 // UtilityClient returns the current specialized utility client, falling back to
 // main when no role is configured or the configured client cannot be resolved.
-func (r *ChatResolver) UtilityClient(main *chatclient.Client, roles RoleSource) func(context.Context) *chatclient.Client {
+func (c *ChatResolver) UtilityClient(main *chatclient.Client, roles RoleSource) func(context.Context) *chatclient.Client {
 	return func(ctx context.Context) *chatclient.Client {
-		if r == nil || roles == nil {
+		if c == nil || roles == nil {
 			return main
 		}
 		role := roles.Role()
 		if !role.Configured() {
 			return main
 		}
-		client, err := r.ResolveChat(ctx, role)
+		client, err := c.ResolveChat(ctx, role)
 		if err != nil || client == nil {
 			return main
 		}

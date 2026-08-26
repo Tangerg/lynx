@@ -597,9 +597,9 @@ type sessionProjection struct {
 	transcript   *transcriptView
 }
 
-func (projection sessionProjection) close() {
-	if projection.transcript != nil {
-		projection.transcript.Close()
+func (s sessionProjection) close() {
+	if s.transcript != nil {
+		s.transcript.Close()
 	}
 }
 

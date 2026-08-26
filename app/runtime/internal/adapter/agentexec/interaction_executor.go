@@ -28,8 +28,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/core/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
@@ -200,34 +200,34 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 }
 
 // ValidateRootStart rejects inputs the Interaction cannot represent.
-func (executor *InteractionExecutor) ValidateRootStart(start runs.RootExecutionStart) error {
+func (i *InteractionExecutor) ValidateRootStart(start runs.RootExecutionStart) error {
 	if err := start.Validate(); err != nil {
 		return err
 	}
 	if len(start.WorkingContext) == 0 {
 		return errors.New("agentexec: Interaction requires a complete working context")
 	}
-	_, err := executor.maxModelCalls(start)
+	_, err := i.maxModelCalls(start)
 	return err
 }
 
 // StageRoot assembles one exact Interaction Deployment and independent Engine
 // without starting a Process or crossing the model/tool side-effect boundary.
-func (executor *InteractionExecutor) StageRoot(
+func (i *InteractionExecutor) StageRoot(
 	ctx context.Context,
 	start runs.RootExecutionStart,
 ) (runs.ExecutorRef, error) {
-	if executor == nil {
+	if i == nil {
 		return runs.ExecutorRef{}, errors.New("agentexec: Interaction executor is nil")
 	}
 	if strings.TrimSpace(start.SessionID) == "" || start.SessionID != strings.TrimSpace(start.SessionID) {
 		return runs.ExecutorRef{}, errors.New("agentexec: Interaction session ID is required without surrounding whitespace")
 	}
-	if err := executor.ValidateRootStart(start); err != nil {
+	if err := i.ValidateRootStart(start); err != nil {
 		return runs.ExecutorRef{}, err
 	}
 	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: "exec_" + uuid.NewString()}
-	session, err := executor.assembleInteraction(ctx, ref, start)
+	session, err := i.assembleInteraction(ctx, ref, start)
 	if err != nil {
 		return runs.ExecutorRef{}, err
 	}
@@ -239,32 +239,32 @@ func (executor *InteractionExecutor) StageRoot(
 		return runs.ExecutorRef{}, fmt.Errorf("agentexec: encode Interaction input: %w", err)
 	}
 	session.input = input
-	if err := executor.registerSession(session); err != nil {
+	if err := i.registerSession(session); err != nil {
 		return runs.ExecutorRef{}, err
 	}
 	return ref, nil
 }
 
-func (executor *InteractionExecutor) assembleInteraction(
+func (i *InteractionExecutor) assembleInteraction(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	start runs.RootExecutionStart,
 ) (*interactionSession, error) {
 	start.InterruptKinds = slices.Clone(start.InterruptKinds)
-	client, err := executor.resolveClient(ctx, start.ModelSelection)
+	client, err := i.resolveClient(ctx, start.ModelSelection)
 	if err != nil {
 		return nil, err
 	}
-	maxModelCalls, err := executor.maxModelCalls(start)
+	maxModelCalls, err := i.maxModelCalls(start)
 	if err != nil {
 		return nil, err
 	}
-	session := newInteractionSession(executor.lifetime, ref, start, executor.config)
+	session := newInteractionSession(i.lifetime, ref, start, i.config)
 	observedClient, err := newObservedInteractionClient(client, session)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: observe Interaction client: %w", err)
 	}
-	deployments, err := executor.buildInteractionDeployments(
+	deployments, err := i.buildInteractionDeployments(
 		runExecutionContext(ctx, rootExecutionScope(start), start), session, start, observedClient, maxModelCalls,
 	)
 	if err != nil {
@@ -279,7 +279,7 @@ func (executor *InteractionExecutor) assembleInteraction(
 		ProcessStartOutcomeAcknowledger: agent.ProcessStartOutcomeAcknowledgerFunc(session.acknowledgeProcessStartOutcome),
 		EventListeners:                  []agent.EventListener{agent.EventListenerFunc(session.observeFrameworkEvent)},
 		DeltaListeners:                  []agent.DeltaListener{agent.DeltaListenerFunc(session.projectDelta)},
-		DeltaBufferCapacity:             executor.config.DeltaBufferCapacity,
+		DeltaBufferCapacity:             i.config.DeltaBufferCapacity,
 		Limits:                          agent.DefaultLimits(),
 		TreeLimits:                      deployments.treeLimits,
 	})
@@ -290,20 +290,20 @@ func (executor *InteractionExecutor) assembleInteraction(
 	return session, nil
 }
 
-func (executor *InteractionExecutor) validateInteractionTools(manifest toolset.Manifest) error {
+func (i *InteractionExecutor) validateInteractionTools(manifest toolset.Manifest) error {
 	if len(manifest.Visible)+len(manifest.Deferred) == 0 {
 		return nil
 	}
-	if executor.config.ToolInterpreter == nil {
+	if i.config.ToolInterpreter == nil {
 		return errors.New("agentexec: Interaction Tools require a Tool interpreter")
 	}
-	if executor.config.ToolAuthorizer == nil {
+	if i.config.ToolAuthorizer == nil {
 		return errors.New("agentexec: Interaction Tools require a Tool authorizer")
 	}
 	for _, tools := range [][]toolcontract.Tool{manifest.Visible, manifest.Deferred} {
 		for _, executable := range tools {
 			name := executable.Definition().Name
-			if class := executor.config.ToolInterpreter.SafetyClass(name); !class.Valid() {
+			if class := i.config.ToolInterpreter.SafetyClass(name); !class.Valid() {
 				return fmt.Errorf(
 					"agentexec: Interaction Tool %q has invalid safety class %q",
 					name,
@@ -315,7 +315,7 @@ func (executor *InteractionExecutor) validateInteractionTools(manifest toolset.M
 	return nil
 }
 
-func (executor *InteractionExecutor) interactionConfiguration(
+func (i *InteractionExecutor) interactionConfiguration(
 	session *interactionSession,
 	start runs.RootExecutionStart,
 	maxModelCalls uint32,
@@ -344,13 +344,13 @@ func (executor *InteractionExecutor) interactionConfiguration(
 		DelegateBudget         agent.Budget              `json:"delegateBudget,omitzero"`
 		Instructions           []corechat.Message        `json:"instructions,omitempty"`
 	}{
-		Identity: executor.config.ConfigurationIdentity,
+		Identity: i.config.ConfigurationIdentity,
 		Provider: session.accounting.providerName(), Model: start.ModelSelection.Model(),
-		MaxModelCalls: maxModelCalls, Streaming: executor.config.StreamModelResponses,
-		MaxConcurrentToolCalls: executor.config.MaxConcurrentToolCalls,
-		ToolResultThreshold:    executor.config.ToolResultThreshold,
-		ToolResultReaderName:   executor.config.ToolResultReaderName,
-		InteractiveApproval:    executor.config.ToolAuthorizer != nil,
+		MaxModelCalls: maxModelCalls, Streaming: i.config.StreamModelResponses,
+		MaxConcurrentToolCalls: i.config.MaxConcurrentToolCalls,
+		ToolResultThreshold:    i.config.ToolResultThreshold,
+		ToolResultReaderName:   i.config.ToolResultReaderName,
+		InteractiveApproval:    i.config.ToolAuthorizer != nil,
 		VisibleTools:           toolDefinitions(manifest.Visible), DeferredTools: toolDefinitions(manifest.Deferred),
 		Role: role, Depth: depth, Delegate: delegate.String(), DelegateBudget: delegateBudget,
 		Instructions: cloneChatMessages(instructions),
@@ -361,39 +361,39 @@ func (executor *InteractionExecutor) interactionConfiguration(
 	return configuration, nil
 }
 
-func (executor *InteractionExecutor) registerSession(session *interactionSession) error {
-	executor.mu.Lock()
-	defer executor.mu.Unlock()
-	if executor.closed {
+func (i *InteractionExecutor) registerSession(session *interactionSession) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.closed {
 		_ = session.engine.Close()
 		return errors.New("agentexec: Interaction executor is shutting down")
 	}
-	if _, duplicate := executor.sessions[session.ref.ExecutorID]; duplicate {
+	if _, duplicate := i.sessions[session.ref.ExecutorID]; duplicate {
 		_ = session.engine.Close()
 		return errors.New("agentexec: duplicate Interaction executor identity")
 	}
-	executor.sessions[session.ref.ExecutorID] = session
+	i.sessions[session.ref.ExecutorID] = session
 	return nil
 }
 
 // BeginShutdown atomically rejects future roots and freezes the complete live
 // execution set. Resource release is joined by AwaitShutdown under its caller's
 // deadline so an interrupted close remains retryable.
-func (executor *InteractionExecutor) BeginShutdown() {
-	if executor == nil {
+func (i *InteractionExecutor) BeginShutdown() {
+	if i == nil {
 		return
 	}
-	executor.mu.Lock()
-	defer executor.mu.Unlock()
-	if executor.closed {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.closed {
 		return
 	}
-	executor.closed = true
-	executor.shutdown = make([]*interactionSession, 0, len(executor.sessions))
-	for _, session := range executor.sessions {
-		executor.shutdown = append(executor.shutdown, session)
+	i.closed = true
+	i.shutdown = make([]*interactionSession, 0, len(i.sessions))
+	for _, session := range i.sessions {
+		i.shutdown = append(i.shutdown, session)
 	}
-	slices.SortFunc(executor.shutdown, func(left, right *interactionSession) int {
+	slices.SortFunc(i.shutdown, func(left, right *interactionSession) int {
 		return strings.Compare(left.ref.ExecutorID, right.ref.ExecutorID)
 	})
 }
@@ -401,14 +401,14 @@ func (executor *InteractionExecutor) BeginShutdown() {
 // AwaitShutdown releases every root frozen by BeginShutdown. Successful
 // targets are removed immediately; failed or timed-out targets stay owned for a
 // later attempt.
-func (executor *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
+func (i *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("agentexec: Interaction shutdown context is required")
 	}
-	executor.BeginShutdown()
-	executor.mu.Lock()
-	targets := slices.Clone(executor.shutdown)
-	executor.mu.Unlock()
+	i.BeginShutdown()
+	i.mu.Lock()
+	targets := slices.Clone(i.shutdown)
+	i.mu.Unlock()
 	var failures []error
 	for _, session := range targets {
 		if err := session.release(ctx); err != nil {
@@ -422,14 +422,14 @@ func (executor *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
 			}
 			continue
 		}
-		executor.mu.Lock()
-		if executor.sessions[session.ref.ExecutorID] == session {
-			delete(executor.sessions, session.ref.ExecutorID)
+		i.mu.Lock()
+		if i.sessions[session.ref.ExecutorID] == session {
+			delete(i.sessions, session.ref.ExecutorID)
 		}
-		executor.shutdown = slices.DeleteFunc(executor.shutdown, func(candidate *interactionSession) bool {
+		i.shutdown = slices.DeleteFunc(i.shutdown, func(candidate *interactionSession) bool {
 			return candidate == session
 		})
-		executor.mu.Unlock()
+		i.mu.Unlock()
 	}
 	return errors.Join(failures...)
 }
@@ -454,11 +454,11 @@ func toolDefinitions(tools []toolcontract.Tool) []corechat.ToolDefinition {
 // Observe attaches the single Application Run pump before Process start.
 // Streaming facts are best-effort; authoritative completion and termination
 // are always emitted from Process.Await.
-func (executor *InteractionExecutor) Observe(
+func (i *InteractionExecutor) Observe(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 ) (iter.Seq[runs.ExecutorEvent], error) {
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err != nil {
 		return nil, err
 	}
@@ -488,8 +488,8 @@ func (executor *InteractionExecutor) Observe(
 // staged session lifecycle rather than the caller's request context, so a client
 // disconnect cannot cancel durable execution. Agent Framework owns every step;
 // this adapter only awaits and translates the immutable terminal result.
-func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.ExecutorRef) error {
-	session, err := executor.session(ref)
+func (i *InteractionExecutor) BeginRoot(_ context.Context, ref runs.ExecutorRef) error {
+	session, err := i.session(ref)
 	if err != nil {
 		return err
 	}
@@ -517,23 +517,23 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 // StageContinuation claims the exact process-local waiting boundary without
 // advancing it. A missing live owner is rebuilt only from the supplied exact
 // TreeSnapshot; a mismatch is rejected instead of silently recapturing state.
-func (executor *InteractionExecutor) StageContinuation(
+func (i *InteractionExecutor) StageContinuation(
 	ctx context.Context,
 	continuation runs.WaitingContinuation,
 ) (runs.ExecutorRef, error) {
 	if err := continuation.Validate(); err != nil {
 		return runs.ExecutorRef{}, err
 	}
-	if continuation.Checkpoint.BuildID != executor.config.BuildID {
+	if continuation.Checkpoint.BuildID != i.config.BuildID {
 		return runs.ExecutorRef{}, fmt.Errorf(
 			"%w: checkpoint build %q does not match %q",
 			runs.ErrExecutorStateLost,
 			continuation.Checkpoint.BuildID,
-			executor.config.BuildID,
+			i.config.BuildID,
 		)
 	}
 	ref := runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err == nil {
 		if err := session.stageContinuation(continuation.Checkpoint); err != nil {
 			return runs.ExecutorRef{}, err
@@ -543,7 +543,7 @@ func (executor *InteractionExecutor) StageContinuation(
 	if !errors.Is(err, runs.ErrExecutorNotLive) {
 		return runs.ExecutorRef{}, err
 	}
-	if err := executor.restoreWaitingTree(
+	if err := i.restoreWaitingTree(
 		ctx,
 		ref,
 		continuation,
@@ -557,28 +557,28 @@ func (executor *InteractionExecutor) StageContinuation(
 // RestoreWaitingExecution reconstructs an exact committed waiting tree without
 // claiming it for continuation. An existing owner is rejected: recovery must
 // first prove that the obsolete execution was released.
-func (executor *InteractionExecutor) RestoreWaitingExecution(
+func (i *InteractionExecutor) RestoreWaitingExecution(
 	ctx context.Context,
 	continuation runs.WaitingContinuation,
 ) (runs.ExecutorRef, error) {
 	if err := continuation.Validate(); err != nil {
 		return runs.ExecutorRef{}, err
 	}
-	if continuation.Checkpoint.BuildID != executor.config.BuildID {
+	if continuation.Checkpoint.BuildID != i.config.BuildID {
 		return runs.ExecutorRef{}, fmt.Errorf(
 			"%w: checkpoint build %q does not match %q",
 			runs.ErrExecutorStateLost,
 			continuation.Checkpoint.BuildID,
-			executor.config.BuildID,
+			i.config.BuildID,
 		)
 	}
 	ref := runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}
-	if _, err := executor.session(ref); err == nil {
+	if _, err := i.session(ref); err == nil {
 		return runs.ExecutorRef{}, runs.ErrExecutionClaimed
 	} else if !errors.Is(err, runs.ErrExecutorNotLive) {
 		return runs.ExecutorRef{}, err
 	}
-	if err := executor.restoreWaitingTree(
+	if err := i.restoreWaitingTree(
 		ctx,
 		ref,
 		continuation,
@@ -589,13 +589,13 @@ func (executor *InteractionExecutor) RestoreWaitingExecution(
 	return ref, nil
 }
 
-func (executor *InteractionExecutor) restoreWaitingTree(
+func (i *InteractionExecutor) restoreWaitingTree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	continuation runs.WaitingContinuation,
 	boundary interactionBoundary,
 ) error {
-	if err := executor.validateRestoreScope(ctx, continuation.Checkpoint.Scope); err != nil {
+	if err := i.validateRestoreScope(ctx, continuation.Checkpoint.Scope); err != nil {
 		return err
 	}
 	checkpoint, err := decodeInteractionCheckpointPayload(continuation.Checkpoint.Payload)
@@ -620,7 +620,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
 		WorkingContext:           cloneChatMessages(checkpoint.instructions),
 	}
-	session, err := executor.assembleInteraction(ctx, ref, start)
+	session, err := i.assembleInteraction(ctx, ref, start)
 	if err != nil {
 		return err
 	}
@@ -654,7 +654,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 		}
 		return fmt.Errorf("%w: restored Interaction tree has no pending input", runs.ErrExecutorStateLost)
 	}
-	if err := executor.registerSession(session); err != nil {
+	if err := i.registerSession(session); err != nil {
 		discardRestoredInteraction(session, process)
 		return err
 	}
@@ -662,15 +662,15 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 	return nil
 }
 
-func (executor *InteractionExecutor) validateRestoreScope(
+func (i *InteractionExecutor) validateRestoreScope(
 	ctx context.Context,
 	scope runs.ExecutionScope,
 ) error {
 	if scope.Isolated {
 		return fmt.Errorf("%w: isolated workspaces are not restorable after executor loss", runs.ErrExecutorStateLost)
 	}
-	if executor.config.RestoreScopeValidator != nil {
-		if err := executor.config.RestoreScopeValidator.ValidateRestoreScope(ctx, scope); err != nil {
+	if i.config.RestoreScopeValidator != nil {
+		if err := i.config.RestoreScopeValidator.ValidateRestoreScope(ctx, scope); err != nil {
 			return fmt.Errorf("%w: validate restore scope: %v", runs.ErrExecutorStateLost, err)
 		}
 		return nil
@@ -702,13 +702,13 @@ func discardRestoredInteraction(session *interactionSession, process *agent.Proc
 // Interaction response Signal. It is called only after the fresh Segment
 // opening commits, so accepting the Signal cannot start model/tool work ahead
 // of the product's durable lifecycle boundary.
-func (executor *InteractionExecutor) BeginContinuation(
+func (i *InteractionExecutor) BeginContinuation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	answers []runs.InterruptAnswer,
 	allowedInterrupts []interrupt.Kind,
 ) error {
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err != nil {
 		return err
 	}
@@ -724,7 +724,7 @@ func (executor *InteractionExecutor) BeginContinuation(
 		return err
 	}
 	// The previous Agent Process lifetime includes the human wait. Reset the
-	// executor's Segment clock before any answer can make that Process runnable.
+	// i's Segment clock before any answer can make that Process runnable.
 	session.segmentClock.start()
 	if err := session.deliverContinuationAnswers(ctx, prepared); err != nil {
 		return err
@@ -741,18 +741,18 @@ type preparedInteractionAnswer struct {
 	signal  agent.SignalRequest
 }
 
-func (session *interactionSession) prepareContinuationAnswers(
+func (i *interactionSession) prepareContinuationAnswers(
 	ctx context.Context,
 	answers []runs.InterruptAnswer,
 ) ([]preparedInteractionAnswer, error) {
-	session.state.mu.Lock()
-	checkpoint := session.state.waitingCheckpoint.Clone()
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	checkpoint := i.state.waitingCheckpoint.Clone()
+	i.state.mu.Unlock()
 	checkpointState, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: decode staged Interaction checkpoint: %w", err)
 	}
-	interruptions, err := session.pendingInterruptions(checkpointState.tree)
+	interruptions, err := i.pendingInterruptions(checkpointState.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -779,7 +779,7 @@ func (session *interactionSession) prepareContinuationAnswers(
 		if err != nil {
 			return nil, fmt.Errorf("agentexec: parse answered Interaction member: %w", err)
 		}
-		process, found := session.engine.Process(processID)
+		process, found := i.engine.Process(processID)
 		if !found {
 			return nil, errors.New("agentexec: answered Interaction member is unavailable")
 		}
@@ -807,13 +807,13 @@ func (session *interactionSession) prepareContinuationAnswers(
 	return prepared, nil
 }
 
-func (session *interactionSession) deliverContinuationAnswers(
+func (i *interactionSession) deliverContinuationAnswers(
 	ctx context.Context,
 	answers []preparedInteractionAnswer,
 ) error {
 	for _, answer := range answers {
 		accepted, err := answer.process.DeliverSignal(
-			runExecutionContext(ctx, session.scope, session.start), answer.signal,
+			runExecutionContext(ctx, i.scope, i.start), answer.signal,
 		)
 		if err != nil {
 			return fmt.Errorf("agentexec: deliver Interaction answer Signal: %w", err)
@@ -828,12 +828,12 @@ func (session *interactionSession) deliverContinuationAnswers(
 // SubmitSteer queues one user message for the next Interaction safe boundary.
 // Agent Framework rejects it while the Process is waiting; accepted content is projected
 // immediately before the model request that can first observe it.
-func (executor *InteractionExecutor) SubmitSteer(
+func (i *InteractionExecutor) SubmitSteer(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	input []transcript.ContentBlock,
 ) error {
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err != nil {
 		return err
 	}
@@ -880,32 +880,32 @@ func runExecutionContext(
 
 // Release tears down one staged or terminal per-root Engine. It is idempotent
 // and does not decide the product Run outcome.
-func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.ExecutorRef) error {
-	if executor == nil {
+func (i *InteractionExecutor) Release(ctx context.Context, ref runs.ExecutorRef) error {
+	if i == nil {
 		return nil
 	}
-	executor.mu.Lock()
-	session := executor.sessions[ref.ExecutorID]
+	i.mu.Lock()
+	session := i.sessions[ref.ExecutorID]
 	if session != nil && session.ref.SessionID != ref.SessionID {
-		executor.mu.Unlock()
+		i.mu.Unlock()
 		return runs.ErrInvalidExecutorRef
 	}
 	if session == nil {
-		executor.mu.Unlock()
+		i.mu.Unlock()
 		return nil
 	}
-	executor.mu.Unlock()
+	i.mu.Unlock()
 
 	err := session.release(ctx)
 	if err == nil {
-		executor.mu.Lock()
-		if executor.sessions[ref.ExecutorID] == session {
-			delete(executor.sessions, ref.ExecutorID)
+		i.mu.Lock()
+		if i.sessions[ref.ExecutorID] == session {
+			delete(i.sessions, ref.ExecutorID)
 		}
-		executor.shutdown = slices.DeleteFunc(executor.shutdown, func(candidate *interactionSession) bool {
+		i.shutdown = slices.DeleteFunc(i.shutdown, func(candidate *interactionSession) bool {
 			return candidate == session
 		})
-		executor.mu.Unlock()
+		i.mu.Unlock()
 	}
 	return err
 }
@@ -916,12 +916,12 @@ func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.Execu
 // its cooperative in-flight model/Tool dispatches so they can settle promptly;
 // Agent Framework remains the sole lifecycle owner and applies the accepted
 // intent only after that safe settlement boundary.
-func (executor *InteractionExecutor) RequestRootCancellation(
+func (i *InteractionExecutor) RequestRootCancellation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	reason string,
 ) error {
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err != nil {
 		return err
 	}
@@ -937,7 +937,7 @@ func (executor *InteractionExecutor) RequestRootCancellation(
 	return nil
 }
 
-func (executor *InteractionExecutor) resolveClient(
+func (i *InteractionExecutor) resolveClient(
 	ctx context.Context,
 	selection modelref.Selection,
 ) (*chatclient.Client, error) {
@@ -947,13 +947,13 @@ func (executor *InteractionExecutor) resolveClient(
 	if !selection.Configured() {
 		return nil, errors.New("agentexec: Interaction requires an exact model selection")
 	}
-	if selection == executor.config.DefaultSelection && executor.config.DefaultClient != nil {
-		return executor.config.DefaultClient, nil
+	if selection == i.config.DefaultSelection && i.config.DefaultClient != nil {
+		return i.config.DefaultClient, nil
 	}
-	if executor.config.ChatResolver == nil {
+	if i.config.ChatResolver == nil {
 		return nil, errors.New("agentexec: Interaction model selection requires a chat resolver")
 	}
-	client, err := executor.config.ChatResolver.ResolveChat(ctx, selection)
+	client, err := i.config.ChatResolver.ResolveChat(ctx, selection)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: resolve Interaction chat client: %w", err)
 	}
@@ -963,9 +963,9 @@ func (executor *InteractionExecutor) resolveClient(
 	return client, nil
 }
 
-func (executor *InteractionExecutor) maxModelCalls(start runs.RootExecutionStart) (uint32, error) {
+func (i *InteractionExecutor) maxModelCalls(start runs.RootExecutionStart) (uint32, error) {
 	if start.Limits.MaxSteps == 0 {
-		return executor.config.DefaultMaxModelCalls, nil
+		return i.config.DefaultMaxModelCalls, nil
 	}
 	if uint64(start.Limits.MaxSteps) > math.MaxUint32 {
 		return 0, fmt.Errorf("%w: max steps exceeds Interaction model-call range", runs.ErrInvalidRunLimit)
@@ -973,16 +973,16 @@ func (executor *InteractionExecutor) maxModelCalls(start runs.RootExecutionStart
 	return uint32(start.Limits.MaxSteps), nil
 }
 
-func (executor *InteractionExecutor) session(ref runs.ExecutorRef) (*interactionSession, error) {
-	if executor == nil {
+func (i *InteractionExecutor) session(ref runs.ExecutorRef) (*interactionSession, error) {
+	if i == nil {
 		return nil, errors.New("agentexec: Interaction executor is nil")
 	}
 	if err := ref.ValidateFor(ref.SessionID); err != nil {
 		return nil, err
 	}
-	executor.mu.Lock()
-	session := executor.sessions[ref.ExecutorID]
-	executor.mu.Unlock()
+	i.mu.Lock()
+	session := i.sessions[ref.ExecutorID]
+	i.mu.Unlock()
 	if session == nil || session.ref.SessionID != ref.SessionID {
 		return nil, fmt.Errorf("%w: Interaction execution %q", runs.ErrExecutorNotLive, ref.ExecutorID)
 	}

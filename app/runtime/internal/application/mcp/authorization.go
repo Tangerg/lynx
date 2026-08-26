@@ -27,18 +27,18 @@ const (
 	AuthorizationAttemptCanceled  AuthorizationAttemptStatus = "canceled"
 )
 
-// Valid reports whether status belongs to the authorization-attempt lifecycle.
-func (status AuthorizationAttemptStatus) Valid() bool {
-	return status == AuthorizationAttemptPending || status == AuthorizationAttemptSucceeded ||
-		status == AuthorizationAttemptFailed || status == AuthorizationAttemptCanceled
+// Valid reports whether a belongs to the authorization-attempt lifecycle.
+func (a AuthorizationAttemptStatus) Valid() bool {
+	return a == AuthorizationAttemptPending || a == AuthorizationAttemptSucceeded ||
+		a == AuthorizationAttemptFailed || a == AuthorizationAttemptCanceled
 }
 
 // String returns the stable authorization-attempt status name.
-func (status AuthorizationAttemptStatus) String() string {
-	if !status.Valid() {
+func (a AuthorizationAttemptStatus) String() string {
+	if !a.Valid() {
 		return "unknown"
 	}
-	return string(status)
+	return string(a)
 }
 
 // AuthorizationAttempt is the application read model for one interactive
@@ -134,56 +134,56 @@ func newAuthorizationAttemptStoreWith(
 	}
 }
 
-func (s *authorizationAttemptStore) create(server string) AuthorizationAttempt {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.purgeExpiredLocked()
+func (a *authorizationAttemptStore) create(server string) AuthorizationAttempt {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.purgeExpiredLocked()
 	attempt := AuthorizationAttempt{
-		ID: s.newID(), Server: server,
-		Status: AuthorizationAttemptPending, CreatedAt: s.now().UTC(),
+		ID: a.newID(), Server: server,
+		Status: AuthorizationAttemptPending, CreatedAt: a.now().UTC(),
 	}
-	if _, exists := s.attempts[attempt.ID]; exists {
+	if _, exists := a.attempts[attempt.ID]; exists {
 		panic("mcp: duplicate MCP authorization attempt id")
 	}
-	s.attempts[attempt.ID] = attempt
+	a.attempts[attempt.ID] = attempt
 	return attempt
 }
 
-func (s *authorizationAttemptStore) get(id string) (AuthorizationAttempt, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.purgeExpiredLocked()
-	attempt, ok := s.attempts[id]
+func (a *authorizationAttemptStore) get(id string) (AuthorizationAttempt, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.purgeExpiredLocked()
+	attempt, ok := a.attempts[id]
 	return cloneAuthorizationAttempt(attempt), ok
 }
 
-func (s *authorizationAttemptStore) settle(id string, status AuthorizationAttemptStatus) {
+func (a *authorizationAttemptStore) settle(id string, status AuthorizationAttemptStatus) {
 	if !status.Valid() || status == AuthorizationAttemptPending {
 		panic("mcp: invalid terminal MCP authorization attempt status")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	attempt, ok := s.attempts[id]
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	attempt, ok := a.attempts[id]
 	if !ok || attempt.Status != AuthorizationAttemptPending {
 		return
 	}
-	finishedAt := s.now().UTC()
+	finishedAt := a.now().UTC()
 	attempt.Status = status
 	attempt.FinishedAt = &finishedAt
-	s.attempts[id] = attempt
+	a.attempts[id] = attempt
 }
 
-func (s *authorizationAttemptStore) discard(id string) {
-	s.mu.Lock()
-	delete(s.attempts, id)
-	s.mu.Unlock()
+func (a *authorizationAttemptStore) discard(id string) {
+	a.mu.Lock()
+	delete(a.attempts, id)
+	a.mu.Unlock()
 }
 
-func (s *authorizationAttemptStore) purgeExpiredLocked() {
-	cutoff := s.now().UTC().Add(-s.retention)
-	for id, attempt := range s.attempts {
+func (a *authorizationAttemptStore) purgeExpiredLocked() {
+	cutoff := a.now().UTC().Add(-a.retention)
+	for id, attempt := range a.attempts {
 		if attempt.FinishedAt != nil && !attempt.FinishedAt.After(cutoff) {
-			delete(s.attempts, id)
+			delete(a.attempts, id)
 		}
 	}
 }

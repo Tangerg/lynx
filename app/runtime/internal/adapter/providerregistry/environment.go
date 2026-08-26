@@ -32,15 +32,15 @@ func WithEnvironmentKeys(inner models.ProviderRegistry, envKeys map[string]strin
 	return &environmentRegistry{inner: inner, envKeys: maps.Clone(envKeys)}
 }
 
-// resolve stamps KeySource and overlays the env key when there's no stored one.
-// found mirrors the inner Get's ok — but an env-only provider (no stored row)
+// resolve stamps KeySource and overlays the env key when there'e no stored one.
+// found mirrors the inner Get'e ok — but an env-only provider (no stored row)
 // still resolves as found, since an env key makes it usable.
-func (s *environmentRegistry) resolve(p provider.Provider, found bool, id string) (provider.Provider, bool) {
+func (e *environmentRegistry) resolve(p provider.Provider, found bool, id string) (provider.Provider, bool) {
 	if found && p.APIKey != "" {
 		p.KeySource = provider.KeyStored
 		return p, true
 	}
-	if env := s.envKeys[id]; env != "" {
+	if env := e.envKeys[id]; env != "" {
 		// Overlay onto the stored row (keeps any configured base URL) or
 		// synthesize a fresh entry for an env-only provider.
 		p.ID = id
@@ -55,29 +55,29 @@ func (s *environmentRegistry) resolve(p provider.Provider, found bool, id string
 	return provider.Provider{}, false
 }
 
-func (s *environmentRegistry) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
-	p, ok, err := s.inner.Get(ctx, id)
+func (e *environmentRegistry) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
+	p, ok, err := e.inner.Get(ctx, id)
 	if err != nil {
 		return provider.Provider{}, false, err
 	}
-	rp, rok := s.resolve(p, ok, id)
+	rp, rok := e.resolve(p, ok, id)
 	return rp, rok, nil
 }
 
-func (s *environmentRegistry) List(ctx context.Context) ([]provider.Provider, error) {
-	stored, err := s.inner.List(ctx)
+func (e *environmentRegistry) List(ctx context.Context) ([]provider.Provider, error) {
+	stored, err := e.inner.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]provider.Provider, 0, len(stored)+len(s.envKeys))
+	out := make([]provider.Provider, 0, len(stored)+len(e.envKeys))
 	seen := make(map[string]struct{}, len(stored))
 	for _, p := range stored {
-		rp, _ := s.resolve(p, true, p.ID)
+		rp, _ := e.resolve(p, true, p.ID)
 		out = append(out, rp)
 		seen[p.ID] = struct{}{}
 	}
 	// Env-only providers (no stored row) still surface as enabled.
-	for id, env := range s.envKeys {
+	for id, env := range e.envKeys {
 		if _, ok := seen[id]; ok {
 			continue
 		}
@@ -90,11 +90,11 @@ func (s *environmentRegistry) List(ctx context.Context) ([]provider.Provider, er
 // Update delegates the atomic persisted mutation before resolving the returned
 // effective credential. Environment keys remain read-only and are never copied
 // into the durable registry.
-func (s *environmentRegistry) Update(ctx context.Context, id string, patch provider.Patch) (provider.Provider, error) {
-	p, err := s.inner.Update(ctx, id, patch)
+func (e *environmentRegistry) Update(ctx context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	p, err := e.inner.Update(ctx, id, patch)
 	if err != nil {
 		return provider.Provider{}, err
 	}
-	resolved, _ := s.resolve(p, true, id)
+	resolved, _ := e.resolve(p, true, id)
 	return resolved, nil
 }

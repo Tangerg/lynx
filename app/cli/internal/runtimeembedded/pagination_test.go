@@ -80,12 +80,12 @@ type modelCatalogBindingStub struct {
 	models    map[string]*protocol.Page[protocol.Model]
 }
 
-func (stub modelCatalogBindingStub) ListProviders(context.Context, embedded.CallOptions) (*protocol.Page[protocol.Provider], error) {
-	return stub.providers, nil
+func (m modelCatalogBindingStub) ListProviders(context.Context, embedded.CallOptions) (*protocol.Page[protocol.Provider], error) {
+	return m.providers, nil
 }
 
-func (stub modelCatalogBindingStub) ListModels(_ context.Context, request protocol.ListModelsRequest, _ embedded.CallOptions) (*protocol.Page[protocol.Model], error) {
-	return stub.models[request.Provider], nil
+func (m modelCatalogBindingStub) ListModels(_ context.Context, request protocol.ListModelsRequest, _ embedded.CallOptions) (*protocol.Page[protocol.Model], error) {
+	return m.models[request.Provider], nil
 }
 
 func TestModelCatalogRejectsEveryUnconsumableContinuation(t *testing.T) {

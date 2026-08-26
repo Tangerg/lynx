@@ -34,18 +34,18 @@ func newQuestionBlock(theme kit.Theme, glyphs kit.Glyphs, question agent.Questio
 	return block
 }
 
-func (b *questionBlock) answered() bool {
-	return b != nil && b.question.Answered()
+func (q *questionBlock) answered() bool {
+	return q != nil && q.question.Answered()
 }
 
-func (b *questionBlock) validateAccepted(question agent.Question) error {
-	if b == nil {
+func (q *questionBlock) validateAccepted(question agent.Question) error {
+	if q == nil {
 		return fmt.Errorf("question presentation is absent")
 	}
 	if !question.Answered() {
 		return fmt.Errorf("question %s has no accepted answers", question.ItemID)
 	}
-	expected, err := b.question.Accept(agent.QuestionAnswer{Values: question.Answers})
+	expected, err := q.question.Accept(agent.QuestionAnswer{Values: question.Answers})
 	if err != nil {
 		return err
 	}
@@ -55,35 +55,35 @@ func (b *questionBlock) validateAccepted(question agent.Question) error {
 	return nil
 }
 
-func (b *questionBlock) accept(question agent.Question) {
-	b.setQuestion(question)
+func (q *questionBlock) accept(question agent.Question) {
+	q.setQuestion(question)
 }
 
-func (b *questionBlock) Measure(width int) int {
-	if !b.answered() {
+func (q *questionBlock) Measure(width int) int {
+	if !q.answered() {
 		return 0
 	}
-	return b.message.Measure(width)
+	return q.message.Measure(width)
 }
 
-func (b *questionBlock) Draw(view grid.View) {
-	if b.answered() {
-		b.message.Draw(view)
+func (q *questionBlock) Draw(view grid.View) {
+	if q.answered() {
+		q.message.Draw(view)
 	}
 }
 
-func (b *questionBlock) Rows(width int) []text.Row {
-	if !b.answered() {
+func (q *questionBlock) Rows(width int) []text.Row {
+	if !q.answered() {
 		return nil
 	}
-	return b.message.Rows(width)
+	return q.message.Rows(width)
 }
 
-func (b *questionBlock) setQuestion(question agent.Question) {
-	b.question = question.Clone()
-	b.message = kit.Message{
-		Theme: b.theme, Speaker: question.Title,
-		Body: presentQuestionBody(b.glyphs, question),
+func (q *questionBlock) setQuestion(question agent.Question) {
+	q.question = question.Clone()
+	q.message = kit.Message{
+		Theme: q.theme, Speaker: question.Title,
+		Body: presentQuestionBody(q.glyphs, question),
 	}
 }
 

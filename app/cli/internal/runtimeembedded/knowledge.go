@@ -21,8 +21,8 @@ type knowledgeAdapter struct{ runtime *Runtime }
 
 var _ knowledge.Service = (*knowledgeAdapter)(nil)
 
-func (adapter *knowledgeAdapter) Entries(ctx context.Context, workspace string) ([]knowledge.Entry, error) {
-	r := adapter.runtime
+func (k *knowledgeAdapter) Entries(ctx context.Context, workspace string) ([]knowledge.Entry, error) {
+	r := k.runtime
 	workspace = strings.TrimSpace(workspace)
 	if workspace == "" {
 		return nil, errors.New("list knowledge: workspace is empty")
@@ -53,8 +53,8 @@ func (adapter *knowledgeAdapter) Entries(ctx context.Context, workspace string) 
 	return entries, nil
 }
 
-func (adapter *knowledgeAdapter) Document(ctx context.Context, target knowledge.Target) (knowledge.Entry, error) {
-	r := adapter.runtime
+func (k *knowledgeAdapter) Document(ctx context.Context, target knowledge.Target) (knowledge.Entry, error) {
+	r := k.runtime
 	if err := target.Validate(); err != nil {
 		return knowledge.Entry{}, err
 	}
@@ -79,8 +79,8 @@ func (adapter *knowledgeAdapter) Document(ctx context.Context, target knowledge.
 	return entry, nil
 }
 
-func (adapter *knowledgeAdapter) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
-	r := adapter.runtime
+func (k *knowledgeAdapter) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
+	r := k.runtime
 	if err := update.Validate(); err != nil {
 		return knowledge.Entry{}, err
 	}
@@ -109,7 +109,7 @@ func (adapter *knowledgeAdapter) Save(ctx context.Context, update knowledge.Upda
 	if entry.Scope != target.Scope || entry.Content != update.Content {
 		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned a mismatched entry")
 	}
-	authoritative, err := adapter.Document(ctx, target)
+	authoritative, err := k.Document(ctx, target)
 	if err != nil {
 		return knowledge.Entry{}, err
 	}

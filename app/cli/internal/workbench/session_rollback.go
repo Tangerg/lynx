@@ -41,51 +41,51 @@ type PendingSessionRollback struct {
 	ReplayUntil     time.Time            `json:"replayUntil,omitempty"`
 }
 
-func (pending PendingSessionRollback) Validate() error {
-	request := pending.Request()
+func (p PendingSessionRollback) Validate() error {
+	request := p.Request()
 	if err := request.Validate(); err != nil {
 		return err
 	}
 	if request.CommandID == "" {
 		return errors.New("session rollback command id is empty")
 	}
-	if pending.Phase != SessionRollbackPrepared && pending.Phase != SessionRollbackConfirmed {
-		return fmt.Errorf("session rollback phase %q is invalid", pending.Phase)
+	if p.Phase != SessionRollbackPrepared && p.Phase != SessionRollbackConfirmed {
+		return fmt.Errorf("session rollback phase %q is invalid", p.Phase)
 	}
-	if pending.StagedAt.IsZero() {
+	if p.StagedAt.IsZero() {
 		return errors.New("session rollback staging time is empty")
 	}
-	if pending.OpeningImages < 0 {
+	if p.OpeningImages < 0 {
 		return errors.New("session rollback opening image count is negative")
 	}
-	if err := validateRunIDs("session rollback before projection", pending.BeforeRunIDs); err != nil {
+	if err := validateRunIDs("session rollback before projection", p.BeforeRunIDs); err != nil {
 		return err
 	}
-	if err := validateRunIDs("session rollback after projection", pending.AfterRunIDs); err != nil {
+	if err := validateRunIDs("session rollback after projection", p.AfterRunIDs); err != nil {
 		return err
 	}
-	if pending.Scope == agent.RestoreFiles {
-		if !slices.Equal(pending.BeforeRunIDs, pending.AfterRunIDs) {
+	if p.Scope == agent.RestoreFiles {
+		if !slices.Equal(p.BeforeRunIDs, p.AfterRunIDs) {
 			return errors.New("files-only rollback changes the history projection")
 		}
-	} else if len(pending.AfterRunIDs) > len(pending.BeforeRunIDs) ||
-		!slices.Equal(pending.AfterRunIDs, pending.BeforeRunIDs[:len(pending.AfterRunIDs)]) {
+	} else if len(p.AfterRunIDs) > len(p.BeforeRunIDs) ||
+		!slices.Equal(p.AfterRunIDs, p.BeforeRunIDs[:len(p.AfterRunIDs)]) {
 		return errors.New("session rollback after projection is not a prefix of its before projection")
 	}
-	if pending.ToRunID == "" {
-		if pending.Scope != agent.RestoreFiles && len(pending.AfterRunIDs) != 0 {
+	if p.ToRunID == "" {
+		if p.Scope != agent.RestoreFiles && len(p.AfterRunIDs) != 0 {
 			return errors.New("full history rollback retains a run projection")
 		}
-	} else if pending.Scope == agent.RestoreFiles {
-		if !slices.Contains(pending.BeforeRunIDs, pending.ToRunID) {
+	} else if p.Scope == agent.RestoreFiles {
+		if !slices.Contains(p.BeforeRunIDs, p.ToRunID) {
 			return errors.New("file rollback boundary is absent from its history projection")
 		}
-	} else if !slices.Contains(pending.AfterRunIDs, pending.ToRunID) {
+	} else if !slices.Contains(p.AfterRunIDs, p.ToRunID) {
 		return errors.New("session rollback boundary is absent from its after projection")
 	}
-	if pending.Scope != agent.RestoreHistory {
-		if strings.TrimSpace(pending.ReplayNamespace) == "" || pending.ReplayUntil.IsZero() ||
-			!pending.ReplayUntil.After(pending.StagedAt) {
+	if p.Scope != agent.RestoreHistory {
+		if strings.TrimSpace(p.ReplayNamespace) == "" || p.ReplayUntil.IsZero() ||
+			!p.ReplayUntil.After(p.StagedAt) {
 			return errors.New("file rollback replay guarantee is incomplete")
 		}
 	}
@@ -93,17 +93,17 @@ func (pending PendingSessionRollback) Validate() error {
 }
 
 // Request reconstructs the exact runtime mutation owned by this journal.
-func (pending PendingSessionRollback) Request() agent.RollbackSession {
+func (p PendingSessionRollback) Request() agent.RollbackSession {
 	return agent.RollbackSession{
-		CommandID: pending.CommandID, SessionID: pending.SessionID,
-		ToRunID: pending.ToRunID, Scope: pending.Scope,
+		CommandID: p.CommandID, SessionID: p.SessionID,
+		ToRunID: p.ToRunID, Scope: p.Scope,
 	}
 }
 
-func (pending PendingSessionRollback) clone() PendingSessionRollback {
-	pending.BeforeRunIDs = slices.Clone(pending.BeforeRunIDs)
-	pending.AfterRunIDs = slices.Clone(pending.AfterRunIDs)
-	return pending
+func (p PendingSessionRollback) clone() PendingSessionRollback {
+	p.BeforeRunIDs = slices.Clone(p.BeforeRunIDs)
+	p.AfterRunIDs = slices.Clone(p.AfterRunIDs)
+	return p
 }
 
 func pendingSessionRollbackEqual(left, right PendingSessionRollback) bool {

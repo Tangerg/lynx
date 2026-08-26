@@ -105,34 +105,34 @@ type concurrentTool interface {
 	ConcurrencyKey(arguments string) (key string, concurrent bool)
 }
 
-func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definition() }
+func (p *pathLocked) Definition() chat.ToolDefinition { return p.inner.Definition() }
 
 // Unwrap exposes the locked tool so everything it declares — where its mutations
 // land, whether it ends the round — stays reachable through the lock. Only the
 // scheduling key below is this wrapper's own, and declaring it here is what
 // makes it win over the inner tool's.
-func (t *pathLocked) Unwrap() toolcontract.Tool { return t.inner }
+func (p *pathLocked) Unwrap() toolcontract.Tool { return p.inner }
 
-func (t *pathLocked) Call(ctx context.Context, arguments string) (string, error) {
-	paths, err := resolvedMutationPaths(t.inner, arguments, t.cwd)
+func (p *pathLocked) Call(ctx context.Context, arguments string) (string, error) {
+	paths, err := resolvedMutationPaths(p.inner, arguments, p.cwd)
 	if err != nil {
 		return "", err
 	}
 	for _, path := range paths {
-		release, err := t.locker.acquire(ctx, path)
+		release, err := p.locker.acquire(ctx, path)
 		if err != nil {
 			return "", err
 		}
 		defer release()
 	}
-	return t.inner.Call(ctx, arguments)
+	return p.inner.Call(ctx, arguments)
 }
 
-func (t *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (p *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	// Read the declaration through the wrapping chain: the tool underneath is
 	// itself decorated, and a one-level look would silently make every guarded
 	// file tool exclusive.
-	capability, ok, err := toolcontract.Capability[concurrentTool](t.inner)
+	capability, ok, err := toolcontract.Capability[concurrentTool](p.inner)
 	if err != nil || !ok {
 		return "", false
 	}
@@ -140,7 +140,7 @@ func (t *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bo
 	if !concurrent {
 		return "", false
 	}
-	paths, err := resolvedMutationPaths(t.inner, arguments, t.cwd)
+	paths, err := resolvedMutationPaths(p.inner, arguments, p.cwd)
 	if err != nil {
 		return "", false
 	}

@@ -144,9 +144,9 @@ const (
 	ConstraintMaximum ConstraintKind = "maximum"
 )
 
-// Valid reports whether k names one supported field constraint.
-func (k ConstraintKind) Valid() bool {
-	switch k {
+// Valid reports whether c names one supported field constraint.
+func (c ConstraintKind) Valid() bool {
+	switch c {
 	case ConstraintNonEmpty, ConstraintPositive, ConstraintNonNegative,
 		ConstraintNonEmptyItems, ConstraintNonEmptyProperties, ConstraintUniqueItems,
 		ConstraintMinItems, ConstraintMaxLength, ConstraintMinimum, ConstraintMaximum:
@@ -156,11 +156,11 @@ func (k ConstraintKind) Valid() bool {
 	}
 }
 
-func (k ConstraintKind) String() string {
-	if !k.Valid() {
-		return fmt.Sprintf("ConstraintKind(%q)", string(k))
+func (c ConstraintKind) String() string {
+	if !c.Valid() {
+		return fmt.Sprintf("ConstraintKind(%q)", string(c))
 	}
-	return string(k)
+	return string(c)
 }
 
 // FieldConstraint is one field's value constraint. Field is a dotted JSON path.
@@ -170,12 +170,12 @@ type FieldConstraint struct {
 	Limit int
 }
 
-func (c FieldConstraint) String() string {
-	switch c.Kind {
+func (f FieldConstraint) String() string {
+	switch f.Kind {
 	case ConstraintMinItems, ConstraintMaxLength, ConstraintMinimum, ConstraintMaximum:
-		return fmt.Sprintf("%s(%d)", c.Kind, c.Limit)
+		return fmt.Sprintf("%s(%d)", f.Kind, f.Limit)
 	default:
-		return c.Kind.String()
+		return f.Kind.String()
 	}
 }
 
@@ -389,42 +389,42 @@ type unionValidation struct {
 	tags      map[string]bool
 }
 
-func (validation *unionValidation) validateDiscriminator() error {
-	u := validation.spec
-	if u.Discriminator != "type" {
+func (u *unionValidation) validateDiscriminator() error {
+	spec := u.spec
+	if spec.Discriminator != "type" {
 		return fmt.Errorf(
 			"%s: discriminator is %q — API.md §2.1 fixes it at \"type\"",
-			validation.name,
-			u.Discriminator,
+			u.name,
+			spec.Discriminator,
 		)
 	}
-	if err := contractshape.HasPath(u.GoType, u.Discriminator); err != nil {
-		return fmt.Errorf("%s: %w", validation.name, err)
+	if err := contractshape.HasPath(spec.GoType, spec.Discriminator); err != nil {
+		return fmt.Errorf("%s: %w", u.name, err)
 	}
-	if len(u.Variants) == 0 {
-		return fmt.Errorf("%s: a union with no literal variants describes nothing", validation.name)
+	if len(spec.Variants) == 0 {
+		return fmt.Errorf("%s: a union with no literal variants describes nothing", u.name)
 	}
 	return nil
 }
 
-func (validation *unionValidation) validateForbiddenFields() error {
-	u := validation.spec
-	for index, field := range u.Forbidden {
+func (u *unionValidation) validateForbiddenFields() error {
+	spec := u.spec
+	for index, field := range spec.Forbidden {
 		switch {
 		case field == "":
-			return fmt.Errorf("%s: forbidden field %d has no name", validation.name, index)
+			return fmt.Errorf("%s: forbidden field %d has no name", u.name, index)
 		case strings.Contains(field, "."):
 			return fmt.Errorf(
 				"%s: forbidden field %q must be a top-level JSON member",
-				validation.name,
+				u.name,
 				field,
 			)
-		case slices.Contains(u.Forbidden[:index], field):
-			return fmt.Errorf("%s: forbidden field %q is declared twice", validation.name, field)
-		case slices.Contains(contractshape.FieldNames(u.GoType), field):
+		case slices.Contains(spec.Forbidden[:index], field):
+			return fmt.Errorf("%s: forbidden field %q is declared twice", u.name, field)
+		case slices.Contains(contractshape.FieldNames(spec.GoType), field):
 			return fmt.Errorf(
 				"%s: forbidden field %q still exists on the Go wire shape",
-				validation.name,
+				u.name,
 				field,
 			)
 		}
@@ -432,57 +432,57 @@ func (validation *unionValidation) validateForbiddenFields() error {
 	return nil
 }
 
-func (validation *unionValidation) validateLiteralVariant(variant VariantSpec) error {
+func (u *unionValidation) validateLiteralVariant(variant VariantSpec) error {
 	if variant.Tag == "" {
-		return fmt.Errorf("%s: a variant needs a tag", validation.name)
+		return fmt.Errorf("%s: a variant needs a tag", u.name)
 	}
-	if validation.tags[variant.Tag] {
-		return fmt.Errorf("%s: variant %q is declared twice", validation.name, variant.Tag)
+	if u.tags[variant.Tag] {
+		return fmt.Errorf("%s: variant %q is declared twice", u.name, variant.Tag)
 	}
-	validation.tags[variant.Tag] = true
-	return validation.claimFields(
-		fmt.Sprintf("%s variant %q", validation.name, variant.Tag),
+	u.tags[variant.Tag] = true
+	return u.claimFields(
+		fmt.Sprintf("%s variant %q", u.name, variant.Tag),
 		variant.Required,
 		variant.Optional,
 	)
 }
 
-func (validation *unionValidation) validatePatternVariant() error {
-	pattern := validation.spec.PatternVariant
+func (u *unionValidation) validatePatternVariant() error {
+	pattern := u.spec.PatternVariant
 	if pattern == nil {
 		return nil
 	}
 	compiled, err := regexp.Compile(pattern.TagPattern)
 	switch {
 	case pattern.TagPattern == "":
-		return fmt.Errorf("%s: pattern variant needs a tag pattern", validation.name)
+		return fmt.Errorf("%s: pattern variant needs a tag pattern", u.name)
 	case err != nil:
 		return fmt.Errorf(
 			"%s: invalid pattern variant tag %q: %w",
-			validation.name,
+			u.name,
 			pattern.TagPattern,
 			err,
 		)
 	case pattern.TypeScriptType == "":
-		return fmt.Errorf("%s: pattern variant needs a TypeScript type", validation.name)
+		return fmt.Errorf("%s: pattern variant needs a TypeScript type", u.name)
 	}
-	for tag := range validation.tags {
+	for tag := range u.tags {
 		if compiled.MatchString(tag) {
 			return fmt.Errorf(
 				"%s: pattern variant also matches literal tag %q",
-				validation.name,
+				u.name,
 				tag,
 			)
 		}
 	}
-	return validation.claimFields(
-		validation.name+" pattern variant",
+	return u.claimFields(
+		u.name+" pattern variant",
 		pattern.Required,
 		pattern.Optional,
 	)
 }
 
-func (validation *unionValidation) claimFields(
+func (u *unionValidation) claimFields(
 	owner string,
 	required []string,
 	optional []string,
@@ -501,27 +501,27 @@ func (validation *unionValidation) claimFields(
 		}
 	}
 	for _, field := range slices.Concat(required, optional) {
-		if err := contractshape.HasPath(validation.spec.GoType, field); err != nil {
+		if err := contractshape.HasPath(u.spec.GoType, field); err != nil {
 			return fmt.Errorf("%s: %w", owner, err)
 		}
 		// A nested declaration accounts for the frame that holds it: claiming
 		// `payload.tool` claims `payload`.
 		root := strings.Split(field, ".")[0]
-		if !slices.Contains(validation.accounted, root) {
-			validation.accounted = append(validation.accounted, root)
+		if !slices.Contains(u.accounted, root) {
+			u.accounted = append(u.accounted, root)
 		}
 	}
 	return nil
 }
 
-func (validation *unionValidation) validateCoverage() error {
+func (u *unionValidation) validateCoverage() error {
 	// The drift that actually happens: a field is added to the struct and no
 	// variant claims it, so the generated schema would allow it under every tag.
-	for _, field := range contractshape.FieldNames(validation.spec.GoType) {
-		if !slices.Contains(validation.accounted, field) {
+	for _, field := range contractshape.FieldNames(u.spec.GoType) {
+		if !slices.Contains(u.accounted, field) {
 			return fmt.Errorf(
 				"%s: field %q belongs to no variant — every union field must name its tag",
-				validation.name,
+				u.name,
 				field,
 			)
 		}

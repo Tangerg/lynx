@@ -11,13 +11,13 @@ import (
 // invalidationRecorder collects notices in publish order.
 type invalidationRecorder struct{ notices []invalidation.Notice }
 
-func (r *invalidationRecorder) publish(notice invalidation.Notice) {
-	r.notices = append(r.notices, notice)
+func (i *invalidationRecorder) publish(notice invalidation.Notice) {
+	i.notices = append(i.notices, notice)
 }
 
-func (r *invalidationRecorder) resources() []invalidation.Resource {
-	out := make([]invalidation.Resource, 0, len(r.notices))
-	for _, notice := range r.notices {
+func (i *invalidationRecorder) resources() []invalidation.Resource {
+	out := make([]invalidation.Resource, 0, len(i.notices))
+	for _, notice := range i.notices {
 		out = append(out, notice.Resource)
 	}
 	return out

@@ -20,8 +20,8 @@ func Terminal(action func(context.Context) error) *Step {
 	return &Step{action: action}
 }
 
-func (step *Step) run(ctx context.Context) error {
-	if step == nil || step.action == nil {
+func (s *Step) run(ctx context.Context) error {
+	if s == nil || s.action == nil {
 		return nil
 	}
 	if ctx == nil {
@@ -30,5 +30,5 @@ func (step *Step) run(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return step.action(ctx)
+	return s.action(ctx)
 }

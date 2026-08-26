@@ -23,20 +23,20 @@ type approvalRuleScope struct {
 	projectDir string
 }
 
-func (s *approvalStore) DefaultMode(context.Context) (approval.Mode, error) { return s.mode, nil }
+func (a *approvalStore) DefaultMode(context.Context) (approval.Mode, error) { return a.mode, nil }
 
-func (s *approvalStore) SetDefaultMode(_ context.Context, mode approval.Mode) error {
-	s.set = append(s.set, mode)
+func (a *approvalStore) SetDefaultMode(_ context.Context, mode approval.Mode) error {
+	a.set = append(a.set, mode)
 	return nil
 }
 
-func (s *approvalStore) Rules(_ context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
-	s.ruleScopes = append(s.ruleScopes, approvalRuleScope{sessionID: sessionID, projectDir: projectDir})
-	return s.rules, nil
+func (a *approvalStore) Rules(_ context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
+	a.ruleScopes = append(a.ruleScopes, approvalRuleScope{sessionID: sessionID, projectDir: projectDir})
+	return a.rules, nil
 }
 
-func (s *approvalStore) Forget(_ context.Context, id string) error {
-	s.forgotten = append(s.forgotten, id)
+func (a *approvalStore) Forget(_ context.Context, id string) error {
+	a.forgotten = append(a.forgotten, id)
 	return nil
 }
 

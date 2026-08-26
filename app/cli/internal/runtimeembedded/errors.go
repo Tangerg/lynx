@@ -19,21 +19,21 @@ type projectedError struct {
 	problem *failure.Problem
 }
 
-func (e projectedError) Error() string {
-	if e.problem != nil {
-		return e.problem.String()
+func (p projectedError) Error() string {
+	if p.problem != nil {
+		return p.problem.String()
 	}
-	return e.source.Error()
+	return p.source.Error()
 }
 
-func (e projectedError) Unwrap() []error {
-	if e.kind == nil {
-		return []error{e.source}
+func (p projectedError) Unwrap() []error {
+	if p.kind == nil {
+		return []error{p.source}
 	}
-	return []error{e.kind, e.source}
+	return []error{p.kind, p.source}
 }
 
-func (e projectedError) Failure() *failure.Problem { return e.problem.Clone() }
+func (p projectedError) Failure() *failure.Problem { return p.problem.Clone() }
 
 // runtimeContractViolation marks a response that cannot satisfy the protocol
 // negotiated at startup. Callers may retry transport and storage failures, but

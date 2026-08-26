@@ -29,11 +29,11 @@ type ReplayWindow struct {
 	Now       func() time.Time
 }
 
-func (window ReplayWindow) now() time.Time {
-	if window.Now == nil {
+func (r ReplayWindow) now() time.Time {
+	if r.Now == nil {
 		return time.Now().UTC()
 	}
-	return window.Now().UTC()
+	return r.Now().UTC()
 }
 
 // Preview is the exact authoritatively-read before/after projection authorized
@@ -114,33 +114,33 @@ func openingInput(transcript []agent.Block, droppedIDs []string) (string, int) {
 	return "", 0
 }
 
-func (preview Preview) Request() agent.RollbackSession { return preview.request }
+func (p Preview) Request() agent.RollbackSession { return p.request }
 
-func (preview Preview) DroppedCount() int {
-	return len(preview.beforeRunIDs) - len(preview.afterRunIDs)
+func (p Preview) DroppedCount() int {
+	return len(p.beforeRunIDs) - len(p.afterRunIDs)
 }
 
-func (preview Preview) ValidateCommit(snapshot agent.SessionSnapshot) error {
-	return validateBefore(preview.journal("", ReplayWindow{}, time.Time{}), snapshot)
+func (p Preview) ValidateCommit(snapshot agent.SessionSnapshot) error {
+	return validateBefore(p.journal("", ReplayWindow{}, time.Time{}), snapshot)
 }
 
-func (preview Preview) ValidateApplied(snapshot agent.SessionSnapshot) error {
-	return validateApplied(preview.journal("", ReplayWindow{}, time.Time{}), snapshot)
+func (p Preview) ValidateApplied(snapshot agent.SessionSnapshot) error {
+	return validateApplied(p.journal("", ReplayWindow{}, time.Time{}), snapshot)
 }
 
-func (preview Preview) journal(
+func (p Preview) journal(
 	commandID agent.CommandID,
 	window ReplayWindow,
 	stagedAt time.Time,
 ) workbench.PendingSessionRollback {
 	pending := workbench.PendingSessionRollback{
 		Phase: workbench.SessionRollbackPrepared, CommandID: commandID,
-		SessionID: preview.request.SessionID, ToRunID: preview.request.ToRunID, Scope: preview.request.Scope,
-		BeforeRevision: preview.beforeRevision, BeforeRunIDs: slices.Clone(preview.beforeRunIDs),
-		AfterRunIDs: slices.Clone(preview.afterRunIDs), OpeningText: preview.openingText,
-		OpeningImages: preview.openingImages, StagedAt: stagedAt,
+		SessionID: p.request.SessionID, ToRunID: p.request.ToRunID, Scope: p.request.Scope,
+		BeforeRevision: p.beforeRevision, BeforeRunIDs: slices.Clone(p.beforeRunIDs),
+		AfterRunIDs: slices.Clone(p.afterRunIDs), OpeningText: p.openingText,
+		OpeningImages: p.openingImages, StagedAt: stagedAt,
 	}
-	if preview.request.Scope != agent.RestoreHistory {
+	if p.request.Scope != agent.RestoreHistory {
 		pending.ReplayNamespace = strings.TrimSpace(window.Namespace)
 		pending.ReplayUntil = stagedAt.Add(window.Retention)
 	}

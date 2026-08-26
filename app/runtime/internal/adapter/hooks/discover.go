@@ -100,10 +100,10 @@ type hookWire struct {
 	TimeoutMillis int               `json:"timeoutMillis,omitempty"`
 }
 
-func (wire hookWire) domain() domainhooks.Hook {
+func (h hookWire) domain() domainhooks.Hook {
 	return domainhooks.Hook{
-		Event: wire.Event, Matcher: wire.Matcher, Command: wire.Command,
-		Inject: wire.Inject, TimeoutMillis: wire.TimeoutMillis,
+		Event: h.Event, Matcher: h.Matcher, Command: h.Command,
+		Inject: h.Inject, TimeoutMillis: h.TimeoutMillis,
 	}
 }
 
@@ -166,12 +166,12 @@ type hooksContextReader struct {
 	reader io.Reader
 }
 
-func (r hooksContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(r.ctx); cause != nil {
+func (h hooksContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(h.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := r.reader.Read(buffer)
-	if cause := context.Cause(r.ctx); cause != nil {
+	read, err := h.reader.Read(buffer)
+	if cause := context.Cause(h.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err

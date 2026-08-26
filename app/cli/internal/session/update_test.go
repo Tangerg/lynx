@@ -14,9 +14,9 @@ type updateWriterStub struct {
 	result agent.Session
 }
 
-func (writer *updateWriterStub) UpdateSession(context.Context, agent.UpdateSession) (agent.Session, error) {
-	writer.calls++
-	return writer.result, nil
+func (u *updateWriterStub) UpdateSession(context.Context, agent.UpdateSession) (agent.Session, error) {
+	u.calls++
+	return u.result, nil
 }
 
 func TestUpdateValidatesTheCommandBeforeMutationAndTheResultAfterward(t *testing.T) {

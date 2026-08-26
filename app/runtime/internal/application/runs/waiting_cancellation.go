@@ -15,19 +15,19 @@ import (
 
 // Validate verifies the Application projection and one-shot executor
 // capability without interpreting the opaque checkpoint payload.
-func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
-	if prepared.Change == nil {
+func (p PreparedWaitingSubtreeCancellation) Validate() error {
+	if p.Change == nil {
 		return errors.New("runs: prepared waiting subtree cancellation has no executor change")
 	}
-	if err := prepared.Checkpoint.Validate(); err != nil {
+	if err := p.Checkpoint.Validate(); err != nil {
 		return err
 	}
-	if len(prepared.CanceledMemberIDs) == 0 {
+	if len(p.CanceledMemberIDs) == 0 {
 		return errors.New("runs: prepared waiting subtree cancellation has no canceled members")
 	}
-	canceledMembers := make(map[string]struct{}, len(prepared.CanceledMemberIDs))
-	seenMembers := make(map[string]struct{}, len(prepared.CanceledMemberIDs)+len(prepared.PausedMemberIDs))
-	for _, memberID := range prepared.CanceledMemberIDs {
+	canceledMembers := make(map[string]struct{}, len(p.CanceledMemberIDs))
+	seenMembers := make(map[string]struct{}, len(p.CanceledMemberIDs)+len(p.PausedMemberIDs))
+	for _, memberID := range p.CanceledMemberIDs {
 		if strings.TrimSpace(memberID) == "" || memberID != strings.TrimSpace(memberID) {
 			return errors.New("runs: prepared waiting subtree cancellation has an invalid canceled member ID")
 		}
@@ -37,7 +37,7 @@ func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
 		canceledMembers[memberID] = struct{}{}
 		seenMembers[memberID] = struct{}{}
 	}
-	for _, memberID := range prepared.PausedMemberIDs {
+	for _, memberID := range p.PausedMemberIDs {
 		if strings.TrimSpace(memberID) == "" || memberID != strings.TrimSpace(memberID) {
 			return errors.New("runs: prepared waiting subtree cancellation has an invalid paused member ID")
 		}
@@ -46,8 +46,8 @@ func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
 		}
 		seenMembers[memberID] = struct{}{}
 	}
-	requests := make(map[string]struct{}, len(prepared.PendingInterruptions))
-	for index, interruption := range prepared.PendingInterruptions {
+	requests := make(map[string]struct{}, len(p.PendingInterruptions))
+	for index, interruption := range p.PendingInterruptions {
 		if strings.TrimSpace(interruption.MemberID) == "" ||
 			interruption.MemberID != strings.TrimSpace(interruption.MemberID) ||
 			strings.TrimSpace(interruption.RequestID) == "" ||
@@ -109,36 +109,36 @@ func prepareWaitingCancellationTransformation(
 	return builder.build()
 }
 
-func (builder waitingCancellationBuilder) build() (waitingCancellationTransformation, error) {
-	if err := builder.validate(); err != nil {
+func (w waitingCancellationBuilder) build() (waitingCancellationTransformation, error) {
+	if err := w.validate(); err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	canceledMembers := make(map[string]struct{}, len(builder.prepared.CanceledMemberIDs))
-	for _, memberID := range builder.prepared.CanceledMemberIDs {
+	canceledMembers := make(map[string]struct{}, len(w.prepared.CanceledMemberIDs))
+	for _, memberID := range w.prepared.CanceledMemberIDs {
 		canceledMembers[memberID] = struct{}{}
 	}
 
-	terminalRuns, canceledRunIDs, err := builder.terminalProjection(canceledMembers)
+	terminalRuns, canceledRunIDs, err := w.terminalProjection(canceledMembers)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	terminalItems, parentItem, continuations, err := builder.settleWaitingItems(canceledMembers)
+	terminalItems, parentItem, continuations, err := w.settleWaitingItems(canceledMembers)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	conversationMessages, err := builder.parentConversationMessages(parentItem, continuations)
+	conversationMessages, err := w.parentConversationMessages(parentItem, continuations)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	interrupts, bindings, err := builder.remainingInterruptions(canceledMembers, continuations)
+	interrupts, bindings, err := w.remainingInterruptions(canceledMembers, continuations)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	continuation, err := builder.treeContinuation(interrupts, continuations)
+	continuation, err := w.treeContinuation(interrupts, continuations)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
-	remaining, err := builder.remainingPending(interrupts, bindings, continuations)
+	remaining, err := w.remainingPending(interrupts, bindings, continuations)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
@@ -148,19 +148,19 @@ func (builder waitingCancellationBuilder) build() (waitingCancellationTransforma
 		parentItem:           parentItem,
 		remaining:            remaining,
 		continuation:         continuation,
-		checkpoint:           builder.prepared.Checkpoint.Clone(),
+		checkpoint:           w.prepared.Checkpoint.Clone(),
 		conversationMessages: conversationMessages,
-		root:                 builder.plan.root.run,
-		targetRunID:          builder.plan.target.run.ID(),
+		root:                 w.plan.root.run,
+		targetRunID:          w.plan.target.run.ID(),
 		canceledRunIDs:       canceledRunIDs,
 	}, nil
 }
 
-func (builder waitingCancellationBuilder) parentConversationMessages(
+func (w waitingCancellationBuilder) parentConversationMessages(
 	parentItem ItemReplacement,
 	continuations []Continuation,
 ) ([]corechat.Message, error) {
-	if parentItem.Expected.RunID() != builder.plan.root.run.ID() {
+	if parentItem.Expected.RunID() != w.plan.root.run.ID() {
 		return nil, nil
 	}
 	failure, failed := parentItem.Replacement.Failure()
@@ -168,7 +168,7 @@ func (builder waitingCancellationBuilder) parentConversationMessages(
 		return nil, errors.New("runs: waiting cancellation parent Tool has no failure")
 	}
 	for _, continuation := range continuations {
-		if continuation.RunID != builder.plan.root.run.ID() {
+		if continuation.RunID != w.plan.root.run.ID() {
 			continue
 		}
 		for _, committed := range continuation.CommittedTools {
@@ -198,57 +198,57 @@ func childCancellationToolMessage(committed CommittedTool, failure tool.Failure)
 	})
 }
 
-func (builder waitingCancellationBuilder) validate() error {
-	if err := builder.prepared.Validate(); err != nil {
+func (w waitingCancellationBuilder) validate() error {
+	if err := w.prepared.Validate(); err != nil {
 		return err
 	}
 	switch {
-	case builder.plan.treeState != rundomain.Waiting:
+	case w.plan.treeState != rundomain.Waiting:
 		return fmt.Errorf(
 			"runs: waiting cancellation plan is %s",
-			builder.plan.treeState,
+			w.plan.treeState,
 		)
-	case !builder.plan.target.run.Lineage().IsChild():
+	case !w.plan.target.run.Lineage().IsChild():
 		return errors.New("runs: waiting cancellation target is not a child Run")
-	case !builder.plan.hasPending:
+	case !w.plan.hasPending:
 		return errors.New("runs: waiting cancellation plan has no pending set")
-	case !builder.plan.hasSpawningItem:
+	case !w.plan.hasSpawningItem:
 		return errors.New("runs: waiting cancellation plan has no spawning Item")
-	case builder.finishedAt.IsZero():
+	case w.finishedAt.IsZero():
 		return errors.New("runs: waiting cancellation finish time is required")
 	}
-	rootContinuation, ok := builder.plan.pending.RootContinuation()
+	rootContinuation, ok := w.plan.pending.RootContinuation()
 	if !ok {
 		return errors.New("runs: waiting cancellation Pending has no root continuation")
 	}
-	if err := builder.prepared.Checkpoint.ValidateOwnership(
+	if err := w.prepared.Checkpoint.ValidateOwnership(
 		rootContinuation.MemberID,
-		builder.plan.pending.SessionID,
+		w.plan.pending.SessionID,
 	); err != nil {
 		return fmt.Errorf("runs: invalid prepared waiting subtree checkpoint ownership: %w", err)
 	}
-	if builder.prepared.Checkpoint.Scope.GoalIncarnationID != builder.plan.pending.GoalIncarnationID {
+	if w.prepared.Checkpoint.Scope.GoalIncarnationID != w.plan.pending.GoalIncarnationID {
 		return fmt.Errorf(
 			"runs: prepared waiting subtree checkpoint goal incarnation %q does not match Pending %q: %w",
-			builder.prepared.Checkpoint.Scope.GoalIncarnationID,
-			builder.plan.pending.GoalIncarnationID,
+			w.prepared.Checkpoint.Scope.GoalIncarnationID,
+			w.plan.pending.GoalIncarnationID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
-	if builder.prepared.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+	if w.prepared.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
 		return fmt.Errorf(
 			"runs: prepared waiting subtree checkpoint model %q/%q does not match root continuation %q/%q: %w",
-			builder.prepared.Checkpoint.ModelSelection.Provider(),
-			builder.prepared.Checkpoint.ModelSelection.Model(),
+			w.prepared.Checkpoint.ModelSelection.Provider(),
+			w.prepared.Checkpoint.ModelSelection.Model(),
 			rootContinuation.ModelSelection.Provider(),
 			rootContinuation.ModelSelection.Model(),
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
-	if builder.prepared.Checkpoint.Limits != rootContinuation.Limits {
+	if w.prepared.Checkpoint.Limits != rootContinuation.Limits {
 		return fmt.Errorf(
 			"runs: prepared waiting subtree checkpoint limits %+v do not match root continuation %+v: %w",
-			builder.prepared.Checkpoint.Limits,
+			w.prepared.Checkpoint.Limits,
 			rootContinuation.Limits,
 			ErrInvalidExecutorCheckpoint,
 		)
@@ -256,13 +256,13 @@ func (builder waitingCancellationBuilder) validate() error {
 	return nil
 }
 
-func (builder waitingCancellationBuilder) terminalProjection(
+func (w waitingCancellationBuilder) terminalProjection(
 	canceledMembers map[string]struct{},
 ) ([]rundomain.Run, []string, error) {
 	expectedProcesses := make(map[string]struct{})
 	var terminalRuns []rundomain.Run
 	var canceledRunIDs []string
-	for _, member := range builder.plan.targetSubtree {
+	for _, member := range w.plan.targetSubtree {
 		if member.run.State().IsTerminal() {
 			continue
 		}
@@ -273,7 +273,7 @@ func (builder waitingCancellationBuilder) terminalProjection(
 			)
 		}
 		expectedProcesses[member.memberID] = struct{}{}
-		terminal, err := canceledWaitingRun(member.run, builder.reason, builder.finishedAt)
+		terminal, err := canceledWaitingRun(member.run, w.reason, w.finishedAt)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -298,21 +298,21 @@ func (builder waitingCancellationBuilder) terminalProjection(
 	return terminalRuns, canceledRunIDs, nil
 }
 
-func (builder waitingCancellationBuilder) settleWaitingItems(
+func (w waitingCancellationBuilder) settleWaitingItems(
 	canceledMembers map[string]struct{},
 ) ([]ItemReplacement, ItemReplacement, []Continuation, error) {
 	failure := tool.Failure{
 		Kind:   tool.FailureChildRunCanceled,
-		Detail: builder.reason,
+		Detail: w.reason,
 	}
-	parentItem := builder.plan.spawningItem
-	replacement, err := parentItem.AbandonToolCall(&failure, builder.finishedAt)
+	parentItem := w.plan.spawningItem
+	replacement, err := parentItem.AbandonToolCall(&failure, w.finishedAt)
 	if err != nil {
 		return nil, ItemReplacement{}, nil, fmt.Errorf("runs: classify spawning Item: %w", err)
 	}
-	terminalItems := make([]ItemReplacement, 0, len(builder.plan.targetInterruptItems)+len(builder.plan.targetDrainedItems))
-	toolItems := slices.Clone(builder.plan.targetDrainedItems)
-	for _, item := range builder.plan.targetInterruptItems {
+	terminalItems := make([]ItemReplacement, 0, len(w.plan.targetInterruptItems)+len(w.plan.targetDrainedItems))
+	toolItems := slices.Clone(w.plan.targetDrainedItems)
+	for _, item := range w.plan.targetInterruptItems {
 		if item.Kind() == transcript.ToolCall {
 			toolItems = append(toolItems, item)
 		}
@@ -320,9 +320,9 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 	for _, item := range toolItems {
 		itemFailure := tool.Failure{
 			Kind:   tool.FailureExecution,
-			Detail: builder.reason,
+			Detail: w.reason,
 		}
-		settled, err := item.AbandonToolCall(&itemFailure, builder.finishedAt)
+		settled, err := item.AbandonToolCall(&itemFailure, w.finishedAt)
 		if err != nil {
 			return nil, ItemReplacement{}, nil, fmt.Errorf("runs: settle waiting Item %q: %w", item.ID(), err)
 		}
@@ -332,16 +332,16 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 		})
 	}
 
-	continuations := make([]Continuation, 0, len(builder.plan.survivingTree))
+	continuations := make([]Continuation, 0, len(w.plan.survivingTree))
 	parentToolMoved := false
-	for _, continuation := range builder.plan.pending.Continuations {
+	for _, continuation := range w.plan.pending.Continuations {
 		if _, canceled := canceledMembers[continuation.MemberID]; canceled {
 			continue
 		}
 		clone := continuation
 		clone.DrainedTools = slices.Clone(continuation.DrainedTools)
 		clone.CommittedTools = slices.Clone(continuation.CommittedTools)
-		if continuation.RunID == builder.plan.target.run.Lineage().ParentRunID {
+		if continuation.RunID == w.plan.target.run.Lineage().ParentRunID {
 			parentInvocation, present := parentItem.ToolInvocation()
 			if !present {
 				return nil, ItemReplacement{}, nil, fmt.Errorf("runs: spawning Item %q has no invocation", parentItem.ID())
@@ -391,19 +391,19 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 	return terminalItems, ItemReplacement{Expected: parentItem, Replacement: replacement}, continuations, nil
 }
 
-func (builder waitingCancellationBuilder) remainingInterruptions(
+func (w waitingCancellationBuilder) remainingInterruptions(
 	canceledMembers map[string]struct{},
 	continuations []Continuation,
 ) ([]transcript.Interrupt, []InterruptBinding, error) {
-	oldBindingByKey := make(map[string]int, len(builder.plan.pending.Bindings))
-	for index, binding := range builder.plan.pending.Bindings {
+	oldBindingByKey := make(map[string]int, len(w.plan.pending.Bindings))
+	for index, binding := range w.plan.pending.Bindings {
 		oldBindingByKey[inputRequestIdentity(binding.MemberID, binding.RequestID)] = index
 	}
 	survivingRunByMemberID := make(map[string]string, len(continuations))
 	for _, continuation := range continuations {
 		survivingRunByMemberID[continuation.MemberID] = continuation.RunID
 	}
-	pendingInterruptions := builder.prepared.PendingInterruptions
+	pendingInterruptions := w.prepared.PendingInterruptions
 	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingInterruptions))
 	remainingBindings := make([]InterruptBinding, 0, len(pendingInterruptions))
 	keptBindings := make(map[int]struct{}, len(pendingInterruptions))
@@ -431,8 +431,8 @@ func (builder waitingCancellationBuilder) remainingInterruptions(
 				boundary.RequestID,
 			)
 		}
-		binding := builder.plan.pending.Bindings[index]
-		interrupt := builder.plan.pending.Interrupts[index]
+		binding := w.plan.pending.Bindings[index]
+		interrupt := w.plan.pending.Interrupts[index]
 		runID, survives := survivingRunByMemberID[binding.MemberID]
 		if !survives || interrupt.RunID != runID {
 			return nil, nil, fmt.Errorf(
@@ -453,7 +453,7 @@ func (builder waitingCancellationBuilder) remainingInterruptions(
 		remainingInterrupts = append(remainingInterrupts, interrupt)
 		remainingBindings = append(remainingBindings, binding)
 	}
-	for index, binding := range builder.plan.pending.Bindings {
+	for index, binding := range w.plan.pending.Bindings {
 		if _, kept := keptBindings[index]; kept {
 			continue
 		}
@@ -468,18 +468,18 @@ func (builder waitingCancellationBuilder) remainingInterruptions(
 	return remainingInterrupts, remainingBindings, nil
 }
 
-func (builder waitingCancellationBuilder) treeContinuation(
+func (w waitingCancellationBuilder) treeContinuation(
 	interrupts []transcript.Interrupt,
 	continuations []Continuation,
 ) (*treeContinuation, error) {
 	continuation := &treeContinuation{
-		rootRunID:         builder.plan.pending.RootRunID,
-		sessionID:         builder.plan.pending.SessionID,
-		executorID:        builder.plan.pending.ExecutorID,
-		goalIncarnationID: builder.plan.pending.GoalIncarnationID,
+		rootRunID:         w.plan.pending.RootRunID,
+		sessionID:         w.plan.pending.SessionID,
+		executorID:        w.plan.pending.ExecutorID,
+		goalIncarnationID: w.plan.pending.GoalIncarnationID,
 		interrupts:        slices.Clone(interrupts),
 		continuations:     slices.Clone(continuations),
-		capabilities:      builder.plan.pending.Capabilities,
+		capabilities:      w.plan.pending.Capabilities,
 	}
 	if err := continuation.validate(); err != nil {
 		return nil, fmt.Errorf(
@@ -490,7 +490,7 @@ func (builder waitingCancellationBuilder) treeContinuation(
 	return continuation, nil
 }
 
-func (builder waitingCancellationBuilder) remainingPending(
+func (w waitingCancellationBuilder) remainingPending(
 	interrupts []transcript.Interrupt,
 	bindings []InterruptBinding,
 	continuations []Continuation,
@@ -498,7 +498,7 @@ func (builder waitingCancellationBuilder) remainingPending(
 	if len(interrupts) == 0 {
 		return nil, nil
 	}
-	reduced := builder.plan.pending
+	reduced := w.plan.pending
 	reduced.Interrupts = interrupts
 	reduced.Bindings = bindings
 	reduced.Continuations = continuations
@@ -523,22 +523,22 @@ func inputRequestIdentity(memberID, requestID string) string {
 	return memberID + "\x00" + requestID
 }
 
-func (transformation waitingCancellationTransformation) durableCommit(
+func (w waitingCancellationTransformation) durableCommit(
 	expected Pending,
 	commitID string,
 ) WaitingSubtreeCancellationCommit {
 	return WaitingSubtreeCancellationCommit{
 		CommitID:             commitID,
 		RootRunID:            expected.RootRunID,
-		TargetRunID:          transformation.targetRunID,
+		TargetRunID:          w.targetRunID,
 		SessionID:            expected.SessionID,
-		RootRun:              transformation.root,
+		RootRun:              w.root,
 		ExpectedPending:      expected,
-		RemainingPending:     transformation.remaining,
-		Checkpoint:           transformation.checkpoint,
-		TerminalRuns:         slices.Clone(transformation.terminalRuns),
-		TerminalItems:        slices.Clone(transformation.terminalItems),
-		ParentItem:           transformation.parentItem,
-		ConversationMessages: appendClonedMessages(nil, transformation.conversationMessages...),
+		RemainingPending:     w.remaining,
+		Checkpoint:           w.checkpoint,
+		TerminalRuns:         slices.Clone(w.terminalRuns),
+		TerminalItems:        slices.Clone(w.terminalItems),
+		ParentItem:           w.parentItem,
+		ConversationMessages: appendClonedMessages(nil, w.conversationMessages...),
 	}
 }

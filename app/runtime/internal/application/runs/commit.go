@@ -94,49 +94,49 @@ type ToolApprovalResolution struct {
 	Decision   approval.Decision
 }
 
-func (resolution ToolApprovalResolution) Validate() error {
-	if err := resolution.Identity.Validate(); err != nil {
+func (t ToolApprovalResolution) Validate() error {
+	if err := t.Identity.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(resolution.CallID) == "" || resolution.CallID != strings.TrimSpace(resolution.CallID) {
+	if strings.TrimSpace(t.CallID) == "" || t.CallID != strings.TrimSpace(t.CallID) {
 		return errors.New("runs: approval Tool call identity is required without surrounding whitespace")
 	}
-	if err := resolution.Invocation.Validate(true); err != nil {
+	if err := t.Invocation.Validate(true); err != nil {
 		return fmt.Errorf("runs: approval Tool invocation: %w", err)
 	}
-	if !resolution.Decision.Valid() {
-		return fmt.Errorf("runs: invalid Tool approval decision %q", resolution.Decision)
+	if !t.Decision.Valid() {
+		return fmt.Errorf("runs: invalid Tool approval decision %q", t.Decision)
 	}
 	return nil
 }
 
-func (claim ResumeClaimCommit) Validate() error {
-	if strings.TrimSpace(claim.CommitID) == "" || claim.CommitID != strings.TrimSpace(claim.CommitID) {
+func (r ResumeClaimCommit) Validate() error {
+	if strings.TrimSpace(r.CommitID) == "" || r.CommitID != strings.TrimSpace(r.CommitID) {
 		return errors.New("runs: resume claim commit identity is required without surrounding whitespace")
 	}
-	if err := claim.Expected.Validate(); err != nil {
+	if err := r.Expected.Validate(); err != nil {
 		return fmt.Errorf("runs: resume claim Pending: %w", err)
 	}
-	if claim.ClaimedAt.IsZero() {
+	if r.ClaimedAt.IsZero() {
 		return errors.New("runs: resume claim time is required")
 	}
-	if len(claim.Answers) != len(claim.Expected.Bindings) {
+	if len(r.Answers) != len(r.Expected.Bindings) {
 		return fmt.Errorf(
 			"runs: resume claim has %d answers for %d boundaries",
-			len(claim.Answers), len(claim.Expected.Bindings),
+			len(r.Answers), len(r.Expected.Bindings),
 		)
 	}
-	for index, answer := range claim.Answers {
-		binding := claim.Expected.Bindings[index]
+	for index, answer := range r.Answers {
+		binding := r.Expected.Bindings[index]
 		if answer.InterruptItemID != binding.InterruptItemID || answer.MemberID != binding.MemberID ||
 			answer.RequestID != binding.RequestID {
 			return fmt.Errorf("runs: resume claim answer[%d] differs from its pending boundary", index)
 		}
 	}
-	if _, err := claim.QuestionReplacements(); err != nil {
+	if _, err := r.QuestionReplacements(); err != nil {
 		return fmt.Errorf("runs: resume claim question projections: %w", err)
 	}
-	if _, err := claim.ToolApprovalResolutions(); err != nil {
+	if _, err := r.ToolApprovalResolutions(); err != nil {
 		return fmt.Errorf("runs: resume claim Tool approval projections: %w", err)
 	}
 	return nil
@@ -148,17 +148,17 @@ func (claim ResumeClaimCommit) Validate() error {
 // reviewed boundary. Edited arguments become the approved execution input and
 // may therefore replace the invocation on the terminal Tool Item; Item and
 // provider call identities, rather than mutable arguments, preserve continuity.
-func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResolution, error) {
-	answersByItem := make(map[string]InterruptAnswer, len(claim.Answers))
-	bindingsByItem := make(map[string]InterruptBinding, len(claim.Expected.Bindings))
-	for _, answer := range claim.Answers {
+func (r ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResolution, error) {
+	answersByItem := make(map[string]InterruptAnswer, len(r.Answers))
+	bindingsByItem := make(map[string]InterruptBinding, len(r.Expected.Bindings))
+	for _, answer := range r.Answers {
 		answersByItem[answer.InterruptItemID] = answer
 	}
-	for _, binding := range claim.Expected.Bindings {
+	for _, binding := range r.Expected.Bindings {
 		bindingsByItem[binding.InterruptItemID] = binding
 	}
-	resolutions := make([]ToolApprovalResolution, 0, len(claim.Expected.Interrupts))
-	for _, request := range claim.Expected.Interrupts {
+	resolutions := make([]ToolApprovalResolution, 0, len(r.Expected.Interrupts))
+	for _, request := range r.Expected.Interrupts {
 		if request.Kind != interrupt.Approval {
 			continue
 		}
@@ -175,7 +175,7 @@ func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResoluti
 		}
 		resolution := ToolApprovalResolution{
 			Identity: transcript.ItemIdentity{
-				SessionID: claim.Expected.SessionID, RunID: request.RunID,
+				SessionID: r.Expected.SessionID, RunID: request.RunID,
 				ItemID: request.ItemID, OccurredAt: request.ItemOccurredAt,
 			},
 			CallID:     binding.ToolCallID,
@@ -194,13 +194,13 @@ func (claim ResumeClaimCommit) ToolApprovalResolutions() ([]ToolApprovalResoluti
 // every accepted Question answer. It is computed by the Application from the
 // exact Pending snapshot and validated resolutions; the persistence port only
 // executes these replacements in the same transaction as the claim.
-func (claim ResumeClaimCommit) QuestionReplacements() ([]ItemReplacement, error) {
-	answersByItem := make(map[string]InterruptAnswer, len(claim.Answers))
-	for _, answer := range claim.Answers {
+func (r ResumeClaimCommit) QuestionReplacements() ([]ItemReplacement, error) {
+	answersByItem := make(map[string]InterruptAnswer, len(r.Answers))
+	for _, answer := range r.Answers {
 		answersByItem[answer.InterruptItemID] = answer
 	}
-	replacements := make([]ItemReplacement, 0, len(claim.Expected.Interrupts))
-	for _, request := range claim.Expected.Interrupts {
+	replacements := make([]ItemReplacement, 0, len(r.Expected.Interrupts))
+	for _, request := range r.Expected.Interrupts {
 		if request.Kind != interrupt.Question {
 			continue
 		}
@@ -212,7 +212,7 @@ func (claim ResumeClaimCommit) QuestionReplacements() ([]ItemReplacement, error)
 			return nil, fmt.Errorf("question item %q has no answer", request.ItemID)
 		}
 		expected, err := transcript.NewQuestion(transcript.ItemIdentity{
-			SessionID:  claim.Expected.SessionID,
+			SessionID:  r.Expected.SessionID,
 			RunID:      request.RunID,
 			ItemID:     request.ItemID,
 			OccurredAt: request.ItemOccurredAt,
@@ -239,15 +239,15 @@ type SessionReplacement struct {
 }
 
 // Validate proves that the replacement advances the same Session once.
-func (r SessionReplacement) Validate(sessionID string) error {
-	if err := r.State.Validate(); err != nil {
+func (s SessionReplacement) Validate(sessionID string) error {
+	if err := s.State.Validate(); err != nil {
 		return fmt.Errorf("runs: invalid Session replacement: %w", err)
 	}
-	if r.State.ID() != sessionID {
+	if s.State.ID() != sessionID {
 		return errors.New("runs: opening Session replacement differs from admitted Run")
 	}
-	if r.ExpectedRevision == 0 || r.ExpectedRevision == ^uint64(0) ||
-		r.State.Revision() != r.ExpectedRevision+1 {
+	if s.ExpectedRevision == 0 || s.ExpectedRevision == ^uint64(0) ||
+		s.State.Revision() != s.ExpectedRevision+1 {
 		return errors.New("runs: opening Session replacement does not advance one revision")
 	}
 	return nil
@@ -263,9 +263,9 @@ const (
 	StateTerminalize StateChange = "terminalize"
 )
 
-// Valid reports whether change is one supported lifecycle mutation.
-func (change StateChange) Valid() bool {
-	return change == StateUnchanged || change == StateSuspend || change == StateTerminalize
+// Valid reports whether s is one supported lifecycle mutation.
+func (s StateChange) Valid() bool {
+	return s == StateUnchanged || s == StateSuspend || s == StateTerminalize
 }
 
 // ModelInvocationState records the durable application observation of one
@@ -282,18 +282,18 @@ const (
 	ModelInvocationUnknown   ModelInvocationState = "unknown"
 )
 
-// Valid reports whether state belongs to the durable model-invocation journal.
-func (state ModelInvocationState) Valid() bool {
-	return state == ModelInvocationStarted || state == ModelInvocationCompleted ||
-		state == ModelInvocationFailed || state == ModelInvocationUnknown
+// Valid reports whether m belongs to the durable model-invocation journal.
+func (m ModelInvocationState) Valid() bool {
+	return m == ModelInvocationStarted || m == ModelInvocationCompleted ||
+		m == ModelInvocationFailed || m == ModelInvocationUnknown
 }
 
 // String returns the durable model-invocation state name.
-func (state ModelInvocationState) String() string {
-	if !state.Valid() {
+func (m ModelInvocationState) String() string {
+	if !m.Valid() {
 		return "invalid"
 	}
-	return string(state)
+	return string(m)
 }
 
 // ModelInvocationCommit is one monotonic transition in the durable invocation
@@ -320,17 +320,17 @@ const (
 	ToolInvocationIncomplete ToolInvocationState = "incomplete"
 )
 
-// Valid reports whether state belongs to the durable Tool-invocation journal.
-func (state ToolInvocationState) Valid() bool {
-	return state == ToolInvocationStarted || state == ToolInvocationCompleted || state == ToolInvocationIncomplete
+// Valid reports whether t belongs to the durable Tool-invocation journal.
+func (t ToolInvocationState) Valid() bool {
+	return t == ToolInvocationStarted || t == ToolInvocationCompleted || t == ToolInvocationIncomplete
 }
 
 // String returns the durable Tool-invocation state name.
-func (state ToolInvocationState) String() string {
-	if !state.Valid() {
+func (t ToolInvocationState) String() string {
+	if !t.Valid() {
 		return "invalid"
 	}
-	return string(state)
+	return string(t)
 }
 
 // ToolInvocationCommit is the durable pre-call/terminal attempt transition for
@@ -345,65 +345,65 @@ type ToolInvocationCommit struct {
 	FinishedAt time.Time
 }
 
-func (commit ToolInvocationCommit) validate() error {
+func (t ToolInvocationCommit) validate() error {
 	for _, identity := range []struct {
 		name  string
 		value string
 	}{
-		{name: "call", value: commit.CallID},
-		{name: "Item", value: commit.ItemID},
-		{name: "segment", value: commit.SegmentID},
+		{name: "call", value: t.CallID},
+		{name: "Item", value: t.ItemID},
+		{name: "segment", value: t.SegmentID},
 	} {
 		name, value := identity.name, identity.value
 		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
 			return fmt.Errorf("runs: Tool invocation %s ID is required without surrounding whitespace", name)
 		}
 	}
-	if commit.StartedAt.IsZero() {
+	if t.StartedAt.IsZero() {
 		return errors.New("runs: Tool invocation start time is required")
 	}
-	switch commit.State {
+	switch t.State {
 	case ToolInvocationStarted:
-		if !commit.FinishedAt.IsZero() {
+		if !t.FinishedAt.IsZero() {
 			return errors.New("runs: started Tool invocation carries a finish time")
 		}
 	case ToolInvocationCompleted, ToolInvocationIncomplete:
-		if commit.FinishedAt.IsZero() {
+		if t.FinishedAt.IsZero() {
 			return errors.New("runs: terminal Tool invocation has no finish time")
 		}
-		if commit.FinishedAt.Before(commit.StartedAt) {
+		if t.FinishedAt.Before(t.StartedAt) {
 			return errors.New("runs: Tool invocation finish time precedes start time")
 		}
 	default:
-		return fmt.Errorf("runs: Tool invocation has unknown state %q", commit.State)
+		return fmt.Errorf("runs: Tool invocation has unknown state %q", t.State)
 	}
 	return nil
 }
 
-func (commit ModelInvocationCommit) validate() error {
-	if strings.TrimSpace(commit.CallID) == "" || commit.CallID != strings.TrimSpace(commit.CallID) {
+func (m ModelInvocationCommit) validate() error {
+	if strings.TrimSpace(m.CallID) == "" || m.CallID != strings.TrimSpace(m.CallID) {
 		return errors.New("runs: model invocation call ID is required without surrounding whitespace")
 	}
-	if strings.TrimSpace(commit.SegmentID) == "" || commit.SegmentID != strings.TrimSpace(commit.SegmentID) {
+	if strings.TrimSpace(m.SegmentID) == "" || m.SegmentID != strings.TrimSpace(m.SegmentID) {
 		return errors.New("runs: model invocation segment ID is required without surrounding whitespace")
 	}
-	if commit.StartedAt.IsZero() {
+	if m.StartedAt.IsZero() {
 		return errors.New("runs: model invocation start time is required")
 	}
-	switch commit.State {
+	switch m.State {
 	case ModelInvocationStarted:
-		if !commit.FinishedAt.IsZero() {
+		if !m.FinishedAt.IsZero() {
 			return errors.New("runs: started model invocation carries a finish time")
 		}
 	case ModelInvocationCompleted, ModelInvocationFailed, ModelInvocationUnknown:
-		if commit.FinishedAt.IsZero() {
+		if m.FinishedAt.IsZero() {
 			return errors.New("runs: terminal model invocation has no finish time")
 		}
-		if commit.FinishedAt.Before(commit.StartedAt) {
+		if m.FinishedAt.Before(m.StartedAt) {
 			return errors.New("runs: model invocation finish time precedes start time")
 		}
 	default:
-		return fmt.Errorf("runs: model invocation has unknown state %q", commit.State)
+		return fmt.Errorf("runs: model invocation has unknown state %q", m.State)
 	}
 	return nil
 }
@@ -419,17 +419,17 @@ type RunProgressCommit struct {
 	UpdatedAt     time.Time
 }
 
-func (progress RunProgressCommit) validate() error {
-	if strings.TrimSpace(progress.SegmentID) == "" || progress.SegmentID != strings.TrimSpace(progress.SegmentID) {
+func (r RunProgressCommit) validate() error {
+	if strings.TrimSpace(r.SegmentID) == "" || r.SegmentID != strings.TrimSpace(r.SegmentID) {
 		return errors.New("runs: progress segment ID is required without surrounding whitespace")
 	}
-	if progress.UpdatedAt.IsZero() {
+	if r.UpdatedAt.IsZero() {
 		return errors.New("runs: progress update time is required")
 	}
-	if err := progress.Metrics.Validate(); err != nil {
+	if err := r.Metrics.Validate(); err != nil {
 		return fmt.Errorf("runs: progress metrics: %w", err)
 	}
-	if progress.ContextTokens < 0 {
+	if r.ContextTokens < 0 {
 		return errors.New("runs: progress context tokens must not be negative")
 	}
 	return nil
@@ -471,32 +471,32 @@ type EventCommit struct {
 
 // Validate proves that one event projection is owner-bound and that any Goal
 // charge is exactly the accounting fact implied by its terminal Run.
-func (c EventCommit) Validate() error {
-	if err := c.validateEnvelope(); err != nil {
+func (e EventCommit) Validate() error {
+	if err := e.validateEnvelope(); err != nil {
 		return err
 	}
-	if err := c.validateItems(); err != nil {
+	if err := e.validateItems(); err != nil {
 		return err
 	}
-	if err := c.validateConversationMessages(); err != nil {
+	if err := e.validateConversationMessages(); err != nil {
 		return err
 	}
-	if err := c.validateInvocations(); err != nil {
+	if err := e.validateInvocations(); err != nil {
 		return err
 	}
-	if c.Progress != nil {
-		if err := c.Progress.validate(); err != nil {
+	if e.Progress != nil {
+		if err := e.Progress.validate(); err != nil {
 			return err
 		}
-		if c.Progress.SegmentID != c.SegmentID {
-			return fmt.Errorf("runs: event commit progress belongs to Segment %q, want %q", c.Progress.SegmentID, c.SegmentID)
+		if e.Progress.SegmentID != e.SegmentID {
+			return fmt.Errorf("runs: event commit progress belongs to Segment %q, want %q", e.Progress.SegmentID, e.SegmentID)
 		}
 	}
-	return c.validateLifecycle()
+	return e.validateLifecycle()
 }
 
-func (c EventCommit) validateConversationMessages() error {
-	for index, message := range c.ConversationMessages {
+func (e EventCommit) validateConversationMessages() error {
+	for index, message := range e.ConversationMessages {
 		if err := message.Validate(); err != nil {
 			return fmt.Errorf("runs: event commit conversation message[%d]: %w", index, err)
 		}
@@ -504,30 +504,30 @@ func (c EventCommit) validateConversationMessages() error {
 	return nil
 }
 
-func (c EventCommit) validateEnvelope() error {
-	if strings.TrimSpace(c.RunID) == "" || c.RunID != strings.TrimSpace(c.RunID) {
+func (e EventCommit) validateEnvelope() error {
+	if strings.TrimSpace(e.RunID) == "" || e.RunID != strings.TrimSpace(e.RunID) {
 		return errors.New("runs: event commit Run ID must be non-empty without surrounding whitespace")
 	}
-	if strings.TrimSpace(c.SessionID) == "" || c.SessionID != strings.TrimSpace(c.SessionID) {
+	if strings.TrimSpace(e.SessionID) == "" || e.SessionID != strings.TrimSpace(e.SessionID) {
 		return errors.New("runs: event commit Session ID must be non-empty without surrounding whitespace")
 	}
-	if strings.TrimSpace(c.SegmentID) == "" || c.SegmentID != strings.TrimSpace(c.SegmentID) {
+	if strings.TrimSpace(e.SegmentID) == "" || e.SegmentID != strings.TrimSpace(e.SegmentID) {
 		return errors.New("runs: event commit Segment ID must be non-empty without surrounding whitespace")
 	}
-	if c.ObsoleteCheckpointRootID != strings.TrimSpace(c.ObsoleteCheckpointRootID) {
+	if e.ObsoleteCheckpointRootID != strings.TrimSpace(e.ObsoleteCheckpointRootID) {
 		return errors.New("runs: event commit checkpoint root ID has surrounding whitespace")
 	}
-	if c.CommitID != strings.TrimSpace(c.CommitID) {
+	if e.CommitID != strings.TrimSpace(e.CommitID) {
 		return errors.New("runs: event commit identity has surrounding whitespace")
 	}
 	return nil
 }
 
-func (c EventCommit) validateItems() error {
-	seenItems := make(map[string]struct{}, len(c.Items))
-	for index, item := range c.Items {
-		if item.ID() == "" || item.RunID() != c.RunID || item.SessionID() != c.SessionID {
-			return fmt.Errorf("runs: event commit Item[%d] is not owned by Run %q", index, c.RunID)
+func (e EventCommit) validateItems() error {
+	seenItems := make(map[string]struct{}, len(e.Items))
+	for index, item := range e.Items {
+		if item.ID() == "" || item.RunID() != e.RunID || item.SessionID() != e.SessionID {
+			return fmt.Errorf("runs: event commit Item[%d] is not owned by Run %q", index, e.RunID)
 		}
 		if _, duplicate := seenItems[item.ID()]; duplicate {
 			return fmt.Errorf("runs: event commit repeats Item %q", item.ID())
@@ -540,35 +540,35 @@ func (c EventCommit) validateItems() error {
 	return nil
 }
 
-func (c EventCommit) validateInvocations() error {
-	items := make(map[string]transcript.Item, len(c.Items))
-	for _, item := range c.Items {
+func (e EventCommit) validateInvocations() error {
+	items := make(map[string]transcript.Item, len(e.Items))
+	for _, item := range e.Items {
 		items[item.ID()] = item
 	}
-	seenInvocations := make(map[string]struct{}, len(c.ModelInvocations))
-	for index, invocation := range c.ModelInvocations {
+	seenInvocations := make(map[string]struct{}, len(e.ModelInvocations))
+	for index, invocation := range e.ModelInvocations {
 		if err := invocation.validate(); err != nil {
 			return fmt.Errorf("runs: event commit model invocation[%d]: %w", index, err)
 		}
 		if _, duplicate := seenInvocations[invocation.CallID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats model invocation %q", invocation.CallID)
 		}
-		if invocation.SegmentID != c.SegmentID {
-			return fmt.Errorf("runs: event commit model invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, c.SegmentID)
+		if invocation.SegmentID != e.SegmentID {
+			return fmt.Errorf("runs: event commit model invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, e.SegmentID)
 		}
 		seenInvocations[invocation.CallID] = struct{}{}
 	}
-	seenTools := make(map[string]struct{}, len(c.ToolInvocations))
-	seenToolItems := make(map[string]struct{}, len(c.ToolInvocations))
-	for index, invocation := range c.ToolInvocations {
+	seenTools := make(map[string]struct{}, len(e.ToolInvocations))
+	seenToolItems := make(map[string]struct{}, len(e.ToolInvocations))
+	for index, invocation := range e.ToolInvocations {
 		if err := invocation.validate(); err != nil {
 			return fmt.Errorf("runs: event commit Tool invocation[%d]: %w", index, err)
 		}
 		if _, duplicate := seenTools[invocation.CallID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats Tool invocation %q", invocation.CallID)
 		}
-		if invocation.SegmentID != c.SegmentID {
-			return fmt.Errorf("runs: event commit Tool invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, c.SegmentID)
+		if invocation.SegmentID != e.SegmentID {
+			return fmt.Errorf("runs: event commit Tool invocation[%d] belongs to Segment %q, want %q", index, invocation.SegmentID, e.SegmentID)
 		}
 		if _, duplicate := seenToolItems[invocation.ItemID]; duplicate {
 			return fmt.Errorf("runs: event commit repeats Tool invocation Item %q", invocation.ItemID)
@@ -606,40 +606,40 @@ func (c EventCommit) validateInvocations() error {
 	return nil
 }
 
-func (c EventCommit) validateLifecycle() error {
-	switch c.State {
+func (e EventCommit) validateLifecycle() error {
+	switch e.State {
 	case StateUnchanged:
-		if c.Run != nil || c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
+		if e.Run != nil || e.GoalRun != nil || e.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: unchanged event commit carries lifecycle facts")
 		}
 		return nil
 	case StateSuspend:
-		if c.Run == nil || c.Run.State() != run.Waiting {
+		if e.Run == nil || e.Run.State() != run.Waiting {
 			return errors.New("runs: suspend event commit has no waiting Run")
 		}
-		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
+		if e.GoalRun != nil || e.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: suspend event commit carries terminal facts")
 		}
 	case StateTerminalize:
-		if c.CommitID == "" {
+		if e.CommitID == "" {
 			return errors.New("runs: terminal event commit has no commit identity")
 		}
-		if c.Run == nil || !c.Run.State().IsTerminal() {
+		if e.Run == nil || !e.Run.State().IsTerminal() {
 			return errors.New("runs: terminal event commit has no matching terminal Run")
 		}
-		outcome, ok := c.Run.Outcome()
-		if !ok || outcome != c.Outcome {
+		outcome, ok := e.Run.Outcome()
+		if !ok || outcome != e.Outcome {
 			return errors.New("runs: terminal event commit has no matching terminal outcome")
 		}
 	default:
-		return fmt.Errorf("runs: event commit has unknown state change %q", c.State)
+		return fmt.Errorf("runs: event commit has unknown state change %q", e.State)
 	}
 
-	if c.Run.ID() != c.RunID || c.Run.SessionID() != c.SessionID {
+	if e.Run.ID() != e.RunID || e.Run.SessionID() != e.SessionID {
 		return errors.New("runs: event commit Run ownership differs from its envelope")
 	}
-	validatedRun := *c.Run
-	if c.State == StateTerminalize && validatedRun.MessageMark() == run.UnknownMessageMark {
+	validatedRun := *e.Run
+	if e.State == StateTerminalize && validatedRun.MessageMark() == run.UnknownMessageMark {
 		// The reducer cannot know the final conversation watermark. The terminal
 		// transaction resolves it while committing this Run; every other terminal
 		// fact must already satisfy the domain invariant.
@@ -652,10 +652,10 @@ func (c EventCommit) validateLifecycle() error {
 	if err := validatedRun.Validate(); err != nil {
 		return fmt.Errorf("runs: event commit Run: %w", err)
 	}
-	if c.State == StateSuspend {
+	if e.State == StateSuspend {
 		return nil
 	}
-	return validateTerminalGoalRun(*c.Run, c.GoalRun)
+	return validateTerminalGoalRun(*e.Run, e.GoalRun)
 }
 
 func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
@@ -687,16 +687,16 @@ func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
 	return nil
 }
 
-func (c EventCommit) isEmpty() bool {
-	return len(c.Items) == 0 &&
-		len(c.ConversationMessages) == 0 &&
-		len(c.ModelInvocations) == 0 &&
-		len(c.ToolInvocations) == 0 &&
-		c.Progress == nil &&
-		c.Run == nil &&
-		c.GoalRun == nil &&
-		c.ObsoleteCheckpointRootID == "" &&
-		c.State == StateUnchanged
+func (e EventCommit) isEmpty() bool {
+	return len(e.Items) == 0 &&
+		len(e.ConversationMessages) == 0 &&
+		len(e.ModelInvocations) == 0 &&
+		len(e.ToolInvocations) == 0 &&
+		e.Progress == nil &&
+		e.Run == nil &&
+		e.GoalRun == nil &&
+		e.ObsoleteCheckpointRootID == "" &&
+		e.State == StateUnchanged
 }
 
 // Validate proves that the opening is exactly one fresh admission or one tree
@@ -706,37 +706,37 @@ func (c EventCommit) isEmpty() bool {
 // context without becoming a user-visible Item. Persistence Port implementations
 // may reject unavailable stores or concurrent state changes, but they do not
 // reinterpret this application write-set.
-func (c OpeningCommit) Validate() error {
-	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
+func (o OpeningCommit) Validate() error {
+	if strings.TrimSpace(o.CommitID) == "" || o.CommitID != strings.TrimSpace(o.CommitID) {
 		return errors.New("runs: opening commit identity is required without surrounding whitespace")
 	}
-	if (c.Admit == nil) == (c.Resume == nil) {
+	if (o.Admit == nil) == (o.Resume == nil) {
 		return errors.New("runs: opening requires exactly one admission action")
 	}
-	if c.Admit != nil {
-		if c.InitialSession != nil {
-			if err := c.InitialSession.Validate(); err != nil {
+	if o.Admit != nil {
+		if o.InitialSession != nil {
+			if err := o.InitialSession.Validate(); err != nil {
 				return fmt.Errorf("runs: opening initial Session: %w", err)
 			}
-			if c.InitialSession.ID() != c.Admit.SessionID || c.InitialSession.Revision() != 1 {
+			if o.InitialSession.ID() != o.Admit.SessionID || o.InitialSession.Revision() != 1 {
 				return errors.New("runs: opening initial Session differs from admitted Run")
 			}
 		}
-		if c.SessionReplacement != nil {
-			if err := c.SessionReplacement.Validate(c.Admit.SessionID); err != nil {
+		if o.SessionReplacement != nil {
+			if err := o.SessionReplacement.Validate(o.Admit.SessionID); err != nil {
 				return err
 			}
 		}
-		if c.InitialSession != nil && c.SessionReplacement != nil {
+		if o.InitialSession != nil && o.SessionReplacement != nil {
 			return errors.New("runs: opening cannot insert and replace the same Session")
 		}
-		if c.ScheduleFiring != strings.TrimSpace(c.ScheduleFiring) {
+		if o.ScheduleFiring != strings.TrimSpace(o.ScheduleFiring) {
 			return errors.New("runs: opening schedule firing has surrounding whitespace")
 		}
-	} else if c.InitialSession != nil || c.SessionReplacement != nil || c.ScheduleFiring != "" {
+	} else if o.InitialSession != nil || o.SessionReplacement != nil || o.ScheduleFiring != "" {
 		return errors.New("runs: resumed opening carries fresh-run facts")
 	}
-	for index, commit := range c.Events {
+	for index, commit := range o.Events {
 		if err := commit.Validate(); err != nil {
 			return fmt.Errorf("runs: opening event[%d]: %w", index, err)
 		}
@@ -762,23 +762,23 @@ type TreeBarrierCommit struct {
 // Validate proves that the barrier is the complete interruption projection for
 // the pending continuation tree and that its checkpoint belongs to the same
 // run. The Effects port only persists this already-defined write-set.
-func (c TreeBarrierCommit) Validate() error {
-	if strings.TrimSpace(c.CommitID) == "" || c.CommitID != strings.TrimSpace(c.CommitID) {
+func (t TreeBarrierCommit) Validate() error {
+	if strings.TrimSpace(t.CommitID) == "" || t.CommitID != strings.TrimSpace(t.CommitID) {
 		return errors.New("runs: tree barrier commit identity is required without surrounding whitespace")
 	}
-	if err := c.Pending.Validate(); err != nil {
+	if err := t.Pending.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Pending: %w", err)
 	}
-	rootContinuation, found := c.Pending.RootContinuation()
+	rootContinuation, found := t.Pending.RootContinuation()
 	if !found {
 		return errors.New("runs: tree barrier has no root continuation")
 	}
 	validator := treeBarrierValidator{
-		barrier:       c,
-		continuations: make(map[string]Continuation, len(c.Pending.Continuations)),
-		seenRunIDs:    make(map[string]struct{}, len(c.Runs)),
+		barrier:       t,
+		continuations: make(map[string]Continuation, len(t.Pending.Continuations)),
+		seenRunIDs:    make(map[string]struct{}, len(t.Runs)),
 	}
-	for _, continuation := range c.Pending.Continuations {
+	for _, continuation := range t.Pending.Continuations {
 		validator.continuations[continuation.RunID] = continuation
 	}
 	if err := validator.validateCheckpoint(rootContinuation); err != nil {
@@ -793,9 +793,9 @@ type treeBarrierValidator struct {
 	seenRunIDs    map[string]struct{}
 }
 
-func (validator treeBarrierValidator) validateCheckpoint(rootContinuation Continuation) error {
-	checkpoint := validator.barrier.Checkpoint
-	pending := validator.barrier.Pending
+func (t treeBarrierValidator) validateCheckpoint(rootContinuation Continuation) error {
+	checkpoint := t.barrier.Checkpoint
+	pending := t.barrier.Pending
 	if err := checkpoint.ValidateOwnership(rootContinuation.MemberID, pending.SessionID); err != nil {
 		return fmt.Errorf("runs: tree barrier checkpoint ownership: %w", err)
 	}
@@ -816,34 +816,34 @@ func (validator treeBarrierValidator) validateCheckpoint(rootContinuation Contin
 	return nil
 }
 
-func (validator treeBarrierValidator) validateRuns() error {
-	if len(validator.barrier.Runs) != len(validator.barrier.Pending.Continuations) {
+func (t treeBarrierValidator) validateRuns() error {
+	if len(t.barrier.Runs) != len(t.barrier.Pending.Continuations) {
 		return fmt.Errorf(
 			"runs: tree barrier has %d Run commits for %d continuations",
-			len(validator.barrier.Runs),
-			len(validator.barrier.Pending.Continuations),
+			len(t.barrier.Runs),
+			len(t.barrier.Pending.Continuations),
 		)
 	}
-	for index, runCommit := range validator.barrier.Runs {
-		if err := validator.validateRun(index, runCommit); err != nil {
+	for index, runCommit := range t.barrier.Runs {
+		if err := t.validateRun(index, runCommit); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (validator treeBarrierValidator) validateRun(index int, runCommit EventCommit) error {
+func (t treeBarrierValidator) validateRun(index int, runCommit EventCommit) error {
 	if err := runCommit.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
 	}
 	if runCommit.State != StateSuspend || runCommit.Run == nil || runCommit.Run.State() != run.Waiting {
 		return fmt.Errorf("runs: tree barrier Run[%d] is not a waiting Run projection", index)
 	}
-	pending := validator.barrier.Pending
+	pending := t.barrier.Pending
 	if runCommit.SessionID != pending.SessionID || runCommit.Run.SessionID() != pending.SessionID {
 		return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)
 	}
-	continuation, exists := validator.continuations[runCommit.RunID]
+	continuation, exists := t.continuations[runCommit.RunID]
 	if !exists {
 		return fmt.Errorf("runs: tree barrier Run[%d] has no continuation", index)
 	}
@@ -864,9 +864,9 @@ func (validator treeBarrierValidator) validateRun(index int, runCommit EventComm
 	} else if runCommit.Run.GoalIncarnationID() != "" {
 		return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal incarnation", index)
 	}
-	if _, duplicate := validator.seenRunIDs[runCommit.RunID]; duplicate {
+	if _, duplicate := t.seenRunIDs[runCommit.RunID]; duplicate {
 		return fmt.Errorf("runs: tree barrier repeats Run %q", runCommit.RunID)
 	}
-	validator.seenRunIDs[runCommit.RunID] = struct{}{}
+	t.seenRunIDs[runCommit.RunID] = struct{}{}
 	return nil
 }

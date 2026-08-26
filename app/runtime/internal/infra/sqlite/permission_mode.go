@@ -17,9 +17,9 @@ func NewPermissionModeStore(db *sql.DB) *PermissionModeStore {
 	return &PermissionModeStore{db: db}
 }
 
-func (s *PermissionModeStore) LookupMode(ctx context.Context, sessionID string) (approval.SessionMode, bool, error) {
+func (p *PermissionModeStore) LookupMode(ctx context.Context, sessionID string) (approval.SessionMode, bool, error) {
 	var state approval.SessionMode
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, p.db).QueryRowContext(ctx,
 		`SELECT mode, restore_mode FROM session_permission_modes WHERE session_id = ?`, sessionID,
 	).Scan(&state.Mode, &state.RestoreMode)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -34,14 +34,14 @@ func (s *PermissionModeStore) LookupMode(ctx context.Context, sessionID string) 
 	return state, true, nil
 }
 
-func (s *PermissionModeStore) PutMode(ctx context.Context, sessionID string, state approval.SessionMode) error {
+func (p *PermissionModeStore) PutMode(ctx context.Context, sessionID string, state approval.SessionMode) error {
 	if sessionID == "" {
 		return errors.New("sqlite: session permission mode requires a session id")
 	}
 	if err := state.Validate(); err != nil {
 		return fmt.Errorf("sqlite: validate session permission mode: %w", err)
 	}
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+	if _, err := conn(ctx, p.db).ExecContext(ctx,
 		`INSERT INTO session_permission_modes(session_id, mode, restore_mode) VALUES (?, ?, ?)
 		 ON CONFLICT(session_id) DO UPDATE SET
 		   mode = excluded.mode,

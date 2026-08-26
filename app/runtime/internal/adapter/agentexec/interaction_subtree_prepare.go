@@ -12,7 +12,7 @@ import (
 
 // PrepareWaitingSubtreeCancellation freezes one exact waiting Interaction tree
 // until the returned Application capability is applied or discarded.
-func (executor *InteractionExecutor) PrepareWaitingSubtreeCancellation(
+func (i *InteractionExecutor) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	request runs.WaitingSubtreeCancellationRequest,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
@@ -23,9 +23,9 @@ func (executor *InteractionExecutor) PrepareWaitingSubtreeCancellation(
 		SessionID:  request.Continuation.SessionID,
 		ExecutorID: request.Continuation.ExecutorID,
 	}
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if errors.Is(err, runs.ErrExecutorNotLive) {
-		if restoreErr := executor.restoreWaitingTree(
+		if restoreErr := i.restoreWaitingTree(
 			ctx,
 			ref,
 			request.Continuation,
@@ -33,7 +33,7 @@ func (executor *InteractionExecutor) PrepareWaitingSubtreeCancellation(
 		); restoreErr != nil {
 			return runs.PreparedWaitingSubtreeCancellation{}, restoreErr
 		}
-		session, err = executor.session(ref)
+		session, err = i.session(ref)
 	}
 	if err != nil {
 		return runs.PreparedWaitingSubtreeCancellation{}, err
@@ -46,7 +46,7 @@ func (executor *InteractionExecutor) PrepareWaitingSubtreeCancellation(
 	)
 }
 
-func (session *interactionSession) prepareWaitingSubtreeCancellation(
+func (i *interactionSession) prepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	expectedCheckpoint runs.ExecutorCheckpoint,
 	memberID string,
@@ -69,54 +69,54 @@ func (session *interactionSession) prepareWaitingSubtreeCancellation(
 			err,
 		)
 	}
-	session.state.mu.Lock()
-	if session.state.finished || session.state.process == nil {
-		session.state.mu.Unlock()
+	i.state.mu.Lock()
+	if i.state.finished || i.state.process == nil {
+		i.state.mu.Unlock()
 		return runs.PreparedWaitingSubtreeCancellation{}, runs.ErrExecutorNotLive
 	}
 	switch {
-	case session.state.boundary != interactionBoundaryWaiting:
-		session.state.mu.Unlock()
+	case i.state.boundary != interactionBoundaryWaiting:
+		i.state.mu.Unlock()
 		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"%w: Interaction tree is crossing another execution boundary",
 			runs.ErrExecutionClaimed,
 		)
-	case session.state.observerWasAttached:
-		session.state.mu.Unlock()
+	case i.state.observerWasAttached:
+		i.state.mu.Unlock()
 		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"%w: Interaction tree has an active observer",
 			runs.ErrExecutionClaimed,
 		)
-	case !isInteractionWaitingBoundary(session.state.process.Status()):
-		status := session.state.process.Status()
-		session.state.mu.Unlock()
+	case !isInteractionWaitingBoundary(i.state.process.Status()):
+		status := i.state.process.Status()
+		i.state.mu.Unlock()
 		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"%w: Interaction root is %s",
 			runs.ErrExecutionClaimed,
 			status,
 		)
 	}
-	if !executorCheckpointsEqual(session.state.waitingCheckpoint, expectedCheckpoint) {
-		session.state.mu.Unlock()
+	if !executorCheckpointsEqual(i.state.waitingCheckpoint, expectedCheckpoint) {
+		i.state.mu.Unlock()
 		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"%w: live Interaction checkpoint differs from the waiting subtree request",
 			runs.ErrInvalidExecutorCheckpoint,
 		)
 	}
-	rootID := session.state.process.Relation().RootID()
+	rootID := i.state.process.Relation().RootID()
 	preparedSignal := make(chan struct{})
-	session.state.boundary = interactionBoundarySubtreePreparing
-	session.state.subtreePrepared = preparedSignal
-	session.state.mu.Unlock()
+	i.state.boundary = interactionBoundarySubtreePreparing
+	i.state.subtreePrepared = preparedSignal
+	i.state.mu.Unlock()
 
-	frameworkChange, err := session.engine.PrepareWaitingSubtreeCancellation(
+	frameworkChange, err := i.engine.PrepareWaitingSubtreeCancellation(
 		ctx,
 		rootID,
 		targetID,
 		reason,
 	)
 	if err != nil {
-		session.failSubtreePreparation(preparedSignal)
+		i.failSubtreePreparation(preparedSignal)
 		return runs.PreparedWaitingSubtreeCancellation{}, fmt.Errorf(
 			"agentexec: prepare waiting Interaction subtree: %w",
 			err,
@@ -129,33 +129,33 @@ func (session *interactionSession) prepareWaitingSubtreeCancellation(
 		}
 	}()
 	resultingTree := frameworkChange.ResultingSnapshot()
-	checkpoint, err := session.executorCheckpoint(resultingTree)
+	checkpoint, err := i.executorCheckpoint(resultingTree)
 	if err != nil {
-		session.failSubtreePreparation(preparedSignal)
+		i.failSubtreePreparation(preparedSignal)
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
-	interruptions, err := session.pendingInterruptions(resultingTree)
+	interruptions, err := i.pendingInterruptions(resultingTree)
 	if err != nil {
-		session.failSubtreePreparation(preparedSignal)
+		i.failSubtreePreparation(preparedSignal)
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
 	canceled := frameworkChange.CanceledProcessIDs()
 	paused := frameworkChange.PausedProcessIDs()
-	canceledMembers, err := session.executorMemberIDs(canceled)
+	canceledMembers, err := i.executorMemberIDs(canceled)
 	if err != nil {
-		session.failSubtreePreparation(preparedSignal)
+		i.failSubtreePreparation(preparedSignal)
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
-	pausedMembers, err := session.executorMemberIDs(paused)
+	pausedMembers, err := i.executorMemberIDs(paused)
 	if err != nil {
-		session.failSubtreePreparation(preparedSignal)
+		i.failSubtreePreparation(preparedSignal)
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
 	change := &interactionWaitingSubtreeChange{
-		session: session, prepared: frameworkChange, checkpoint: checkpoint.Clone(),
+		session: i, prepared: frameworkChange, checkpoint: checkpoint.Clone(),
 		canceled: slices.Clone(canceled), paused: slices.Clone(paused),
 	}
-	if err := session.completeSubtreePreparation(preparedSignal, change); err != nil {
+	if err := i.completeSubtreePreparation(preparedSignal, change); err != nil {
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
 	change.armExpiration(ctx)
@@ -166,12 +166,12 @@ func (session *interactionSession) prepareWaitingSubtreeCancellation(
 	}, nil
 }
 
-func (session *interactionSession) executorMemberIDs(
+func (i *interactionSession) executorMemberIDs(
 	processIDs []agent.ProcessID,
 ) ([]string, error) {
 	members := make([]string, len(processIDs))
 	for index, processID := range processIDs {
-		member, found := session.executorMemberByProcessID(processID)
+		member, found := i.executorMemberByProcessID(processID)
 		if !found || member.MemberID != processID.String() {
 			return nil, fmt.Errorf(
 				"agentexec: Interaction Process %s has no exact product member",
@@ -183,34 +183,34 @@ func (session *interactionSession) executorMemberIDs(
 	return members, nil
 }
 
-func (session *interactionSession) failSubtreePreparation(preparedSignal chan struct{}) {
-	session.state.mu.Lock()
-	if session.state.boundary == interactionBoundarySubtreePreparing &&
-		session.state.subtreePrepared == preparedSignal {
-		session.state.boundary = interactionBoundaryWaiting
-		session.state.subtreePrepared = nil
+func (i *interactionSession) failSubtreePreparation(preparedSignal chan struct{}) {
+	i.state.mu.Lock()
+	if i.state.boundary == interactionBoundarySubtreePreparing &&
+		i.state.subtreePrepared == preparedSignal {
+		i.state.boundary = interactionBoundaryWaiting
+		i.state.subtreePrepared = nil
 		close(preparedSignal)
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 }
 
-func (session *interactionSession) completeSubtreePreparation(
+func (i *interactionSession) completeSubtreePreparation(
 	preparedSignal chan struct{},
 	change *interactionWaitingSubtreeChange,
 ) error {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.finished || session.state.boundary != interactionBoundarySubtreePreparing ||
-		session.state.subtreePrepared != preparedSignal || session.state.subtreeChange != nil {
-		if session.state.subtreePrepared == preparedSignal {
-			session.state.subtreePrepared = nil
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.finished || i.state.boundary != interactionBoundarySubtreePreparing ||
+		i.state.subtreePrepared != preparedSignal || i.state.subtreeChange != nil {
+		if i.state.subtreePrepared == preparedSignal {
+			i.state.subtreePrepared = nil
 			close(preparedSignal)
 		}
 		return runs.ErrExecutorNotLive
 	}
-	session.state.boundary = interactionBoundarySubtreePrepared
-	session.state.subtreeChange = change
-	session.state.subtreePrepared = nil
+	i.state.boundary = interactionBoundarySubtreePrepared
+	i.state.subtreeChange = change
+	i.state.subtreePrepared = nil
 	close(preparedSignal)
 	return nil
 }

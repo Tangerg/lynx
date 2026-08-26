@@ -48,112 +48,112 @@ func restoreInteractionReview(items []agent.Interaction, responses []agent.Inter
 	return review, nil
 }
 
-func (r *interactionReview) Current() (agent.Interaction, bool) {
-	if r == nil || r.current < 0 || r.current >= len(r.items) {
+func (i *interactionReview) Current() (agent.Interaction, bool) {
+	if i == nil || i.current < 0 || i.current >= len(i.items) {
 		return nil, false
 	}
-	return agent.CloneInteraction(r.items[r.current]), true
+	return agent.CloneInteraction(i.items[i.current]), true
 }
 
-func (r *interactionReview) CurrentAnswer() agent.Answer {
-	if r == nil || r.current < 0 || r.current >= len(r.answers) {
+func (i *interactionReview) CurrentAnswer() agent.Answer {
+	if i == nil || i.current < 0 || i.current >= len(i.answers) {
 		return nil
 	}
-	return agent.CloneAnswer(r.answers[r.current])
+	return agent.CloneAnswer(i.answers[i.current])
 }
 
-func (r *interactionReview) Record(answer agent.Answer) error {
-	item, ok := r.Current()
+func (i *interactionReview) Record(answer agent.Answer) error {
+	item, ok := i.Current()
 	if !ok {
 		return errors.New("interaction review has no current item")
 	}
 	if err := agent.ValidateAnswer(item, answer); err != nil {
 		return err
 	}
-	r.answers[r.current] = agent.CloneAnswer(answer)
+	i.answers[i.current] = agent.CloneAnswer(answer)
 	return nil
 }
 
-func (r *interactionReview) Advance() bool {
-	if r == nil || r.current >= len(r.items) || r.answers[r.current] == nil {
+func (i *interactionReview) Advance() bool {
+	if i == nil || i.current >= len(i.items) || i.answers[i.current] == nil {
 		return false
 	}
-	r.current++
-	return r.current < len(r.items)
+	i.current++
+	return i.current < len(i.items)
 }
 
-func (r *interactionReview) Back() bool {
-	if r == nil || r.current <= 0 {
+func (i *interactionReview) Back() bool {
+	if i == nil || i.current <= 0 {
 		return false
 	}
-	if r.current >= len(r.items) {
-		r.current = len(r.items) - 1
+	if i.current >= len(i.items) {
+		i.current = len(i.items) - 1
 	} else {
-		r.current--
+		i.current--
 	}
 	return true
 }
 
-func (r *interactionReview) completed() bool {
-	return r != nil && len(r.items) > 0 && r.current == len(r.items)
+func (i *interactionReview) completed() bool {
+	return i != nil && len(i.items) > 0 && i.current == len(i.items)
 }
 
-func (r *interactionReview) ReportSubmissionFailure(err error) {
-	if r == nil || err == nil {
+func (i *interactionReview) ReportSubmissionFailure(err error) {
+	if i == nil || err == nil {
 		return
 	}
-	r.submissionFailure = err.Error()
+	i.submissionFailure = err.Error()
 }
 
-func (r *interactionReview) SubmissionFailure() string {
-	if r == nil {
+func (i *interactionReview) SubmissionFailure() string {
+	if i == nil {
 		return ""
 	}
-	return r.submissionFailure
+	return i.submissionFailure
 }
 
-func (r *interactionReview) Reviewing() bool {
-	return r != nil && len(r.items) > 1 && r.completed()
+func (i *interactionReview) Reviewing() bool {
+	return i != nil && len(i.items) > 1 && i.completed()
 }
 
-func (r *interactionReview) Position() (current, total int) {
-	if r == nil {
+func (i *interactionReview) Position() (current, total int) {
+	if i == nil {
 		return 0, 0
 	}
-	return min(r.current+1, len(r.items)), len(r.items)
+	return min(i.current+1, len(i.items)), len(i.items)
 }
 
-func (r *interactionReview) Responses() ([]agent.InterruptAnswer, error) {
-	if r == nil || len(r.items) == 0 {
+func (i *interactionReview) Responses() ([]agent.InterruptAnswer, error) {
+	if i == nil || len(i.items) == 0 {
 		return nil, errors.New("interaction review is empty")
 	}
-	responses := make([]agent.InterruptAnswer, len(r.items))
-	for i, item := range r.items {
-		if r.answers[i] == nil {
-			return nil, fmt.Errorf("interaction %d has no answer", i+1)
+	responses := make([]agent.InterruptAnswer, len(i.items))
+	for index, item := range i.items {
+		if i.answers[index] == nil {
+			return nil, fmt.Errorf("interaction %d has no answer", index+1)
 		}
-		responses[i] = agent.InterruptAnswer{
+		responses[index] = agent.InterruptAnswer{
 			ItemID: agent.InteractionItemID(item),
-			Answer: agent.CloneAnswer(r.answers[i]),
+			Answer: agent.CloneAnswer(i.answers[index]),
 		}
 	}
 	return responses, nil
 }
 
-func (r *interactionReview) Items() []agent.Interaction {
-	if r == nil {
+func (i *interactionReview) Items() []agent.Interaction {
+	if i == nil {
 		return nil
 	}
-	return agent.CloneInteractions(r.items)
+	return agent.CloneInteractions(i.items)
 }
 
-func (r *interactionReview) Answers() []agent.Answer {
-	if r == nil {
+func (i *interactionReview) Answers() []agent.Answer {
+	if i == nil {
 		return nil
 	}
-	answers := slices.Clone(r.answers)
-	for i := range answers {
-		answers[i] = agent.CloneAnswer(answers[i])
+	answers := slices.Clone(i.answers)
+	for index := range answers {
+		answers[index] = agent.CloneAnswer(answers[index])
 	}
 	return answers
 }

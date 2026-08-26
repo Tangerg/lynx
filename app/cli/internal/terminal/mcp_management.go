@@ -395,7 +395,7 @@ type mcpAuthorizationObserver struct {
 	recovery     retry.Backoff
 }
 
-func (observer mcpAuthorizationObserver) observe(
+func (m mcpAuthorizationObserver) observe(
 	ctx context.Context,
 	initial mcp.AuthorizationAttempt,
 ) (mcp.AuthorizationAttempt, error) {
@@ -404,19 +404,19 @@ func (observer mcpAuthorizationObserver) observe(
 	}
 	current := initial
 	reference := initial.Reference()
-	delay := observer.pollInterval
+	delay := m.pollInterval
 	failures := 0
 	for current.Pending() {
 		if err := retry.Wait(ctx, delay); err != nil {
 			return mcp.AuthorizationAttempt{}, err
 		}
-		next, err := observer.service.GetAuthorization(ctx, reference)
+		next, err := m.service.GetAuthorization(ctx, reference)
 		if err != nil {
 			if !reconnect.Retryable(err) {
 				return mcp.AuthorizationAttempt{}, err
 			}
 			failures++
-			delay = observer.recovery.Delay(failures)
+			delay = m.recovery.Delay(failures)
 			continue
 		}
 		if err := next.Validate(); err != nil {
@@ -432,7 +432,7 @@ func (observer mcpAuthorizationObserver) observe(
 		}
 		current = next
 		failures = 0
-		delay = observer.pollInterval
+		delay = m.pollInterval
 	}
 	return current, nil
 }

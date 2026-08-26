@@ -10,12 +10,12 @@ type wailsWorkingDirectoryPicker struct {
 	window  application.Window
 }
 
-func (p wailsWorkingDirectoryPicker) ChooseWorkingDirectory() (string, error) {
-	return p.dialogs.OpenFile().
+func (w wailsWorkingDirectoryPicker) ChooseWorkingDirectory() (string, error) {
+	return w.dialogs.OpenFile().
 		CanChooseDirectories(true).
 		CanChooseFiles(false).
 		CanCreateDirectories(true).
 		ResolvesAliases(true).
-		AttachToWindow(p.window).
+		AttachToWindow(w.window).
 		PromptForSingleSelection()
 }

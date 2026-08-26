@@ -125,18 +125,18 @@ func newMemoryRuleStore() *memoryRuleStore {
 
 var _ approvals.RuleStore = (*memoryRuleStore)(nil)
 
-func (s *memoryRuleStore) Put(_ context.Context, rule approval.Rule) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.rules[rule.ID] = rule
+func (m *memoryRuleStore) Put(_ context.Context, rule approval.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rules[rule.ID] = rule
 	return nil
 }
 
-func (s *memoryRuleStore) Visible(_ context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (m *memoryRuleStore) Visible(_ context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var rules []approval.Rule
-	for _, rule := range s.rules {
+	for _, rule := range m.rules {
 		if ruleVisibleFrom(rule, sessionID, projectDir) {
 			rules = append(rules, rule)
 		}
@@ -144,19 +144,19 @@ func (s *memoryRuleStore) Visible(_ context.Context, sessionID, projectDir strin
 	return rules, nil
 }
 
-func (s *memoryRuleStore) Delete(_ context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.rules, id)
+func (m *memoryRuleStore) Delete(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.rules, id)
 	return nil
 }
 
-func (s *memoryRuleStore) DeleteSession(_ context.Context, sessionID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for id, rule := range s.rules {
+func (m *memoryRuleStore) DeleteSession(_ context.Context, sessionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, rule := range m.rules {
 		if rule.Scope == approval.ScopeSession && rule.ScopeKey == sessionID {
-			delete(s.rules, id)
+			delete(m.rules, id)
 		}
 	}
 	return nil

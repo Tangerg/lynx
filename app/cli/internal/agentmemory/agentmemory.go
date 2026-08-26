@@ -27,9 +27,9 @@ func ParseScope(value string) (Scope, error) {
 	return scope, nil
 }
 
-func (scope Scope) Validate() error {
-	if scope != Project && scope != User {
-		return fmt.Errorf("agent memory scope must be project or user, got %q", scope)
+func (s Scope) Validate() error {
+	if s != Project && s != User {
+		return fmt.Errorf("agent memory scope must be project or user, got %q", s)
 	}
 	return nil
 }
@@ -45,20 +45,20 @@ func NewTarget(scope Scope, workspace string) (Target, error) {
 	return target, target.Validate()
 }
 
-func (target Target) Validate() error {
-	if err := target.Scope.Validate(); err != nil {
+func (t Target) Validate() error {
+	if err := t.Scope.Validate(); err != nil {
 		return err
 	}
-	switch target.Scope {
+	switch t.Scope {
 	case Project:
-		if target.Workspace == "" {
+		if t.Workspace == "" {
 			return errors.New("project agent memory requires a workspace")
 		}
-		if !filepath.IsAbs(target.Workspace) {
+		if !filepath.IsAbs(t.Workspace) {
 			return errors.New("project agent memory workspace is not absolute")
 		}
 	case User:
-		if target.Workspace != "" {
+		if t.Workspace != "" {
 			return errors.New("user agent memory does not belong to a workspace")
 		}
 	}
@@ -72,9 +72,9 @@ const (
 	Authored  Origin = "user"
 )
 
-func (origin Origin) Validate() error {
-	if origin != Automatic && origin != Authored {
-		return fmt.Errorf("unknown agent memory origin %q", origin)
+func (o Origin) Validate() error {
+	if o != Automatic && o != Authored {
+		return fmt.Errorf("unknown agent memory origin %q", o)
 	}
 	return nil
 }
@@ -86,9 +86,9 @@ const (
 	Pending Status = "pending"
 )
 
-func (status Status) Validate() error {
-	if status != Active && status != Pending {
-		return fmt.Errorf("unknown agent memory status %q", status)
+func (s Status) Validate() error {
+	if s != Active && s != Pending {
+		return fmt.Errorf("unknown agent memory status %q", s)
 	}
 	return nil
 }
@@ -107,30 +107,30 @@ type Item struct {
 	UpdatedAt time.Time
 }
 
-func (item Item) Validate() error {
-	if strings.TrimSpace(item.ID) == "" {
+func (i Item) Validate() error {
+	if strings.TrimSpace(i.ID) == "" {
 		return errors.New("agent memory item id is empty")
 	}
-	if err := item.Scope.Validate(); err != nil {
-		return fmt.Errorf("agent memory item %s: %w", item.ID, err)
+	if err := i.Scope.Validate(); err != nil {
+		return fmt.Errorf("agent memory item %s: %w", i.ID, err)
 	}
-	if strings.TrimSpace(item.Content) == "" {
-		return fmt.Errorf("agent memory item %s has empty content", item.ID)
+	if strings.TrimSpace(i.Content) == "" {
+		return fmt.Errorf("agent memory item %s has empty content", i.ID)
 	}
-	if err := item.Origin.Validate(); err != nil {
-		return fmt.Errorf("agent memory item %s: %w", item.ID, err)
+	if err := i.Origin.Validate(); err != nil {
+		return fmt.Errorf("agent memory item %s: %w", i.ID, err)
 	}
-	if err := item.Status.Validate(); err != nil {
-		return fmt.Errorf("agent memory item %s: %w", item.ID, err)
+	if err := i.Status.Validate(); err != nil {
+		return fmt.Errorf("agent memory item %s: %w", i.ID, err)
 	}
-	if item.Origin == Authored && item.Status != Active {
-		return fmt.Errorf("agent memory item %s: user-authored memory must be active", item.ID)
+	if i.Origin == Authored && i.Status != Active {
+		return fmt.Errorf("agent memory item %s: user-authored memory must be active", i.ID)
 	}
-	if item.CreatedAt.IsZero() || item.UpdatedAt.IsZero() {
-		return fmt.Errorf("agent memory item %s has incomplete timestamps", item.ID)
+	if i.CreatedAt.IsZero() || i.UpdatedAt.IsZero() {
+		return fmt.Errorf("agent memory item %s has incomplete timestamps", i.ID)
 	}
-	if item.UpdatedAt.Before(item.CreatedAt) {
-		return fmt.Errorf("agent memory item %s was updated before creation", item.ID)
+	if i.UpdatedAt.Before(i.CreatedAt) {
+		return fmt.Errorf("agent memory item %s was updated before creation", i.ID)
 	}
 	return nil
 }
@@ -142,9 +142,9 @@ const (
 	Reject  ReviewDecision = "reject"
 )
 
-func (decision ReviewDecision) Validate() error {
-	if decision != Approve && decision != Reject {
-		return fmt.Errorf("agent memory review decision must be approve or reject, got %q", decision)
+func (r ReviewDecision) Validate() error {
+	if r != Approve && r != Reject {
+		return fmt.Errorf("agent memory review decision must be approve or reject, got %q", r)
 	}
 	return nil
 }
@@ -156,35 +156,35 @@ type Patch struct {
 	Pinned  *bool
 }
 
-func (patch Patch) Validate() error {
-	if strings.TrimSpace(patch.ID) == "" {
+func (p Patch) Validate() error {
+	if strings.TrimSpace(p.ID) == "" {
 		return errors.New("agent memory patch id is empty")
 	}
-	if patch.Content == nil && patch.Pinned == nil {
+	if p.Content == nil && p.Pinned == nil {
 		return errors.New("agent memory patch has no changes")
 	}
-	if patch.Content != nil && strings.TrimSpace(*patch.Content) == "" {
+	if p.Content != nil && strings.TrimSpace(*p.Content) == "" {
 		return errors.New("agent memory content is empty")
 	}
 	return nil
 }
 
-func (patch Patch) ValidateResult(result Item) error {
-	if err := patch.Validate(); err != nil {
+func (p Patch) ValidateResult(result Item) error {
+	if err := p.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.ID != patch.ID {
-		problems = append(problems, fmt.Errorf("runtime returned item %q, want %q", result.ID, patch.ID))
+	if result.ID != p.ID {
+		problems = append(problems, fmt.Errorf("runtime returned item %q, want %q", result.ID, p.ID))
 	}
-	if patch.Content != nil && result.Content != strings.TrimSpace(*patch.Content) {
-		problems = append(problems, fmt.Errorf("runtime returned content %q, want %q", result.Content, strings.TrimSpace(*patch.Content)))
+	if p.Content != nil && result.Content != strings.TrimSpace(*p.Content) {
+		problems = append(problems, fmt.Errorf("runtime returned content %q, want %q", result.Content, strings.TrimSpace(*p.Content)))
 	}
-	if patch.Pinned != nil && result.Pinned != *patch.Pinned {
-		problems = append(problems, fmt.Errorf("runtime returned pinned %t, want %t", result.Pinned, *patch.Pinned))
+	if p.Pinned != nil && result.Pinned != *p.Pinned {
+		problems = append(problems, fmt.Errorf("runtime returned pinned %t, want %t", result.Pinned, *p.Pinned))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("agent memory patch: %w", err)
@@ -192,8 +192,8 @@ func (patch Patch) ValidateResult(result Item) error {
 	return nil
 }
 
-func (target Target) ValidateAddResult(content string, result Item) error {
-	if err := target.Validate(); err != nil {
+func (t Target) ValidateAddResult(content string, result Item) error {
+	if err := t.Validate(); err != nil {
 		return err
 	}
 	content = strings.TrimSpace(content)
@@ -204,8 +204,8 @@ func (target Target) ValidateAddResult(content string, result Item) error {
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.Scope != target.Scope {
-		problems = append(problems, fmt.Errorf("runtime returned %s scope, want %s", result.Scope, target.Scope))
+	if result.Scope != t.Scope {
+		problems = append(problems, fmt.Errorf("runtime returned %s scope, want %s", result.Scope, t.Scope))
 	}
 	if result.Content != content {
 		problems = append(problems, fmt.Errorf("runtime returned content %q, want %q", result.Content, content))

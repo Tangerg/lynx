@@ -16,22 +16,22 @@ type reportingStore struct {
 	conflict bool
 }
 
-func (s *reportingStore) Get(context.Context, string) (goal.Goal, bool, error) {
-	return s.goal, s.present, nil
+func (r *reportingStore) Get(context.Context, string) (goal.Goal, bool, error) {
+	return r.goal, r.present, nil
 }
-func (s *reportingStore) Save(_ context.Context, next goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
-	if s.conflict || !s.present || s.goal.Version() != expected {
+func (r *reportingStore) Save(_ context.Context, next goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
+	if r.conflict || !r.present || r.goal.Version() != expected {
 		return goal.Goal{}, false, nil
 	}
 	next.Revision++
-	s.goal = next
+	r.goal = next
 	return next, true, nil
 }
-func (s *reportingStore) Clear(context.Context, string) error { s.present = false; return nil }
-func (s *reportingStore) ClearIf(context.Context, string, goal.Version) (bool, error) {
+func (r *reportingStore) Clear(context.Context, string) error { r.present = false; return nil }
+func (r *reportingStore) ClearIf(context.Context, string, goal.Version) (bool, error) {
 	return false, nil
 }
-func (s *reportingStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
+func (r *reportingStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
 
 func TestOutcomeReporterOwnsTerminalGoalTransition(t *testing.T) {
 	now := time.Date(2026, time.July, 23, 9, 0, 0, 0, time.UTC)

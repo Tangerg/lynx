@@ -28,17 +28,17 @@ type treeContinuation struct {
 	capabilities        run.Capabilities
 }
 
-func (continuation *treeContinuation) bindToolApprovalResolutions(
+func (t *treeContinuation) bindToolApprovalResolutions(
 	resolutions []ToolApprovalResolution,
 ) error {
-	if continuation == nil {
+	if t == nil {
 		return errors.New("runs: tree continuation is required")
 	}
 	if len(resolutions) == 0 {
 		return nil
 	}
-	interruptItems := make(map[string]transcript.Interrupt, len(continuation.interrupts))
-	for _, pending := range continuation.interrupts {
+	interruptItems := make(map[string]transcript.Interrupt, len(t.interrupts))
+	for _, pending := range t.interrupts {
 		interruptItems[pending.ItemID] = pending
 	}
 	resolved := make(map[string]ToolApprovalResolution, len(resolutions))
@@ -46,7 +46,7 @@ func (continuation *treeContinuation) bindToolApprovalResolutions(
 		if err := resolution.Validate(); err != nil {
 			return err
 		}
-		if resolution.Identity.SessionID != continuation.sessionID {
+		if resolution.Identity.SessionID != t.sessionID {
 			return fmt.Errorf("runs: Tool approval item %q belongs to another Session", resolution.Identity.ItemID)
 		}
 		pending, exists := interruptItems[resolution.Identity.ItemID]
@@ -64,7 +64,7 @@ func (continuation *treeContinuation) bindToolApprovalResolutions(
 		}
 		resolved[resolution.Identity.ItemID] = resolution
 	}
-	continuation.approvalResolutions = resolved
+	t.approvalResolutions = resolved
 	return nil
 }
 
@@ -87,27 +87,27 @@ func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {
 	return continuation, nil
 }
 
-func (continuation *treeContinuation) validate() error {
-	if continuation == nil {
+func (t *treeContinuation) validate() error {
+	if t == nil {
 		return errors.New("runs: tree continuation is required")
 	}
 	switch {
-	case strings.TrimSpace(continuation.rootRunID) == "":
+	case strings.TrimSpace(t.rootRunID) == "":
 		return errors.New("runs: tree continuation root Run id is required")
-	case strings.TrimSpace(continuation.sessionID) == "":
+	case strings.TrimSpace(t.sessionID) == "":
 		return errors.New("runs: tree continuation Session id is required")
-	case strings.TrimSpace(continuation.executorID) == "":
+	case strings.TrimSpace(t.executorID) == "":
 		return errors.New("runs: tree continuation executor ID is required")
-	case continuation.goalIncarnationID != strings.TrimSpace(continuation.goalIncarnationID):
+	case t.goalIncarnationID != strings.TrimSpace(t.goalIncarnationID):
 		return errors.New("runs: tree continuation goal incarnation id has surrounding whitespace")
-	case len(continuation.continuations) == 0:
+	case len(t.continuations) == 0:
 		return errors.New("runs: tree continuation has no Runs")
 	}
 
-	runIDs := make(map[string]struct{}, len(continuation.continuations))
-	memberOwners := make(map[string]string, len(continuation.continuations))
-	members := make([]run.TreeMember, 0, len(continuation.continuations))
-	for index, member := range continuation.continuations {
+	runIDs := make(map[string]struct{}, len(t.continuations))
+	memberOwners := make(map[string]string, len(t.continuations))
+	members := make([]run.TreeMember, 0, len(t.continuations))
+	for index, member := range t.continuations {
 		if err := member.Validate(); err != nil {
 			return fmt.Errorf("runs: tree continuation Run[%d]: %w", index, err)
 		}
@@ -129,12 +129,12 @@ func (continuation *treeContinuation) validate() error {
 			Lineage: member.Lineage,
 		})
 	}
-	tree, err := run.NewTree(continuation.rootRunID, members)
+	tree, err := run.NewTree(t.rootRunID, members)
 	if err != nil {
 		return fmt.Errorf("runs: tree continuation topology: %w", err)
 	}
 	canonical := tree.Postorder()
-	for index, member := range continuation.continuations {
+	for index, member := range t.continuations {
 		if member.RunID != canonical[index] {
 			return fmt.Errorf(
 				"runs: tree continuation Run[%d] is %q, canonical postorder requires %q",
@@ -144,7 +144,7 @@ func (continuation *treeContinuation) validate() error {
 			)
 		}
 	}
-	for index, interrupt := range continuation.interrupts {
+	for index, interrupt := range t.interrupts {
 		if interrupt.ItemID == "" || interrupt.RunID == "" {
 			return fmt.Errorf("runs: tree continuation interrupt[%d] has incomplete identity", index)
 		}
@@ -159,23 +159,23 @@ func (continuation *treeContinuation) validate() error {
 	return nil
 }
 
-func (continuation *treeContinuation) root() (Continuation, bool) {
-	if continuation == nil {
+func (t *treeContinuation) root() (Continuation, bool) {
+	if t == nil {
 		return Continuation{}, false
 	}
-	for _, member := range continuation.continuations {
-		if member.RunID == continuation.rootRunID {
+	for _, member := range t.continuations {
+		if member.RunID == t.rootRunID {
 			return member, true
 		}
 	}
 	return Continuation{}, false
 }
 
-func (continuation *treeContinuation) forRun(runID string) (Continuation, bool) {
-	if continuation == nil {
+func (t *treeContinuation) forRun(runID string) (Continuation, bool) {
+	if t == nil {
 		return Continuation{}, false
 	}
-	for _, member := range continuation.continuations {
+	for _, member := range t.continuations {
 		if member.RunID == runID {
 			return member, true
 		}

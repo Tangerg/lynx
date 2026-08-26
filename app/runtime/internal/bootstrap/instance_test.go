@@ -188,11 +188,11 @@ type blockingInstanceOperationService struct {
 	startOne sync.Once
 }
 
-func (s *blockingInstanceOperationService) Discover(ctx context.Context) (*protocol.DiscoverResponse, error) {
-	s.startOne.Do(func() { close(s.started) })
+func (b *blockingInstanceOperationService) Discover(ctx context.Context) (*protocol.DiscoverResponse, error) {
+	b.startOne.Do(func() { close(b.started) })
 	<-ctx.Done()
-	close(s.canceled)
-	<-s.release
+	close(b.canceled)
+	<-b.release
 	return nil, ctx.Err()
 }
 

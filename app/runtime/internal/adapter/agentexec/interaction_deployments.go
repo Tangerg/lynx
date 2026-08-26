@@ -10,8 +10,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/core/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 type interactionDeploymentSet struct {
@@ -22,40 +22,40 @@ type interactionDeploymentSet struct {
 	treeLimits        agent.TreeLimits
 }
 
-func (set *interactionDeploymentSet) Resolve(
+func (i *interactionDeploymentSet) Resolve(
 	reference agent.DeploymentRef,
 ) (agent.Deployment, error) {
-	if set == nil {
+	if i == nil {
 		return agent.Deployment{}, agent.ErrInvalidDeploymentRef
 	}
-	deployment, found := set.byRef[reference]
+	deployment, found := i.byRef[reference]
 	if !found {
 		return agent.Deployment{}, agent.ErrInvalidDeploymentRef
 	}
 	return deployment, nil
 }
 
-func (set *interactionDeploymentSet) managedChild(reference agent.DeploymentRef) bool {
-	_, found := set.managedChildren[reference]
+func (i *interactionDeploymentSet) managedChild(reference agent.DeploymentRef) bool {
+	_, found := i.managedChildren[reference]
 	return found
 }
 
-func (set *interactionDeploymentSet) delegateTarget(
+func (i *interactionDeploymentSet) delegateTarget(
 	parent agent.DeploymentRef,
 	name string,
 ) (agent.DeploymentRef, bool) {
-	target, found := set.delegatesByParent[parent][name]
+	target, found := i.delegatesByParent[parent][name]
 	return target, found
 }
 
-func (executor *InteractionExecutor) buildInteractionDeployments(
+func (i *InteractionExecutor) buildInteractionDeployments(
 	ctx context.Context,
 	session *interactionSession,
 	start runs.RootExecutionStart,
 	client *chatclient.Client,
 	maxModelCalls uint32,
 ) (*interactionDeploymentSet, error) {
-	builder, err := executor.newInteractionDeploymentBuilder(
+	builder, err := i.newInteractionDeploymentBuilder(
 		ctx, session, start, client, maxModelCalls,
 	)
 	if err != nil {
@@ -78,14 +78,14 @@ type interactionDeploymentBuilder struct {
 	deployments       *interactionDeploymentSet
 }
 
-func (executor *InteractionExecutor) newInteractionDeploymentBuilder(
+func (i *InteractionExecutor) newInteractionDeploymentBuilder(
 	ctx context.Context,
 	session *interactionSession,
 	start runs.RootExecutionStart,
 	client *chatclient.Client,
 	maxModelCalls uint32,
 ) (*interactionDeploymentBuilder, error) {
-	delegationConfig, err := effectiveDelegation(executor.config.Delegation)
+	delegationConfig, err := effectiveDelegation(i.config.Delegation)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +93,12 @@ func (executor *InteractionExecutor) newInteractionDeploymentBuilder(
 	if err != nil {
 		return nil, err
 	}
-	rootManifest, err := executor.resolveInteractionManifest(ctx, domaintool.GroupRoot)
+	rootManifest, err := i.resolveInteractionManifest(ctx, domaintool.GroupRoot)
 	if err != nil {
 		return nil, err
 	}
 	builder := &interactionDeploymentBuilder{
-		executor: executor, session: session, start: start, client: client,
+		executor: i, session: session, start: start, client: client,
 		maxModelCalls: maxModelCalls, delegation: delegationConfig,
 		instructions: instructions, rootManifest: rootManifest,
 		deployments: &interactionDeploymentSet{
@@ -113,7 +113,7 @@ func (executor *InteractionExecutor) newInteractionDeploymentBuilder(
 		builder.deployments.treeLimits = delegationConfig.treeLimits
 	}
 	if builder.maxDepth > 0 {
-		builder.delegatedManifest, err = executor.resolveInteractionManifest(ctx, domaintool.GroupDelegated)
+		builder.delegatedManifest, err = i.resolveInteractionManifest(ctx, domaintool.GroupDelegated)
 		if err != nil {
 			return nil, err
 		}
@@ -121,52 +121,52 @@ func (executor *InteractionExecutor) newInteractionDeploymentBuilder(
 	return builder, nil
 }
 
-func (builder *interactionDeploymentBuilder) build() (*interactionDeploymentSet, error) {
+func (i *interactionDeploymentBuilder) build() (*interactionDeploymentSet, error) {
 	var next agent.Deployment
-	for depth := int(builder.maxDepth); depth >= 0; depth-- {
-		deployment, err := builder.buildAtDepth(depth, next)
+	for depth := int(i.maxDepth); depth >= 0; depth-- {
+		deployment, err := i.buildAtDepth(depth, next)
 		if err != nil {
 			return nil, err
 		}
-		builder.deployments.byRef[deployment.DeploymentRef()] = deployment
+		i.deployments.byRef[deployment.DeploymentRef()] = deployment
 		if depth > 0 {
-			builder.deployments.managedChildren[deployment.DeploymentRef()] = struct{}{}
+			i.deployments.managedChildren[deployment.DeploymentRef()] = struct{}{}
 		}
 		if next.Valid() {
-			builder.deployments.delegatesByParent[deployment.DeploymentRef()] = map[string]agent.DeploymentRef{
+			i.deployments.delegatesByParent[deployment.DeploymentRef()] = map[string]agent.DeploymentRef{
 				domaintool.DelegateTask: next.DeploymentRef(),
 			}
 		}
 		next = deployment
 	}
-	builder.deployments.root = next
-	return builder.deployments, nil
+	i.deployments.root = next
+	return i.deployments, nil
 }
 
-func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deployment) (agent.Deployment, error) {
-	role, manifest, definitionName, definitionDescription := builder.layerIdentity(depth)
-	delegates, delegateBudget, err := builder.delegateLayer(depth, next)
+func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deployment) (agent.Deployment, error) {
+	role, manifest, definitionName, definitionDescription := i.layerIdentity(depth)
+	delegates, delegateBudget, err := i.delegateLayer(depth, next)
 	if err != nil {
 		return agent.Deployment{}, err
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: definitionName, Description: definitionDescription,
-		Version: interactionDefinitionVersion, MaxModelCalls: builder.maxModelCalls,
+		Version: interactionDefinitionVersion, MaxModelCalls: i.maxModelCalls,
 		Delegates: delegates,
 	})
 	if err != nil {
 		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction definition at depth %d: %w", depth, err)
 	}
-	visible, deferred := wrapInteractionTools(manifest, builder.session, builder.executor.config, builder.start)
+	visible, deferred := wrapInteractionTools(manifest, i.session, i.executor.config, i.start)
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
-		Client: builder.client, Tools: visible, DeferredTools: deferred,
-		MaxConcurrentToolCalls: builder.executor.config.MaxConcurrentToolCalls,
-		StreamModelResponses:   builder.executor.config.StreamModelResponses,
+		Client: i.client, Tools: visible, DeferredTools: deferred,
+		MaxConcurrentToolCalls: i.executor.config.MaxConcurrentToolCalls,
+		StreamModelResponses:   i.executor.config.StreamModelResponses,
 	})
 	if err != nil {
 		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction dispatcher at depth %d: %w", depth, err)
 	}
-	deploymentDefinition, err := builder.deploymentDefinition(depth, definition)
+	deploymentDefinition, err := i.deploymentDefinition(depth, definition)
 	if err != nil {
 		return agent.Deployment{}, err
 	}
@@ -174,17 +174,17 @@ func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.
 	if next.Valid() {
 		delegateRef = next.DeploymentRef()
 	}
-	configuration, err := builder.executor.interactionConfiguration(
-		builder.session, builder.start, builder.maxModelCalls, manifest, role, uint32(depth), delegateRef,
-		delegateBudget, builder.instructions,
+	configuration, err := i.executor.interactionConfiguration(
+		i.session, i.start, i.maxModelCalls, manifest, role, uint32(depth), delegateRef,
+		delegateBudget, i.instructions,
 	)
 	if err != nil {
 		return agent.Deployment{}, err
 	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition:           deploymentDefinition,
-		Dispatcher:           &interactionDispatcher{inner: dispatcher, session: builder.session},
-		ImplementationDigest: agent.ComputeDigest([]byte(builder.executor.config.ImplementationIdentity)),
+		Dispatcher:           &interactionDispatcher{inner: dispatcher, session: i.session},
+		ImplementationDigest: agent.ComputeDigest([]byte(i.executor.config.ImplementationIdentity)),
 		ConfigurationDigest:  agent.ComputeDigest(configuration),
 	})
 	if err != nil {
@@ -193,24 +193,24 @@ func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.
 	return deployment, nil
 }
 
-func (builder *interactionDeploymentBuilder) layerIdentity(depth int) (string, toolset.Manifest, string, string) {
+func (i *interactionDeploymentBuilder) layerIdentity(depth int) (string, toolset.Manifest, string, string) {
 	if depth == 0 {
-		return domaintool.GroupRoot, builder.rootManifest, interactionDefinitionName, interactionDefinitionDescription
+		return domaintool.GroupRoot, i.rootManifest, interactionDefinitionName, interactionDefinitionDescription
 	}
 	return domaintool.GroupDelegated,
-		builder.delegatedManifest,
+		i.delegatedManifest,
 		"lyra.runtime.interaction.delegate.depth" + strconv.Itoa(depth),
 		"Run one isolated delegated Lyra interaction."
 }
 
-func (builder *interactionDeploymentBuilder) delegateLayer(
+func (i *interactionDeploymentBuilder) delegateLayer(
 	depth int,
 	next agent.Deployment,
 ) ([]interaction.Delegate, agent.Budget, error) {
 	if !next.Valid() {
 		return nil, agent.Budget{}, nil
 	}
-	budget, err := delegateSubtreeBudget(builder.delegation.processBudget, builder.maxDepth-uint32(depth))
+	budget, err := delegateSubtreeBudget(i.delegation.processBudget, i.maxDepth-uint32(depth))
 	if err != nil {
 		return nil, agent.Budget{}, fmt.Errorf("agentexec: allocate Delegate at depth %d: %w", depth, err)
 	}
@@ -224,7 +224,7 @@ func (builder *interactionDeploymentBuilder) delegateLayer(
 	return []interaction.Delegate{delegate}, budget, nil
 }
 
-func (builder *interactionDeploymentBuilder) deploymentDefinition(
+func (i *interactionDeploymentBuilder) deploymentDefinition(
 	depth int,
 	definition *interaction.Definition,
 ) (agent.Definition, error) {
@@ -232,18 +232,18 @@ func (builder *interactionDeploymentBuilder) deploymentDefinition(
 		return definition, nil
 	}
 	return newDelegatedInteractionDefinition(
-		"lyra.runtime.delegated_task.depth"+strconv.Itoa(depth), definition, builder.instructions,
+		"lyra.runtime.delegated_task.depth"+strconv.Itoa(depth), definition, i.instructions,
 	)
 }
 
-func (executor *InteractionExecutor) resolveInteractionManifest(
+func (i *InteractionExecutor) resolveInteractionManifest(
 	ctx context.Context,
 	group string,
 ) (toolset.Manifest, error) {
-	if executor.config.ToolResolver == nil {
+	if i.config.ToolResolver == nil {
 		return toolset.Manifest{}, nil
 	}
-	manifest, err := executor.config.ToolResolver.Manifest(ctx, group)
+	manifest, err := i.config.ToolResolver.Manifest(ctx, group)
 	if err != nil {
 		return toolset.Manifest{}, fmt.Errorf("agentexec: resolve Interaction %s Tools: %w", group, err)
 	}
@@ -251,7 +251,7 @@ func (executor *InteractionExecutor) resolveInteractionManifest(
 	if err := validateToolManifest(manifest); err != nil {
 		return toolset.Manifest{}, err
 	}
-	if err := executor.validateInteractionTools(manifest); err != nil {
+	if err := i.validateInteractionTools(manifest); err != nil {
 		return toolset.Manifest{}, err
 	}
 	return manifest, nil

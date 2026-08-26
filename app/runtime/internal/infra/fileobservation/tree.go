@@ -120,8 +120,8 @@ type treeWatch struct {
 	closed    bool
 }
 
-func (w *treeWatch) run() {
-	defer close(w.exited)
+func (t *treeWatch) run() {
+	defer close(t.exited)
 	timer := time.NewTimer(debounce)
 	if !timer.Stop() {
 		<-timer.C
@@ -140,41 +140,41 @@ func (w *treeWatch) run() {
 	}
 	for {
 		select {
-		case <-w.done:
+		case <-t.done:
 			return
-		case _, ok := <-w.fsw.Events:
+		case _, ok := <-t.fsw.Events:
 			if !ok {
 				return
 			}
 			armAfter(debounce)
-		case _, ok := <-w.fsw.Errors:
+		case _, ok := <-t.fsw.Errors:
 			if !ok {
 				return
 			}
 			armAfter(debounce)
 		case <-timer.C:
 			armed = false
-			if err := w.reconcile(false, acceptance{}); err != nil {
+			if err := t.reconcile(false, acceptance{}); err != nil {
 				armAfter(retryDelay)
 			}
 		}
 	}
 }
 
-func (w *treeWatch) reconcile(initial bool, accepted acceptance) error {
-	w.stateMu.Lock()
-	if w.closed {
-		w.stateMu.Unlock()
+func (t *treeWatch) reconcile(initial bool, accepted acceptance) error {
+	t.stateMu.Lock()
+	if t.closed {
+		t.stateMu.Unlock()
 		return nil
 	}
 	directories := make(map[string]struct{})
-	next := make([]treeSnapshot, len(w.targets))
-	changedKeys := make([]string, 0, len(w.targets))
+	next := make([]treeSnapshot, len(t.targets))
+	changedKeys := make([]string, 0, len(t.targets))
 	accepting := len(accepted.keys) > 0 && len(accepted.identities) > 0
-	for index, candidate := range w.targets {
+	for index, candidate := range t.targets {
 		state, watched, err := scanTree(candidate)
 		if err != nil {
-			w.stateMu.Unlock()
+			t.stateMu.Unlock()
 			return err
 		}
 		for _, directory := range watched {
@@ -184,22 +184,22 @@ func (w *treeWatch) reconcile(initial bool, accepted acceptance) error {
 		case initial:
 			next[index] = state
 		case accepting:
-			next[index] = acceptTreeChanges(candidate, w.baselines[index], state, accepted)
+			next[index] = acceptTreeChanges(candidate, t.baselines[index], state, accepted)
 		default:
 			next[index] = state
-			if !treeSnapshotsEqual(state, w.baselines[index]) && !slices.Contains(changedKeys, candidate.key) {
+			if !treeSnapshotsEqual(state, t.baselines[index]) && !slices.Contains(changedKeys, candidate.key) {
 				changedKeys = append(changedKeys, candidate.key)
 			}
 		}
 	}
-	if err := w.replaceDirectories(directories); err != nil {
-		w.stateMu.Unlock()
+	if err := t.replaceDirectories(directories); err != nil {
+		t.stateMu.Unlock()
 		return err
 	}
-	w.baselines = next
-	w.stateMu.Unlock()
-	if !accepting && len(changedKeys) > 0 && w.notify != nil {
-		w.notify(changedKeys)
+	t.baselines = next
+	t.stateMu.Unlock()
+	if !accepting && len(changedKeys) > 0 && t.notify != nil {
+		t.notify(changedKeys)
 	}
 	return nil
 }
@@ -350,7 +350,7 @@ func treeSnapshotsEqual(left, right treeSnapshot) bool {
 	return true
 }
 
-func (w *treeWatch) Accept(keys, identities []string) error {
+func (t *treeWatch) Accept(keys, identities []string) error {
 	accepted := acceptance{
 		keys:       make(map[string]bool, len(keys)),
 		identities: make(map[string]bool, len(identities)),
@@ -368,39 +368,39 @@ func (w *treeWatch) Accept(keys, identities []string) error {
 	if len(accepted.keys) == 0 || len(accepted.identities) == 0 {
 		return nil
 	}
-	return w.reconcile(false, accepted)
+	return t.reconcile(false, accepted)
 }
 
-func (w *treeWatch) replaceDirectories(next map[string]struct{}) error {
+func (t *treeWatch) replaceDirectories(next map[string]struct{}) error {
 	for directory := range next {
-		if _, present := w.watched[directory]; present {
+		if _, present := t.watched[directory]; present {
 			continue
 		}
-		if err := w.fsw.Add(directory); err != nil {
+		if err := t.fsw.Add(directory); err != nil {
 			return fmt.Errorf("observe trees: watch directory %q: %w", directory, err)
 		}
-		w.watched[directory] = struct{}{}
+		t.watched[directory] = struct{}{}
 	}
-	for directory := range w.watched {
+	for directory := range t.watched {
 		if _, keep := next[directory]; keep {
 			continue
 		}
-		if err := w.fsw.Remove(directory); err != nil && !errors.Is(err, fsnotify.ErrNonExistentWatch) {
+		if err := t.fsw.Remove(directory); err != nil && !errors.Is(err, fsnotify.ErrNonExistentWatch) {
 			return fmt.Errorf("observe trees: unwatch directory %q: %w", directory, err)
 		}
-		delete(w.watched, directory)
+		delete(t.watched, directory)
 	}
 	return nil
 }
 
-func (w *treeWatch) Close() error {
-	w.closeOnce.Do(func() {
-		w.stateMu.Lock()
-		w.closed = true
-		w.stateMu.Unlock()
-		close(w.done)
-		<-w.exited
-		_ = w.fsw.Close()
+func (t *treeWatch) Close() error {
+	t.closeOnce.Do(func() {
+		t.stateMu.Lock()
+		t.closed = true
+		t.stateMu.Unlock()
+		close(t.done)
+		<-t.exited
+		_ = t.fsw.Close()
 	})
 	return nil
 }

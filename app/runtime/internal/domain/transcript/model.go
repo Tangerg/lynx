@@ -26,16 +26,16 @@ const (
 	ItemIncomplete ItemStatus = "incomplete"
 )
 
-// Valid reports whether status belongs to the durable Item lifecycle vocabulary.
-func (status ItemStatus) Valid() bool {
-	return status == ItemRunning || status == ItemCompleted || status == ItemIncomplete
+// Valid reports whether i belongs to the durable Item lifecycle vocabulary.
+func (i ItemStatus) Valid() bool {
+	return i == ItemRunning || i == ItemCompleted || i == ItemIncomplete
 }
 
-func (status ItemStatus) String() string {
-	if !status.Valid() {
+func (i ItemStatus) String() string {
+	if !i.Valid() {
 		return "unknown"
 	}
-	return string(status)
+	return string(i)
 }
 
 type ItemKind string
@@ -49,16 +49,16 @@ const (
 	Compaction   ItemKind = "compaction"
 )
 
-func (kind ItemKind) Valid() bool {
-	return kind == UserMessage || kind == AgentMessage || kind == Reasoning ||
-		kind == QuestionItem || kind == ToolCall || kind == Compaction
+func (i ItemKind) Valid() bool {
+	return i == UserMessage || i == AgentMessage || i == Reasoning ||
+		i == QuestionItem || i == ToolCall || i == Compaction
 }
 
-func (kind ItemKind) String() string {
-	if !kind.Valid() {
+func (i ItemKind) String() string {
+	if !i.Valid() {
 		return "unknown"
 	}
-	return string(kind)
+	return string(i)
 }
 
 // MessagePhase names the semantic role of one AgentMessage in a model turn.
@@ -73,16 +73,16 @@ const (
 	MessageFinalAnswer MessagePhase = "finalAnswer"
 )
 
-// Valid reports whether phase is one of the two authored AgentMessage roles.
-func (phase MessagePhase) Valid() bool {
-	return phase == MessageCommentary || phase == MessageFinalAnswer
+// Valid reports whether m is one of the two authored AgentMessage roles.
+func (m MessagePhase) Valid() bool {
+	return m == MessageCommentary || m == MessageFinalAnswer
 }
 
-func (phase MessagePhase) String() string {
-	if !phase.Valid() {
+func (m MessagePhase) String() string {
+	if !m.Valid() {
 		return "unknown"
 	}
-	return string(phase)
+	return string(m)
 }
 
 // SequencedItem pairs a history Item with its position in the session's durable
@@ -114,21 +114,21 @@ const (
 	NewestFirst SequenceOrder = "newest"
 )
 
-// Valid reports whether o names one of the two directions through the durable
+// Valid reports whether s names one of the two directions through the durable
 // transcript sequence.
-func (o SequenceOrder) Valid() bool {
-	return o == OldestFirst || o == NewestFirst
+func (s SequenceOrder) Valid() bool {
+	return s == OldestFirst || s == NewestFirst
 }
 
 // Validate rejects a direction that cannot define cursor and SQL ordering.
-func (o SequenceOrder) Validate() error {
-	if !o.Valid() {
-		return fmt.Errorf("transcript: invalid sequence order %q", o)
+func (s SequenceOrder) Validate() error {
+	if !s.Valid() {
+		return fmt.Errorf("transcript: invalid sequence order %q", s)
 	}
 	return nil
 }
 
-func (o SequenceOrder) String() string { return string(o) }
+func (s SequenceOrder) String() string { return string(s) }
 
 type ContentKind string
 
@@ -138,14 +138,14 @@ const (
 )
 
 // Valid reports whether kind names a supported content representation.
-func (kind ContentKind) Valid() bool { return kind == TextContent || kind == ImageContent }
+func (c ContentKind) Valid() bool { return c == TextContent || c == ImageContent }
 
 // String returns the stable content representation name.
-func (kind ContentKind) String() string {
-	if !kind.Valid() {
+func (c ContentKind) String() string {
+	if !c.Valid() {
 		return "unknown"
 	}
-	return string(kind)
+	return string(c)
 }
 
 type ContentBlock struct {
@@ -156,9 +156,9 @@ type ContentBlock struct {
 }
 
 // Clone returns an ownership-isolated content value.
-func (block ContentBlock) Clone() ContentBlock {
-	block.Bytes = slices.Clone(block.Bytes)
-	return block
+func (c ContentBlock) Clone() ContentBlock {
+	c.Bytes = slices.Clone(c.Bytes)
+	return c
 }
 
 // CloneContent returns an ownership-isolated sequence of content blocks.
@@ -195,14 +195,14 @@ const (
 )
 
 // Valid reports whether kind names a supported question field shape.
-func (kind QuestionFieldKind) Valid() bool { return kind == QuestionText || kind == QuestionChoice }
+func (q QuestionFieldKind) Valid() bool { return q == QuestionText || q == QuestionChoice }
 
 // String returns the stable question field shape name.
-func (kind QuestionFieldKind) String() string {
-	if !kind.Valid() {
+func (q QuestionFieldKind) String() string {
+	if !q.Valid() {
 		return "unknown"
 	}
-	return string(kind)
+	return string(q)
 }
 
 type QuestionOption struct {
@@ -249,51 +249,51 @@ type Approval struct {
 // Validate reports whether an approval describes one pending tool invocation.
 // A result or offload reference would mean the invocation already ran, while a
 // missing risk cannot support an informed decision.
-func (approval Approval) Validate() error {
+func (a Approval) Validate() error {
 	switch {
-	case strings.TrimSpace(approval.Tool.Name) == "":
+	case strings.TrimSpace(a.Tool.Name) == "":
 		return errors.New("approval tool name is required")
-	case approval.Tool.Name != strings.TrimSpace(approval.Tool.Name):
+	case a.Tool.Name != strings.TrimSpace(a.Tool.Name):
 		return errors.New("approval tool name has surrounding whitespace")
-	case approval.Tool.Result != nil:
+	case a.Tool.Result != nil:
 		return errors.New("approval tool must not carry a result")
-	case approval.Tool.Offload != nil:
+	case a.Tool.Offload != nil:
 		return errors.New("approval tool must not carry an offload reference")
-	case !approval.Risk.Valid():
-		return fmt.Errorf("approval has unknown risk %q", approval.Risk)
+	case !a.Risk.Valid():
+		return fmt.Errorf("approval has unknown risk %q", a.Risk)
 	}
 	return nil
 }
 
 // Validate reports whether the content block has the shape required by its kind.
-func (block ContentBlock) Validate() error {
-	switch block.Kind {
+func (c ContentBlock) Validate() error {
+	switch c.Kind {
 	case TextContent:
-		if block.Text == "" {
+		if c.Text == "" {
 			return errors.New("text content requires text")
 		}
-		if block.MediaType != "" || len(block.Bytes) != 0 {
+		if c.MediaType != "" || len(c.Bytes) != 0 {
 			return errors.New("text content cannot carry media")
 		}
 	case ImageContent:
-		if !strings.HasPrefix(block.MediaType, "image/") || len(block.Bytes) == 0 {
+		if !strings.HasPrefix(c.MediaType, "image/") || len(c.Bytes) == 0 {
 			return errors.New("image content requires an image media type and bytes")
 		}
-		if block.Text != "" {
+		if c.Text != "" {
 			return errors.New("image content cannot carry text")
 		}
 	default:
-		return fmt.Errorf("unknown content kind %q", block.Kind)
+		return fmt.Errorf("unknown content kind %q", c.Kind)
 	}
 	return nil
 }
 
 // Validate reports whether the question can be rendered and answered unambiguously.
-func (question Question) Validate() error {
-	if len(question.Fields) == 0 {
+func (q Question) Validate() error {
+	if len(q.Fields) == 0 {
 		return errors.New("question requires at least one field")
 	}
-	for index, field := range question.Fields {
+	for index, field := range q.Fields {
 		if strings.TrimSpace(field.Prompt) == "" {
 			return fmt.Errorf("question field %d prompt is required", index)
 		}
@@ -327,15 +327,15 @@ func (question Question) Validate() error {
 			seenOptions[label] = struct{}{}
 		}
 	}
-	if question.Answers != nil {
-		if len(question.Answers) != len(question.Fields) {
+	if q.Answers != nil {
+		if len(q.Answers) != len(q.Fields) {
 			return fmt.Errorf(
 				"question answers contain %d entries for %d fields",
-				len(question.Answers), len(question.Fields),
+				len(q.Answers), len(q.Fields),
 			)
 		}
-		for index, values := range question.Answers {
-			if err := validateQuestionAnswer(question.Fields[index], values); err != nil {
+		for index, values := range q.Answers {
+			if err := validateQuestionAnswer(q.Fields[index], values); err != nil {
 				return fmt.Errorf("question answer %d: %w", index, err)
 			}
 		}
@@ -346,7 +346,7 @@ func (question Question) Validate() error {
 // Answered reports whether the Runtime accepted an answer for this question.
 // It does not claim that an unanswered question is still open; Pending owns
 // that separate lifecycle fact.
-func (question Question) Answered() bool { return question.Answers != nil }
+func (q Question) Answered() bool { return q.Answers != nil }
 
 func validateQuestionAnswer(field QuestionField, values []string) error {
 	switch field.Kind {

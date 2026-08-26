@@ -20,11 +20,11 @@ type deletionRuntimeStub struct {
 	afterDelete func()
 }
 
-func (runtime *deletionRuntimeStub) DeleteSession(context.Context, agent.DeleteSession) error {
-	runtime.deletes++
-	err := runtime.deleteErr
-	if runtime.afterDelete != nil {
-		runtime.afterDelete()
+func (d *deletionRuntimeStub) DeleteSession(context.Context, agent.DeleteSession) error {
+	d.deletes++
+	err := d.deleteErr
+	if d.afterDelete != nil {
+		d.afterDelete()
 	}
 	return err
 }
@@ -69,9 +69,9 @@ func TestDeletionReplayGuaranteeExpiresAtItsDeadline(t *testing.T) {
 	}
 }
 
-func (runtime *deletionRuntimeStub) GetSession(context.Context, string) (agent.SessionSnapshot, error) {
-	runtime.reads++
-	return agent.SessionSnapshot{}, runtime.readErr
+func (d *deletionRuntimeStub) GetSession(context.Context, string) (agent.SessionSnapshot, error) {
+	d.reads++
+	return agent.SessionSnapshot{}, d.readErr
 }
 
 func TestRecoverRetiresAnExpiredDeletionProvenByTheOwningRuntime(t *testing.T) {

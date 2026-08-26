@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
@@ -48,14 +48,14 @@ type SkillMiningConfig struct {
 	Cadence int
 }
 
-func (c SkillMiningConfig) normalized() SkillMiningConfig {
-	if c.ComplexityThreshold <= 0 {
-		c.ComplexityThreshold = defaultSkillMiningComplexityThreshold
+func (s SkillMiningConfig) normalized() SkillMiningConfig {
+	if s.ComplexityThreshold <= 0 {
+		s.ComplexityThreshold = defaultSkillMiningComplexityThreshold
 	}
-	if c.Cadence <= 0 {
-		c.Cadence = defaultSkillMiningCadence
+	if s.Cadence <= 0 {
+		s.Cadence = defaultSkillMiningCadence
 	}
-	return c
+	return s
 }
 
 // proposalSubmitter is the skillMiner's narrow application boundary. The skillMiner can
@@ -115,24 +115,24 @@ func NewSkillProposalMiner(history messageReader, proposals proposalSubmitter, s
 // cadence is due. A distillation that yields no reusable skill, an unparseable
 // or invalid document, or an obviously-dangerous one is dropped silently
 // (return nil) — only a real read/save/LLM failure surfaces as an error.
-func (m *SkillProposalMiner) MineIfDue(ctx context.Context, sessionID, cwd string, toolCalls int) error {
-	if m == nil || m.proposals == nil || sessionID == "" || cwd == "" {
+func (s *SkillProposalMiner) MineIfDue(ctx context.Context, sessionID, cwd string, toolCalls int) error {
+	if s == nil || s.proposals == nil || sessionID == "" || cwd == "" {
 		return nil
 	}
-	if toolCalls < m.config.ComplexityThreshold {
+	if toolCalls < s.config.ComplexityThreshold {
 		return nil
 	}
-	if !m.due(sessionID) {
+	if !s.due(sessionID) {
 		return nil
 	}
-	messages, err := m.history.Read(ctx, sessionID)
+	messages, err := s.history.Read(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("skill mining: read session %q: %w", sessionID, err)
 	}
-	if len(messages) < m.minMsgs {
+	if len(messages) < s.minMsgs {
 		return nil
 	}
-	verdict, err := m.askForSkill(ctx, messages)
+	verdict, err := s.askForSkill(ctx, messages)
 	if err != nil {
 		return fmt.Errorf("skill mining: distill skill: %w", err)
 	}
@@ -140,18 +140,18 @@ func (m *SkillProposalMiner) MineIfDue(ctx context.Context, sessionID, cwd strin
 		return nil
 	}
 	if name, ok := reviseTarget(verdict); ok {
-		return m.mineRevision(ctx, name, messages, sessionID, cwd)
+		return s.mineRevision(ctx, name, messages, sessionID, cwd)
 	}
-	return m.mineNew(ctx, verdict, sessionID, cwd)
+	return s.mineNew(ctx, verdict, sessionID, cwd)
 }
 
 // mineNew submits a freshly distilled Skill as a non-revising proposal.
-func (m *SkillProposalMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
+func (s *SkillProposalMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
 	skill, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
 	}
-	return m.submitProposal(ctx, cwd, skills.Proposal{
+	return s.submitProposal(ctx, cwd, skills.Proposal{
 		Scope:         skills.ScopeUser,
 		Name:          skill.Name,
 		Description:   skill.Description,
@@ -167,18 +167,18 @@ func (m *SkillProposalMiner) mineNew(ctx context.Context, document, sessionID, c
 // inferred from the transcript. A skill that can't be loaded (absent/invalid) is
 // skipped. The proposal keeps the target name and is marked as a revision so
 // approval replaces the active Skill.
-func (m *SkillProposalMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID, cwd string) error {
-	if m.source == nil {
+func (s *SkillProposalMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID, cwd string) error {
+	if s.source == nil {
 		return nil
 	}
-	current, err := m.source.Load(ctx, name)
+	current, err := s.source.Load(ctx, name)
 	if errors.Is(err, fs.ErrNotExist) || current == nil {
 		return nil // no such skill (or one the library doesn't manage) — drop, don't revise
 	}
 	if err != nil {
 		return fmt.Errorf("skill mining: load skill %q for revision: %w", name, err)
 	}
-	document, err := m.askForRevision(ctx, current, messages)
+	document, err := s.askForRevision(ctx, current, messages)
 	if err != nil {
 		return fmt.Errorf("skill mining: revise skill %q: %w", name, err)
 	}
@@ -189,7 +189,7 @@ func (m *SkillProposalMiner) mineRevision(ctx context.Context, name string, mess
 	if err != nil {
 		return nil
 	}
-	return m.submitProposal(ctx, cwd, skills.Proposal{
+	return s.submitProposal(ctx, cwd, skills.Proposal{
 		Scope:         skills.ScopeUser,
 		Name:          name, // a revision is OF this skill; never let the model rename it
 		Description:   skill.Description,
@@ -202,14 +202,14 @@ func (m *SkillProposalMiner) mineRevision(ctx context.Context, name string, mess
 
 // submitProposal validates and scans mined content before crossing the shared
 // application boundary. The authoring store repeats these checks defensively.
-func (m *SkillProposalMiner) submitProposal(ctx context.Context, cwd string, proposal skills.Proposal, kind string) error {
+func (s *SkillProposalMiner) submitProposal(ctx context.Context, cwd string, proposal skills.Proposal, kind string) error {
 	if err := proposal.Validate(); err != nil {
 		return nil
 	}
 	if proposal.SafetyIssue() != skills.ProposalSafe {
 		return nil
 	}
-	if _, err := m.proposals.SubmitProposal(ctx, cwd, proposal); err != nil {
+	if _, err := s.proposals.SubmitProposal(ctx, cwd, proposal); err != nil {
 		return fmt.Errorf("skill mining: submit proposal %q: %w", proposal.Name, err)
 	}
 	recordMinedSkillProposal(ctx, kind)
@@ -235,12 +235,12 @@ func reviseTarget(text string) (string, bool) {
 // reset DELETES the key (a missing key reads back as 0), so a session self-evicts
 // from the map when it fires — bounding the map instead of retaining every
 // session for the process lifetime.
-func (m *SkillProposalMiner) due(sessionID string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.complexRuns[sessionID]++
-	if m.complexRuns[sessionID] >= m.config.Cadence {
-		delete(m.complexRuns, sessionID)
+func (s *SkillProposalMiner) due(sessionID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.complexRuns[sessionID]++
+	if s.complexRuns[sessionID] >= s.config.Cadence {
+		delete(s.complexRuns, sessionID)
 		return true
 	}
 	return false
@@ -275,9 +275,9 @@ description: <what the skill does and WHEN to use it, one or two sentences>
 // askForSkill runs the phase-one distillation directly on the utility model,
 // outside conversation middleware. It returns "" for NO_SKILL, a "REVISE: <name>"
 // directive, or a new-skill SKILL.md; the caller interprets which.
-func (m *SkillProposalMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
+func (s *SkillProposalMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
 	transcript := renderTranscript(messages)
-	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
+	text, err := utilitymodel.Complete(ctx, s.resolveClient(ctx), utilitymodel.Prompt{
 		SystemPrompt: skillMinerPrompt, UserPrompt: transcript,
 		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: skillMiningOutputTokens,
 	})
@@ -308,7 +308,7 @@ description: <what it does and WHEN to use it>
 <the corrected body>`
 
 // askForRevision runs phase two against the loaded skill's real content.
-func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skillspec.Skill, messages []chat.Message) (string, error) {
+func (s *SkillProposalMiner) askForRevision(ctx context.Context, current *skillspec.Skill, messages []chat.Message) (string, error) {
 	var input strings.Builder
 	input.WriteString("CURRENT SKILL.md\n---\n")
 	input.WriteString("name: ")
@@ -319,7 +319,7 @@ func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skills
 	input.WriteString(current.Instructions)
 	input.WriteString("\n\nCONVERSATION\n---\n")
 	input.WriteString(renderTranscript(messages))
-	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
+	text, err := utilitymodel.Complete(ctx, s.resolveClient(ctx), utilitymodel.Prompt{
 		SystemPrompt: skillRevisePrompt, UserPrompt: input.String(),
 		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: skillMiningOutputTokens,
 	})
@@ -333,11 +333,11 @@ func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skills
 	return trimmed, nil
 }
 
-func (m *SkillProposalMiner) resolveClient(ctx context.Context) *chatclient.Client {
-	if m.client == nil {
+func (s *SkillProposalMiner) resolveClient(ctx context.Context) *chatclient.Client {
+	if s.client == nil {
 		return nil
 	}
-	return m.client(ctx)
+	return s.client(ctx)
 }
 
 // unfence strips a single wrapping Markdown code fence when the model wrapped

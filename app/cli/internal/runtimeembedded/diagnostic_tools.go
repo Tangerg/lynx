@@ -21,8 +21,8 @@ type diagnosticToolAdapter struct{ runtime *Runtime }
 
 var _ diagnostictool.Service = (*diagnosticToolAdapter)(nil)
 
-func (adapter *diagnosticToolAdapter) Tools(ctx context.Context) ([]diagnostictool.Descriptor, error) {
-	r := adapter.runtime
+func (d *diagnosticToolAdapter) Tools(ctx context.Context) ([]diagnostictool.Descriptor, error) {
+	r := d.runtime
 	page, err := r.diagnosticTools.ListTools(ctx, r.callOptions())
 	if err != nil {
 		return nil, classifyError(err)
@@ -54,8 +54,8 @@ func (adapter *diagnosticToolAdapter) Tools(ctx context.Context) ([]diagnosticto
 	return tools, nil
 }
 
-func (adapter *diagnosticToolAdapter) Invoke(ctx context.Context, invocation diagnostictool.Invocation) (diagnostictool.Result, error) {
-	r := adapter.runtime
+func (d *diagnosticToolAdapter) Invoke(ctx context.Context, invocation diagnostictool.Invocation) (diagnostictool.Result, error) {
+	r := d.runtime
 	if err := invocation.Validate(); err != nil {
 		return diagnostictool.Result{}, err
 	}

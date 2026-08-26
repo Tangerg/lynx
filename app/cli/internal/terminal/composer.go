@@ -29,17 +29,17 @@ type draftObservation struct {
 	ready     bool
 }
 
-func (observation *draftObservation) Observe(sessionID string, message agent.Message) bool {
-	changed := observation.ready &&
-		(observation.sessionID != sessionID || !observation.message.Equal(message))
-	observation.Reset(sessionID, message)
+func (d *draftObservation) Observe(sessionID string, message agent.Message) bool {
+	changed := d.ready &&
+		(d.sessionID != sessionID || !d.message.Equal(message))
+	d.Reset(sessionID, message)
 	return changed
 }
 
-func (observation *draftObservation) Reset(sessionID string, message agent.Message) {
-	observation.sessionID = sessionID
-	observation.message = message.Clone()
-	observation.ready = true
+func (d *draftObservation) Reset(sessionID string, message agent.Message) {
+	d.sessionID = sessionID
+	d.message = message.Clone()
+	d.ready = true
 }
 
 // promptHistory keeps semantic messages rather than rendered editor text. A
@@ -52,56 +52,56 @@ type promptHistory struct {
 	limit   int
 }
 
-func (h *promptHistory) Load(messages []agent.Message) {
-	h.entries, h.at, h.draft = nil, 0, agent.Message{}
+func (p *promptHistory) Load(messages []agent.Message) {
+	p.entries, p.at, p.draft = nil, 0, agent.Message{}
 	for _, message := range messages {
-		h.Add(message)
+		p.Add(message)
 	}
 }
 
-func (h *promptHistory) Add(message agent.Message) {
-	h.at, h.draft = 0, agent.Message{}
+func (p *promptHistory) Add(message agent.Message) {
+	p.at, p.draft = 0, agent.Message{}
 	message = message.Clone()
 	if strings.TrimSpace(message.Text) == "" && len(message.Attachments) == 0 {
 		return
 	}
-	if len(h.entries) > 0 && h.entries[len(h.entries)-1].Equal(message) {
+	if len(p.entries) > 0 && p.entries[len(p.entries)-1].Equal(message) {
 		return
 	}
-	h.entries = append(h.entries, message)
-	limit := h.limit
+	p.entries = append(p.entries, message)
+	limit := p.limit
 	if limit <= 0 {
 		limit = 1000
 	}
-	if len(h.entries) > limit {
-		dropped := len(h.entries) - limit
-		clear(h.entries[:dropped])
-		h.entries = slices.Clone(h.entries[dropped:])
+	if len(p.entries) > limit {
+		dropped := len(p.entries) - limit
+		clear(p.entries[:dropped])
+		p.entries = slices.Clone(p.entries[dropped:])
 	}
 }
 
-func (h *promptHistory) Back(current agent.Message) (agent.Message, bool) {
-	if h.at >= len(h.entries) {
+func (p *promptHistory) Back(current agent.Message) (agent.Message, bool) {
+	if p.at >= len(p.entries) {
 		return agent.Message{}, false
 	}
-	if h.at == 0 {
-		h.draft = current.Clone()
+	if p.at == 0 {
+		p.draft = current.Clone()
 	}
-	h.at++
-	return h.entries[len(h.entries)-h.at].Clone(), true
+	p.at++
+	return p.entries[len(p.entries)-p.at].Clone(), true
 }
 
-func (h *promptHistory) Forward() (agent.Message, bool) {
-	if h.at == 0 {
+func (p *promptHistory) Forward() (agent.Message, bool) {
+	if p.at == 0 {
 		return agent.Message{}, false
 	}
-	h.at--
-	if h.at == 0 {
-		draft := h.draft.Clone()
-		h.draft = agent.Message{}
+	p.at--
+	if p.at == 0 {
+		draft := p.draft.Clone()
+		p.draft = agent.Message{}
 		return draft, true
 	}
-	return h.entries[len(h.entries)-h.at].Clone(), true
+	return p.entries[len(p.entries)-p.at].Clone(), true
 }
 
 // resolveAttachment performs every fallible check before the composer is

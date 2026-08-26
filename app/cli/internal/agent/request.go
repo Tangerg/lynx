@@ -8,20 +8,20 @@ import (
 
 const MaxMessageAttachments = 16
 
-func (r StartRun) Validate() error {
+func (s StartRun) Validate() error {
 	var problems []error
-	if r.CommandID != "" {
-		if err := r.CommandID.Validate(); err != nil {
+	if s.CommandID != "" {
+		if err := s.CommandID.Validate(); err != nil {
 			problems = append(problems, err)
 		}
 	}
-	if strings.TrimSpace(r.SessionID) == "" {
+	if strings.TrimSpace(s.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
-	if err := r.Message.Validate(); err != nil {
+	if err := s.Message.Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	if err := r.Options.Validate(); err != nil {
+	if err := s.Options.Validate(); err != nil {
 		problems = append(problems, err)
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -30,14 +30,14 @@ func (r StartRun) Validate() error {
 	return nil
 }
 
-func (r DeleteSession) Validate() error {
+func (d DeleteSession) Validate() error {
 	var problems []error
-	if r.CommandID != "" {
-		if err := r.CommandID.Validate(); err != nil {
+	if d.CommandID != "" {
+		if err := d.CommandID.Validate(); err != nil {
 			problems = append(problems, err)
 		}
 	}
-	if strings.TrimSpace(r.SessionID) == "" {
+	if strings.TrimSpace(d.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -74,11 +74,11 @@ func (m Message) Validate() error {
 	return nil
 }
 
-func (r SubscribeRun) Validate() error {
-	if strings.TrimSpace(r.RunID) == "" {
+func (s SubscribeRun) Validate() error {
+	if strings.TrimSpace(s.RunID) == "" {
 		return errors.New("subscribe run: run id is empty")
 	}
-	if strings.TrimSpace(r.SegmentID) == "" {
+	if strings.TrimSpace(s.SegmentID) == "" {
 		return errors.New("subscribe run: segment id is empty")
 	}
 	return nil
@@ -118,32 +118,32 @@ func (r ResumeRun) Validate() error {
 	return nil
 }
 
-func (r CancelRun) Validate() error {
-	if r.CommandID != "" {
-		if err := r.CommandID.Validate(); err != nil {
+func (c CancelRun) Validate() error {
+	if c.CommandID != "" {
+		if err := c.CommandID.Validate(); err != nil {
 			return fmt.Errorf("cancel run: %w", err)
 		}
 	}
-	if strings.TrimSpace(r.RunID) == "" {
+	if strings.TrimSpace(c.RunID) == "" {
 		return errors.New("cancel run: run id is empty")
 	}
 	return nil
 }
 
-func (r SteerRun) Validate() error {
+func (s SteerRun) Validate() error {
 	var problems []error
-	if r.CommandID != "" {
-		if err := r.CommandID.Validate(); err != nil {
+	if s.CommandID != "" {
+		if err := s.CommandID.Validate(); err != nil {
 			problems = append(problems, err)
 		}
 	}
-	if strings.TrimSpace(r.RunID) == "" {
+	if strings.TrimSpace(s.RunID) == "" {
 		problems = append(problems, errors.New("run id is empty"))
 	}
-	if strings.TrimSpace(r.SegmentID) == "" {
+	if strings.TrimSpace(s.SegmentID) == "" {
 		problems = append(problems, errors.New("segment id is empty"))
 	}
-	if err := r.Message.Validate(); err != nil {
+	if err := s.Message.Validate(); err != nil {
 		problems = append(problems, err)
 	}
 	if err := errors.Join(problems...); err != nil {

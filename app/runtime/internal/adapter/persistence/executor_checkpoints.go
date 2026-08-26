@@ -20,11 +20,11 @@ func NewExecutorCheckpointStore(storage *sqlite.ExecutorCheckpointStore) *Execut
 	return &ExecutorCheckpointStore{storage: storage}
 }
 
-func (store *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint runs.ExecutorCheckpoint) error {
+func (e *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint runs.ExecutorCheckpoint) error {
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
-	err := store.storage.SaveCheckpoint(ctx, sqlite.ExecutorCheckpointRecord{
+	err := e.storage.SaveCheckpoint(ctx, sqlite.ExecutorCheckpointRecord{
 		RootMemberID: checkpoint.RootMemberID,
 		Payload:      append([]byte(nil), checkpoint.Payload...),
 		BuildID:      checkpoint.BuildID,
@@ -43,8 +43,8 @@ func (store *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkp
 	return translateCheckpointStorageError(err)
 }
 
-func (store *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error) {
-	record, err := store.storage.LoadCheckpoint(ctx, rootMemberID)
+func (e *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error) {
+	record, err := e.storage.LoadCheckpoint(ctx, rootMemberID)
 	if err != nil {
 		return runs.ExecutorCheckpoint{}, translateCheckpointStorageError(err)
 	}
@@ -70,16 +70,16 @@ func (store *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMe
 	return checkpoint, nil
 }
 
-func (store *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error {
-	return translateCheckpointStorageError(store.storage.DeleteCheckpoints(ctx, sessionID, rootIDs))
+func (e *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error {
+	return translateCheckpointStorageError(e.storage.DeleteCheckpoints(ctx, sessionID, rootIDs))
 }
 
-func (store *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, sessionID string) error {
-	return translateCheckpointStorageError(store.storage.DeleteSessionCheckpoints(ctx, sessionID))
+func (e *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, sessionID string) error {
+	return translateCheckpointStorageError(e.storage.DeleteSessionCheckpoints(ctx, sessionID))
 }
 
-func (store *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error {
-	return translateCheckpointStorageError(store.storage.DeleteUnownedCheckpoints(ctx, keepRootIDs))
+func (e *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error {
+	return translateCheckpointStorageError(e.storage.DeleteUnownedCheckpoints(ctx, keepRootIDs))
 }
 
 func translateCheckpointStorageError(err error) error {

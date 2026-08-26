@@ -32,51 +32,51 @@ func newTranscriptEntry(theme kit.Theme, glyphs kit.Glyphs, content headless.Blo
 	return &transcriptEntry{theme: theme, glyphs: glyphs, content: content}
 }
 
-func (e *transcriptEntry) Measure(width int) int {
-	if e == nil || e.content == nil {
+func (t *transcriptEntry) Measure(width int) int {
+	if t == nil || t.content == nil {
 		return 0
 	}
-	contentWidth, _ := e.geometry(width)
-	return e.content.Measure(contentWidth)
+	contentWidth, _ := t.geometry(width)
+	return t.content.Measure(contentWidth)
 }
 
-func (e *transcriptEntry) Draw(view grid.View) {
-	if e == nil || e.content == nil {
+func (t *transcriptEntry) Draw(view grid.View) {
+	if t == nil || t.content == nil {
 		return
 	}
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
 		return
 	}
-	contentWidth, inset := e.geometry(width)
+	contentWidth, inset := t.geometry(width)
 	if inset == 0 {
-		e.content.Draw(view)
+		t.content.Draw(view)
 		return
 	}
-	e.content.Draw(view.Sub(grid.Rect(inset, 0, contentWidth, height)))
-	if !e.selected {
+	t.content.Draw(view.Sub(grid.Rect(inset, 0, contentWidth, height)))
+	if !t.selected {
 		return
 	}
-	style := e.theme.Subtle
-	if e.focused {
-		style = e.theme.Accent
+	style := t.theme.Subtle
+	if t.focused {
+		style = t.theme.Accent
 	}
 	for row := range height {
-		view.Text(0, row, e.glyphs.Vertical, style)
+		view.Text(0, row, t.glyphs.Vertical, style)
 	}
 }
 
-func (e *transcriptEntry) Rows(width int) []text.Row {
-	if e == nil || e.content == nil {
+func (t *transcriptEntry) Rows(width int) []text.Row {
+	if t == nil || t.content == nil {
 		return nil
 	}
-	height := e.Measure(width)
+	height := t.Measure(width)
 	rows := make([]text.Row, height)
-	copyable, ok := e.content.(headless.Copyable)
+	copyable, ok := t.content.(headless.Copyable)
 	if !ok {
 		return rows
 	}
-	contentWidth, inset := e.geometry(width)
+	contentWidth, inset := t.geometry(width)
 	copied := copyable.Rows(contentWidth)
 	for index := range min(height, len(copied)) {
 		rows[index] = copied[index]
@@ -85,7 +85,7 @@ func (e *transcriptEntry) Rows(width int) []text.Row {
 	return rows
 }
 
-func (e *transcriptEntry) geometry(width int) (contentWidth, inset int) {
+func (t *transcriptEntry) geometry(width int) (contentWidth, inset int) {
 	if width <= transcriptEntryInset {
 		return max(width, 1), 0
 	}

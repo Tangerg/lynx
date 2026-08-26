@@ -32,19 +32,19 @@ func NewNDJSON(w io.Writer) *NDJSON {
 
 // Begin binds the stream to the accepted run without emitting a synthetic
 // event. The runtime's segment.started event remains the first output frame.
-func (j *NDJSON) Begin(run agent.Run, _ agent.RunOptions) error {
-	if j.err != nil {
-		return j.err
+func (n *NDJSON) Begin(run agent.Run, _ agent.RunOptions) error {
+	if n.err != nil {
+		return n.err
 	}
 	if err := run.Validate(); err != nil {
-		j.err = fmt.Errorf("begin NDJSON: %w", err)
-		return j.err
+		n.err = fmt.Errorf("begin NDJSON: %w", err)
+		return n.err
 	}
-	if err := j.scope.bind(run); err != nil {
-		j.err = fmt.Errorf("begin NDJSON: %w", err)
-		return j.err
+	if err := n.scope.bind(run); err != nil {
+		n.err = fmt.Errorf("begin NDJSON: %w", err)
+		return n.err
 	}
-	j.sessionID = run.SessionID
+	n.sessionID = run.SessionID
 	return nil
 }
 
@@ -210,52 +210,52 @@ type modelUsageJSON struct {
 }
 
 // Render writes one line. As with [Text], the first error sticks.
-func (j *NDJSON) Render(envelope agent.RunEvent) error {
-	if j.err != nil {
-		return j.err
+func (n *NDJSON) Render(envelope agent.RunEvent) error {
+	if n.err != nil {
+		return n.err
 	}
 	if err := agent.ValidateEvent(envelope.Event); err != nil {
-		j.err = fmt.Errorf("render NDJSON event: %w", err)
-		return j.err
+		n.err = fmt.Errorf("render NDJSON event: %w", err)
+		return n.err
 	}
-	if err := j.scope.accept(envelope); err != nil {
-		j.err = fmt.Errorf("render NDJSON event: %w", err)
-		return j.err
+	if err := n.scope.accept(envelope); err != nil {
+		n.err = fmt.Errorf("render NDJSON event: %w", err)
+		return n.err
 	}
 	f, err := encodeEventFrame(envelope)
 	if err != nil {
-		j.err = err
-		return j.err
+		n.err = err
+		return n.err
 	}
 	f.EventID, f.SegmentID, f.StreamSegmentID, f.At = envelope.EventID, envelope.SegmentID, envelope.StreamSegment(), envelope.At
 	if f.RunID == "" {
 		f.RunID = envelope.RunID
 	}
-	j.err = j.enc.Encode(f)
-	return j.err
+	n.err = n.enc.Encode(f)
+	return n.err
 }
 
 // Reconcile emits a replacement snapshot frame. Unlike a runtime event it has
 // no eventId: consumers replace their durable projection with this frame, then
 // continue folding later segment events on top.
-func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
-	if j.err != nil {
-		return j.err
+func (n *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
+	if n.err != nil {
+		return n.err
 	}
 	if err := snapshot.Validate(); err != nil {
-		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
-		return j.err
+		n.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return n.err
 	}
-	target, err := resolveSnapshotRun(snapshot, j.scope.rootID)
+	target, err := resolveSnapshotRun(snapshot, n.scope.rootID)
 	if err != nil {
-		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
-		return j.err
+		n.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return n.err
 	}
-	if err := j.scope.restore(snapshot, target.ID); err != nil {
-		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
-		return j.err
+	if err := n.scope.restore(snapshot, target.ID); err != nil {
+		n.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return n.err
 	}
-	j.sessionID = snapshot.Session.ID
+	n.sessionID = snapshot.Session.ID
 	frame := eventRecord{
 		Type: "run.snapshot", RunID: target.ID, SessionID: snapshot.Session.ID, Status: string(target.Status),
 		Transcript: make([]blockFrame, 0, len(snapshot.Transcript)),
@@ -267,7 +267,7 @@ func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		}
 	}
 	for _, block := range snapshot.Transcript {
-		if j.scope.contains(block.RunID) {
+		if n.scope.contains(block.RunID) {
 			frame.Transcript = append(frame.Transcript, *encodeBlock(block))
 		}
 	}
@@ -281,8 +281,8 @@ func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		finished := encodeFinishedFrame(agent.RunFinished{Outcome: target.Outcome, Usage: target.Usage})
 		frame.Outcome, frame.Usage = finished.Outcome, finished.Usage
 	}
-	j.err = j.enc.Encode(frame)
-	return j.err
+	n.err = n.enc.Encode(frame)
+	return n.err
 }
 
 func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
@@ -439,7 +439,7 @@ func cloneStringMatrix(values [][]string) [][]string {
 
 // Close reports the first write error, if any. There is nothing to flush: a line
 // is encoded per event.
-func (j *NDJSON) Close() error { return j.err }
+func (n *NDJSON) Close() error { return n.err }
 
 func encodeBlock(b agent.Block) *blockFrame {
 	out := &blockFrame{

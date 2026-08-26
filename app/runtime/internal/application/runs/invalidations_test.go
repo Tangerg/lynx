@@ -19,13 +19,13 @@ import (
 
 type gatedTerminalExecutor struct{ release <-chan struct{} }
 
-func (executor gatedTerminalExecutor) Observe(
+func (g gatedTerminalExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		select {
-		case <-executor.release:
+		case <-g.release:
 			yield(ExecutorEvent{
 				Member:  ExecutorMember{MemberID: "member_root"},
 				Payload: SegmentEnded{Reason: run.OutcomeCompleted},
@@ -42,33 +42,33 @@ type invalidationRecorder struct {
 	notices []invalidation.Notice
 }
 
-func (r *invalidationRecorder) publish(notice invalidation.Notice) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.notices = append(r.notices, notice)
+func (i *invalidationRecorder) publish(notice invalidation.Notice) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.notices = append(i.notices, notice)
 }
 
-func (r *invalidationRecorder) snapshot() []invalidation.Notice {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return slices.Clone(r.notices)
+func (i *invalidationRecorder) snapshot() []invalidation.Notice {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return slices.Clone(i.notices)
 }
 
-func (r *invalidationRecorder) resources() []invalidation.Resource {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]invalidation.Resource, 0, len(r.notices))
-	for _, notice := range r.notices {
+func (i *invalidationRecorder) resources() []invalidation.Resource {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	out := make([]invalidation.Resource, 0, len(i.notices))
+	for _, notice := range i.notices {
 		out = append(out, notice.Resource)
 	}
 	return out
 }
 
-func (r *invalidationRecorder) count(resource invalidation.Resource) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (i *invalidationRecorder) count(resource invalidation.Resource) int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	n := 0
-	for _, notice := range r.notices {
+	for _, notice := range i.notices {
 		if notice.Resource == resource {
 			n++
 		}

@@ -78,12 +78,12 @@ const (
 	ProposalOriginMined     ProposalOrigin = "mined"
 )
 
-func (o ProposalOrigin) Validate() error {
-	switch o {
+func (p ProposalOrigin) Validate() error {
+	switch p {
 	case ProposalOriginRequested, ProposalOriginMined:
 		return nil
 	default:
-		return fmt.Errorf("skills: invalid proposal origin %q", o)
+		return fmt.Errorf("skills: invalid proposal origin %q", p)
 	}
 }
 
@@ -136,25 +136,25 @@ func NewProposalRef(scope Scope, name string, content []byte) ProposalRef {
 }
 
 // Validate checks whether the reference can identify a stored proposal.
-func (r ProposalRef) Validate() error {
-	if err := r.Scope.Validate(); err != nil {
+func (p ProposalRef) Validate() error {
+	if err := p.Scope.Validate(); err != nil {
 		return err
 	}
-	if err := skillspec.ValidateName(r.Name); err != nil {
+	if err := skillspec.ValidateName(p.Name); err != nil {
 		return fmt.Errorf("proposal reference name: %w", err)
 	}
-	if len(r.Revision) != sha256.Size*2 {
+	if len(p.Revision) != sha256.Size*2 {
 		return errors.New("proposal reference revision must be a SHA-256 digest")
 	}
-	if _, err := hex.DecodeString(r.Revision); err != nil {
+	if _, err := hex.DecodeString(p.Revision); err != nil {
 		return fmt.Errorf("proposal reference revision: %w", err)
 	}
 	return nil
 }
 
 // Matches reports whether content produces this exact reference.
-func (r ProposalRef) Matches(content []byte) bool {
-	return r == NewProposalRef(r.Scope, r.Name, content)
+func (p ProposalRef) Matches(content []byte) bool {
+	return p == NewProposalRef(p.Scope, p.Name, content)
 }
 
 // ProposalReview contains the complete immutable content and provenance a human
@@ -213,9 +213,9 @@ const (
 	ProposalDangerousInstruction ProposalSafetyIssue = "dangerousInstruction"
 )
 
-// Valid reports whether issue is a supported proposal safety classification.
-func (issue ProposalSafetyIssue) Valid() bool {
-	return issue == ProposalSafe || issue == ProposalDangerousInstruction
+// Valid reports whether p is a supported proposal safety classification.
+func (p ProposalSafetyIssue) Valid() bool {
+	return p == ProposalSafe || p == ProposalDangerousInstruction
 }
 
 // SafetyIssue reports whether proposal content contains a known destructive instruction.

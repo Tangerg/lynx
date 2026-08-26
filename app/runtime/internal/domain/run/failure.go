@@ -21,9 +21,9 @@ const (
 	FailureProviderRejected    FailureKind = "provider_rejected"
 )
 
-// Valid reports whether k is part of the durable provider-neutral taxonomy.
-func (k FailureKind) Valid() bool {
-	switch k {
+// Valid reports whether f is part of the durable provider-neutral taxonomy.
+func (f FailureKind) Valid() bool {
+	switch f {
 	case FailureInternal, FailureLost, FailureAgentStuck, FailureRateLimited,
 		FailureInvalidCredentials, FailureTimeout, FailureProviderUnavailable,
 		FailureProviderRejected:
@@ -36,11 +36,11 @@ func (k FailureKind) Valid() bool {
 // String names the kind for diagnostics — parity with the package's other
 // enums (State / Outcome), so a FailureError without an error chain reports a
 // legible name instead of a raw integer.
-func (k FailureKind) String() string {
-	if !k.Valid() {
+func (f FailureKind) String() string {
+	if !f.Valid() {
 		return "unknown"
 	}
-	return string(k)
+	return string(f)
 }
 
 // Failure is the durable, provider-neutral explanation for a failed Run.
@@ -53,18 +53,18 @@ type Failure struct {
 
 // Validate reports whether the failure carries a known kind and a meaningful
 // retry delay only for retryable classifications.
-func (failure Failure) Validate() error {
-	if !failure.Kind.Valid() {
-		return fmt.Errorf("run: unknown failure kind %q", failure.Kind)
+func (f Failure) Validate() error {
+	if !f.Kind.Valid() {
+		return fmt.Errorf("run: unknown failure kind %q", f.Kind)
 	}
-	if failure.RetryAfter < 0 {
+	if f.RetryAfter < 0 {
 		return fmt.Errorf("run: failure retry delay must not be negative")
 	}
-	if failure.RetryAfter > 0 {
-		switch failure.Kind {
+	if f.RetryAfter > 0 {
+		switch f.Kind {
 		case FailureRateLimited, FailureTimeout, FailureProviderUnavailable:
 		default:
-			return fmt.Errorf("run: failure kind %s cannot carry a retry delay", failure.Kind)
+			return fmt.Errorf("run: failure kind %s cannot carry a retry delay", f.Kind)
 		}
 	}
 	return nil
@@ -79,19 +79,19 @@ type FailureError struct {
 	Err        error
 }
 
-func (e *FailureError) Error() string {
-	if e == nil {
+func (f *FailureError) Error() string {
+	if f == nil {
 		return "run failure"
 	}
-	if e.Err != nil {
-		return e.Err.Error()
+	if f.Err != nil {
+		return f.Err.Error()
 	}
-	return "run failure: " + e.Kind.String()
+	return "run failure: " + f.Kind.String()
 }
 
-func (e *FailureError) Unwrap() error {
-	if e == nil {
+func (f *FailureError) Unwrap() error {
+	if f == nil {
 		return nil
 	}
-	return e.Err
+	return f.Err
 }

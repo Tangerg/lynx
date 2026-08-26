@@ -20,15 +20,15 @@ type conversationSearchRequest struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum matching excerpts to return. Defaults to 8."`
 }
 
-func (r conversationSearchRequest) normalize() (conversationSearchRequest, error) {
-	r.Query = strings.TrimSpace(r.Query)
-	if r.Query == "" {
+func (c conversationSearchRequest) normalize() (conversationSearchRequest, error) {
+	c.Query = strings.TrimSpace(c.Query)
+	if c.Query == "" {
 		return conversationSearchRequest{}, errors.New("query is required")
 	}
-	if r.Limit <= 0 {
-		r.Limit = conversationSearchDefaultLimit
+	if c.Limit <= 0 {
+		c.Limit = conversationSearchDefaultLimit
 	}
-	return r, nil
+	return c, nil
 }
 
 // ConversationSearch is the transcript full-text search capability this tool consumes.
@@ -59,12 +59,12 @@ func conversationSearchDefinition() toolcontract.FuncConfig {
 	}
 }
 
-func (t *conversationSearcher) run(ctx context.Context, req conversationSearchRequest) (string, error) {
+func (c *conversationSearcher) run(ctx context.Context, req conversationSearchRequest) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
 		return "", fmt.Errorf("search_conversations: %w", err)
 	}
-	hits, err := t.search.SearchTranscript(ctx, req.Query, req.Limit)
+	hits, err := c.search.SearchTranscript(ctx, req.Query, req.Limit)
 	if err != nil {
 		return "", err
 	}
@@ -73,12 +73,12 @@ func (t *conversationSearcher) run(ctx context.Context, req conversationSearchRe
 
 type conversationSearchResults []transcript.SearchHit
 
-func (r conversationSearchResults) String() string {
-	if len(r) == 0 {
+func (c conversationSearchResults) String() string {
+	if len(c) == 0 {
 		return "No earlier conversation matched. This topic may not have come up before."
 	}
 	var b strings.Builder
-	for i, hit := range r {
+	for i, hit := range c {
 		fmt.Fprintf(&b, "%d. [%s · %s] %s\n", i+1, transcriptSpeaker(hit.Kind), hit.CreatedAt.Format("2006-01-02"), strings.TrimSpace(hit.Snippet))
 	}
 	return strings.TrimRight(b.String(), "\n")

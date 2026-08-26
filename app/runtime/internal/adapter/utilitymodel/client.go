@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // Resolver selects the current utility-role client for each call. Resolving at
@@ -31,19 +31,19 @@ type Prompt struct {
 	MaxOutputTokens int64
 }
 
-func (prompt Prompt) validate() error {
-	if prompt.MaxInputBytes <= 0 {
+func (p Prompt) validate() error {
+	if p.MaxInputBytes <= 0 {
 		return errors.New("utilitymodel: max input bytes must be positive")
 	}
-	if prompt.MaxOutputTokens <= 0 {
+	if p.MaxOutputTokens <= 0 {
 		return errors.New("utilitymodel: max output tokens must be positive")
 	}
-	inputBytes := len(prompt.SystemPrompt) + len(prompt.UserPrompt)
-	if inputBytes > prompt.MaxInputBytes {
+	inputBytes := len(p.SystemPrompt) + len(p.UserPrompt)
+	if inputBytes > p.MaxInputBytes {
 		return fmt.Errorf(
 			"utilitymodel: prompt is %d bytes; input limit is %d",
 			inputBytes,
-			prompt.MaxInputBytes,
+			p.MaxInputBytes,
 		)
 	}
 	return nil

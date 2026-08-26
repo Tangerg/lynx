@@ -18,14 +18,14 @@ const (
 )
 
 // Valid reports whether kind names one exact secret mutation.
-func (kind SecretChangeKind) Valid() bool { return kind == SecretSet || kind == SecretClear }
+func (s SecretChangeKind) Valid() bool { return s == SecretSet || s == SecretClear }
 
 // String returns the stable secret-mutation name.
-func (kind SecretChangeKind) String() string {
-	if !kind.Valid() {
+func (s SecretChangeKind) String() string {
+	if !s.Valid() {
 		return "unknown"
 	}
-	return string(kind)
+	return string(s)
 }
 
 // AuthorizationChange is a write-only bearer-token mutation.
@@ -83,9 +83,9 @@ type ServerPatch struct {
 }
 
 // Empty reports whether the update carries no mutation.
-func (patch ServerPatch) Empty() bool {
-	return patch.Enabled == nil && patch.Description == nil && patch.Connection == nil &&
-		patch.Timeout == nil && patch.DisabledTools == nil && patch.AutoApproveTools == nil
+func (s ServerPatch) Empty() bool {
+	return s.Enabled == nil && s.Description == nil && s.Connection == nil &&
+		s.Timeout == nil && s.DisabledTools == nil && s.AutoApproveTools == nil
 }
 
 // Connection is the safe application read model for a connection. Raw
@@ -131,9 +131,9 @@ const (
 	ServerNeedsAuth    ServerStateType = "needsAuth"
 )
 
-// Valid reports whether state belongs to the complete MCP server lifecycle.
-func (state ServerStateType) Valid() bool {
-	switch state {
+// Valid reports whether s belongs to the complete MCP server lifecycle.
+func (s ServerStateType) Valid() bool {
+	switch s {
 	case ServerDisabled, ServerDisconnected, ServerConnecting, ServerConnected,
 		ServerFailed, ServerNeedsAuth:
 		return true
@@ -143,11 +143,11 @@ func (state ServerStateType) Valid() bool {
 }
 
 // String returns the stable server-state name.
-func (state ServerStateType) String() string {
-	if !state.Valid() {
+func (s ServerStateType) String() string {
+	if !s.Valid() {
 		return "unknown"
 	}
-	return string(state)
+	return string(s)
 }
 
 // ServerStatus is the application status notification read model. Known is

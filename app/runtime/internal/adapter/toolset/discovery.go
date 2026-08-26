@@ -123,29 +123,29 @@ func NewDiscovery(withheld []toolcontract.Tool) (*Discovery, error) {
 
 // DeferredToolNames exposes the exact executable names represented by this
 // search surface. The Resolver remains the authority for visible/deferred sets.
-func (t *Discovery) DeferredToolNames() []string {
-	if t == nil {
+func (d *Discovery) DeferredToolNames() []string {
+	if d == nil {
 		return nil
 	}
-	return slices.Clone(t.names)
+	return slices.Clone(d.names)
 }
 
-func (t *Discovery) Definition() chat.ToolDefinition {
-	return t.inner.Definition()
+func (d *Discovery) Definition() chat.ToolDefinition {
+	return d.inner.Definition()
 }
 
 // buildDescription folds the "N tools available but not loaded" reminder into the
 // tool the model always sees, listing names grouped by source so it has the
 // vocabulary to search or select. Only names (never schemas) are listed — that is
 // the whole point of deferral.
-func (t *Discovery) buildDescription() string {
+func (d *Discovery) buildDescription() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Load additional built-in or integration tools on demand. %d tool(s) are available but omitted from the initial tool list to keep it focused. ",
-		len(t.entries))
+		len(d.entries))
 	b.WriteString("Search by capability (query=\"...\") or load exact tools (query=\"select:name1,name2\"); matches become directly callable on your next step.\n\nNot loaded:")
 	lastSource := ""
 	first := true
-	for _, e := range t.entries {
+	for _, e := range d.entries {
 		if first || e.source != lastSource {
 			first = false
 			lastSource = e.source
@@ -159,11 +159,11 @@ func (t *Discovery) buildDescription() string {
 	return b.String()
 }
 
-func (t *Discovery) Call(ctx context.Context, arguments string) (string, error) {
-	return t.inner.Call(ctx, arguments)
+func (d *Discovery) Call(ctx context.Context, arguments string) (string, error) {
+	return d.inner.Call(ctx, arguments)
 }
 
-func (t *Discovery) search(ctx context.Context, args discoveryArgs) (string, error) {
+func (d *Discovery) search(ctx context.Context, args discoveryArgs) (string, error) {
 	query := strings.TrimSpace(args.Query)
 	if query == "" {
 		return "", ErrEmptyQuery
@@ -175,12 +175,12 @@ func (t *Discovery) search(ctx context.Context, args discoveryArgs) (string, err
 
 	var matches []discoverableTool
 	if rest, ok := strings.CutPrefix(query, discoverySelectPrefix); ok {
-		matches = t.selectByName(rest)
+		matches = d.selectByName(rest)
 	} else {
-		matches = t.searchByKeyword(query, limit)
+		matches = d.searchByKeyword(query, limit)
 	}
 	if len(matches) == 0 {
-		return t.renderNoMatch(query), nil
+		return d.renderNoMatch(query), nil
 	}
 
 	advertise, ok := ctx.Value(toolAdvertiserContextKey{}).(ToolAdvertiser)
@@ -194,12 +194,12 @@ func (t *Discovery) search(ctx context.Context, args discoveryArgs) (string, err
 	if err := advertise(names...); err != nil {
 		return "", fmt.Errorf("search_tools: advertise matches: %w", err)
 	}
-	return t.renderMatches(matches), nil
+	return d.renderMatches(matches), nil
 }
 
 // selectByName resolves an exact "select:a,b,c" list, preserving request order
 // and dropping unknown names.
-func (t *Discovery) selectByName(list string) []discoverableTool {
+func (d *Discovery) selectByName(list string) []discoverableTool {
 	var out []discoverableTool
 	seen := make(map[string]struct{})
 	for name := range strings.SplitSeq(list, ",") {
@@ -210,7 +210,7 @@ func (t *Discovery) selectByName(list string) []discoverableTool {
 		if _, dup := seen[name]; dup {
 			continue
 		}
-		if e, ok := t.byName[name]; ok {
+		if e, ok := d.byName[name]; ok {
 			seen[name] = struct{}{}
 			out = append(out, e)
 		}
@@ -226,13 +226,13 @@ type rankedTool struct {
 // searchByKeyword ranks the withheld tools against the query terms, then spreads
 // the top results across servers (round-robin) so one large integration cannot
 // starve the others out of the result window.
-func (t *Discovery) searchByKeyword(query string, limit int) []discoverableTool {
+func (d *Discovery) searchByKeyword(query string, limit int) []discoverableTool {
 	terms := strings.Fields(strings.ToLower(query))
 	if len(terms) == 0 {
 		return nil
 	}
 	var hits []rankedTool
-	for _, e := range t.entries {
+	for _, e := range d.entries {
 		if s, ok := scoreEntry(terms, e); ok {
 			hits = append(hits, rankedTool{tool: e, score: s})
 		}
@@ -310,7 +310,7 @@ func roundRobinBySource(hits []rankedTool, limit int) []discoverableTool {
 	return out
 }
 
-func (t *Discovery) renderMatches(matches []discoverableTool) string {
+func (d *Discovery) renderMatches(matches []discoverableTool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Loaded %d tool(s) — now callable directly on your next step:\n", len(matches))
 	for _, m := range matches {
@@ -322,14 +322,14 @@ func (t *Discovery) renderMatches(matches []discoverableTool) string {
 		}
 		b.WriteByte('\n')
 	}
-	if remaining := len(t.entries) - len(matches); remaining > 0 {
+	if remaining := len(d.entries) - len(matches); remaining > 0 {
 		fmt.Fprintf(&b, "%d other tool(s) remain unloaded — search again to load more.", remaining)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func (t *Discovery) renderNoMatch(query string) string {
-	return fmt.Sprintf("No tools matched %q. %d tool(s) are available — try a broader keyword, or select:name to load one by exact name.", query, len(t.entries))
+func (d *Discovery) renderNoMatch(query string) string {
+	return fmt.Sprintf("No tools matched %q. %d tool(s) are available — try a broader keyword, or select:name to load one by exact name.", query, len(d.entries))
 }
 
 func sourceOf(tool toolcontract.Tool) string {

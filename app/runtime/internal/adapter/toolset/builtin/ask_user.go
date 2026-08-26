@@ -84,18 +84,18 @@ func NewAskUser(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	)
 }
 
-func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
-	if err := a.validate(); err != nil {
+func (a *asker) ask(ctx context.Context, args askUserArgs) (string, error) {
+	if err := args.validate(); err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}
-	arguments, err := a.arguments()
+	arguments, err := args.arguments()
 	if err != nil {
 		return "", err
 	}
 	in := runs.QuestionPrompt{
 		ToolName:  tool.AskUser,
 		Arguments: arguments,
-		Fields:    a.toFields(),
+		Fields:    args.toFields(),
 	}
 	pending := runs.Interrupt{Kind: interrupt.Question, Question: &in}
 	if err := pending.Validate(); err != nil {
@@ -103,7 +103,7 @@ func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
 	}
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
-	res, err := t.interrupt(ctx,
+	res, err := a.interrupt(ctx,
 		interrupt.Key(interrupt.Question.String(), tool.AskUser, arguments),
 		pending,
 	)

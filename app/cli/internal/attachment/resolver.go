@@ -199,53 +199,53 @@ type completionSearch struct {
 	matches  []PathMatch
 }
 
-func (s *completionSearch) visit(path string, entry os.DirEntry, walkErr error) error {
+func (c *completionSearch) visit(path string, entry os.DirEntry, walkErr error) error {
 	if walkErr != nil {
-		return s.handleWalkError(path, entry, walkErr)
+		return c.handleWalkError(path, entry, walkErr)
 	}
-	if err := context.Cause(s.ctx); err != nil {
+	if err := context.Cause(c.ctx); err != nil {
 		return err
 	}
 	if entry.IsDir() {
-		return s.visitDirectory(path, entry)
+		return c.visitDirectory(path, entry)
 	}
-	return s.visitFile(path, entry)
+	return c.visitFile(path, entry)
 }
 
-func (s *completionSearch) handleWalkError(path string, entry os.DirEntry, walkErr error) error {
-	if path != s.root && entry != nil && entry.IsDir() {
+func (c *completionSearch) handleWalkError(path string, entry os.DirEntry, walkErr error) error {
+	if path != c.root && entry != nil && entry.IsDir() {
 		return filepath.SkipDir
 	}
 	return walkErr
 }
 
-func (s *completionSearch) visitDirectory(path string, entry os.DirEntry) error {
-	if path != s.root && ignoredDirectory(entry.Name()) {
+func (c *completionSearch) visitDirectory(path string, entry os.DirEntry) error {
+	if path != c.root && ignoredDirectory(entry.Name()) {
 		return filepath.SkipDir
 	}
 	return nil
 }
 
-func (s *completionSearch) visitFile(path string, entry os.DirEntry) error {
-	s.visited++
-	if s.visited > maxVisitedEntries {
+func (c *completionSearch) visitFile(path string, entry os.DirEntry) error {
+	c.visited++
+	if c.visited > maxVisitedEntries {
 		return filepath.SkipAll
 	}
 	if entry.Type()&os.ModeSymlink != 0 {
 		return nil
 	}
-	info, ok := completionFileInfo(entry, s.maxBytes)
+	info, ok := completionFileInfo(entry, c.maxBytes)
 	if !ok {
 		return nil
 	}
-	relative, err := filepath.Rel(s.root, path)
+	relative, err := filepath.Rel(c.root, path)
 	if err != nil {
 		return err
 	}
 	relative = filepath.ToSlash(relative)
-	score, at, matched := fuzzyPath(s.query, relative)
+	score, at, matched := fuzzyPath(c.query, relative)
 	if matched {
-		s.matches = append(s.matches, PathMatch{Path: relative, Detail: formatByteSize(info.Size()), Matched: at, score: score})
+		c.matches = append(c.matches, PathMatch{Path: relative, Detail: formatByteSize(info.Size()), Matched: at, score: score})
 	}
 	return nil
 }

@@ -149,7 +149,7 @@ type provenanceMemoryReader struct {
 	items []agentmemory.Item
 }
 
-func (reader provenanceMemoryReader) Items(
+func (p provenanceMemoryReader) Items(
 	_ context.Context,
 	scope agentmemory.Scope,
 	_ string,
@@ -157,7 +157,7 @@ func (reader provenanceMemoryReader) Items(
 	if scope != agentmemory.ScopeProject {
 		return nil, nil
 	}
-	return slices.Clone(reader.items), nil
+	return slices.Clone(p.items), nil
 }
 
 type provenancePlanReader struct{}
@@ -170,6 +170,6 @@ type provenanceHookResolver struct {
 	bound *apphooks.Bound
 }
 
-func (resolver provenanceHookResolver) For(context.Context, string) (*apphooks.Bound, error) {
-	return resolver.bound, nil
+func (p provenanceHookResolver) For(context.Context, string) (*apphooks.Bound, error) {
+	return p.bound, nil
 }

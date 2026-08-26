@@ -59,22 +59,22 @@ type interactionCheckpointState struct {
 	pendingSteers    map[agent.SignalID]pendingInteractionSteer
 }
 
-func (session *interactionSession) executorCheckpoint(
+func (i *interactionSession) executorCheckpoint(
 	tree agent.TreeSnapshot,
 ) (runs.ExecutorCheckpoint, error) {
-	payload, err := session.interactionCheckpointPayload(tree)
+	payload, err := i.interactionCheckpointPayload(tree)
 	if err != nil {
 		return runs.ExecutorCheckpoint{}, err
 	}
 	checkpoint := runs.ExecutorCheckpoint{
 		RootMemberID: tree.RootID().String(), Payload: payload,
-		BuildID: session.buildID, Scope: session.scope,
-		ModelSelection: session.start.ModelSelection, Limits: session.start.Limits,
+		BuildID: i.buildID, Scope: i.scope,
+		ModelSelection: i.start.ModelSelection, Limits: i.start.Limits,
 		Capabilities: run.Capabilities{
-			ChildRuns:      session.start.ChildRunAdmissionEnabled,
-			InterruptKinds: slices.Clone(session.start.InterruptKinds),
+			ChildRuns:      i.start.ChildRunAdmissionEnabled,
+			InterruptKinds: slices.Clone(i.start.InterruptKinds),
 		},
-		Usage: session.accounting.snapshot(),
+		Usage: i.accounting.snapshot(),
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return runs.ExecutorCheckpoint{}, err

@@ -18,8 +18,8 @@ func NewWorkspaceMutationStore(storage *sqlite.WorkspaceMutationStore) *Workspac
 	return &WorkspaceMutationStore{storage: storage}
 }
 
-func (store *WorkspaceMutationStore) Record(ctx context.Context, mutation sessions.WorkspaceMutation) error {
-	return store.storage.Record(ctx, sqlite.WorkspaceMutationRecord{
+func (w *WorkspaceMutationStore) Record(ctx context.Context, mutation sessions.WorkspaceMutation) error {
+	return w.storage.Record(ctx, sqlite.WorkspaceMutationRecord{
 		SessionID:      mutation.SessionID,
 		CWD:            mutation.CWD,
 		ToRunID:        mutation.ToRunID,
@@ -27,12 +27,12 @@ func (store *WorkspaceMutationStore) Record(ctx context.Context, mutation sessio
 	})
 }
 
-func (store *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string) error {
-	return store.storage.Complete(ctx, sessionID)
+func (w *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string) error {
+	return w.storage.Complete(ctx, sessionID)
 }
 
-func (store *WorkspaceMutationStore) ListPending(ctx context.Context) ([]sessions.WorkspaceMutation, error) {
-	records, err := store.storage.ListPending(ctx)
+func (w *WorkspaceMutationStore) ListPending(ctx context.Context) ([]sessions.WorkspaceMutation, error) {
+	records, err := w.storage.ListPending(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -63,11 +63,11 @@ type InsufficientCapabilitiesError struct {
 	Missing   run.Capabilities
 }
 
-func (e *InsufficientCapabilitiesError) Error() string {
-	return e.SessionID + ": " + ErrInsufficientCapabilities.Error() + ": " + e.Missing.String()
+func (i *InsufficientCapabilitiesError) Error() string {
+	return i.SessionID + ": " + ErrInsufficientCapabilities.Error() + ": " + i.Missing.String()
 }
 
-func (e *InsufficientCapabilitiesError) Is(target error) bool {
+func (i *InsufficientCapabilitiesError) Is(target error) bool {
 	return target == ErrInsufficientCapabilities
 }
 

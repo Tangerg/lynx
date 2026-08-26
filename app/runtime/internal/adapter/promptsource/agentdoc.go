@@ -100,7 +100,7 @@ type agentDocScan struct {
 	rawBytes int
 }
 
-func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.AgentDocScope) error {
+func (a *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.AgentDocScope) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.
 	if err != nil {
 		return fmt.Errorf("promptsource: resolve agent document %q: %w", path, err)
 	}
-	if _, dup := d.seen[abs]; dup {
+	if _, dup := a.seen[abs]; dup {
 		return nil
 	}
 	content, size, ok, err := readIfNonEmpty(ctx, abs)
@@ -128,33 +128,33 @@ func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.
 	if !ok {
 		return nil
 	}
-	if len(d.files) >= workspaceapp.MaxAgentDocumentsPerCascade {
+	if len(a.files) >= workspaceapp.MaxAgentDocumentsPerCascade {
 		return fmt.Errorf(
 			"%w: agent document cascade has more than %d documents",
 			workspaceapp.ErrPromptSourceTooLarge,
 			workspaceapp.MaxAgentDocumentsPerCascade,
 		)
 	}
-	if size > workspaceapp.MaxAgentDocumentCascadeBytes-d.rawBytes {
+	if size > workspaceapp.MaxAgentDocumentCascadeBytes-a.rawBytes {
 		return fmt.Errorf(
 			"%w: agent document cascade exceeds %d bytes",
 			workspaceapp.ErrPromptSourceTooLarge,
 			workspaceapp.MaxAgentDocumentCascadeBytes,
 		)
 	}
-	d.seen[abs] = struct{}{}
-	d.rawBytes += size
-	d.files = append(d.files, workspaceapp.AgentDocFile{Path: abs, Content: content, Scope: scope})
+	a.seen[abs] = struct{}{}
+	a.rawBytes += size
+	a.files = append(a.files, workspaceapp.AgentDocFile{Path: abs, Content: content, Scope: scope})
 	return nil
 }
 
-func (d *agentDocScan) tryFirst(ctx context.Context, scope workspaceapp.AgentDocScope, candidates ...string) error {
+func (a *agentDocScan) tryFirst(ctx context.Context, scope workspaceapp.AgentDocScope, candidates ...string) error {
 	for _, c := range candidates {
-		before := len(d.files)
-		if err := d.try(ctx, c, scope); err != nil {
+		before := len(a.files)
+		if err := a.try(ctx, c, scope); err != nil {
 			return err
 		}
-		if len(d.files) > before {
+		if len(a.files) > before {
 			return nil
 		}
 	}

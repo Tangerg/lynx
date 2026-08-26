@@ -24,9 +24,9 @@ func ParseRating(value string) (Rating, error) {
 	return rating, nil
 }
 
-func (rating Rating) Validate() error {
-	if rating != "" && rating != Positive && rating != Negative {
-		return fmt.Errorf("feedback rating %q is invalid", rating)
+func (r Rating) Validate() error {
+	if r != "" && r != Positive && r != Negative {
+		return fmt.Errorf("feedback rating %q is invalid", r)
 	}
 	return nil
 }
@@ -39,11 +39,11 @@ type Signal struct {
 	Text      string
 }
 
-func (signal Signal) Validate() error {
-	if err := signal.Rating.Validate(); err != nil {
+func (s Signal) Validate() error {
+	if err := s.Rating.Validate(); err != nil {
 		return err
 	}
-	if signal.Rating == "" && strings.TrimSpace(signal.Text) == "" {
+	if s.Rating == "" && strings.TrimSpace(s.Text) == "" {
 		return errors.New("feedback requires a rating or text")
 	}
 	return nil

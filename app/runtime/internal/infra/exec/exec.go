@@ -330,14 +330,14 @@ func newShellProcessOwner(command *exec.Cmd) *shellProcessOwner {
 	return owner
 }
 
-func (owner *shellProcessOwner) stop() error {
-	owner.once.Do(func() {
-		owner.err = stopShellProcess(owner.command)
-		if errors.Is(owner.err, os.ErrProcessDone) {
-			owner.err = nil
+func (s *shellProcessOwner) stop() error {
+	s.once.Do(func() {
+		s.err = stopShellProcess(s.command)
+		if errors.Is(s.err, os.ErrProcessDone) {
+			s.err = nil
 		}
 	})
-	return owner.err
+	return s.err
 }
 
 func (s *Shell) finish(info string, code int, killed bool, cleanup error) {

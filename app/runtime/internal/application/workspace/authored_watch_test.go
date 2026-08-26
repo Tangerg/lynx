@@ -11,21 +11,21 @@ type recordingAuthoredWatcher struct {
 	accepted  []AuthoredChange
 }
 
-func (w *recordingAuthoredWatcher) Watch(
+func (r *recordingAuthoredWatcher) Watch(
 	scopes []AuthoredScope,
 	resources []AuthoredResource,
 	_ func(AuthoredResource),
 ) (AuthoredObservation, error) {
-	w.scopes = scopes
-	w.resources = resources
-	return recordingAuthoredObservation{owner: w}, nil
+	r.scopes = scopes
+	r.resources = resources
+	return recordingAuthoredObservation{owner: r}, nil
 }
 
 type recordingAuthoredObservation struct{ owner *recordingAuthoredWatcher }
 
-func (o recordingAuthoredObservation) Close() error { return nil }
-func (o recordingAuthoredObservation) Accept(changes []AuthoredChange) error {
-	o.owner.accepted = append(o.owner.accepted, changes...)
+func (r recordingAuthoredObservation) Close() error { return nil }
+func (r recordingAuthoredObservation) Accept(changes []AuthoredChange) error {
+	r.owner.accepted = append(r.owner.accepted, changes...)
 	return nil
 }
 

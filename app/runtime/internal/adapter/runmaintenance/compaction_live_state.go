@@ -24,8 +24,8 @@ type LiveStateSnapshot struct {
 	Plan   []string // in-progress task descriptions
 }
 
-func (s LiveStateSnapshot) empty() bool {
-	return len(s.Shells) == 0 && len(s.Plan) == 0
+func (l LiveStateSnapshot) empty() bool {
+	return len(l.Shells) == 0 && len(l.Plan) == 0
 }
 
 // LiveStateSnapshotter snapshots a session's active execution state at the moment a

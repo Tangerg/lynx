@@ -42,15 +42,15 @@ type operationDelivery struct {
 
 const ownershipRecoveryInterval = time.Second
 
-func (application *hostApplication) recoverStartup(ctx context.Context) error {
-	return application.sessions.RecoverWorkspaceMutations(ctx)
+func (h *hostApplication) recoverStartup(ctx context.Context) error {
+	return h.sessions.RecoverWorkspaceMutations(ctx)
 }
 
-func (application *hostApplication) newOperationService(
+func (h *hostApplication) newOperationService(
 	info protocol.ServerInfo,
 	idempotencyNamespace string,
 ) (*server.Server, error) {
-	cfg := application.delivery
+	cfg := h.delivery
 	cfg.ServerInfo = info
 	cfg.IdempotencyLimits = protocol.IdempotencyLimits{
 		RetentionSeconds: int(idempotency.Retention.Seconds()),
@@ -59,17 +59,17 @@ func (application *hostApplication) newOperationService(
 	return server.New(cfg)
 }
 
-func (application *hostApplication) openOperationDelivery(
+func (h *hostApplication) openOperationDelivery(
 	lifetime context.Context,
 	info protocol.ServerInfo,
 	idempotencyNamespace string,
 ) (operationDelivery, error) {
-	service, err := application.newOperationService(info, idempotencyNamespace)
+	service, err := h.newOperationService(info, idempotencyNamespace)
 	if err != nil {
 		return operationDelivery{}, err
 	}
 	endpoint, err := operation.New(service, operation.Config{
-		IdempotencyStore:     application.idempotencyStore,
+		IdempotencyStore:     h.idempotencyStore,
 		IdempotencyNamespace: idempotencyNamespace,
 		Lifetime:             lifetime,
 	})
@@ -80,36 +80,36 @@ func (application *hostApplication) openOperationDelivery(
 	return operationDelivery{endpoint: endpoint, service: service}, nil
 }
 
-func (delivery operationDelivery) beginShutdown() {
-	if delivery.service != nil {
-		delivery.service.Close()
+func (o operationDelivery) beginShutdown() {
+	if o.service != nil {
+		o.service.Close()
 	}
-	if delivery.endpoint != nil {
-		delivery.endpoint.BeginShutdown()
+	if o.endpoint != nil {
+		o.endpoint.BeginShutdown()
 	}
 }
 
-func (delivery operationDelivery) awaitShutdown(ctx context.Context) error {
-	if delivery.endpoint == nil {
+func (o operationDelivery) awaitShutdown(ctx context.Context) error {
+	if o.endpoint == nil {
 		return nil
 	}
-	return delivery.endpoint.AwaitShutdown(ctx)
+	return o.endpoint.AwaitShutdown(ctx)
 }
 
-func (application *hostApplication) notifyExternalChange() {
-	application.workers.invalidations.Notify(invalidation.Notice{Resource: invalidation.Resync})
+func (h *hostApplication) notifyExternalChange() {
+	h.workers.invalidations.Notify(invalidation.Notice{Resource: invalidation.Resync})
 }
 
-func (application *hostApplication) startWorkers(ctx context.Context) workerJoins {
+func (h *hostApplication) startWorkers(ctx context.Context) workerJoins {
 	schedulerDone := make(chan struct{})
 	go func() {
 		defer close(schedulerDone)
-		application.workers.scheduler.RunWorker(ctx)
+		h.workers.scheduler.RunWorker(ctx)
 	}()
 	recoveryDone := make(chan struct{})
 	go func() {
 		defer close(recoveryDone)
-		application.workers.runOwnershipRecovery(ctx)
+		h.workers.runOwnershipRecovery(ctx)
 	}()
 	return workerJoins{scheduler: schedulerDone, recovery: recoveryDone}
 }
@@ -117,7 +117,7 @@ func (application *hostApplication) startWorkers(ctx context.Context) workerJoin
 // runOwnershipRecovery detects process death by attempting the same kernel
 // leases held by live Run and Goal owners. A contended lease is definitive
 // liveness evidence; no heartbeat or expiry clock participates.
-func (workers hostWorkers) runOwnershipRecovery(ctx context.Context) {
+func (h hostWorkers) runOwnershipRecovery(ctx context.Context) {
 	ticker := time.NewTicker(ownershipRecoveryInterval)
 	defer ticker.Stop()
 	for {
@@ -125,7 +125,7 @@ func (workers hostWorkers) runOwnershipRecovery(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_, _ = workers.recovery.Reconcile(ctx)
+			_, _ = h.recovery.Reconcile(ctx)
 		}
 	}
 }

@@ -180,24 +180,24 @@ func (q Question) Equal(other Question) bool {
 		}) && equalAnswerValues(q.Answers, other.Answers)
 }
 
-func (f QuestionField) Validate() error {
-	if strings.TrimSpace(f.Prompt) == "" {
+func (q QuestionField) Validate() error {
+	if strings.TrimSpace(q.Prompt) == "" {
 		return errors.New("prompt is empty")
 	}
-	if utf8.RuneCountInString(f.Header) > 12 {
+	if utf8.RuneCountInString(q.Header) > 12 {
 		return errors.New("header is longer than 12 characters")
 	}
-	switch f.Kind {
+	switch q.Kind {
 	case QuestionText:
-		if len(f.Options) != 0 || f.AllowCustom {
+		if len(q.Options) != 0 || q.AllowCustom {
 			return errors.New("text field carries choice options")
 		}
 	case QuestionSingle, QuestionMulti:
-		if len(f.Options) < 2 {
+		if len(q.Options) < 2 {
 			return errors.New("choice field has fewer than two options")
 		}
-		seen := make(map[string]struct{}, len(f.Options))
-		for i, option := range f.Options {
+		seen := make(map[string]struct{}, len(q.Options))
+		for i, option := range q.Options {
 			if strings.TrimSpace(option.Label) == "" {
 				return fmt.Errorf("option %d has no label", i+1)
 			}
@@ -207,15 +207,15 @@ func (f QuestionField) Validate() error {
 			seen[option.Label] = struct{}{}
 		}
 	default:
-		return fmt.Errorf("kind %q is invalid", f.Kind)
+		return fmt.Errorf("kind %q is invalid", q.Kind)
 	}
 	return nil
 }
 
 // Equal reports whether two fields accept and present the same answer space.
-func (f QuestionField) Equal(other QuestionField) bool {
-	return f.Prompt == other.Prompt && f.Header == other.Header && f.Kind == other.Kind &&
-		f.AllowCustom == other.AllowCustom && slices.Equal(f.Options, other.Options)
+func (q QuestionField) Equal(other QuestionField) bool {
+	return q.Prompt == other.Prompt && q.Header == other.Header && q.Kind == other.Kind &&
+		q.AllowCustom == other.AllowCustom && slices.Equal(q.Options, other.Options)
 }
 
 func ValidateAnswer(interaction Interaction, answer Answer) error {

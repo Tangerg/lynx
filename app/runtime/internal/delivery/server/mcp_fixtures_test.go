@@ -75,11 +75,11 @@ type mcpRegistryFake struct {
 	saved   []mcpserver.Server
 }
 
-func (r *mcpRegistryFake) List(context.Context) ([]mcpserver.Server, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]mcpserver.Server, 0, len(r.servers))
-	for _, srv := range r.servers {
+func (m *mcpRegistryFake) List(context.Context) ([]mcpserver.Server, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]mcpserver.Server, 0, len(m.servers))
+	for _, srv := range m.servers {
 		out = append(out, srv)
 	}
 	slices.SortFunc(out, func(a, b mcpserver.Server) int {
@@ -88,31 +88,31 @@ func (r *mcpRegistryFake) List(context.Context) ([]mcpserver.Server, error) {
 	return out, nil
 }
 
-func (r *mcpRegistryFake) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.getErr != nil {
-		return mcpserver.Server{}, false, r.getErr
+func (m *mcpRegistryFake) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.getErr != nil {
+		return mcpserver.Server{}, false, m.getErr
 	}
-	srv, ok := r.servers[name]
+	srv, ok := m.servers[name]
 	return srv, ok, nil
 }
 
-func (r *mcpRegistryFake) Save(_ context.Context, srv mcpserver.Server) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.servers == nil {
-		r.servers = make(map[string]mcpserver.Server)
+func (m *mcpRegistryFake) Save(_ context.Context, srv mcpserver.Server) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.servers == nil {
+		m.servers = make(map[string]mcpserver.Server)
 	}
-	r.servers[srv.Name] = srv
-	r.saved = append(r.saved, srv)
+	m.servers[srv.Name] = srv
+	m.saved = append(m.saved, srv)
 	return nil
 }
 
-func (r *mcpRegistryFake) Remove(_ context.Context, name string) error {
-	r.mu.Lock()
-	delete(r.servers, name)
-	r.mu.Unlock()
+func (m *mcpRegistryFake) Remove(_ context.Context, name string) error {
+	m.mu.Lock()
+	delete(m.servers, name)
+	m.mu.Unlock()
 	return nil
 }
 

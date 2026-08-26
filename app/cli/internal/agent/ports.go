@@ -92,15 +92,15 @@ type StartRun struct {
 	Options   RunOptions
 }
 
-func (r StartRun) Clone() StartRun {
-	r.Message = r.Message.Clone()
-	r.Options = r.Options.Clone()
-	return r
+func (s StartRun) Clone() StartRun {
+	s.Message = s.Message.Clone()
+	s.Options = s.Options.Clone()
+	return s
 }
 
-func (r StartRun) Equal(other StartRun) bool {
-	return r.CommandID == other.CommandID && r.SessionID == other.SessionID &&
-		r.Message.Equal(other.Message) && r.Options.Equal(other.Options)
+func (s StartRun) Equal(other StartRun) bool {
+	return s.CommandID == other.CommandID && s.SessionID == other.SessionID &&
+		s.Message.Equal(other.Message) && s.Options.Equal(other.Options)
 }
 
 // SubscribeRun rebinds one exact segment. AfterEventID is an opaque checkpoint

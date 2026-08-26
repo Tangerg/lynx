@@ -118,23 +118,23 @@ type providerRegistry struct {
 	stored map[string]provider.Provider
 }
 
-func (r *providerRegistry) List(context.Context) ([]provider.Provider, error) {
-	out := make([]provider.Provider, 0, len(r.stored))
-	for _, p := range r.stored {
-		out = append(out, p)
+func (p *providerRegistry) List(context.Context) ([]provider.Provider, error) {
+	out := make([]provider.Provider, 0, len(p.stored))
+	for _, stored := range p.stored {
+		out = append(out, stored)
 	}
 	return out, nil
 }
 
-func (r *providerRegistry) Get(_ context.Context, id string) (provider.Provider, bool, error) {
-	p, ok := r.stored[id]
-	return p, ok, nil
+func (p *providerRegistry) Get(_ context.Context, id string) (provider.Provider, bool, error) {
+	stored, ok := p.stored[id]
+	return stored, ok, nil
 }
 
-func (r *providerRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
-	p := r.stored[id]
-	p.ID = id
-	p = p.Apply(patch)
-	r.stored[id] = p
-	return p, nil
+func (p *providerRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	stored := p.stored[id]
+	stored.ID = id
+	stored = stored.Apply(patch)
+	p.stored[id] = stored
+	return stored, nil
 }

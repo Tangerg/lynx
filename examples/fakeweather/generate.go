@@ -51,66 +51,66 @@ func newReportGenerator(req *Request) (*reportGenerator, error) {
 	}, nil
 }
 
-func (g *reportGenerator) report() *Response {
+func (r *reportGenerator) report() *Response {
 	// Daily mean for the (zone, month). For a date-only query this
 	// IS the day's representative reading — diurnal variation is deliberately
 	// NOT applied, because that would put every
 	// midnight-stamped query at the bottom of the daily curve.
-	mean := g.profile.mean[g.month-1]
+	mean := r.profile.mean[r.month-1]
 
 	// Elevation correction: ~0.6°C drop per 100 m.
-	elevDrop := int(float64(g.coords.Elevation) * 0.006)
+	elevDrop := int(float64(r.coords.Elevation) * 0.006)
 	mean -= elevDrop
 
 	// Day-to-day jitter (±2°C) preserves variability without
 	// breaking the seasonal floor.
-	jitter := g.rng.IntN(5) - 2
-	current := clamp(mean+jitter, g.profile.floor, g.profile.ceiling)
+	jitter := r.rng.IntN(5) - 2
+	current := clamp(mean+jitter, r.profile.floor, r.profile.ceiling)
 
 	// Min/Max describe the whole day's swing around the mean — not
 	// random offsets from the "current" reading.
-	minTemp := min(clamp(mean-g.profile.dailyAmplitude+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling), current)
-	maxTemp := max(clamp(mean+g.profile.dailyAmplitude+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling), current)
+	minTemp := min(clamp(mean-r.profile.dailyAmplitude+r.rng.IntN(3)-1, r.profile.floor, r.profile.ceiling), current)
+	maxTemp := max(clamp(mean+r.profile.dailyAmplitude+r.rng.IntN(3)-1, r.profile.floor, r.profile.ceiling), current)
 
 	// Pick a condition compatible with the temperature + zone + month.
-	candidates := candidateConditions(current, g.month, g.zone, g.seasonal)
-	condition := candidates[g.rng.IntN(len(candidates))]
+	candidates := candidateConditions(current, r.month, r.zone, r.seasonal)
+	condition := candidates[r.rng.IntN(len(candidates))]
 
-	wind := g.wind(condition)
-	humidity := g.humidity(condition)
+	wind := r.wind(condition)
+	humidity := r.humidity(condition)
 	feelsLike := calculateFeelsLike(current, humidity, wind.Speed)
-	pressure := g.pressure(condition)
-	visibility := g.visibility(condition, humidity)
-	cloudCover := g.cloudCover(condition)
+	pressure := r.pressure(condition)
+	visibility := r.visibility(condition, humidity)
+	cloudCover := r.cloudCover(condition)
 	dewPoint := calculateDewPoint(current, humidity)
 
 	var precipitation *Precipitation
 	if condition.hasPrecipitation() {
-		precipitation = g.precipitation(condition, current)
+		precipitation = r.precipitation(condition, current)
 	}
 
 	var airQuality *AirQuality
-	if g.request.IncludeAirQuality {
-		airQuality = g.airQuality(condition)
+	if r.request.IncludeAirQuality {
+		airQuality = r.airQuality(condition)
 	}
 
-	uvIndex := g.uvIndex(condition, cloudCover)
-	astronomy := g.astronomy()
+	uvIndex := r.uvIndex(condition, cloudCover)
+	astronomy := r.astronomy()
 
 	var hourlyForecast []HourlyForecast
-	if g.request.IncludeHourly {
-		hourlyForecast = g.hourlyForecast(mean, condition)
+	if r.request.IncludeHourly {
+		hourlyForecast = r.hourlyForecast(mean, condition)
 	}
 
-	alerts := g.alerts(condition, current, wind.Speed)
+	alerts := r.alerts(condition, current, wind.Speed)
 	description := buildDescription(condition, current, wind, humidity, precipitation)
 
-	startOfDay := time.Date(g.target.Year(), g.target.Month(), g.target.Day(), 0, 0, 0, 0, time.UTC)
+	startOfDay := time.Date(r.target.Year(), r.target.Month(), r.target.Day(), 0, 0, 0, 0, time.UTC)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	return &Response{
-		Location:    g.request.Location,
-		Coordinates: g.coords,
+		Location:    r.request.Location,
+		Coordinates: r.coords,
 		Timestamp: TimeRange{
 			Start: startOfDay.Unix(),
 			End:   endOfDay.Unix(),

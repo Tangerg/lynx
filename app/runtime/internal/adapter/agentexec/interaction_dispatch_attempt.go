@@ -44,28 +44,28 @@ func dispatchAttemptFrom(ctx context.Context, effectID agent.EffectID) (*dispatc
 	return attempt, nil
 }
 
-func (attempt *dispatchAttempt) beginExternalCall() error {
-	attempt.mu.Lock()
-	defer attempt.mu.Unlock()
-	if attempt.projectionErr != nil {
-		return attempt.projectionErr
+func (d *dispatchAttempt) beginExternalCall() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.projectionErr != nil {
+		return d.projectionErr
 	}
-	attempt.externalCalls++
+	d.externalCalls++
 	return nil
 }
 
-func (attempt *dispatchAttempt) recordProjectionFailure(err error) {
+func (d *dispatchAttempt) recordProjectionFailure(err error) {
 	if err == nil {
 		return
 	}
-	attempt.mu.Lock()
-	if attempt.projectionErr == nil {
-		attempt.projectionErr = err
+	d.mu.Lock()
+	if d.projectionErr == nil {
+		d.projectionErr = err
 	} else {
-		attempt.projectionErr = errors.Join(attempt.projectionErr, err)
+		d.projectionErr = errors.Join(d.projectionErr, err)
 	}
-	fail := attempt.fail
-	attempt.mu.Unlock()
+	fail := d.fail
+	d.mu.Unlock()
 	if fail != nil {
 		fail(err)
 	}
@@ -74,10 +74,10 @@ func (attempt *dispatchAttempt) recordProjectionFailure(err error) {
 // projectionContext detaches a post-external projection from ordinary Effect
 // cancellation while still retiring it when another member of the same Effect
 // proves the aggregate outcome indeterminate.
-func (attempt *dispatchAttempt) projectionContext(parent context.Context) (context.Context, context.CancelFunc) {
+func (d *dispatchAttempt) projectionContext(parent context.Context) (context.Context, context.CancelFunc) {
 	bound, cancel := context.WithCancelCause(parent)
-	stop := context.AfterFunc(attempt.failure, func() {
-		cancel(context.Cause(attempt.failure))
+	stop := context.AfterFunc(d.failure, func() {
+		cancel(context.Cause(d.failure))
 	})
 	return bound, func() {
 		stop()
@@ -85,23 +85,23 @@ func (attempt *dispatchAttempt) projectionContext(parent context.Context) (conte
 	}
 }
 
-func (attempt *dispatchAttempt) close() {
-	if attempt.fail != nil {
-		attempt.fail(context.Canceled)
+func (d *dispatchAttempt) close() {
+	if d.fail != nil {
+		d.fail(context.Canceled)
 	}
 }
 
-func (attempt *dispatchAttempt) indeterminateFailure() error {
-	attempt.mu.Lock()
-	defer attempt.mu.Unlock()
-	if attempt.externalCalls == 0 || attempt.projectionErr == nil {
+func (d *dispatchAttempt) indeterminateFailure() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.externalCalls == 0 || d.projectionErr == nil {
 		return nil
 	}
-	return attempt.projectionErr
+	return d.projectionErr
 }
 
-func (attempt *dispatchAttempt) crossedExternalBoundary() bool {
-	attempt.mu.Lock()
-	defer attempt.mu.Unlock()
-	return attempt.externalCalls > 0
+func (d *dispatchAttempt) crossedExternalBoundary() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.externalCalls > 0
 }

@@ -20,14 +20,14 @@ type SkillArchiveConfig struct {
 	CheckInterval time.Duration
 }
 
-func (c SkillArchiveConfig) normalized() SkillArchiveConfig {
-	if c.ArchiveAfter <= 0 {
-		c.ArchiveAfter = defaultSkillArchiveAfter
+func (s SkillArchiveConfig) normalized() SkillArchiveConfig {
+	if s.ArchiveAfter <= 0 {
+		s.ArchiveAfter = defaultSkillArchiveAfter
 	}
-	if c.CheckInterval <= 0 {
-		c.CheckInterval = defaultSkillArchiveCheckInterval
+	if s.CheckInterval <= 0 {
+		s.CheckInterval = defaultSkillArchiveCheckInterval
 	}
-	return c
+	return s
 }
 
 // idleSkillArchiver is the Application capability consumed by this scheduling
@@ -63,19 +63,19 @@ func NewIdleSkillArchiver(skills idleSkillArchiver, config SkillArchiveConfig) *
 // ArchiveIfDue archives eligible Skills unless the previous check occurred
 // within CheckInterval. The rate-limit window advances even when nothing is
 // archived, so a busy Session does not evaluate the library after every Run.
-func (a *IdleSkillArchiver) ArchiveIfDue(ctx context.Context) error {
-	if a == nil || a.skills == nil {
+func (i *IdleSkillArchiver) ArchiveIfDue(ctx context.Context) error {
+	if i == nil || i.skills == nil {
 		return nil
 	}
-	now := a.now()
-	a.mu.Lock()
-	if !a.lastCheck.IsZero() && now.Sub(a.lastCheck) < a.config.CheckInterval {
-		a.mu.Unlock()
+	now := i.now()
+	i.mu.Lock()
+	if !i.lastCheck.IsZero() && now.Sub(i.lastCheck) < i.config.CheckInterval {
+		i.mu.Unlock()
 		return nil
 	}
-	a.lastCheck = now
-	a.mu.Unlock()
-	archived, err := a.skills.ArchiveIdle(ctx, now, a.config.ArchiveAfter)
+	i.lastCheck = now
+	i.mu.Unlock()
+	archived, err := i.skills.ArchiveIdle(ctx, now, i.config.ArchiveAfter)
 	recordArchivedIdleSkills(ctx, len(archived))
 	return err
 }

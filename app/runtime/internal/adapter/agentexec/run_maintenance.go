@@ -47,33 +47,33 @@ type InteractionLifecycleHooks interface {
 	NotifyStopped(ctx context.Context, sessionID, cwd, reason string)
 }
 
-func (session *interactionSession) maintainCompletedRoot() {
-	if session.maintenance == nil || session.start.SessionID == "" {
+func (i *interactionSession) maintainCompletedRoot() {
+	if i.maintenance == nil || i.start.SessionID == "" {
 		return
 	}
-	toolCalls := session.accounting.toolCallCount()
+	toolCalls := i.accounting.toolCallCount()
 	preCompact := func(ctx context.Context) bool {
-		return session.lifecycleHooks == nil || session.lifecycleHooks.BeforeCompaction(
-			ctx, session.start.SessionID, session.start.CWD,
+		return i.lifecycleHooks == nil || i.lifecycleHooks.BeforeCompaction(
+			ctx, i.start.SessionID, i.start.CWD,
 		)
 	}
-	result := session.maintenance.Maintain(session.lifetime.context, RunMaintenanceInput{
-		SessionID:      session.start.SessionID,
-		CWD:            session.start.CWD,
-		ModelSelection: session.start.ModelSelection,
+	result := i.maintenance.Maintain(i.lifetime.context, RunMaintenanceInput{
+		SessionID:      i.start.SessionID,
+		CWD:            i.start.CWD,
+		ModelSelection: i.start.ModelSelection,
 		ToolCalls:      toolCalls,
 		PreCompact:     preCompact,
 	})
 	for _, err := range result.Errors {
 		if err != nil {
-			trace.SpanFromContext(session.lifetime.context).RecordError(
+			trace.SpanFromContext(i.lifetime.context).RecordError(
 				fmt.Errorf("agentexec: Run maintenance: %w", err),
 			)
 		}
 	}
 	if result.Compaction.Compacted {
-		session.lifetime.send(runs.ExecutorEvent{
-			Member: runs.ExecutorMember{MemberID: session.processRootID().String()},
+		i.lifetime.send(runs.ExecutorEvent{
+			Member: runs.ExecutorMember{MemberID: i.processRootID().String()},
 			Payload: runs.CompactionBoundary{
 				MessagesBefore: result.Compaction.MessagesBefore,
 				MessagesAfter:  result.Compaction.MessagesAfter,

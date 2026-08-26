@@ -47,35 +47,35 @@ type lspInput struct {
 	Query     string `json:"query,omitempty" jsonschema_description:"Symbol name or substring to search for. Required for workspace_symbols."`
 }
 
-func (in lspInput) validate() error {
-	switch in.Operation {
+func (l lspInput) validate() error {
+	switch l.Operation {
 	case "definition", "references", "implementation", "hover",
 		"incoming_calls", "outgoing_calls":
-		if strings.TrimSpace(in.Path) == "" {
-			return fmt.Errorf("lsp %s: path is required", in.Operation)
+		if strings.TrimSpace(l.Path) == "" {
+			return fmt.Errorf("lsp %s: path is required", l.Operation)
 		}
-		if in.Line < 1 || in.Character < 1 {
-			return fmt.Errorf("lsp %s: line and character must both be at least 1", in.Operation)
+		if l.Line < 1 || l.Character < 1 {
+			return fmt.Errorf("lsp %s: line and character must both be at least 1", l.Operation)
 		}
-		if strings.TrimSpace(in.Query) != "" {
-			return fmt.Errorf("lsp %s: query is not used for position operations", in.Operation)
+		if strings.TrimSpace(l.Query) != "" {
+			return fmt.Errorf("lsp %s: query is not used for position operations", l.Operation)
 		}
 	case "document_symbols", "diagnostics":
-		if strings.TrimSpace(in.Path) == "" {
-			return fmt.Errorf("lsp %s: path is required", in.Operation)
+		if strings.TrimSpace(l.Path) == "" {
+			return fmt.Errorf("lsp %s: path is required", l.Operation)
 		}
-		if in.Line != 0 || in.Character != 0 || strings.TrimSpace(in.Query) != "" {
-			return fmt.Errorf("lsp %s: only path is accepted", in.Operation)
+		if l.Line != 0 || l.Character != 0 || strings.TrimSpace(l.Query) != "" {
+			return fmt.Errorf("lsp %s: only path is accepted", l.Operation)
 		}
 	case "workspace_symbols":
-		if strings.TrimSpace(in.Query) == "" {
+		if strings.TrimSpace(l.Query) == "" {
 			return errors.New("lsp workspace_symbols: query is required")
 		}
-		if strings.TrimSpace(in.Path) != "" || in.Line != 0 || in.Character != 0 {
+		if strings.TrimSpace(l.Path) != "" || l.Line != 0 || l.Character != 0 {
 			return errors.New("lsp workspace_symbols: only query is accepted")
 		}
 	default:
-		return fmt.Errorf("lsp: unknown operation %q", in.Operation)
+		return fmt.Errorf("lsp: unknown operation %q", l.Operation)
 	}
 	return nil
 }
@@ -98,29 +98,29 @@ func newQuery(ci *codeintel.Analyzer, defaultCWD string) (toolcontract.Tool, err
 	)
 }
 
-func (t *lspRunner) query(ctx context.Context, in lspInput) (string, error) {
+func (l *lspRunner) query(ctx context.Context, in lspInput) (string, error) {
 	if err := in.validate(); err != nil {
 		return "", err
 	}
-	root := executionctx.CWD(ctx, t.defaultCWD)
+	root := executionctx.CWD(ctx, l.defaultCWD)
 	switch in.Operation {
 	case "definition":
-		return t.analyzer.Definition(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.Definition(ctx, root, in.Path, in.Line, in.Character)
 	case "references":
-		return t.analyzer.References(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.References(ctx, root, in.Path, in.Line, in.Character)
 	case "implementation":
-		return t.analyzer.Implementation(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.Implementation(ctx, root, in.Path, in.Line, in.Character)
 	case "hover":
-		return t.analyzer.Hover(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.Hover(ctx, root, in.Path, in.Line, in.Character)
 	case "incoming_calls":
-		return t.analyzer.IncomingCalls(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.IncomingCalls(ctx, root, in.Path, in.Line, in.Character)
 	case "outgoing_calls":
-		return t.analyzer.OutgoingCalls(ctx, root, in.Path, in.Line, in.Character)
+		return l.analyzer.OutgoingCalls(ctx, root, in.Path, in.Line, in.Character)
 	case "document_symbols":
-		return t.analyzer.DocumentSymbols(ctx, root, in.Path)
+		return l.analyzer.DocumentSymbols(ctx, root, in.Path)
 	case "diagnostics":
-		return t.analyzer.Diagnostics(ctx, root, in.Path)
+		return l.analyzer.Diagnostics(ctx, root, in.Path)
 	default:
-		return t.analyzer.WorkspaceSymbols(ctx, root, in.Query)
+		return l.analyzer.WorkspaceSymbols(ctx, root, in.Query)
 	}
 }

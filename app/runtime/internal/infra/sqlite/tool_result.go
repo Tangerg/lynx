@@ -27,11 +27,11 @@ func NewToolResultStore(db *sql.DB) *ToolResultStore {
 // Stage persists a body under its precomputed identity after the observer has
 // verified that replacing it with a preview reduces model context. ToolName is
 // retained for relationship validation and diagnostics.
-func (s *ToolResultStore) Stage(ctx context.Context, stage toolresult.Stage) error {
+func (t *ToolResultStore) Stage(ctx context.Context, stage toolresult.Stage) error {
 	if err := stage.Validate(); err != nil {
 		return fmt.Errorf("sqlite: stage tool result: %w", err)
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, t.db).ExecContext(ctx,
 		`INSERT INTO tool_result_blobs(id, session_id, tool_name, body, created_at)
 		 VALUES (?, ?, ?, ?, strftime('%s','now'))`,
 		stage.ID, stage.SessionID, stage.ToolName, stage.Body)
@@ -44,15 +44,15 @@ func (s *ToolResultStore) Stage(ctx context.Context, stage toolresult.Stage) err
 // Fetch returns the full offloaded body for (sessionID, id). found is false —
 // with a nil error — when no such row exists (an unknown id is a recoverable
 // miss the caller surfaces to the model, not a failure). Scoping the read by
-// session id keeps one session from reading another's offloaded output.
-func (s *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolresult.ID) (body string, found bool, err error) {
+// session id keeps one session from reading another't offloaded output.
+func (t *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolresult.ID) (body string, found bool, err error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return "", false, errors.New("sqlite: fetch tool result requires a session ID")
 	}
 	if err := id.Validate(); err != nil {
 		return "", false, fmt.Errorf("sqlite: fetch tool result: %w", err)
 	}
-	err = conn(ctx, s.db).QueryRowContext(ctx,
+	err = conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT body FROM tool_result_blobs WHERE id = ? AND session_id = ?`,
 		id, sessionID).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -67,14 +67,14 @@ func (s *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolre
 // Bind attaches a freshly offloaded body to the transcript item committed in
 // the same transaction. Exact retries are idempotent; another item or preview
 // attempting to claim the ID is an identity conflict.
-func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
+func (t *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
 	if err := ref.Validate(); err != nil {
 		return fmt.Errorf("sqlite: bind tool result: %w", err)
 	}
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(itemID) == "" || preview == "" {
 		return errors.New("sqlite: bind tool result requires session, item, and preview")
 	}
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, t.db).ExecContext(ctx,
 		`UPDATE tool_result_blobs
 		 SET item_id = ?, preview = ?
 		 WHERE id = ? AND session_id = ?
@@ -92,7 +92,7 @@ func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview s
 		return nil
 	}
 	var ownerSession, ownerItem, ownerPreview string
-	err = conn(ctx, s.db).QueryRowContext(ctx,
+	err = conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT session_id, item_id, preview FROM tool_result_blobs WHERE id = ?`, ref.ID,
 	).Scan(&ownerSession, &ownerItem, &ownerPreview)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -106,11 +106,11 @@ func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview s
 }
 
 // List returns every transcript-bound blob owned by sessionID in stable order.
-func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]toolresult.Blob, error) {
+func (t *ToolResultStore) List(ctx context.Context, sessionID string) ([]toolresult.Blob, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return nil, errors.New("sqlite: list tool results requires a session ID")
 	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+	rows, err := conn(ctx, t.db).QueryContext(ctx,
 		`SELECT id, session_id, item_id, tool_name, preview, body, created_at
 		 FROM tool_result_blobs
 		 WHERE session_id = ? AND item_id != ''
@@ -146,11 +146,11 @@ func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]toolres
 
 // Restore inserts one artifact blob under its exact identity. It never adopts
 // an ID owned by another session.
-func (s *ToolResultStore) Restore(ctx context.Context, blob toolresult.Blob) error {
+func (t *ToolResultStore) Restore(ctx context.Context, blob toolresult.Blob) error {
 	if err := blob.Validate(); err != nil {
 		return fmt.Errorf("sqlite: restore tool result: %w", err)
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, t.db).ExecContext(ctx,
 		`INSERT INTO tool_result_blobs(id, session_id, item_id, tool_name, preview, body, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		blob.ID, blob.SessionID, blob.ItemID, blob.ToolName, blob.Preview, blob.Body, blob.CreatedAt.Unix(),
@@ -159,7 +159,7 @@ func (s *ToolResultStore) Restore(ctx context.Context, blob toolresult.Blob) err
 		return nil
 	}
 	var owner string
-	ownerErr := conn(ctx, s.db).QueryRowContext(ctx,
+	ownerErr := conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT session_id FROM tool_result_blobs WHERE id = ?`, blob.ID,
 	).Scan(&owner)
 	if ownerErr == nil {
@@ -174,14 +174,14 @@ func (s *ToolResultStore) Restore(ctx context.Context, blob toolresult.Blob) err
 // Discard removes a staged blob only while it is still unbound. It is the
 // compensation path for a failed atomic event commit: a concurrently or
 // ambiguously committed binding is never deleted.
-func (s *ToolResultStore) Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error {
+func (t *ToolResultStore) Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("sqlite: discard tool result requires a session ID")
 	}
 	if err := ref.Validate(); err != nil {
 		return fmt.Errorf("sqlite: discard tool result: %w", err)
 	}
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+	if _, err := conn(ctx, t.db).ExecContext(ctx,
 		`DELETE FROM tool_result_blobs WHERE id = ? AND session_id = ? AND item_id = ''`,
 		ref.ID, sessionID,
 	); err != nil {
@@ -193,8 +193,8 @@ func (s *ToolResultStore) Discard(ctx context.Context, sessionID string, ref too
 // PurgeUnbound removes staged blobs left by a process crash before their
 // transcript event committed. It is safe only during startup, before tool
 // execution begins; bound blobs are never touched.
-func (s *ToolResultStore) PurgeUnbound(ctx context.Context) (int64, error) {
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+func (t *ToolResultStore) PurgeUnbound(ctx context.Context) (int64, error) {
+	result, err := conn(ctx, t.db).ExecContext(ctx,
 		`DELETE FROM tool_result_blobs WHERE item_id = ''`,
 	)
 	if err != nil {
@@ -210,11 +210,11 @@ func (s *ToolResultStore) PurgeUnbound(ctx context.Context) (int64, error) {
 // DropSession removes every offloaded body owned by sessionID — the blob half
 // of the session-delete cascade. It joins an ambient lifecycle write-set
 // transaction through conn(ctx).
-func (s *ToolResultStore) DropSession(ctx context.Context, sessionID string) error {
+func (t *ToolResultStore) DropSession(ctx context.Context, sessionID string) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("sqlite: drop tool results requires a session ID")
 	}
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+	if _, err := conn(ctx, t.db).ExecContext(ctx,
 		`DELETE FROM tool_result_blobs WHERE session_id = ?`, sessionID); err != nil {
 		return fmt.Errorf("sqlite: drop session tool results: %w", err)
 	}

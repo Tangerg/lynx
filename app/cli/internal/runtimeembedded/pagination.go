@@ -29,17 +29,17 @@ func newCursorTraversal(operation, initial string) *cursorTraversal {
 	}
 }
 
-func (traversal *cursorTraversal) Current() string { return traversal.current }
+func (c *cursorTraversal) Current() string { return c.current }
 
-func (traversal *cursorTraversal) Advance(next string) (bool, error) {
+func (c *cursorTraversal) Advance(next string) (bool, error) {
 	if next == "" {
-		traversal.current = ""
+		c.current = ""
 		return false, nil
 	}
-	if _, exists := traversal.seen[next]; exists {
-		return false, runtimeContractViolation("%s returned a cyclic continuation cursor", traversal.operation)
+	if _, exists := c.seen[next]; exists {
+		return false, runtimeContractViolation("%s returned a cyclic continuation cursor", c.operation)
 	}
-	traversal.seen[next] = struct{}{}
-	traversal.current = next
+	c.seen[next] = struct{}{}
+	c.current = next
 	return true, nil
 }

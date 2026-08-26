@@ -61,8 +61,8 @@ func newAttentionTestHost(t *testing.T) *attentionTestHost {
 	}
 }
 
-func (h *attentionTestHost) SetTitle(title string) { h.titles <- title }
-func (h *attentionTestHost) Notify(text string)    { h.notifications <- text }
+func (a *attentionTestHost) SetTitle(title string) { a.titles <- title }
+func (a *attentionTestHost) Notify(text string)    { a.notifications <- text }
 
 func runUIWithAttentionHost(t *testing.T, backend agent.Runtime) (*attentionTestHost, func()) {
 	t.Helper()

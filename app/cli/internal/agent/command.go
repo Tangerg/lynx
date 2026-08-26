@@ -31,8 +31,8 @@ func newCommandID(random io.Reader) (CommandID, error) {
 	return CommandID(commandIDPrefix + hex.EncodeToString(entropy[:])), nil
 }
 
-func (id CommandID) Validate() error {
-	value := string(id)
+func (c CommandID) Validate() error {
+	value := string(c)
 	encoded, ok := strings.CutPrefix(value, commandIDPrefix)
 	if !ok || len(encoded) != 32 {
 		return errors.New("command id has an invalid shape")

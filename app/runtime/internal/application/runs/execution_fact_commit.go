@@ -40,8 +40,8 @@ func NewExecutionFactCommit(fact ExecutionFact) (ExecutionFactCommit, ExecutionF
 	return ExecutionFactCommit{Fact: fact, state: state}, ExecutionFactReceipt{state: state}, nil
 }
 
-func (commit ExecutionFactCommit) validate() error {
-	if commit.Fact == nil || commit.state == nil || commit.state.done == nil {
+func (e ExecutionFactCommit) validate() error {
+	if e.Fact == nil || e.state == nil || e.state.done == nil {
 		return errors.New("runs: malformed execution fact commit")
 	}
 	return nil
@@ -50,24 +50,24 @@ func (commit ExecutionFactCommit) validate() error {
 // Complete resolves the producer receipt after the consumer has committed or
 // rejected Fact. The Run pump is the production consumer; focused executor
 // harnesses may use the same handshake with their own transactional fake.
-func (commit ExecutionFactCommit) Complete(err error) {
-	if commit.state == nil {
+func (e ExecutionFactCommit) Complete(err error) {
+	if e.state == nil {
 		return
 	}
-	commit.state.once.Do(func() {
-		commit.state.done <- err
-		close(commit.state.done)
+	e.state.once.Do(func() {
+		e.state.done <- err
+		close(e.state.done)
 	})
 }
 
 // Await waits for the authoritative projection result or for ctx to stop
 // waiting. Context cancellation never turns an uncommitted fact into success.
-func (receipt ExecutionFactReceipt) Await(ctx context.Context) error {
-	if receipt.state == nil || receipt.state.done == nil {
+func (e ExecutionFactReceipt) Await(ctx context.Context) error {
+	if e.state == nil || e.state.done == nil {
 		return errors.New("runs: malformed execution fact receipt")
 	}
 	select {
-	case err := <-receipt.state.done:
+	case err := <-e.state.done:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()

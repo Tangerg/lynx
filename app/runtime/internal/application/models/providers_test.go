@@ -17,34 +17,34 @@ type testProviderRegistry struct {
 	updateErr error
 }
 
-func (r *testProviderRegistry) List(context.Context) ([]provider.Provider, error) {
-	out := make([]provider.Provider, 0, len(r.entries))
-	for _, entry := range r.entries {
+func (t *testProviderRegistry) List(context.Context) ([]provider.Provider, error) {
+	out := make([]provider.Provider, 0, len(t.entries))
+	for _, entry := range t.entries {
 		out = append(out, entry)
 	}
 	return out, nil
 }
 
-func (r *testProviderRegistry) Get(_ context.Context, id string) (provider.Provider, bool, error) {
-	if r.getErr != nil {
-		return provider.Provider{}, false, r.getErr
+func (t *testProviderRegistry) Get(_ context.Context, id string) (provider.Provider, bool, error) {
+	if t.getErr != nil {
+		return provider.Provider{}, false, t.getErr
 	}
-	entry, ok := r.entries[id]
+	entry, ok := t.entries[id]
 	return entry, ok, nil
 }
 
-func (r *testProviderRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
-	if r.updateErr != nil {
-		return provider.Provider{}, r.updateErr
+func (t *testProviderRegistry) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	if t.updateErr != nil {
+		return provider.Provider{}, t.updateErr
 	}
-	r.updates = append(r.updates, patch)
-	if r.entries == nil {
-		r.entries = map[string]provider.Provider{}
+	t.updates = append(t.updates, patch)
+	if t.entries == nil {
+		t.entries = map[string]provider.Provider{}
 	}
-	entry := r.entries[id]
+	entry := t.entries[id]
 	entry.ID = id
 	entry = entry.Apply(patch)
-	r.entries[id] = entry
+	t.entries[id] = entry
 	return entry, nil
 }
 
@@ -53,10 +53,10 @@ type testCatalog struct {
 	models   map[string][]Model
 }
 
-func (c testCatalog) Supported() []ProviderMetadata { return slices.Clone(c.metadata) }
+func (t testCatalog) Supported() []ProviderMetadata { return slices.Clone(t.metadata) }
 
-func (c testCatalog) Metadata(id string) (ProviderMetadata, bool) {
-	for _, metadata := range c.metadata {
+func (t testCatalog) Metadata(id string) (ProviderMetadata, bool) {
+	for _, metadata := range t.metadata {
 		if metadata.ID == id {
 			return metadata, true
 		}
@@ -64,12 +64,12 @@ func (c testCatalog) Metadata(id string) (ProviderMetadata, bool) {
 	return ProviderMetadata{}, false
 }
 
-func (c testCatalog) Models(providerID string) []Model {
-	return slices.Clone(c.models[providerID])
+func (t testCatalog) Models(providerID string) []Model {
+	return slices.Clone(t.models[providerID])
 }
 
-func (c testCatalog) LookupModel(providerID, modelID string) (Model, bool) {
-	for _, model := range c.models[providerID] {
+func (t testCatalog) LookupModel(providerID, modelID string) (Model, bool) {
+	for _, model := range t.models[providerID] {
 		if model.ID == modelID {
 			return model, true
 		}
@@ -83,9 +83,9 @@ type fakeLister struct {
 	err      error
 }
 
-func (l *fakeLister) ListModels(_ context.Context, entry provider.Provider) ([]string, error) {
-	l.gotEntry = entry
-	return l.ids, l.err
+func (f *fakeLister) ListModels(_ context.Context, entry provider.Provider) ([]string, error) {
+	f.gotEntry = entry
+	return f.ids, f.err
 }
 
 type fakeProber struct {
@@ -93,9 +93,9 @@ type fakeProber struct {
 	err error
 }
 
-func (p *fakeProber) Probe(_ context.Context, entry provider.Provider) error {
-	p.got = entry
-	return p.err
+func (f *fakeProber) Probe(_ context.Context, entry provider.Provider) error {
+	f.got = entry
+	return f.err
 }
 
 func TestListModelsPrefersRemoteModelsAndEnrichesKnownEntries(t *testing.T) {

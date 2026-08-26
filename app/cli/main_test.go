@@ -922,8 +922,8 @@ func TestRuntimeOwnerSelectionRejectsAmbiguousConfiguration(t *testing.T) {
 
 type testExitError struct{ code int }
 
-func (e testExitError) Error() string { return "coded" }
-func (e testExitError) ExitCode() int { return e.code }
+func (t testExitError) Error() string { return "coded" }
+func (t testExitError) ExitCode() int { return t.code }
 
 type scriptedRuntimeOwner struct {
 	closeErrors []error
@@ -934,13 +934,13 @@ func (*scriptedRuntimeOwner) Runtime(context.Context) (backend.Services, error) 
 	return backend.Services{}, nil
 }
 
-func (owner *scriptedRuntimeOwner) Close() error {
-	index := owner.closes
-	owner.closes++
-	if index >= len(owner.closeErrors) {
+func (s *scriptedRuntimeOwner) Close() error {
+	index := s.closes
+	s.closes++
+	if index >= len(s.closeErrors) {
 		return nil
 	}
-	return owner.closeErrors[index]
+	return s.closeErrors[index]
 }
 
 func TestRuntimeOwnerCloseResumesIncompleteTeardown(t *testing.T) {

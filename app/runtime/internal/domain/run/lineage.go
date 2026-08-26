@@ -22,16 +22,16 @@ type Lineage struct {
 	RootRunID       string
 }
 
-// Validate reports whether lineage is exactly a root or child shape.
-func (lineage Lineage) Validate(runID string) error {
+// Validate reports whether l is exactly a root or child shape.
+func (l Lineage) Validate(runID string) error {
 	if runID == "" {
 		return fmt.Errorf("%w: run id is required", ErrInvalidLineage)
 	}
 	present := 0
 	for _, value := range [...]string{
-		lineage.SpawnedByItemID,
-		lineage.ParentRunID,
-		lineage.RootRunID,
+		l.SpawnedByItemID,
+		l.ParentRunID,
+		l.RootRunID,
 	} {
 		if value != "" {
 			present++
@@ -46,32 +46,32 @@ func (lineage Lineage) Validate(runID string) error {
 			ErrInvalidLineage,
 			runID,
 		)
-	case lineage.ParentRunID == runID:
+	case l.ParentRunID == runID:
 		return fmt.Errorf("%w: child run %q is its own parent", ErrInvalidLineage, runID)
-	case lineage.RootRunID == runID:
+	case l.RootRunID == runID:
 		return fmt.Errorf("%w: child run %q is its own root", ErrInvalidLineage, runID)
 	default:
 		return nil
 	}
 }
 
-// IsRoot reports whether lineage has the root shape.
-func (lineage Lineage) IsRoot() bool {
-	return lineage == Lineage{}
+// IsRoot reports whether l has the root shape.
+func (l Lineage) IsRoot() bool {
+	return l == Lineage{}
 }
 
-// IsChild reports whether lineage has the complete child shape.
-func (lineage Lineage) IsChild() bool {
-	return lineage.SpawnedByItemID != "" &&
-		lineage.ParentRunID != "" &&
-		lineage.RootRunID != ""
+// IsChild reports whether l has the complete child shape.
+func (l Lineage) IsChild() bool {
+	return l.SpawnedByItemID != "" &&
+		l.ParentRunID != "" &&
+		l.RootRunID != ""
 }
 
-// TreeRootID returns the root Run that owns the tree. Callers validate lineage
+// TreeRootID returns the root Run that owns the tree. Callers validate l
 // before relying on the result.
-func (lineage Lineage) TreeRootID(runID string) string {
-	if lineage.IsRoot() {
+func (l Lineage) TreeRootID(runID string) string {
+	if l.IsRoot() {
 		return runID
 	}
-	return lineage.RootRunID
+	return l.RootRunID
 }

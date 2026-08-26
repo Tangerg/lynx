@@ -38,69 +38,69 @@ func ParseToolArgumentOverride(encoded []byte) (*ToolArgumentOverride, error) {
 	return &ToolArgumentOverride{encoded: normalized}, nil
 }
 
-func (override *ToolArgumentOverride) Validate() error {
-	if override == nil {
+func (t *ToolArgumentOverride) Validate() error {
+	if t == nil {
 		return errors.New("tool argument override is nil")
 	}
-	validated, err := ParseToolArgumentOverride(override.encoded)
+	validated, err := ParseToolArgumentOverride(t.encoded)
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(validated.encoded, override.encoded) {
+	if !bytes.Equal(validated.encoded, t.encoded) {
 		return errors.New("tool argument override is not normalized")
 	}
 	return nil
 }
 
-func (override *ToolArgumentOverride) Clone() *ToolArgumentOverride {
-	if override == nil {
+func (t *ToolArgumentOverride) Clone() *ToolArgumentOverride {
+	if t == nil {
 		return nil
 	}
-	return &ToolArgumentOverride{encoded: bytes.Clone(override.encoded)}
+	return &ToolArgumentOverride{encoded: bytes.Clone(t.encoded)}
 }
 
-func (override *ToolArgumentOverride) Equal(other *ToolArgumentOverride) bool {
-	if override == nil || other == nil {
-		return override == other
+func (t *ToolArgumentOverride) Equal(other *ToolArgumentOverride) bool {
+	if t == nil || other == nil {
+		return t == other
 	}
-	return bytes.Equal(override.encoded, other.encoded)
+	return bytes.Equal(t.encoded, other.encoded)
 }
 
 // JSON returns a detached normalized representation for editors and durable
 // projections.
-func (override *ToolArgumentOverride) JSON() []byte {
-	if override == nil {
+func (t *ToolArgumentOverride) JSON() []byte {
+	if t == nil {
 		return nil
 	}
-	return bytes.Clone(override.encoded)
+	return bytes.Clone(t.encoded)
 }
 
 // Object returns a detached protocol-ready object without reducing JSON
 // numbers to float64.
-func (override *ToolArgumentOverride) Object() (map[string]any, error) {
-	if err := override.Validate(); err != nil {
+func (t *ToolArgumentOverride) Object() (map[string]any, error) {
+	if err := t.Validate(); err != nil {
 		return nil, err
 	}
-	value, err := decodeToolArgumentJSON(override.encoded)
+	value, err := decodeToolArgumentJSON(t.encoded)
 	if err != nil {
 		return nil, err
 	}
 	return value.(map[string]any), nil
 }
 
-func (override ToolArgumentOverride) MarshalJSON() ([]byte, error) {
-	if err := (&override).Validate(); err != nil {
+func (t ToolArgumentOverride) MarshalJSON() ([]byte, error) {
+	if err := (&t).Validate(); err != nil {
 		return nil, err
 	}
-	return bytes.Clone(override.encoded), nil
+	return bytes.Clone(t.encoded), nil
 }
 
-func (override *ToolArgumentOverride) UnmarshalJSON(encoded []byte) error {
+func (t *ToolArgumentOverride) UnmarshalJSON(encoded []byte) error {
 	parsed, err := ParseToolArgumentOverride(encoded)
 	if err != nil {
 		return err
 	}
-	*override = *parsed
+	*t = *parsed
 	return nil
 }
 

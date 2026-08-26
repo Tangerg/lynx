@@ -18,8 +18,8 @@ import (
 
 type recordingProbe struct{ names []string }
 
-func (p *recordingProbe) RecordUse(_ context.Context, name string, _ time.Time) error {
-	p.names = append(p.names, name)
+func (r *recordingProbe) RecordUse(_ context.Context, name string, _ time.Time) error {
+	r.names = append(r.names, name)
 	return nil
 }
 

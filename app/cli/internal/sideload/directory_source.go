@@ -44,12 +44,12 @@ func New(directories []string) DirectorySource {
 
 func (DirectorySource) ID() string { return "sideload" }
 
-func (s DirectorySource) Discover(ctx context.Context) (extensions.SourceResult, error) {
+func (d DirectorySource) Discover(ctx context.Context) (extensions.SourceResult, error) {
 	discovery := directoryDiscovery{
-		scannedRoots: make(map[string]struct{}, len(s.directories)),
+		scannedRoots: make(map[string]struct{}, len(d.directories)),
 		seenPlugins:  make(map[string]struct{}),
 	}
-	for _, configured := range s.directories {
+	for _, configured := range d.directories {
 		if err := context.Cause(ctx); err != nil {
 			return extensions.SourceResult{}, err
 		}

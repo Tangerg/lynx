@@ -15,8 +15,8 @@ const (
 	Missing   Availability = "missing"
 )
 
-func (availability Availability) Valid() bool {
-	return availability == Available || availability == Missing
+func (a Availability) Valid() bool {
+	return a == Available || a == Missing
 }
 
 type Workspace struct {
@@ -25,24 +25,24 @@ type Workspace struct {
 	Availability Availability
 }
 
-func (workspace Workspace) Validate() error {
+func (w Workspace) Validate() error {
 	switch {
-	case strings.TrimSpace(workspace.Path) == "":
+	case strings.TrimSpace(w.Path) == "":
 		return errors.New("workspace path is empty")
-	case !filepath.IsAbs(workspace.Path):
+	case !filepath.IsAbs(w.Path):
 		return errors.New("workspace path is not absolute")
-	case strings.TrimSpace(workspace.ProjectRoot) == "":
+	case strings.TrimSpace(w.ProjectRoot) == "":
 		return errors.New("workspace project root is empty")
-	case !filepath.IsAbs(workspace.ProjectRoot):
+	case !filepath.IsAbs(w.ProjectRoot):
 		return errors.New("workspace project root is not absolute")
-	case !workspace.Availability.Valid():
-		return fmt.Errorf("workspace availability %q is invalid", workspace.Availability)
+	case !w.Availability.Valid():
+		return fmt.Errorf("workspace availability %q is invalid", w.Availability)
 	default:
 		return nil
 	}
 }
 
-func (workspace Workspace) IsAvailable() bool { return workspace.Availability == Available }
+func (w Workspace) IsAvailable() bool { return w.Availability == Available }
 
 type Summary struct {
 	Workspace  Workspace
@@ -51,21 +51,21 @@ type Summary struct {
 	LastActive *time.Time
 }
 
-func (summary Summary) Clone() Summary {
-	if summary.LastActive != nil {
-		summary.LastActive = new(*summary.LastActive)
+func (s Summary) Clone() Summary {
+	if s.LastActive != nil {
+		s.LastActive = new(*s.LastActive)
 	}
-	return summary
+	return s
 }
 
-func (summary Summary) Validate() error {
-	if err := summary.Workspace.Validate(); err != nil {
+func (s Summary) Validate() error {
+	if err := s.Workspace.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(summary.Name) == "" {
+	if strings.TrimSpace(s.Name) == "" {
 		return errors.New("workspace summary name is empty")
 	}
-	if summary.Sessions < 0 {
+	if s.Sessions < 0 {
 		return errors.New("workspace session count is negative")
 	}
 	return nil
@@ -75,8 +75,8 @@ type ResolveRequest struct {
 	Path string
 }
 
-func (request ResolveRequest) Validate() error {
-	if request.Path != "" && !filepath.IsAbs(request.Path) {
+func (r ResolveRequest) Validate() error {
+	if r.Path != "" && !filepath.IsAbs(r.Path) {
 		return errors.New("workspace resolve path is not absolute")
 	}
 	return nil

@@ -54,15 +54,15 @@ type blockingSkillArchiveService struct {
 	committed chan error
 }
 
-func (service *blockingSkillArchiveService) Archive(ctx context.Context, name string) error {
-	service.started <- name
+func (b *blockingSkillArchiveService) Archive(ctx context.Context, name string) error {
+	b.started <- name
 	select {
-	case <-service.release:
-		err := service.Service.Archive(ctx, name)
-		service.committed <- err
+	case <-b.release:
+		err := b.Service.Archive(ctx, name)
+		b.committed <- err
 		return err
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return context.Cause(ctx)
 	}
 }
@@ -79,40 +79,40 @@ func newSkillServiceStub() *skillServiceStub {
 	}
 }
 
-func (service *skillServiceStub) Discover(context.Context, string) ([]skills.Discovered, error) {
-	service.reads.Add(1)
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return append([]skills.Discovered(nil), service.discovered...), nil
+func (s *skillServiceStub) Discover(context.Context, string) ([]skills.Discovered, error) {
+	s.reads.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]skills.Discovered(nil), s.discovered...), nil
 }
 
-func (service *skillServiceStub) Managed(context.Context) ([]skills.Managed, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return append([]skills.Managed(nil), service.managed...), nil
+func (s *skillServiceStub) Managed(context.Context) ([]skills.Managed, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]skills.Managed(nil), s.managed...), nil
 }
 
-func (service *skillServiceStub) Proposals(context.Context, string) ([]skills.Proposal, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return append([]skills.Proposal(nil), service.proposals...), nil
+func (s *skillServiceStub) Proposals(context.Context, string) ([]skills.Proposal, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]skills.Proposal(nil), s.proposals...), nil
 }
 
-func (service *skillServiceStub) Archive(_ context.Context, name string) error {
-	return service.setLifecycle(name, skills.Archived)
+func (s *skillServiceStub) Archive(_ context.Context, name string) error {
+	return s.setLifecycle(name, skills.Archived)
 }
 
-func (service *skillServiceStub) Restore(_ context.Context, name string) error {
-	return service.setLifecycle(name, skills.Active)
+func (s *skillServiceStub) Restore(_ context.Context, name string) error {
+	return s.setLifecycle(name, skills.Active)
 }
 
-func (service *skillServiceStub) setLifecycle(name string, lifecycle skills.Lifecycle) error {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.managed {
-		if service.managed[index].Name == name {
-			if !service.ignoreLifecycle {
-				service.managed[index].Lifecycle = lifecycle
+func (s *skillServiceStub) setLifecycle(name string, lifecycle skills.Lifecycle) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.managed {
+		if s.managed[index].Name == name {
+			if !s.ignoreLifecycle {
+				s.managed[index].Lifecycle = lifecycle
 			}
 			return nil
 		}
@@ -120,26 +120,26 @@ func (service *skillServiceStub) setLifecycle(name string, lifecycle skills.Life
 	return errors.New("skill not found")
 }
 
-func (service *skillServiceStub) Approve(_ context.Context, reference skills.ProposalReference) error {
-	return service.decide(reference, true)
+func (s *skillServiceStub) Approve(_ context.Context, reference skills.ProposalReference) error {
+	return s.decide(reference, true)
 }
 
-func (service *skillServiceStub) Reject(_ context.Context, reference skills.ProposalReference) error {
-	return service.decide(reference, false)
+func (s *skillServiceStub) Reject(_ context.Context, reference skills.ProposalReference) error {
+	return s.decide(reference, false)
 }
 
-func (service *skillServiceStub) decide(reference skills.ProposalReference, approve bool) error {
+func (s *skillServiceStub) decide(reference skills.ProposalReference, approve bool) error {
 	if err := reference.Validate(); err != nil {
 		return err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index, proposal := range service.proposals {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index, proposal := range s.proposals {
 		if proposal.Name == reference.Name && proposal.Scope == reference.Scope && proposal.Revision == reference.Revision {
-			if !service.ignoreDecision {
-				service.proposals = append(service.proposals[:index], service.proposals[index+1:]...)
+			if !s.ignoreDecision {
+				s.proposals = append(s.proposals[:index], s.proposals[index+1:]...)
 			}
-			service.decisions <- skillDecision{approve: approve, reference: reference}
+			s.decisions <- skillDecision{approve: approve, reference: reference}
 			return nil
 		}
 	}

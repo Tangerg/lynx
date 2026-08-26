@@ -364,12 +364,12 @@ func newMemoryIdempotencyStore() *memoryIdempotencyStore {
 	return &memoryIdempotencyStore{records: make(map[string]memoryIdempotencyRecord)}
 }
 
-func (s *memoryIdempotencyStore) Claim(_ context.Context, key, fingerprint string) (idempotency.Record, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	stored, ok := s.records[key]
+func (m *memoryIdempotencyStore) Claim(_ context.Context, key, fingerprint string) (idempotency.Record, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stored, ok := m.records[key]
 	if ok && len(stored.Payload) != 0 && !time.Now().Before(stored.expiresAt) {
-		delete(s.records, key)
+		delete(m.records, key)
 		ok = false
 	}
 	if ok {
@@ -380,14 +380,14 @@ func (s *memoryIdempotencyStore) Claim(_ context.Context, key, fingerprint strin
 		return stored.Record, false, nil
 	}
 	record := idempotency.Record{Key: key, Fingerprint: fingerprint}
-	s.records[key] = memoryIdempotencyRecord{Record: record, expiresAt: time.Now().Add(idempotency.Retention)}
+	m.records[key] = memoryIdempotencyRecord{Record: record, expiresAt: time.Now().Add(idempotency.Retention)}
 	return record, true, nil
 }
 
-func (s *memoryIdempotencyStore) Complete(_ context.Context, record idempotency.Record) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	stored, ok := s.records[record.Key]
+func (m *memoryIdempotencyStore) Complete(_ context.Context, record idempotency.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stored, ok := m.records[record.Key]
 	if !ok {
 		return idempotency.ErrClaimLost
 	}
@@ -396,13 +396,13 @@ func (s *memoryIdempotencyStore) Complete(_ context.Context, record idempotency.
 	}
 	if len(stored.Payload) != 0 {
 		if !time.Now().Before(stored.expiresAt) {
-			delete(s.records, record.Key)
+			delete(m.records, record.Key)
 			return idempotency.ErrClaimLost
 		}
 		return nil
 	}
 	stored.Payload = bytes.Clone(record.Payload)
 	stored.expiresAt = time.Now().Add(idempotency.Retention)
-	s.records[record.Key] = stored
+	m.records[record.Key] = stored
 	return nil
 }

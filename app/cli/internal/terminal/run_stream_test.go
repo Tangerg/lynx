@@ -51,17 +51,17 @@ type heldCancellationResultRuntime struct {
 	release chan struct{}
 }
 
-func (runtime *heldCancellationResultRuntime) CancelRun(
+func (h *heldCancellationResultRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	result, err := runtime.Runtime.CancelRun(ctx, input)
+	result, err := h.Runtime.CancelRun(ctx, input)
 	select {
-	case runtime.settled <- struct{}{}:
+	case h.settled <- struct{}{}:
 	default:
 	}
 	select {
-	case <-runtime.release:
+	case <-h.release:
 		return result, err
 	case <-ctx.Done():
 		return agent.RunCancellation{}, context.Cause(ctx)
@@ -91,125 +91,125 @@ type invalidAcceptedStartRuntime struct {
 	refuseFirst   bool
 }
 
-func (runtime *invalidAcceptedStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	opened, err := runtime.Runtime.StartRun(ctx, input)
+func (i *invalidAcceptedStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	opened, err := i.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	runtime.mu.Lock()
-	runtime.starts = append(runtime.starts, input.Clone())
-	runtime.mu.Unlock()
+	i.mu.Lock()
+	i.starts = append(i.starts, input.Clone())
+	i.mu.Unlock()
 	opened.UserItemID = ""
 	return agent.SegmentStream{}, agent.NewAcceptedMutationError(
 		opened, fmt.Errorf("start run: %w", opened.ValidateStart()),
 	)
 }
 
-func (runtime *invalidAcceptedStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.cancellations = append(runtime.cancellations, input)
-	refuse := runtime.refuseFirst && len(runtime.cancellations) == 1
-	runtime.mu.Unlock()
+func (i *invalidAcceptedStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	i.mu.Lock()
+	i.cancellations = append(i.cancellations, input)
+	refuse := i.refuseFirst && len(i.cancellations) == 1
+	i.mu.Unlock()
 	if refuse {
 		return agent.RunCancellation{}, errors.New("temporary malformed-receipt cleanup failure")
 	}
-	return runtime.Runtime.CancelRun(ctx, input)
+	return i.Runtime.CancelRun(ctx, input)
 }
 
-func (runtime *invalidAcceptedStartRuntime) attempts() ([]agent.StartRun, []agent.CancelRun) {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	starts := make([]agent.StartRun, len(runtime.starts))
-	for index, input := range runtime.starts {
+func (i *invalidAcceptedStartRuntime) attempts() ([]agent.StartRun, []agent.CancelRun) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	starts := make([]agent.StartRun, len(i.starts))
+	for index, input := range i.starts {
 		starts[index] = input.Clone()
 	}
-	return starts, slices.Clone(runtime.cancellations)
+	return starts, slices.Clone(i.cancellations)
 }
 
-func (runtime *refusingFirstCommandRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	if runtime.refused == "" {
-		runtime.refused = input.CommandID
+func (r *refusingFirstCommandRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	if r.refused == "" {
+		r.refused = input.CommandID
 	}
-	runtime.inputs = append(runtime.inputs, input.Clone())
-	refused := runtime.refused
-	runtime.mu.Unlock()
+	r.inputs = append(r.inputs, input.Clone())
+	refused := r.refused
+	r.mu.Unlock()
 	if input.CommandID == refused {
 		return agent.SegmentStream{}, fmt.Errorf("runtime refused start: %w", agent.ErrSessionHasActiveRun)
 	}
-	return runtime.Runtime.StartRun(ctx, input)
+	return r.Runtime.StartRun(ctx, input)
 }
 
-func (runtime *refusingFirstCommandRuntime) refusedCommand() agent.StartRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	if len(runtime.inputs) == 0 {
+func (r *refusingFirstCommandRuntime) refusedCommand() agent.StartRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.inputs) == 0 {
 		return agent.StartRun{}
 	}
-	return runtime.inputs[0].Clone()
+	return r.inputs[0].Clone()
 }
 
-func (runtime *activeConflictRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	if input.CommandID != runtime.conflict {
-		return runtime.Runtime.StartRun(ctx, input)
+func (a *activeConflictRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	if input.CommandID != a.conflict {
+		return a.Runtime.StartRun(ctx, input)
 	}
 	select {
-	case runtime.attempted <- input.Clone():
+	case a.attempted <- input.Clone():
 	default:
 	}
 	return agent.SegmentStream{}, fmt.Errorf("active run owns session: %w", agent.ErrSessionHasActiveRun)
 }
 
-func (runtime *idempotentStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	runtime.inputs = append(runtime.inputs, input.Clone())
-	opened, replay := runtime.receipts[input.CommandID]
-	runtime.mu.Unlock()
+func (i *idempotentStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	i.mu.Lock()
+	i.inputs = append(i.inputs, input.Clone())
+	opened, replay := i.receipts[input.CommandID]
+	i.mu.Unlock()
 	if replay {
 		return opened, nil
 	}
-	opened, err := runtime.Runtime.StartRun(ctx, input)
+	opened, err := i.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	runtime.mu.Lock()
-	if runtime.receipts == nil {
-		runtime.receipts = make(map[agent.CommandID]agent.SegmentStream)
+	i.mu.Lock()
+	if i.receipts == nil {
+		i.receipts = make(map[agent.CommandID]agent.SegmentStream)
 	}
-	runtime.receipts[input.CommandID] = opened
-	runtime.mu.Unlock()
+	i.receipts[input.CommandID] = opened
+	i.mu.Unlock()
 	return opened, nil
 }
 
-func (runtime *idempotentStartRuntime) attempts() []agent.StartRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	out := make([]agent.StartRun, len(runtime.inputs))
-	for index, input := range runtime.inputs {
+func (i *idempotentStartRuntime) attempts() []agent.StartRun {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	out := make([]agent.StartRun, len(i.inputs))
+	for index, input := range i.inputs {
 		out[index] = input.Clone()
 	}
 	return out
 }
 
-func (runtime *replayingStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	runtime.attempts++
-	runtime.inputs = append(runtime.inputs, cloneStartRun(input))
-	attempt := runtime.attempts
-	cached := runtime.stream
-	runtime.mu.Unlock()
+func (r *replayingStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	r.attempts++
+	r.inputs = append(r.inputs, cloneStartRun(input))
+	attempt := r.attempts
+	cached := r.stream
+	r.mu.Unlock()
 	if attempt == 1 {
-		opened, err := runtime.Runtime.StartRun(ctx, input)
+		opened, err := r.Runtime.StartRun(ctx, input)
 		if err != nil {
 			return agent.SegmentStream{}, err
 		}
-		runtime.mu.Lock()
-		runtime.stream = opened
-		runtime.mu.Unlock()
-		if runtime.afterFirst != nil {
-			runtime.afterFirst()
+		r.mu.Lock()
+		r.stream = opened
+		r.mu.Unlock()
+		if r.afterFirst != nil {
+			r.afterFirst()
 		}
-		failure := runtime.failure
+		failure := r.failure
 		if failure == nil {
 			failure = agent.ErrDisconnected
 		}
@@ -218,21 +218,21 @@ func (runtime *replayingStartRuntime) StartRun(ctx context.Context, input agent.
 	return cached, nil
 }
 
-func (runtime *replayingStartRuntime) startAttempts() []agent.StartRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	out := make([]agent.StartRun, len(runtime.inputs))
-	for index, input := range runtime.inputs {
+func (r *replayingStartRuntime) startAttempts() []agent.StartRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]agent.StartRun, len(r.inputs))
+	for index, input := range r.inputs {
 		out[index] = cloneStartRun(input)
 	}
 	return out
 }
 
-func (runtime *sessionReadFailureRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
-	if runtime.reads.Add(1) == runtime.failureAt {
+func (s *sessionReadFailureRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	if s.reads.Add(1) == s.failureAt {
 		return agent.SessionSnapshot{}, agent.ErrDisconnected
 	}
-	return runtime.Runtime.GetSession(ctx, sessionID)
+	return s.Runtime.GetSession(ctx, sessionID)
 }
 
 func TestRecoveredSessionRetriesATransientAttachRead(t *testing.T) {

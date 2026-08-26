@@ -41,22 +41,22 @@ type blockingFirstStartRuntime struct {
 	release        chan struct{}
 }
 
-func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
-	r.mu.Lock()
-	if request.CommandID != "" && request.CommandID == r.receiptCommand {
-		r.inputs = append(r.inputs, request.Clone())
-		stream, err := r.receipt, r.receiptErr
-		r.mu.Unlock()
+func (b *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
+	b.mu.Lock()
+	if request.CommandID != "" && request.CommandID == b.receiptCommand {
+		b.inputs = append(b.inputs, request.Clone())
+		stream, err := b.receipt, b.receiptErr
+		b.mu.Unlock()
 		if err != nil {
 			return agent.SegmentStream{}, err
 		}
 		return stream, nil
 	}
-	first := !r.blocked
-	r.blocked = true
-	r.inputs = append(r.inputs, request.Clone())
-	r.mu.Unlock()
-	stream, err := r.Runtime.StartRun(ctx, request)
+	first := !b.blocked
+	b.blocked = true
+	b.inputs = append(b.inputs, request.Clone())
+	b.mu.Unlock()
+	stream, err := b.Runtime.StartRun(ctx, request)
 	if err != nil {
 		receipt, accepted := agent.AcceptedMutationReceipt(err)
 		if !accepted {
@@ -67,18 +67,18 @@ func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.
 	if !first {
 		return stream, err
 	}
-	r.mu.Lock()
-	r.receiptCommand = request.CommandID
-	r.receipt = stream
-	r.receiptErr = err
-	r.mu.Unlock()
+	b.mu.Lock()
+	b.receiptCommand = request.CommandID
+	b.receipt = stream
+	b.receiptErr = err
+	b.mu.Unlock()
 	select {
-	case r.started <- request.Clone():
+	case b.started <- request.Clone():
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 	select {
-	case <-r.release:
+	case <-b.release:
 		if err != nil {
 			return agent.SegmentStream{}, err
 		}
@@ -88,18 +88,18 @@ func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.
 	}
 }
 
-func (r *blockingFirstStartRuntime) startInputs() []agent.StartRun {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	inputs := make([]agent.StartRun, len(r.inputs))
-	for index, input := range r.inputs {
+func (b *blockingFirstStartRuntime) startInputs() []agent.StartRun {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	inputs := make([]agent.StartRun, len(b.inputs))
+	for index, input := range b.inputs {
 		inputs[index] = input.Clone()
 	}
 	return inputs
 }
 
-func (r *finishObservingRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
-	stream, err := r.recordingRuntime.StartRun(ctx, request)
+func (f *finishObservingRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
+	stream, err := f.recordingRuntime.StartRun(ctx, request)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
@@ -109,7 +109,7 @@ func (r *finishObservingRuntime) StartRun(ctx context.Context, request agent.Sta
 			continued := yield(event, streamErr)
 			if streamErr == nil {
 				if _, finished := event.Event.(agent.RunFinished); finished {
-					r.once.Do(func() { close(r.finished) })
+					f.once.Do(func() { close(f.finished) })
 				}
 			}
 			if !continued {

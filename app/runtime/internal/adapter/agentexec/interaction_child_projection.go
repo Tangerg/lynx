@@ -14,16 +14,16 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-func (session *interactionSession) sendExecutorRequest(
+func (i *interactionSession) sendExecutorRequest(
 	ctx context.Context,
 	event runs.ExecutorEvent,
 ) error {
-	ctx, cancel := session.lifetime.bind(ctx)
+	ctx, cancel := i.lifetime.bind(ctx)
 	defer cancel()
 	select {
-	case session.lifetime.events <- event:
+	case i.lifetime.events <- event:
 		return nil
-	case <-session.lifetime.releasing:
+	case <-i.lifetime.releasing:
 		return errors.New("agentexec: execution released before executor request")
 	case <-ctx.Done():
 		return ctx.Err()
@@ -32,17 +32,17 @@ func (session *interactionSession) sendExecutorRequest(
 
 // reconcileCompletedDelegateChildren projects terminal children in postorder.
 // Event listeners only wake this check; public Process state is authoritative.
-func (session *interactionSession) reconcileCompletedDelegateChildren(
+func (i *interactionSession) reconcileCompletedDelegateChildren(
 	ctx context.Context,
 ) (bool, error) {
-	session.childProjection.lock()
-	defer session.childProjection.unlock()
-	session.state.mu.Lock()
-	calls := make([]*managedDelegateCall, 0, len(session.state.delegateChildren))
-	for _, managed := range session.state.delegateChildren {
+	i.childProjection.lock()
+	defer i.childProjection.unlock()
+	i.state.mu.Lock()
+	calls := make([]*managedDelegateCall, 0, len(i.state.delegateChildren))
+	for _, managed := range i.state.delegateChildren {
 		calls = append(calls, managed)
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	slices.SortFunc(calls, func(left, right *managedDelegateCall) int {
 		if depth := int(right.parentRelation.Depth()+1) - int(left.parentRelation.Depth()+1); depth != 0 {
 			return depth
@@ -79,7 +79,7 @@ func (session *interactionSession) reconcileCompletedDelegateChildren(
 		if _, predecessorPending := blocked[batch]; predecessorPending {
 			continue
 		}
-		process, found := session.engine.Process(processID)
+		process, found := i.engine.Process(processID)
 		if !found || !process.Status().Terminal() {
 			blocked[batch] = struct{}{}
 			continue
@@ -88,7 +88,7 @@ func (session *interactionSession) reconcileCompletedDelegateChildren(
 		if err != nil {
 			return progressed, fmt.Errorf("agentexec: await delegated child %s: %w", processID, err)
 		}
-		if err := session.projectDelegateResult(ctx, managed, result); err != nil {
+		if err := i.projectDelegateResult(ctx, managed, result); err != nil {
 			return progressed, err
 		}
 		progressed = true
@@ -96,12 +96,12 @@ func (session *interactionSession) reconcileCompletedDelegateChildren(
 	return progressed, nil
 }
 
-func (session *interactionSession) projectDelegateResult(
+func (i *interactionSession) projectDelegateResult(
 	ctx context.Context,
 	managed *managedDelegateCall,
 	result agent.Result,
 ) error {
-	committedReply, replyFound := session.committedReplies.lookup(result.ProcessID())
+	committedReply, replyFound := i.committedReplies.lookup(result.ProcessID())
 	managed.mu.Lock()
 	defer managed.mu.Unlock()
 	if result.ProcessID() != managed.childProcessID {
@@ -123,7 +123,7 @@ func (session *interactionSession) projectDelegateResult(
 				return errors.New("agentexec: completed delegated child has no committed model reply")
 			}
 			if !messageRequestsTools(committedReply) {
-				if err := session.commitFact(
+				if err := i.commitFact(
 					ctx, member, runs.AssistantMessageCompleted{Message: committedReply},
 				); err != nil {
 					return fmt.Errorf("agentexec: commit delegated child answer: %w", err)
@@ -143,15 +143,15 @@ func (session *interactionSession) projectDelegateResult(
 		parentResult = "error: delegated worker " + detail
 	}
 	if !managed.segmentProjected {
-		if err := session.sendExecutorRequest(ctx, runs.ExecutorEvent{
-			Member: member, Payload: session.segmentEnd(result),
+		if err := i.sendExecutorRequest(ctx, runs.ExecutorEvent{
+			Member: member, Payload: i.segmentEnd(result),
 		}); err != nil {
 			return fmt.Errorf("agentexec: publish delegated child terminal: %w", err)
 		}
 		managed.segmentProjected = true
-		session.committedReplies.forget(result.ProcessID())
+		i.committedReplies.forget(result.ProcessID())
 	}
-	if err := session.finishDelegateTool(ctx, managed, parentResult, childFailure); err != nil {
+	if err := i.finishDelegateTool(ctx, managed, parentResult, childFailure); err != nil {
 		return err
 	}
 	return nil
@@ -166,7 +166,7 @@ func messageRequestsTools(message corechat.Message) bool {
 	return false
 }
 
-func (session *interactionSession) finishDelegateTool(
+func (i *interactionSession) finishDelegateTool(
 	ctx context.Context,
 	managed *managedDelegateCall,
 	output string,
@@ -191,7 +191,7 @@ func (session *interactionSession) finishDelegateTool(
 			Detail: executorDiagnostic(cause),
 		}
 	}
-	if err := session.commitFact(ctx, session.executorMember(managed.parentRelation), fact); err != nil {
+	if err := i.commitFact(ctx, i.executorMember(managed.parentRelation), fact); err != nil {
 		return fmt.Errorf("agentexec: commit Delegate Tool result: %w", err)
 	}
 	managed.parentToolFinished = true

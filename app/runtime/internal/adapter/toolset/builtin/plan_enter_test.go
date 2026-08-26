@@ -14,9 +14,9 @@ type modePolicy struct {
 	changed  bool
 }
 
-func (p *modePolicy) EnterPlanMode(_ context.Context, sessionID string) (bool, error) {
-	p.sessions = append(p.sessions, sessionID)
-	return p.changed, nil
+func (m *modePolicy) EnterPlanMode(_ context.Context, sessionID string) (bool, error) {
+	m.sessions = append(m.sessions, sessionID)
+	return m.changed, nil
 }
 
 func TestNewNilPolicyOmitsTool(t *testing.T) {

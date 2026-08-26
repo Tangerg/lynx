@@ -21,24 +21,24 @@ func NewToolPolicyState(initial mcpserver.ToolPolicy) *ToolPolicyState {
 }
 
 // Replace atomically publishes a registry-derived policy snapshot.
-func (s *ToolPolicyState) Replace(policy mcpserver.ToolPolicy) {
-	s.policy.Store(&policy)
+func (t *ToolPolicyState) Replace(policy mcpserver.ToolPolicy) {
+	t.policy.Store(&policy)
 }
 
 // ToolDisabled reports whether ref is hidden from run.
-func (s *ToolPolicyState) ToolDisabled(ref mcpserver.ToolRef) bool {
-	if s == nil {
+func (t *ToolPolicyState) ToolDisabled(ref mcpserver.ToolRef) bool {
+	if t == nil {
 		return false
 	}
-	policy := s.policy.Load()
+	policy := t.policy.Load()
 	return policy != nil && policy.Disabled(ref)
 }
 
 // ToolAutoApproved reports whether ref may skip an interactive prompt.
-func (s *ToolPolicyState) ToolAutoApproved(ref mcpserver.ToolRef) bool {
-	if s == nil {
+func (t *ToolPolicyState) ToolAutoApproved(ref mcpserver.ToolRef) bool {
+	if t == nil {
 		return false
 	}
-	policy := s.policy.Load()
+	policy := t.policy.Load()
 	return policy != nil && policy.AutoApproved(ref)
 }

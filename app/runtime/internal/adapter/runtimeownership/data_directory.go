@@ -50,18 +50,18 @@ func PrepareDataDirectory(ctx context.Context, directory string) (*DataDirectory
 }
 
 // Release ends the setup window. It is retryable and idempotent.
-func (s *DataDirectorySetup) Release() error {
-	if s == nil {
+func (d *DataDirectorySetup) Release() error {
+	if d == nil {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.released {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.released {
 		return nil
 	}
-	if err := s.lease.Release(); err != nil {
-		return fmt.Errorf("runtime ownership: release data directory setup %q: %w", s.Directory, err)
+	if err := d.lease.Release(); err != nil {
+		return fmt.Errorf("runtime ownership: release data directory setup %q: %w", d.Directory, err)
 	}
-	s.released = true
+	d.released = true
 	return nil
 }

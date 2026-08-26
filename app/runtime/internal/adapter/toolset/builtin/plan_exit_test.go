@@ -18,23 +18,23 @@ type modeStore struct {
 	states map[string]approval.SessionMode
 }
 
-func (s *modeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
-	state, found := s.states[sessionID]
+func (m *modeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
+	state, found := m.states[sessionID]
 	return state, found, nil
 }
 
-func (s *modeStore) PutMode(_ context.Context, sessionID string, state approval.SessionMode) error {
-	s.states[sessionID] = state
+func (m *modeStore) PutMode(_ context.Context, sessionID string, state approval.SessionMode) error {
+	m.states[sessionID] = state
 	return nil
 }
 
 type planReader struct{ steps []plandomain.Step }
 
-func (r planReader) State(context.Context, string) (plandomain.State, error) {
-	if len(r.steps) == 0 {
+func (p planReader) State(context.Context, string) (plandomain.State, error) {
+	if len(p.steps) == 0 {
 		return plandomain.State{}, nil
 	}
-	return plandomain.Restore(plandomain.Snapshot{Steps: r.steps, Revision: 1, UpdatedAt: time.Now()})
+	return plandomain.Restore(plandomain.Snapshot{Steps: p.steps, Revision: 1, UpdatedAt: time.Now()})
 }
 
 func planContext(t *testing.T, sessionID string) context.Context {

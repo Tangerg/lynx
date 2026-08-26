@@ -210,15 +210,15 @@ const (
 	ReviewReject  ReviewDecision = "reject"
 )
 
-// Result returns the terminal review status selected by d.
-func (d ReviewDecision) Result() (Status, error) {
-	switch d {
+// Result returns the terminal review status selected by r.
+func (r ReviewDecision) Result() (Status, error) {
+	switch r {
 	case ReviewApprove:
 		return StatusActive, nil
 	case ReviewReject:
 		return StatusRejected, nil
 	default:
-		return "", fmt.Errorf("agentmemory: invalid review decision %q", d)
+		return "", fmt.Errorf("agentmemory: invalid review decision %q", r)
 	}
 }
 
@@ -282,14 +282,14 @@ func NewEmbeddingUpdate(item Item, space string, vector []float32) (EmbeddingUpd
 }
 
 // Validate protects a cache update received at a persistence boundary.
-func (update EmbeddingUpdate) Validate() error {
-	if strings.TrimSpace(update.ItemID) == "" {
+func (e EmbeddingUpdate) Validate() error {
+	if strings.TrimSpace(e.ItemID) == "" {
 		return errors.New("agentmemory: embedding item id is required")
 	}
-	if strings.TrimSpace(update.ContentDigest) == "" {
+	if strings.TrimSpace(e.ContentDigest) == "" {
 		return errors.New("agentmemory: embedding content digest is required")
 	}
-	return validateEmbedding(update.Space, update.Vector)
+	return validateEmbedding(e.Space, e.Vector)
 }
 
 func validateEmbedding(space string, vector []float32) error {
@@ -350,49 +350,49 @@ func newItem(id string, scope Scope, project, content string, origin Origin, sta
 
 // Validate protects the identity, partition, provenance, lifecycle, and time
 // invariants of one durable memory item.
-func (item Item) Validate() error {
-	if strings.TrimSpace(item.ID) == "" {
+func (i Item) Validate() error {
+	if strings.TrimSpace(i.ID) == "" {
 		return errors.New("agentmemory: item id is required")
 	}
-	if err := item.Scope.Validate(); err != nil {
+	if err := i.Scope.Validate(); err != nil {
 		return err
 	}
-	switch item.Scope {
+	switch i.Scope {
 	case ScopeProject:
-		if strings.TrimSpace(item.Project) == "" {
+		if strings.TrimSpace(i.Project) == "" {
 			return errors.New("agentmemory: project scope requires a project")
 		}
 	case ScopeUser:
-		if item.Project != "" {
+		if i.Project != "" {
 			return errors.New("agentmemory: user scope forbids a project")
 		}
 	}
-	content, err := NormalizeContent(item.Content)
+	content, err := NormalizeContent(i.Content)
 	if err != nil {
 		return err
 	}
-	if content != item.Content {
+	if content != i.Content {
 		return errors.New("agentmemory: item content is not canonical")
 	}
-	if err := item.Origin.Validate(); err != nil {
+	if err := i.Origin.Validate(); err != nil {
 		return err
 	}
-	if err := item.Status.Validate(); err != nil {
+	if err := i.Status.Validate(); err != nil {
 		return err
 	}
-	if item.Origin == OriginUser && item.Status != StatusActive {
+	if i.Origin == OriginUser && i.Status != StatusActive {
 		return errors.New("agentmemory: user-authored item must be active")
 	}
-	if item.CreatedAt.IsZero() || item.UpdatedAt.IsZero() {
+	if i.CreatedAt.IsZero() || i.UpdatedAt.IsZero() {
 		return errors.New("agentmemory: item timestamps are required")
 	}
-	if item.UpdatedAt.Before(item.CreatedAt) {
+	if i.UpdatedAt.Before(i.CreatedAt) {
 		return errors.New("agentmemory: item update precedes creation")
 	}
-	if item.EmbeddingSpace == "" && len(item.Embedding) == 0 {
+	if i.EmbeddingSpace == "" && len(i.Embedding) == 0 {
 		return nil
 	}
-	if err := validateEmbedding(item.EmbeddingSpace, item.Embedding); err != nil {
+	if err := validateEmbedding(i.EmbeddingSpace, i.Embedding); err != nil {
 		return fmt.Errorf("agentmemory: item embedding: %w", err)
 	}
 	return nil
@@ -410,27 +410,27 @@ type FactBatch struct {
 // Normalize validates the batch identity and canonicalizes already-parsed facts
 // into a unique, trimmed plain-text list while preserving first-seen order.
 // Parsing and rendering a model's Markdown response belong to the caller.
-func (b FactBatch) Normalize() (FactBatch, error) {
-	b.Project = strings.TrimSpace(b.Project)
-	b.SessionID = strings.TrimSpace(b.SessionID)
-	if b.Project == "" {
+func (f FactBatch) Normalize() (FactBatch, error) {
+	f.Project = strings.TrimSpace(f.Project)
+	f.SessionID = strings.TrimSpace(f.SessionID)
+	if f.Project == "" {
 		return FactBatch{}, errors.New("agentmemory: fact batch project is required")
 	}
-	if b.SessionID == "" {
+	if f.SessionID == "" {
 		return FactBatch{}, errors.New("agentmemory: fact batch session is required")
 	}
-	day, err := time.Parse(time.DateOnly, b.Day)
-	if err != nil || day.Format(time.DateOnly) != b.Day {
-		return FactBatch{}, fmt.Errorf("agentmemory: invalid ledger day %q", b.Day)
+	day, err := time.Parse(time.DateOnly, f.Day)
+	if err != nil || day.Format(time.DateOnly) != f.Day {
+		return FactBatch{}, fmt.Errorf("agentmemory: invalid ledger day %q", f.Day)
 	}
-	if b.CapturedAt.IsZero() {
+	if f.CapturedAt.IsZero() {
 		return FactBatch{}, errors.New("agentmemory: fact batch capture time is required")
 	}
-	b.Facts, err = normalizeFactList(b.Facts, MaxFactsPerBatch, "fact batch")
+	f.Facts, err = normalizeFactList(f.Facts, MaxFactsPerBatch, "fact batch")
 	if err != nil {
 		return FactBatch{}, err
 	}
-	return b, nil
+	return f, nil
 }
 
 // LedgerFact is one immutable fact in a project's daily ledger. Sequence is the
@@ -444,22 +444,22 @@ type LedgerFact struct {
 
 // Validate protects one ledger fact read back from durable storage before it
 // can enter the curation prompt.
-func (fact LedgerFact) Validate() error {
-	if fact.Sequence <= 0 {
+func (l LedgerFact) Validate() error {
+	if l.Sequence <= 0 {
 		return errors.New("agentmemory: ledger fact sequence must be positive")
 	}
-	day, err := time.Parse(time.DateOnly, fact.Day)
-	if err != nil || day.Format(time.DateOnly) != fact.Day {
-		return fmt.Errorf("agentmemory: invalid ledger day %q", fact.Day)
+	day, err := time.Parse(time.DateOnly, l.Day)
+	if err != nil || day.Format(time.DateOnly) != l.Day {
+		return fmt.Errorf("agentmemory: invalid ledger day %q", l.Day)
 	}
-	content, err := NormalizeContent(fact.Content)
+	content, err := NormalizeContent(l.Content)
 	if err != nil {
 		return fmt.Errorf("agentmemory: ledger fact content: %w", err)
 	}
-	if content != fact.Content {
+	if content != l.Content {
 		return errors.New("agentmemory: ledger fact content is not canonical")
 	}
-	if fact.CapturedAt.IsZero() {
+	if l.CapturedAt.IsZero() {
 		return errors.New("agentmemory: ledger fact capture time is required")
 	}
 	return nil

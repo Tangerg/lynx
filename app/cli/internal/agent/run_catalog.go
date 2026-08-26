@@ -18,12 +18,12 @@ type RunQuery struct {
 	Limit              int
 }
 
-func (query RunQuery) Validate() error {
-	if query.Limit < 0 {
+func (r RunQuery) Validate() error {
+	if r.Limit < 0 {
 		return errors.New("run query: limit cannot be negative")
 	}
-	seen := make(map[RunStatus]struct{}, len(query.Statuses))
-	for _, status := range query.Statuses {
+	seen := make(map[RunStatus]struct{}, len(r.Statuses))
+	for _, status := range r.Statuses {
 		if !slices.Contains([]RunStatus{RunStatusRunning, RunStatusWaiting, RunStatusFinished}, status) {
 			return fmt.Errorf("run query: status %q is invalid", status)
 		}
@@ -40,9 +40,9 @@ type RunPage struct {
 	NextCursor string
 }
 
-func (page RunPage) Validate() error {
-	seen := make(map[string]struct{}, len(page.Items))
-	for index, run := range page.Items {
+func (r RunPage) Validate() error {
+	seen := make(map[string]struct{}, len(r.Items))
+	for index, run := range r.Items {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("run page item %d: %w", index+1, err)
 		}
@@ -63,28 +63,28 @@ type RunCancellation struct {
 	Root     Run
 }
 
-func (result RunCancellation) Validate() error {
+func (r RunCancellation) Validate() error {
 	var problems []error
-	if err := result.Canceled.Validate(); err != nil {
+	if err := r.Canceled.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("canceled: %w", err))
 	}
-	if err := result.Root.Validate(); err != nil {
+	if err := r.Root.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("root: %w", err))
 	}
-	if result.Canceled.Status != RunStatusFinished || result.Canceled.Outcome.Status != OutcomeCanceled {
+	if r.Canceled.Status != RunStatusFinished || r.Canceled.Outcome.Status != OutcomeCanceled {
 		problems = append(problems, errors.New("addressed run is not finished as canceled"))
 	}
-	if !result.Root.Lineage.IsRoot() {
+	if !r.Root.Lineage.IsRoot() {
 		problems = append(problems, errors.New("root projection is a child run"))
 	}
-	if result.Canceled.SessionID != result.Root.SessionID {
+	if r.Canceled.SessionID != r.Root.SessionID {
 		problems = append(problems, errors.New("canceled run and root belong to different sessions"))
 	}
-	if result.Canceled.Lineage.IsRoot() {
-		if !result.Canceled.Equal(result.Root) {
+	if r.Canceled.Lineage.IsRoot() {
+		if !r.Canceled.Equal(r.Root) {
 			problems = append(problems, errors.New("root cancellation carries two different root projections"))
 		}
-	} else if result.Canceled.Lineage.RootRunID != result.Root.ID {
+	} else if r.Canceled.Lineage.RootRunID != r.Root.ID {
 		problems = append(problems, errors.New("canceled child does not belong to the returned root"))
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -93,15 +93,15 @@ func (result RunCancellation) Validate() error {
 	return nil
 }
 
-func (result RunCancellation) ValidateTarget(runID string) error {
-	if err := result.Validate(); err != nil {
+func (r RunCancellation) ValidateTarget(runID string) error {
+	if err := r.Validate(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(runID) == "" {
 		return errors.New("run cancellation: target run id is empty")
 	}
-	if result.Canceled.ID != runID {
-		return fmt.Errorf("run cancellation: returned run %q, want %q", result.Canceled.ID, runID)
+	if r.Canceled.ID != runID {
+		return fmt.Errorf("run cancellation: returned run %q, want %q", r.Canceled.ID, runID)
 	}
 	return nil
 }

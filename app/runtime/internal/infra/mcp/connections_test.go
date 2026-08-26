@@ -60,8 +60,8 @@ func TestReusableOAuthIsBoundToEndpointOrigin(t *testing.T) {
 	}
 }
 
-func (t catalogTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: string(t), InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (c catalogTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: string(c), InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
 func (catalogTool) Call(context.Context, string) (string, error) { return "", nil }

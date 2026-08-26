@@ -23,59 +23,59 @@ type RunEvent struct {
 // StreamSegment returns the root segment whose journal owns this event. A
 // root-only producer may omit StreamSegmentID because its producer segment is
 // also the stream segment; tree adapters set it explicitly for every event.
-func (e RunEvent) StreamSegment() string {
-	if e.StreamSegmentID != "" {
-		return e.StreamSegmentID
+func (r RunEvent) StreamSegment() string {
+	if r.StreamSegmentID != "" {
+		return r.StreamSegmentID
 	}
-	return e.SegmentID
+	return r.SegmentID
 }
 
 // Validate enforces the CLI-owned event envelope and payload identity without
 // depending on the conversation aggregate that later folds the event.
-func (e RunEvent) Validate() error {
+func (r RunEvent) Validate() error {
 	switch {
-	case strings.TrimSpace(e.EventID) == "":
+	case strings.TrimSpace(r.EventID) == "":
 		return errors.New("run event id is empty")
-	case strings.TrimSpace(e.RunID) == "":
+	case strings.TrimSpace(r.RunID) == "":
 		return errors.New("run event run id is empty")
-	case strings.TrimSpace(e.SegmentID) == "":
+	case strings.TrimSpace(r.SegmentID) == "":
 		return errors.New("run event segment id is empty")
-	case strings.TrimSpace(e.StreamSegment()) == "":
+	case strings.TrimSpace(r.StreamSegment()) == "":
 		return errors.New("run event stream segment id is empty")
-	case e.Event == nil:
+	case r.Event == nil:
 		return errors.New("run event payload is nil")
 	}
-	if err := ValidateEvent(e.Event); err != nil {
+	if err := ValidateEvent(r.Event); err != nil {
 		return fmt.Errorf("run event payload: %w", err)
 	}
-	switch event := e.Event.(type) {
+	switch event := r.Event.(type) {
 	case SegmentStarted:
-		if event.Run.ID != e.RunID || event.Run.ActiveSegmentID != e.SegmentID {
+		if event.Run.ID != r.RunID || event.Run.ActiveSegmentID != r.SegmentID {
 			return errors.New("run event segment-start identity does not match its envelope")
 		}
 	case BlockStarted:
-		if event.Block.RunID != e.RunID {
-			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, e.RunID)
+		if event.Block.RunID != r.RunID {
+			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, r.RunID)
 		}
 	case BlockCompleted:
-		if event.Block.RunID != e.RunID {
-			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, e.RunID)
+		if event.Block.RunID != r.RunID {
+			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, r.RunID)
 		}
 	}
 	return nil
 }
 
-func (e RunEvent) Clone() RunEvent {
-	e.Event = CloneEvent(e.Event)
-	return e
+func (r RunEvent) Clone() RunEvent {
+	r.Event = CloneEvent(r.Event)
+	return r
 }
 
 // Equal reports whether two envelopes contain the same durable event fact.
 // Timestamp equality is based on the instant, not time.Location pointer or a
 // process-local monotonic reading that cannot survive persistence.
-func (e RunEvent) Equal(other RunEvent) bool {
-	return e.EventID == other.EventID && e.RunID == other.RunID && e.SegmentID == other.SegmentID &&
-		e.StreamSegment() == other.StreamSegment() && e.At.Equal(other.At) && equalEvent(e.Event, other.Event)
+func (r RunEvent) Equal(other RunEvent) bool {
+	return r.EventID == other.EventID && r.RunID == other.RunID && r.SegmentID == other.SegmentID &&
+		r.StreamSegment() == other.StreamSegment() && r.At.Equal(other.At) && equalEvent(r.Event, other.Event)
 }
 
 type Event interface{ isEvent() }

@@ -209,14 +209,14 @@ func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ confi
 	return instance, settings, nil
 }
 
-func (cfg InstanceConfig) validate() error {
+func (i InstanceConfig) validate() error {
 	for _, path := range []struct {
 		name  string
 		value string
 	}{
-		{name: "user home", value: cfg.UserHome},
-		{name: "default workspace path", value: cfg.DefaultWorkspacePath},
-		{name: "data directory", value: cfg.DataDirectory},
+		{name: "user home", value: i.UserHome},
+		{name: "default workspace path", value: i.DefaultWorkspacePath},
+		{name: "data directory", value: i.DataDirectory},
 	} {
 		if path.value == "" {
 			return fmt.Errorf("runtime: %s is required", path.name)
@@ -225,10 +225,10 @@ func (cfg InstanceConfig) validate() error {
 			return fmt.Errorf("runtime: %s must be absolute", path.name)
 		}
 	}
-	if len(cfg.ConfigDirectories) == 0 {
+	if len(i.ConfigDirectories) == 0 {
 		return errors.New("runtime: at least one config directory is required")
 	}
-	for _, directory := range cfg.ConfigDirectories {
+	for _, directory := range i.ConfigDirectories {
 		if directory == "" || !filepath.IsAbs(directory) {
 			return errors.New("runtime: config directories must be non-empty absolute paths")
 		}

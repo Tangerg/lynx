@@ -18,23 +18,23 @@ type interactionSummaryPane struct {
 	form     *kit.Form
 }
 
-func (p *interactionSummaryPane) Draw(frame headless.Frame) {
+func (i *interactionSummaryPane) Draw(frame headless.Frame) {
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Flex(1)},
-		{Size: layout.Fixed(min(p.form.Measure(frame.Bounds().Dx()), 7))},
+		{Size: layout.Fixed(min(i.form.Measure(frame.Bounds().Dx()), 7))},
 	}))
-	p.viewport.Draw(rows[0])
-	p.form.Draw(rows[1])
+	i.viewport.Draw(rows[0])
+	i.form.Draw(rows[1])
 }
 
-func (p *interactionSummaryPane) Handle(event input.Event) bool {
-	if p.form.Handle(event) {
+func (i *interactionSummaryPane) Handle(event input.Event) bool {
+	if i.form.Handle(event) {
 		return true
 	}
-	return p.viewport.Handle(event)
+	return i.viewport.Handle(event)
 }
 
-func (p *interactionSummaryPane) Focus(has bool) { p.form.Focus(has) }
+func (i *interactionSummaryPane) Focus(has bool) { i.form.Focus(has) }
 
 func (a *app) openInteractionSummary() {
 	review := a.interactionReview

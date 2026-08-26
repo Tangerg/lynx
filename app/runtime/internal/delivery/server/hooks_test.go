@@ -74,14 +74,14 @@ func TestSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 
 type failingHookInspector struct{ err error }
 
-func (i failingHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
-	return apphooks.Inspection{}, i.err
+func (f failingHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
+	return apphooks.Inspection{}, f.err
 }
 
 type staticHookInspector struct{ inspection apphooks.Inspection }
 
-func (i staticHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
-	return i.inspection, nil
+func (s staticHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
+	return s.inspection, nil
 }
 
 func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {

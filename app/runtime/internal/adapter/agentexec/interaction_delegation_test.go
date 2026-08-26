@@ -18,8 +18,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 func TestDelegateSubtreeBudgetReservesEveryRemainingProcessLevel(t *testing.T) {
@@ -356,9 +356,9 @@ func newOrderedSiblingDelegateModel() *orderedSiblingDelegateModel {
 	}
 }
 
-func (model *orderedSiblingDelegateModel) DefaultOptions() chat.Options { return *model.defaults }
+func (o *orderedSiblingDelegateModel) DefaultOptions() chat.Options { return *o.defaults }
 
-func (model *orderedSiblingDelegateModel) Call(
+func (o *orderedSiblingDelegateModel) Call(
 	ctx context.Context,
 	request *chat.Request,
 ) (*chat.Response, error) {
@@ -367,13 +367,13 @@ func (model *orderedSiblingDelegateModel) Call(
 		return interactionUsageTextResponse("root: siblings done", 2, 1), nil
 	case userMessagesContain(request.Messages, "sibling A"):
 		select {
-		case <-model.bReturned:
+		case <-o.bReturned:
 			return interactionUsageTextResponse("child: sibling A", 2, 1), nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	case userMessagesContain(request.Messages, "sibling B"):
-		model.bOnce.Do(func() { close(model.bReturned) })
+		o.bOnce.Do(func() { close(o.bReturned) })
 		return interactionUsageTextResponse("child: sibling B", 2, 1), nil
 	case userMessagesContain(request.Messages, "run siblings"):
 		return interactionToolBatchResponse([]chat.ToolCall{
@@ -385,11 +385,11 @@ func (model *orderedSiblingDelegateModel) Call(
 	}
 }
 
-func (model *orderedSiblingDelegateModel) Stream(
+func (o *orderedSiblingDelegateModel) Stream(
 	ctx context.Context,
 	request *chat.Request,
 ) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+	response, err := o.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
@@ -505,9 +505,9 @@ func runDelegateTree(
 	return delegateTreeResult{events: events, openings: openings}
 }
 
-func (result delegateTreeResult) rootRunID(t *testing.T) string {
+func (d delegateTreeResult) rootRunID(t *testing.T) string {
 	t.Helper()
-	for _, opening := range result.openings {
+	for _, opening := range d.openings {
 		if opening.Admit != nil && opening.Admit.ParentRunID == "" {
 			return opening.Admit.RunID
 		}
@@ -516,10 +516,10 @@ func (result delegateTreeResult) rootRunID(t *testing.T) string {
 	return ""
 }
 
-func (result delegateTreeResult) assertAllRunsCompleted(t *testing.T) {
+func (d delegateTreeResult) assertAllRunsCompleted(t *testing.T) {
 	t.Helper()
-	completed := make(map[string]int, len(result.openings))
-	for _, event := range result.events {
+	completed := make(map[string]int, len(d.openings))
+	for _, event := range d.events {
 		finished, ok := event.Payload.(runs.SegmentFinished)
 		if !ok {
 			continue
@@ -532,8 +532,8 @@ func (result delegateTreeResult) assertAllRunsCompleted(t *testing.T) {
 		}
 		completed[finished.Run.ID()]++
 	}
-	if len(completed) != len(result.openings) {
-		t.Fatalf("completed Runs = %v, openings = %d", completed, len(result.openings))
+	if len(completed) != len(d.openings) {
+		t.Fatalf("completed Runs = %v, openings = %d", completed, len(d.openings))
 	}
 	for runID, count := range completed {
 		if count != 1 {

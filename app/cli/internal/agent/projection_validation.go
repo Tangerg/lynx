@@ -65,11 +65,11 @@ func (r Run) Validate() error {
 	return nil
 }
 
-func (contract RunContract) validate() error {
-	if err := validateRunContractSet("required feature", contract.RequiredFeatures, []RunFeature{RunFeatureSubagents}); err != nil {
+func (r RunContract) validate() error {
+	if err := validateRunContractSet("required feature", r.RequiredFeatures, []RunFeature{RunFeatureSubagents}); err != nil {
 		return err
 	}
-	return validateRunContractSet("interaction kind", contract.InteractionKinds, []InteractionKind{
+	return validateRunContractSet("interaction kind", r.InteractionKinds, []InteractionKind{
 		InteractionApproval, InteractionQuestion,
 	})
 }
@@ -88,8 +88,8 @@ func validateRunContractSet[T comparable](label string, values, supported []T) e
 	return nil
 }
 
-func (lineage RunLineage) validate(runID string) error {
-	values := []string{lineage.SpawnedByBlockID, lineage.ParentRunID, lineage.RootRunID}
+func (r RunLineage) validate(runID string) error {
+	values := []string{r.SpawnedByBlockID, r.ParentRunID, r.RootRunID}
 	present := 0
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -101,24 +101,24 @@ func (lineage RunLineage) validate(runID string) error {
 		return nil
 	case present != len(values):
 		return errors.New("run lineage must provide spawn block, parent, and root together")
-	case lineage.ParentRunID == runID:
+	case r.ParentRunID == runID:
 		return errors.New("run lineage names itself as parent")
-	case lineage.RootRunID == runID:
+	case r.RootRunID == runID:
 		return errors.New("run lineage names itself as root")
 	default:
 		return nil
 	}
 }
 
-func (o RunOptions) Validate() error {
+func (r RunOptions) Validate() error {
 	var problems []error
-	if (strings.TrimSpace(o.Provider) == "") != (strings.TrimSpace(o.Model) == "") {
+	if (strings.TrimSpace(r.Provider) == "") != (strings.TrimSpace(r.Model) == "") {
 		problems = append(problems, errors.New("provider and model must be selected together"))
 	}
-	if err := o.Limits.Validate(); err != nil {
+	if err := r.Limits.Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	if err := o.Generation.Validate(); err != nil {
+	if err := r.Generation.Validate(); err != nil {
 		problems = append(problems, err)
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -127,24 +127,24 @@ func (o RunOptions) Validate() error {
 	return nil
 }
 
-func (l RunLimits) Validate() error {
-	if l.MaxTotalTokens < 0 || l.MaxSteps < 0 || l.MaxBudgetUSD < 0 || math.IsNaN(l.MaxBudgetUSD) || math.IsInf(l.MaxBudgetUSD, 0) {
+func (r RunLimits) Validate() error {
+	if r.MaxTotalTokens < 0 || r.MaxSteps < 0 || r.MaxBudgetUSD < 0 || math.IsNaN(r.MaxBudgetUSD) || math.IsInf(r.MaxBudgetUSD, 0) {
 		return errors.New("run limits must be finite and non-negative")
 	}
 	return nil
 }
 
-func (p GenerationParams) Validate() error {
-	if p.Temperature != nil && (math.IsNaN(*p.Temperature) || math.IsInf(*p.Temperature, 0) || *p.Temperature < 0 || *p.Temperature > 2) {
+func (g GenerationParams) Validate() error {
+	if g.Temperature != nil && (math.IsNaN(*g.Temperature) || math.IsInf(*g.Temperature, 0) || *g.Temperature < 0 || *g.Temperature > 2) {
 		return errors.New("generation temperature must be between 0 and 2")
 	}
-	if p.TopP != nil && (math.IsNaN(*p.TopP) || math.IsInf(*p.TopP, 0) || *p.TopP < 0 || *p.TopP > 1) {
+	if g.TopP != nil && (math.IsNaN(*g.TopP) || math.IsInf(*g.TopP, 0) || *g.TopP < 0 || *g.TopP > 1) {
 		return errors.New("generation top-p must be between 0 and 1")
 	}
-	if p.MaxTokens != nil && *p.MaxTokens <= 0 {
+	if g.MaxTokens != nil && *g.MaxTokens <= 0 {
 		return errors.New("generation max tokens must be positive")
 	}
-	for i, stop := range p.Stop {
+	for i, stop := range g.Stop {
 		if stop == "" {
 			return fmt.Errorf("generation stop sequence %d is empty", i+1)
 		}
@@ -286,86 +286,86 @@ func ValidateEvent(event Event) error {
 	}
 }
 
-func (block Block) validateLifecycle(completed bool) error {
-	if err := block.validateEnvelope(completed); err != nil {
+func (b Block) validateLifecycle(completed bool) error {
+	if err := b.validateEnvelope(completed); err != nil {
 		return err
 	}
-	if err := block.validateAttachments(); err != nil {
+	if err := b.validateAttachments(); err != nil {
 		return err
 	}
-	return block.validateProjection()
+	return b.validateProjection()
 }
 
-func (block Block) validateEnvelope(completed bool) error {
-	if strings.TrimSpace(block.ID) == "" {
+func (b Block) validateEnvelope(completed bool) error {
+	if strings.TrimSpace(b.ID) == "" {
 		return errors.New("transcript block has no id")
 	}
-	if strings.TrimSpace(block.RunID) == "" {
-		return fmt.Errorf("transcript block %s has no run id", block.ID)
+	if strings.TrimSpace(b.RunID) == "" {
+		return fmt.Errorf("transcript block %s has no run id", b.ID)
 	}
-	if !slices.Contains([]BlockStatus{BlockStatusRunning, BlockStatusCompleted, BlockStatusIncomplete}, block.Status) {
-		return fmt.Errorf("block %s has invalid status %q", block.ID, block.Status)
+	if !slices.Contains([]BlockStatus{BlockStatusRunning, BlockStatusCompleted, BlockStatusIncomplete}, b.Status) {
+		return fmt.Errorf("block %s has invalid status %q", b.ID, b.Status)
 	}
-	if completed == (block.Status == BlockStatusRunning) {
-		return fmt.Errorf("block %s status %q disagrees with its event lifecycle", block.ID, block.Status)
+	if completed == (b.Status == BlockStatusRunning) {
+		return fmt.Errorf("block %s status %q disagrees with its event lifecycle", b.ID, b.Status)
 	}
-	if !slices.Contains([]BlockKind{BlockUser, BlockAssistant, BlockReasoning, BlockQuestion, BlockTool, BlockNotice, BlockError}, block.Kind) {
-		return fmt.Errorf("block %s has invalid kind %q", block.ID, block.Kind)
+	if !slices.Contains([]BlockKind{BlockUser, BlockAssistant, BlockReasoning, BlockQuestion, BlockTool, BlockNotice, BlockError}, b.Kind) {
+		return fmt.Errorf("block %s has invalid kind %q", b.ID, b.Kind)
 	}
-	if block.Status == BlockStatusRunning && !slices.Contains([]BlockKind{BlockAssistant, BlockReasoning, BlockTool}, block.Kind) {
-		return fmt.Errorf("%s block %s cannot be running", block.Kind, block.ID)
+	if b.Status == BlockStatusRunning && !slices.Contains([]BlockKind{BlockAssistant, BlockReasoning, BlockTool}, b.Kind) {
+		return fmt.Errorf("%s block %s cannot be running", b.Kind, b.ID)
 	}
-	wholeOnly := slices.Contains([]BlockKind{BlockUser, BlockQuestion, BlockNotice}, block.Kind)
-	if wholeOnly && block.Status != BlockStatusCompleted {
-		return fmt.Errorf("%s block %s must be completed", block.Kind, block.ID)
+	wholeOnly := slices.Contains([]BlockKind{BlockUser, BlockQuestion, BlockNotice}, b.Kind)
+	if wholeOnly && b.Status != BlockStatusCompleted {
+		return fmt.Errorf("%s block %s must be completed", b.Kind, b.ID)
 	}
-	if block.Kind != BlockUser && len(block.Attachments) != 0 {
-		return fmt.Errorf("%s block %s carries attachments", block.Kind, block.ID)
+	if b.Kind != BlockUser && len(b.Attachments) != 0 {
+		return fmt.Errorf("%s block %s carries attachments", b.Kind, b.ID)
 	}
-	if block.Kind != BlockAssistant && len(block.Images) != 0 {
-		return fmt.Errorf("%s block %s carries inline images", block.Kind, block.ID)
+	if b.Kind != BlockAssistant && len(b.Images) != 0 {
+		return fmt.Errorf("%s block %s carries inline images", b.Kind, b.ID)
 	}
-	if block.Kind == BlockTool && !block.CreatedAt.IsZero() {
-		return fmt.Errorf("tool block %s carries a message creation time", block.ID)
+	if b.Kind == BlockTool && !b.CreatedAt.IsZero() {
+		return fmt.Errorf("tool block %s carries a message creation time", b.ID)
 	}
-	if block.Kind != BlockReasoning && block.Redacted {
-		return fmt.Errorf("%s block %s is marked as redacted reasoning", block.Kind, block.ID)
+	if b.Kind != BlockReasoning && b.Redacted {
+		return fmt.Errorf("%s block %s is marked as redacted reasoning", b.Kind, b.ID)
 	}
-	if block.DroppedMessages < 0 {
-		return fmt.Errorf("block %s has a negative dropped-message count", block.ID)
+	if b.DroppedMessages < 0 {
+		return fmt.Errorf("block %s has a negative dropped-message count", b.ID)
 	}
-	if block.Kind != BlockNotice && block.DroppedMessages != 0 {
-		return fmt.Errorf("%s block %s carries a dropped-message count", block.Kind, block.ID)
+	if b.Kind != BlockNotice && b.DroppedMessages != 0 {
+		return fmt.Errorf("%s block %s carries a dropped-message count", b.Kind, b.ID)
 	}
 	return nil
 }
 
-func (block Block) validateAttachments() error {
-	for i, attachment := range block.Attachments {
+func (b Block) validateAttachments() error {
+	for i, attachment := range b.Attachments {
 		if err := attachment.Validate(); err != nil {
-			return fmt.Errorf("block %s attachment %d: %w", block.ID, i+1, err)
+			return fmt.Errorf("block %s attachment %d: %w", b.ID, i+1, err)
 		}
 	}
-	for i, image := range block.Images {
+	for i, image := range b.Images {
 		if err := image.Validate(); err != nil {
-			return fmt.Errorf("block %s inline image %d: %w", block.ID, i+1, err)
+			return fmt.Errorf("block %s inline image %d: %w", b.ID, i+1, err)
 		}
 	}
 	return nil
 }
 
-func (image InlineImage) Validate() error {
+func (i InlineImage) Validate() error {
 	var problems []error
-	if strings.TrimSpace(image.ID) == "" {
+	if strings.TrimSpace(i.ID) == "" {
 		problems = append(problems, errors.New("id is empty"))
 	}
-	if strings.TrimSpace(image.Name) == "" {
+	if strings.TrimSpace(i.Name) == "" {
 		problems = append(problems, errors.New("name is empty"))
 	}
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(image.MIMEType)), "image/") {
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(i.MIMEType)), "image/") {
 		problems = append(problems, errors.New("MIME type is not an image"))
 	}
-	if len(image.Data) == 0 {
+	if len(i.Data) == 0 {
 		problems = append(problems, errors.New("data is empty"))
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -374,52 +374,52 @@ func (image InlineImage) Validate() error {
 	return nil
 }
 
-func (block Block) validateProjection() error {
-	switch block.Kind {
+func (b Block) validateProjection() error {
+	switch b.Kind {
 	case BlockQuestion:
-		return block.validateQuestionProjection()
+		return b.validateQuestionProjection()
 	case BlockTool:
-		return block.validateToolProjection()
+		return b.validateToolProjection()
 	default:
-		if block.Question != nil {
-			return fmt.Errorf("%s block %s carries a question projection", block.Kind, block.ID)
+		if b.Question != nil {
+			return fmt.Errorf("%s block %s carries a question projection", b.Kind, b.ID)
 		}
-		if block.Tool != nil {
-			return fmt.Errorf("%s block %s carries a tool projection", block.Kind, block.ID)
+		if b.Tool != nil {
+			return fmt.Errorf("%s block %s carries a tool projection", b.Kind, b.ID)
 		}
 	}
 	return nil
 }
 
-func (block Block) validateQuestionProjection() error {
-	if block.Question == nil {
-		return fmt.Errorf("question block %s has no question projection", block.ID)
+func (b Block) validateQuestionProjection() error {
+	if b.Question == nil {
+		return fmt.Errorf("question block %s has no question projection", b.ID)
 	}
-	if block.Question.ItemID != block.ID {
-		return fmt.Errorf("question block %s carries item id %s", block.ID, block.Question.ItemID)
+	if b.Question.ItemID != b.ID {
+		return fmt.Errorf("question block %s carries item id %s", b.ID, b.Question.ItemID)
 	}
-	if err := block.Question.Validate(); err != nil {
-		return fmt.Errorf("block %s: %w", block.ID, err)
-	}
-	return nil
-}
-
-func (block Block) validateToolProjection() error {
-	if block.Tool == nil {
-		return fmt.Errorf("tool block %s has no tool projection", block.ID)
-	}
-	if err := block.Tool.Validate(); err != nil {
-		return fmt.Errorf("block %s: %w", block.ID, err)
-	}
-	want := block.Tool.Status.blockStatus()
-	if block.Status != want {
-		return fmt.Errorf("block %s is %s while its tool is %s", block.ID, block.Status, block.Tool.Status)
+	if err := b.Question.Validate(); err != nil {
+		return fmt.Errorf("block %s: %w", b.ID, err)
 	}
 	return nil
 }
 
-func (status ToolStatus) blockStatus() BlockStatus {
-	switch status {
+func (b Block) validateToolProjection() error {
+	if b.Tool == nil {
+		return fmt.Errorf("tool block %s has no tool projection", b.ID)
+	}
+	if err := b.Tool.Validate(); err != nil {
+		return fmt.Errorf("block %s: %w", b.ID, err)
+	}
+	want := b.Tool.Status.blockStatus()
+	if b.Status != want {
+		return fmt.Errorf("block %s is %s while its tool is %s", b.ID, b.Status, b.Tool.Status)
+	}
+	return nil
+}
+
+func (t ToolStatus) blockStatus() BlockStatus {
+	switch t {
 	case ToolRunning:
 		return BlockStatusRunning
 	case ToolOK:

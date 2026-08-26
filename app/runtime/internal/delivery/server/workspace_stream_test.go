@@ -25,9 +25,9 @@ func allTopics() map[protocol.RuntimeTopic]bool {
 
 // subscribe registers a test consumer for every topic — a hub test is about the
 // fan-out, not about what one subscription asked for.
-func (h *workspaceHub) subscribe() (<-chan protocol.RuntimeEvent, func()) {
+func (w *workspaceHub) subscribe() (<-chan protocol.RuntimeEvent, func()) {
 	ch := make(chan protocol.RuntimeEvent, 64)
-	_, unregister, ok := h.register(ch, allTopics(), nil)
+	_, unregister, ok := w.register(ch, allTopics(), nil)
 	if !ok {
 		close(ch)
 		return ch, func() {}

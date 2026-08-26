@@ -147,34 +147,34 @@ type occurrenceBatch struct {
 	invalidations invalidation.Publish
 }
 
-func (batch *occurrenceBatch) remaining() int { return workerBatchSize - batch.dispatched }
+func (o *occurrenceBatch) remaining() int { return workerBatchSize - o.dispatched }
 
-func (batch *occurrenceBatch) full() bool { return batch.remaining() == 0 }
+func (o *occurrenceBatch) full() bool { return o.remaining() == 0 }
 
-func (batch *occurrenceBatch) dispatchAll(occurrences []schedule.Occurrence) bool {
+func (o *occurrenceBatch) dispatchAll(occurrences []schedule.Occurrence) bool {
 	for _, occurrence := range occurrences {
-		if batch.full() || !batch.dispatch(occurrence) {
+		if o.full() || !o.dispatch(occurrence) {
 			return false
 		}
 	}
 	return true
 }
 
-func (batch *occurrenceBatch) dispatch(occurrence schedule.Occurrence) bool {
-	if batch.ctx.Err() != nil {
+func (o *occurrenceBatch) dispatch(occurrence schedule.Occurrence) bool {
+	if o.ctx.Err() != nil {
 		return false
 	}
-	batch.dispatched++
-	_, err := Fire(batch.ctx, batch.runStarter, occurrence)
+	o.dispatched++
+	_, err := Fire(o.ctx, o.runStarter, occurrence)
 	if err == nil {
-		batch.invalidations.Notify(invalidation.ForSchedules(occurrence.Schedule.ID))
+		o.invalidations.Notify(invalidation.ForSchedules(occurrence.Schedule.ID))
 	}
-	if err != nil && batch.ctx.Err() != nil && errors.Is(err, batch.ctx.Err()) {
+	if err != nil && o.ctx.Err() != nil && errors.Is(err, o.ctx.Err()) {
 		return false
 	}
 	if err != nil {
 		recordWorkerError(
-			batch.ctx,
+			o.ctx,
 			"run start failed",
 			fmt.Errorf("schedule %s: %w", occurrence.Schedule.ID, err),
 		)

@@ -16,48 +16,48 @@ type stagedExecutionHandoff struct {
 	owned     bool
 }
 
-func (lifecycle *segmentLifecycle) ownStagedExecution(ref ExecutorRef) *stagedExecutionHandoff {
-	return &stagedExecutionHandoff{lifecycle: lifecycle, ref: ref, owned: true}
+func (s *segmentLifecycle) ownStagedExecution(ref ExecutorRef) *stagedExecutionHandoff {
+	return &stagedExecutionHandoff{lifecycle: s, ref: ref, owned: true}
 }
 
-func (handoff *stagedExecutionHandoff) validateFor(sessionID string) error {
-	return handoff.ref.ValidateFor(sessionID)
+func (s *stagedExecutionHandoff) validateFor(sessionID string) error {
+	return s.ref.ValidateFor(sessionID)
 }
 
-func (handoff *stagedExecutionHandoff) transfer() ExecutorRef {
-	if !handoff.owned {
+func (s *stagedExecutionHandoff) transfer() ExecutorRef {
+	if !s.owned {
 		panic("runs: staged execution ownership transferred more than once")
 	}
-	handoff.owned = false
-	return handoff.ref
+	s.owned = false
+	return s.ref
 }
 
-func (handoff *stagedExecutionHandoff) abandon(
+func (s *stagedExecutionHandoff) abandon(
 	ctx context.Context,
 	cause error,
 	description string,
 ) error {
-	if handoff == nil || !handoff.owned {
+	if s == nil || !s.owned {
 		return cause
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	return handoff.abandonWithin(cleanupCtx, cause, description)
+	return s.abandonWithin(cleanupCtx, cause, description)
 }
 
-func (handoff *stagedExecutionHandoff) abandonWithin(
+func (s *stagedExecutionHandoff) abandonWithin(
 	ctx context.Context,
 	cause error,
 	description string,
 ) error {
-	if handoff == nil || !handoff.owned {
+	if s == nil || !s.owned {
 		return cause
 	}
-	handoff.owned = false
-	if err := handoff.lifecycle.release(ctx, handoff.ref); err != nil {
+	s.owned = false
+	if err := s.lifecycle.release(ctx, s.ref); err != nil {
 		return errors.Join(
 			cause,
-			fmt.Errorf("runs: release %s %q: %w", description, handoff.ref.ExecutorID, err),
+			fmt.Errorf("runs: release %s %q: %w", description, s.ref.ExecutorID, err),
 		)
 	}
 	return cause
@@ -82,29 +82,29 @@ func (c *Coordinator) ownClaimedResume(pending Pending) *claimedResumeAttempt {
 	}
 }
 
-func (attempt *claimedResumeAttempt) ownStagedExecution(
+func (c *claimedResumeAttempt) ownStagedExecution(
 	lifecycle *segmentLifecycle,
 	ref ExecutorRef,
 ) {
-	if attempt.staged != nil {
+	if c.staged != nil {
 		panic("runs: claimed resume staged more than one execution")
 	}
-	attempt.staged = lifecycle.ownStagedExecution(ref)
+	c.staged = lifecycle.ownStagedExecution(ref)
 }
 
-func (attempt *claimedResumeAttempt) accept() {
-	if attempt.settled {
+func (c *claimedResumeAttempt) accept() {
+	if c.settled {
 		panic("runs: claimed resume settled more than once")
 	}
-	if attempt.staged == nil {
+	if c.staged == nil {
 		panic("runs: claimed resume accepted without a staged execution")
 	}
-	attempt.staged.transfer()
-	attempt.settled = true
+	c.staged.transfer()
+	c.settled = true
 }
 
-func (attempt *claimedResumeAttempt) fail(ctx context.Context, cause error) error {
-	if attempt.settled {
+func (c *claimedResumeAttempt) fail(ctx context.Context, cause error) error {
+	if c.settled {
 		return cause
 	}
 	if cause == nil {
@@ -112,10 +112,10 @@ func (attempt *claimedResumeAttempt) fail(ctx context.Context, cause error) erro
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := attempt.terminations.ApplyClaimedRunLost(
+	if err := c.terminations.ApplyClaimedRunLost(
 		cleanupCtx,
-		attempt.pending,
-		attempt.nowUTC(),
+		c.pending,
+		c.nowUTC(),
 	); err != nil {
 		// The durable waiting boundary still names this executor. Releasing it
 		// before RunLost commits would leave that authoritative state unusable.
@@ -123,12 +123,12 @@ func (attempt *claimedResumeAttempt) fail(ctx context.Context, cause error) erro
 			cause,
 			fmt.Errorf(
 				"runs: recover claimed resume %q as lost: %w",
-				attempt.pending.RootRunID,
+				c.pending.RootRunID,
 				err,
 			),
 		)
 	}
-	attempt.settled = true
+	c.settled = true
 	result := fmt.Errorf("%w: %w", ErrRunNotFound, cause)
-	return attempt.staged.abandonWithin(cleanupCtx, result, "lost continuation")
+	return c.staged.abandonWithin(cleanupCtx, result, "lost continuation")
 }

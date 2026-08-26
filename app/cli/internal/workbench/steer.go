@@ -23,36 +23,36 @@ type PendingSteer struct {
 }
 
 // Validate enforces the complete persisted command and replay shape.
-func (pending PendingSteer) Validate() error {
-	return pending.validate(pending.SessionID)
+func (p PendingSteer) Validate() error {
+	return p.validate(p.SessionID)
 }
 
-func (pending PendingSteer) validate(sessionID string) error {
-	if strings.TrimSpace(pending.SessionID) == "" || pending.SessionID != strings.TrimSpace(sessionID) {
+func (p PendingSteer) validate(sessionID string) error {
+	if strings.TrimSpace(p.SessionID) == "" || p.SessionID != strings.TrimSpace(sessionID) {
 		return errors.New("pending steer belongs to another session")
 	}
-	if err := pending.Command.Validate(); err != nil {
+	if err := p.Command.Validate(); err != nil {
 		return err
 	}
-	if pending.Command.CommandID == "" {
+	if p.Command.CommandID == "" {
 		return errors.New("pending steer command id is empty")
 	}
-	if pending.StagedAt.IsZero() {
+	if p.StagedAt.IsZero() {
 		return errors.New("pending steer staging time is empty")
 	}
-	if strings.TrimSpace(pending.ReplayNamespace) == "" {
-		if !pending.ReplayUntil.IsZero() {
+	if strings.TrimSpace(p.ReplayNamespace) == "" {
+		if !p.ReplayUntil.IsZero() {
 			return errors.New("pending steer replay deadline has no namespace")
 		}
-	} else if pending.ReplayUntil.IsZero() || !pending.ReplayUntil.After(pending.StagedAt) {
+	} else if p.ReplayUntil.IsZero() || !p.ReplayUntil.After(p.StagedAt) {
 		return errors.New("pending steer replay guarantee is incomplete")
 	}
 	return nil
 }
 
-func (pending PendingSteer) clone() PendingSteer {
-	pending.Command = pending.Command.Clone()
-	return pending
+func (p PendingSteer) clone() PendingSteer {
+	p.Command = p.Command.Clone()
+	return p
 }
 
 func pendingSteerEqual(left, right PendingSteer) bool {

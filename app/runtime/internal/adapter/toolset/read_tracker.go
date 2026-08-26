@@ -24,26 +24,26 @@ func newReadTracker() *readTracker {
 	return &readTracker{seen: map[string]map[string]readStamp{}}
 }
 
-func (t *readTracker) record(session, path string, fingerprint contentFingerprint) {
-	t.put(session, path, readStamp{hash: fingerprint})
+func (r *readTracker) record(session, path string, fingerprint contentFingerprint) {
+	r.put(session, path, readStamp{hash: fingerprint})
 }
 
-func (t *readTracker) refresh(session, path string, fingerprint contentFingerprint) {
-	t.put(session, path, readStamp{hash: fingerprint})
+func (r *readTracker) refresh(session, path string, fingerprint contentFingerprint) {
+	r.put(session, path, readStamp{hash: fingerprint})
 }
 
-func (t *readTracker) forget(session, path string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	paths := t.seen[session]
+func (r *readTracker) forget(session, path string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	paths := r.seen[session]
 	delete(paths, path)
 	if len(paths) == 0 {
-		delete(t.seen, session)
+		delete(r.seen, session)
 	}
 }
 
-func (t *readTracker) check(session, path string, current contentFingerprint) guardVerdict {
-	st, ok := t.get(session, path)
+func (r *readTracker) check(session, path string, current contentFingerprint) guardVerdict {
+	st, ok := r.get(session, path)
 	if !ok {
 		return readRequired
 	}
@@ -53,21 +53,21 @@ func (t *readTracker) check(session, path string, current contentFingerprint) gu
 	return mutationAllowed
 }
 
-func (t *readTracker) put(session, path string, st readStamp) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	paths := t.seen[session]
+func (r *readTracker) put(session, path string, st readStamp) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	paths := r.seen[session]
 	if paths == nil {
 		paths = map[string]readStamp{}
-		t.seen[session] = paths
+		r.seen[session] = paths
 	}
 	paths[path] = st
 }
 
-func (t *readTracker) get(session, path string) (readStamp, bool) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	st, ok := t.seen[session][path]
+func (r *readTracker) get(session, path string) (readStamp, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.seen[session][path]
 	return st, ok
 }
 
@@ -79,4 +79,4 @@ const (
 	contentChanged
 )
 
-func (r guardVerdict) allowed() bool { return r == mutationAllowed }
+func (g guardVerdict) allowed() bool { return g == mutationAllowed }

@@ -60,22 +60,22 @@ func newHealthProbeRunners(probes []HealthProbe) []*healthProbeRunner {
 	return runners
 }
 
-func (r *healthProbeRunner) start(ctx context.Context, budget time.Duration) *healthProbeInvocation {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.current != nil {
-		return r.current
+func (h *healthProbeRunner) start(ctx context.Context, budget time.Duration) *healthProbeInvocation {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.current != nil {
+		return h.current
 	}
 	invocation := &healthProbeInvocation{done: make(chan struct{})}
-	r.current = invocation
+	h.current = invocation
 	// The caller owns only its wait. The runner owns the shared invocation and
 	// gives it an independent budget while preserving request-scoped values.
 	probeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
-	go r.invoke(probeCtx, cancel, invocation)
+	go h.invoke(probeCtx, cancel, invocation)
 	return invocation
 }
 
-func (r *healthProbeRunner) invoke(
+func (h *healthProbeRunner) invoke(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	invocation *healthProbeInvocation,
@@ -87,14 +87,14 @@ func (r *healthProbeRunner) invoke(
 			result = HealthCheck{Status: HealthUnhealthy, Detail: "probe panic"}
 		}
 		invocation.check = result
-		r.mu.Lock()
-		if r.current == invocation {
-			r.current = nil
+		h.mu.Lock()
+		if h.current == invocation {
+			h.current = nil
 		}
-		r.mu.Unlock()
+		h.mu.Unlock()
 		close(invocation.done)
 	}()
-	result = r.probe(ctx)
+	result = h.probe(ctx)
 }
 
 // healthBudget caps how long readiness waits for probes. Probes
@@ -174,8 +174,8 @@ func worseHealth(a, b HealthStatus) HealthStatus {
 	return a
 }
 
-func (s HealthStatus) rank() int {
-	switch s {
+func (h HealthStatus) rank() int {
+	switch h {
 	case HealthUnhealthy:
 		return 2
 	case HealthDegraded:

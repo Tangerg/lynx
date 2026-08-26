@@ -14,8 +14,8 @@ import (
 // children with installation of a committed waiting-subtree replacement.
 type interactionChildProjection struct{ mu sync.Mutex }
 
-func (projection *interactionChildProjection) lock()   { projection.mu.Lock() }
-func (projection *interactionChildProjection) unlock() { projection.mu.Unlock() }
+func (i *interactionChildProjection) lock()   { i.mu.Lock() }
+func (i *interactionChildProjection) unlock() { i.mu.Unlock() }
 
 // interactionToolOutcomes owns the consecutive identical Tool-result invariant
 // used by the doom-loop brake. It changes independently of Process topology.
@@ -26,38 +26,38 @@ type interactionToolOutcomes struct {
 	repeats int
 }
 
-func (outcomes *interactionToolOutcomes) repeated(toolName string, arguments tool.Arguments) int {
+func (i *interactionToolOutcomes) repeated(toolName string, arguments tool.Arguments) int {
 	key := toolName + "\x00" + arguments.Canonical()
-	outcomes.mu.Lock()
-	defer outcomes.mu.Unlock()
-	if key != outcomes.key {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if key != i.key {
 		return 0
 	}
-	return outcomes.repeats
+	return i.repeats
 }
 
-func (outcomes *interactionToolOutcomes) reset() {
-	outcomes.mu.Lock()
-	outcomes.repeats = 0
-	outcomes.mu.Unlock()
+func (i *interactionToolOutcomes) reset() {
+	i.mu.Lock()
+	i.repeats = 0
+	i.mu.Unlock()
 }
 
-func (outcomes *interactionToolOutcomes) record(
+func (i *interactionToolOutcomes) record(
 	toolName string,
 	arguments tool.Arguments,
 	result string,
 ) {
 	key := toolName + "\x00" + arguments.Canonical()
 	digest := sha256.Sum256([]byte(result))
-	outcomes.mu.Lock()
-	defer outcomes.mu.Unlock()
-	if key == outcomes.key && digest == outcomes.digest {
-		outcomes.repeats++
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if key == i.key && digest == i.digest {
+		i.repeats++
 		return
 	}
-	outcomes.key = key
-	outcomes.digest = digest
-	outcomes.repeats = 1
+	i.key = key
+	i.digest = digest
+	i.repeats = 1
 }
 
 // interactionCommittedReplies owns assistant values already accepted by the
@@ -71,23 +71,23 @@ func newInteractionCommittedReplies() interactionCommittedReplies {
 	return interactionCommittedReplies{byChild: make(map[agent.ProcessID]corechat.Message)}
 }
 
-func (replies *interactionCommittedReplies) record(processID agent.ProcessID, message corechat.Message) {
-	replies.mu.Lock()
-	replies.byChild[processID] = message.Clone()
-	replies.mu.Unlock()
+func (i *interactionCommittedReplies) record(processID agent.ProcessID, message corechat.Message) {
+	i.mu.Lock()
+	i.byChild[processID] = message.Clone()
+	i.mu.Unlock()
 }
 
-func (replies *interactionCommittedReplies) lookup(processID agent.ProcessID) (corechat.Message, bool) {
-	replies.mu.Lock()
-	defer replies.mu.Unlock()
-	message, found := replies.byChild[processID]
+func (i *interactionCommittedReplies) lookup(processID agent.ProcessID) (corechat.Message, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	message, found := i.byChild[processID]
 	return message.Clone(), found
 }
 
-func (replies *interactionCommittedReplies) forget(processID agent.ProcessID) {
-	replies.mu.Lock()
-	delete(replies.byChild, processID)
-	replies.mu.Unlock()
+func (i *interactionCommittedReplies) forget(processID agent.ProcessID) {
+	i.mu.Lock()
+	delete(i.byChild, processID)
+	i.mu.Unlock()
 }
 
 // interactionSegmentClock owns the adapter-side start of the current product
@@ -97,15 +97,15 @@ type interactionSegmentClock struct {
 	startedAt time.Time
 }
 
-func (clock *interactionSegmentClock) start() {
-	clock.mu.Lock()
-	clock.startedAt = time.Now().UTC()
-	clock.mu.Unlock()
+func (i *interactionSegmentClock) start() {
+	i.mu.Lock()
+	i.startedAt = time.Now().UTC()
+	i.mu.Unlock()
 }
 
-func (clock *interactionSegmentClock) duration(processStartedAt, finishedAt time.Time) time.Duration {
-	clock.mu.Lock()
-	segmentStartedAt := clock.startedAt
-	clock.mu.Unlock()
+func (i *interactionSegmentClock) duration(processStartedAt, finishedAt time.Time) time.Duration {
+	i.mu.Lock()
+	segmentStartedAt := i.startedAt
+	i.mu.Unlock()
 	return interactionSegmentDuration(processStartedAt, segmentStartedAt, finishedAt)
 }

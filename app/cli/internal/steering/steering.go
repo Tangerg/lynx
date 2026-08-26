@@ -27,11 +27,11 @@ type ReplayWindow struct {
 	Now       func() time.Time
 }
 
-func (window ReplayWindow) now() time.Time {
-	if window.Now == nil {
+func (r ReplayWindow) now() time.Time {
+	if r.Now == nil {
 		return time.Now().UTC()
 	}
-	return window.Now().UTC()
+	return r.Now().UTC()
 }
 
 // Stage atomically transfers the source draft's attachments into a durable

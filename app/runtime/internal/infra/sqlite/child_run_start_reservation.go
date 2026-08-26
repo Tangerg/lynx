@@ -24,8 +24,8 @@ const (
 	ChildRunStartConclusionAborted ChildRunStartConclusion = "aborted"
 )
 
-func (conclusion ChildRunStartConclusion) valid() bool {
-	return conclusion == ChildRunStartConclusionStarted || conclusion == ChildRunStartConclusionAborted
+func (c ChildRunStartConclusion) valid() bool {
+	return c == ChildRunStartConclusionStarted || c == ChildRunStartConclusionAborted
 }
 
 const childRunStartReserved = "reserved"
@@ -40,17 +40,17 @@ type ChildRunStartReservationRecord struct {
 	CreatedAt time.Time
 }
 
-func (record ChildRunStartReservationRecord) validate() error {
-	if strings.TrimSpace(record.MemberID) == "" || record.MemberID != strings.TrimSpace(record.MemberID) {
+func (c ChildRunStartReservationRecord) validate() error {
+	if strings.TrimSpace(c.MemberID) == "" || c.MemberID != strings.TrimSpace(c.MemberID) {
 		return fmt.Errorf("%w: member ID", ErrInvalidChildRunStartReservation)
 	}
-	if strings.TrimSpace(record.SessionID) == "" || record.SessionID != strings.TrimSpace(record.SessionID) {
+	if strings.TrimSpace(c.SessionID) == "" || c.SessionID != strings.TrimSpace(c.SessionID) {
 		return fmt.Errorf("%w: session ID", ErrInvalidChildRunStartReservation)
 	}
-	if len(record.Payload) == 0 {
+	if len(c.Payload) == 0 {
 		return fmt.Errorf("%w: payload", ErrInvalidChildRunStartReservation)
 	}
-	if record.CreatedAt.IsZero() {
+	if c.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: creation time", ErrInvalidChildRunStartReservation)
 	}
 	return nil
@@ -67,17 +67,17 @@ func NewChildRunStartReservationStore(db *sql.DB) *ChildRunStartReservationStore
 
 // Reserve inserts one record or accepts an exact replay. Reusing MemberID with
 // different content is a durable identity conflict.
-func (store *ChildRunStartReservationStore) Reserve(
+func (c *ChildRunStartReservationStore) Reserve(
 	ctx context.Context,
 	record ChildRunStartReservationRecord,
 ) error {
-	if store == nil || store.db == nil {
+	if c == nil || c.db == nil {
 		return errors.New("sqlite: child Run start reservation store is unavailable")
 	}
 	if err := record.validate(); err != nil {
 		return err
 	}
-	result, err := conn(ctx, store.db).ExecContext(ctx, `
+	result, err := conn(ctx, c.db).ExecContext(ctx, `
 		INSERT INTO child_run_start_reservations(member_id, session_id, payload, created_at, state)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(member_id) DO NOTHING`,
@@ -93,7 +93,7 @@ func (store *ChildRunStartReservationStore) Reserve(
 	if inserted == 1 {
 		return nil
 	}
-	existing, _, err := store.load(ctx, record.MemberID)
+	existing, _, err := c.load(ctx, record.MemberID)
 	if err != nil {
 		return err
 	}
@@ -108,12 +108,12 @@ func (store *ChildRunStartReservationStore) Reserve(
 // state. changed is true only for the first conclusion. An exact replay of the
 // same conclusion returns false; absence, different content, or a different
 // prior conclusion is a conflict.
-func (store *ChildRunStartReservationStore) Conclude(
+func (c *ChildRunStartReservationStore) Conclude(
 	ctx context.Context,
 	record ChildRunStartReservationRecord,
 	conclusion ChildRunStartConclusion,
 ) (bool, error) {
-	if store == nil || store.db == nil {
+	if c == nil || c.db == nil {
 		return false, errors.New("sqlite: child Run start reservation store is unavailable")
 	}
 	if err := record.validate(); err != nil {
@@ -122,7 +122,7 @@ func (store *ChildRunStartReservationStore) Conclude(
 	if !conclusion.valid() {
 		return false, errors.New("sqlite: child Run start conclusion is invalid")
 	}
-	existing, state, err := store.load(ctx, record.MemberID)
+	existing, state, err := c.load(ctx, record.MemberID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, ErrChildRunStartReservationConflict
 	}
@@ -139,7 +139,7 @@ func (store *ChildRunStartReservationStore) Conclude(
 	if state != childRunStartReserved {
 		return false, ErrChildRunStartReservationConflict
 	}
-	result, err := conn(ctx, store.db).ExecContext(ctx, `
+	result, err := conn(ctx, c.db).ExecContext(ctx, `
 		UPDATE child_run_start_reservations
 		SET state = ?
 		WHERE member_id = ? AND state = ?`, conclusion, record.MemberID, childRunStartReserved)
@@ -161,17 +161,17 @@ func (store *ChildRunStartReservationStore) Conclude(
 // live; root terminalization, rollback/restore, and Session deletion call this
 // inside their existing write-set so no concluded or reserve-before-abort row
 // outlives its owner.
-func (store *ChildRunStartReservationStore) DeleteSession(
+func (c *ChildRunStartReservationStore) DeleteSession(
 	ctx context.Context,
 	sessionID string,
 ) error {
-	if store == nil || store.db == nil {
+	if c == nil || c.db == nil {
 		return errors.New("sqlite: child Run start reservation store is unavailable")
 	}
 	if strings.TrimSpace(sessionID) == "" || sessionID != strings.TrimSpace(sessionID) {
 		return fmt.Errorf("%w: session ID", ErrInvalidChildRunStartReservation)
 	}
-	if _, err := conn(ctx, store.db).ExecContext(ctx,
+	if _, err := conn(ctx, c.db).ExecContext(ctx,
 		`DELETE FROM child_run_start_reservations WHERE session_id = ?`, sessionID,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete Session child Run start reservations: %w", err)
@@ -183,11 +183,11 @@ func (store *ChildRunStartReservationStore) DeleteSession(
 // boot reconciliation. No executor callback survives a process boundary, even
 // when the corresponding public Run is a coherent parked tree preserved for
 // later restore.
-func (store *ChildRunStartReservationStore) DeleteAll(ctx context.Context) error {
-	if store == nil || store.db == nil {
+func (c *ChildRunStartReservationStore) DeleteAll(ctx context.Context) error {
+	if c == nil || c.db == nil {
 		return errors.New("sqlite: child Run start reservation store is unavailable")
 	}
-	if _, err := conn(ctx, store.db).ExecContext(ctx,
+	if _, err := conn(ctx, c.db).ExecContext(ctx,
 		`DELETE FROM child_run_start_reservations`,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete child Run start reservations: %w", err)
@@ -195,14 +195,14 @@ func (store *ChildRunStartReservationStore) DeleteAll(ctx context.Context) error
 	return nil
 }
 
-func (store *ChildRunStartReservationStore) load(
+func (c *ChildRunStartReservationStore) load(
 	ctx context.Context,
 	memberID string,
 ) (ChildRunStartReservationRecord, string, error) {
 	var record ChildRunStartReservationRecord
 	var createdAt int64
 	var state string
-	err := conn(ctx, store.db).QueryRowContext(ctx, `
+	err := conn(ctx, c.db).QueryRowContext(ctx, `
 		SELECT member_id, session_id, payload, created_at, state
 		FROM child_run_start_reservations
 		WHERE member_id = ?`, memberID,

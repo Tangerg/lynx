@@ -138,80 +138,80 @@ func interactionDispatchKey(request agent.EffectRequest) string {
 // Effect settle before applying a cancellation intent; this adapter-owned
 // context gives cooperative model and Tool implementations a chance to produce
 // that settlement promptly without changing Framework lifecycle semantics.
-func (session *interactionSession) beginDispatch(
+func (i *interactionSession) beginDispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 ) (context.Context, func()) {
 	bound, cancel := context.WithCancelCause(ctx)
-	stopLifetimeBinding := context.AfterFunc(session.lifetime.context, func() {
-		cancel(context.Cause(session.lifetime.context))
+	stopLifetimeBinding := context.AfterFunc(i.lifetime.context, func() {
+		cancel(context.Cause(i.lifetime.context))
 	})
 	key := interactionDispatchKey(request)
-	session.state.mu.Lock()
-	if session.state.rootCancellationRequested || session.inCanceledSubtreeLocked(request.ProcessID()) {
+	i.state.mu.Lock()
+	if i.state.rootCancellationRequested || i.inCanceledSubtreeLocked(request.ProcessID()) {
 		cancel(errInteractionRunCanceled)
 	} else {
-		session.state.activeDispatches[key] = activeInteractionDispatch{
+		i.state.activeDispatches[key] = activeInteractionDispatch{
 			processID: request.ProcessID(),
 			cancel:    cancel,
 		}
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	return bound, func() {
-		session.state.mu.Lock()
-		delete(session.state.activeDispatches, key)
-		session.state.mu.Unlock()
+		i.state.mu.Lock()
+		delete(i.state.activeDispatches, key)
+		i.state.mu.Unlock()
 		stopLifetimeBinding()
 		cancel(nil)
 	}
 }
 
-func (session *interactionSession) cancelAllDispatches() {
-	session.state.mu.Lock()
-	session.state.rootCancellationRequested = true
-	cancels := make([]context.CancelCauseFunc, 0, len(session.state.activeDispatches))
-	for _, dispatch := range session.state.activeDispatches {
+func (i *interactionSession) cancelAllDispatches() {
+	i.state.mu.Lock()
+	i.state.rootCancellationRequested = true
+	cancels := make([]context.CancelCauseFunc, 0, len(i.state.activeDispatches))
+	for _, dispatch := range i.state.activeDispatches {
 		cancels = append(cancels, dispatch.cancel)
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	for _, cancel := range cancels {
 		cancel(errInteractionRunCanceled)
 	}
 }
 
-func (session *interactionSession) cancelSubtreeDispatches(rootID agent.ProcessID) {
-	session.state.mu.Lock()
-	session.state.canceledSubtreeRoots[rootID] = struct{}{}
-	cancels := make([]context.CancelCauseFunc, 0, len(session.state.activeDispatches))
-	for _, dispatch := range session.state.activeDispatches {
-		if session.inSubtreeLocked(dispatch.processID, rootID) {
+func (i *interactionSession) cancelSubtreeDispatches(rootID agent.ProcessID) {
+	i.state.mu.Lock()
+	i.state.canceledSubtreeRoots[rootID] = struct{}{}
+	cancels := make([]context.CancelCauseFunc, 0, len(i.state.activeDispatches))
+	for _, dispatch := range i.state.activeDispatches {
+		if i.inSubtreeLocked(dispatch.processID, rootID) {
 			cancels = append(cancels, dispatch.cancel)
 		}
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	for _, cancel := range cancels {
 		cancel(errInteractionRunCanceled)
 	}
 }
 
-func (session *interactionSession) inCanceledSubtreeLocked(processID agent.ProcessID) bool {
-	for rootID := range session.state.canceledSubtreeRoots {
-		if session.inSubtreeLocked(processID, rootID) {
+func (i *interactionSession) inCanceledSubtreeLocked(processID agent.ProcessID) bool {
+	for rootID := range i.state.canceledSubtreeRoots {
+		if i.inSubtreeLocked(processID, rootID) {
 			return true
 		}
 	}
 	return false
 }
 
-func (session *interactionSession) inSubtreeLocked(
+func (i *interactionSession) inSubtreeLocked(
 	processID agent.ProcessID,
 	rootID agent.ProcessID,
 ) bool {
-	for range len(session.state.delegateChildren) + 1 {
+	for range len(i.state.delegateChildren) + 1 {
 		if processID == rootID {
 			return true
 		}
-		managed := session.state.delegateChildren[processID]
+		managed := i.state.delegateChildren[processID]
 		if managed == nil {
 			return false
 		}
@@ -232,55 +232,55 @@ func interactionSegmentDuration(
 	return max(finishedAt.Sub(startedAt), 0)
 }
 
-func (state *interactionState) attachObserver() bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.observerWasAttached || state.finished {
+func (i *interactionState) attachObserver() bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.observerWasAttached || i.finished {
 		return false
 	}
-	if state.begun && state.boundary != interactionBoundaryContinuationStaged &&
-		state.boundary != interactionBoundarySubtreePrepared {
+	if i.begun && i.boundary != interactionBoundaryContinuationStaged &&
+		i.boundary != interactionBoundarySubtreePrepared {
 		return false
 	}
-	state.observerWasAttached = true
+	i.observerWasAttached = true
 	return true
 }
 
-func (state *interactionState) detachObserver() {
-	state.mu.Lock()
-	state.observerWasAttached = false
-	state.mu.Unlock()
+func (i *interactionState) detachObserver() {
+	i.mu.Lock()
+	i.observerWasAttached = false
+	i.mu.Unlock()
 }
 
-func (state *interactionState) observerAttached() bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	return state.observerWasAttached
+func (i *interactionState) observerAttached() bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.observerWasAttached
 }
 
-func (state *interactionState) begin() bool {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if state.begun || state.finished {
+func (i *interactionState) begin() bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.begun || i.finished {
 		return false
 	}
-	state.begun = true
+	i.begun = true
 	return true
 }
 
-func (state *interactionState) setProcess(process *agent.Process) {
-	state.mu.Lock()
-	state.process = process
-	state.mu.Unlock()
+func (i *interactionState) setProcess(process *agent.Process) {
+	i.mu.Lock()
+	i.process = process
+	i.mu.Unlock()
 }
 
-func (state *interactionState) processHandle() *agent.Process {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	return state.process
+func (i *interactionState) processHandle() *agent.Process {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.process
 }
 
-func (session *interactionSession) submitSteer(
+func (i *interactionSession) submitSteer(
 	ctx context.Context,
 	message corechat.Message,
 	content []transcript.ContentBlock,
@@ -291,7 +291,7 @@ func (session *interactionSession) submitSteer(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	process := session.state.processHandle()
+	process := i.state.processHandle()
 	if process == nil {
 		return runs.ErrExecutorNotLive
 	}
@@ -303,13 +303,13 @@ func (session *interactionSession) submitSteer(
 	if err != nil {
 		return fmt.Errorf("agentexec: construct Interaction steer Signal: %w", err)
 	}
-	session.state.mu.Lock()
-	session.state.pendingSteers[signalID] = pendingInteractionSteer{
+	i.state.mu.Lock()
+	i.state.pendingSteers[signalID] = pendingInteractionSteer{
 		content: transcript.CloneContent(content),
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	accepted, deliverErr := process.DeliverSignal(
-		runExecutionContext(ctx, session.scope, session.start), signal,
+		runExecutionContext(ctx, i.scope, i.start), signal,
 	)
 	if deliverErr != nil {
 		// A context error only reports that the caller stopped waiting. Engine may
@@ -317,24 +317,24 @@ func (session *interactionSession) submitSteer(
 		// until ModelInvocation attributes it or the session is released.
 		if !errors.Is(deliverErr, context.Canceled) &&
 			!errors.Is(deliverErr, context.DeadlineExceeded) {
-			session.removePendingSteer(signalID)
+			i.removePendingSteer(signalID)
 		}
 		return fmt.Errorf("agentexec: deliver Interaction steer Signal: %w", deliverErr)
 	}
 	if !accepted {
-		session.removePendingSteer(signalID)
+		i.removePendingSteer(signalID)
 		return errors.New("agentexec: Interaction steer Signal was not accepted")
 	}
 	return nil
 }
 
-func (session *interactionSession) removePendingSteer(signalID agent.SignalID) {
-	session.state.mu.Lock()
-	delete(session.state.pendingSteers, signalID)
-	session.state.mu.Unlock()
+func (i *interactionSession) removePendingSteer(signalID agent.SignalID) {
+	i.state.mu.Lock()
+	delete(i.state.pendingSteers, signalID)
+	i.state.mu.Unlock()
 }
 
-func (session *interactionSession) commitAppliedSteers(
+func (i *interactionSession) commitAppliedSteers(
 	ctx context.Context,
 	member runs.ExecutorMember,
 	signalIDs []agent.SignalID,
@@ -342,72 +342,72 @@ func (session *interactionSession) commitAppliedSteers(
 	if len(signalIDs) == 0 {
 		return nil
 	}
-	session.state.mu.Lock()
+	i.state.mu.Lock()
 	messages := make([][]transcript.ContentBlock, len(signalIDs))
 	seen := make(map[agent.SignalID]struct{}, len(signalIDs))
 	for index, signalID := range signalIDs {
 		if _, duplicate := seen[signalID]; duplicate {
-			session.state.mu.Unlock()
+			i.state.mu.Unlock()
 			return fmt.Errorf("agentexec: model attribution repeats steer Signal %s", signalID)
 		}
 		seen[signalID] = struct{}{}
-		pending, found := session.state.pendingSteers[signalID]
+		pending, found := i.state.pendingSteers[signalID]
 		if !found {
-			session.state.mu.Unlock()
+			i.state.mu.Unlock()
 			return fmt.Errorf("agentexec: model attribution names unknown steer Signal %s", signalID)
 		}
 		messages[index] = transcript.CloneContent(pending.content)
 	}
-	session.state.mu.Unlock()
-	if err := session.commitFact(ctx, member, runs.SteerMessagesApplied{Messages: messages}); err != nil {
+	i.state.mu.Unlock()
+	if err := i.commitFact(ctx, member, runs.SteerMessagesApplied{Messages: messages}); err != nil {
 		return fmt.Errorf("agentexec: commit applied Interaction steers: %w", err)
 	}
-	session.state.mu.Lock()
+	i.state.mu.Lock()
 	for _, signalID := range signalIDs {
-		delete(session.state.pendingSteers, signalID)
+		delete(i.state.pendingSteers, signalID)
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	return nil
 }
 
-func (session *interactionSession) startWorkers() {
-	session.lifetime.workers.Add(1)
+func (i *interactionSession) startWorkers() {
+	i.lifetime.workers.Add(1)
 	go func() {
-		defer session.lifetime.workers.Done()
-		session.await()
+		defer i.lifetime.workers.Done()
+		i.await()
 	}()
-	session.lifetime.reconcilers.Add(2)
+	i.lifetime.reconcilers.Add(2)
 	go func() {
-		defer session.lifetime.reconcilers.Done()
-		session.reconcileUnknownEffects()
+		defer i.lifetime.reconcilers.Done()
+		i.reconcileUnknownEffects()
 	}()
 	go func() {
-		defer session.lifetime.reconcilers.Done()
-		session.reconcileExecutionState()
+		defer i.lifetime.reconcilers.Done()
+		i.reconcileExecutionState()
 	}()
 }
 
-func (session *interactionSession) failStart() {
-	session.finish()
+func (i *interactionSession) failStart() {
+	i.finish()
 }
 
-func (session *interactionSession) stopReconciliation() {
-	session.lifetime.stop()
-	session.lifetime.reconcilers.Wait()
+func (i *interactionSession) stopReconciliation() {
+	i.lifetime.stop()
+	i.lifetime.reconcilers.Wait()
 }
 
-func (session *interactionSession) finish() {
-	session.lifetime.finishOnce.Do(func() {
-		session.state.mu.Lock()
-		session.state.finished = true
-		session.state.mu.Unlock()
-		session.stopReconciliation()
-		close(session.lifetime.events)
-		close(session.lifetime.done)
+func (i *interactionSession) finish() {
+	i.lifetime.finishOnce.Do(func() {
+		i.state.mu.Lock()
+		i.state.finished = true
+		i.state.mu.Unlock()
+		i.stopReconciliation()
+		close(i.lifetime.events)
+		close(i.lifetime.done)
 	})
 }
 
-func (session *interactionSession) projectDelta(ctx context.Context, delta agent.Delta) {
+func (i *interactionSession) projectDelta(ctx context.Context, delta agent.Delta) {
 	parsed, err := interaction.ParseModelResponseDelta(delta.Payload())
 	if err != nil {
 		return
@@ -426,8 +426,8 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 		default:
 			continue
 		}
-		member, found := session.executorMemberByProcessID(delta.ProcessID())
-		if found && session.lifetime.offer(runs.ExecutorEvent{Member: member, Payload: payload}) {
+		member, found := i.executorMemberByProcessID(delta.ProcessID())
+		if found && i.lifetime.offer(runs.ExecutorEvent{Member: member, Payload: payload}) {
 			continue
 		}
 		trace.SpanFromContext(ctx).AddEvent(
@@ -437,172 +437,172 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 	}
 }
 
-func (session *interactionSession) flushDeltas(ctx context.Context) error {
-	if session.engine == nil {
+func (i *interactionSession) flushDeltas(ctx context.Context) error {
+	if i.engine == nil {
 		return errors.New("agentexec: Interaction engine is unavailable")
 	}
-	if err := session.engine.FlushDeltas(ctx); err != nil {
+	if err := i.engine.FlushDeltas(ctx); err != nil {
 		return fmt.Errorf("agentexec: flush model deltas: %w", err)
 	}
 	return nil
 }
 
-func (session *interactionSession) observeFrameworkEvent(_ context.Context, event agent.Event) {
-	if event.Relation().RootID() != session.processRootID() {
+func (i *interactionSession) observeFrameworkEvent(_ context.Context, event agent.Event) {
+	if event.Relation().RootID() != i.processRootID() {
 		return
 	}
-	session.lifetime.wakeState()
+	i.lifetime.wakeState()
 }
 
-func (session *interactionSession) processRootID() agent.ProcessID {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.process == nil {
+func (i *interactionSession) processRootID() agent.ProcessID {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.process == nil {
 		return agent.ProcessID{}
 	}
-	return session.state.process.Relation().RootID()
+	return i.state.process.Relation().RootID()
 }
 
-func (session *interactionSession) commitFact(
+func (i *interactionSession) commitFact(
 	ctx context.Context,
 	member runs.ExecutorMember,
 	fact runs.ExecutionFact,
 ) error {
-	ctx, cancel := session.lifetime.bind(ctx)
+	ctx, cancel := i.lifetime.bind(ctx)
 	defer cancel()
 	commit, receipt, err := runs.NewExecutionFactCommit(fact)
 	if err != nil {
 		return err
 	}
 	event := runs.ExecutorEvent{Member: member, Payload: commit}
-	if err := session.lifetime.sendAuthoritative(ctx, event); err != nil {
+	if err := i.lifetime.sendAuthoritative(ctx, event); err != nil {
 		return err
 	}
 	return receipt.Await(ctx)
 }
 
-func (session *interactionSession) reconcileUnknownEffects() {
-	ticker := time.NewTicker(session.unknownPollInterval)
+func (i *interactionSession) reconcileUnknownEffects() {
+	ticker := time.NewTicker(i.unknownPollInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-session.lifetime.unknownWake:
+		case <-i.lifetime.unknownWake:
 		case <-ticker.C:
-		case <-session.lifetime.context.Done():
+		case <-i.lifetime.context.Done():
 			return
 		}
-		if session.reportUnknownEffects() {
+		if i.reportUnknownEffects() {
 			return
 		}
 	}
 }
 
-func (session *interactionSession) reconcileExecutionState() {
-	ticker := time.NewTicker(session.statePollInterval)
+func (i *interactionSession) reconcileExecutionState() {
+	ticker := time.NewTicker(i.statePollInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-session.lifetime.stateWake:
+		case <-i.lifetime.stateWake:
 		case <-ticker.C:
-		case <-session.lifetime.context.Done():
+		case <-i.lifetime.context.Done():
 			return
 		}
-		ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
-		progressed, err := session.reconcileCompletedDelegateChildren(ctx)
+		ctx, cancel := context.WithTimeout(i.lifetime.context, authoritativeProjectionTimeout)
+		progressed, err := i.reconcileCompletedDelegateChildren(ctx)
 		cancel()
 		if err != nil {
-			session.publishProjectionFailure(err)
+			i.publishProjectionFailure(err)
 			return
 		}
 		if progressed {
 			continue
 		}
-		if session.publishWaitingBoundary() {
+		if i.publishWaitingBoundary() {
 			continue
 		}
 	}
 }
 
-func (session *interactionSession) publishWaitingBoundary() bool {
-	session.state.mu.Lock()
-	process := session.state.process
-	if process == nil || session.state.finished || session.state.boundary != interactionBoundaryInactive {
-		session.state.mu.Unlock()
+func (i *interactionSession) publishWaitingBoundary() bool {
+	i.state.mu.Lock()
+	process := i.state.process
+	if process == nil || i.state.finished || i.state.boundary != interactionBoundaryInactive {
+		i.state.mu.Unlock()
 		return false
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	if process.Status() != agent.StatusWaiting {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
+	ctx, cancel := context.WithTimeout(i.lifetime.context, authoritativeProjectionTimeout)
 	defer cancel()
-	snapshot, interruptions, found, err := session.captureHumanInputBarrier(ctx)
+	snapshot, interruptions, found, err := i.captureHumanInputBarrier(ctx)
 	if err != nil {
-		session.publishProjectionFailure(err)
+		i.publishProjectionFailure(err)
 		return false
 	}
 	if !found {
 		return false
 	}
-	checkpoint, err := session.executorCheckpoint(snapshot)
+	checkpoint, err := i.executorCheckpoint(snapshot)
 	if err != nil {
-		session.publishProjectionFailure(err)
+		i.publishProjectionFailure(err)
 		return false
 	}
-	session.state.mu.Lock()
-	if session.state.finished || session.state.boundary != interactionBoundaryInactive ||
-		session.state.process != process || process.Status() != agent.StatusWaiting {
-		session.state.mu.Unlock()
+	i.state.mu.Lock()
+	if i.state.finished || i.state.boundary != interactionBoundaryInactive ||
+		i.state.process != process || process.Status() != agent.StatusWaiting {
+		i.state.mu.Unlock()
 		return false
 	}
-	session.state.boundary = interactionBoundaryWaiting
-	session.state.waitingCheckpoint = checkpoint.Clone()
-	session.state.mu.Unlock()
-	published := session.lifetime.send(runs.ExecutorEvent{
-		Member: session.executorMember(process.Relation()),
+	i.state.boundary = interactionBoundaryWaiting
+	i.state.waitingCheckpoint = checkpoint.Clone()
+	i.state.mu.Unlock()
+	published := i.lifetime.send(runs.ExecutorEvent{
+		Member: i.executorMember(process.Relation()),
 		Payload: runs.TreeInterrupted{
 			Checkpoint: checkpoint, Interruptions: interruptions,
 		},
 	})
-	if published && session.lifecycleHooks != nil {
-		session.lifecycleHooks.NotifyWaiting(
-			session.lifetime.context, session.start.SessionID, session.start.CWD,
+	if published && i.lifecycleHooks != nil {
+		i.lifecycleHooks.NotifyWaiting(
+			i.lifetime.context, i.start.SessionID, i.start.CWD,
 		)
 	}
 	return published
 }
 
-func (session *interactionSession) stageContinuation(checkpoint runs.ExecutorCheckpoint) error {
+func (i *interactionSession) stageContinuation(checkpoint runs.ExecutorCheckpoint) error {
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.finished || session.state.process == nil {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.finished || i.state.process == nil {
 		return runs.ErrExecutorNotLive
 	}
-	if session.state.boundary != interactionBoundaryWaiting || session.state.observerWasAttached ||
-		!isInteractionWaitingBoundary(session.state.process.Status()) {
+	if i.state.boundary != interactionBoundaryWaiting || i.state.observerWasAttached ||
+		!isInteractionWaitingBoundary(i.state.process.Status()) {
 		return runs.ErrExecutionClaimed
 	}
-	if !executorCheckpointsEqual(session.state.waitingCheckpoint, checkpoint) {
+	if !executorCheckpointsEqual(i.state.waitingCheckpoint, checkpoint) {
 		return fmt.Errorf("%w: live Interaction checkpoint differs from the claimed waiting boundary", runs.ErrInvalidExecutorCheckpoint)
 	}
-	session.state.boundary = interactionBoundaryContinuationStaged
+	i.state.boundary = interactionBoundaryContinuationStaged
 	return nil
 }
 
-func (session *interactionSession) beginContinuation(allowedInterrupts []interrupt.Kind) error {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.finished || session.state.process == nil {
+func (i *interactionSession) beginContinuation(allowedInterrupts []interrupt.Kind) error {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.finished || i.state.process == nil {
 		return runs.ErrExecutorNotLive
 	}
-	if session.state.boundary != interactionBoundaryContinuationStaged || !session.state.observerWasAttached ||
-		!isInteractionWaitingBoundary(session.state.process.Status()) {
+	if i.state.boundary != interactionBoundaryContinuationStaged || !i.state.observerWasAttached ||
+		!isInteractionWaitingBoundary(i.state.process.Status()) {
 		return errors.New("agentexec: Interaction continuation was not staged and observed")
 	}
-	if !slices.Equal(session.start.InterruptKinds, allowedInterrupts) {
+	if !slices.Equal(i.start.InterruptKinds, allowedInterrupts) {
 		return errors.New("agentexec: continuation capabilities differ from the staged Interaction")
 	}
 	return nil
@@ -612,11 +612,11 @@ func isInteractionWaitingBoundary(status agent.Status) bool {
 	return status == agent.StatusWaiting || status == agent.StatusPaused
 }
 
-func (session *interactionSession) continuationAccepted() {
-	session.state.mu.Lock()
-	session.state.boundary = interactionBoundaryInactive
-	session.state.waitingCheckpoint = runs.ExecutorCheckpoint{}
-	session.state.mu.Unlock()
+func (i *interactionSession) continuationAccepted() {
+	i.state.mu.Lock()
+	i.state.boundary = interactionBoundaryInactive
+	i.state.waitingCheckpoint = runs.ExecutorCheckpoint{}
+	i.state.mu.Unlock()
 }
 
 func executorCheckpointsEqual(left, right runs.ExecutorCheckpoint) bool {
@@ -626,10 +626,10 @@ func executorCheckpointsEqual(left, right runs.ExecutorCheckpoint) bool {
 		bytes.Equal(left.Payload, right.Payload)
 }
 
-func (session *interactionSession) reportUnknownEffects() bool {
-	ctx, cancel := context.WithTimeout(session.lifetime.context, authoritativeProjectionTimeout)
+func (i *interactionSession) reportUnknownEffects() bool {
+	ctx, cancel := context.WithTimeout(i.lifetime.context, authoritativeProjectionTimeout)
 	defer cancel()
-	ids, err := session.unknownEffectIDs(ctx)
+	ids, err := i.unknownEffectIDs(ctx)
 	if err != nil || len(ids) == 0 {
 		return false
 	}
@@ -639,41 +639,41 @@ func (session *interactionSession) reportUnknownEffects() bool {
 	}
 	slices.Sort(values)
 	values = slices.Compact(values)
-	session.state.mu.Lock()
-	if session.state.unknownReported {
-		session.state.mu.Unlock()
+	i.state.mu.Lock()
+	if i.state.unknownReported {
+		i.state.mu.Unlock()
 		return true
 	}
-	session.state.unknownReported = true
-	member := runs.ExecutorMember{MemberID: session.state.process.Relation().ProcessID().String()}
-	session.state.mu.Unlock()
-	return session.lifetime.send(runs.ExecutorEvent{
+	i.state.unknownReported = true
+	member := runs.ExecutorMember{MemberID: i.state.process.Relation().ProcessID().String()}
+	i.state.mu.Unlock()
+	return i.lifetime.send(runs.ExecutorEvent{
 		Member: member, Payload: runs.UnknownEffectsDetected{IDs: values},
 	})
 }
 
-func (session *interactionSession) await() {
-	joinCtx := context.WithoutCancel(session.lifetime.context)
-	result, err := session.state.process.Await(joinCtx)
+func (i *interactionSession) await() {
+	joinCtx := context.WithoutCancel(i.lifetime.context)
+	result, err := i.state.process.Await(joinCtx)
 	if err == nil {
 		projectionCtx, cancel := context.WithTimeout(joinCtx, authoritativeProjectionTimeout)
-		_, err = session.reconcileCompletedDelegateChildren(projectionCtx)
+		_, err = i.reconcileCompletedDelegateChildren(projectionCtx)
 		cancel()
 	}
-	session.stopReconciliation()
+	i.stopReconciliation()
 	if err == nil {
-		err = session.engine.Close()
+		err = i.engine.Close()
 	}
 	if err == nil {
-		err = session.publishResult(result)
+		err = i.publishResult(result)
 	}
 	if err != nil {
-		session.publishProjectionFailure(err)
+		i.publishProjectionFailure(err)
 	}
-	session.finish()
+	i.finish()
 }
 
-func (session *interactionSession) publishResult(result agent.Result) error {
+func (i *interactionSession) publishResult(result agent.Result) error {
 	member := runs.ExecutorMember{MemberID: result.ProcessID().String()}
 	if result.Status() == agent.StatusCompleted {
 		erased, ok := result.Output()
@@ -691,30 +691,30 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 		if modelOutput == nil || modelOutput.Message == nil {
 			return errors.New("agentexec: Interaction output has no assistant message")
 		}
-		if !session.lifetime.send(runs.ExecutorEvent{
+		if !i.lifetime.send(runs.ExecutorEvent{
 			Member: member, Payload: runs.AssistantMessageCompleted{Message: modelOutput.Message.Clone()},
 		}) {
 			return nil
 		}
-		session.maintainCompletedRoot()
+		i.maintainCompletedRoot()
 	}
-	end := session.segmentEnd(result)
-	session.lifetime.send(runs.ExecutorEvent{Member: member, Payload: end})
-	if session.lifecycleHooks != nil {
-		session.lifecycleHooks.NotifyStopped(
-			session.lifetime.context, session.start.SessionID, session.start.CWD, string(end.Reason),
+	end := i.segmentEnd(result)
+	i.lifetime.send(runs.ExecutorEvent{Member: member, Payload: end})
+	if i.lifecycleHooks != nil {
+		i.lifecycleHooks.NotifyStopped(
+			i.lifetime.context, i.start.SessionID, i.start.CWD, string(end.Reason),
 		)
 	}
 	return nil
 }
 
-func (session *interactionSession) publishProjectionFailure(cause error) {
+func (i *interactionSession) publishProjectionFailure(cause error) {
 	member := runs.ExecutorMember{}
-	session.state.mu.Lock()
-	if session.state.admittedProcessID.Valid() {
-		member.MemberID = session.state.admittedProcessID.String()
+	i.state.mu.Lock()
+	if i.state.admittedProcessID.Valid() {
+		member.MemberID = i.state.admittedProcessID.String()
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	failure := run.Failure{
 		Kind:   run.FailureInternal,
 		Detail: executorDiagnostic(cause),
@@ -722,25 +722,25 @@ func (session *interactionSession) publishProjectionFailure(cause error) {
 	if failure.Detail == "" {
 		failure.Detail = "executor result could not be projected"
 	}
-	session.lifetime.send(runs.ExecutorEvent{
+	i.lifetime.send(runs.ExecutorEvent{
 		Member:  member,
 		Payload: runs.SegmentEnded{Reason: run.OutcomeFailed, Failure: &failure},
 	})
 }
 
-func (session *interactionSession) release(ctx context.Context) error {
-	session.lifetime.beginRelease()
-	if err := session.discardPreparedSubtree(ctx); err != nil {
+func (i *interactionSession) release(ctx context.Context) error {
+	i.lifetime.beginRelease()
+	if err := i.discardPreparedSubtree(ctx); err != nil {
 		return fmt.Errorf("agentexec: discard prepared waiting subtree before release: %w", err)
 	}
-	session.state.mu.Lock()
-	process := session.state.process
-	begun := session.state.begun
-	finished := session.state.finished
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	process := i.state.process
+	begun := i.state.begun
+	finished := i.state.finished
+	i.state.mu.Unlock()
 	if !begun {
-		session.failStart()
-		return session.engine.Close()
+		i.failStart()
+		return i.engine.Close()
 	}
 	if process != nil && !finished {
 		if err := process.Kill(ctx, interactionReleaseReason); err != nil && !errors.Is(err, agent.ErrProcessFinished) {
@@ -748,21 +748,21 @@ func (session *interactionSession) release(ctx context.Context) error {
 		}
 	}
 	select {
-	case <-session.lifetime.done:
-		session.lifetime.workers.Wait()
-		return session.engine.Close()
+	case <-i.lifetime.done:
+		i.lifetime.workers.Wait()
+		return i.engine.Close()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (session *interactionSession) segmentEnd(result agent.Result) runs.SegmentEnded {
+func (i *interactionSession) segmentEnd(result agent.Result) runs.SegmentEnded {
 	termination := result.Termination()
 	end := segmentEndFromTermination(
 		termination,
-		session.segmentClock.duration(result.StartedAt(), result.FinishedAt()),
+		i.segmentClock.duration(result.StartedAt(), result.FinishedAt()),
 	)
-	end.Usage = session.accounting.segmentUsage(result.ProcessID())
+	end.Usage = i.accounting.segmentUsage(result.ProcessID())
 	return end
 }
 

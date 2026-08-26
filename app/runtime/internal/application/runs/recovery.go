@@ -232,18 +232,18 @@ type recoverySessionClaims struct {
 	released   bool
 }
 
-func (claims *recoverySessionClaims) includes(sessionID string) bool {
-	_, ok := claims.sessionIDs[sessionID]
+func (r *recoverySessionClaims) includes(sessionID string) bool {
+	_, ok := r.sessionIDs[sessionID]
 	return ok
 }
 
-func (claims *recoverySessionClaims) release() {
-	if claims == nil || claims.released {
+func (r *recoverySessionClaims) release() {
+	if r == nil || r.released {
 		return
 	}
-	claims.released = true
-	for index := len(claims.releases) - 1; index >= 0; index-- {
-		claims.releases[index]()
+	r.released = true
+	for index := len(r.releases) - 1; index >= 0; index-- {
+		r.releases[index]()
 	}
 }
 
@@ -468,47 +468,47 @@ func newRecoveryPlanner(
 	return planner, nil
 }
 
-func (planner *recoveryPlanner) observeTime(value time.Time) {
+func (r *recoveryPlanner) observeTime(value time.Time) {
 	value = value.UTC()
-	if value.After(planner.finishedAt) {
-		planner.finishedAt = value
+	if value.After(r.finishedAt) {
+		r.finishedAt = value
 	}
 }
 
-func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
-	rootRunIDs := make([]string, 0, len(planner.trees))
-	for rootRunID := range planner.trees {
+func (r *recoveryPlanner) plan() (RecoveryCommit, int, error) {
+	rootRunIDs := make([]string, 0, len(r.trees))
+	for rootRunID := range r.trees {
 		rootRunIDs = append(rootRunIDs, rootRunID)
 	}
 	slices.Sort(rootRunIDs)
 	for _, rootRunID := range rootRunIDs {
-		if err := planner.planTree(rootRunID); err != nil {
+		if err := r.planTree(rootRunID); err != nil {
 			return RecoveryCommit{}, 0, err
 		}
 	}
-	for _, open := range planner.pending {
-		if _, preserved := planner.preserved[open.RootRunID]; preserved {
+	for _, open := range r.pending {
+		if _, preserved := r.preserved[open.RootRunID]; preserved {
 			root, _ := open.RootContinuation()
-			planner.commit.PreservedCheckpointRootIDs = append(
-				planner.commit.PreservedCheckpointRootIDs,
+			r.commit.PreservedCheckpointRootIDs = append(
+				r.commit.PreservedCheckpointRootIDs,
 				root.MemberID,
 			)
 		}
 	}
-	slices.SortFunc(planner.commit.DeleteInterrupts, func(left, right InterruptOwner) int {
+	slices.SortFunc(r.commit.DeleteInterrupts, func(left, right InterruptOwner) int {
 		if bySession := strings.Compare(left.SessionID, right.SessionID); bySession != 0 {
 			return bySession
 		}
 		return strings.Compare(left.RootRunID, right.RootRunID)
 	})
-	slices.SortFunc(planner.commit.ModelInvocations, compareModelInvocationRecoveries)
-	slices.SortFunc(planner.commit.ToolInvocations, compareToolInvocationRecoveries)
-	slices.Sort(planner.commit.PreservedCheckpointRootIDs)
-	slices.Sort(planner.commit.DeleteCheckpointSessionIDs)
-	if err := planner.commit.Validate(); err != nil {
+	slices.SortFunc(r.commit.ModelInvocations, compareModelInvocationRecoveries)
+	slices.SortFunc(r.commit.ToolInvocations, compareToolInvocationRecoveries)
+	slices.Sort(r.commit.PreservedCheckpointRootIDs)
+	slices.Sort(r.commit.DeleteCheckpointSessionIDs)
+	if err := r.commit.Validate(); err != nil {
 		return RecoveryCommit{}, 0, err
 	}
-	return planner.commit, planner.reconciled, nil
+	return r.commit, r.reconciled, nil
 }
 
 func compareModelInvocationRecoveries(left, right ModelInvocationRecovery) int {
@@ -539,36 +539,36 @@ func compareToolInvocationRecoveries(left, right ToolInvocationRecovery) int {
 	return strings.Compare(left.ItemID, right.ItemID)
 }
 
-func (planner *recoveryPlanner) planTree(rootRunID string) error {
-	tree := planner.trees[rootRunID]
-	items, err := planner.transcript(tree.root.SessionID())
+func (r *recoveryPlanner) planTree(rootRunID string) error {
+	tree := r.trees[rootRunID]
+	items, err := r.transcript(tree.root.SessionID())
 	if err != nil {
 		return err
 	}
-	open, hasInterrupt := planner.pendingByRoot[rootRunID]
+	open, hasInterrupt := r.pendingByRoot[rootRunID]
 	if tree.root.State() == rundomain.Waiting && hasInterrupt {
-		sess, err := planner.session(tree.root.SessionID())
+		sess, err := r.session(tree.root.SessionID())
 		if err != nil {
 			return err
 		}
 		resumable, err := validateRecoveryParkedTree(
-			planner.ctx,
+			r.ctx,
 			tree,
 			open,
 			sess,
 			items,
-			planner.store,
-			planner.resumability,
+			r.store,
+			r.resumability,
 		)
 		if err != nil {
 			return err
 		}
 		if resumable {
-			planner.preserved[rootRunID] = struct{}{}
+			r.preserved[rootRunID] = struct{}{}
 			return nil
 		}
 	}
-	conversationSnapshot, err := planner.conversation(tree.root.SessionID())
+	conversationSnapshot, err := r.conversation(tree.root.SessionID())
 	if err != nil {
 		return err
 	}
@@ -581,25 +581,25 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 		)
 	}
 	messageMark := conversationSnapshot.count + len(closure)
-	lostRuns, replacements, err := recoverLostTree(tree, items, messageMark, planner.finishedAt)
+	lostRuns, replacements, err := recoverLostTree(tree, items, messageMark, r.finishedAt)
 	if err != nil {
 		return err
 	}
-	planner.commit.LostRuns = append(planner.commit.LostRuns, lostRuns...)
-	planner.commit.ItemReplacements = append(planner.commit.ItemReplacements, replacements...)
-	planner.commit.ConversationTransitions = append(
-		planner.commit.ConversationTransitions,
+	r.commit.LostRuns = append(r.commit.LostRuns, lostRuns...)
+	r.commit.ItemReplacements = append(r.commit.ItemReplacements, replacements...)
+	r.commit.ConversationTransitions = append(
+		r.commit.ConversationTransitions,
 		RecoveryConversationTransition{
 			RootRunID: tree.root.ID(), SessionID: tree.root.SessionID(),
 			ExpectedCount: conversationSnapshot.count, Messages: closure,
 		},
 	)
-	planner.commit.DeleteInterrupts = append(planner.commit.DeleteInterrupts, InterruptOwner{
+	r.commit.DeleteInterrupts = append(r.commit.DeleteInterrupts, InterruptOwner{
 		SessionID: tree.root.SessionID(),
 		RootRunID: tree.root.ID(),
 	})
-	planner.commit.DeleteCheckpointSessionIDs = append(
-		planner.commit.DeleteCheckpointSessionIDs,
+	r.commit.DeleteCheckpointSessionIDs = append(
+		r.commit.DeleteCheckpointSessionIDs,
 		tree.root.SessionID(),
 	)
 	if tree.root.GoalIncarnationID() != "" {
@@ -607,33 +607,33 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 		if err != nil {
 			return err
 		}
-		planner.commit.GoalRuns = append(planner.commit.GoalRuns, record)
+		r.commit.GoalRuns = append(r.commit.GoalRuns, record)
 	}
-	planner.reconciled += len(lostRuns)
+	r.reconciled += len(lostRuns)
 	return nil
 }
 
-func (planner *recoveryPlanner) transcript(sessionID string) ([]transcript.Item, error) {
-	if items, ok := planner.transcripts[sessionID]; ok {
+func (r *recoveryPlanner) transcript(sessionID string) ([]transcript.Item, error) {
+	if items, ok := r.transcripts[sessionID]; ok {
 		return items, nil
 	}
-	items, err := planner.store.ListTranscript(planner.ctx, sessionID)
+	items, err := r.store.ListTranscript(r.ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("runs: load recovery transcript for Session %q: %w", sessionID, err)
 	}
 	for _, item := range items {
-		planner.observeTime(item.OccurredAt())
-		planner.observeTime(item.FinishedAt())
+		r.observeTime(item.OccurredAt())
+		r.observeTime(item.FinishedAt())
 	}
-	planner.transcripts[sessionID] = items
+	r.transcripts[sessionID] = items
 	return items, nil
 }
 
-func (planner *recoveryPlanner) session(sessionID string) (session.Session, error) {
-	if sess, ok := planner.sessions[sessionID]; ok {
+func (r *recoveryPlanner) session(sessionID string) (session.Session, error) {
+	if sess, ok := r.sessions[sessionID]; ok {
 		return sess, nil
 	}
-	sess, err := planner.store.SessionByID(planner.ctx, sessionID)
+	sess, err := r.store.SessionByID(r.ctx, sessionID)
 	if err != nil {
 		return session.Session{}, fmt.Errorf("runs: load recovery Session %q: %w", sessionID, err)
 	}
@@ -644,15 +644,15 @@ func (planner *recoveryPlanner) session(sessionID string) (session.Session, erro
 			sess.ID(),
 		)
 	}
-	planner.sessions[sessionID] = sess
+	r.sessions[sessionID] = sess
 	return sess, nil
 }
 
-func (planner *recoveryPlanner) conversation(sessionID string) (recoveryConversationSnapshot, error) {
-	if snapshot, ok := planner.conversations[sessionID]; ok {
+func (r *recoveryPlanner) conversation(sessionID string) (recoveryConversationSnapshot, error) {
+	if snapshot, ok := r.conversations[sessionID]; ok {
 		return snapshot, nil
 	}
-	messages, err := planner.store.ReadMessages(planner.ctx, sessionID)
+	messages, err := r.store.ReadMessages(r.ctx, sessionID)
 	if err != nil {
 		return recoveryConversationSnapshot{}, fmt.Errorf(
 			"runs: load recovery conversation for Session %q: %w",
@@ -668,7 +668,7 @@ func (planner *recoveryPlanner) conversation(sessionID string) (recoveryConversa
 			err,
 		)
 	}
-	count, err := planner.store.CountMessages(planner.ctx, sessionID)
+	count, err := r.store.CountMessages(r.ctx, sessionID)
 	if err != nil {
 		return recoveryConversationSnapshot{}, fmt.Errorf(
 			"runs: load recovery message watermark for Session %q: %w",
@@ -685,7 +685,7 @@ func (planner *recoveryPlanner) conversation(sessionID string) (recoveryConversa
 		)
 	}
 	snapshot := recoveryConversationSnapshot{history: history, count: count}
-	planner.conversations[sessionID] = snapshot
+	r.conversations[sessionID] = snapshot
 	return snapshot, nil
 }
 

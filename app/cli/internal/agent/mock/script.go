@@ -274,30 +274,30 @@ func newDefaultScenario() defaultScenario {
 	}
 }
 
-func (scenario defaultScenario) prelude() []Step {
+func (d defaultScenario) prelude() []Step {
 	prelude := make([]Step, 0, 32)
 	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
 		{Title: "Reproduce the flake", Status: agent.PlanActive},
 		{Title: "Find what the test is really waiting for", Status: agent.PlanPending},
 		{Title: "Replace the sleep and re-run", Status: agent.PlanPending},
 	}}})
-	prelude = append(prelude, stream("rsn_1", agent.BlockReasoning, scenario.reasoning)...)
+	prelude = append(prelude, stream("rsn_1", agent.BlockReasoning, d.reasoning)...)
 	prelude = append(prelude, tool("tool_1", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=5",
-		agent.ToolOK, scenario.testOutput, "", 3*time.Second+412*time.Millisecond)...)
+		agent.ToolOK, d.testOutput, "", 3*time.Second+412*time.Millisecond)...)
 	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
 		{Title: "Reproduce the flake", Status: agent.PlanDone},
 		{Title: "Find what the test is really waiting for", Status: agent.PlanDone},
 		{Title: "Replace the sleep and re-run", Status: agent.PlanActive},
 	}}})
-	return append(prelude, stream("msg_1", agent.BlockAssistant, scenario.explanation)...)
+	return append(prelude, stream("msg_1", agent.BlockAssistant, d.explanation)...)
 }
 
-func (scenario defaultScenario) approved() []Step {
+func (d defaultScenario) approved() []Step {
 	approved := tool("tool_3", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=50",
 		agent.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)
-	approved = append(approved, stream("msg_2", agent.BlockAssistant, scenario.summary)...)
+	approved = append(approved, stream("msg_2", agent.BlockAssistant, d.summary)...)
 	approved = append(approved, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
@@ -308,12 +308,12 @@ func (scenario defaultScenario) approved() []Step {
 	return approved
 }
 
-func (scenario defaultScenario) denied() []Step {
+func (d defaultScenario) denied() []Step {
 	denied := make([]Step, 0, 16)
 	denied = append(denied, Step{Delay: beat, Event: agent.BlockCompleted{Block: agent.Block{
 		ID: "note_1", Kind: agent.BlockNotice, Text: "Edit declined — internal/store/cache_test.go left unchanged.",
 	}}})
-	denied = append(denied, stream("msg_3", agent.BlockAssistant, scenario.declined)...)
+	denied = append(denied, stream("msg_3", agent.BlockAssistant, d.declined)...)
 	denied = append(denied, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
@@ -324,10 +324,10 @@ func (scenario defaultScenario) denied() []Step {
 	return denied
 }
 
-func (scenario defaultScenario) script() Script {
-	approved, denied := scenario.approved(), scenario.denied()
+func (d defaultScenario) script() Script {
+	approved, denied := d.approved(), d.denied()
 	return Script{
-		Prelude:        scenario.prelude(),
+		Prelude:        d.prelude(),
 		InterruptUsage: agent.Usage{InputTokens: 12_800, OutputTokens: 684, CacheReadTokens: 9_600, CostUSD: new(0.0264), Duration: 9 * time.Second},
 		Interactions: []agent.Interaction{agent.Approval{
 			ItemID: "tool_2",
@@ -335,9 +335,9 @@ func (scenario defaultScenario) script() Script {
 			Detail: "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
 			Tool: &agent.ToolCall{
 				Kind: agent.ToolEdit, Name: "edit", Summary: "internal/store/cache_test.go",
-				Status: agent.ToolRunning, Path: "internal/store/cache_test.go", Diff: scenario.diff,
+				Status: agent.ToolRunning, Path: "internal/store/cache_test.go", Diff: d.diff,
 			},
-			Diff:         scenario.diff,
+			Diff:         d.diff,
 			Risk:         agent.ApprovalRiskMedium,
 			RuleHint:     "edit:internal/store/cache_test.go",
 			Rememberable: true,

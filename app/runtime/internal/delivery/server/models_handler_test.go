@@ -15,18 +15,18 @@ import (
 // (Metadata) surface the model-role validation reads.
 type modelProviderFake struct{ entries map[string]provider.Provider }
 
-func (r *modelProviderFake) List(context.Context) ([]provider.Provider, error) { return nil, nil }
-func (r *modelProviderFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
-	entry, ok := r.entries[id]
+func (m *modelProviderFake) List(context.Context) ([]provider.Provider, error) { return nil, nil }
+func (m *modelProviderFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
+	entry, ok := m.entries[id]
 	return entry, ok, nil
 }
-func (r *modelProviderFake) Update(context.Context, string, provider.Patch) (provider.Provider, error) {
+func (m *modelProviderFake) Update(context.Context, string, provider.Patch) (provider.Provider, error) {
 	return provider.Provider{}, nil
 }
-func (r *modelProviderFake) Supported() []models.ProviderMetadata {
+func (m *modelProviderFake) Supported() []models.ProviderMetadata {
 	return []models.ProviderMetadata{{ID: "anthropic"}}
 }
-func (r *modelProviderFake) Metadata(id string) (models.ProviderMetadata, bool) {
+func (m *modelProviderFake) Metadata(id string) (models.ProviderMetadata, bool) {
 	if id == "anthropic" {
 		return models.ProviderMetadata{ID: id}, true
 	}
@@ -48,10 +48,10 @@ type utilitySaverRecorder struct {
 	calls    int
 }
 
-func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
-	s.calls++
-	s.provider = role.Provider()
-	s.model = role.Model()
+func (u *utilitySaverRecorder) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
+	u.calls++
+	u.provider = role.Provider()
+	u.model = role.Model()
 	return nil
 }
 

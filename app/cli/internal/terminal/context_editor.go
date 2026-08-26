@@ -43,16 +43,16 @@ type contextEditorSession struct {
 	closed    bool
 }
 
-func (session *contextEditorSession) Dismiss() {
-	if session == nil || session.closed {
+func (c *contextEditorSession) Dismiss() {
+	if c == nil || c.closed {
 		return
 	}
-	session.closed = true
-	if session.dialog != nil {
-		session.dialog.Dismiss()
+	c.closed = true
+	if c.dialog != nil {
+		c.dialog.Dismiss()
 	}
-	if session.dismissed != nil {
-		session.dismissed()
+	if c.dismissed != nil {
+		c.dismissed()
 	}
 }
 
@@ -74,43 +74,43 @@ func newContextEditor(theme kit.Theme, clipboard headless.Clipboard, content, pl
 	return editor
 }
 
-func (editor *contextEditor) Draw(frame headless.Frame) {
+func (c *contextEditor) Draw(frame headless.Frame) {
 	_, height := frame.Size()
-	if editor.problem == "" || height < 2 {
-		editor.composer.Draw(frame)
+	if c.problem == "" || height < 2 {
+		c.composer.Draw(frame)
 		return
 	}
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Flex(1)}, {Size: layout.Fixed(1)},
 	}))
-	editor.composer.Draw(rows[0])
-	style := editor.theme.Subtle
-	if editor.failed {
-		style = editor.theme.Danger
+	c.composer.Draw(rows[0])
+	style := c.theme.Subtle
+	if c.failed {
+		style = c.theme.Danger
 	}
-	rows[1].Text(0, 0, editor.problem, style)
+	rows[1].Text(0, 0, c.problem, style)
 }
 
-func (editor *contextEditor) Handle(event input.Event) bool {
+func (c *contextEditor) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
-		action, _ := editor.keys.Action(key.Chord())
+		action, _ := c.keys.Action(key.Chord())
 		switch action {
 		case saveContextDocument:
-			if editor.save != nil {
-				_ = editor.save(editor.composer.Text())
+			if c.save != nil {
+				_ = c.save(c.composer.Text())
 			}
 			return true
 		case cancelContextDocument:
-			if editor.cancel != nil {
-				editor.cancel()
+			if c.cancel != nil {
+				c.cancel()
 			}
 			return true
 		}
 	}
-	return editor.composer.Handle(event)
+	return c.composer.Handle(event)
 }
 
-func (editor *contextEditor) Focus(has bool) { editor.composer.Focus(has) }
+func (c *contextEditor) Focus(has bool) { c.composer.Focus(has) }
 
 func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSession {
 	if a.activeContextEditor != nil {

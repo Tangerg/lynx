@@ -126,31 +126,31 @@ func decodeOAuthSession(payload []byte) (*oauth2.Config, *oauth2.Token, error) {
 	}, nil
 }
 
-func (session storedOAuthSession) validate() error {
-	if session.Version != oauthSessionVersion {
-		return fmt.Errorf("mcp oauth: unsupported session version %d", session.Version)
+func (s storedOAuthSession) validate() error {
+	if s.Version != oauthSessionVersion {
+		return fmt.Errorf("mcp oauth: unsupported session version %d", s.Version)
 	}
-	if err := session.Config.validate(); err != nil {
+	if err := s.Config.validate(); err != nil {
 		return err
 	}
-	return session.Token.validate()
+	return s.Token.validate()
 }
 
-func (config storedOAuthConfig) validate() error {
-	if config.ClientID == "" {
+func (s storedOAuthConfig) validate() error {
+	if s.ClientID == "" {
 		return errors.New("mcp oauth: stored client id is empty")
 	}
-	if err := validateStoredOAuthURL("authorization URL", config.AuthURL); err != nil {
+	if err := validateStoredOAuthURL("authorization URL", s.AuthURL); err != nil {
 		return err
 	}
-	if err := validateStoredOAuthURL("token URL", config.TokenURL); err != nil {
+	if err := validateStoredOAuthURL("token URL", s.TokenURL); err != nil {
 		return err
 	}
-	return validateStoredOAuthURL("redirect URL", config.RedirectURL)
+	return validateStoredOAuthURL("redirect URL", s.RedirectURL)
 }
 
-func (token storedOAuthToken) validate() error {
-	if token.AccessToken == "" {
+func (s storedOAuthToken) validate() error {
+	if s.AccessToken == "" {
 		return errors.New("mcp oauth: stored access token is empty")
 	}
 	return nil
@@ -199,21 +199,21 @@ func newSavingTokenSource(source oauth2.TokenSource, cfg *oauth2.Config, token *
 	return &savingTokenSource{source: source, config: config, last: cloneOAuthToken(token), save: save}
 }
 
-func (source *savingTokenSource) Token() (*oauth2.Token, error) {
-	source.mu.Lock()
-	defer source.mu.Unlock()
+func (s *savingTokenSource) Token() (*oauth2.Token, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	token, err := source.source.Token()
+	token, err := s.source.Token()
 	if err != nil {
 		return nil, err
 	}
-	if sameOAuthToken(source.last, token) {
+	if sameOAuthToken(s.last, token) {
 		return token, nil
 	}
-	if err := source.save(&source.config, token); err != nil {
+	if err := s.save(&s.config, token); err != nil {
 		return nil, err
 	}
-	source.last = cloneOAuthToken(token)
+	s.last = cloneOAuthToken(token)
 	return token, nil
 }
 
@@ -235,18 +235,18 @@ func sameOAuthToken(left, right *oauth2.Token) bool {
 		left.Expiry.Equal(right.Expiry)
 }
 
-func (source *invalidatingTokenSource) Token() (*oauth2.Token, error) {
-	source.mu.Lock()
-	defer source.mu.Unlock()
-	if source.invalidated {
+func (i *invalidatingTokenSource) Token() (*oauth2.Token, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.invalidated {
 		return nil, &dialError{kind: dialErrorNeedsAuth, err: errStoredOAuthRejected}
 	}
-	token, err := source.source.Token()
+	token, err := i.source.Token()
 	if err == nil || !oauthCredentialRejected(err) {
 		return token, err
 	}
-	source.invalidated = true
-	removeErr := source.store.RemoveOAuthSession(source.lifetime, source.server)
+	i.invalidated = true
+	removeErr := i.store.RemoveOAuthSession(i.lifetime, i.server)
 	return nil, &dialError{
 		kind: dialErrorNeedsAuth,
 		err:  errors.Join(errStoredOAuthRejected, err, removeErr),
@@ -293,22 +293,22 @@ type restoredOAuthHandler struct {
 
 var _ auth.OAuthHandler = (*restoredOAuthHandler)(nil)
 
-func (handler *restoredOAuthHandler) TokenSource(context.Context) (oauth2.TokenSource, error) {
-	handler.mu.RLock()
-	defer handler.mu.RUnlock()
-	return handler.source, nil
+func (r *restoredOAuthHandler) TokenSource(context.Context) (oauth2.TokenSource, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.source, nil
 }
 
-func (handler *restoredOAuthHandler) Authorize(ctx context.Context, _ *http.Request, response *http.Response) error {
+func (r *restoredOAuthHandler) Authorize(ctx context.Context, _ *http.Request, response *http.Response) error {
 	var responseErr error
 	if response != nil && response.Body != nil {
 		_, drainErr := io.Copy(io.Discard, response.Body)
 		responseErr = errors.Join(drainErr, response.Body.Close())
 	}
-	handler.mu.Lock()
-	handler.source = nil
-	handler.mu.Unlock()
-	removeErr := handler.store.RemoveOAuthSession(ctx, handler.server)
+	r.mu.Lock()
+	r.source = nil
+	r.mu.Unlock()
+	removeErr := r.store.RemoveOAuthSession(ctx, r.server)
 	return errors.Join(errStoredOAuthRejected, responseErr, removeErr)
 }
 

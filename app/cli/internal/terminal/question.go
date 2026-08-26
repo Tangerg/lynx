@@ -61,34 +61,34 @@ func newQuestionResponse(field agent.QuestionField, previous []string) questionR
 	return response
 }
 
-func (r *questionResponse) restore(values []string) {
-	switch r.field.Kind {
+func (q *questionResponse) restore(values []string) {
+	switch q.field.Kind {
 	case agent.QuestionText:
 		if len(values) > 0 {
-			r.text = values[0]
+			q.text = values[0]
 		}
 	case agent.QuestionSingle:
 		if len(values) == 0 {
 			return
 		}
-		if fieldOffers(r.field, values[0]) || !r.field.AllowCustom {
-			r.single = offeredQuestionChoice(values[0])
+		if fieldOffers(q.field, values[0]) || !q.field.AllowCustom {
+			q.single = offeredQuestionChoice(values[0])
 			return
 		}
-		r.single = customQuestionChoice()
-		r.custom = values[0]
+		q.single = customQuestionChoice()
+		q.custom = values[0]
 	case agent.QuestionMulti:
 		custom := make([]string, 0, len(values))
 		for _, value := range values {
-			if fieldOffers(r.field, value) || !r.field.AllowCustom {
-				r.multiple = append(r.multiple, offeredQuestionChoice(value))
+			if fieldOffers(q.field, value) || !q.field.AllowCustom {
+				q.multiple = append(q.multiple, offeredQuestionChoice(value))
 				continue
 			}
 			custom = append(custom, value)
 		}
 		if len(custom) > 0 {
-			r.multiple = append(r.multiple, customQuestionChoice())
-			r.custom = strings.Join(custom, ", ")
+			q.multiple = append(q.multiple, customQuestionChoice())
+			q.custom = strings.Join(custom, ", ")
 		}
 	}
 }
@@ -151,32 +151,32 @@ func (q *questionnaire) Answer() (agent.QuestionAnswer, error) {
 	return answer, nil
 }
 
-func (r *questionResponse) values() ([]string, error) {
-	switch r.field.Kind {
+func (q *questionResponse) values() ([]string, error) {
+	switch q.field.Kind {
 	case agent.QuestionText:
-		value := strings.TrimSpace(r.text)
+		value := strings.TrimSpace(q.text)
 		if err := requiredText(value); err != nil {
 			return nil, err
 		}
 		return []string{value}, nil
 	case agent.QuestionSingle:
-		if !r.single.custom {
-			if r.single.value == "" {
+		if !q.single.custom {
+			if q.single.value == "" {
 				return nil, errors.New("choose an option")
 			}
-			return []string{r.single.value}, nil
+			return []string{q.single.value}, nil
 		}
-		value := strings.TrimSpace(r.custom)
+		value := strings.TrimSpace(q.custom)
 		if err := requiredText(value); err != nil {
 			return nil, err
 		}
 		return []string{value}, nil
 	case agent.QuestionMulti:
-		values := make([]string, 0, len(r.multiple))
-		seen := make(map[string]struct{}, len(r.multiple))
-		for _, choice := range r.multiple {
+		values := make([]string, 0, len(q.multiple))
+		seen := make(map[string]struct{}, len(q.multiple))
+		for _, choice := range q.multiple {
 			if choice.custom {
-				custom, err := parseCustomChoices(r.custom)
+				custom, err := parseCustomChoices(q.custom)
 				if err != nil {
 					return nil, err
 				}
@@ -302,11 +302,11 @@ func questionFieldLabel(specification agent.QuestionField) string {
 	return specification.Header + " — " + specification.Prompt
 }
 
-func (r *questionResponse) choosesCustom() bool {
-	if r.field.Kind == agent.QuestionSingle {
-		return r.single.custom
+func (q *questionResponse) choosesCustom() bool {
+	if q.field.Kind == agent.QuestionSingle {
+		return q.single.custom
 	}
-	for _, choice := range r.multiple {
+	for _, choice := range q.multiple {
 		if choice.custom {
 			return true
 		}

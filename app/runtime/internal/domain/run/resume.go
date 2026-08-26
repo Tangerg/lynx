@@ -35,19 +35,19 @@ type TreeResumeDraft struct {
 // correspondence are checked while the owner creates the draft; persistence
 // additionally proves that its root has a durable answer claim before
 // reopening any Run.
-func (draft TreeResumeDraft) Validate() error {
+func (t TreeResumeDraft) Validate() error {
 	switch {
-	case strings.TrimSpace(draft.RootRunID) == "":
+	case strings.TrimSpace(t.RootRunID) == "":
 		return errors.New("run: tree resume root run id is required")
-	case strings.TrimSpace(draft.SessionID) == "":
+	case strings.TrimSpace(t.SessionID) == "":
 		return errors.New("run: tree resume session id is required")
-	case draft.ResumedAt.IsZero():
+	case t.ResumedAt.IsZero():
 		return errors.New("run: tree resume time is required")
-	case len(draft.Runs) == 0:
+	case len(t.Runs) == 0:
 		return errors.New("run: tree resume has no Runs")
 	}
-	seen := make(map[string]struct{}, len(draft.Runs))
-	for index, run := range draft.Runs {
+	seen := make(map[string]struct{}, len(t.Runs))
+	for index, run := range t.Runs {
 		if strings.TrimSpace(run.RunID) == "" || strings.TrimSpace(run.SegmentID) == "" {
 			return fmt.Errorf("run: tree resume Run[%d] has incomplete identity", index)
 		}
@@ -56,11 +56,11 @@ func (draft TreeResumeDraft) Validate() error {
 		}
 		seen[run.RunID] = struct{}{}
 	}
-	if draft.Runs[len(draft.Runs)-1].RunID != draft.RootRunID {
+	if t.Runs[len(t.Runs)-1].RunID != t.RootRunID {
 		return fmt.Errorf(
 			"run: tree resume root %q must be the final Run, got %q",
-			draft.RootRunID,
-			draft.Runs[len(draft.Runs)-1].RunID,
+			t.RootRunID,
+			t.Runs[len(t.Runs)-1].RunID,
 		)
 	}
 	return nil

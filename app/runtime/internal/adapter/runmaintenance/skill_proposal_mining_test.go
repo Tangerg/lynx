@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -37,9 +37,9 @@ type fakeProposalSubmitter struct {
 	cwds      []string
 }
 
-func (s *fakeProposalSubmitter) SubmitProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
-	s.cwds = append(s.cwds, cwd)
-	s.proposals = append(s.proposals, proposal)
+func (f *fakeProposalSubmitter) SubmitProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	f.cwds = append(f.cwds, cwd)
+	f.proposals = append(f.proposals, proposal)
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 

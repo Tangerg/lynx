@@ -68,13 +68,13 @@ func runAccountingRowOf(metrics rundomain.Metrics, limits rundomain.Limits) runA
 	}
 }
 
-func (row runAccountingRow) values() (rundomain.Metrics, rundomain.Limits, error) {
-	metrics, err := rundomain.NewMetrics(row.Usage.usage(), row.Steps, time.Duration(row.ActiveDurationNs))
+func (r runAccountingRow) values() (rundomain.Metrics, rundomain.Limits, error) {
+	metrics, err := rundomain.NewMetrics(r.Usage.usage(), r.Steps, time.Duration(r.ActiveDurationNs))
 	if err != nil {
 		return rundomain.Metrics{}, rundomain.Limits{}, fmt.Errorf("metrics: %w", err)
 	}
 	limits := rundomain.Limits{
-		MaxTotalTokens: row.MaxTotalTokens, MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD,
+		MaxTotalTokens: r.MaxTotalTokens, MaxSteps: r.MaxSteps, MaxBudgetUSD: r.MaxBudgetUSD,
 	}
 	if err := limits.Validate(); err != nil {
 		return rundomain.Metrics{}, rundomain.Limits{}, fmt.Errorf("limits: %w", err)
@@ -393,21 +393,21 @@ func decodeRunUsage(encoded string) (*accounting.Usage, error) {
 	return row.usage(), nil
 }
 
-func (row *runUsageRow) usage() *accounting.Usage {
-	if row == nil {
+func (r *runUsageRow) usage() *accounting.Usage {
+	if r == nil {
 		return nil
 	}
 	usage := &accounting.Usage{Total: accounting.Totals{
-		InputTokens:      row.InputTokens,
-		OutputTokens:     row.OutputTokens,
-		CacheReadTokens:  row.CacheReadTokens,
-		CacheWriteTokens: row.CacheWriteTokens,
-		ReasoningTokens:  row.ReasoningTokens,
-		CostUSD:          row.CostUSD,
+		InputTokens:      r.InputTokens,
+		OutputTokens:     r.OutputTokens,
+		CacheReadTokens:  r.CacheReadTokens,
+		CacheWriteTokens: r.CacheWriteTokens,
+		ReasoningTokens:  r.ReasoningTokens,
+		CostUSD:          r.CostUSD,
 	}}
-	if len(row.ByModel) > 0 {
-		usage.ByModel = make(map[string]accounting.Totals, len(row.ByModel))
-		for model, perModel := range row.ByModel {
+	if len(r.ByModel) > 0 {
+		usage.ByModel = make(map[string]accounting.Totals, len(r.ByModel))
+		for model, perModel := range r.ByModel {
 			usage.ByModel[model] = accounting.Totals{
 				InputTokens:      perModel.InputTokens,
 				OutputTokens:     perModel.OutputTokens,

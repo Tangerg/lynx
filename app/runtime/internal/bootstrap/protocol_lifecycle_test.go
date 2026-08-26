@@ -17,8 +17,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // TestProtocolLifecycleSurvivesColdRestart is the protocol conformance smoke
@@ -120,16 +120,16 @@ func protocolLifecycleContext(ctx context.Context) context.Context {
 	})
 }
 
-func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
-	f.t.Helper()
-	session, err := f.api.CreateSession(f.ctx, protocol.CreateSessionRequest{
-		Workspace: &protocol.WorkspaceRef{Path: f.home}, Title: "protocol lifecycle",
+func (p *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
+	p.t.Helper()
+	session, err := p.api.CreateSession(p.ctx, protocol.CreateSessionRequest{
+		Workspace: &protocol.WorkspaceRef{Path: p.home}, Title: "protocol lifecycle",
 	})
 	if err != nil {
-		f.t.Fatalf("sessions.create: %v", err)
+		p.t.Fatalf("sessions.create: %v", err)
 	}
-	f.sessionID = session.ID
-	started, startEvents, err := f.api.StartRun(f.ctx, protocol.StartRunRequest{
+	p.sessionID = session.ID
+	started, startEvents, err := p.api.StartRun(p.ctx, protocol.StartRunRequest{
 		SessionID: session.ID,
 		Input: []protocol.ContentBlock{{
 			Type: protocol.ContentBlockText,
@@ -137,29 +137,29 @@ func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
 		}},
 	})
 	if err != nil {
-		f.t.Fatalf("runs.start: %v", err)
+		p.t.Fatalf("runs.start: %v", err)
 	}
-	f.started = started
+	p.started = started
 	if started.RunID == "" || started.SegmentID == "" || started.UserItemID == "" {
-		f.t.Fatalf("runs.start returned incomplete identity: %+v", started)
+		p.t.Fatalf("runs.start returned incomplete identity: %+v", started)
 	}
 	startEventsDone := collectRunEvents(startEvents)
 	select {
-	case <-f.model.firstCallStarted:
+	case <-p.model.firstCallStarted:
 	case events := <-startEventsDone:
-		ended, _ := f.api.GetRun(f.ctx, protocol.GetRunRequest{RunID: started.RunID})
+		ended, _ := p.api.GetRun(p.ctx, protocol.GetRunRequest{RunID: started.RunID})
 		diagnostic, _ := json.Marshal(ended)
-		f.t.Fatalf(
+		p.t.Fatalf(
 			"run ended before first model call: run=%s domainFailure=%s events=%+v",
 			diagnostic,
-			f.domainFailureDiagnostic(started.RunID),
+			p.domainFailureDiagnostic(started.RunID),
 			events,
 		)
 	case <-time.After(5 * time.Second):
-		f.t.Fatal("timed out waiting for first model call")
+		p.t.Fatal("timed out waiting for first model call")
 	}
 
-	if err := f.api.SteerRun(f.ctx, protocol.SteerRunRequest{
+	if err := p.api.SteerRun(p.ctx, protocol.SteerRunRequest{
 		RunID:             started.RunID,
 		ExpectedSegmentID: started.SegmentID,
 		Input: []protocol.ContentBlock{{
@@ -167,39 +167,39 @@ func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
 			Text: protocolLifecycleSteeringText,
 		}},
 	}); err != nil {
-		f.t.Fatalf("runs.steer: %v", err)
+		p.t.Fatalf("runs.steer: %v", err)
 	}
-	close(f.model.releaseFirstCall)
-	waitForRunEvents(f.t, startEventsDone, "waiting segment")
+	close(p.model.releaseFirstCall)
+	waitForRunEvents(p.t, startEventsDone, "waiting segment")
 
-	waiting, err := f.api.GetRun(f.ctx, protocol.GetRunRequest{RunID: started.RunID})
+	waiting, err := p.api.GetRun(p.ctx, protocol.GetRunRequest{RunID: started.RunID})
 	if err != nil {
-		f.t.Fatalf("runs.get waiting run: %v", err)
+		p.t.Fatalf("runs.get waiting run: %v", err)
 	}
 	if waiting.Status != protocol.RunStatusWaiting || waiting.Outcome != nil || waiting.ActiveSegmentID != "" {
-		f.t.Fatalf("waiting run = %+v, want waiting without outcome or active segment", waiting)
+		p.t.Fatalf("waiting run = %+v, want waiting without outcome or active segment", waiting)
 	}
-	pending, err := f.api.ListInterrupts(f.ctx, protocol.ListInterruptsRequest{
+	pending, err := p.api.ListInterrupts(p.ctx, protocol.ListInterruptsRequest{
 		RootRunID: started.RunID,
 	})
 	if err != nil {
-		f.t.Fatalf("interrupt.list: %v", err)
+		p.t.Fatalf("interrupt.list: %v", err)
 	}
 	if len(pending.Data) != 1 || len(pending.Data[0].Interrupts) != 1 {
-		f.t.Fatalf("pending interrupts = %+v, want one complete set with one interrupt", pending.Data)
+		p.t.Fatalf("pending interrupts = %+v, want one complete set with one interrupt", pending.Data)
 	}
 	question := pending.Data[0].Interrupts[0]
 	if question.RunID != started.RunID || question.Type != protocol.InterruptQuestion {
-		f.t.Fatalf("pending interrupt = %+v, want this run's question", question)
+		p.t.Fatalf("pending interrupt = %+v, want this run's question", question)
 	}
 	return question
 }
 
-func (f *protocolLifecycleFixture) domainFailureDiagnostic(runID string) string {
-	if f.stores == nil || f.stores.Runs == nil {
+func (p *protocolLifecycleFixture) domainFailureDiagnostic(runID string) string {
+	if p.stores == nil || p.stores.Runs == nil {
 		return "unavailable"
 	}
-	value, found, err := f.stores.Runs.Run(f.ctx, runID)
+	value, found, err := p.stores.Runs.Run(p.ctx, runID)
 	if err != nil {
 		return "read error: " + err.Error()
 	}
@@ -209,18 +209,18 @@ func (f *protocolLifecycleFixture) domainFailureDiagnostic(runID string) string 
 	return fmt.Sprintf("%+v", value.Snapshot().Failure)
 }
 
-func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) {
-	f.resumeAndCancelWith(f.api, question, true)
+func (p *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) {
+	p.resumeAndCancelWith(p.api, question, true)
 }
 
-func (f *protocolLifecycleFixture) resumeAndCancelWith(
+func (p *protocolLifecycleFixture) resumeAndCancelWith(
 	api *runtimeserver.Server,
 	question protocol.Interrupt,
 	closeFirst bool,
 ) {
-	f.t.Helper()
-	resumed, resumeEvents, err := api.ResumeRun(f.ctx, protocol.ResumeRunRequest{
-		RunID: f.started.RunID,
+	p.t.Helper()
+	resumed, resumeEvents, err := api.ResumeRun(p.ctx, protocol.ResumeRunRequest{
+		RunID: p.started.RunID,
 		Responses: []protocol.InterruptResponse{{
 			ItemID: question.ItemID,
 			Response: protocol.InterruptResponseValue{
@@ -230,21 +230,21 @@ func (f *protocolLifecycleFixture) resumeAndCancelWith(
 		}},
 	})
 	if err != nil {
-		f.t.Fatalf("runs.resume: %v", err)
+		p.t.Fatalf("runs.resume: %v", err)
 	}
-	if resumed.RunID != f.started.RunID || resumed.SegmentID == "" || resumed.SegmentID == f.started.SegmentID {
-		f.t.Fatalf("runs.resume identity = %+v, want same run and a fresh segment", resumed)
+	if resumed.RunID != p.started.RunID || resumed.SegmentID == "" || resumed.SegmentID == p.started.SegmentID {
+		p.t.Fatalf("runs.resume identity = %+v, want same run and a fresh segment", resumed)
 	}
 	if resumed.UserItemID != nil {
-		f.t.Fatalf("runs.resume userItemId = %q without resume input", *resumed.UserItemID)
+		p.t.Fatalf("runs.resume userItemId = %q without resume input", *resumed.UserItemID)
 	}
 	resumeEventsDone := collectRunEvents(resumeEvents)
-	waitForSignal(f.t, f.model.resumedCallStarted, "resumed model call")
-	items, err := api.ListItems(f.ctx, protocol.ListItemsRequest{
-		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: f.started.RunID},
+	waitForSignal(p.t, p.model.resumedCallStarted, "resumed model call")
+	items, err := api.ListItems(p.ctx, protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: p.started.RunID},
 	})
 	if err != nil {
-		f.t.Fatalf("items.list after accepted answer: %v", err)
+		p.t.Fatalf("items.list after accepted answer: %v", err)
 	}
 	var accepted bool
 	for _, item := range items.Data {
@@ -255,7 +255,7 @@ func (f *protocolLifecycleFixture) resumeAndCancelWith(
 		}
 	}
 	if !accepted {
-		f.t.Fatalf("items after accepted answer = %+v, want durable Question answers", items.Data)
+		p.t.Fatalf("items after accepted answer = %+v, want durable Question answers", items.Data)
 	}
 
 	type cancelResult struct {
@@ -264,79 +264,79 @@ func (f *protocolLifecycleFixture) resumeAndCancelWith(
 	}
 	cancelDone := make(chan cancelResult, 1)
 	go func() {
-		response, cancelErr := api.CancelRun(f.ctx, protocol.CancelRunRequest{
-			RunID: f.started.RunID, Reason: "conformance smoke complete",
+		response, cancelErr := api.CancelRun(p.ctx, protocol.CancelRunRequest{
+			RunID: p.started.RunID, Reason: "conformance smoke complete",
 		})
 		cancelDone <- cancelResult{response: response, err: cancelErr}
 	}()
 	settlementDelay := time.NewTimer(50 * time.Millisecond)
 	<-settlementDelay.C
-	close(f.model.releaseResumedCall)
+	close(p.model.releaseResumedCall)
 	cancelCall := <-cancelDone
 	canceled, err := cancelCall.response, cancelCall.err
 	if err != nil {
-		f.t.Fatalf("runs.cancel: %v", err)
+		p.t.Fatalf("runs.cancel: %v", err)
 	}
 	if canceled.Type != protocol.CancelRunRoot ||
-		canceled.Run.ID != f.started.RunID ||
+		canceled.Run.ID != p.started.RunID ||
 		canceled.Run.Status != protocol.RunStatusFinished ||
 		canceled.Run.Outcome == nil ||
 		canceled.Run.Outcome.Type != protocol.OutcomeCanceled {
-		f.t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
+		p.t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
 	}
-	waitForRunEvents(f.t, resumeEventsDone, "canceled segment")
+	waitForRunEvents(p.t, resumeEventsDone, "canceled segment")
 	if closeFirst {
-		f.closeFirstRuntime()
+		p.closeFirstRuntime()
 	}
 }
 
-func (f *protocolLifecycleFixture) assertColdState() {
-	f.t.Helper()
-	restartedHost, restartedAPI := openProtocolRuntime(f.t, newReplyStub("unused"))
+func (p *protocolLifecycleFixture) assertColdState() {
+	p.t.Helper()
+	restartedHost, restartedAPI := openProtocolRuntime(p.t, newReplyStub("unused"))
 	defer func() {
 		restartedAPI.Close()
 		if err := restartedHost.Close(); err != nil {
-			f.t.Errorf("close restarted runtime: %v", err)
+			p.t.Errorf("close restarted runtime: %v", err)
 		}
 	}()
 
-	recovered, err := restartedAPI.GetRun(f.ctx, protocol.GetRunRequest{RunID: f.started.RunID})
+	recovered, err := restartedAPI.GetRun(p.ctx, protocol.GetRunRequest{RunID: p.started.RunID})
 	if err != nil {
-		f.t.Fatalf("runs.get after restart: %v", err)
+		p.t.Fatalf("runs.get after restart: %v", err)
 	}
 	if recovered.Status != protocol.RunStatusFinished ||
 		recovered.Outcome == nil ||
 		recovered.Outcome.Type != protocol.OutcomeCanceled ||
 		recovered.ActiveSegmentID != "" {
-		f.t.Fatalf("cold run = %+v, want finished(canceled) without active segment", recovered)
+		p.t.Fatalf("cold run = %+v, want finished(canceled) without active segment", recovered)
 	}
-	items, err := restartedAPI.ListItems(f.ctx, protocol.ListItemsRequest{
+	items, err := restartedAPI.ListItems(p.ctx, protocol.ListItemsRequest{
 		Scope: protocol.ItemListScope{
 			Type:      protocol.ItemScopeSession,
-			SessionID: f.sessionID,
+			SessionID: p.sessionID,
 		},
 	})
 	if err != nil {
-		f.t.Fatalf("items.list after restart: %v", err)
+		p.t.Fatalf("items.list after restart: %v", err)
 	}
 	if !hasUserText(items.Data, "Start the lifecycle check.") {
-		f.t.Fatal("cold items do not contain the opening user message")
+		p.t.Fatal("cold items do not contain the opening user message")
 	}
 	if !hasUserText(items.Data, protocolLifecycleSteeringText) {
-		f.t.Fatal("cold items do not contain the structured steering message")
+		p.t.Fatal("cold items do not contain the structured steering message")
 	}
 }
 
-func (f *protocolLifecycleFixture) closeFirstRuntime() {
-	f.t.Helper()
-	if f.closed {
+func (p *protocolLifecycleFixture) closeFirstRuntime() {
+	p.t.Helper()
+	if p.closed {
 		return
 	}
-	f.api.Close()
-	if err := f.host.Close(); err != nil {
-		f.t.Fatalf("close first runtime: %v", err)
+	p.api.Close()
+	if err := p.host.Close(); err != nil {
+		p.t.Fatalf("close first runtime: %v", err)
 	}
-	f.closed = true
+	p.closed = true
 }
 
 const protocolLifecycleSteeringText = "Keep the resumed answer concise."
@@ -360,12 +360,12 @@ func newLifecycleModel() *lifecycleModel {
 	}
 }
 
-func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
-	switch m.calls.Add(1) {
+func (l *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
+	switch l.calls.Add(1) {
 	case 1:
-		m.firstStartedOnce.Do(func() { close(m.firstCallStarted) })
+		l.firstStartedOnce.Do(func() { close(l.firstCallStarted) })
 		select {
-		case <-m.releaseFirstCall:
+		case <-l.releaseFirstCall:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -378,9 +378,9 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}, nil)
 	default:
-		m.resumedStartedOnce.Do(func() { close(m.resumedCallStarted) })
+		l.resumedStartedOnce.Do(func() { close(l.resumedCallStarted) })
 		select {
-		case <-m.releaseResumedCall:
+		case <-l.releaseResumedCall:
 			message := chat.NewAssistantMessage(chat.NewTextPart("settled before cancellation"))
 			return chat.NewResponse(&chat.Output{Message: &message}, nil)
 		case <-ctx.Done():
@@ -389,9 +389,9 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 	}
 }
 
-func (m *lifecycleModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+func (l *lifecycleModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		response, err := m.Call(ctx, request)
+		response, err := l.Call(ctx, request)
 		yield(response, err)
 	}
 }

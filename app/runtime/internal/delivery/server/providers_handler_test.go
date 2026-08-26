@@ -21,15 +21,15 @@ type providerFake struct {
 	probed    []provider.Provider
 }
 
-func (r *providerFake) Supported() []models.ProviderMetadata {
-	if r.supported != nil {
-		return r.supported
+func (p *providerFake) Supported() []models.ProviderMetadata {
+	if p.supported != nil {
+		return p.supported
 	}
 	return []models.ProviderMetadata{{ID: "anthropic"}}
 }
 
-func (r *providerFake) Metadata(id string) (models.ProviderMetadata, bool) {
-	for _, meta := range r.Supported() {
+func (p *providerFake) Metadata(id string) (models.ProviderMetadata, bool) {
+	for _, meta := range p.Supported() {
 		if meta.ID == id {
 			return meta, true
 		}
@@ -41,34 +41,34 @@ func (*providerFake) LookupModel(string, string) (models.Model, bool) {
 	return models.Model{}, false
 }
 
-func (r *providerFake) List(context.Context) ([]provider.Provider, error) {
-	out := make([]provider.Provider, 0, len(r.entries))
-	for _, entry := range r.entries {
+func (p *providerFake) List(context.Context) ([]provider.Provider, error) {
+	out := make([]provider.Provider, 0, len(p.entries))
+	for _, entry := range p.entries {
 		out = append(out, entry)
 	}
 	return out, nil
 }
 
-func (r *providerFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
-	entry, ok := r.entries[id]
+func (p *providerFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
+	entry, ok := p.entries[id]
 	return entry, ok, nil
 }
 
-func (r *providerFake) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
-	r.updated = append(r.updated, patch)
-	if r.entries == nil {
-		r.entries = map[string]provider.Provider{}
+func (p *providerFake) Update(_ context.Context, id string, patch provider.Patch) (provider.Provider, error) {
+	p.updated = append(p.updated, patch)
+	if p.entries == nil {
+		p.entries = map[string]provider.Provider{}
 	}
-	entry := r.entries[id]
+	entry := p.entries[id]
 	entry.ID = id
 	entry = entry.Apply(patch)
-	r.entries[id] = entry
+	p.entries[id] = entry
 	return entry, nil
 }
 
-func (r *providerFake) Probe(_ context.Context, entry provider.Provider) error {
-	r.probed = append(r.probed, entry)
-	return r.probeErr
+func (p *providerFake) Probe(_ context.Context, entry provider.Provider) error {
+	p.probed = append(p.probed, entry)
+	return p.probeErr
 }
 
 func serverWithProviders(rt *providerFake) *Server {

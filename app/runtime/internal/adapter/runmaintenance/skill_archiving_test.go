@@ -15,8 +15,8 @@ type fakeIdleSkillArchiver struct {
 
 type countingIdleSkillArchiver struct{ calls atomic.Int32 }
 
-func (f *countingIdleSkillArchiver) ArchiveIdle(context.Context, time.Time, time.Duration) ([]string, error) {
-	f.calls.Add(1)
+func (c *countingIdleSkillArchiver) ArchiveIdle(context.Context, time.Time, time.Duration) ([]string, error) {
+	c.calls.Add(1)
 	return nil, nil
 }
 

@@ -16,21 +16,21 @@ type cancellationDriftProjection struct {
 	current run.Run
 }
 
-func (projection cancellationDriftProjection) Run(
+func (c cancellationDriftProjection) Run(
 	_ context.Context,
 	runID string,
 ) (run.Run, bool, error) {
-	if projection.current.ID() != runID {
+	if c.current.ID() != runID {
 		return run.Run{}, false, nil
 	}
-	return projection.current, true, nil
+	return c.current, true, nil
 }
 
-func (projection cancellationDriftProjection) Tree(
+func (c cancellationDriftProjection) Tree(
 	context.Context,
 	string,
 ) ([]run.Run, error) {
-	return append([]run.Run(nil), projection.tree...), nil
+	return append([]run.Run(nil), c.tree...), nil
 }
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {

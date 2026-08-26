@@ -25,9 +25,9 @@ type agentMemoryAdapter struct{ runtime *Runtime }
 
 var _ agentmemory.Service = (*agentMemoryAdapter)(nil)
 
-func (adapter *agentMemoryAdapter) Items(ctx context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
-	r := adapter.runtime
-	validated, err := adapter.resolveTarget(ctx, target)
+func (a *agentMemoryAdapter) Items(ctx context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
+	r := a.runtime
+	validated, err := a.resolveTarget(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +61,8 @@ func (adapter *agentMemoryAdapter) Items(ctx context.Context, target agentmemory
 	return items, nil
 }
 
-func (adapter *agentMemoryAdapter) Review(ctx context.Context, id string, decision agentmemory.ReviewDecision) error {
-	r := adapter.runtime
+func (a *agentMemoryAdapter) Review(ctx context.Context, id string, decision agentmemory.ReviewDecision) error {
+	r := a.runtime
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("review agent memory: id is empty")
@@ -79,8 +79,8 @@ func (adapter *agentMemoryAdapter) Review(ctx context.Context, id string, decisi
 	}, options))
 }
 
-func (adapter *agentMemoryAdapter) Update(ctx context.Context, patch agentmemory.Patch) (agentmemory.Item, error) {
-	r := adapter.runtime
+func (a *agentMemoryAdapter) Update(ctx context.Context, patch agentmemory.Patch) (agentmemory.Item, error) {
+	r := a.runtime
 	if err := patch.Validate(); err != nil {
 		return agentmemory.Item{}, err
 	}
@@ -106,8 +106,8 @@ func (adapter *agentMemoryAdapter) Update(ctx context.Context, patch agentmemory
 	return item, nil
 }
 
-func (adapter *agentMemoryAdapter) Delete(ctx context.Context, id string) error {
-	r := adapter.runtime
+func (a *agentMemoryAdapter) Delete(ctx context.Context, id string) error {
+	r := a.runtime
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return errors.New("delete agent memory: id is empty")
@@ -119,9 +119,9 @@ func (adapter *agentMemoryAdapter) Delete(ctx context.Context, id string) error 
 	return classifyError(r.agentMemory.DeleteAgentMemory(ctx, protocol.AgentMemoryItemRequest{ID: id}, options))
 }
 
-func (adapter *agentMemoryAdapter) Add(ctx context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
-	r := adapter.runtime
-	validated, err := adapter.resolveTarget(ctx, target)
+func (a *agentMemoryAdapter) Add(ctx context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
+	r := a.runtime
+	validated, err := a.resolveTarget(ctx, target)
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
@@ -148,14 +148,14 @@ func (adapter *agentMemoryAdapter) Add(ctx context.Context, target agentmemory.T
 	return item, nil
 }
 
-func (adapter *agentMemoryAdapter) resolveTarget(ctx context.Context, target agentmemory.Target) (agentmemory.Target, error) {
+func (a *agentMemoryAdapter) resolveTarget(ctx context.Context, target agentmemory.Target) (agentmemory.Target, error) {
 	if err := target.Validate(); err != nil {
 		return agentmemory.Target{}, err
 	}
 	if target.Scope != agentmemory.Project {
 		return target, nil
 	}
-	resolved, err := adapter.runtime.Resolve(ctx, workspace.ResolveRequest{Path: target.Workspace})
+	resolved, err := a.runtime.Resolve(ctx, workspace.ResolveRequest{Path: target.Workspace})
 	if err != nil {
 		return agentmemory.Target{}, fmt.Errorf("resolve agent memory workspace: %w", err)
 	}

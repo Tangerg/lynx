@@ -23,18 +23,18 @@ const (
 	AuthoredSkills    AuthoredResource = AuthoredResource(invalidation.Skills)
 )
 
-// Valid reports whether resource is one externally authored product source.
-func (resource AuthoredResource) Valid() bool {
-	return resource == AuthoredKnowledge || resource == AuthoredHooks || resource == AuthoredSkills
+// Valid reports whether a is one externally authored product source.
+func (a AuthoredResource) Valid() bool {
+	return a == AuthoredKnowledge || a == AuthoredHooks || a == AuthoredSkills
 }
 
-// InvalidationResource maps resource to the same application-owned change
+// InvalidationResource maps a to the same application-owned change
 // vocabulary. Invalid resources map to the invalid zero value.
-func (resource AuthoredResource) InvalidationResource() invalidation.Resource {
-	if !resource.Valid() {
+func (a AuthoredResource) InvalidationResource() invalidation.Resource {
+	if !a.Valid() {
 		return ""
 	}
-	return invalidation.Resource(resource)
+	return invalidation.Resource(a)
 }
 
 // AuthoredScope is one canonical workspace identity and its project root.
@@ -85,11 +85,11 @@ func NewAuthoredWatch(scope *Scope, workspaces KnowledgeWorkspaceInspector, watc
 
 // Watch starts one caller-owned observation. An empty cwd list still observes
 // the implementation's global resource scopes.
-func (w *AuthoredWatch) Watch(cwds []string, resources []AuthoredResource, notify func(AuthoredResource)) (AuthoredObservation, error) {
-	if w == nil || w.watcher == nil {
+func (a *AuthoredWatch) Watch(cwds []string, resources []AuthoredResource, notify func(AuthoredResource)) (AuthoredObservation, error) {
+	if a == nil || a.watcher == nil {
 		return nil, ErrAuthoredWatchUnavailable
 	}
-	if w.scope == nil || w.workspaces == nil {
+	if a.scope == nil || a.workspaces == nil {
 		return nil, ErrCWDUnavailable
 	}
 	resources = distinctAuthoredResources(resources)
@@ -99,11 +99,11 @@ func (w *AuthoredWatch) Watch(cwds []string, resources []AuthoredResource, notif
 	seen := make(map[string]struct{}, len(cwds))
 	scopes := make([]AuthoredScope, 0, len(cwds))
 	for _, cwd := range cwds {
-		root, err := w.scope.root(cwd)
+		root, err := a.scope.root(cwd)
 		if err != nil {
 			return nil, err
 		}
-		resolved, err := w.workspaces.Inspect(root)
+		resolved, err := a.workspaces.Inspect(root)
 		if err != nil {
 			return nil, err
 		}
@@ -117,14 +117,14 @@ func (w *AuthoredWatch) Watch(cwds []string, resources []AuthoredResource, notif
 		seen[identity] = struct{}{}
 		scopes = append(scopes, AuthoredScope{Workspace: root, ProjectRoot: resolved.ProjectRoot})
 	}
-	inner, err := w.watcher.Watch(scopes, resources, notify)
+	inner, err := a.watcher.Watch(scopes, resources, notify)
 	if err != nil {
 		return nil, err
 	}
-	managed := &managedAuthoredObservation{owner: w, inner: inner}
-	w.mu.Lock()
-	w.active[managed] = struct{}{}
-	w.mu.Unlock()
+	managed := &managedAuthoredObservation{owner: a, inner: inner}
+	a.mu.Lock()
+	a.active[managed] = struct{}{}
+	a.mu.Unlock()
 	return managed, nil
 }
 
@@ -132,16 +132,16 @@ func (w *AuthoredWatch) Watch(cwds []string, resources []AuthoredResource, notif
 // invalidation is published. Failure is intentionally best-effort: the durable
 // mutation already committed, and a later callback is a safe duplicate rather
 // than grounds to report that commit as failed.
-func (w *AuthoredWatch) Accept(change AuthoredChange) {
-	if w == nil || len(change.Identities) == 0 {
+func (a *AuthoredWatch) Accept(change AuthoredChange) {
+	if a == nil || len(change.Identities) == 0 {
 		return
 	}
-	w.mu.Lock()
-	active := make([]*managedAuthoredObservation, 0, len(w.active))
-	for observation := range w.active {
+	a.mu.Lock()
+	active := make([]*managedAuthoredObservation, 0, len(a.active))
+	for observation := range a.active {
 		active = append(active, observation)
 	}
-	w.mu.Unlock()
+	a.mu.Unlock()
 	for _, observation := range active {
 		_ = observation.inner.Accept([]AuthoredChange{change})
 	}
@@ -153,17 +153,17 @@ type managedAuthoredObservation struct {
 	once  sync.Once
 }
 
-func (o *managedAuthoredObservation) Accept(changes []AuthoredChange) error {
-	return o.inner.Accept(changes)
+func (m *managedAuthoredObservation) Accept(changes []AuthoredChange) error {
+	return m.inner.Accept(changes)
 }
 
-func (o *managedAuthoredObservation) Close() error {
+func (m *managedAuthoredObservation) Close() error {
 	var err error
-	o.once.Do(func() {
-		o.owner.mu.Lock()
-		delete(o.owner.active, o)
-		o.owner.mu.Unlock()
-		err = o.inner.Close()
+	m.once.Do(func() {
+		m.owner.mu.Lock()
+		delete(m.owner.active, m)
+		m.owner.mu.Unlock()
+		err = m.inner.Close()
 	})
 	return err
 }

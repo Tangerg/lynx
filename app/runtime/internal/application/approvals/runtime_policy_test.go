@@ -61,13 +61,13 @@ type memoryModeStore struct {
 	states map[string]approval.SessionMode
 }
 
-func (store *memoryModeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
-	state, found := store.states[sessionID]
+func (m *memoryModeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
+	state, found := m.states[sessionID]
 	return state, found, nil
 }
 
-func (store *memoryModeStore) PutMode(_ context.Context, sessionID string, state approval.SessionMode) error {
-	store.states[sessionID] = state
+func (m *memoryModeStore) PutMode(_ context.Context, sessionID string, state approval.SessionMode) error {
+	m.states[sessionID] = state
 	return nil
 }
 
@@ -118,11 +118,11 @@ type ruleStoreStub struct {
 	err error
 }
 
-func (s ruleStoreStub) Put(context.Context, approval.Rule) error { return s.err }
-func (s ruleStoreStub) Visible(context.Context, string, string) ([]approval.Rule, error) {
-	return nil, s.err
+func (r ruleStoreStub) Put(context.Context, approval.Rule) error { return r.err }
+func (r ruleStoreStub) Visible(context.Context, string, string) ([]approval.Rule, error) {
+	return nil, r.err
 }
-func (s ruleStoreStub) Delete(context.Context, string) error { return s.err }
+func (r ruleStoreStub) Delete(context.Context, string) error { return r.err }
 
 func TestCommittedApprovalMutationsPublishInvalidations(t *testing.T) {
 	var notices []invalidation.Notice

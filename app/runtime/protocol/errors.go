@@ -70,8 +70,8 @@ const (
 )
 
 // Valid reports whether the action belongs to the closed recovery vocabulary.
-func (a RecoveryAction) Valid() bool {
-	switch a {
+func (r RecoveryAction) Valid() bool {
+	switch r {
 	case RecoveryRefetch,
 		RecoveryColdRecover,
 		RecoveryResubscribe,

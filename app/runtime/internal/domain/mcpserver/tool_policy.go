@@ -37,17 +37,17 @@ func NewToolPolicy(servers []Server) ToolPolicy {
 }
 
 // Disabled reports whether ref is hidden from resolution.
-func (p ToolPolicy) Disabled(ref ToolRef) bool {
-	if _, ok := p.enabled[ref.Server]; !ok {
+func (t ToolPolicy) Disabled(ref ToolRef) bool {
+	if _, ok := t.enabled[ref.Server]; !ok {
 		return true
 	}
-	_, ok := p.disabled[ref]
+	_, ok := t.disabled[ref]
 	return ok
 }
 
 // AutoApproved reports whether ref may skip the interactive
 // approval prompt after standing approval rules have been evaluated.
-func (p ToolPolicy) AutoApproved(ref ToolRef) bool {
-	_, ok := p.autoApproved[ref]
+func (t ToolPolicy) AutoApproved(ref ToolRef) bool {
+	_, ok := t.autoApproved[ref]
 	return ok
 }

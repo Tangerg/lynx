@@ -10,8 +10,8 @@ import (
 // ListNonTerminalRuns projects complete durable Run aggregates for application
 // recovery. Storage exposes facts only; it does not decide which Run tree may
 // survive a restart.
-func (s *RunStore) ListNonTerminalRuns(ctx context.Context) ([]run.Run, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+func (r *RunStore) ListNonTerminalRuns(ctx context.Context) ([]run.Run, error) {
+	rows, err := conn(ctx, r.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		   FROM runs AS r
 		   `+runReadJoins+`

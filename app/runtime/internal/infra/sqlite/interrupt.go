@@ -81,35 +81,35 @@ type CommittedToolRecord struct {
 	Failure      tool.Failure
 }
 
-func (record InterruptRecord) rootContinuation() (ContinuationRecord, bool) {
-	for _, continuation := range record.Continuations {
-		if continuation.RunID == record.RootRunID {
+func (i InterruptRecord) rootContinuation() (ContinuationRecord, bool) {
+	for _, continuation := range i.Continuations {
+		if continuation.RunID == i.RootRunID {
 			return continuation, true
 		}
 	}
 	return ContinuationRecord{}, false
 }
 
-func (record InterruptRecord) validateStorageShape() error {
+func (i InterruptRecord) validateStorageShape() error {
 	switch {
-	case strings.TrimSpace(record.RootRunID) == "" || record.RootRunID != strings.TrimSpace(record.RootRunID):
+	case strings.TrimSpace(i.RootRunID) == "" || i.RootRunID != strings.TrimSpace(i.RootRunID):
 		return errors.New("root Run ID must be non-empty without surrounding whitespace")
-	case strings.TrimSpace(record.SessionID) == "" || record.SessionID != strings.TrimSpace(record.SessionID):
+	case strings.TrimSpace(i.SessionID) == "" || i.SessionID != strings.TrimSpace(i.SessionID):
 		return errors.New("session ID must be non-empty without surrounding whitespace")
-	case strings.TrimSpace(record.ExecutorID) == "" || record.ExecutorID != strings.TrimSpace(record.ExecutorID):
+	case strings.TrimSpace(i.ExecutorID) == "" || i.ExecutorID != strings.TrimSpace(i.ExecutorID):
 		return errors.New("executor ID must be non-empty without surrounding whitespace")
-	case record.GoalIncarnationID != strings.TrimSpace(record.GoalIncarnationID):
+	case i.GoalIncarnationID != strings.TrimSpace(i.GoalIncarnationID):
 		return errors.New("goal incarnation ID has surrounding whitespace")
-	case record.CreatedAt.IsZero():
+	case i.CreatedAt.IsZero():
 		return errors.New("creation time is required")
-	case len(record.Interrupts) == 0:
+	case len(i.Interrupts) == 0:
 		return errors.New("interrupt payload is required")
-	case len(record.Continuations) == 0:
+	case len(i.Continuations) == 0:
 		return errors.New("continuation payload is required")
-	case len(record.Bindings) != len(record.Interrupts):
+	case len(i.Bindings) != len(i.Interrupts):
 		return errors.New("interrupt bindings do not match interrupts")
 	}
-	root, ok := record.rootContinuation()
+	root, ok := i.rootContinuation()
 	if !ok || strings.TrimSpace(root.MemberID) == "" {
 		return errors.New("root continuation and member ID are required")
 	}
@@ -181,7 +181,7 @@ func NewInterruptStore(db *sql.DB) *InterruptStore {
 // Open records a newly reached barrier. An existing root Run or executor root
 // is an identity conflict; a barrier is replaced only after its owner consumes
 // the previous one in the same application transaction.
-func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
+func (i *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	if err := p.validateStorageShape(); err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
@@ -210,7 +210,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, i.db).ExecContext(ctx,
 		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_incarnation_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(root_run_id) DO UPDATE SET
@@ -261,18 +261,18 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 
 const interruptColumns = `root_run_id, session_id, executor_id, goal_incarnation_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at`
 
-func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
-	return s.list(ctx, sessionID, "", 0, "", 0)
+func (i *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
+	return i.list(ctx, sessionID, "", 0, "", 0)
 }
 
 // ListPage returns open interrupts oldest first, bounded by the query. after is
 // the (open time, run id) position a previous page ended at; the pair is what
 // makes the order total, since two runs can park in the same nanosecond.
-func (s *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]InterruptRecord, error) {
-	return s.list(ctx, sessionID, rootRunID, afterCreatedAt, afterRootRunID, limit)
+func (i *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]InterruptRecord, error) {
+	return i.list(ctx, sessionID, rootRunID, afterCreatedAt, afterRootRunID, limit)
 }
 
-func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]InterruptRecord, error) {
+func (i *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]InterruptRecord, error) {
 	query := `SELECT ` + interruptColumns + ` FROM interrupts`
 	args := []any{}
 	conditions := []string{`state = 'open'`}
@@ -297,7 +297,7 @@ func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, 
 		args = append(args, limit)
 	}
 
-	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
+	rows, err := conn(ctx, i.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list interrupts: %w", err)
 	}
@@ -317,8 +317,8 @@ func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, 
 	return out, nil
 }
 
-func (s *InterruptStore) Get(ctx context.Context, runID string) (InterruptRecord, bool, error) {
-	row := conn(ctx, s.db).QueryRowContext(ctx,
+func (i *InterruptStore) Get(ctx context.Context, runID string) (InterruptRecord, bool, error) {
+	row := conn(ctx, i.db).QueryRowContext(ctx,
 		`SELECT `+interruptColumns+` FROM interrupts WHERE root_run_id = ? AND state = 'open'`, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -335,17 +335,17 @@ func (s *InterruptStore) Get(ctx context.Context, runID string) (InterruptRecord
 // claim contract. A single statement means two concurrent resumes can't both
 // observe the same open interrupt: one claims it, the other gets ok=false, so a
 // non-idempotent tool never re-fires.
-func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (InterruptRecord, bool, error) {
+func (i *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (InterruptRecord, bool, error) {
 	if err := validatePendingOwner(sessionID, runID); err != nil {
 		return InterruptRecord{}, false, fmt.Errorf("sqlite: consume interrupt: %w", err)
 	}
-	row := conn(ctx, s.db).QueryRowContext(ctx,
+	row := conn(ctx, i.db).QueryRowContext(ctx,
 		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ? AND state = 'open'
 		 RETURNING `+interruptColumns,
 		sessionID, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+		if err := i.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
 			return InterruptRecord{}, false, err
 		}
 		return InterruptRecord{}, false, nil
@@ -360,7 +360,7 @@ func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (
 // resuming record while retaining the validated answer for audit and crash
 // diagnosis. Open reads exclude the row until a new waiting boundary replaces
 // it or terminal cleanup deletes it.
-func (s *InterruptStore) ClaimResume(
+func (i *InterruptStore) ClaimResume(
 	ctx context.Context,
 	sessionID, runID string,
 	answers json.RawMessage,
@@ -375,7 +375,7 @@ func (s *InterruptStore) ClaimResume(
 	if claimedAt.IsZero() {
 		return InterruptRecord{}, false, errors.New("sqlite: claim resume time is required")
 	}
-	row := conn(ctx, s.db).QueryRowContext(ctx,
+	row := conn(ctx, i.db).QueryRowContext(ctx,
 		`UPDATE interrupts
 		    SET state = 'resuming', answers = ?, claimed_at = ?
 		  WHERE session_id = ? AND root_run_id = ? AND state = 'open'
@@ -384,7 +384,7 @@ func (s *InterruptStore) ClaimResume(
 	)
 	record, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+		if err := i.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
 			return InterruptRecord{}, false, err
 		}
 		return InterruptRecord{}, false, nil
@@ -397,12 +397,12 @@ func (s *InterruptStore) ClaimResume(
 
 // RequireResumeClaim proves that the exact root hand-off crossed the answer
 // claim linearization point before its Run tree is reopened.
-func (s *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, runID string) error {
+func (i *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, runID string) error {
 	if err := validatePendingOwner(sessionID, runID); err != nil {
 		return fmt.Errorf("sqlite: require resume claim: %w", err)
 	}
 	var owner, state string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, i.db).QueryRowContext(ctx,
 		`SELECT session_id, state FROM interrupts WHERE root_run_id = ?`, runID,
 	).Scan(&owner, &state)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -426,11 +426,11 @@ func (s *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, runI
 	return nil
 }
 
-func (s *InterruptStore) Delete(ctx context.Context, sessionID, runID string) error {
+func (i *InterruptStore) Delete(ctx context.Context, sessionID, runID string) error {
 	if err := validatePendingOwner(sessionID, runID); err != nil {
 		return fmt.Errorf("sqlite: delete interrupt: %w", err)
 	}
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, i.db).ExecContext(ctx,
 		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ?`, sessionID, runID,
 	)
 	if err != nil {
@@ -443,13 +443,13 @@ func (s *InterruptStore) Delete(ctx context.Context, sessionID, runID string) er
 	if deleted == 1 {
 		return nil
 	}
-	return s.rejectForeignPendingOwner(ctx, sessionID, runID)
+	return i.rejectForeignPendingOwner(ctx, sessionID, runID)
 }
 
 // DeleteResumeClaim consumes only the answer claim owned by a failed Resume.
 // It leaves ordinary open reads unchanged and cannot delete a replacement open
 // barrier that reuses the same root Run identity.
-func (s *InterruptStore) DeleteResumeClaim(
+func (i *InterruptStore) DeleteResumeClaim(
 	ctx context.Context,
 	sessionID, runID, rootMemberID string,
 ) error {
@@ -459,7 +459,7 @@ func (s *InterruptStore) DeleteResumeClaim(
 	if strings.TrimSpace(rootMemberID) == "" || rootMemberID != strings.TrimSpace(rootMemberID) {
 		return errors.New("sqlite: delete Resume claim: root member ID must be non-empty without surrounding whitespace")
 	}
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, i.db).ExecContext(ctx,
 		`DELETE FROM interrupts
 		  WHERE session_id = ? AND root_run_id = ? AND root_member_id = ? AND state = 'resuming'`,
 		sessionID, runID, rootMemberID,
@@ -474,7 +474,7 @@ func (s *InterruptStore) DeleteResumeClaim(
 	if deleted == 1 {
 		return nil
 	}
-	if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+	if err := i.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
 		return err
 	}
 	return fmt.Errorf("sqlite: matching resuming interrupt for root Run %q was not found", runID)
@@ -490,9 +490,9 @@ func validatePendingOwner(sessionID, rootRunID string) error {
 	return nil
 }
 
-func (s *InterruptStore) rejectForeignPendingOwner(ctx context.Context, sessionID, rootRunID string) error {
+func (i *InterruptStore) rejectForeignPendingOwner(ctx context.Context, sessionID, rootRunID string) error {
 	var owner string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, i.db).QueryRowContext(ctx,
 		`SELECT session_id FROM interrupts WHERE root_run_id = ?`,
 		rootRunID,
 	).Scan(&owner)

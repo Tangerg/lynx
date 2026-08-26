@@ -15,8 +15,8 @@ type registeredCommand struct {
 	evaluate  func(*app) CommandAvailability
 }
 
-func (command registeredCommand) availability(host *app) (availability CommandAvailability) {
-	if command.evaluate == nil {
+func (r registeredCommand) availability(host *app) (availability CommandAvailability) {
+	if r.evaluate == nil {
 		return CommandAvailability{Enabled: true}
 	}
 	defer func() {
@@ -24,7 +24,7 @@ func (command registeredCommand) availability(host *app) (availability CommandAv
 			availability = CommandAvailability{Reason: fmt.Sprintf("availability check panicked: %v", recovered)}
 		}
 	}()
-	availability = command.evaluate(host)
+	availability = r.evaluate(host)
 	availability.Reason = strings.TrimSpace(availability.Reason)
 	if !availability.Enabled && availability.Reason == "" {
 		availability.Reason = "not available in the current context"
@@ -41,32 +41,32 @@ func newCommandCatalog() commandCatalog {
 	return commandCatalog{registrations: make(map[string]registeredCommand)}
 }
 
-func (catalog *commandCatalog) reset() {
-	for _, found := range catalog.index.Find("") {
-		catalog.index.Remove(found.Command.Name)
+func (c *commandCatalog) reset() {
+	for _, found := range c.index.Find("") {
+		c.index.Remove(found.Command.Name)
 	}
-	clear(catalog.registrations)
+	clear(c.registrations)
 }
 
-func (catalog *commandCatalog) add(owner string, descriptor CommandDescriptor, run func(string), evaluate func(*app) CommandAvailability) error {
+func (c *commandCatalog) add(owner string, descriptor CommandDescriptor, run func(string), evaluate func(*app) CommandAvailability) error {
 	for _, identity := range descriptor.identities() {
-		if existing, found := catalog.index.Lookup(identity); found {
+		if existing, found := c.index.Lookup(identity); found {
 			return fmt.Errorf("plugin %s command /%s conflicts with /%s", owner, descriptor.Name, existing.Name)
 		}
 	}
-	catalog.index.Add(headless.Command{
+	c.index.Add(headless.Command{
 		Name: descriptor.Name, Title: descriptor.Title, Aliases: descriptor.Aliases,
 		Takes: descriptor.Arguments.TakesInput(), Run: run,
 	})
-	catalog.registrations[descriptor.Name] = registeredCommand{
+	c.registrations[descriptor.Name] = registeredCommand{
 		category: descriptor.category(), arguments: descriptor.Arguments, evaluate: evaluate,
 	}
 	return nil
 }
 
-func (catalog *commandCatalog) find(query string) []headless.Found {
-	found := catalog.index.Find(query)
-	exact, ok := catalog.index.Lookup(query)
+func (c *commandCatalog) find(query string) []headless.Found {
+	found := c.index.Find(query)
+	exact, ok := c.index.Lookup(query)
 	if !ok {
 		return found
 	}
@@ -84,24 +84,24 @@ func (catalog *commandCatalog) find(query string) []headless.Found {
 	return append([]headless.Found{{Command: exact}}, found...)
 }
 
-func (catalog *commandCatalog) lookup(identity string) (headless.Command, bool) {
-	return catalog.index.Lookup(identity)
+func (c *commandCatalog) lookup(identity string) (headless.Command, bool) {
+	return c.index.Lookup(identity)
 }
 
-func (catalog *commandCatalog) used(name string) {
-	catalog.index.Used(name)
+func (c *commandCatalog) used(name string) {
+	c.index.Used(name)
 }
 
-func (catalog *commandCatalog) category(name string) string {
-	return catalog.registrations[name].category
+func (c *commandCatalog) category(name string) string {
+	return c.registrations[name].category
 }
 
-func (catalog *commandCatalog) arguments(name string) ArgumentMode {
-	return catalog.registrations[name].arguments
+func (c *commandCatalog) arguments(name string) ArgumentMode {
+	return c.registrations[name].arguments
 }
 
-func (catalog *commandCatalog) availability(name string, host *app) CommandAvailability {
-	command, ok := catalog.registrations[name]
+func (c *commandCatalog) availability(name string, host *app) CommandAvailability {
+	command, ok := c.registrations[name]
 	if !ok {
 		return CommandAvailability{Enabled: true}
 	}

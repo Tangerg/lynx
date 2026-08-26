@@ -19,9 +19,9 @@ type cancelRunUseCaseStub struct {
 	command runs.CancelCommand
 }
 
-func (s *cancelRunUseCaseStub) Cancel(_ context.Context, command runs.CancelCommand) (runs.CancelResult, error) {
-	s.command = command
-	return s.result, s.err
+func (c *cancelRunUseCaseStub) Cancel(_ context.Context, command runs.CancelCommand) (runs.CancelResult, error) {
+	c.command = command
+	return c.result, c.err
 }
 
 func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {

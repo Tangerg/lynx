@@ -154,15 +154,15 @@ func runtimeContractSchema[T any]() (agent.Schema, error) {
 	return agent.ParseSchema(raw)
 }
 
-func (definition *delegatedInteractionDefinition) Descriptor() agent.Descriptor {
-	if definition == nil {
+func (d *delegatedInteractionDefinition) Descriptor() agent.Descriptor {
+	if d == nil {
 		return agent.Descriptor{}
 	}
-	return definition.descriptor
+	return d.descriptor
 }
 
-func (definition *delegatedInteractionDefinition) Start(input agent.Input) (agent.Execution, error) {
-	if definition == nil || definition.inner == nil || !definition.descriptor.Valid() {
+func (d *delegatedInteractionDefinition) Start(input agent.Input) (agent.Execution, error) {
+	if d == nil || d.inner == nil || !d.descriptor.Valid() {
 		return nil, errors.New("agentexec: delegated Interaction definition is invalid")
 	}
 	task, err := input.Decode[delegateInput]()
@@ -172,26 +172,26 @@ func (definition *delegatedInteractionDefinition) Start(input agent.Input) (agen
 	if err := task.Validate(); err != nil {
 		return nil, fmt.Errorf("agentexec: invalid delegated task: %w", err)
 	}
-	messages := cloneChatMessages(definition.instructions)
+	messages := cloneChatMessages(d.instructions)
 	messages = append(messages, corechat.NewUserMessage(corechat.NewTextPart(task.Instructions)))
 	adapted, err := agent.EncodeInput(interaction.Input{Messages: messages})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode delegated Interaction input: %w", err)
 	}
-	execution, err := definition.inner.Start(adapted)
+	execution, err := d.inner.Start(adapted)
 	if err != nil {
 		return nil, err
 	}
 	return &delegatedInteractionExecution{inner: execution}, nil
 }
 
-func (definition *delegatedInteractionDefinition) Restore(
+func (d *delegatedInteractionDefinition) Restore(
 	state agent.ExecutionState,
 ) (agent.Execution, error) {
-	if definition == nil || definition.inner == nil || !definition.descriptor.Valid() {
+	if d == nil || d.inner == nil || !d.descriptor.Valid() {
 		return nil, errors.New("agentexec: delegated Interaction definition is invalid")
 	}
-	execution, err := definition.inner.Restore(state)
+	execution, err := d.inner.Restore(state)
 	if err != nil {
 		return nil, err
 	}
@@ -200,14 +200,14 @@ func (definition *delegatedInteractionDefinition) Restore(
 
 type delegatedInteractionExecution struct{ inner agent.Execution }
 
-func (execution *delegatedInteractionExecution) Step(
+func (d *delegatedInteractionExecution) Step(
 	ctx context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
-	if execution == nil || execution.inner == nil {
+	if d == nil || d.inner == nil {
 		return agent.Transition{}, errors.New("agentexec: delegated Interaction execution is invalid")
 	}
-	transition, err := execution.inner.Step(ctx, signals)
+	transition, err := d.inner.Step(ctx, signals)
 	if err != nil || transition.Kind() != agent.TransitionKindComplete {
 		return transition, err
 	}
@@ -227,11 +227,11 @@ func (execution *delegatedInteractionExecution) Step(
 	return agent.Complete(transition.ConsumedSignals(), adapted)
 }
 
-func (execution *delegatedInteractionExecution) Snapshot() (agent.ExecutionState, error) {
-	if execution == nil || execution.inner == nil {
+func (d *delegatedInteractionExecution) Snapshot() (agent.ExecutionState, error) {
+	if d == nil || d.inner == nil {
 		return agent.ExecutionState{}, errors.New("agentexec: delegated Interaction execution is invalid")
 	}
-	return execution.inner.Snapshot()
+	return d.inner.Snapshot()
 }
 
 func delegatedInteractionReply(output interaction.Output) (string, error) {

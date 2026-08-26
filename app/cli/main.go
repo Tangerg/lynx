@@ -66,7 +66,7 @@ type runtimeOwner interface {
 
 type mockOwner struct{ services backend.Services }
 
-func (o *mockOwner) Runtime(context.Context) (backend.Services, error) { return o.services, nil }
+func (m *mockOwner) Runtime(context.Context) (backend.Services, error) { return m.services, nil }
 func (*mockOwner) Close() error                                        { return nil }
 
 func closeRuntimeOwner(owner runtimeOwner) error {
@@ -150,12 +150,12 @@ func exitCode(err error) int {
 
 type processSignalError struct{ signal os.Signal }
 
-func (e processSignalError) Error() string { return fmt.Sprintf("terminated by %s", e.signal) }
+func (p processSignalError) Error() string { return fmt.Sprintf("terminated by %s", p.signal) }
 
-func (e processSignalError) Unwrap() error { return context.Canceled }
+func (p processSignalError) Unwrap() error { return context.Canceled }
 
-func (e processSignalError) ExitCode() int {
-	switch e.signal {
+func (p processSignalError) ExitCode() int {
+	switch p.signal {
 	case os.Interrupt:
 		return 130
 	case syscall.SIGTERM:

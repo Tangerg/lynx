@@ -4,8 +4,8 @@ import "github.com/Tangerg/lynx/app/cli/internal/agent"
 
 type sessionContextEpoch uint64
 
-func (epoch *sessionContextEpoch) advance() {
-	*epoch = *epoch + 1
+func (s *sessionContextEpoch) advance() {
+	*s = *s + 1
 }
 
 func (a *app) canPreserveInteractionProjection(next *agent.Conversation) bool {

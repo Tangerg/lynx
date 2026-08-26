@@ -24,20 +24,20 @@ type recordingRuntime struct {
 	afterCall func()
 }
 
-func (runtime *recordingRuntime) RollbackSession(
+func (r *recordingRuntime) RollbackSession(
 	ctx context.Context,
 	request agent.RollbackSession,
 ) (agent.RollbackResult, error) {
-	runtime.calls++
-	runtime.request = request
-	reject := runtime.reject
-	if runtime.afterCall != nil {
-		runtime.afterCall()
+	r.calls++
+	r.request = request
+	reject := r.reject
+	if r.afterCall != nil {
+		r.afterCall()
 	}
 	if reject != nil {
 		return agent.RollbackResult{}, reject
 	}
-	return runtime.Runtime.RollbackSession(ctx, request)
+	return r.Runtime.RollbackSession(ctx, request)
 }
 
 func TestFileRollbackStopsRetryingWhenReplayExpires(t *testing.T) {

@@ -24,8 +24,8 @@ type planStepRow struct {
 
 func NewPlanStore(db *sql.DB) *PlanStore { return &PlanStore{db: db} }
 
-func (s *PlanStore) List(ctx context.Context, sessionID string) ([]plan.Step, error) {
-	state, err := s.State(ctx, sessionID)
+func (p *PlanStore) List(ctx context.Context, sessionID string) ([]plan.Step, error) {
+	state, err := p.State(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -33,13 +33,13 @@ func (s *PlanStore) List(ctx context.Context, sessionID string) ([]plan.Step, er
 }
 
 // State returns the zero state when no Plan has been set for the session.
-func (s *PlanStore) State(ctx context.Context, sessionID string) (plan.State, error) {
+func (p *PlanStore) State(ctx context.Context, sessionID string) (plan.State, error) {
 	var (
 		stepsJSON string
 		revision  uint64
 		updatedNs int64
 	)
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, p.db).QueryRowContext(ctx,
 		`SELECT steps, revision, updated_at FROM session_plans WHERE session_id = ?`, sessionID,
 	).Scan(&stepsJSON, &revision, &updatedNs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -82,7 +82,7 @@ func decodePlanSteps(stepsJSON string) ([]plan.Step, error) {
 // Save persists one application-decided replacement iff expectedRevision is
 // still current. It assigns neither time nor revision; both belong to the Plan
 // aggregate and its application use case.
-func (s *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error {
+func (p *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error {
 	if err := replacement.Validate(); err != nil {
 		return fmt.Errorf("sqlite: validate Plan replacement: %w", err)
 	}
@@ -100,13 +100,13 @@ func (s *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision
 	}
 	var result sql.Result
 	if expectedRevision == 0 {
-		result, err = conn(ctx, s.db).ExecContext(ctx,
+		result, err = conn(ctx, p.db).ExecContext(ctx,
 			`INSERT INTO session_plans(session_id, steps, revision, updated_at)
 			 VALUES (?, ?, ?, ?) ON CONFLICT(session_id) DO NOTHING`,
 			sessionID, string(data), replacement.Revision(), replacement.UpdatedAt().UnixNano(),
 		)
 	} else {
-		result, err = conn(ctx, s.db).ExecContext(ctx,
+		result, err = conn(ctx, p.db).ExecContext(ctx,
 			`UPDATE session_plans SET steps = ?, revision = ?, updated_at = ?
 			 WHERE session_id = ? AND revision = ?`,
 			string(data), replacement.Revision(), replacement.UpdatedAt().UnixNano(), sessionID, expectedRevision,
@@ -125,9 +125,9 @@ func (s *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision
 	return nil
 }
 
-// CaptureBoundary freezes the session's current Plan at one terminal Run.
-func (s *PlanStore) CaptureBoundary(ctx context.Context, sessionID, runID string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+// CaptureBoundary freezes the session'p current Plan at one terminal Run.
+func (p *PlanStore) CaptureBoundary(ctx context.Context, sessionID, runID string) error {
+	if _, err := conn(ctx, p.db).ExecContext(ctx,
 		`INSERT INTO plan_boundaries(run_id, steps)
 		 VALUES (?, COALESCE((SELECT steps FROM session_plans WHERE session_id = ?), '[]'))`,
 		runID, sessionID,
@@ -139,9 +139,9 @@ func (s *PlanStore) CaptureBoundary(ctx context.Context, sessionID, runID string
 
 // Boundary returns the Plan captured by runID. recorded=false means the Run
 // never captured a boundary; it does not mean an empty Plan.
-func (s *PlanStore) Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error) {
+func (p *PlanStore) Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error) {
 	var stepsJSON string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, p.db).QueryRowContext(ctx,
 		`SELECT steps FROM plan_boundaries WHERE run_id = ?`, runID,
 	).Scan(&stepsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -157,8 +157,8 @@ func (s *PlanStore) Boundary(ctx context.Context, runID string) ([]plan.Step, bo
 	return steps, true, nil
 }
 
-func (s *PlanStore) DeleteSession(ctx context.Context, sessionID string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+func (p *PlanStore) DeleteSession(ctx context.Context, sessionID string) error {
+	if _, err := conn(ctx, p.db).ExecContext(ctx,
 		`DELETE FROM session_plans WHERE session_id = ?`, sessionID,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete session Plan: %w", err)

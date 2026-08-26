@@ -17,18 +17,18 @@ type resourceGitReader struct {
 	diffBytes int
 }
 
-func (reader *resourceGitReader) Changes(_ context.Context, _ string, maxChanges int) ([]FileChange, error) {
-	reader.changeMax = maxChanges
-	return reader.changes, nil
+func (r *resourceGitReader) Changes(_ context.Context, _ string, maxChanges int) ([]FileChange, error) {
+	r.changeMax = maxChanges
+	return r.changes, nil
 }
 
-func (reader *resourceGitReader) StructuredDiff(_ context.Context, _, _ string, _ bool, maxFiles, maxRows, maxBytes int) (StructuredDiffResult, error) {
-	reader.diffFiles, reader.diffRows, reader.diffBytes = maxFiles, maxRows, maxBytes
-	return StructuredDiffResult{Files: reader.files}, nil
+func (r *resourceGitReader) StructuredDiff(_ context.Context, _, _ string, _ bool, maxFiles, maxRows, maxBytes int) (StructuredDiffResult, error) {
+	r.diffFiles, r.diffRows, r.diffBytes = maxFiles, maxRows, maxBytes
+	return StructuredDiffResult{Files: r.files}, nil
 }
 
-func (reader *resourceGitReader) RawDiff(context.Context, string, string, bool, int) (string, error) {
-	return reader.patch, nil
+func (r *resourceGitReader) RawDiff(context.Context, string, string, bool, int) (string, error) {
+	return r.patch, nil
 }
 
 func TestVCSRejectsUnboundedCompleteChangeCatalog(t *testing.T) {

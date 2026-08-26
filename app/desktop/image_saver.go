@@ -16,13 +16,13 @@ type wailsImageSaver struct {
 	window  application.Window
 }
 
-func (s wailsImageSaver) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
-	destination, err := s.dialogs.SaveFile().
+func (w wailsImageSaver) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
+	destination, err := w.dialogs.SaveFile().
 		CanCreateDirectories(true).
 		AllowsOtherFileTypes(false).
 		SetFilename(suggestedFilename).
 		AddFilter("Image Files", "*"+filepath.Ext(suggestedFilename)).
-		AttachToWindow(s.window).
+		AttachToWindow(w.window).
 		PromptForSingleSelection()
 	if err != nil {
 		return false, fmt.Errorf("open save dialog: %w", err)

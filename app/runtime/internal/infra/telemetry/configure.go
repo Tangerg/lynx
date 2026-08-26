@@ -116,15 +116,15 @@ type minLevelHandler struct {
 	inner stdslog.Handler
 }
 
-func (h minLevelHandler) Enabled(_ context.Context, l stdslog.Level) bool { return l >= h.level }
-func (h minLevelHandler) Handle(ctx context.Context, r stdslog.Record) error {
-	return h.inner.Handle(ctx, r)
+func (m minLevelHandler) Enabled(_ context.Context, l stdslog.Level) bool { return l >= m.level }
+func (m minLevelHandler) Handle(ctx context.Context, r stdslog.Record) error {
+	return m.inner.Handle(ctx, r)
 }
-func (h minLevelHandler) WithAttrs(a []stdslog.Attr) stdslog.Handler {
-	return minLevelHandler{level: h.level, inner: h.inner.WithAttrs(a)}
+func (m minLevelHandler) WithAttrs(a []stdslog.Attr) stdslog.Handler {
+	return minLevelHandler{level: m.level, inner: m.inner.WithAttrs(a)}
 }
-func (h minLevelHandler) WithGroup(name string) stdslog.Handler {
-	return minLevelHandler{level: h.level, inner: h.inner.WithGroup(name)}
+func (m minLevelHandler) WithGroup(name string) stdslog.Handler {
+	return minLevelHandler{level: m.level, inner: m.inner.WithGroup(name)}
 }
 
 // parseLogLevel maps a LYRA_LOG_LEVEL string onto an slog level, defaulting

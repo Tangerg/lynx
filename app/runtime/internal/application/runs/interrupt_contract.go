@@ -109,36 +109,36 @@ func (i Interrupt) Validate() error {
 	}
 }
 
-func (p ApprovalPrompt) validate() error {
-	if strings.TrimSpace(p.ToolName) == "" {
+func (a ApprovalPrompt) validate() error {
+	if strings.TrimSpace(a.ToolName) == "" {
 		return errors.New("runs: approval tool name is required")
 	}
-	if err := validateArguments(p.Arguments); err != nil {
+	if err := validateArguments(a.Arguments); err != nil {
 		return fmt.Errorf("runs: approval arguments: %w", err)
 	}
-	if !p.SafetyClass.Valid() {
-		return fmt.Errorf("runs: unknown approval safety class %q", p.SafetyClass)
+	if !a.SafetyClass.Valid() {
+		return fmt.Errorf("runs: unknown approval safety class %q", a.SafetyClass)
 	}
-	if !p.Risk.Valid() {
-		return fmt.Errorf("runs: unknown approval risk %q", p.Risk)
+	if !a.Risk.Valid() {
+		return fmt.Errorf("runs: unknown approval risk %q", a.Risk)
 	}
 	return nil
 }
 
-func (p QuestionPrompt) validate() error {
-	if p.CallID != strings.TrimSpace(p.CallID) {
+func (q QuestionPrompt) validate() error {
+	if q.CallID != strings.TrimSpace(q.CallID) {
 		return errors.New("runs: question call ID has surrounding whitespace")
 	}
-	if strings.TrimSpace(p.ToolName) == "" {
+	if strings.TrimSpace(q.ToolName) == "" {
 		return errors.New("runs: question tool name is required")
 	}
-	if err := validateArguments(p.Arguments); err != nil {
+	if err := validateArguments(q.Arguments); err != nil {
 		return fmt.Errorf("runs: question arguments: %w", err)
 	}
-	if len(p.Fields) < 1 || len(p.Fields) > 4 {
-		return fmt.Errorf("runs: question field count must be between 1 and 4, got %d", len(p.Fields))
+	if len(q.Fields) < 1 || len(q.Fields) > 4 {
+		return fmt.Errorf("runs: question field count must be between 1 and 4, got %d", len(q.Fields))
 	}
-	for index, field := range p.Fields {
+	for index, field := range q.Fields {
 		if err := field.validate(); err != nil {
 			return fmt.Errorf("runs: question field %d: %w", index, err)
 		}

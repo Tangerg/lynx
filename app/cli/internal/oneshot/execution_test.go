@@ -39,115 +39,115 @@ type uncertainAcknowledgementRuntime struct {
 	cancelResult   agent.RunCancellation
 }
 
-func (runtime *uncertainAcknowledgementRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	runtime.startAttempts = append(runtime.startAttempts, input.Clone())
-	attempt := len(runtime.startAttempts)
-	cached := runtime.startStream
-	runtime.mu.Unlock()
+func (u *uncertainAcknowledgementRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	u.mu.Lock()
+	u.startAttempts = append(u.startAttempts, input.Clone())
+	attempt := len(u.startAttempts)
+	cached := u.startStream
+	u.mu.Unlock()
 	if attempt > 1 {
 		return cached, nil
 	}
-	opened, err := runtime.Runtime.StartRun(ctx, input)
+	opened, err := u.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	runtime.mu.Lock()
-	runtime.startStream = opened
-	runtime.mu.Unlock()
+	u.mu.Lock()
+	u.startStream = opened
+	u.mu.Unlock()
 	return agent.SegmentStream{}, fmt.Errorf("start acknowledgement timed out: %w", context.DeadlineExceeded)
 }
 
-func (runtime *uncertainAcknowledgementRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	runtime.resumeAttempts = append(runtime.resumeAttempts, input.Clone())
-	attempt := len(runtime.resumeAttempts)
-	cached := runtime.resumeStream
-	runtime.mu.Unlock()
+func (u *uncertainAcknowledgementRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	u.mu.Lock()
+	u.resumeAttempts = append(u.resumeAttempts, input.Clone())
+	attempt := len(u.resumeAttempts)
+	cached := u.resumeStream
+	u.mu.Unlock()
 	if attempt > 1 {
 		return cached, nil
 	}
-	continued, err := runtime.Runtime.ResumeRun(ctx, input)
+	continued, err := u.Runtime.ResumeRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	runtime.mu.Lock()
-	runtime.resumeStream = continued
-	runtime.mu.Unlock()
+	u.mu.Lock()
+	u.resumeStream = continued
+	u.mu.Unlock()
 	return agent.SegmentStream{}, fmt.Errorf("resume acknowledgement timed out: %w", context.DeadlineExceeded)
 }
 
-func (runtime *uncertainAcknowledgementRuntime) CancelRun(
+func (u *uncertainAcknowledgementRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.cancelAttempts = append(runtime.cancelAttempts, input)
-	attempt := len(runtime.cancelAttempts)
-	cached := runtime.cancelResult
-	runtime.mu.Unlock()
+	u.mu.Lock()
+	u.cancelAttempts = append(u.cancelAttempts, input)
+	attempt := len(u.cancelAttempts)
+	cached := u.cancelResult
+	u.mu.Unlock()
 	if attempt > 1 {
 		return cached, nil
 	}
-	result, err := runtime.Runtime.CancelRun(ctx, input)
+	result, err := u.Runtime.CancelRun(ctx, input)
 	if err != nil {
 		return agent.RunCancellation{}, err
 	}
-	runtime.mu.Lock()
-	runtime.cancelResult = result
-	runtime.mu.Unlock()
+	u.mu.Lock()
+	u.cancelResult = result
+	u.mu.Unlock()
 	return agent.RunCancellation{}, fmt.Errorf("cancel acknowledgement timed out: %w", context.DeadlineExceeded)
 }
 
-func (runtime *uncertainAcknowledgementRuntime) attempts() ([]agent.StartRun, []agent.ResumeRun) {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	starts := make([]agent.StartRun, len(runtime.startAttempts))
-	for index, attempt := range runtime.startAttempts {
+func (u *uncertainAcknowledgementRuntime) attempts() ([]agent.StartRun, []agent.ResumeRun) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	starts := make([]agent.StartRun, len(u.startAttempts))
+	for index, attempt := range u.startAttempts {
 		starts[index] = attempt.Clone()
 	}
-	resumes := make([]agent.ResumeRun, len(runtime.resumeAttempts))
-	for index, attempt := range runtime.resumeAttempts {
+	resumes := make([]agent.ResumeRun, len(u.resumeAttempts))
+	for index, attempt := range u.resumeAttempts {
 		resumes[index] = attempt.Clone()
 	}
 	return starts, resumes
 }
 
-func (runtime *uncertainAcknowledgementRuntime) cancellationAttempts() []agent.CancelRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return slices.Clone(runtime.cancelAttempts)
+func (u *uncertainAcknowledgementRuntime) cancellationAttempts() []agent.CancelRun {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.cancelAttempts)
 }
 
-func (runtime invalidOpeningRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	opened, err := runtime.Runtime.StartRun(ctx, input)
+func (i invalidOpeningRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	opened, err := i.Runtime.StartRun(ctx, input)
 	if err == nil {
 		opened.Events = nil
 	}
 	return opened, err
 }
 
-func (runtime *refusingCancellationRuntime) CancelRun(
+func (r *refusingCancellationRuntime) CancelRun(
 	_ context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.attempts = append(runtime.attempts, input)
-	runtime.mu.Unlock()
-	return agent.RunCancellation{}, runtime.failure
+	r.mu.Lock()
+	r.attempts = append(r.attempts, input)
+	r.mu.Unlock()
+	return agent.RunCancellation{}, r.failure
 }
 
-func (runtime *refusingCancellationRuntime) cancellationAttempts() []agent.CancelRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return slices.Clone(runtime.attempts)
+func (r *refusingCancellationRuntime) cancellationAttempts() []agent.CancelRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.attempts)
 }
 
-func (runtime misdirectedCancellationRuntime) CancelRun(
+func (m misdirectedCancellationRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	result, err := runtime.Runtime.CancelRun(ctx, input)
+	result, err := m.Runtime.CancelRun(ctx, input)
 	if err == nil {
 		result.Canceled.ID = "run_misdirected"
 		result.Root.ID = "run_misdirected"

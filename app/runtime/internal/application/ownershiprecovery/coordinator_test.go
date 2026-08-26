@@ -11,36 +11,36 @@ import (
 
 type testLease struct{ release func() }
 
-func (l testLease) Release() { l.release() }
+func (t testLease) Release() { t.release() }
 
 type testOwnership struct {
 	acquired bool
 	released int
 }
 
-func (o *testOwnership) TryRecoverySweep() (ownershiprecovery.Lease, bool) {
-	if !o.acquired {
+func (t *testOwnership) TryRecoverySweep() (ownershiprecovery.Lease, bool) {
+	if !t.acquired {
 		return nil, false
 	}
-	return testLease{release: func() { o.released++ }}, true
+	return testLease{release: func() { t.released++ }}, true
 }
 
-func (o *testOwnership) AcquireRecoverySweep(context.Context) (ownershiprecovery.Lease, error) {
-	if !o.acquired {
+func (t *testOwnership) AcquireRecoverySweep(context.Context) (ownershiprecovery.Lease, error) {
+	if !t.acquired {
 		return nil, errors.New("contended")
 	}
-	return testLease{release: func() { o.released++ }}, nil
+	return testLease{release: func() { t.released++ }}, nil
 }
 
 type runReconciler func(context.Context) (int, error)
 
-func (reconcile runReconciler) Reconcile(ctx context.Context) (int, error) {
-	return reconcile(ctx)
+func (r runReconciler) Reconcile(ctx context.Context) (int, error) {
+	return r(ctx)
 }
 
 type goalReconciler func(context.Context) error
 
-func (reconcile goalReconciler) Reconcile(ctx context.Context) error { return reconcile(ctx) }
+func (g goalReconciler) Reconcile(ctx context.Context) error { return g(ctx) }
 
 func TestCoordinatorElectsOneWinnerAndOrdersRunBeforeGoalRecovery(t *testing.T) {
 	var order []string

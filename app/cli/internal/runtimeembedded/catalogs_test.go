@@ -24,16 +24,16 @@ func (*approvalBindingRecorder) GetApprovalMode(context.Context, embedded.CallOp
 	return &protocol.ApprovalModeResult{Mode: protocol.ApprovalModeBalanced}, nil
 }
 
-func (recorder *approvalBindingRecorder) SetApprovalMode(_ context.Context, request protocol.SetApprovalModeRequest, _ embedded.CommandOptions) (*protocol.ApprovalModeResult, error) {
-	if recorder.setMode != "" {
-		return &protocol.ApprovalModeResult{Mode: recorder.setMode}, nil
+func (a *approvalBindingRecorder) SetApprovalMode(_ context.Context, request protocol.SetApprovalModeRequest, _ embedded.CommandOptions) (*protocol.ApprovalModeResult, error) {
+	if a.setMode != "" {
+		return &protocol.ApprovalModeResult{Mode: a.setMode}, nil
 	}
 	return &protocol.ApprovalModeResult{Mode: request.Mode}, nil
 }
 
-func (recorder *approvalBindingRecorder) ListApprovalRules(_ context.Context, request protocol.ListApprovalRulesRequest, _ embedded.CallOptions) (*protocol.ListApprovalRulesResult, error) {
-	recorder.listCalls++
-	recorder.listRequest = request
+func (a *approvalBindingRecorder) ListApprovalRules(_ context.Context, request protocol.ListApprovalRulesRequest, _ embedded.CallOptions) (*protocol.ListApprovalRulesResult, error) {
+	a.listCalls++
+	a.listRequest = request
 	return &protocol.ListApprovalRulesResult{Rules: []protocol.ApprovalRule{{
 		ID: "rule_1", Scope: protocol.ApprovalRuleScopeProject, Tool: "shell",
 		Subject: "go test *", Dir: "/workspace", Decision: protocol.ApprovalRuleDecisionAllow,
@@ -56,10 +56,10 @@ func TestCatalogsRejectResponsesOutsideTheRequestedIdentity(t *testing.T) {
 	requireRuntimeContractViolation(t, err)
 }
 
-func (recorder *approvalBindingRecorder) ForgetApprovalRule(_ context.Context, request protocol.ForgetApprovalRuleRequest, options embedded.CommandOptions) error {
-	recorder.forgetCalls++
-	recorder.forgetRequest = request
-	recorder.forgetOptions = options
+func (a *approvalBindingRecorder) ForgetApprovalRule(_ context.Context, request protocol.ForgetApprovalRuleRequest, options embedded.CommandOptions) error {
+	a.forgetCalls++
+	a.forgetRequest = request
+	a.forgetOptions = options
 	return nil
 }
 

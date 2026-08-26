@@ -100,97 +100,97 @@ type blockingSessionCatalogRuntime struct {
 	refreshCanceled chan struct{}
 }
 
-func (runtime *blockingSessionCatalogRuntime) ListSessions(
+func (b *blockingSessionCatalogRuntime) ListSessions(
 	ctx context.Context,
 	query agent.SessionQuery,
 ) (agent.SessionPage, error) {
-	if runtime.calls.Add(1) != 2 {
-		return runtime.Runtime.ListSessions(ctx, query)
+	if b.calls.Add(1) != 2 {
+		return b.Runtime.ListSessions(ctx, query)
 	}
-	close(runtime.refreshStarted)
+	close(b.refreshStarted)
 	select {
-	case <-runtime.releaseRefresh:
-		return runtime.Runtime.ListSessions(ctx, query)
+	case <-b.releaseRefresh:
+		return b.Runtime.ListSessions(ctx, query)
 	case <-ctx.Done():
-		close(runtime.refreshCanceled)
+		close(b.refreshCanceled)
 		return agent.SessionPage{}, context.Cause(ctx)
 	}
 }
 
-func (runtime *blockingSessionDeleteRuntime) DeleteSession(
+func (b *blockingSessionDeleteRuntime) DeleteSession(
 	ctx context.Context,
 	request agent.DeleteSession,
 ) error {
 	select {
-	case runtime.started <- request:
+	case b.started <- request:
 	default:
 	}
 	select {
-	case <-runtime.release:
-		return runtime.Runtime.DeleteSession(ctx, request)
+	case <-b.release:
+		return b.Runtime.DeleteSession(ctx, request)
 	case <-ctx.Done():
 		select {
-		case runtime.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return context.Cause(ctx)
 	}
 }
 
-func (runtime *blockingApprovalModeRuntime) SetApprovalMode(
+func (b *blockingApprovalModeRuntime) SetApprovalMode(
 	ctx context.Context,
 	mode agent.ApprovalMode,
 ) (agent.ApprovalMode, error) {
 	select {
-	case runtime.started <- mode:
+	case b.started <- mode:
 	default:
 	}
 	select {
-	case <-runtime.release:
-		return runtime.Runtime.SetApprovalMode(ctx, mode)
+	case <-b.release:
+		return b.Runtime.SetApprovalMode(ctx, mode)
 	case <-ctx.Done():
 		select {
-		case runtime.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return "", context.Cause(ctx)
 	}
 }
 
-func (catalog *mutableRuntimeCatalog) ListModels(context.Context) ([]agent.Model, error) {
-	catalog.mu.Lock()
-	defer catalog.mu.Unlock()
-	return slices.Clone(catalog.models), nil
+func (m *mutableRuntimeCatalog) ListModels(context.Context) ([]agent.Model, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.models), nil
 }
 
-func (catalog *mutableRuntimeCatalog) ListApprovalRules(context.Context, string) ([]agent.ApprovalRule, error) {
-	catalog.mu.Lock()
-	defer catalog.mu.Unlock()
-	return slices.Clone(catalog.rules), nil
+func (m *mutableRuntimeCatalog) ListApprovalRules(context.Context, string) ([]agent.ApprovalRule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.rules), nil
 }
 
-func (catalog *mutableRuntimeCatalog) DeleteApprovalRule(_ context.Context, id string) error {
-	catalog.mu.Lock()
-	if !catalog.ignoreRuleDeletion {
-		catalog.rules = slices.DeleteFunc(catalog.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
+func (m *mutableRuntimeCatalog) DeleteApprovalRule(_ context.Context, id string) error {
+	m.mu.Lock()
+	if !m.ignoreRuleDeletion {
+		m.rules = slices.DeleteFunc(m.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
 	}
-	catalog.mu.Unlock()
-	if catalog.deleted != nil {
-		catalog.deleted <- id
+	m.mu.Unlock()
+	if m.deleted != nil {
+		m.deleted <- id
 	}
 	return nil
 }
 
-func (catalog *mutableRuntimeCatalog) setModels(models ...agent.Model) {
-	catalog.mu.Lock()
-	catalog.models = slices.Clone(models)
-	catalog.mu.Unlock()
+func (m *mutableRuntimeCatalog) setModels(models ...agent.Model) {
+	m.mu.Lock()
+	m.models = slices.Clone(models)
+	m.mu.Unlock()
 }
 
-func (catalog *mutableRuntimeCatalog) setRules(rules ...agent.ApprovalRule) {
-	catalog.mu.Lock()
-	catalog.rules = slices.Clone(rules)
-	catalog.mu.Unlock()
+func (m *mutableRuntimeCatalog) setRules(rules ...agent.ApprovalRule) {
+	m.mu.Lock()
+	m.rules = slices.Clone(rules)
+	m.mu.Unlock()
 }
 
 func TestRuntimeResourceInvalidationsRefreshTheOpenProjection(t *testing.T) {
@@ -612,11 +612,11 @@ type partitionedRuntimeChangeSourceStub struct {
 	registrations chan runtimeSubscriptionRegistration
 }
 
-func (stub *partitionedRuntimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
-	return slices.Contains(stub.supported, topic)
+func (p *partitionedRuntimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
+	return slices.Contains(p.supported, topic)
 }
 
-func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
+func (p *partitionedRuntimeChangeSourceStub) Subscribe(
 	ctx context.Context,
 	subscription changefeed.Subscription,
 ) (changefeed.EventStream, error) {
@@ -626,7 +626,7 @@ func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
 		applied:      make(chan changefeed.Event, 4),
 	}
 	select {
-	case stub.registrations <- registration:
+	case p.registrations <- registration:
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	}
@@ -649,9 +649,9 @@ func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
 	}, nil
 }
 
-func (stub *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
-	if stub.supported != nil {
-		return slices.Contains(stub.supported, topic)
+func (r *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
+	if r.supported != nil {
+		return slices.Contains(r.supported, topic)
 	}
 	return slices.Contains([]changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
@@ -659,32 +659,32 @@ func (stub *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
 	}, topic)
 }
 
-func (stub *runtimeChangeSourceStub) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
+func (r *runtimeChangeSourceStub) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
 	select {
-	case stub.subscription <- subscription:
+	case r.subscription <- subscription:
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	}
 	select {
-	case err := <-stub.subscribeErr:
+	case err := <-r.subscribeErr:
 		return nil, err
 	default:
 	}
 	return func(yield func(changefeed.Event, error) bool) {
 		for {
 			select {
-			case <-stub.streamClosed:
+			case <-r.streamClosed:
 				return
-			case err := <-stub.streamErrors:
+			case err := <-r.streamErrors:
 				yield(changefeed.Event{}, err)
 				return
-			case event := <-stub.events:
+			case event := <-r.events:
 				if !yield(event, nil) {
 					return
 				}
-				if stub.applied != nil {
+				if r.applied != nil {
 					select {
-					case stub.applied <- event:
+					case r.applied <- event:
 					case <-ctx.Done():
 						return
 					}
@@ -1238,35 +1238,35 @@ type blockedResumeRuntime struct {
 	calls   atomic.Int32
 }
 
-func (runtime *blockedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	runtime.calls.Add(1)
+func (b *blockedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	b.calls.Add(1)
 	select {
-	case runtime.started <- input.Clone():
+	case b.started <- input.Clone():
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 	select {
-	case <-runtime.release:
+	case <-b.release:
 		return agent.SegmentStream{}, agent.ErrInterruptNotOpen
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 }
 
-func (runtime *snapshotCountingRuntime) GetSession(ctx context.Context, id string) (agent.SessionSnapshot, error) {
-	runtime.reads.Add(1)
-	if runtime.readSignal != nil {
+func (s *snapshotCountingRuntime) GetSession(ctx context.Context, id string) (agent.SessionSnapshot, error) {
+	s.reads.Add(1)
+	if s.readSignal != nil {
 		select {
-		case runtime.readSignal <- struct{}{}:
+		case s.readSignal <- struct{}{}:
 		default:
 		}
 	}
-	for remaining := runtime.failures.Load(); remaining > 0; remaining = runtime.failures.Load() {
-		if runtime.failures.CompareAndSwap(remaining, remaining-1) {
-			return agent.SessionSnapshot{}, runtime.failure
+	for remaining := s.failures.Load(); remaining > 0; remaining = s.failures.Load() {
+		if s.failures.CompareAndSwap(remaining, remaining-1) {
+			return agent.SessionSnapshot{}, s.failure
 		}
 	}
-	return runtime.Runtime.GetSession(ctx, id)
+	return s.Runtime.GetSession(ctx, id)
 }
 
 func runUIWithRuntimeChanges(t *testing.T, runtime agent.Runtime, source changefeed.Source, sessionID string) (*programtest.Host, func()) {
@@ -1397,13 +1397,13 @@ type workspacePathRecordingService struct {
 	paths chan string
 }
 
-func (service *workspacePathRecordingService) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
+func (w *workspacePathRecordingService) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
 	select {
-	case service.paths <- path:
+	case w.paths <- path:
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	}
-	return service.workspaceServiceStub.Changes(ctx, path)
+	return w.workspaceServiceStub.Changes(ctx, path)
 }
 
 func awaitSubscription(t *testing.T, subscriptions <-chan changefeed.Subscription, what string) changefeed.Subscription {

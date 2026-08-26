@@ -26,8 +26,8 @@ const (
 	ConditionWindy        Condition = "Windy"
 )
 
-func (condition Condition) hasPrecipitation() bool {
-	switch condition {
+func (c Condition) hasPrecipitation() bool {
+	switch c {
 	case ConditionRainy, ConditionSnowy, ConditionStormy, ConditionBlizzard, ConditionDrizzle:
 		return true
 	}

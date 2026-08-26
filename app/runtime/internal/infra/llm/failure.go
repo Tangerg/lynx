@@ -30,8 +30,8 @@ func classifyModelFailures(model chat.Model) chat.Model {
 	return failureStreamingModel{failureModel: classified, streamer: streamer}
 }
 
-func (m failureModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-	response, err := m.model.Call(ctx, request)
+func (f failureModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	response, err := f.model.Call(ctx, request)
 	return response, classifyModelError(err)
 }
 
@@ -40,8 +40,8 @@ type failureStreamingModel struct {
 	streamer chat.Streamer
 }
 
-func (m failureStreamingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-	sequence := m.streamer.Stream(ctx, request)
+func (f failureStreamingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	sequence := f.streamer.Stream(ctx, request)
 	if sequence == nil {
 		return nil
 	}

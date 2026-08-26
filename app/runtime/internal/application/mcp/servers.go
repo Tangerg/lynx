@@ -225,20 +225,20 @@ func (c *Coordinator) beginMutation(ctx context.Context) (*mutationScope, error)
 	}, nil
 }
 
-func (write *mutationScope) unlock() {
-	if write != nil && write.locked {
-		write.locked = false
-		write.coordinator.mutationMu.Unlock()
+func (m *mutationScope) unlock() {
+	if m != nil && m.locked {
+		m.locked = false
+		m.coordinator.mutationMu.Unlock()
 	}
 }
 
-func (write *mutationScope) close() {
-	if write == nil || write.finish == nil {
+func (m *mutationScope) close() {
+	if m == nil || m.finish == nil {
 		return
 	}
-	write.unlock()
-	write.finish()
-	write.finish = nil
+	m.unlock()
+	m.finish()
+	m.finish = nil
 }
 
 // applyRegistryChange reflects a persisted registry entry into the policy

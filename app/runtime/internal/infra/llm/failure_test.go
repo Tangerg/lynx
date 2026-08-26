@@ -22,9 +22,9 @@ type providerError struct {
 	header http.Header
 }
 
-func (err *providerError) Error() string           { return "provider error" }
-func (err *providerError) HTTPStatus() int         { return err.status }
-func (err *providerError) HTTPHeader() http.Header { return err.header }
+func (p *providerError) Error() string           { return "provider error" }
+func (p *providerError) HTTPStatus() int         { return p.status }
+func (p *providerError) HTTPHeader() http.Header { return p.header }
 
 func TestClassifyModelFailuresPreservesOptionalStreamingCapability(t *testing.T) {
 	classified := classifyModelFailures(callOnlyModel{})

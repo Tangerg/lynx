@@ -25,17 +25,17 @@ func NewGitWatch(scope *Scope, watcher GitStateWatcher) *GitWatch {
 }
 
 // Available reports whether Git-state observation is wired.
-func (w *GitWatch) Available() bool { return w != nil && w.watcher != nil }
+func (g *GitWatch) Available() bool { return g != nil && g.watcher != nil }
 
 // Watch canonicalizes and deduplicates workspace roots before watching.
-func (w *GitWatch) Watch(cwds []string, notify func()) (io.Closer, error) {
-	if w.watcher == nil {
+func (g *GitWatch) Watch(cwds []string, notify func()) (io.Closer, error) {
+	if g.watcher == nil {
 		return nil, ErrFileWatchUnavailable
 	}
 	seen := make(map[string]struct{}, len(cwds))
 	roots := make([]string, 0, len(cwds))
 	for _, cwd := range cwds {
-		root, err := w.scope.root(cwd)
+		root, err := g.scope.root(cwd)
 		if err != nil {
 			return nil, err
 		}
@@ -45,5 +45,5 @@ func (w *GitWatch) Watch(cwds []string, notify func()) (io.Closer, error) {
 		seen[root] = struct{}{}
 		roots = append(roots, root)
 	}
-	return w.watcher.Watch(roots, notify)
+	return g.watcher.Watch(roots, notify)
 }

@@ -110,9 +110,9 @@ func TestEndpointRejectsMethodIncompatibleMetadataBeforeCapabilityAdmission(t *t
 	}
 }
 
-func (s *lifetimeService) SubscribeRuntime(ctx context.Context, _ protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+func (l *lifetimeService) SubscribeRuntime(ctx context.Context, _ protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {
-		close(s.streamStarted)
+		close(l.streamStarted)
 		<-ctx.Done()
 	}, nil
 }
@@ -186,15 +186,15 @@ type joiningStreamService struct {
 	release  chan struct{}
 }
 
-func (s *joiningStreamService) SubscribeRuntime(
+func (j *joiningStreamService) SubscribeRuntime(
 	ctx context.Context,
 	_ protocol.RuntimeSubscribeRequest,
 ) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {
-		close(s.started)
+		close(j.started)
 		<-ctx.Done()
-		close(s.canceled)
-		<-s.release
+		close(j.canceled)
+		<-j.release
 	}, nil
 }
 

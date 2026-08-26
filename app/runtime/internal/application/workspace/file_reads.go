@@ -44,12 +44,12 @@ type FileEntry struct {
 	ModifiedAt time.Time
 }
 
-func (e FileEntry) orderKey() string {
+func (f FileEntry) orderKey() string {
 	class := "1"
-	if e.Kind == FileEntryDir {
+	if f.Kind == FileEntryDir {
 		class = "0"
 	}
-	return class + ":" + e.Path
+	return class + ":" + f.Path
 }
 
 // FileListOptions controls one workspace file listing.
@@ -318,17 +318,17 @@ func normalizedFileReadBytes(requested int) int {
 	return min(requested, MaxFileReadBytes)
 }
 
-func (input FileReadInput) validate() error {
-	if input.Path == "" {
+func (f FileReadInput) validate() error {
+	if f.Path == "" {
 		return ErrPathRequired
 	}
-	if input.StartLine < 0 || input.EndLine < 0 || input.MaxBytes < 0 {
+	if f.StartLine < 0 || f.EndLine < 0 || f.MaxBytes < 0 {
 		return ErrInvalidFileRange
 	}
-	if input.EndLine > 0 && input.StartLine == 0 {
+	if f.EndLine > 0 && f.StartLine == 0 {
 		return ErrInvalidFileRange
 	}
-	if input.StartLine > 0 && input.EndLine > 0 && input.EndLine < input.StartLine {
+	if f.StartLine > 0 && f.EndLine > 0 && f.EndLine < f.StartLine {
 		return ErrInvalidFileRange
 	}
 	return nil

@@ -36,13 +36,13 @@ type approvalDecisionDraft struct {
 	reason string
 }
 
-func (draft approvalDecisionDraft) answer(action approvalAction, override *agent.ToolArgumentOverride) (agent.ApprovalAnswer, bool) {
+func (a approvalDecisionDraft) answer(action approvalAction, override *agent.ToolArgumentOverride) (agent.ApprovalAnswer, bool) {
 	decision, ok := action.Answer()
 	if !ok {
 		return agent.ApprovalAnswer{}, false
 	}
 	if decision.Decision == agent.ApprovalDeny {
-		decision.Reason = strings.TrimSpace(draft.reason)
+		decision.Reason = strings.TrimSpace(a.reason)
 		if decision.Reason == "" {
 			decision.Reason = "denied by the user in the terminal"
 		}
@@ -52,37 +52,37 @@ func (draft approvalDecisionDraft) answer(action approvalAction, override *agent
 	return decision, true
 }
 
-func (p *approvalPane) Draw(frame headless.Frame) {
+func (a *approvalPane) Draw(frame headless.Frame) {
 	width, height := frame.Size()
-	form := p.form
-	p.presentedForm.Stage(frame, form)
+	form := a.form
+	a.presentedForm.Stage(frame, form)
 	if width <= 0 || height <= 0 || form == nil {
 		return
 	}
 	formRows := min(form.Measure(width), max(height-1, 0))
-	detailRows := min(p.detail.Measure(width), min(4, max(height-formRows-1, 0)))
+	detailRows := min(a.detail.Measure(width), min(4, max(height-formRows-1, 0)))
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Fixed(1)},
 		{Size: layout.Fixed(detailRows)},
 		{Size: layout.Flex(1)},
 		{Size: layout.Fixed(formRows)},
 	}))
-	kit.Label{Text: p.title, Style: p.theme.Strong, Ellipsis: "…"}.Draw(rows[0].View)
-	p.detail.Draw(rows[1].View)
-	p.view.Draw(rows[2])
+	kit.Label{Text: a.title, Style: a.theme.Strong, Ellipsis: "…"}.Draw(rows[0].View)
+	a.detail.Draw(rows[1].View)
+	a.view.Draw(rows[2])
 	form.Draw(rows[3])
 }
 
-func (p *approvalPane) Handle(event input.Event) bool {
-	if form := p.presentedForm.Value(); form != nil && form.Handle(event) {
+func (a *approvalPane) Handle(event input.Event) bool {
+	if form := a.presentedForm.Value(); form != nil && form.Handle(event) {
 		return true
 	}
-	return p.view.Handle(event)
+	return a.view.Handle(event)
 }
 
-func (p *approvalPane) Focus(has bool) {
-	if p.form != nil {
-		p.form.Focus(has)
+func (a *approvalPane) Focus(has bool) {
+	if a.form != nil {
+		a.form.Focus(has)
 	}
 }
 

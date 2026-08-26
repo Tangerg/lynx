@@ -18,18 +18,18 @@ type skillBindingStub struct {
 	actions []string
 }
 
-func (stub *skillBindingStub) ListDiscoveredSkills(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.Skill], error) {
-	stub.assertCall(request.Workspace.Path, options.RequestMeta)
+func (s *skillBindingStub) ListDiscoveredSkills(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.Skill], error) {
+	s.assertCall(request.Workspace.Path, options.RequestMeta)
 	return protocol.NewPage([]protocol.Skill{{Name: "release-checks", Description: "Release safely", Scope: protocol.SkillScopeProject}}), nil
 }
 
-func (stub *skillBindingStub) ListManagedSkills(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.ManagedSkill], error) {
-	stub.assertMeta(options.RequestMeta)
+func (s *skillBindingStub) ListManagedSkills(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.ManagedSkill], error) {
+	s.assertMeta(options.RequestMeta)
 	return protocol.NewPage([]protocol.ManagedSkill{{Name: "review", Description: "Review code", Lifecycle: protocol.SkillLifecycleArchived}}), nil
 }
 
-func (stub *skillBindingStub) ListSkillProposals(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.SkillProposal], error) {
-	stub.assertCall(request.Workspace.Path, options.RequestMeta)
+func (s *skillBindingStub) ListSkillProposals(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.SkillProposal], error) {
+	s.assertCall(request.Workspace.Path, options.RequestMeta)
 	return protocol.NewPage([]protocol.SkillProposal{{
 		Name: "release-checks", Revision: skillRevision, Scope: protocol.SkillScopeUser,
 		Description: "Release safely", Instructions: "Run every release gate.",
@@ -37,54 +37,54 @@ func (stub *skillBindingStub) ListSkillProposals(_ context.Context, request prot
 	}}), nil
 }
 
-func (stub *skillBindingStub) ArchiveSkill(_ context.Context, request protocol.SkillNameRequest, options embedded.CommandOptions) error {
-	stub.assertCommand("archive:"+request.Name, options)
+func (s *skillBindingStub) ArchiveSkill(_ context.Context, request protocol.SkillNameRequest, options embedded.CommandOptions) error {
+	s.assertCommand("archive:"+request.Name, options)
 	return nil
 }
 
-func (stub *skillBindingStub) RestoreSkill(_ context.Context, request protocol.SkillNameRequest, options embedded.CommandOptions) error {
-	stub.assertCommand("restore:"+request.Name, options)
+func (s *skillBindingStub) RestoreSkill(_ context.Context, request protocol.SkillNameRequest, options embedded.CommandOptions) error {
+	s.assertCommand("restore:"+request.Name, options)
 	return nil
 }
 
-func (stub *skillBindingStub) ApproveSkillProposal(_ context.Context, request protocol.SkillProposalRef, options embedded.CommandOptions) error {
-	stub.assertReference("approve", request, options)
+func (s *skillBindingStub) ApproveSkillProposal(_ context.Context, request protocol.SkillProposalRef, options embedded.CommandOptions) error {
+	s.assertReference("approve", request, options)
 	return nil
 }
 
-func (stub *skillBindingStub) RejectSkillProposal(_ context.Context, request protocol.SkillProposalRef, options embedded.CommandOptions) error {
-	stub.assertReference("reject", request, options)
+func (s *skillBindingStub) RejectSkillProposal(_ context.Context, request protocol.SkillProposalRef, options embedded.CommandOptions) error {
+	s.assertReference("reject", request, options)
 	return nil
 }
 
-func (stub *skillBindingStub) assertCall(workspace string, meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (s *skillBindingStub) assertCall(workspace string, meta protocol.RequestMeta) {
+	s.t.Helper()
 	if workspace != "/workspace" {
-		stub.t.Fatalf("skill call = workspace %q, meta %+v", workspace, meta)
+		s.t.Fatalf("skill call = workspace %q, meta %+v", workspace, meta)
 	}
-	stub.assertMeta(meta)
+	s.assertMeta(meta)
 }
 
-func (stub *skillBindingStub) assertMeta(meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (s *skillBindingStub) assertMeta(meta protocol.RequestMeta) {
+	s.t.Helper()
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("skill call meta = %+v", meta)
+		s.t.Fatalf("skill call meta = %+v", meta)
 	}
 }
 
-func (stub *skillBindingStub) assertCommand(action string, options embedded.CommandOptions) {
-	stub.t.Helper()
+func (s *skillBindingStub) assertCommand(action string, options embedded.CommandOptions) {
+	s.t.Helper()
 	if options.IdempotencyKey == "" || options.RequestMeta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("skill command options = %+v", options)
+		s.t.Fatalf("skill command options = %+v", options)
 	}
-	stub.actions = append(stub.actions, action)
+	s.actions = append(s.actions, action)
 }
 
-func (stub *skillBindingStub) assertReference(action string, request protocol.SkillProposalRef, options embedded.CommandOptions) {
-	stub.t.Helper()
-	stub.assertCommand(action+":"+string(request.Scope)+"/"+request.Name, options)
+func (s *skillBindingStub) assertReference(action string, request protocol.SkillProposalRef, options embedded.CommandOptions) {
+	s.t.Helper()
+	s.assertCommand(action+":"+string(request.Scope)+"/"+request.Name, options)
 	if request.Workspace.Path != "/workspace" || request.Revision != skillRevision {
-		stub.t.Fatalf("skill proposal reference = %+v", request)
+		s.t.Fatalf("skill proposal reference = %+v", request)
 	}
 }
 

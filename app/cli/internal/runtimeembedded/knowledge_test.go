@@ -21,19 +21,19 @@ type knowledgeBindingStub struct {
 	getCalls   int
 }
 
-func (stub *knowledgeBindingStub) ListKnowledge(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.KnowledgeEntry], error) {
-	stub.assertMeta(options.RequestMeta)
+func (k *knowledgeBindingStub) ListKnowledge(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.KnowledgeEntry], error) {
+	k.assertMeta(options.RequestMeta)
 	if request.Workspace.Path != "/workspace" {
-		stub.t.Fatalf("list request = %+v", request)
+		k.t.Fatalf("list request = %+v", request)
 	}
-	if stub.nilList {
+	if k.nilList {
 		return nil, nil
 	}
-	if stub.listed != nil {
-		return stub.listed, nil
+	if k.listed != nil {
+		return k.listed, nil
 	}
 	return protocol.NewPage([]protocol.KnowledgeEntry{{
-		Scope: protocol.KnowledgeScopeProjectRoot, Content: "project rules", Revision: "rev-project", UpdatedAt: stub.updated,
+		Scope: protocol.KnowledgeScopeProjectRoot, Content: "project rules", Revision: "rev-project", UpdatedAt: k.updated,
 	}}), nil
 }
 
@@ -61,23 +61,23 @@ func TestKnowledgeAdapterRejectsUnaddressableCatalogs(t *testing.T) {
 	}
 }
 
-func (stub *knowledgeBindingStub) GetKnowledge(_ context.Context, request protocol.GetKnowledgeRequest, options embedded.CallOptions) (*protocol.KnowledgeEntry, error) {
-	stub.assertMeta(options.RequestMeta)
-	stub.getCalls++
+func (k *knowledgeBindingStub) GetKnowledge(_ context.Context, request protocol.GetKnowledgeRequest, options embedded.CallOptions) (*protocol.KnowledgeEntry, error) {
+	k.assertMeta(options.RequestMeta)
+	k.getCalls++
 	if request.Scope == protocol.KnowledgeScopeHome {
 		if request.Workspace != nil {
-			stub.t.Fatalf("home get leaked workspace: %+v", request)
+			k.t.Fatalf("home get leaked workspace: %+v", request)
 		}
 	} else if request.Workspace == nil || request.Workspace.Path != "/workspace" {
-		stub.t.Fatalf("workspace get request = %+v", request)
+		k.t.Fatalf("workspace get request = %+v", request)
 	}
-	if !stub.dropUpdate {
-		for index := len(stub.updates) - 1; index >= 0; index-- {
-			update := stub.updates[index]
+	if !k.dropUpdate {
+		for index := len(k.updates) - 1; index >= 0; index-- {
+			update := k.updates[index]
 			if update.Scope == request.Scope {
 				return &protocol.KnowledgeEntry{
 					Scope: request.Scope, Content: update.Content,
-					Revision: "rev-updated", UpdatedAt: stub.updated,
+					Revision: "rev-updated", UpdatedAt: k.updated,
 				}, nil
 			}
 		}
@@ -85,19 +85,19 @@ func (stub *knowledgeBindingStub) GetKnowledge(_ context.Context, request protoc
 	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: "document", Revision: "rev-document"}, nil
 }
 
-func (stub *knowledgeBindingStub) UpdateKnowledge(_ context.Context, request protocol.UpdateKnowledgeRequest, options embedded.CommandOptions) (*protocol.KnowledgeEntry, error) {
-	stub.assertMeta(options.RequestMeta)
+func (k *knowledgeBindingStub) UpdateKnowledge(_ context.Context, request protocol.UpdateKnowledgeRequest, options embedded.CommandOptions) (*protocol.KnowledgeEntry, error) {
+	k.assertMeta(options.RequestMeta)
 	if options.IdempotencyKey == "" {
-		stub.t.Fatal("update has no idempotency key")
+		k.t.Fatal("update has no idempotency key")
 	}
-	stub.updates = append(stub.updates, request)
-	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: request.Content, Revision: "rev-updated", UpdatedAt: stub.updated}, nil
+	k.updates = append(k.updates, request)
+	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: request.Content, Revision: "rev-updated", UpdatedAt: k.updated}, nil
 }
 
-func (stub *knowledgeBindingStub) assertMeta(meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (k *knowledgeBindingStub) assertMeta(meta protocol.RequestMeta) {
+	k.t.Helper()
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("request meta = %+v", meta)
+		k.t.Fatalf("request meta = %+v", meta)
 	}
 }
 

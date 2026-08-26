@@ -107,8 +107,8 @@ type resumePreparation struct {
 	script     Script
 }
 
-func (prepared resumePreparation) continueScript() ([]Step, error) {
-	steps, err := continueSafely(prepared.script, prepared.allAnswers)
+func (r resumePreparation) continueScript() ([]Step, error) {
+	steps, err := continueSafely(r.script, r.allAnswers)
 	if err != nil {
 		return nil, fmt.Errorf("mock: continue script: %w", err)
 	}

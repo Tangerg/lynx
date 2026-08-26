@@ -50,15 +50,15 @@ type claimedResumeSessions struct {
 	claimed bool
 }
 
-func (sessions *claimedResumeSessions) ApplyRunLost(
+func (c *claimedResumeSessions) ApplyRunLost(
 	ctx context.Context,
 	sessionID, runID string,
 	finishedAt time.Time,
 ) error {
-	if sessions.claimed {
+	if c.claimed {
 		return errors.New("open interrupt not found after resume claim")
 	}
-	return sessions.fakeRunSessions.ApplyRunLost(ctx, sessionID, runID, finishedAt)
+	return c.fakeRunSessions.ApplyRunLost(ctx, sessionID, runID, finishedAt)
 }
 
 type completeTestSessionPorts interface {
@@ -204,17 +204,17 @@ type blockingOpeningEffects struct {
 	release <-chan struct{}
 }
 
-func (e *blockingOpeningEffects) CommitOpening(
+func (b *blockingOpeningEffects) CommitOpening(
 	ctx context.Context,
 	opening OpeningCommit,
 ) error {
-	e.started <- struct{}{}
+	b.started <- struct{}{}
 	select {
-	case <-e.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return e.fakeEffects.CommitOpening(ctx, opening)
+	return b.fakeEffects.CommitOpening(ctx, opening)
 }
 
 func (f *fakeExecutionPorts) ValidateRootStart(req RootExecutionStart) error {
@@ -784,10 +784,10 @@ func TestStartKeepsGoalControlInputModelOnly(t *testing.T) {
 
 type staticConversationReader struct{ messages []corechat.Message }
 
-func (reader staticConversationReader) Read(context.Context, string) ([]corechat.Message, error) {
-	messages := make([]corechat.Message, len(reader.messages))
-	for index := range reader.messages {
-		messages[index] = reader.messages[index].Clone()
+func (s staticConversationReader) Read(context.Context, string) ([]corechat.Message, error) {
+	messages := make([]corechat.Message, len(s.messages))
+	for index := range s.messages {
+		messages[index] = s.messages[index].Clone()
 	}
 	return messages, nil
 }

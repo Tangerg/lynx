@@ -25,22 +25,22 @@ type fakeInterruptReader struct {
 	err       error
 }
 
-func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
-	r.sessionID = sessionID
-	return r.pending, r.err
+func (f *fakeInterruptReader) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
+	f.sessionID = sessionID
+	return f.pending, f.err
 }
 
-func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID, _ string, _ int64, _ string, _ int) ([]runs.Pending, error) {
-	return r.List(ctx, sessionID)
+func (f *fakeInterruptReader) ListPage(ctx context.Context, sessionID, _ string, _ int64, _ string, _ int) ([]runs.Pending, error) {
+	return f.List(ctx, sessionID)
 }
 
-func (r *fakeInterruptReader) Get(_ context.Context, runID string) (runs.Pending, bool, error) {
-	for _, pending := range r.pending {
+func (f *fakeInterruptReader) Get(_ context.Context, runID string) (runs.Pending, bool, error) {
+	for _, pending := range f.pending {
 		if pending.RootRunID == runID {
-			return pending, true, r.err
+			return pending, true, f.err
 		}
 	}
-	return runs.Pending{}, false, r.err
+	return runs.Pending{}, false, f.err
 }
 
 // TestListRunsPublishesTheWholeHistoryNewestFirst is runs.list's delivery half: the

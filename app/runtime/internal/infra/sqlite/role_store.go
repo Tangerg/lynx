@@ -21,31 +21,31 @@ func newRoleStore(db *sql.DB, table, label string) *roleStore {
 	return &roleStore{db: db, table: table, label: label}
 }
 
-func (s *roleStore) load(ctx context.Context) (modelref.Selection, error) {
-	query := fmt.Sprintf("SELECT provider, model FROM %s WHERE id = 1", s.table)
+func (r *roleStore) load(ctx context.Context) (modelref.Selection, error) {
+	query := fmt.Sprintf("SELECT provider, model FROM %s WHERE id = 1", r.table)
 	var provider, model string
-	err := conn(ctx, s.db).QueryRowContext(ctx, query).Scan(&provider, &model)
+	err := conn(ctx, r.db).QueryRowContext(ctx, query).Scan(&provider, &model)
 	if errors.Is(err, sql.ErrNoRows) {
 		return modelref.Selection{}, nil
 	}
 	if err != nil {
-		return modelref.Selection{}, fmt.Errorf("sqlite: load %s: %w", s.label, err)
+		return modelref.Selection{}, fmt.Errorf("sqlite: load %s: %w", r.label, err)
 	}
 	role, err := modelref.New(provider, model)
 	if err != nil {
-		return modelref.Selection{}, fmt.Errorf("sqlite: decode %s: %w", s.label, err)
+		return modelref.Selection{}, fmt.Errorf("sqlite: decode %s: %w", r.label, err)
 	}
 	return role, nil
 }
 
-func (s *roleStore) save(ctx context.Context, role modelref.Selection) error {
+func (r *roleStore) save(ctx context.Context, role modelref.Selection) error {
 	query := fmt.Sprintf(
 		`INSERT INTO %s (id, provider, model) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, model = excluded.model`,
-		s.table,
+		r.table,
 	)
-	_, err := conn(ctx, s.db).ExecContext(ctx, query, role.Provider(), role.Model())
+	_, err := conn(ctx, r.db).ExecContext(ctx, query, role.Provider(), role.Model())
 	if err != nil {
-		return fmt.Errorf("sqlite: save %s: %w", s.label, err)
+		return fmt.Errorf("sqlite: save %s: %w", r.label, err)
 	}
 	return nil
 }

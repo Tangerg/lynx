@@ -51,9 +51,9 @@ func newTimelinePane(theme kit.Theme, glyphs kit.Glyphs, jump func(timelineEntry
 	return pane
 }
 
-func (p *timelinePane) SetRuns(runs []agent.Run) {
-	p.picker.Reset()
-	p.picker.SetItems(buildTimelineEntries(runs))
+func (t *timelinePane) SetRuns(runs []agent.Run) {
+	t.picker.Reset()
+	t.picker.SetItems(buildTimelineEntries(runs))
 }
 
 func buildTimelineEntries(runs []agent.Run) []timelineEntry {
@@ -91,26 +91,26 @@ func appendTimelineDescendants(
 	}
 }
 
-func (p *timelinePane) Draw(frame headless.Frame) {
+func (t *timelinePane) Draw(frame headless.Frame) {
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Flex(1)}, {Size: layout.Fixed(1)},
 	}))
-	p.picker.Draw(rows[0])
-	kit.Label{Text: "enter jump to retained output · alt+f fork from run · esc close", Style: p.theme.Subtle, Ellipsis: p.glyphs.Ellipsis}.Draw(rows[1].View)
+	t.picker.Draw(rows[0])
+	kit.Label{Text: "enter jump to retained output · alt+f fork from run · esc close", Style: t.theme.Subtle, Ellipsis: t.glyphs.Ellipsis}.Draw(rows[1].View)
 }
 
-func (p *timelinePane) Handle(event input.Event) bool {
+func (t *timelinePane) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt && key.Rune == 'f' {
-		p.picker.interruptPointerGesture()
-		if entry, selected := p.picker.Current(); selected && p.fork != nil {
-			p.fork(entry)
+		t.picker.interruptPointerGesture()
+		if entry, selected := t.picker.Current(); selected && t.fork != nil {
+			t.fork(entry)
 		}
 		return true
 	}
-	return p.picker.Handle(event)
+	return t.picker.Handle(event)
 }
 
-func (p *timelinePane) Focus(has bool) { p.picker.Focus(has) }
+func (t *timelinePane) Focus(has bool) { t.picker.Focus(has) }
 
 func (a *app) buildTimeline(theme kit.Theme, glyphs kit.Glyphs) {
 	a.timeline = newTimelinePane(theme, glyphs,

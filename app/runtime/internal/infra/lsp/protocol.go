@@ -52,12 +52,12 @@ const (
 
 // IsProblem reports whether the severity belongs in the post-mutation problem
 // summary. LSP treats an omitted severity as an error for this purpose.
-func (s DiagnosticSeverity) IsProblem() bool {
-	return s <= DiagnosticSeverityWarning
+func (d DiagnosticSeverity) IsProblem() bool {
+	return d <= DiagnosticSeverityWarning
 }
 
-func (s DiagnosticSeverity) name() string {
-	switch s {
+func (d DiagnosticSeverity) name() string {
+	switch d {
 	case DiagnosticSeverityError:
 		return "error"
 	case DiagnosticSeverityWarning:
@@ -192,12 +192,12 @@ type callHierarchyItem struct {
 
 // symbol maps a call-hierarchy node onto the normalized [Symbol] the tool layer
 // formats — its selection range is the precise name span.
-func (it callHierarchyItem) symbol() Symbol {
+func (c callHierarchyItem) symbol() Symbol {
 	return Symbol{
-		Name:     it.Name,
-		Kind:     it.Kind,
-		Detail:   it.Detail,
-		Location: Location{URI: it.URI, Range: it.SelectionRange},
+		Name:     c.Name,
+		Kind:     c.Kind,
+		Detail:   c.Detail,
+		Location: Location{URI: c.URI, Range: c.SelectionRange},
 	}
 }
 

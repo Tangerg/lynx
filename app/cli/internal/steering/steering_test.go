@@ -19,11 +19,11 @@ type steerRuntimeStub struct {
 	afterRequest func()
 }
 
-func (runtime *steerRuntimeStub) SteerRun(_ context.Context, request agent.SteerRun) error {
-	runtime.requests = append(runtime.requests, request.Clone())
-	err := runtime.err
-	if runtime.afterRequest != nil {
-		runtime.afterRequest()
+func (s *steerRuntimeStub) SteerRun(_ context.Context, request agent.SteerRun) error {
+	s.requests = append(s.requests, request.Clone())
+	err := s.err
+	if s.afterRequest != nil {
+		s.afterRequest()
 	}
 	return err
 }

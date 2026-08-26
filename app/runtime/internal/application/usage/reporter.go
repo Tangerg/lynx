@@ -191,22 +191,22 @@ type usageAccumulator struct {
 	runs    int
 }
 
-func (a *usageAccumulator) add(usage accounting.Totals) {
-	a.tokens.InputTokens += usage.InputTokens
-	a.tokens.OutputTokens += usage.OutputTokens
-	a.tokens.CacheReadTokens += usage.CacheReadTokens
-	a.tokens.CacheWriteTokens += usage.CacheWriteTokens
-	a.tokens.ReasoningTokens += usage.ReasoningTokens
+func (u *usageAccumulator) add(usage accounting.Totals) {
+	u.tokens.InputTokens += usage.InputTokens
+	u.tokens.OutputTokens += usage.OutputTokens
+	u.tokens.CacheReadTokens += usage.CacheReadTokens
+	u.tokens.CacheWriteTokens += usage.CacheWriteTokens
+	u.tokens.ReasoningTokens += usage.ReasoningTokens
 	if usage.CostUSD != nil {
-		a.cost += *usage.CostUSD
-		a.hasCost = true
+		u.cost += *usage.CostUSD
+		u.hasCost = true
 	}
 }
 
-func (a usageAccumulator) usage() accounting.Totals {
-	out := a.tokens
-	if a.hasCost {
-		cost := a.cost
+func (u usageAccumulator) usage() accounting.Totals {
+	out := u.tokens
+	if u.hasCost {
+		cost := u.cost
 		out.CostUSD = &cost
 	}
 	return out

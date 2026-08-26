@@ -18,31 +18,31 @@ type recordingDraftRepository struct {
 	releaseFirst chan struct{}
 }
 
-func (repository *recordingDraftRepository) SaveDraft(sessionID string, message agent.Message) error {
-	repository.mu.Lock()
-	repository.active++
-	repository.maxActive = max(repository.maxActive, repository.active)
-	index := len(repository.writes)
-	repository.writes = append(repository.writes, draftSnapshot{sessionID: sessionID, message: message.Clone()})
-	if index == 0 && repository.first != nil {
-		close(repository.first)
+func (r *recordingDraftRepository) SaveDraft(sessionID string, message agent.Message) error {
+	r.mu.Lock()
+	r.active++
+	r.maxActive = max(r.maxActive, r.active)
+	index := len(r.writes)
+	r.writes = append(r.writes, draftSnapshot{sessionID: sessionID, message: message.Clone()})
+	if index == 0 && r.first != nil {
+		close(r.first)
 	}
-	repository.mu.Unlock()
+	r.mu.Unlock()
 
-	if index == 0 && repository.releaseFirst != nil {
-		<-repository.releaseFirst
+	if index == 0 && r.releaseFirst != nil {
+		<-r.releaseFirst
 	}
 
-	repository.mu.Lock()
-	repository.active--
-	repository.mu.Unlock()
+	r.mu.Lock()
+	r.active--
+	r.mu.Unlock()
 	return nil
 }
 
-func (repository *recordingDraftRepository) snapshot() ([]draftSnapshot, int) {
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	return append([]draftSnapshot(nil), repository.writes...), repository.maxActive
+func (r *recordingDraftRepository) snapshot() ([]draftSnapshot, int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]draftSnapshot(nil), r.writes...), r.maxActive
 }
 
 func TestDraftPersistenceSerializesAndCoalescesWrites(t *testing.T) {

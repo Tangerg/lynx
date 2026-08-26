@@ -61,13 +61,13 @@ func matchesAll(conditions []FieldCondition, parameters reflect.Value) bool {
 	return true
 }
 
-func (c FieldCondition) matches(parameters reflect.Value) bool {
-	value, found := lookupValue(parameters, c.Field)
-	switch c.Operator {
+func (f FieldCondition) matches(parameters reflect.Value) bool {
+	value, found := lookupValue(parameters, f.Field)
+	switch f.Operator {
 	case OperatorPresent:
 		return found && !isEmptyValue(value)
 	case OperatorEquals:
-		return found && value.Kind() == reflect.String && value.String() == c.Value
+		return found && value.Kind() == reflect.String && value.String() == f.Value
 	default:
 		return false
 	}

@@ -17,11 +17,11 @@ import (
 
 // Validate proves that a boot-recovery write-set is self-contained and
 // owner-bound before its transaction begins.
-func (commit RecoveryCommit) Validate() error {
-	lostByID := make(map[string]rundomain.Run, len(commit.LostRuns))
+func (r RecoveryCommit) Validate() error {
+	lostByID := make(map[string]rundomain.Run, len(r.LostRuns))
 	treeMembers := make(map[string][]rundomain.TreeMember)
-	actualOrder := make([]string, 0, len(commit.LostRuns))
-	for index, run := range commit.LostRuns {
+	actualOrder := make([]string, 0, len(r.LostRuns))
+	for index, run := range r.LostRuns {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("runs: recovery commit lost Run[%d]: %w", index, err)
 		}
@@ -46,7 +46,7 @@ func (commit RecoveryCommit) Validate() error {
 		rootIDs = append(rootIDs, rootID)
 	}
 	slices.Sort(rootIDs)
-	expectedOrder := make([]string, 0, len(commit.LostRuns))
+	expectedOrder := make([]string, 0, len(r.LostRuns))
 	for _, rootID := range rootIDs {
 		members := treeMembers[rootID]
 		tree, err := rundomain.NewTree(rootID, members)
@@ -59,22 +59,22 @@ func (commit RecoveryCommit) Validate() error {
 		return errors.New("runs: recovery commit lost Runs are not in canonical tree/postorder")
 	}
 	if err := validateRecoveryConversationTransitions(
-		commit.ConversationTransitions,
+		r.ConversationTransitions,
 		rootIDs,
 		treeMembers,
 		lostByID,
 	); err != nil {
 		return err
 	}
-	if err := validateRecoveryModelInvocations(commit.ModelInvocations, lostByID); err != nil {
+	if err := validateRecoveryModelInvocations(r.ModelInvocations, lostByID); err != nil {
 		return err
 	}
-	if err := validateRecoveryToolInvocations(commit.ToolInvocations, lostByID); err != nil {
+	if err := validateRecoveryToolInvocations(r.ToolInvocations, lostByID); err != nil {
 		return err
 	}
 
-	replacedItems := make(map[string]struct{}, len(commit.ItemReplacements))
-	for index, replacement := range commit.ItemReplacements {
+	replacedItems := make(map[string]struct{}, len(r.ItemReplacements))
+	for index, replacement := range r.ItemReplacements {
 		owner, found := lostByID[replacement.Expected.RunID()]
 		if !found || replacement.Expected.SessionID() != owner.SessionID() {
 			return fmt.Errorf(
@@ -90,19 +90,19 @@ func (commit RecoveryCommit) Validate() error {
 		}
 		replacedItems[replacement.Expected.ID()] = struct{}{}
 	}
-	if err := validateRecoveryGoalRuns(commit.GoalRuns, lostByID); err != nil {
+	if err := validateRecoveryGoalRuns(r.GoalRuns, lostByID); err != nil {
 		return err
 	}
-	if err := validateRecoveryInterruptDeletions(commit.DeleteInterrupts, lostByID); err != nil {
+	if err := validateRecoveryInterruptDeletions(r.DeleteInterrupts, lostByID); err != nil {
 		return err
 	}
-	if err := validateCanonicalIdentities("preserved checkpoint root", commit.PreservedCheckpointRootIDs); err != nil {
+	if err := validateCanonicalIdentities("preserved checkpoint root", r.PreservedCheckpointRootIDs); err != nil {
 		return err
 	}
-	if err := validateCanonicalIdentities("recovered Session", commit.RecoveredSessionIDs); err != nil {
+	if err := validateCanonicalIdentities("recovered Session", r.RecoveredSessionIDs); err != nil {
 		return err
 	}
-	if err := validateCanonicalIdentities("checkpoint deletion Session", commit.DeleteCheckpointSessionIDs); err != nil {
+	if err := validateCanonicalIdentities("checkpoint deletion Session", r.DeleteCheckpointSessionIDs); err != nil {
 		return err
 	}
 	return nil

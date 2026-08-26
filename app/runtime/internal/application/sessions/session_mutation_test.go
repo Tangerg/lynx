@@ -284,18 +284,18 @@ type mutationGoalGuard struct {
 	quiesceErr error
 }
 
-func (g mutationGoalGuard) WithSessionMutation(
+func (m mutationGoalGuard) WithSessionMutation(
 	ctx context.Context,
 	_ []string,
 	commit func(context.Context) error,
 	afterCommit func(context.Context) error,
 ) error {
-	*g.operations = append(*g.operations, "goal.mutation")
+	*m.operations = append(*m.operations, "goal.mutation")
 	if err := commit(ctx); err != nil {
 		return err
 	}
-	*g.operations = append(*g.operations, "goal.quiesce")
-	return errors.Join(g.quiesceErr, afterCommit(ctx))
+	*m.operations = append(*m.operations, "goal.quiesce")
+	return errors.Join(m.quiesceErr, afterCommit(ctx))
 }
 
 // mutationStores supplies the coordinator's named persistence ports for mutation write-sets: it
@@ -325,45 +325,45 @@ func newMutationStores(fail string) *mutationStores {
 	return s
 }
 
-func (s *mutationStores) record(stage string) error {
-	s.operations = append(s.operations, stage)
-	if s.fail == stage {
+func (m *mutationStores) record(stage string) error {
+	m.operations = append(m.operations, stage)
+	if m.fail == stage {
 		return errMutationStage
 	}
 	return nil
 }
 
-func (s *mutationStores) Session() Store                                       { return s }
-func (s *mutationStores) Interrupts() InterruptStore                           { return s.ints }
-func (s *mutationStores) Transcript() TranscriptStore                          { return emptyTranscript{} }
-func (s *mutationStores) Runs() RunStore                                       { return emptyTranscript{} }
+func (m *mutationStores) Session() Store                                       { return m }
+func (m *mutationStores) Interrupts() InterruptStore                           { return m.ints }
+func (m *mutationStores) Transcript() TranscriptStore                          { return emptyTranscript{} }
+func (m *mutationStores) Runs() RunStore                                       { return emptyTranscript{} }
 func (*mutationStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
-func (s *mutationStores) ForgetSession(string) {
-	s.operations = append(s.operations, "session.forget")
+func (m *mutationStores) ForgetSession(string) {
+	m.operations = append(m.operations, "session.forget")
 }
 func (*mutationStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
 }
 
-func (s *mutationStores) ApplyRollback(context.Context, RollbackPlan) error {
-	return s.record("apply.rollback")
+func (m *mutationStores) ApplyRollback(context.Context, RollbackPlan) error {
+	return m.record("apply.rollback")
 }
-func (s *mutationStores) ApplyRestore(_ context.Context, plan RestorePlan) error {
-	if err := s.record("apply.restore"); err != nil {
+func (m *mutationStores) ApplyRestore(_ context.Context, plan RestorePlan) error {
+	if err := m.record("apply.restore"); err != nil {
 		return err
 	}
-	s.restored = append(s.restored, plan)
+	m.restored = append(m.restored, plan)
 	return nil
 }
-func (s *mutationStores) ApplyDelete(_ context.Context, plan DeletePlan) error {
-	if err := s.record("apply.delete"); err != nil {
+func (m *mutationStores) ApplyDelete(_ context.Context, plan DeletePlan) error {
+	if err := m.record("apply.delete"); err != nil {
 		return err
 	}
-	s.deleted = append(s.deleted, plan.SessionID)
+	m.deleted = append(m.deleted, plan.SessionID)
 	return nil
 }
-func (s *mutationStores) ApplyTerminal(context.Context, TerminalPlan) error {
-	return s.record("apply.cancel")
+func (m *mutationStores) ApplyTerminal(context.Context, TerminalPlan) error {
+	return m.record("apply.cancel")
 }
 
 func (*mutationStores) List(context.Context) ([]session.Session, error) { panic("unused") }
@@ -371,9 +371,9 @@ func (*mutationStores) List(context.Context) ([]session.Session, error) { panic(
 func (*mutationStores) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
 	panic("unused")
 }
-func (s *mutationStores) Get(context.Context, string) (session.Session, error) {
-	if s.current != nil {
-		return *s.current, nil
+func (m *mutationStores) Get(context.Context, string) (session.Session, error) {
+	if m.current != nil {
+		return *m.current, nil
 	}
 	return session.Session{}, session.ErrNotFound
 }
@@ -384,15 +384,15 @@ func (*mutationStores) Save(context.Context, uint64, session.Session) error {
 
 type mutationInterrupts struct{ stores *mutationStores }
 
-func (i *mutationInterrupts) Open(context.Context, runs.Pending) error { panic("unused") }
-func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
-	if err := i.stores.record("interrupt.read"); err != nil {
+func (m *mutationInterrupts) Open(context.Context, runs.Pending) error { panic("unused") }
+func (m *mutationInterrupts) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
+	if err := m.stores.record("interrupt.read"); err != nil {
 		return nil, err
 	}
-	return i.stores.pending[sessionID], nil
+	return m.stores.pending[sessionID], nil
 }
-func (i *mutationInterrupts) Get(_ context.Context, runID string) (runs.Pending, bool, error) {
-	for _, pending := range i.stores.pending {
+func (m *mutationInterrupts) Get(_ context.Context, runID string) (runs.Pending, bool, error) {
+	for _, pending := range m.stores.pending {
 		for _, item := range pending {
 			if item.RootRunID == runID {
 				return item, true, nil
@@ -401,7 +401,7 @@ func (i *mutationInterrupts) Get(_ context.Context, runID string) (runs.Pending,
 	}
 	return runs.Pending{}, false, nil
 }
-func (i *mutationInterrupts) Consume(context.Context, string, string) (runs.Pending, bool, error) {
+func (m *mutationInterrupts) Consume(context.Context, string, string) (runs.Pending, bool, error) {
 	panic("unused")
 }
 
@@ -410,9 +410,9 @@ type mutationExecutions struct {
 	err        error
 }
 
-func (e mutationExecutions) Release(context.Context, runs.ExecutorRef) error {
-	*e.operations = append(*e.operations, "executor.release")
-	return e.err
+func (m mutationExecutions) Release(context.Context, runs.ExecutorRef) error {
+	*m.operations = append(*m.operations, "executor.release")
+	return m.err
 }
 
 type observingExecutions struct {
@@ -421,10 +421,10 @@ type observingExecutions struct {
 	bounded  bool
 }
 
-func (e *observingExecutions) Release(ctx context.Context, _ runs.ExecutorRef) error {
-	e.calls++
-	e.canceled = ctx.Err() != nil
-	_, e.bounded = ctx.Deadline()
+func (o *observingExecutions) Release(ctx context.Context, _ runs.ExecutorRef) error {
+	o.calls++
+	o.canceled = ctx.Err() != nil
+	_, o.bounded = ctx.Deadline()
 	return nil
 }
 
@@ -437,9 +437,9 @@ func (*mutationCheckpoints) Restore(context.Context, string, string, string) err
 	panic("unused")
 }
 
-func (c *mutationCheckpoints) DropSession(sessionID string) error {
-	*c.operations = append(*c.operations, "checkpoint.drop:"+sessionID)
-	return c.err
+func (m *mutationCheckpoints) DropSession(sessionID string) error {
+	*m.operations = append(*m.operations, "checkpoint.drop:"+sessionID)
+	return m.err
 }
 
 type mutationSandbox struct {
@@ -447,7 +447,7 @@ type mutationSandbox struct {
 	err        error
 }
 
-func (s *mutationSandbox) Discard(sessionID string) error {
-	*s.operations = append(*s.operations, "sandbox.discard:"+sessionID)
-	return s.err
+func (m *mutationSandbox) Discard(sessionID string) error {
+	*m.operations = append(*m.operations, "sandbox.discard:"+sessionID)
+	return m.err
 }

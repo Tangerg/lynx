@@ -26,9 +26,9 @@ func newOperationEndpoint(t *testing.T, target any) *operation.Endpoint {
 	return endpoint
 }
 
-func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
-	advertised := make(map[string]protocol.FeatureCapability, len(r.features))
-	for name, enabled := range r.features {
+func (c *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
+	advertised := make(map[string]protocol.FeatureCapability, len(c.features))
+	for name, enabled := range c.features {
 		published, _ := protocol.LookupFeature(name)
 		advertised[name] = protocol.FeatureCapability{
 			Enabled:               enabled,
@@ -39,19 +39,19 @@ func (r *capabilityRuntime) Discover(context.Context) (*protocol.DiscoverRespons
 	return &protocol.DiscoverResponse{Capabilities: protocol.ServerCapabilities{Features: advertised}}, nil
 }
 
-func (r *capabilityRuntime) SubscribeRuntime(context.Context, protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+func (c *capabilityRuntime) SubscribeRuntime(context.Context, protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	return &protocol.RuntimeSubscribeResponse{}, func(func(protocol.RuntimeEvent) bool) {}, nil
 }
 
-func (r *capabilityRuntime) ListKnowledge(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
+func (c *capabilityRuntime) ListKnowledge(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
 	return protocol.NewPage([]protocol.KnowledgeEntry{}), nil
 }
 
-func (r *capabilityRuntime) ListRuns(context.Context, protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+func (c *capabilityRuntime) ListRuns(context.Context, protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 	return protocol.NewPage([]protocol.RunRef{}), nil
 }
 
-func (r *capabilityRuntime) RollbackSession(context.Context, protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
+func (c *capabilityRuntime) RollbackSession(context.Context, protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	return &protocol.RollbackSessionResponse{DroppedRuns: []protocol.DroppedRun{}}, nil
 }
 

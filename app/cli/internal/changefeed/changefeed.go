@@ -53,8 +53,8 @@ func Topics() []Topic {
 	}
 }
 
-func (topic Topic) Valid() bool {
-	return slices.Contains(Topics(), topic)
+func (t Topic) Valid() bool {
+	return slices.Contains(Topics(), t)
 }
 
 type EventType string
@@ -66,8 +66,8 @@ type Watch struct {
 	Workspace string
 }
 
-func (watch Watch) Validate() error {
-	if strings.TrimSpace(watch.ID) == "" || strings.TrimSpace(watch.Workspace) == "" {
+func (w Watch) Validate() error {
+	if strings.TrimSpace(w.ID) == "" || strings.TrimSpace(w.Workspace) == "" {
 		return errors.New("change watch requires id and workspace")
 	}
 	return nil
@@ -87,20 +87,20 @@ type SubscriptionLimits struct {
 	MaxWatches int
 }
 
-func (limits SubscriptionLimits) Partition(subscription Subscription) ([]Subscription, error) {
+func (s SubscriptionLimits) Partition(subscription Subscription) ([]Subscription, error) {
 	if err := subscription.Validate(); err != nil {
 		return nil, err
 	}
-	if limits.MaxTopics < 0 || limits.MaxWatches < 0 {
+	if s.MaxTopics < 0 || s.MaxWatches < 0 {
 		return nil, errors.New("change subscription limits cannot be negative")
 	}
 	topicLimit := len(subscription.Topics)
-	if limits.MaxTopics > 0 {
-		topicLimit = min(limits.MaxTopics, topicLimit)
+	if s.MaxTopics > 0 {
+		topicLimit = min(s.MaxTopics, topicLimit)
 	}
 	watchLimit := len(subscription.Watches)
-	if limits.MaxWatches > 0 {
-		watchLimit = min(limits.MaxWatches, watchLimit)
+	if s.MaxWatches > 0 {
+		watchLimit = min(s.MaxWatches, watchLimit)
 	}
 	if len(subscription.Topics) <= topicLimit && len(subscription.Watches) <= watchLimit {
 		return []Subscription{cloneSubscription(subscription)}, nil
@@ -204,12 +204,12 @@ func cloneSubscription(subscription Subscription) Subscription {
 	}
 }
 
-func (subscription Subscription) Validate() error {
-	if len(subscription.Topics) == 0 {
+func (s Subscription) Validate() error {
+	if len(s.Topics) == 0 {
 		return errors.New("change subscription has no topics")
 	}
-	seen := make(map[Topic]struct{}, len(subscription.Topics))
-	for _, topic := range subscription.Topics {
+	seen := make(map[Topic]struct{}, len(s.Topics))
+	for _, topic := range s.Topics {
 		if !topic.Valid() {
 			return fmt.Errorf("change subscription topic %q is invalid", topic)
 		}
@@ -218,11 +218,11 @@ func (subscription Subscription) Validate() error {
 		}
 		seen[topic] = struct{}{}
 	}
-	if len(subscription.Watches) > 0 && !slices.Contains(subscription.Topics, FilesChanged) {
+	if len(s.Watches) > 0 && !slices.Contains(s.Topics, FilesChanged) {
 		return errors.New("file watches require the files.changed topic")
 	}
-	watchIDs := make(map[string]struct{}, len(subscription.Watches))
-	for _, watch := range subscription.Watches {
+	watchIDs := make(map[string]struct{}, len(s.Watches))
+	for _, watch := range s.Watches {
 		if err := watch.Validate(); err != nil {
 			return err
 		}
@@ -238,8 +238,8 @@ func (subscription Subscription) Validate() error {
 // this subscription. Runtime events are invalidations, so accepting a frame
 // for an undeclared topic or watch can make an unrelated local projection look
 // authoritative.
-func (subscription Subscription) ValidateEvent(event Event) error {
-	if err := subscription.Validate(); err != nil {
+func (s Subscription) ValidateEvent(event Event) error {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	if err := event.Validate(); err != nil {
@@ -247,17 +247,17 @@ func (subscription Subscription) ValidateEvent(event Event) error {
 	}
 	if event.Type != Resync {
 		topic := Topic(event.Type)
-		if !slices.Contains(subscription.Topics, topic) {
+		if !slices.Contains(s.Topics, topic) {
 			return fmt.Errorf("change event topic %q is outside the subscription", topic)
 		}
 		if topic == FilesChanged && event.WatchID != "" {
-			watchIndex := slices.IndexFunc(subscription.Watches, func(watch Watch) bool {
+			watchIndex := slices.IndexFunc(s.Watches, func(watch Watch) bool {
 				return watch.ID == event.WatchID
 			})
 			if watchIndex < 0 {
 				return fmt.Errorf("file change watch %q is outside the subscription", event.WatchID)
 			}
-			if event.Workspace != "" && event.Workspace != subscription.Watches[watchIndex].Workspace {
+			if event.Workspace != "" && event.Workspace != s.Watches[watchIndex].Workspace {
 				return fmt.Errorf("file change watch %q names another workspace", event.WatchID)
 			}
 		}
@@ -265,7 +265,7 @@ func (subscription Subscription) ValidateEvent(event Event) error {
 	}
 
 	for _, topic := range event.Topics {
-		if !slices.Contains(subscription.Topics, topic) {
+		if !slices.Contains(s.Topics, topic) {
 			return fmt.Errorf("resync topic %q is outside the subscription", topic)
 		}
 	}
@@ -273,7 +273,7 @@ func (subscription Subscription) ValidateEvent(event Event) error {
 		return errors.New("resync watch scope requires the files.changed topic")
 	}
 	for _, watchID := range event.WatchIDs {
-		if !slices.ContainsFunc(subscription.Watches, func(watch Watch) bool { return watch.ID == watchID }) {
+		if !slices.ContainsFunc(s.Watches, func(watch Watch) bool { return watch.ID == watchID }) {
 			return fmt.Errorf("resync watch %q is outside the subscription", watchID)
 		}
 	}
@@ -295,25 +295,25 @@ type Event struct {
 	WatchIDs    []string
 }
 
-func (event Event) Validate() error {
-	if event.Sequence == 0 {
+func (e Event) Validate() error {
+	if e.Sequence == 0 {
 		return errors.New("change event sequence is zero")
 	}
-	if event.Type == Resync {
-		if len(event.Topics) == 0 && len(event.WatchIDs) == 0 {
+	if e.Type == Resync {
+		if len(e.Topics) == 0 && len(e.WatchIDs) == 0 {
 			return errors.New("resync event has no affected scope")
 		}
 		return nil
 	}
-	topic := Topic(event.Type)
+	topic := Topic(e.Type)
 	if !topic.Valid() {
-		return fmt.Errorf("change event type %q is invalid", event.Type)
+		return fmt.Errorf("change event type %q is invalid", e.Type)
 	}
 	if topic == FilesChanged {
 		// Tool writes are broad invalidations and intentionally carry no watch ID.
 		// Watch-produced signals may add WatchID and Workspace so consumers can
 		// narrow the authoritative read, but neither is required by the protocol.
-		if len(event.Paths) == 0 {
+		if len(e.Paths) == 0 {
 			return errors.New("file change event is incomplete")
 		}
 	}

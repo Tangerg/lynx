@@ -34,8 +34,8 @@ const (
 	interactionWaitingSubtreeChangeContinued
 )
 
-func (state interactionWaitingSubtreeChangeState) String() string {
-	switch state {
+func (i interactionWaitingSubtreeChangeState) String() string {
+	switch i {
 	case interactionWaitingSubtreeChangePrepared:
 		return "prepared"
 	case interactionWaitingSubtreeChangeDiscarded:
@@ -49,153 +49,153 @@ func (state interactionWaitingSubtreeChangeState) String() string {
 	case interactionWaitingSubtreeChangeContinued:
 		return "continued"
 	default:
-		return fmt.Sprintf("unknown(%d)", state)
+		return fmt.Sprintf("unknown(%d)", i)
 	}
 }
-func (change *interactionWaitingSubtreeChange) Apply(
+func (i *interactionWaitingSubtreeChange) Apply(
 	disposition runs.WaitingSubtreeDisposition,
 ) error {
-	if change == nil || change.session == nil || change.prepared == nil {
+	if i == nil || i.session == nil || i.prepared == nil {
 		return errors.New("agentexec: invalid waiting Interaction subtree change")
 	}
 	if !disposition.Valid() {
 		return fmt.Errorf("agentexec: invalid waiting subtree disposition %q", disposition)
 	}
-	change.mu.Lock()
-	defer change.mu.Unlock()
-	if change.state != interactionWaitingSubtreeChangePrepared {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.state != interactionWaitingSubtreeChangePrepared {
 		return fmt.Errorf(
 			"agentexec: waiting Interaction subtree change cannot be applied from state %s",
-			change.state,
+			i.state,
 		)
 	}
-	change.session.childProjection.lock()
-	defer change.session.childProjection.unlock()
-	change.stopExpirationLocked()
-	if err := change.session.beginSubtreeApplication(change); err != nil {
+	i.session.childProjection.lock()
+	defer i.session.childProjection.unlock()
+	i.stopExpirationLocked()
+	if err := i.session.beginSubtreeApplication(i); err != nil {
 		return err
 	}
 	// The Application transaction is already authoritative. Agent Framework staged every
 	// fallible Process change during Prepare, so its apply gate cannot be revoked
 	// by the request that initiated the product command.
-	err := change.prepared.Apply()
+	err := i.prepared.Apply()
 	if err == nil {
-		change.session.commitSubtreeApplication(change)
+		i.session.commitSubtreeApplication(i)
 	}
 	if err != nil {
-		if discardErr := change.prepared.Discard(); discardErr != nil &&
+		if discardErr := i.prepared.Discard(); discardErr != nil &&
 			!errors.Is(discardErr, agent.ErrPreparedWaitingSubtreeCancellationResolved) {
 			err = errors.Join(err, fmt.Errorf("discard failed prepared Interaction subtree: %w", discardErr))
 		}
 	}
 	switch {
 	case err != nil:
-		change.state = interactionWaitingSubtreeChangeApplyFailed
+		i.state = interactionWaitingSubtreeChangeApplyFailed
 	case disposition == runs.WaitingSubtreeStaysWaiting:
-		change.state = interactionWaitingSubtreeChangeWaiting
+		i.state = interactionWaitingSubtreeChangeWaiting
 	default:
-		change.state = interactionWaitingSubtreeChangeContinuationReady
+		i.state = interactionWaitingSubtreeChangeContinuationReady
 	}
-	change.session.finishSubtreeApplication(change, disposition, err)
+	i.session.finishSubtreeApplication(i, disposition, err)
 	if err != nil {
 		return fmt.Errorf("agentexec: apply waiting Interaction subtree: %w", err)
 	}
 	return nil
 }
 
-func (change *interactionWaitingSubtreeChange) Continue(ctx context.Context) error {
-	if change == nil || change.session == nil || change.prepared == nil {
+func (i *interactionWaitingSubtreeChange) Continue(ctx context.Context) error {
+	if i == nil || i.session == nil || i.prepared == nil {
 		return errors.New("agentexec: invalid waiting Interaction subtree change")
 	}
 	if ctx == nil {
 		return errors.New("agentexec: waiting Interaction subtree continuation context is required")
 	}
-	change.mu.Lock()
-	defer change.mu.Unlock()
-	if change.state != interactionWaitingSubtreeChangeContinuationReady {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.state != interactionWaitingSubtreeChangeContinuationReady {
 		return fmt.Errorf(
 			"agentexec: waiting Interaction subtree change cannot continue from state %s",
-			change.state,
+			i.state,
 		)
 	}
-	change.state = interactionWaitingSubtreeChangeContinued
+	i.state = interactionWaitingSubtreeChangeContinued
 	// Continue is the first operation that can advance the Process tree after the
 	// Application durably opened the replacement product Segment.
-	change.session.segmentClock.start()
+	i.session.segmentClock.start()
 	resumeCtx, cancelResume := context.WithTimeout(ctx, authoritativeProjectionTimeout)
-	err := change.session.resumePausedProcesses(resumeCtx, change.paused)
+	err := i.session.resumePausedProcesses(resumeCtx, i.paused)
 	cancelResume()
-	change.session.finishSubtreeContinuation(change, err)
+	i.session.finishSubtreeContinuation(i, err)
 	if err != nil {
 		return fmt.Errorf("agentexec: continue applied waiting Interaction subtree: %w", err)
 	}
 	return nil
 }
 
-func (change *interactionWaitingSubtreeChange) Discard() error {
-	if change == nil || change.session == nil || change.prepared == nil {
+func (i *interactionWaitingSubtreeChange) Discard() error {
+	if i == nil || i.session == nil || i.prepared == nil {
 		return errors.New("agentexec: invalid waiting Interaction subtree change")
 	}
-	change.mu.Lock()
-	defer change.mu.Unlock()
-	if change.state != interactionWaitingSubtreeChangePrepared {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.state != interactionWaitingSubtreeChangePrepared {
 		return nil
 	}
-	change.stopExpirationLocked()
-	if err := change.prepared.Discard(); err != nil {
+	i.stopExpirationLocked()
+	if err := i.prepared.Discard(); err != nil {
 		return fmt.Errorf("agentexec: discard waiting Interaction subtree: %w", err)
 	}
-	change.state = interactionWaitingSubtreeChangeDiscarded
-	change.session.finishSubtreeDiscard(change)
+	i.state = interactionWaitingSubtreeChangeDiscarded
+	i.session.finishSubtreeDiscard(i)
 	return nil
 }
 
-func (change *interactionWaitingSubtreeChange) armExpiration(ctx context.Context) {
-	change.mu.Lock()
-	defer change.mu.Unlock()
-	if change.state != interactionWaitingSubtreeChangePrepared {
+func (i *interactionWaitingSubtreeChange) armExpiration(ctx context.Context) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.state != interactionWaitingSubtreeChangePrepared {
 		return
 	}
-	change.stopExpiry = context.AfterFunc(ctx, func() {
-		_ = change.Discard()
+	i.stopExpiry = context.AfterFunc(ctx, func() {
+		_ = i.Discard()
 	})
 }
 
-// stopExpirationLocked disarms the preparation lease while change.mu is held.
-func (change *interactionWaitingSubtreeChange) stopExpirationLocked() {
-	if change.stopExpiry != nil {
-		change.stopExpiry()
-		change.stopExpiry = nil
+// stopExpirationLocked disarms the preparation lease while i.mu is held.
+func (i *interactionWaitingSubtreeChange) stopExpirationLocked() {
+	if i.stopExpiry != nil {
+		i.stopExpiry()
+		i.stopExpiry = nil
 	}
 }
 
-func (session *interactionSession) beginSubtreeApplication(
+func (i *interactionSession) beginSubtreeApplication(
 	change *interactionWaitingSubtreeChange,
 ) error {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.finished || session.state.boundary != interactionBoundarySubtreePrepared ||
-		session.state.subtreeChange != change {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.finished || i.state.boundary != interactionBoundarySubtreePrepared ||
+		i.state.subtreeChange != change {
 		return runs.ErrExecutionClaimed
 	}
 	managedCalls := make([]*managedDelegateCall, len(change.canceled))
 	for index, processID := range change.canceled {
-		managed := session.state.delegateChildren[processID]
+		managed := i.state.delegateChildren[processID]
 		if managed == nil {
 			return fmt.Errorf("agentexec: canceled Interaction member %s has no Delegate binding", processID)
 		}
-		if session.state.delegateChildren[managed.childProcessID] != managed ||
-			session.state.delegateCalls[managed.identity] != managed {
+		if i.state.delegateChildren[managed.childProcessID] != managed ||
+			i.state.delegateCalls[managed.identity] != managed {
 			return errors.New("agentexec: canceled Delegate binding changed before subtree application")
 		}
 		managedCalls[index] = managed
 	}
-	session.state.boundary = interactionBoundarySubtreeApplying
+	i.state.boundary = interactionBoundarySubtreeApplying
 	change.retired = managedCalls
 	return nil
 }
 
-func (session *interactionSession) commitSubtreeApplication(
+func (i *interactionSession) commitSubtreeApplication(
 	change *interactionWaitingSubtreeChange,
 ) {
 	for _, managed := range change.retired {
@@ -205,74 +205,74 @@ func (session *interactionSession) commitSubtreeApplication(
 		managed.segmentProjected = true
 		managed.mu.Unlock()
 	}
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	session.state.waitingCheckpoint = change.checkpoint.Clone()
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	i.state.waitingCheckpoint = change.checkpoint.Clone()
 	for _, managed := range change.retired {
-		delete(session.state.delegateChildren, managed.childProcessID)
-		delete(session.state.delegateCalls, managed.identity)
-		session.committedReplies.forget(managed.childProcessID)
+		delete(i.state.delegateChildren, managed.childProcessID)
+		delete(i.state.delegateCalls, managed.identity)
+		i.committedReplies.forget(managed.childProcessID)
 	}
 }
 
-func (session *interactionSession) finishSubtreeApplication(
+func (i *interactionSession) finishSubtreeApplication(
 	change *interactionWaitingSubtreeChange,
 	disposition runs.WaitingSubtreeDisposition,
 	applyErr error,
 ) {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.subtreeChange != change || session.state.boundary != interactionBoundarySubtreeApplying {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.subtreeChange != change || i.state.boundary != interactionBoundarySubtreeApplying {
 		return
 	}
 	if applyErr != nil {
-		session.state.subtreeChange = nil
-		session.state.boundary = interactionBoundarySubtreeRecovery
+		i.state.subtreeChange = nil
+		i.state.boundary = interactionBoundarySubtreeRecovery
 		return
 	}
 	if disposition == runs.WaitingSubtreeStaysWaiting {
-		session.state.subtreeChange = nil
-		session.state.boundary = interactionBoundaryWaiting
+		i.state.subtreeChange = nil
+		i.state.boundary = interactionBoundaryWaiting
 		return
 	}
-	session.state.boundary = interactionBoundarySubtreeApplied
+	i.state.boundary = interactionBoundarySubtreeApplied
 }
 
-func (session *interactionSession) finishSubtreeContinuation(
+func (i *interactionSession) finishSubtreeContinuation(
 	change *interactionWaitingSubtreeChange,
 	continuationErr error,
 ) {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.subtreeChange != change || session.state.boundary != interactionBoundarySubtreeApplied {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.subtreeChange != change || i.state.boundary != interactionBoundarySubtreeApplied {
 		return
 	}
-	session.state.subtreeChange = nil
+	i.state.subtreeChange = nil
 	if continuationErr != nil {
-		session.state.boundary = interactionBoundarySubtreeRecovery
+		i.state.boundary = interactionBoundarySubtreeRecovery
 		return
 	}
-	session.state.boundary = interactionBoundaryInactive
-	session.state.waitingCheckpoint = runs.ExecutorCheckpoint{}
+	i.state.boundary = interactionBoundaryInactive
+	i.state.waitingCheckpoint = runs.ExecutorCheckpoint{}
 }
 
-func (session *interactionSession) finishSubtreeDiscard(change *interactionWaitingSubtreeChange) {
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.subtreeChange != change || session.state.boundary != interactionBoundarySubtreePrepared {
+func (i *interactionSession) finishSubtreeDiscard(change *interactionWaitingSubtreeChange) {
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.subtreeChange != change || i.state.boundary != interactionBoundarySubtreePrepared {
 		return
 	}
-	session.state.subtreeChange = nil
-	session.state.boundary = interactionBoundaryWaiting
+	i.state.subtreeChange = nil
+	i.state.boundary = interactionBoundaryWaiting
 }
 
-func (session *interactionSession) discardPreparedSubtree(ctx context.Context) error {
+func (i *interactionSession) discardPreparedSubtree(ctx context.Context) error {
 	for {
-		session.state.mu.Lock()
-		boundary := session.state.boundary
-		preparedSignal := session.state.subtreePrepared
-		change := session.state.subtreeChange
-		session.state.mu.Unlock()
+		i.state.mu.Lock()
+		boundary := i.state.boundary
+		preparedSignal := i.state.subtreePrepared
+		change := i.state.subtreeChange
+		i.state.mu.Unlock()
 		if boundary == interactionBoundarySubtreePreparing && preparedSignal != nil {
 			select {
 			case <-preparedSignal:

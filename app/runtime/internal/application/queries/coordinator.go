@@ -275,12 +275,12 @@ func (c *Coordinator) readScope(ctx context.Context, scope ItemScope, order tran
 	}
 }
 
-func (scope ItemScope) cursorFilters(order transcript.SequenceOrder) ([]string, error) {
-	switch scope.kind {
+func (i ItemScope) cursorFilters(order transcript.SequenceOrder) ([]string, error) {
+	switch i.kind {
 	case sessionItemScope:
-		return []string{scope.subjectID, "", strconv.FormatBool(false), order.String()}, nil
+		return []string{i.subjectID, "", strconv.FormatBool(false), order.String()}, nil
 	case runItemScope:
-		return []string{"", scope.subjectID, strconv.FormatBool(scope.includeDescendants), order.String()}, nil
+		return []string{"", i.subjectID, strconv.FormatBool(i.includeDescendants), order.String()}, nil
 	default:
 		return nil, errInvalidItemScope
 	}

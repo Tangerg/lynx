@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func (session *interactionSession) admitProcess(
+func (i *interactionSession) admitProcess(
 	ctx context.Context,
 	admission agent.ProcessAdmission,
 ) error {
@@ -18,9 +18,9 @@ func (session *interactionSession) admitProcess(
 		return errors.New("agentexec: Interaction received an invalid Process admission")
 	}
 	relation := admission.Relation()
-	session.state.mu.Lock()
-	deployments := session.state.deployments
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	deployments := i.state.deployments
+	i.state.mu.Unlock()
 	if deployments == nil {
 		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
@@ -28,12 +28,12 @@ func (session *interactionSession) admitProcess(
 		if admission.DeploymentRef() != deployments.root.DeploymentRef() {
 			return errors.New("agentexec: Interaction root admission changed Deployment")
 		}
-		session.state.mu.Lock()
-		defer session.state.mu.Unlock()
-		if session.state.admittedProcessID.Valid() && session.state.admittedProcessID != relation.ProcessID() {
+		i.state.mu.Lock()
+		defer i.state.mu.Unlock()
+		if i.state.admittedProcessID.Valid() && i.state.admittedProcessID != relation.ProcessID() {
 			return errors.New("agentexec: Interaction root admission identity changed")
 		}
-		session.state.admittedProcessID = relation.ProcessID()
+		i.state.admittedProcessID = relation.ProcessID()
 		return nil
 	}
 	if !deployments.managedChild(admission.DeploymentRef()) {
@@ -42,9 +42,9 @@ func (session *interactionSession) admitProcess(
 	parentID, _ := relation.ParentID()
 	childKey, _ := relation.ChildKey()
 	identity := delegateCallIdentity{parentID: parentID, childKey: childKey}
-	session.state.mu.Lock()
-	managed := session.state.delegateCalls[identity]
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	managed := i.state.delegateCalls[identity]
+	i.state.mu.Unlock()
 	if managed == nil {
 		return errors.New("agentexec: child admission has no durably observed Delegate call")
 	}
@@ -60,14 +60,14 @@ func (session *interactionSession) admitProcess(
 		}
 		return nil
 	}
-	parent := session.executorMember(managed.parentRelation)
+	parent := i.executorMember(managed.parentRelation)
 	started := runs.ToolCallStarted{
 		CallID: managed.callID, ModelCallSequence: managed.modelCallSequence,
 		ToolCallIndex: managed.toolCallIndex, SourceCallID: managed.call.ID,
 		ToolName: managed.call.Name, Arguments: managed.arguments.Canonical(),
 		Activity: "Delegating " + managed.input.Summary, SafetyClass: tool.SafetyClassExec,
 	}
-	if err := session.commitFact(ctx, parent, started); err != nil {
+	if err := i.commitFact(ctx, parent, started); err != nil {
 		return fmt.Errorf("agentexec: commit Delegate call start: %w", err)
 	}
 	managed.toolStarted = true
@@ -76,15 +76,15 @@ func (session *interactionSession) admitProcess(
 		SpawnCallID: managed.call.ID,
 	}
 	request, receipt := runs.NewChildRunReservationRequest(admission.StartedAt())
-	if err := session.sendExecutorRequest(ctx, runs.ExecutorEvent{Member: member, Payload: request}); err != nil {
-		return session.failDelegateAdmission(ctx, managed, err)
+	if err := i.sendExecutorRequest(ctx, runs.ExecutorEvent{Member: member, Payload: request}); err != nil {
+		return i.failDelegateAdmission(ctx, managed, err)
 	}
 	binding, err := receipt.Await(ctx)
 	if err != nil {
-		return session.failDelegateAdmission(ctx, managed, err)
+		return i.failDelegateAdmission(ctx, managed, err)
 	}
 	if binding.MemberID != member.MemberID || binding.ParentRunID == "" {
-		return session.failDelegateAdmission(
+		return i.failDelegateAdmission(
 			ctx, managed, errors.New("child Run reservation returned a different executor member"),
 		)
 	}
@@ -98,12 +98,12 @@ func sameManagedAdmission(left, right agent.ProcessAdmission) bool {
 		left.DeploymentRef() == right.DeploymentRef() && left.StartedAt().Equal(right.StartedAt())
 }
 
-func (session *interactionSession) failDelegateAdmission(
+func (i *interactionSession) failDelegateAdmission(
 	ctx context.Context,
 	managed *managedDelegateCall,
 	cause error,
 ) error {
-	if finishErr := session.finishDelegateTool(
+	if finishErr := i.finishDelegateTool(
 		ctx, managed, "error: delegated worker could not start", cause,
 	); finishErr != nil {
 		return errors.Join(cause, finishErr)
@@ -111,7 +111,7 @@ func (session *interactionSession) failDelegateAdmission(
 	return cause
 }
 
-func (session *interactionSession) acknowledgeProcessStartOutcome(
+func (i *interactionSession) acknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome agent.ProcessStartOutcome,
 ) error {
@@ -128,9 +128,9 @@ func (session *interactionSession) acknowledgeProcessStartOutcome(
 	}
 	parentID, _ := relation.ParentID()
 	childKey, _ := relation.ChildKey()
-	session.state.mu.Lock()
-	managed := session.state.delegateCalls[delegateCallIdentity{parentID: parentID, childKey: childKey}]
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	managed := i.state.delegateCalls[delegateCallIdentity{parentID: parentID, childKey: childKey}]
+	i.state.mu.Unlock()
 	if managed == nil {
 		return errors.New("agentexec: child start outcome has no Delegate admission")
 	}
@@ -148,26 +148,26 @@ func (session *interactionSession) acknowledgeProcessStartOutcome(
 		MemberID: relation.ProcessID().String(), ParentID: parentID.String(),
 		SpawnCallID: managed.call.ID,
 	}
-	if err := session.sendExecutorRequest(ctx, runs.ExecutorEvent{Member: member, Payload: request}); err != nil {
+	if err := i.sendExecutorRequest(ctx, runs.ExecutorEvent{Member: member, Payload: request}); err != nil {
 		return err
 	}
 	if err := receipt.Await(ctx); err != nil {
 		if outcome.Status() == agent.ProcessStartOutcomeStatusStarted {
-			return session.failDelegateAdmission(ctx, managed, err)
+			return i.failDelegateAdmission(ctx, managed, err)
 		}
 		return err
 	}
 	if outcome.Status() == agent.ProcessStartOutcomeStatusAborted {
 		failure, _ := outcome.Failure()
-		return session.finishDelegateTool(
+		return i.finishDelegateTool(
 			ctx, managed,
 			"error: delegated worker could not start: "+failure.Code(),
 			errors.New(failure.Message()),
 		)
 	}
 	managed.childProcessID = relation.ProcessID()
-	session.state.mu.Lock()
-	session.state.delegateChildren[relation.ProcessID()] = managed
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	i.state.delegateChildren[relation.ProcessID()] = managed
+	i.state.mu.Unlock()
 	return nil
 }

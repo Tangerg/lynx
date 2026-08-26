@@ -232,10 +232,10 @@ type fakeUtilityRoleSaver struct {
 	calls    int
 }
 
-func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
-	s.calls++
-	s.provider = role.Provider()
-	s.model = role.Model()
+func (f *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
+	f.calls++
+	f.provider = role.Provider()
+	f.model = role.Model()
 	return nil
 }
 
@@ -245,10 +245,10 @@ type fakeChatModelValidator struct {
 	err      error
 }
 
-func (r *fakeChatModelValidator) ValidateChatModel(_ context.Context, provider, model string) error {
-	r.provider = provider
-	r.model = model
-	return r.err
+func (f *fakeChatModelValidator) ValidateChatModel(_ context.Context, provider, model string) error {
+	f.provider = provider
+	f.model = model
+	return f.err
 }
 
 type fakeEmbeddingRoleSaver struct {
@@ -257,10 +257,10 @@ type fakeEmbeddingRoleSaver struct {
 	calls    int
 }
 
-func (s *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, role modelref.Selection) error {
-	s.calls++
-	s.provider = role.Provider()
-	s.model = role.Model()
+func (f *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, role modelref.Selection) error {
+	f.calls++
+	f.provider = role.Provider()
+	f.model = role.Model()
 	return nil
 }
 
@@ -305,22 +305,22 @@ func newBlockingRoleSaver() *blockingRoleSaver {
 	}
 }
 
-func (s *blockingRoleSaver) save(model string) {
-	s.mu.Lock()
-	s.model = model
-	s.mu.Unlock()
+func (b *blockingRoleSaver) save(model string) {
+	b.mu.Lock()
+	b.model = model
+	b.mu.Unlock()
 	if model == "first" {
-		close(s.firstStarted)
-		<-s.releaseFirst
+		close(b.firstStarted)
+		<-b.releaseFirst
 		return
 	}
-	close(s.secondEntered)
+	close(b.secondEntered)
 }
 
-func (s *blockingRoleSaver) savedModel() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.model
+func (b *blockingRoleSaver) savedModel() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.model
 }
 
 type blockingUtilitySaver struct{ *blockingRoleSaver }
@@ -329,8 +329,8 @@ func newBlockingUtilitySaver() *blockingUtilitySaver {
 	return &blockingUtilitySaver{blockingRoleSaver: newBlockingRoleSaver()}
 }
 
-func (s *blockingUtilitySaver) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
-	s.save(role.Model())
+func (b *blockingUtilitySaver) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
+	b.save(role.Model())
 	return nil
 }
 
@@ -340,7 +340,7 @@ func newBlockingEmbeddingSaver() *blockingEmbeddingSaver {
 	return &blockingEmbeddingSaver{blockingRoleSaver: newBlockingRoleSaver()}
 }
 
-func (s *blockingEmbeddingSaver) SaveEmbeddingRole(_ context.Context, role modelref.Selection) error {
-	s.save(role.Model())
+func (b *blockingEmbeddingSaver) SaveEmbeddingRole(_ context.Context, role modelref.Selection) error {
+	b.save(role.Model())
 	return nil
 }

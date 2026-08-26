@@ -19,20 +19,20 @@ type pressConfirmation struct {
 	deadline time.Time
 }
 
-func (c *pressConfirmation) Confirm(kind confirmationKind, now time.Time) bool {
-	if c.kind == kind && !now.After(c.deadline) {
-		c.Reset()
+func (p *pressConfirmation) Confirm(kind confirmationKind, now time.Time) bool {
+	if p.kind == kind && !now.After(p.deadline) {
+		p.Reset()
 		return true
 	}
-	c.kind = kind
-	c.deadline = now.Add(confirmationWindow)
+	p.kind = kind
+	p.deadline = now.Add(confirmationWindow)
 	return false
 }
 
-func (c *pressConfirmation) Armed(kind confirmationKind) bool {
-	return c.kind == kind
+func (p *pressConfirmation) Armed(kind confirmationKind) bool {
+	return p.kind == kind
 }
 
-func (c *pressConfirmation) Reset() {
-	*c = pressConfirmation{}
+func (p *pressConfirmation) Reset() {
+	*p = pressConfirmation{}
 }

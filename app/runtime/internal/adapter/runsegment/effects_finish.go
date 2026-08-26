@@ -94,19 +94,19 @@ func NewFinalizer(cfg FinalizerConfig) (*Finalizer, error) {
 // run cannot write into the preceding run's snapshot. Title generation does not
 // define the boundary and may continue asynchronously. A parked run is
 // resumable, not a boundary, so it does neither.
-func (e *Finalizer) Finish(ctx context.Context, fin runs.Finish) error {
+func (f *Finalizer) Finish(ctx context.Context, fin runs.Finish) error {
 	if fin.Parked {
 		return nil
 	}
-	needsSnapshot := e.checkpoints != nil && fin.CWD != ""
-	needsTitle := e.sessionTitles != nil && strings.TrimSpace(fin.OpeningUserText) != ""
+	needsSnapshot := f.checkpoints != nil && fin.CWD != ""
+	needsTitle := f.sessionTitles != nil && strings.TrimSpace(fin.OpeningUserText) != ""
 	if !needsSnapshot && !needsTitle {
 		return nil
 	}
 	var errs []error
 	if needsSnapshot {
 		if err := observeTerminalMaintenance(ctx, fin, "checkpoint", func(ctx context.Context) error {
-			return e.snapshot(ctx, fin.SessionID, fin.CWD, fin.RunID)
+			return f.snapshot(ctx, fin.SessionID, fin.CWD, fin.RunID)
 		}); err != nil {
 			errs = append(errs, err)
 		}
@@ -116,10 +116,10 @@ func (e *Finalizer) Finish(ctx context.Context, fin runs.Finish) error {
 	}
 	title := func(ctx context.Context) error {
 		return observeTerminalMaintenance(ctx, fin, "title", func(ctx context.Context) error {
-			return e.title(ctx, fin.SessionID, fin.OpeningUserText)
+			return f.title(ctx, fin.SessionID, fin.OpeningUserText)
 		})
 	}
-	if !e.tasks.Start(ctx, func(ctx context.Context) { _ = title(ctx) }) {
+	if !f.tasks.Start(ctx, func(ctx context.Context) { _ = title(ctx) }) {
 		rejected := fmt.Errorf("runsegment: terminal maintenance for run %q was rejected during shutdown", fin.RunID)
 		errs = append(errs, observeTerminalMaintenance(ctx, fin, "title", func(context.Context) error { return rejected }))
 	}
@@ -144,38 +144,38 @@ func observeTerminalMaintenance(ctx context.Context, fin runs.Finish, operation 
 	return err
 }
 
-func (e *Finalizer) snapshot(ctx context.Context, sessionID, cwd, runID string) error {
-	if err := e.checkpoints.Snapshot(ctx, sessionID, cwd, runID); err != nil {
+func (f *Finalizer) snapshot(ctx context.Context, sessionID, cwd, runID string) error {
+	if err := f.checkpoints.Snapshot(ctx, sessionID, cwd, runID); err != nil {
 		return fmt.Errorf("runsegment: snapshot workspace for run %q: %w", runID, err)
 	}
 	return nil
 }
 
-func (e *Finalizer) title(ctx context.Context, sessionID, prompt string) error {
-	if e.sessionTitles == nil {
+func (f *Finalizer) title(ctx context.Context, sessionID, prompt string) error {
+	if f.sessionTitles == nil {
 		return errors.New("runsegment: Session title use cases are unavailable")
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return nil
 	}
-	needed, err := e.sessionTitles.NeedsGeneratedTitle(ctx, sessionID)
+	needed, err := f.sessionTitles.NeedsGeneratedTitle(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("runsegment: inspect Session %q for title generation: %w", sessionID, err)
 	}
 	if !needed {
 		return nil
 	}
-	if e.titles == nil {
+	if f.titles == nil {
 		return errors.New("runsegment: title generation is unavailable")
 	}
-	title, generationErr := e.titles.Generate(ctx, prompt)
+	title, generationErr := f.titles.Generate(ctx, prompt)
 	title = strings.TrimSpace(title)
 	if title == "" && generationErr == nil {
 		return fmt.Errorf("runsegment: generated title for session %q is empty", sessionID)
 	}
 	if title != "" {
-		if err := e.sessionTitles.ApplyGeneratedTitle(ctx, sessionID, title); err != nil {
+		if err := f.sessionTitles.ApplyGeneratedTitle(ctx, sessionID, title); err != nil {
 			applyErr := fmt.Errorf("runsegment: apply generated title to Session %q: %w", sessionID, err)
 			if generationErr != nil {
 				return errors.Join(

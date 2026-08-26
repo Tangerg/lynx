@@ -22,47 +22,47 @@ type DraftTransfer struct {
 	DestinationAfter     agent.Message `json:"destinationAfter"`
 }
 
-func (transfer DraftTransfer) clone() DraftTransfer {
-	transfer.SourceBefore = transfer.SourceBefore.Clone()
-	transfer.SourceAfter = transfer.SourceAfter.Clone()
-	transfer.DestinationBefore = transfer.DestinationBefore.Clone()
-	transfer.DestinationAfter = transfer.DestinationAfter.Clone()
-	return transfer
+func (d DraftTransfer) clone() DraftTransfer {
+	d.SourceBefore = d.SourceBefore.Clone()
+	d.SourceAfter = d.SourceAfter.Clone()
+	d.DestinationBefore = d.DestinationBefore.Clone()
+	d.DestinationAfter = d.DestinationAfter.Clone()
+	return d
 }
 
-func (transfer DraftTransfer) normalized() DraftTransfer {
-	transfer = transfer.clone()
-	transfer.SourceSessionID = strings.TrimSpace(transfer.SourceSessionID)
-	transfer.DestinationSessionID = strings.TrimSpace(transfer.DestinationSessionID)
-	return transfer
+func (d DraftTransfer) normalized() DraftTransfer {
+	d = d.clone()
+	d.SourceSessionID = strings.TrimSpace(d.SourceSessionID)
+	d.DestinationSessionID = strings.TrimSpace(d.DestinationSessionID)
+	return d
 }
 
-func (transfer DraftTransfer) equal(other DraftTransfer) bool {
-	return transfer.SourceSessionID == other.SourceSessionID &&
-		transfer.DestinationSessionID == other.DestinationSessionID &&
-		transfer.SourceBefore.Equal(other.SourceBefore) &&
-		transfer.SourceAfter.Equal(other.SourceAfter) &&
-		transfer.DestinationBefore.Equal(other.DestinationBefore) &&
-		transfer.DestinationAfter.Equal(other.DestinationAfter)
+func (d DraftTransfer) equal(other DraftTransfer) bool {
+	return d.SourceSessionID == other.SourceSessionID &&
+		d.DestinationSessionID == other.DestinationSessionID &&
+		d.SourceBefore.Equal(other.SourceBefore) &&
+		d.SourceAfter.Equal(other.SourceAfter) &&
+		d.DestinationBefore.Equal(other.DestinationBefore) &&
+		d.DestinationAfter.Equal(other.DestinationAfter)
 }
 
-func (transfer DraftTransfer) validate() error {
-	transfer.SourceSessionID = strings.TrimSpace(transfer.SourceSessionID)
-	transfer.DestinationSessionID = strings.TrimSpace(transfer.DestinationSessionID)
-	if transfer.SourceSessionID == "" || transfer.DestinationSessionID == "" {
+func (d DraftTransfer) validate() error {
+	d.SourceSessionID = strings.TrimSpace(d.SourceSessionID)
+	d.DestinationSessionID = strings.TrimSpace(d.DestinationSessionID)
+	if d.SourceSessionID == "" || d.DestinationSessionID == "" {
 		return errors.New("draft transfer session id is empty")
 	}
-	if transfer.SourceSessionID == transfer.DestinationSessionID {
+	if d.SourceSessionID == d.DestinationSessionID {
 		return errors.New("draft transfer source and destination are the same session")
 	}
 	values := []struct {
 		label   string
 		message agent.Message
 	}{
-		{label: "source before", message: transfer.SourceBefore},
-		{label: "source after", message: transfer.SourceAfter},
-		{label: "destination before", message: transfer.DestinationBefore},
-		{label: "destination after", message: transfer.DestinationAfter},
+		{label: "source before", message: d.SourceBefore},
+		{label: "source after", message: d.SourceAfter},
+		{label: "destination before", message: d.DestinationBefore},
+		{label: "destination after", message: d.DestinationAfter},
 	}
 	for _, value := range values {
 		if messageEmpty(value.message) {
@@ -72,16 +72,16 @@ func (transfer DraftTransfer) validate() error {
 			return fmt.Errorf("draft transfer %s: %w", value.label, err)
 		}
 	}
-	if transfer.SourceBefore.Equal(transfer.SourceAfter) &&
-		transfer.DestinationBefore.Equal(transfer.DestinationAfter) {
+	if d.SourceBefore.Equal(d.SourceAfter) &&
+		d.DestinationBefore.Equal(d.DestinationAfter) {
 		return errors.New("draft transfer does not change authoring state")
 	}
 	return nil
 }
 
-func (transfer DraftTransfer) blocks(sessionID string) bool {
+func (d DraftTransfer) blocks(sessionID string) bool {
 	sessionID = strings.TrimSpace(sessionID)
-	return sessionID == transfer.SourceSessionID || sessionID == transfer.DestinationSessionID
+	return sessionID == d.SourceSessionID || sessionID == d.DestinationSessionID
 }
 
 // ApplyDraftTransfer changes both session drafts under one restart-safe
@@ -111,11 +111,11 @@ func (s *Store) ApplyDraftTransfer(transfer DraftTransfer) error {
 	return s.completeDraftTransferLocked()
 }
 
-func (transfer DraftTransfer) expect(drafts map[string]agent.Message) error {
-	if !drafts[transfer.SourceSessionID].Equal(transfer.SourceBefore) {
+func (d DraftTransfer) expect(drafts map[string]agent.Message) error {
+	if !drafts[d.SourceSessionID].Equal(d.SourceBefore) {
 		return errors.New("source draft changed before session transfer")
 	}
-	if !drafts[transfer.DestinationSessionID].Equal(transfer.DestinationBefore) {
+	if !drafts[d.DestinationSessionID].Equal(d.DestinationBefore) {
 		return errors.New("destination draft changed before session transfer")
 	}
 	return nil

@@ -32,15 +32,15 @@ const (
 )
 
 // Valid reports whether transport names one supported MCP connection mode.
-func (transport Transport) Valid() bool {
-	return transport == TransportHTTP || transport == TransportStdio
+func (t Transport) Valid() bool {
+	return t == TransportHTTP || t == TransportStdio
 }
 
-func (transport Transport) String() string {
-	if !transport.Valid() {
+func (t Transport) String() string {
+	if !t.Valid() {
 		return "invalid"
 	}
-	return string(transport)
+	return string(t)
 }
 
 // ServerConfig declaratively describes one runtime MCP server connection. This
@@ -88,51 +88,51 @@ type ServerConfig struct {
 
 // Validate reports whether exactly one transport is fully specified and the
 // other transport's fields are blank.
-func (c ServerConfig) Validate() error {
-	if c.Name == "" {
+func (s ServerConfig) Validate() error {
+	if s.Name == "" {
 		return errors.New("mcp: server name is required")
 	}
-	switch c.Transport {
+	switch s.Transport {
 	case TransportHTTP:
-		if c.Endpoint == "" {
-			return fmt.Errorf("mcp server %q: Endpoint is required for HTTP transport", c.Name)
+		if s.Endpoint == "" {
+			return fmt.Errorf("mcp server %q: Endpoint is required for HTTP transport", s.Name)
 		}
-		if _, err := httporigin.Parse(c.Endpoint); err != nil {
-			return fmt.Errorf("mcp server %q: invalid Endpoint: %w", c.Name, err)
+		if _, err := httporigin.Parse(s.Endpoint); err != nil {
+			return fmt.Errorf("mcp server %q: invalid Endpoint: %w", s.Name, err)
 		}
-		if c.Command != "" {
-			return fmt.Errorf("mcp server %q: Command must be empty for HTTP transport", c.Name)
+		if s.Command != "" {
+			return fmt.Errorf("mcp server %q: Command must be empty for HTTP transport", s.Name)
 		}
-		if c.OAuthHandler != nil && c.hasStaticAuthorization() {
-			return fmt.Errorf("mcp server %q: OAuth and static Authorization are mutually exclusive", c.Name)
+		if s.OAuthHandler != nil && s.hasStaticAuthorization() {
+			return fmt.Errorf("mcp server %q: OAuth and static Authorization are mutually exclusive", s.Name)
 		}
 	case TransportStdio:
-		if c.Command == "" {
-			return fmt.Errorf("mcp server %q: Command is required for stdio transport", c.Name)
+		if s.Command == "" {
+			return fmt.Errorf("mcp server %q: Command is required for stdio transport", s.Name)
 		}
-		if c.Endpoint != "" {
-			return fmt.Errorf("mcp server %q: Endpoint must be empty for stdio transport", c.Name)
+		if s.Endpoint != "" {
+			return fmt.Errorf("mcp server %q: Endpoint must be empty for stdio transport", s.Name)
 		}
-		if c.Authorization != "" {
-			return fmt.Errorf("mcp server %q: Authorization applies to HTTP transport only", c.Name)
+		if s.Authorization != "" {
+			return fmt.Errorf("mcp server %q: Authorization applies to HTTP transport only", s.Name)
 		}
-		if len(c.Headers) > 0 {
-			return fmt.Errorf("mcp server %q: Headers apply to HTTP transport only", c.Name)
+		if len(s.Headers) > 0 {
+			return fmt.Errorf("mcp server %q: Headers apply to HTTP transport only", s.Name)
 		}
-		if c.OAuthHandler != nil {
-			return fmt.Errorf("mcp server %q: OAuth applies to HTTP transport only", c.Name)
+		if s.OAuthHandler != nil {
+			return fmt.Errorf("mcp server %q: OAuth applies to HTTP transport only", s.Name)
 		}
 	default:
-		return fmt.Errorf("mcp server %q: unknown transport %q", c.Name, c.Transport)
+		return fmt.Errorf("mcp server %q: unknown transport %q", s.Name, s.Transport)
 	}
 	return nil
 }
 
-func (c ServerConfig) hasStaticAuthorization() bool {
-	if c.Authorization != "" {
+func (s ServerConfig) hasStaticAuthorization() bool {
+	if s.Authorization != "" {
 		return true
 	}
-	for name, value := range c.Headers {
+	for name, value := range s.Headers {
 		if strings.EqualFold(name, "Authorization") && value != "" {
 			return true
 		}
@@ -290,29 +290,29 @@ type headerRoundTripper struct {
 	lastStatus    atomic.Int64
 }
 
-func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := t.validateTarget(req.URL); err != nil {
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := h.validateTarget(req.URL); err != nil {
 		return nil, err
 	}
 	r := req.Clone(req.Context())
-	for k, v := range t.headers {
+	for k, v := range h.headers {
 		r.Header.Set(k, v)
 	}
-	if t.authorization != "" {
-		r.Header.Set("Authorization", t.authorization)
+	if h.authorization != "" {
+		r.Header.Set("Authorization", h.authorization)
 	}
-	response, err := t.base.RoundTrip(r)
+	response, err := h.base.RoundTrip(r)
 	if response != nil {
-		t.lastStatus.Store(int64(response.StatusCode))
+		h.lastStatus.Store(int64(response.StatusCode))
 	}
 	return response, err
 }
 
-func (t *headerRoundTripper) classifyDialError(err error) error {
+func (h *headerRoundTripper) classifyDialError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if t.lastStatus.Load() == http.StatusUnauthorized {
+	if h.lastStatus.Load() == http.StatusUnauthorized {
 		return &dialError{kind: dialErrorNeedsAuth, err: err}
 	}
 	return err
@@ -325,14 +325,14 @@ func classifyHTTPDialError(client *http.Client, err error) error {
 	return err
 }
 
-func (t *headerRoundTripper) validateTarget(target *url.URL) error {
+func (h *headerRoundTripper) validateTarget(target *url.URL) error {
 	origin, err := httporigin.FromURL(target)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errCrossOrigin, err)
 	}
-	if origin != t.origin {
+	if origin != h.origin {
 		return fmt.Errorf("%w: target origin %s differs from configured origin %s",
-			errCrossOrigin, origin, t.origin)
+			errCrossOrigin, origin, h.origin)
 	}
 	return nil
 }

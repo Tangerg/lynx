@@ -15,10 +15,10 @@ type conversationSearchStub struct {
 	hits     []transcript.SearchHit
 }
 
-func (s *conversationSearchStub) SearchTranscript(_ context.Context, query string, limit int) ([]transcript.SearchHit, error) {
-	s.gotQuery = query
-	s.gotLimit = limit
-	return s.hits, nil
+func (c *conversationSearchStub) SearchTranscript(_ context.Context, query string, limit int) ([]transcript.SearchHit, error) {
+	c.gotQuery = query
+	c.gotLimit = limit
+	return c.hits, nil
 }
 
 func TestNewNilSearchOmitsTool(t *testing.T) {

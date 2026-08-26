@@ -46,45 +46,45 @@ type ExecutorCheckpointRecord struct {
 	Usage          accounting.Snapshot
 }
 
-func (record ExecutorCheckpointRecord) validate() error {
-	if strings.TrimSpace(record.RootMemberID) == "" || record.RootMemberID != strings.TrimSpace(record.RootMemberID) {
+func (e ExecutorCheckpointRecord) validate() error {
+	if strings.TrimSpace(e.RootMemberID) == "" || e.RootMemberID != strings.TrimSpace(e.RootMemberID) {
 		return fmt.Errorf("%w: invalid root member ID", ErrInvalidExecutorCheckpointRecord)
 	}
-	if len(record.Payload) == 0 {
+	if len(e.Payload) == 0 {
 		return fmt.Errorf("%w: payload is empty", ErrInvalidExecutorCheckpointRecord)
 	}
-	if strings.TrimSpace(record.BuildID) == "" || record.BuildID != strings.TrimSpace(record.BuildID) {
+	if strings.TrimSpace(e.BuildID) == "" || e.BuildID != strings.TrimSpace(e.BuildID) {
 		return fmt.Errorf("%w: invalid build ID", ErrInvalidExecutorCheckpointRecord)
 	}
-	if err := record.Scope.validate(); err != nil {
+	if err := e.Scope.validate(); err != nil {
 		return err
 	}
-	if err := record.ModelSelection.Validate(); err != nil {
+	if err := e.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("%w: model selection: %w", ErrInvalidExecutorCheckpointRecord, err)
 	}
-	if err := record.Limits.Validate(); err != nil {
+	if err := e.Limits.Validate(); err != nil {
 		return fmt.Errorf("%w: limits: %w", ErrInvalidExecutorCheckpointRecord, err)
 	}
-	if err := record.Capabilities.Validate(); err != nil {
+	if err := e.Capabilities.Validate(); err != nil {
 		return fmt.Errorf("%w: capabilities: %w", ErrInvalidExecutorCheckpointRecord, err)
 	}
-	if err := record.Usage.Validate(); err != nil {
+	if err := e.Usage.Validate(); err != nil {
 		return fmt.Errorf("%w: usage: %w", ErrInvalidExecutorCheckpointRecord, err)
 	}
 	return nil
 }
 
-func (record ExecutorScopeRecord) validate() error {
-	if record.SessionID == "" || record.SessionID != strings.TrimSpace(record.SessionID) {
+func (e ExecutorScopeRecord) validate() error {
+	if e.SessionID == "" || e.SessionID != strings.TrimSpace(e.SessionID) {
 		return fmt.Errorf("%w: invalid session ID", ErrInvalidExecutorCheckpointRecord)
 	}
-	if record.CWD != strings.TrimSpace(record.CWD) {
+	if e.CWD != strings.TrimSpace(e.CWD) {
 		return fmt.Errorf("%w: invalid working dir", ErrInvalidExecutorCheckpointRecord)
 	}
-	if record.WorkspaceCWD != strings.TrimSpace(record.WorkspaceCWD) {
+	if e.WorkspaceCWD != strings.TrimSpace(e.WorkspaceCWD) {
 		return fmt.Errorf("%w: invalid workspace dir", ErrInvalidExecutorCheckpointRecord)
 	}
-	if record.GoalIncarnationID != strings.TrimSpace(record.GoalIncarnationID) {
+	if e.GoalIncarnationID != strings.TrimSpace(e.GoalIncarnationID) {
 		return fmt.Errorf("%w: invalid goal incarnation ID", ErrInvalidExecutorCheckpointRecord)
 	}
 	return nil
@@ -150,9 +150,9 @@ type executorModelUsageWire struct {
 }
 
 // SaveCheckpoint atomically advances one root-owned executor checkpoint. The
-// root's Session, build, host scope, model selection, and budget are immutable;
+// root'e Session, build, host scope, model selection, and budget are immutable;
 // only the opaque payload and cumulative usage may advance between barriers.
-func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint ExecutorCheckpointRecord) error {
+func (e *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint ExecutorCheckpointRecord) error {
 	if err := checkpoint.validate(); err != nil {
 		return fmt.Errorf("sqlite: save executor checkpoint: %w", err)
 	}
@@ -164,16 +164,16 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 	if err != nil {
 		return fmt.Errorf("sqlite: encode executor checkpoint usage: %w", err)
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+	return RunInTx(ctx, e.db, func(ctx context.Context) error {
 		var owner, buildID, policy, storedUsageData string
-		err := conn(ctx, s.db).QueryRowContext(ctx,
+		err := conn(ctx, e.db).QueryRowContext(ctx,
 			`SELECT session_id, build_id, policy, usage
 			   FROM executor_checkpoints
 			  WHERE root_member_id = ?`,
 			checkpoint.RootMemberID,
 		).Scan(&owner, &buildID, &policy, &storedUsageData)
 		if errors.Is(err, sql.ErrNoRows) {
-			_, err = conn(ctx, s.db).ExecContext(ctx,
+			_, err = conn(ctx, e.db).ExecContext(ctx,
 				`INSERT INTO executor_checkpoints(
 					root_member_id, session_id, build_id, payload, policy, usage, committed_at
 				 ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -236,7 +236,7 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 				err,
 			)
 		}
-		result, err := conn(ctx, s.db).ExecContext(ctx,
+		result, err := conn(ctx, e.db).ExecContext(ctx,
 			`UPDATE executor_checkpoints
 			    SET payload = ?, usage = ?, committed_at = ?
 			  WHERE root_member_id = ?`,
@@ -260,13 +260,13 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 }
 
 // LoadCheckpoint returns one complete opaque executor checkpoint.
-func (s *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (ExecutorCheckpointRecord, error) {
+func (e *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (ExecutorCheckpointRecord, error) {
 	if strings.TrimSpace(rootMemberID) == "" || strings.TrimSpace(rootMemberID) != rootMemberID {
 		return ExecutorCheckpointRecord{}, errors.New("sqlite: load executor checkpoint: invalid root member ID")
 	}
 	var buildID, policyData, usageData string
 	var payload []byte
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, e.db).QueryRowContext(ctx,
 		`SELECT build_id, payload, policy, usage
 		   FROM executor_checkpoints
 		  WHERE root_member_id = ?`,
@@ -478,7 +478,7 @@ func decodeExecutorUsage(data string) (accounting.Snapshot, error) {
 // transaction, but only when they belong to sessionID. Unknown roots are
 // already absent and therefore succeed; a root owned by another Session is
 // rejected as corruption rather than deleted.
-func (s *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error {
+func (e *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error {
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(sessionID) != sessionID {
 		return errors.New("sqlite: delete executor checkpoints: invalid session ID")
 	}
@@ -495,9 +495,9 @@ func (s *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, session
 		}
 		seen[rootID] = struct{}{}
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+	return RunInTx(ctx, e.db, func(ctx context.Context) error {
 		for _, rootID := range rootIDs {
-			if err := s.deleteOwnedCheckpoint(ctx, sessionID, rootID); err != nil {
+			if err := e.deleteOwnedCheckpoint(ctx, sessionID, rootID); err != nil {
 				return err
 			}
 		}
@@ -507,12 +507,12 @@ func (s *ExecutorCheckpointStore) DeleteCheckpoints(ctx context.Context, session
 
 // DeleteSessionCheckpoints removes every checkpoint aggregate owned by
 // sessionID.
-func (s *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, sessionID string) error {
+func (e *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, sessionID string) error {
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(sessionID) != sessionID {
 		return errors.New("sqlite: delete session executor checkpoints: invalid session ID")
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		rootIDs, err := s.queryCheckpointRootIDs(ctx,
+	return RunInTx(ctx, e.db, func(ctx context.Context) error {
+		rootIDs, err := e.queryCheckpointRootIDs(ctx,
 			`SELECT root_member_id FROM executor_checkpoints WHERE session_id = ? ORDER BY root_member_id`,
 			sessionID,
 		)
@@ -520,7 +520,7 @@ func (s *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, 
 			return fmt.Errorf("sqlite: list executor checkpoints for Session %q: %w", sessionID, err)
 		}
 		for _, rootID := range rootIDs {
-			if err := s.deleteOwnedCheckpoint(ctx, sessionID, rootID); err != nil {
+			if err := e.deleteOwnedCheckpoint(ctx, sessionID, rootID); err != nil {
 				return err
 			}
 		}
@@ -532,7 +532,7 @@ func (s *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, 
 // keepRootIDs.
 // Boot reconciliation calls it after proving the exact set of waiting Run
 // trees that still own resumable continuations.
-func (s *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error {
+func (e *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error {
 	keep := make(map[string]struct{}, len(keepRootIDs))
 	for _, rootID := range keepRootIDs {
 		if strings.TrimSpace(rootID) == "" || strings.TrimSpace(rootID) != rootID {
@@ -543,8 +543,8 @@ func (s *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, 
 		}
 		keep[rootID] = struct{}{}
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		rootIDs, err := s.queryCheckpointRootIDs(ctx,
+	return RunInTx(ctx, e.db, func(ctx context.Context) error {
+		rootIDs, err := e.queryCheckpointRootIDs(ctx,
 			`SELECT root_member_id FROM executor_checkpoints ORDER BY root_member_id`,
 		)
 		if err != nil {
@@ -557,7 +557,7 @@ func (s *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, 
 			}
 		}
 		for _, rootID := range stale {
-			if err := s.deleteCheckpoint(ctx, rootID); err != nil {
+			if err := e.deleteCheckpoint(ctx, rootID); err != nil {
 				return err
 			}
 		}
@@ -565,12 +565,12 @@ func (s *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, 
 	})
 }
 
-func (s *ExecutorCheckpointStore) queryCheckpointRootIDs(
+func (e *ExecutorCheckpointStore) queryCheckpointRootIDs(
 	ctx context.Context,
 	query string,
 	args ...any,
 ) ([]string, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
+	rows, err := conn(ctx, e.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -593,8 +593,8 @@ func (s *ExecutorCheckpointStore) queryCheckpointRootIDs(
 	return rootIDs, nil
 }
 
-func (s *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootMemberID string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+func (e *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootMemberID string) error {
+	if _, err := conn(ctx, e.db).ExecContext(ctx,
 		`DELETE FROM executor_checkpoints WHERE root_member_id = ?`,
 		rootMemberID,
 	); err != nil {
@@ -603,12 +603,12 @@ func (s *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootMemb
 	return nil
 }
 
-func (s *ExecutorCheckpointStore) deleteOwnedCheckpoint(
+func (e *ExecutorCheckpointStore) deleteOwnedCheckpoint(
 	ctx context.Context,
 	sessionID string,
 	rootMemberID string,
 ) error {
-	result, err := conn(ctx, s.db).ExecContext(ctx,
+	result, err := conn(ctx, e.db).ExecContext(ctx,
 		`DELETE FROM executor_checkpoints WHERE root_member_id = ? AND session_id = ?`,
 		rootMemberID,
 		sessionID,
@@ -624,7 +624,7 @@ func (s *ExecutorCheckpointStore) deleteOwnedCheckpoint(
 		return nil
 	}
 	var owner string
-	err = conn(ctx, s.db).QueryRowContext(ctx,
+	err = conn(ctx, e.db).QueryRowContext(ctx,
 		`SELECT session_id FROM executor_checkpoints WHERE root_member_id = ?`,
 		rootMemberID,
 	).Scan(&owner)

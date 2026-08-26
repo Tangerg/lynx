@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	history "github.com/Tangerg/lynx/core/history"
 	"github.com/Tangerg/lynx/core/chat"
+	history "github.com/Tangerg/lynx/core/history"
 )
 
 // MessageStore persists the Runtime's per-session model-context history in
@@ -30,11 +30,11 @@ func NewMessageStore(db *sql.DB) *MessageStore {
 // conversation → empty slice (matches in-memory history store). Malformed rows
 // are skipped rather than failing the read, so one bad write can't poison
 // the whole conversation.
-func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
+func (m *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
 	if err := history.ConversationID(conversationID).Validate(); err != nil {
 		return nil, err
 	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+	rows, err := conn(ctx, m.db).QueryContext(ctx,
 		`SELECT message FROM messages WHERE conversation_id = ? ORDER BY seq`, conversationID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: read messages: %w", err)
@@ -61,18 +61,18 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 
 // Write appends messages to the conversation in one transaction. No-op for
 // an empty batch.
-func (s *MessageStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (m *MessageStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if err := history.ConversationID(conversationID).Validate(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
-	// RunInTx so the batch is atomic standalone, and folds into a caller's
+	// RunInTx so the batch is atomic standalone, and folds into a caller'm
 	// cross-store transaction (portable restore seeds history inside one) instead
 	// of opening its own — which would deadlock under MaxOpenConns(1).
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		q := conn(ctx, s.db)
+	return RunInTx(ctx, m.db, func(ctx context.Context) error {
+		q := conn(ctx, m.db)
 		for _, msg := range messages {
 			data, err := json.Marshal(msg)
 			if err != nil {
@@ -89,19 +89,19 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 	})
 }
 
-// Replace atomically sets conversationID's history to exactly messages — a
+// Replace atomically sets conversationID'm history to exactly messages — a
 // single transaction that DELETEs the existing rows then INSERTs the new ones,
 // so a failed rewrite rolls back and leaves the prior history intact (the
-// consumer's atomic-replacement contract). Empty messages clears the
+// consumer'm atomic-replacement contract). Empty messages clears the
 // conversation.
 // Retention (truncate / compaction) uses this instead of Clear+Write, which
 // would lose the conversation if the Write failed after the Clear committed.
-func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+func (m *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if err := history.ConversationID(conversationID).Validate(); err != nil {
 		return err
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		q := conn(ctx, s.db)
+	return RunInTx(ctx, m.db, func(ctx context.Context) error {
+		q := conn(ctx, m.db)
 		if _, err := q.ExecContext(ctx,
 			`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
 		); err != nil {
@@ -123,18 +123,18 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 	})
 }
 
-// Count returns conversationID's message count via a COUNT(*) query — the
+// Count returns conversationID'm message count via a COUNT(*) query — the
 // conversation use case, so a rollback/fork watermark read
 // fork{fromRunId}) doesn't load and unmarshal the whole history just to take
 // its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read
 // skips any that fail to unmarshal, but Write only persists marshalable
 // messages, so in practice the two agree.
-func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, error) {
+func (m *MessageStore) Count(ctx context.Context, conversationID string) (int, error) {
 	if err := history.ConversationID(conversationID).Validate(); err != nil {
 		return 0, err
 	}
 	var n int
-	if err := conn(ctx, s.db).QueryRowContext(ctx,
+	if err := conn(ctx, m.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, conversationID,
 	).Scan(&n); err != nil {
 		return 0, fmt.Errorf("sqlite: count messages: %w", err)
@@ -144,11 +144,11 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 
 // Clear drops every message for conversationID. Idempotent — unknown id is
 // not an error (matches in-memory history store).
-func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
+func (m *MessageStore) Clear(ctx context.Context, conversationID string) error {
 	if err := history.ConversationID(conversationID).Validate(); err != nil {
 		return err
 	}
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+	if _, err := conn(ctx, m.db).ExecContext(ctx,
 		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
 	); err != nil {
 		return fmt.Errorf("sqlite: clear messages: %w", err)

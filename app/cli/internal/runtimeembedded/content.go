@@ -23,8 +23,8 @@ type attachmentTooLargeError struct {
 	maximumBytes int64
 }
 
-func (e attachmentTooLargeError) Error() string {
-	return fmt.Sprintf("file exceeds %d bytes", e.maximumBytes)
+func (a attachmentTooLargeError) Error() string {
+	return fmt.Sprintf("file exceeds %d bytes", a.maximumBytes)
 }
 
 type attachmentLoader func(context.Context, string, int64) ([]byte, error)
@@ -59,11 +59,11 @@ type contextReader struct {
 	io.Reader
 }
 
-func (r contextReader) Read(buffer []byte) (int, error) {
-	if err := context.Cause(r.Context); err != nil {
+func (c contextReader) Read(buffer []byte) (int, error) {
+	if err := context.Cause(c.Context); err != nil {
 		return 0, err
 	}
-	return r.Reader.Read(buffer)
+	return c.Reader.Read(buffer)
 }
 
 func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]protocol.ContentBlock, error) {

@@ -90,9 +90,9 @@ const (
 	BudgetLimitSteps BudgetLimit = "steps"
 )
 
-// Valid reports whether limit identifies a supported budget axis or no limit.
-func (limit BudgetLimit) Valid() bool {
-	return limit == BudgetLimitNone || limit == BudgetLimitRuns || limit == BudgetLimitCost || limit == BudgetLimitSteps
+// Valid reports whether b identifies a supported budget axis or no limit.
+func (b BudgetLimit) Valid() bool {
+	return b == BudgetLimitNone || b == BudgetLimitRuns || b == BudgetLimitCost || b == BudgetLimitSteps
 }
 
 // Exceeded reports the first budget limit u has reached, or (BudgetLimitNone,
@@ -130,9 +130,9 @@ const (
 	ReasonBlockedByModel         ReasonCode = "blockedByModel"
 )
 
-// Valid reports whether code is a recognized stopping reason.
-func (code ReasonCode) Valid() bool {
-	switch code {
+// Valid reports whether r is a recognized stopping reason.
+func (r ReasonCode) Valid() bool {
+	switch r {
 	case ReasonNone,
 		ReasonStoppedByUser,
 		ReasonRuntimeRestarted,
@@ -318,14 +318,14 @@ type RunRecord struct {
 
 // Validate reports whether this immutable Goal accounting fact is complete and
 // numerically representable before it reaches the idempotency ledger.
-func (record RunRecord) Validate() error {
+func (r RunRecord) Validate() error {
 	for _, identity := range []struct {
 		name  string
 		value string
 	}{
-		{name: "session ID", value: record.SessionID},
-		{name: "incarnation ID", value: record.IncarnationID},
-		{name: "Run ID", value: record.RunID},
+		{name: "session ID", value: r.SessionID},
+		{name: "incarnation ID", value: r.IncarnationID},
+		{name: "Run ID", value: r.RunID},
 	} {
 		if strings.TrimSpace(identity.value) == "" {
 			return fmt.Errorf("goal: Run %s is required", identity.name)
@@ -334,16 +334,16 @@ func (record RunRecord) Validate() error {
 			return fmt.Errorf("goal: Run %s has surrounding whitespace", identity.name)
 		}
 	}
-	if _, ok := run.ParseOutcome(record.Outcome.String()); !ok {
-		return fmt.Errorf("goal: Run has unknown outcome %q", record.Outcome)
+	if _, ok := run.ParseOutcome(r.Outcome.String()); !ok {
+		return fmt.Errorf("goal: Run has unknown outcome %q", r.Outcome)
 	}
-	if record.CostUSD < 0 || math.IsNaN(record.CostUSD) || math.IsInf(record.CostUSD, 0) {
+	if r.CostUSD < 0 || math.IsNaN(r.CostUSD) || math.IsInf(r.CostUSD, 0) {
 		return errors.New("goal: Run cost must be a finite non-negative number")
 	}
-	if record.Steps < 0 {
+	if r.Steps < 0 {
 		return errors.New("goal: Run steps must not be negative")
 	}
-	if record.CompletedAt.IsZero() {
+	if r.CompletedAt.IsZero() {
 		return errors.New("goal: Run completion time is required")
 	}
 	return nil

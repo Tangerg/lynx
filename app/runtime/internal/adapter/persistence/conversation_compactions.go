@@ -34,22 +34,22 @@ func NewConversationCompactions(history conversationHistory, runs conversationRu
 
 var _ conversations.CompactionStore = (*ConversationCompactions)(nil)
 
-func (s *ConversationCompactions) ListRuns(ctx context.Context, sessionID string) ([]run.Run, error) {
-	if s == nil || s.runs == nil {
+func (c *ConversationCompactions) ListRuns(ctx context.Context, sessionID string) ([]run.Run, error) {
+	if c == nil || c.runs == nil {
 		return nil, errors.New("persistence: conversation compaction Run store is unavailable")
 	}
-	return s.runs.ListRuns(ctx, sessionID)
+	return c.runs.ListRuns(ctx, sessionID)
 }
 
-func (s *ConversationCompactions) ApplyCompaction(ctx context.Context, plan conversations.CompactionPlan) error {
-	if s == nil || s.history == nil || s.runs == nil || s.tx == nil {
+func (c *ConversationCompactions) ApplyCompaction(ctx context.Context, plan conversations.CompactionPlan) error {
+	if c == nil || c.history == nil || c.runs == nil || c.tx == nil {
 		return errors.New("persistence: conversation compaction dependencies are unavailable")
 	}
 	if plan.SessionID == "" {
 		return errors.New("persistence: conversation compaction session ID is required")
 	}
-	return s.tx(ctx, func(ctx context.Context) error {
-		count, err := s.history.Count(ctx, plan.SessionID)
+	return c.tx(ctx, func(ctx context.Context) error {
+		count, err := c.history.Count(ctx, plan.SessionID)
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func (s *ConversationCompactions) ApplyCompaction(ctx context.Context, plan conv
 				plan.Compaction.ExpectedCount(), count,
 			)
 		}
-		current, err := s.runs.ListRuns(ctx, plan.SessionID)
+		current, err := c.runs.ListRuns(ctx, plan.SessionID)
 		if err != nil {
 			return err
 		}
@@ -80,14 +80,14 @@ func (s *ConversationCompactions) ApplyCompaction(ctx context.Context, plan conv
 				return fmt.Errorf("persistence: conversation compaction changes Run %q identity", planned.Expected.ID())
 			}
 		}
-		if err := s.history.Replace(ctx, plan.SessionID, plan.Compaction.Messages()...); err != nil {
+		if err := c.history.Replace(ctx, plan.SessionID, plan.Compaction.Messages()...); err != nil {
 			return err
 		}
 		for _, planned := range plan.Runs {
 			if planned.Expected.Equal(planned.Replacement) {
 				continue
 			}
-			if err := s.runs.RebaseMessageMark(ctx, planned.Expected, planned.Replacement); err != nil {
+			if err := c.runs.RebaseMessageMark(ctx, planned.Expected, planned.Replacement); err != nil {
 				return err
 			}
 		}

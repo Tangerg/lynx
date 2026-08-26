@@ -52,16 +52,16 @@ type runFlags struct {
 	files      []string
 }
 
-func (f *runFlags) register(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.output, "output-format", "text", "Output format: text, json, or streaming-json")
-	cmd.Flags().BoolVar(&f.asJSON, "json", false, "Shorthand for --output-format json")
-	cmd.Flags().BoolVar(&f.approveAll, "approve-all", false, "Approve every request the run makes")
-	cmd.Flags().StringVarP(&f.sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
-	cmd.Flags().StringArrayVarP(&f.files, "file", "f", nil, "Attach a local file (repeatable)")
+func (r *runFlags) register(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&r.output, "output-format", "text", "Output format: text, json, or streaming-json")
+	cmd.Flags().BoolVar(&r.asJSON, "json", false, "Shorthand for --output-format json")
+	cmd.Flags().BoolVar(&r.approveAll, "approve-all", false, "Approve every request the run makes")
+	cmd.Flags().StringVarP(&r.sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
+	cmd.Flags().StringArrayVarP(&r.files, "file", "f", nil, "Attach a local file (repeatable)")
 }
 
-func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimeProvider, v *viper.Viper) error {
-	format, err := f.selectedOutputFormat(cmd)
+func (r *runFlags) execute(cmd *cobra.Command, args []string, provider runtimeProvider, v *viper.Viper) error {
+	format, err := r.selectedOutputFormat(cmd)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	message, err := f.buildMessage(cmd, args, workspacePath)
+	message, err := r.buildMessage(cmd, args, workspacePath)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 		return err
 	}
 	runtime := services.Agent
-	opened, err := session.Open(cmd.Context(), runtime, f.sessionID, workspacePath)
+	opened, err := session.Open(cmd.Context(), runtime, r.sessionID, workspacePath)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 			Message:   message,
 			Options:   config.RunOptions(),
 		},
-		ApproveAll:        f.approveAll,
+		ApproveAll:        r.approveAll,
 		ReconnectAttempts: config.UI.ReconnectAttempts,
 		ReplayRetention:   runtimeReplayRetention(services.RuntimeProfile),
 	})
@@ -115,9 +115,9 @@ const (
 	outputStreamingJSON outputFormat = "streaming-json"
 )
 
-func (f *runFlags) selectedOutputFormat(cmd *cobra.Command) (outputFormat, error) {
-	selected := outputFormat(f.output)
-	if f.asJSON {
+func (r *runFlags) selectedOutputFormat(cmd *cobra.Command) (outputFormat, error) {
+	selected := outputFormat(r.output)
+	if r.asJSON {
 		if cmd.Flags().Changed("output-format") && selected != outputJSON {
 			return "", errors.New("--json conflicts with a non-JSON --output-format")
 		}
@@ -147,12 +147,12 @@ func completeOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]st
 	return matched, cobra.ShellCompDirectiveNoFileComp
 }
 
-func (f *runFlags) buildMessage(cmd *cobra.Command, args []string, workspace string) (agent.Message, error) {
+func (r *runFlags) buildMessage(cmd *cobra.Command, args []string, workspace string) (agent.Message, error) {
 	text, textErr := readPrompt(cmd, args)
-	if textErr != nil && (!errors.Is(textErr, errNoPrompt) || len(f.files) == 0) {
+	if textErr != nil && (!errors.Is(textErr, errNoPrompt) || len(r.files) == 0) {
 		return agent.Message{}, textErr
 	}
-	attached, err := resolveAttachments(cmd.Context(), workspace, f.files)
+	attached, err := resolveAttachments(cmd.Context(), workspace, r.files)
 	if err != nil {
 		return agent.Message{}, err
 	}

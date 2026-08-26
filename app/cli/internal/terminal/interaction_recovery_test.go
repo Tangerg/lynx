@@ -18,11 +18,11 @@ type invalidEventAfterInterruptRuntime struct {
 	release <-chan struct{}
 }
 
-func (runtime invalidEventAfterInterruptRuntime) StartRun(
+func (i invalidEventAfterInterruptRuntime) StartRun(
 	ctx context.Context,
 	command agent.StartRun,
 ) (agent.SegmentStream, error) {
-	stream, err := runtime.Runtime.StartRun(ctx, command)
+	stream, err := i.Runtime.StartRun(ctx, command)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
@@ -34,7 +34,7 @@ func (runtime invalidEventAfterInterruptRuntime) StartRun(
 			}
 		}
 		select {
-		case <-runtime.release:
+		case <-i.release:
 		case <-ctx.Done():
 			return
 		}

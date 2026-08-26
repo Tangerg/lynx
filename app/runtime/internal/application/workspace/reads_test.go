@@ -12,8 +12,8 @@ import (
 
 type staticAgentDocFinder struct{ files []AgentDocFile }
 
-func (f staticAgentDocFinder) Find(context.Context, string, string) ([]AgentDocFile, error) {
-	return f.files, nil
+func (s staticAgentDocFinder) Find(context.Context, string, string) ([]AgentDocFile, error) {
+	return s.files, nil
 }
 
 func TestWorkspacesFromSessions(t *testing.T) {

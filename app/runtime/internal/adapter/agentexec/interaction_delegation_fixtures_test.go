@@ -23,17 +23,17 @@ type notifyingRunningSubtreeCanceler struct {
 	accepted func()
 }
 
-func (canceler notifyingRunningSubtreeCanceler) CancelRunningSubtree(
+func (n notifyingRunningSubtreeCanceler) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	memberID string,
 	reason string,
 ) error {
-	if err := canceler.inner.CancelRunningSubtree(ctx, ref, memberID, reason); err != nil {
+	if err := n.inner.CancelRunningSubtree(ctx, ref, memberID, reason); err != nil {
 		return err
 	}
-	if canceler.accepted != nil {
-		canceler.accepted()
+	if n.accepted != nil {
+		n.accepted()
 	}
 	return nil
 }
@@ -59,25 +59,25 @@ func newCancelableDelegateModel() *cancelableDelegateModel {
 	}
 }
 
-func (model *cancelableDelegateModel) DefaultOptions() chat.Options { return *model.defaults }
+func (c *cancelableDelegateModel) DefaultOptions() chat.Options { return *c.defaults }
 
-func (model *cancelableDelegateModel) Call(
+func (c *cancelableDelegateModel) Call(
 	ctx context.Context,
 	request *chat.Request,
 ) (*chat.Response, error) {
 	switch {
 	case toolResult(request.Messages, "delegate_task") != "":
-		model.rootStartedOnce.Do(func() { close(model.rootContinuationStarted) })
+		c.rootStartedOnce.Do(func() { close(c.rootContinuationStarted) })
 		select {
-		case <-model.releaseRootContinuation:
+		case <-c.releaseRootContinuation:
 			return interactionUsageTextResponse("root completed after child cancellation", 2, 1), nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	case userMessagesContain(request.Messages, "child waits for cancellation"):
-		model.childStartedOnce.Do(func() { close(model.childCallStarted) })
+		c.childStartedOnce.Do(func() { close(c.childCallStarted) })
 		<-ctx.Done()
-		close(model.childCallReturned)
+		close(c.childCallReturned)
 		return nil, ctx.Err()
 	case userMessagesContain(request.Messages, "delegate cancelable work"):
 		return interactionToolResponse(chat.ToolCall{
@@ -89,11 +89,11 @@ func (model *cancelableDelegateModel) Call(
 	}
 }
 
-func (model *cancelableDelegateModel) Stream(
+func (c *cancelableDelegateModel) Stream(
 	ctx context.Context,
 	request *chat.Request,
 ) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+	response, err := c.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
@@ -107,15 +107,15 @@ func newWaitingDelegateModel() *waitingDelegateModel {
 	return &waitingDelegateModel{defaults: &chat.Options{Model: "stub-waiting-delegate"}}
 }
 
-func (model *waitingDelegateModel) DefaultOptions() chat.Options { return *model.defaults }
+func (w *waitingDelegateModel) DefaultOptions() chat.Options { return *w.defaults }
 
-func (model *waitingDelegateModel) Call(
+func (w *waitingDelegateModel) Call(
 	_ context.Context,
 	request *chat.Request,
 ) (*chat.Response, error) {
-	model.mu.Lock()
-	model.calls++
-	model.mu.Unlock()
+	w.mu.Lock()
+	w.calls++
+	w.mu.Unlock()
 	switch {
 	case toolResult(request.Messages, "ask") != "":
 		return interactionUsageTextResponse("child: restored value accepted", 2, 1), nil
@@ -133,18 +133,18 @@ func (model *waitingDelegateModel) Call(
 	}
 }
 
-func (model *waitingDelegateModel) Stream(
+func (w *waitingDelegateModel) Stream(
 	ctx context.Context,
 	request *chat.Request,
 ) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+	response, err := w.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
-func (model *waitingDelegateModel) Calls() int {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	return model.calls
+func (w *waitingDelegateModel) Calls() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.calls
 }
 
 type delegateConversation struct{}
@@ -155,29 +155,29 @@ func (delegateConversation) Read(context.Context, string) ([]chat.Message, error
 
 type delegateSessionStore struct{ value session.Session }
 
-func (store *delegateSessionStore) Get(_ context.Context, id string) (session.Session, error) {
-	if id != store.value.ID() {
+func (d *delegateSessionStore) Get(_ context.Context, id string) (session.Session, error) {
+	if id != d.value.ID() {
 		return session.Session{}, errors.New("session not found")
 	}
-	return store.value, nil
+	return d.value, nil
 }
 
-func (store *delegateSessionStore) Create(
+func (d *delegateSessionStore) Create(
 	context.Context,
 	string,
 	string,
 ) (session.Session, error) {
-	return store.value, nil
+	return d.value, nil
 }
 
-func (store *delegateSessionStore) PrepareScheduled(
+func (d *delegateSessionStore) PrepareScheduled(
 	context.Context,
 	string,
 	string,
 	string,
 	modelref.Selection,
 ) (session.Session, *session.Session, error) {
-	return store.value, nil, nil
+	return d.value, nil, nil
 }
 
 func (*delegateSessionStore) ActiveRun(
@@ -247,114 +247,114 @@ func newDelegateProjection() *delegateProjection {
 	}
 }
 
-func (projection *delegateProjection) CommitOpening(
+func (d *delegateProjection) CommitOpening(
 	_ context.Context,
 	opening runs.OpeningCommit,
 ) error {
 	if err := opening.Validate(); err != nil {
 		return err
 	}
-	projection.mu.Lock()
-	projection.applyOpening(opening)
-	projection.openings = append(projection.openings, opening)
-	projection.mu.Unlock()
+	d.mu.Lock()
+	d.applyOpening(opening)
+	d.openings = append(d.openings, opening)
+	d.mu.Unlock()
 	return nil
 }
 
-func (projection *delegateProjection) ReserveChildRunStart(
+func (d *delegateProjection) ReserveChildRunStart(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
 	if err := reservation.Validate(); err != nil {
 		return err
 	}
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	memberID := reservation.Member.MemberID
-	if existing, found := projection.reservations[memberID]; found && existing != reservation {
+	if existing, found := d.reservations[memberID]; found && existing != reservation {
 		return errors.New("child reservation conflict")
 	}
-	projection.reservations[memberID] = reservation
+	d.reservations[memberID] = reservation
 	return nil
 }
 
-func (projection *delegateProjection) CommitStartedChildRun(
+func (d *delegateProjection) CommitStartedChildRun(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 	opening runs.OpeningCommit,
 ) error {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	memberID := reservation.Member.MemberID
-	if projection.reservations[memberID] != reservation {
+	if d.reservations[memberID] != reservation {
 		return errors.New("started child has no reservation")
 	}
-	if prior := projection.outcomes[memberID]; prior.Valid() {
+	if prior := d.outcomes[memberID]; prior.Valid() {
 		if prior != runs.ChildRunStarted {
 			return errors.New("child outcome conflict")
 		}
 		return nil
 	}
-	projection.outcomes[memberID] = runs.ChildRunStarted
-	projection.applyOpening(opening)
-	projection.openings = append(projection.openings, opening)
+	d.outcomes[memberID] = runs.ChildRunStarted
+	d.applyOpening(opening)
+	d.openings = append(d.openings, opening)
 	return nil
 }
 
-func (projection *delegateProjection) AbortChildRunStart(
+func (d *delegateProjection) AbortChildRunStart(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	memberID := reservation.Member.MemberID
-	if projection.reservations[memberID] != reservation {
+	if d.reservations[memberID] != reservation {
 		return errors.New("aborted child has no reservation")
 	}
-	if prior := projection.outcomes[memberID]; prior.Valid() && prior != runs.ChildRunStartAborted {
+	if prior := d.outcomes[memberID]; prior.Valid() && prior != runs.ChildRunStartAborted {
 		return errors.New("child outcome conflict")
 	}
-	projection.outcomes[memberID] = runs.ChildRunStartAborted
+	d.outcomes[memberID] = runs.ChildRunStartAborted
 	return nil
 }
 
-func (projection *delegateProjection) CommitEvent(
+func (d *delegateProjection) CommitEvent(
 	_ context.Context,
 	commit runs.EventCommit,
 ) error {
 	if err := commit.Validate(); err != nil {
 		return err
 	}
-	projection.mu.Lock()
-	projection.applyCommit(commit)
-	projection.mu.Unlock()
+	d.mu.Lock()
+	d.applyCommit(commit)
+	d.mu.Unlock()
 	return nil
 }
 
-func (projection *delegateProjection) CommitTreeBarrier(
+func (d *delegateProjection) CommitTreeBarrier(
 	_ context.Context,
 	barrier runs.TreeBarrierCommit,
 ) error {
 	if err := barrier.Validate(); err != nil {
 		return err
 	}
-	projection.mu.Lock()
+	d.mu.Lock()
 	for _, commit := range barrier.Runs {
-		projection.applyCommit(commit)
+		d.applyCommit(commit)
 	}
-	projection.barriers = append(projection.barriers, barrier)
-	projection.mu.Unlock()
+	d.barriers = append(d.barriers, barrier)
+	d.mu.Unlock()
 	return nil
 }
 
-func (projection *delegateProjection) ReadWaitingCheckpoint(
+func (d *delegateProjection) ReadWaitingCheckpoint(
 	_ context.Context,
 	rootMemberID string,
 ) (runs.ExecutorCheckpoint, error) {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
-	for index := len(projection.barriers) - 1; index >= 0; index-- {
-		checkpoint := projection.barriers[index].Checkpoint
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for index := len(d.barriers) - 1; index >= 0; index-- {
+		checkpoint := d.barriers[index].Checkpoint
 		if checkpoint.RootMemberID == rootMemberID {
 			return checkpoint.Clone(), nil
 		}
@@ -366,29 +366,29 @@ func (*delegateProjection) Nudge(string, []string) {}
 
 func (*delegateProjection) Finish(context.Context, runs.Finish) error { return nil }
 
-func (projection *delegateProjection) Run(
+func (d *delegateProjection) Run(
 	_ context.Context,
 	runID string,
 ) (run.Run, bool, error) {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
-	value, found := projection.runs[runID]
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	value, found := d.runs[runID]
 	return value, found, nil
 }
 
-func (projection *delegateProjection) Tree(
+func (d *delegateProjection) Tree(
 	_ context.Context,
 	runID string,
 ) ([]run.Run, error) {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
-	target, found := projection.runs[runID]
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	target, found := d.runs[runID]
 	if !found {
 		return nil, nil
 	}
 	rootRunID := target.Lineage().TreeRootID(target.ID())
-	result := make([]run.Run, 0, len(projection.runs))
-	for _, candidate := range projection.runs {
+	result := make([]run.Run, 0, len(d.runs))
+	for _, candidate := range d.runs {
 		if candidate.Lineage().TreeRootID(candidate.ID()) == rootRunID {
 			result = append(result, candidate)
 		}
@@ -399,20 +399,20 @@ func (projection *delegateProjection) Tree(
 	return result, nil
 }
 
-func (projection *delegateProjection) Item(
+func (d *delegateProjection) Item(
 	_ context.Context,
 	itemID string,
 ) (transcript.Item, bool, error) {
-	projection.mu.Lock()
-	defer projection.mu.Unlock()
-	value, found := projection.items[itemID]
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	value, found := d.items[itemID]
 	return value, found, nil
 }
 
-func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
+func (d *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 	if opening.Admit != nil {
 		draft := opening.Admit
-		projection.runs[draft.RunID] = runfixture.MustRestore(run.Snapshot{ID: draft.RunID, SessionID: draft.SessionID,
+		d.runs[draft.RunID] = runfixture.MustRestore(run.Snapshot{ID: draft.RunID, SessionID: draft.SessionID,
 
 			State: run.Running, ActiveSegmentID: draft.SegmentID,
 			ModelSelection: draft.ModelSelection, GoalIncarnationID: draft.GoalIncarnationID,
@@ -423,20 +423,20 @@ func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 
 	}
 	for _, commit := range opening.Events {
-		projection.applyCommit(commit)
+		d.applyCommit(commit)
 	}
 }
 
-func (projection *delegateProjection) applyCommit(commit runs.EventCommit) {
+func (d *delegateProjection) applyCommit(commit runs.EventCommit) {
 	for _, item := range commit.Items {
-		projection.items[item.ID()] = item
+		d.items[item.ID()] = item
 	}
 	if commit.Run != nil {
-		projection.runs[commit.Run.ID()] = *commit.Run
+		d.runs[commit.Run.ID()] = *commit.Run
 		return
 	}
 	if commit.Progress != nil {
-		value, found := projection.runs[commit.RunID]
+		value, found := d.runs[commit.RunID]
 		if found {
 			advanced, err := value.AdvanceProgress(
 				commit.Progress.Metrics,
@@ -446,7 +446,7 @@ func (projection *delegateProjection) applyCommit(commit runs.EventCommit) {
 			if err != nil {
 				panic(err)
 			}
-			projection.runs[commit.RunID] = advanced
+			d.runs[commit.RunID] = advanced
 		}
 	}
 }

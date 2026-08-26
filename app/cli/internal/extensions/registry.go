@@ -28,7 +28,7 @@ const (
 )
 
 // Valid reports whether keying names one supported contribution cardinality.
-func (keying Keying) Valid() bool { return keying == Keyed || keying == Multi }
+func (k Keying) Valid() bool { return k == Keyed || k == Multi }
 
 // Capability names one permission a plugin may use. Capabilities are attached
 // to extension points, so policy is enforced at the operation rather than by
@@ -279,14 +279,14 @@ func (r *Registry) claim(plugin string) (Disposable, error) {
 	}}, nil
 }
 
-// Contribute adds a value to a point and makes its lifetime belong to scope.
-func (scope *Scope) Contribute[T any](point Point[T], value T, options Contribution) (Disposable, error) {
-	if scope == nil || scope.registry == nil {
+// Contribute adds a value to a point and makes its lifetime belong to s.
+func (s *Scope) Contribute[T any](point Point[T], value T, options Contribution) (Disposable, error) {
+	if s == nil || s.registry == nil {
 		return nil, errors.New("extensions: plugin scope is required")
 	}
-	scope.mu.Lock()
-	err := scope.validateContribution(point)
-	scope.mu.Unlock()
+	s.mu.Lock()
+	err := s.validateContribution(point)
+	s.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -296,25 +296,25 @@ func (scope *Scope) Contribute[T any](point Point[T], value T, options Contribut
 	if err != nil {
 		return nil, err
 	}
-	scope.mu.Lock()
-	defer scope.mu.Unlock()
-	if err := scope.validateContribution(point); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.validateContribution(point); err != nil {
 		return nil, err
 	}
-	key, sequence, err := scope.registry.insertContribution(scope.plugin, point, key, value, options.Order)
+	key, sequence, err := s.registry.insertContribution(s.plugin, point, key, value, options.Order)
 	if err != nil {
 		return nil, err
 	}
 	d := &disposal{do: func() error {
-		scope.registry.removeContribution(point.id, key, sequence)
+		s.registry.removeContribution(point.id, key, sequence)
 		return nil
 	}}
-	scope.disposables = append(scope.disposables, d)
+	s.disposables = append(s.disposables, d)
 	return d, nil
 }
 
-func (scope *Scope) validateContribution[T any](point Point[T]) error {
-	if !scope.open {
+func (s *Scope) validateContribution[T any](point Point[T]) error {
+	if !s.open {
 		return errScopeClosed
 	}
 	if strings.TrimSpace(point.id) == "" {
@@ -323,44 +323,44 @@ func (scope *Scope) validateContribution[T any](point Point[T]) error {
 	if !point.keying.Valid() {
 		return fmt.Errorf("extensions: point %q has invalid keying %q", point.id, point.keying)
 	}
-	if point.capability == "" || scope.capabilities == nil {
+	if point.capability == "" || s.capabilities == nil {
 		return nil
 	}
-	if _, allowed := scope.capabilities[point.capability]; !allowed {
-		return fmt.Errorf("extensions: plugin %q needs capability %q to contribute to point %q", scope.plugin, point.capability, point.id)
+	if _, allowed := s.capabilities[point.capability]; !allowed {
+		return fmt.Errorf("extensions: plugin %q needs capability %q to contribute to point %q", s.plugin, point.capability, point.id)
 	}
 	return nil
 }
 
-func (point Point[T]) contributionKey(value T, configured string) (string, error) {
+func (p Point[T]) contributionKey(value T, configured string) (string, error) {
 	key := strings.TrimSpace(configured)
-	if point.keying == Keyed && key == "" && point.keyOf != nil {
-		key = strings.TrimSpace(point.keyOf(value))
+	if p.keying == Keyed && key == "" && p.keyOf != nil {
+		key = strings.TrimSpace(p.keyOf(value))
 	}
-	if point.keying == Keyed && key == "" {
-		return "", fmt.Errorf("extensions: keyed point %q requires a stable key", point.id)
+	if p.keying == Keyed && key == "" {
+		return "", fmt.Errorf("extensions: keyed point %q requires a stable key", p.id)
 	}
 	return key, nil
 }
 
-func (registry *Registry) insertContribution[T any](
+func (r *Registry) insertContribution[T any](
 	plugin string,
 	point Point[T],
 	key string,
 	value T,
 	order int,
 ) (string, uint64, error) {
-	registry.mu.Lock()
-	defer registry.mu.Unlock()
-	if registry.points == nil {
-		registry.points = make(map[string]pointState)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.points == nil {
+		r.points = make(map[string]pointState)
 	}
-	state, err := registry.pointStateFor(point)
+	state, err := r.pointStateFor(point)
 	if err != nil {
 		return "", 0, err
 	}
-	registry.next++
-	sequence := registry.next
+	r.next++
+	sequence := r.next
 	if point.keying == Multi {
 		key = fmt.Sprintf("%s:%d", plugin, sequence)
 	}
@@ -369,13 +369,13 @@ func (registry *Registry) insertContribution[T any](
 			plugin, key, point.id, previous.plugin)
 	}
 	state.entries[key] = entry{plugin: plugin, order: order, seq: sequence, value: value}
-	registry.points[point.id] = state
+	r.points[point.id] = state
 	return key, sequence, nil
 }
 
-func (registry *Registry) pointStateFor[T any](point Point[T]) (pointState, error) {
+func (r *Registry) pointStateFor[T any](point Point[T]) (pointState, error) {
 	wantType := reflect.TypeFor[T]()
-	state, exists := registry.points[point.id]
+	state, exists := r.points[point.id]
 	if exists && (state.typeOf != wantType || state.keying != point.keying) {
 		return pointState{}, fmt.Errorf("extensions: point %q was defined with an incompatible type or keying", point.id)
 	}
@@ -409,21 +409,21 @@ type OwnedValue[T any] struct {
 
 // OwnedValues returns a typed, stable snapshot ordered by Contribution.Order
 // and then by registration order.
-func (registry *Registry) OwnedValues[T any](point Point[T]) []OwnedValue[T] {
-	if registry == nil {
+func (r *Registry) OwnedValues[T any](point Point[T]) []OwnedValue[T] {
+	if r == nil {
 		return nil
 	}
-	registry.mu.RLock()
-	state, ok := registry.points[point.id]
+	r.mu.RLock()
+	state, ok := r.points[point.id]
 	if !ok || state.typeOf != reflect.TypeFor[T]() || state.keying != point.keying {
-		registry.mu.RUnlock()
+		r.mu.RUnlock()
 		return nil
 	}
 	entries := make([]entry, 0, len(state.entries))
 	for _, item := range state.entries {
 		entries = append(entries, item)
 	}
-	registry.mu.RUnlock()
+	r.mu.RUnlock()
 
 	slices.SortStableFunc(entries, func(a, b entry) int {
 		if order := cmp.Compare(a.order, b.order); order != 0 {
@@ -439,8 +439,8 @@ func (registry *Registry) OwnedValues[T any](point Point[T]) []OwnedValue[T] {
 }
 
 // Values is OwnedValues with ownership metadata intentionally projected away.
-func (registry *Registry) Values[T any](point Point[T]) []T {
-	owned := registry.OwnedValues(point)
+func (r *Registry) Values[T any](point Point[T]) []T {
+	owned := r.OwnedValues(point)
 	out := make([]T, 0, len(owned))
 	for _, item := range owned {
 		out = append(out, item.Value)

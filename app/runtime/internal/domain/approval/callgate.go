@@ -57,9 +57,9 @@ const (
 	DenialRememberedRule DenialCause = "rememberedRule"
 )
 
-// Valid reports whether cause belongs to the denial taxonomy.
-func (cause DenialCause) Valid() bool {
-	return cause == DenialNone || cause == DenialHook || cause == DenialPlanMode || cause == DenialRememberedRule
+// Valid reports whether d belongs to the denial taxonomy.
+func (d DenialCause) Valid() bool {
+	return d == DenialNone || d == DenialHook || d == DenialPlanMode || d == DenialRememberedRule
 }
 
 // PromptCause is the policy fact an approval surface explains to a user.
@@ -77,35 +77,35 @@ const (
 	PromptCauseCatastrophicCommand PromptCause = "catastrophicCommand"
 )
 
-// Valid reports whether cause belongs to the approval prompt taxonomy.
-func (cause PromptCause) Valid() bool {
-	return cause == PromptCauseNone || cause == PromptCauseNonMutating || cause == PromptCauseWorkspaceWrite ||
-		cause == PromptCauseWorkspaceCommand || cause == PromptCauseNetworkAccess || cause == PromptCauseUnknownSafety ||
-		cause == PromptCauseOutsideWorkspace || cause == PromptCauseUnknownMutation || cause == PromptCauseCatastrophicCommand
+// Valid reports whether p belongs to the approval prompt taxonomy.
+func (p PromptCause) Valid() bool {
+	return p == PromptCauseNone || p == PromptCauseNonMutating || p == PromptCauseWorkspaceWrite ||
+		p == PromptCauseWorkspaceCommand || p == PromptCauseNetworkAccess || p == PromptCauseUnknownSafety ||
+		p == PromptCauseOutsideWorkspace || p == PromptCauseUnknownMutation || p == PromptCauseCatastrophicCommand
 }
 
 // Plan applies hook and approval-mode policy to one tool call. It does not
 // read remembered rules and it does not trigger HITL; callers only do those
 // side effects when the returned plan asks for [GatePrompt].
-func (in ToolCallInput) Plan() ToolCallPlan {
-	arguments := in.Arguments
+func (t ToolCallInput) Plan() ToolCallPlan {
+	arguments := t.Arguments
 	override := ""
-	if in.Hook.RewriteArguments != "" {
-		arguments = in.Hook.RewriteArguments
-		override = in.Hook.RewriteArguments
+	if t.Hook.RewriteArguments != "" {
+		arguments = t.Hook.RewriteArguments
+		override = t.Hook.RewriteArguments
 	}
 	plan := ToolCallPlan{
 		Action:           GatePass,
 		Arguments:        arguments,
 		ArgumentOverride: override,
-		SafetyClass:      in.SafetyClass,
+		SafetyClass:      t.SafetyClass,
 	}
-	if in.Hook.Block {
+	if t.Hook.Block {
 		plan.Action = GateDeny
-		plan.Denial = Denial{Cause: DenialHook, Detail: in.Hook.Reason}
+		plan.Denial = Denial{Cause: DenialHook, Detail: t.Hook.Reason}
 		return plan
 	}
-	action := GateFor(in.SafetyClass, in.Mode)
+	action := GateFor(t.SafetyClass, t.Mode)
 	// Bypass-immune escalation: a call dangerous enough (a mutation escaping the
 	// workspace, or a high-confidence catastrophic shell command) is confirmed
 	// even under a mode that would auto-pass it (Yolo, or Balanced for
@@ -113,8 +113,8 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	// same seam a PreToolUse hook's Ask uses to force a prompt, but
 	// tool/argument-driven and built in. A remembered approval still lets a repeat
 	// call through.
-	immunity := tool.BypassImmunityFor(in.FileMutation, in.ShellCommand)
-	if action == GatePass && (in.Hook.Ask || immunity != tool.BypassAllowed) {
+	immunity := tool.BypassImmunityFor(t.FileMutation, t.ShellCommand)
+	if action == GatePass && (t.Hook.Ask || immunity != tool.BypassAllowed) {
 		action = GatePrompt
 	}
 	plan.Action = action
@@ -122,8 +122,8 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	case GateDeny:
 		plan.Denial = Denial{Cause: DenialPlanMode}
 	case GatePrompt:
-		plan.Risk = in.SafetyClass.Risk()
-		plan.PromptCause = promptCauseForSafetyClass(in.SafetyClass)
+		plan.Risk = t.SafetyClass.Risk()
+		plan.PromptCause = promptCauseForSafetyClass(t.SafetyClass)
 		if immunity != tool.BypassAllowed {
 			plan.Risk = tool.RiskHigh
 			plan.PromptCause = promptCauseForBypassImmunity(immunity)
@@ -135,23 +135,23 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 // ResolvePromptShortcuts applies non-HITL prompt short-circuits: remembered
 // rules first, then an explicit auto-approve grant. It is a no-op unless the
 // plan is [GatePrompt].
-func (p ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoApproved bool) ToolCallPlan {
-	if p.Action != GatePrompt {
-		return p
+func (t ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoApproved bool) ToolCallPlan {
+	if t.Action != GatePrompt {
+		return t
 	}
 	if standing.Matched {
 		if standing.Decision == Deny {
-			p.Action = GateDeny
-			p.Denial = Denial{Cause: DenialRememberedRule}
-			return p
+			t.Action = GateDeny
+			t.Denial = Denial{Cause: DenialRememberedRule}
+			return t
 		}
-		p.Action = GatePass
-		return p
+		t.Action = GatePass
+		return t
 	}
 	if autoApproved {
-		p.Action = GatePass
+		t.Action = GatePass
 	}
-	return p
+	return t
 }
 
 // DecisionOf maps an approve/deny boolean to the approval domain's verdict.

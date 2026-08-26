@@ -66,8 +66,8 @@ type defaultModeState struct {
 
 // DefaultMode returns the runtime fallback used by sessions without an explicit
 // mode row.
-func (p *RuntimePolicy) DefaultMode(_ context.Context) (approval.Mode, error) {
-	state := p.mode.Load()
+func (r *RuntimePolicy) DefaultMode(_ context.Context) (approval.Mode, error) {
+	state := r.mode.Load()
 	if state == nil || !state.mode.ValidDefault() {
 		return "", fmt.Errorf("%w: invalid stored default", approval.ErrInvalidMode)
 	}
@@ -76,26 +76,26 @@ func (p *RuntimePolicy) DefaultMode(_ context.Context) (approval.Mode, error) {
 
 // SetDefaultMode changes the runtime fallback. Plan mode is session-only and is
 // therefore rejected here.
-func (p *RuntimePolicy) SetDefaultMode(_ context.Context, mode approval.Mode) error {
+func (r *RuntimePolicy) SetDefaultMode(_ context.Context, mode approval.Mode) error {
 	if !mode.ValidDefault() {
 		return fmt.Errorf("%w: %q", approval.ErrInvalidMode, mode)
 	}
-	p.mode.Store(&defaultModeState{mode: mode})
-	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
+	r.mode.Store(&defaultModeState{mode: mode})
+	r.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
 	return nil
 }
 
 // Mode returns the effective mode for sessionID. An empty id reads the runtime
 // default; a session with no explicit row also inherits that default.
-func (p *RuntimePolicy) Mode(ctx context.Context, sessionID string) (approval.Mode, error) {
-	fallback, err := p.DefaultMode(ctx)
+func (r *RuntimePolicy) Mode(ctx context.Context, sessionID string) (approval.Mode, error) {
+	fallback, err := r.DefaultMode(ctx)
 	if err != nil {
 		return "", err
 	}
-	if sessionID == "" || p.modeStore == nil {
+	if sessionID == "" || r.modeStore == nil {
 		return fallback, nil
 	}
-	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
+	state, found, err := r.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
@@ -110,17 +110,17 @@ func (p *RuntimePolicy) Mode(ctx context.Context, sessionID string) (approval.Mo
 
 // EnterPlanMode narrows one session to read-only and records the permission mode
 // it must regain on exit. It returns changed=false when already active.
-func (p *RuntimePolicy) EnterPlanMode(ctx context.Context, sessionID string) (changed bool, err error) {
+func (r *RuntimePolicy) EnterPlanMode(ctx context.Context, sessionID string) (changed bool, err error) {
 	if sessionID == "" {
 		return false, fmt.Errorf("%w: session id is required", approval.ErrInvalidSessionMode)
 	}
-	if p.modeStore == nil {
+	if r.modeStore == nil {
 		return false, ErrModeStoreUnavailable
 	}
-	p.modeMu.Lock()
-	defer p.modeMu.Unlock()
+	r.modeMu.Lock()
+	defer r.modeMu.Unlock()
 
-	mode, err := p.Mode(ctx, sessionID)
+	mode, err := r.Mode(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
@@ -128,7 +128,7 @@ func (p *RuntimePolicy) EnterPlanMode(ctx context.Context, sessionID string) (ch
 		return false, nil
 	}
 	state := approval.SessionMode{Mode: approval.ModePlan, RestoreMode: mode}
-	if err := p.modeStore.PutMode(ctx, sessionID, state); err != nil {
+	if err := r.modeStore.PutMode(ctx, sessionID, state); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -136,39 +136,39 @@ func (p *RuntimePolicy) EnterPlanMode(ctx context.Context, sessionID string) (ch
 
 // ExitPlanMode restores the exact mode captured by EnterPlanMode. It returns
 // changed=false when the session is not in Plan mode.
-func (p *RuntimePolicy) ExitPlanMode(ctx context.Context, sessionID string) (restored approval.Mode, changed bool, err error) {
+func (r *RuntimePolicy) ExitPlanMode(ctx context.Context, sessionID string) (restored approval.Mode, changed bool, err error) {
 	if sessionID == "" {
 		return "", false, fmt.Errorf("%w: session id is required", approval.ErrInvalidSessionMode)
 	}
-	if p.modeStore == nil {
+	if r.modeStore == nil {
 		return "", false, ErrModeStoreUnavailable
 	}
-	p.modeMu.Lock()
-	defer p.modeMu.Unlock()
+	r.modeMu.Lock()
+	defer r.modeMu.Unlock()
 
-	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
+	state, found, err := r.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
 		return "", false, err
 	}
 	if !found || state.Mode != approval.ModePlan {
-		mode, modeErr := p.Mode(ctx, sessionID)
+		mode, modeErr := r.Mode(ctx, sessionID)
 		return mode, false, modeErr
 	}
 	if err := state.Validate(); err != nil {
 		return "", false, err
 	}
 	restored = state.RestoreMode
-	if err := p.modeStore.PutMode(ctx, sessionID, approval.SessionMode{Mode: restored}); err != nil {
+	if err := r.modeStore.PutMode(ctx, sessionID, approval.SessionMode{Mode: restored}); err != nil {
 		return "", false, err
 	}
 	return restored, true, nil
 }
 
-func (p *RuntimePolicy) Decide(ctx context.Context, q approval.Query) (approval.Decision, bool, error) {
-	if p.store == nil {
+func (r *RuntimePolicy) Decide(ctx context.Context, q approval.Query) (approval.Decision, bool, error) {
+	if r.store == nil {
 		return approval.Decide(nil, q)
 	}
-	candidates, err := p.store.Visible(ctx, q.SessionID, q.ProjectDir)
+	candidates, err := r.store.Visible(ctx, q.SessionID, q.ProjectDir)
 	if err != nil {
 		return "", false, err
 	}
@@ -179,26 +179,26 @@ func (p *RuntimePolicy) Decide(ctx context.Context, q approval.Query) (approval.
 	return d, ok, nil
 }
 
-func (p *RuntimePolicy) Remember(ctx context.Context, req approval.RememberRequest) error {
+func (r *RuntimePolicy) Remember(ctx context.Context, req approval.RememberRequest) error {
 	rule, err := req.Rule()
 	if err != nil {
 		return err
 	}
-	if p.store == nil {
+	if r.store == nil {
 		return ErrRuleStoreUnavailable
 	}
-	if err := p.store.Put(ctx, rule); err != nil {
+	if err := r.store.Put(ctx, rule); err != nil {
 		return err
 	}
-	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
+	r.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
 	return nil
 }
 
-func (p *RuntimePolicy) Rules(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
-	if p.store == nil {
+func (r *RuntimePolicy) Rules(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
+	if r.store == nil {
 		return nil, nil
 	}
-	rules, err := p.store.Visible(ctx, sessionID, projectDir)
+	rules, err := r.store.Visible(ctx, sessionID, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -210,16 +210,16 @@ func (p *RuntimePolicy) Rules(ctx context.Context, sessionID, projectDir string)
 	return rules, nil
 }
 
-func (p *RuntimePolicy) Forget(ctx context.Context, id string) error {
+func (r *RuntimePolicy) Forget(ctx context.Context, id string) error {
 	if id == "" {
 		return fmt.Errorf("%w: id is required", approval.ErrInvalidRule)
 	}
-	if p.store == nil {
+	if r.store == nil {
 		return ErrRuleStoreUnavailable
 	}
-	if err := p.store.Delete(ctx, id); err != nil {
+	if err := r.store.Delete(ctx, id); err != nil {
 		return err
 	}
-	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
+	r.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
 	return nil
 }

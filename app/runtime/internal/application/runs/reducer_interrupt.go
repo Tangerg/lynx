@@ -398,18 +398,18 @@ func questionFromPrompt(prompt QuestionPrompt) transcript.Question {
 
 type openTools map[string]*openTool
 
-func (tools openTools) add(tool *openTool) {
-	tools[tool.callID] = tool
+func (o openTools) add(tool *openTool) {
+	o[tool.callID] = tool
 }
 
-func (tools openTools) drain() []*openTool {
-	ordered := tools.ordered()
-	clear(tools)
+func (o openTools) drain() []*openTool {
+	ordered := o.ordered()
+	clear(o)
 	return ordered
 }
 
-func (tools openTools) ordered() []*openTool {
-	ordered := slices.Collect(maps.Values(tools))
+func (o openTools) ordered() []*openTool {
+	ordered := slices.Collect(maps.Values(o))
 	slices.SortFunc(ordered, func(a, b *openTool) int {
 		aAttributed := a.modelCallSequence > 0
 		bAttributed := b.modelCallSequence > 0

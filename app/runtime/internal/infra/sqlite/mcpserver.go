@@ -30,8 +30,8 @@ func NewMCPServerStore(db *sql.DB) *MCPServerStore {
 const mcpColumns = `name, transport, enabled, description, url, authorization, headers,
 	        command, args, env, dir, timeout, disabled_tools, auto_approve_tools`
 
-func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+func (m *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
+	rows, err := conn(ctx, m.db).QueryContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list mcp servers: %w", err)
@@ -52,8 +52,8 @@ func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
 	return out, nil
 }
 
-func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
-	row := conn(ctx, s.db).QueryRowContext(ctx,
+func (m *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
+	row := conn(ctx, m.db).QueryRowContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers WHERE name = ?`, name)
 	srv, err := scanMCPServer(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -65,11 +65,11 @@ func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server
 	return srv, true, nil
 }
 
-func (s *MCPServerStore) Save(ctx context.Context, srv mcpserver.Server) error {
+func (m *MCPServerStore) Save(ctx context.Context, srv mcpserver.Server) error {
 	if err := srv.Validate(); err != nil {
 		return fmt.Errorf("sqlite: validate mcp server: %w", err)
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, m.db).ExecContext(ctx,
 		`INSERT INTO mcp_servers
 		   (name, transport, enabled, description, url, authorization, headers,
 		    command, args, env, dir, timeout, disabled_tools, auto_approve_tools)
@@ -92,8 +92,8 @@ func (s *MCPServerStore) Save(ctx context.Context, srv mcpserver.Server) error {
 	return nil
 }
 
-func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
+func (m *MCPServerStore) Remove(ctx context.Context, name string) error {
+	if _, err := conn(ctx, m.db).ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
 		return fmt.Errorf("sqlite: remove mcp server: %w", err)
 	}
 	return nil
@@ -102,9 +102,9 @@ func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
 // LoadOAuthSession returns the opaque MCP-owned credential payload only when
 // both the server name and normalized origin match. A stale credential can
 // never be restored for a different origin.
-func (s *MCPServerStore) LoadOAuthSession(ctx context.Context, server, origin string) ([]byte, bool, error) {
+func (m *MCPServerStore) LoadOAuthSession(ctx context.Context, server, origin string) ([]byte, bool, error) {
 	var payload []byte
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, m.db).QueryRowContext(ctx,
 		`SELECT payload FROM mcp_oauth_sessions WHERE server_name = ? AND origin = ?`,
 		server, origin).Scan(&payload)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -116,13 +116,13 @@ func (s *MCPServerStore) LoadOAuthSession(ctx context.Context, server, origin st
 	return payload, true, nil
 }
 
-// SaveOAuthSession atomically replaces one server's origin-bound OAuth
+// SaveOAuthSession atomically replaces one server'm origin-bound OAuth
 // session. The foreign key rejects credentials for an unconfigured server.
-func (s *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin string, payload []byte) error {
+func (m *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin string, payload []byte) error {
 	if server == "" || origin == "" || len(payload) == 0 {
 		return errors.New("sqlite: mcp oauth session requires server, origin, and payload")
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, m.db).ExecContext(ctx,
 		`INSERT INTO mcp_oauth_sessions (server_name, origin, payload)
 		 VALUES (?, ?, ?)
 		 ON CONFLICT(server_name) DO UPDATE SET
@@ -134,10 +134,10 @@ func (s *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin st
 	return nil
 }
 
-// RemoveOAuthSession invalidates a server's persisted OAuth credentials. It is
+// RemoveOAuthSession invalidates a server'm persisted OAuth credentials. It is
 // idempotent so a rejected token and a concurrent server removal converge.
-func (s *MCPServerStore) RemoveOAuthSession(ctx context.Context, server string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+func (m *MCPServerStore) RemoveOAuthSession(ctx context.Context, server string) error {
+	if _, err := conn(ctx, m.db).ExecContext(ctx,
 		`DELETE FROM mcp_oauth_sessions WHERE server_name = ?`, server); err != nil {
 		return fmt.Errorf("sqlite: remove mcp oauth session: %w", err)
 	}

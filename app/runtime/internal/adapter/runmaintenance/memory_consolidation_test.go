@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -29,15 +29,15 @@ type scriptedModel struct {
 	requests []*chat.Request
 }
 
-func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.requests = append(m.requests, request)
-	if len(m.replies) == 0 {
+func (s *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, request)
+	if len(s.replies) == 0 {
 		return nil, errors.New("scripted model exhausted")
 	}
-	reply := m.replies[0]
-	m.replies = m.replies[1:]
+	reply := s.replies[0]
+	s.replies = s.replies[1:]
 	if reply.err != nil {
 		return nil, reply.err
 	}

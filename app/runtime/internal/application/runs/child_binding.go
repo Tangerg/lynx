@@ -17,21 +17,21 @@ type ChildRunBinding struct {
 
 // Validate rejects incomplete or ambiguous child identity before it reaches a
 // lifecycle observer.
-func (binding ChildRunBinding) Validate() error {
+func (c ChildRunBinding) Validate() error {
 	switch {
-	case binding.MemberID == "":
+	case c.MemberID == "":
 		return errors.New("runs: child Run binding has no executor member id")
-	case strings.TrimSpace(binding.MemberID) != binding.MemberID:
-		return fmt.Errorf("runs: child Run binding member id %q has surrounding whitespace", binding.MemberID)
-	case binding.RunID == "":
+	case strings.TrimSpace(c.MemberID) != c.MemberID:
+		return fmt.Errorf("runs: child Run binding member id %q has surrounding whitespace", c.MemberID)
+	case c.RunID == "":
 		return errors.New("runs: child Run binding has no Run id")
-	case strings.TrimSpace(binding.RunID) != binding.RunID:
-		return fmt.Errorf("runs: child Run binding Run id %q has surrounding whitespace", binding.RunID)
-	case binding.ParentRunID == "":
+	case strings.TrimSpace(c.RunID) != c.RunID:
+		return fmt.Errorf("runs: child Run binding Run id %q has surrounding whitespace", c.RunID)
+	case c.ParentRunID == "":
 		return errors.New("runs: child Run binding has no parent Run id")
-	case strings.TrimSpace(binding.ParentRunID) != binding.ParentRunID:
-		return fmt.Errorf("runs: child Run binding parent Run id %q has surrounding whitespace", binding.ParentRunID)
-	case binding.RunID == binding.ParentRunID:
+	case strings.TrimSpace(c.ParentRunID) != c.ParentRunID:
+		return fmt.Errorf("runs: child Run binding parent Run id %q has surrounding whitespace", c.ParentRunID)
+	case c.RunID == c.ParentRunID:
 		return errors.New("runs: child Run binding refers to itself as parent")
 	default:
 		return nil

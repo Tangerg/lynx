@@ -40,40 +40,40 @@ func newUserMessageBlockAs(theme kit.Theme, speaker, body string, own bool) *use
 	}
 }
 
-func (m *userMessageBlock) Measure(width int) int {
-	if m == nil {
+func (u *userMessageBlock) Measure(width int) int {
+	if u == nil {
 		return 0
 	}
-	innerWidth, _ := m.geometry(width)
-	return m.message.Measure(innerWidth)
+	innerWidth, _ := u.geometry(width)
+	return u.message.Measure(innerWidth)
 }
 
-func (m *userMessageBlock) Draw(view grid.View) {
-	if m == nil {
+func (u *userMessageBlock) Draw(view grid.View) {
+	if u == nil {
 		return
 	}
 	width, _ := view.Size()
-	if _, inset := m.geometry(width); inset == 0 {
-		m.message.Draw(view)
+	if _, inset := u.geometry(width); inset == 0 {
+		u.message.Draw(view)
 		return
 	}
-	m.message.Draw(m.box.Draw(view))
+	u.message.Draw(u.box.Draw(view))
 }
 
-func (m *userMessageBlock) Rows(width int) []text.Row {
-	if m == nil {
+func (u *userMessageBlock) Rows(width int) []text.Row {
+	if u == nil {
 		return nil
 	}
-	innerWidth, inset := m.geometry(width)
-	rows := m.message.Rows(innerWidth)
+	innerWidth, inset := u.geometry(width)
+	rows := u.message.Rows(innerWidth)
 	for index := range rows {
 		rows[index].Offset += inset
 	}
 	return rows
 }
 
-func (m *userMessageBlock) geometry(width int) (innerWidth, inset int) {
-	overhead := m.box.Overhead().X
+func (u *userMessageBlock) geometry(width int) (innerWidth, inset int) {
+	overhead := u.box.Overhead().X
 	if width <= overhead {
 		return max(width, 1), 0
 	}

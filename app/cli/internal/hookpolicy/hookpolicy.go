@@ -24,12 +24,12 @@ const (
 	Notification     Event = "Notification"
 )
 
-func (event Event) Validate() error {
-	switch event {
+func (e Event) Validate() error {
+	switch e {
 	case PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, SubagentStart, SubagentStop, PreCompact, Stop, Notification:
 		return nil
 	default:
-		return fmt.Errorf("hook event %q is invalid", event)
+		return fmt.Errorf("hook event %q is invalid", e)
 	}
 }
 
@@ -40,9 +40,9 @@ const (
 	Project Scope = "project"
 )
 
-func (scope Scope) Validate() error {
-	if scope != Global && scope != Project {
-		return fmt.Errorf("hook scope %q is invalid", scope)
+func (s Scope) Validate() error {
+	if s != Global && s != Project {
+		return fmt.Errorf("hook scope %q is invalid", s)
 	}
 	return nil
 }
@@ -58,30 +58,30 @@ type Hook struct {
 	Active        bool
 }
 
-func (hook Hook) Validate() error {
-	if err := hook.Event.Validate(); err != nil {
+func (h Hook) Validate() error {
+	if err := h.Event.Validate(); err != nil {
 		return err
 	}
-	if err := hook.Scope.Validate(); err != nil {
+	if err := h.Scope.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(hook.Source) == "" {
+	if strings.TrimSpace(h.Source) == "" {
 		return errors.New("hook source is empty")
 	}
-	hasCommand := strings.TrimSpace(hook.Command) != ""
-	hasInject := strings.TrimSpace(hook.Inject) != ""
+	hasCommand := strings.TrimSpace(h.Command) != ""
+	hasInject := strings.TrimSpace(h.Inject) != ""
 	if hasCommand == hasInject {
 		return errors.New("hook requires exactly one of command or inject")
 	}
-	if hook.TimeoutMillis < 0 || (hasInject && hook.TimeoutMillis != 0) {
+	if h.TimeoutMillis < 0 || (hasInject && h.TimeoutMillis != 0) {
 		return errors.New("hook timeout is invalid")
 	}
-	if hook.Matcher != "" {
-		if hook.Event != PreToolUse && hook.Event != PostToolUse {
+	if h.Matcher != "" {
+		if h.Event != PreToolUse && h.Event != PostToolUse {
 			return errors.New("hook matcher is only valid for tool events")
 		}
-		if _, err := path.Match(hook.Matcher, ""); err != nil {
-			return fmt.Errorf("hook matcher %q is invalid: %w", hook.Matcher, err)
+		if _, err := path.Match(h.Matcher, ""); err != nil {
+			return fmt.Errorf("hook matcher %q is invalid: %w", h.Matcher, err)
 		}
 	}
 	return nil
@@ -93,9 +93,9 @@ type Catalog struct {
 	Hooks          []Hook
 }
 
-func (catalog Catalog) Validate() error {
+func (c Catalog) Validate() error {
 	projectHooks := false
-	for index, hook := range catalog.Hooks {
+	for index, hook := range c.Hooks {
 		if err := hook.Validate(); err != nil {
 			return fmt.Errorf("hook %d: %w", index+1, err)
 		}
@@ -104,12 +104,12 @@ func (catalog Catalog) Validate() error {
 		}
 		if hook.Scope == Project {
 			projectHooks = true
-			if hook.Active != catalog.ProjectTrusted {
+			if hook.Active != c.ProjectTrusted {
 				return fmt.Errorf("project hook %d active state disagrees with trust", index+1)
 			}
 		}
 	}
-	if (projectHooks || catalog.ProjectTrusted) && strings.TrimSpace(catalog.ProjectRoot) == "" {
+	if (projectHooks || c.ProjectTrusted) && strings.TrimSpace(c.ProjectRoot) == "" {
 		return errors.New("project hooks or trust require a project root")
 	}
 	return nil
@@ -117,15 +117,15 @@ func (catalog Catalog) Validate() error {
 
 // ValidateTrustAcknowledgement proves that an authoritative catalog read after
 // SetProjectTrust describes the exact project and trust decision requested.
-func (catalog Catalog) ValidateTrustAcknowledgement(projectRoot string, trusted bool) error {
-	if err := catalog.Validate(); err != nil {
+func (c Catalog) ValidateTrustAcknowledgement(projectRoot string, trusted bool) error {
+	if err := c.Validate(); err != nil {
 		return err
 	}
-	if catalog.ProjectRoot != projectRoot {
-		return fmt.Errorf("project hook root is %q, want %q", catalog.ProjectRoot, projectRoot)
+	if c.ProjectRoot != projectRoot {
+		return fmt.Errorf("project hook root is %q, want %q", c.ProjectRoot, projectRoot)
 	}
-	if catalog.ProjectTrusted != trusted {
-		return fmt.Errorf("project hook trust is %t, want %t", catalog.ProjectTrusted, trusted)
+	if c.ProjectTrusted != trusted {
+		return fmt.Errorf("project hook trust is %t, want %t", c.ProjectTrusted, trusted)
 	}
 	return nil
 }

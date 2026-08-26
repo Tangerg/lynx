@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
-func (session *interactionSession) initializeRestoredContinuation(
+func (i *interactionSession) initializeRestoredContinuation(
 	root *agent.Process,
 	continuation runs.WaitingContinuation,
 	checkpoint interactionCheckpointState,
@@ -40,24 +40,24 @@ func (session *interactionSession) initializeRestoredContinuation(
 	if err != nil {
 		return fmt.Errorf("%w: restore Interaction accounting: %w", runs.ErrExecutorStateLost, err)
 	}
-	delegateCalls, delegateChildren, err := session.restoreDelegateCalls(snapshots, members)
+	delegateCalls, delegateChildren, err := i.restoreDelegateCalls(snapshots, members)
 	if err != nil {
 		return fmt.Errorf("%w: restore Delegate bindings: %w", runs.ErrExecutorStateLost, err)
 	}
-	session.accounting.restore(usageByProcess, carriedUsage)
-	session.state.mu.Lock()
-	defer session.state.mu.Unlock()
-	if session.state.begun || session.state.finished || session.state.process != nil {
+	i.accounting.restore(usageByProcess, carriedUsage)
+	i.state.mu.Lock()
+	defer i.state.mu.Unlock()
+	if i.state.begun || i.state.finished || i.state.process != nil {
 		return runs.ErrExecutionClaimed
 	}
-	session.state.process = root
-	session.state.admittedProcessID = root.ID()
-	session.state.begun = true
-	session.state.boundary = boundary
-	session.state.waitingCheckpoint = continuation.Checkpoint.Clone()
-	session.state.delegateCalls = delegateCalls
-	session.state.delegateChildren = delegateChildren
-	session.state.pendingSteers = checkpoint.pendingSteers
+	i.state.process = root
+	i.state.admittedProcessID = root.ID()
+	i.state.begun = true
+	i.state.boundary = boundary
+	i.state.waitingCheckpoint = continuation.Checkpoint.Clone()
+	i.state.delegateCalls = delegateCalls
+	i.state.delegateChildren = delegateChildren
+	i.state.pendingSteers = checkpoint.pendingSteers
 	return nil
 }
 
@@ -109,13 +109,13 @@ func restoredWaitingMembers(
 	return members, nil
 }
 
-func (session *interactionSession) restoreDelegateCalls(
+func (i *interactionSession) restoreDelegateCalls(
 	snapshots map[agent.ProcessID]agent.Snapshot,
 	members map[agent.ProcessID]runs.WaitingMember,
 ) (map[delegateCallIdentity]*managedDelegateCall, map[agent.ProcessID]*managedDelegateCall, error) {
-	session.state.mu.Lock()
-	deployments := session.state.deployments
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	deployments := i.state.deployments
+	i.state.mu.Unlock()
 	if deployments == nil {
 		return nil, nil, errors.New("agentexec: Interaction deployments are unavailable")
 	}

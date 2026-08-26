@@ -38,29 +38,29 @@ type pickerPointerGesture struct {
 	dragged bool
 }
 
-func (gesture *pickerPointerGesture) begin(index int) {
-	*gesture = pickerPointerGesture{index: index, active: true}
+func (p *pickerPointerGesture) begin(index int) {
+	*p = pickerPointerGesture{index: index, active: true}
 }
 
-func (gesture *pickerPointerGesture) drag() bool {
-	if !gesture.active {
+func (p *pickerPointerGesture) drag() bool {
+	if !p.active {
 		return false
 	}
-	gesture.dragged = true
+	p.dragged = true
 	return true
 }
 
-func (gesture *pickerPointerGesture) release(index int) (pressed int, commit bool) {
-	if !gesture.active {
+func (p *pickerPointerGesture) release(index int) (pressed int, commit bool) {
+	if !p.active {
 		return -1, false
 	}
-	pressed = gesture.index
-	commit = !gesture.dragged && index == pressed
-	gesture.cancel()
+	pressed = p.index
+	commit = !p.dragged && index == pressed
+	p.cancel()
 	return pressed, commit
 }
 
-func (gesture *pickerPointerGesture) cancel() { *gesture = pickerPointerGesture{} }
+func (p *pickerPointerGesture) cancel() { *p = pickerPointerGesture{} }
 
 func newPicker[T any](theme kit.Theme, glyphs kit.Glyphs, placeholder string, label, detail func(T) string, pick func(T)) *picker[T] {
 	p := &picker[T]{theme: theme, glyphs: glyphs, label: label, detail: detail, pick: pick}

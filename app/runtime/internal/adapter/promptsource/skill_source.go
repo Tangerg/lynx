@@ -28,8 +28,8 @@ func newRuntimeSkillSource(root string) sdk.ResourceSource {
 	return &runtimeSkillSource{root: root, resources: sdk.Dir(root)}
 }
 
-func (s *runtimeSkillSource) List(ctx context.Context) ([]sdk.Summary, error) {
-	entries, err := s.directoryEntries(ctx)
+func (r *runtimeSkillSource) List(ctx context.Context) ([]sdk.Summary, error) {
+	entries, err := r.directoryEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (s *runtimeSkillSource) List(ctx context.Context) ([]sdk.Summary, error) {
 			return nil, fmt.Errorf(
 				"%w: source %q contains more than %d Skills",
 				domainskills.ErrLibraryCapacity,
-				s.root,
+				r.root,
 				domainskills.MaxSkillsPerSource,
 			)
 		}
@@ -55,7 +55,7 @@ func (s *runtimeSkillSource) List(ctx context.Context) ([]sdk.Summary, error) {
 		if err := skillSourceContextError(ctx, "list"); err != nil {
 			return nil, err
 		}
-		skill, err := s.Load(ctx, name)
+		skill, err := r.Load(ctx, name)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, sdk.ErrInvalidSkill) {
 				continue
@@ -67,16 +67,16 @@ func (s *runtimeSkillSource) List(ctx context.Context) ([]sdk.Summary, error) {
 	return summaries, nil
 }
 
-func (s *runtimeSkillSource) Load(ctx context.Context, name string) (*sdk.Skill, error) {
+func (r *runtimeSkillSource) Load(ctx context.Context, name string) (*sdk.Skill, error) {
 	if !validRuntimeSkillName(name) {
 		return nil, fmt.Errorf("%w %q: invalid name", sdk.ErrInvalidSkill, name)
 	}
 	if err := skillSourceContextError(ctx, "load"); err != nil {
 		return nil, err
 	}
-	root, err := os.OpenRoot(s.root)
+	root, err := os.OpenRoot(r.root)
 	if err != nil {
-		return nil, fmt.Errorf("runtime skill source: open %q: %w", s.root, err)
+		return nil, fmt.Errorf("runtime skill source: open %q: %w", r.root, err)
 	}
 	defer func() { _ = root.Close() }()
 	file, err := root.Open(filepath.Join(name, sdk.SkillFile))
@@ -134,8 +134,8 @@ func (s *runtimeSkillSource) Load(ctx context.Context, name string) (*sdk.Skill,
 	return skill, nil
 }
 
-func (s *runtimeSkillSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
-	file, err := s.resources.OpenResource(ctx, name, resource)
+func (r *runtimeSkillSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	file, err := r.resources.OpenResource(ctx, name, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -168,16 +168,16 @@ func (s *runtimeSkillSource) OpenResource(ctx context.Context, name, resource st
 	return &boundedSkillResource{File: file, ctx: ctx, name: name, resource: resource}, nil
 }
 
-func (s *runtimeSkillSource) directoryEntries(ctx context.Context) ([]fs.DirEntry, error) {
+func (r *runtimeSkillSource) directoryEntries(ctx context.Context) ([]fs.DirEntry, error) {
 	if err := skillSourceContextError(ctx, "list"); err != nil {
 		return nil, err
 	}
-	root, err := os.OpenRoot(s.root)
+	root, err := os.OpenRoot(r.root)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("runtime skill source: open %q: %w", s.root, err)
+		return nil, fmt.Errorf("runtime skill source: open %q: %w", r.root, err)
 	}
 	directory, err := root.Open(".")
 	if err != nil {
@@ -189,13 +189,13 @@ func (s *runtimeSkillSource) directoryEntries(ctx context.Context) ([]fs.DirEntr
 	}
 	closeErr := errors.Join(directory.Close(), root.Close())
 	if readErr != nil || closeErr != nil {
-		return nil, fmt.Errorf("runtime skill source: list %q: %w", s.root, errors.Join(readErr, closeErr))
+		return nil, fmt.Errorf("runtime skill source: list %q: %w", r.root, errors.Join(readErr, closeErr))
 	}
 	if len(entries) > domainskills.MaxSkillDirectoryEntries {
 		return nil, fmt.Errorf(
 			"%w: source %q contains more than %d directory entries",
 			domainskills.ErrLibraryCapacity,
-			s.root,
+			r.root,
 			domainskills.MaxSkillDirectoryEntries,
 		)
 	}
@@ -221,12 +221,12 @@ type skillSourceContextReader struct {
 	reader io.Reader
 }
 
-func (r skillSourceContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(r.ctx); cause != nil {
+func (s skillSourceContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(s.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := r.reader.Read(buffer)
-	if cause := context.Cause(r.ctx); cause != nil {
+	read, err := s.reader.Read(buffer)
+	if cause := context.Cause(s.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err
@@ -240,38 +240,38 @@ type boundedSkillResource struct {
 	read     int64
 }
 
-func (f *boundedSkillResource) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(f.ctx); cause != nil {
+func (b *boundedSkillResource) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(b.ctx); cause != nil {
 		return 0, cause
 	}
-	remaining := int64(domainskills.MaxSkillResourceBytes) - f.read
+	remaining := int64(domainskills.MaxSkillResourceBytes) - b.read
 	if remaining < 0 {
-		return 0, f.tooLarge()
+		return 0, b.tooLarge()
 	}
 	limit := int64(len(buffer))
 	if limit > remaining+1 {
 		limit = remaining + 1
 	}
-	read, err := f.File.Read(buffer[:limit])
-	if cause := context.Cause(f.ctx); cause != nil {
-		f.read += int64(read)
+	read, err := b.File.Read(buffer[:limit])
+	if cause := context.Cause(b.ctx); cause != nil {
+		b.read += int64(read)
 		return read, cause
 	}
 	if int64(read) <= remaining {
-		f.read += int64(read)
+		b.read += int64(read)
 		return read, err
 	}
 	allowed := int(remaining)
-	f.read += int64(read)
-	return allowed, f.tooLarge()
+	b.read += int64(read)
+	return allowed, b.tooLarge()
 }
 
-func (f *boundedSkillResource) tooLarge() error {
+func (b *boundedSkillResource) tooLarge() error {
 	return fmt.Errorf(
 		"%w: resource %q/%q exceeds %d bytes",
 		domainskills.ErrResourceTooLarge,
-		f.name,
-		f.resource,
+		b.name,
+		b.resource,
 		domainskills.MaxSkillResourceBytes,
 	)
 }

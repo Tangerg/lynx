@@ -30,11 +30,11 @@ type imageTransportStub struct {
 }
 
 func (*imageTransportStub) Protocol() graphics.Protocol { return graphics.Kitty }
-func (stub *imageTransportStub) CellSize() (image.Point, bool) {
-	return stub.cell, stub.cell.X > 0 && stub.cell.Y > 0
+func (i *imageTransportStub) CellSize() (image.Point, bool) {
+	return i.cell, i.cell.X > 0 && i.cell.Y > 0
 }
-func (stub *imageTransportStub) Transmit([]byte) (graphics.Image, error) {
-	stub.transmitted++
+func (i *imageTransportStub) Transmit([]byte) (graphics.Image, error) {
+	i.transmitted++
 	return graphics.Image{ID: 1, Width: 200, Height: 100}, nil
 }
 

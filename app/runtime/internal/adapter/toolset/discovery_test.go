@@ -15,22 +15,22 @@ type mcpTool struct {
 	name, desc, server, remote, result string
 }
 
-func (t mcpTool) Definition() chat.ToolDefinition {
+func (m mcpTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
-		Name:        t.name,
-		Description: t.desc,
+		Name:        m.name,
+		Description: m.desc,
 		InputSchema: json.RawMessage(`{"type":"object"}`),
 	}
 }
 
-func (t mcpTool) Call(context.Context, string) (string, error) {
-	if t.result == "" {
+func (m mcpTool) Call(context.Context, string) (string, error) {
+	if m.result == "" {
 		return "ok", nil
 	}
-	return t.result, nil
+	return m.result, nil
 }
 
-func (t mcpTool) MCPToolIdentity() (string, string) { return t.server, t.remote }
+func (m mcpTool) MCPToolIdentity() (string, string) { return m.server, m.remote }
 
 func catalog() []toolcontract.Tool {
 	return []toolcontract.Tool{

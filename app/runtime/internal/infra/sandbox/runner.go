@@ -12,21 +12,21 @@ type limitedBuffer struct {
 	dropped int
 }
 
-func (b *limitedBuffer) Write(data []byte) (int, error) {
-	available := maxCommandOutputBytes - b.buffer.Len()
+func (l *limitedBuffer) Write(data []byte) (int, error) {
+	available := maxCommandOutputBytes - l.buffer.Len()
 	if available > 0 {
-		_, _ = b.buffer.Write(data[:min(available, len(data))])
+		_, _ = l.buffer.Write(data[:min(available, len(data))])
 	}
 	if len(data) > available {
-		b.dropped += len(data) - max(available, 0)
+		l.dropped += len(data) - max(available, 0)
 	}
 	return len(data), nil
 }
 
-func (b *limitedBuffer) BytesWithMarker() []byte {
-	out := bytes.Clone(b.buffer.Bytes())
-	if b.dropped == 0 {
+func (l *limitedBuffer) BytesWithMarker() []byte {
+	out := bytes.Clone(l.buffer.Bytes())
+	if l.dropped == 0 {
 		return out
 	}
-	return fmt.Appendf(out, "\n... [%d bytes truncated] ...\n", b.dropped)
+	return fmt.Appendf(out, "\n... [%d bytes truncated] ...\n", l.dropped)
 }

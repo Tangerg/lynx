@@ -33,8 +33,8 @@ func ParseFormat(value string) (Format, error) {
 	}
 }
 
-func (format Format) Extension() string {
-	switch format {
+func (f Format) Extension() string {
+	switch f {
 	case Markdown:
 		return ".md"
 	case JSON:
@@ -44,9 +44,9 @@ func (format Format) Extension() string {
 	}
 }
 
-func (format Format) Validate() error {
-	if format != Markdown && format != JSON {
-		return fmt.Errorf("session document format %q is invalid", format)
+func (f Format) Validate() error {
+	if f != Markdown && f != JSON {
+		return fmt.Errorf("session document format %q is invalid", f)
 	}
 	return nil
 }
@@ -75,16 +75,16 @@ func NewDocument(format Format, body []byte) (Document, error) {
 	return Document{format: format, body: slices.Clone(body)}, nil
 }
 
-func (document Document) Format() Format { return document.format }
-func (document Document) Bytes() []byte  { return slices.Clone(document.body) }
+func (d Document) Format() Format { return d.format }
+func (d Document) Bytes() []byte  { return slices.Clone(d.body) }
 
-func (document Document) Validate() error {
-	_, err := NewDocument(document.format, document.body)
+func (d Document) Validate() error {
+	_, err := NewDocument(d.format, d.body)
 	return err
 }
 
-func (document Document) Importable() bool {
-	return document.format == JSON && document.Validate() == nil
+func (d Document) Importable() bool {
+	return d.format == JSON && d.Validate() == nil
 }
 
 type ExportRequest struct {
@@ -92,11 +92,11 @@ type ExportRequest struct {
 	Format    Format
 }
 
-func (request ExportRequest) Validate() error {
-	if strings.TrimSpace(request.SessionID) == "" {
+func (e ExportRequest) Validate() error {
+	if strings.TrimSpace(e.SessionID) == "" {
 		return errors.New("export session: session id is empty")
 	}
-	if err := request.Format.Validate(); err != nil {
+	if err := e.Format.Validate(); err != nil {
 		return fmt.Errorf("export session: %w", err)
 	}
 	return nil
@@ -104,11 +104,11 @@ func (request ExportRequest) Validate() error {
 
 type ImportRequest struct{ Artifact Document }
 
-func (request ImportRequest) Validate() error {
-	if err := request.Artifact.Validate(); err != nil {
+func (i ImportRequest) Validate() error {
+	if err := i.Artifact.Validate(); err != nil {
 		return fmt.Errorf("import session: %w", err)
 	}
-	if !request.Artifact.Importable() {
+	if !i.Artifact.Importable() {
 		return errors.New("import session: only JSON session artifacts are importable")
 	}
 	return nil

@@ -22,8 +22,8 @@ import (
 // for the rest, which is what an imported run looks like.
 type recordedBoundaries map[string][]plan.Step
 
-func (b recordedBoundaries) Boundary(_ context.Context, runID string) ([]plan.Step, bool, error) {
-	items, recorded := b[runID]
+func (r recordedBoundaries) Boundary(_ context.Context, runID string) ([]plan.Step, bool, error) {
+	items, recorded := r[runID]
 	return items, recorded, nil
 }
 

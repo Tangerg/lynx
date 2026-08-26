@@ -41,30 +41,30 @@ type managedDelegateCall struct {
 	segmentProjected   bool
 }
 
-func (session *interactionSession) installDeployments(deployments *interactionDeploymentSet) error {
+func (i *interactionSession) installDeployments(deployments *interactionDeploymentSet) error {
 	if deployments == nil || !deployments.root.Valid() {
 		return errors.New("agentexec: install invalid Interaction deployments")
 	}
-	session.state.mu.Lock()
-	session.state.deployments = deployments
-	session.deployment = deployments.root
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	i.state.deployments = deployments
+	i.deployment = deployments.root
+	i.state.mu.Unlock()
 	return nil
 }
 
 // registerDelegateCalls records only model calls whose exact Deployment has a
 // managed Delegate binding. Invalid delegate arguments never reach admission
 // and are therefore intentionally absent from this lifecycle correlation.
-func (session *interactionSession) registerDelegateCalls(
+func (i *interactionSession) registerDelegateCalls(
 	invocation interaction.ModelInvocation,
 	message *corechat.Message,
 ) error {
 	if !invocation.Valid() || message == nil {
 		return errors.New("agentexec: cannot register unattributed Delegate calls")
 	}
-	session.state.mu.Lock()
-	deployments := session.state.deployments
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	deployments := i.state.deployments
+	i.state.mu.Unlock()
 	if deployments == nil {
 		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
@@ -101,16 +101,16 @@ func (session *interactionSession) registerDelegateCalls(
 				invocation.Relation(), invocation.ModelCallSequence(), toolCallIndex, call,
 			),
 		}
-		session.state.mu.Lock()
-		if prior := session.state.delegateCalls[identity]; prior != nil {
-			session.state.mu.Unlock()
+		i.state.mu.Lock()
+		if prior := i.state.delegateCalls[identity]; prior != nil {
+			i.state.mu.Unlock()
 			return fmt.Errorf(
 				"agentexec: Delegate child %q was registered more than once for parent %s",
 				childKey, invocation.Relation().ProcessID(),
 			)
 		}
-		session.state.delegateCalls[identity] = managedCall
-		session.state.mu.Unlock()
+		i.state.delegateCalls[identity] = managedCall
+		i.state.mu.Unlock()
 		toolCallIndex++
 	}
 	return nil
@@ -139,16 +139,16 @@ func decodeDelegateCall(call corechat.ToolCall) (delegateInput, tool.Arguments, 
 	return input, arguments, nil
 }
 
-func (session *interactionSession) executorMember(
+func (i *interactionSession) executorMember(
 	relation agent.ProcessRelation,
 ) runs.ExecutorMember {
 	member := basicExecutorMember(relation)
 	if relation.IsRoot() {
 		return member
 	}
-	session.state.mu.Lock()
-	managed := session.state.delegateChildren[relation.ProcessID()]
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	managed := i.state.delegateChildren[relation.ProcessID()]
+	i.state.mu.Unlock()
 	if managed == nil {
 		return member
 	}
@@ -158,16 +158,16 @@ func (session *interactionSession) executorMember(
 	return member
 }
 
-func (session *interactionSession) executorMemberByProcessID(
+func (i *interactionSession) executorMemberByProcessID(
 	processID agent.ProcessID,
 ) (runs.ExecutorMember, bool) {
 	if !processID.Valid() {
 		return runs.ExecutorMember{}, false
 	}
-	session.state.mu.Lock()
-	root := session.state.process
-	managed := session.state.delegateChildren[processID]
-	session.state.mu.Unlock()
+	i.state.mu.Lock()
+	root := i.state.process
+	managed := i.state.delegateChildren[processID]
+	i.state.mu.Unlock()
 	if root != nil && root.ID() == processID {
 		return basicExecutorMember(root.Relation()), true
 	}

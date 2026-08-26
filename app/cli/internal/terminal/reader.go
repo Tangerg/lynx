@@ -41,15 +41,15 @@ type readerSelectionGesture struct {
 	active bool
 }
 
-func (gesture *readerSelectionGesture) begin() { gesture.active = true }
+func (r *readerSelectionGesture) begin() { r.active = true }
 
-func (gesture *readerSelectionGesture) release() bool {
-	owned := gesture.active
-	gesture.cancel()
+func (r *readerSelectionGesture) release() bool {
+	owned := r.active
+	r.cancel()
 	return owned
 }
 
-func (gesture *readerSelectionGesture) cancel() { gesture.active = false }
+func (r *readerSelectionGesture) cancel() { r.active = false }
 
 // readerPane owns one modal reading session: full semantic content, search,
 // selection, scrolling, and an optional live tool subscription.
@@ -342,46 +342,46 @@ func newReaderSectionBlock(theme kit.Theme, title string, content headless.Block
 	return &readerSectionBlock{theme: theme, title: strings.TrimSpace(title), content: content}
 }
 
-func (b *readerSectionBlock) Measure(width int) int {
-	if b == nil || b.content == nil {
+func (r *readerSectionBlock) Measure(width int) int {
+	if r == nil || r.content == nil {
 		return 0
 	}
-	return layout.Sum(b.headingRows(), b.content.Measure(width), 1)
+	return layout.Sum(r.headingRows(), r.content.Measure(width), 1)
 }
 
-func (b *readerSectionBlock) Draw(view grid.View) {
-	if b == nil || b.content == nil {
+func (r *readerSectionBlock) Draw(view grid.View) {
+	if r == nil || r.content == nil {
 		return
 	}
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
 		return
 	}
-	y := b.headingRows()
+	y := r.headingRows()
 	if y > 0 {
-		view.Text(0, 0, b.title, b.theme.Strong)
+		view.Text(0, 0, r.title, r.theme.Strong)
 	}
-	b.content.Draw(view.Sub(grid.Rect(0, y, width, max(height-y-1, 0))))
+	r.content.Draw(view.Sub(grid.Rect(0, y, width, max(height-y-1, 0))))
 }
 
-func (b *readerSectionBlock) Rows(width int) []text.Row {
-	if b == nil || b.content == nil {
+func (r *readerSectionBlock) Rows(width int) []text.Row {
+	if r == nil || r.content == nil {
 		return nil
 	}
-	rows := make([]text.Row, 0, b.Measure(width))
-	if b.title != "" {
-		rows = append(rows, text.Row{Text: b.title})
+	rows := make([]text.Row, 0, r.Measure(width))
+	if r.title != "" {
+		rows = append(rows, text.Row{Text: r.title})
 	}
-	if copyable, ok := b.content.(headless.Copyable); ok {
+	if copyable, ok := r.content.(headless.Copyable); ok {
 		rows = append(rows, copyable.Rows(width)...)
 	} else {
-		rows = append(rows, make([]text.Row, b.content.Measure(width))...)
+		rows = append(rows, make([]text.Row, r.content.Measure(width))...)
 	}
 	return append(rows, text.Row{})
 }
 
-func (b *readerSectionBlock) headingRows() int {
-	if b.title == "" {
+func (r *readerSectionBlock) headingRows() int {
+	if r.title == "" {
 		return 0
 	}
 	return 1

@@ -38,29 +38,29 @@ func newToolGroupBlock(theme kit.Theme, glyphs kit.Glyphs, expanded bool) *toolG
 	return &toolGroupBlock{theme: theme, glyphs: glyphs, expanded: expanded, open: true}
 }
 
-func (g *toolGroupBlock) Add(tool *toolBlock) {
-	if g == nil || tool == nil {
+func (t *toolGroupBlock) Add(tool *toolBlock) {
+	if t == nil || tool == nil {
 		return
 	}
-	g.tools = append(g.tools, tool)
-	tool.SetExpanded(g.expanded)
-	tool.Observe(func(readerDocument) { g.notify() })
-	g.notify()
+	t.tools = append(t.tools, tool)
+	tool.SetExpanded(t.expanded)
+	tool.Observe(func(readerDocument) { t.notify() })
+	t.notify()
 }
 
-func (g *toolGroupBlock) Seal() {
-	if g == nil || !g.open {
+func (t *toolGroupBlock) Seal() {
+	if t == nil || !t.open {
 		return
 	}
-	g.open = false
-	g.notify()
+	t.open = false
+	t.notify()
 }
 
-func (g *toolGroupBlock) ReadyToFinish() bool {
-	if g == nil || g.open || len(g.tools) == 0 {
+func (t *toolGroupBlock) ReadyToFinish() bool {
+	if t == nil || t.open || len(t.tools) == 0 {
 		return false
 	}
-	for _, tool := range g.tools {
+	for _, tool := range t.tools {
 		if tool.call.Status == agent.ToolRunning {
 			return false
 		}
@@ -68,18 +68,18 @@ func (g *toolGroupBlock) ReadyToFinish() bool {
 	return true
 }
 
-func (g *toolGroupBlock) SetExpanded(expanded bool) {
-	if g == nil {
+func (t *toolGroupBlock) SetExpanded(expanded bool) {
+	if t == nil {
 		return
 	}
-	g.expanded = expanded && g.Expandable()
-	for _, tool := range g.tools {
-		tool.SetExpanded(g.expanded)
+	t.expanded = expanded && t.Expandable()
+	for _, tool := range t.tools {
+		tool.SetExpanded(t.expanded)
 	}
 }
 
-func (g *toolGroupBlock) Expandable() bool {
-	for _, tool := range g.tools {
+func (t *toolGroupBlock) Expandable() bool {
+	for _, tool := range t.tools {
 		if tool.Expandable() {
 			return true
 		}
@@ -87,49 +87,49 @@ func (g *toolGroupBlock) Expandable() bool {
 	return false
 }
 
-func (g *toolGroupBlock) Expanded() bool { return g != nil && g.expanded && g.Expandable() }
+func (t *toolGroupBlock) Expanded() bool { return t != nil && t.expanded && t.Expandable() }
 
-func (g *toolGroupBlock) ToggleExpanded() bool {
-	if !g.Expandable() {
-		g.SetExpanded(false)
+func (t *toolGroupBlock) ToggleExpanded() bool {
+	if !t.Expandable() {
+		t.SetExpanded(false)
 		return false
 	}
-	g.SetExpanded(!g.Expanded())
-	return g.Expanded()
+	t.SetExpanded(!t.Expanded())
+	return t.Expanded()
 }
 
-func (g *toolGroupBlock) Measure(width int) int {
-	if len(g.tools) == 1 {
-		return g.tools[0].Measure(width)
+func (t *toolGroupBlock) Measure(width int) int {
+	if len(t.tools) == 1 {
+		return t.tools[0].Measure(width)
 	}
 	rows := 1
-	if g.Expanded() {
-		for _, tool := range g.tools {
+	if t.Expanded() {
+		for _, tool := range t.tools {
 			rows = layout.Sum(rows, tool.Measure(max(width-toolContentInset, 1)))
 		}
 	}
 	return layout.Sum(rows, 1)
 }
 
-func (g *toolGroupBlock) Draw(view grid.View) {
-	if len(g.tools) == 0 {
+func (t *toolGroupBlock) Draw(view grid.View) {
+	if len(t.tools) == 0 {
 		return
 	}
-	if len(g.tools) == 1 {
-		g.tools[0].Draw(view)
+	if len(t.tools) == 1 {
+		t.tools[0].Draw(view)
 		return
 	}
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
 		return
 	}
-	toggle, label, status, statusStyle := g.header()
-	for row := range min(g.Measure(width)-1, height) {
-		view.Text(0, row, g.glyphs.Vertical, statusStyle)
+	toggle, label, status, statusStyle := t.header()
+	for row := range min(t.Measure(width)-1, height) {
+		view.Text(0, row, t.glyphs.Vertical, statusStyle)
 	}
-	toggleStyle := g.theme.Muted
-	if g.Expanded() {
-		toggleStyle = g.theme.Accent
+	toggleStyle := t.theme.Muted
+	if t.Expanded() {
+		toggleStyle = t.theme.Accent
 	}
 	view.Text(toolContentInset, 0, toggle, toggleStyle)
 	labelX := toolContentInset + text.Width(toggle) + 1
@@ -140,13 +140,13 @@ func (g *toolGroupBlock) Draw(view grid.View) {
 		labelLimit = width - statusWidth - 1
 	}
 	if labelLimit > labelX {
-		view.Text(labelX, 0, text.Truncate(label, labelLimit-labelX, g.glyphs.Ellipsis), g.theme.Text)
+		view.Text(labelX, 0, text.Truncate(label, labelLimit-labelX, t.glyphs.Ellipsis), t.theme.Text)
 	}
-	if !g.Expanded() {
+	if !t.Expanded() {
 		return
 	}
 	y, childWidth := 1, max(width-toolContentInset, 1)
-	for _, tool := range g.tools {
+	for _, tool := range t.tools {
 		rows := tool.Measure(childWidth)
 		if y >= height {
 			return
@@ -156,18 +156,18 @@ func (g *toolGroupBlock) Draw(view grid.View) {
 	}
 }
 
-func (g *toolGroupBlock) Rows(width int) []text.Row {
-	if len(g.tools) == 0 {
+func (t *toolGroupBlock) Rows(width int) []text.Row {
+	if len(t.tools) == 0 {
 		return nil
 	}
-	if len(g.tools) == 1 {
-		return g.tools[0].Rows(width)
+	if len(t.tools) == 1 {
+		return t.tools[0].Rows(width)
 	}
-	toggle, label, status, _ := g.header()
+	toggle, label, status, _ := t.header()
 	rows := []text.Row{{Text: strings.TrimSpace(toggle + " " + label + " " + status)}}
-	if g.Expanded() {
+	if t.Expanded() {
 		childWidth := max(width-toolContentInset, 1)
-		for _, tool := range g.tools {
+		for _, tool := range t.tools {
 			copied := tool.Rows(childWidth)
 			for index := range copied {
 				copied[index].Offset += toolContentInset
@@ -178,17 +178,17 @@ func (g *toolGroupBlock) Rows(width int) []text.Row {
 	return append(rows, text.Row{})
 }
 
-func (g *toolGroupBlock) header() (toggle, label, status string, style grid.Style) {
-	toggle = g.glyphs.Bullet
-	if g.Expandable() {
-		toggle = g.glyphs.Collapsed
+func (t *toolGroupBlock) header() (toggle, label, status string, style grid.Style) {
+	toggle = t.glyphs.Bullet
+	if t.Expandable() {
+		toggle = t.glyphs.Collapsed
 	}
-	if g.Expanded() {
-		toggle = g.glyphs.Expanded
+	if t.Expanded() {
+		toggle = t.glyphs.Expanded
 	}
-	label = fmt.Sprintf("%d resource operations", len(g.tools))
+	label = fmt.Sprintf("%d resource operations", len(t.tools))
 	running, failed, canceled := 0, 0, 0
-	for _, tool := range g.tools {
+	for _, tool := range t.tools {
 		switch tool.call.Status {
 		case agent.ToolRunning:
 			running++
@@ -198,27 +198,27 @@ func (g *toolGroupBlock) header() (toggle, label, status string, style grid.Styl
 			canceled++
 		}
 	}
-	style = g.theme.Success
+	style = t.theme.Success
 	switch {
 	case failed > 0:
-		status, style = countedNoun(failed, "error"), g.theme.Danger
+		status, style = countedNoun(failed, "error"), t.theme.Danger
 	case running > 0:
-		status, style = fmt.Sprintf("%d running", running), g.theme.Info
+		status, style = fmt.Sprintf("%d running", running), t.theme.Info
 	case canceled > 0:
-		status, style = fmt.Sprintf("%d canceled", canceled), g.theme.Warning
+		status, style = fmt.Sprintf("%d canceled", canceled), t.theme.Warning
 	default:
-		status = fmt.Sprintf("%d done", len(g.tools))
+		status = fmt.Sprintf("%d done", len(t.tools))
 	}
 	return toggle, label, status, style
 }
 
-func (g *toolGroupBlock) readerDocument() readerDocument {
-	if len(g.tools) == 1 {
-		return g.tools[0].readerDocument()
+func (t *toolGroupBlock) readerDocument() readerDocument {
+	if len(t.tools) == 1 {
+		return t.tools[0].readerDocument()
 	}
-	_, title, detail, _ := g.header()
+	_, title, detail, _ := t.header()
 	document := readerDocument{Title: title, Detail: detail}
-	for index, tool := range g.tools {
+	for index, tool := range t.tools {
 		child := tool.readerDocument()
 		prefix := fmt.Sprintf("%d. %s", index+1, child.Title)
 		document.Sections = append(document.Sections, ToolSection{
@@ -232,26 +232,26 @@ func (g *toolGroupBlock) readerDocument() readerDocument {
 	return document
 }
 
-func (g *toolGroupBlock) Observe(observer func(readerDocument)) func() {
-	if g == nil || observer == nil {
+func (t *toolGroupBlock) Observe(observer func(readerDocument)) func() {
+	if t == nil || observer == nil {
 		return func() {}
 	}
-	if g.observers == nil {
-		g.observers = make(map[uint64]func(readerDocument))
+	if t.observers == nil {
+		t.observers = make(map[uint64]func(readerDocument))
 	}
-	g.nextObserver++
-	id := g.nextObserver
-	g.observers[id] = observer
-	observer(g.readerDocument())
-	return func() { delete(g.observers, id) }
+	t.nextObserver++
+	id := t.nextObserver
+	t.observers[id] = observer
+	observer(t.readerDocument())
+	return func() { delete(t.observers, id) }
 }
 
-func (g *toolGroupBlock) notify() {
-	if g == nil {
+func (t *toolGroupBlock) notify() {
+	if t == nil {
 		return
 	}
-	document := g.readerDocument()
-	for _, observer := range g.observers {
+	document := t.readerDocument()
+	for _, observer := range t.observers {
 		observer(document)
 	}
 }

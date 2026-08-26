@@ -17,12 +17,12 @@ type runCatalogBindingStub struct {
 	list func(context.Context, protocol.ListRunsRequest, embedded.CallOptions) (*protocol.Page[protocol.RunRef], error)
 }
 
-func (stub runCatalogBindingStub) GetRun(ctx context.Context, request protocol.GetRunRequest, options embedded.CallOptions) (*protocol.RunRef, error) {
-	return stub.get(ctx, request, options)
+func (r runCatalogBindingStub) GetRun(ctx context.Context, request protocol.GetRunRequest, options embedded.CallOptions) (*protocol.RunRef, error) {
+	return r.get(ctx, request, options)
 }
 
-func (stub runCatalogBindingStub) ListRuns(ctx context.Context, request protocol.ListRunsRequest, options embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
-	return stub.list(ctx, request, options)
+func (r runCatalogBindingStub) ListRuns(ctx context.Context, request protocol.ListRunsRequest, options embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
+	return r.list(ctx, request, options)
 }
 
 func TestRunCatalogMapsQueriesAndProjectsPages(t *testing.T) {

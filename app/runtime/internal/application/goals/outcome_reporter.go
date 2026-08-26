@@ -28,10 +28,10 @@ const (
 	ReportInvalidOutcome ReportResult = "invalidOutcome"
 )
 
-// Valid reports whether result belongs to the complete report outcome set.
-func (result ReportResult) Valid() bool {
-	return result == ReportApplied || result == ReportNoActiveGoal || result == ReportSuperseded ||
-		result == ReportConflict || result == ReportReasonRequired || result == ReportInvalidOutcome
+// Valid reports whether r belongs to the complete report outcome set.
+func (r ReportResult) Valid() bool {
+	return r == ReportApplied || r == ReportNoActiveGoal || r == ReportSuperseded ||
+		r == ReportConflict || r == ReportReasonRequired || r == ReportInvalidOutcome
 }
 
 // OutcomeReporter owns terminal outcome validation and compare-and-swap.
@@ -50,11 +50,11 @@ func NewOutcomeReporter(store Store) *OutcomeReporter {
 }
 
 // Report applies one model-declared terminal outcome to the active Goal.
-func (r *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (ReportResult, error) {
-	if r == nil || r.goals == nil {
+func (o *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (ReportResult, error) {
+	if o == nil || o.goals == nil {
 		return ReportNoActiveGoal, nil
 	}
-	g, ok, err := r.goals.Get(ctx, cmd.SessionID)
+	g, ok, err := o.goals.Get(ctx, cmd.SessionID)
 	if err != nil {
 		return "", err
 	}
@@ -67,16 +67,16 @@ func (r *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (Report
 	expected := g.Version()
 	switch cmd.Outcome {
 	case goal.StatusComplete:
-		g.Complete(r.now())
+		g.Complete(o.now())
 	case goal.StatusBlocked:
 		if cmd.Reason == "" {
 			return ReportReasonRequired, nil
 		}
-		g.Block(goal.ReasonBlockedByModel, cmd.Reason, r.now())
+		g.Block(goal.ReasonBlockedByModel, cmd.Reason, o.now())
 	default:
 		return ReportInvalidOutcome, nil
 	}
-	_, applied, err := r.goals.Save(ctx, g, expected)
+	_, applied, err := o.goals.Save(ctx, g, expected)
 	if err != nil {
 		return "", err
 	}

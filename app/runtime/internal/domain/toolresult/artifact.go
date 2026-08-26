@@ -36,12 +36,12 @@ func ParseID(raw string) (ID, error) {
 	return id, nil
 }
 
-func (id ID) String() string { return string(id) }
+func (i ID) String() string { return string(i) }
 
 // Validate accepts the uppercase unpadded base32 alphabet produced by
 // crypto/rand.Text and bounds imported or model-supplied identifiers.
-func (id ID) Validate() error {
-	raw := string(id)
+func (i ID) Validate() error {
+	raw := string(i)
 	if len(raw) < minIDLength || len(raw) > maxIDLength {
 		return fmt.Errorf("%w: length must be between %d and %d characters", ErrInvalidID, minIDLength, maxIDLength)
 	}

@@ -140,49 +140,49 @@ func New(cfg Config) (*Server, error) {
 	return server, nil
 }
 
-func (cfg Config) validate() error {
+func (c Config) validate() error {
 	for _, dependency := range []struct {
 		name      string
 		available bool
 	}{
-		{name: "Sessions", available: cfg.Sessions != nil},
-		{name: "MCP", available: cfg.MCP != nil},
-		{name: "Approvals", available: cfg.Approvals != nil},
-		{name: "Models", available: cfg.Models != nil},
-		{name: "Tools", available: cfg.Tools != nil},
-		{name: "Runs", available: cfg.Runs != nil},
-		{name: "Queries", available: cfg.Queries != nil},
-		{name: "Usage", available: cfg.Usage != nil},
-		{name: "Feedback", available: cfg.Feedback != nil},
-		{name: "Schedules", available: cfg.Schedules != nil},
-		{name: "ScheduleFiring", available: cfg.ScheduleFiring != nil},
+		{name: "Sessions", available: c.Sessions != nil},
+		{name: "MCP", available: c.MCP != nil},
+		{name: "Approvals", available: c.Approvals != nil},
+		{name: "Models", available: c.Models != nil},
+		{name: "Tools", available: c.Tools != nil},
+		{name: "Runs", available: c.Runs != nil},
+		{name: "Queries", available: c.Queries != nil},
+		{name: "Usage", available: c.Usage != nil},
+		{name: "Feedback", available: c.Feedback != nil},
+		{name: "Schedules", available: c.Schedules != nil},
+		{name: "ScheduleFiring", available: c.ScheduleFiring != nil},
 	} {
 		if !dependency.available {
 			return fmt.Errorf("server: %s is required", dependency.name)
 		}
 	}
-	if cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
-		cfg.WorkspaceDiscovery == nil || cfg.WorkspaceKnowledge == nil || cfg.WorkspaceSkills == nil ||
-		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
+	if c.WorkspaceFiles == nil || c.WorkspaceVCS == nil ||
+		c.WorkspaceDiscovery == nil || c.WorkspaceKnowledge == nil || c.WorkspaceSkills == nil ||
+		c.WorkspaceHooks == nil || c.WorkspaceWatch == nil {
 		return errors.New("server: workspace use cases are required")
 	}
-	if cfg.WorkspaceAuthoredWatch == nil {
+	if c.WorkspaceAuthoredWatch == nil {
 		return errors.New("server: authored workspace observation is required")
 	}
-	if cfg.ServerInfo.InstanceID == "" {
+	if c.ServerInfo.InstanceID == "" {
 		return errors.New("server: ServerInfo.InstanceID is required")
 	}
 	return nil
 }
 
-func (cfg Config) withServerInfoDefaults() Config {
-	if cfg.ServerInfo.Name == "" {
-		cfg.ServerInfo.Name = "runtime"
+func (c Config) withServerInfoDefaults() Config {
+	if c.ServerInfo.Name == "" {
+		c.ServerInfo.Name = "runtime"
 	}
-	if cfg.ServerInfo.Version == "" {
-		cfg.ServerInfo.Version = "0.0.0-dev"
+	if c.ServerInfo.Version == "" {
+		c.ServerInfo.Version = "0.0.0-dev"
 	}
-	return cfg
+	return c
 }
 
 type contractFacts struct {

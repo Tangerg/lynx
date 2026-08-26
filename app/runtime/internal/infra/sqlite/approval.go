@@ -24,11 +24,11 @@ func NewApprovalRuleStore(db *sql.DB) *ApprovalRuleStore {
 	return &ApprovalRuleStore{db: db}
 }
 
-func (s *ApprovalRuleStore) Put(ctx context.Context, r approval.Rule) error {
+func (a *ApprovalRuleStore) Put(ctx context.Context, r approval.Rule) error {
 	if err := r.Validate(); err != nil {
 		return fmt.Errorf("sqlite: put approval rule: %w", err)
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, a.db).ExecContext(ctx,
 		`INSERT INTO approval_rules (id, scope, scope_key, tool, subject, decision, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET decision = excluded.decision`,
@@ -40,11 +40,11 @@ func (s *ApprovalRuleStore) Put(ctx context.Context, r approval.Rule) error {
 	return nil
 }
 
-func (s *ApprovalRuleStore) Visible(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
-	// Scope predicate expressed as a WHERE clause — the mirror of approval's
+func (a *ApprovalRuleStore) Visible(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
+	// Scope predicate expressed as a WHERE clause — the mirror of approval'a
 	// visible(): session rules for this session, project rules for this cwd
 	// (skipped entirely when the call has no cwd), and all global rules.
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+	rows, err := conn(ctx, a.db).QueryContext(ctx,
 		`SELECT id, scope, scope_key, tool, subject, decision FROM approval_rules
 		 WHERE (scope = 'session' AND scope_key = ?)
 		    OR (scope = 'project' AND ? <> '' AND scope_key = ?)
@@ -76,15 +76,15 @@ func (s *ApprovalRuleStore) Visible(ctx context.Context, sessionID, projectDir s
 	return out, nil
 }
 
-func (s *ApprovalRuleStore) Delete(ctx context.Context, id string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM approval_rules WHERE id = ?`, id); err != nil {
+func (a *ApprovalRuleStore) Delete(ctx context.Context, id string) error {
+	if _, err := conn(ctx, a.db).ExecContext(ctx, `DELETE FROM approval_rules WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("sqlite: delete approval rule: %w", err)
 	}
 	return nil
 }
 
-func (s *ApprovalRuleStore) DeleteSession(ctx context.Context, sessionID string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
+func (a *ApprovalRuleStore) DeleteSession(ctx context.Context, sessionID string) error {
+	if _, err := conn(ctx, a.db).ExecContext(ctx,
 		`DELETE FROM approval_rules WHERE scope = 'session' AND scope_key = ?`, sessionID); err != nil {
 		return fmt.Errorf("sqlite: delete session approval rules: %w", err)
 	}

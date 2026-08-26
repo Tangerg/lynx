@@ -17,12 +17,12 @@ type Totals struct {
 	CostUSD          *float64
 }
 
-func (totals Totals) Validate() error {
-	if totals.InputTokens < 0 || totals.OutputTokens < 0 || totals.CacheReadTokens < 0 ||
-		totals.CacheWriteTokens < 0 || totals.ReasoningTokens < 0 {
+func (t Totals) Validate() error {
+	if t.InputTokens < 0 || t.OutputTokens < 0 || t.CacheReadTokens < 0 ||
+		t.CacheWriteTokens < 0 || t.ReasoningTokens < 0 {
 		return errors.New("usage totals contain a negative token count")
 	}
-	if totals.CostUSD != nil && *totals.CostUSD < 0 {
+	if t.CostUSD != nil && *t.CostUSD < 0 {
 		return errors.New("usage totals contain a negative cost")
 	}
 	return nil
@@ -34,14 +34,14 @@ type Bucket struct {
 	Runs   int
 }
 
-func (bucket Bucket) Validate() error {
-	if strings.TrimSpace(bucket.Key) == "" {
+func (b Bucket) Validate() error {
+	if strings.TrimSpace(b.Key) == "" {
 		return errors.New("usage bucket key is empty")
 	}
-	if bucket.Runs < 0 {
+	if b.Runs < 0 {
 		return errors.New("usage bucket run count is negative")
 	}
-	return bucket.Totals.Validate()
+	return b.Totals.Validate()
 }
 
 type SessionReport struct {
@@ -50,14 +50,14 @@ type SessionReport struct {
 	ByModel   []Bucket
 }
 
-func (report SessionReport) Validate() error {
-	if strings.TrimSpace(report.SessionID) == "" {
+func (s SessionReport) Validate() error {
+	if strings.TrimSpace(s.SessionID) == "" {
 		return errors.New("session usage report id is empty")
 	}
-	if err := report.Total.Validate(); err != nil {
+	if err := s.Total.Validate(); err != nil {
 		return fmt.Errorf("session usage report: %w", err)
 	}
-	return validateBuckets("session usage report", report.ByModel)
+	return validateBuckets("session usage report", s.ByModel)
 }
 
 type Summary struct {
@@ -70,20 +70,20 @@ type Summary struct {
 	Runs       int
 }
 
-func (summary Summary) Validate() error {
-	if summary.SinceDays < 0 || summary.Sessions < 0 || summary.Runs < 0 {
+func (s Summary) Validate() error {
+	if s.SinceDays < 0 || s.Sessions < 0 || s.Runs < 0 {
 		return errors.New("usage summary contains a negative count")
 	}
-	if err := summary.Total.Validate(); err != nil {
+	if err := s.Total.Validate(); err != nil {
 		return fmt.Errorf("usage summary: %w", err)
 	}
 	for _, breakdown := range []struct {
 		name    string
 		buckets []Bucket
 	}{
-		{name: "provider", buckets: summary.ByProvider},
-		{name: "model", buckets: summary.ByModel},
-		{name: "day", buckets: summary.ByDay},
+		{name: "provider", buckets: s.ByProvider},
+		{name: "model", buckets: s.ByModel},
+		{name: "day", buckets: s.ByDay},
 	} {
 		if err := validateBuckets("usage summary "+breakdown.name, breakdown.buckets); err != nil {
 			return err

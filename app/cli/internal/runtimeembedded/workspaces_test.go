@@ -31,17 +31,17 @@ type workspaceBindingStub struct {
 	content      *protocol.FileContent
 }
 
-func (stub *workspaceBindingStub) ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest, embedded.CallOptions) (*protocol.WorkspaceInfo, error) {
-	return stub.resolved, nil
+func (w *workspaceBindingStub) ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest, embedded.CallOptions) (*protocol.WorkspaceInfo, error) {
+	return w.resolved, nil
 }
 
-func (stub *workspaceBindingStub) ListWorkspaces(context.Context, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceSummary], error) {
-	return stub.known, nil
+func (w *workspaceBindingStub) ListWorkspaces(context.Context, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceSummary], error) {
+	return w.known, nil
 }
 
-func (stub *workspaceBindingStub) ListWorkspaceFileChanges(context.Context, protocol.WorkspaceQuery, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	stub.changesCalls++
-	return stub.changes, stub.changesErr
+func (w *workspaceBindingStub) ListWorkspaceFileChanges(context.Context, protocol.WorkspaceQuery, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+	w.changesCalls++
+	return w.changes, w.changesErr
 }
 
 func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
@@ -61,29 +61,29 @@ func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
 	}
 }
 
-func (stub *workspaceBindingStub) GetWorkspaceDiff(context.Context, protocol.GetDiffRequest, embedded.CallOptions) (*protocol.Diff, error) {
-	stub.diffCalls++
-	return stub.diff, nil
+func (w *workspaceBindingStub) GetWorkspaceDiff(context.Context, protocol.GetDiffRequest, embedded.CallOptions) (*protocol.Diff, error) {
+	w.diffCalls++
+	return w.diff, nil
 }
 
-func (stub *workspaceBindingStub) GetWorkspaceFileHead(context.Context, protocol.GetFileHeadRequest, embedded.CallOptions) (*protocol.FileHead, error) {
-	return stub.head, nil
+func (w *workspaceBindingStub) GetWorkspaceFileHead(context.Context, protocol.GetFileHeadRequest, embedded.CallOptions) (*protocol.FileHead, error) {
+	return w.head, nil
 }
 
-func (stub *workspaceBindingStub) SearchWorkspaceFiles(context.Context, protocol.GrepRequest, embedded.CallOptions) (*protocol.GrepResult, error) {
-	return stub.search, nil
+func (w *workspaceBindingStub) SearchWorkspaceFiles(context.Context, protocol.GrepRequest, embedded.CallOptions) (*protocol.GrepResult, error) {
+	return w.search, nil
 }
 
-func (stub *workspaceBindingStub) ListWorkspaceFiles(_ context.Context, request protocol.ListFilesRequest, _ embedded.CallOptions) (*protocol.Page[protocol.FileEntry], error) {
-	stub.fileCalls = append(stub.fileCalls, request)
-	if stub.filePages != nil {
-		return stub.filePages[request.Cursor], nil
+func (w *workspaceBindingStub) ListWorkspaceFiles(_ context.Context, request protocol.ListFilesRequest, _ embedded.CallOptions) (*protocol.Page[protocol.FileEntry], error) {
+	w.fileCalls = append(w.fileCalls, request)
+	if w.filePages != nil {
+		return w.filePages[request.Cursor], nil
 	}
-	return stub.files, nil
+	return w.files, nil
 }
 
-func (stub *workspaceBindingStub) ReadWorkspaceFile(context.Context, protocol.ReadFileRequest, embedded.CallOptions) (*protocol.FileContent, error) {
-	return stub.content, nil
+func (w *workspaceBindingStub) ReadWorkspaceFile(context.Context, protocol.ReadFileRequest, embedded.CallOptions) (*protocol.FileContent, error) {
+	return w.content, nil
 }
 
 func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {

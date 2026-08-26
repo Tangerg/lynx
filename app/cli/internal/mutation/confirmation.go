@@ -25,8 +25,8 @@ const (
 	Confirmed Outcome = "confirmed"
 )
 
-func (outcome Outcome) Valid() bool {
-	switch outcome {
+func (o Outcome) Valid() bool {
+	switch o {
 	case Unknown, Rejected, Confirmed:
 		return true
 	default:
@@ -34,7 +34,7 @@ func (outcome Outcome) Valid() bool {
 	}
 }
 
-func (outcome Outcome) String() string { return string(outcome) }
+func (o Outcome) String() string { return string(o) }
 
 // Admission runs immediately before each real mutation attempt. Durable
 // callers use it to enforce the runtime replay guarantee at the actual I/O

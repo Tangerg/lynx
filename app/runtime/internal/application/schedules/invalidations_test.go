@@ -18,26 +18,26 @@ type invalidationScheduleStore struct {
 	deleteFound bool
 }
 
-func (s *invalidationScheduleStore) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
-	if s.fail == "create" {
+func (i *invalidationScheduleStore) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
+	if i.fail == "create" {
 		return schedule.Schedule{}, errScheduleMutation
 	}
 	scheduled.ID = "sch_created"
 	return scheduled, nil
 }
 
-func (s *invalidationScheduleStore) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
-	if s.fail == "update" {
+func (i *invalidationScheduleStore) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
+	if i.fail == "update" {
 		return schedule.Schedule{}, errScheduleMutation
 	}
 	return scheduled, nil
 }
 
-func (s *invalidationScheduleStore) Delete(context.Context, string) (bool, error) {
-	if s.fail == "delete" {
+func (i *invalidationScheduleStore) Delete(context.Context, string) (bool, error) {
+	if i.fail == "delete" {
 		return false, errScheduleMutation
 	}
-	return s.deleteFound, nil
+	return i.deleteFound, nil
 }
 
 func TestCommittedScheduleMutationsPublishExactInvalidations(t *testing.T) {

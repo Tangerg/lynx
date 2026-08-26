@@ -29,9 +29,9 @@ type observingMutations struct {
 
 func (*observingMutations) Record(context.Context, WorkspaceMutation) error { return nil }
 
-func (m *observingMutations) Complete(ctx context.Context, _ string) error {
-	m.canceled = ctx.Err() != nil
-	_, m.bounded = ctx.Deadline()
+func (o *observingMutations) Complete(ctx context.Context, _ string) error {
+	o.canceled = ctx.Err() != nil
+	_, o.bounded = ctx.Deadline()
 	return nil
 }
 

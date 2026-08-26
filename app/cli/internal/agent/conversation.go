@@ -23,9 +23,9 @@ const (
 	ConversationWaiting ConversationPhase = "waiting"
 )
 
-// Valid reports whether phase belongs to the live conversation lifecycle.
-func (phase ConversationPhase) Valid() bool {
-	return phase == ConversationIdle || phase == ConversationRunning || phase == ConversationWaiting
+// Valid reports whether c belongs to the live conversation lifecycle.
+func (c ConversationPhase) Valid() bool {
+	return c == ConversationIdle || c == ConversationRunning || c == ConversationWaiting
 }
 
 // Conversation is the terminal-facing aggregate. Durable history is restored

@@ -48,19 +48,19 @@ const (
 	AgentMemory Resource = "agentMemory"
 )
 
-// Valid reports whether resource belongs to the invalidation vocabulary.
-func (resource Resource) Valid() bool {
-	return resource == Resync || resource == Sessions || resource == Runs || resource == Interrupts ||
-		resource == Goals || resource == PlanState || resource == Schedules || resource == Knowledge ||
-		resource == Hooks || resource == Skills || resource == MCP || resource == Models ||
-		resource == Approvals || resource == AgentMemory
+// Valid reports whether r belongs to the invalidation vocabulary.
+func (r Resource) Valid() bool {
+	return r == Resync || r == Sessions || r == Runs || r == Interrupts ||
+		r == Goals || r == PlanState || r == Schedules || r == Knowledge ||
+		r == Hooks || r == Skills || r == MCP || r == Models ||
+		r == Approvals || r == AgentMemory
 }
 
-func (resource Resource) String() string {
-	if !resource.Valid() {
+func (r Resource) String() string {
+	if !r.Valid() {
 		return "invalid"
 	}
-	return string(resource)
+	return string(r)
 }
 
 // Notice is one committed change: the resource, and the members of it a reader can

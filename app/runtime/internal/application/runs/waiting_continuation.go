@@ -20,20 +20,20 @@ type WaitingSubtreeCancellationRequest struct {
 
 // Validate verifies the Application-owned waiting subtree command without
 // interpreting the executor checkpoint payload.
-func (request WaitingSubtreeCancellationRequest) Validate() error {
-	if err := request.Continuation.Validate(); err != nil {
+func (w WaitingSubtreeCancellationRequest) Validate() error {
+	if err := w.Continuation.Validate(); err != nil {
 		return fmt.Errorf("runs: waiting subtree continuation: %w", err)
 	}
-	if strings.TrimSpace(request.TargetMemberID) == "" ||
-		request.TargetMemberID != strings.TrimSpace(request.TargetMemberID) {
+	if strings.TrimSpace(w.TargetMemberID) == "" ||
+		w.TargetMemberID != strings.TrimSpace(w.TargetMemberID) {
 		return errors.New("runs: waiting subtree target member ID is required without surrounding whitespace")
 	}
-	if strings.TrimSpace(request.Reason) == "" || request.Reason != strings.TrimSpace(request.Reason) {
+	if strings.TrimSpace(w.Reason) == "" || w.Reason != strings.TrimSpace(w.Reason) {
 		return errors.New("runs: waiting subtree reason is required without surrounding whitespace")
 	}
 	targetFound := false
-	for _, member := range request.Continuation.Members {
-		if member.MemberID != request.TargetMemberID {
+	for _, member := range w.Continuation.Members {
+		if member.MemberID != w.TargetMemberID {
 			continue
 		}
 		if member.ParentRunID == "" {
@@ -78,24 +78,24 @@ func waitingContinuationFromPending(
 
 // Validate verifies one surviving product member without interpreting executor
 // topology or checkpoint payload.
-func (member WaitingMember) Validate() error {
-	if err := validateRequiredIdentity("Run ID", member.RunID); err != nil {
+func (w WaitingMember) Validate() error {
+	if err := validateRequiredIdentity("Run ID", w.RunID); err != nil {
 		return fmt.Errorf("runs: waiting member: %w", err)
 	}
-	if err := validateRequiredIdentity("member ID", member.MemberID); err != nil {
+	if err := validateRequiredIdentity("member ID", w.MemberID); err != nil {
 		return fmt.Errorf("runs: waiting member: %w", err)
 	}
-	if member.ParentRunID != strings.TrimSpace(member.ParentRunID) || member.ParentRunID == member.RunID ||
-		member.SpawnedByItemID != strings.TrimSpace(member.SpawnedByItemID) {
+	if w.ParentRunID != strings.TrimSpace(w.ParentRunID) || w.ParentRunID == w.RunID ||
+		w.SpawnedByItemID != strings.TrimSpace(w.SpawnedByItemID) {
 		return errors.New("runs: waiting member has invalid parent Run identity")
 	}
-	if (member.ParentRunID == "") != (member.SpawnedByItemID == "") {
+	if (w.ParentRunID == "") != (w.SpawnedByItemID == "") {
 		return errors.New("runs: waiting member child lineage is incomplete")
 	}
-	if err := member.ModelSelection.Validate(); err != nil {
+	if err := w.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("runs: waiting member model selection: %w", err)
 	}
-	if err := member.Metrics.Validate(); err != nil {
+	if err := w.Metrics.Validate(); err != nil {
 		return fmt.Errorf("runs: waiting member metrics: %w", err)
 	}
 	return nil
@@ -103,21 +103,21 @@ func (member WaitingMember) Validate() error {
 
 // Validate verifies the complete Application side of one executor continuation.
 // The opaque checkpoint payload remains the executor implementation's responsibility.
-func (continuation WaitingContinuation) Validate() error {
-	if err := validateWaitingContinuationEnvelope(continuation); err != nil {
+func (w WaitingContinuation) Validate() error {
+	if err := validateWaitingContinuationEnvelope(w); err != nil {
 		return err
 	}
-	topology, err := buildWaitingContinuationTopology(continuation)
+	topology, err := buildWaitingContinuationTopology(w)
 	if err != nil {
 		return err
 	}
-	if err := validateWaitingContinuationOrder(continuation.Members, topology.tree.Postorder()); err != nil {
+	if err := validateWaitingContinuationOrder(w.Members, topology.tree.Postorder()); err != nil {
 		return err
 	}
-	if len(continuation.Members) > 1 && !continuation.Capabilities.ChildRuns {
+	if len(w.Members) > 1 && !w.Capabilities.ChildRuns {
 		return errors.New("runs: waiting continuation has child members without child-Run capability")
 	}
-	return continuation.Checkpoint.ValidateOwnership(topology.rootMemberID, continuation.SessionID)
+	return w.Checkpoint.ValidateOwnership(topology.rootMemberID, w.SessionID)
 }
 
 func validateWaitingContinuationEnvelope(continuation WaitingContinuation) error {

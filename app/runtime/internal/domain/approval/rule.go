@@ -106,24 +106,24 @@ func (r Rule) specificity() int {
 
 // decide picks the strongest visible rule; equally specific disagreements
 // resolve to Deny so a remembered deny cannot be canceled by a peer allow.
-func (rs ruleSet) decide(q Query) (Decision, bool, error) {
+func (r ruleSet) decide(q Query) (Decision, bool, error) {
 	if strings.TrimSpace(q.Tool) == "" || strings.TrimSpace(q.Tool) != q.Tool {
 		return "", false, fmt.Errorf("%w: tool name is required without surrounding whitespace", ErrInvalidQuery)
 	}
 	best := -1
 	var verdict Decision
 	conflict := false
-	for index, r := range rs {
-		if err := r.Validate(); err != nil {
+	for index, rule := range r {
+		if err := rule.Validate(); err != nil {
 			return "", false, fmt.Errorf("approval: candidate rule %d: %w", index, err)
 		}
-		if r.Tool != q.Tool || !r.matchesSubject(q.Subject) {
+		if rule.Tool != q.Tool || !rule.matchesSubject(q.Subject) {
 			continue
 		}
-		switch score := r.specificity(); {
+		switch score := rule.specificity(); {
 		case score > best:
-			best, verdict, conflict = score, r.Decision, false
-		case score == best && r.Decision != verdict:
+			best, verdict, conflict = score, rule.Decision, false
+		case score == best && rule.Decision != verdict:
 			conflict = true
 		}
 	}
@@ -150,19 +150,19 @@ func (s Scope) key(sessionID, projectDir string) (string, bool) {
 	}
 }
 
-// Rule derives and validates the durable rule represented by req.
-func (req RememberRequest) Rule() (Rule, error) {
-	key, ok := req.Scope.key(req.SessionID, req.ProjectDir)
+// Rule derives and validates the durable rule represented by r.
+func (r RememberRequest) Rule() (Rule, error) {
+	key, ok := r.Scope.key(r.SessionID, r.ProjectDir)
 	if !ok {
-		return Rule{}, fmt.Errorf("%w: scope %q has no usable key", ErrInvalidRule, req.Scope)
+		return Rule{}, fmt.Errorf("%w: scope %q has no usable key", ErrInvalidRule, r.Scope)
 	}
-	if strings.TrimSpace(req.Tool) == "" || strings.TrimSpace(req.Tool) != req.Tool {
+	if strings.TrimSpace(r.Tool) == "" || strings.TrimSpace(r.Tool) != r.Tool {
 		return Rule{}, fmt.Errorf("%w: tool name is required without surrounding whitespace", ErrInvalidRule)
 	}
-	if !req.Decision.Valid() {
-		return Rule{}, fmt.Errorf("%w: unknown decision %q", ErrInvalidRule, req.Decision)
+	if !r.Decision.Valid() {
+		return Rule{}, fmt.Errorf("%w: unknown decision %q", ErrInvalidRule, r.Decision)
 	}
-	return NewRule(req.Scope, key, req.Tool, req.Subject, req.Decision)
+	return NewRule(r.Scope, key, r.Tool, r.Subject, r.Decision)
 }
 
 // stableID makes re-remembering the same rule an upsert and supplies a durable

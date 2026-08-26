@@ -17,10 +17,10 @@ type blockingCancelRuntime struct {
 	release chan struct{}
 }
 
-func (r *blockingCancelRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-	if r.calls.Add(1) == 1 {
-		close(r.started)
-		<-r.release
+func (b *blockingCancelRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
+	if b.calls.Add(1) == 1 {
+		close(b.started)
+		<-b.release
 	}
 	return canceledRootResponse(in.RunID), nil
 }

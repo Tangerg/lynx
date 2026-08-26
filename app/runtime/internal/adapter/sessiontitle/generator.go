@@ -48,19 +48,19 @@ Rules:
 // produces no title. A provider failure returns that usable fallback together
 // with the error so the caller can persist stable Session identity while still
 // recording the degraded maintenance attempt.
-func (t *Generator) Generate(ctx context.Context, firstMessage string) (string, error) {
+func (g *Generator) Generate(ctx context.Context, firstMessage string) (string, error) {
 	msg := strings.TrimSpace(firstMessage)
 	if msg == "" {
 		return "", nil
 	}
 	fallback := sanitizeTitle(msg)
-	if t == nil || t.client == nil {
+	if g == nil || g.client == nil {
 		return fallback, nil
 	}
 	if runes := []rune(msg); len(runes) > titleMaxInputRunes {
 		msg = string(runes[:titleMaxInputRunes])
 	}
-	client := t.client(ctx)
+	client := g.client(ctx)
 	if client == nil {
 		return fallback, nil
 	}

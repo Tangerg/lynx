@@ -20,17 +20,17 @@ type blockingWaitingCancellationEffects struct {
 	release <-chan struct{}
 }
 
-func (effects *blockingWaitingCancellationEffects) CommitWaitingSubtreeCancellation(
+func (b *blockingWaitingCancellationEffects) CommitWaitingSubtreeCancellation(
 	ctx context.Context,
 	commit WaitingSubtreeCancellationCommit,
 ) (WaitingSubtreeCancellationResult, error) {
-	effects.started <- struct{}{}
+	b.started <- struct{}{}
 	select {
-	case <-effects.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return WaitingSubtreeCancellationResult{}, ctx.Err()
 	}
-	return effects.fakeEffects.CommitWaitingSubtreeCancellation(ctx, commit)
+	return b.fakeEffects.CommitWaitingSubtreeCancellation(ctx, commit)
 }
 
 type blockingRootCancellationSessions struct {
@@ -40,21 +40,21 @@ type blockingRootCancellationSessions struct {
 	applied int
 }
 
-func (sessions *blockingRootCancellationSessions) ApplyRunCancel(
+func (b *blockingRootCancellationSessions) ApplyRunCancel(
 	ctx context.Context,
 	sessionID string,
 	runID string,
 	reason string,
 	finishedAt time.Time,
 ) (run.Run, error) {
-	sessions.started <- struct{}{}
+	b.started <- struct{}{}
 	select {
-	case <-sessions.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return run.Run{}, ctx.Err()
 	}
-	sessions.applied++
-	return sessions.fakeRunSessions.ApplyRunCancel(
+	b.applied++
+	return b.fakeRunSessions.ApplyRunCancel(
 		ctx,
 		sessionID,
 		runID,

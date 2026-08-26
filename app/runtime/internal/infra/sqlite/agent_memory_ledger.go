@@ -15,7 +15,7 @@ var errAgentMemoryProject = errors.New("sqlite: agent memory project is required
 // AppendLedger inserts facts that have not already appeared in project. Facts
 // are immutable and deduplicated independently, so a response containing one
 // repeated bullet never suppresses its genuinely new siblings.
-func (s *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.FactBatch) ([]agentmemory.LedgerFact, error) {
+func (a *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.FactBatch) ([]agentmemory.LedgerFact, error) {
 	normalized, err := batch.Normalize()
 	if err != nil {
 		return nil, err
@@ -24,9 +24,9 @@ func (s *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 		return nil, nil
 	}
 	var inserted []agentmemory.LedgerFact
-	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
+	err = RunInTx(ctx, a.db, func(ctx context.Context) error {
 		for _, fact := range normalized.Facts {
-			result, err := conn(ctx, s.db).ExecContext(ctx,
+			result, err := conn(ctx, a.db).ExecContext(ctx,
 				`INSERT OR IGNORE INTO agent_memory_ledger(
 					project, day, session_id, fact, digest, captured_at
 				) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -66,9 +66,9 @@ func (s *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 	return inserted, nil
 }
 
-// PendingLedger lists a project's facts strictly after watermark in sequence
+// PendingLedger lists a project'a facts strictly after watermark in sequence
 // order. limit must be positive so every curation call has an explicit bound.
-func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]agentmemory.LedgerFact, error) {
+func (a *AgentMemoryStore) PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]agentmemory.LedgerFact, error) {
 	if project == "" {
 		return nil, errAgentMemoryProject
 	}
@@ -81,7 +81,7 @@ func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 			agentmemory.MaxLedgerFoldFacts,
 		)
 	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+	rows, err := conn(ctx, a.db).QueryContext(ctx,
 		`SELECT seq, day, fact, captured_at
 		 FROM agent_memory_ledger
 		 WHERE project = ? AND seq > ?
@@ -110,15 +110,15 @@ func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 	return facts, nil
 }
 
-// State returns the project's curation watermark. An unknown project has a zero
+// State returns the project'a curation watermark. An unknown project has a zero
 // watermark.
-func (s *AgentMemoryStore) State(ctx context.Context, project string) (agentmemory.State, error) {
+func (a *AgentMemoryStore) State(ctx context.Context, project string) (agentmemory.State, error) {
 	if project == "" {
 		return agentmemory.State{}, errAgentMemoryProject
 	}
 	var st agentmemory.State
 	var updatedAt int64
-	err := conn(ctx, s.db).QueryRowContext(ctx,
+	err := conn(ctx, a.db).QueryRowContext(ctx,
 		`SELECT watermark, updated_at FROM agent_memory_state WHERE project = ?`, project).
 		Scan(&st.Watermark, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -133,11 +133,11 @@ func (s *AgentMemoryStore) State(ctx context.Context, project string) (agentmemo
 	return st, nil
 }
 
-// Reconcile folds the project's ledger through `through` into its auto-origin
+// Reconcile folds the project'a ledger through `through` into its auto-origin
 // item set. The watermark advance is a compare-and-swap around the LLM curation
 // call: a concurrent winner returns published=false and leaves the item set
 // untouched, so a lost race never half-applies a stale generation.
-func (s *AgentMemoryStore) Reconcile(
+func (a *AgentMemoryStore) Reconcile(
 	ctx context.Context,
 	project string,
 	expectedWatermark int64,
@@ -154,9 +154,9 @@ func (s *AgentMemoryStore) Reconcile(
 	if now.IsZero() {
 		return false, errors.New("sqlite: agent memory update time is required")
 	}
-	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
+	err = RunInTx(ctx, a.db, func(ctx context.Context) error {
 		var one int
-		if err := conn(ctx, s.db).QueryRowContext(ctx,
+		if err := conn(ctx, a.db).QueryRowContext(ctx,
 			`SELECT 1 FROM agent_memory_ledger WHERE project = ? AND seq = ?`,
 			project, through).Scan(&one); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -164,12 +164,12 @@ func (s *AgentMemoryStore) Reconcile(
 			}
 			return fmt.Errorf("sqlite: verify agent memory watermark: %w", err)
 		}
-		if _, err := conn(ctx, s.db).ExecContext(ctx,
+		if _, err := conn(ctx, a.db).ExecContext(ctx,
 			`INSERT OR IGNORE INTO agent_memory_state(project, watermark, updated_at) VALUES (?, 0, 0)`,
 			project); err != nil {
 			return fmt.Errorf("sqlite: initialize agent memory state: %w", err)
 		}
-		result, err := conn(ctx, s.db).ExecContext(ctx,
+		result, err := conn(ctx, a.db).ExecContext(ctx,
 			`UPDATE agent_memory_state SET watermark = ?, updated_at = ?
 			 WHERE project = ? AND watermark = ?`,
 			through, now.UTC().UnixNano(), project, expectedWatermark)
@@ -184,7 +184,7 @@ func (s *AgentMemoryStore) Reconcile(
 			published = false
 			return nil // lost CAS — do not reconcile items against a stale fold
 		}
-		if err := s.reconcileItems(ctx, project, contents, now); err != nil {
+		if err := a.reconcileItems(ctx, project, contents, now); err != nil {
 			return err
 		}
 		published = true

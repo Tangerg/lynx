@@ -30,31 +30,31 @@ type recordingExecutorCheckpointStore struct {
 	deleteErr error
 }
 
-func (store *recordingExecutorCheckpointStore) SaveCheckpoint(
+func (r *recordingExecutorCheckpointStore) SaveCheckpoint(
 	_ context.Context,
 	checkpoint runs.ExecutorCheckpoint,
 ) error {
-	store.saved = append(store.saved, checkpoint.Clone())
-	return store.saveErr
+	r.saved = append(r.saved, checkpoint.Clone())
+	return r.saveErr
 }
 
-func (store *recordingExecutorCheckpointStore) LoadCheckpoint(
+func (r *recordingExecutorCheckpointStore) LoadCheckpoint(
 	_ context.Context,
 	rootMemberID string,
 ) (runs.ExecutorCheckpoint, error) {
-	for index := len(store.saved) - 1; index >= 0; index-- {
-		if store.saved[index].RootMemberID == rootMemberID {
-			return store.saved[index].Clone(), nil
+	for index := len(r.saved) - 1; index >= 0; index-- {
+		if r.saved[index].RootMemberID == rootMemberID {
+			return r.saved[index].Clone(), nil
 		}
 	}
 	return runs.ExecutorCheckpoint{}, runs.ErrExecutorCheckpointNotFound
 }
 
-func (store *recordingExecutorCheckpointStore) DeleteCheckpoints(
+func (r *recordingExecutorCheckpointStore) DeleteCheckpoints(
 	_ context.Context,
 	_ string,
 	rootIDs []string,
 ) error {
-	store.deleted = append(store.deleted, append([]string(nil), rootIDs...))
-	return store.deleteErr
+	r.deleted = append(r.deleted, append([]string(nil), rootIDs...))
+	return r.deleteErr
 }

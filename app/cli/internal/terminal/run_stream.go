@@ -36,30 +36,30 @@ type activeDurationClock struct {
 // mutation cannot repair its malformed receipt.
 type startRunCallError struct{ err error }
 
-func (e *startRunCallError) Error() string { return e.err.Error() }
-func (e *startRunCallError) Unwrap() error { return e.err }
+func (s *startRunCallError) Error() string { return s.err.Error() }
+func (s *startRunCallError) Unwrap() error { return s.err }
 
 // resumeRunCallError has the same acknowledgement semantics as
 // startRunCallError, but its recovery owner is the still-open HITL review.
 type resumeRunCallError struct{ err error }
 
-func (e *resumeRunCallError) Error() string { return e.err.Error() }
-func (e *resumeRunCallError) Unwrap() error { return e.err }
+func (r *resumeRunCallError) Error() string { return r.err.Error() }
+func (r *resumeRunCallError) Unwrap() error { return r.err }
 
-func (clock *activeDurationClock) start(carried time.Duration, at time.Time) {
-	clock.carried = carried
-	clock.segmentStartedAt = at
+func (a *activeDurationClock) start(carried time.Duration, at time.Time) {
+	a.carried = carried
+	a.segmentStartedAt = at
 }
 
-func (clock *activeDurationClock) elapsed(at time.Time) time.Duration {
-	if clock.segmentStartedAt.IsZero() {
-		return clock.carried
+func (a *activeDurationClock) elapsed(at time.Time) time.Duration {
+	if a.segmentStartedAt.IsZero() {
+		return a.carried
 	}
-	current := at.Sub(clock.segmentStartedAt)
+	current := at.Sub(a.segmentStartedAt)
 	if current < 0 {
-		return clock.carried
+		return a.carried
 	}
-	return clock.carried + current
+	return a.carried + current
 }
 
 func (a *app) startRun(commandID agent.CommandID, message agent.Message, options agent.RunOptions, status string) bool {
@@ -289,14 +289,14 @@ type streamFollower struct {
 	checkpoint string
 }
 
-func (f *streamFollower) restoreAttachedSession(sessionID string) (runrecovery.State, bool) {
+func (s *streamFollower) restoreAttachedSession(sessionID string) (runrecovery.State, bool) {
 	for {
-		recovered, err := runrecovery.AttachSession(f.ctx, f.app.runtime, sessionID)
+		recovered, err := runrecovery.AttachSession(s.ctx, s.app.runtime, sessionID)
 		if err == nil {
-			f.failures = 0
+			s.failures = 0
 			return recovered, true
 		}
-		if !f.waitBeforeRetry("", fmt.Errorf("restore active session: %w", err)) {
+		if !s.waitBeforeRetry("", fmt.Errorf("restore active session: %w", err)) {
 			return runrecovery.State{}, false
 		}
 	}
@@ -310,87 +310,87 @@ type eventApplicationError struct{ err error }
 func (e *eventApplicationError) Error() string { return e.err.Error() }
 func (e *eventApplicationError) Unwrap() error { return e.err }
 
-func (f *streamFollower) run() {
+func (s *streamFollower) run() {
 	var current agent.SegmentStream
 	for {
-		opened, err := f.open(f.ctx)
+		opened, err := s.open(s.ctx)
 		if err == nil {
 			current = opened
-			f.failures = 0
+			s.failures = 0
 			break
 		}
-		if !f.waitBeforeOpenRetry(err) {
+		if !s.waitBeforeOpenRetry(err) {
 			return
 		}
 	}
-	if !f.postOpenAccepted(current) {
+	if !s.postOpenAccepted(current) {
 		return
 	}
-	f.runStream(current)
+	s.runStream(current)
 }
 
-func (f *streamFollower) postOpenAccepted(opened agent.SegmentStream) bool {
-	if f.opening.accepted == nil {
+func (s *streamFollower) postOpenAccepted(opened agent.SegmentStream) bool {
+	if s.opening.accepted == nil {
 		return true
 	}
 	active := true
-	err := post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	err := post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			active = false
 			return
 		}
-		active = f.opening.accepted(opened) == followOpenedStream && f.app.streamSeq == f.sequence
+		active = s.opening.accepted(opened) == followOpenedStream && s.app.streamSeq == s.sequence
 	})
 	return err == nil && active
 }
 
-func (f *streamFollower) waitBeforeOpenRetry(cause error) bool {
-	f.failures++
-	if f.opening.persistent && mutation.AcknowledgementUncertain(cause) {
-		delay := runtimeRecoveryBackoff.Delay(f.failures)
-		return f.postRetryStatus(true) && retry.Wait(f.ctx, delay) == nil
+func (s *streamFollower) waitBeforeOpenRetry(cause error) bool {
+	s.failures++
+	if s.opening.persistent && mutation.AcknowledgementUncertain(cause) {
+		delay := runtimeRecoveryBackoff.Delay(s.failures)
+		return s.postRetryStatus(true) && retry.Wait(s.ctx, delay) == nil
 	}
-	delay, shouldRetry := f.policy.Next(f.failures, cause)
+	delay, shouldRetry := s.policy.Next(s.failures, cause)
 	if !shouldRetry {
-		f.postOpenFailure(cause)
+		s.postOpenFailure(cause)
 		return false
 	}
-	return f.postRetryStatus(false) && retry.Wait(f.ctx, delay) == nil
+	return s.postRetryStatus(false) && retry.Wait(s.ctx, delay) == nil
 }
 
-func (f *streamFollower) runStream(current agent.SegmentStream) {
+func (s *streamFollower) runStream(current agent.SegmentStream) {
 	if err := current.Validate(); err != nil {
-		f.postFailure(current.RunID, err)
+		s.postFailure(current.RunID, err)
 		return
 	}
 	for {
-		active, applied, streamErr := f.consume(current.Events)
+		active, applied, streamErr := s.consume(current.Events)
 		if !active {
 			return
 		}
 		if applicationErr, ok := errors.AsType[*eventApplicationError](streamErr); ok {
-			f.postFailure(current.RunID, applicationErr.err)
+			s.postFailure(current.RunID, applicationErr.err)
 			return
 		}
-		snapshot, err := f.snapshot()
+		snapshot, err := s.snapshot()
 		if err != nil || !snapshot.active {
 			return
 		}
-		f.checkpoint = snapshot.checkpoint
+		s.checkpoint = snapshot.checkpoint
 		if snapshot.phase != agent.ConversationRunning {
-			f.finish()
+			s.finish()
 			return
 		}
 		if streamErr == nil {
 			streamErr = fmt.Errorf("%w: segment stream ended without a terminal event", agent.ErrDisconnected)
 		}
-		if context.Cause(f.ctx) != nil {
+		if context.Cause(s.ctx) != nil {
 			return
 		}
 		if applied > 0 {
-			f.failures = 0
+			s.failures = 0
 		}
-		rebound, ok := f.reconnect(current.RunID, current.SegmentID, streamErr)
+		rebound, ok := s.reconnect(current.RunID, current.SegmentID, streamErr)
 		if !ok {
 			return
 		}
@@ -398,13 +398,13 @@ func (f *streamFollower) runStream(current agent.SegmentStream) {
 	}
 }
 
-func (f *streamFollower) consume(stream agent.EventStream) (bool, int, error) {
+func (s *streamFollower) consume(stream agent.EventStream) (bool, int, error) {
 	applied := 0
 	for event, err := range stream {
 		if err != nil {
 			return true, applied, err
 		}
-		accepted, err := f.apply(event)
+		accepted, err := s.apply(event)
 		if err != nil || !accepted {
 			return accepted, applied, err
 		}
@@ -413,16 +413,16 @@ func (f *streamFollower) consume(stream agent.EventStream) (bool, int, error) {
 	return true, applied, nil
 }
 
-func (f *streamFollower) apply(event agent.RunEvent) (bool, error) {
+func (s *streamFollower) apply(event agent.RunEvent) (bool, error) {
 	active := true
 	var applyErr error
-	err := post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	err := post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			active = false
 			return
 		}
-		applyErr = f.applyEvent(event)
-		f.checkpoint = f.app.conversation.Checkpoint()
+		applyErr = s.applyEvent(event)
+		s.checkpoint = s.app.conversation.Checkpoint()
 	})
 	if applyErr != nil {
 		applyErr = &eventApplicationError{err: applyErr}
@@ -450,35 +450,35 @@ type recoveryAttempt struct {
 	cause       error
 }
 
-func (f *streamFollower) snapshot() (followSnapshot, error) {
+func (s *streamFollower) snapshot() (followSnapshot, error) {
 	snapshot := followSnapshot{active: true}
-	err := post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	err := post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			snapshot.active = false
 			return
 		}
-		snapshot.checkpoint = f.app.conversation.Checkpoint()
-		snapshot.phase = f.app.conversation.Phase()
+		snapshot.checkpoint = s.app.conversation.Checkpoint()
+		snapshot.phase = s.app.conversation.Phase()
 	})
 	return snapshot, err
 }
 
-func (f *streamFollower) reconnect(runID, segmentID string, cause error) (agent.SegmentStream, bool) {
+func (s *streamFollower) reconnect(runID, segmentID string, cause error) (agent.SegmentStream, bool) {
 	for {
-		if !f.waitBeforeRetry(runID, cause) {
+		if !s.waitBeforeRetry(runID, cause) {
 			return agent.SegmentStream{}, false
 		}
-		rebound, err := f.app.runtime.SubscribeRun(f.ctx, agent.SubscribeRun{
-			RunID: runID, SegmentID: segmentID, AfterEventID: f.checkpoint,
+		rebound, err := s.app.runtime.SubscribeRun(s.ctx, agent.SubscribeRun{
+			RunID: runID, SegmentID: segmentID, AfterEventID: s.checkpoint,
 		})
 		if err == nil {
-			return f.acceptRebound(runID, segmentID, rebound)
+			return s.acceptRebound(runID, segmentID, rebound)
 		}
 		if !runrecovery.Required(err) {
 			cause = err
 			continue
 		}
-		recovery := f.recover(runID, cause)
+		recovery := s.recover(runID, cause)
 		switch recovery.disposition {
 		case recoveryRetry:
 			cause = recovery.cause
@@ -490,44 +490,44 @@ func (f *streamFollower) reconnect(runID, segmentID string, cause error) (agent.
 	}
 }
 
-func (f *streamFollower) waitBeforeRetry(runID string, cause error) bool {
-	f.failures++
-	delay, shouldRetry := f.policy.Next(f.failures, cause)
+func (s *streamFollower) waitBeforeRetry(runID string, cause error) bool {
+	s.failures++
+	delay, shouldRetry := s.policy.Next(s.failures, cause)
 	if !shouldRetry {
-		f.postFailure(runID, cause)
+		s.postFailure(runID, cause)
 		return false
 	}
-	return f.postRetryStatus(false) && retry.Wait(f.ctx, delay) == nil
+	return s.postRetryStatus(false) && retry.Wait(s.ctx, delay) == nil
 }
 
-func (f *streamFollower) postRetryStatus(persistent bool) bool {
-	err := post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq == f.sequence {
-			label := fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts)
+func (s *streamFollower) postRetryStatus(persistent bool) bool {
+	err := post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq == s.sequence {
+			label := fmt.Sprintf("reconnecting %d/%d", s.failures, s.policy.Attempts)
 			if persistent {
-				label = fmt.Sprintf("confirming delivery · attempt %d", f.failures)
+				label = fmt.Sprintf("confirming delivery · attempt %d", s.failures)
 			}
-			f.app.status.note(label)
-			f.app.syncAnimation()
+			s.app.status.note(label)
+			s.app.syncAnimation()
 		}
 	})
 	return err == nil
 }
 
-func (f *streamFollower) acceptRebound(runID, segmentID string, rebound agent.SegmentStream) (agent.SegmentStream, bool) {
+func (s *streamFollower) acceptRebound(runID, segmentID string, rebound agent.SegmentStream) (agent.SegmentStream, bool) {
 	if err := rebound.ValidateSubscription(); err != nil {
-		f.postFailure(runID, err)
+		s.postFailure(runID, err)
 		return agent.SegmentStream{}, false
 	}
 	if rebound.RunID != runID || rebound.SegmentID != segmentID {
-		f.postFailure(runID, errors.New("runtime rebound a different run segment"))
+		s.postFailure(runID, errors.New("runtime rebound a different run segment"))
 		return agent.SegmentStream{}, false
 	}
 	return rebound, true
 }
 
-func (f *streamFollower) recover(runID string, cause error) recoveryAttempt {
-	recovered, err := runrecovery.Recover(f.ctx, f.app.runtime, f.app.session.ID, runID)
+func (s *streamFollower) recover(runID string, cause error) recoveryAttempt {
+	recovered, err := runrecovery.Recover(s.ctx, s.app.runtime, s.app.session.ID, runID)
 	if err != nil {
 		if runrecovery.Required(err) {
 			return recoveryAttempt{disposition: recoveryRetry, cause: cause}
@@ -536,62 +536,62 @@ func (f *streamFollower) recover(runID string, cause error) recoveryAttempt {
 	}
 	active := true
 	var reconcileErr error
-	postErr := post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	postErr := post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			active = false
 			return
 		}
-		reconcileErr = f.app.reconcileRunSnapshot(recovered.Snapshot, recovered.Stream)
+		reconcileErr = s.app.reconcileRunSnapshot(recovered.Snapshot, recovered.Stream)
 	})
 	if postErr != nil || reconcileErr != nil {
-		f.postFailure(runID, errors.Join(postErr, reconcileErr))
+		s.postFailure(runID, errors.Join(postErr, reconcileErr))
 		return recoveryAttempt{disposition: recoveryStopped}
 	}
 	if !active || recovered.Run.Status != agent.RunStatusRunning {
 		return recoveryAttempt{disposition: recoveryStopped}
 	}
-	f.checkpoint = recovered.Stream.HeadEventID
+	s.checkpoint = recovered.Stream.HeadEventID
 	return recoveryAttempt{disposition: recoveryAttached, stream: recovered.Stream}
 }
 
-func (f *streamFollower) finish() {
-	_ = post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq == f.sequence {
-			f.app.finishFollowing()
+func (s *streamFollower) finish() {
+	_ = post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq == s.sequence {
+			s.app.finishFollowing()
 		}
 	})
 }
 
-func (f *streamFollower) postFailure(runID string, err error) {
-	if errors.Is(err, context.Canceled) || f.ctx.Err() != nil {
+func (s *streamFollower) postFailure(runID string, err error) {
+	if errors.Is(err, context.Canceled) || s.ctx.Err() != nil {
 		return
 	}
-	_ = post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	_ = post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			return
 		}
-		f.app.fail(err)
+		s.app.fail(err)
 		if runID != "" {
-			f.app.cancelRuntimePreservingFailure(agent.CancelRun{RunID: runID, Reason: "terminal stream failed"})
+			s.app.cancelRuntimePreservingFailure(agent.CancelRun{RunID: runID, Reason: "terminal stream failed"})
 		}
 	})
 }
 
-func (f *streamFollower) postOpenFailure(err error) {
-	if errors.Is(err, context.Canceled) || f.ctx.Err() != nil {
+func (s *streamFollower) postOpenFailure(err error) {
+	if errors.Is(err, context.Canceled) || s.ctx.Err() != nil {
 		return
 	}
-	_ = post(f.ctx, f.dispatcher, func() {
-		if f.app.streamSeq != f.sequence {
+	_ = post(s.ctx, s.dispatcher, func() {
+		if s.app.streamSeq != s.sequence {
 			return
 		}
-		if f.opening.rejected != nil {
-			err = f.opening.rejected(err)
+		if s.opening.rejected != nil {
+			err = s.opening.rejected(err)
 			if err == nil {
 				return
 			}
 		}
-		f.app.fail(err)
+		s.app.fail(err)
 	})
 }
 

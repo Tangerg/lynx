@@ -124,6 +124,6 @@ type fixedPlanState struct {
 	err   error
 }
 
-func (s fixedPlanState) State(context.Context, string) (plan.State, error) {
-	return s.state, s.err
+func (f fixedPlanState) State(context.Context, string) (plan.State, error) {
+	return f.state, f.err
 }

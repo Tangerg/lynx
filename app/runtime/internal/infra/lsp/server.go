@@ -83,16 +83,16 @@ func newServerTable(specs []ServerSpec) *serverTable {
 }
 
 // forFile returns the server that handles path's extension.
-func (t *serverTable) forFile(path string) (ServerSpec, bool) {
-	spec, ok := t.byExt[strings.ToLower(filepath.Ext(path))]
+func (s *serverTable) forFile(path string) (ServerSpec, bool) {
+	spec, ok := s.byExt[strings.ToLower(filepath.Ext(path))]
 	return spec, ok
 }
 
 // forRoot returns the servers whose root markers exist directly under root —
 // the languages that apply to this workspace.
-func (t *serverTable) forRoot(root string) []ServerSpec {
+func (s *serverTable) forRoot(root string) []ServerSpec {
 	var out []ServerSpec
-	for _, spec := range t.specs {
+	for _, spec := range s.specs {
 		for _, marker := range spec.RootMarkers {
 			if _, err := os.Stat(filepath.Join(root, marker)); err == nil {
 				out = append(out, spec)

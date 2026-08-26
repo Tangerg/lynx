@@ -25,7 +25,7 @@ type concurrentToolExecutor struct {
 	failures chan error
 }
 
-func (executor *concurrentToolExecutor) Observe(
+func (c *concurrentToolExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
@@ -41,7 +41,7 @@ func (executor *concurrentToolExecutor) Observe(
 				return
 			}
 			if err := receipt.Await(ctx); err != nil {
-				executor.failures <- err
+				c.failures <- err
 				return
 			}
 		}
@@ -60,7 +60,7 @@ func (executor *concurrentToolExecutor) Observe(
 		}
 		firstErr := firstReceipt.Await(ctx)
 		secondErr := secondReceipt.Await(ctx)
-		executor.failures <- errors.Join(firstErr, secondErr)
+		c.failures <- errors.Join(firstErr, secondErr)
 		if firstErr != nil || secondErr != nil {
 			yield(ExecutorEvent{
 				Member:  member,
@@ -72,14 +72,14 @@ func (executor *concurrentToolExecutor) Observe(
 	}, nil
 }
 
-func (executor *concurrentToolExecutor) Release(context.Context, ExecutorRef) error { return nil }
+func (c *concurrentToolExecutor) Release(context.Context, ExecutorRef) error { return nil }
 
 func toolStringResult(value string) *tool.Result {
 	result := tool.StringResult(value)
 	return &result
 }
 
-func (executor *authoritativeFailureExecutor) Observe(
+func (a *authoritativeFailureExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
@@ -89,7 +89,7 @@ func (executor *authoritativeFailureExecutor) Observe(
 		if err != nil || !yield(ExecutorEvent{Member: member, Payload: start}) {
 			return
 		}
-		executor.receipts <- startReceipt.Await(ctx)
+		a.receipts <- startReceipt.Await(ctx)
 
 		usage := accounting.TokenUsage{PromptTokens: 2, CompletionTokens: 1}
 		completion, completionReceipt, err := NewExecutionFactCommit(ModelCallCompleted{
@@ -106,7 +106,7 @@ func (executor *authoritativeFailureExecutor) Observe(
 		if err != nil || !yield(ExecutorEvent{Member: member, Payload: completion}) {
 			return
 		}
-		executor.receipts <- completionReceipt.Await(ctx)
+		a.receipts <- completionReceipt.Await(ctx)
 		yield(ExecutorEvent{
 			Member: member,
 			Payload: UnknownEffectsDetected{
@@ -116,17 +116,17 @@ func (executor *authoritativeFailureExecutor) Observe(
 	}, nil
 }
 
-func (executor *authoritativeFailureExecutor) Release(context.Context, ExecutorRef) error {
-	executor.mu.Lock()
-	executor.released++
-	executor.mu.Unlock()
+func (a *authoritativeFailureExecutor) Release(context.Context, ExecutorRef) error {
+	a.mu.Lock()
+	a.released++
+	a.mu.Unlock()
 	return nil
 }
 
-func (executor *authoritativeFailureExecutor) releaseCount() int {
-	executor.mu.Lock()
-	defer executor.mu.Unlock()
-	return executor.released
+func (a *authoritativeFailureExecutor) releaseCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.released
 }
 
 func TestAuthoritativeProjectionFailurePreservesStartUntilAtomicRunLost(t *testing.T) {

@@ -256,20 +256,20 @@ func newHookOutputBuffer(limit int) *hookOutputBuffer {
 	return &hookOutputBuffer{limit: limit}
 }
 
-func (buffer *hookOutputBuffer) Write(value []byte) (int, error) {
+func (h *hookOutputBuffer) Write(value []byte) (int, error) {
 	written := len(value)
-	remaining := buffer.limit - buffer.buffer.Len()
+	remaining := h.limit - h.buffer.Len()
 	if remaining > 0 {
-		_, _ = buffer.buffer.Write(value[:min(len(value), remaining)])
+		_, _ = h.buffer.Write(value[:min(len(value), remaining)])
 	}
 	if len(value) > remaining {
-		buffer.overflow = true
+		h.overflow = true
 	}
 	return written, nil
 }
 
-func (buffer *hookOutputBuffer) Bytes() []byte  { return buffer.buffer.Bytes() }
-func (buffer *hookOutputBuffer) String() string { return buffer.buffer.String() }
+func (h *hookOutputBuffer) Bytes() []byte  { return h.buffer.Bytes() }
+func (h *hookOutputBuffer) String() string { return h.buffer.String() }
 
 func exitCodeOf(err error) int {
 	if err == nil {

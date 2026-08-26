@@ -21,11 +21,11 @@ type streamingLifecycleRuntime struct {
 	subscribed chan struct{}
 }
 
-func (r *streamingLifecycleRuntime) SubscribeRuntime(
+func (s *streamingLifecycleRuntime) SubscribeRuntime(
 	ctx context.Context,
 	_ protocol.RuntimeSubscribeRequest,
 ) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
-	close(r.subscribed)
+	close(s.subscribed)
 	return &protocol.RuntimeSubscribeResponse{}, func(_ func(protocol.RuntimeEvent) bool) {
 		<-ctx.Done() // an open, event-less stream bounded by the request context
 	}, nil

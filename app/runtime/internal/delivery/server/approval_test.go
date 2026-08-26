@@ -27,20 +27,20 @@ type approvalPolicyFake struct {
 	forgottenRuleIDs []string
 }
 
-func (r *approvalPolicyFake) DefaultMode(context.Context) (approval.Mode, error) { return r.mode, nil }
+func (a *approvalPolicyFake) DefaultMode(context.Context) (approval.Mode, error) { return a.mode, nil }
 
-func (r *approvalPolicyFake) SetDefaultMode(_ context.Context, mode approval.Mode) error {
-	r.set = append(r.set, mode)
+func (a *approvalPolicyFake) SetDefaultMode(_ context.Context, mode approval.Mode) error {
+	a.set = append(a.set, mode)
 	return nil
 }
 
-func (r *approvalPolicyFake) Rules(_ context.Context, sessionID, _ string) ([]approval.Rule, error) {
-	r.rulesForSession = sessionID
-	return r.rules, nil
+func (a *approvalPolicyFake) Rules(_ context.Context, sessionID, _ string) ([]approval.Rule, error) {
+	a.rulesForSession = sessionID
+	return a.rules, nil
 }
 
-func (r *approvalPolicyFake) Forget(_ context.Context, id string) error {
-	r.forgottenRuleIDs = append(r.forgottenRuleIDs, id)
+func (a *approvalPolicyFake) Forget(_ context.Context, id string) error {
+	a.forgottenRuleIDs = append(a.forgottenRuleIDs, id)
 	return nil
 }
 

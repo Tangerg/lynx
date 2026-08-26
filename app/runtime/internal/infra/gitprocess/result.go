@@ -86,20 +86,20 @@ type boundedText struct {
 	truncated bool
 }
 
-func (text *boundedText) Write(value []byte) (int, error) {
+func (b *boundedText) Write(value []byte) (int, error) {
 	length := len(value)
-	remaining := max(text.limit-text.buffer.Len(), 0)
+	remaining := max(b.limit-b.buffer.Len(), 0)
 	if len(value) > remaining {
 		value = value[:remaining]
-		text.truncated = true
+		b.truncated = true
 	}
-	_, _ = text.buffer.Write(value)
+	_, _ = b.buffer.Write(value)
 	return length, nil
 }
 
-func (text *boundedText) String() string {
-	if text.truncated {
-		return text.buffer.String() + "\n... [git stderr truncated] ..."
+func (b *boundedText) String() string {
+	if b.truncated {
+		return b.buffer.String() + "\n... [git stderr truncated] ..."
 	}
-	return text.buffer.String()
+	return b.buffer.String()
 }

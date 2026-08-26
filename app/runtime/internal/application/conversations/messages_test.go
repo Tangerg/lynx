@@ -18,12 +18,12 @@ type recordingCompactions struct {
 	plan CompactionPlan
 }
 
-func (s *recordingCompactions) ListRuns(context.Context, string) ([]run.Run, error) {
-	return append([]run.Run(nil), s.runs...), nil
+func (r *recordingCompactions) ListRuns(context.Context, string) ([]run.Run, error) {
+	return append([]run.Run(nil), r.runs...), nil
 }
 
-func (s *recordingCompactions) ApplyCompaction(_ context.Context, plan CompactionPlan) error {
-	s.plan = plan
+func (r *recordingCompactions) ApplyCompaction(_ context.Context, plan CompactionPlan) error {
+	r.plan = plan
 	return nil
 }
 

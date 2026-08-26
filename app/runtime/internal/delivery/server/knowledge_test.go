@@ -30,25 +30,25 @@ type fakeKnowledgeStore struct {
 	updateErr       error
 }
 
-func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
-	s.listCWD = cwd
-	s.listProjectRoot = projectRoot
-	return s.entries, nil
+func (f *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
+	f.listCWD = cwd
+	f.listProjectRoot = projectRoot
+	return f.entries, nil
 }
 
-func (s *fakeKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
-	s.getScope = scope
-	s.getCWD = cwd
-	return s.getEntry, nil
+func (f *fakeKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
+	f.getScope = scope
+	f.getCWD = cwd
+	return f.getEntry, nil
 }
 
-func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
-	s.updateScope = scope
-	s.updateCWD = cwd
-	s.updateRevision = expectedRevision
-	s.updateContent = content
-	if s.updateErr != nil {
-		return knowledge.Entry{}, s.updateErr
+func (f *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
+	f.updateScope = scope
+	f.updateCWD = cwd
+	f.updateRevision = expectedRevision
+	f.updateContent = content
+	if f.updateErr != nil {
+		return knowledge.Entry{}, f.updateErr
 	}
 	return knowledge.Entry{Scope: scope, Content: content, Revision: "rev-2"}, nil
 }

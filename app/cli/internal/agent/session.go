@@ -85,20 +85,20 @@ func ParseModelRef(value string) (ModelRef, error) {
 	return NewModelRef(provider, model)
 }
 
-func (ref ModelRef) Validate() error {
-	if strings.TrimSpace(ref.Provider) == "" || strings.TrimSpace(ref.Model) == "" {
+func (m ModelRef) Validate() error {
+	if strings.TrimSpace(m.Provider) == "" || strings.TrimSpace(m.Model) == "" {
 		return errors.New("model identity requires provider and model")
 	}
-	if ref.Provider != strings.TrimSpace(ref.Provider) || ref.Model != strings.TrimSpace(ref.Model) {
+	if m.Provider != strings.TrimSpace(m.Provider) || m.Model != strings.TrimSpace(m.Model) {
 		return errors.New("model identity must not have surrounding whitespace")
 	}
-	if strings.Contains(ref.Provider, modelRefSeparator) {
+	if strings.Contains(m.Provider, modelRefSeparator) {
 		return fmt.Errorf("model identity provider must not contain %q", modelRefSeparator)
 	}
 	return nil
 }
 
-func (ref ModelRef) String() string { return ref.Provider + modelRefSeparator + ref.Model }
+func (m ModelRef) String() string { return m.Provider + modelRefSeparator + m.Model }
 
 type SessionQuery struct {
 	Cursor    string
@@ -110,16 +110,16 @@ type SessionQuery struct {
 // Normalize returns one exact session-catalog query. Search text and workspace
 // input are presentation values, while a non-empty workspace is an absolute
 // identity because filtering happens client-side against canonical responses.
-func (query SessionQuery) Normalize() (SessionQuery, error) {
-	if query.Limit < 0 {
+func (s SessionQuery) Normalize() (SessionQuery, error) {
+	if s.Limit < 0 {
 		return SessionQuery{}, errors.New("session query: limit cannot be negative")
 	}
-	query.Search = strings.TrimSpace(query.Search)
-	query.Workspace = strings.TrimSpace(query.Workspace)
-	if err := (workspace.ResolveRequest{Path: query.Workspace}).Validate(); err != nil {
+	s.Search = strings.TrimSpace(s.Search)
+	s.Workspace = strings.TrimSpace(s.Workspace)
+	if err := (workspace.ResolveRequest{Path: s.Workspace}).Validate(); err != nil {
 		return SessionQuery{}, fmt.Errorf("session query: %w", err)
 	}
-	return query, nil
+	return s, nil
 }
 
 type SessionPage struct {
@@ -127,9 +127,9 @@ type SessionPage struct {
 	NextCursor string
 }
 
-func (p SessionPage) Validate() error {
-	seen := make(map[string]struct{}, len(p.Items))
-	for index, session := range p.Items {
+func (s SessionPage) Validate() error {
+	seen := make(map[string]struct{}, len(s.Items))
+	for index, session := range s.Items {
 		if err := session.Validate(); err != nil {
 			return fmt.Errorf("session page item %d: %w", index+1, err)
 		}
@@ -461,28 +461,28 @@ type CreateSession struct {
 	Workspace string
 }
 
-func (create CreateSession) Validate() error {
-	if create.Title != "" && strings.TrimSpace(create.Title) == "" {
+func (c CreateSession) Validate() error {
+	if c.Title != "" && strings.TrimSpace(c.Title) == "" {
 		return errors.New("session create: title is empty")
 	}
-	if err := (workspace.ResolveRequest{Path: strings.TrimSpace(create.Workspace)}).Validate(); err != nil {
+	if err := (workspace.ResolveRequest{Path: strings.TrimSpace(c.Workspace)}).Validate(); err != nil {
 		return fmt.Errorf("session create: %w", err)
 	}
 	return nil
 }
 
-func (create CreateSession) ValidateResult(result Session) error {
-	if err := create.Validate(); err != nil {
+func (c CreateSession) ValidateResult(result Session) error {
+	if err := c.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if title := strings.TrimSpace(create.Title); title != "" && result.Title != title {
+	if title := strings.TrimSpace(c.Title); title != "" && result.Title != title {
 		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, title))
 	}
-	if path := strings.TrimSpace(create.Workspace); path != "" && result.Workspace.Path != path {
+	if path := strings.TrimSpace(c.Workspace); path != "" && result.Workspace.Path != path {
 		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, path))
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -500,21 +500,21 @@ type UpdateSession struct {
 	ExpectedRevision uint64
 }
 
-func (update UpdateSession) Validate() error {
-	if strings.TrimSpace(update.SessionID) == "" {
+func (u UpdateSession) Validate() error {
+	if strings.TrimSpace(u.SessionID) == "" {
 		return errors.New("session update: session id is empty")
 	}
-	if update.Title == nil && update.Workspace == nil && update.Model == nil && update.Favorite == nil {
+	if u.Title == nil && u.Workspace == nil && u.Model == nil && u.Favorite == nil {
 		return errors.New("session update: no fields are selected")
 	}
-	if update.Title != nil && strings.TrimSpace(*update.Title) == "" {
+	if u.Title != nil && strings.TrimSpace(*u.Title) == "" {
 		return errors.New("session update: title is empty")
 	}
-	if update.Workspace != nil && strings.TrimSpace(*update.Workspace) == "" {
+	if u.Workspace != nil && strings.TrimSpace(*u.Workspace) == "" {
 		return errors.New("session update: workspace is empty")
 	}
-	if update.Model != nil {
-		if err := update.Model.Validate(); err != nil {
+	if u.Model != nil {
+		if err := u.Model.Validate(); err != nil {
 			return fmt.Errorf("session update: %w", err)
 		}
 	}
@@ -524,31 +524,31 @@ func (update UpdateSession) Validate() error {
 // ValidateResult verifies that a successful update response represents the
 // exact command the caller issued, rather than merely containing a valid but
 // unrelated session projection.
-func (update UpdateSession) ValidateResult(result Session) error {
-	if err := update.Validate(); err != nil {
+func (u UpdateSession) ValidateResult(result Session) error {
+	if err := u.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.ID != update.SessionID {
-		problems = append(problems, fmt.Errorf("runtime returned session %s, want %s", result.ID, update.SessionID))
+	if result.ID != u.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %s, want %s", result.ID, u.SessionID))
 	}
-	if result.Revision <= update.ExpectedRevision {
-		problems = append(problems, fmt.Errorf("runtime returned revision %d after expected revision %d", result.Revision, update.ExpectedRevision))
+	if result.Revision <= u.ExpectedRevision {
+		problems = append(problems, fmt.Errorf("runtime returned revision %d after expected revision %d", result.Revision, u.ExpectedRevision))
 	}
-	if update.Title != nil && result.Title != strings.TrimSpace(*update.Title) {
-		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, strings.TrimSpace(*update.Title)))
+	if u.Title != nil && result.Title != strings.TrimSpace(*u.Title) {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, strings.TrimSpace(*u.Title)))
 	}
-	if update.Workspace != nil && result.Workspace.Path != strings.TrimSpace(*update.Workspace) {
-		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, strings.TrimSpace(*update.Workspace)))
+	if u.Workspace != nil && result.Workspace.Path != strings.TrimSpace(*u.Workspace) {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, strings.TrimSpace(*u.Workspace)))
 	}
-	if update.Model != nil && (result.Provider != update.Model.Provider || result.Model != update.Model.Model) {
-		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", (ModelRef{Provider: result.Provider, Model: result.Model}).String(), update.Model.String()))
+	if u.Model != nil && (result.Provider != u.Model.Provider || result.Model != u.Model.Model) {
+		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", (ModelRef{Provider: result.Provider, Model: result.Model}).String(), u.Model.String()))
 	}
-	if update.Favorite != nil && result.Favorite != *update.Favorite {
-		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, *update.Favorite))
+	if u.Favorite != nil && result.Favorite != *u.Favorite {
+		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, *u.Favorite))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("session update: %w", err)
@@ -562,31 +562,31 @@ type ForkSession struct {
 	Title     string
 }
 
-func (fork ForkSession) Validate() error {
-	if strings.TrimSpace(fork.SessionID) == "" {
+func (f ForkSession) Validate() error {
+	if strings.TrimSpace(f.SessionID) == "" {
 		return errors.New("session fork: session id is empty")
 	}
-	if fork.FromRunID != "" && strings.TrimSpace(fork.FromRunID) == "" {
+	if f.FromRunID != "" && strings.TrimSpace(f.FromRunID) == "" {
 		return errors.New("session fork: run id is empty")
 	}
-	if fork.Title != "" && strings.TrimSpace(fork.Title) == "" {
+	if f.Title != "" && strings.TrimSpace(f.Title) == "" {
 		return errors.New("session fork: title is empty")
 	}
 	return nil
 }
 
-func (fork ForkSession) ValidateResult(result Session) error {
-	if err := fork.Validate(); err != nil {
+func (f ForkSession) ValidateResult(result Session) error {
+	if err := f.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.ID == strings.TrimSpace(fork.SessionID) {
+	if result.ID == strings.TrimSpace(f.SessionID) {
 		problems = append(problems, fmt.Errorf("runtime returned source session %q", result.ID))
 	}
-	if title := strings.TrimSpace(fork.Title); title != "" && result.Title != title {
+	if title := strings.TrimSpace(f.Title); title != "" && result.Title != title {
 		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, title))
 	}
 	if err := errors.Join(problems...); err != nil {

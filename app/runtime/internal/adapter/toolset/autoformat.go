@@ -185,12 +185,12 @@ type autoFormatContextReader struct {
 	reader io.Reader
 }
 
-func (reader autoFormatContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(reader.ctx); cause != nil {
+func (a autoFormatContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(a.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := reader.reader.Read(buffer)
-	if cause := context.Cause(reader.ctx); cause != nil {
+	read, err := a.reader.Read(buffer)
+	if cause := context.Cause(a.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err
@@ -202,26 +202,26 @@ type formatOutputBuffer struct {
 	overflow bool
 }
 
-func (buffer *formatOutputBuffer) Write(value []byte) (int, error) {
+func (f *formatOutputBuffer) Write(value []byte) (int, error) {
 	written := len(value)
-	remaining := buffer.limit - buffer.buffer.Len()
+	remaining := f.limit - f.buffer.Len()
 	if remaining > 0 {
-		_, _ = buffer.buffer.Write(value[:min(len(value), remaining)])
+		_, _ = f.buffer.Write(value[:min(len(value), remaining)])
 	}
 	if len(value) > remaining {
-		buffer.overflow = true
+		f.overflow = true
 	}
 	return written, nil
 }
 
-func (buffer *formatOutputBuffer) String() string {
-	if buffer.overflow {
-		return buffer.buffer.String() + "\n... [formatter diagnostic truncated] ..."
+func (f *formatOutputBuffer) String() string {
+	if f.overflow {
+		return f.buffer.String() + "\n... [formatter diagnostic truncated] ..."
 	}
-	return buffer.buffer.String()
+	return f.buffer.String()
 }
 
-func (buffer *formatOutputBuffer) Bytes() []byte { return buffer.buffer.Bytes() }
+func (f *formatOutputBuffer) Bytes() []byte { return f.buffer.Bytes() }
 
 func writeFormattedFile(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

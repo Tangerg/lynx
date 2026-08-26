@@ -38,46 +38,46 @@ func newAttentionCenter() attentionCenter {
 // Observe records terminal focus intent. Oolong owns FocusIn in its event loop,
 // so any deliberate keyboard, paste, or mouse-down interaction is also treated as
 // proof that the user has returned. FocusIn is still accepted for direct hosts.
-func (c *attentionCenter) Observe(event input.Event) bool {
+func (a *attentionCenter) Observe(event input.Event) bool {
 	switch event := event.(type) {
 	case input.FocusOut:
-		c.focused = false
+		a.focused = false
 		return false
 	case input.FocusIn:
-		return c.focus()
+		return a.focus()
 	case input.Key:
 		if event.Down() {
-			return c.focus()
+			return a.focus()
 		}
 	case input.Paste:
-		return c.focus()
+		return a.focus()
 	case input.Mouse:
 		if event.Action == input.MouseDown {
-			return c.focus()
+			return a.focus()
 		}
 	}
 	return false
 }
 
-func (c *attentionCenter) focus() bool {
-	cleared := c.unread.marker != ""
-	c.focused = true
-	c.unread = attentionSignal{}
+func (a *attentionCenter) focus() bool {
+	cleared := a.unread.marker != ""
+	a.focused = true
+	a.unread = attentionSignal{}
 	return cleared
 }
 
-func (c *attentionCenter) Raise(signal attentionSignal) bool {
-	if c.focused || strings.TrimSpace(signal.marker) == "" {
+func (a *attentionCenter) Raise(signal attentionSignal) bool {
+	if a.focused || strings.TrimSpace(signal.marker) == "" {
 		return false
 	}
-	if !signal.supersedes && c.unread.marker != "" && signal.priority < c.unread.priority {
+	if !signal.supersedes && a.unread.marker != "" && signal.priority < a.unread.priority {
 		return false
 	}
-	c.unread = signal
+	a.unread = signal
 	return true
 }
 
-func (c *attentionCenter) Marker() string { return c.unread.marker }
+func (a *attentionCenter) Marker() string { return a.unread.marker }
 
 func (a *app) observeAttention(event input.Event) {
 	if a.attention.Observe(event) {

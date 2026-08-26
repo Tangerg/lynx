@@ -17,7 +17,7 @@ type trackedQuestion struct {
 // acceptQuestions reveals the durable Question replacements acknowledged by a
 // successful resume command. Validation is all-or-nothing so a malformed local
 // projection cannot leave only part of a multi-question set visible.
-func (c *transcriptView) acceptQuestions(blocks []agent.Block) error {
+func (t *transcriptView) acceptQuestions(blocks []agent.Block) error {
 	type acceptance struct {
 		key      string
 		tracked  trackedQuestion
@@ -29,7 +29,7 @@ func (c *transcriptView) acceptQuestions(blocks []agent.Block) error {
 			return fmt.Errorf("terminal transcript: accepted interaction block %s is not a question", block.ID)
 		}
 		key := transcriptBlockKey(block.RunID, block.ID)
-		tracked, exists := c.pendingQuestions[key]
+		tracked, exists := t.pendingQuestions[key]
 		if !exists {
 			return fmt.Errorf("terminal transcript: accepted question block %s is not pending", block.ID)
 		}
@@ -40,24 +40,24 @@ func (c *transcriptView) acceptQuestions(blocks []agent.Block) error {
 	}
 	for _, item := range accepted {
 		item.tracked.block.accept(item.question)
-		c.content.Changed(item.tracked.id)
-		c.content.Finish(item.tracked.id)
-		delete(c.pendingQuestions, item.key)
+		t.content.Changed(item.tracked.id)
+		t.content.Finish(item.tracked.id)
+		delete(t.pendingQuestions, item.key)
 	}
 	if len(accepted) > 0 {
-		c.refreshSearch()
-		c.announceSelection()
+		t.refreshSearch()
+		t.announceSelection()
 	}
 	return nil
 }
 
-func (c *transcriptView) finishPendingQuestions(runID string) {
-	for key, question := range c.pendingQuestions {
+func (t *transcriptView) finishPendingQuestions(runID string) {
+	for key, question := range t.pendingQuestions {
 		if runID != "" && question.runID != runID {
 			continue
 		}
-		c.content.Finish(question.id)
-		delete(c.pendingQuestions, key)
+		t.content.Finish(question.id)
+		delete(t.pendingQuestions, key)
 	}
 }
 
@@ -65,7 +65,7 @@ func (c *transcriptView) finishPendingQuestions(runID string) {
 // An unanswered durable Question remains hidden and retained only when the same
 // snapshot exposes it as an open interaction. Canceled historical questions are
 // still intentionally invisible, but must not pin the transcript forever.
-func (c *transcriptView) reconcilePendingQuestions(interactions []agent.Interaction) error {
+func (t *transcriptView) reconcilePendingQuestions(interactions []agent.Interaction) error {
 	open := make(map[string]struct{}, len(interactions))
 	for _, interaction := range interactions {
 		question, ok := interaction.(agent.Question)
@@ -73,17 +73,17 @@ func (c *transcriptView) reconcilePendingQuestions(interactions []agent.Interact
 			continue
 		}
 		key := transcriptBlockKey(question.RunID, question.ItemID)
-		if _, pending := c.pendingQuestions[key]; !pending {
+		if _, pending := t.pendingQuestions[key]; !pending {
 			return fmt.Errorf("terminal transcript: open question block %s has no pending presentation", question.ItemID)
 		}
 		open[key] = struct{}{}
 	}
-	for key, question := range c.pendingQuestions {
+	for key, question := range t.pendingQuestions {
 		if _, remainsOpen := open[key]; remainsOpen {
 			continue
 		}
-		c.content.Finish(question.id)
-		delete(c.pendingQuestions, key)
+		t.content.Finish(question.id)
+		delete(t.pendingQuestions, key)
 	}
 	return nil
 }

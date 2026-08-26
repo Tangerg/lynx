@@ -17,8 +17,8 @@ import (
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	infraexec "github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
@@ -520,11 +520,11 @@ type advertisementWaitingModel struct {
 	restoredManifestIncludedHidden bool
 }
 
-func (model *advertisementWaitingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.calls++
-	switch model.calls {
+func (a *advertisementWaitingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.calls++
+	switch a.calls {
 	case 1:
 		return interactionToolResponse(chat.ToolCall{
 			ID: "discover", Name: "search_tools", Arguments: `{"query":"select:hidden_lookup"}`,
@@ -534,10 +534,10 @@ func (model *advertisementWaitingModel) Call(_ context.Context, request *chat.Re
 	case 3:
 		for _, definition := range request.Tools {
 			if definition.Name == "hidden_lookup" {
-				model.restoredManifestIncludedHidden = true
+				a.restoredManifestIncludedHidden = true
 			}
 		}
-		if !model.restoredManifestIncludedHidden {
+		if !a.restoredManifestIncludedHidden {
 			return nil, errors.New("deferred advertisement was lost across restore")
 		}
 		return interactionUsageTextResponse("done", 1, 1), nil
@@ -595,11 +595,11 @@ func rootInteractionWaitingContinuation(
 	}
 }
 
-func (authorizer *promptingInteractionAuthorizer) AuthorizeTool(
+func (p *promptingInteractionAuthorizer) AuthorizeTool(
 	_ context.Context,
 	request ToolAuthorizationRequest,
 ) (ToolAuthorizationDecision, error) {
-	authorizer.planned++
+	p.planned++
 	prompt := runs.ApprovalPrompt{
 		CallID: request.CallID, ToolName: request.ToolName, Arguments: request.Arguments.Canonical(),
 		SafetyClass: request.SafetyClass, Risk: domaintool.RiskHigh,
@@ -608,13 +608,13 @@ func (authorizer *promptingInteractionAuthorizer) AuthorizeTool(
 	return ToolAuthorizationDecision{Approval: &prompt}, nil
 }
 
-func (authorizer *promptingInteractionAuthorizer) ResolveToolApproval(
+func (p *promptingInteractionAuthorizer) ResolveToolApproval(
 	_ context.Context,
 	request ToolAuthorizationRequest,
 	_ runs.ApprovalPrompt,
 	resolution interrupt.Resolution,
 ) (ToolAuthorizationDecision, error) {
-	authorizer.resolved++
+	p.resolved++
 	if !resolution.Approved {
 		return ToolAuthorizationDecision{Denied: true, Reason: "denied by user"}, nil
 	}
@@ -927,24 +927,24 @@ type runtimeSteerModel struct {
 
 type restoreScopeValidatorFunc func(context.Context, runs.ExecutionScope) error
 
-func (validate restoreScopeValidatorFunc) ValidateRestoreScope(
+func (r restoreScopeValidatorFunc) ValidateRestoreScope(
 	ctx context.Context,
 	scope runs.ExecutionScope,
 ) error {
-	return validate(ctx, scope)
+	return r(ctx, scope)
 }
 
-func (model *runtimeSteerModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	model.calls++
-	call := model.calls
-	model.mu.Unlock()
+func (r *runtimeSteerModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	r.mu.Lock()
+	r.calls++
+	call := r.calls
+	r.mu.Unlock()
 	if call == 1 {
 		if len(request.Messages) != 1 {
 			return nil, errors.New("steer reached the in-flight model request")
 		}
-		close(model.started)
-		<-model.release
+		close(r.started)
+		<-r.release
 		return interactionUsageTextResponse("draft", 1, 1), nil
 	}
 	if len(request.Messages) != 4 || request.Messages[1].Text() != "draft" ||

@@ -43,26 +43,26 @@ func newInteractionAccounting(
 	}
 }
 
-func (meter *interactionAccounting) providerName() string { return meter.provider }
+func (i *interactionAccounting) providerName() string { return i.provider }
 
-func (meter *interactionAccounting) recordToolCall() {
-	meter.mu.Lock()
-	meter.toolCalls++
-	meter.mu.Unlock()
+func (i *interactionAccounting) recordToolCall() {
+	i.mu.Lock()
+	i.toolCalls++
+	i.mu.Unlock()
 }
 
-func (meter *interactionAccounting) toolCallCount() int {
-	meter.mu.Lock()
-	defer meter.mu.Unlock()
-	return meter.toolCalls
+func (i *interactionAccounting) toolCallCount() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.toolCalls
 }
 
-func (meter *interactionAccounting) snapshot() accounting.Snapshot {
-	meter.mu.Lock()
-	defer meter.mu.Unlock()
+func (i *interactionAccounting) snapshot() accounting.Snapshot {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	byModel := make(map[string]accounting.ModelUsage)
-	mergeInteractionUsage(byModel, meter.carriedUsage)
-	for _, processUsage := range meter.usageByProcess {
+	mergeInteractionUsage(byModel, i.carriedUsage)
+	for _, processUsage := range i.usageByProcess {
 		mergeInteractionUsage(byModel, processUsage)
 	}
 	models := make([]accounting.ModelUsage, 0, len(byModel))
@@ -91,66 +91,66 @@ func mergeInteractionUsage(
 	}
 }
 
-func (meter *interactionAccounting) restore(
+func (i *interactionAccounting) restore(
 	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage,
 	carriedUsage map[string]accounting.ModelUsage,
 ) {
-	meter.mu.Lock()
-	meter.usageByProcess = usageByProcess
-	meter.carriedUsage = carriedUsage
-	meter.mu.Unlock()
+	i.mu.Lock()
+	i.usageByProcess = usageByProcess
+	i.carriedUsage = carriedUsage
+	i.mu.Unlock()
 }
 
-func (meter *interactionAccounting) checkpointLocked() (
+func (i *interactionAccounting) checkpointLocked() (
 	map[agent.ProcessID]map[string]accounting.ModelUsage,
 	map[string]accounting.ModelUsage,
 ) {
-	usageByProcess := make(map[agent.ProcessID]map[string]accounting.ModelUsage, len(meter.usageByProcess))
-	for processID, byModel := range meter.usageByProcess {
+	usageByProcess := make(map[agent.ProcessID]map[string]accounting.ModelUsage, len(i.usageByProcess))
+	for processID, byModel := range i.usageByProcess {
 		usageByProcess[processID] = maps.Clone(byModel)
 	}
-	return usageByProcess, maps.Clone(meter.carriedUsage)
+	return usageByProcess, maps.Clone(i.carriedUsage)
 }
 
-func (session *interactionSession) interactionCheckpointPayload(
+func (i *interactionSession) interactionCheckpointPayload(
 	tree agent.TreeSnapshot,
 ) ([]byte, error) {
 	// Accounting and pending steers were one lock domain before P113. Hold both
 	// owners while copying so the checkpoint retains the same atomic snapshot,
 	// without making every model call contend with Process lifecycle transitions.
-	session.accounting.mu.Lock()
-	session.state.mu.Lock()
-	usageByProcess, carried := session.accounting.checkpointLocked()
-	pendingSteers := make(map[agent.SignalID]pendingInteractionSteer, len(session.state.pendingSteers))
-	for signalID, pending := range session.state.pendingSteers {
+	i.accounting.mu.Lock()
+	i.state.mu.Lock()
+	usageByProcess, carried := i.accounting.checkpointLocked()
+	pendingSteers := make(map[agent.SignalID]pendingInteractionSteer, len(i.state.pendingSteers))
+	for signalID, pending := range i.state.pendingSteers {
 		pendingSteers[signalID] = pendingInteractionSteer{content: transcript.CloneContent(pending.content)}
 	}
-	session.state.mu.Unlock()
-	session.accounting.mu.Unlock()
+	i.state.mu.Unlock()
+	i.accounting.mu.Unlock()
 
-	instructions, err := interactionInstructionContext(session.start.WorkingContext)
+	instructions, err := interactionInstructionContext(i.start.WorkingContext)
 	if err != nil {
 		return nil, err
 	}
 	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried, instructions, pendingSteers)
 }
 
-func (meter *interactionAccounting) accountModelCall(
+func (i *interactionAccounting) accountModelCall(
 	invocation interaction.ModelInvocation,
 	callID string,
 	response *corechat.Response,
 ) (runs.ModelCallCompleted, error) {
-	delta := modelUsage(response, meter.provider, meter.fallbackModel, meter.pricing)
+	delta := modelUsage(response, i.provider, i.fallbackModel, i.pricing)
 	if err := delta.Validate(); err != nil {
 		return runs.ModelCallCompleted{}, fmt.Errorf("agentexec: account model call: %w", err)
 	}
-	meter.mu.Lock()
-	defer meter.mu.Unlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	processID := invocation.Relation().ProcessID()
-	usageByModel := meter.usageByProcess[processID]
+	usageByModel := i.usageByProcess[processID]
 	if usageByModel == nil {
 		usageByModel = make(map[string]accounting.ModelUsage)
-		meter.usageByProcess[processID] = usageByModel
+		i.usageByProcess[processID] = usageByModel
 	}
 	current := usageByModel[delta.Model]
 	if current.Model == "" {
@@ -195,14 +195,14 @@ func (meter *interactionAccounting) accountModelCall(
 	}, nil
 }
 
-func (meter *interactionAccounting) segmentUsage(processID agent.ProcessID) *runs.SegmentUsage {
-	meter.mu.Lock()
-	usageByModel := meter.usageByProcess[processID]
+func (i *interactionAccounting) segmentUsage(processID agent.ProcessID) *runs.SegmentUsage {
+	i.mu.Lock()
+	usageByModel := i.usageByProcess[processID]
 	models := make([]accounting.ModelUsage, 0, len(usageByModel))
 	for _, usage := range usageByModel {
 		models = append(models, usage)
 	}
-	meter.mu.Unlock()
+	i.mu.Unlock()
 	slices.SortFunc(models, func(left, right accounting.ModelUsage) int {
 		return strings.Compare(left.Model, right.Model)
 	})

@@ -272,12 +272,12 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 	return result
 }
 
-func (wire interruptWire) interrupt() (runs.Interrupt, error) {
-	if !wire.Kind.Valid() {
-		return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown interrupt kind %q", wire.Kind)
+func (i interruptWire) interrupt() (runs.Interrupt, error) {
+	if !i.Kind.Valid() {
+		return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown interrupt kind %q", i.Kind)
 	}
-	result := runs.Interrupt{Kind: wire.Kind}
-	if prompt := wire.Approval; prompt != nil {
+	result := runs.Interrupt{Kind: i.Kind}
+	if prompt := i.Approval; prompt != nil {
 		if !prompt.SafetyClass.Valid() {
 			return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown safety class %q", prompt.SafetyClass)
 		}
@@ -289,10 +289,10 @@ func (wire interruptWire) interrupt() (runs.Interrupt, error) {
 			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
-	if prompt := wire.Question; prompt != nil {
+	if prompt := i.Question; prompt != nil {
 		result.Question = &runs.QuestionPrompt{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			Fields: questionFieldSpecsFrom(wire.Question.Fields),
+			Fields: questionFieldSpecsFrom(i.Question.Fields),
 		}
 	}
 	return result, nil
@@ -362,16 +362,16 @@ type ResolutionPayload struct {
 }
 
 // Resolution converts the validated technical payload to its Domain value.
-func (wire ResolutionPayload) Resolution() (interrupt.Resolution, error) {
-	if wire.RememberScope != "" && !wire.RememberScope.Valid() {
-		return interrupt.Resolution{}, fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", wire.RememberScope)
+func (r ResolutionPayload) Resolution() (interrupt.Resolution, error) {
+	if r.RememberScope != "" && !r.RememberScope.Valid() {
+		return interrupt.Resolution{}, fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", r.RememberScope)
 	}
-	answers := wire.Answers
+	answers := r.Answers
 	if len(answers) == 0 {
 		answers = nil
 	}
 	return interrupt.Resolution{
-		Approved: wire.Approved, Arguments: wire.Arguments, Answers: answers,
-		Reason: wire.Reason, RememberScope: wire.RememberScope,
+		Approved: r.Approved, Arguments: r.Arguments, Answers: answers,
+		Reason: r.Reason, RememberScope: r.RememberScope,
 	}, nil
 }

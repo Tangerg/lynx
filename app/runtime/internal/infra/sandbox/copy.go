@@ -108,7 +108,7 @@ type treeCopier struct {
 	totalBytes  int64
 }
 
-func (copier *treeCopier) copyEntry(ctx context.Context) fs.WalkDirFunc {
+func (t *treeCopier) copyEntry(ctx context.Context) fs.WalkDirFunc {
 	return func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -119,8 +119,8 @@ func (copier *treeCopier) copyEntry(ctx context.Context) fs.WalkDirFunc {
 		if name == "." {
 			return nil
 		}
-		copier.entries++
-		if copier.entries > maxWorkspaceCopyEntries {
+		t.entries++
+		if t.entries > maxWorkspaceCopyEntries {
 			return fmt.Errorf("workspace has more than %d entries", maxWorkspaceCopyEntries)
 		}
 		info, err := entry.Info()
@@ -130,29 +130,29 @@ func (copier *treeCopier) copyEntry(ctx context.Context) fs.WalkDirFunc {
 		portableName := filepath.ToSlash(name)
 		localName := filepath.FromSlash(portableName)
 		if parent := filepath.Dir(localName); parent != "." {
-			if err := copier.destination.MkdirAll(parent, 0o700); err != nil {
+			if err := t.destination.MkdirAll(parent, 0o700); err != nil {
 				return fmt.Errorf("create parent for %q: %w", portableName, err)
 			}
 		}
 
 		switch mode := info.Mode(); {
 		case mode.IsDir():
-			if err := copier.destination.MkdirAll(localName, 0o700); err != nil {
+			if err := t.destination.MkdirAll(localName, 0o700); err != nil {
 				return fmt.Errorf("create directory %q: %w", portableName, err)
 			}
-			copier.directories = append(copier.directories, directoryMode{name: localName, mode: mode.Perm()})
+			t.directories = append(t.directories, directoryMode{name: localName, mode: mode.Perm()})
 			return nil
 		case mode.IsRegular():
-			return copier.copyFile(ctx, portableName, localName, info)
+			return t.copyFile(ctx, portableName, localName, info)
 		case mode&os.ModeSymlink != 0:
-			return copier.copySymlink(portableName, localName)
+			return t.copySymlink(portableName, localName)
 		default:
 			return fmt.Errorf("unsupported file type %s at %q", mode.Type(), portableName)
 		}
 	}
 }
 
-func (copier *treeCopier) copyFile(
+func (t *treeCopier) copyFile(
 	ctx context.Context,
 	portableName string,
 	localName string,
@@ -162,12 +162,12 @@ func (copier *treeCopier) copyFile(
 	if size < 0 || size > maxWorkspaceCopyFileBytes {
 		return fmt.Errorf("file %q is %d bytes; limit is %d", portableName, size, maxWorkspaceCopyFileBytes)
 	}
-	if size > maxWorkspaceCopyBytes-copier.totalBytes {
+	if size > maxWorkspaceCopyBytes-t.totalBytes {
 		return fmt.Errorf("workspace content exceeds %d bytes", maxWorkspaceCopyBytes)
 	}
-	copier.totalBytes += size
+	t.totalBytes += size
 
-	source, err := copier.source.Open(localName)
+	source, err := t.source.Open(localName)
 	if err != nil {
 		return fmt.Errorf("open source file %q: %w", portableName, err)
 	}
@@ -183,7 +183,7 @@ func (copier *treeCopier) copyFile(
 			errors.Join(errors.New("identity or size changed"), closeErr),
 		)
 	}
-	destination, err := copier.destination.OpenFile(
+	destination, err := t.destination.OpenFile(
 		localName,
 		os.O_WRONLY|os.O_CREATE|os.O_EXCL,
 		info.Mode().Perm(),
@@ -193,7 +193,7 @@ func (copier *treeCopier) copyFile(
 	}
 
 	reader := io.LimitReader(contextReader{ctx: ctx, reader: source}, size+1)
-	written, copyErr := io.CopyBuffer(writeOnly{writer: destination}, reader, copier.buffer)
+	written, copyErr := io.CopyBuffer(writeOnly{writer: destination}, reader, t.buffer)
 	closeErr := errors.Join(destination.Close(), source.Close())
 	if copyErr != nil || closeErr != nil {
 		return fmt.Errorf("copy file %q: %w", portableName, errors.Join(copyErr, closeErr))
@@ -209,21 +209,21 @@ type contextReader struct {
 	reader io.Reader
 }
 
-func (reader contextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
+func (c contextReader) Read(buffer []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
 		return 0, err
 	}
-	return reader.reader.Read(buffer)
+	return c.reader.Read(buffer)
 }
 
 type writeOnly struct{ writer io.Writer }
 
-func (writer writeOnly) Write(buffer []byte) (int, error) {
-	return writer.writer.Write(buffer)
+func (w writeOnly) Write(buffer []byte) (int, error) {
+	return w.writer.Write(buffer)
 }
 
-func (copier *treeCopier) copySymlink(portableName, localName string) error {
-	target, err := copier.source.Readlink(localName)
+func (t *treeCopier) copySymlink(portableName, localName string) error {
+	target, err := t.source.Readlink(localName)
 	if err != nil {
 		return fmt.Errorf("read symlink %q: %w", portableName, err)
 	}
@@ -231,19 +231,19 @@ func (copier *treeCopier) copySymlink(portableName, localName string) error {
 	if err := validateSymlinkTarget(portableName, portableTarget); err != nil {
 		return err
 	}
-	if err := copier.destination.Symlink(filepath.FromSlash(portableTarget), localName); err != nil {
+	if err := t.destination.Symlink(filepath.FromSlash(portableTarget), localName); err != nil {
 		return fmt.Errorf("create symlink %q: %w", portableName, err)
 	}
 	return nil
 }
 
-func (copier *treeCopier) restoreDirectoryModes(ctx context.Context) error {
-	slices.Reverse(copier.directories)
-	for _, directory := range copier.directories {
+func (t *treeCopier) restoreDirectoryModes(ctx context.Context) error {
+	slices.Reverse(t.directories)
+	for _, directory := range t.directories {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := copier.destination.Chmod(directory.name, directory.mode); err != nil {
+		if err := t.destination.Chmod(directory.name, directory.mode); err != nil {
 			return fmt.Errorf("chmod directory %q: %w", directory.name, err)
 		}
 	}

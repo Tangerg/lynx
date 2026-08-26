@@ -46,46 +46,46 @@ type commandResponse struct {
 	Message  string `json:"message"`
 }
 
-func (c executableCommand) Execute(ctx context.Context, request terminal.CommandRequest) (terminal.CommandResult, error) {
+func (e executableCommand) Execute(ctx context.Context, request terminal.CommandRequest) (terminal.CommandResult, error) {
 	if err := validateCommandRequest(request); err != nil {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", c.pluginID, c.command, err)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", e.pluginID, e.command, err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 	payload, err := json.Marshal(commandRequest{
-		Protocol: commandProtocolVersion, PluginID: c.pluginID, Command: c.command,
+		Protocol: commandProtocolVersion, PluginID: e.pluginID, Command: e.command,
 		Argument: request.Argument, Workspace: request.Workspace, SessionID: request.SessionID,
 	})
 	if err != nil {
 		return terminal.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
 	}
 	if len(payload) > maxCommandRequestBytes {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", c.pluginID, c.command, maxCommandRequestBytes)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", e.pluginID, e.command, maxCommandRequestBytes)
 	}
 	// #nosec G204 -- discovery canonicalizes the manifest entry, proves that it
 	// remains inside the plugin directory, and requires an executable regular file.
-	process := exec.CommandContext(ctx, c.executable)
+	process := exec.CommandContext(ctx, e.executable)
 	configureProcess(process)
-	process.Dir = c.directory
-	process.Env = commandEnvironment(c.pluginID, c.command)
+	process.Dir = e.directory
+	process.Env = commandEnvironment(e.pluginID, e.command)
 	process.Stdin = bytes.NewReader(append(payload, '\n'))
 	var stdout, stderr cappedBuffer
 	stdout.limit, stderr.limit = maxCommandOutputBytes, maxCommandOutputBytes
 	process.Stdout, process.Stderr = &stdout, &stderr
 	if err := process.Run(); err != nil {
 		if cause := context.Cause(ctx); cause != nil {
-			return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", c.pluginID, c.command, cause)
+			return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", e.pluginID, e.command, cause)
 		}
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = err.Error()
 		}
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", c.pluginID, c.command, detail)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", e.pluginID, e.command, detail)
 	}
 	if stdout.overflow || stderr.overflow {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", c.pluginID, c.command, maxCommandOutputBytes)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", e.pluginID, e.command, maxCommandOutputBytes)
 	}
-	return decodeCommandResponse(c.pluginID, c.command, stdout.Bytes())
+	return decodeCommandResponse(e.pluginID, e.command, stdout.Bytes())
 }
 
 func validateCommandRequest(request terminal.CommandRequest) error {
@@ -155,13 +155,13 @@ type cappedBuffer struct {
 	overflow bool
 }
 
-func (b *cappedBuffer) Write(value []byte) (int, error) {
+func (c *cappedBuffer) Write(value []byte) (int, error) {
 	length := len(value)
-	remaining := max(b.limit-b.Len(), 0)
+	remaining := max(c.limit-c.Len(), 0)
 	if len(value) > remaining {
 		value = value[:remaining]
-		b.overflow = true
+		c.overflow = true
 	}
-	_, _ = b.Buffer.Write(value)
+	_, _ = c.Buffer.Write(value)
 	return length, nil
 }

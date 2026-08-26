@@ -927,8 +927,8 @@ func TestDiscardExcessRetainsABoundedInteractiveWindow(t *testing.T) {
 
 type recordingClipboard struct{ text string }
 
-func (c *recordingClipboard) Copy(value string) bool {
-	c.text = value
+func (r *recordingClipboard) Copy(value string) bool {
+	r.text = value
 	return true
 }
 
@@ -983,12 +983,12 @@ func scrollBelowSelectedToolHeader(t *testing.T, view *transcriptView, toolID he
 	return selectedToolViewport{view: view, root: root, surface: surface, header: header}
 }
 
-func (viewport selectedToolViewport) requireHeaderVisible(t *testing.T) {
+func (s selectedToolViewport) requireHeaderVisible(t *testing.T) {
 	t.Helper()
-	from := viewport.view.content.StartRow() + viewport.view.scroll.Offset()
-	if viewport.header < from || viewport.header >= from+testTranscriptWindowRows {
+	from := s.view.content.StartRow() + s.view.scroll.Offset()
+	if s.header < from || s.header >= from+testTranscriptWindowRows {
 		t.Fatalf("selected header row %d is outside visible range [%d,%d)",
-			viewport.header, from, from+testTranscriptWindowRows)
+			s.header, from, from+testTranscriptWindowRows)
 	}
 }
 

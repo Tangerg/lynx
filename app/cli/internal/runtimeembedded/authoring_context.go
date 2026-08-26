@@ -20,8 +20,8 @@ type authoringContextAdapter struct{ runtime *Runtime }
 
 var _ authoringcontext.Service = (*authoringContextAdapter)(nil)
 
-func (adapter *authoringContextAdapter) Documents(ctx context.Context, workspace string) ([]authoringcontext.Document, error) {
-	r := adapter.runtime
+func (a *authoringContextAdapter) Documents(ctx context.Context, workspace string) ([]authoringcontext.Document, error) {
+	r := a.runtime
 	query, err := authoringWorkspaceQuery(workspace)
 	if err != nil {
 		return nil, err
@@ -50,8 +50,8 @@ func (adapter *authoringContextAdapter) Documents(ctx context.Context, workspace
 	return documents, nil
 }
 
-func (adapter *authoringContextAdapter) Recipes(ctx context.Context, workspace string) ([]authoringcontext.Recipe, error) {
-	r := adapter.runtime
+func (a *authoringContextAdapter) Recipes(ctx context.Context, workspace string) ([]authoringcontext.Recipe, error) {
+	r := a.runtime
 	query, err := authoringWorkspaceQuery(workspace)
 	if err != nil {
 		return nil, err

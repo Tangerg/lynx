@@ -31,45 +31,45 @@ type assistantProseBlock struct {
 	text agent.StreamedText
 }
 
-func (prose *assistantProse) reset() {
-	prose.blocks = nil
-	prose.index = make(map[string]int)
+func (a *assistantProse) reset() {
+	a.blocks = nil
+	a.index = make(map[string]int)
 }
 
-func (prose *assistantProse) begin(block agent.Block) {
-	prose.ensureIndex()
-	if at, exists := prose.index[block.ID]; exists {
-		prose.blocks[at].text = agent.NewStreamedText(block.Text)
+func (a *assistantProse) begin(block agent.Block) {
+	a.ensureIndex()
+	if at, exists := a.index[block.ID]; exists {
+		a.blocks[at].text = agent.NewStreamedText(block.Text)
 		return
 	}
-	prose.index[block.ID] = len(prose.blocks)
-	prose.blocks = append(prose.blocks, assistantProseBlock{text: agent.NewStreamedText(block.Text)})
+	a.index[block.ID] = len(a.blocks)
+	a.blocks = append(a.blocks, assistantProseBlock{text: agent.NewStreamedText(block.Text)})
 }
 
-func (prose *assistantProse) delta(delta agent.BlockDelta) error {
-	prose.ensureIndex()
-	at, exists := prose.index[delta.BlockID]
+func (a *assistantProse) delta(delta agent.BlockDelta) error {
+	a.ensureIndex()
+	at, exists := a.index[delta.BlockID]
 	if !exists {
 		return nil
 	}
-	_, err := prose.blocks[at].text.Apply(delta)
+	_, err := a.blocks[at].text.Apply(delta)
 	return err
 }
 
-func (prose *assistantProse) complete(block agent.Block) {
-	prose.ensureIndex()
-	at, exists := prose.index[block.ID]
+func (a *assistantProse) complete(block agent.Block) {
+	a.ensureIndex()
+	at, exists := a.index[block.ID]
 	if !exists {
-		prose.index[block.ID] = len(prose.blocks)
-		prose.blocks = append(prose.blocks, assistantProseBlock{})
-		at = len(prose.blocks) - 1
+		a.index[block.ID] = len(a.blocks)
+		a.blocks = append(a.blocks, assistantProseBlock{})
+		at = len(a.blocks) - 1
 	}
-	prose.blocks[at].text = agent.NewStreamedText(block.Text)
+	a.blocks[at].text = agent.NewStreamedText(block.Text)
 }
 
-func (prose *assistantProse) text() string {
-	parts := make([]string, 0, len(prose.blocks))
-	for _, block := range prose.blocks {
+func (a *assistantProse) text() string {
+	parts := make([]string, 0, len(a.blocks))
+	for _, block := range a.blocks {
 		if text := block.text.String(); text != "" {
 			parts = append(parts, text)
 		}
@@ -77,9 +77,9 @@ func (prose *assistantProse) text() string {
 	return strings.Join(parts, "\n\n")
 }
 
-func (prose *assistantProse) ensureIndex() {
-	if prose.index == nil {
-		prose.index = make(map[string]int)
+func (a *assistantProse) ensureIndex() {
+	if a.index == nil {
+		a.index = make(map[string]int)
 	}
 }
 

@@ -135,21 +135,21 @@ func mustProblemContracts() []ProblemContract {
 	return out
 }
 
-func (contract ProblemContract) validate() error {
-	if contract.Type == "" {
+func (p ProblemContract) validate() error {
+	if p.Type == "" {
 		return errors.New("problem type is empty")
 	}
-	if len(contract.Channels) == 0 {
-		return fmt.Errorf("problem type %q has no channel", contract.Type)
+	if len(p.Channels) == 0 {
+		return fmt.Errorf("problem type %q has no channel", p.Type)
 	}
-	for index, channel := range contract.Channels {
-		if slices.Contains(contract.Channels[:index], channel) {
-			return fmt.Errorf("problem type %q repeats channel %q", contract.Type, channel)
+	for index, channel := range p.Channels {
+		if slices.Contains(p.Channels[:index], channel) {
+			return fmt.Errorf("problem type %q repeats channel %q", p.Type, channel)
 		}
 		switch channel {
 		case ProblemChannelRPC, ProblemChannelExecution, ProblemChannelInlineStatus:
 		default:
-			return fmt.Errorf("problem type %q has unknown channel %q", contract.Type, channel)
+			return fmt.Errorf("problem type %q has unknown channel %q", p.Type, channel)
 		}
 	}
 	return nil

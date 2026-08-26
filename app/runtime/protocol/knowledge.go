@@ -13,9 +13,9 @@ const (
 	KnowledgeScopeHome        KnowledgeScope = "home"
 )
 
-// Valid reports whether s is a known scope.
-func (s KnowledgeScope) Valid() bool {
-	return s == KnowledgeScopeCWD || s == KnowledgeScopeProjectRoot || s == KnowledgeScopeHome
+// Valid reports whether k is a known scope.
+func (k KnowledgeScope) Valid() bool {
+	return k == KnowledgeScopeCWD || k == KnowledgeScopeProjectRoot || k == KnowledgeScopeHome
 }
 
 // KnowledgeEntry is one knowledge record (API.md §4.10).

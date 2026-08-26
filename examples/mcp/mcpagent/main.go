@@ -215,7 +215,7 @@ type stubModel struct{}
 
 func newStubModel() *stubModel { return &stubModel{} }
 
-func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+func (s *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(request.Messages) {
 		// First turn — emit a tool call. The MCP-backed tool name is
 		// "research_search" because DefaultNaming prefixes the source
@@ -225,8 +225,8 @@ func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 	return responseWithText(`{"sources":["https://example.com/agents-2026"]}`), nil
 }
 
-func (m *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-	response, err := m.Call(ctx, request)
+func (s *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := s.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 

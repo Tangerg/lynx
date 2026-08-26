@@ -24,21 +24,21 @@ type crudSessionStore struct {
 	saveErr  error
 }
 
-func (s *crudSessionStore) ListPage(ctx context.Context, _ bool, _ int64, _ string, _ int) ([]session.Session, error) {
-	return s.List(ctx)
+func (c *crudSessionStore) ListPage(ctx context.Context, _ bool, _ int64, _ string, _ int) ([]session.Session, error) {
+	return c.List(ctx)
 }
 
-func (s *crudSessionStore) List(context.Context) ([]session.Session, error) { return s.sessions, nil }
+func (c *crudSessionStore) List(context.Context) ([]session.Session, error) { return c.sessions, nil }
 
-func (s *crudSessionStore) Get(_ context.Context, id string) (session.Session, error) {
-	s.getID = id
-	if s.getErr != nil {
-		return session.Session{}, s.getErr
+func (c *crudSessionStore) Get(_ context.Context, id string) (session.Session, error) {
+	c.getID = id
+	if c.getErr != nil {
+		return session.Session{}, c.getErr
 	}
-	if s.current.ID() == "" {
-		s.current = sessionfixture.MustRestore(session.Snapshot{ID: id, Workspace: sessionfixture.MustWorkspace("/repo")})
+	if c.current.ID() == "" {
+		c.current = sessionfixture.MustRestore(session.Snapshot{ID: id, Workspace: sessionfixture.MustWorkspace("/repo")})
 	}
-	return s.current, nil
+	return c.current, nil
 }
 
 type generatedTitleRaceStore struct {
@@ -47,38 +47,38 @@ type generatedTitleRaceStore struct {
 	candidate session.Session
 }
 
-func (s *generatedTitleRaceStore) Save(
+func (g *generatedTitleRaceStore) Save(
 	_ context.Context,
 	_ uint64,
 	replacement session.Session,
 ) error {
-	s.saveCalls++
-	s.candidate = replacement
+	g.saveCalls++
+	g.candidate = replacement
 	userTitle := "User title"
-	committed, changed, err := s.current.Apply(
+	committed, changed, err := g.current.Apply(
 		session.Patch{Title: &userTitle},
 		time.Unix(2, 0).UTC(),
 	)
 	if err != nil || !changed {
 		return errors.New("test: could not install concurrent user title")
 	}
-	s.current = committed
+	g.current = committed
 	return session.ErrRevisionConflict
 }
 
-func (s *crudSessionStore) Insert(_ context.Context, value session.Session) error {
-	s.inserted = value
-	s.current = value
+func (c *crudSessionStore) Insert(_ context.Context, value session.Session) error {
+	c.inserted = value
+	c.current = value
 	return nil
 }
 
-func (s *crudSessionStore) Save(_ context.Context, expected uint64, replacement session.Session) error {
-	s.expected = expected
-	s.saved = replacement
-	if s.saveErr != nil {
-		return s.saveErr
+func (c *crudSessionStore) Save(_ context.Context, expected uint64, replacement session.Session) error {
+	c.expected = expected
+	c.saved = replacement
+	if c.saveErr != nil {
+		return c.saveErr
 	}
-	s.current = replacement
+	c.current = replacement
 	return nil
 }
 
@@ -89,10 +89,10 @@ type crudStores struct {
 	interrupts InterruptStore
 }
 
-func (s *crudStores) Session() Store { return s.session }
-func (s *crudStores) Interrupts() InterruptStore {
-	if s.interrupts != nil {
-		return s.interrupts
+func (c *crudStores) Session() Store { return c.session }
+func (c *crudStores) Interrupts() InterruptStore {
+	if c.interrupts != nil {
+		return c.interrupts
 	}
 	return &coordinatorInterrupts{pending: map[string]runs.Pending{}}
 }
@@ -377,10 +377,10 @@ type pagedSessionStore struct {
 	limit   int
 }
 
-func (s *pagedSessionStore) ListPage(_ context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error) {
-	s.afterID, s.limit = afterID, limit
+func (p *pagedSessionStore) ListPage(_ context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error) {
+	p.afterID, p.limit = afterID, limit
 	var out []session.Session
-	for _, row := range s.rows {
+	for _, row := range p.rows {
 		if afterUpdatedAt != 0 || afterID != "" {
 			position := row.UpdatedAt().UnixNano()
 			if row.Favorite() != afterFavorite || position > afterUpdatedAt || (position == afterUpdatedAt && row.ID() <= afterID) {

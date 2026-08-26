@@ -37,14 +37,14 @@ const (
 	KindStream MethodKind = "stream"
 )
 
-// Valid reports whether k names one supported delivery shape.
-func (k MethodKind) Valid() bool { return k == KindUnary || k == KindStream }
+// Valid reports whether m names one supported delivery shape.
+func (m MethodKind) Valid() bool { return m == KindUnary || m == KindStream }
 
-func (k MethodKind) String() string {
-	if !k.Valid() {
-		return fmt.Sprintf("MethodKind(%q)", string(k))
+func (m MethodKind) String() string {
+	if !m.Valid() {
+		return fmt.Sprintf("MethodKind(%q)", string(m))
 	}
-	return string(k)
+	return string(m)
 }
 
 // OperationKind describes what a call means independently of how its response is
@@ -64,19 +64,19 @@ const (
 	OperationSubscription OperationKind = "subscription"
 )
 
-// Valid reports whether k names one supported operation semantic.
-func (k OperationKind) Valid() bool {
-	return k == OperationQuery || k == OperationCommand || k == OperationSubscription
+// Valid reports whether o names one supported operation semantic.
+func (o OperationKind) Valid() bool {
+	return o == OperationQuery || o == OperationCommand || o == OperationSubscription
 }
 
-func (k OperationKind) String() string {
-	if k == operationUnspecified {
+func (o OperationKind) String() string {
+	if o == operationUnspecified {
 		return "unspecified"
 	}
-	if !k.Valid() {
-		return fmt.Sprintf("OperationKind(%q)", string(k))
+	if !o.Valid() {
+		return fmt.Sprintf("OperationKind(%q)", string(o))
 	}
-	return string(k)
+	return string(o)
 }
 
 // IdempotencyPolicy says what an `Idempotency-Key` retry of this method must do
@@ -101,16 +101,16 @@ const (
 	IdempotencyReplayRunStream IdempotencyPolicy = "replayRunStream"
 )
 
-// Valid reports whether p is one supported retry contract.
-func (p IdempotencyPolicy) Valid() bool {
-	return p == IdempotencyNone || p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
+// Valid reports whether i is one supported retry contract.
+func (i IdempotencyPolicy) Valid() bool {
+	return i == IdempotencyNone || i == IdempotencyReplayResponse || i == IdempotencyReplayRunStream
 }
 
 // Replays reports whether this policy keeps a replay record at all. Unknown
 // values never acquire replay semantics by accident; registry validation rejects
 // them before invocation starts.
-func (p IdempotencyPolicy) Replays() bool {
-	return p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
+func (i IdempotencyPolicy) Replays() bool {
+	return i == IdempotencyReplayResponse || i == IdempotencyReplayRunStream
 }
 
 // ReplayCursorPolicy says whether a streaming method accepts the opaque run
@@ -124,8 +124,8 @@ const (
 	ReplayCursorRun  ReplayCursorPolicy = "run"
 )
 
-// Valid reports whether p is one supported replay-cursor contract.
-func (p ReplayCursorPolicy) Valid() bool { return p == ReplayCursorNone || p == ReplayCursorRun }
+// Valid reports whether r is one supported replay-cursor contract.
+func (r ReplayCursorPolicy) Valid() bool { return r == ReplayCursorNone || r == ReplayCursorRun }
 
 // PaginationKind describes whether one unary response is a cursor page. It is
 // derived from the registered Params and Result wire shapes by the registration
@@ -156,8 +156,8 @@ const (
 	OperatorEquals ConditionOperator = "equals"
 )
 
-// Valid reports whether o names one supported field comparison.
-func (o ConditionOperator) Valid() bool { return o == OperatorPresent || o == OperatorEquals }
+// Valid reports whether c names one supported field comparison.
+func (c ConditionOperator) Valid() bool { return c == OperatorPresent || c == OperatorEquals }
 
 // FieldCondition tests one field of the request frame. Field is a dotted path
 // into the same frame; it never reaches outside the request (contract §11.2), so
@@ -486,18 +486,18 @@ func (m MethodMeta) validateCapabilityRules() error {
 	return nil
 }
 
-func (p IdempotencyPolicy) String() string {
-	if !p.Valid() {
-		return fmt.Sprintf("IdempotencyPolicy(%q)", string(p))
+func (i IdempotencyPolicy) String() string {
+	if !i.Valid() {
+		return fmt.Sprintf("IdempotencyPolicy(%q)", string(i))
 	}
-	return string(p)
+	return string(i)
 }
 
-func (p ReplayCursorPolicy) String() string {
-	if !p.Valid() {
-		return fmt.Sprintf("ReplayCursorPolicy(%q)", string(p))
+func (r ReplayCursorPolicy) String() string {
+	if !r.Valid() {
+		return fmt.Sprintf("ReplayCursorPolicy(%q)", string(r))
 	}
-	return string(p)
+	return string(r)
 }
 
 func (p PaginationKind) String() string {
@@ -507,11 +507,11 @@ func (p PaginationKind) String() string {
 	return string(p)
 }
 
-func (o ConditionOperator) String() string {
-	if !o.Valid() {
-		return fmt.Sprintf("ConditionOperator(%q)", string(o))
+func (c ConditionOperator) String() string {
+	if !c.Valid() {
+		return fmt.Sprintf("ConditionOperator(%q)", string(c))
 	}
-	return string(o)
+	return string(c)
 }
 
 // ValidateFieldCondition checks a field-local condition against its declared

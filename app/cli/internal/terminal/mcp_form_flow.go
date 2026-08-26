@@ -29,44 +29,44 @@ func newMCPFormFlow(mode mcpFormMode, server mcp.Server) *mcpFormFlow {
 	}
 }
 
-func (f *mcpFormFlow) replacesConnection() bool {
-	return f.mode != mcpFormUpdate || f.draft.connectionMode == "replace"
+func (m *mcpFormFlow) replacesConnection() bool {
+	return m.mode != mcpFormUpdate || m.draft.connectionMode == "replace"
 }
 
-func (f *mcpFormFlow) connectionStep() mcpFormStep {
-	if f.draft.transport == string(mcp.Stdio) {
+func (m *mcpFormFlow) connectionStep() mcpFormStep {
+	if m.draft.transport == string(mcp.Stdio) {
 		return mcpFormStdio
 	}
 	return mcpFormHTTP
 }
 
-func (f *mcpFormFlow) advance() bool {
-	switch f.step {
+func (m *mcpFormFlow) advance() bool {
+	switch m.step {
 	case mcpFormGeneral:
-		if f.replacesConnection() {
-			f.step = f.connectionStep()
+		if m.replacesConnection() {
+			m.step = m.connectionStep()
 		} else {
-			f.step = mcpFormPolicy
+			m.step = mcpFormPolicy
 		}
 		return true
 	case mcpFormHTTP, mcpFormStdio:
-		f.step = mcpFormPolicy
+		m.step = mcpFormPolicy
 		return true
 	default:
 		return false
 	}
 }
 
-func (f *mcpFormFlow) back() bool {
-	switch f.step {
+func (m *mcpFormFlow) back() bool {
+	switch m.step {
 	case mcpFormHTTP, mcpFormStdio:
-		f.step = mcpFormGeneral
+		m.step = mcpFormGeneral
 		return true
 	case mcpFormPolicy:
-		if f.replacesConnection() {
-			f.step = f.connectionStep()
+		if m.replacesConnection() {
+			m.step = m.connectionStep()
 		} else {
-			f.step = mcpFormGeneral
+			m.step = mcpFormGeneral
 		}
 		return true
 	default:
@@ -74,12 +74,12 @@ func (f *mcpFormFlow) back() bool {
 	}
 }
 
-func (f *mcpFormFlow) progress() (int, int, string) {
+func (m *mcpFormFlow) progress() (int, int, string) {
 	total := 2
-	if f.replacesConnection() {
+	if m.replacesConnection() {
 		total = 3
 	}
-	switch f.step {
+	switch m.step {
 	case mcpFormGeneral:
 		return 1, total, "General"
 	case mcpFormHTTP:
@@ -91,11 +91,11 @@ func (f *mcpFormFlow) progress() (int, int, string) {
 	}
 }
 
-func (f *mcpFormFlow) clearSecrets() {
-	f.draft.authorization, f.draft.headers, f.draft.environment = "", "", ""
-	for _, field := range f.secretFields {
+func (m *mcpFormFlow) clearSecrets() {
+	m.draft.authorization, m.draft.headers, m.draft.environment = "", "", ""
+	for _, field := range m.secretFields {
 		field.Editor().SetText("")
 	}
-	clear(f.secretFields)
-	f.secretFields = nil
+	clear(m.secretFields)
+	m.secretFields = nil
 }

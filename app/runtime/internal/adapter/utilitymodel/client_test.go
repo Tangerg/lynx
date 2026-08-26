@@ -5,22 +5,22 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 type recordingModel struct {
 	request *chat.Request
 }
 
-func (model *recordingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.request = request
+func (r *recordingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	r.request = request
 	message := chat.NewAssistantMessage(chat.NewTextPart("completed"))
 	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
-func (model *recordingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+func (r *recordingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := r.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 

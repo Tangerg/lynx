@@ -30,11 +30,11 @@ type postCommitDeleteRuntime struct {
 	request agent.DeleteSession
 }
 
-func (runtime *postCommitDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
-	if err := runtime.Runtime.DeleteSession(ctx, request); err != nil {
+func (p *postCommitDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
+	if err := p.Runtime.DeleteSession(ctx, request); err != nil {
 		return err
 	}
-	runtime.request = request
+	p.request = request
 	return errors.New("runtime cleanup failed after durable deletion")
 }
 
@@ -257,68 +257,68 @@ type ambiguousControls struct {
 	resumeID     agent.CommandID
 }
 
-func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	r.mu.Lock()
-	if r.startID != "" {
-		if r.startID != input.CommandID {
-			r.mu.Unlock()
+func (a *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	a.mu.Lock()
+	if a.startID != "" {
+		if a.startID != input.CommandID {
+			a.mu.Unlock()
 			return agent.SegmentStream{}, agent.ErrCommandConflict
 		}
-		r.starts++
-		stream := r.startStream
-		r.mu.Unlock()
+		a.starts++
+		stream := a.startStream
+		a.mu.Unlock()
 		return stream, nil
 	}
-	r.mu.Unlock()
-	stream, err := r.Runtime.StartRun(ctx, input)
+	a.mu.Unlock()
+	stream, err := a.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	r.mu.Lock()
-	r.starts++
-	r.startID = input.CommandID
-	r.startStream = stream
-	lost := r.loseStart
-	r.mu.Unlock()
+	a.mu.Lock()
+	a.starts++
+	a.startID = input.CommandID
+	a.startStream = stream
+	lost := a.loseStart
+	a.mu.Unlock()
 	if lost {
 		return agent.SegmentStream{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
 	}
 	return stream, nil
 }
 
-func (r *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	r.mu.Lock()
-	if r.resumeID != "" {
-		if r.resumeID != input.CommandID {
-			r.mu.Unlock()
+func (a *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	a.mu.Lock()
+	if a.resumeID != "" {
+		if a.resumeID != input.CommandID {
+			a.mu.Unlock()
 			return agent.SegmentStream{}, agent.ErrCommandConflict
 		}
-		r.resumes++
-		stream := r.resumeStream
-		r.mu.Unlock()
+		a.resumes++
+		stream := a.resumeStream
+		a.mu.Unlock()
 		return stream, nil
 	}
-	r.mu.Unlock()
-	stream, err := r.Runtime.ResumeRun(ctx, input)
+	a.mu.Unlock()
+	stream, err := a.Runtime.ResumeRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	r.mu.Lock()
-	r.resumes++
-	r.resumeID = input.CommandID
-	r.resumeStream = stream
-	lost := r.loseResume
-	r.mu.Unlock()
+	a.mu.Lock()
+	a.resumes++
+	a.resumeID = input.CommandID
+	a.resumeStream = stream
+	lost := a.loseResume
+	a.mu.Unlock()
 	if lost {
 		return agent.SegmentStream{}, fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
 	}
 	return stream, nil
 }
 
-func (r *ambiguousControls) calls() (int, int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.starts, r.resumes
+func (a *ambiguousControls) calls() (int, int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.starts, a.resumes
 }
 
 func TestRunRetriesAmbiguousControlOperationsByStableIdentity(t *testing.T) {
@@ -449,8 +449,8 @@ func TestOutputFormatCompletionFiltersCandidates(t *testing.T) {
 
 type alwaysDisconnected struct{ agent.Runtime }
 
-func (runtime alwaysDisconnected) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	stream, err := runtime.Runtime.StartRun(ctx, input)
+func (a alwaysDisconnected) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	stream, err := a.Runtime.StartRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}

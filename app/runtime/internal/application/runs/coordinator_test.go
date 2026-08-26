@@ -81,13 +81,13 @@ func newChildStartFixture(startedAt time.Time) (childStartFixture, childStartRec
 	return childStartFixture{StartedAt: startedAt, result: result}, childStartReceipt{result: result}
 }
 
-func (fixture childStartFixture) complete(binding ChildRunBinding, err error) {
-	fixture.result <- childStartFixtureResult{binding: binding, err: err}
+func (c childStartFixture) complete(binding ChildRunBinding, err error) {
+	c.result <- childStartFixtureResult{binding: binding, err: err}
 }
 
-func (receipt childStartReceipt) Await(ctx context.Context) (ChildRunBinding, error) {
+func (c childStartReceipt) Await(ctx context.Context) (ChildRunBinding, error) {
 	select {
-	case result := <-receipt.result:
+	case result := <-c.result:
 		return result.binding, result.err
 	case <-ctx.Done():
 		return ChildRunBinding{}, ctx.Err()
@@ -144,51 +144,51 @@ type acknowledgedNativeChildExecutor struct {
 	reservationReceipt ChildRunReservationReceipt
 }
 
-func (e *acknowledgedNativeChildExecutor) Observe(
+func (a *acknowledgedNativeChildExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
-			Member: e.rootMember,
+			Member: a.rootMember,
 			Payload: ToolCallStarted{
 				CallID: "delegate-call", ModelCallSequence: 1,
-				SourceCallID: e.childMember.SpawnCallID, ToolCallIndex: 0,
+				SourceCallID: a.childMember.SpawnCallID, ToolCallIndex: 0,
 				ToolName: "delegate_task", Arguments: `{"summary":"child"}`,
 				SafetyClass: tool.SafetyClassExec,
 			},
-		}) || !yield(ExecutorEvent{Member: e.childMember, Payload: e.reservation}) {
+		}) || !yield(ExecutorEvent{Member: a.childMember, Payload: a.reservation}) {
 			return
 		}
-		binding, err := e.reservationReceipt.Await(ctx)
+		binding, err := a.reservationReceipt.Await(ctx)
 		if err != nil {
 			return
 		}
 		outcome, receipt := NewChildRunStartOutcomeRequest(binding, ChildRunStarted)
-		if !yield(ExecutorEvent{Member: e.childMember, Payload: outcome}) || receipt.Await(ctx) != nil {
+		if !yield(ExecutorEvent{Member: a.childMember, Payload: outcome}) || receipt.Await(ctx) != nil {
 			return
 		}
 		// A fresh request carrying the same conclusive result proves pump-level
 		// idempotence rather than merely re-reading one receipt.
 		replay, replayReceipt := NewChildRunStartOutcomeRequest(binding, ChildRunStarted)
-		if !yield(ExecutorEvent{Member: e.childMember, Payload: replay}) || replayReceipt.Await(ctx) != nil {
+		if !yield(ExecutorEvent{Member: a.childMember, Payload: replay}) || replayReceipt.Await(ctx) != nil {
 			return
 		}
 		if !yield(ExecutorEvent{
-			Member: e.childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted},
+			Member: a.childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		}) {
 			return
 		}
 		result := tool.StringResult(`{"reply":"done"}`)
 		if !yield(ExecutorEvent{
-			Member: e.rootMember,
+			Member: a.rootMember,
 			Payload: ToolCallFinished{
 				CallID: "delegate-call", Arguments: `{"summary":"child"}`, Result: &result,
 			},
 		}) {
 			return
 		}
-		yield(ExecutorEvent{Member: e.rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}})
+		yield(ExecutorEvent{Member: a.rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}})
 	}, nil
 }
 
@@ -204,39 +204,39 @@ type cancellableChildExecutor struct {
 	finishRoot      chan struct{}
 }
 
-func (e *cancellableChildExecutor) Observe(
+func (c *cancellableChildExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
-			Member: e.rootMember,
+			Member: c.rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_child",
-				SourceCallID: e.childMember.SpawnCallID,
+				SourceCallID: c.childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
 			return
 		}
-		if !yieldChildStart(ctx, yield, e.childMember, e.request) {
+		if !yieldChildStart(ctx, yield, c.childMember, c.request) {
 			return
 		}
-		close(e.childOpened)
+		close(c.childOpened)
 		select {
-		case <-e.cancelRequested:
+		case <-c.cancelRequested:
 		case <-ctx.Done():
 			return
 		}
 		if !yield(ExecutorEvent{
-			Member:  e.childMember,
+			Member:  c.childMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCanceled},
 		}) {
 			return
 		}
 		if !yield(ExecutorEvent{
-			Member: e.rootMember,
+			Member: c.rootMember,
 			Payload: ToolCallFinished{
 				CallID: "canonical_child",
 				Failure: &tool.Failure{
@@ -248,12 +248,12 @@ func (e *cancellableChildExecutor) Observe(
 			return
 		}
 		select {
-		case <-e.finishRoot:
+		case <-c.finishRoot:
 		case <-ctx.Done():
 			return
 		}
 		yield(ExecutorEvent{
-			Member:  e.rootMember,
+			Member:  c.rootMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		})
 	}, nil
@@ -263,31 +263,31 @@ func (*cancellableChildExecutor) Release(context.Context, ExecutorRef) error {
 	return nil
 }
 
-func (e *acknowledgedChildExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
+func (a *acknowledgedChildExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
-			Member: e.rootMember,
+			Member: a.rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: e.childMember.SpawnCallID,
+				SourceCallID: a.childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
 			return
 		}
-		if !yieldChildStart(ctx, yield, e.childMember, e.request) {
+		if !yieldChildStart(ctx, yield, a.childMember, a.request) {
 			return
 		}
-		close(e.childStarted)
+		close(a.childStarted)
 		if !yield(ExecutorEvent{
-			Member:  e.childMember,
+			Member:  a.childMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		}) {
 			return
 		}
 		yield(ExecutorEvent{
-			Member:  e.rootMember,
+			Member:  a.rootMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		})
 	}, nil
@@ -404,78 +404,78 @@ type fakeEffects struct {
 	childOutcomes   map[string]ChildRunStartOutcome
 }
 
-func (e *fakeEffects) ReserveChildRunStart(
+func (f *fakeEffects) ReserveChildRunStart(
 	_ context.Context,
 	reservation ChildRunStartReservation,
 ) error {
 	if err := reservation.Validate(); err != nil {
 		return err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.childStarts == nil {
-		e.childStarts = make(map[string]ChildRunStartReservation)
-		e.childOutcomes = make(map[string]ChildRunStartOutcome)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.childStarts == nil {
+		f.childStarts = make(map[string]ChildRunStartReservation)
+		f.childOutcomes = make(map[string]ChildRunStartOutcome)
 	}
 	memberID := reservation.Member.MemberID
-	if existing, found := e.childStarts[memberID]; found {
+	if existing, found := f.childStarts[memberID]; found {
 		if existing != reservation {
 			return errors.New("fake child start reservation conflict")
 		}
 		return nil
 	}
-	e.childStarts[memberID] = reservation
+	f.childStarts[memberID] = reservation
 	return nil
 }
 
-func (e *fakeEffects) CommitStartedChildRun(
+func (f *fakeEffects) CommitStartedChildRun(
 	_ context.Context,
 	reservation ChildRunStartReservation,
 	opening OpeningCommit,
 ) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	attempt := len(e.openings) + 1
-	if e.openingErr != nil && (e.openingErrAt == 0 || e.openingErrAt == attempt) {
-		return e.openingErr
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	attempt := len(f.openings) + 1
+	if f.openingErr != nil && (f.openingErrAt == 0 || f.openingErrAt == attempt) {
+		return f.openingErr
 	}
 	memberID := reservation.Member.MemberID
-	if e.childStarts[memberID] != reservation {
+	if f.childStarts[memberID] != reservation {
 		return errors.New("fake started child has no reservation")
 	}
-	if outcome := e.childOutcomes[memberID]; outcome.Valid() {
+	if outcome := f.childOutcomes[memberID]; outcome.Valid() {
 		if outcome != ChildRunStarted {
 			return errors.New("fake child start outcome conflict")
 		}
 		return nil
 	}
-	e.childOutcomes[memberID] = ChildRunStarted
-	e.openings = append(e.openings, opening)
-	e.commits = append(e.commits, opening.Events...)
+	f.childOutcomes[memberID] = ChildRunStarted
+	f.openings = append(f.openings, opening)
+	f.commits = append(f.commits, opening.Events...)
 	return nil
 }
 
-func (e *fakeEffects) AbortChildRunStart(
+func (f *fakeEffects) AbortChildRunStart(
 	_ context.Context,
 	reservation ChildRunStartReservation,
 ) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	memberID := reservation.Member.MemberID
-	if e.childStarts[memberID] != reservation {
+	if f.childStarts[memberID] != reservation {
 		return errors.New("fake aborted child has no reservation")
 	}
-	if outcome := e.childOutcomes[memberID]; outcome.Valid() {
+	if outcome := f.childOutcomes[memberID]; outcome.Valid() {
 		if outcome != ChildRunStartAborted {
 			return errors.New("fake child start outcome conflict")
 		}
 		return nil
 	}
-	e.childOutcomes[memberID] = ChildRunStartAborted
+	f.childOutcomes[memberID] = ChildRunStartAborted
 	return nil
 }
 
-func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (ClaimedResume, error) {
+func (f *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (ClaimedResume, error) {
 	if err := claim.Validate(); err != nil {
 		return ClaimedResume{}, err
 	}
@@ -492,8 +492,8 @@ func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (C
 		Pending: claim.Expected, Answers: append([]InterruptAnswer(nil), claim.Answers...),
 		Checkpoint: checkpoint,
 	}
-	if e.mutateClaim != nil {
-		e.mutateClaim(&claimed)
+	if f.mutateClaim != nil {
+		f.mutateClaim(&claimed)
 	}
 	return claimed, nil
 }
@@ -524,7 +524,7 @@ func testProjectionPorts(ports completeTestProjectionPorts) ProjectionPorts {
 	}
 }
 
-func (e *fakeEffects) ReadWaitingCheckpoint(
+func (f *fakeEffects) ReadWaitingCheckpoint(
 	_ context.Context,
 	rootMemberID string,
 ) (ExecutorCheckpoint, error) {
@@ -541,153 +541,153 @@ type blockingChildOpeningEffects struct {
 	release <-chan struct{}
 }
 
-func (effects *blockingChildOpeningEffects) CommitStartedChildRun(
+func (b *blockingChildOpeningEffects) CommitStartedChildRun(
 	ctx context.Context,
 	reservation ChildRunStartReservation,
 	opening OpeningCommit,
 ) error {
-	effects.started <- struct{}{}
+	b.started <- struct{}{}
 	select {
-	case <-effects.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return effects.fakeEffects.CommitStartedChildRun(ctx, reservation, opening)
+	return b.fakeEffects.CommitStartedChildRun(ctx, reservation, opening)
 }
 
-func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	attempt := len(e.openings) + 1
-	if e.openingErr != nil && (e.openingErrAt == 0 || e.openingErrAt == attempt) {
-		return e.openingErr
+func (f *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	attempt := len(f.openings) + 1
+	if f.openingErr != nil && (f.openingErrAt == 0 || f.openingErrAt == attempt) {
+		return f.openingErr
 	}
-	e.openings = append(e.openings, opening)
-	e.commits = append(e.commits, opening.Events...)
+	f.openings = append(f.openings, opening)
+	f.commits = append(f.commits, opening.Events...)
 	return nil
 }
 
-func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error {
+func (f *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error {
 	if commit.State == StateTerminalize {
-		if e.terminalStarted != nil {
-			e.terminalStarted <- struct{}{}
+		if f.terminalStarted != nil {
+			f.terminalStarted <- struct{}{}
 		}
-		if e.terminalRelease != nil {
-			<-e.terminalRelease
+		if f.terminalRelease != nil {
+			<-f.terminalRelease
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.commitAttempts++
-	if e.rejectCanceled && ctx.Err() != nil {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commitAttempts++
+	if f.rejectCanceled && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if e.shouldFailCommitAttempt() {
-		return e.commitErr
+	if f.shouldFailCommitAttempt() {
+		return f.commitErr
 	}
-	e.commits = append(e.commits, commit)
+	f.commits = append(f.commits, commit)
 	return nil
 }
 
-func (e *fakeEffects) CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error {
-	if e.suspendStarted != nil {
-		e.suspendStarted <- struct{}{}
+func (f *fakeEffects) CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error {
+	if f.suspendStarted != nil {
+		f.suspendStarted <- struct{}{}
 	}
-	if e.suspendCanceled != nil {
+	if f.suspendCanceled != nil {
 		<-ctx.Done()
-		e.suspendCanceled <- struct{}{}
+		f.suspendCanceled <- struct{}{}
 	}
-	if e.suspendRelease != nil {
-		<-e.suspendRelease
+	if f.suspendRelease != nil {
+		<-f.suspendRelease
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.commitAttempts++
-	if e.rejectCanceled && ctx.Err() != nil {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commitAttempts++
+	if f.rejectCanceled && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if e.shouldFailCommitAttempt() {
-		return e.commitErr
+	if f.shouldFailCommitAttempt() {
+		return f.commitErr
 	}
-	e.barriers = append(e.barriers, barrier)
-	e.commits = append(e.commits, barrier.Runs...)
+	f.barriers = append(f.barriers, barrier)
+	f.commits = append(f.commits, barrier.Runs...)
 	return nil
 }
 
-func (e *fakeEffects) shouldFailCommitAttempt() bool {
-	if e.commitErr == nil {
+func (f *fakeEffects) shouldFailCommitAttempt() bool {
+	if f.commitErr == nil {
 		return false
 	}
-	if e.commitErrAt == 0 {
+	if f.commitErrAt == 0 {
 		return true
 	}
-	count := max(e.commitErrCount, 1)
-	return e.commitAttempts >= e.commitErrAt && e.commitAttempts < e.commitErrAt+count
+	count := max(f.commitErrCount, 1)
+	return f.commitAttempts >= f.commitErrAt && f.commitAttempts < f.commitErrAt+count
 }
 
-func (e *fakeEffects) CommitWaitingSubtreeCancellation(
+func (f *fakeEffects) CommitWaitingSubtreeCancellation(
 	_ context.Context,
 	commit WaitingSubtreeCancellationCommit,
 ) (WaitingSubtreeCancellationResult, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.waitingErr != nil {
-		return WaitingSubtreeCancellationResult{}, e.waitingErr
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.waitingErr != nil {
+		return WaitingSubtreeCancellationResult{}, f.waitingErr
 	}
-	e.waitingCancels = append(e.waitingCancels, commit)
-	return e.waitingResult, nil
+	f.waitingCancels = append(f.waitingCancels, commit)
+	return f.waitingResult, nil
 }
 
-func (e *fakeEffects) Nudge(string, []string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.nudges++
+func (f *fakeEffects) Nudge(string, []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nudges++
 }
 
-func (e *fakeEffects) Finish(_ context.Context, finish Finish) error {
-	e.mu.Lock()
-	e.finishes = append(e.finishes, finish)
-	e.mu.Unlock()
-	if e.finishStarted != nil {
-		e.finishStarted <- struct{}{}
+func (f *fakeEffects) Finish(_ context.Context, finish Finish) error {
+	f.mu.Lock()
+	f.finishes = append(f.finishes, finish)
+	f.mu.Unlock()
+	if f.finishStarted != nil {
+		f.finishStarted <- struct{}{}
 	}
-	if e.finishRelease != nil {
-		<-e.finishRelease
+	if f.finishRelease != nil {
+		<-f.finishRelease
 	}
 	return nil
 }
 
-func (e *fakeEffects) opening() OpeningCommit {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if len(e.openings) == 0 {
+func (f *fakeEffects) opening() OpeningCommit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.openings) == 0 {
 		return OpeningCommit{}
 	}
-	return e.openings[len(e.openings)-1]
+	return f.openings[len(f.openings)-1]
 }
 
-func (e *fakeEffects) openingSnapshot() []OpeningCommit {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return append([]OpeningCommit(nil), e.openings...)
+func (f *fakeEffects) openingSnapshot() []OpeningCommit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]OpeningCommit(nil), f.openings...)
 }
 
-func (e *fakeEffects) commitSnapshot() []EventCommit {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return append([]EventCommit(nil), e.commits...)
+func (f *fakeEffects) commitSnapshot() []EventCommit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]EventCommit(nil), f.commits...)
 }
 
-func (e *fakeEffects) barrierSnapshot() []TreeBarrierCommit {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return append([]TreeBarrierCommit(nil), e.barriers...)
+func (f *fakeEffects) barrierSnapshot() []TreeBarrierCommit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]TreeBarrierCommit(nil), f.barriers...)
 }
 
-func (e *fakeEffects) terminalized(sessionID, runID string) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for _, commit := range e.commits {
+func (f *fakeEffects) terminalized(sessionID, runID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, commit := range f.commits {
 		if commit.State == StateTerminalize && commit.SessionID == sessionID && commit.RunID == runID {
 			return true
 		}
@@ -695,10 +695,10 @@ func (e *fakeEffects) terminalized(sessionID, runID string) bool {
 	return false
 }
 
-func (e *fakeEffects) finishCount() int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return len(e.finishes)
+func (f *fakeEffects) finishCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.finishes)
 }
 
 func testCoordinator(executor interface {

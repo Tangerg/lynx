@@ -24,8 +24,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/core/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
@@ -40,18 +40,18 @@ type interactionDispatcher struct {
 	session *interactionSession
 }
 
-func (dispatcher *interactionDispatcher) Dispatch(
+func (i *interactionDispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	ctx, finishDispatch := dispatcher.session.beginDispatch(ctx, request)
+	ctx, finishDispatch := i.session.beginDispatch(ctx, request)
 	defer finishDispatch()
 	attempt := newDispatchAttempt(ctx, request.ID())
 	defer attempt.close()
-	settlement, err := dispatcher.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
+	settlement, err := i.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
 	if projectionErr := attempt.indeterminateFailure(); projectionErr != nil {
-		dispatcher.session.lifetime.wakeUnknown()
+		i.session.lifetime.wakeUnknown()
 		return agent.Settlement{}, fmt.Errorf(
 			"agentexec: authoritative projection failed after external Effect %s: %w",
 			request.ID(), projectionErr,
@@ -61,13 +61,13 @@ func (dispatcher *interactionDispatcher) Dispatch(
 		// The inner Dispatcher already returns an indeterminate error to Engine.
 		// Wake the direct path as well; the periodic public-state reconciliation
 		// remains the loss-tolerant backstop.
-		dispatcher.session.lifetime.wakeUnknown()
+		i.session.lifetime.wakeUnknown()
 	}
 	return settlement, err
 }
 
-func (dispatcher *interactionDispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
-	return dispatcher.inner.ReplayPolicy(effect)
+func (i *interactionDispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
+	return i.inner.ReplayPolicy(effect)
 }
 
 type observedInteractionModel struct {
@@ -75,20 +75,20 @@ type observedInteractionModel struct {
 	session *interactionSession
 }
 
-func (model *observedInteractionModel) Call(
+func (o *observedInteractionModel) Call(
 	ctx context.Context,
 	request *corechat.Request,
 ) (*corechat.Response, error) {
-	invocation, attempt, callID, err := model.begin(ctx)
+	invocation, attempt, callID, err := o.begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := attempt.beginExternalCall(); err != nil {
 		return nil, err
 	}
-	response, err := model.inner.Call(ctx, request)
+	response, err := o.inner.Call(ctx, request)
 	if err != nil {
-		if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
+		if projectionErr := o.fail(ctx, invocation, callID); projectionErr != nil {
 			attempt.recordProjectionFailure(projectionErr)
 			return nil, errors.Join(err, projectionErr)
 		}
@@ -96,32 +96,32 @@ func (model *observedInteractionModel) Call(
 	}
 	if response == nil {
 		responseErr := errors.New("agentexec: model returned no response")
-		if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
+		if projectionErr := o.fail(ctx, invocation, callID); projectionErr != nil {
 			attempt.recordProjectionFailure(projectionErr)
 			return nil, errors.Join(responseErr, projectionErr)
 		}
 		return nil, responseErr
 	}
 	if err := response.Validate(); err != nil {
-		if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
+		if projectionErr := o.fail(ctx, invocation, callID); projectionErr != nil {
 			attempt.recordProjectionFailure(projectionErr)
 			return nil, errors.Join(err, projectionErr)
 		}
 		return response, err
 	}
-	if err := model.complete(ctx, invocation, callID, response); err != nil {
+	if err := o.complete(ctx, invocation, callID, response); err != nil {
 		attempt.recordProjectionFailure(err)
 		return nil, err
 	}
 	return response, nil
 }
 
-func (model *observedInteractionModel) Stream(
+func (o *observedInteractionModel) Stream(
 	ctx context.Context,
 	request *corechat.Request,
 ) iter.Seq2[*corechat.Response, error] {
 	return func(yield func(*corechat.Response, error) bool) {
-		invocation, attempt, callID, err := model.begin(ctx)
+		invocation, attempt, callID, err := o.begin(ctx)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -131,23 +131,23 @@ func (model *observedInteractionModel) Stream(
 			return
 		}
 		var accumulated corechat.ResponseAccumulator
-		for chunk, streamErr := range model.inner.Stream(ctx, request) {
+		for chunk, streamErr := range o.inner.Stream(ctx, request) {
 			if streamErr != nil {
-				yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, streamErr))
+				yield(nil, o.finishFailedStream(ctx, invocation, attempt, callID, streamErr))
 				return
 			}
 			if err := accumulated.Add(chunk); err != nil {
-				yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, err))
+				yield(nil, o.finishFailedStream(ctx, invocation, attempt, callID, err))
 				return
 			}
 			if !yield(chunk, nil) {
-				_ = model.finishFailedStream(ctx, invocation, attempt, callID, nil)
+				_ = o.finishFailedStream(ctx, invocation, attempt, callID, nil)
 				return
 			}
 		}
 		response := accumulated.Response()
 		if response == nil {
-			yield(nil, model.finishFailedStream(
+			yield(nil, o.finishFailedStream(
 				ctx,
 				invocation,
 				attempt,
@@ -157,24 +157,24 @@ func (model *observedInteractionModel) Stream(
 			return
 		}
 		if err := response.Validate(); err != nil {
-			yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, err))
+			yield(nil, o.finishFailedStream(ctx, invocation, attempt, callID, err))
 			return
 		}
-		if err := model.complete(ctx, invocation, callID, response); err != nil {
+		if err := o.complete(ctx, invocation, callID, response); err != nil {
 			attempt.recordProjectionFailure(err)
 			yield(nil, err)
 		}
 	}
 }
 
-func (model *observedInteractionModel) finishFailedStream(
+func (o *observedInteractionModel) finishFailedStream(
 	ctx context.Context,
 	invocation interaction.ModelInvocation,
 	attempt *dispatchAttempt,
 	callID string,
 	cause error,
 ) error {
-	projectionErr := model.fail(ctx, invocation, callID)
+	projectionErr := o.fail(ctx, invocation, callID)
 	if projectionErr == nil {
 		return cause
 	}
@@ -182,21 +182,21 @@ func (model *observedInteractionModel) finishFailedStream(
 	return errors.Join(cause, projectionErr)
 }
 
-func (model *observedInteractionModel) fail(
+func (o *observedInteractionModel) fail(
 	ctx context.Context,
 	invocation interaction.ModelInvocation,
 	callID string,
 ) error {
 	projectionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), authoritativeProjectionTimeout)
 	defer cancel()
-	return model.session.commitFact(
+	return o.session.commitFact(
 		projectionCtx,
-		model.session.executorMember(invocation.Relation()),
+		o.session.executorMember(invocation.Relation()),
 		runs.ModelCallFailed{CallID: callID},
 	)
 }
 
-func (model *observedInteractionModel) begin(
+func (o *observedInteractionModel) begin(
 	ctx context.Context,
 ) (interaction.ModelInvocation, *dispatchAttempt, string, error) {
 	invocation, ok := interaction.ModelInvocationFromContext(ctx)
@@ -208,14 +208,14 @@ func (model *observedInteractionModel) begin(
 		return interaction.ModelInvocation{}, nil, "", err
 	}
 	callID := modelInvocationID(invocation)
-	if _, err := model.session.reconcileCompletedDelegateChildren(ctx); err != nil {
+	if _, err := o.session.reconcileCompletedDelegateChildren(ctx); err != nil {
 		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(err)
 	}
-	member := model.session.executorMember(invocation.Relation())
-	if err := model.session.commitAppliedSteers(ctx, member, invocation.AppliedSteerSignalIDs()); err != nil {
+	member := o.session.executorMember(invocation.Relation())
+	if err := o.session.commitAppliedSteers(ctx, member, invocation.AppliedSteerSignalIDs()); err != nil {
 		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(err)
 	}
-	if err := model.session.commitFact(ctx, member, runs.ModelCallStarted{CallID: callID}); err != nil {
+	if err := o.session.commitFact(ctx, member, runs.ModelCallStarted{CallID: callID}); err != nil {
 		return interaction.ModelInvocation{}, nil, "", interaction.HostFailure(
 			fmt.Errorf("agentexec: commit model call start: %w", err),
 		)
@@ -223,7 +223,7 @@ func (model *observedInteractionModel) begin(
 	return invocation, attempt, callID, nil
 }
 
-func (model *observedInteractionModel) complete(
+func (o *observedInteractionModel) complete(
 	ctx context.Context,
 	invocation interaction.ModelInvocation,
 	callID string,
@@ -236,24 +236,24 @@ func (model *observedInteractionModel) complete(
 	// Agent owns Delta validation, ordering, buffering, and listener observation. Wait on its
 	// ordering barrier before committing the authoritative full response so an
 	// accepted stream increment can never reopen an Item after completion.
-	if err := model.session.flushDeltas(ctx); err != nil {
+	if err := o.session.flushDeltas(ctx); err != nil {
 		return err
 	}
-	fact, err := model.session.accounting.accountModelCall(invocation, callID, response)
+	fact, err := o.session.accounting.accountModelCall(invocation, callID, response)
 	if err != nil {
 		return err
 	}
 	projectionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), authoritativeProjectionTimeout)
 	defer cancel()
-	if err := model.session.commitFact(
-		projectionCtx, model.session.executorMember(invocation.Relation()), fact,
+	if err := o.session.commitFact(
+		projectionCtx, o.session.executorMember(invocation.Relation()), fact,
 	); err != nil {
 		return err
 	}
 	if !invocation.Relation().IsRoot() {
-		model.session.committedReplies.record(invocation.Relation().ProcessID(), fact.Message)
+		o.session.committedReplies.record(invocation.Relation().ProcessID(), fact.Message)
 	}
-	return model.session.registerDelegateCalls(invocation, modelOutput.Message)
+	return o.session.registerDelegateCalls(invocation, modelOutput.Message)
 }
 
 type observedInteractionTool struct {
@@ -269,13 +269,13 @@ type observedInteractionTool struct {
 	start       runs.RootExecutionStart
 }
 
-func (observed *observedInteractionTool) Definition() corechat.ToolDefinition {
-	return observed.inner.Definition()
+func (o *observedInteractionTool) Definition() corechat.ToolDefinition {
+	return o.inner.Definition()
 }
 
-func (observed *observedInteractionTool) Unwrap() toolcontract.Tool { return observed.inner }
+func (o *observedInteractionTool) Unwrap() toolcontract.Tool { return o.inner }
 
-func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments string) (string, error) {
+func (o *observedInteractionTool) Call(ctx context.Context, rawArguments string) (string, error) {
 	invocation, ok := interaction.ToolInvocationFromContext(ctx)
 	if !ok {
 		return "", errors.New("agentexec: Tool call has no Interaction attribution")
@@ -285,7 +285,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		return "", err
 	}
 	call := invocation.ToolCall()
-	if call.Name != observed.Definition().Name || call.Arguments != rawArguments {
+	if call.Name != o.Definition().Name || call.Arguments != rawArguments {
 		return "", errors.New("agentexec: Tool invocation differs from its bound executable")
 	}
 	arguments, err := tool.ParseArguments(rawArguments)
@@ -293,39 +293,39 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		return "", fmt.Errorf("agentexec: parse Tool %q arguments: %w", call.Name, err)
 	}
 	callID := toolInvocationID(invocation)
-	ctx = interactioninput.WithCapabilities(ctx, observed.start.InterruptKinds)
-	arguments, denied, denialReason, err := observed.prepare(ctx, callID, call.Name, arguments)
+	ctx = interactioninput.WithCapabilities(ctx, o.start.InterruptKinds)
+	arguments, denied, denialReason, err := o.prepare(ctx, callID, call.Name, arguments)
 	if err != nil {
 		return "", err
 	}
 	rawArguments = arguments.Canonical()
-	member := observed.session.executorMember(invocation.Relation())
+	member := o.session.executorMember(invocation.Relation())
 	start := runs.ToolCallStarted{
 		CallID: callID, ModelCallSequence: invocation.ModelCallSequence(),
 		ToolCallIndex: invocation.ToolCallIndex(), SourceCallID: call.ID, ToolName: call.Name,
-		Arguments: rawArguments, Activity: observed.activity(call.Name, arguments),
-		SafetyClass: observed.interpreter.SafetyClass(call.Name),
+		Arguments: rawArguments, Activity: o.activity(call.Name, arguments),
+		SafetyClass: o.interpreter.SafetyClass(call.Name),
 	}
-	if err := observed.session.commitFact(ctx, member, start); err != nil {
+	if err := o.session.commitFact(ctx, member, start); err != nil {
 		failure := interaction.HostFailure(fmt.Errorf("agentexec: commit Tool call start: %w", err))
 		attempt.recordProjectionFailure(failure)
 		return "", failure
 	}
-	observed.session.accounting.recordToolCall()
+	o.session.accounting.recordToolCall()
 	if denied {
 		if denialReason == "" {
 			denialReason = "tool call denied by policy"
 		}
-		end := observed.finishedFact(callID, arguments, denialReason, nil, nil, errors.New(denialReason))
+		end := o.finishedFact(callID, arguments, denialReason, nil, nil, errors.New(denialReason))
 		end.Failure = &tool.Failure{
 			Kind: tool.FailureDenied,
 		}
-		if err := observed.session.commitFact(ctx, member, end); err != nil {
+		if err := o.session.commitFact(ctx, member, end); err != nil {
 			failure := interaction.HostFailure(fmt.Errorf("agentexec: commit denied Tool result: %w", err))
 			attempt.recordProjectionFailure(failure)
 			return "", failure
 		}
-		observed.session.toolOutcomes.record(call.Name, arguments, denialReason)
+		o.session.toolOutcomes.record(call.Name, arguments, denialReason)
 		return denialReason, nil
 	}
 	ctx = toolset.WithToolAdvertiser(ctx, func(names ...string) error {
@@ -338,7 +338,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	ctx = toolset.WithMutationRecorder(ctx, func(paths []string) {
 		mutatedPaths = append(mutatedPaths, paths...)
 	})
-	output, callErr := observed.inner.Call(ctx, rawArguments)
+	output, callErr := o.inner.Call(ctx, rawArguments)
 	if attemptErr := attempt.indeterminateFailure(); attemptErr != nil {
 		return "", attemptErr
 	}
@@ -360,8 +360,8 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		// after consuming the semantic response Signal.
 		return "", callErr
 	}
-	modelOutput, offload := observed.offload(ctx, call.Name, output, callErr)
-	end := observed.finishedFact(
+	modelOutput, offload := o.offload(ctx, call.Name, output, callErr)
+	end := o.finishedFact(
 		callID,
 		arguments,
 		modelOutput,
@@ -375,7 +375,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	// timeout that could misclassify a healthy long-running sibling as unknown.
 	projectionCtx, cancelProjection := attempt.projectionContext(context.WithoutCancel(ctx))
 	defer cancelProjection()
-	commitErr := observed.session.commitFact(projectionCtx, member, end)
+	commitErr := o.session.commitFact(projectionCtx, member, end)
 	if commitErr != nil {
 		attempt.recordProjectionFailure(commitErr)
 		return "", fmt.Errorf("agentexec: commit Tool result: %w", commitErr)
@@ -384,10 +384,10 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	if callErr != nil {
 		outcomeForLoop = "error:" + callErr.Error()
 	}
-	observed.session.toolOutcomes.record(call.Name, arguments, outcomeForLoop)
-	if observed.interpreter != nil {
-		projected, projectionErr := observed.interpreter.ProjectOutcome(
-			projectionCtx, observed.start.SessionID, call.Name, callErr == nil,
+	o.session.toolOutcomes.record(call.Name, arguments, outcomeForLoop)
+	if o.interpreter != nil {
+		projected, projectionErr := o.interpreter.ProjectOutcome(
+			projectionCtx, o.start.SessionID, call.Name, callErr == nil,
 		)
 		if projectionErr != nil {
 			trace.SpanFromContext(projectionCtx).RecordError(
@@ -397,13 +397,13 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			// Tool outcome projection is a refetchable live hint (for example a Plan
 			// snapshot), not a second settlement fact. The canonical Tool result above
 			// is already committed; losing this hint cannot make the Effect unknown.
-			observed.session.lifetime.send(runs.ExecutorEvent{Member: member, Payload: projected})
+			o.session.lifetime.send(runs.ExecutorEvent{Member: member, Payload: projected})
 		}
 	}
-	if observed.hooks != nil {
+	if o.hooks != nil {
 		hookCtx, hookCancel := context.WithTimeout(context.WithoutCancel(ctx), authoritativeProjectionTimeout)
-		if hookErr := observed.hooks.AfterToolUse(hookCtx, InteractionToolHookInput{
-			SessionID: observed.start.SessionID, CWD: observed.start.CWD, CallID: callID,
+		if hookErr := o.hooks.AfterToolUse(hookCtx, InteractionToolHookInput{
+			SessionID: o.start.SessionID, CWD: o.start.CWD, CallID: callID,
 			ToolName: call.Name, Arguments: arguments, Result: modelOutput, CallError: callErr,
 		}); hookErr != nil {
 			trace.SpanFromContext(hookCtx).RecordError(
@@ -415,7 +415,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	return modelOutput, callErr
 }
 
-func (observed *observedInteractionTool) prepare(
+func (o *observedInteractionTool) prepare(
 	ctx context.Context,
 	callID string,
 	name string,
@@ -426,12 +426,12 @@ func (observed *observedInteractionTool) prepare(
 		return tool.Arguments{}, false, "", err
 	}
 	if resumed {
-		return observed.resumePreparedTool(ctx, callID, name, continued)
+		return o.resumePreparedTool(ctx, callID, name, continued)
 	}
 	forceApproval := false
-	if observed.hooks != nil {
-		decision, err := observed.hooks.BeforeToolUse(ctx, InteractionToolHookInput{
-			SessionID: observed.start.SessionID, CWD: observed.start.CWD,
+	if o.hooks != nil {
+		decision, err := o.hooks.BeforeToolUse(ctx, InteractionToolHookInput{
+			SessionID: o.start.SessionID, CWD: o.start.CWD,
 			CallID: callID, ToolName: name, Arguments: arguments,
 		})
 		if err != nil {
@@ -448,17 +448,17 @@ func (observed *observedInteractionTool) prepare(
 		}
 		forceApproval = decision.RequireApproval
 	}
-	if observed.authorizer == nil || !observed.interpreter.UsesStandardPolicy(name) {
+	if o.authorizer == nil || !o.interpreter.UsesStandardPolicy(name) {
 		if forceApproval {
 			return arguments, true, "a lifecycle hook requires approval, but approval is unavailable", nil
 		}
-		return observed.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
+		return o.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
 	}
-	request, err := observed.authorizationRequest(callID, name, arguments, forceApproval)
+	request, err := o.authorizationRequest(callID, name, arguments, forceApproval)
 	if err != nil {
 		return tool.Arguments{}, false, "", err
 	}
-	decision, err := observed.authorizer.AuthorizeTool(ctx, request)
+	decision, err := o.authorizer.AuthorizeTool(ctx, request)
 	if err != nil {
 		return tool.Arguments{}, false, "", fmt.Errorf("agentexec: authorize Tool %q: %w", name, err)
 	}
@@ -472,12 +472,12 @@ func (observed *observedInteractionTool) prepare(
 		return arguments, true, decision.Reason, nil
 	}
 	if decision.Approval != nil {
-		return observed.requestToolApproval(ctx, request, *decision.Approval)
+		return o.requestToolApproval(ctx, request, *decision.Approval)
 	}
-	return observed.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
+	return o.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
 }
 
-func (observed *observedInteractionTool) applyDoomLoopBrake(
+func (o *observedInteractionTool) applyDoomLoopBrake(
 	ctx context.Context,
 	callID string,
 	name string,
@@ -485,62 +485,62 @@ func (observed *observedInteractionTool) applyDoomLoopBrake(
 	denied bool,
 	reason string,
 ) (tool.Arguments, bool, string, error) {
-	if denied || observed.session.toolOutcomes.repeated(name, arguments) < interactionDoomLoopThreshold {
+	if denied || o.session.toolOutcomes.repeated(name, arguments) < interactionDoomLoopThreshold {
 		return arguments, denied, reason, nil
 	}
-	observed.session.toolOutcomes.reset()
+	o.session.toolOutcomes.reset()
 	reason = fmt.Sprintf(
 		"%q has been called with the same arguments and unchanged result %d times; approve to continue or deny so the agent changes approach",
 		name, interactionDoomLoopThreshold,
 	)
-	if observed.authorizer == nil || !slices.Contains(observed.start.InterruptKinds, interrupt.Approval) {
+	if o.authorizer == nil || !slices.Contains(o.start.InterruptKinds, interrupt.Approval) {
 		return arguments, true, reason, nil
 	}
-	request, err := observed.authorizationRequest(callID, name, arguments, true)
+	request, err := o.authorizationRequest(callID, name, arguments, true)
 	if err != nil {
 		return tool.Arguments{}, false, "", err
 	}
-	return observed.requestToolApproval(ctx, request, runs.ApprovalPrompt{
+	return o.requestToolApproval(ctx, request, runs.ApprovalPrompt{
 		CallID: callID, ToolName: name, Arguments: arguments.Canonical(),
 		SafetyClass: request.SafetyClass, Risk: tool.RiskHigh, Reason: reason,
 	})
 }
 
-func (observed *observedInteractionTool) authorizationRequest(
+func (o *observedInteractionTool) authorizationRequest(
 	callID string,
 	name string,
 	arguments tool.Arguments,
 	requireApproval bool,
 ) (ToolAuthorizationRequest, error) {
-	subject, err := observed.interpreter.ApprovalSubject(name, arguments)
+	subject, err := o.interpreter.ApprovalSubject(name, arguments)
 	if err != nil {
 		return ToolAuthorizationRequest{}, fmt.Errorf("agentexec: derive Tool %q approval subject: %w", name, err)
 	}
 	autoApproved := false
-	if observed.session != nil && observed.session.mcpToolAutoApproved != nil {
-		if identity, ok := observed.inner.(interactionMCPToolIdentity); ok {
+	if o.session != nil && o.session.mcpToolAutoApproved != nil {
+		if identity, ok := o.inner.(interactionMCPToolIdentity); ok {
 			server, remote := identity.MCPToolIdentity()
-			autoApproved = server != "" && remote != "" && observed.session.mcpToolAutoApproved(server, remote)
+			autoApproved = server != "" && remote != "" && o.session.mcpToolAutoApproved(server, remote)
 		}
 	}
 	return ToolAuthorizationRequest{
-		SessionID: observed.start.SessionID, CWD: observed.start.CWD,
+		SessionID: o.start.SessionID, CWD: o.start.CWD,
 		CallID: callID, ToolName: name, Arguments: arguments,
-		SafetyClass:     observed.interpreter.SafetyClass(name),
+		SafetyClass:     o.interpreter.SafetyClass(name),
 		ApprovalSubject: subject,
-		FileMutation:    fileMutationScope(observed.inner, arguments, observed.start.CWD),
-		ShellCommand:    observed.interpreter.ShellCommand(name, arguments.Canonical()),
+		FileMutation:    fileMutationScope(o.inner, arguments, o.start.CWD),
+		ShellCommand:    o.interpreter.ShellCommand(name, arguments.Canonical()),
 		AutoApproved:    autoApproved,
 		RequireApproval: requireApproval,
 	}, nil
 }
 
-func (observed *observedInteractionTool) requestToolApproval(
+func (o *observedInteractionTool) requestToolApproval(
 	ctx context.Context,
 	request ToolAuthorizationRequest,
 	prompt runs.ApprovalPrompt,
 ) (tool.Arguments, bool, string, error) {
-	if !slices.Contains(observed.start.InterruptKinds, interrupt.Approval) {
+	if !slices.Contains(o.start.InterruptKinds, interrupt.Approval) {
 		return request.Arguments, true, "approval input is unavailable for this Run", nil
 	}
 	if prompt.CallID == "" {
@@ -562,10 +562,10 @@ func (observed *observedInteractionTool) requestToolApproval(
 	if err != nil {
 		return tool.Arguments{}, false, "", err
 	}
-	return observed.resolveToolApproval(ctx, request, prompt, resolution)
+	return o.resolveToolApproval(ctx, request, prompt, resolution)
 }
 
-func (observed *observedInteractionTool) resumePreparedTool(
+func (o *observedInteractionTool) resumePreparedTool(
 	ctx context.Context,
 	callID string,
 	name string,
@@ -589,23 +589,23 @@ func (observed *observedInteractionTool) resumePreparedTool(
 	if prompt.CallID != callID {
 		return tool.Arguments{}, false, "", errors.New("agentexec: continued Tool approval call identity changed")
 	}
-	request, err := observed.authorizationRequest(callID, name, arguments, false)
+	request, err := o.authorizationRequest(callID, name, arguments, false)
 	if err != nil {
 		return tool.Arguments{}, false, "", err
 	}
-	return observed.resolveToolApproval(ctx, request, prompt, continued.Resolution)
+	return o.resolveToolApproval(ctx, request, prompt, continued.Resolution)
 }
 
-func (observed *observedInteractionTool) resolveToolApproval(
+func (o *observedInteractionTool) resolveToolApproval(
 	ctx context.Context,
 	request ToolAuthorizationRequest,
 	prompt runs.ApprovalPrompt,
 	resolution interrupt.Resolution,
 ) (tool.Arguments, bool, string, error) {
-	if observed.authorizer == nil {
+	if o.authorizer == nil {
 		return tool.Arguments{}, false, "", errors.New("agentexec: continued Tool approval has no authorizer")
 	}
-	decision, err := observed.authorizer.ResolveToolApproval(ctx, request, prompt, resolution)
+	decision, err := o.authorizer.ResolveToolApproval(ctx, request, prompt, resolution)
 	if err != nil {
 		return tool.Arguments{}, false, "", fmt.Errorf("agentexec: resolve Tool %q approval: %w", request.ToolName, err)
 	}
@@ -619,16 +619,16 @@ func (observed *observedInteractionTool) resolveToolApproval(
 	return arguments, decision.Denied, decision.Reason, nil
 }
 
-func (observed *observedInteractionTool) activity(name string, arguments tool.Arguments) string {
-	if observed.presenter != nil {
-		if activity := observed.presenter.Activity(name, arguments); activity != "" && activity == strings.TrimSpace(activity) {
+func (o *observedInteractionTool) activity(name string, arguments tool.Arguments) string {
+	if o.presenter != nil {
+		if activity := o.presenter.Activity(name, arguments); activity != "" && activity == strings.TrimSpace(activity) {
 			return activity
 		}
 	}
 	return "Calling " + name
 }
 
-func (observed *observedInteractionTool) finishedFact(
+func (o *observedInteractionTool) finishedFact(
 	callID string,
 	arguments tool.Arguments,
 	output string,
@@ -643,8 +643,8 @@ func (observed *observedInteractionTool) finishedFact(
 		if err != nil {
 			parsed = tool.StringResult(output)
 		}
-		if observed.presenter != nil {
-			parsed, outputText = observed.presenter.Present(observed.Definition().Name, arguments, parsed)
+		if o.presenter != nil {
+			parsed, outputText = o.presenter.Present(o.Definition().Name, arguments, parsed)
 		}
 		result = &parsed
 	}
@@ -667,7 +667,7 @@ func (observed *observedInteractionTool) finishedFact(
 	return finished
 }
 
-func (observed *observedInteractionTool) offload(
+func (o *observedInteractionTool) offload(
 	ctx context.Context,
 	toolName string,
 	output string,
@@ -678,10 +678,10 @@ func (observed *observedInteractionTool) offload(
 	}
 	return evictToolResult(
 		ctx,
-		observed.offloader,
-		observed.offloadAt,
-		observed.readTool,
-		observed.start.SessionID,
+		o.offloader,
+		o.offloadAt,
+		o.readTool,
+		o.start.SessionID,
 		toolName,
 		output,
 	)

@@ -43,7 +43,7 @@ type RunNode struct {
 
 // IsRoot reports whether the Run opens an execution rather than representing a
 // delegated child.
-func (n RunNode) IsRoot() bool { return n.SpawnedByItemID == "" }
+func (r RunNode) IsRoot() bool { return r.SpawnedByItemID == "" }
 
 // Timeline is the domain view of a session's run log. It owns boundary math for
 // fork/rollback: callers lift source records into [RunNode] values, then
@@ -116,33 +116,33 @@ func (b Boundary) DroppedRunIDs() []string {
 // drops every run (KeepMessageMark 0 — clear to empty). requireRoot rejects a non-root
 // runID with [ErrNotRoot] (rollback addresses root runs only; fork passes
 // false). An unknown runID is [ErrRunNotFound].
-func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) {
-	t := slices.Clone([]RunNode(tl))
-	slices.SortStableFunc(t, func(a, b RunNode) int { return a.CreatedAt.Compare(b.CreatedAt) })
+func (t Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) {
+	nodes := slices.Clone([]RunNode(t))
+	slices.SortStableFunc(nodes, func(a, b RunNode) int { return a.CreatedAt.Compare(b.CreatedAt) })
 
 	if runID == "" {
-		return Boundary{Dropped: t}, nil
+		return Boundary{Dropped: nodes}, nil
 	}
-	idx := slices.IndexFunc(t, func(n RunNode) bool { return n.ID == runID })
+	idx := slices.IndexFunc(nodes, func(n RunNode) bool { return n.ID == runID })
 	if idx < 0 {
 		return Boundary{}, ErrRunNotFound
 	}
-	if requireRoot && !t[idx].IsRoot() {
+	if requireRoot && !nodes[idx].IsRoot() {
 		return Boundary{}, fmt.Errorf("%w: %q", ErrNotRoot, runID)
 	}
-	for k := idx + 1; k < len(t); k++ {
-		if t[k].IsRoot() {
+	for k := idx + 1; k < len(nodes); k++ {
+		if nodes[k].IsRoot() {
 			// Keep through t[k-1] (runID + its child Runs); drop from the next
 			// root on.
 			return Boundary{
-				KeepMessageMark: t[k-1].MessageMark,
-				KeepRunID:       t[k-1].ID,
-				Dropped:         slices.Clone(t[k:]),
-				BoundaryTime:    t[k].CreatedAt,
+				KeepMessageMark: nodes[k-1].MessageMark,
+				KeepRunID:       nodes[k-1].ID,
+				Dropped:         slices.Clone(nodes[k:]),
+				BoundaryTime:    nodes[k].CreatedAt,
 			}, nil
 		}
 	}
 	// No root Run after runID — its tree is the latest, so
 	// there is nothing to drop / everything up to it is copied.
-	return Boundary{KeepMessageMark: t[len(t)-1].MessageMark, KeepRunID: t[len(t)-1].ID}, nil
+	return Boundary{KeepMessageMark: nodes[len(nodes)-1].MessageMark, KeepRunID: nodes[len(nodes)-1].ID}, nil
 }

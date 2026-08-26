@@ -11,7 +11,7 @@ type toolRegistryFixture struct {
 	tools []tool.Tool
 }
 
-func (c toolRegistryFixture) List(context.Context) ([]tool.Tool, error) { return c.tools, nil }
+func (t toolRegistryFixture) List(context.Context) ([]tool.Tool, error) { return t.tools, nil }
 func (toolRegistryFixture) Invoke(context.Context, string, string, string) (tool.Result, error) {
 	return tool.Result{}, nil
 }
@@ -22,10 +22,10 @@ type toolRegistryRecorder struct {
 	arguments string
 }
 
-func (i *toolRegistryRecorder) Invoke(_ context.Context, root, name string, arguments string) (tool.Result, error) {
-	i.root = root
-	i.name = name
-	i.arguments = arguments
+func (t *toolRegistryRecorder) Invoke(_ context.Context, root, name string, arguments string) (tool.Result, error) {
+	t.root = root
+	t.name = name
+	t.arguments = arguments
 	return tool.StringResult("ok"), nil
 }
 

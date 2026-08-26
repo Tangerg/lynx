@@ -35,11 +35,11 @@ func newRuntimeReadTool(root string, executor fs.Executor) *fs.ReadTool {
 	return fs.NewReadTool(runtimeReadExecutor{Executor: executor, root: root})
 }
 
-func (executor runtimeReadExecutor) Read(ctx context.Context, input fs.ReadInput) (_ fs.ReadOutput, err error) {
+func (r runtimeReadExecutor) Read(ctx context.Context, input fs.ReadInput) (_ fs.ReadOutput, err error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return fs.ReadOutput{}, cause
 	}
-	path, err := runtimeReadPath(executor.root, input.Path)
+	path, err := runtimeReadPath(r.root, input.Path)
 	if err != nil {
 		return fs.ReadOutput{}, err
 	}

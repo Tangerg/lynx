@@ -83,7 +83,7 @@ type trackedReadCloser struct {
 
 func (*trackedReadCloser) Read([]byte) (int, error) { return 0, io.EOF }
 
-func (c *trackedReadCloser) Close() error {
-	c.closed = true
-	return c.err
+func (t *trackedReadCloser) Close() error {
+	t.closed = true
+	return t.err
 }

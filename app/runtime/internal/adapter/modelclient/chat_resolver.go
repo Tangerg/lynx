@@ -48,12 +48,12 @@ func NewChatResolver(providers CredentialLookup) *ChatResolver {
 // ResolveChat returns the chat client for selection, building it from the
 // provider's registry credentials. Errors when the provider isn't configured /
 // enabled — the run then ends with a clear "set its API key first" error.
-func (r *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error) {
+func (c *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error) {
 	if !selection.Configured() {
 		return nil, errors.New("modelclient: explicit model selection is required")
 	}
 	providerID, model := selection.Provider(), selection.Model()
-	entry, ok, err := r.providers.Get(ctx, providerID)
+	entry, ok, err := c.providers.Get(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +67,10 @@ func (r *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selec
 	// Key by everything that changes the built client, so a credential mutation
 	// (new key / base URL) is picked up rather than serving a stale client.
 	key := providerID + "\x00" + model + "\x00" + entry.APIKey + "\x00" + entry.BaseURL
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if c, ok := r.cache[key]; ok {
-		return c, nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cached, ok := c.cache[key]; ok {
+		return cached, nil
 	}
 	client, err := llm.BuildClient(llm.ClientSpec{
 		Provider: llm.Provider(providerID),
@@ -81,17 +81,17 @@ func (r *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selec
 	if err != nil {
 		return nil, err
 	}
-	r.cache[key] = client
+	c.cache[key] = client
 	return client, nil
 }
 
 // ValidateChatModel implements the application model-role validation port
 // without leaking the concrete chat client into the use-case layer.
-func (r *ChatResolver) ValidateChatModel(ctx context.Context, providerID, model string) error {
+func (c *ChatResolver) ValidateChatModel(ctx context.Context, providerID, model string) error {
 	selection, err := modelref.New(providerID, model)
 	if err != nil {
 		return err
 	}
-	_, err = r.ResolveChat(ctx, selection)
+	_, err = c.ResolveChat(ctx, selection)
 	return err
 }

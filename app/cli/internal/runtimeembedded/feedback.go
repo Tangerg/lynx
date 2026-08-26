@@ -17,8 +17,8 @@ type feedbackAdapter struct{ runtime *Runtime }
 
 var _ feedback.Service = (*feedbackAdapter)(nil)
 
-func (adapter *feedbackAdapter) Record(ctx context.Context, signal feedback.Signal) error {
-	r := adapter.runtime
+func (f *feedbackAdapter) Record(ctx context.Context, signal feedback.Signal) error {
+	r := f.runtime
 	if err := signal.Validate(); err != nil {
 		return err
 	}

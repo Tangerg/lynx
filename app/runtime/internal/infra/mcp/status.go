@@ -29,8 +29,8 @@ type dialError struct {
 	err  error
 }
 
-func (e *dialError) Error() string { return e.err.Error() }
-func (e *dialError) Unwrap() error { return e.err }
+func (d *dialError) Error() string { return d.err.Error() }
+func (d *dialError) Unwrap() error { return d.err }
 
 // dialStatus maps a dial error to the connection status: an
 // auth-distinguishable failure becomes "needsAuth" (so the client can prompt

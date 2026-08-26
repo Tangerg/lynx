@@ -27,37 +27,37 @@ type claimRecord struct {
 	nextRunAt     time.Time
 }
 
-func (s *workerStore) List(context.Context) ([]schedule.Schedule, error) { return nil, nil }
-func (s *workerStore) Get(context.Context, string) (schedule.Schedule, error) {
+func (w *workerStore) List(context.Context) ([]schedule.Schedule, error) { return nil, nil }
+func (w *workerStore) Get(context.Context, string) (schedule.Schedule, error) {
 	return schedule.Schedule{}, schedule.ErrNotFound
 }
-func (s *workerStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+func (w *workerStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
-func (s *workerStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
+func (w *workerStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
-func (s *workerStore) Delete(context.Context, string) (bool, error) { return false, nil }
-func (s *workerStore) Due(_ context.Context, _ time.Time, _ int) ([]schedule.Schedule, error) {
-	return s.due, s.dueErr
+func (w *workerStore) Delete(context.Context, string) (bool, error) { return false, nil }
+func (w *workerStore) Due(_ context.Context, _ time.Time, _ int) ([]schedule.Schedule, error) {
+	return w.due, w.dueErr
 }
-func (s *workerStore) Claim(ctx context.Context, occurrence schedule.Occurrence) (bool, error) {
-	if s.claimed == nil {
-		s.claimed = map[string]bool{}
+func (w *workerStore) Claim(ctx context.Context, occurrence schedule.Occurrence) (bool, error) {
+	if w.claimed == nil {
+		w.claimed = map[string]bool{}
 	}
-	if s.claimed[occurrence.ID] {
+	if w.claimed[occurrence.ID] {
 		return false, nil
 	}
-	s.claimed[occurrence.ID] = true
-	s.claims = append(s.claims, claimRecord{id: occurrence.Schedule.ID, ranAt: occurrence.FiredAt, prevNextRunAt: occurrence.DueAt, nextRunAt: occurrence.NextRunAt})
-	s.claimContextErrors = append(s.claimContextErrors, ctx.Err())
-	s.pending = append(s.pending, occurrence)
+	w.claimed[occurrence.ID] = true
+	w.claims = append(w.claims, claimRecord{id: occurrence.Schedule.ID, ranAt: occurrence.FiredAt, prevNextRunAt: occurrence.DueAt, nextRunAt: occurrence.NextRunAt})
+	w.claimContextErrors = append(w.claimContextErrors, ctx.Err())
+	w.pending = append(w.pending, occurrence)
 	return true, nil
 }
-func (s *workerStore) Pending(context.Context, int) ([]schedule.Occurrence, error) {
-	return s.pending, nil
+func (w *workerStore) Pending(context.Context, int) ([]schedule.Occurrence, error) {
+	return w.pending, nil
 }
-func (s *workerStore) RecordRun(context.Context, string, time.Time) error { return nil }
+func (w *workerStore) RecordRun(context.Context, string, time.Time) error { return nil }
 
 type recordingScheduledRunStarter struct {
 	startErr         error
@@ -194,10 +194,10 @@ type cancelingScheduledRunStarter struct {
 	startedScheduleIDs []string
 }
 
-func (r *cancelingScheduledRunStarter) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
-	r.startedScheduleIDs = append(r.startedScheduleIDs, occurrence.Schedule.ID)
-	r.cancel()
-	if !r.succeed {
+func (c *cancelingScheduledRunStarter) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
+	c.startedScheduleIDs = append(c.startedScheduleIDs, occurrence.Schedule.ID)
+	c.cancel()
+	if !c.succeed {
 		return StartedRun{}, ctx.Err()
 	}
 	return StartedRun{SessionID: "ses_1", RunID: "run_1"}, nil

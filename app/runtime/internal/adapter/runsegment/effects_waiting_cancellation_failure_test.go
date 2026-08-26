@@ -23,8 +23,8 @@ type failingWaitingCheckpointStore struct {
 	err error
 }
 
-func (store failingWaitingCheckpointStore) SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error {
-	return store.err
+func (f failingWaitingCheckpointStore) SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error {
+	return f.err
 }
 
 type failingWaitingItemReplacer struct {
@@ -33,15 +33,15 @@ type failingWaitingItemReplacer struct {
 	err        error
 }
 
-func (replacer failingWaitingItemReplacer) ReplaceItem(
+func (f failingWaitingItemReplacer) ReplaceItem(
 	ctx context.Context,
 	expected transcript.Item,
 	replacement transcript.Item,
 ) error {
-	if replacer.failItemID == "" || replacer.failItemID == expected.ID() {
-		return replacer.err
+	if f.failItemID == "" || f.failItemID == expected.ID() {
+		return f.err
 	}
-	return replacer.ItemReplacer.ReplaceItem(ctx, expected, replacement)
+	return f.ItemReplacer.ReplaceItem(ctx, expected, replacement)
 }
 
 type failingWaitingRunWriter struct {
@@ -51,51 +51,51 @@ type failingWaitingRunWriter struct {
 	recordErr      error
 }
 
-func (writer failingWaitingRunWriter) RecordRunCommit(
+func (f failingWaitingRunWriter) RecordRunCommit(
 	ctx context.Context,
 	sessionID string,
 	runID string,
 	segmentID string,
 	commitID string,
 ) error {
-	if writer.recordErr != nil {
-		return writer.recordErr
+	if f.recordErr != nil {
+		return f.recordErr
 	}
-	return writer.RunStore.RecordRunCommit(ctx, sessionID, runID, segmentID, commitID)
+	return f.RunStore.RecordRunCommit(ctx, sessionID, runID, segmentID, commitID)
 }
 
-func (writer failingWaitingRunWriter) RecordWaitingRunCommit(
+func (f failingWaitingRunWriter) RecordWaitingRunCommit(
 	ctx context.Context,
 	sessionID string,
 	runID string,
 	commitID string,
 ) error {
-	if writer.recordErr != nil {
-		return writer.recordErr
+	if f.recordErr != nil {
+		return f.recordErr
 	}
-	return writer.RunStore.RecordWaitingRunCommit(ctx, sessionID, runID, commitID)
+	return f.RunStore.RecordWaitingRunCommit(ctx, sessionID, runID, commitID)
 }
 
-func (writer failingWaitingRunWriter) Resume(
+func (f failingWaitingRunWriter) Resume(
 	ctx context.Context,
 	sessionID string,
 	draft run.ResumeDraft,
 	resumedAt time.Time,
 ) error {
-	if writer.resumeErr != nil {
-		return writer.resumeErr
+	if f.resumeErr != nil {
+		return f.resumeErr
 	}
-	return writer.RunStore.Resume(ctx, sessionID, draft, resumedAt)
+	return f.RunStore.Resume(ctx, sessionID, draft, resumedAt)
 }
 
-func (writer failingWaitingRunWriter) Terminalize(
+func (f failingWaitingRunWriter) Terminalize(
 	ctx context.Context,
 	run run.Run,
 ) error {
-	if writer.terminalizeErr != nil {
-		return writer.terminalizeErr
+	if f.terminalizeErr != nil {
+		return f.terminalizeErr
 	}
-	return writer.RunStore.Terminalize(ctx, run)
+	return f.RunStore.Terminalize(ctx, run)
 }
 
 type failingWaitingInterruptStore struct {
@@ -103,14 +103,14 @@ type failingWaitingInterruptStore struct {
 	putErr error
 }
 
-func (store failingWaitingInterruptStore) Open(
+func (f failingWaitingInterruptStore) Open(
 	ctx context.Context,
 	pending runs.Pending,
 ) error {
-	if store.putErr != nil {
-		return store.putErr
+	if f.putErr != nil {
+		return f.putErr
 	}
-	return store.InterruptStore.Open(ctx, pending)
+	return f.InterruptStore.Open(ctx, pending)
 }
 
 type failingWaitingTranscriptStore struct {
@@ -118,14 +118,14 @@ type failingWaitingTranscriptStore struct {
 	appendErr error
 }
 
-func (store failingWaitingTranscriptStore) AppendItem(
+func (f failingWaitingTranscriptStore) AppendItem(
 	ctx context.Context,
 	item transcript.Item,
 ) error {
-	if store.appendErr != nil {
-		return store.appendErr
+	if f.appendErr != nil {
+		return f.appendErr
 	}
-	return store.TranscriptStore.AppendItem(ctx, item)
+	return f.TranscriptStore.AppendItem(ctx, item)
 }
 
 func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *testing.T) {
@@ -384,22 +384,22 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 	}
 }
 
-func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
+func (w *waitingCancellationSQLiteFixture) replaceEffects(
 	configure func(*Config),
 ) {
 	config := Config{
-		Interrupts:          fixture.interrupts,
-		Transcript:          fixture.transcript,
-		ItemReplacer:        fixture.transcript,
-		Conversation:        fixture.conversation,
-		State:               fixture.runState,
-		ExecutorCheckpoints: fixture.checkpoints,
+		Interrupts:          w.interrupts,
+		Transcript:          w.transcript,
+		ItemReplacer:        w.transcript,
+		Conversation:        w.conversation,
+		State:               w.runState,
+		ExecutorCheckpoints: w.checkpoints,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
-			return sqlite.RunInTx(ctx, fixture.db, fn)
+			return sqlite.RunInTx(ctx, w.db, fn)
 		},
 	}
 	configure(&config)
-	fixture.effects = mustNewEffects(config)
+	w.effects = mustNewEffects(config)
 }
 
 func assertWaitingCancellationUnchanged(

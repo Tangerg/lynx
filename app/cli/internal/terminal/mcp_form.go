@@ -85,51 +85,51 @@ func newMCPFormDraft(mode mcpFormMode, server mcp.Server) mcpFormDraft {
 	return draft
 }
 
-func (draft mcpFormDraft) candidate() (mcp.Candidate, error) {
-	connection, err := draft.connection()
+func (m mcpFormDraft) candidate() (mcp.Candidate, error) {
+	connection, err := m.connection()
 	if err != nil {
 		return mcp.Candidate{}, err
 	}
-	timeout, err := parseMCPTimeout(draft.timeoutSeconds)
+	timeout, err := parseMCPTimeout(m.timeoutSeconds)
 	if err != nil {
 		return mcp.Candidate{}, err
 	}
 	candidate := mcp.Candidate{
-		Name: strings.TrimSpace(draft.name), Enabled: draft.enabled == "enabled",
-		Description: strings.TrimSpace(draft.description), Connection: connection,
-		TimeoutSeconds: timeout, DisabledTools: parseMCPToolNames(draft.disabledTools),
-		AutoApproveTools: parseMCPToolNames(draft.autoApproveTools),
+		Name: strings.TrimSpace(m.name), Enabled: m.enabled == "enabled",
+		Description: strings.TrimSpace(m.description), Connection: connection,
+		TimeoutSeconds: timeout, DisabledTools: parseMCPToolNames(m.disabledTools),
+		AutoApproveTools: parseMCPToolNames(m.autoApproveTools),
 	}
 	return candidate, candidate.Validate()
 }
 
-func (draft mcpFormDraft) update(original mcp.Server) (mcp.ServerUpdate, bool, error) {
-	timeout, err := parseMCPTimeout(draft.timeoutSeconds)
+func (m mcpFormDraft) update(original mcp.Server) (mcp.ServerUpdate, bool, error) {
+	timeout, err := parseMCPTimeout(m.timeoutSeconds)
 	if err != nil {
 		return mcp.ServerUpdate{}, false, err
 	}
 	update := mcp.ServerUpdate{Server: original.Name}
-	enabled := draft.enabled == "enabled"
+	enabled := m.enabled == "enabled"
 	if enabled != (original.State.Type != mcp.Disabled) {
 		update.Enabled = &enabled
 	}
-	description := strings.TrimSpace(draft.description)
+	description := strings.TrimSpace(m.description)
 	if description != original.Description {
 		update.Description = &description
 	}
 	if timeout != original.TimeoutSeconds {
 		update.TimeoutSeconds = &timeout
 	}
-	disabledTools := parseMCPToolNames(draft.disabledTools)
+	disabledTools := parseMCPToolNames(m.disabledTools)
 	if !slices.Equal(disabledTools, original.DisabledTools) {
 		update.DisabledTools = &disabledTools
 	}
-	autoApproveTools := parseMCPToolNames(draft.autoApproveTools)
+	autoApproveTools := parseMCPToolNames(m.autoApproveTools)
 	if !slices.Equal(autoApproveTools, original.AutoApproveTools) {
 		update.AutoApproveTools = &autoApproveTools
 	}
-	if draft.connectionMode == "replace" {
-		connection, err := draft.connection()
+	if m.connectionMode == "replace" {
+		connection, err := m.connection()
 		if err != nil {
 			return mcp.ServerUpdate{}, false, err
 		}
@@ -144,30 +144,30 @@ func (draft mcpFormDraft) update(original mcp.Server) (mcp.ServerUpdate, bool, e
 	return update, true, nil
 }
 
-func (draft mcpFormDraft) connection() (mcp.ConnectionInput, error) {
-	connection := mcp.ConnectionInput{Transport: mcp.Transport(draft.transport)}
+func (m mcpFormDraft) connection() (mcp.ConnectionInput, error) {
+	connection := mcp.ConnectionInput{Transport: mcp.Transport(m.transport)}
 	switch connection.Transport {
 	case mcp.StreamableHTTP:
-		connection.URL = strings.TrimSpace(draft.url)
-		authorization, err := mcpAuthorizationChange(draft.authorizationMode, draft.authorization)
+		connection.URL = strings.TrimSpace(m.url)
+		authorization, err := mcpAuthorizationChange(m.authorizationMode, m.authorization)
 		if err != nil {
 			return mcp.ConnectionInput{}, err
 		}
 		connection.Authorization = authorization
-		headers, err := mcpHeadersChange(draft.headersMode, draft.headers)
+		headers, err := mcpHeadersChange(m.headersMode, m.headers)
 		if err != nil {
 			return mcp.ConnectionInput{}, err
 		}
 		connection.Headers = headers
 	case mcp.Stdio:
-		connection.Command = strings.TrimSpace(draft.command)
-		arguments, err := parseMCPArguments(draft.arguments)
+		connection.Command = strings.TrimSpace(m.command)
+		arguments, err := parseMCPArguments(m.arguments)
 		if err != nil {
 			return mcp.ConnectionInput{}, err
 		}
 		connection.Args = arguments
-		connection.Directory = strings.TrimSpace(draft.directory)
-		environment, err := mcpEnvironmentChange(draft.environmentMode, draft.environment)
+		connection.Directory = strings.TrimSpace(m.directory)
+		environment, err := mcpEnvironmentChange(m.environmentMode, m.environment)
 		if err != nil {
 			return mcp.ConnectionInput{}, err
 		}

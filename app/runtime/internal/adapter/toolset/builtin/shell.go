@@ -41,28 +41,28 @@ type shellArgs struct {
 	AutoBackgroundAfterSeconds int    `json:"auto_background_after_seconds,omitempty" jsonschema:"minimum=1" jsonschema_description:"Move a foreground command to the background after this many seconds. Defaults to 60."`
 }
 
-func (a shellArgs) validate() error {
-	if a.Command == "" {
+func (s shellArgs) validate() error {
+	if s.Command == "" {
 		return errors.New("shell: command is required")
 	}
-	if strings.TrimSpace(a.Description) == "" {
+	if strings.TrimSpace(s.Description) == "" {
 		return errors.New("shell: description is required")
 	}
-	if strings.TrimSpace(a.Description) != a.Description {
+	if strings.TrimSpace(s.Description) != s.Description {
 		return errors.New("shell: description must not have surrounding whitespace")
 	}
-	if a.RunInBackground && a.AutoBackgroundAfterSeconds > 0 {
+	if s.RunInBackground && s.AutoBackgroundAfterSeconds > 0 {
 		return errors.New("shell: auto_background_after_seconds cannot be used when run_in_background=true")
 	}
 	return nil
 }
 
-func (a shellArgs) timeout() time.Duration {
-	return time.Duration(a.TimeoutMillis) * time.Millisecond
+func (s shellArgs) timeout() time.Duration {
+	return time.Duration(s.TimeoutMillis) * time.Millisecond
 }
 
-func (a shellArgs) autoBackgroundAfter() time.Duration {
-	after := a.AutoBackgroundAfterSeconds
+func (s shellArgs) autoBackgroundAfter() time.Duration {
+	after := s.AutoBackgroundAfterSeconds
 	if after <= 0 {
 		after = defaultAutoBackgroundSeconds
 	}
@@ -75,11 +75,11 @@ type shellOutputArgs struct {
 	TimeoutMillis int    `json:"timeout_millis,omitempty" jsonschema:"minimum=1" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Do not pass when wait=false."`
 }
 
-func (a shellOutputArgs) validate() error {
-	if a.ShellID == "" {
+func (s shellOutputArgs) validate() error {
+	if s.ShellID == "" {
 		return errors.New("read_shell_output: shell_id is required")
 	}
-	if !a.Wait && a.TimeoutMillis > 0 {
+	if !s.Wait && s.TimeoutMillis > 0 {
 		return errors.New("read_shell_output: timeout_millis requires wait=true")
 	}
 	return nil
@@ -89,8 +89,8 @@ type shellIDArgs struct {
 	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
 }
 
-func (a shellIDArgs) validate() error {
-	if a.ShellID == "" {
+func (s shellIDArgs) validate() error {
+	if s.ShellID == "" {
 		return errors.New("stop_shell: shell_id is required")
 	}
 	return nil
@@ -144,12 +144,12 @@ func BuildShell(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, er
 	return []toolcontract.Tool{shellTool, outputTool, killTool}, nil
 }
 
-func (t *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
+func (c *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
 
-	id, err := t.shells.Launch(ctx, executionctx.SessionID(ctx), executionctx.CWD(ctx, t.defaultCWD), a.Command, a.timeout(), executionctx.Isolated(ctx))
+	id, err := c.shells.Launch(ctx, executionctx.SessionID(ctx), executionctx.CWD(ctx, c.defaultCWD), a.Command, a.timeout(), executionctx.Isolated(ctx))
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +157,7 @@ func (t *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
 		return backgroundedJSON(id)
 	}
 
-	sh, ok := t.shells.Get(id)
+	sh, ok := c.shells.Get(id)
 	if !ok { // just launched — unreachable
 		return "", fmt.Errorf("shell: background shell %s vanished", id)
 	}
@@ -165,48 +165,48 @@ func (t *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
 	defer timer.Stop()
 	select {
 	case <-sh.Done():
-		return t.completed(id, sh)
+		return c.completed(id, sh)
 	case <-timer.C:
 		return backgroundedJSON(id) // still running — leave it
 	case <-ctx.Done():
-		return t.cancelForeground(ctx, id, sh)
+		return c.cancelForeground(ctx, id, sh)
 	}
 }
 
-func (t *commandTools) completed(id string, sh *exec.Shell) (string, error) {
+func (c *commandTools) completed(id string, sh *exec.Shell) (string, error) {
 	out, dropped := sh.Read()
 	code, killed, dur, cleanupErr := sh.Outcome()
-	t.shells.Remove(id)
+	c.shells.Remove(id)
 	result, resultErr := completedJSON(out, dropped, code, killed, dur)
 	return result, errors.Join(resultErr, cleanupErr)
 }
 
-func (t *commandTools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
+func (c *commandTools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
 	// The command may have finished in the same instant the Run was canceled;
 	// select picks a ready case at random, so check Done() before discarding a
 	// completed result the user can still use.
 	select {
 	case <-sh.Done():
-		return t.completed(id, sh)
+		return c.completed(id, sh)
 	default:
 		// Canceled mid-run: kill, join the process-tree cleanup, then remove. A
 		// discarded foreground command has no background handle that could retain
 		// ownership after this call returns.
-		if _, err := t.shells.Kill(id); err != nil && !errors.Is(err, exec.ErrShellNotFound) {
+		if _, err := c.shells.Kill(id); err != nil && !errors.Is(err, exec.ErrShellNotFound) {
 			return "", errors.Join(ctx.Err(), fmt.Errorf("shell: stop canceled foreground command %q: %w", id, err))
 		}
 		<-sh.Done()
 		_, _, _, cleanupErr := sh.Outcome()
-		t.shells.Remove(id)
+		c.shells.Remove(id)
 		return "", errors.Join(ctx.Err(), cleanupErr)
 	}
 }
 
-func (t *commandTools) output(ctx context.Context, a shellOutputArgs) (string, error) {
+func (c *commandTools) output(ctx context.Context, a shellOutputArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
-	sh, ok := t.shells.Get(a.ShellID)
+	sh, ok := c.shells.Get(a.ShellID)
 	if !ok {
 		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
 	}
@@ -232,11 +232,11 @@ func (t *commandTools) output(ctx context.Context, a shellOutputArgs) (string, e
 	return fmt.Sprintf("Shell %s %s.\n%s", a.ShellID, state, string(b)), nil
 }
 
-func (t *commandTools) kill(_ context.Context, a shellIDArgs) (string, error) {
+func (c *commandTools) kill(_ context.Context, a shellIDArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
-	running, err := t.shells.Kill(a.ShellID)
+	running, err := c.shells.Kill(a.ShellID)
 	switch {
 	case errors.Is(err, exec.ErrShellNotFound):
 		return fmt.Sprintf("No background shell %s.", a.ShellID), nil

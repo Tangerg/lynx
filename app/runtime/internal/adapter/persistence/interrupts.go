@@ -20,29 +20,29 @@ func NewInterruptStore(storage *sqlite.InterruptStore) *InterruptStore {
 	return &InterruptStore{storage: storage}
 }
 
-func (store *InterruptStore) Open(ctx context.Context, pending runs.Pending) error {
+func (i *InterruptStore) Open(ctx context.Context, pending runs.Pending) error {
 	if err := pending.Validate(); err != nil {
 		return err
 	}
-	return store.storage.Open(ctx, interruptRecord(pending))
+	return i.storage.Open(ctx, interruptRecord(pending))
 }
 
-func (store *InterruptStore) List(ctx context.Context, sessionID string) ([]runs.Pending, error) {
-	records, err := store.storage.List(ctx, sessionID)
+func (i *InterruptStore) List(ctx context.Context, sessionID string) ([]runs.Pending, error) {
+	records, err := i.storage.List(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	return pendingValues(records)
 }
 
-func (store *InterruptStore) ListPage(
+func (i *InterruptStore) ListPage(
 	ctx context.Context,
 	sessionID, rootRunID string,
 	afterCreatedAt int64,
 	afterRootRunID string,
 	limit int,
 ) ([]runs.Pending, error) {
-	records, err := store.storage.ListPage(
+	records, err := i.storage.ListPage(
 		ctx,
 		sessionID,
 		rootRunID,
@@ -56,8 +56,8 @@ func (store *InterruptStore) ListPage(
 	return pendingValues(records)
 }
 
-func (store *InterruptStore) Get(ctx context.Context, rootRunID string) (runs.Pending, bool, error) {
-	record, ok, err := store.storage.Get(ctx, rootRunID)
+func (i *InterruptStore) Get(ctx context.Context, rootRunID string) (runs.Pending, bool, error) {
+	record, ok, err := i.storage.Get(ctx, rootRunID)
 	if err != nil || !ok {
 		return runs.Pending{}, ok, err
 	}
@@ -68,8 +68,8 @@ func (store *InterruptStore) Get(ctx context.Context, rootRunID string) (runs.Pe
 	return pending, true, nil
 }
 
-func (store *InterruptStore) Consume(ctx context.Context, sessionID, rootRunID string) (runs.Pending, bool, error) {
-	record, ok, err := store.storage.Consume(ctx, sessionID, rootRunID)
+func (i *InterruptStore) Consume(ctx context.Context, sessionID, rootRunID string) (runs.Pending, bool, error) {
+	record, ok, err := i.storage.Consume(ctx, sessionID, rootRunID)
 	if err != nil || !ok {
 		return runs.Pending{}, ok, err
 	}
@@ -80,7 +80,7 @@ func (store *InterruptStore) Consume(ctx context.Context, sessionID, rootRunID s
 	return pending, true, nil
 }
 
-func (store *InterruptStore) ClaimResume(
+func (i *InterruptStore) ClaimResume(
 	ctx context.Context,
 	sessionID, rootRunID string,
 	answers []runs.InterruptAnswer,
@@ -103,7 +103,7 @@ func (store *InterruptStore) ClaimResume(
 	if err != nil {
 		return runs.Pending{}, false, err
 	}
-	record, found, err := store.storage.ClaimResume(ctx, sessionID, rootRunID, encoded, claimedAt)
+	record, found, err := i.storage.ClaimResume(ctx, sessionID, rootRunID, encoded, claimedAt)
 	if err != nil || !found {
 		return runs.Pending{}, found, err
 	}
@@ -114,8 +114,8 @@ func (store *InterruptStore) ClaimResume(
 	return pending, true, nil
 }
 
-func (store *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, rootRunID string) error {
-	return store.storage.RequireResumeClaim(ctx, sessionID, rootRunID)
+func (i *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, rootRunID string) error {
+	return i.storage.RequireResumeClaim(ctx, sessionID, rootRunID)
 }
 
 type resumeAnswerRow struct {
@@ -129,15 +129,15 @@ type resumeAnswerRow struct {
 	RememberScope   string     `json:"rememberScope,omitempty"`
 }
 
-func (store *InterruptStore) Delete(ctx context.Context, sessionID, rootRunID string) error {
-	return store.storage.Delete(ctx, sessionID, rootRunID)
+func (i *InterruptStore) Delete(ctx context.Context, sessionID, rootRunID string) error {
+	return i.storage.Delete(ctx, sessionID, rootRunID)
 }
 
-func (store *InterruptStore) DeleteResumeClaim(
+func (i *InterruptStore) DeleteResumeClaim(
 	ctx context.Context,
 	sessionID, rootRunID, rootMemberID string,
 ) error {
-	return store.storage.DeleteResumeClaim(ctx, sessionID, rootRunID, rootMemberID)
+	return i.storage.DeleteResumeClaim(ctx, sessionID, rootRunID, rootMemberID)
 }
 
 func pendingValues(records []sqlite.InterruptRecord) ([]runs.Pending, error) {

@@ -221,12 +221,12 @@ type fingerprintContextReader struct {
 	reader io.Reader
 }
 
-func (reader fingerprintContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(reader.ctx); cause != nil {
+func (f fingerprintContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(f.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := reader.reader.Read(buffer)
-	if cause := context.Cause(reader.ctx); cause != nil {
+	read, err := f.reader.Read(buffer)
+	if cause := context.Cause(f.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err

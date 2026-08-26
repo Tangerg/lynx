@@ -24,46 +24,46 @@ type ChildRunStartReservation struct {
 
 // Validate proves that the reservation binds one child executor identity to
 // one future product child without copying executor topology into the Run.
-func (reservation ChildRunStartReservation) Validate() error {
-	if err := reservation.validateIdentity(); err != nil {
+func (c ChildRunStartReservation) Validate() error {
+	if err := c.validateIdentity(); err != nil {
 		return err
 	}
-	if err := reservation.Member.Validate(); err != nil {
+	if err := c.Member.Validate(); err != nil {
 		return fmt.Errorf("runs: child Run start reservation member: %w", err)
 	}
-	if !reservation.Member.Child() || reservation.Member.SpawnCallID == "" {
+	if !c.Member.Child() || c.Member.SpawnCallID == "" {
 		return errors.New("runs: child Run start reservation requires a causal child member")
 	}
-	if err := reservation.Binding.Validate(); err != nil {
+	if err := c.Binding.Validate(); err != nil {
 		return fmt.Errorf("runs: child Run start reservation binding: %w", err)
 	}
-	if reservation.Binding.MemberID != reservation.Member.MemberID {
+	if c.Binding.MemberID != c.Member.MemberID {
 		return errors.New("runs: child Run start reservation member differs from its binding")
 	}
-	if reservation.Binding.ParentRunID == reservation.Binding.RunID ||
-		reservation.Binding.RunID == reservation.RootRunID {
+	if c.Binding.ParentRunID == c.Binding.RunID ||
+		c.Binding.RunID == c.RootRunID {
 		return errors.New("runs: child Run start reservation has contradictory Run identity")
 	}
-	if reservation.StartedAt.IsZero() {
+	if c.StartedAt.IsZero() {
 		return errors.New("runs: child Run start reservation has no executor start time")
 	}
 	return nil
 }
 
-func (reservation ChildRunStartReservation) validateIdentity() error {
-	if err := validateRequiredIdentity("session ID", reservation.SessionID); err != nil {
+func (c ChildRunStartReservation) validateIdentity() error {
+	if err := validateRequiredIdentity("session ID", c.SessionID); err != nil {
 		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
-	if err := validateRequiredIdentity("executor ID", reservation.ExecutorID); err != nil {
+	if err := validateRequiredIdentity("executor ID", c.ExecutorID); err != nil {
 		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
-	if err := validateRequiredIdentity("segment ID", reservation.SegmentID); err != nil {
+	if err := validateRequiredIdentity("segment ID", c.SegmentID); err != nil {
 		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
-	if err := validateRequiredIdentity("spawning Item ID", reservation.SpawnedByItemID); err != nil {
+	if err := validateRequiredIdentity("spawning Item ID", c.SpawnedByItemID); err != nil {
 		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
-	if err := validateRequiredIdentity("root Run ID", reservation.RootRunID); err != nil {
+	if err := validateRequiredIdentity("root Run ID", c.RootRunID); err != nil {
 		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
 	return nil
@@ -109,20 +109,20 @@ func NewChildRunReservationRequest(
 		ChildRunReservationReceipt{exchange: exchange}
 }
 
-func (request ChildRunReservationRequest) validate() error {
-	if request.exchange == nil {
+func (c ChildRunReservationRequest) validate() error {
+	if c.exchange == nil {
 		return errors.New("runs: child Run reservation request has no receipt")
 	}
-	if request.StartedAt.IsZero() {
+	if c.StartedAt.IsZero() {
 		return errors.New("runs: child Run reservation request has no executor start time")
 	}
 	return nil
 }
 
-func (request ChildRunReservationRequest) claim() bool { return request.exchange.claim() }
+func (c ChildRunReservationRequest) claim() bool { return c.exchange.claim() }
 
-func (request ChildRunReservationRequest) complete(binding ChildRunBinding, err error) error {
-	if request.exchange == nil {
+func (c ChildRunReservationRequest) complete(binding ChildRunBinding, err error) error {
+	if c.exchange == nil {
 		return errors.New("runs: complete child Run reservation without a receipt")
 	}
 	if err == nil {
@@ -133,15 +133,15 @@ func (request ChildRunReservationRequest) complete(binding ChildRunBinding, err 
 		err = errors.Join(err, errors.New("runs: failed child Run reservation returned a binding"))
 		binding = ChildRunBinding{}
 	}
-	return request.exchange.complete(binding, err)
+	return c.exchange.complete(binding, err)
 }
 
 // Await returns the exact product binding after the Application durably stores
 // the invisible reservation.
-func (receipt ChildRunReservationReceipt) Await(
+func (c ChildRunReservationReceipt) Await(
 	ctx context.Context,
 ) (ChildRunBinding, error) {
-	return receipt.exchange.await(ctx)
+	return c.exchange.await(ctx)
 }
 
 // ChildRunStartOutcome identifies the conclusive executor initialization
@@ -154,17 +154,17 @@ const (
 	ChildRunStartAborted        ChildRunStartOutcome = "aborted"
 )
 
-// Valid reports whether outcome is one conclusive child initialization fact.
-func (outcome ChildRunStartOutcome) Valid() bool {
-	return outcome == ChildRunStarted || outcome == ChildRunStartAborted
+// Valid reports whether c is one conclusive child initialization fact.
+func (c ChildRunStartOutcome) Valid() bool {
+	return c == ChildRunStarted || c == ChildRunStartAborted
 }
 
 // String returns the durable child-start conclusion name.
-func (outcome ChildRunStartOutcome) String() string {
-	if !outcome.Valid() {
+func (c ChildRunStartOutcome) String() string {
+	if !c.Valid() {
 		return "invalid"
 	}
-	return string(outcome)
+	return string(c)
 }
 
 // ChildRunStartOutcomeRequest asks the Run pump to consume the exact
@@ -193,31 +193,31 @@ func NewChildRunStartOutcomeRequest(
 		ChildRunStartOutcomeReceipt{exchange: exchange}
 }
 
-func (request ChildRunStartOutcomeRequest) validate() error {
-	if request.exchange == nil {
+func (c ChildRunStartOutcomeRequest) validate() error {
+	if c.exchange == nil {
 		return errors.New("runs: child Run start outcome request has no receipt")
 	}
-	if err := request.Binding.Validate(); err != nil {
+	if err := c.Binding.Validate(); err != nil {
 		return err
 	}
-	if !request.Outcome.Valid() {
+	if !c.Outcome.Valid() {
 		return errors.New("runs: child Run start outcome is invalid")
 	}
 	return nil
 }
 
-func (request ChildRunStartOutcomeRequest) claim() bool { return request.exchange.claim() }
+func (c ChildRunStartOutcomeRequest) claim() bool { return c.exchange.claim() }
 
-func (request ChildRunStartOutcomeRequest) complete(err error) error {
-	if request.exchange == nil {
+func (c ChildRunStartOutcomeRequest) complete(err error) error {
+	if c.exchange == nil {
 		return errors.New("runs: complete child Run start outcome without a receipt")
 	}
-	return request.exchange.complete(struct{}{}, err)
+	return c.exchange.complete(struct{}{}, err)
 }
 
 // Await returns after the Application has durably published or discarded the
 // reserved child start.
-func (receipt ChildRunStartOutcomeReceipt) Await(ctx context.Context) error {
-	_, err := receipt.exchange.await(ctx)
+func (c ChildRunStartOutcomeReceipt) Await(ctx context.Context) error {
+	_, err := c.exchange.await(ctx)
 	return err
 }

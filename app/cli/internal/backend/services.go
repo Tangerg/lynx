@@ -56,12 +56,12 @@ func AgentOnly(runtime agent.Runtime) Services {
 
 // Validate checks the minimum contract every CLI mode requires. Auxiliary
 // services are optional because a negotiated runtime composition may omit them.
-func (services Services) Validate() error {
-	if services.Agent == nil {
+func (s Services) Validate() error {
+	if s.Agent == nil {
 		return errors.New("backend services: agent runtime is required")
 	}
-	if services.RuntimeProfile != nil {
-		if err := services.RuntimeProfile.Validate(); err != nil {
+	if s.RuntimeProfile != nil {
+		if err := s.RuntimeProfile.Validate(); err != nil {
 			return fmt.Errorf("backend services: %w", err)
 		}
 	}

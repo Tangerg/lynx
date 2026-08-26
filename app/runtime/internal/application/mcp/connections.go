@@ -260,30 +260,30 @@ func (c *Coordinator) publishStatus(event statusEvent) {
 	c.statusQueue.publish(event)
 }
 
-func (q *statusQueue) publish(event statusEvent) {
-	if q == nil || q.sink == nil || event.sequence == 0 {
+func (s *statusQueue) publish(event statusEvent) {
+	if s == nil || s.sink == nil || event.sequence == 0 {
 		return
 	}
-	q.mu.Lock()
-	q.pending[event.sequence] = event.status
-	if q.draining {
-		q.mu.Unlock()
+	s.mu.Lock()
+	s.pending[event.sequence] = event.status
+	if s.draining {
+		s.mu.Unlock()
 		return
 	}
-	q.draining = true
-	q.mu.Unlock()
+	s.draining = true
+	s.mu.Unlock()
 
 	for {
-		q.mu.Lock()
-		status, ok := q.pending[q.next]
+		s.mu.Lock()
+		status, ok := s.pending[s.next]
 		if !ok {
-			q.draining = false
-			q.mu.Unlock()
+			s.draining = false
+			s.mu.Unlock()
 			return
 		}
-		delete(q.pending, q.next)
-		q.next++
-		q.mu.Unlock()
-		q.sink(status)
+		delete(s.pending, s.next)
+		s.next++
+		s.mu.Unlock()
+		s.sink(status)
 	}
 }

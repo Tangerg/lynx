@@ -23,11 +23,11 @@ type racingRunProjection struct {
 	beforeReturn func()
 }
 
-func (projection *racingRunProjection) Run(context.Context, string) (run.Run, bool, error) {
-	if projection.beforeReturn != nil {
-		projection.beforeReturn()
+func (r *racingRunProjection) Run(context.Context, string) (run.Run, bool, error) {
+	if r.beforeReturn != nil {
+		r.beforeReturn()
 	}
-	return projection.value, true, nil
+	return r.value, true, nil
 }
 
 func (*racingRunProjection) Tree(context.Context, string) ([]run.Run, error) { return nil, nil }

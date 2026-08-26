@@ -422,10 +422,10 @@ type blockingPorts struct {
 	wantValue func(context.Context) bool
 }
 
-func (f *blockingPorts) Reconnect(ctx context.Context, _ string) error {
-	f.started <- ctx.Err() == nil && f.wantValue(ctx)
+func (b *blockingPorts) Reconnect(ctx context.Context, _ string) error {
+	b.started <- ctx.Err() == nil && b.wantValue(ctx)
 	<-ctx.Done()
-	close(f.stopped)
+	close(b.stopped)
 	return ctx.Err()
 }
 
@@ -480,11 +480,11 @@ type testRegistry struct {
 	releaseRemove   chan struct{}
 }
 
-func (r *testRegistry) List(context.Context) ([]mcpserver.Server, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	servers := make([]mcpserver.Server, 0, len(r.servers))
-	for _, server := range r.servers {
+func (t *testRegistry) List(context.Context) ([]mcpserver.Server, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	servers := make([]mcpserver.Server, 0, len(t.servers))
+	for _, server := range t.servers {
 		servers = append(servers, server)
 	}
 	slices.SortFunc(servers, func(a, b mcpserver.Server) int {
@@ -493,35 +493,35 @@ func (r *testRegistry) List(context.Context) ([]mcpserver.Server, error) {
 	return servers, nil
 }
 
-func (r *testRegistry) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	server, ok := r.servers[name]
+func (t *testRegistry) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	server, ok := t.servers[name]
 	return server, ok, nil
 }
 
-func (r *testRegistry) Save(_ context.Context, server mcpserver.Server) error {
-	r.mu.Lock()
-	r.servers[server.Name] = server
-	r.mu.Unlock()
-	if r.saveCommitted != nil {
-		close(r.saveCommitted)
+func (t *testRegistry) Save(_ context.Context, server mcpserver.Server) error {
+	t.mu.Lock()
+	t.servers[server.Name] = server
+	t.mu.Unlock()
+	if t.saveCommitted != nil {
+		close(t.saveCommitted)
 	}
-	if r.releaseSave != nil {
-		<-r.releaseSave
+	if t.releaseSave != nil {
+		<-t.releaseSave
 	}
 	return nil
 }
 
-func (r *testRegistry) Remove(_ context.Context, name string) error {
-	r.mu.Lock()
-	delete(r.servers, name)
-	r.mu.Unlock()
-	if r.removeCommitted != nil {
-		close(r.removeCommitted)
+func (t *testRegistry) Remove(_ context.Context, name string) error {
+	t.mu.Lock()
+	delete(t.servers, name)
+	t.mu.Unlock()
+	if t.removeCommitted != nil {
+		close(t.removeCommitted)
 	}
-	if r.releaseRemove != nil {
-		<-r.releaseRemove
+	if t.releaseRemove != nil {
+		<-t.releaseRemove
 	}
 	return nil
 }

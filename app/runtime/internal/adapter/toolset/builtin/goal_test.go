@@ -20,41 +20,41 @@ type memStore struct{ goals map[string]goalstate.Goal }
 
 func newMemStore() *memStore { return &memStore{goals: map[string]goalstate.Goal{}} }
 
-func (s *memStore) Get(_ context.Context, id string) (goalstate.Goal, bool, error) {
-	g, ok := s.goals[id]
+func (m *memStore) Get(_ context.Context, id string) (goalstate.Goal, bool, error) {
+	g, ok := m.goals[id]
 	return g, ok, nil
 }
 
 // put seeds a goal directly (test setup), bypassing the CAS.
-func (s *memStore) put(g goalstate.Goal) { s.goals[g.SessionID] = g }
+func (m *memStore) put(g goalstate.Goal) { m.goals[g.SessionID] = g }
 
-func (s *memStore) Save(_ context.Context, g goalstate.Goal, expected goalstate.Version) (goalstate.Goal, bool, error) {
-	cur, ok := s.goals[g.SessionID]
+func (m *memStore) Save(_ context.Context, g goalstate.Goal, expected goalstate.Version) (goalstate.Goal, bool, error) {
+	cur, ok := m.goals[g.SessionID]
 	if expected == (goalstate.Version{}) {
 		if ok {
 			return goalstate.Goal{}, false, nil
 		}
 		g.Revision = 1
-		s.goals[g.SessionID] = g
+		m.goals[g.SessionID] = g
 		return g, true, nil
 	}
 	if !ok || cur.Version() != expected {
 		return goalstate.Goal{}, false, nil
 	}
 	g.Revision = expected.Revision + 1
-	s.goals[g.SessionID] = g
+	m.goals[g.SessionID] = g
 	return g, true, nil
 }
-func (s *memStore) Clear(_ context.Context, id string) error { delete(s.goals, id); return nil }
-func (s *memStore) ClearIf(_ context.Context, id string, expected goalstate.Version) (bool, error) {
-	cur, ok := s.goals[id]
+func (m *memStore) Clear(_ context.Context, id string) error { delete(m.goals, id); return nil }
+func (m *memStore) ClearIf(_ context.Context, id string, expected goalstate.Version) (bool, error) {
+	cur, ok := m.goals[id]
 	if !ok || cur.Version() != expected {
 		return false, nil
 	}
-	delete(s.goals, id)
+	delete(m.goals, id)
 	return true, nil
 }
-func (s *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil, nil }
+func (m *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil, nil }
 
 // testSessionActiveGoal builds a stored active goal with an opaque current incarnation.
 func testSessionActiveGoal() goalstate.Goal {
@@ -240,12 +240,12 @@ type fakeStarter struct {
 	capabilities run.Capabilities
 }
 
-func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget, capabilities run.Capabilities) (goalstate.Goal, error) {
-	s.sessionID = sessionID
-	s.objective = objective
-	s.selection = selection
-	s.budget = budget
-	s.capabilities = capabilities.Clone()
+func (f *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget, capabilities run.Capabilities) (goalstate.Goal, error) {
+	f.sessionID = sessionID
+	f.objective = objective
+	f.selection = selection
+	f.budget = budget
+	f.capabilities = capabilities.Clone()
 	return goalstate.New(sessionID, objective, selection, budget, capabilities, "lease", time.Unix(1, 0))
 }
 

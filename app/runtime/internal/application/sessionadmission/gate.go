@@ -70,20 +70,20 @@ type runAdmissionLease struct {
 // Admit converts the pending reservation into the live run identified by
 // runID. It returns false when the reservation had already been released or
 // admitted, or when runID is empty.
-func (a RunAdmission) Admit(runID string) bool {
-	if a.lease == nil || runID == "" {
+func (r RunAdmission) Admit(runID string) bool {
+	if r.lease == nil || runID == "" {
 		return false
 	}
 	admitted := false
-	a.lease.once.Do(func() {
-		g := a.lease.gate
+	r.lease.once.Do(func() {
+		g := r.lease.gate
 		g.mu.Lock()
 		defer g.mu.Unlock()
-		pending, ok := g.pending[a.lease.id]
+		pending, ok := g.pending[r.lease.id]
 		if !ok {
 			return
 		}
-		delete(g.pending, a.lease.id)
+		delete(g.pending, r.lease.id)
 		g.releaseTreeRunLocked(pending.cwd)
 		g.runs[runID] = liveRun(pending)
 		admitted = true
@@ -92,19 +92,19 @@ func (a RunAdmission) Admit(runID string) bool {
 }
 
 // Release abandons a pending run reservation. It does nothing after Admit.
-func (a RunAdmission) Release() {
-	if a.lease == nil {
+func (r RunAdmission) Release() {
+	if r.lease == nil {
 		return
 	}
-	a.lease.once.Do(func() {
-		g := a.lease.gate
+	r.lease.once.Do(func() {
+		g := r.lease.gate
 		g.mu.Lock()
-		pending, ok := g.pending[a.lease.id]
+		pending, ok := g.pending[r.lease.id]
 		if !ok {
 			g.mu.Unlock()
 			return
 		}
-		delete(g.pending, a.lease.id)
+		delete(g.pending, r.lease.id)
 		g.releaseTreeRunLocked(pending.cwd)
 		g.notifyLocked()
 		g.mu.Unlock()

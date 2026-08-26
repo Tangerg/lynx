@@ -44,8 +44,8 @@ func configuredDraftEditor() (*draftEditor, error) {
 	return &draftEditor{command: command}, nil
 }
 
-func (e *draftEditor) Edit(ctx context.Context, session program.Session, workspace, original string) (string, error) {
-	if e == nil || len(e.command) == 0 {
+func (d *draftEditor) Edit(ctx context.Context, session program.Session, workspace, original string) (string, error) {
+	if d == nil || len(d.command) == 0 {
 		return "", errors.New("external editor is unavailable")
 	}
 	temporary, err := os.CreateTemp("", "lyra-prompt-*.md")
@@ -69,8 +69,8 @@ func (e *draftEditor) Edit(ctx context.Context, session program.Session, workspa
 	if err := temporary.Close(); err != nil {
 		return "", fmt.Errorf("close editor draft: %w", err)
 	}
-	arguments := append(slices.Clone(e.command[1:]), path)
-	command := exec.CommandContext(ctx, e.command[0], arguments...) //nolint:gosec // The user explicitly configures their editor command.
+	arguments := append(slices.Clone(d.command[1:]), path)
+	command := exec.CommandContext(ctx, d.command[0], arguments...) //nolint:gosec // The user explicitly configures their editor command.
 	command.Dir = workspace
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := session.Hand(command.Run); err != nil {

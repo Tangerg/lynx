@@ -54,8 +54,8 @@ func configuredKeyBindings(configured settings.Config) (keyBindings, error) {
 	return bindings, nil
 }
 
-func (b keyBindings) setResolver(resolve keymap.Resolver) {
-	for _, keys := range []*keymap.Map{b.editor, b.application, b.global} {
+func (k keyBindings) setResolver(resolve keymap.Resolver) {
+	for _, keys := range []*keymap.Map{k.editor, k.application, k.global} {
 		if keys != nil {
 			keys.Resolve = resolve
 		}

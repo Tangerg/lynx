@@ -54,21 +54,21 @@ func NewAuthoredWatcher(knowledgeHome, hooksHome, skillsHome string) (AuthoredWa
 
 // Watch observes only the selected resources. Filenames and cascade expansion
 // belong to this filesystem translation; consumers see semantic resources.
-func (w AuthoredWatcher) Watch(
+func (a AuthoredWatcher) Watch(
 	scopes []workspaceapp.AuthoredScope,
 	resources []workspaceapp.AuthoredResource,
 	notify func(workspaceapp.AuthoredResource),
 ) (workspaceapp.AuthoredObservation, error) {
 	targets := make([]fileobservation.Target, 0, 2+len(scopes)*4)
 	if slices.Contains(resources, workspaceapp.AuthoredKnowledge) {
-		targets = append(targets, knowledgeTarget(w.knowledgeHome))
+		targets = append(targets, knowledgeTarget(a.knowledgeHome))
 		for _, scope := range scopes {
 			targets = append(targets, knowledgeTarget(scope.ProjectRoot), knowledgeTarget(scope.Workspace))
 		}
 	}
 	if slices.Contains(resources, workspaceapp.AuthoredHooks) {
 		targets = append(targets, fileobservation.Target{
-			Key: authoredHooksKey, Path: filepath.Join(w.hooksHome, ".lyra", "hooks.json"),
+			Key: authoredHooksKey, Path: filepath.Join(a.hooksHome, ".lyra", "hooks.json"),
 		})
 		for _, scope := range scopes {
 			directories, err := directoriesRootToLeaf(scope.ProjectRoot, scope.Workspace)
@@ -95,7 +95,7 @@ func (w AuthoredWatcher) Watch(
 	if err != nil {
 		return nil, err
 	}
-	trees, err := fileobservation.WatchTrees(w.skillTreeTargets(scopes, resources), func(keys []string) {
+	trees, err := fileobservation.WatchTrees(a.skillTreeTargets(scopes, resources), func(keys []string) {
 		if slices.Contains(keys, authoredSkillsKey) {
 			notify(workspaceapp.AuthoredSkills)
 		}
@@ -110,15 +110,15 @@ type authoredObservation struct {
 	observations []fileobservation.Observation
 }
 
-func (o *authoredObservation) Close() error {
+func (a *authoredObservation) Close() error {
 	var errs []error
-	for _, observation := range o.observations {
+	for _, observation := range a.observations {
 		errs = append(errs, observation.Close())
 	}
 	return errors.Join(errs...)
 }
 
-func (o *authoredObservation) Accept(changes []workspaceapp.AuthoredChange) error {
+func (a *authoredObservation) Accept(changes []workspaceapp.AuthoredChange) error {
 	keys := make([]string, 0, len(changes))
 	identities := make([]string, 0, len(changes))
 	for _, change := range changes {
@@ -133,20 +133,20 @@ func (o *authoredObservation) Accept(changes []workspaceapp.AuthoredChange) erro
 		identities = append(identities, change.Identities...)
 	}
 	var errs []error
-	for _, observation := range o.observations {
+	for _, observation := range a.observations {
 		errs = append(errs, observation.Accept(keys, identities))
 	}
 	return errors.Join(errs...)
 }
 
-func (w AuthoredWatcher) skillTreeTargets(scopes []workspaceapp.AuthoredScope, resources []workspaceapp.AuthoredResource) []fileobservation.TreeTarget {
+func (a AuthoredWatcher) skillTreeTargets(scopes []workspaceapp.AuthoredScope, resources []workspaceapp.AuthoredResource) []fileobservation.TreeTarget {
 	if !slices.Contains(resources, workspaceapp.AuthoredSkills) {
 		return nil
 	}
 	targets := make([]fileobservation.TreeTarget, 0, len(scopes)+1)
-	if w.skillsHome != "" {
+	if a.skillsHome != "" {
 		targets = append(targets, fileobservation.TreeTarget{
-			Key: authoredSkillsKey, Path: w.skillsHome, Boundary: w.skillsHome, FileName: skillspec.SkillFile,
+			Key: authoredSkillsKey, Path: a.skillsHome, Boundary: a.skillsHome, FileName: skillspec.SkillFile,
 		})
 	}
 	for _, scope := range scopes {

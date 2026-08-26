@@ -16,7 +16,7 @@ func newDelegatingStubModel() *delegatingStubModel {
 	return &delegatingStubModel{defaults: &chat.Options{Model: "stub-delegating"}}
 }
 
-func (model *delegatingStubModel) DefaultOptions() chat.Options { return *model.defaults }
+func (d *delegatingStubModel) DefaultOptions() chat.Options { return *d.defaults }
 
 func (*delegatingStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	switch {
@@ -32,11 +32,11 @@ func (*delegatingStubModel) Call(_ context.Context, request *chat.Request) (*cha
 	}
 }
 
-func (model *delegatingStubModel) Stream(
+func (d *delegatingStubModel) Stream(
 	ctx context.Context,
 	request *chat.Request,
 ) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+	response, err := d.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
@@ -48,7 +48,7 @@ func newNestedDelegatingStub() *nestedDelegatingStub {
 	return &nestedDelegatingStub{defaults: &chat.Options{Model: "stub-nested-delegating"}}
 }
 
-func (model *nestedDelegatingStub) DefaultOptions() chat.Options { return *model.defaults }
+func (n *nestedDelegatingStub) DefaultOptions() chat.Options { return *n.defaults }
 
 func (*nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	switch {
@@ -71,11 +71,11 @@ func (*nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*ch
 	}
 }
 
-func (model *nestedDelegatingStub) Stream(
+func (n *nestedDelegatingStub) Stream(
 	ctx context.Context,
 	request *chat.Request,
 ) iter.Seq2[*chat.Response, error] {
-	response, err := model.Call(ctx, request)
+	response, err := n.Call(ctx, request)
 	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 

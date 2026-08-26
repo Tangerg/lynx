@@ -40,18 +40,18 @@ func requirementOrder(kind protocol.CapabilityRequirementType) int {
 	}, kind)
 }
 
-func (e *CapabilityGapError) Error() string {
-	names := make([]string, 0, len(e.Requirements))
-	for _, requirement := range e.Requirements {
+func (c *CapabilityGapError) Error() string {
+	names := make([]string, 0, len(c.Requirements))
+	for _, requirement := range c.Requirements {
 		names = append(names, string(requirement.Type)+"."+requirement.Name)
 	}
 	return fmt.Sprintf("%s: requires %s", protocol.ErrCapabilityNotNeg, strings.Join(names, ", "))
 }
 
-func (e *CapabilityGapError) Is(target error) bool { return target == protocol.ErrCapabilityNotNeg }
+func (c *CapabilityGapError) Is(target error) bool { return target == protocol.ErrCapabilityNotNeg }
 
-func (e *CapabilityGapError) Enrich(problem *protocol.ProblemData) {
-	problem.RequiredCapabilities = slices.Clone(e.Requirements)
+func (c *CapabilityGapError) Enrich(problem *protocol.ProblemData) {
+	problem.RequiredCapabilities = slices.Clone(c.Requirements)
 }
 
 // ActiveRunConflictError carries the non-terminal root that refused admission.
@@ -59,15 +59,15 @@ type ActiveRunConflictError struct {
 	ActiveRun protocol.ActiveRunRef
 }
 
-func (e *ActiveRunConflictError) Error() string {
-	return fmt.Sprintf("%s: run %s is %s", protocol.ErrSessionHasActiveRun, e.ActiveRun.RunID, e.ActiveRun.Status)
+func (a *ActiveRunConflictError) Error() string {
+	return fmt.Sprintf("%s: run %s is %s", protocol.ErrSessionHasActiveRun, a.ActiveRun.RunID, a.ActiveRun.Status)
 }
 
-func (e *ActiveRunConflictError) Is(target error) bool {
+func (a *ActiveRunConflictError) Is(target error) bool {
 	return target == protocol.ErrSessionHasActiveRun
 }
 
-func (e *ActiveRunConflictError) Enrich(problem *protocol.ProblemData) {
-	activeRun := e.ActiveRun
+func (a *ActiveRunConflictError) Enrich(problem *protocol.ProblemData) {
+	activeRun := a.ActiveRun
 	problem.ActiveRun = &activeRun
 }

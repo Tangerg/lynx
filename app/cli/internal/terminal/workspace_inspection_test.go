@@ -35,31 +35,31 @@ func newWorkspaceServiceStub() *workspaceServiceStub {
 	}
 }
 
-func (stub *workspaceServiceStub) called(operation string) {
-	stub.mu.Lock()
-	stub.calls[operation]++
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) called(operation string) {
+	w.mu.Lock()
+	w.calls[operation]++
+	w.mu.Unlock()
 }
 
-func (stub *workspaceServiceStub) callCount(operation string) int {
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	return stub.calls[operation]
+func (w *workspaceServiceStub) callCount(operation string) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.calls[operation]
 }
 
-func (stub *workspaceServiceStub) setChanges(changes ...workspace.Change) {
-	stub.mu.Lock()
-	stub.changes = append([]workspace.Change(nil), changes...)
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) setChanges(changes ...workspace.Change) {
+	w.mu.Lock()
+	w.changes = append([]workspace.Change(nil), changes...)
+	w.mu.Unlock()
 }
 
-func (stub *workspaceServiceStub) Resolve(_ context.Context, request workspace.ResolveRequest) (workspace.Workspace, error) {
-	stub.called("resolve")
+func (w *workspaceServiceStub) Resolve(_ context.Context, request workspace.ResolveRequest) (workspace.Workspace, error) {
+	w.called("resolve")
 	return workspace.Workspace{Path: request.Path, ProjectRoot: request.Path, Availability: workspace.Available}, nil
 }
 
-func (stub *workspaceServiceStub) List(context.Context) ([]workspace.Summary, error) {
-	stub.called("list")
+func (w *workspaceServiceStub) List(context.Context) ([]workspace.Summary, error) {
+	w.called("list")
 	lastActive := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
 	return []workspace.Summary{{
 		Workspace: workspace.Workspace{Path: "/tmp/lyra-cli-test", ProjectRoot: "/tmp/project-root", Availability: workspace.Available},
@@ -67,48 +67,48 @@ func (stub *workspaceServiceStub) List(context.Context) ([]workspace.Summary, er
 	}}, nil
 }
 
-func (stub *workspaceServiceStub) Changes(context.Context, string) ([]workspace.Change, error) {
-	stub.called("changes")
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	return append([]workspace.Change(nil), stub.changes...), nil
+func (w *workspaceServiceStub) Changes(context.Context, string) ([]workspace.Change, error) {
+	w.called("changes")
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]workspace.Change(nil), w.changes...), nil
 }
 
-func (stub *workspaceServiceStub) Diff(_ context.Context, request workspace.DiffRequest) (workspace.Diff, error) {
-	stub.called("diff")
-	stub.mu.Lock()
-	stub.diffRequest = request
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) Diff(_ context.Context, request workspace.DiffRequest) (workspace.Diff, error) {
+	w.called("diff")
+	w.mu.Lock()
+	w.diffRequest = request
+	w.mu.Unlock()
 	return workspace.Diff{Patch: "diff --git a/main.go b/main.go\n+var current = true"}, nil
 }
 
-func (stub *workspaceServiceStub) lastDiffRequest() workspace.DiffRequest {
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	return stub.diffRequest
+func (w *workspaceServiceStub) lastDiffRequest() workspace.DiffRequest {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.diffRequest
 }
 
-func (stub *workspaceServiceStub) Head(_ context.Context, request workspace.HeadRequest) (workspace.FileHead, error) {
-	stub.called("head")
-	stub.mu.Lock()
-	stub.headRequest = request
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) Head(_ context.Context, request workspace.HeadRequest) (workspace.FileHead, error) {
+	w.called("head")
+	w.mu.Lock()
+	w.headRequest = request
+	w.mu.Unlock()
 	return workspace.FileHead{Path: "main.go", Lines: []workspace.FileLine{{Number: 1, Text: "package main"}}}, nil
 }
 
-func (stub *workspaceServiceStub) Search(_ context.Context, request workspace.SearchRequest) (workspace.SearchResult, error) {
-	stub.called("search")
-	stub.mu.Lock()
-	stub.search = request
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) Search(_ context.Context, request workspace.SearchRequest) (workspace.SearchResult, error) {
+	w.called("search")
+	w.mu.Lock()
+	w.search = request
+	w.mu.Unlock()
 	return workspace.SearchResult{Matches: []workspace.Match{{Path: "main.go", Line: 1, Text: "package main"}}, Total: 1}, nil
 }
 
-func (stub *workspaceServiceStub) Files(_ context.Context, request workspace.FilesRequest) (workspace.FileListing, error) {
-	stub.called("files")
-	stub.mu.Lock()
-	stub.files = request
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) Files(_ context.Context, request workspace.FilesRequest) (workspace.FileListing, error) {
+	w.called("files")
+	w.mu.Lock()
+	w.files = request
+	w.mu.Unlock()
 	size := int64(42)
 	return workspace.FileListing{Entries: []workspace.FileEntry{{
 		Path: "main.go", Name: "main.go", Type: workspace.FileEntryFile,
@@ -116,18 +116,18 @@ func (stub *workspaceServiceStub) Files(_ context.Context, request workspace.Fil
 	}}}, nil
 }
 
-func (stub *workspaceServiceStub) Read(_ context.Context, request workspace.ReadRequest) (workspace.FileContent, error) {
-	stub.called("read")
-	stub.mu.Lock()
-	stub.read = request
-	stub.mu.Unlock()
+func (w *workspaceServiceStub) Read(_ context.Context, request workspace.ReadRequest) (workspace.FileContent, error) {
+	w.called("read")
+	w.mu.Lock()
+	w.read = request
+	w.mu.Unlock()
 	return workspace.FileContent{Path: "main.go", Content: "package main\n", Encoding: "utf-8", TotalLines: 1}, nil
 }
 
-func (stub *workspaceServiceStub) inspectionRequests() (workspace.HeadRequest, workspace.SearchRequest, workspace.FilesRequest, workspace.ReadRequest) {
-	stub.mu.Lock()
-	defer stub.mu.Unlock()
-	return stub.headRequest, stub.search, stub.files, stub.read
+func (w *workspaceServiceStub) inspectionRequests() (workspace.HeadRequest, workspace.SearchRequest, workspace.FilesRequest, workspace.ReadRequest) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.headRequest, w.search, w.files, w.read
 }
 
 type changeSourceStub struct {
@@ -136,29 +136,29 @@ type changeSourceStub struct {
 
 type changeReaderFunc func(context.Context, string) ([]workspace.Change, error)
 
-func (read changeReaderFunc) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
-	return read(ctx, path)
+func (c changeReaderFunc) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
+	return c(ctx, path)
 }
 
 type changeSourceFunc func(context.Context, changefeed.Subscription) (changefeed.EventStream, error)
 
-func (source changeSourceFunc) Supports(topic changefeed.Topic) bool {
+func (c changeSourceFunc) Supports(topic changefeed.Topic) bool {
 	return topic == changefeed.FilesChanged
 }
 
-func (source changeSourceFunc) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
-	return source(ctx, subscription)
+func (c changeSourceFunc) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
+	return c(ctx, subscription)
 }
 
-func (stub *changeSourceStub) Supports(topic changefeed.Topic) bool {
+func (c *changeSourceStub) Supports(topic changefeed.Topic) bool {
 	return topic == changefeed.FilesChanged
 }
 
-func (stub *changeSourceStub) Subscribe(ctx context.Context, _ changefeed.Subscription) (changefeed.EventStream, error) {
+func (c *changeSourceStub) Subscribe(ctx context.Context, _ changefeed.Subscription) (changefeed.EventStream, error) {
 	return func(yield func(changefeed.Event, error) bool) {
 		for {
 			select {
-			case event := <-stub.events:
+			case event := <-c.events:
 				if !yield(event, nil) {
 					return
 				}

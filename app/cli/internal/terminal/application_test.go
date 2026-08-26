@@ -258,14 +258,14 @@ type expiringUncommittedResumeRuntime struct {
 	attempts []agent.ResumeRun
 }
 
-func (runtime *expiringUncommittedResumeRuntime) ResumeRun(
+func (e *expiringUncommittedResumeRuntime) ResumeRun(
 	ctx context.Context,
 	input agent.ResumeRun,
 ) (agent.SegmentStream, error) {
-	runtime.mu.Lock()
-	runtime.attempts = append(runtime.attempts, input.Clone())
-	attempt := len(runtime.attempts)
-	runtime.mu.Unlock()
+	e.mu.Lock()
+	e.attempts = append(e.attempts, input.Clone())
+	attempt := len(e.attempts)
+	e.mu.Unlock()
 	if attempt == 1 {
 		timer := time.NewTimer(1100 * time.Millisecond)
 		defer timer.Stop()
@@ -276,13 +276,13 @@ func (runtime *expiringUncommittedResumeRuntime) ResumeRun(
 			return agent.SegmentStream{}, context.Cause(ctx)
 		}
 	}
-	return runtime.Runtime.ResumeRun(ctx, input)
+	return e.Runtime.ResumeRun(ctx, input)
 }
 
-func (runtime *expiringUncommittedResumeRuntime) resumeAttempts() []agent.ResumeRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return cloneResumeRuns(runtime.attempts)
+func (e *expiringUncommittedResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return cloneResumeRuns(e.attempts)
 }
 
 type blockingSessionChangeRuntime struct {
@@ -344,47 +344,47 @@ type invalidCloseCancellationRuntime struct {
 	agent.Runtime
 }
 
-func (runtime *invalidCloseCancellationRuntime) CancelRun(
+func (i *invalidCloseCancellationRuntime) CancelRun(
 	context.Context,
 	agent.CancelRun,
 ) (agent.RunCancellation, error) {
 	return agent.RunCancellation{}, nil
 }
 
-func (runtime *refusingCloseCancellationRuntime) CancelRun(
+func (r *refusingCloseCancellationRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
 	select {
-	case runtime.canceled <- input:
+	case r.canceled <- input:
 	default:
 	}
-	return agent.RunCancellation{}, runtime.err
+	return agent.RunCancellation{}, r.err
 }
 
-func (runtime *blockingCloseCancellationRuntime) CancelRun(
+func (b *blockingCloseCancellationRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.attempts = append(runtime.attempts, input)
-	runtime.mu.Unlock()
+	b.mu.Lock()
+	b.attempts = append(b.attempts, input)
+	b.mu.Unlock()
 	select {
-	case runtime.started <- struct{}{}:
+	case b.started <- struct{}{}:
 	default:
 	}
 	select {
-	case <-runtime.release:
-		return runtime.Runtime.CancelRun(ctx, input)
+	case <-b.release:
+		return b.Runtime.CancelRun(ctx, input)
 	case <-ctx.Done():
 		return agent.RunCancellation{}, context.Cause(ctx)
 	}
 }
 
-func (runtime *blockingCloseCancellationRuntime) cancelAttempts() []agent.CancelRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return slices.Clone(runtime.attempts)
+func (b *blockingCloseCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.attempts)
 }
 
 type mismatchedSessionUpdateRuntime struct {
@@ -392,107 +392,107 @@ type mismatchedSessionUpdateRuntime struct {
 	returned agent.Session
 }
 
-func (r *mismatchedSessionUpdateRuntime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
-	if _, err := r.Runtime.UpdateSession(ctx, input); err != nil {
+func (m *mismatchedSessionUpdateRuntime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
+	if _, err := m.Runtime.UpdateSession(ctx, input); err != nil {
 		return agent.Session{}, err
 	}
-	return r.returned, nil
+	return m.returned, nil
 }
 
-func (r *flakyCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
-	r.attempts.Add(1)
-	for remaining := r.remaining.Load(); remaining > 0; remaining = r.remaining.Load() {
-		if r.remaining.CompareAndSwap(remaining, remaining-1) {
-			return agent.RunCancellation{}, r.failure
+func (f *flakyCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	f.attempts.Add(1)
+	for remaining := f.remaining.Load(); remaining > 0; remaining = f.remaining.Load() {
+		if f.remaining.CompareAndSwap(remaining, remaining-1) {
+			return agent.RunCancellation{}, f.failure
 		}
 	}
-	return r.Runtime.CancelRun(ctx, input)
+	return f.Runtime.CancelRun(ctx, input)
 }
 
-func (runtime *uncertainCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
-	runtime.mu.Lock()
-	runtime.attempts = append(runtime.attempts, input)
-	first := !runtime.timedOut
+func (u *uncertainCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	u.mu.Lock()
+	u.attempts = append(u.attempts, input)
+	first := !u.timedOut
 	if first {
-		runtime.timedOut = true
+		u.timedOut = true
 	}
-	commitBeforeTimeout := runtime.commitBeforeTimeout
-	runtime.mu.Unlock()
+	commitBeforeTimeout := u.commitBeforeTimeout
+	u.mu.Unlock()
 	if first && !commitBeforeTimeout {
 		return agent.RunCancellation{}, fmt.Errorf("cancellation acknowledgement timed out: %w", context.DeadlineExceeded)
 	}
-	result, err := runtime.Runtime.CancelRun(ctx, input)
+	result, err := u.Runtime.CancelRun(ctx, input)
 	if first && err == nil {
 		return agent.RunCancellation{}, fmt.Errorf("lost cancellation acknowledgement: %w", context.DeadlineExceeded)
 	}
 	return result, err
 }
 
-func (runtime *uncertainCancellationRuntime) cancelAttempts() []agent.CancelRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return slices.Clone(runtime.attempts)
+func (u *uncertainCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.attempts)
 }
 
-func (runtime *transientForkProjectionRuntime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
-	forked, err := runtime.Runtime.ForkSession(ctx, input)
+func (t *transientForkProjectionRuntime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
+	forked, err := t.Runtime.ForkSession(ctx, input)
 	if err != nil {
 		return agent.Session{}, err
 	}
-	runtime.forks.Add(1)
-	runtime.mu.Lock()
-	runtime.forkedID = forked.ID
-	runtime.mu.Unlock()
+	t.forks.Add(1)
+	t.mu.Lock()
+	t.forkedID = forked.ID
+	t.mu.Unlock()
 	return forked, nil
 }
 
-func (runtime *transientForkProjectionRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
-	runtime.mu.Lock()
-	forkedID := runtime.forkedID
-	runtime.mu.Unlock()
+func (t *transientForkProjectionRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	t.mu.Lock()
+	forkedID := t.forkedID
+	t.mu.Unlock()
 	if sessionID == forkedID {
-		for remaining := runtime.remaining.Load(); remaining > 0; remaining = runtime.remaining.Load() {
-			if runtime.remaining.CompareAndSwap(remaining, remaining-1) {
+		for remaining := t.remaining.Load(); remaining > 0; remaining = t.remaining.Load() {
+			if t.remaining.CompareAndSwap(remaining, remaining-1) {
 				return agent.SessionSnapshot{}, fmt.Errorf("temporary fork projection: %w", agent.ErrDisconnected)
 			}
 		}
 	}
-	return runtime.Runtime.GetSession(ctx, sessionID)
+	return t.Runtime.GetSession(ctx, sessionID)
 }
 
-func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
-	ordinal := r.creates.Add(1)
-	blockAt := r.blockCreateAt
+func (b *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
+	ordinal := b.creates.Add(1)
+	blockAt := b.blockCreateAt
 	if blockAt == 0 {
 		blockAt = 2
 	}
 	if ordinal != blockAt {
-		return r.Runtime.CreateSession(ctx, input)
+		return b.Runtime.CreateSession(ctx, input)
 	}
-	close(r.changeStarted)
+	close(b.changeStarted)
 	select {
-	case <-r.releaseChange:
-		if r.changeErr != nil {
-			return agent.Session{}, r.changeErr
+	case <-b.releaseChange:
+		if b.changeErr != nil {
+			return agent.Session{}, b.changeErr
 		}
-		return r.Runtime.CreateSession(ctx, input)
+		return b.Runtime.CreateSession(ctx, input)
 	case <-ctx.Done():
 		return agent.Session{}, context.Cause(ctx)
 	}
 }
 
-func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	r.starts.Add(1)
-	r.mu.Lock()
-	r.startedIn = input.SessionID
-	r.mu.Unlock()
-	return r.Runtime.StartRun(ctx, input)
+func (b *blockingSessionChangeRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	b.starts.Add(1)
+	b.mu.Lock()
+	b.startedIn = input.SessionID
+	b.mu.Unlock()
+	return b.Runtime.StartRun(ctx, input)
 }
 
-func (r *blockingSessionChangeRuntime) startedSession() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.startedIn
+func (b *blockingSessionChangeRuntime) startedSession() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.startedIn
 }
 
 func (r *recordingRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
@@ -539,12 +539,12 @@ func cloneStartRun(input agent.StartRun) agent.StartRun {
 	return input
 }
 
-func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
-	if r.starts.Add(1) == 1 {
+func (d *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	if d.starts.Add(1) == 1 {
 		<-ctx.Done()
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
-	return r.Runtime.StartRun(ctx, input)
+	return d.Runtime.StartRun(ctx, input)
 }
 
 func (r *replayingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
@@ -593,85 +593,85 @@ func (r *refusingFirstResumeRuntime) resumeAttempts() []agent.ResumeRun {
 	return cloneResumeRuns(r.attempts)
 }
 
-func (r *blockingRefusingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	r.calls.Add(1)
+func (b *blockingRefusingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	b.calls.Add(1)
 	select {
-	case r.started <- input.Clone():
+	case b.started <- input.Clone():
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 	select {
-	case <-r.release:
+	case <-b.release:
 		return agent.SegmentStream{}, errors.New("answers rejected by runtime")
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 }
 
-func (r *blockingAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	stream, err := r.Runtime.ResumeRun(ctx, input)
+func (b *blockingAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	stream, err := b.Runtime.ResumeRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	r.mu.Lock()
-	r.attempts = append(r.attempts, input.Clone())
-	r.mu.Unlock()
+	b.mu.Lock()
+	b.attempts = append(b.attempts, input.Clone())
+	b.mu.Unlock()
 	select {
-	case r.started <- input.Clone():
+	case b.started <- input.Clone():
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 	select {
-	case <-r.release:
+	case <-b.release:
 		return stream, nil
 	case <-ctx.Done():
 		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 }
 
-func (r *blockingAcceptedResumeRuntime) resumeAttempts() []agent.ResumeRun {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return cloneResumeRuns(r.attempts)
+func (b *blockingAcceptedResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return cloneResumeRuns(b.attempts)
 }
 
-func (r *invalidAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
-	stream, err := r.Runtime.ResumeRun(ctx, input)
+func (i *invalidAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	stream, err := i.Runtime.ResumeRun(ctx, input)
 	if err != nil {
 		return agent.SegmentStream{}, err
 	}
-	r.mu.Lock()
-	r.resumes = append(r.resumes, input.Clone())
-	r.mu.Unlock()
+	i.mu.Lock()
+	i.resumes = append(i.resumes, input.Clone())
+	i.mu.Unlock()
 	stream.RunID = "run_misdirected"
 	return stream, agent.NewAcceptedMutationError(stream, stream.ValidateResume(input.RunID, nil))
 }
 
-func (r *invalidAcceptedResumeRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
-	r.mu.Lock()
-	r.cancellations = append(r.cancellations, input)
-	r.mu.Unlock()
-	return r.Runtime.CancelRun(ctx, input)
+func (i *invalidAcceptedResumeRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	i.mu.Lock()
+	i.cancellations = append(i.cancellations, input)
+	i.mu.Unlock()
+	return i.Runtime.CancelRun(ctx, input)
 }
 
-func (r *invalidAcceptedResumeRuntime) attempts() ([]agent.ResumeRun, []agent.CancelRun) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return cloneResumeRuns(r.resumes), slices.Clone(r.cancellations)
+func (i *invalidAcceptedResumeRuntime) attempts() ([]agent.ResumeRun, []agent.CancelRun) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return cloneResumeRuns(i.resumes), slices.Clone(i.cancellations)
 }
 
-func (r *corruptingAcceptedResumeRuntime) ResumeRun(
+func (c *corruptingAcceptedResumeRuntime) ResumeRun(
 	ctx context.Context,
 	input agent.ResumeRun,
 ) (agent.SegmentStream, error) {
-	stream, err := r.Runtime.ResumeRun(ctx, input.Clone())
+	stream, err := c.Runtime.ResumeRun(ctx, input.Clone())
 	if len(input.Answers) != 0 {
 		input.Answers[0].ItemID = "corrupted_after_runtime_acceptance"
 	}
 	original := stream.Events
 	stream.Events = func(yield func(agent.RunEvent, error) bool) {
 		select {
-		case r.tailRead <- struct{}{}:
+		case c.tailRead <- struct{}{}:
 		default:
 		}
 		original(yield)
@@ -679,25 +679,25 @@ func (r *corruptingAcceptedResumeRuntime) ResumeRun(
 	return stream, err
 }
 
-func (r *corruptingAcceptedResumeRuntime) CancelRun(
+func (c *corruptingAcceptedResumeRuntime) CancelRun(
 	ctx context.Context,
 	input agent.CancelRun,
 ) (agent.RunCancellation, error) {
-	r.mu.Lock()
-	r.cancellations = append(r.cancellations, input)
-	r.mu.Unlock()
+	c.mu.Lock()
+	c.cancellations = append(c.cancellations, input)
+	c.mu.Unlock()
 	select {
-	case <-r.releaseCancellation:
+	case <-c.releaseCancellation:
 	case <-ctx.Done():
 		return agent.RunCancellation{}, context.Cause(ctx)
 	}
-	return r.Runtime.CancelRun(ctx, input)
+	return c.Runtime.CancelRun(ctx, input)
 }
 
-func (r *corruptingAcceptedResumeRuntime) cancellationAttempts() []agent.CancelRun {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return slices.Clone(r.cancellations)
+func (c *corruptingAcceptedResumeRuntime) cancellationAttempts() []agent.CancelRun {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.cancellations)
 }
 
 func cloneResumeRuns(values []agent.ResumeRun) []agent.ResumeRun {

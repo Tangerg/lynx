@@ -23,17 +23,17 @@ type delegateInput struct {
 
 // Validate enforces the model-facing delegate_task contract at every
 // execution boundary that consumes it.
-func (input delegateInput) Validate() error {
+func (d delegateInput) Validate() error {
 	switch {
-	case strings.TrimSpace(input.Summary) == "":
+	case strings.TrimSpace(d.Summary) == "":
 		return errors.New("delegation: summary is required")
-	case input.Summary != strings.TrimSpace(input.Summary):
+	case d.Summary != strings.TrimSpace(d.Summary):
 		return errors.New("delegation: summary has surrounding whitespace")
-	case len(input.Summary) > 80:
+	case len(d.Summary) > 80:
 		return errors.New("delegation: summary exceeds 80 bytes")
-	case strings.TrimSpace(input.Instructions) == "":
+	case strings.TrimSpace(d.Instructions) == "":
 		return errors.New("delegation: instructions are required")
-	case input.Instructions != strings.TrimSpace(input.Instructions):
+	case d.Instructions != strings.TrimSpace(d.Instructions):
 		return errors.New("delegation: instructions have surrounding whitespace")
 	default:
 		return nil

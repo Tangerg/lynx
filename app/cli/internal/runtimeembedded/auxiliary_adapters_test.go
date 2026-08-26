@@ -20,17 +20,17 @@ type diagnosticToolBindingStub struct {
 	result any
 }
 
-func (stub *diagnosticToolBindingStub) ListTools(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.ToolSpec], error) {
-	assertCallMeta(stub.t, options.RequestMeta)
-	return stub.page, nil
+func (d *diagnosticToolBindingStub) ListTools(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.ToolSpec], error) {
+	assertCallMeta(d.t, options.RequestMeta)
+	return d.page, nil
 }
 
-func (stub *diagnosticToolBindingStub) InvokeTool(_ context.Context, request protocol.InvokeToolRequest, options embedded.CommandOptions) (any, error) {
-	assertCommandMeta(stub.t, options)
+func (d *diagnosticToolBindingStub) InvokeTool(_ context.Context, request protocol.InvokeToolRequest, options embedded.CommandOptions) (any, error) {
+	assertCommandMeta(d.t, options)
 	if request.Name != "inspect" || request.Workspace == nil || request.Workspace.Path != "/workspace" || request.Arguments["depth"] != float64(2) {
-		stub.t.Fatalf("tool invocation = %+v", request)
+		d.t.Fatalf("tool invocation = %+v", request)
 	}
-	return stub.result, nil
+	return d.result, nil
 }
 
 func TestDiagnosticToolAdapterConfinesSafeCatalogAndJSON(t *testing.T) {
@@ -80,14 +80,14 @@ type authoringContextBindingStub struct {
 	recipes *protocol.Page[protocol.Recipe]
 }
 
-func (stub *authoringContextBindingStub) ListAgentDocs(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.AgentDoc], error) {
-	assertWorkspaceQuery(stub.t, request, options)
-	return stub.docs, nil
+func (a *authoringContextBindingStub) ListAgentDocs(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.AgentDoc], error) {
+	assertWorkspaceQuery(a.t, request, options)
+	return a.docs, nil
 }
 
-func (stub *authoringContextBindingStub) ListRecipes(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.Recipe], error) {
-	assertWorkspaceQuery(stub.t, request, options)
-	return stub.recipes, nil
+func (a *authoringContextBindingStub) ListRecipes(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.Recipe], error) {
+	assertWorkspaceQuery(a.t, request, options)
+	return a.recipes, nil
 }
 
 func TestAuthoringContextAdapterProjectsDocumentsAndRecipes(t *testing.T) {
@@ -116,20 +116,20 @@ type hookBindingStub struct {
 	trusted     *bool
 }
 
-func (stub *hookBindingStub) ListHooks(_ context.Context, request protocol.ListHooksRequest, options embedded.CallOptions) (*protocol.HooksListResult, error) {
-	assertCallMeta(stub.t, options.RequestMeta)
-	if request.Workspace.Path != stub.workspace {
-		stub.t.Fatalf("hooks request = %+v", request)
+func (h *hookBindingStub) ListHooks(_ context.Context, request protocol.ListHooksRequest, options embedded.CallOptions) (*protocol.HooksListResult, error) {
+	assertCallMeta(h.t, options.RequestMeta)
+	if request.Workspace.Path != h.workspace {
+		h.t.Fatalf("hooks request = %+v", request)
 	}
-	return stub.result, nil
+	return h.result, nil
 }
 
-func (stub *hookBindingStub) SetHookTrust(_ context.Context, request protocol.SetHookTrustRequest, options embedded.CommandOptions) error {
-	assertCommandMeta(stub.t, options)
-	if request.ProjectRoot != stub.projectRoot {
-		stub.t.Fatalf("hook trust request = %+v", request)
+func (h *hookBindingStub) SetHookTrust(_ context.Context, request protocol.SetHookTrustRequest, options embedded.CommandOptions) error {
+	assertCommandMeta(h.t, options)
+	if request.ProjectRoot != h.projectRoot {
+		h.t.Fatalf("hook trust request = %+v", request)
 	}
-	stub.trusted = new(request.Trusted)
+	h.trusted = new(request.Trusted)
 	return nil
 }
 
@@ -170,9 +170,9 @@ type feedbackBindingStub struct {
 	recorded feedback.Signal
 }
 
-func (stub *feedbackBindingStub) CreateFeedback(_ context.Context, request protocol.FeedbackRequest, options embedded.CommandOptions) error {
-	assertCommandMeta(stub.t, options)
-	stub.recorded = feedback.Signal{
+func (f *feedbackBindingStub) CreateFeedback(_ context.Context, request protocol.FeedbackRequest, options embedded.CommandOptions) error {
+	assertCommandMeta(f.t, options)
+	f.recorded = feedback.Signal{
 		SessionID: request.SessionID, RunID: request.RunID, ItemID: request.ItemID,
 		Rating: feedback.Rating(request.Rating), Text: request.Text,
 	}

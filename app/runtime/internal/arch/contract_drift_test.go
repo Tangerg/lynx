@@ -235,7 +235,11 @@ func TestRegistryShapeRulesReachTheGoValidator(t *testing.T) {
 		registered = append(registered, spec.GoType)
 	}
 	for _, shape := range registered {
-		signature := "func (value " + shape.Name() + ") ValidateWire() error"
+		// The generator names the receiver after its type, exactly as
+		// hand-written methods do, so the expected signature is derived the
+		// same way rather than assuming one shared name.
+		receiver := strings.ToLower(shape.Name()[:1])
+		signature := "func (" + receiver + " " + shape.Name() + ") ValidateWire() error"
 		if !strings.Contains(source, signature) {
 			t.Errorf("%s is registered as a wire-constrained shape but has no generated ValidateWire method", shape.Name())
 		}
@@ -825,7 +829,10 @@ func statesCheck(entry, path, keyword string, limit int) bool {
 }
 
 func statesGoConstraint(source, shape, helper, field string, limit int) bool {
-	marker := "func (value " + shape + ") ValidateWire() error {"
+	// The generator names the receiver after its type, so both the method
+	// marker and the receiver argument are derived from the shape name.
+	receiver := strings.ToLower(shape[:1])
+	marker := "func (" + receiver + " " + shape + ") ValidateWire() error {"
 	start := strings.Index(source, marker)
 	if start < 0 {
 		return false
@@ -835,7 +842,7 @@ func statesGoConstraint(source, shape, helper, field string, limit int) bool {
 		source = source[:len(marker)+end]
 	}
 	if helper == "requiredWhen" {
-		fieldArgument := `, "` + field + `", value)`
+		fieldArgument := `, "` + field + `", ` + receiver + `)`
 		for line := range strings.SplitSeq(source, "\n") {
 			if strings.Contains(line, "requiredWhen(") && strings.Contains(line, fieldArgument) {
 				return true

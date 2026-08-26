@@ -43,26 +43,26 @@ func newScheduleFormDraft(mode scheduleFormMode, scheduled schedule.Schedule, de
 	return scheduleFormDraft{workspace: defaultWorkspace, cron: "0 9 * * 1-5", enabled: "enabled"}
 }
 
-func (draft scheduleFormDraft) candidate() (schedule.Candidate, error) {
+func (s scheduleFormDraft) candidate() (schedule.Candidate, error) {
 	candidate := schedule.Candidate{
-		Title: strings.TrimSpace(draft.title), Instructions: strings.TrimSpace(draft.instructions),
-		Workspace: strings.TrimSpace(draft.workspace), Provider: strings.TrimSpace(draft.provider),
-		Model: strings.TrimSpace(draft.model), Cron: strings.TrimSpace(draft.cron),
+		Title: strings.TrimSpace(s.title), Instructions: strings.TrimSpace(s.instructions),
+		Workspace: strings.TrimSpace(s.workspace), Provider: strings.TrimSpace(s.provider),
+		Model: strings.TrimSpace(s.model), Cron: strings.TrimSpace(s.cron),
 	}
 	return candidate, candidate.Validate()
 }
 
-func (draft scheduleFormDraft) patch(original schedule.Schedule) (schedule.Patch, bool, error) {
+func (s scheduleFormDraft) patch(original schedule.Schedule) (schedule.Patch, bool, error) {
 	patch := schedule.Patch{ID: original.ID, ExpectedRevision: original.Revision}
-	title := strings.TrimSpace(draft.title)
+	title := strings.TrimSpace(s.title)
 	if title != original.Title {
 		patch.Title = &title
 	}
-	instructions := strings.TrimSpace(draft.instructions)
+	instructions := strings.TrimSpace(s.instructions)
 	if instructions != original.Instructions {
 		patch.Instructions = &instructions
 	}
-	workspace := strings.TrimSpace(draft.workspace)
+	workspace := strings.TrimSpace(s.workspace)
 	if workspace != original.Workspace {
 		if workspace == "" {
 			patch.Workspace = schedule.UseDefaultWorkspace()
@@ -70,15 +70,15 @@ func (draft scheduleFormDraft) patch(original schedule.Schedule) (schedule.Patch
 			patch.Workspace = schedule.BindWorkspace(workspace)
 		}
 	}
-	provider, model := strings.TrimSpace(draft.provider), strings.TrimSpace(draft.model)
+	provider, model := strings.TrimSpace(s.provider), strings.TrimSpace(s.model)
 	if provider != original.Provider || model != original.Model {
 		patch.Provider, patch.Model = &provider, &model
 	}
-	cron := strings.TrimSpace(draft.cron)
+	cron := strings.TrimSpace(s.cron)
 	if cron != original.Cron {
 		patch.Cron = &cron
 	}
-	enabled := draft.enabled == "enabled"
+	enabled := s.enabled == "enabled"
 	if enabled != original.Enabled {
 		patch.Enabled = &enabled
 	}

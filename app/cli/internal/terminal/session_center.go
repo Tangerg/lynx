@@ -45,26 +45,26 @@ func newSessionCenterPane(theme kit.Theme, glyphs kit.Glyphs, open func(agent.Se
 	return center
 }
 
-func (c *sessionCenterPane) Reset() {
-	c.items, c.cursor = nil, ""
-	c.seenCursors = map[string]struct{}{"": {}}
-	c.picker.Reset()
-	c.picker.SetItems(nil)
+func (s *sessionCenterPane) Reset() {
+	s.items, s.cursor = nil, ""
+	s.seenCursors = map[string]struct{}{"": {}}
+	s.picker.Reset()
+	s.picker.SetItems(nil)
 }
 
-func (c *sessionCenterPane) SetPage(page agent.SessionPage, appendPage bool) error {
+func (s *sessionCenterPane) SetPage(page agent.SessionPage, appendPage bool) error {
 	if !appendPage {
-		c.seenCursors = map[string]struct{}{"": {}}
+		s.seenCursors = map[string]struct{}{"": {}}
 	}
 	if page.NextCursor != "" {
-		if _, exists := c.seenCursors[page.NextCursor]; exists {
+		if _, exists := s.seenCursors[page.NextCursor]; exists {
 			return fmt.Errorf("session catalog returned cyclic continuation cursor %q", page.NextCursor)
 		}
 	}
 	next := slices.Clone(page.Items)
 	if appendPage {
-		seen := make(map[string]struct{}, len(c.items)+len(page.Items))
-		for _, session := range c.items {
+		seen := make(map[string]struct{}, len(s.items)+len(page.Items))
+		for _, session := range s.items {
 			seen[session.ID] = struct{}{}
 		}
 		for _, session := range page.Items {
@@ -73,112 +73,112 @@ func (c *sessionCenterPane) SetPage(page agent.SessionPage, appendPage bool) err
 			}
 			seen[session.ID] = struct{}{}
 		}
-		next = append(slices.Clone(c.items), page.Items...)
+		next = append(slices.Clone(s.items), page.Items...)
 	}
-	c.items, c.cursor = sortSessionCenter(next), page.NextCursor
+	s.items, s.cursor = sortSessionCenter(next), page.NextCursor
 	if page.NextCursor != "" {
-		c.seenCursors[page.NextCursor] = struct{}{}
+		s.seenCursors[page.NextCursor] = struct{}{}
 	}
-	c.picker.SetItems(c.items)
+	s.picker.SetItems(s.items)
 	return nil
 }
 
-func (c *sessionCenterPane) Upsert(session agent.Session) {
-	selected, selectedOK := c.picker.Current()
+func (s *sessionCenterPane) Upsert(session agent.Session) {
+	selected, selectedOK := s.picker.Current()
 	updated := false
-	for index := range c.items {
-		if c.items[index].ID == session.ID {
-			c.items[index], updated = session, true
+	for index := range s.items {
+		if s.items[index].ID == session.ID {
+			s.items[index], updated = session, true
 			break
 		}
 	}
 	if !updated {
-		c.items = append(c.items, session)
+		s.items = append(s.items, session)
 	}
-	c.items = sortSessionCenter(c.items)
+	s.items = sortSessionCenter(s.items)
 	if selectedOK && selected.ID == session.ID {
-		c.picker.Reset()
+		s.picker.Reset()
 	}
-	c.picker.SetItems(c.items)
+	s.picker.SetItems(s.items)
 }
 
-func (c *sessionCenterPane) Remove(id string) {
-	c.items = slices.DeleteFunc(c.items, func(session agent.Session) bool { return session.ID == id })
-	c.picker.SetItems(c.items)
+func (s *sessionCenterPane) Remove(id string) {
+	s.items = slices.DeleteFunc(s.items, func(session agent.Session) bool { return session.ID == id })
+	s.picker.SetItems(s.items)
 }
 
-func (c *sessionCenterPane) HasMore() bool { return c.cursor != "" }
+func (s *sessionCenterPane) HasMore() bool { return s.cursor != "" }
 
-func (c *sessionCenterPane) Cursor() string { return c.cursor }
+func (s *sessionCenterPane) Cursor() string { return s.cursor }
 
-func (c *sessionCenterPane) Draw(frame headless.Frame) {
+func (s *sessionCenterPane) Draw(frame headless.Frame) {
 	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		{Size: layout.Flex(1)},
 		{Size: layout.Fixed(4)},
 		{Size: layout.Fixed(1)},
 	}))
-	c.picker.Draw(rows[0])
-	c.drawPreview(rows[1].View)
+	s.picker.Draw(rows[0])
+	s.drawPreview(rows[1].View)
 	more := "all sessions loaded"
-	if c.HasMore() {
+	if s.HasMore() {
 		more = "alt+l load more"
 	}
 	help := "alt+f favorite · alt+r rename · alt+d delete · " + more
-	kit.Label{Text: help, Style: c.theme.Subtle, Ellipsis: c.glyphs.Ellipsis}.Draw(rows[2].View)
+	kit.Label{Text: help, Style: s.theme.Subtle, Ellipsis: s.glyphs.Ellipsis}.Draw(rows[2].View)
 }
 
-func (c *sessionCenterPane) drawPreview(view grid.View) {
+func (s *sessionCenterPane) drawPreview(view grid.View) {
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
 		return
 	}
-	session, ok := c.picker.Current()
+	session, ok := s.picker.Current()
 	if !ok {
-		view.Text(0, 1, "No loaded sessions", c.theme.Muted)
+		view.Text(0, 1, "No loaded sessions", s.theme.Muted)
 		return
 	}
-	view.Text(0, 0, text.Truncate(displayTitle(session), width, c.glyphs.Ellipsis), c.theme.Strong)
-	view.Text(0, 1, text.Truncate(displayWorkspace(session.Workspace), width, c.glyphs.Ellipsis), c.theme.Context)
+	view.Text(0, 0, text.Truncate(displayTitle(session), width, s.glyphs.Ellipsis), s.theme.Strong)
+	view.Text(0, 1, text.Truncate(displayWorkspace(session.Workspace), width, s.glyphs.Ellipsis), s.theme.Context)
 	detail := strings.TrimSpace(session.Model)
 	if detail != "" {
 		detail += " · "
 	}
 	detail += string(session.Status) + " · updated " + compactRelativeAge(session.UpdatedAt)
-	view.Text(0, 2, text.Truncate(detail, width, c.glyphs.Ellipsis), c.theme.Subtle)
-	view.Text(0, 3, text.Truncate(session.ID, width, c.glyphs.Ellipsis), c.theme.Muted)
+	view.Text(0, 2, text.Truncate(detail, width, s.glyphs.Ellipsis), s.theme.Subtle)
+	view.Text(0, 3, text.Truncate(session.ID, width, s.glyphs.Ellipsis), s.theme.Muted)
 }
 
-func (c *sessionCenterPane) Handle(event input.Event) bool {
+func (s *sessionCenterPane) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && key.Mods == input.Alt {
-		c.picker.interruptPointerGesture()
-		session, selected := c.picker.Current()
+		s.picker.interruptPointerGesture()
+		session, selected := s.picker.Current()
 		switch key.Rune {
 		case 'l':
-			if c.HasMore() && c.loadMore != nil {
-				c.loadMore()
+			if s.HasMore() && s.loadMore != nil {
+				s.loadMore()
 			}
 			return true
 		case 'f':
-			if selected && c.toggleFavorite != nil {
-				c.toggleFavorite(session)
+			if selected && s.toggleFavorite != nil {
+				s.toggleFavorite(session)
 			}
 			return true
 		case 'r':
-			if selected && c.rename != nil {
-				c.rename(session)
+			if selected && s.rename != nil {
+				s.rename(session)
 			}
 			return true
 		case 'd':
-			if selected && c.delete != nil {
-				c.delete(session)
+			if selected && s.delete != nil {
+				s.delete(session)
 			}
 			return true
 		}
 	}
-	return c.picker.Handle(event)
+	return s.picker.Handle(event)
 }
 
-func (c *sessionCenterPane) Focus(has bool) { c.picker.Focus(has) }
+func (s *sessionCenterPane) Focus(has bool) { s.picker.Focus(has) }
 
 func sortSessionCenter(sessions []agent.Session) []agent.Session {
 	sorted := slices.Clone(sessions)

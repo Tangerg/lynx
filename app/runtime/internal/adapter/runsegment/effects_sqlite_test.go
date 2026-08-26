@@ -1578,12 +1578,12 @@ func newResumeClaimSQLiteFixture(t *testing.T, suffix string) resumeClaimSQLiteF
 	}
 }
 
-func (fixture resumeClaimSQLiteFixture) effects(tx Transactor, state RunStore) *Effects {
+func (r resumeClaimSQLiteFixture) effects(tx Transactor, state RunStore) *Effects {
 	return mustNewEffects(Config{
-		Interrupts:          fixture.interrupts,
-		ResumeClaims:        fixture.interrupts,
-		ExecutorCheckpoints: fixture.checkpoints,
-		ItemReplacer:        fixture.transcript,
+		Interrupts:          r.interrupts,
+		ResumeClaims:        r.interrupts,
+		ExecutorCheckpoints: r.checkpoints,
+		ItemReplacer:        r.transcript,
 		State:               state,
 		Tx:                  tx,
 	})
@@ -1742,8 +1742,8 @@ type failingChildRunStartReservationStore struct {
 	err error
 }
 
-func (store failingChildRunStartReservationStore) DeleteSession(context.Context, string) error {
-	return store.err
+func (f failingChildRunStartReservationStore) DeleteSession(context.Context, string) error {
+	return f.err
 }
 
 func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFixture, commitError error) {
@@ -1799,8 +1799,8 @@ type failingExecutorCheckpointStore struct {
 	err error
 }
 
-func (store failingExecutorCheckpointStore) DeleteCheckpoints(context.Context, string, []string) error {
-	return store.err
+func (f failingExecutorCheckpointStore) DeleteCheckpoints(context.Context, string, []string) error {
+	return f.err
 }
 
 func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {

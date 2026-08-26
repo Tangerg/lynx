@@ -38,14 +38,14 @@ func IdempotencyNamespace(ctx context.Context, db *sql.DB) (string, error) {
 	return namespace, nil
 }
 
-func (s *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (record idempotency.Record, claimed bool, err error) {
+func (i *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (record idempotency.Record, claimed bool, err error) {
 	now := time.Now().Unix()
-	// Route the claim's prune+insert+lookup through the shared tx seam rather than a
-	// bare s.db.BeginTx: the pool runs at MaxOpenConns(1), so opening an independent
-	// transaction while a caller's cross-store transaction is live would deadlock.
+	// Route the claim'i prune+insert+lookup through the shared tx seam rather than a
+	// bare i.db.BeginTx: the pool runs at MaxOpenConns(1), so opening an independent
+	// transaction while a caller'i cross-store transaction is live would deadlock.
 	// Standalone it still runs atomically (RunInTx begins its own).
-	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
-		db := conn(ctx, s.db)
+	err = RunInTx(ctx, i.db, func(ctx context.Context) error {
+		db := conn(ctx, i.db)
 		// Only completed results expire. An empty payload is an unresolved
 		// reservation: releasing it on elapsed wall time would let the same key
 		// execute its business mutation again after a process crash, even though
@@ -92,9 +92,9 @@ func (s *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 	return record, claimed, nil
 }
 
-func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Record) error {
+func (i *IdempotencyStore) Complete(ctx context.Context, record idempotency.Record) error {
 	now := time.Now().Unix()
-	res, err := conn(ctx, s.db).ExecContext(ctx,
+	res, err := conn(ctx, i.db).ExecContext(ctx,
 		`UPDATE idempotency_records SET payload = ?, expires_at = ?
 		 WHERE key = ? AND fingerprint = ? AND length(payload) = 0`,
 		record.Payload, now+int64(idempotency.Retention/time.Second), record.Key, record.Fingerprint)
@@ -110,7 +110,7 @@ func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Reco
 	}
 	var fingerprint string
 	var payload []byte
-	err = conn(ctx, s.db).QueryRowContext(ctx,
+	err = conn(ctx, i.db).QueryRowContext(ctx,
 		`SELECT fingerprint, payload FROM idempotency_records WHERE key = ? AND expires_at > ?`,
 		record.Key, now).Scan(&fingerprint, &payload)
 	if errors.Is(err, sql.ErrNoRows) {

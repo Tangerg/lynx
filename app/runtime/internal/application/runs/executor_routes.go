@@ -135,29 +135,29 @@ type resumedRouteBuilder struct {
 	segmentIDs   map[string]struct{}
 }
 
-func (builder *resumedRouteBuilder) build() (*executorRoutes, error) {
-	for _, continuationState := range builder.continuation.continuations {
-		route, err := builder.newRoute(continuationState)
+func (r *resumedRouteBuilder) build() (*executorRoutes, error) {
+	for _, continuationState := range r.continuation.continuations {
+		route, err := r.newRoute(continuationState)
 		if err != nil {
 			return nil, err
 		}
-		builder.routes.byMember[route.member.MemberID] = route
-		builder.routes.byRunID[route.runID] = route
-		if route.runID == builder.continuation.rootRunID {
-			builder.routes.root = route
+		r.routes.byMember[route.member.MemberID] = route
+		r.routes.byRunID[route.runID] = route
+		if route.runID == r.continuation.rootRunID {
+			r.routes.root = route
 		}
 	}
-	if builder.routes.root == nil {
+	if r.routes.root == nil {
 		return nil, errors.New("runs: resumed tree has no root route")
 	}
-	if err := builder.orderRoutesPreorder(); err != nil {
+	if err := r.orderRoutesPreorder(); err != nil {
 		return nil, err
 	}
-	return builder.routes, nil
+	return r.routes, nil
 }
 
-func (builder *resumedRouteBuilder) newRoute(continuationState Continuation) (*executorRoute, error) {
-	segmentID, err := builder.segmentIDFor(continuationState.RunID)
+func (r *resumedRouteBuilder) newRoute(continuationState Continuation) (*executorRoute, error) {
+	segmentID, err := r.segmentIDFor(continuationState.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -170,54 +170,54 @@ func (builder *resumedRouteBuilder) newRoute(continuationState Continuation) (*e
 		memberBound:    continuationState.Lineage.IsRoot(),
 		runID:          continuationState.RunID,
 		segmentID:      segmentID,
-		rootRunID:      builder.continuation.rootRunID,
+		rootRunID:      r.continuation.rootRunID,
 		lineage:        continuationState.Lineage,
 		modelSelection: continuationState.ModelSelection,
 		limits:         continuationState.Limits,
-		capabilities:   builder.continuation.capabilities,
+		capabilities:   r.continuation.capabilities,
 	}
 	userInput := []transcript.ContentBlock(nil)
 	goalIncarnationID := ""
-	if continuationState.RunID == builder.continuation.rootRunID {
-		userInput = builder.spec.Input
-		goalIncarnationID = builder.spec.GoalIncarnationID
+	if continuationState.RunID == r.continuation.rootRunID {
+		userInput = r.spec.Input
+		goalIncarnationID = r.spec.GoalIncarnationID
 	}
 	route.reducer = newReducer(reducerConfig{
-		RunID: route.runID, SegmentID: route.segmentID, SessionID: builder.spec.SessionID,
-		Lineage: route.lineage, CWD: builder.spec.CWD, ExecutorID: builder.spec.ExecutorID,
+		RunID: route.runID, SegmentID: route.segmentID, SessionID: r.spec.SessionID,
+		Lineage: route.lineage, CWD: r.spec.CWD, ExecutorID: r.spec.ExecutorID,
 		GoalIncarnationID: goalIncarnationID, ModelSelection: route.modelSelection,
 		CreatedAt: continuationState.RunCreatedAt, UserInput: userInput,
 		Metrics: continuationState.Metrics, ContextTokens: continuationState.ContextTokens,
 		Limits:       continuationState.Limits,
-		Capabilities: builder.continuation.capabilities, Continuation: builder.continuation,
-		Now:          builder.now,
-		CancelReason: cancellationReason(builder.cancelReason, route.runID),
+		Capabilities: r.continuation.capabilities, Continuation: r.continuation,
+		Now:          r.now,
+		CancelReason: cancellationReason(r.cancelReason, route.runID),
 	})
 	return route, nil
 }
 
-func (builder *resumedRouteBuilder) segmentIDFor(runID string) (string, error) {
-	if runID == builder.continuation.rootRunID {
-		return builder.spec.SegmentID, nil
+func (r *resumedRouteBuilder) segmentIDFor(runID string) (string, error) {
+	if runID == r.continuation.rootRunID {
+		return r.spec.SegmentID, nil
 	}
-	if builder.newSegmentID == nil {
+	if r.newSegmentID == nil {
 		return "", errors.New("runs: resumed child routes require a segment identity generator")
 	}
-	segmentID := builder.newSegmentID()
+	segmentID := r.newSegmentID()
 	if segmentID == "" {
 		return "", fmt.Errorf("runs: resumed child Run %q generated an empty segment id", runID)
 	}
-	if _, duplicate := builder.segmentIDs[segmentID]; duplicate {
+	if _, duplicate := r.segmentIDs[segmentID]; duplicate {
 		return "", fmt.Errorf("runs: resumed tree generated duplicate segment %q", segmentID)
 	}
-	builder.segmentIDs[segmentID] = struct{}{}
+	r.segmentIDs[segmentID] = struct{}{}
 	return segmentID, nil
 }
 
-func (builder *resumedRouteBuilder) orderRoutesPreorder() error {
-	childrenByParentRunID := make(map[string][]*executorRoute, len(builder.routes.byRunID))
-	for _, route := range builder.routes.byRunID {
-		if route != builder.routes.root {
+func (r *resumedRouteBuilder) orderRoutesPreorder() error {
+	childrenByParentRunID := make(map[string][]*executorRoute, len(r.routes.byRunID))
+	for _, route := range r.routes.byRunID {
+		if route != r.routes.root {
 			childrenByParentRunID[route.lineage.ParentRunID] = append(
 				childrenByParentRunID[route.lineage.ParentRunID],
 				route,
@@ -231,13 +231,13 @@ func (builder *resumedRouteBuilder) orderRoutesPreorder() error {
 	}
 	var appendPreorder func(*executorRoute)
 	appendPreorder = func(route *executorRoute) {
-		builder.routes.admissionOrder = append(builder.routes.admissionOrder, route)
+		r.routes.admissionOrder = append(r.routes.admissionOrder, route)
 		for _, child := range childrenByParentRunID[route.runID] {
 			appendPreorder(child)
 		}
 	}
-	appendPreorder(builder.routes.root)
-	if len(builder.routes.admissionOrder) != len(builder.continuation.continuations) {
+	appendPreorder(r.routes.root)
+	if len(r.routes.admissionOrder) != len(r.continuation.continuations) {
 		return errors.New("runs: resumed route tree is disconnected")
 	}
 	return nil
@@ -245,13 +245,13 @@ func (builder *resumedRouteBuilder) orderRoutesPreorder() error {
 
 // unfinishedInPostorder returns the active tree in contract publication order:
 // descendants before ancestors, siblings by Run ID, root last.
-func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) {
-	if routes == nil || routes.root == nil {
+func (e *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) {
+	if e == nil || e.root == nil {
 		return nil, errors.New("runs: executor routes have no root")
 	}
-	byRunID := make(map[string]*executorRoute, len(routes.admissionOrder))
-	members := make([]rundomain.TreeMember, 0, len(routes.admissionOrder))
-	for _, route := range routes.admissionOrder {
+	byRunID := make(map[string]*executorRoute, len(e.admissionOrder))
+	members := make([]rundomain.TreeMember, 0, len(e.admissionOrder))
+	for _, route := range e.admissionOrder {
 		if route == nil {
 			return nil, errors.New("runs: executor routes contain a nil route")
 		}
@@ -261,11 +261,11 @@ func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) 
 			Lineage: route.lineage,
 		})
 	}
-	tree, err := rundomain.NewTree(routes.root.runID, members)
+	tree, err := rundomain.NewTree(e.root.runID, members)
 	if err != nil {
 		return nil, fmt.Errorf("runs: executor routes: %w", err)
 	}
-	ordered := make([]*executorRoute, 0, routes.unfinishedCount())
+	ordered := make([]*executorRoute, 0, e.unfinishedCount())
 	for _, runID := range tree.Postorder() {
 		route := byRunID[runID]
 		if route == nil {
@@ -295,9 +295,9 @@ func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) 
 	return ordered, nil
 }
 
-func (routes *executorRoutes) unfinishedCount() int {
+func (e *executorRoutes) unfinishedCount() int {
 	count := 0
-	for _, route := range routes.admissionOrder {
+	for _, route := range e.admissionOrder {
 		if !route.segmentFinished {
 			count++
 		}
@@ -305,22 +305,22 @@ func (routes *executorRoutes) unfinishedCount() int {
 	return count
 }
 
-func (route *executorRoute) activeDuration(boundary time.Time) time.Duration {
-	if route.segmentStartedAt.IsZero() || boundary.Before(route.segmentStartedAt) {
+func (e *executorRoute) activeDuration(boundary time.Time) time.Duration {
+	if e.segmentStartedAt.IsZero() || boundary.Before(e.segmentStartedAt) {
 		return 0
 	}
-	return boundary.Sub(route.segmentStartedAt)
+	return boundary.Sub(e.segmentStartedAt)
 }
 
 // resolve binds the first root member and then requires exact member stability.
 // Child sources are never inferred from lineage alone: they become routable only
 // after a conclusive child-start commit installs their exact identity.
-func (routes *executorRoutes) resolve(member ExecutorMember) (*executorRoute, error) {
+func (e *executorRoutes) resolve(member ExecutorMember) (*executorRoute, error) {
 	if member.Child() {
 		if member.SpawnCallID == "" {
 			return nil, fmt.Errorf("runs: child executor member %q has no spawn-call identity", member.MemberID)
 		}
-		route := routes.byMember[member.MemberID]
+		route := e.byMember[member.MemberID]
 		if route == nil {
 			return nil, fmt.Errorf("runs: child executor member %q has no admitted child run", member.MemberID)
 		}
@@ -328,7 +328,7 @@ func (routes *executorRoutes) resolve(member ExecutorMember) (*executorRoute, er
 			return nil, fmt.Errorf("runs: root Run %q emitted a child executor member", route.runID)
 		}
 		if !route.memberBound {
-			parent := routes.byRunID[route.lineage.ParentRunID]
+			parent := e.byRunID[route.lineage.ParentRunID]
 			if parent == nil || parent.member.MemberID == "" {
 				return nil, fmt.Errorf(
 					"runs: resumed child Run %q has no bound parent Run %q",
@@ -356,36 +356,36 @@ func (routes *executorRoutes) resolve(member ExecutorMember) (*executorRoute, er
 		return route, nil
 	}
 
-	if !routes.rootBound {
-		routes.rootBound = true
-		routes.root.member = member
-		routes.root.memberBound = true
+	if !e.rootBound {
+		e.rootBound = true
+		e.root.member = member
+		e.root.memberBound = true
 		if member.MemberID != "" {
-			routes.byMember[member.MemberID] = routes.root
+			e.byMember[member.MemberID] = e.root
 		}
-		return routes.root, nil
+		return e.root, nil
 	}
-	if routes.root.member != member {
+	if e.root.member != member {
 		return nil, fmt.Errorf(
 			"runs: root executor member changed from %q to %q",
-			routes.root.member.MemberID,
+			e.root.member.MemberID,
 			member.MemberID,
 		)
 	}
-	return routes.root, nil
+	return e.root, nil
 }
 
-func (routes *executorRoutes) parent(member ExecutorMember) (*executorRoute, error) {
+func (e *executorRoutes) parent(member ExecutorMember) (*executorRoute, error) {
 	if !member.Child() {
 		return nil, errors.New("runs: child opening request requires a child executor member")
 	}
 	if member.SpawnCallID == "" {
 		return nil, fmt.Errorf("runs: child executor member %q has no spawn-call identity", member.MemberID)
 	}
-	if routes.byMember[member.MemberID] != nil {
+	if e.byMember[member.MemberID] != nil {
 		return nil, fmt.Errorf("runs: child executor member %q opened more than once", member.MemberID)
 	}
-	parent := routes.byMember[member.ParentID]
+	parent := e.byMember[member.ParentID]
 	if parent == nil {
 		return nil, fmt.Errorf(
 			"runs: child executor member %q references unknown parent member %q",
@@ -413,16 +413,16 @@ func (routes *executorRoutes) parent(member ExecutorMember) (*executorRoute, err
 	return parent, nil
 }
 
-func (routes *executorRoutes) installChild(member ExecutorMember, route *executorRoute) {
+func (e *executorRoutes) installChild(member ExecutorMember, route *executorRoute) {
 	route.member = member
 	route.memberBound = true
-	routes.byMember[member.MemberID] = route
-	routes.byRunID[route.runID] = route
-	routes.admissionOrder = append(routes.admissionOrder, route)
+	e.byMember[member.MemberID] = route
+	e.byRunID[route.runID] = route
+	e.admissionOrder = append(e.admissionOrder, route)
 }
 
-func (routes *executorRoutes) abortUnfinished() {
-	for _, route := range routes.admissionOrder {
+func (e *executorRoutes) abortUnfinished() {
+	for _, route := range e.admissionOrder {
 		if !route.segmentFinished && route.reducer != nil {
 			route.reducer.abort()
 		}
@@ -584,11 +584,11 @@ type preparedChildOpening struct {
 	reservation ChildRunStartReservation
 }
 
-func (prepared *preparedChildOpening) releaseBinding(owner *runTreeOwner) {
-	if prepared == nil || prepared.route == nil || owner == nil {
+func (p *preparedChildOpening) releaseBinding(owner *runTreeOwner) {
+	if p == nil || p.route == nil || owner == nil {
 		return
 	}
-	owner.unbindExecutorMember(prepared.route.runID, prepared.member.MemberID)
+	owner.unbindExecutorMember(p.route.runID, p.member.MemberID)
 }
 
 // prepareChildOpening freezes the complete application projection for one

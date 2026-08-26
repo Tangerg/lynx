@@ -3,8 +3,8 @@ package llm
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 
 	"github.com/Tangerg/lynx/models/alibaba"
 	"github.com/Tangerg/lynx/models/anthropic"

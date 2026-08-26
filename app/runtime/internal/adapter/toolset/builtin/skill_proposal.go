@@ -58,12 +58,12 @@ func NewProposal(proposals SkillProposalSubmitter, defaultWorkspacePath string) 
 	)
 }
 
-func (t *proposer) run(ctx context.Context, input proposalArgs) (proposalResult, error) {
+func (p *proposer) run(ctx context.Context, input proposalArgs) (proposalResult, error) {
 	sessionID := strings.TrimSpace(executionctx.SessionID(ctx))
 	if sessionID == "" {
 		return proposalResult{}, errors.New("propose_skill: no active session")
 	}
-	cwd := strings.TrimSpace(executionctx.WorkspaceCWD(ctx, t.defaultWorkspacePath))
+	cwd := strings.TrimSpace(executionctx.WorkspaceCWD(ctx, p.defaultWorkspacePath))
 	if cwd == "" {
 		return proposalResult{}, errors.New("propose_skill: no active workspace")
 	}
@@ -82,7 +82,7 @@ func (t *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 	if err := proposal.Validate(); err != nil {
 		return proposalResult{}, fmt.Errorf("propose_skill: invalid proposal: %w", err)
 	}
-	ref, err := t.proposals.SubmitProposal(ctx, cwd, proposal)
+	ref, err := p.proposals.SubmitProposal(ctx, cwd, proposal)
 	if err != nil {
 		return proposalResult{}, fmt.Errorf("propose_skill: submit proposal: %w", err)
 	}

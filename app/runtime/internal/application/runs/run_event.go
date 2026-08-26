@@ -92,19 +92,19 @@ func (ItemChanged) Terminal() bool       { return false }
 func (ItemCompleted) Terminal() bool     { return false }
 func (PlanSnapshot) Terminal() bool      { return false }
 
-func (event SegmentStarted) retainedBytes() int { return retainedRunBytes(event.Run) }
-func (SegmentProgressed) retainedBytes() int    { return 0 }
-func (event SegmentFinished) retainedBytes() int {
-	bytes := retainedRunBytes(event.Run) + cap(event.Interrupts)*retainedInterruptBytes
-	for _, pending := range event.Interrupts {
+func (s SegmentStarted) retainedBytes() int  { return retainedRunBytes(s.Run) }
+func (SegmentProgressed) retainedBytes() int { return 0 }
+func (s SegmentFinished) retainedBytes() int {
+	bytes := retainedRunBytes(s.Run) + cap(s.Interrupts)*retainedInterruptBytes
+	for _, pending := range s.Interrupts {
 		bytes += retainedInterruptPayloadBytes(pending)
 	}
 	return bytes
 }
-func (event ItemStarted) retainedBytes() int   { return retainedItemStartBytes(event.Item) }
-func (ItemChanged) retainedBytes() int         { return 0 }
-func (event ItemCompleted) retainedBytes() int { return retainedItemBytes(event.Item) }
-func (event PlanSnapshot) retainedBytes() int  { return retainedPlanSnapshotBytes(event) }
+func (i ItemStarted) retainedBytes() int   { return retainedItemStartBytes(i.Item) }
+func (ItemChanged) retainedBytes() int     { return 0 }
+func (i ItemCompleted) retainedBytes() int { return retainedItemBytes(i.Item) }
+func (p PlanSnapshot) retainedBytes() int  { return retainedPlanSnapshotBytes(p) }
 
 type RunProgress struct {
 	Step          *int
@@ -123,8 +123,8 @@ const (
 	ToolOutputDelta    ItemDeltaKind = "toolOutput"
 )
 
-func (kind ItemDeltaKind) Valid() bool {
-	return kind == ContentDelta || kind == ReasoningDeltaKind || kind == ToolArgumentsDelta || kind == ToolOutputDelta
+func (i ItemDeltaKind) Valid() bool {
+	return i == ContentDelta || i == ReasoningDeltaKind || i == ToolArgumentsDelta || i == ToolOutputDelta
 }
 
 type ItemDelta struct {
@@ -163,35 +163,35 @@ func newToolItemStart(item transcript.Item) (ItemStart, error) {
 	}, nil
 }
 
-func (start ItemStart) validate() error {
+func (i ItemStart) validate() error {
 	if err := (transcript.ItemIdentity{
-		SessionID: start.SessionID, RunID: start.RunID, ItemID: start.ItemID,
-		OccurredAt: start.OccurredAt,
+		SessionID: i.SessionID, RunID: i.RunID, ItemID: i.ItemID,
+		OccurredAt: i.OccurredAt,
 	}).Validate(); err != nil {
 		return err
 	}
-	if start.Kind != transcript.AgentMessage && start.Kind != transcript.Reasoning && start.Kind != transcript.ToolCall {
-		return fmt.Errorf("runs: unsupported Item start kind %q", start.Kind)
+	if i.Kind != transcript.AgentMessage && i.Kind != transcript.Reasoning && i.Kind != transcript.ToolCall {
+		return fmt.Errorf("runs: unsupported Item start kind %q", i.Kind)
 	}
-	if start.Kind != transcript.ToolCall {
-		if start.ToolInvocation != nil || start.SafetyClass != "" || start.durable != nil {
+	if i.Kind != transcript.ToolCall {
+		if i.ToolInvocation != nil || i.SafetyClass != "" || i.durable != nil {
 			return errors.New("runs: transient Item start carries ToolCall facts")
 		}
 		return nil
 	}
-	if start.ToolInvocation == nil || strings.TrimSpace(start.ToolInvocation.Name) == "" || start.durable == nil {
+	if i.ToolInvocation == nil || strings.TrimSpace(i.ToolInvocation.Name) == "" || i.durable == nil {
 		return errors.New("runs: ToolCall start has no durable invocation")
 	}
-	item := *start.durable
-	if item.SessionID() != start.SessionID || item.RunID() != start.RunID ||
-		item.ID() != start.ItemID || item.Kind() != start.Kind ||
-		!item.OccurredAt().Equal(start.OccurredAt) {
+	item := *i.durable
+	if item.SessionID() != i.SessionID || item.RunID() != i.RunID ||
+		item.ID() != i.ItemID || item.Kind() != i.Kind ||
+		!item.OccurredAt().Equal(i.OccurredAt) {
 		return errors.New("runs: ToolCall start differs from its durable Item")
 	}
 	invocation, present := item.ToolInvocation()
-	if !present || invocation.Name != start.ToolInvocation.Name ||
-		invocation.Arguments != start.ToolInvocation.Arguments ||
-		item.SafetyClass() != start.SafetyClass {
+	if !present || invocation.Name != i.ToolInvocation.Name ||
+		invocation.Arguments != i.ToolInvocation.Arguments ||
+		item.SafetyClass() != i.SafetyClass {
 		return errors.New("runs: ToolCall start differs from its durable invocation")
 	}
 	return item.Validate()

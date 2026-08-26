@@ -86,24 +86,24 @@ type transcriptPointerGesture struct {
 	dragged bool
 }
 
-func (gesture *transcriptPointerGesture) begin(target headless.BlockID, header bool) {
-	*gesture = transcriptPointerGesture{target: target, header: header}
+func (t *transcriptPointerGesture) begin(target headless.BlockID, header bool) {
+	*t = transcriptPointerGesture{target: target, header: header}
 }
 
-func (gesture *transcriptPointerGesture) drag() { gesture.dragged = true }
+func (t *transcriptPointerGesture) drag() { t.dragged = true }
 
-func (gesture *transcriptPointerGesture) release(
+func (t *transcriptPointerGesture) release(
 	selected headless.BlockID,
 	selectedPresent bool,
 	selectionCollapsed bool,
 ) (click, activate bool) {
-	click = !gesture.dragged && selectionCollapsed
-	activate = click && selectedPresent && gesture.header && gesture.target == selected
-	gesture.cancel()
+	click = !t.dragged && selectionCollapsed
+	activate = click && selectedPresent && t.header && t.target == selected
+	t.cancel()
 	return click, activate
 }
 
-func (gesture *transcriptPointerGesture) cancel() { *gesture = transcriptPointerGesture{} }
+func (t *transcriptPointerGesture) cancel() { *t = transcriptPointerGesture{} }
 
 type transcriptSearchCursor struct {
 	blockID           headless.BlockID
@@ -147,13 +147,13 @@ type trackedToolGroup struct {
 	block *toolGroupBlock
 }
 
-func (c *transcriptView) ToggleDetails() {
-	first := c.content.FirstBlock()
+func (t *transcriptView) ToggleDetails() {
+	first := t.content.FirstBlock()
 	// #nosec G115 -- Transcript.Len is non-negative and cannot exceed the
 	// addressable in-memory slice backing the transcript.
-	end := first + headless.BlockID(c.content.Len())
+	end := first + headless.BlockID(t.content.Len())
 	expand, hasTool := false, false
-	for _, tracked := range c.toolViews {
+	for _, tracked := range t.toolViews {
 		if tracked.id < first || tracked.id >= end || !tracked.block.Expandable() {
 			continue
 		}
@@ -164,31 +164,31 @@ func (c *transcriptView) ToggleDetails() {
 		}
 	}
 	if !hasTool {
-		expand = !c.details
+		expand = !t.details
 	}
-	c.details = expand
+	t.details = expand
 	selectedChanged := false
-	for _, tracked := range c.toolViews {
+	for _, tracked := range t.toolViews {
 		if tracked.id < first || tracked.id >= end || !tracked.block.Expandable() {
 			continue
 		}
 		before := tracked.block.Expanded()
-		tracked.block.SetExpanded(c.details)
+		tracked.block.SetExpanded(t.details)
 		if tracked.block.Expanded() == before {
 			continue
 		}
-		selectedChanged = selectedChanged || c.focused && tracked.id == c.selected
-		c.content.Changed(tracked.id)
+		selectedChanged = selectedChanged || t.focused && tracked.id == t.selected
+		t.content.Changed(tracked.id)
 	}
 	if selectedChanged {
-		c.revealSelected()
+		t.revealSelected()
 	}
-	c.refreshSearch()
-	c.announceSelection()
+	t.refreshSearch()
+	t.announceSelection()
 }
 
-func (c *transcriptView) DetailsLabel() string {
-	if c.details {
+func (t *transcriptView) DetailsLabel() string {
+	if t.details {
 		return "tool details expanded"
 	}
 	return "tool details collapsed"
@@ -224,104 +224,104 @@ func newTranscriptView(
 	return c
 }
 
-func (c *transcriptView) Draw(frame headless.Frame) {
+func (t *transcriptView) Draw(frame headless.Frame) {
 	width, _ := frame.Size()
-	c.presentedBlocks.Stage(frame, transcriptBlockPresentation{
-		epoch: c.contentEpoch, blocks: c.projectBlockPlacements(width),
+	t.presentedBlocks.Stage(frame, transcriptBlockPresentation{
+		epoch: t.contentEpoch, blocks: t.projectBlockPlacements(width),
 	})
-	c.view.Matches, c.view.Current = c.matches, c.current
-	c.view.Draw(frame)
-	if c.content.Len() == 0 && c.entrance != nil {
-		c.entrance.Draw(frame.View)
+	t.view.Matches, t.view.Current = t.matches, t.current
+	t.view.Draw(frame)
+	if t.content.Len() == 0 && t.entrance != nil {
+		t.entrance.Draw(frame.View)
 	}
 }
 
 // SetEntrance installs a presentation-only projection that is consumed by the
 // first transcript block or reset. It is not part of retained transcript state.
-func (c *transcriptView) SetEntrance(entrance grid.Drawable) { c.entrance = entrance }
+func (t *transcriptView) SetEntrance(entrance grid.Drawable) { t.entrance = entrance }
 
-func (c *transcriptView) Handle(event input.Event) bool {
+func (t *transcriptView) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
-		c.pointerGesture.cancel()
-		if c.focused {
-			if key.Code == input.Esc && c.selection.Active() {
-				c.selection.Clear()
+		t.pointerGesture.cancel()
+		if t.focused {
+			if key.Code == input.Esc && t.selection.Active() {
+				t.selection.Clear()
 				return true
 			}
-			if _, handled := c.matcher.Handle(c.keys, key, c.Do); handled {
+			if _, handled := t.matcher.Handle(t.keys, key, t.Do); handled {
 				return true
 			}
 		}
 	}
-	handled := c.view.Handle(event)
+	handled := t.view.Handle(event)
 	mouse, ok := event.(input.Mouse)
 	if !ok {
 		return handled
 	}
 	if !handled {
-		c.cancelPointerGesture(mouse)
+		t.cancelPointerGesture(mouse)
 		return false
 	}
-	c.handleMouse(mouse)
+	t.handleMouse(mouse)
 	return true
 }
 
-func (c *transcriptView) Focus(has bool) {
-	if c.focused == has {
+func (t *transcriptView) Focus(has bool) {
+	if t.focused == has {
 		return
 	}
-	c.focused = has
+	t.focused = has
 	if !has {
-		c.matcher.Clear()
-		c.pointerGesture.cancel()
+		t.matcher.Clear()
+		t.pointerGesture.cancel()
 	}
 	if has {
-		c.ensureSelection()
+		t.ensureSelection()
 	}
-	c.syncSelectedEntry()
-	if c.onFocusChange != nil {
-		c.onFocusChange(has)
+	t.syncSelectedEntry()
+	if t.onFocusChange != nil {
+		t.onFocusChange(has)
 	}
-	c.announceSelection()
+	t.announceSelection()
 }
 
-func (c *transcriptView) Focused() bool { return c.focused }
+func (t *transcriptView) Focused() bool { return t.focused }
 
-func (c *transcriptView) OnFocusChange(change func(bool)) { c.onFocusChange = change }
+func (t *transcriptView) OnFocusChange(change func(bool)) { t.onFocusChange = change }
 
-func (c *transcriptView) OnSelection(change func(transcriptSelection)) { c.onSelection = change }
+func (t *transcriptView) OnSelection(change func(transcriptSelection)) { t.onSelection = change }
 
-func (c *transcriptView) OnCopy(copied func(string)) { c.onCopy = copied }
+func (t *transcriptView) OnCopy(copied func(string)) { t.onCopy = copied }
 
-func (c *transcriptView) Keys() *keymap.Map { return c.keys }
+func (t *transcriptView) Keys() *keymap.Map { return t.keys }
 
-func (c *transcriptView) action(event input.Event) keymap.Action {
+func (t *transcriptView) action(event input.Event) keymap.Action {
 	key, ok := event.(input.Key)
 	if !ok || !key.Down() {
 		return ""
 	}
-	action, _ := c.keys.Action(key.Chord())
+	action, _ := t.keys.Action(key.Chord())
 	return action
 }
 
-func (c *transcriptView) Do(action keymap.Action) bool {
+func (t *transcriptView) Do(action keymap.Action) bool {
 	switch action {
 	case headless.SelectPrev:
-		return c.moveSelection(-1)
+		return t.moveSelection(-1)
 	case headless.SelectNext:
-		return c.moveSelection(1)
+		return t.moveSelection(1)
 	case headless.SelectFirst:
-		return c.selectEdge(false)
+		return t.selectEdge(false)
 	case headless.SelectLast:
-		return c.selectEdge(true)
+		return t.selectEdge(true)
 	case headless.Collapse:
-		return c.setSelectedExpanded(false)
+		return t.setSelectedExpanded(false)
 	case headless.Expand:
-		return c.setSelectedExpanded(true)
+		return t.setSelectedExpanded(true)
 	case toggleDetails:
-		return c.toggleSelected()
+		return t.toggleSelected()
 	case headless.Copy:
-		return c.copySelected()
+		return t.copySelected()
 	}
 	return false
 }
@@ -343,54 +343,54 @@ func transcriptKeys() *keymap.Map {
 	return keys
 }
 
-func (c *transcriptView) handleMouse(mouse input.Mouse) {
+func (t *transcriptView) handleMouse(mouse input.Mouse) {
 	if mouse.Button != input.ButtonLeft {
-		c.cancelPointerGesture(mouse)
+		t.cancelPointerGesture(mouse)
 		return
 	}
 	switch mouse.Action {
 	case input.MouseDown:
-		point, _ := c.selection.Range()
-		presented := c.presentedBlocks.Value()
-		if presented.epoch != c.contentEpoch {
+		point, _ := t.selection.Range()
+		presented := t.presentedBlocks.Value()
+		if presented.epoch != t.contentEpoch {
 			// The transcript widget has already translated the press through its last
 			// complete frame. Cancel the resulting selection when that frame belonged
 			// to content Reset has replaced; BlockIDs restart from zero and must not
 			// transfer a gesture to their new owners.
-			c.selection.Clear()
-			c.pointerGesture.cancel()
+			t.selection.Clear()
+			t.pointerGesture.cancel()
 			return
 		}
 		id, offset, ok := presentedBlockAt(presented.blocks, point.Row)
 		if !ok {
-			c.pointerGesture.cancel()
+			t.pointerGesture.cancel()
 			return
 		}
-		if !c.selectPointerEntry(id) {
-			c.pointerGesture.cancel()
+		if !t.selectPointerEntry(id) {
+			t.pointerGesture.cancel()
 			return
 		}
-		c.pointerGesture.begin(id, offset == 0 && c.tool(id) != nil)
+		t.pointerGesture.begin(id, offset == 0 && t.tool(id) != nil)
 	case input.MouseDrag:
-		c.pointerGesture.drag()
+		t.pointerGesture.drag()
 	case input.MouseUp:
-		start, end := c.selection.Range()
-		click, activate := c.pointerGesture.release(c.selected, c.hasSelected, start == end)
+		start, end := t.selection.Range()
+		click, activate := t.pointerGesture.release(t.selected, t.hasSelected, start == end)
 		if click {
-			c.selection.Clear()
+			t.selection.Clear()
 		}
 		if activate {
-			c.toggleSelected()
+			t.toggleSelected()
 		} else if !click {
-			c.copySelection()
+			t.copySelection()
 		}
 	}
 }
 
-func (c *transcriptView) cancelPointerGesture(mouse input.Mouse) {
+func (t *transcriptView) cancelPointerGesture(mouse input.Mouse) {
 	switch mouse.Action {
 	case input.MouseDown, input.MouseUp, input.MouseDrag:
-		c.pointerGesture.cancel()
+		t.pointerGesture.cancel()
 	}
 }
 
@@ -398,16 +398,16 @@ func (c *transcriptView) cancelPointerGesture(mouse input.Mouse) {
 // layout being drawn. Semantic transcript content may change before the next frame;
 // pointer input must still target what the last complete frame showed, not whatever
 // now happens to occupy the same row number.
-func (c *transcriptView) projectBlockPlacements(width int) []transcriptBlockPlacement {
-	placements := make([]transcriptBlockPlacement, 0, c.content.Len())
-	top := c.content.StartRow()
-	first := c.content.FirstBlock()
-	for index := range c.content.Len() {
+func (t *transcriptView) projectBlockPlacements(width int) []transcriptBlockPlacement {
+	placements := make([]transcriptBlockPlacement, 0, t.content.Len())
+	top := t.content.StartRow()
+	first := t.content.FirstBlock()
+	for index := range t.content.Len() {
 		id := first + blockOffset(index)
 		height := 0
-		if width == c.content.Width() {
-			_, height, _ = c.content.Extent(id)
-		} else if entry := c.entries[id]; entry != nil && width > 0 {
+		if width == t.content.Width() {
+			_, height, _ = t.content.Extent(id)
+		} else if entry := t.entries[id]; entry != nil && width > 0 {
 			height = max(entry.Measure(width), 0)
 		}
 		placements = append(placements, transcriptBlockPlacement{blockID: id, top: top, height: height})
@@ -426,28 +426,28 @@ func presentedBlockAt(placements []transcriptBlockPlacement, row int) (headless.
 	return placements[index].blockID, row - placements[index].top, true
 }
 
-func (c *transcriptView) ensureSelection() {
-	first := c.content.FirstBlock()
-	if c.hasSelected && c.selected >= first && c.selected < first+blockOffset(c.content.Len()) {
+func (t *transcriptView) ensureSelection() {
+	first := t.content.FirstBlock()
+	if t.hasSelected && t.selected >= first && t.selected < first+blockOffset(t.content.Len()) {
 		return
 	}
-	if c.content.Len() == 0 {
-		c.hasSelected = false
+	if t.content.Len() == 0 {
+		t.hasSelected = false
 		return
 	}
-	c.selected = first + blockOffset(c.content.Len()-1)
-	c.hasSelected = true
-	c.revealSelected()
+	t.selected = first + blockOffset(t.content.Len()-1)
+	t.hasSelected = true
+	t.revealSelected()
 }
 
-func (c *transcriptView) moveSelection(delta int) bool {
-	if c.content.Len() == 0 || delta == 0 {
+func (t *transcriptView) moveSelection(delta int) bool {
+	if t.content.Len() == 0 || delta == 0 {
 		return false
 	}
-	c.ensureSelection()
-	first := c.content.FirstBlock()
-	last := first + blockOffset(c.content.Len()-1)
-	next := c.selected
+	t.ensureSelection()
+	first := t.content.FirstBlock()
+	last := first + blockOffset(t.content.Len()-1)
+	next := t.selected
 	switch {
 	case delta < 0 && next > first:
 		next--
@@ -456,68 +456,68 @@ func (c *transcriptView) moveSelection(delta int) bool {
 	default:
 		return true
 	}
-	c.selectEntry(next, true)
+	t.selectEntry(next, true)
 	return true
 }
 
-func (c *transcriptView) selectEdge(last bool) bool {
-	if c.content.Len() == 0 {
+func (t *transcriptView) selectEdge(last bool) bool {
+	if t.content.Len() == 0 {
 		return false
 	}
-	id := c.content.FirstBlock()
+	id := t.content.FirstBlock()
 	if last {
-		id += blockOffset(c.content.Len() - 1)
+		id += blockOffset(t.content.Len() - 1)
 	}
-	c.selectEntry(id, true)
+	t.selectEntry(id, true)
 	return true
 }
 
-func (c *transcriptView) selectEntry(id headless.BlockID, reveal bool) {
-	c.setSelectedEntry(id, reveal, true)
+func (t *transcriptView) selectEntry(id headless.BlockID, reveal bool) {
+	t.setSelectedEntry(id, reveal, true)
 }
 
-func (c *transcriptView) selectPointerEntry(id headless.BlockID) bool {
-	if _, ok := c.entries[id]; !ok {
+func (t *transcriptView) selectPointerEntry(id headless.BlockID) bool {
+	if _, ok := t.entries[id]; !ok {
 		return false
 	}
-	c.setSelectedEntry(id, false, false)
+	t.setSelectedEntry(id, false, false)
 	return true
 }
 
-func (c *transcriptView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
-	if _, ok := c.entries[id]; !ok {
+func (t *transcriptView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
+	if _, ok := t.entries[id]; !ok {
 		return
 	}
-	c.selected, c.hasSelected = id, true
+	t.selected, t.hasSelected = id, true
 	if clearTextSelection {
-		c.selection.Clear()
+		t.selection.Clear()
 	}
-	c.syncSelectedEntry()
+	t.syncSelectedEntry()
 	if reveal {
-		c.revealSelected()
+		t.revealSelected()
 	}
-	c.announceSelection()
+	t.announceSelection()
 }
 
-func (c *transcriptView) syncSelectedEntry() {
-	for id, entry := range c.entries {
-		entry.selected = c.hasSelected && id == c.selected
-		entry.focused = entry.selected && c.focused
+func (t *transcriptView) syncSelectedEntry() {
+	for id, entry := range t.entries {
+		entry.selected = t.hasSelected && id == t.selected
+		entry.focused = entry.selected && t.focused
 	}
 }
 
-func (c *transcriptView) revealSelected() {
-	if !c.hasSelected {
+func (t *transcriptView) revealSelected() {
+	if !t.hasSelected {
 		return
 	}
-	if top, height, ok := c.content.Extent(c.selected); ok {
-		start := c.content.StartRow()
-		c.scroll.RevealRange(top-start, top-start+height-1)
+	if top, height, ok := t.content.Extent(t.selected); ok {
+		start := t.content.StartRow()
+		t.scroll.RevealRange(top-start, top-start+height-1)
 	}
 }
 
-func (c *transcriptView) tool(id headless.BlockID) toolDisclosure {
-	for _, tracked := range c.toolViews {
+func (t *transcriptView) tool(id headless.BlockID) toolDisclosure {
+	for _, tracked := range t.toolViews {
 		if tracked.id == id {
 			return tracked.block
 		}
@@ -525,14 +525,14 @@ func (c *transcriptView) tool(id headless.BlockID) toolDisclosure {
 	return nil
 }
 
-func (c *transcriptView) toggleSelected() bool {
-	return c.mutateSelectedDisclosure(func(tool toolDisclosure) {
+func (t *transcriptView) toggleSelected() bool {
+	return t.mutateSelectedDisclosure(func(tool toolDisclosure) {
 		tool.ToggleExpanded()
 	})
 }
 
-func (c *transcriptView) setSelectedExpanded(expanded bool) bool {
-	return c.mutateSelectedDisclosure(func(tool toolDisclosure) {
+func (t *transcriptView) setSelectedExpanded(expanded bool) bool {
+	return t.mutateSelectedDisclosure(func(tool toolDisclosure) {
 		tool.SetExpanded(expanded)
 	})
 }
@@ -541,75 +541,75 @@ func (c *transcriptView) setSelectedExpanded(expanded bool) bool {
 // details. Both expansion and collapse can move the selected entry relative to
 // the viewport, so every actual height change remeasures and reveals the same
 // stable block identity before another command can target it.
-func (c *transcriptView) mutateSelectedDisclosure(mutate func(toolDisclosure)) bool {
-	tool := c.tool(c.selected)
-	if !c.hasSelected || tool == nil || !tool.Expandable() {
+func (t *transcriptView) mutateSelectedDisclosure(mutate func(toolDisclosure)) bool {
+	tool := t.tool(t.selected)
+	if !t.hasSelected || tool == nil || !tool.Expandable() {
 		return true
 	}
 	before := tool.Expanded()
 	mutate(tool)
 	if tool.Expanded() != before {
-		c.content.Changed(c.selected)
-		c.revealSelected()
-		c.refreshSearch()
+		t.content.Changed(t.selected)
+		t.revealSelected()
+		t.refreshSearch()
 	}
-	c.announceSelection()
+	t.announceSelection()
 	return true
 }
 
-func (c *transcriptView) copySelected() bool {
-	if !c.hasSelected {
+func (t *transcriptView) copySelected() bool {
+	if !t.hasSelected {
 		return true
 	}
-	top, height, ok := c.content.Extent(c.selected)
+	top, height, ok := t.content.Extent(t.selected)
 	if !ok {
 		return true
 	}
-	c.copy(copyableRowsText(c.content.Rows(top, height)))
+	t.copy(copyableRowsText(t.content.Rows(top, height)))
 	return true
 }
 
-func (c *transcriptView) copySelection() {
-	c.copy(c.selection.Text(&c.content))
+func (t *transcriptView) copySelection() {
+	t.copy(t.selection.Text(&t.content))
 }
 
-func (c *transcriptView) copy(value string) {
+func (t *transcriptView) copy(value string) {
 	if value == "" {
 		return
 	}
-	if c.clipboard == nil || !c.clipboard.Copy(value) {
+	if t.clipboard == nil || !t.clipboard.Copy(value) {
 		return
 	}
-	if c.onCopy != nil {
-		c.onCopy(value)
+	if t.onCopy != nil {
+		t.onCopy(value)
 	}
 }
 
-func (c *transcriptView) announceSelection() {
-	if c.onSelection == nil {
+func (t *transcriptView) announceSelection() {
+	if t.onSelection == nil {
 		return
 	}
-	_, readable := c.readerTargetForSelected()
-	selection := transcriptSelection{Present: c.hasSelected, Readable: readable}
-	if tool := c.tool(c.selected); tool != nil && tool.Expandable() {
+	_, readable := t.readerTargetForSelected()
+	selection := transcriptSelection{Present: t.hasSelected, Readable: readable}
+	if tool := t.tool(t.selected); tool != nil && tool.Expandable() {
 		selection.Expandable = true
 		selection.Expanded = tool.Expanded()
 	}
-	c.onSelection(selection)
+	t.onSelection(selection)
 }
 
-func (c *transcriptView) selectedReaderTarget() (readerTarget, bool) {
-	if !c.hasSelected {
-		c.ensureSelection()
+func (t *transcriptView) selectedReaderTarget() (readerTarget, bool) {
+	if !t.hasSelected {
+		t.ensureSelection()
 	}
-	return c.readerTargetForSelected()
+	return t.readerTargetForSelected()
 }
 
-func (c *transcriptView) readerTargetForSelected() (readerTarget, bool) {
-	if !c.hasSelected {
+func (t *transcriptView) readerTargetForSelected() (readerTarget, bool) {
+	if !t.hasSelected {
 		return readerTarget{}, false
 	}
-	entry := c.entries[c.selected]
+	entry := t.entries[t.selected]
 	if entry == nil || entry.content == nil {
 		return readerTarget{}, false
 	}
@@ -623,7 +623,7 @@ func (c *transcriptView) readerTargetForSelected() (readerTarget, bool) {
 	if !ok {
 		return readerTarget{}, false
 	}
-	width := max(c.content.Width()-transcriptEntryInset, 40)
+	width := max(t.content.Width()-transcriptEntryInset, 40)
 	value := copyableRowsText(copyable.Rows(width))
 	if strings.TrimSpace(value) == "" {
 		return readerTarget{}, false
@@ -645,78 +645,78 @@ func (c *transcriptView) readerTargetForSelected() (readerTarget, bool) {
 	}}, true
 }
 
-func (c *transcriptView) Follow() { c.scroll.ToBottom() }
+func (t *transcriptView) Follow() { t.scroll.ToBottom() }
 
-func (c *transcriptView) Scroll(action keymap.Action) bool { return c.scroll.Do(action) }
+func (t *transcriptView) Scroll(action keymap.Action) bool { return t.scroll.Do(action) }
 
-func (c *transcriptView) Close() {
-	if c != nil && c.search != nil {
-		c.search.Close()
+func (t *transcriptView) Close() {
+	if t != nil && t.search != nil {
+		t.search.Close()
 	}
 }
 
-func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry) error {
-	return c.apply("", event, registry)
+func (t *transcriptView) Apply(event agent.Event, registry *extensions.Registry) error {
+	return t.apply("", event, registry)
 }
 
-func (c *transcriptView) ApplyRunEvent(envelope agent.RunEvent, registry *extensions.Registry) error {
+func (t *transcriptView) ApplyRunEvent(envelope agent.RunEvent, registry *extensions.Registry) error {
 	if started, ok := envelope.Event.(agent.SegmentStarted); ok {
-		c.runLineages[started.Run.ID] = started.Run.Lineage
+		t.runLineages[started.Run.ID] = started.Run.Lineage
 	}
-	return c.apply(envelope.RunID, envelope.Event, registry)
+	return t.apply(envelope.RunID, envelope.Event, registry)
 }
 
-func (c *transcriptView) apply(runID string, event agent.Event, registry *extensions.Registry) error {
+func (t *transcriptView) apply(runID string, event agent.Event, registry *extensions.Registry) error {
 	switch e := event.(type) {
 	case agent.BlockStarted:
 		if e.Block.Kind == agent.BlockAssistant || e.Block.Kind == agent.BlockReasoning {
-			return c.begin(e.Block)
+			return t.begin(e.Block)
 		}
 		if e.Block.Kind == agent.BlockTool {
-			return c.beginTool(e.Block, registry)
+			return t.beginTool(e.Block, registry)
 		}
-		c.sealToolGroup()
+		t.sealToolGroup()
 	case agent.BlockDelta:
 		key := transcriptBlockKey(runID, e.BlockID)
-		if _, live := c.tools[key]; live {
-			return c.deltaTool(key, e)
+		if _, live := t.tools[key]; live {
+			return t.deltaTool(key, e)
 		}
-		return c.delta(key, e)
+		return t.delta(key, e)
 	case agent.ToolArgumentsDelta, agent.RunProgress:
 		// Tool arguments are provisional JSON and progress belongs in the status
 		// chrome. Neither creates an authoritative transcript block.
 	case agent.CustomEvent:
-		return c.appendCustom(runID, e, registry)
+		return t.appendCustom(runID, e, registry)
 	case agent.BlockCompleted:
-		return c.complete(e.Block, registry)
+		return t.complete(e.Block, registry)
 	case agent.RunFinished:
 		if strings.TrimSpace(runID) == "" {
-			c.settleLive(e.Outcome)
+			t.settleLive(e.Outcome)
 		} else {
-			c.settleRun(runID, e.Outcome)
+			t.settleRun(runID, e.Outcome)
 		}
 	case agent.RunInterrupted:
-		c.sealToolGroup()
+		t.sealToolGroup()
 	}
 	return nil
 }
 
-func (c *transcriptView) appendCustom(runID string, event agent.CustomEvent, registry *extensions.Registry) error {
+func (t *transcriptView) appendCustom(runID string, event agent.CustomEvent, registry *extensions.Registry) error {
 	for _, presenter := range registry.Values(CustomEventPresenters) {
 		if presenter.Name != event.Name {
 			continue
 		}
 		rendered, err := presentCustomSafely(presenter, BlockPresentation{
-			Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-			Tools: registry.Values(ToolPresenters), Speaker: "runtime", Image: c.presentImage,
+			Theme: t.theme, Glyphs: t.glyphs, Look: t.look, Syntax: t.syntax,
+			Tools: registry.Values(ToolPresenters), Speaker: "runtime", Image: t.presentImage,
 		}, event)
 		if err != nil {
 			return err
 		}
-		c.sealToolGroup()
+		t.sealToolGroup()
 		for _, block := range rendered {
-			id := c.append(block)
-			c.trackRunEntry(runID, id)
+			id := t.append(block)
+			t.trackRunEntry(runID, id)
 		}
 		return nil
 	}
@@ -732,32 +732,32 @@ func presentCustomSafely(presenter CustomEventPresenter, presentation BlockPrese
 	return presenter.Present(presentation, event), nil
 }
 
-func (c *transcriptView) begin(block agent.Block) error {
+func (t *transcriptView) begin(block agent.Block) error {
 	key := transcriptBlockKey(block.RunID, block.ID)
-	if _, exists := c.textStreams[key]; exists {
+	if _, exists := t.textStreams[key]; exists {
 		return fmt.Errorf("terminal transcript: text block %s started twice", block.ID)
 	}
-	if _, exists := c.tools[key]; exists {
+	if _, exists := t.tools[key]; exists {
 		return fmt.Errorf("terminal transcript: block %s is already a live tool", block.ID)
 	}
-	c.sealToolGroup()
-	speaker := c.speakerFor(block)
+	t.sealToolGroup()
+	speaker := t.speakerFor(block)
 	live := &liveText{
 		runID: block.RunID, kind: block.Kind, text: agent.NewStreamedText(block.Text),
-		block: &markdownBlock{theme: c.theme, speaker: speaker},
+		block: &markdownBlock{theme: t.theme, speaker: speaker},
 	}
-	live.stream.SetLook(c.lookFor(block.Kind))
-	live.id = c.place(live.block, false)
-	c.trackRunEntry(block.RunID, live.id)
-	c.textStreams[key] = live
+	live.stream.SetLook(t.lookFor(block.Kind))
+	live.id = t.place(live.block, false)
+	t.trackRunEntry(block.RunID, live.id)
+	t.textStreams[key] = live
 	if block.Text != "" {
-		c.updateLiveText(live, agent.TextMutation{Text: block.Text})
+		t.updateLiveText(live, agent.TextMutation{Text: block.Text})
 	}
 	return nil
 }
 
-func (c *transcriptView) delta(key string, delta agent.BlockDelta) error {
-	live, ok := c.textStreams[key]
+func (t *transcriptView) delta(key string, delta agent.BlockDelta) error {
+	live, ok := t.textStreams[key]
 	if !ok {
 		return fmt.Errorf("terminal transcript: delta for inactive text block %s", delta.BlockID)
 	}
@@ -768,11 +768,11 @@ func (c *transcriptView) delta(key string, delta agent.BlockDelta) error {
 	if err != nil {
 		return fmt.Errorf("terminal transcript: stream text block %s: %w", delta.BlockID, err)
 	}
-	c.updateLiveText(live, mutation)
+	t.updateLiveText(live, mutation)
 	return nil
 }
 
-func (c *transcriptView) updateLiveText(live *liveText, mutation agent.TextMutation) {
+func (t *transcriptView) updateLiveText(live *liveText, mutation agent.TextMutation) {
 	if mutation.Replace {
 		live.stream.Reset()
 		live.stable = nil
@@ -781,12 +781,12 @@ func (c *transcriptView) updateLiveText(live *liveText, mutation agent.TextMutat
 	blocks := slices.Clone(live.stable)
 	blocks = append(blocks, live.stream.Open()...)
 	live.block.doc.SetBlocks(blocks)
-	c.content.Changed(live.id)
-	c.refreshSearch()
+	t.content.Changed(live.id)
+	t.refreshSearch()
 }
 
-func (c *transcriptView) deltaTool(key string, delta agent.BlockDelta) error {
-	live, ok := c.tools[key]
+func (t *transcriptView) deltaTool(key string, delta agent.BlockDelta) error {
+	live, ok := t.tools[key]
 	if !ok {
 		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", delta.BlockID)
 	}
@@ -795,235 +795,235 @@ func (c *transcriptView) deltaTool(key string, delta agent.BlockDelta) error {
 	}
 	for _, tracked := range live.blocks {
 		tracked.block.AppendOutput(delta.Text)
-		c.content.Changed(tracked.id)
+		t.content.Changed(tracked.id)
 	}
-	c.refreshSearch()
-	c.announceSelection()
+	t.refreshSearch()
+	t.announceSelection()
 	return nil
 }
 
-func (c *transcriptView) complete(block agent.Block, registry *extensions.Registry) error {
+func (t *transcriptView) complete(block agent.Block, registry *extensions.Registry) error {
 	key := transcriptBlockKey(block.RunID, block.ID)
-	if _, live := c.textStreams[key]; live {
-		return c.completeStream(block)
+	if _, live := t.textStreams[key]; live {
+		return t.completeStream(block)
 	}
-	if block.Kind == agent.BlockTool && c.completeLiveTool(block) {
+	if block.Kind == agent.BlockTool && t.completeLiveTool(block) {
 		return nil
 	}
-	return c.appendCompleted(block, registry)
+	return t.appendCompleted(block, registry)
 }
 
-func (c *transcriptView) completeStream(block agent.Block) error {
+func (t *transcriptView) completeStream(block agent.Block) error {
 	key := transcriptBlockKey(block.RunID, block.ID)
-	live, ok := c.textStreams[key]
+	live, ok := t.textStreams[key]
 	if !ok {
 		return fmt.Errorf("terminal transcript: completion for inactive text block %s", block.ID)
 	}
 	// The completed value is authoritative. Re-rendering it once also repairs a
 	// transport that intentionally replaced an earlier provisional tail.
-	live.block.doc.SetBlocks(markdown.Render(block.Text, c.lookFor(block.Kind)))
-	c.content.Changed(live.id)
-	c.content.Finish(live.id)
+	live.block.doc.SetBlocks(markdown.Render(block.Text, t.lookFor(block.Kind)))
+	t.content.Changed(live.id)
+	t.content.Finish(live.id)
 	live.stream.Reset()
-	delete(c.textStreams, key)
+	delete(t.textStreams, key)
 	for _, image := range block.Images {
-		id := c.append(c.presentImage(image))
-		c.trackRunEntry(block.RunID, id)
+		id := t.append(t.presentImage(image))
+		t.trackRunEntry(block.RunID, id)
 	}
-	c.refreshSearch()
+	t.refreshSearch()
 	return nil
 }
 
-func (c *transcriptView) completeLiveTool(block agent.Block) bool {
+func (t *transcriptView) completeLiveTool(block agent.Block) bool {
 	key := transcriptBlockKey(block.RunID, block.ID)
-	live, ok := c.tools[key]
+	live, ok := t.tools[key]
 	if !ok {
 		return false
 	}
 	selectedCollapsed := false
 	for _, tracked := range live.blocks {
-		selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Update(block) }) || selectedCollapsed
+		selectedCollapsed = t.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Update(block) }) || selectedCollapsed
 	}
 	if selectedCollapsed {
-		c.revealSelected()
+		t.revealSelected()
 	}
 	if live.group != nil {
-		c.finishToolGroupIfReady(live.group)
+		t.finishToolGroupIfReady(live.group)
 	} else {
 		for _, id := range live.ids {
-			c.content.Finish(id)
+			t.content.Finish(id)
 		}
 	}
-	delete(c.tools, key)
+	delete(t.tools, key)
 	if len(live.blocks) == 0 {
 		return false
 	}
-	c.refreshSearch()
-	c.announceSelection()
+	t.refreshSearch()
+	t.announceSelection()
 	return true
 }
 
-func (c *transcriptView) settleLive(outcome agent.Outcome) {
-	for id, live := range c.textStreams {
-		c.content.Finish(live.id)
+func (t *transcriptView) settleLive(outcome agent.Outcome) {
+	for id, live := range t.textStreams {
+		t.content.Finish(live.id)
 		live.stream.Reset()
-		delete(c.textStreams, id)
+		delete(t.textStreams, id)
 	}
 	toolStatus := agent.ToolError
 	if outcome.Status == agent.OutcomeCanceled {
 		toolStatus = agent.ToolCanceled
 	}
 	selectedCollapsed := false
-	for id, live := range c.tools {
+	for id, live := range t.tools {
 		for _, tracked := range live.blocks {
-			selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
+			selectedCollapsed = t.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
 		}
 		if live.group != nil {
-			c.finishToolGroupIfReady(live.group)
+			t.finishToolGroupIfReady(live.group)
 		} else {
 			for _, blockID := range live.ids {
-				c.content.Finish(blockID)
+				t.content.Finish(blockID)
 			}
 		}
-		delete(c.tools, id)
+		delete(t.tools, id)
 	}
-	c.finishPendingQuestions("")
+	t.finishPendingQuestions("")
 	if selectedCollapsed {
-		c.revealSelected()
+		t.revealSelected()
 	}
-	c.sealToolGroup()
-	c.refreshSearch()
-	c.announceSelection()
+	t.sealToolGroup()
+	t.refreshSearch()
+	t.announceSelection()
 }
 
-func (c *transcriptView) settleRun(runID string, outcome agent.Outcome) {
-	for id, live := range c.textStreams {
+func (t *transcriptView) settleRun(runID string, outcome agent.Outcome) {
+	for id, live := range t.textStreams {
 		if live.runID != runID {
 			continue
 		}
-		c.content.Finish(live.id)
+		t.content.Finish(live.id)
 		live.stream.Reset()
-		delete(c.textStreams, id)
+		delete(t.textStreams, id)
 	}
 	toolStatus := agent.ToolError
 	if outcome.Status == agent.OutcomeCanceled {
 		toolStatus = agent.ToolCanceled
 	}
 	selectedCollapsed := false
-	for id, live := range c.tools {
+	for id, live := range t.tools {
 		if live.runID != runID {
 			continue
 		}
 		for _, tracked := range live.blocks {
-			selectedCollapsed = c.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
+			selectedCollapsed = t.mutateTrackedTool(tracked, func(tool mutableToolBlock) { tool.Finish(toolStatus) }) || selectedCollapsed
 		}
 		if live.group != nil {
-			c.finishToolGroupIfReady(live.group)
+			t.finishToolGroupIfReady(live.group)
 		} else {
 			for _, blockID := range live.ids {
-				c.content.Finish(blockID)
+				t.content.Finish(blockID)
 			}
 		}
-		delete(c.tools, id)
+		delete(t.tools, id)
 	}
-	c.finishPendingQuestions(runID)
+	t.finishPendingQuestions(runID)
 	if selectedCollapsed {
-		c.revealSelected()
+		t.revealSelected()
 	}
-	if c.activeToolGroup != nil && c.activeToolGroup.runID == runID {
-		c.sealToolGroup()
+	if t.activeToolGroup != nil && t.activeToolGroup.runID == runID {
+		t.sealToolGroup()
 	}
-	c.refreshSearch()
-	c.announceSelection()
+	t.refreshSearch()
+	t.announceSelection()
 }
 
-func (c *transcriptView) mutateTrackedTool(tracked trackedTool, mutate func(mutableToolBlock)) bool {
+func (t *transcriptView) mutateTrackedTool(tracked trackedTool, mutate func(mutableToolBlock)) bool {
 	before := tracked.block.Expanded()
 	mutate(tracked.block)
-	c.content.Changed(tracked.id)
-	return c.focused && tracked.id == c.selected && before && !tracked.block.Expanded()
+	t.content.Changed(tracked.id)
+	return t.focused && tracked.id == t.selected && before && !tracked.block.Expanded()
 }
 
-func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
-	rendered, err := c.present(block, registry)
+func (t *transcriptView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
+	rendered, err := t.present(block, registry)
 	if err != nil {
 		return err
 	}
 	if block.Kind == agent.BlockTool {
 		if tool, grouped := groupedTool(rendered); grouped {
-			c.addGroupedTool(block.RunID, tool)
-			c.refreshSearch()
+			t.addGroupedTool(block.RunID, tool)
+			t.refreshSearch()
 			return nil
 		}
 	}
-	c.sealToolGroup()
+	t.sealToolGroup()
 	for _, item := range rendered {
 		mutable, isMutable := item.(mutableToolBlock)
 		if isMutable {
-			mutable.SetExpanded(c.details)
+			mutable.SetExpanded(t.details)
 		}
 		question, isPendingQuestion := item.(*questionBlock)
 		isPendingQuestion = isPendingQuestion && !question.answered()
 		key := ""
 		if isPendingQuestion {
 			key = transcriptBlockKey(block.RunID, block.ID)
-			if _, exists := c.pendingQuestions[key]; exists {
+			if _, exists := t.pendingQuestions[key]; exists {
 				return fmt.Errorf("terminal transcript: question block %s completed twice", block.ID)
 			}
 		}
-		id := c.place(item, !isPendingQuestion)
-		c.trackRunEntry(block.RunID, id)
+		id := t.place(item, !isPendingQuestion)
+		t.trackRunEntry(block.RunID, id)
 		if isPendingQuestion {
-			c.pendingQuestions[key] = trackedQuestion{runID: block.RunID, id: id, block: question}
+			t.pendingQuestions[key] = trackedQuestion{runID: block.RunID, id: id, block: question}
 		}
 		if isMutable {
-			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
+			t.toolViews = append(t.toolViews, trackedToolView{id: id, block: mutable})
 		}
 		if block.Kind == agent.BlockUser {
-			c.sticky.Add(id)
+			t.sticky.Add(id)
 		}
 	}
-	c.refreshSearch()
+	t.refreshSearch()
 	return nil
 }
 
-func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Registry) error {
+func (t *transcriptView) beginTool(block agent.Block, registry *extensions.Registry) error {
 	key := transcriptBlockKey(block.RunID, block.ID)
-	if _, exists := c.tools[key]; exists {
+	if _, exists := t.tools[key]; exists {
 		return fmt.Errorf("terminal transcript: tool block %s started twice", block.ID)
 	}
-	if _, exists := c.textStreams[key]; exists {
+	if _, exists := t.textStreams[key]; exists {
 		return fmt.Errorf("terminal transcript: block %s is already a live text block", block.ID)
 	}
-	rendered, err := c.present(block, registry)
+	rendered, err := t.present(block, registry)
 	if err != nil {
 		return err
 	}
 	if tool, grouped := groupedTool(rendered); grouped {
-		group := c.addGroupedTool(block.RunID, tool)
+		group := t.addGroupedTool(block.RunID, tool)
 		tracked := trackedTool{id: group.id, block: tool}
-		c.tools[key] = liveTool{runID: block.RunID, blocks: []trackedTool{tracked}, group: group}
-		c.refreshSearch()
+		t.tools[key] = liveTool{runID: block.RunID, blocks: []trackedTool{tracked}, group: group}
+		t.refreshSearch()
 		return nil
 	}
-	c.sealToolGroup()
+	t.sealToolGroup()
 	live := liveTool{runID: block.RunID}
 	for _, item := range rendered {
 		mutable, isMutable := item.(mutableToolBlock)
 		if isMutable {
-			mutable.SetExpanded(c.details)
+			mutable.SetExpanded(t.details)
 		}
-		id := c.place(item, false)
-		c.trackRunEntry(block.RunID, id)
+		id := t.place(item, false)
+		t.trackRunEntry(block.RunID, id)
 		live.ids = append(live.ids, id)
 		if isMutable {
 			tracked := trackedTool{id: id, block: mutable}
 			live.blocks = append(live.blocks, tracked)
-			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
+			t.toolViews = append(t.toolViews, trackedToolView{id: id, block: mutable})
 		}
 	}
-	c.tools[key] = live
-	c.refreshSearch()
+	t.tools[key] = live
+	t.refreshSearch()
 	return nil
 }
 
@@ -1035,62 +1035,62 @@ func groupedTool(rendered []headless.Block) (*toolBlock, bool) {
 	return tool, ok && groupableTool(tool.call)
 }
 
-func (c *transcriptView) addGroupedTool(runID string, tool *toolBlock) *trackedToolGroup {
-	group := c.activeToolGroup
+func (t *transcriptView) addGroupedTool(runID string, tool *toolBlock) *trackedToolGroup {
+	group := t.activeToolGroup
 	if group == nil || group.runID != runID {
-		c.sealToolGroup()
-		block := newToolGroupBlock(c.theme, c.glyphs, c.details)
+		t.sealToolGroup()
+		block := newToolGroupBlock(t.theme, t.glyphs, t.details)
 		block.Add(tool)
 		group = &trackedToolGroup{runID: runID, block: block}
-		group.id = c.place(block, false)
-		c.trackRunEntry(runID, group.id)
-		c.toolViews = append(c.toolViews, trackedToolView{id: group.id, block: block})
-		c.activeToolGroup = group
+		group.id = t.place(block, false)
+		t.trackRunEntry(runID, group.id)
+		t.toolViews = append(t.toolViews, trackedToolView{id: group.id, block: block})
+		t.activeToolGroup = group
 		return group
 	}
 	group.block.Add(tool)
-	c.content.Changed(group.id)
+	t.content.Changed(group.id)
 	return group
 }
 
-func (c *transcriptView) sealToolGroup() {
-	group := c.activeToolGroup
+func (t *transcriptView) sealToolGroup() {
+	group := t.activeToolGroup
 	if group == nil {
 		return
 	}
 	group.block.Seal()
-	c.content.Changed(group.id)
-	c.activeToolGroup = nil
-	c.finishToolGroupIfReady(group)
+	t.content.Changed(group.id)
+	t.activeToolGroup = nil
+	t.finishToolGroupIfReady(group)
 }
 
-func (c *transcriptView) finishToolGroupIfReady(group *trackedToolGroup) {
+func (t *transcriptView) finishToolGroupIfReady(group *trackedToolGroup) {
 	if group != nil && group.block.ReadyToFinish() {
-		c.content.Finish(group.id)
+		t.content.Finish(group.id)
 	}
 }
 
 // SealToolGroups closes the trailing adjacency window after a cold snapshot.
 // A live event stream closes it naturally on the next semantic boundary.
-func (c *transcriptView) SealToolGroups() { c.sealToolGroup() }
+func (t *transcriptView) SealToolGroups() { t.sealToolGroup() }
 
-func (c *transcriptView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
+func (t *transcriptView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
 	for _, presenter := range registry.Values(BlockPresenters) {
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, BlockPresentation{
-				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-				Tools: registry.Values(ToolPresenters), Speaker: c.speakerFor(block), Image: c.presentImage,
+				Theme: t.theme, Glyphs: t.glyphs, Look: t.look, Syntax: t.syntax,
+				Tools: registry.Values(ToolPresenters), Speaker: t.speakerFor(block), Image: t.presentImage,
 			}, block)
 		}
 	}
 	return nil, fmt.Errorf("terminal transcript: no presenter for block kind %q", block.Kind)
 }
 
-func (c *transcriptView) presentImage(image agent.InlineImage) headless.Block {
-	if c.images != nil {
-		return c.images.Present(c.theme, image)
+func (t *transcriptView) presentImage(image agent.InlineImage) headless.Block {
+	if t.images != nil {
+		return t.images.Present(t.theme, image)
 	}
-	return fallbackInlineImage(c.theme, image)
+	return fallbackInlineImage(t.theme, image)
 }
 
 func presentSafely(presenter BlockPresenter, presentation BlockPresentation, block agent.Block) (rendered []headless.Block, err error) {
@@ -1102,24 +1102,24 @@ func presentSafely(presenter BlockPresenter, presentation BlockPresentation, blo
 	return presenter.Present(presentation, block), nil
 }
 
-func (c *transcriptView) Append(block headless.Block) {
-	c.sealToolGroup()
-	c.append(block)
+func (t *transcriptView) Append(block headless.Block) {
+	t.sealToolGroup()
+	t.append(block)
 }
 
-func (c *transcriptView) append(block headless.Block) headless.BlockID {
-	id := c.place(block, true)
-	c.refreshSearch()
+func (t *transcriptView) append(block headless.Block) headless.BlockID {
+	id := t.place(block, true)
+	t.refreshSearch()
 	return id
 }
 
-func (c *transcriptView) place(block headless.Block, finished bool) headless.BlockID {
-	c.entrance = nil
-	entry := newTranscriptEntry(c.theme, c.glyphs, block)
-	id := c.content.Append(entry)
-	c.entries[id] = entry
+func (t *transcriptView) place(block headless.Block, finished bool) headless.BlockID {
+	t.entrance = nil
+	entry := newTranscriptEntry(t.theme, t.glyphs, block)
+	id := t.content.Append(entry)
+	t.entries[id] = entry
 	if finished {
-		c.content.Finish(id)
+		t.content.Finish(id)
 	}
 	return id
 }
@@ -1128,88 +1128,88 @@ type discardedOutput struct{}
 
 func (discardedOutput) Print(grid.Drawable) {}
 
-func (c *transcriptView) DiscardExcess() {
-	if c.content.Width() <= 0 {
+func (t *transcriptView) DiscardExcess() {
+	if t.content.Width() <= 0 {
 		return
 	}
 	finished := 0
-	for i := range c.content.Len() {
-		id := c.content.FirstBlock() + headless.BlockID(i)
-		if !c.content.Finished(id) {
+	for i := range t.content.Len() {
+		id := t.content.FirstBlock() + headless.BlockID(i)
+		if !t.content.Finished(id) {
 			break
 		}
 		finished++
 	}
-	if excess := finished - c.retain; excess > 0 {
-		c.view.Commit(discardedOutput{}, excess)
+	if excess := finished - t.retain; excess > 0 {
+		t.view.Commit(discardedOutput{}, excess)
 	}
-	first := c.content.FirstBlock()
-	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedToolView) bool { return item.id < first })
-	for id := range c.entries {
+	first := t.content.FirstBlock()
+	t.toolViews = slices.DeleteFunc(t.toolViews, func(item trackedToolView) bool { return item.id < first })
+	for id := range t.entries {
 		if id < first {
-			delete(c.entries, id)
+			delete(t.entries, id)
 		}
 	}
-	for key, question := range c.pendingQuestions {
+	for key, question := range t.pendingQuestions {
 		if question.id < first {
-			delete(c.pendingQuestions, key)
+			delete(t.pendingQuestions, key)
 		}
 	}
-	for runID, ids := range c.runEntries {
+	for runID, ids := range t.runEntries {
 		ids = slices.DeleteFunc(ids, func(id headless.BlockID) bool { return id < first })
 		if len(ids) == 0 {
-			delete(c.runEntries, runID)
+			delete(t.runEntries, runID)
 		} else {
-			c.runEntries[runID] = ids
+			t.runEntries[runID] = ids
 		}
 	}
-	if c.hasSelected && c.selected < first {
-		c.hasSelected = false
-		c.ensureSelection()
-		c.syncSelectedEntry()
-		c.announceSelection()
+	if t.hasSelected && t.selected < first {
+		t.hasSelected = false
+		t.ensureSelection()
+		t.syncSelectedEntry()
+		t.announceSelection()
 	}
-	c.refreshSearch()
+	t.refreshSearch()
 }
 
-func (c *transcriptView) Reset() {
-	c.entrance = nil
-	c.contentEpoch++
-	c.content = headless.Transcript{}
-	c.scroll = headless.Scroll{}
-	c.scroll.Wheel(c.wheel)
-	c.scroll.ToBottom()
-	c.selection = headless.Selection{}
-	c.sticky = headless.Sticky{MinHeight: 1, Gap: 1}
-	c.view.Content, c.view.Scroll = &c.content, &c.scroll
-	c.view.Selection, c.view.Sticky = &c.selection, &c.sticky
-	for _, live := range c.textStreams {
+func (t *transcriptView) Reset() {
+	t.entrance = nil
+	t.contentEpoch++
+	t.content = headless.Transcript{}
+	t.scroll = headless.Scroll{}
+	t.scroll.Wheel(t.wheel)
+	t.scroll.ToBottom()
+	t.selection = headless.Selection{}
+	t.sticky = headless.Sticky{MinHeight: 1, Gap: 1}
+	t.view.Content, t.view.Scroll = &t.content, &t.scroll
+	t.view.Selection, t.view.Sticky = &t.selection, &t.sticky
+	for _, live := range t.textStreams {
 		live.stream.Reset()
 	}
-	clear(c.textStreams)
-	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
-	c.searchCursor = transcriptSearchCursor{}
-	clear(c.tools)
-	clear(c.pendingQuestions)
-	clear(c.entries)
-	clear(c.runEntries)
-	clear(c.runLineages)
-	c.activeToolGroup = nil
-	c.hasSelected = false
-	c.pointerGesture.cancel()
-	c.toolViews = nil
-	c.search.Submit(&c.content, "", false)
+	clear(t.textStreams)
+	t.query, t.matches, t.current, t.announceSearch = "", nil, -1, false
+	t.searchCursor = transcriptSearchCursor{}
+	clear(t.tools)
+	clear(t.pendingQuestions)
+	clear(t.entries)
+	clear(t.runEntries)
+	clear(t.runLineages)
+	t.activeToolGroup = nil
+	t.hasSelected = false
+	t.pointerGesture.cancel()
+	t.toolViews = nil
+	t.search.Submit(&t.content, "", false)
 }
 
-func (c *transcriptView) SetRuns(runs []agent.Run) {
-	clear(c.runLineages)
+func (t *transcriptView) SetRuns(runs []agent.Run) {
+	clear(t.runLineages)
 	for _, run := range runs {
-		c.runLineages[run.ID] = run.Lineage
+		t.runLineages[run.ID] = run.Lineage
 	}
 }
 
-func (c *transcriptView) speakerFor(block agent.Block) string {
-	lineage, known := c.runLineages[block.RunID]
+func (t *transcriptView) speakerFor(block agent.Block) string {
+	lineage, known := t.runLineages[block.RunID]
 	if !known || lineage.IsRoot() {
 		switch block.Kind {
 		case agent.BlockUser:
@@ -1231,21 +1231,21 @@ func (c *transcriptView) speakerFor(block agent.Block) string {
 	}
 }
 
-func (c *transcriptView) trackRunEntry(runID string, id headless.BlockID) {
+func (t *transcriptView) trackRunEntry(runID string, id headless.BlockID) {
 	if strings.TrimSpace(runID) == "" {
 		return
 	}
-	c.runEntries[runID] = append(c.runEntries[runID], id)
+	t.runEntries[runID] = append(t.runEntries[runID], id)
 }
 
-func (c *transcriptView) JumpToRun(runID string) bool {
-	first := c.content.FirstBlock()
-	last := first + blockOffset(c.content.Len())
-	for _, id := range c.runEntries[runID] {
+func (t *transcriptView) JumpToRun(runID string) bool {
+	first := t.content.FirstBlock()
+	last := first + blockOffset(t.content.Len())
+	for _, id := range t.runEntries[runID] {
 		if id < first || id >= last {
 			continue
 		}
-		c.selectEntry(id, true)
+		t.selectEntry(id, true)
 		return true
 	}
 	return false
@@ -1265,68 +1265,68 @@ func transcriptBlockKey(runID, blockID string) string {
 	return runID + "\x00" + blockID
 }
 
-func (c *transcriptView) Find(query string) {
-	c.query = strings.TrimSpace(query)
-	c.announceSearch = c.query != ""
-	c.matches, c.current = nil, -1
-	c.searchCursor = transcriptSearchCursor{}
-	c.search.Submit(&c.content, c.query, false)
+func (t *transcriptView) Find(query string) {
+	t.query = strings.TrimSpace(query)
+	t.announceSearch = t.query != ""
+	t.matches, t.current = nil, -1
+	t.searchCursor = transcriptSearchCursor{}
+	t.search.Submit(&t.content, t.query, false)
 }
 
-func (c *transcriptView) refreshSearch() {
-	if c.query != "" {
-		c.search.Submit(&c.content, c.query, false)
+func (t *transcriptView) refreshSearch() {
+	if t.query != "" {
+		t.search.Submit(&t.content, t.query, false)
 	}
 }
 
-func (c *transcriptView) SearchResults() <-chan headless.Result { return c.search.Results() }
+func (t *transcriptView) SearchResults() <-chan headless.Result { return t.search.Results() }
 
-func (c *transcriptView) AcceptSearch(result headless.Result) (accepted, announce bool) {
-	if result.Query != c.query {
+func (t *transcriptView) AcceptSearch(result headless.Result) (accepted, announce bool) {
+	if result.Query != t.query {
 		return false, false
 	}
-	next := c.searchMatchIndex(result.Matches)
-	c.matches = result.Matches
-	if len(c.matches) > 0 {
-		c.current = next
-		c.rememberSearchCursor()
+	next := t.searchMatchIndex(result.Matches)
+	t.matches = result.Matches
+	if len(t.matches) > 0 {
+		t.current = next
+		t.rememberSearchCursor()
 	} else {
-		c.current = -1
-		c.searchCursor = transcriptSearchCursor{}
+		t.current = -1
+		t.searchCursor = transcriptSearchCursor{}
 	}
-	announce, c.announceSearch = c.announceSearch, false
+	announce, t.announceSearch = t.announceSearch, false
 	return true, announce
 }
 
-func (c *transcriptView) StepMatch(delta int) bool {
-	if len(c.matches) == 0 {
+func (t *transcriptView) StepMatch(delta int) bool {
+	if len(t.matches) == 0 {
 		return false
 	}
-	c.current = (c.current + delta) % len(c.matches)
-	if c.current < 0 {
-		c.current += len(c.matches)
+	t.current = (t.current + delta) % len(t.matches)
+	if t.current < 0 {
+		t.current += len(t.matches)
 	}
-	c.rememberSearchCursor()
+	t.rememberSearchCursor()
 	return true
 }
 
-func (c *transcriptView) searchMatchIndex(matches []headless.Match) int {
-	if len(matches) == 0 || !c.searchCursor.present {
+func (t *transcriptView) searchMatchIndex(matches []headless.Match) int {
+	if len(matches) == 0 || !t.searchCursor.present {
 		return 0
 	}
 	best := -1
 	var bestRowDistance, bestColumnDistance uint
 	for index, match := range matches {
-		id, offset, ok := c.content.At(match.Row)
-		if !ok || id != c.searchCursor.blockID {
+		id, offset, ok := t.content.At(match.Row)
+		if !ok || id != t.searchCursor.blockID {
 			continue
 		}
 		col := 0
 		if len(match.Spans) > 0 {
 			col = match.Spans[0].Col
 		}
-		rowDistance := unsignedDistance(offset, c.searchCursor.rowOffset)
-		columnDistance := unsignedDistance(col, c.searchCursor.column)
+		rowDistance := unsignedDistance(offset, t.searchCursor.rowOffset)
+		columnDistance := unsignedDistance(col, t.searchCursor.column)
 		if best < 0 || rowDistance < bestRowDistance ||
 			(rowDistance == bestRowDistance && columnDistance < bestColumnDistance) {
 			best, bestRowDistance, bestColumnDistance = index, rowDistance, columnDistance
@@ -1335,26 +1335,26 @@ func (c *transcriptView) searchMatchIndex(matches []headless.Match) int {
 	if best >= 0 {
 		return best
 	}
-	return min(c.searchCursor.index, len(matches)-1)
+	return min(t.searchCursor.index, len(matches)-1)
 }
 
-func (c *transcriptView) rememberSearchCursor() {
-	if c.current < 0 || c.current >= len(c.matches) {
-		c.searchCursor = transcriptSearchCursor{}
+func (t *transcriptView) rememberSearchCursor() {
+	if t.current < 0 || t.current >= len(t.matches) {
+		t.searchCursor = transcriptSearchCursor{}
 		return
 	}
-	match := c.matches[c.current]
-	id, offset, ok := c.content.At(match.Row)
+	match := t.matches[t.current]
+	id, offset, ok := t.content.At(match.Row)
 	if !ok {
-		c.searchCursor = transcriptSearchCursor{}
+		t.searchCursor = transcriptSearchCursor{}
 		return
 	}
 	col := 0
 	if len(match.Spans) > 0 {
 		col = match.Spans[0].Col
 	}
-	c.searchCursor = transcriptSearchCursor{
-		blockID: id, rowOffset: offset, column: col, index: c.current, present: true,
+	t.searchCursor = transcriptSearchCursor{
+		blockID: id, rowOffset: offset, column: col, index: t.current, present: true,
 	}
 }
 
@@ -1365,10 +1365,10 @@ func unsignedDistance(left, right int) uint {
 	return uint(left) - uint(right)
 }
 
-func (c *transcriptView) lookFor(kind agent.BlockKind) markdown.Look {
-	look := c.look
+func (t *transcriptView) lookFor(kind agent.BlockKind) markdown.Look {
+	look := t.look
 	if kind == agent.BlockReasoning {
-		look.Text, look.Strong, look.Code = c.theme.Muted, c.theme.Subtle, c.theme.Info
+		look.Text, look.Strong, look.Code = t.theme.Muted, t.theme.Subtle, t.theme.Info
 	}
 	return look
 }

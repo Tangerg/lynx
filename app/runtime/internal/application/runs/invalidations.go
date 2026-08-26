@@ -35,32 +35,32 @@ func newRunPublications(
 	}
 }
 
-func (publications *runPublications) nowUTC() time.Time { return publications.now().UTC() }
+func (r *runPublications) nowUTC() time.Time { return r.now().UTC() }
 
-func (publications *runPublications) event(runID, segmentID string, reduced reduction) Event {
+func (r *runPublications) event(runID, segmentID string, reduced reduction) Event {
 	return Event{
 		RunID: runID, SegmentID: segmentID,
-		Timestamp: publications.nowUTC(), Payload: reduced.Event,
+		Timestamp: r.nowUTC(), Payload: reduced.Event,
 	}
 }
 
-func (publications *runPublications) commitOpening(ctx context.Context, opening OpeningCommit) error {
-	return publications.openings.CommitOpening(ctx, opening)
+func (r *runPublications) commitOpening(ctx context.Context, opening OpeningCommit) error {
+	return r.openings.CommitOpening(ctx, opening)
 }
 
-func (publications *runPublications) commitEvent(ctx context.Context, commit EventCommit) error {
-	return publications.events.CommitEvent(ctx, commit)
+func (r *runPublications) commitEvent(ctx context.Context, commit EventCommit) error {
+	return r.events.CommitEvent(ctx, commit)
 }
 
-func (publications *runPublications) commitTreeBarrier(
+func (r *runPublications) commitTreeBarrier(
 	ctx context.Context,
 	barrier TreeBarrierCommit,
 ) error {
-	return publications.barriers.CommitTreeBarrier(ctx, barrier)
+	return r.barriers.CommitTreeBarrier(ctx, barrier)
 }
 
-func (publications *runPublications) nudge(cwd string, paths []string) {
-	publications.workspace.Nudge(cwd, paths)
+func (r *runPublications) nudge(cwd string, paths []string) {
+	r.workspace.Nudge(cwd, paths)
 }
 
 // The run lifecycle's invalidations for clients that are not following this run.
@@ -75,9 +75,9 @@ func (publications *runPublications) nudge(cwd string, paths []string) {
 
 // publishRunMoved reports a run whose lifecycle position changed without touching
 // what it is waiting on: a run that started, or one that ended.
-func (publications *runPublications) publishRunMoved(sessionID, runID string) {
-	publications.changes.notify(sessionID)
-	publications.invalidations.Notify(
+func (r *runPublications) publishRunMoved(sessionID, runID string) {
+	r.changes.notify(sessionID)
+	r.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
 	)
@@ -85,9 +85,9 @@ func (publications *runPublications) publishRunMoved(sessionID, runID string) {
 
 // publishWaitingMoved reports a transition that also opened, answered or dropped
 // the session's open-interrupt set — a park, a resume, or a canceled park.
-func (publications *runPublications) publishWaitingMoved(sessionID, runID string) {
-	publications.changes.notify(sessionID)
-	publications.invalidations.Notify(
+func (r *runPublications) publishWaitingMoved(sessionID, runID string) {
+	r.changes.notify(sessionID)
+	r.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Interrupts, sessionID, runID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
@@ -99,12 +99,12 @@ func (publications *runPublications) publishWaitingMoved(sessionID, runID string
 // parent whose spawning Item was settled, and every Run resumed when the final
 // external boundary disappeared. The interrupt notice remains root-addressed
 // because one Pending aggregate owns the whole barrier.
-func (publications *runPublications) publishWaitingSubtreeCanceled(
+func (r *runPublications) publishWaitingSubtreeCanceled(
 	sessionID string,
 	rootRunID string,
 	affectedRunIDs []string,
 ) {
-	publications.invalidations.Notify(
+	r.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, affectedRunIDs...),
 		invalidation.InSession(invalidation.Interrupts, sessionID, rootRunID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
@@ -115,6 +115,6 @@ func (publications *runPublications) publishWaitingSubtreeCanceled(
 // goal. The accounting rides the run's transaction, so nothing in the goal use case
 // sees this write — without a notice here, a client would watch a goal spend its
 // budget in silence.
-func (publications *runPublications) publishGoalMoved(sessionID string) {
-	publications.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
+func (r *runPublications) publishGoalMoved(sessionID string) {
+	r.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
 }

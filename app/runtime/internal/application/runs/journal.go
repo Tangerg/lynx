@@ -391,70 +391,70 @@ func newJournalSubscriber(backlog []chargedEvent, retention Retention) *journalS
 // client would fold into a wrong state without being able to tell. So a consumer
 // that lets the replay backlog reach the retention window is disconnected
 // instead, and reads the abnormal end of stream as "reconnect and recover".
-func (s *journalSubscriber) enqueue(ev Event, size int) bool {
-	s.mu.Lock()
-	if s.finishing || s.aborted {
-		s.mu.Unlock()
+func (j *journalSubscriber) enqueue(ev Event, size int) bool {
+	j.mu.Lock()
+	if j.finishing || j.aborted {
+		j.mu.Unlock()
 		return false
 	}
 	if !ev.Replayable() {
-		if s.queuedLive >= liveHeadroom {
-			s.mu.Unlock()
+		if j.queuedLive >= liveHeadroom {
+			j.mu.Unlock()
 			return true
 		}
-		s.queuedLive++
+		j.queuedLive++
 	} else {
-		if s.queuedReplayable >= s.retention.MaxEvents || s.queuedBytes+size > s.retention.MaxBytes {
-			s.mu.Unlock()
-			s.abort()
+		if j.queuedReplayable >= j.retention.MaxEvents || j.queuedBytes+size > j.retention.MaxBytes {
+			j.mu.Unlock()
+			j.abort()
 			return false
 		}
-		s.queuedReplayable++
-		s.queuedBytes += size
+		j.queuedReplayable++
+		j.queuedBytes += size
 	}
-	if s.head > 0 && len(s.queue) == cap(s.queue) {
-		remaining := copy(s.queue, s.queue[s.head:])
-		clear(s.queue[remaining:])
-		s.queue = s.queue[:remaining]
-		s.head = 0
+	if j.head > 0 && len(j.queue) == cap(j.queue) {
+		remaining := copy(j.queue, j.queue[j.head:])
+		clear(j.queue[remaining:])
+		j.queue = j.queue[:remaining]
+		j.head = 0
 	}
-	s.queue = append(s.queue, chargedEvent{event: ev, bytes: size})
-	s.ready.Signal()
-	s.mu.Unlock()
+	j.queue = append(j.queue, chargedEvent{event: ev, bytes: size})
+	j.ready.Signal()
+	j.mu.Unlock()
 	return true
 }
 
 // finish marks the stream complete: the subscriber drains its remaining queue in
 // order, then its sequence ends.
-func (s *journalSubscriber) finish() {
-	s.mu.Lock()
-	s.finishing = true
-	s.ready.Broadcast()
-	s.mu.Unlock()
+func (j *journalSubscriber) finish() {
+	j.mu.Lock()
+	j.finishing = true
+	j.ready.Broadcast()
+	j.mu.Unlock()
 }
 
 // abort ends the subscription immediately, abandoning any queued events, and
 // wakes a consumer blocked waiting for the next event.
-func (s *journalSubscriber) abort() {
-	s.mu.Lock()
-	s.aborted = true
-	clear(s.queue[s.head:])
-	s.queue = nil
-	s.head = 0
-	s.queuedLive = 0
-	s.queuedReplayable = 0
-	s.queuedBytes = 0
-	s.ready.Broadcast()
-	s.mu.Unlock()
+func (j *journalSubscriber) abort() {
+	j.mu.Lock()
+	j.aborted = true
+	clear(j.queue[j.head:])
+	j.queue = nil
+	j.head = 0
+	j.queuedLive = 0
+	j.queuedReplayable = 0
+	j.queuedBytes = 0
+	j.ready.Broadcast()
+	j.mu.Unlock()
 }
 
 // events yields queued events until the subscription drains to a finish or is
-// aborted. It runs on the consumer's goroutine; next blocks in the cond, so
+// aborted. It runs on the consumer'j goroutine; next blocks in the cond, so
 // finish or abort must wake a consumer that is waiting between events.
-func (s *journalSubscriber) events() iter.Seq[Event] {
+func (j *journalSubscriber) events() iter.Seq[Event] {
 	return func(yield func(Event) bool) {
 		for {
-			ev, ok := s.next()
+			ev, ok := j.next()
 			if !ok {
 				return
 			}
@@ -465,32 +465,32 @@ func (s *journalSubscriber) events() iter.Seq[Event] {
 	}
 }
 
-func (s *journalSubscriber) next() (Event, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for s.head == len(s.queue) && !s.finishing && !s.aborted {
-		s.ready.Wait()
+func (j *journalSubscriber) next() (Event, bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	for j.head == len(j.queue) && !j.finishing && !j.aborted {
+		j.ready.Wait()
 	}
-	if s.aborted || (s.head == len(s.queue) && s.finishing) {
+	if j.aborted || (j.head == len(j.queue) && j.finishing) {
 		return Event{}, false
 	}
-	queued := s.queue[s.head]
-	s.queue[s.head] = chargedEvent{}
-	s.head++
-	if s.head == len(s.queue) {
+	queued := j.queue[j.head]
+	j.queue[j.head] = chargedEvent{}
+	j.head++
+	if j.head == len(j.queue) {
 		// Reuse the routine live-event buffer, but do not retain a replay burst.
-		if cap(s.queue) > liveHeadroom {
-			s.queue = nil
+		if cap(j.queue) > liveHeadroom {
+			j.queue = nil
 		} else {
-			s.queue = s.queue[:0]
+			j.queue = j.queue[:0]
 		}
-		s.head = 0
+		j.head = 0
 	}
 	if !queued.event.Replayable() {
-		s.queuedLive--
+		j.queuedLive--
 	} else {
-		s.queuedReplayable--
-		s.queuedBytes -= queued.bytes
+		j.queuedReplayable--
+		j.queuedBytes -= queued.bytes
 	}
 	return queued.event, true
 }

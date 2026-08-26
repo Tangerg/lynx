@@ -36,51 +36,51 @@ func newSegmentLifecycle(
 	}
 }
 
-func (lifecycle *segmentLifecycle) replayRetention() Retention { return lifecycle.retention }
+func (s *segmentLifecycle) replayRetention() Retention { return s.retention }
 
-func (lifecycle *segmentLifecycle) attach(ctx context.Context) (context.Context, func(), bool) {
-	return lifecycle.tasks.Attach(ctx)
+func (s *segmentLifecycle) attach(ctx context.Context) (context.Context, func(), bool) {
+	return s.tasks.Attach(ctx)
 }
 
-func (lifecycle *segmentLifecycle) observe(
+func (s *segmentLifecycle) observe(
 	ctx context.Context,
 	ref ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
-	return lifecycle.observations.Observe(ctx, ref)
+	return s.observations.Observe(ctx, ref)
 }
 
-func (lifecycle *segmentLifecycle) newJournal(runID, segmentID string) *journal {
+func (s *segmentLifecycle) newJournal(runID, segmentID string) *journal {
 	return newJournal(streamScope{
-		Epoch: lifecycle.epoch, RunID: runID, SegmentID: segmentID,
-	}, lifecycle.retention)
+		Epoch: s.epoch, RunID: runID, SegmentID: segmentID,
+	}, s.retention)
 }
 
-func (lifecycle *segmentLifecycle) open(record Record, owner *runTreeOwner) {
-	lifecycle.registry.Open(record, owner)
+func (s *segmentLifecycle) open(record Record, owner *runTreeOwner) {
+	s.registry.Open(record, owner)
 }
 
-func (lifecycle *segmentLifecycle) lookup(runID string) (liveSegment, bool) {
-	return lifecycle.registry.Get(runID)
+func (s *segmentLifecycle) lookup(runID string) (liveSegment, bool) {
+	return s.registry.Get(runID)
 }
 
-func (lifecycle *segmentLifecycle) markCancel(runID, reason string) (liveSegment, bool) {
-	return lifecycle.registry.MarkCancel(runID, reason)
+func (s *segmentLifecycle) markCancel(runID, reason string) (liveSegment, bool) {
+	return s.registry.MarkCancel(runID, reason)
 }
 
-func (lifecycle *segmentLifecycle) remove(runID, segmentID string) (liveSegment, bool) {
-	return lifecycle.registry.RemoveSegment(runID, segmentID)
+func (s *segmentLifecycle) remove(runID, segmentID string) (liveSegment, bool) {
+	return s.registry.RemoveSegment(runID, segmentID)
 }
 
-func (lifecycle *segmentLifecycle) release(ctx context.Context, ref ExecutorRef) error {
-	return lifecycle.releases.Release(ctx, ref)
+func (s *segmentLifecycle) release(ctx context.Context, ref ExecutorRef) error {
+	return s.releases.Release(ctx, ref)
 }
 
-func (lifecycle *segmentLifecycle) finish(ctx context.Context, fin Finish) error {
-	return lifecycle.finalizer.Finish(ctx, fin)
+func (s *segmentLifecycle) finish(ctx context.Context, fin Finish) error {
+	return s.finalizer.Finish(ctx, fin)
 }
 
-func (lifecycle *segmentLifecycle) beginShutdown() { lifecycle.tasks.Cancel() }
+func (s *segmentLifecycle) beginShutdown() { s.tasks.Cancel() }
 
-func (lifecycle *segmentLifecycle) awaitShutdown(ctx context.Context) error {
-	return lifecycle.tasks.Wait(ctx)
+func (s *segmentLifecycle) awaitShutdown(ctx context.Context) error {
+	return s.tasks.Wait(ctx)
 }

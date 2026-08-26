@@ -21,25 +21,25 @@ type fakeStore struct {
 	addChanged  bool
 }
 
-func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
-	s.listScope, s.listProject = scope, project
+func (f *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
+	f.listScope, f.listProject = scope, project
 	return []domain.Item{{ID: "mem_1", Scope: scope, Project: project}}, nil
 }
 
-func (s *fakeStore) Review(_ context.Context, _ string, decision domain.ReviewDecision, _ time.Time) error {
-	s.decision = decision
-	return s.err
+func (f *fakeStore) Review(_ context.Context, _ string, decision domain.ReviewDecision, _ time.Time) error {
+	f.decision = decision
+	return f.err
 }
 
-func (s *fakeStore) Update(_ context.Context, _ string, content *string, pinned *bool, now time.Time) (domain.Item, error) {
-	s.content, s.pinned, s.updatedAt = content, pinned, now
-	return domain.Item{ID: "mem_1"}, s.err
+func (f *fakeStore) Update(_ context.Context, _ string, content *string, pinned *bool, now time.Time) (domain.Item, error) {
+	f.content, f.pinned, f.updatedAt = content, pinned, now
+	return domain.Item{ID: "mem_1"}, f.err
 }
 
-func (s *fakeStore) Delete(context.Context, string) error { return s.err }
+func (f *fakeStore) Delete(context.Context, string) error { return f.err }
 
-func (s *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, bool, error) {
-	return domain.Item{}, s.addChanged, s.err
+func (f *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, bool, error) {
+	return domain.Item{}, f.addChanged, f.err
 }
 
 type rootResolver struct {

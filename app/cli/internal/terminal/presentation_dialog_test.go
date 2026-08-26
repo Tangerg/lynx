@@ -16,16 +16,16 @@ type presentationProbe struct {
 
 func (*presentationProbe) Draw(headless.Frame) {}
 
-func (probe *presentationProbe) Handle(event input.Event) bool {
+func (p *presentationProbe) Handle(event input.Event) bool {
 	key, ok := event.(input.Key)
 	if !ok || !key.Down() || key.Code != input.Enter {
 		return false
 	}
-	probe.handled++
+	p.handled++
 	return true
 }
 
-func (probe *presentationProbe) Focus(has bool) { probe.focused = has }
+func (p *presentationProbe) Focus(has bool) { p.focused = has }
 
 func TestPresentationDialogRejectsInputUntilTheCurrentOpeningIsVisible(t *testing.T) {
 	var stack headless.Stack

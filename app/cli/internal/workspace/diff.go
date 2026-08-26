@@ -30,8 +30,8 @@ const (
 	FileStatusUntracked FileStatus = "untracked"
 )
 
-func (status FileStatus) Valid() bool {
-	switch status {
+func (f FileStatus) Valid() bool {
+	switch f {
 	case FileStatusAdded, FileStatusModified, FileStatusDeleted, FileStatusRenamed, FileStatusUntracked:
 		return true
 	default:
@@ -48,37 +48,37 @@ type Change struct {
 	Binary       bool
 }
 
-func (change Change) Validate() error {
+func (c Change) Validate() error {
 	switch {
-	case strings.TrimSpace(change.Path) == "":
+	case strings.TrimSpace(c.Path) == "":
 		return errors.New("changed file path is empty")
-	case !change.Status.Valid():
-		return fmt.Errorf("changed file status %q is invalid", change.Status)
-	case change.Status == FileStatusRenamed && strings.TrimSpace(change.PreviousPath) == "":
+	case !c.Status.Valid():
+		return fmt.Errorf("changed file status %q is invalid", c.Status)
+	case c.Status == FileStatusRenamed && strings.TrimSpace(c.PreviousPath) == "":
 		return errors.New("renamed file has no previous path")
-	case change.Status != FileStatusRenamed && change.PreviousPath != "":
+	case c.Status != FileStatusRenamed && c.PreviousPath != "":
 		return errors.New("non-renamed file has a previous path")
-	case change.Binary && (change.Added != nil || change.Removed != nil):
+	case c.Binary && (c.Added != nil || c.Removed != nil):
 		return errors.New("binary file exposes text line counts")
-	case change.Added != nil && *change.Added < 0:
+	case c.Added != nil && *c.Added < 0:
 		return errors.New("added line count is negative")
-	case change.Removed != nil && *change.Removed < 0:
+	case c.Removed != nil && *c.Removed < 0:
 		return errors.New("removed line count is negative")
 	default:
 		return nil
 	}
 }
 
-func (change Change) Stat() string {
-	if change.Binary {
+func (c Change) Stat() string {
+	if c.Binary {
 		return "binary"
 	}
 	parts := make([]string, 0, 2)
-	if change.Added != nil {
-		parts = append(parts, fmt.Sprintf("+%d", *change.Added))
+	if c.Added != nil {
+		parts = append(parts, fmt.Sprintf("+%d", *c.Added))
 	}
-	if change.Removed != nil {
-		parts = append(parts, fmt.Sprintf("-%d", *change.Removed))
+	if c.Removed != nil {
+		parts = append(parts, fmt.Sprintf("-%d", *c.Removed))
 	}
 	return strings.Join(parts, " ")
 }
@@ -91,20 +91,20 @@ type DiffRequest struct {
 	Limit     int
 }
 
-func (request DiffRequest) Validate() error {
-	if strings.TrimSpace(request.Workspace) == "" {
+func (d DiffRequest) Validate() error {
+	if strings.TrimSpace(d.Workspace) == "" {
 		return errors.New("workspace diff workspace is empty")
 	}
-	if request.Mode != "" && request.Mode != DiffModeWorktree && request.Mode != DiffModeBase {
-		return fmt.Errorf("workspace diff mode %q is invalid", request.Mode)
+	if d.Mode != "" && d.Mode != DiffModeWorktree && d.Mode != DiffModeBase {
+		return fmt.Errorf("workspace diff mode %q is invalid", d.Mode)
 	}
-	if request.Format != "" && request.Format != DiffFormatRows && request.Format != DiffFormatRaw {
-		return fmt.Errorf("workspace diff format %q is invalid", request.Format)
+	if d.Format != "" && d.Format != DiffFormatRows && d.Format != DiffFormatRaw {
+		return fmt.Errorf("workspace diff format %q is invalid", d.Format)
 	}
-	if request.Limit < 0 {
+	if d.Limit < 0 {
 		return errors.New("workspace diff limit is negative")
 	}
-	if request.Limit > 0 && request.Format != DiffFormatRows {
+	if d.Limit > 0 && d.Format != DiffFormatRows {
 		return errors.New("workspace diff limit requires structured rows")
 	}
 	return nil
@@ -127,26 +127,26 @@ type DiffRow struct {
 	Code      string
 }
 
-func (row DiffRow) Validate() error {
-	switch row.Type {
+func (d DiffRow) Validate() error {
+	switch d.Type {
 	case DiffRowHunk:
-		if row.Text == "" || row.Code != "" || row.LeftLine != 0 || row.RightLine != 0 {
+		if d.Text == "" || d.Code != "" || d.LeftLine != 0 || d.RightLine != 0 {
 			return errors.New("diff hunk row has an invalid shape")
 		}
 	case DiffRowContext:
-		if row.Code == "" || row.Text != "" || row.LeftLine <= 0 || row.RightLine <= 0 {
+		if d.Code == "" || d.Text != "" || d.LeftLine <= 0 || d.RightLine <= 0 {
 			return errors.New("diff context row has an invalid shape")
 		}
 	case DiffRowAdded:
-		if row.Code == "" || row.Text != "" || row.LeftLine != 0 || row.RightLine <= 0 {
+		if d.Code == "" || d.Text != "" || d.LeftLine != 0 || d.RightLine <= 0 {
 			return errors.New("diff addition row has an invalid shape")
 		}
 	case DiffRowDeleted:
-		if row.Code == "" || row.Text != "" || row.LeftLine <= 0 || row.RightLine != 0 {
+		if d.Code == "" || d.Text != "" || d.LeftLine <= 0 || d.RightLine != 0 {
 			return errors.New("diff deletion row has an invalid shape")
 		}
 	default:
-		return fmt.Errorf("diff row type %q is invalid", row.Type)
+		return fmt.Errorf("diff row type %q is invalid", d.Type)
 	}
 	return nil
 }
@@ -162,11 +162,11 @@ type Diff struct {
 	Truncated bool
 }
 
-func (diff Diff) Validate() error {
-	if diff.Patch != "" && len(diff.Files) != 0 {
+func (d Diff) Validate() error {
+	if d.Patch != "" && len(d.Files) != 0 {
 		return errors.New("workspace diff mixes raw and structured representations")
 	}
-	for index, file := range diff.Files {
+	for index, file := range d.Files {
 		if err := file.Validate(); err != nil {
 			return fmt.Errorf("file diff %d: %w", index, err)
 		}
@@ -184,12 +184,12 @@ func (diff Diff) Validate() error {
 
 // Text returns the raw patch when available and otherwise renders the complete
 // structured rows without inventing line content.
-func (diff Diff) Text() string {
-	if diff.Patch != "" {
-		return diff.Patch
+func (d Diff) Text() string {
+	if d.Patch != "" {
+		return d.Patch
 	}
 	var output strings.Builder
-	for index, file := range diff.Files {
+	for index, file := range d.Files {
 		if index > 0 {
 			output.WriteByte('\n')
 		}

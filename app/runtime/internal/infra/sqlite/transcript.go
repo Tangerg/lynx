@@ -21,7 +21,7 @@ type TranscriptStore struct{ db *sql.DB }
 
 func NewTranscriptStore(db *sql.DB) *TranscriptStore { return &TranscriptStore{db: db} }
 
-func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) error {
+func (t *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) error {
 	if item.SessionID() == "" {
 		return errors.New("sqlite: history item sessionId is required")
 	}
@@ -43,12 +43,12 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	// The history write and its full-text index maintenance are one atomic
 	// write-set (RunInTx joins any outer cross-store transaction), so the search
 	// index never drifts from the transcript it mirrors.
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		if err := s.appendItemRecord(ctx, item, payload, offloadID); err != nil {
+	return RunInTx(ctx, t.db, func(ctx context.Context) error {
+		if err := t.appendItemRecord(ctx, item, payload, offloadID); err != nil {
 			return err
 		}
 		if searchable {
-			return s.indexForSearch(ctx, item, searchText)
+			return t.indexForSearch(ctx, item, searchText)
 		}
 		return nil
 	})
@@ -71,13 +71,13 @@ func transcriptOffloadID(item transcript.Item) (toolresult.ID, error) {
 	return invocation.Offload.ID, nil
 }
 
-func (s *TranscriptStore) appendItemRecord(
+func (t *TranscriptStore) appendItemRecord(
 	ctx context.Context,
 	item transcript.Item,
 	payload []byte,
 	offloadID toolresult.ID,
 ) error {
-	q := conn(ctx, s.db)
+	q := conn(ctx, t.db)
 	result, err := q.ExecContext(ctx,
 		`INSERT INTO history_items(session_id, run_id, item_id, occurred_at, payload, offload_id)
 		 VALUES (?, ?, ?, ?, ?, ?)
@@ -91,7 +91,7 @@ func (s *TranscriptStore) appendItemRecord(
 		item.SessionID(), item.RunID(), item.ID(), item.OccurredAt().UnixNano(), string(payload), offloadID,
 	)
 	if err != nil {
-		return s.explainItemAppendError(ctx, item.ID(), offloadID, err)
+		return t.explainItemAppendError(ctx, item.ID(), offloadID, err)
 	}
 	changed, err := result.RowsAffected()
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *TranscriptStore) appendItemRecord(
 	return nil
 }
 
-func (s *TranscriptStore) explainItemAppendError(
+func (t *TranscriptStore) explainItemAppendError(
 	ctx context.Context,
 	itemID string,
 	offloadID toolresult.ID,
@@ -113,7 +113,7 @@ func (s *TranscriptStore) explainItemAppendError(
 		return fmt.Errorf("sqlite: append history item: %w", appendErr)
 	}
 	var ownerItemID string
-	ownerErr := conn(ctx, s.db).QueryRowContext(ctx,
+	ownerErr := conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT item_id FROM history_items WHERE offload_id = ?`, offloadID,
 	).Scan(&ownerItemID)
 	if ownerErr == nil && ownerItemID != itemID {
@@ -127,11 +127,11 @@ func (s *TranscriptStore) explainItemAppendError(
 
 // Item resolves one durable transcript Item by its globally unique identity.
 // The returned value is the same fully hydrated projection as List/Page reads.
-func (s *TranscriptStore) Item(ctx context.Context, itemID string) (transcript.Item, bool, error) {
+func (t *TranscriptStore) Item(ctx context.Context, itemID string) (transcript.Item, bool, error) {
 	if strings.TrimSpace(itemID) == "" {
 		return transcript.Item{}, false, errors.New("sqlite: history item id is required")
 	}
-	row := conn(ctx, s.db).QueryRowContext(ctx,
+	row := conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT session_id, run_id, item_id, occurred_at, payload, offload_id,
 		        (SELECT body FROM tool_result_blobs WHERE id = history_items.offload_id
 		          AND session_id = history_items.session_id AND item_id = history_items.item_id)
@@ -154,7 +154,7 @@ func (s *TranscriptStore) Item(ctx context.Context, itemID string) (transcript.I
 // against. This is the transcript-side compare-and-swap used by tree
 // transformations: a racing continuation can never have its newer completion
 // overwritten by a cancellation built from an older parked projection.
-func (s *TranscriptStore) ReplaceItem(
+func (t *TranscriptStore) ReplaceItem(
 	ctx context.Context,
 	expected transcript.Item,
 	replacement transcript.Item,
@@ -179,8 +179,8 @@ func (s *TranscriptStore) ReplaceItem(
 	if err := replacement.Validate(); err != nil {
 		return fmt.Errorf("sqlite: replace history item %q replacement: %w", replacement.ID(), err)
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		current, found, err := s.Item(ctx, expected.ID())
+	return RunInTx(ctx, t.db, func(ctx context.Context) error {
+		current, found, err := t.Item(ctx, expected.ID())
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (s *TranscriptStore) ReplaceItem(
 				expected.ID(),
 			)
 		}
-		return s.AppendItem(ctx, replacement)
+		return t.AppendItem(ctx, replacement)
 	})
 }
 
@@ -270,12 +270,12 @@ func materializeTranscriptItem(
 }
 
 // indexForSearch write-through-indexes a conversation item for transcript search,
-// keyed by the item's history seq so the FTS rowid stays aligned as the item
+// keyed by the item't history seq so the FTS rowid stays aligned as the item
 // grows (a streamed agent message re-appends with the full text). FTS5 has no
-// rowid upsert, so it is delete-then-insert. Must run inside AppendItem's
+// rowid upsert, so it is delete-then-insert. Must run inside AppendItem't
 // transaction, after the history_items row exists.
-func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.Item, text string) error {
-	q := conn(ctx, s.db)
+func (t *TranscriptStore) indexForSearch(ctx context.Context, item transcript.Item, text string) error {
+	q := conn(ctx, t.db)
 	var seq int64
 	if err := q.QueryRowContext(ctx, `SELECT seq FROM history_items WHERE item_id = ?`, item.ID()).Scan(&seq); err != nil {
 		return fmt.Errorf("sqlite: locate history item for search index: %w", err)
@@ -293,14 +293,14 @@ func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.It
 	return nil
 }
 
-// DeleteRun removes one run's items from a session's history. The Run's own row
+// DeleteRun removes one run't items from a session't history. The Run't own row
 // belongs to the run store; this store owns the item log.
-func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
+func (t *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
 		return errors.New("sqlite: delete history run requires sessionId + runId")
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		q := conn(ctx, s.db)
+	return RunInTx(ctx, t.db, func(ctx context.Context) error {
+		q := conn(ctx, t.db)
 		if _, err := q.ExecContext(ctx,
 			`DELETE FROM tool_result_blobs
 			 WHERE item_id IN (
@@ -328,12 +328,12 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 	})
 }
 
-func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) error {
+func (t *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return errors.New("sqlite: delete history session requires sessionId")
 	}
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		q := conn(ctx, s.db)
+	return RunInTx(ctx, t.db, func(ctx context.Context) error {
+		q := conn(ctx, t.db)
 		if _, err := q.ExecContext(ctx,
 			`DELETE FROM transcript_search
 			 WHERE rowid IN (SELECT seq FROM history_items WHERE session_id = ?)`, sessionID,
@@ -347,9 +347,9 @@ func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) e
 	})
 }
 
-// List returns a session's whole item history in durable append order.
-func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, error) {
-	sequenced, err := s.PageSessionItems(ctx, sessionID, transcript.OldestFirst, 0, 0)
+// List returns a session't whole item history in durable append order.
+func (t *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, error) {
+	sequenced, err := t.PageSessionItems(ctx, sessionID, transcript.OldestFirst, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -360,31 +360,31 @@ func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcr
 	return out, nil
 }
 
-// PageSessionItems returns one page of a session's history along the durable
+// PageSessionItems returns one page of a session't history along the durable
 // sequence, in the direction order names. fromSequence is the position a previous
 // page ended at; zero is no anchor, which is exact because the sequence is
 // 1-based — so the same zero means "from the beginning" reading forwards and "from
 // the end" reading backwards. A zero limit reads to the end.
 //
 // The bound is applied by the query, not by the caller: seeking past an anchor and
-// stopping at a limit is what keeps a long session's history out of memory when
+// stopping at a limit is what keeps a long session't history out of memory when
 // only a page of it was asked for.
-func (s *TranscriptStore) PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
-	return s.pageItems(ctx, `h.session_id = ?`, sessionID, order, fromSequence, limit)
+func (t *TranscriptStore) PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return t.pageItems(ctx, `h.session_id = ?`, sessionID, order, fromSequence, limit)
 }
 
-// PageRunItems is the same page over one run's own items. The run id needs no
+// PageRunItems is the same page over one run't own items. The run id needs no
 // session beside it: it identifies exactly one run, and a run belongs to one
 // session.
-func (s *TranscriptStore) PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
-	return s.pageItems(ctx, `h.run_id = ?`, runID, order, fromSequence, limit)
+func (t *TranscriptStore) PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return t.pageItems(ctx, `h.run_id = ?`, runID, order, fromSequence, limit)
 }
 
-// PageRunTreeItems returns one Run's items plus every descendant's, using the
+// PageRunTreeItems returns one Run't items plus every descendant't, using the
 // durable parent edge as the subtree authority. The transcript never infers
 // lineage from event order or spawning-item contents.
-func (s *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
-	return s.pageItems(ctx, `h.run_id IN (
+func (t *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	return t.pageItems(ctx, `h.run_id IN (
 		WITH RECURSIVE subtree(run_id) AS (
 			SELECT run_id
 			  FROM runs
@@ -398,7 +398,7 @@ func (s *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, or
 	)`, runID, order, fromSequence, limit)
 }
 
-func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+func (t *TranscriptStore) pageItems(ctx context.Context, scope, subject string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	if err := order.Validate(); err != nil {
 		return nil, fmt.Errorf("sqlite: page history items: %w", err)
 	}
@@ -427,7 +427,7 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 		query += ` LIMIT ?`
 		args = append(args, limit)
 	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
+	rows, err := conn(ctx, t.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
@@ -457,7 +457,7 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 // (user + agent messages across every session), most relevant first. query is
 // natural-language keywords; a non-positive limit falls back to a default. An
 // empty query returns no hits.
-func (s *TranscriptStore) SearchTranscript(ctx context.Context, query string, limit int) ([]transcript.SearchHit, error) {
+func (t *TranscriptStore) SearchTranscript(ctx context.Context, query string, limit int) ([]transcript.SearchHit, error) {
 	match := ftsMatchQuery(query)
 	if match == "" {
 		return nil, nil
@@ -465,7 +465,7 @@ func (s *TranscriptStore) SearchTranscript(ctx context.Context, query string, li
 	if limit <= 0 {
 		limit = defaultTranscriptSearchLimit
 	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
+	rows, err := conn(ctx, t.db).QueryContext(ctx,
 		`SELECT session_id, run_id, item_id, kind, created_at,
 		        snippet(transcript_search, 0, '[', ']', '…', 12)
 		 FROM transcript_search

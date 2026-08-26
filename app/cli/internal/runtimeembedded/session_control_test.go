@@ -33,16 +33,16 @@ func sessionControlProfile(features ...runtimeprofile.FeatureName) runtimeprofil
 	return profile
 }
 
-func (stub sessionBindingStub) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest, options embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
-	return stub.rollback(ctx, request, options)
+func (s sessionBindingStub) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest, options embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
+	return s.rollback(ctx, request, options)
 }
 
-func (stub sessionBindingStub) ExportSession(ctx context.Context, request protocol.ExportSessionRequest, options embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
-	return stub.export(ctx, request, options)
+func (s sessionBindingStub) ExportSession(ctx context.Context, request protocol.ExportSessionRequest, options embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
+	return s.export(ctx, request, options)
 }
 
-func (stub sessionBindingStub) ImportSession(ctx context.Context, request protocol.ImportSessionRequest, options embedded.CommandOptions) (*protocol.ImportSessionResponse, error) {
-	return stub.imported(ctx, request, options)
+func (s sessionBindingStub) ImportSession(ctx context.Context, request protocol.ImportSessionRequest, options embedded.CommandOptions) (*protocol.ImportSessionResponse, error) {
+	return s.imported(ctx, request, options)
 }
 
 func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {

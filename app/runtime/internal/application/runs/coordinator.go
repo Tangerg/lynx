@@ -318,40 +318,40 @@ func (c *Coordinator) prepareSegmentStartup(
 	return startup, nil
 }
 
-func (startup *segmentStartup) bindExecutorMembers() error {
-	for _, route := range startup.routes.admissionOrder {
+func (s *segmentStartup) bindExecutorMembers() error {
+	for _, route := range s.routes.admissionOrder {
 		if route.member.MemberID == "" {
 			continue
 		}
-		if err := startup.treeOwner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+		if err := s.treeOwner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (startup *segmentStartup) abort(cause error) error {
-	startup.cancelRun()
-	if startup.spec.Continuation == nil {
-		cause = startup.coordinator.rejectUnadmittedExecution(
-			startup.taskContext,
-			startup.spec.executorRef(),
+func (s *segmentStartup) abort(cause error) error {
+	s.cancelRun()
+	if s.spec.Continuation == nil {
+		cause = s.coordinator.rejectUnadmittedExecution(
+			s.taskContext,
+			s.spec.executorRef(),
 			cause,
 		)
 	}
-	startup.releaseTask()
+	s.releaseTask()
 	return cause
 }
 
-func (startup *segmentStartup) activate(
+func (s *segmentStartup) activate(
 	requestContext context.Context,
 	openings []routeOpening,
 ) iter.Seq[Event] {
-	spec := startup.spec
+	spec := s.spec
 	if spec.admission != nil && !spec.admission.Admit(spec.RunID) {
 		panic("runs: committed opening without a pending admission")
 	}
-	startup.coordinator.segments.open(Record{
+	s.coordinator.segments.open(Record{
 		ID:             spec.RunID,
 		SegmentID:      spec.SegmentID,
 		SessionID:      spec.SessionID,
@@ -360,34 +360,34 @@ func (startup *segmentStartup) activate(
 		ExecutorID:     spec.ExecutorID,
 		ModelSelection: spec.ModelSelection,
 		Capabilities:   spec.effectiveCapabilities(),
-	}, startup.treeOwner)
-	stream := startup.openingStream(requestContext)
-	startup.publishOpenings(openings)
-	startup.markSegmentsStarted()
-	if !startup.spec.DetachActivation {
-		startup.beginExecution()
+	}, s.treeOwner)
+	stream := s.openingStream(requestContext)
+	s.publishOpenings(openings)
+	s.markSegmentsStarted()
+	if !s.spec.DetachActivation {
+		s.beginExecution()
 	}
 	go func() {
-		defer startup.releaseTask()
-		if startup.spec.DetachActivation {
-			startup.beginExecution()
+		defer s.releaseTask()
+		if s.spec.DetachActivation {
+			s.beginExecution()
 		}
-		startup.coordinator.pump(
-			startup.runContext,
-			startup.taskContext,
-			startup.spec,
-			startup.executorEvents,
-			startup.treeOwner,
-			startup.routes,
+		s.coordinator.pump(
+			s.runContext,
+			s.taskContext,
+			s.spec,
+			s.executorEvents,
+			s.treeOwner,
+			s.routes,
 		)
 	}()
 	return stream
 }
 
-func (startup *segmentStartup) openingStream(requestContext context.Context) iter.Seq[Event] {
+func (s *segmentStartup) openingStream(requestContext context.Context) iter.Seq[Event] {
 	// The opening subscription attaches before any event is appended, so tail-only
 	// and "from the beginning" are the same stream here — there is no beginning yet.
-	subscription := startup.journal.tail()
+	subscription := s.journal.tail()
 	stopUnsubscribe := context.AfterFunc(requestContext, subscription.Cancel)
 	return func(yield func(Event) bool) {
 		defer stopUnsubscribe()
@@ -395,10 +395,10 @@ func (startup *segmentStartup) openingStream(requestContext context.Context) ite
 	}
 }
 
-func (startup *segmentStartup) publishOpenings(openings []routeOpening) {
+func (s *segmentStartup) publishOpenings(openings []routeOpening) {
 	for _, opening := range openings {
 		for _, reduced := range opening.batch.events {
-			startup.journal.append(startup.coordinator.publications.event(
+			s.journal.append(s.coordinator.publications.event(
 				opening.route.runID,
 				opening.route.segmentID,
 				reduced,
@@ -407,26 +407,26 @@ func (startup *segmentStartup) publishOpenings(openings []routeOpening) {
 	}
 }
 
-func (startup *segmentStartup) markSegmentsStarted() {
-	segmentStartedAt := startup.coordinator.publications.nowUTC()
-	for _, route := range startup.routes.admissionOrder {
+func (s *segmentStartup) markSegmentsStarted() {
+	segmentStartedAt := s.coordinator.publications.nowUTC()
+	for _, route := range s.routes.admissionOrder {
 		route.segmentStartedAt = segmentStartedAt
 	}
 }
 
-func (startup *segmentStartup) beginExecution() {
-	canceled, err := startup.treeOwner.beginExecution(
-		startup.taskContext,
-		startup.spec.BeginExecution,
+func (s *segmentStartup) beginExecution() {
+	canceled, err := s.treeOwner.beginExecution(
+		s.taskContext,
+		s.spec.BeginExecution,
 	)
 	if err != nil {
-		trace.SpanFromContext(startup.taskContext).RecordError(fmt.Errorf("runs: begin execution: %w", err))
-		startup.routes.abortUnfinished()
-		startup.cancelRun()
+		trace.SpanFromContext(s.taskContext).RecordError(fmt.Errorf("runs: begin execution: %w", err))
+		s.routes.abortUnfinished()
+		s.cancelRun()
 		return
 	}
 	if canceled {
-		startup.cancelRun()
+		s.cancelRun()
 	}
 }
 

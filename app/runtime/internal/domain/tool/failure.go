@@ -18,9 +18,9 @@ const (
 	FailureCanceled         FailureKind = "tool_canceled"
 )
 
-// Valid reports whether kind belongs to the durable Tool failure taxonomy.
-func (kind FailureKind) Valid() bool {
-	switch kind {
+// Valid reports whether f belongs to the durable Tool failure taxonomy.
+func (f FailureKind) Valid() bool {
+	switch f {
 	case FailureInternal, FailureDenied, FailureExecution, FailureChildRunCanceled, FailureCanceled:
 		return true
 	default:
@@ -28,12 +28,12 @@ func (kind FailureKind) Valid() bool {
 	}
 }
 
-// String returns the stable durable name of kind.
-func (kind FailureKind) String() string {
-	if !kind.Valid() {
+// String returns the stable durable name of f.
+func (f FailureKind) String() string {
+	if !f.Valid() {
 		return "unknown"
 	}
-	return string(kind)
+	return string(f)
 }
 
 // Failure is the durable explanation attached to an incomplete ToolCall.
@@ -47,14 +47,14 @@ type Failure struct {
 // Validate reports whether the failure is representable. Tool retry is an
 // execution-policy decision, so durable Tool failures do not carry a retry
 // delay in the current product contract.
-func (failure Failure) Validate() error {
-	if !failure.Kind.Valid() {
-		return fmt.Errorf("tool: unknown failure kind %q", failure.Kind)
+func (f Failure) Validate() error {
+	if !f.Kind.Valid() {
+		return fmt.Errorf("tool: unknown failure kind %q", f.Kind)
 	}
-	if failure.RetryAfter < 0 {
+	if f.RetryAfter < 0 {
 		return errors.New("tool: failure retry delay must not be negative")
 	}
-	if failure.RetryAfter != 0 {
+	if f.RetryAfter != 0 {
 		return errors.New("tool: failure must not carry a retry delay")
 	}
 	return nil

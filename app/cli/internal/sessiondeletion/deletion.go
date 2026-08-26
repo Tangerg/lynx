@@ -28,31 +28,31 @@ type ReplayWindow struct {
 	Now       func() time.Time
 }
 
-func (window ReplayWindow) now() time.Time {
-	if window.Now == nil {
+func (r ReplayWindow) now() time.Time {
+	if r.Now == nil {
 		return time.Now().UTC()
 	}
-	return window.Now().UTC()
+	return r.Now().UTC()
 }
 
-func (window ReplayWindow) guard() (workbench.ReplayGuard, error) {
-	if strings.TrimSpace(window.Namespace) == "" && window.Retention == 0 {
+func (r ReplayWindow) guard() (workbench.ReplayGuard, error) {
+	if strings.TrimSpace(r.Namespace) == "" && r.Retention == 0 {
 		return workbench.ReplayGuard{}, nil
 	}
-	if strings.TrimSpace(window.Namespace) == "" || window.Retention <= 0 {
+	if strings.TrimSpace(r.Namespace) == "" || r.Retention <= 0 {
 		return workbench.ReplayGuard{}, errors.New("session deletion replay guarantee is incomplete")
 	}
 	return workbench.ReplayGuard{
-		Namespace: strings.TrimSpace(window.Namespace), Until: window.now().Add(window.Retention),
+		Namespace: strings.TrimSpace(r.Namespace), Until: r.now().Add(r.Retention),
 	}, nil
 }
 
-func (window ReplayWindow) sameStore(guard workbench.ReplayGuard) bool {
-	if strings.TrimSpace(window.Namespace) == "" && window.Retention == 0 {
+func (r ReplayWindow) sameStore(guard workbench.ReplayGuard) bool {
+	if strings.TrimSpace(r.Namespace) == "" && r.Retention == 0 {
 		return guard.Empty()
 	}
-	return strings.TrimSpace(window.Namespace) != "" &&
-		guard.Namespace == strings.TrimSpace(window.Namespace)
+	return strings.TrimSpace(r.Namespace) != "" &&
+		guard.Namespace == strings.TrimSpace(r.Namespace)
 }
 
 // Result binds settlement to the exact durable runtime command.

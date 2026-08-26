@@ -67,8 +67,8 @@ type Feature struct {
 
 // Available reports whether the server and this client agreed to use the
 // feature. Server support alone is insufficient for opt-in capabilities.
-func (feature Feature) Available() bool {
-	return feature.Enabled && (!feature.ClientOptIn || feature.ClientRequested)
+func (f Feature) Available() bool {
+	return f.Enabled && (!f.ClientOptIn || f.ClientRequested)
 }
 
 type ReplayLimits struct {
@@ -103,44 +103,44 @@ type Profile struct {
 	Limits           Limits                  `json:"limits"`
 }
 
-func (profile Profile) Clone() Profile {
-	profile.RunEvents = slices.Clone(profile.RunEvents)
-	profile.RuntimeTopics = slices.Clone(profile.RuntimeTopics)
-	profile.StreamingMethods = slices.Clone(profile.StreamingMethods)
-	profile.Features = maps.Clone(profile.Features)
-	return profile
+func (p Profile) Clone() Profile {
+	p.RunEvents = slices.Clone(p.RunEvents)
+	p.RuntimeTopics = slices.Clone(p.RuntimeTopics)
+	p.StreamingMethods = slices.Clone(p.StreamingMethods)
+	p.Features = maps.Clone(p.Features)
+	return p
 }
 
 // Available reports whether discovery populated this profile.
-func (profile Profile) Available() bool {
-	return strings.TrimSpace(profile.Server.Name) != ""
+func (p Profile) Available() bool {
+	return strings.TrimSpace(p.Server.Name) != ""
 }
 
-func (profile Profile) Validate() error {
+func (p Profile) Validate() error {
 	var problems []error
-	if strings.TrimSpace(profile.Protocol.Version) == "" {
+	if strings.TrimSpace(p.Protocol.Version) == "" {
 		problems = append(problems, errors.New("protocol version is empty"))
 	}
-	if strings.TrimSpace(profile.Server.Name) == "" || strings.TrimSpace(profile.Server.Version) == "" {
+	if strings.TrimSpace(p.Server.Name) == "" || strings.TrimSpace(p.Server.Version) == "" {
 		problems = append(problems, errors.New("server identity is incomplete"))
 	}
-	if strings.TrimSpace(profile.Server.DefaultWorkspace) == "" || strings.TrimSpace(profile.Server.Home) == "" {
+	if strings.TrimSpace(p.Server.DefaultWorkspace) == "" || strings.TrimSpace(p.Server.Home) == "" {
 		problems = append(problems, errors.New("server filesystem context is incomplete"))
 	}
 	for name, values := range map[string][]string{
-		"run events": profile.RunEvents, "runtime topics": profile.RuntimeTopics,
-		"streaming methods": profile.StreamingMethods,
+		"run events": p.RunEvents, "runtime topics": p.RuntimeTopics,
+		"streaming methods": p.StreamingMethods,
 	} {
 		if err := validateUniqueStrings(name, values); err != nil {
 			problems = append(problems, err)
 		}
 	}
-	for name := range profile.Features {
+	for name := range p.Features {
 		if strings.TrimSpace(string(name)) == "" {
 			problems = append(problems, errors.New("feature name is empty"))
 		}
 	}
-	if err := profile.Limits.validate(); err != nil {
+	if err := p.Limits.validate(); err != nil {
 		problems = append(problems, err)
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -149,20 +149,20 @@ func (profile Profile) Validate() error {
 	return nil
 }
 
-func (limits Limits) validate() error {
-	if limits.MaxConcurrentRuns < 0 {
+func (l Limits) validate() error {
+	if l.MaxConcurrentRuns < 0 {
 		return errors.New("runtime limits have a negative concurrent-run cap")
 	}
-	if limits.IdempotencyRetentionSeconds <= 0 || limits.MCPAuthorizationRetentionSeconds <= 0 {
+	if l.IdempotencyRetentionSeconds <= 0 || l.MCPAuthorizationRetentionSeconds <= 0 {
 		return errors.New("runtime limits require positive retention periods")
 	}
-	if strings.TrimSpace(limits.IdempotencyNamespace) == "" {
+	if strings.TrimSpace(l.IdempotencyNamespace) == "" {
 		return errors.New("runtime limits require an idempotency namespace")
 	}
-	if strings.TrimSpace(limits.RunReplay.Scope) == "" || limits.RunReplay.MaxEvents <= 0 || limits.RunReplay.MaxBytes <= 0 {
+	if strings.TrimSpace(l.RunReplay.Scope) == "" || l.RunReplay.MaxEvents <= 0 || l.RunReplay.MaxBytes <= 0 {
 		return errors.New("runtime replay limits are incomplete")
 	}
-	if limits.RuntimeSubscription.MaxTopics <= 0 || limits.RuntimeSubscription.MaxWatches <= 0 {
+	if l.RuntimeSubscription.MaxTopics <= 0 || l.RuntimeSubscription.MaxWatches <= 0 {
 		return errors.New("runtime subscription limits must be positive")
 	}
 	return nil
@@ -182,17 +182,17 @@ func validateUniqueStrings(name string, values []string) error {
 	return nil
 }
 
-func (profile Profile) Supports(feature FeatureName) bool {
-	return profile.Features[feature].Available()
+func (p Profile) Supports(feature FeatureName) bool {
+	return p.Features[feature].Available()
 }
 
-func (profile Profile) SupportsRuntimeTopic(topic string) bool {
-	return slices.Contains(profile.RuntimeTopics, topic)
+func (p Profile) SupportsRuntimeTopic(topic string) bool {
+	return slices.Contains(p.RuntimeTopics, topic)
 }
 
-func (profile Profile) AvailableFeatureNames() []string {
-	names := make([]string, 0, len(profile.Features))
-	for name, feature := range profile.Features {
+func (p Profile) AvailableFeatureNames() []string {
+	names := make([]string, 0, len(p.Features))
+	for name, feature := range p.Features {
 		if feature.Available() {
 			names = append(names, string(name))
 		}

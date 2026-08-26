@@ -30,25 +30,25 @@ type postCommitSessionDeleteRuntime struct {
 	deleted chan struct{}
 }
 
-func (runtime *postCommitSessionDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
-	if err := runtime.Runtime.DeleteSession(ctx, request); err != nil {
+func (p *postCommitSessionDeleteRuntime) DeleteSession(ctx context.Context, request agent.DeleteSession) error {
+	if err := p.Runtime.DeleteSession(ctx, request); err != nil {
 		return err
 	}
-	runtime.mu.Lock()
-	runtime.request = request
-	runtime.calls++
-	runtime.mu.Unlock()
+	p.mu.Lock()
+	p.request = request
+	p.calls++
+	p.mu.Unlock()
 	select {
-	case runtime.deleted <- struct{}{}:
+	case p.deleted <- struct{}{}:
 	default:
 	}
 	return errors.New("runtime cleanup failed after durable deletion")
 }
 
-func (runtime *postCommitSessionDeleteRuntime) deletion() (agent.DeleteSession, int) {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return runtime.request, runtime.calls
+func (p *postCommitSessionDeleteRuntime) deletion() (agent.DeleteSession, int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.request, p.calls
 }
 
 func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
@@ -376,14 +376,14 @@ type committedThenCanceledRollbackRuntime struct {
 	once      sync.Once
 }
 
-func (runtime *committedThenCanceledRollbackRuntime) RollbackSession(
+func (c *committedThenCanceledRollbackRuntime) RollbackSession(
 	ctx context.Context,
 	request agent.RollbackSession,
 ) (agent.RollbackResult, error) {
-	if _, err := runtime.Runtime.RollbackSession(ctx, request); err != nil {
+	if _, err := c.Runtime.RollbackSession(ctx, request); err != nil {
 		return agent.RollbackResult{}, err
 	}
-	runtime.once.Do(func() { close(runtime.committed) })
+	c.once.Do(func() { close(c.committed) })
 	<-ctx.Done()
 	return agent.RollbackResult{}, context.Cause(ctx)
 }
@@ -395,24 +395,24 @@ type postCommitRollbackRuntime struct {
 	request agent.RollbackSession
 }
 
-func (runtime *postCommitRollbackRuntime) RollbackSession(
+func (p *postCommitRollbackRuntime) RollbackSession(
 	ctx context.Context,
 	request agent.RollbackSession,
 ) (agent.RollbackResult, error) {
-	result, err := runtime.Runtime.RollbackSession(ctx, request)
+	result, err := p.Runtime.RollbackSession(ctx, request)
 	if err != nil {
 		return result, err
 	}
-	runtime.mu.Lock()
-	runtime.request = request
-	runtime.mu.Unlock()
+	p.mu.Lock()
+	p.request = request
+	p.mu.Unlock()
 	return agent.RollbackResult{}, errors.New("runtime cleanup failed after durable rollback")
 }
 
-func (runtime *postCommitRollbackRuntime) rollbackRequest() agent.RollbackSession {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return runtime.request
+func (p *postCommitRollbackRuntime) rollbackRequest() agent.RollbackSession {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.request
 }
 
 func TestRollbackConvergesPostCommitFailureAndRestoresOpeningInput(t *testing.T) {
@@ -490,17 +490,17 @@ func TestRestartRecoversCommittedRollbackAndOpeningInput(t *testing.T) {
 	stopRestarted()
 }
 
-func (runtime *blockedRollbackRuntime) RollbackSession(ctx context.Context, request agent.RollbackSession) (agent.RollbackResult, error) {
+func (b *blockedRollbackRuntime) RollbackSession(ctx context.Context, request agent.RollbackSession) (agent.RollbackResult, error) {
 	select {
-	case runtime.entered <- struct{}{}:
+	case b.entered <- struct{}{}:
 	default:
 	}
 	select {
-	case <-runtime.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return agent.RollbackResult{}, ctx.Err()
 	}
-	return runtime.Runtime.RollbackSession(ctx, request)
+	return b.Runtime.RollbackSession(ctx, request)
 }
 
 func TestRollbackKeepsRecoveredTextAndReportsItsPersistenceFailure(t *testing.T) {
@@ -535,15 +535,15 @@ func TestRollbackKeepsRecoveredTextAndReportsItsPersistenceFailure(t *testing.T)
 
 type importingTransfer struct{ runtime *mock.Runtime }
 
-func (transfer importingTransfer) ExportSession(context.Context, sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
+func (i importingTransfer) ExportSession(context.Context, sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
 	return sessiontransfer.Document{}, errors.New("unexpected export")
 }
 
-func (transfer importingTransfer) ImportSession(ctx context.Context, request sessiontransfer.ImportRequest) (agent.Session, error) {
+func (i importingTransfer) ImportSession(ctx context.Context, request sessiontransfer.ImportRequest) (agent.Session, error) {
 	if err := request.Validate(); err != nil {
 		return agent.Session{}, err
 	}
-	return transfer.runtime.CreateSession(ctx, agent.CreateSession{Title: "Imported session", Workspace: "/tmp/lyra-imported"})
+	return i.runtime.CreateSession(ctx, agent.CreateSession{Title: "Imported session", Workspace: "/tmp/lyra-imported"})
 }
 
 func TestImportRequiresConfirmationAndInstallsTheAuthoritativeSession(t *testing.T) {
@@ -651,31 +651,31 @@ type blockedSteeringRuntime struct {
 	err     error
 }
 
-func (runtime *blockedSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
+func (b *blockedSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
 	select {
-	case runtime.entered <- request:
+	case b.entered <- request:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 	select {
-	case <-runtime.release:
-		return runtime.err
+	case <-b.release:
+		return b.err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (runtime *steeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
-	runtime.mu.Lock()
-	runtime.request = request
-	runtime.mu.Unlock()
-	return runtime.err
+func (s *steeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
+	s.mu.Lock()
+	s.request = request
+	s.mu.Unlock()
+	return s.err
 }
 
-func (runtime *steeringRuntime) lastSteer() agent.SteerRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	request := runtime.request
+func (s *steeringRuntime) lastSteer() agent.SteerRun {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	request := s.request
 	request.Message = request.Message.Clone()
 	return request
 }
@@ -693,15 +693,15 @@ type committedThenCanceledSteeringRuntime struct {
 	committed chan agent.SteerRun
 }
 
-func (runtime *committedThenCanceledSteeringRuntime) SteerRun(
+func (c *committedThenCanceledSteeringRuntime) SteerRun(
 	ctx context.Context,
 	request agent.SteerRun,
 ) error {
-	if err := runtime.Runtime.SteerRun(ctx, request); err != nil {
+	if err := c.Runtime.SteerRun(ctx, request); err != nil {
 		return err
 	}
 	select {
-	case runtime.committed <- request.Clone():
+	case c.committed <- request.Clone():
 	default:
 	}
 	<-ctx.Done()
@@ -715,21 +715,21 @@ type cachedSteeringRuntime struct {
 	attempts []agent.SteerRun
 }
 
-func (runtime *cachedSteeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
-	runtime.attempts = append(runtime.attempts, request.Clone())
-	if !request.Equal(runtime.accepted) {
+func (c *cachedSteeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
+	c.attempts = append(c.attempts, request.Clone())
+	if !request.Equal(c.accepted) {
 		return errors.New("replayed steer does not match the accepted command")
 	}
 	return nil
 }
 
-func (runtime *uncertainSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
-	runtime.mu.Lock()
-	runtime.requests = append(runtime.requests, request)
-	attempt := len(runtime.requests)
-	runtime.mu.Unlock()
+func (u *uncertainSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
+	u.mu.Lock()
+	u.requests = append(u.requests, request)
+	attempt := len(u.requests)
+	u.mu.Unlock()
 	if attempt == 1 {
-		if err := runtime.Runtime.SteerRun(ctx, request); err != nil {
+		if err := u.Runtime.SteerRun(ctx, request); err != nil {
 			return err
 		}
 		return fmt.Errorf("lost steer acknowledgement: %w", context.DeadlineExceeded)
@@ -737,10 +737,10 @@ func (runtime *uncertainSteeringRuntime) SteerRun(ctx context.Context, request a
 	return nil
 }
 
-func (runtime *uncertainSteeringRuntime) steerAttempts() []agent.SteerRun {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return slices.Clone(runtime.requests)
+func (u *uncertainSteeringRuntime) steerAttempts() []agent.SteerRun {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.requests)
 }
 
 func TestSteerTargetsTheObservedSegmentAndRestoresAttachmentsOnRefusal(t *testing.T) {

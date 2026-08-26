@@ -54,14 +54,14 @@ func newPinnedMemoryPrompt(items []agentmemory.Item, maxTokens int) pinnedMemory
 	return pinnedMemoryPrompt{text: prompt.String(), sources: sources}
 }
 
-func (prompt pinnedMemoryPrompt) appendTo(composition *promptComposition) {
-	if prompt.text == "" {
+func (p pinnedMemoryPrompt) appendTo(composition *promptComposition) {
+	if p.text == "" {
 		return
 	}
 	composition.append(
-		"## Pinned memory (managed by Lyra)\n\n"+prompt.text,
-		prompt.sources[0],
-		prompt.sources[1:]...,
+		"## Pinned memory (managed by Lyra)\n\n"+p.text,
+		p.sources[0],
+		p.sources[1:]...,
 	)
 }
 

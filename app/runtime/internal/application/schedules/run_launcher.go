@@ -28,14 +28,14 @@ func NewRunLauncher(runStarter RunStarter, defaultWorkspacePath string) RunLaunc
 
 // StartScheduledRun starts one schedule through the shared Run entry point, then
 // immediately drops the unused event subscription.
-func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
+func (r RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
 	scheduled := occurrence.Schedule
 	workspacePath := scheduled.CWD
 	if workspacePath == "" {
-		workspacePath = l.defaultWorkspacePath
+		workspacePath = r.defaultWorkspacePath
 	}
 	startCtx, cancel := context.WithCancel(ctx)
-	result, err := l.runs.Start(startCtx, runs.StartCommand{
+	result, err := r.runs.Start(startCtx, runs.StartCommand{
 		RunID:                occurrence.RunID,
 		NewSessionID:         occurrence.SessionID,
 		ScheduleFiring:       occurrence.ID,

@@ -45,12 +45,12 @@ type FileEntry struct {
 
 // OrderKey is the stable ordering and pagination identity for a listing.
 // Directories sort before non-directories; paths break ties deterministically.
-func (e FileEntry) OrderKey() string {
+func (f FileEntry) OrderKey() string {
 	class := "1"
-	if e.Kind == EntryDir {
+	if f.Kind == EntryDir {
 		class = "0"
 	}
-	return class + ":" + e.Path
+	return class + ":" + f.Path
 }
 
 // ListFilesOptions controls one listing. Path is a root-relative subdirectory

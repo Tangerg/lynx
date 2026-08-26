@@ -13,14 +13,14 @@ import (
 
 type workingDirectoryPickerFunc func() (string, error)
 
-func (f workingDirectoryPickerFunc) ChooseWorkingDirectory() (string, error) {
-	return f()
+func (w workingDirectoryPickerFunc) ChooseWorkingDirectory() (string, error) {
+	return w()
 }
 
 type imageSaverFunc func(suggestedFilename string, contents []byte) (bool, error)
 
-func (f imageSaverFunc) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
-	return f(suggestedFilename, contents)
+func (i imageSaverFunc) SaveImage(suggestedFilename string, contents []byte) (bool, error) {
+	return i(suggestedFilename, contents)
 }
 
 func TestDesktopHostBootstrap(t *testing.T) {

@@ -14,12 +14,12 @@ type activityRunStore struct {
 	err  error
 }
 
-func (s activityRunStore) ListRuns(context.Context, string) ([]run.Run, error) {
-	return s.runs, s.err
+func (a activityRunStore) ListRuns(context.Context, string) ([]run.Run, error) {
+	return a.runs, a.err
 }
 
-func (s activityRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
-	return s.runs, s.err
+func (a activityRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
+	return a.runs, a.err
 }
 
 func TestActivitiesPreservesDurableRunReadFailure(t *testing.T) {

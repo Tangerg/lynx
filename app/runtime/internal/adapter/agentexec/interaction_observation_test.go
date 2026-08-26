@@ -17,8 +17,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
@@ -1018,8 +1018,8 @@ type staticInteractionTools struct{ manifest toolset.Manifest }
 
 var _ InteractionToolResolver = (*toolset.Resolver)(nil)
 
-func (resolver staticInteractionTools) Manifest(context.Context, string) (toolset.Manifest, error) {
-	return resolver.manifest, nil
+func (s staticInteractionTools) Manifest(context.Context, string) (toolset.Manifest, error) {
+	return s.manifest, nil
 }
 
 type scopeRecordingInteractionTools struct {
@@ -1028,9 +1028,9 @@ type scopeRecordingInteractionTools struct {
 	ok       bool
 }
 
-func (resolver *scopeRecordingInteractionTools) Manifest(ctx context.Context, _ string) (toolset.Manifest, error) {
-	resolver.scope, resolver.ok = executionctx.Scope(ctx)
-	return resolver.manifest, nil
+func (s *scopeRecordingInteractionTools) Manifest(ctx context.Context, _ string) (toolset.Manifest, error) {
+	s.scope, s.ok = executionctx.Scope(ctx)
+	return s.manifest, nil
 }
 
 type concurrentInteractionTool struct{ toolcontract.Tool }
@@ -1049,12 +1049,12 @@ func (allowInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizat
 
 type denyingInteractionTools struct{ reason string }
 
-func (authorizer denyingInteractionTools) AuthorizeTool(context.Context, ToolAuthorizationRequest) (ToolAuthorizationDecision, error) {
-	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+func (d denyingInteractionTools) AuthorizeTool(context.Context, ToolAuthorizationRequest) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{Denied: true, Reason: d.reason}, nil
 }
 
-func (authorizer denyingInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizationRequest, runs.ApprovalPrompt, interrupt.Resolution) (ToolAuthorizationDecision, error) {
-	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+func (d denyingInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizationRequest, runs.ApprovalPrompt, interrupt.Resolution) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{Denied: true, Reason: d.reason}, nil
 }
 
 type selectiveDenyInteractionTools struct {
@@ -1063,26 +1063,26 @@ type selectiveDenyInteractionTools struct {
 	waitBeforeDenial <-chan struct{}
 }
 
-func (authorizer selectiveDenyInteractionTools) AuthorizeTool(
+func (s selectiveDenyInteractionTools) AuthorizeTool(
 	_ context.Context,
 	request ToolAuthorizationRequest,
 ) (ToolAuthorizationDecision, error) {
-	if request.ToolName != authorizer.name {
+	if request.ToolName != s.name {
 		return ToolAuthorizationDecision{}, nil
 	}
-	if authorizer.waitBeforeDenial != nil {
-		<-authorizer.waitBeforeDenial
+	if s.waitBeforeDenial != nil {
+		<-s.waitBeforeDenial
 	}
-	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+	return ToolAuthorizationDecision{Denied: true, Reason: s.reason}, nil
 }
 
-func (authorizer selectiveDenyInteractionTools) ResolveToolApproval(
+func (s selectiveDenyInteractionTools) ResolveToolApproval(
 	ctx context.Context,
 	request ToolAuthorizationRequest,
 	_ runs.ApprovalPrompt,
 	_ interrupt.Resolution,
 ) (ToolAuthorizationDecision, error) {
-	return authorizer.AuthorizeTool(ctx, request)
+	return s.AuthorizeTool(ctx, request)
 }
 
 type testInteractionToolInterpreter struct{}
@@ -1130,18 +1130,18 @@ func (*failingAfterInteractionHooks) BeforeToolUse(context.Context, InteractionT
 	return InteractionToolHookDecision{}, nil
 }
 
-func (hooks *failingAfterInteractionHooks) AfterToolUse(context.Context, InteractionToolHookInput) error {
-	hooks.after++
+func (f *failingAfterInteractionHooks) AfterToolUse(context.Context, InteractionToolHookInput) error {
+	f.after++
 	return errors.New("post-Tool hook unavailable")
 }
 
-func (hooks *recordingInteractionHooks) BeforeToolUse(context.Context, InteractionToolHookInput) (InteractionToolHookDecision, error) {
-	hooks.before++
+func (r *recordingInteractionHooks) BeforeToolUse(context.Context, InteractionToolHookInput) (InteractionToolHookDecision, error) {
+	r.before++
 	return InteractionToolHookDecision{}, nil
 }
 
-func (hooks *recordingInteractionHooks) AfterToolUse(context.Context, InteractionToolHookInput) error {
-	hooks.after++
+func (r *recordingInteractionHooks) AfterToolUse(context.Context, InteractionToolHookInput) error {
+	r.after++
 	return nil
 }
 
@@ -1159,13 +1159,13 @@ func (streamingObservationModel) Call(context.Context, *chat.Request) (*chat.Res
 	return nil, errors.New("unexpected synchronous model call")
 }
 
-func (model streamingObservationModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+func (s streamingObservationModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		defer close(model.streamed)
-		for index := range model.chunks {
+		defer close(s.streamed)
+		for index := range s.chunks {
 			message := chat.NewAssistantMessage(chat.NewTextPart("x"))
 			response := &chat.Response{Output: &chat.Output{Message: &message}}
-			if index == model.chunks-1 {
+			if index == s.chunks-1 {
 				response.Metadata = &chat.ResponseMetadata{
 					Model: "test-model", Usage: chat.Usage{InputTokens: 5, OutputTokens: 2},
 				}
@@ -1178,14 +1178,14 @@ func (model streamingObservationModel) Stream(context.Context, *chat.Request) it
 	}
 }
 
-func (model *observationScriptModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	if len(model.responses) == 0 {
+func (o *observationScriptModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.responses) == 0 {
 		return nil, errors.New("unexpected model call")
 	}
-	response := model.responses[0]
-	model.responses = model.responses[1:]
+	response := o.responses[0]
+	o.responses = o.responses[1:]
 	return response.Clone(), nil
 }
 
@@ -1200,28 +1200,28 @@ type doomLoopScriptModel struct {
 	call int
 }
 
-func (model *doomLoopScriptModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	model.call++
-	if model.call <= interactionDoomLoopThreshold+1 {
+func (d *doomLoopScriptModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.call++
+	if d.call <= interactionDoomLoopThreshold+1 {
 		return interactionToolResponse(chat.ToolCall{
-			ID: "lookup_" + strconv.Itoa(model.call), Name: "lookup", Arguments: `{}`,
+			ID: "lookup_" + strconv.Itoa(d.call), Name: "lookup", Arguments: `{}`,
 		}, 1, 1), nil
 	}
 	return interactionUsageTextResponse("changed approach", 1, 1), nil
 }
 
-func (model *manifestScriptModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
+func (m *manifestScriptModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	names := make([]string, len(request.Tools))
 	for index, definition := range request.Tools {
 		names[index] = definition.Name
 	}
-	model.manifests = append(model.manifests, names)
-	model.call++
-	switch model.call {
+	m.manifests = append(m.manifests, names)
+	m.call++
+	switch m.call {
 	case 1:
 		return interactionToolResponse(chat.ToolCall{
 			ID: "discover", Name: "search_tools", Arguments: `{"query":"select:hidden_lookup"}`,

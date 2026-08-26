@@ -42,11 +42,11 @@ const gitObservationTimeout = 10 * time.Second
 // Watch observes every distinct repository reached from roots. A
 // non-repository root is intentionally inert: its diff view is unavailable as
 // well, but the surrounding workspace subscription remains valid.
-func (watcher GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
-	if watcher.lifetime == nil {
+func (g GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
+	if g.lifetime == nil {
 		return nil, errors.New("workspace: Git watcher lifetime is required")
 	}
-	lifetime, stop := context.WithCancel(watcher.lifetime)
+	lifetime, stop := context.WithCancel(g.lifetime)
 	repositories := watchedRepositories(lifetime, roots)
 	if len(repositories) == 0 {
 		stop()
@@ -171,17 +171,17 @@ type gitWatch struct {
 	closeOnce    sync.Once
 }
 
-func (w *gitWatch) run() {
-	defer close(w.exited)
+func (g *gitWatch) run() {
+	defer close(g.exited)
 	timer := time.NewTimer(gitWatchDebounce)
 	defer timer.Stop()
 	timer.Stop()
 	armed := false
 	for {
 		select {
-		case <-w.done:
+		case <-g.done:
 			return
-		case _, ok := <-w.fsw.Events:
+		case _, ok := <-g.fsw.Events:
 			if !ok {
 				return
 			}
@@ -189,7 +189,7 @@ func (w *gitWatch) run() {
 				timer.Reset(gitWatchDebounce)
 				armed = true
 			}
-		case _, ok := <-w.fsw.Errors:
+		case _, ok := <-g.fsw.Errors:
 			if !ok {
 				return
 			}
@@ -197,8 +197,8 @@ func (w *gitWatch) run() {
 			// subscription. The client will re-fetch on the next resync.
 		case <-timer.C:
 			armed = false
-			if w.semanticStateChanged() && w.notify != nil {
-				w.notify()
+			if g.semanticStateChanged() && g.notify != nil {
+				g.notify()
 			}
 		}
 	}
@@ -209,11 +209,11 @@ func (w *gitWatch) run() {
 // HEAD and every staged entry are identical. Publishing that replacement as a
 // change lets a diff refetch wake its own watcher forever. The watcher therefore
 // compares the committed HEAD and stage entries that clients can actually read.
-func (w *gitWatch) semanticStateChanged() bool {
+func (g *gitWatch) semanticStateChanged() bool {
 	changed := false
-	for index := range w.repositories {
-		repository := &w.repositories[index]
-		next, valid := semanticGitFingerprint(w.lifetime, repository.root)
+	for index := range g.repositories {
+		repository := &g.repositories[index]
+		next, valid := semanticGitFingerprint(g.lifetime, repository.root)
 		if !valid || !repository.valid || next != repository.fingerprint {
 			changed = true
 		}
@@ -254,12 +254,12 @@ func gitObservation(lifetime context.Context, root string, args ...string) ([]by
 
 // Close joins the callback goroutine before closing the underlying watcher, so
 // a caller can safely close its output channel immediately afterwards.
-func (w *gitWatch) Close() error {
-	w.closeOnce.Do(func() {
-		w.stop()
-		close(w.done)
-		<-w.exited
-		_ = w.fsw.Close()
+func (g *gitWatch) Close() error {
+	g.closeOnce.Do(func() {
+		g.stop()
+		close(g.done)
+		<-g.exited
+		_ = g.fsw.Close()
 	})
 	return nil
 }

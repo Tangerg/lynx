@@ -36,73 +36,73 @@ type itemProjection struct {
 	block  agent.Block
 }
 
-func (projection *itemProjection) project() error {
-	switch projection.source.Type {
+func (i *itemProjection) project() error {
+	switch i.source.Type {
 	case protocol.ItemTypeUserMessage:
-		projection.block.Kind = agent.BlockUser
-		return projection.projectMessage(true)
+		i.block.Kind = agent.BlockUser
+		return i.projectMessage(true)
 	case protocol.ItemTypeAgentMessage:
-		projection.block.Kind = agent.BlockAssistant
-		return projection.projectMessage(false)
+		i.block.Kind = agent.BlockAssistant
+		return i.projectMessage(false)
 	case protocol.ItemTypeReasoning:
-		projection.block.Kind = agent.BlockReasoning
-		projection.block.Text = projection.source.Text
-		projection.block.Redacted = projection.source.Redacted
-		if projection.block.Redacted && strings.TrimSpace(projection.block.Text) == "" {
-			projection.block.Text = "Reasoning redacted by provider."
+		i.block.Kind = agent.BlockReasoning
+		i.block.Text = i.source.Text
+		i.block.Redacted = i.source.Redacted
+		if i.block.Redacted && strings.TrimSpace(i.block.Text) == "" {
+			i.block.Text = "Reasoning redacted by provider."
 		}
 	case protocol.ItemTypeQuestion:
-		projection.block.Kind = agent.BlockQuestion
-		question, err := projectQuestion(projection.source.RunID, projection.source.ID, projection.source.Question)
+		i.block.Kind = agent.BlockQuestion
+		question, err := projectQuestion(i.source.RunID, i.source.ID, i.source.Question)
 		if err != nil {
 			return err
 		}
-		projection.block.Question = &question
+		i.block.Question = &question
 	case protocol.ItemTypeToolCall:
-		projection.block.Kind = agent.BlockTool
+		i.block.Kind = agent.BlockTool
 		tool, err := projectTool(toolProjection{
-			invocation: projection.source.Tool,
-			status:     projection.source.Status, safety: projection.source.SafetyClass,
-			startedAt: projection.source.StartedAt, finishedAt: projection.source.FinishedAt,
-			durationMillis: projection.source.DurationMillis, problem: projection.source.Error,
+			invocation: i.source.Tool,
+			status:     i.source.Status, safety: i.source.SafetyClass,
+			startedAt: i.source.StartedAt, finishedAt: i.source.FinishedAt,
+			durationMillis: i.source.DurationMillis, problem: i.source.Error,
 		})
 		if err != nil {
-			return fmt.Errorf("item %s: %w", projection.source.ID, err)
+			return fmt.Errorf("item %s: %w", i.source.ID, err)
 		}
-		projection.block.Tool = &tool
+		i.block.Tool = &tool
 	case protocol.ItemTypeCompaction:
-		projection.projectCompaction()
+		i.projectCompaction()
 	default:
-		return fmt.Errorf("item %s has unsupported type %q", projection.source.ID, projection.source.Type)
+		return fmt.Errorf("item %s has unsupported type %q", i.source.ID, i.source.Type)
 	}
 	return nil
 }
 
-func (projection *itemProjection) projectMessage(allowAttachments bool) error {
+func (i *itemProjection) projectMessage(allowAttachments bool) error {
 	if allowAttachments {
-		text, attachments, err := projectContent(projection.source.ID, projection.source.Content)
+		text, attachments, err := projectContent(i.source.ID, i.source.Content)
 		if err != nil {
 			return err
 		}
-		projection.block.Text = text
-		projection.block.Attachments = attachments
+		i.block.Text = text
+		i.block.Attachments = attachments
 		return nil
 	}
-	text, images, err := projectAssistantContent(projection.source.ID, projection.source.Content)
+	text, images, err := projectAssistantContent(i.source.ID, i.source.Content)
 	if err != nil {
 		return err
 	}
-	projection.block.Text = text
-	projection.block.Images = images
+	i.block.Text = text
+	i.block.Images = images
 	return nil
 }
 
-func (projection *itemProjection) projectCompaction() {
-	projection.block.Kind = agent.BlockNotice
-	projection.block.Text = projection.source.Summary
-	projection.block.DroppedMessages = projection.source.DroppedMessages
-	if strings.TrimSpace(projection.block.Text) == "" {
-		projection.block.Text = fmt.Sprintf("Conversation compacted; %d messages removed.", projection.source.DroppedMessages)
+func (i *itemProjection) projectCompaction() {
+	i.block.Kind = agent.BlockNotice
+	i.block.Text = i.source.Summary
+	i.block.DroppedMessages = i.source.DroppedMessages
+	if strings.TrimSpace(i.block.Text) == "" {
+		i.block.Text = fmt.Sprintf("Conversation compacted; %d messages removed.", i.source.DroppedMessages)
 	}
 }
 

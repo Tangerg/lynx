@@ -31,25 +31,25 @@ func NewSequence(steps []*Step) *Sequence {
 // Shutdown starts or joins the one terminal teardown generation. settled=false
 // means only that this caller stopped waiting; the Sequence still owns and runs
 // the graph. settled=true returns the immutable aggregate diagnostic.
-func (sequence *Sequence) Shutdown(ctx context.Context) (settled bool, err error) {
-	if sequence == nil {
+func (s *Sequence) Shutdown(ctx context.Context) (settled bool, err error) {
+	if s == nil {
 		return true, nil
 	}
 	if ctx == nil {
 		return false, errors.New("teardown: sequence context is required")
 	}
-	sequence.mu.Lock()
-	attempt := sequence.attempt
+	s.mu.Lock()
+	attempt := s.attempt
 	if attempt == nil {
 		if err := ctx.Err(); err != nil {
-			sequence.mu.Unlock()
+			s.mu.Unlock()
 			return false, err
 		}
 		attempt = &sequenceAttempt{done: make(chan struct{})}
-		sequence.attempt = attempt
-		go sequence.run(context.WithoutCancel(ctx), attempt)
+		s.attempt = attempt
+		go s.run(context.WithoutCancel(ctx), attempt)
 	}
-	sequence.mu.Unlock()
+	s.mu.Unlock()
 
 	if err := completion.Wait(ctx, attempt.done); err != nil {
 		return false, err
@@ -57,9 +57,9 @@ func (sequence *Sequence) Shutdown(ctx context.Context) (settled bool, err error
 	return true, attempt.err
 }
 
-func (sequence *Sequence) run(ctx context.Context, attempt *sequenceAttempt) {
+func (s *Sequence) run(ctx context.Context, attempt *sequenceAttempt) {
 	var diagnostics []error
-	for _, step := range slices.Backward(sequence.steps) {
+	for _, step := range slices.Backward(s.steps) {
 		if step == nil {
 			continue
 		}
@@ -67,9 +67,9 @@ func (sequence *Sequence) run(ctx context.Context, attempt *sequenceAttempt) {
 		diagnostics = append(diagnostics, err)
 	}
 
-	sequence.mu.Lock()
-	sequence.steps = nil
+	s.mu.Lock()
+	s.steps = nil
 	attempt.err = errors.Join(diagnostics...)
 	close(attempt.done)
-	sequence.mu.Unlock()
+	s.mu.Unlock()
 }

@@ -26,14 +26,14 @@ type fakeItemProjection struct {
 	err   error
 }
 
-func (projection *fakeItemProjection) Item(
+func (f *fakeItemProjection) Item(
 	_ context.Context,
 	itemID string,
 ) (transcript.Item, bool, error) {
-	if projection.err != nil {
-		return transcript.Item{}, false, projection.err
+	if f.err != nil {
+		return transcript.Item{}, false, f.err
 	}
-	item, found := projection.items[itemID]
+	item, found := f.items[itemID]
 	return item, found, nil
 }
 
@@ -51,16 +51,16 @@ type fakePreparedWaitingCancellation struct {
 	settled     bool
 }
 
-func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeCancellation {
+func (f *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeCancellation {
 	checkpoint := testExecutorCheckpoint()
-	if prepared.checkpoint != nil {
-		checkpoint = prepared.checkpoint.Clone()
+	if f.checkpoint != nil {
+		checkpoint = f.checkpoint.Clone()
 	}
 	return PreparedWaitingSubtreeCancellation{
-		CanceledMemberIDs:    slices.Clone(prepared.canceled),
-		PendingInterruptions: slices.Clone(prepared.interruptions),
+		CanceledMemberIDs:    slices.Clone(f.canceled),
+		PendingInterruptions: slices.Clone(f.interruptions),
 		Checkpoint:           checkpoint,
-		Change:               prepared,
+		Change:               f,
 	}
 }
 
@@ -100,32 +100,32 @@ func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationF
 	}
 }
 
-func (prepared *fakePreparedWaitingCancellation) Apply(
+func (f *fakePreparedWaitingCancellation) Apply(
 	disposition WaitingSubtreeDisposition,
 ) error {
-	prepared.applied++
-	prepared.disposition = disposition
-	if prepared.applyErr != nil {
-		return prepared.applyErr
+	f.applied++
+	f.disposition = disposition
+	if f.applyErr != nil {
+		return f.applyErr
 	}
-	prepared.settled = true
+	f.settled = true
 	return nil
 }
 
-func (prepared *fakePreparedWaitingCancellation) Continue(context.Context) error {
-	if !prepared.settled || prepared.disposition != WaitingSubtreeResumesRunning {
+func (f *fakePreparedWaitingCancellation) Continue(context.Context) error {
+	if !f.settled || f.disposition != WaitingSubtreeResumesRunning {
 		return errors.New("fake waiting subtree cancellation was not applied for continuation")
 	}
-	prepared.continued++
-	return prepared.continueErr
+	f.continued++
+	return f.continueErr
 }
 
-func (prepared *fakePreparedWaitingCancellation) Discard() error {
-	if prepared.settled {
+func (f *fakePreparedWaitingCancellation) Discard() error {
+	if f.settled {
 		return nil
 	}
-	prepared.discarded++
-	prepared.settled = true
+	f.discarded++
+	f.settled = true
 	return nil
 }
 

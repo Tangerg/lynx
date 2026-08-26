@@ -8,18 +8,18 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 type failingTitleModel struct{ err error }
 
-func (m failingTitleModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	return nil, m.err
+func (f failingTitleModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	return nil, f.err
 }
 
-func (m failingTitleModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) { yield(nil, m.err) }
+func (f failingTitleModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) { yield(nil, f.err) }
 }
 
 func TestSanitizeTitle(t *testing.T) {

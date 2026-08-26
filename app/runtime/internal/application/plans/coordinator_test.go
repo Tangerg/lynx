@@ -18,11 +18,11 @@ type fakeStore struct {
 	saveErr          error
 }
 
-func (s *fakeStore) State(context.Context, string) (plan.State, error) { return s.state, s.readErr }
-func (s *fakeStore) Save(_ context.Context, _ string, expected uint64, replacement plan.State) error {
-	s.expectedRevision = expected
-	s.saved = replacement
-	return s.saveErr
+func (f *fakeStore) State(context.Context, string) (plan.State, error) { return f.state, f.readErr }
+func (f *fakeStore) Save(_ context.Context, _ string, expected uint64, replacement plan.State) error {
+	f.expectedRevision = expected
+	f.saved = replacement
+	return f.saveErr
 }
 
 // TestCommittedPlanChangeReachesOtherWindows proves

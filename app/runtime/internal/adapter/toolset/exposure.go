@@ -17,10 +17,10 @@ type Manifest struct {
 
 // Clone returns an ownership-isolated manifest. Tool implementations are
 // immutable capabilities; only the containing slices require isolation.
-func (manifest Manifest) Clone() Manifest {
+func (m Manifest) Clone() Manifest {
 	return Manifest{
-		Visible:  slices.Clone(manifest.Visible),
-		Deferred: slices.Clone(manifest.Deferred),
+		Visible:  slices.Clone(m.Visible),
+		Deferred: slices.Clone(m.Deferred),
 	}
 }
 
@@ -33,25 +33,25 @@ type manifestBuilder struct {
 	deferred []toolcontract.Tool
 }
 
-func (builder *manifestBuilder) direct(tools ...toolcontract.Tool) {
+func (m *manifestBuilder) direct(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			builder.visible = append(builder.visible, candidate)
+			m.visible = append(m.visible, candidate)
 		}
 	}
 }
 
-func (builder *manifestBuilder) deferTools(tools ...toolcontract.Tool) {
+func (m *manifestBuilder) deferTools(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			builder.deferred = append(builder.deferred, candidate)
+			m.deferred = append(m.deferred, candidate)
 		}
 	}
 }
 
-func (builder manifestBuilder) manifest() Manifest {
+func (m manifestBuilder) manifest() Manifest {
 	return Manifest{
-		Visible:  slices.Clone(builder.visible),
-		Deferred: slices.Clone(builder.deferred),
+		Visible:  slices.Clone(m.visible),
+		Deferred: slices.Clone(m.deferred),
 	}
 }

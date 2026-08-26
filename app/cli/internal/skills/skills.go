@@ -17,9 +17,9 @@ const (
 	UserScope    Scope = "user"
 )
 
-func (scope Scope) Validate() error {
-	if scope != ProjectScope && scope != UserScope {
-		return fmt.Errorf("skill scope %q is invalid", scope)
+func (s Scope) Validate() error {
+	if s != ProjectScope && s != UserScope {
+		return fmt.Errorf("skill scope %q is invalid", s)
 	}
 	return nil
 }
@@ -31,9 +31,9 @@ const (
 	Archived Lifecycle = "archived"
 )
 
-func (lifecycle Lifecycle) Validate() error {
-	if lifecycle != Active && lifecycle != Archived {
-		return fmt.Errorf("skill lifecycle %q is invalid", lifecycle)
+func (l Lifecycle) Validate() error {
+	if l != Active && l != Archived {
+		return fmt.Errorf("skill lifecycle %q is invalid", l)
 	}
 	return nil
 }
@@ -45,9 +45,9 @@ const (
 	Mined     Origin = "mined"
 )
 
-func (origin Origin) Validate() error {
-	if origin != "" && origin != Requested && origin != Mined {
-		return fmt.Errorf("skill proposal origin %q is invalid", origin)
+func (o Origin) Validate() error {
+	if o != "" && o != Requested && o != Mined {
+		return fmt.Errorf("skill proposal origin %q is invalid", o)
 	}
 	return nil
 }
@@ -58,14 +58,14 @@ type Discovered struct {
 	Scope       Scope
 }
 
-func (skill Discovered) Validate() error {
-	if strings.TrimSpace(skill.Name) == "" {
+func (d Discovered) Validate() error {
+	if strings.TrimSpace(d.Name) == "" {
 		return errors.New("discovered skill name is empty")
 	}
-	return skill.Scope.Validate()
+	return d.Scope.Validate()
 }
 
-func (skill Discovered) Key() string { return string(skill.Scope) + "/" + skill.Name }
+func (d Discovered) Key() string { return string(d.Scope) + "/" + d.Name }
 
 type Managed struct {
 	Name        string
@@ -73,11 +73,11 @@ type Managed struct {
 	Lifecycle   Lifecycle
 }
 
-func (skill Managed) Validate() error {
-	if strings.TrimSpace(skill.Name) == "" {
+func (m Managed) Validate() error {
+	if strings.TrimSpace(m.Name) == "" {
 		return errors.New("managed skill name is empty")
 	}
-	return skill.Lifecycle.Validate()
+	return m.Lifecycle.Validate()
 }
 
 // ValidateLifecycleAcknowledgement proves that an authoritative managed-skill
@@ -123,35 +123,35 @@ type Proposal struct {
 	Revises       bool
 }
 
-func (proposal Proposal) Validate() error {
-	if err := validateProposalIdentity(proposal.Name, proposal.Revision, proposal.Scope); err != nil {
+func (p Proposal) Validate() error {
+	if err := validateProposalIdentity(p.Name, p.Revision, p.Scope); err != nil {
 		return err
 	}
-	if strings.TrimSpace(proposal.Description) == "" {
+	if strings.TrimSpace(p.Description) == "" {
 		return errors.New("skill proposal description is empty")
 	}
-	if strings.TrimSpace(proposal.Instructions) == "" {
+	if strings.TrimSpace(p.Instructions) == "" {
 		return errors.New("skill proposal instructions are empty")
 	}
-	return proposal.Origin.Validate()
+	return p.Origin.Validate()
 }
 
-func (proposal Proposal) QualifiedName() string { return string(proposal.Scope) + "/" + proposal.Name }
+func (p Proposal) QualifiedName() string { return string(p.Scope) + "/" + p.Name }
 
-func (proposal Proposal) Key() string {
-	revision := proposal.Revision
+func (p Proposal) Key() string {
+	revision := p.Revision
 	if len(revision) > 12 {
 		revision = revision[:12]
 	}
-	return proposal.QualifiedName() + "@" + revision
+	return p.QualifiedName() + "@" + revision
 }
 
-func (proposal Proposal) Reference(workspace string) (ProposalReference, error) {
+func (p Proposal) Reference(workspace string) (ProposalReference, error) {
 	reference := ProposalReference{
 		Workspace: workspace,
-		Name:      proposal.Name,
-		Revision:  proposal.Revision,
-		Scope:     proposal.Scope,
+		Name:      p.Name,
+		Revision:  p.Revision,
+		Scope:     p.Scope,
 	}
 	return reference, reference.Validate()
 }
@@ -163,11 +163,11 @@ type ProposalReference struct {
 	Scope     Scope
 }
 
-func (reference ProposalReference) Validate() error {
-	if strings.TrimSpace(reference.Workspace) == "" {
+func (p ProposalReference) Validate() error {
+	if strings.TrimSpace(p.Workspace) == "" {
 		return errors.New("skill proposal reference workspace is empty")
 	}
-	if err := validateProposalIdentity(reference.Name, reference.Revision, reference.Scope); err != nil {
+	if err := validateProposalIdentity(p.Name, p.Revision, p.Scope); err != nil {
 		return fmt.Errorf("skill proposal reference: %w", err)
 	}
 	return nil
@@ -176,15 +176,15 @@ func (reference ProposalReference) Validate() error {
 // ValidateDecisionAcknowledgement proves that the exact immutable proposal
 // reviewed by Approve or Reject is no longer pending. Other revisions of the
 // same skill remain independent proposals.
-func (reference ProposalReference) ValidateDecisionAcknowledgement(pending []Proposal) error {
-	if err := reference.Validate(); err != nil {
+func (p ProposalReference) ValidateDecisionAcknowledgement(pending []Proposal) error {
+	if err := p.Validate(); err != nil {
 		return err
 	}
 	for index, proposal := range pending {
 		if err := proposal.Validate(); err != nil {
 			return fmt.Errorf("skill proposal acknowledgement item %d: %w", index+1, err)
 		}
-		if proposal.Name == reference.Name && proposal.Scope == reference.Scope && proposal.Revision == reference.Revision {
+		if proposal.Name == p.Name && proposal.Scope == p.Scope && proposal.Revision == p.Revision {
 			return fmt.Errorf("skill proposal %s remains pending after decision", proposal.Key())
 		}
 	}

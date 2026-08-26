@@ -46,10 +46,10 @@ func approvalOptions(rememberable bool) []headless.Option[approvalAction] {
 	)
 }
 
-func (action approvalAction) Normalize(rememberable bool) approvalAction {
+func (a approvalAction) Normalize(rememberable bool) approvalAction {
 	for _, option := range approvalOptions(rememberable) {
-		if option.Value == action {
-			return action
+		if option.Value == a {
+			return a
 		}
 	}
 	return approvalAllowOnce
@@ -68,8 +68,8 @@ func defaultApprovalAction(scope agent.RememberScope) approvalAction {
 	}
 }
 
-func (action approvalAction) Answer() (agent.ApprovalAnswer, bool) {
-	switch action {
+func (a approvalAction) Answer() (agent.ApprovalAnswer, bool) {
+	switch a {
 	case approvalAllowSession:
 		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberSession}, true
 	case approvalAllowProject:

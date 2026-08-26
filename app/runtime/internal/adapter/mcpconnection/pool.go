@@ -51,79 +51,79 @@ func Open(
 	return &Pool{inner: inner}, toolset, nil
 }
 
-func (c *Pool) Statuses() []mcpserver.ConnectionStatus {
-	if c == nil || c.inner == nil {
+func (p *Pool) Statuses() []mcpserver.ConnectionStatus {
+	if p == nil || p.inner == nil {
 		return nil
 	}
-	return c.inner.Statuses()
+	return p.inner.Statuses()
 }
 
-func (c *Pool) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
-	if c == nil || c.inner == nil {
+func (p *Pool) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
+	if p == nil || p.inner == nil {
 		return nil, nil
 	}
-	items, err := c.inner.Tools(ctx, server)
+	items, err := p.inner.Tools(ctx, server)
 	return items, mapError(err)
 }
 
-func (c *Pool) Reconnect(ctx context.Context, name string) error {
-	if c == nil || c.inner == nil {
+func (p *Pool) Reconnect(ctx context.Context, name string) error {
+	if p == nil || p.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
-	return mapError(c.inner.Reconnect(ctx, name))
+	return mapError(p.inner.Reconnect(ctx, name))
 }
 
-func (c *Pool) Authorize(ctx context.Context, name string) error {
-	if c == nil || c.inner == nil {
+func (p *Pool) Authorize(ctx context.Context, name string) error {
+	if p == nil || p.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
-	return mapError(c.inner.Authorize(ctx, name))
+	return mapError(p.inner.Authorize(ctx, name))
 }
 
-func (c *Pool) Probe(ctx context.Context, server mcpserver.Server) error {
-	if c == nil || c.inner == nil {
-		return mcpserver.ErrUnknownServer
-	}
-	cfg, err := configFromServer(server)
-	if err != nil {
-		return err
-	}
-	return mapError(c.inner.Probe(ctx, cfg))
-}
-
-func (c *Pool) Configure(ctx context.Context, server mcpserver.Server) error {
-	if c == nil || c.inner == nil {
+func (p *Pool) Probe(ctx context.Context, server mcpserver.Server) error {
+	if p == nil || p.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
 	cfg, err := configFromServer(server)
 	if err != nil {
 		return err
 	}
-	return mapError(c.inner.Configure(ctx, cfg))
+	return mapError(p.inner.Probe(ctx, cfg))
 }
 
-func (c *Pool) Detach(name string) error {
-	if c == nil || c.inner == nil {
+func (p *Pool) Configure(ctx context.Context, server mcpserver.Server) error {
+	if p == nil || p.inner == nil {
+		return mcpserver.ErrUnknownServer
+	}
+	cfg, err := configFromServer(server)
+	if err != nil {
+		return err
+	}
+	return mapError(p.inner.Configure(ctx, cfg))
+}
+
+func (p *Pool) Detach(name string) error {
+	if p == nil || p.inner == nil {
 		return mcp.ErrConnectionsUnavailable
 	}
-	return mapError(c.inner.Detach(name))
+	return mapError(p.inner.Detach(name))
 }
 
 // SetToolSink wires live connection changes to the resolver's atomically
 // replaceable MCP tool catalog.
-func (c *Pool) SetToolSink(sink func([]toolcontract.Tool)) {
-	if c == nil || c.inner == nil {
+func (p *Pool) SetToolSink(sink func([]toolcontract.Tool)) {
+	if p == nil || p.inner == nil {
 		return
 	}
-	c.inner.SetToolSink(sink)
+	p.inner.SetToolSink(sink)
 }
 
 // Shutdown releases every live connection under the caller's shutdown budget.
-func (c *Pool) Shutdown(ctx context.Context) error {
-	if c == nil || c.inner == nil {
+func (p *Pool) Shutdown(ctx context.Context) error {
+	if p == nil || p.inner == nil {
 		return nil
 	}
-	return c.inner.Shutdown(ctx)
+	return p.inner.Shutdown(ctx)
 }
 
 func configsFromServers(servers []mcpserver.Server) ([]mcp.ServerConfig, error) {

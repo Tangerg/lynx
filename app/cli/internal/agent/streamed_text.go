@@ -29,7 +29,7 @@ func NewStreamedText(text string) StreamedText {
 	return stream
 }
 
-func (stream *StreamedText) Apply(delta BlockDelta) (TextMutation, error) {
+func (s *StreamedText) Apply(delta BlockDelta) (TextMutation, error) {
 	if delta.Text == "" {
 		return TextMutation{}, errors.New("streamed text delta is empty")
 	}
@@ -41,16 +41,16 @@ func (stream *StreamedText) Apply(delta BlockDelta) (TextMutation, error) {
 		}
 	}
 
-	last := stream.lastPresentIndex()
-	_, existed := stream.segments[index]
+	last := s.lastPresentIndex()
+	_, existed := s.segments[index]
 	appendOnly := last < 0 || index == last || !existed && index > last
-	if stream.segments == nil {
-		stream.segments = make(map[int]string)
+	if s.segments == nil {
+		s.segments = make(map[int]string)
 	}
-	stream.segments[index] += delta.Text
+	s.segments[index] += delta.Text
 
 	if !appendOnly {
-		return TextMutation{Text: stream.String(), Replace: true}, nil
+		return TextMutation{Text: s.String(), Replace: true}, nil
 	}
 	text := delta.Text
 	if !existed && last >= 0 {
@@ -59,22 +59,22 @@ func (stream *StreamedText) Apply(delta BlockDelta) (TextMutation, error) {
 	return TextMutation{Text: text}, nil
 }
 
-func (stream StreamedText) String() string {
-	parts := make([]string, 0, len(stream.segments))
-	indices := make([]int, 0, len(stream.segments))
-	for index := range stream.segments {
+func (s StreamedText) String() string {
+	parts := make([]string, 0, len(s.segments))
+	indices := make([]int, 0, len(s.segments))
+	for index := range s.segments {
 		indices = append(indices, index)
 	}
 	slices.Sort(indices)
 	for _, index := range indices {
-		parts = append(parts, stream.segments[index])
+		parts = append(parts, s.segments[index])
 	}
 	return strings.Join(parts, "\n\n")
 }
 
-func (stream StreamedText) lastPresentIndex() int {
+func (s StreamedText) lastPresentIndex() int {
 	last := -1
-	for index := range stream.segments {
+	for index := range s.segments {
 		if index > last {
 			last = index
 		}

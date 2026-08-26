@@ -21,8 +21,8 @@ type hookAdapter struct{ runtime *Runtime }
 
 var _ hookpolicy.Service = (*hookAdapter)(nil)
 
-func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hookpolicy.Catalog, error) {
-	r := adapter.runtime
+func (h *hookAdapter) Catalog(ctx context.Context, workspace string) (hookpolicy.Catalog, error) {
+	r := h.runtime
 	workspace = strings.TrimSpace(workspace)
 	if workspace == "" {
 		return hookpolicy.Catalog{}, errors.New("list hooks: workspace is empty")
@@ -75,8 +75,8 @@ func hookProjectRootContainsWorkspace(projectRoot, workspace string) bool {
 	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
-func (adapter *hookAdapter) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
-	r := adapter.runtime
+func (h *hookAdapter) SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error {
+	r := h.runtime
 	projectRoot = strings.TrimSpace(projectRoot)
 	if projectRoot == "" {
 		return errors.New("set hook trust: project root is empty")

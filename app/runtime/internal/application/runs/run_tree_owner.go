@@ -49,65 +49,65 @@ type segmentActivation struct {
 // beginExecution crosses the executor activation boundary exactly once. A root
 // cancellation that claimed the owner first suppresses activation and lets the
 // pump synthesize the canonical canceled terminal from the committed opening.
-func (owner *runTreeOwner) beginExecution(
+func (r *runTreeOwner) beginExecution(
 	ctx context.Context,
 	begin func(context.Context) error,
 ) (canceled bool, err error) {
-	if owner == nil {
+	if r == nil {
 		if begin == nil {
 			return false, nil
 		}
 		return false, begin(ctx)
 	}
-	owner.mu.Lock()
-	if owner.activation.done == nil {
-		owner.activation.done = make(chan struct{})
+	r.mu.Lock()
+	if r.activation.done == nil {
+		r.activation.done = make(chan struct{})
 	}
-	if owner.activation.started || owner.activation.finished {
-		owner.mu.Unlock()
+	if r.activation.started || r.activation.finished {
+		r.mu.Unlock()
 		return false, errors.New("runs: segment activation already resolved")
 	}
-	if owner.cancelRequested {
-		owner.activation.finished = true
-		close(owner.activation.done)
-		owner.mu.Unlock()
+	if r.cancelRequested {
+		r.activation.finished = true
+		close(r.activation.done)
+		r.mu.Unlock()
 		return true, nil
 	}
-	owner.activation.started = true
-	owner.mu.Unlock()
+	r.activation.started = true
+	r.mu.Unlock()
 
 	if begin != nil {
 		err = begin(ctx)
 	}
-	owner.mu.Lock()
-	owner.activation.err = err
-	owner.activation.finished = true
-	close(owner.activation.done)
-	owner.mu.Unlock()
+	r.mu.Lock()
+	r.activation.err = err
+	r.activation.finished = true
+	close(r.activation.done)
+	r.mu.Unlock()
 	return false, err
 }
 
-func (owner *runTreeOwner) committedTerminalRun() (run.Run, bool) {
-	if owner == nil {
+func (r *runTreeOwner) committedTerminalRun() (run.Run, bool) {
+	if r == nil {
 		return run.Run{}, false
 	}
-	owner.mu.Lock()
-	defer owner.mu.Unlock()
-	if owner.terminalRun == nil {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.terminalRun == nil {
 		return run.Run{}, false
 	}
-	return *owner.terminalRun, true
+	return *r.terminalRun, true
 }
 
 // stop cancels the run context. Called on a true terminal (never on a parked
 // Run, whose live executor must stay alive for resume).
-func (owner *runTreeOwner) stop() {
-	if owner == nil {
+func (r *runTreeOwner) stop() {
+	if r == nil {
 		return
 	}
-	owner.mu.Lock()
-	cancel := owner.cancel
-	owner.mu.Unlock()
+	r.mu.Lock()
+	cancel := r.cancel
+	r.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
@@ -115,30 +115,30 @@ func (owner *runTreeOwner) stop() {
 
 // wait joins the complete run boundary: terminal projection, registry removal,
 // synchronous maintenance, admission release, and journal closure.
-func (owner *runTreeOwner) wait(ctx context.Context) error {
-	if owner == nil || owner.done == nil {
+func (r *runTreeOwner) wait(ctx context.Context) error {
+	if r == nil || r.done == nil {
 		return nil
 	}
-	if err := completion.Wait(ctx, owner.done); err != nil {
+	if err := completion.Wait(ctx, r.done); err != nil {
 		return err
 	}
-	return owner.completionErr
+	return r.completionErr
 }
 
 // cleanupContext derives a bounded context for a run's durable cancel, rooted on
 // the run's detached owner context when available (so cleanup outlives the
 // request) and never inheriting the caller's cancellation.
-func (owner *runTreeOwner) cleanupContext(fallback context.Context) (context.Context, context.CancelFunc) {
+func (r *runTreeOwner) cleanupContext(fallback context.Context) (context.Context, context.CancelFunc) {
 	base := context.WithoutCancel(fallback)
-	if owner != nil {
-		owner.mu.Lock()
-		if owner.taskContext != nil {
+	if r != nil {
+		r.mu.Lock()
+		if r.taskContext != nil {
 			// The pump can release (and cancel) its task owner immediately after
 			// requestCancel stops runCtx. Durable cancel cleanup must retain the
 			// owner's trace values without inheriting that lifecycle cancellation.
-			base = context.WithoutCancel(owner.taskContext)
+			base = context.WithoutCancel(r.taskContext)
 		}
-		owner.mu.Unlock()
+		r.mu.Unlock()
 	}
 	return context.WithTimeout(base, runCleanupTimeout)
 }

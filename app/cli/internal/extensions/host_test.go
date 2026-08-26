@@ -88,8 +88,8 @@ func TestHostRejectsDuplicatePluginIdentity(t *testing.T) {
 type failingSource struct{ err error }
 
 func (failingSource) ID() string { return "broken" }
-func (s failingSource) Discover(context.Context) (SourceResult, error) {
-	return SourceResult{}, s.err
+func (f failingSource) Discover(context.Context) (SourceResult, error) {
+	return SourceResult{}, f.err
 }
 
 func TestDiscoveryPreservesSourceOrderAndIsolatesFailures(t *testing.T) {

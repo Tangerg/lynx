@@ -149,9 +149,9 @@ func watchCancellation(
 	return watcher
 }
 
-func (w *cancellationWatcher) Finish(cancelRun bool) error {
-	w.exit <- cancelRun
-	return <-w.result
+func (c *cancellationWatcher) Finish(cancelRun bool) error {
+	c.exit <- cancelRun
+	return <-c.result
 }
 
 func cancelAbandonedRun(
@@ -214,14 +214,14 @@ type executionDriver struct {
 	failures     int
 }
 
-func (d *executionDriver) run(ctx context.Context) (disposition, error) {
+func (e *executionDriver) run(ctx context.Context) (disposition, error) {
 	for {
-		followed := consume(d.current.Events, d.conversation, d.invocation.Renderer)
+		followed := consume(e.current.Events, e.conversation, e.invocation.Renderer)
 		if followed.outcome != nil {
 			return settled, errorForOutcome(*followed.outcome)
 		}
 		if len(followed.interactions) != 0 {
-			if err := d.resume(ctx, followed.interactions, d.current.RunID); err != nil {
+			if err := e.resume(ctx, followed.interactions, e.current.RunID); err != nil {
 				return interactionDisposition(err), err
 			}
 			continue
@@ -231,17 +231,17 @@ func (d *executionDriver) run(ctx context.Context) (disposition, error) {
 			cause = fmt.Errorf("%w: segment stream ended without a terminal event", agent.ErrDisconnected)
 		}
 		if followed.applied > 0 {
-			d.failures = 0
+			e.failures = 0
 		}
-		disposition, err := d.reconnect(ctx, cause)
+		disposition, err := e.reconnect(ctx, cause)
 		if disposition != continuing {
 			return disposition, err
 		}
 	}
 }
 
-func (d *executionDriver) resume(ctx context.Context, interactions []agent.Interaction, runID string) error {
-	answers, err := unattendedAnswers(interactions, d.invocation.ApproveAll, d.invocation.Start.SessionID)
+func (e *executionDriver) resume(ctx context.Context, interactions []agent.Interaction, runID string) error {
+	answers, err := unattendedAnswers(interactions, e.invocation.ApproveAll, e.invocation.Start.SessionID)
 	if err != nil {
 		return err
 	}
@@ -251,19 +251,19 @@ func (d *executionDriver) resume(ctx context.Context, interactions []agent.Inter
 	}
 	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
 	continued, err := mutation.ConfirmAdmitted(
-		ctx, acknowledgementBackoff, replayAdmission(d.invocation.ReplayRetention),
+		ctx, acknowledgementBackoff, replayAdmission(e.invocation.ReplayRetention),
 		func(ctx context.Context) (agent.SegmentStream, error) {
-			return d.invocation.Runtime.ResumeRun(ctx, command)
+			return e.invocation.Runtime.ResumeRun(ctx, command)
 		},
 	)
 	if err != nil {
 		return err
 	}
-	if err := validateContinuation(continued, d.openedRunID); err != nil {
+	if err := validateContinuation(continued, e.openedRunID); err != nil {
 		return err
 	}
-	d.current = continued
-	d.failures = 0
+	e.current = continued
+	e.failures = 0
 	return nil
 }
 
@@ -274,57 +274,57 @@ func interactionDisposition(err error) disposition {
 	return abandoned
 }
 
-func (d *executionDriver) reconnect(ctx context.Context, cause error) (disposition, error) {
+func (e *executionDriver) reconnect(ctx context.Context, cause error) (disposition, error) {
 	for {
-		d.failures++
-		delay, shouldRetry := d.policy.Next(d.failures, cause)
+		e.failures++
+		delay, shouldRetry := e.policy.Next(e.failures, cause)
 		if !shouldRetry {
 			return abandoned, cause
 		}
 		if err := retry.Wait(ctx, delay); err != nil {
 			return abandoned, err
 		}
-		rebound, err := d.invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{
-			RunID: d.current.RunID, SegmentID: d.current.SegmentID, AfterEventID: d.conversation.Checkpoint(),
+		rebound, err := e.invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{
+			RunID: e.current.RunID, SegmentID: e.current.SegmentID, AfterEventID: e.conversation.Checkpoint(),
 		})
 		if err == nil {
 			if err := rebound.ValidateSubscription(); err != nil {
 				return abandoned, fmt.Errorf("subscribe run: %w", err)
 			}
-			d.current = rebound
+			e.current = rebound
 			return continuing, nil
 		}
 		if !runrecovery.Required(err) {
 			cause = err
 			continue
 		}
-		recovered, recoveryErr := runrecovery.Recover(ctx, d.invocation.Runtime, d.invocation.Start.SessionID, d.current.RunID)
+		recovered, recoveryErr := runrecovery.Recover(ctx, e.invocation.Runtime, e.invocation.Start.SessionID, e.current.RunID)
 		if recoveryErr != nil {
 			if !runrecovery.Required(recoveryErr) {
 				cause = recoveryErr
 			}
 			continue
 		}
-		return d.installRecovery(ctx, recovered)
+		return e.installRecovery(ctx, recovered)
 	}
 }
 
-func (d *executionDriver) installRecovery(ctx context.Context, recovered runrecovery.State) (disposition, error) {
-	if err := d.invocation.Renderer.Reconcile(recovered.Snapshot); err != nil {
+func (e *executionDriver) installRecovery(ctx context.Context, recovered runrecovery.State) (disposition, error) {
+	if err := e.invocation.Renderer.Reconcile(recovered.Snapshot); err != nil {
 		return abandoned, err
 	}
-	if err := restoreRecoveredConversation(d.conversation, recovered); err != nil {
+	if err := restoreRecoveredConversation(e.conversation, recovered); err != nil {
 		return abandoned, err
 	}
 	switch recovered.Run.Status {
 	case agent.RunStatusFinished:
 		return settled, errorForOutcome(recovered.Run.Outcome)
 	case agent.RunStatusWaiting:
-		if err := d.resume(ctx, recovered.Snapshot.Interactions, recovered.Run.ID); err != nil {
+		if err := e.resume(ctx, recovered.Snapshot.Interactions, recovered.Run.ID); err != nil {
 			return interactionDisposition(err), err
 		}
 	case agent.RunStatusRunning:
-		d.current = recovered.Stream
+		e.current = recovered.Stream
 	}
 	return continuing, nil
 }
@@ -379,11 +379,11 @@ func consume(stream agent.EventStream, conversation *agent.Conversation, rendere
 
 type outcomeError struct{ outcome agent.Outcome }
 
-func (e *outcomeError) Error() string {
-	if detail := e.outcome.Description(); detail != "" {
-		return "run " + string(e.outcome.Status) + ": " + detail
+func (o *outcomeError) Error() string {
+	if detail := o.outcome.Description(); detail != "" {
+		return "run " + string(o.outcome.Status) + ": " + detail
 	}
-	return "run " + string(e.outcome.Status)
+	return "run " + string(o.outcome.Status)
 }
 
 func errorForOutcome(outcome agent.Outcome) error {
@@ -423,6 +423,6 @@ type interactionRequiredError struct {
 	sessionID string
 }
 
-func (e *interactionRequiredError) Error() string {
-	return fmt.Sprintf("run needs answers to %q; continue it interactively with --session %s", e.title, e.sessionID)
+func (i *interactionRequiredError) Error() string {
+	return fmt.Sprintf("run needs answers to %q; continue it interactively with --session %s", i.title, i.sessionID)
 }

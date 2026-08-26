@@ -17,8 +17,8 @@ func NewWorkspaceRecipes(userDir string) WorkspaceRecipes {
 
 var _ workspaceapp.RecipeLister = WorkspaceRecipes{}
 
-func (l WorkspaceRecipes) List(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error) {
-	return listRecipes(ctx, recipeDir(cwd), l.userDir)
+func (w WorkspaceRecipes) List(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error) {
+	return listRecipes(ctx, recipeDir(cwd), w.userDir)
 }
 
 // WorkspaceSkills lists project Skills layered over one configured user
@@ -32,6 +32,6 @@ func NewWorkspaceSkills(userDir string) WorkspaceSkills {
 
 var _ workspaceapp.SkillCatalog = WorkspaceSkills{}
 
-func (c WorkspaceSkills) List(ctx context.Context, cwd string) ([]workspaceapp.SkillSummary, error) {
-	return ListSkills(ctx, ProjectSkillDir(cwd), c.userDir)
+func (w WorkspaceSkills) List(ctx context.Context, cwd string) ([]workspaceapp.SkillSummary, error) {
+	return ListSkills(ctx, ProjectSkillDir(cwd), w.userDir)
 }

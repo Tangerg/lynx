@@ -54,9 +54,9 @@ type fakeHookInspector struct {
 	err        error
 }
 
-func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (apphooks.Inspection, error) {
-	i.cwd = cwd
-	return i.inspection, i.err
+func (f *fakeHookInspector) Inspect(_ context.Context, cwd string) (apphooks.Inspection, error) {
+	f.cwd = cwd
+	return f.inspection, f.err
 }
 
 func TestRuntimeInspectPreservesInspectorFailure(t *testing.T) {
@@ -98,12 +98,12 @@ type fakeHookTrust struct {
 	err       error
 }
 
-func (s *fakeHookTrust) Trust(_ context.Context, root string) error {
-	s.trusted = root
-	return s.err
+func (f *fakeHookTrust) Trust(_ context.Context, root string) error {
+	f.trusted = root
+	return f.err
 }
 
-func (s *fakeHookTrust) Untrust(_ context.Context, root string) error {
-	s.untrusted = root
-	return s.err
+func (f *fakeHookTrust) Untrust(_ context.Context, root string) error {
+	f.untrusted = root
+	return f.err
 }

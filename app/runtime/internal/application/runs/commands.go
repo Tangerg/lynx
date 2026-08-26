@@ -81,11 +81,11 @@ type InputBlockError struct {
 	Cause  error
 }
 
-func (e *InputBlockError) Error() string {
-	return fmt.Sprintf("runs: input block %d %s %s", e.Index, e.Field, e.Detail)
+func (i *InputBlockError) Error() string {
+	return fmt.Sprintf("runs: input block %d %s %s", i.Index, i.Field, i.Detail)
 }
 
-func (e *InputBlockError) Unwrap() error { return e.Cause }
+func (i *InputBlockError) Unwrap() error { return i.Cause }
 
 func invalidInputBlock(index int, field, detail string, cause error) error {
 	return &InputBlockError{Index: index, Field: field, Detail: detail, Cause: cause}
@@ -120,15 +120,15 @@ type StartCommand struct {
 // Keeping this at the command boundary prevents a future caller from creating
 // a caller-chosen Session or Run without the occurrence that makes retries
 // safe.
-func (c StartCommand) ValidateScheduledIdentity() error {
-	scheduled := c.RunID != "" || c.NewSessionID != "" || c.ScheduleFiring != ""
+func (s StartCommand) ValidateScheduledIdentity() error {
+	scheduled := s.RunID != "" || s.NewSessionID != "" || s.ScheduleFiring != ""
 	if !scheduled {
 		return nil
 	}
-	if c.RunID == "" || c.NewSessionID == "" || c.ScheduleFiring == "" {
+	if s.RunID == "" || s.NewSessionID == "" || s.ScheduleFiring == "" {
 		return fmt.Errorf("%w: run ID, new session ID, and schedule firing are required together", ErrInvalidScheduledStart)
 	}
-	if c.SessionID != "" {
+	if s.SessionID != "" {
 		return fmt.Errorf("%w: scheduled start cannot also select an existing session", ErrInvalidScheduledStart)
 	}
 	return nil
@@ -183,8 +183,8 @@ func MaterializeUserMessage(input []transcript.ContentBlock) (corechat.Message, 
 // MaterializeInput projects the validated user message onto the executor's
 // opening prompt plus image-attachment boundary and derives the durable opening
 // text. Steering consumes the ordered message directly.
-func (c StartCommand) MaterializeInput() (message string, images []*media.Media, openingText string, err error) {
-	userMessage, err := MaterializeUserMessage(c.Input)
+func (s StartCommand) MaterializeInput() (message string, images []*media.Media, openingText string, err error) {
+	userMessage, err := MaterializeUserMessage(s.Input)
 	if err != nil {
 		return "", nil, "", err
 	}
@@ -251,14 +251,14 @@ type QuestionAnswerError struct {
 	Detail string
 }
 
-func (e *QuestionAnswerError) Error() string {
-	if e.Index < 0 {
-		return fmt.Sprintf("question item %q answers: %s", e.ItemID, e.Detail)
+func (q *QuestionAnswerError) Error() string {
+	if q.Index < 0 {
+		return fmt.Sprintf("question item %q answers: %s", q.ItemID, q.Detail)
 	}
-	return fmt.Sprintf("question item %q answer %d: %s", e.ItemID, e.Index, e.Detail)
+	return fmt.Sprintf("question item %q answer %d: %s", q.ItemID, q.Index, q.Detail)
 }
 
-func (e *QuestionAnswerError) Unwrap() error { return ErrInvalidInterruptResponse }
+func (q *QuestionAnswerError) Unwrap() error { return ErrInvalidInterruptResponse }
 
 // CancelCommand abandons a live or parked run.
 type CancelCommand struct {
@@ -413,6 +413,6 @@ type ActiveRunConflictError struct {
 	Status run.Status
 }
 
-func (e *ActiveRunConflictError) Error() string {
-	return fmt.Sprintf("runs: session already has a %s run %q", e.Status, e.RunID)
+func (a *ActiveRunConflictError) Error() string {
+	return fmt.Sprintf("runs: session already has a %s run %q", a.Status, a.RunID)
 }

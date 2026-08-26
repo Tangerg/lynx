@@ -74,35 +74,35 @@ type authoritativeFactResult struct {
 	settledToolCallIDs []string
 }
 
-func (p *segmentPump) run() {
-	defer close(p.owner.done)
-	defer p.finish()
-	for event := range p.events {
-		if !p.processEvent(event) {
+func (s *segmentPump) run() {
+	defer close(s.owner.done)
+	defer s.finish()
+	for event := range s.events {
+		if !s.processEvent(event) {
 			return
 		}
 	}
 }
 
-func (p *segmentPump) processEvent(event ExecutorEvent) bool {
+func (s *segmentPump) processEvent(event ExecutorEvent) bool {
 	if request, reserving := event.Payload.(ChildRunReservationRequest); reserving {
-		return p.handleChildRunReservation(event, request)
+		return s.handleChildRunReservation(event, request)
 	}
 	if request, concluding := event.Payload.(ChildRunStartOutcomeRequest); concluding {
-		return p.handleChildRunStartOutcome(event, request)
+		return s.handleChildRunStartOutcome(event, request)
 	}
 	if err := event.Validate(); err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	if commit, authoritative := event.Payload.(ExecutionFactCommit); authoritative {
 		if err := commit.validate(); err != nil {
 			commit.Complete(err)
-			p.fail(err)
+			s.fail(err)
 			return false
 		}
-		result, err := p.handleAuthoritativeFact(event.Member, commit.Fact)
-		p.completeAuthoritativeFact(commit, result, err)
+		result, err := s.handleAuthoritativeFact(event.Member, commit.Fact)
+		s.completeAuthoritativeFact(commit, result, err)
 		// A rejected authoritative write is reported synchronously to the
 		// executor. It then produces either a definite failed result or
 		// an unknown settlement; stopping this pump here would race that decision
@@ -110,29 +110,29 @@ func (p *segmentPump) processEvent(event ExecutorEvent) bool {
 		return true
 	}
 	if unknown, detected := event.Payload.(UnknownEffectsDetected); detected {
-		if err := p.handleUnknownEffects(event.Member, unknown); err != nil {
-			p.fail(err)
+		if err := s.handleUnknownEffects(event.Member, unknown); err != nil {
+			s.fail(err)
 		}
 		return false
 	}
 	if barrier, interrupted := event.Payload.(TreeInterrupted); interrupted {
-		p.handleTreeBarrier(event, barrier)
+		s.handleTreeBarrier(event, barrier)
 		return false
 	}
 	executionFact, ok := event.Payload.(ExecutionFact)
 	if !ok {
-		p.fail(fmt.Errorf("runs: unsupported executor payload %T", event.Payload))
+		s.fail(fmt.Errorf("runs: unsupported executor payload %T", event.Payload))
 		return false
 	}
-	keep, err := p.handleExecutionFact(event.Member, executionFact)
+	keep, err := s.handleExecutionFact(event.Member, executionFact)
 	if err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	return keep
 }
 
-func (p *segmentPump) handleChildRunReservation(
+func (s *segmentPump) handleChildRunReservation(
 	event ExecutorEvent,
 	request ChildRunReservationRequest,
 ) bool {
@@ -140,17 +140,17 @@ func (p *segmentPump) handleChildRunReservation(
 		if request.claim() {
 			_ = request.complete(ChildRunBinding{}, err)
 		}
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	if err := request.validate(); err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	if !request.claim() {
 		return true
 	}
-	if existing := p.childStarts[event.Member.MemberID]; existing != nil {
+	if existing := s.childStarts[event.Member.MemberID]; existing != nil {
 		if existing.prepared.member != event.Member ||
 			!existing.prepared.reservation.StartedAt.Equal(request.StartedAt.UTC()) {
 			err := fmt.Errorf("runs: child member %q repeated a different start reservation", event.Member.MemberID)
@@ -160,33 +160,33 @@ func (p *segmentPump) handleChildRunReservation(
 		_ = request.complete(existing.prepared.reservation.Binding, nil)
 		return true
 	}
-	prepared, err := p.coordinator.prepareChildOpening(
-		p.spec, p.owner, p.routes, event.Member, request.StartedAt,
+	prepared, err := s.coordinator.prepareChildOpening(
+		s.spec, s.owner, s.routes, event.Member, request.StartedAt,
 	)
 	if err == nil {
-		err = p.coordinator.childStarts.ReserveChildRunStart(p.ownerCtx, prepared.reservation)
+		err = s.coordinator.childStarts.ReserveChildRunStart(s.ownerCtx, prepared.reservation)
 	}
 	if err != nil {
 		if prepared != nil {
-			prepared.releaseBinding(p.owner)
+			prepared.releaseBinding(s.owner)
 		}
 		_ = request.complete(ChildRunBinding{}, err)
 		return true
 	}
-	if p.childStarts == nil {
-		p.childStarts = make(map[string]*managedChildStart)
+	if s.childStarts == nil {
+		s.childStarts = make(map[string]*managedChildStart)
 	}
-	p.childStarts[event.Member.MemberID] = &managedChildStart{prepared: prepared}
+	s.childStarts[event.Member.MemberID] = &managedChildStart{prepared: prepared}
 	if err := request.complete(prepared.reservation.Binding, nil); err != nil {
-		p.abortPreparedChildStart(prepared)
-		delete(p.childStarts, event.Member.MemberID)
-		p.fail(err)
+		s.abortPreparedChildStart(prepared)
+		delete(s.childStarts, event.Member.MemberID)
+		s.fail(err)
 		return false
 	}
 	return true
 }
 
-func (p *segmentPump) handleChildRunStartOutcome(
+func (s *segmentPump) handleChildRunStartOutcome(
 	event ExecutorEvent,
 	request ChildRunStartOutcomeRequest,
 ) bool {
@@ -194,17 +194,17 @@ func (p *segmentPump) handleChildRunStartOutcome(
 		if request.claim() {
 			_ = request.complete(err)
 		}
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	if err := request.validate(); err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	if !request.claim() {
 		return true
 	}
-	managed := p.childStarts[event.Member.MemberID]
+	managed := s.childStarts[event.Member.MemberID]
 	if managed == nil || managed.prepared.member != event.Member ||
 		managed.prepared.reservation.Binding != request.Binding {
 		err := fmt.Errorf("runs: child member %q has no matching start reservation", event.Member.MemberID)
@@ -225,13 +225,13 @@ func (p *segmentPump) handleChildRunStartOutcome(
 	keep := true
 	switch request.Outcome {
 	case ChildRunStarted:
-		err = p.coordinator.childStarts.CommitStartedChildRun(
-			p.ownerCtx, prepared.reservation, prepared.opening,
+		err = s.coordinator.childStarts.CommitStartedChildRun(
+			s.ownerCtx, prepared.reservation, prepared.opening,
 		)
 		if err == nil {
 			managed.outcome = request.Outcome
-			p.coordinator.activatePreparedChild(p.spec, p.routes, prepared)
-			publication, publishErr := p.publisher.publish(p.ownerCtx, prepared.route, prepared.batch)
+			s.coordinator.activatePreparedChild(s.spec, s.routes, prepared)
+			publication, publishErr := s.publisher.publish(s.ownerCtx, prepared.route, prepared.batch)
 			if publishErr != nil || publication.finished || publication.parked {
 				if publishErr == nil {
 					publishErr = fmt.Errorf("runs: child member %q start unexpectedly reached a boundary", event.Member.MemberID)
@@ -239,7 +239,7 @@ func (p *segmentPump) handleChildRunStartOutcome(
 				// The durable child Run now exists. Rejecting the executor's started
 				// outcome would create a public Run without its executor member, so acknowledge
 				// the conclusive start and fail this projection pump instead.
-				p.fail(publishErr)
+				s.fail(publishErr)
 				keep = false
 			}
 		}
@@ -247,58 +247,58 @@ func (p *segmentPump) handleChildRunStartOutcome(
 			// The executor will not publish a child when this receipt fails. Consume
 			// the invisible reservation as aborted; a failed cleanup remains hidden
 			// and is reconciled at startup rather than becoming a ghost Run.
-			cleanupErr := p.coordinator.childStarts.AbortChildRunStart(
-				context.WithoutCancel(p.ownerCtx), prepared.reservation,
+			cleanupErr := s.coordinator.childStarts.AbortChildRunStart(
+				context.WithoutCancel(s.ownerCtx), prepared.reservation,
 			)
 			err = errors.Join(err, cleanupErr)
-			prepared.releaseBinding(p.owner)
+			prepared.releaseBinding(s.owner)
 		}
 	case ChildRunStartAborted:
-		err = p.coordinator.childStarts.AbortChildRunStart(p.ownerCtx, prepared.reservation)
+		err = s.coordinator.childStarts.AbortChildRunStart(s.ownerCtx, prepared.reservation)
 		if err == nil {
 			managed.outcome = request.Outcome
-			prepared.releaseBinding(p.owner)
+			prepared.releaseBinding(s.owner)
 		}
 	default:
 		err = errors.New("runs: invalid child Run start outcome")
 	}
 	if completionErr := request.complete(err); completionErr != nil {
-		p.fail(errors.Join(err, completionErr))
+		s.fail(errors.Join(err, completionErr))
 		return false
 	}
 	return keep
 }
 
-func (p *segmentPump) abortPreparedChildStart(prepared *preparedChildOpening) {
+func (s *segmentPump) abortPreparedChildStart(prepared *preparedChildOpening) {
 	if prepared == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ownerCtx), runCleanupTimeout)
 	defer cancel()
-	if p.coordinator.childStarts != nil {
-		recordRunCleanupError(ctx, p.coordinator.childStarts.AbortChildRunStart(ctx, prepared.reservation))
+	if s.coordinator.childStarts != nil {
+		recordRunCleanupError(ctx, s.coordinator.childStarts.AbortChildRunStart(ctx, prepared.reservation))
 	}
-	prepared.releaseBinding(p.owner)
+	prepared.releaseBinding(s.owner)
 }
 
-func (p *segmentPump) handleAuthoritativeFact(
+func (s *segmentPump) handleAuthoritativeFact(
 	member ExecutorMember,
 	fact ExecutionFact,
 ) (authoritativeFactResult, error) {
-	route, err := p.routes.resolve(member)
+	route, err := s.routes.resolve(member)
 	if err != nil {
 		return authoritativeFactResult{}, err
 	}
 	result := authoritativeFactResult{runID: route.runID}
 	if route.member.MemberID != "" {
-		if err := p.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+		if err := s.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			return result, err
 		}
 	}
 	if route.reducer == nil {
 		return result, fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID)
 	}
-	fact = p.classifyChildCancellationFact(route, fact)
+	fact = s.classifyChildCancellationFact(route, fact)
 	speculative := route.reducer.clone()
 	if speculative == nil {
 		return result, fmt.Errorf("runs: admitted child run %q has no cloneable reducer", route.runID)
@@ -318,8 +318,8 @@ func (p *segmentPump) handleAuthoritativeFact(
 			return result, nil
 		}
 	}
-	publication, err := p.publisher.publishAuthoritativeAtomically(
-		p.ownerCtx,
+	publication, err := s.publisher.publishAuthoritativeAtomically(
+		s.ownerCtx,
 		route,
 		batch,
 	)
@@ -337,7 +337,7 @@ func (p *segmentPump) handleAuthoritativeFact(
 	return result, nil
 }
 
-func (p *segmentPump) completeAuthoritativeFact(
+func (s *segmentPump) completeAuthoritativeFact(
 	current ExecutionFactCommit,
 	result authoritativeFactResult,
 	err error,
@@ -349,22 +349,22 @@ func (p *segmentPump) completeAuthoritativeFact(
 	}
 	currentKey := toolCommitKey{runID: result.runID, callID: toolEnd.CallID}
 	if result.deferred && err == nil {
-		if p.pendingToolCommits == nil {
-			p.pendingToolCommits = make(map[toolCommitKey]ExecutionFactCommit)
+		if s.pendingToolCommits == nil {
+			s.pendingToolCommits = make(map[toolCommitKey]ExecutionFactCommit)
 		}
-		if _, duplicate := p.pendingToolCommits[currentKey]; duplicate {
+		if _, duplicate := s.pendingToolCommits[currentKey]; duplicate {
 			current.Complete(fmt.Errorf("runs: Tool call %q already has a pending authoritative commit", toolEnd.CallID))
 			return
 		}
-		p.pendingToolCommits[currentKey] = current
+		s.pendingToolCommits[currentKey] = current
 		return
 	}
 
 	currentCompleted := false
 	for _, callID := range result.settledToolCallIDs {
 		key := toolCommitKey{runID: result.runID, callID: callID}
-		if pending, ok := p.pendingToolCommits[key]; ok {
-			delete(p.pendingToolCommits, key)
+		if pending, ok := s.pendingToolCommits[key]; ok {
+			delete(s.pendingToolCommits, key)
 			pending.Complete(err)
 			continue
 		}
@@ -378,21 +378,21 @@ func (p *segmentPump) completeAuthoritativeFact(
 	}
 }
 
-func (p *segmentPump) handleUnknownEffects(
+func (s *segmentPump) handleUnknownEffects(
 	member ExecutorMember,
 	unknown UnknownEffectsDetected,
 ) error {
 	if err := unknown.validate(); err != nil {
 		return err
 	}
-	route, err := p.routes.resolve(member)
+	route, err := s.routes.resolve(member)
 	if err != nil {
 		return err
 	}
-	if route != p.routes.root {
+	if route != s.routes.root {
 		return errors.New("runs: root-only execution reported unknown Effects for a child member")
 	}
-	if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
+	if activeChildren := s.routes.unfinishedCount() - 1; activeChildren > 0 {
 		return fmt.Errorf("runs: unknown Effects detected with %d active child Runs", activeChildren)
 	}
 	failure := run.Failure{
@@ -401,7 +401,7 @@ func (p *segmentPump) handleUnknownEffects(
 	}
 	batch, err := route.reducer.reduce(SegmentEnded{
 		Reason: run.OutcomeLost, Failure: &failure,
-		Duration: route.activeDuration(p.coordinator.publications.nowUTC()),
+		Duration: route.activeDuration(s.coordinator.publications.nowUTC()),
 	})
 	if err != nil {
 		return fmt.Errorf("runs: reduce unknown Effect loss: %w", err)
@@ -409,55 +409,55 @@ func (p *segmentPump) handleUnknownEffects(
 	retry := time.NewTicker(100 * time.Millisecond)
 	defer retry.Stop()
 	for {
-		publication, publishErr := p.publisher.publishTerminalAtomically(p.ownerCtx, route, batch)
+		publication, publishErr := s.publisher.publishTerminalAtomically(s.ownerCtx, route, batch)
 		if publishErr == nil {
 			route.segmentFinished = publication.finished
-			p.rootFinished = publication.finished
-			p.rootParked = false
+			s.rootFinished = publication.finished
+			s.rootParked = false
 			return nil
 		}
-		trace.SpanFromContext(p.ctx).RecordError(fmt.Errorf("runs: retry unknown Effect loss: %w", publishErr))
+		trace.SpanFromContext(s.ctx).RecordError(fmt.Errorf("runs: retry unknown Effect loss: %w", publishErr))
 		select {
 		case <-retry.C:
-		case <-p.ownerCtx.Done():
-			return errors.Join(publishErr, p.ownerCtx.Err())
+		case <-s.ownerCtx.Done():
+			return errors.Join(publishErr, s.ownerCtx.Err())
 		}
 	}
 }
 
-func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterrupted) {
-	root, err := p.routes.resolve(event.Member)
+func (s *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterrupted) {
+	root, err := s.routes.resolve(event.Member)
 	if err != nil {
-		p.fail(err)
+		s.fail(err)
 		return
 	}
-	if root != p.routes.root {
-		p.fail(errors.New("runs: tree interrupt must be emitted by the root executor member"))
+	if root != s.routes.root {
+		s.fail(errors.New("runs: tree interrupt must be emitted by the root executor member"))
 		return
 	}
-	publication, err := p.publisher.publishTreeBarrier(
-		p.ownerCtx,
-		p.routes,
+	publication, err := s.publisher.publishTreeBarrier(
+		s.ownerCtx,
+		s.routes,
 		barrier,
-		p.coordinator.publications.nowUTC(),
+		s.coordinator.publications.nowUTC(),
 	)
 	if err != nil {
-		p.fail(err)
+		s.fail(err)
 		return
 	}
 	if publication.published {
-		p.rootFinished = publication.finished
-		p.rootParked = publication.parked
+		s.rootFinished = publication.finished
+		s.rootParked = publication.parked
 	}
 }
 
-func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact ExecutionFact) (bool, error) {
-	route, err := p.routes.resolve(member)
+func (s *segmentPump) handleExecutionFact(member ExecutorMember, executionFact ExecutionFact) (bool, error) {
+	route, err := s.routes.resolve(member)
 	if err != nil {
 		return false, err
 	}
 	if route.member.MemberID != "" {
-		if err := p.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+		if err := s.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			return false, err
 		}
 	}
@@ -467,9 +467,9 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 	if _, interrupted := executionFact.(SegmentInterrupted); interrupted {
 		return false, errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier")
 	}
-	executionFact = p.classifyChildCancellationFact(route, executionFact)
-	if route == p.routes.root && engineEventEndsSegment(executionFact) {
-		if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
+	executionFact = s.classifyChildCancellationFact(route, executionFact)
+	if route == s.routes.root && engineEventEndsSegment(executionFact) {
+		if activeChildren := s.routes.unfinishedCount() - 1; activeChildren > 0 {
 			return false, fmt.Errorf(
 				"runs: root run %q reached a segment boundary with %d active child runs",
 				route.runID,
@@ -491,9 +491,9 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 	}
 	var publication reductionPublication
 	if terminalFact {
-		publication, err = p.publisher.publishTerminalAtomically(p.ownerCtx, route, reductions)
+		publication, err = s.publisher.publishTerminalAtomically(s.ownerCtx, route, reductions)
 	} else {
-		publication, err = p.publisher.publish(p.ownerCtx, route, reductions)
+		publication, err = s.publisher.publish(s.ownerCtx, route, reductions)
 	}
 	if err != nil {
 		return false, err
@@ -505,18 +505,18 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 		return false, nil
 	}
 	route.segmentFinished = publication.finished
-	if route != p.routes.root {
+	if route != s.routes.root {
 		return true, nil
 	}
-	p.rootFinished = p.rootFinished || publication.finished
-	p.rootParked = p.rootParked || publication.parked
+	s.rootFinished = s.rootFinished || publication.finished
+	s.rootParked = s.rootParked || publication.parked
 	// A committed root boundary is the last event this Segment can durably
 	// support. Leave a park alive for resume and never consume buffered events
 	// after a terminal transition.
-	return !p.rootParked && !p.rootFinished, nil
+	return !s.rootParked && !s.rootFinished, nil
 }
 
-func (p *segmentPump) classifyChildCancellationFact(
+func (s *segmentPump) classifyChildCancellationFact(
 	route *executorRoute,
 	fact ExecutionFact,
 ) ExecutionFact {
@@ -528,49 +528,49 @@ func (p *segmentPump) classifyChildCancellationFact(
 	if !open {
 		return fact
 	}
-	return p.owner.classifyChildCancellationTool(route.runID, itemID, toolEnd)
+	return s.owner.classifyChildCancellationTool(route.runID, itemID, toolEnd)
 }
 
-func (p *segmentPump) fail(err error) {
-	p.abortExecution = true
-	if p.ctx.Err() == nil && p.ownerCtx.Err() == nil {
-		trace.SpanFromContext(p.ctx).RecordError(err)
-		p.routes.abortUnfinished()
+func (s *segmentPump) fail(err error) {
+	s.abortExecution = true
+	if s.ctx.Err() == nil && s.ownerCtx.Err() == nil {
+		trace.SpanFromContext(s.ctx).RecordError(err)
+		s.routes.abortUnfinished()
 	}
 }
 
-func (p *segmentPump) finish() {
-	p.failPendingToolCommits(errors.New("runs: execution ended before concurrent Tool results formed a durable prefix"))
-	for memberID, managed := range p.childStarts {
+func (s *segmentPump) finish() {
+	s.failPendingToolCommits(errors.New("runs: execution ended before concurrent Tool results formed a durable prefix"))
+	for memberID, managed := range s.childStarts {
 		if !managed.outcome.Valid() {
-			p.abortPreparedChildStart(managed.prepared)
+			s.abortPreparedChildStart(managed.prepared)
 		}
-		delete(p.childStarts, memberID)
+		delete(s.childStarts, memberID)
 	}
-	if !p.rootFinished {
-		p.synthesizeUnfinished()
+	if !s.rootFinished {
+		s.synthesizeUnfinished()
 	}
 	// Every non-waiting boundary releases the executor tree exactly once. The
 	// product outcome is already committed (or will be synthesized immediately
 	// above); Release is resource ownership, not a second cancellation decision.
-	if !p.rootParked {
-		p.tearDownExecutor()
+	if !s.rootParked {
+		s.tearDownExecutor()
 	}
-	p.finishBoundary()
+	s.finishBoundary()
 }
 
-func (p *segmentPump) failPendingToolCommits(err error) {
-	if len(p.pendingToolCommits) == 0 {
+func (s *segmentPump) failPendingToolCommits(err error) {
+	if len(s.pendingToolCommits) == 0 {
 		return
 	}
 	byRun := make(map[string][]string)
-	for key, commit := range p.pendingToolCommits {
+	for key, commit := range s.pendingToolCommits {
 		byRun[key.runID] = append(byRun[key.runID], key.callID)
 		commit.Complete(err)
-		delete(p.pendingToolCommits, key)
+		delete(s.pendingToolCommits, key)
 	}
 	for runID, callIDs := range byRun {
-		if route := p.routes.byRunID[runID]; route != nil && route.reducer != nil {
+		if route := s.routes.byRunID[runID]; route != nil && route.reducer != nil {
 			route.reducer.forgetToolEnds(callIDs)
 		}
 	}
@@ -580,39 +580,39 @@ func (p *segmentPump) failPendingToolCommits(err error) {
 // teardown. Children close in canonical postorder; the root closes only if
 // every child did, so persistence never advertises a closed tree with a live
 // descendant row.
-func (p *segmentPump) synthesizeUnfinished() {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
+func (s *segmentPump) synthesizeUnfinished() {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ownerCtx), runCleanupTimeout)
 	defer cancel()
-	ordered, err := p.routes.unfinishedInPostorder()
+	ordered, err := s.routes.unfinishedInPostorder()
 	childrenClosed := err == nil
 	if err != nil {
-		p.fail(fmt.Errorf("runs: order unfinished tree for terminal synthesis: %w", err))
+		s.fail(fmt.Errorf("runs: order unfinished tree for terminal synthesis: %w", err))
 	}
 	for _, route := range ordered {
-		if route != p.routes.root {
-			childrenClosed = p.synthesizeRoute(ctx, route) && childrenClosed
+		if route != s.routes.root {
+			childrenClosed = s.synthesizeRoute(ctx, route) && childrenClosed
 		}
 	}
-	if childrenClosed && !p.routes.root.segmentFinished {
-		p.rootFinished = p.synthesizeRoute(ctx, p.routes.root)
-		p.rootParked = false
+	if childrenClosed && !s.routes.root.segmentFinished {
+		s.rootFinished = s.synthesizeRoute(ctx, s.routes.root)
+		s.rootParked = false
 	}
 }
 
-func (p *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute) bool {
+func (s *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute) bool {
 	reductions, err := route.reducer.synthesizeTerminal()
 	if err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
-	publication, err := p.publisher.publishTerminalAtomically(ctx, route, reductions)
+	publication, err := s.publisher.publishTerminalAtomically(ctx, route, reductions)
 	if err != nil {
-		p.fail(err)
+		s.fail(err)
 		return false
 	}
 	route.segmentFinished = publication.finished
 	if !publication.finished || publication.parked {
-		p.fail(fmt.Errorf(
+		s.fail(fmt.Errorf(
 			"runs: synthesized terminal for run %q produced finished=%t parked=%t",
 			route.runID,
 			publication.finished,
@@ -623,29 +623,29 @@ func (p *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute)
 	return true
 }
 
-func (p *segmentPump) tearDownExecutor() {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
+func (s *segmentPump) tearDownExecutor() {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ownerCtx), runCleanupTimeout)
 	defer cancel()
-	if err := p.coordinator.segments.release(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
-		p.owner.completionErr = fmt.Errorf("runs: tear down executor %q: %w", p.spec.ExecutorID, err)
-		recordRunCleanupError(ctx, p.owner.completionErr)
+	if err := s.coordinator.segments.release(ctx, s.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+		s.owner.completionErr = fmt.Errorf("runs: tear down executor %q: %w", s.spec.ExecutorID, err)
+		recordRunCleanupError(ctx, s.owner.completionErr)
 	}
 }
 
-func (p *segmentPump) finishBoundary() {
-	releaseMaintenance, maintenanceHeld := p.coordinator.admission.BeginMaintenance(p.spec.RunID)
-	entry, tracked := p.coordinator.segments.lookup(p.spec.RunID)
-	if tracked && !p.rootParked && entry.owner != nil {
+func (s *segmentPump) finishBoundary() {
+	releaseMaintenance, maintenanceHeld := s.coordinator.admission.BeginMaintenance(s.spec.RunID)
+	entry, tracked := s.coordinator.segments.lookup(s.spec.RunID)
+	if tracked && !s.rootParked && entry.owner != nil {
 		entry.owner.stop()
 	}
-	if p.rootFinished {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
-		if err := p.coordinator.segments.finish(ctx, Finish{
-			SessionID:       p.spec.SessionID,
-			RunID:           p.spec.RunID,
-			CWD:             p.spec.CWD,
-			Parked:          p.rootParked,
-			OpeningUserText: p.spec.OpeningUserText,
+	if s.rootFinished {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ownerCtx), runCleanupTimeout)
+		if err := s.coordinator.segments.finish(ctx, Finish{
+			SessionID:       s.spec.SessionID,
+			RunID:           s.spec.RunID,
+			CWD:             s.spec.CWD,
+			Parked:          s.rootParked,
+			OpeningUserText: s.spec.OpeningUserText,
 		}); err != nil {
 			recordRunCleanupError(ctx, err)
 		}
@@ -656,8 +656,8 @@ func (p *segmentPump) finishBoundary() {
 	}
 	// Closing the journal is the externally observable completion boundary. The
 	// synchronous maintenance fence and admission claim must be gone first.
-	p.owner.hub.close()
-	p.coordinator.segments.remove(p.spec.RunID, p.spec.SegmentID)
+	s.owner.hub.close()
+	s.coordinator.segments.remove(s.spec.RunID, s.spec.SegmentID)
 }
 
 func engineEventEndsSegment(event ExecutionFact) bool {

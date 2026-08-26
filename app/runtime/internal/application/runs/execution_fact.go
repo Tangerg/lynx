@@ -26,31 +26,31 @@ type ExecutorMember struct {
 }
 
 // Child reports whether this member was delegated by another member.
-func (member ExecutorMember) Child() bool { return member.ParentID != "" }
+func (e ExecutorMember) Child() bool { return e.ParentID != "" }
 
 // Validate rejects malformed or self-referential member identity. An entirely
 // empty member is reserved for a root execution that failed before the executor
 // created its member.
-func (member ExecutorMember) Validate() error {
-	if member.MemberID != strings.TrimSpace(member.MemberID) {
+func (e ExecutorMember) Validate() error {
+	if e.MemberID != strings.TrimSpace(e.MemberID) {
 		return errors.New("runs: executor member id has surrounding whitespace")
 	}
-	if member.ParentID != strings.TrimSpace(member.ParentID) {
+	if e.ParentID != strings.TrimSpace(e.ParentID) {
 		return errors.New("runs: executor member parent id has surrounding whitespace")
 	}
-	if member.SpawnCallID != strings.TrimSpace(member.SpawnCallID) {
+	if e.SpawnCallID != strings.TrimSpace(e.SpawnCallID) {
 		return errors.New("runs: executor member spawn call id has surrounding whitespace")
 	}
-	if member.MemberID == "" {
-		if member.ParentID != "" || member.SpawnCallID != "" {
+	if e.MemberID == "" {
+		if e.ParentID != "" || e.SpawnCallID != "" {
 			return errors.New("runs: empty executor member id cannot carry parent or spawn-call identity")
 		}
 		return nil
 	}
-	if member.ParentID == member.MemberID {
+	if e.ParentID == e.MemberID {
 		return errors.New("runs: executor member cannot parent itself")
 	}
-	if member.ParentID == "" && member.SpawnCallID != "" {
+	if e.ParentID == "" && e.SpawnCallID != "" {
 		return errors.New("runs: root executor member cannot carry spawn-call identity")
 	}
 	return nil
@@ -66,11 +66,11 @@ type ExecutorEvent struct {
 }
 
 // Validate checks the envelope before the Coordinator routes it.
-func (event ExecutorEvent) Validate() error {
-	if event.Payload == nil {
+func (e ExecutorEvent) Validate() error {
+	if e.Payload == nil {
 		return errors.New("runs: executor event payload is required")
 	}
-	return event.Member.Validate()
+	return e.Member.Validate()
 }
 
 // ExecutorPayload is the closed family carried by the ordered executor stream.
@@ -126,12 +126,12 @@ type UnknownEffectsDetected struct {
 	IDs []string
 }
 
-func (unknown UnknownEffectsDetected) validate() error {
-	if len(unknown.IDs) == 0 {
+func (u UnknownEffectsDetected) validate() error {
+	if len(u.IDs) == 0 {
 		return errors.New("runs: unknown Effect observation is empty")
 	}
 	previous := ""
-	for index, id := range unknown.IDs {
+	for index, id := range u.IDs {
 		if strings.TrimSpace(id) == "" || id != strings.TrimSpace(id) {
 			return fmt.Errorf("runs: unknown Effect id[%d] is invalid", index)
 		}
@@ -233,15 +233,15 @@ type TreeInterrupted struct {
 	Interruptions []MemberInterruption
 }
 
-func (barrier TreeInterrupted) validate() error {
-	if err := barrier.Checkpoint.Validate(); err != nil {
+func (t TreeInterrupted) validate() error {
+	if err := t.Checkpoint.Validate(); err != nil {
 		return fmt.Errorf("runs: executor tree interrupt has an invalid checkpoint: %w", err)
 	}
-	if len(barrier.Interruptions) == 0 {
+	if len(t.Interruptions) == 0 {
 		return errors.New("runs: executor emitted an empty tree interrupt")
 	}
-	seen := make(map[string]struct{}, len(barrier.Interruptions))
-	for index, request := range barrier.Interruptions {
+	seen := make(map[string]struct{}, len(t.Interruptions))
+	for index, request := range t.Interruptions {
 		if strings.TrimSpace(request.MemberID) == "" {
 			return fmt.Errorf("runs: tree interrupt request[%d] has no member id", index)
 		}
@@ -264,31 +264,31 @@ func (barrier TreeInterrupted) validate() error {
 	return nil
 }
 
-func (barrier TreeInterrupted) validateFor(
+func (t TreeInterrupted) validateFor(
 	rootMemberID string,
 	sessionID string,
 	goalIncarnationID string,
 	selection modelref.Selection,
 ) error {
-	if err := barrier.validate(); err != nil {
+	if err := t.validate(); err != nil {
 		return err
 	}
-	if err := barrier.Checkpoint.ValidateOwnership(rootMemberID, sessionID); err != nil {
+	if err := t.Checkpoint.ValidateOwnership(rootMemberID, sessionID); err != nil {
 		return fmt.Errorf("runs: executor tree interrupt checkpoint ownership: %w", err)
 	}
-	if barrier.Checkpoint.Scope.GoalIncarnationID != goalIncarnationID {
+	if t.Checkpoint.Scope.GoalIncarnationID != goalIncarnationID {
 		return fmt.Errorf(
 			"runs: executor tree interrupt checkpoint goal incarnation %q does not match Run %q: %w",
-			barrier.Checkpoint.Scope.GoalIncarnationID,
+			t.Checkpoint.Scope.GoalIncarnationID,
 			goalIncarnationID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
-	if barrier.Checkpoint.ModelSelection != selection {
+	if t.Checkpoint.ModelSelection != selection {
 		return fmt.Errorf(
 			"runs: executor tree interrupt checkpoint model %q/%q does not match Run %q/%q: %w",
-			barrier.Checkpoint.ModelSelection.Provider(),
-			barrier.Checkpoint.ModelSelection.Model(),
+			t.Checkpoint.ModelSelection.Provider(),
+			t.Checkpoint.ModelSelection.Model(),
 			selection.Provider(),
 			selection.Model(),
 			ErrInvalidExecutorCheckpoint,
@@ -308,11 +308,11 @@ type SegmentInterrupted struct {
 	Duration time.Duration
 }
 
-func (e SegmentInterrupted) validate() error {
-	if len(e.Interrupts) == 0 {
+func (s SegmentInterrupted) validate() error {
+	if len(s.Interrupts) == 0 {
 		return errors.New("runs: executor emitted an empty interrupt")
 	}
-	for _, interrupt := range e.Interrupts {
+	for _, interrupt := range s.Interrupts {
 		if err := interrupt.Validate(); err != nil {
 			return err
 		}

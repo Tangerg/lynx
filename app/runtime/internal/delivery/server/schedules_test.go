@@ -24,24 +24,24 @@ type fakeScheduleRegistry struct {
 	deleted []string
 }
 
-func (r *fakeScheduleRegistry) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]schedule.Schedule, error) {
-	return r.List(ctx)
+func (f *fakeScheduleRegistry) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]schedule.Schedule, error) {
+	return f.List(ctx)
 }
 
-func (r *fakeScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {
-	return r.listed, r.listErr
+func (f *fakeScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {
+	return f.listed, f.listErr
 }
 
-func (r *fakeScheduleRegistry) Get(_ context.Context, id string) (schedule.Schedule, error) {
-	scheduled, found := r.byID[id]
+func (f *fakeScheduleRegistry) Get(_ context.Context, id string) (schedule.Schedule, error) {
+	scheduled, found := f.byID[id]
 	if !found {
 		return schedule.Schedule{}, schedule.ErrNotFound
 	}
 	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
-	r.created = append(r.created, scheduled)
+func (f *fakeScheduleRegistry) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
+	f.created = append(f.created, scheduled)
 	if scheduled.ID == "" {
 		scheduled.ID = "sch_created"
 	}
@@ -51,26 +51,26 @@ func (r *fakeScheduleRegistry) Create(_ context.Context, scheduled schedule.Sche
 	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
-	r.updated = append(r.updated, scheduled)
+func (f *fakeScheduleRegistry) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
+	f.updated = append(f.updated, scheduled)
 	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Delete(_ context.Context, id string) (bool, error) {
-	r.deleted = append(r.deleted, id)
+func (f *fakeScheduleRegistry) Delete(_ context.Context, id string) (bool, error) {
+	f.deleted = append(f.deleted, id)
 	return true, nil
 }
 
-func (r *fakeScheduleRegistry) RecordRun(context.Context, string, time.Time) error { return nil }
+func (f *fakeScheduleRegistry) RecordRun(context.Context, string, time.Time) error { return nil }
 
-func (r *fakeScheduleRegistry) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
+func (f *fakeScheduleRegistry) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
 	return nil, nil
 }
 
-func (r *fakeScheduleRegistry) Claim(context.Context, schedule.Occurrence) (bool, error) {
+func (f *fakeScheduleRegistry) Claim(context.Context, schedule.Occurrence) (bool, error) {
 	return false, nil
 }
-func (r *fakeScheduleRegistry) Pending(context.Context, int) ([]schedule.Occurrence, error) {
+func (f *fakeScheduleRegistry) Pending(context.Context, int) ([]schedule.Occurrence, error) {
 	return nil, nil
 }
 

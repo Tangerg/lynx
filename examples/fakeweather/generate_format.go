@@ -23,31 +23,31 @@ func formatHM(hours float64) string {
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
 
-func (g *reportGenerator) hourlyForecast(dailyMean int, condition Condition) []HourlyForecast {
+func (r *reportGenerator) hourlyForecast(dailyMean int, condition Condition) []HourlyForecast {
 	out := make([]HourlyForecast, 24)
 	for i := range 24 {
-		hour := time.Date(g.target.Year(), g.target.Month(), g.target.Day(), i, 0, 0, 0, time.UTC)
+		hour := time.Date(r.target.Year(), r.target.Month(), r.target.Day(), i, 0, 0, 0, time.UTC)
 
 		// Sinusoidal diurnal cycle: hottest at 14:00, coolest at 02:00.
-		amp := g.profile.dailyAmplitude
-		if g.zone == zoneDesert {
+		amp := r.profile.dailyAmplitude
+		if r.zone == zoneDesert {
 			amp = 12
 		}
 		variation := int(math.Round(float64(amp) * math.Sin(float64(i-2)*math.Pi/12)))
-		hourTemp := clamp(dailyMean+variation+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling)
+		hourTemp := clamp(dailyMean+variation+r.rng.IntN(3)-1, r.profile.floor, r.profile.ceiling)
 
 		hourCondition := condition
-		if g.rng.Float64() < 0.2 {
-			alt := candidateConditions(hourTemp, int(g.target.Month()), g.zone, seasonalPattern{})
-			hourCondition = alt[g.rng.IntN(len(alt))]
+		if r.rng.Float64() < 0.2 {
+			alt := candidateConditions(hourTemp, int(r.target.Month()), r.zone, seasonalPattern{})
+			hourCondition = alt[r.rng.IntN(len(alt))]
 		}
 
 		precip := 0.0
 		if hourCondition.hasPrecipitation() {
-			precip = math.Round(g.rng.Float64()*5.0*10) / 10
+			precip = math.Round(r.rng.Float64()*5.0*10) / 10
 		}
 
-		humidity := 50 + g.rng.IntN(30)
+		humidity := 50 + r.rng.IntN(30)
 		if i >= 22 || i <= 6 {
 			humidity = min(humidity+10, 100)
 		}
@@ -58,15 +58,15 @@ func (g *reportGenerator) hourlyForecast(dailyMean int, condition Condition) []H
 			Condition:     hourCondition,
 			Precipitation: precip,
 			Humidity:      humidity,
-			WindSpeed:     math.Round((5.0+g.rng.Float64()*15.0)*10) / 10,
+			WindSpeed:     math.Round((5.0+r.rng.Float64()*15.0)*10) / 10,
 		}
 	}
 	return out
 }
 
-func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float64) []Alert {
+func (r *reportGenerator) alerts(condition Condition, temp int, windSpeed float64) []Alert {
 	var alerts []Alert
-	day := g.target.Add(24 * time.Hour)
+	day := r.target.Add(24 * time.Hour)
 
 	if temp >= 35 {
 		severity := AlertSeverityModerate
@@ -78,7 +78,7 @@ func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float6
 			Severity:    severity,
 			Title:       "High Temperature Warning",
 			Description: fmt.Sprintf("Temperature is expected to reach %d°C. Stay hydrated and avoid prolonged sun exposure.", temp),
-			StartTime:   g.target.Unix(),
+			StartTime:   r.target.Unix(),
 			EndTime:     day.Unix(),
 		})
 	}
@@ -92,7 +92,7 @@ func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float6
 			Severity:    severity,
 			Title:       "Extreme Cold Warning",
 			Description: fmt.Sprintf("Temperature is expected to drop to %d°C. Dress warmly and limit outdoor exposure.", temp),
-			StartTime:   g.target.Unix(),
+			StartTime:   r.target.Unix(),
 			EndTime:     day.Unix(),
 		})
 	}
@@ -106,8 +106,8 @@ func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float6
 			Severity:    severity,
 			Title:       "High Wind Warning",
 			Description: fmt.Sprintf("Wind speeds may reach %.1f km/h. Secure loose objects and avoid outdoor activities.", windSpeed),
-			StartTime:   g.target.Unix(),
-			EndTime:     g.target.Add(12 * time.Hour).Unix(),
+			StartTime:   r.target.Unix(),
+			EndTime:     r.target.Add(12 * time.Hour).Unix(),
 		})
 	}
 	if condition == ConditionStormy {
@@ -116,8 +116,8 @@ func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float6
 			Severity:    AlertSeveritySevere,
 			Title:       "Severe Storm Warning",
 			Description: "Severe thunderstorms expected. Stay indoors and avoid travel if possible.",
-			StartTime:   g.target.Unix(),
-			EndTime:     g.target.Add(6 * time.Hour).Unix(),
+			StartTime:   r.target.Unix(),
+			EndTime:     r.target.Add(6 * time.Hour).Unix(),
 		})
 	}
 	if condition == ConditionBlizzard {
@@ -126,19 +126,19 @@ func (g *reportGenerator) alerts(condition Condition, temp int, windSpeed float6
 			Severity:    AlertSeveritySevere,
 			Title:       "Blizzard Warning",
 			Description: "Blizzard conditions expected with heavy snow and strong winds. Travel is strongly discouraged.",
-			StartTime:   g.target.Unix(),
-			EndTime:     g.target.Add(12 * time.Hour).Unix(),
+			StartTime:   r.target.Unix(),
+			EndTime:     r.target.Add(12 * time.Hour).Unix(),
 		})
 	}
-	month := int(g.target.Month())
-	if (g.zone == zoneTropical || g.zone == zoneSubtropical) && month >= 6 && month <= 10 && g.rng.Float64() < 0.05 {
+	month := int(r.target.Month())
+	if (r.zone == zoneTropical || r.zone == zoneSubtropical) && month >= 6 && month <= 10 && r.rng.Float64() < 0.05 {
 		alerts = append(alerts, Alert{
 			Type:        AlertTyphoon,
 			Severity:    AlertSeverityExtreme,
 			Title:       "Typhoon Warning",
 			Description: "A typhoon is approaching. Evacuate if instructed by authorities and prepare for extreme weather.",
-			StartTime:   g.target.Unix(),
-			EndTime:     g.target.Add(48 * time.Hour).Unix(),
+			StartTime:   r.target.Unix(),
+			EndTime:     r.target.Add(48 * time.Hour).Unix(),
 		})
 	}
 	return alerts

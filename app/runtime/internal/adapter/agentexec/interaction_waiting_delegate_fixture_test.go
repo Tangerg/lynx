@@ -106,9 +106,9 @@ func takeFirstIdentifier(identifiers *[]string) string {
 	return identifier
 }
 
-func (fixture *waitingDelegateFixture) start(t *testing.T) runs.StartResult {
+func (w *waitingDelegateFixture) start(t *testing.T) runs.StartResult {
 	t.Helper()
-	started, err := fixture.coordinator.Start(t.Context(), runs.StartCommand{
+	started, err := w.coordinator.Start(t.Context(), runs.StartCommand{
 		SessionID: "session_1",
 		Capabilities: run.Capabilities{
 			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
@@ -121,13 +121,13 @@ func (fixture *waitingDelegateFixture) start(t *testing.T) runs.StartResult {
 	return started
 }
 
-func (fixture *waitingDelegateFixture) waitForBarrier(t *testing.T, timeout time.Duration) runs.TreeBarrierCommit {
+func (w *waitingDelegateFixture) waitForBarrier(t *testing.T, timeout time.Duration) runs.TreeBarrierCommit {
 	t.Helper()
 	deadline := time.After(timeout)
 	for {
-		fixture.projection.mu.Lock()
-		barriers := slices.Clone(fixture.projection.barriers)
-		fixture.projection.mu.Unlock()
+		w.projection.mu.Lock()
+		barriers := slices.Clone(w.projection.barriers)
+		w.projection.mu.Unlock()
 		if len(barriers) > 0 {
 			if len(barriers) != 1 {
 				t.Fatalf("waiting Delegate barriers = %d, want 1", len(barriers))
@@ -142,16 +142,16 @@ func (fixture *waitingDelegateFixture) waitForBarrier(t *testing.T, timeout time
 	}
 }
 
-func (fixture *waitingDelegateFixture) admissionCounts() (reservations, outcomes int) {
-	fixture.projection.mu.Lock()
-	defer fixture.projection.mu.Unlock()
-	return len(fixture.projection.reservations), len(fixture.projection.outcomes)
+func (w *waitingDelegateFixture) admissionCounts() (reservations, outcomes int) {
+	w.projection.mu.Lock()
+	defer w.projection.mu.Unlock()
+	return len(w.projection.reservations), len(w.projection.outcomes)
 }
 
-func (fixture *waitingDelegateFixture) shutdown(t *testing.T) {
+func (w *waitingDelegateFixture) shutdown(t *testing.T) {
 	t.Helper()
-	fixture.coordinator.BeginShutdown()
-	if err := fixture.coordinator.AwaitShutdown(t.Context()); err != nil {
+	w.coordinator.BeginShutdown()
+	if err := w.coordinator.AwaitShutdown(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }

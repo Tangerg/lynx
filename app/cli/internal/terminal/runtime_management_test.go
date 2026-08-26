@@ -46,10 +46,10 @@ type blockingUsageService struct {
 	canceled chan struct{}
 }
 
-func (service blockingUsageService) SessionUsage(ctx context.Context, _ string) (usage.SessionReport, error) {
-	close(service.started)
+func (b blockingUsageService) SessionUsage(ctx context.Context, _ string) (usage.SessionReport, error) {
+	close(b.started)
 	<-ctx.Done()
-	close(service.canceled)
+	close(b.canceled)
 	return usage.SessionReport{}, context.Cause(ctx)
 }
 
@@ -149,20 +149,20 @@ type blockingProviderUpdateService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingProviderUpdateService) UpdateProvider(
+func (b *blockingProviderUpdateService) UpdateProvider(
 	ctx context.Context,
 	update modelconfig.UpdateProvider,
 ) (modelconfig.Provider, error) {
 	select {
-	case service.started <- update:
+	case b.started <- update:
 	default:
 	}
 	select {
-	case <-service.release:
-		return service.modelConfigServiceStub.UpdateProvider(ctx, update)
+	case <-b.release:
+		return b.modelConfigServiceStub.UpdateProvider(ctx, update)
 	case <-ctx.Done():
 		select {
-		case service.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return modelconfig.Provider{}, context.Cause(ctx)
@@ -183,33 +183,33 @@ func newModelConfigServiceStub() *modelConfigServiceStub {
 	}
 }
 
-func (service *modelConfigServiceStub) Roles(context.Context) (modelconfig.Roles, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return service.roles, nil
+func (m *modelConfigServiceStub) Roles(context.Context) (modelconfig.Roles, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.roles, nil
 }
 
-func (service *modelConfigServiceStub) SetRole(_ context.Context, role modelconfig.Role) (modelconfig.Role, error) {
+func (m *modelConfigServiceStub) SetRole(_ context.Context, role modelconfig.Role) (modelconfig.Role, error) {
 	if err := role.Validate(); err != nil {
 		return modelconfig.Role{}, err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if role.Kind == modelconfig.UtilityRole {
-		service.roles.Utility = role
+		m.roles.Utility = role
 	} else {
-		service.roles.Embedding = role
+		m.roles.Embedding = role
 	}
 	return role, nil
 }
 
-func (service *modelConfigServiceStub) Providers(context.Context) ([]modelconfig.Provider, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return append([]modelconfig.Provider(nil), service.providers...), nil
+func (m *modelConfigServiceStub) Providers(context.Context) ([]modelconfig.Provider, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]modelconfig.Provider(nil), m.providers...), nil
 }
 
-func (service *modelConfigServiceStub) UpdateProvider(_ context.Context, update modelconfig.UpdateProvider) (modelconfig.Provider, error) {
+func (m *modelConfigServiceStub) UpdateProvider(_ context.Context, update modelconfig.UpdateProvider) (modelconfig.Provider, error) {
 	if err := update.Validate(); err != nil {
 		return modelconfig.Provider{}, err
 	}
@@ -222,10 +222,10 @@ func (service *modelConfigServiceStub) UpdateProvider(_ context.Context, update 
 		value := *update.APIKey
 		cloned.APIKey = &value
 	}
-	service.updates <- cloned
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return service.providers[0], nil
+	m.updates <- cloned
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.providers[0], nil
 }
 
 func (*modelConfigServiceStub) TestProvider(_ context.Context, providerID string) (modelconfig.TestResult, error) {
@@ -353,31 +353,31 @@ type goalServiceStub struct {
 	readSignal chan struct{}
 }
 
-func (service *goalServiceStub) GetGoal(context.Context, string) (goal.Goal, bool, error) {
-	service.reads.Add(1)
+func (g *goalServiceStub) GetGoal(context.Context, string) (goal.Goal, bool, error) {
+	g.reads.Add(1)
 	select {
-	case service.readSignal <- struct{}{}:
+	case g.readSignal <- struct{}{}:
 	default:
 	}
 	select {
-	case err := <-service.readErr:
+	case err := <-g.readErr:
 		return goal.Goal{}, false, err
 	default:
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	if service.current == nil {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.current == nil {
 		return goal.Goal{}, false, nil
 	}
-	current := *service.current
+	current := *g.current
 	if current.Reason != nil {
 		current.Reason = new(*current.Reason)
 	}
 	return current, true, nil
 }
 
-func (service *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (goal.Goal, error) {
-	service.writes.Add(1)
+func (g *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (goal.Goal, error) {
+	g.writes.Add(1)
 	if err := start.Validate(); err != nil {
 		return goal.Goal{}, err
 	}
@@ -385,60 +385,60 @@ func (service *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (
 		SessionID: start.SessionID, Objective: start.Objective, Status: goal.Active,
 		Provider: start.Provider, Model: start.Model, Budget: start.Budget,
 	}
-	service.set(current)
+	g.set(current)
 	return current, nil
 }
 
-func (service *goalServiceStub) UpdateGoal(_ context.Context, update goal.Update) (goal.Goal, error) {
-	service.writes.Add(1)
+func (g *goalServiceStub) UpdateGoal(_ context.Context, update goal.Update) (goal.Goal, error) {
+	g.writes.Add(1)
 	if err := update.Validate(); err != nil {
 		return goal.Goal{}, err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	if service.current == nil {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.current == nil {
 		return goal.Goal{}, errors.New("no goal")
 	}
-	service.current.Objective = update.Objective
-	return *service.current, nil
+	g.current.Objective = update.Objective
+	return *g.current, nil
 }
 
-func (service *goalServiceStub) ClearGoal(context.Context, string) error {
-	service.writes.Add(1)
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.current = nil
+func (g *goalServiceStub) ClearGoal(context.Context, string) error {
+	g.writes.Add(1)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.current = nil
 	return nil
 }
 
-func (service *goalServiceStub) StopGoal(context.Context, string) (goal.Goal, error) {
-	service.writes.Add(1)
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	if service.current == nil {
+func (g *goalServiceStub) StopGoal(context.Context, string) (goal.Goal, error) {
+	g.writes.Add(1)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.current == nil {
 		return goal.Goal{}, errors.New("no goal")
 	}
-	service.current.Status = goal.Paused
-	service.current.Reason = &goal.Reason{Code: goal.StoppedByUser}
-	return *service.current, nil
+	g.current.Status = goal.Paused
+	g.current.Reason = &goal.Reason{Code: goal.StoppedByUser}
+	return *g.current, nil
 }
 
-func (service *goalServiceStub) ResumeGoal(context.Context, string) (goal.Goal, error) {
-	service.writes.Add(1)
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	if service.current == nil {
+func (g *goalServiceStub) ResumeGoal(context.Context, string) (goal.Goal, error) {
+	g.writes.Add(1)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.current == nil {
 		return goal.Goal{}, errors.New("no goal")
 	}
-	service.current.Status = goal.Active
-	service.current.Reason = nil
-	return *service.current, nil
+	g.current.Status = goal.Active
+	g.current.Reason = nil
+	return *g.current, nil
 }
 
-func (service *goalServiceStub) set(current goal.Goal) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.current = &current
+func (g *goalServiceStub) set(current goal.Goal) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.current = &current
 }
 
 func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
@@ -629,14 +629,14 @@ type blockingWorkspaceListService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingWorkspaceListService) List(ctx context.Context) ([]workspace.Summary, error) {
+func (b *blockingWorkspaceListService) List(ctx context.Context) ([]workspace.Summary, error) {
 	select {
-	case service.started <- struct{}{}:
+	case b.started <- struct{}{}:
 	default:
 	}
 	<-ctx.Done()
 	select {
-	case service.canceled <- struct{}{}:
+	case b.canceled <- struct{}{}:
 	default:
 	}
 	return nil, context.Cause(ctx)
@@ -670,17 +670,17 @@ type blockingGoalMutationService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingGoalMutationService) StopGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
+func (b *blockingGoalMutationService) StopGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
 	select {
-	case service.started <- struct{}{}:
+	case b.started <- struct{}{}:
 	default:
 	}
 	select {
-	case <-service.release:
-		return service.goalServiceStub.StopGoal(ctx, sessionID)
+	case <-b.release:
+		return b.goalServiceStub.StopGoal(ctx, sessionID)
 	case <-ctx.Done():
 		select {
-		case service.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return goal.Goal{}, context.Cause(ctx)

@@ -21,12 +21,12 @@ func New(attempts int) Policy {
 }
 
 // Next reports the delay before retrying failure number n, counted from one.
-func (r Policy) Next(n int, err error) (time.Duration, bool) {
-	if n <= 0 || n > r.Attempts || !Retryable(err) {
+func (p Policy) Next(n int, err error) (time.Duration, bool) {
+	if n <= 0 || n > p.Attempts || !Retryable(err) {
 		return 0, false
 	}
-	base := max(r.Base, 0)
-	maximum := r.Maximum
+	base := max(p.Base, 0)
+	maximum := p.Maximum
 	if maximum <= 0 {
 		maximum = time.Second
 	}

@@ -16,9 +16,9 @@ const (
 	RestoreBoth    RestoreScope = "both"
 )
 
-func (scope RestoreScope) Validate() error {
-	if !slices.Contains([]RestoreScope{RestoreHistory, RestoreFiles, RestoreBoth}, scope) {
-		return fmt.Errorf("restore scope %q is invalid", scope)
+func (r RestoreScope) Validate() error {
+	if !slices.Contains([]RestoreScope{RestoreHistory, RestoreFiles, RestoreBoth}, r) {
+		return fmt.Errorf("restore scope %q is invalid", r)
 	}
 	return nil
 }
@@ -32,20 +32,20 @@ type RollbackSession struct {
 	Scope     RestoreScope
 }
 
-func (rollback RollbackSession) Validate() error {
+func (r RollbackSession) Validate() error {
 	var problems []error
-	if rollback.CommandID != "" {
-		if err := rollback.CommandID.Validate(); err != nil {
+	if r.CommandID != "" {
+		if err := r.CommandID.Validate(); err != nil {
 			problems = append(problems, err)
 		}
 	}
-	if strings.TrimSpace(rollback.SessionID) == "" {
+	if strings.TrimSpace(r.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
-	if err := rollback.Scope.Validate(); err != nil {
+	if err := r.Scope.Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	if rollback.ToRunID == "" && rollback.Scope != RestoreHistory {
+	if r.ToRunID == "" && r.Scope != RestoreHistory {
 		problems = append(problems, errors.New("file restoration requires a run boundary"))
 	}
 	if err := errors.Join(problems...); err != nil {
@@ -70,25 +70,25 @@ type InputContent struct {
 	Data     []byte
 }
 
-func (content InputContent) Clone() InputContent {
-	content.Text = strings.Clone(content.Text)
-	content.MimeType = strings.Clone(content.MimeType)
-	content.Data = slices.Clone(content.Data)
-	return content
+func (i InputContent) Clone() InputContent {
+	i.Text = strings.Clone(i.Text)
+	i.MimeType = strings.Clone(i.MimeType)
+	i.Data = slices.Clone(i.Data)
+	return i
 }
 
-func (content InputContent) Validate() error {
-	switch content.Kind {
+func (i InputContent) Validate() error {
+	switch i.Kind {
 	case InputText:
-		if strings.TrimSpace(content.Text) == "" || content.MimeType != "" || len(content.Data) != 0 {
+		if strings.TrimSpace(i.Text) == "" || i.MimeType != "" || len(i.Data) != 0 {
 			return errors.New("text input content is malformed")
 		}
 	case InputImage:
-		if strings.TrimSpace(content.MimeType) == "" || len(content.Data) == 0 || content.Text != "" {
+		if strings.TrimSpace(i.MimeType) == "" || len(i.Data) == 0 || i.Text != "" {
 			return errors.New("image input content is malformed")
 		}
 	default:
-		return fmt.Errorf("input content kind %q is invalid", content.Kind)
+		return fmt.Errorf("input content kind %q is invalid", i.Kind)
 	}
 	return nil
 }
@@ -98,20 +98,20 @@ type DroppedRun struct {
 	Input []InputContent
 }
 
-func (run DroppedRun) Clone() DroppedRun {
-	input := run.Input
-	run.Input = make([]InputContent, len(input))
+func (d DroppedRun) Clone() DroppedRun {
+	input := d.Input
+	d.Input = make([]InputContent, len(input))
 	for index, content := range input {
-		run.Input[index] = content.Clone()
+		d.Input[index] = content.Clone()
 	}
-	return run
+	return d
 }
 
-func (run DroppedRun) Validate() error {
-	if strings.TrimSpace(run.RunID) == "" {
+func (d DroppedRun) Validate() error {
+	if strings.TrimSpace(d.RunID) == "" {
 		return errors.New("dropped run id is empty")
 	}
-	for index, content := range run.Input {
+	for index, content := range d.Input {
 		if err := content.Validate(); err != nil {
 			return fmt.Errorf("dropped run input %d: %w", index+1, err)
 		}
@@ -122,10 +122,10 @@ func (run DroppedRun) Validate() error {
 // OpeningText joins the first dropped root input's text blocks for restoring
 // the composer. It also reports inline images that still require attachment
 // materialization by the delivery layer.
-func (run DroppedRun) OpeningText() (string, int) {
-	parts := make([]string, 0, len(run.Input))
+func (d DroppedRun) OpeningText() (string, int) {
+	parts := make([]string, 0, len(d.Input))
 	images := 0
-	for _, content := range run.Input {
+	for _, content := range d.Input {
 		switch content.Kind {
 		case InputText:
 			parts = append(parts, content.Text)
@@ -141,12 +141,12 @@ type RollbackResult struct {
 	Dropped []DroppedRun
 }
 
-func (result RollbackResult) Validate() error {
-	if err := result.Session.Validate(); err != nil {
+func (r RollbackResult) Validate() error {
+	if err := r.Session.Validate(); err != nil {
 		return fmt.Errorf("rollback result: %w", err)
 	}
-	seen := make(map[string]struct{}, len(result.Dropped))
-	for index, run := range result.Dropped {
+	seen := make(map[string]struct{}, len(r.Dropped))
+	for index, run := range r.Dropped {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("rollback result dropped run %d: %w", index+1, err)
 		}
@@ -160,8 +160,8 @@ func (result RollbackResult) Validate() error {
 
 // FirstOpeningInput returns the earliest dropped root input. Child and
 // continuation runs carry no opening input and are skipped.
-func (result RollbackResult) FirstOpeningInput() (DroppedRun, bool) {
-	for _, run := range result.Dropped {
+func (r RollbackResult) FirstOpeningInput() (DroppedRun, bool) {
+	for _, run := range r.Dropped {
 		if len(run.Input) != 0 {
 			return run.Clone(), true
 		}

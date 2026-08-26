@@ -76,27 +76,27 @@ func NextSessionReplacement(current, state session.Session) (SessionReplacement,
 
 // ExpectedRevision returns zero for an initial insert or the target revision
 // an exact replacement was based on.
-func (r SessionReplacement) ExpectedRevision() uint64 { return r.expectedRevision }
+func (s SessionReplacement) ExpectedRevision() uint64 { return s.expectedRevision }
 
 // State returns the complete already-decided Session aggregate.
-func (r SessionReplacement) State() session.Session { return r.state }
+func (s SessionReplacement) State() session.Session { return s.state }
 
-// Validate proves that r is either one initial aggregate or one monotonic
+// Validate proves that s is either one initial aggregate or one monotonic
 // replacement of an existing aggregate.
-func (r SessionReplacement) Validate() error {
-	if err := r.state.Validate(); err != nil {
+func (s SessionReplacement) Validate() error {
+	if err := s.state.Validate(); err != nil {
 		return fmt.Errorf("sessions: invalid Session replacement: %w", err)
 	}
-	if r.expectedRevision == 0 {
-		if r.state.Revision() != 1 {
-			return fmt.Errorf("sessions: initial Session revision is %d, want 1", r.state.Revision())
+	if s.expectedRevision == 0 {
+		if s.state.Revision() != 1 {
+			return fmt.Errorf("sessions: initial Session revision is %d, want 1", s.state.Revision())
 		}
 		return nil
 	}
-	if r.expectedRevision == ^uint64(0) || r.state.Revision() != r.expectedRevision+1 {
+	if s.expectedRevision == ^uint64(0) || s.state.Revision() != s.expectedRevision+1 {
 		return fmt.Errorf(
 			"sessions: Session replacement revision %d does not follow expected revision %d",
-			r.state.Revision(), r.expectedRevision,
+			s.state.Revision(), s.expectedRevision,
 		)
 	}
 	return nil
@@ -189,26 +189,26 @@ type TerminalPlan struct {
 }
 
 // RootRun returns the root terminal projection. A valid plan always has one.
-func (plan TerminalPlan) RootRun() (rundomain.Run, bool) {
-	if len(plan.Runs) == 0 {
+func (t TerminalPlan) RootRun() (rundomain.Run, bool) {
+	if len(t.Runs) == 0 {
 		return rundomain.Run{}, false
 	}
-	root := plan.Runs[len(plan.Runs)-1]
+	root := t.Runs[len(t.Runs)-1]
 	return root, root.Lineage().IsRoot()
 }
 
 // Validate proves that the parked-tree terminal write-set is complete,
 // canonical, owner-bound, and carries exactly the Goal accounting fact implied
 // by its root terminal Run.
-func (plan TerminalPlan) Validate() error {
-	root, ok := plan.RootRun()
+func (t TerminalPlan) Validate() error {
+	root, ok := t.RootRun()
 	if !ok {
 		return errors.New("sessions: terminal plan must end with one root Run")
 	}
-	members := make([]rundomain.TreeMember, 0, len(plan.Runs))
-	ownedRuns := make(map[string]struct{}, len(plan.Runs))
-	actualOrder := make([]string, 0, len(plan.Runs))
-	for index, run := range plan.Runs {
+	members := make([]rundomain.TreeMember, 0, len(t.Runs))
+	ownedRuns := make(map[string]struct{}, len(t.Runs))
+	actualOrder := make([]string, 0, len(t.Runs))
+	for index, run := range t.Runs {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("sessions: terminal plan Run[%d]: %w", index, err)
 		}
@@ -228,7 +228,7 @@ func (plan TerminalPlan) Validate() error {
 		members = append(members, rundomain.TreeMember{RunID: run.ID(), Lineage: run.Lineage()})
 	}
 	rootOutcome, _ := root.Outcome()
-	if plan.ResumeClaimed && rootOutcome != rundomain.OutcomeLost {
+	if t.ResumeClaimed && rootOutcome != rundomain.OutcomeLost {
 		return errors.New("sessions: claimed Resume terminal plan must recover a lost Run")
 	}
 	tree, err := rundomain.NewTree(root.ID(), members)
@@ -238,11 +238,11 @@ func (plan TerminalPlan) Validate() error {
 	if !slices.Equal(actualOrder, tree.Postorder()) {
 		return errors.New("sessions: terminal plan Runs are not in canonical postorder")
 	}
-	if strings.TrimSpace(plan.CheckpointRootID) == "" || plan.CheckpointRootID != strings.TrimSpace(plan.CheckpointRootID) {
+	if strings.TrimSpace(t.CheckpointRootID) == "" || t.CheckpointRootID != strings.TrimSpace(t.CheckpointRootID) {
 		return errors.New("sessions: terminal plan checkpoint root ID must be non-empty without surrounding whitespace")
 	}
-	seenItems := make(map[string]struct{}, len(plan.Items))
-	for index, item := range plan.Items {
+	seenItems := make(map[string]struct{}, len(t.Items))
+	for index, item := range t.Items {
 		_, owned := ownedRuns[item.RunID()]
 		if item.ID() == "" || item.SessionID() != root.SessionID() || !owned || item.Status() != transcript.ItemIncomplete {
 			return fmt.Errorf("sessions: terminal plan Item[%d] is not an incomplete Item owned by its Run tree", index)
@@ -255,12 +255,12 @@ func (plan TerminalPlan) Validate() error {
 			return fmt.Errorf("sessions: terminal plan Item %q: %w", item.ID(), err)
 		}
 	}
-	for index, message := range plan.Messages {
+	for index, message := range t.Messages {
 		if err := message.Validate(); err != nil {
 			return fmt.Errorf("sessions: terminal plan Message[%d]: %w", index, err)
 		}
 	}
-	return validateTerminalGoalRun(root, plan.GoalRun)
+	return validateTerminalGoalRun(root, t.GoalRun)
 }
 
 func validateTerminalGoalRun(run rundomain.Run, record *goal.RunRecord) error {

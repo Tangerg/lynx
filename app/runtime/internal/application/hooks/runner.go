@@ -55,9 +55,9 @@ const (
 	CommandAsk   CommandVerdict = "ask"
 )
 
-// Valid reports whether verdict is one supported hook command decision.
-func (verdict CommandVerdict) Valid() bool {
-	return verdict == CommandAllow || verdict == CommandDeny || verdict == CommandAsk
+// Valid reports whether c is one supported hook command decision.
+func (c CommandVerdict) Valid() bool {
+	return c == CommandAllow || c == CommandDeny || c == CommandAsk
 }
 
 // CommandDecision is the typed control information returned by a hook command.

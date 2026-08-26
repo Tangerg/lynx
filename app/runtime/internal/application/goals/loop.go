@@ -35,38 +35,38 @@ type goalDrive struct {
 	err           error
 }
 
-func (d *goalDrive) await(ctx context.Context) error {
-	if d == nil {
+func (g *goalDrive) await(ctx context.Context) error {
+	if g == nil {
 		return nil
 	}
-	if err := completion.Wait(ctx, d.done); err != nil {
+	if err := completion.Wait(ctx, g.done); err != nil {
 		return err
 	}
-	return d.err
+	return g.err
 }
 
-func (d *goalDrive) completed() bool {
-	if d == nil {
+func (g *goalDrive) completed() bool {
+	if g == nil {
 		return true
 	}
 	select {
-	case <-d.done:
+	case <-g.done:
 		return true
 	default:
 		return false
 	}
 }
 
-func (d *goalDrive) resultIfCompleted() (bool, error) {
-	if !d.completed() {
+func (g *goalDrive) resultIfCompleted() (bool, error) {
+	if !g.completed() {
 		return false, nil
 	}
-	return true, d.err
+	return true, g.err
 }
 
-func (d *goalDrive) quiesce() {
-	if d != nil && d.cancel != nil {
-		d.cancel()
+func (g *goalDrive) quiesce() {
+	if g != nil && g.cancel != nil {
+		g.cancel()
 	}
 }
 

@@ -61,18 +61,18 @@ const (
 	RequiredArguments ArgumentMode = "required"
 )
 
-func (mode ArgumentMode) Validate() error {
-	if mode != NoArguments && mode != OptionalArguments && mode != RequiredArguments {
-		return fmt.Errorf("slash command argument mode %q is invalid", mode)
+func (a ArgumentMode) Validate() error {
+	if a != NoArguments && a != OptionalArguments && a != RequiredArguments {
+		return fmt.Errorf("slash command argument mode %q is invalid", a)
 	}
 	return nil
 }
 
-func (mode ArgumentMode) TakesInput() bool { return mode != NoArguments }
+func (a ArgumentMode) TakesInput() bool { return a != NoArguments }
 
-func (mode ArgumentMode) ValidateInvocation(name, argument string) error {
+func (a ArgumentMode) ValidateInvocation(name, argument string) error {
 	argument = strings.TrimSpace(argument)
-	switch mode {
+	switch a {
 	case NoArguments:
 		if argument != "" {
 			return fmt.Errorf("/%s does not accept arguments", name)
@@ -99,45 +99,45 @@ type CommandDescriptor struct {
 }
 
 // Validate checks the command identity and its aliases as one namespace.
-func (descriptor CommandDescriptor) Validate() error {
+func (c CommandDescriptor) Validate() error {
 	switch {
-	case strings.TrimSpace(descriptor.Name) == "":
+	case strings.TrimSpace(c.Name) == "":
 		return errors.New("slash command has no name")
-	case strings.ContainsAny(descriptor.Name, " /\t\n"):
-		return fmt.Errorf("slash command %q has an invalid name", descriptor.Name)
-	case strings.TrimSpace(descriptor.Title) == "":
-		return fmt.Errorf("slash command %q has no title", descriptor.Name)
+	case strings.ContainsAny(c.Name, " /\t\n"):
+		return fmt.Errorf("slash command %q has an invalid name", c.Name)
+	case strings.TrimSpace(c.Title) == "":
+		return fmt.Errorf("slash command %q has no title", c.Name)
 	default:
-		if err := descriptor.Arguments.Validate(); err != nil {
-			return fmt.Errorf("slash command %q: %w", descriptor.Name, err)
+		if err := c.Arguments.Validate(); err != nil {
+			return fmt.Errorf("slash command %q: %w", c.Name, err)
 		}
-		return descriptor.validateAliases()
+		return c.validateAliases()
 	}
 }
 
-func (descriptor CommandDescriptor) validateAliases() error {
-	seen := map[string]struct{}{descriptor.Name: {}}
-	for _, alias := range descriptor.Aliases {
+func (c CommandDescriptor) validateAliases() error {
+	seen := map[string]struct{}{c.Name: {}}
+	for _, alias := range c.Aliases {
 		if strings.TrimSpace(alias) == "" || strings.ContainsAny(alias, " /\t\n") {
-			return fmt.Errorf("slash command %q has invalid alias %q", descriptor.Name, alias)
+			return fmt.Errorf("slash command %q has invalid alias %q", c.Name, alias)
 		}
 		if _, duplicate := seen[alias]; duplicate {
-			return fmt.Errorf("slash command %q repeats name or alias %q", descriptor.Name, alias)
+			return fmt.Errorf("slash command %q repeats name or alias %q", c.Name, alias)
 		}
 		seen[alias] = struct{}{}
 	}
 	return nil
 }
 
-func (descriptor CommandDescriptor) category() string {
-	if category := strings.TrimSpace(descriptor.Category); category != "" {
+func (c CommandDescriptor) category() string {
+	if category := strings.TrimSpace(c.Category); category != "" {
 		return category
 	}
 	return "General"
 }
 
-func (descriptor CommandDescriptor) identities() []string {
-	return append([]string{descriptor.Name}, descriptor.Aliases...)
+func (c CommandDescriptor) identities() []string {
+	return append([]string{c.Name}, c.Aliases...)
 }
 
 // CommandAvailability is the shared discovery and execution gate for a slash
@@ -161,22 +161,22 @@ type CommandResult struct {
 	Message string
 }
 
-func (command SlashCommand) validate() error {
-	if err := command.Descriptor.Validate(); err != nil {
+func (s SlashCommand) validate() error {
+	if err := s.Descriptor.Validate(); err != nil {
 		return err
 	}
-	if command.Execute == nil {
-		return fmt.Errorf("slash command %q has no handler", command.Descriptor.Name)
+	if s.Execute == nil {
+		return fmt.Errorf("slash command %q has no handler", s.Descriptor.Name)
 	}
 	return nil
 }
 
-func (command localCommand) validate() error {
-	if err := command.Descriptor.Validate(); err != nil {
+func (l localCommand) validate() error {
+	if err := l.Descriptor.Validate(); err != nil {
 		return err
 	}
-	if command.Run == nil {
-		return fmt.Errorf("slash command %q has no handler", command.Descriptor.Name)
+	if l.Run == nil {
+		return fmt.Errorf("slash command %q has no handler", l.Descriptor.Name)
 	}
 	return nil
 }

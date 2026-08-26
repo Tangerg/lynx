@@ -106,8 +106,8 @@ func TestRunNowRecordFailureDoesNotPublishSchedule(t *testing.T) {
 
 type cwdResolverFunc func(string) (string, error)
 
-func (f cwdResolverFunc) ResolveExistingDir(path string) (string, error) {
-	return f(path)
+func (c cwdResolverFunc) ResolveExistingDir(path string) (string, error) {
+	return c(path)
 }
 
 func TestCreateOwnsScheduleAdmission(t *testing.T) {
@@ -277,10 +277,10 @@ type pagedStore struct {
 	limit   int
 }
 
-func (r *pagedStore) ListPage(_ context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]schedule.Schedule, error) {
-	r.afterID, r.limit = afterID, limit
+func (p *pagedStore) ListPage(_ context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]schedule.Schedule, error) {
+	p.afterID, p.limit = afterID, limit
 	var out []schedule.Schedule
-	for _, row := range r.rows {
+	for _, row := range p.rows {
 		if !afterCreatedAt.IsZero() || afterID != "" {
 			if row.CreatedAt.After(afterCreatedAt) || (row.CreatedAt.Equal(afterCreatedAt) && row.ID <= afterID) {
 				continue

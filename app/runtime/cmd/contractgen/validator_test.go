@@ -36,20 +36,20 @@ func TestUnionBranchPresenceDoesNotBecomeGlobalRequiredness(t *testing.T) {
 		nil,
 	)
 
-	if !slices.Contains(checks, `requiredText("id", value.ID)`) {
+	if !slices.Contains(checks, `requiredText("id", v.ID)`) {
 		t.Fatalf("non-optional identity lost its value constraint: %v", checks)
 	}
 	for _, forbidden := range []string{
-		`requiredText("alpha", value.Alpha)`,
-		`requiredText("beta", value.Beta)`,
+		`requiredText("alpha", v.Alpha)`,
+		`requiredText("beta", v.Beta)`,
 	} {
 		if slices.Contains(checks, forbidden) {
 			t.Fatalf("branch field became globally required through %s", forbidden)
 		}
 	}
 	for _, required := range []string{
-		`requiredWhen(wireFieldEquals(value, "type", "alpha"), "alpha", value)`,
-		`requiredWhen(wireFieldEquals(value, "type", "beta"), "beta", value)`,
+		`requiredWhen(wireFieldEquals(v, "type", "alpha"), "alpha", v)`,
+		`requiredWhen(wireFieldEquals(v, "type", "beta"), "beta", v)`,
 	} {
 		if !slices.Contains(checks, required) {
 			t.Fatalf("branch requiredness was not generated through %s: %v", required, checks)

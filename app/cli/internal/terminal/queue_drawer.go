@@ -49,27 +49,27 @@ type queuePointerGesture struct {
 	dragged bool
 }
 
-func (gesture *queuePointerGesture) begin(target queueTarget) {
-	*gesture = queuePointerGesture{target: target, active: true}
+func (q *queuePointerGesture) begin(target queueTarget) {
+	*q = queuePointerGesture{target: target, active: true}
 }
 
-func (gesture *queuePointerGesture) drag(target queueTarget) bool {
-	if !gesture.active {
+func (q *queuePointerGesture) drag(target queueTarget) bool {
+	if !q.active {
 		return false
 	}
-	if target != gesture.target {
-		gesture.dragged = true
+	if target != q.target {
+		q.dragged = true
 	}
 	return true
 }
 
-func (gesture *queuePointerGesture) release(target queueTarget) bool {
-	commit := gesture.active && !gesture.dragged && target.kind != queueTargetNone && target == gesture.target
-	gesture.cancel()
+func (q *queuePointerGesture) release(target queueTarget) bool {
+	commit := q.active && !q.dragged && target.kind != queueTargetNone && target == q.target
+	q.cancel()
 	return commit
 }
 
-func (gesture *queuePointerGesture) cancel() { *gesture = queuePointerGesture{} }
+func (q *queuePointerGesture) cancel() { *q = queuePointerGesture{} }
 
 type queueDrawerActions struct {
 	BeginEdit  func(promptqueue.Entry) error

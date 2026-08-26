@@ -360,8 +360,8 @@ type runtimeResourceObservation struct {
 	agentMemory bool
 }
 
-func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bool {
-	return observation.knowledge || observation.hooks
+func (r runtimeResourceObservation) hasWorkspaceAuthoredResources() bool {
+	return r.knowledge || r.hooks
 }
 
 func (a *app) observedRuntimeResources() runtimeResourceObservation {
@@ -379,27 +379,27 @@ func (a *app) observedRuntimeResources() runtimeResourceObservation {
 	}
 }
 
-func (monitor runtimeChangeMonitor) observesWorkspace() bool {
-	return monitor.watchFiles && (monitor.repository != nil || monitor.resources.hasWorkspaceAuthoredResources())
+func (r runtimeChangeMonitor) observesWorkspace() bool {
+	return r.watchFiles && (r.repository != nil || r.resources.hasWorkspaceAuthoredResources())
 }
 
-func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
-	topics := monitor.supportedTopics()
-	if monitor.source == nil || len(topics) == 0 {
-		return monitor.runWithoutWatch(ctx)
+func (r runtimeChangeMonitor) run(ctx context.Context) error {
+	topics := r.supportedTopics()
+	if r.source == nil || len(topics) == 0 {
+		return r.runWithoutWatch(ctx)
 	}
 	requested := changefeed.Subscription{Topics: topics}
-	if monitor.observesWorkspace() && containsTopic(topics, changefeed.FilesChanged) {
-		requested.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
+	if r.observesWorkspace() && containsTopic(topics, changefeed.FilesChanged) {
+		requested.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: r.workspace}}
 	}
-	subscriptions, err := monitor.subscriptionLimits.Partition(requested)
+	subscriptions, err := r.subscriptionLimits.Partition(requested)
 	if err != nil {
 		return fmt.Errorf("plan runtime change subscriptions: %w", err)
 	}
 	if len(subscriptions) == 1 {
-		return monitor.runSubscription(ctx, subscriptions[0], monitor.repository != nil)
+		return r.runSubscription(ctx, subscriptions[0], r.repository != nil)
 	}
-	return monitor.runSubscriptions(ctx, subscriptions)
+	return r.runSubscriptions(ctx, subscriptions)
 }
 
 func (a *app) runtimeChangeSubscriptionLimits() changefeed.SubscriptionLimits {
@@ -410,7 +410,7 @@ func (a *app) runtimeChangeSubscriptionLimits() changefeed.SubscriptionLimits {
 	return changefeed.SubscriptionLimits{MaxTopics: limits.MaxTopics, MaxWatches: limits.MaxWatches}
 }
 
-func (monitor runtimeChangeMonitor) runSubscriptions(ctx context.Context, subscriptions []changefeed.Subscription) error {
+func (r runtimeChangeMonitor) runSubscriptions(ctx context.Context, subscriptions []changefeed.Subscription) error {
 	groupContext, cancelGroup := context.WithCancelCause(ctx)
 	defer cancelGroup(nil)
 
@@ -423,9 +423,9 @@ func (monitor runtimeChangeMonitor) runSubscriptions(ctx context.Context, subscr
 	}
 	results := make(chan error, len(subscriptions))
 	for index, subscription := range subscriptions {
-		ownsFileProjection := monitor.repository != nil && index == fileOwner
+		ownsFileProjection := r.repository != nil && index == fileOwner
 		go func(subscription changefeed.Subscription, ownsFileProjection bool) {
-			results <- monitor.runSubscription(groupContext, subscription, ownsFileProjection)
+			results <- r.runSubscription(groupContext, subscription, ownsFileProjection)
 		}(subscription, ownsFileProjection)
 	}
 
@@ -440,7 +440,7 @@ func (monitor runtimeChangeMonitor) runSubscriptions(ctx context.Context, subscr
 	return first
 }
 
-func (monitor runtimeChangeMonitor) runSubscription(
+func (r runtimeChangeMonitor) runSubscription(
 	ctx context.Context,
 	subscription changefeed.Subscription,
 	ownsFileProjection bool,
@@ -449,7 +449,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 	setupFailures, streamFailures := 0, 0
 	for context.Cause(ctx) == nil {
 		attemptContext, cancelAttempt := context.WithCancel(ctx)
-		stream, err := monitor.source.Subscribe(attemptContext, subscription)
+		stream, err := r.source.Subscribe(attemptContext, subscription)
 		if err != nil {
 			cancelAttempt()
 			if cause := context.Cause(ctx); cause != nil {
@@ -459,7 +459,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				return err
 			}
 			setupFailures++
-			if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+			if retry.Wait(ctx, r.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
@@ -471,7 +471,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 		// Even when this runtime cannot watch files.changed, install the
 		// authoritative file projection instead of leaving the header empty.
 		if ownsFileProjection {
-			if err := monitor.refreshFiles(attemptContext); err != nil {
+			if err := r.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
 				if cause := context.Cause(ctx); cause != nil {
 					return cause
@@ -480,13 +480,13 @@ func (monitor runtimeChangeMonitor) runSubscription(
 					return err
 				}
 				setupFailures++
-				if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+				if retry.Wait(ctx, r.recoveryDelay(setupFailures)) != nil {
 					return context.Cause(ctx)
 				}
 				continue
 			}
 		}
-		if err := monitor.resync(topics); err != nil {
+		if err := r.resync(topics); err != nil {
 			cancelAttempt()
 			if cause := context.Cause(ctx); cause != nil {
 				return cause
@@ -495,7 +495,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				return err
 			}
 			setupFailures++
-			if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+			if retry.Wait(ctx, r.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
@@ -513,12 +513,12 @@ func (monitor runtimeChangeMonitor) runSubscription(
 			lastSequence = event.Sequence
 			if gap {
 				if ownsFileProjection && containsTopic(topics, changefeed.FilesChanged) {
-					if err := monitor.refreshFiles(attemptContext); err != nil {
+					if err := r.refreshFiles(attemptContext); err != nil {
 						attemptErr = err
 						break
 					}
 				}
-				if err := monitor.resync(topics); err != nil {
+				if err := r.resync(topics); err != nil {
 					attemptErr = err
 					break
 				}
@@ -529,14 +529,14 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				progressed = true
 				continue
 			}
-			if ownsFileProjection && monitor.invalidatesFiles(event) {
-				if err := monitor.refreshFiles(attemptContext); err != nil {
+			if ownsFileProjection && r.invalidatesFiles(event) {
+				if err := r.refreshFiles(attemptContext); err != nil {
 					attemptErr = err
 					break
 				}
 			}
 			if event.Type != changefeed.EventType(changefeed.FilesChanged) {
-				if err := monitor.invalidate(event); err != nil {
+				if err := r.invalidate(event); err != nil {
 					attemptErr = err
 					break
 				}
@@ -557,93 +557,93 @@ func (monitor runtimeChangeMonitor) runSubscription(
 			streamFailures = 0
 		}
 		streamFailures++
-		if retry.Wait(ctx, monitor.recoveryDelay(streamFailures)) != nil {
+		if retry.Wait(ctx, r.recoveryDelay(streamFailures)) != nil {
 			return context.Cause(ctx)
 		}
 	}
 	return context.Cause(ctx)
 }
 
-func (monitor runtimeChangeMonitor) recoveryDelay(failure int) time.Duration {
-	backoff := monitor.recovery
+func (r runtimeChangeMonitor) recoveryDelay(failure int) time.Duration {
+	backoff := r.recovery
 	if backoff.Base <= 0 && backoff.Maximum <= 0 {
 		backoff = runtimeRecoveryBackoff
 	}
 	return backoff.Delay(failure)
 }
 
-func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
-	if monitor.repository == nil {
+func (r runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
+	if r.repository == nil {
 		return nil
 	}
 	failures := 0
 	for context.Cause(ctx) == nil {
-		if err := monitor.refreshFiles(ctx); err == nil {
+		if err := r.refreshFiles(ctx); err == nil {
 			return nil
 		} else if !reconnect.Retryable(err) {
 			return err
 		}
 		failures++
-		if retry.Wait(ctx, monitor.recoveryDelay(failures)) != nil {
+		if retry.Wait(ctx, r.recoveryDelay(failures)) != nil {
 			return context.Cause(ctx)
 		}
 	}
 	return context.Cause(ctx)
 }
 
-func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
-	if monitor.source == nil {
+func (r runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
+	if r.source == nil {
 		return nil
 	}
 	candidates := []changefeed.Topic{changefeed.SessionsChanged, changefeed.RunsChanged}
-	if monitor.resources.plan {
+	if r.resources.plan {
 		candidates = append(candidates, changefeed.PlanChanged)
 	}
 	candidates = append(candidates, changefeed.InterruptsChanged)
-	if monitor.resources.goals {
+	if r.resources.goals {
 		candidates = append(candidates, changefeed.GoalsChanged)
 	}
-	if monitor.resources.skills {
+	if r.resources.skills {
 		candidates = append(candidates, changefeed.SkillsChanged)
 	}
-	if monitor.resources.mcp {
+	if r.resources.mcp {
 		candidates = append(candidates, changefeed.MCPChanged)
 	}
-	if monitor.resources.schedules {
+	if r.resources.schedules {
 		candidates = append(candidates, changefeed.SchedulesChanged)
 	}
-	if monitor.resources.knowledge {
+	if r.resources.knowledge {
 		candidates = append(candidates, changefeed.KnowledgeChanged)
 	}
-	if monitor.resources.hooks {
+	if r.resources.hooks {
 		candidates = append(candidates, changefeed.HooksChanged)
 	}
-	if monitor.resources.models {
+	if r.resources.models {
 		candidates = append(candidates, changefeed.ModelsChanged)
 	}
-	if monitor.resources.approvals {
+	if r.resources.approvals {
 		candidates = append(candidates, changefeed.ApprovalsChanged)
 	}
-	if monitor.resources.agentMemory {
+	if r.resources.agentMemory {
 		candidates = append(candidates, changefeed.AgentMemoryChanged)
 	}
-	if monitor.observesWorkspace() {
+	if r.observesWorkspace() {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)
 	}
 	topics := make([]changefeed.Topic, 0, len(candidates))
 	for _, topic := range candidates {
-		if monitor.source.Supports(topic) {
+		if r.source.Supports(topic) {
 			topics = append(topics, topic)
 		}
 	}
 	return topics
 }
 
-func (monitor runtimeChangeMonitor) refreshFiles(ctx context.Context) error {
-	if monitor.repository == nil || monitor.applyFiles == nil {
+func (r runtimeChangeMonitor) refreshFiles(ctx context.Context) error {
+	if r.repository == nil || r.applyFiles == nil {
 		return nil
 	}
-	changes, err := monitor.repository.Changes(ctx, monitor.workspace)
+	changes, err := r.repository.Changes(ctx, r.workspace)
 	if errors.Is(err, workspace.ErrVersionControlUnavailable) {
 		changes = nil
 	} else if err != nil {
@@ -652,34 +652,34 @@ func (monitor runtimeChangeMonitor) refreshFiles(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	return monitor.applyFiles(changes)
+	return r.applyFiles(changes)
 }
 
-func (monitor runtimeChangeMonitor) invalidate(event changefeed.Event) error {
-	if monitor.applyEvent == nil {
+func (r runtimeChangeMonitor) invalidate(event changefeed.Event) error {
+	if r.applyEvent == nil {
 		return nil
 	}
-	return monitor.applyEvent(event)
+	return r.applyEvent(event)
 }
 
-func (monitor runtimeChangeMonitor) resync(topics []changefeed.Topic) error {
-	if monitor.applyResync == nil {
+func (r runtimeChangeMonitor) resync(topics []changefeed.Topic) error {
+	if r.applyResync == nil {
 		return nil
 	}
-	return monitor.applyResync(topics)
+	return r.applyResync(topics)
 }
 
-func (monitor runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) bool {
+func (r runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) bool {
 	switch event.Type {
 	case changefeed.EventType(changefeed.FilesChanged):
 		if event.WatchID != "" {
 			return event.WatchID == workspaceWatchID &&
-				(event.Workspace == "" || event.Workspace == monitor.workspace)
+				(event.Workspace == "" || event.Workspace == r.workspace)
 		}
 		// Agent tool writes are broad file invalidations. They carry the
 		// affected workspace but no client watch identity, and must refresh the
 		// same authoritative projection as a watch-produced signal.
-		return event.Workspace == "" || event.Workspace == monitor.workspace
+		return event.Workspace == "" || event.Workspace == r.workspace
 	case changefeed.Resync:
 		return containsTopic(event.Topics, changefeed.FilesChanged) || containsString(event.WatchIDs, workspaceWatchID)
 	default:

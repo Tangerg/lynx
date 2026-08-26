@@ -39,64 +39,64 @@ func newInteractionLifetime(parent context.Context) interactionLifetime {
 	}
 }
 
-func (lifetime *interactionLifetime) beginRelease() {
-	lifetime.releaseOnce.Do(func() {
-		lifetime.stop()
-		close(lifetime.releasing)
+func (i *interactionLifetime) beginRelease() {
+	i.releaseOnce.Do(func() {
+		i.stop()
+		close(i.releasing)
 	})
 }
 
-func (lifetime *interactionLifetime) offer(event runs.ExecutorEvent) bool {
+func (i *interactionLifetime) offer(event runs.ExecutorEvent) bool {
 	select {
-	case lifetime.events <- event:
+	case i.events <- event:
 		return true
 	default:
 		return false
 	}
 }
 
-func (lifetime *interactionLifetime) send(event runs.ExecutorEvent) bool {
+func (i *interactionLifetime) send(event runs.ExecutorEvent) bool {
 	select {
-	case lifetime.events <- event:
+	case i.events <- event:
 		return true
-	case <-lifetime.releasing:
+	case <-i.releasing:
 		return false
 	}
 }
 
-func (lifetime *interactionLifetime) sendAuthoritative(
+func (i *interactionLifetime) sendAuthoritative(
 	ctx context.Context,
 	event runs.ExecutorEvent,
 ) error {
 	select {
-	case lifetime.events <- event:
+	case i.events <- event:
 		return nil
-	case <-lifetime.releasing:
+	case <-i.releasing:
 		return errors.New("agentexec: execution released before authoritative fact commit")
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (lifetime *interactionLifetime) bind(ctx context.Context) (context.Context, context.CancelFunc) {
+func (i *interactionLifetime) bind(ctx context.Context) (context.Context, context.CancelFunc) {
 	bound, cancel := context.WithCancel(ctx)
-	stop := context.AfterFunc(lifetime.context, cancel)
+	stop := context.AfterFunc(i.context, cancel)
 	return bound, func() {
 		stop()
 		cancel()
 	}
 }
 
-func (lifetime *interactionLifetime) wakeUnknown() {
+func (i *interactionLifetime) wakeUnknown() {
 	select {
-	case lifetime.unknownWake <- struct{}{}:
+	case i.unknownWake <- struct{}{}:
 	default:
 	}
 }
 
-func (lifetime *interactionLifetime) wakeState() {
+func (i *interactionLifetime) wakeState() {
 	select {
-	case lifetime.stateWake <- struct{}{}:
+	case i.stateWake <- struct{}{}:
 	default:
 	}
 }

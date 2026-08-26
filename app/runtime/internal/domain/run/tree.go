@@ -87,7 +87,7 @@ func newRunTreeBuilder(rootRunID string, size int) *runTreeBuilder {
 	}
 }
 
-func (builder *runTreeBuilder) addMember(index int, member TreeMember) error {
+func (r *runTreeBuilder) addMember(index int, member TreeMember) error {
 	if err := member.Lineage.Validate(member.RunID); err != nil {
 		return fmt.Errorf(
 			"%w: member[%d] run %q lineage: %w",
@@ -97,51 +97,51 @@ func (builder *runTreeBuilder) addMember(index int, member TreeMember) error {
 			err,
 		)
 	}
-	if _, duplicate := builder.lineages[member.RunID]; duplicate {
+	if _, duplicate := r.lineages[member.RunID]; duplicate {
 		return fmt.Errorf("%w: duplicate run %q", ErrInvalidTree, member.RunID)
 	}
-	builder.lineages[member.RunID] = member.Lineage
+	r.lineages[member.RunID] = member.Lineage
 
 	if member.Lineage.IsRoot() {
-		if member.RunID != builder.rootRunID {
+		if member.RunID != r.rootRunID {
 			return fmt.Errorf(
 				"%w: run %q has root lineage, want only %q",
 				ErrInvalidTree,
 				member.RunID,
-				builder.rootRunID,
+				r.rootRunID,
 			)
 		}
 		return nil
 	}
-	if member.RunID == builder.rootRunID {
+	if member.RunID == r.rootRunID {
 		return fmt.Errorf(
 			"%w: root run %q carries child lineage",
 			ErrInvalidTree,
-			builder.rootRunID,
+			r.rootRunID,
 		)
 	}
-	if member.Lineage.RootRunID != builder.rootRunID {
+	if member.Lineage.RootRunID != r.rootRunID {
 		return fmt.Errorf(
 			"%w: child run %q names root %q, want %q",
 			ErrInvalidTree,
 			member.RunID,
 			member.Lineage.RootRunID,
-			builder.rootRunID,
+			r.rootRunID,
 		)
 	}
-	builder.children[member.Lineage.ParentRunID] = append(
-		builder.children[member.Lineage.ParentRunID],
+	r.children[member.Lineage.ParentRunID] = append(
+		r.children[member.Lineage.ParentRunID],
 		member.RunID,
 	)
 	return nil
 }
 
-func (builder *runTreeBuilder) validateParents() error {
-	for runID, lineage := range builder.lineages {
+func (r *runTreeBuilder) validateParents() error {
+	for runID, lineage := range r.lineages {
 		if lineage.IsRoot() {
 			continue
 		}
-		if _, exists := builder.lineages[lineage.ParentRunID]; !exists {
+		if _, exists := r.lineages[lineage.ParentRunID]; !exists {
 			return fmt.Errorf(
 				"%w: child run %q names unknown parent %q",
 				ErrInvalidTree,
@@ -150,68 +150,68 @@ func (builder *runTreeBuilder) validateParents() error {
 			)
 		}
 	}
-	for parentRunID := range builder.children {
-		slices.Sort(builder.children[parentRunID])
+	for parentRunID := range r.children {
+		slices.Sort(r.children[parentRunID])
 	}
 	return nil
 }
 
-func (builder *runTreeBuilder) build() (Tree, error) {
-	if err := builder.visit(builder.rootRunID); err != nil {
+func (r *runTreeBuilder) build() (Tree, error) {
+	if err := r.visit(r.rootRunID); err != nil {
 		return Tree{}, err
 	}
-	if len(builder.tree.postorder) != len(builder.lineages) {
+	if len(r.tree.postorder) != len(r.lineages) {
 		// With exactly one root-shaped member and every parent present, any
 		// disconnected component necessarily contains a cycle. Traverse it so
 		// callers receive the precise invariant violation.
-		runIDs := make([]string, 0, len(builder.lineages))
-		for runID := range builder.lineages {
+		runIDs := make([]string, 0, len(r.lineages))
+		for runID := range r.lineages {
 			runIDs = append(runIDs, runID)
 		}
 		slices.Sort(runIDs)
 		for _, runID := range runIDs {
-			if builder.states[runID] == runTreeUnvisited {
-				if err := builder.visit(runID); err != nil {
+			if r.states[runID] == runTreeUnvisited {
+				if err := r.visit(runID); err != nil {
 					return Tree{}, err
 				}
 			}
 		}
-		return Tree{}, fmt.Errorf("%w: tree contains a Run disconnected from root %q", ErrInvalidTree, builder.rootRunID)
+		return Tree{}, fmt.Errorf("%w: tree contains a Run disconnected from root %q", ErrInvalidTree, r.rootRunID)
 	}
-	return builder.tree, nil
+	return r.tree, nil
 }
 
-func (builder *runTreeBuilder) visit(runID string) error {
-	switch builder.states[runID] {
+func (r *runTreeBuilder) visit(runID string) error {
+	switch r.states[runID] {
 	case runTreeVisiting:
 		return fmt.Errorf("%w: tree contains a cycle at run %q", ErrInvalidTree, runID)
 	case runTreeVisited:
 		return nil
 	}
-	builder.states[runID] = runTreeVisiting
-	start := len(builder.tree.postorder)
-	for _, childRunID := range builder.children[runID] {
-		if err := builder.visit(childRunID); err != nil {
+	r.states[runID] = runTreeVisiting
+	start := len(r.tree.postorder)
+	for _, childRunID := range r.children[runID] {
+		if err := r.visit(childRunID); err != nil {
 			return err
 		}
 	}
-	builder.tree.postorder = append(builder.tree.postorder, runID)
-	builder.tree.intervals[runID] = runTreeInterval{start: start, end: len(builder.tree.postorder)}
-	builder.states[runID] = runTreeVisited
+	r.tree.postorder = append(r.tree.postorder, runID)
+	r.tree.intervals[runID] = runTreeInterval{start: start, end: len(r.tree.postorder)}
+	r.states[runID] = runTreeVisited
 	return nil
 }
 
 // Postorder returns a defensive copy of the complete canonical Run order.
-func (tree Tree) Postorder() []string {
-	return slices.Clone(tree.postorder)
+func (t Tree) Postorder() []string {
+	return slices.Clone(t.postorder)
 }
 
 // SubtreePostorder returns a defensive copy of runID and all its descendants in
 // canonical postorder. The boolean is false when runID is not a tree member.
-func (tree Tree) SubtreePostorder(runID string) ([]string, bool) {
-	interval, exists := tree.intervals[runID]
+func (t Tree) SubtreePostorder(runID string) ([]string, bool) {
+	interval, exists := t.intervals[runID]
 	if !exists {
 		return nil, false
 	}
-	return slices.Clone(tree.postorder[interval.start:interval.end]), true
+	return slices.Clone(t.postorder[interval.start:interval.end]), true
 }

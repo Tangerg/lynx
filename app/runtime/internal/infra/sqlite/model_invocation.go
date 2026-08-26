@@ -29,14 +29,14 @@ func NewModelInvocationStore(db *sql.DB) *ModelInvocationStore {
 // ListStartedModelInvocations yields every provider attempt still owned by a
 // pre-crash process. The callback keeps recovery application types out of the
 // SQLite package while preserving an exact boot snapshot for its write-set.
-func (store *ModelInvocationStore) ListStartedModelInvocations(
+func (m *ModelInvocationStore) ListStartedModelInvocations(
 	ctx context.Context,
 	yield func(sessionID, runID, segmentID, callID string, startedAt time.Time) error,
 ) error {
 	if yield == nil {
 		return errors.New("sqlite: model invocation reader is required")
 	}
-	rows, err := conn(ctx, store.db).QueryContext(ctx, `
+	rows, err := conn(ctx, m.db).QueryContext(ctx, `
 		SELECT session_id, run_id, segment_id, call_id, started_at
 		  FROM model_invocations
 		 WHERE state = ?
@@ -62,7 +62,7 @@ func (store *ModelInvocationStore) ListStartedModelInvocations(
 	return nil
 }
 
-func (store *ModelInvocationStore) StartModelInvocation(
+func (m *ModelInvocationStore) StartModelInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,
 	startedAt time.Time,
@@ -73,7 +73,7 @@ func (store *ModelInvocationStore) StartModelInvocation(
 	if startedAt.IsZero() {
 		return errors.New("sqlite: model invocation start time is required")
 	}
-	_, err := conn(ctx, store.db).ExecContext(ctx,
+	_, err := conn(ctx, m.db).ExecContext(ctx,
 		`INSERT INTO model_invocations(
 		   call_id, session_id, run_id, segment_id, state, started_at, finished_at)
 		 VALUES (?, ?, ?, ?, ?, ?, 0)`,
@@ -90,40 +90,40 @@ func (store *ModelInvocationStore) StartModelInvocation(
 	return nil
 }
 
-func (store *ModelInvocationStore) CompleteModelInvocation(
+func (m *ModelInvocationStore) CompleteModelInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,
 	startedAt, finishedAt time.Time,
 ) error {
-	return store.finish(
+	return m.finish(
 		ctx, sessionID, runID, segmentID, callID,
 		startedAt, finishedAt, modelInvocationCompleted,
 	)
 }
 
-func (store *ModelInvocationStore) FailModelInvocation(
+func (m *ModelInvocationStore) FailModelInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,
 	startedAt, finishedAt time.Time,
 ) error {
-	return store.finish(
+	return m.finish(
 		ctx, sessionID, runID, segmentID, callID,
 		startedAt, finishedAt, modelInvocationFailed,
 	)
 }
 
-func (store *ModelInvocationStore) MarkModelInvocationUnknown(
+func (m *ModelInvocationStore) MarkModelInvocationUnknown(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,
 	startedAt, finishedAt time.Time,
 ) error {
-	return store.finish(
+	return m.finish(
 		ctx, sessionID, runID, segmentID, callID,
 		startedAt, finishedAt, modelInvocationUnknown,
 	)
 }
 
-func (store *ModelInvocationStore) finish(
+func (m *ModelInvocationStore) finish(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,
 	startedAt, finishedAt time.Time,
@@ -138,7 +138,7 @@ func (store *ModelInvocationStore) finish(
 	if finishedAt.Before(startedAt) {
 		return errors.New("sqlite: model invocation finish time precedes start time")
 	}
-	result, err := conn(ctx, store.db).ExecContext(ctx,
+	result, err := conn(ctx, m.db).ExecContext(ctx,
 		`UPDATE model_invocations
 		    SET state = ?, finished_at = ?
 		  WHERE call_id = ? AND session_id = ? AND run_id = ? AND segment_id = ?

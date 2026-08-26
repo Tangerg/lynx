@@ -124,26 +124,26 @@ func previewRollback(snapshot agent.SessionSnapshot, request agent.RollbackSessi
 	return rollbackPreview{request: request, settlement: settlement}, err
 }
 
-func (preview rollbackPreview) ValidateCommit(snapshot agent.SessionSnapshot) error {
-	return preview.settlement.ValidateCommit(snapshot)
+func (r rollbackPreview) ValidateCommit(snapshot agent.SessionSnapshot) error {
+	return r.settlement.ValidateCommit(snapshot)
 }
 
 // ValidateApplied proves a history rollback committed when its command result
 // was lost behind a post-commit cleanup error. Files-only rollback has no
 // observable session projection change and therefore cannot use this proof.
-func (preview rollbackPreview) ValidateApplied(snapshot agent.SessionSnapshot) error {
-	return preview.settlement.ValidateApplied(snapshot)
+func (r rollbackPreview) ValidateApplied(snapshot agent.SessionSnapshot) error {
+	return r.settlement.ValidateApplied(snapshot)
 }
 
-func (preview rollbackPreview) Description() string {
+func (r rollbackPreview) Description() string {
 	boundary := "the empty-session boundary"
-	if preview.request.ToRunID != "" {
-		boundary = shortIdentity(preview.request.ToRunID)
+	if r.request.ToRunID != "" {
+		boundary = shortIdentity(r.request.ToRunID)
 	}
-	if preview.request.Scope == agent.RestoreFiles {
+	if r.request.Scope == agent.RestoreFiles {
 		return fmt.Sprintf("Restore files to %s while keeping chat history?", boundary)
 	}
-	return fmt.Sprintf("Restore %s to %s and remove %d later runs?", preview.request.Scope, boundary, preview.settlement.DroppedCount())
+	return fmt.Sprintf("Restore %s to %s and remove %d later runs?", r.request.Scope, boundary, r.settlement.DroppedCount())
 }
 
 type rollbackSettlement struct {

@@ -66,134 +66,134 @@ func newDraftPersistence(repository draftRepository, notify func(draftPersistenc
 // Schedule records the latest complete authoring value without blocking the
 // caller on filesystem latency. A snapshot is cloned at this boundary because
 // attachment slices remain owned by the UI model.
-func (p *draftPersistence) Schedule(sessionID string, message agent.Message) bool {
-	if p == nil || sessionID == "" {
+func (d *draftPersistence) Schedule(sessionID string, message agent.Message) bool {
+	if d == nil || sessionID == "" {
 		return false
 	}
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
+	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
 		return false
 	}
-	p.revision++
-	snapshot := draftSnapshot{revision: p.revision, sessionID: sessionID, message: message.Clone()}
-	p.pending = &snapshot
-	p.mu.Unlock()
-	p.signal()
+	d.revision++
+	snapshot := draftSnapshot{revision: d.revision, sessionID: sessionID, message: message.Clone()}
+	d.pending = &snapshot
+	d.mu.Unlock()
+	d.signal()
 	return true
 }
 
 // Flush supersedes older pending work and waits until every older write has
 // finished before saving snapshot. This ordering prevents an older writer from
 // winning a rename race after a session transition has committed newer state.
-func (p *draftPersistence) Flush(sessionID string, message agent.Message) error {
-	if p == nil || sessionID == "" {
+func (d *draftPersistence) Flush(sessionID string, message agent.Message) error {
+	if d == nil || sessionID == "" {
 		return nil
 	}
-	p.commandMu.Lock()
-	defer p.commandMu.Unlock()
-	snapshot, ok := p.reserve(sessionID, message)
+	d.commandMu.Lock()
+	defer d.commandMu.Unlock()
+	snapshot, ok := d.reserve(sessionID, message)
 	if !ok {
 		return errDraftPersistenceClosed
 	}
 	request := draftFlush{snapshot: snapshot, done: make(chan error, 1)}
 	select {
-	case p.flush <- request:
+	case d.flush <- request:
 		return <-request.done
-	case <-p.done:
+	case <-d.done:
 		return errDraftPersistenceClosed
 	}
 }
 
-func (p *draftPersistence) Current(revision uint64) bool {
-	if p == nil {
+func (d *draftPersistence) Current(revision uint64) bool {
+	if d == nil {
 		return false
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return !p.closed && revision == p.revision
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return !d.closed && revision == d.revision
 }
 
-func (p *draftPersistence) Close() error {
-	if p == nil {
+func (d *draftPersistence) Close() error {
+	if d == nil {
 		return nil
 	}
-	p.commandMu.Lock()
-	defer p.commandMu.Unlock()
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
-		<-p.done
+	d.commandMu.Lock()
+	defer d.commandMu.Unlock()
+	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
+		<-d.done
 		return nil
 	}
-	p.closed = true
-	p.mu.Unlock()
+	d.closed = true
+	d.mu.Unlock()
 
 	result := make(chan error, 1)
 	select {
-	case p.shutdown <- result:
+	case d.shutdown <- result:
 		err := <-result
-		<-p.done
+		<-d.done
 		return err
-	case <-p.done:
+	case <-d.done:
 		return nil
 	}
 }
 
-func (p *draftPersistence) reserve(sessionID string, message agent.Message) (draftSnapshot, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed {
+func (d *draftPersistence) reserve(sessionID string, message agent.Message) (draftSnapshot, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
 		return draftSnapshot{}, false
 	}
-	p.revision++
-	return draftSnapshot{revision: p.revision, sessionID: sessionID, message: message.Clone()}, true
+	d.revision++
+	return draftSnapshot{revision: d.revision, sessionID: sessionID, message: message.Clone()}, true
 }
 
-func (p *draftPersistence) takePending() (draftSnapshot, bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.pending == nil {
+func (d *draftPersistence) takePending() (draftSnapshot, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.pending == nil {
 		return draftSnapshot{}, false
 	}
-	snapshot := *p.pending
-	p.pending = nil
+	snapshot := *d.pending
+	d.pending = nil
 	return snapshot, true
 }
 
-func (p *draftPersistence) discardPendingThrough(revision uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.pending != nil && p.pending.revision <= revision {
-		p.pending = nil
+func (d *draftPersistence) discardPendingThrough(revision uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.pending != nil && d.pending.revision <= revision {
+		d.pending = nil
 	}
 }
 
-func (p *draftPersistence) signal() {
+func (d *draftPersistence) signal() {
 	select {
-	case p.wake <- struct{}{}:
+	case d.wake <- struct{}{}:
 	default:
 	}
 }
 
-func (p *draftPersistence) run() {
-	defer close(p.done)
+func (d *draftPersistence) run() {
+	defer close(d.done)
 	for {
 		select {
-		case <-p.wake:
-			if snapshot, ok := p.takePending(); ok {
-				p.publish(snapshot, p.save(snapshot))
+		case <-d.wake:
+			if snapshot, ok := d.takePending(); ok {
+				d.publish(snapshot, d.save(snapshot))
 			}
-		case request := <-p.flush:
-			p.discardPendingThrough(request.snapshot.revision)
-			request.done <- p.save(request.snapshot)
-			if snapshot, ok := p.takePending(); ok {
-				p.publish(snapshot, p.save(snapshot))
+		case request := <-d.flush:
+			d.discardPendingThrough(request.snapshot.revision)
+			request.done <- d.save(request.snapshot)
+			if snapshot, ok := d.takePending(); ok {
+				d.publish(snapshot, d.save(snapshot))
 			}
-		case result := <-p.shutdown:
+		case result := <-d.shutdown:
 			var err error
-			if snapshot, ok := p.takePending(); ok {
-				err = p.save(snapshot)
+			if snapshot, ok := d.takePending(); ok {
+				err = d.save(snapshot)
 			}
 			result <- err
 			return
@@ -201,12 +201,12 @@ func (p *draftPersistence) run() {
 	}
 }
 
-func (p *draftPersistence) save(snapshot draftSnapshot) error {
-	return p.repository.SaveDraft(snapshot.sessionID, snapshot.message)
+func (d *draftPersistence) save(snapshot draftSnapshot) error {
+	return d.repository.SaveDraft(snapshot.sessionID, snapshot.message)
 }
 
-func (p *draftPersistence) publish(snapshot draftSnapshot, err error) {
-	if p.notify != nil {
-		p.notify(draftPersistenceResult{revision: snapshot.revision, err: err})
+func (d *draftPersistence) publish(snapshot draftSnapshot, err error) {
+	if d.notify != nil {
+		d.notify(draftPersistenceResult{revision: snapshot.revision, err: err})
 	}
 }

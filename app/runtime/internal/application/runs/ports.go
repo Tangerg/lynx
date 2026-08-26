@@ -153,9 +153,9 @@ const (
 	WaitingSubtreeResumesRunning WaitingSubtreeDisposition = "running"
 )
 
-// Valid reports whether disposition is one supported post-commit action.
-func (disposition WaitingSubtreeDisposition) Valid() bool {
-	return disposition == WaitingSubtreeStaysWaiting || disposition == WaitingSubtreeResumesRunning
+// Valid reports whether w is one supported post-commit action.
+func (w WaitingSubtreeDisposition) Valid() bool {
+	return w == WaitingSubtreeStaysWaiting || w == WaitingSubtreeResumesRunning
 }
 
 // WaitingSubtreeChange is the one-shot executor capability attached to a

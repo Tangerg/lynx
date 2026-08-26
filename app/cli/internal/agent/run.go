@@ -42,8 +42,8 @@ type RunLineage struct {
 	RootRunID        string
 }
 
-func (lineage RunLineage) IsRoot() bool {
-	return lineage == (RunLineage{})
+func (r RunLineage) IsRoot() bool {
+	return r == (RunLineage{})
 }
 
 func (r Run) Clone() Run {
@@ -83,10 +83,10 @@ type RunContract struct {
 	InteractionKinds []InteractionKind
 }
 
-func (contract RunContract) Clone() RunContract {
-	contract.RequiredFeatures = slices.Clone(contract.RequiredFeatures)
-	contract.InteractionKinds = slices.Clone(contract.InteractionKinds)
-	return contract
+func (r RunContract) Clone() RunContract {
+	r.RequiredFeatures = slices.Clone(r.RequiredFeatures)
+	r.InteractionKinds = slices.Clone(r.InteractionKinds)
+	return r
 }
 
 func equalRunContracts(left, right *RunContract) bool {
@@ -111,14 +111,14 @@ type SteerRun struct {
 	Message   Message
 }
 
-func (r SteerRun) Clone() SteerRun {
-	r.Message = r.Message.Clone()
-	return r
+func (s SteerRun) Clone() SteerRun {
+	s.Message = s.Message.Clone()
+	return s
 }
 
-func (r SteerRun) Equal(other SteerRun) bool {
-	return r.CommandID == other.CommandID && r.RunID == other.RunID &&
-		r.SegmentID == other.SegmentID && r.Message.Equal(other.Message)
+func (s SteerRun) Equal(other SteerRun) bool {
+	return s.CommandID == other.CommandID && s.RunID == other.RunID &&
+		s.SegmentID == other.SegmentID && s.Message.Equal(other.Message)
 }
 
 func (m Message) Clone() Message {
@@ -190,28 +190,28 @@ type GenerationParams struct {
 	Stop        []string
 }
 
-func (options RunOptions) Clone() RunOptions {
-	if options.Generation.Temperature != nil {
-		options.Generation.Temperature = new(*options.Generation.Temperature)
+func (r RunOptions) Clone() RunOptions {
+	if r.Generation.Temperature != nil {
+		r.Generation.Temperature = new(*r.Generation.Temperature)
 	}
-	if options.Generation.MaxTokens != nil {
-		options.Generation.MaxTokens = new(*options.Generation.MaxTokens)
+	if r.Generation.MaxTokens != nil {
+		r.Generation.MaxTokens = new(*r.Generation.MaxTokens)
 	}
-	if options.Generation.TopP != nil {
-		options.Generation.TopP = new(*options.Generation.TopP)
+	if r.Generation.TopP != nil {
+		r.Generation.TopP = new(*r.Generation.TopP)
 	}
-	options.Generation.Stop = slices.Clone(options.Generation.Stop)
-	return options
+	r.Generation.Stop = slices.Clone(r.Generation.Stop)
+	return r
 }
 
 // Equal reports whether two run starts would carry the same complete execution
 // configuration. Optional generation values retain nil-vs-zero semantics.
-func (options RunOptions) Equal(other RunOptions) bool {
-	return options.Provider == other.Provider && options.Model == other.Model && options.Limits == other.Limits &&
-		equalOptional(options.Generation.Temperature, other.Generation.Temperature) &&
-		equalOptional(options.Generation.MaxTokens, other.Generation.MaxTokens) &&
-		equalOptional(options.Generation.TopP, other.Generation.TopP) &&
-		slices.Equal(options.Generation.Stop, other.Generation.Stop)
+func (r RunOptions) Equal(other RunOptions) bool {
+	return r.Provider == other.Provider && r.Model == other.Model && r.Limits == other.Limits &&
+		equalOptional(r.Generation.Temperature, other.Generation.Temperature) &&
+		equalOptional(r.Generation.MaxTokens, other.Generation.MaxTokens) &&
+		equalOptional(r.Generation.TopP, other.Generation.TopP) &&
+		slices.Equal(r.Generation.Stop, other.Generation.Stop)
 }
 
 type Model struct {
@@ -419,16 +419,16 @@ func (u Usage) Empty() bool {
 		len(u.ByModel) == 0 && u.Steps == 0 && u.Duration == 0
 }
 
-func (usage ModelUsage) Clone() ModelUsage {
-	if usage.CostUSD != nil {
-		usage.CostUSD = new(*usage.CostUSD)
+func (m ModelUsage) Clone() ModelUsage {
+	if m.CostUSD != nil {
+		m.CostUSD = new(*m.CostUSD)
 	}
-	return usage
+	return m
 }
 
-func (usage ModelUsage) Equal(other ModelUsage) bool {
-	return usage.InputTokens == other.InputTokens && usage.OutputTokens == other.OutputTokens &&
-		usage.CacheReadTokens == other.CacheReadTokens && usage.CacheWriteTokens == other.CacheWriteTokens &&
-		usage.ReasoningTokens == other.ReasoningTokens && (usage.CostUSD == nil) == (other.CostUSD == nil) &&
-		(usage.CostUSD == nil || *usage.CostUSD == *other.CostUSD)
+func (m ModelUsage) Equal(other ModelUsage) bool {
+	return m.InputTokens == other.InputTokens && m.OutputTokens == other.OutputTokens &&
+		m.CacheReadTokens == other.CacheReadTokens && m.CacheWriteTokens == other.CacheWriteTokens &&
+		m.ReasoningTokens == other.ReasoningTokens && (m.CostUSD == nil) == (other.CostUSD == nil) &&
+		(m.CostUSD == nil || *m.CostUSD == *other.CostUSD)
 }

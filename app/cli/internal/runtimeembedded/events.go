@@ -37,39 +37,39 @@ func includeRunEvent(event agent.Event) projectedRunEvent {
 	return projectedRunEvent{event: event, included: true}
 }
 
-func (projection runEventProjection) envelope(event agent.Event) agent.RunEvent {
+func (r runEventProjection) envelope(event agent.Event) agent.RunEvent {
 	return agent.RunEvent{
-		EventID: projection.source.EventID,
-		RunID:   projection.source.RunID, SegmentID: projection.source.SegmentID,
-		At: projection.source.Timestamp, Event: event,
+		EventID: r.source.EventID,
+		RunID:   r.source.RunID, SegmentID: r.source.SegmentID,
+		At: r.source.Timestamp, Event: event,
 	}
 }
 
-func (projection runEventProjection) project() (projectedRunEvent, error) {
-	switch projection.source.Event.Type {
+func (r runEventProjection) project() (projectedRunEvent, error) {
+	switch r.source.Event.Type {
 	case protocol.StreamSegmentStarted:
-		return projection.segmentStarted()
+		return r.segmentStarted()
 	case protocol.StreamItemStarted:
-		return projection.itemStarted()
+		return r.itemStarted()
 	case protocol.StreamItemDelta:
-		return projection.itemDelta()
+		return r.itemDelta()
 	case protocol.StreamItemCompleted:
-		return projection.itemCompleted()
+		return r.itemCompleted()
 	case protocol.StreamPlanUpdated:
-		return projection.planUpdated()
+		return r.planUpdated()
 	case protocol.StreamSegmentFinished:
-		return projection.segmentFinished()
+		return r.segmentFinished()
 	case protocol.StreamSegmentProgress:
-		return projection.segmentProgress()
+		return r.segmentProgress()
 	default:
-		return projectedRunEvent{}, fmt.Errorf("event %s has unsupported authoritative type %q", projection.source.EventID, projection.source.Event.Type)
+		return projectedRunEvent{}, fmt.Errorf("event %s has unsupported authoritative type %q", r.source.EventID, r.source.Event.Type)
 	}
 }
 
-func (projection runEventProjection) segmentProgress() (projectedRunEvent, error) {
-	value := projection.source.Event.Progress
+func (r runEventProjection) segmentProgress() (projectedRunEvent, error) {
+	value := r.source.Event.Progress
 	if value == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: segment.progress has no progress", projection.source.EventID)
+		return projectedRunEvent{}, fmt.Errorf("event %s: segment.progress has no progress", r.source.EventID)
 	}
 	progress := agent.RunProgress{
 		Activity: value.Activity,
@@ -87,72 +87,72 @@ func (projection runEventProjection) segmentProgress() (projectedRunEvent, error
 	return includeRunEvent(progress), nil
 }
 
-func (projection runEventProjection) segmentStarted() (projectedRunEvent, error) {
-	if projection.source.Event.Run == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: segment.started has no run", projection.source.EventID)
+func (r runEventProjection) segmentStarted() (projectedRunEvent, error) {
+	if r.source.Event.Run == nil {
+		return projectedRunEvent{}, fmt.Errorf("event %s: segment.started has no run", r.source.EventID)
 	}
-	run, err := projectRun(*projection.source.Event.Run)
+	run, err := projectRun(*r.source.Event.Run)
 	return includeRunEvent(agent.SegmentStarted{Run: run}), err
 }
 
-func (projection runEventProjection) itemStarted() (projectedRunEvent, error) {
-	if projection.source.Event.Item == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: item.started has no item", projection.source.EventID)
+func (r runEventProjection) itemStarted() (projectedRunEvent, error) {
+	if r.source.Event.Item == nil {
+		return projectedRunEvent{}, fmt.Errorf("event %s: item.started has no item", r.source.EventID)
 	}
-	block, err := projectItem(*projection.source.Event.Item)
+	block, err := projectItem(*r.source.Event.Item)
 	return includeRunEvent(agent.BlockStarted{Block: block}), err
 }
 
-func (projection runEventProjection) itemCompleted() (projectedRunEvent, error) {
-	if projection.source.Event.Item == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: item.completed has no item", projection.source.EventID)
+func (r runEventProjection) itemCompleted() (projectedRunEvent, error) {
+	if r.source.Event.Item == nil {
+		return projectedRunEvent{}, fmt.Errorf("event %s: item.completed has no item", r.source.EventID)
 	}
-	block, err := projectItem(*projection.source.Event.Item)
+	block, err := projectItem(*r.source.Event.Item)
 	return includeRunEvent(agent.BlockCompleted{Block: block}), err
 }
 
-func (projection runEventProjection) itemDelta() (projectedRunEvent, error) {
-	delta := projection.source.Event.Delta
+func (r runEventProjection) itemDelta() (projectedRunEvent, error) {
+	delta := r.source.Event.Delta
 	if delta == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: item.delta has no delta", projection.source.EventID)
+		return projectedRunEvent{}, fmt.Errorf("event %s: item.delta has no delta", r.source.EventID)
 	}
 	switch delta.Type {
 	case protocol.DeltaToolArguments:
 		return includeRunEvent(agent.ToolArgumentsDelta{
-			BlockID: projection.source.Event.ItemID, Text: delta.ArgumentsTextDelta,
+			BlockID: r.source.Event.ItemID, Text: delta.ArgumentsTextDelta,
 		}), nil
 	case protocol.DeltaContent:
-		projected := agent.BlockDelta{BlockID: projection.source.Event.ItemID, Text: delta.Text}
+		projected := agent.BlockDelta{BlockID: r.source.Event.ItemID, Text: delta.Text}
 		if delta.Index != nil {
 			projected.ContentIndex = new(*delta.Index)
 		}
 		return includeRunEvent(projected), nil
 	case protocol.DeltaReasoning, protocol.DeltaToolOutput:
-		return includeRunEvent(agent.BlockDelta{BlockID: projection.source.Event.ItemID, Text: delta.Text}), nil
+		return includeRunEvent(agent.BlockDelta{BlockID: r.source.Event.ItemID, Text: delta.Text}), nil
 	default:
-		return projectedRunEvent{}, fmt.Errorf("event %s: unsupported item delta %q", projection.source.EventID, delta.Type)
+		return projectedRunEvent{}, fmt.Errorf("event %s: unsupported item delta %q", r.source.EventID, delta.Type)
 	}
 }
 
-func (projection runEventProjection) planUpdated() (projectedRunEvent, error) {
-	items, revision, err := projectPlan(projection.source.Event.Plan)
+func (r runEventProjection) planUpdated() (projectedRunEvent, error) {
+	items, revision, err := projectPlan(r.source.Event.Plan)
 	if err != nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: %w", projection.source.EventID, err)
+		return projectedRunEvent{}, fmt.Errorf("event %s: %w", r.source.EventID, err)
 	}
 	return includeRunEvent(agent.PlanChanged{Revision: revision, Items: items}), nil
 }
 
-func (projection runEventProjection) segmentFinished() (projectedRunEvent, error) {
-	stream := projection.source.Event
+func (r runEventProjection) segmentFinished() (projectedRunEvent, error) {
+	stream := r.source.Event
 	if stream.Outcome == nil || stream.Metrics == nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: segment.finished is incomplete", projection.source.EventID)
+		return projectedRunEvent{}, fmt.Errorf("event %s: segment.finished is incomplete", r.source.EventID)
 	}
 	usage := projectUsage(*stream.Metrics)
 	switch stream.Outcome.Type {
 	case protocol.SegmentInterrupt:
 		interactions, err := projectInteractions(stream.Outcome.Interrupts)
 		if err != nil {
-			return projectedRunEvent{}, fmt.Errorf("event %s: %w", projection.source.EventID, err)
+			return projectedRunEvent{}, fmt.Errorf("event %s: %w", r.source.EventID, err)
 		}
 		return includeRunEvent(agent.RunInterrupted{Interactions: interactions, Usage: usage}), nil
 	case protocol.SegmentSuspended:
@@ -160,7 +160,7 @@ func (projection runEventProjection) segmentFinished() (projectedRunEvent, error
 	default:
 		outcome, err := projectOutcome(*stream.Outcome)
 		if err != nil {
-			return projectedRunEvent{}, fmt.Errorf("event %s: %w", projection.source.EventID, err)
+			return projectedRunEvent{}, fmt.Errorf("event %s: %w", r.source.EventID, err)
 		}
 		return includeRunEvent(agent.RunFinished{Outcome: outcome, Usage: usage}), nil
 	}

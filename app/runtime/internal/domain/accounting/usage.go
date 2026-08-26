@@ -25,62 +25,62 @@ type Totals struct {
 }
 
 // Clone returns an ownership-isolated value.
-func (totals Totals) Clone() Totals {
-	if totals.CostUSD != nil {
-		cost := *totals.CostUSD
-		totals.CostUSD = &cost
+func (t Totals) Clone() Totals {
+	if t.CostUSD != nil {
+		cost := *t.CostUSD
+		t.CostUSD = &cost
 	}
-	return totals
+	return t
 }
 
 // Validate reports whether the cumulative counters are internally consistent.
-func (totals Totals) Validate() error {
-	if totals.InputTokens < 0 || totals.OutputTokens < 0 || totals.CacheReadTokens < 0 ||
-		totals.CacheWriteTokens < 0 || totals.ReasoningTokens < 0 {
+func (t Totals) Validate() error {
+	if t.InputTokens < 0 || t.OutputTokens < 0 || t.CacheReadTokens < 0 ||
+		t.CacheWriteTokens < 0 || t.ReasoningTokens < 0 {
 		return errors.New("accounting: token counts must not be negative")
 	}
-	if totals.CostUSD != nil && (*totals.CostUSD < 0 || math.IsNaN(*totals.CostUSD) || math.IsInf(*totals.CostUSD, 0)) {
+	if t.CostUSD != nil && (*t.CostUSD < 0 || math.IsNaN(*t.CostUSD) || math.IsInf(*t.CostUSD, 0)) {
 		return errors.New("accounting: cost must be finite and non-negative")
 	}
 	return nil
 }
 
-// ValidateAdvanceFrom proves that totals has not erased previously committed
+// ValidateAdvanceFrom proves that t has not erased previously committed
 // cumulative accounting.
-func (totals Totals) ValidateAdvanceFrom(previous Totals) error {
+func (t Totals) ValidateAdvanceFrom(previous Totals) error {
 	if err := previous.Validate(); err != nil {
 		return fmt.Errorf("previous totals: %w", err)
 	}
-	if err := totals.Validate(); err != nil {
+	if err := t.Validate(); err != nil {
 		return fmt.Errorf("next totals: %w", err)
 	}
-	if totals.InputTokens < previous.InputTokens || totals.OutputTokens < previous.OutputTokens ||
-		totals.CacheReadTokens < previous.CacheReadTokens || totals.CacheWriteTokens < previous.CacheWriteTokens ||
-		totals.ReasoningTokens < previous.ReasoningTokens || totals.cost() < previous.cost() {
+	if t.InputTokens < previous.InputTokens || t.OutputTokens < previous.OutputTokens ||
+		t.CacheReadTokens < previous.CacheReadTokens || t.CacheWriteTokens < previous.CacheWriteTokens ||
+		t.ReasoningTokens < previous.ReasoningTokens || t.cost() < previous.cost() {
 		return errors.New("accounting: cumulative totals regressed")
 	}
 	return nil
 }
 
-func (totals Totals) cost() float64 {
-	if totals.CostUSD == nil {
+func (t Totals) cost() float64 {
+	if t.CostUSD == nil {
 		return 0
 	}
-	return *totals.CostUSD
+	return *t.CostUSD
 }
 
 // Equal reports semantic equality, preserving the distinction between absent
 // and reported-zero pricing.
-func (totals Totals) Equal(other Totals) bool {
-	if totals.InputTokens != other.InputTokens || totals.OutputTokens != other.OutputTokens ||
-		totals.CacheReadTokens != other.CacheReadTokens || totals.CacheWriteTokens != other.CacheWriteTokens ||
-		totals.ReasoningTokens != other.ReasoningTokens {
+func (t Totals) Equal(other Totals) bool {
+	if t.InputTokens != other.InputTokens || t.OutputTokens != other.OutputTokens ||
+		t.CacheReadTokens != other.CacheReadTokens || t.CacheWriteTokens != other.CacheWriteTokens ||
+		t.ReasoningTokens != other.ReasoningTokens {
 		return false
 	}
-	if totals.CostUSD == nil || other.CostUSD == nil {
-		return totals.CostUSD == nil && other.CostUSD == nil
+	if t.CostUSD == nil || other.CostUSD == nil {
+		return t.CostUSD == nil && other.CostUSD == nil
 	}
-	return *totals.CostUSD == *other.CostUSD
+	return *t.CostUSD == *other.CostUSD
 }
 
 // Usage is cumulative accounting for a Run. Total remains authoritative when
@@ -92,25 +92,25 @@ type Usage struct {
 }
 
 // Clone returns an ownership-isolated usage value.
-func (usage Usage) Clone() Usage {
-	usage.Total = usage.Total.Clone()
-	if usage.ByModel != nil {
-		source := usage.ByModel
-		usage.ByModel = make(map[string]Totals, len(source))
+func (u Usage) Clone() Usage {
+	u.Total = u.Total.Clone()
+	if u.ByModel != nil {
+		source := u.ByModel
+		u.ByModel = make(map[string]Totals, len(source))
 		for model, totals := range source {
-			usage.ByModel[model] = totals.Clone()
+			u.ByModel[model] = totals.Clone()
 		}
 	}
-	return usage
+	return u
 }
 
-// Validate reports whether usage is safe to persist and compare.
-func (usage Usage) Validate() error {
-	if err := usage.Total.Validate(); err != nil {
+// Validate reports whether u is safe to persist and compare.
+func (u Usage) Validate() error {
+	if err := u.Total.Validate(); err != nil {
 		return fmt.Errorf("accounting: total usage: %w", err)
 	}
-	models := make([]string, 0, len(usage.ByModel))
-	for model := range usage.ByModel {
+	models := make([]string, 0, len(u.ByModel))
+	for model := range u.ByModel {
 		models = append(models, model)
 	}
 	slices.Sort(models)
@@ -118,24 +118,24 @@ func (usage Usage) Validate() error {
 		if strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) {
 			return errors.New("accounting: model identity is required without surrounding whitespace")
 		}
-		if err := usage.ByModel[model].Validate(); err != nil {
+		if err := u.ByModel[model].Validate(); err != nil {
 			return fmt.Errorf("accounting: model %q: %w", model, err)
 		}
 	}
 	return nil
 }
 
-// ValidateAdvanceFrom proves that usage is a cumulative continuation of
+// ValidateAdvanceFrom proves that u is a cumulative continuation of
 // previous. Once a provider reports usage or a per-model key, it cannot vanish.
-func (usage Usage) ValidateAdvanceFrom(previous Usage) error {
-	if err := usage.Validate(); err != nil {
+func (u Usage) ValidateAdvanceFrom(previous Usage) error {
+	if err := u.Validate(); err != nil {
 		return err
 	}
-	if err := usage.Total.ValidateAdvanceFrom(previous.Total); err != nil {
+	if err := u.Total.ValidateAdvanceFrom(previous.Total); err != nil {
 		return err
 	}
 	for model, before := range previous.ByModel {
-		after, found := usage.ByModel[model]
+		after, found := u.ByModel[model]
 		if !found {
 			return fmt.Errorf("accounting: cumulative usage dropped model %q", model)
 		}
@@ -148,11 +148,11 @@ func (usage Usage) ValidateAdvanceFrom(previous Usage) error {
 
 // Equal reports whether two snapshots contain the same cumulative fact. Nil
 // and empty per-model maps are the same set.
-func (usage Usage) Equal(other Usage) bool {
-	if !usage.Total.Equal(other.Total) || len(usage.ByModel) != len(other.ByModel) {
+func (u Usage) Equal(other Usage) bool {
+	if !u.Total.Equal(other.Total) || len(u.ByModel) != len(other.ByModel) {
 		return false
 	}
-	for model, totals := range usage.ByModel {
+	for model, totals := range u.ByModel {
 		if otherTotals, found := other.ByModel[model]; !found || !totals.Equal(otherTotals) {
 			return false
 		}

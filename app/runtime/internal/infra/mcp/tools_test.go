@@ -11,8 +11,8 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
+	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
 type concurrencyKeyer interface {

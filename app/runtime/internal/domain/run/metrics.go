@@ -32,12 +32,12 @@ func NewMetrics(usage *accounting.Usage, steps int, activeDuration time.Duration
 }
 
 // Validate reports whether the cumulative values are internally consistent.
-func (metrics Metrics) Validate() error {
-	if metrics.steps < 0 || metrics.activeDuration < 0 {
+func (m Metrics) Validate() error {
+	if m.steps < 0 || m.activeDuration < 0 {
 		return errors.New("run: metrics must not be negative")
 	}
-	if metrics.usage != nil {
-		if err := metrics.usage.Validate(); err != nil {
+	if m.usage != nil {
+		if err := m.usage.Validate(); err != nil {
 			return fmt.Errorf("run: metrics: %w", err)
 		}
 	}
@@ -46,21 +46,21 @@ func (metrics Metrics) Validate() error {
 
 // ValidateAdvanceFrom proves that metrics is a monotonic continuation of the
 // previous committed value.
-func (metrics Metrics) ValidateAdvanceFrom(previous Metrics) error {
+func (m Metrics) ValidateAdvanceFrom(previous Metrics) error {
 	if err := previous.Validate(); err != nil {
 		return fmt.Errorf("run: previous metrics: %w", err)
 	}
-	if err := metrics.Validate(); err != nil {
+	if err := m.Validate(); err != nil {
 		return err
 	}
-	if metrics.steps < previous.steps || metrics.activeDuration < previous.activeDuration {
+	if m.steps < previous.steps || m.activeDuration < previous.activeDuration {
 		return errors.New("run: cumulative metrics regressed")
 	}
 	switch {
-	case previous.usage != nil && metrics.usage == nil:
+	case previous.usage != nil && m.usage == nil:
 		return errors.New("run: cumulative usage disappeared")
 	case previous.usage != nil:
-		if err := metrics.usage.ValidateAdvanceFrom(*previous.usage); err != nil {
+		if err := m.usage.ValidateAdvanceFrom(*previous.usage); err != nil {
 			return fmt.Errorf("run: usage: %w", err)
 		}
 	}
@@ -68,40 +68,40 @@ func (metrics Metrics) ValidateAdvanceFrom(previous Metrics) error {
 }
 
 // Equal reports semantic equality.
-func (metrics Metrics) Equal(other Metrics) bool {
-	if metrics.steps != other.steps || metrics.activeDuration != other.activeDuration {
+func (m Metrics) Equal(other Metrics) bool {
+	if m.steps != other.steps || m.activeDuration != other.activeDuration {
 		return false
 	}
-	if metrics.usage == nil || other.usage == nil {
-		return metrics.usage == nil && other.usage == nil
+	if m.usage == nil || other.usage == nil {
+		return m.usage == nil && other.usage == nil
 	}
-	return metrics.usage.Equal(*other.usage)
+	return m.usage.Equal(*other.usage)
 }
 
 // Usage returns an ownership-isolated cumulative usage value.
-func (metrics Metrics) Usage() (accounting.Usage, bool) {
-	if metrics.usage == nil {
+func (m Metrics) Usage() (accounting.Usage, bool) {
+	if m.usage == nil {
 		return accounting.Usage{}, false
 	}
-	return metrics.usage.Clone(), true
+	return m.usage.Clone(), true
 }
 
 // Steps returns the cumulative model-call count.
-func (metrics Metrics) Steps() int { return metrics.steps }
+func (m Metrics) Steps() int { return m.steps }
 
 // ActiveDuration returns the cumulative time spent executing.
-func (metrics Metrics) ActiveDuration() time.Duration { return metrics.activeDuration }
+func (m Metrics) ActiveDuration() time.Duration { return m.activeDuration }
 
-// AddActiveDuration returns metrics with an additional completed Segment
+// AddActiveDuration returns m with an additional completed Segment
 // duration. It rejects negative durations and overflow.
-func (metrics Metrics) AddActiveDuration(duration time.Duration) (Metrics, error) {
+func (m Metrics) AddActiveDuration(duration time.Duration) (Metrics, error) {
 	if duration < 0 {
 		return Metrics{}, errors.New("run: active duration increment must not be negative")
 	}
-	if duration > 0 && metrics.activeDuration > time.Duration(math.MaxInt64)-duration {
+	if duration > 0 && m.activeDuration > time.Duration(math.MaxInt64)-duration {
 		return Metrics{}, errors.New("run: active duration overflows")
 	}
-	next := metrics
+	next := m
 	next.activeDuration += duration
 	return next, nil
 }

@@ -17,12 +17,12 @@ type usageBindingStub struct {
 	summary func(context.Context, protocol.UsageSummaryRequest, embedded.CallOptions) (*protocol.UsageSummary, error)
 }
 
-func (stub usageBindingStub) GetSessionUsage(ctx context.Context, request protocol.SessionUsageRequest, options embedded.CallOptions) (*protocol.Usage, error) {
-	return stub.session(ctx, request, options)
+func (u usageBindingStub) GetSessionUsage(ctx context.Context, request protocol.SessionUsageRequest, options embedded.CallOptions) (*protocol.Usage, error) {
+	return u.session(ctx, request, options)
 }
 
-func (stub usageBindingStub) GetUsageSummary(ctx context.Context, request protocol.UsageSummaryRequest, options embedded.CallOptions) (*protocol.UsageSummary, error) {
-	return stub.summary(ctx, request, options)
+func (u usageBindingStub) GetUsageSummary(ctx context.Context, request protocol.UsageSummaryRequest, options embedded.CallOptions) (*protocol.UsageSummary, error) {
+	return u.summary(ctx, request, options)
 }
 
 func TestUsageAdapterProjectsSessionAndSummaryReports(t *testing.T) {
@@ -87,39 +87,39 @@ type modelConfigBindingStub struct {
 	updated       func(protocol.UpdateProviderRequest, embedded.CommandOptions)
 }
 
-func (stub *modelConfigBindingStub) GetUtilityRole(context.Context, embedded.CallOptions) (*protocol.UtilityRole, error) {
-	return &stub.utility, nil
+func (m *modelConfigBindingStub) GetUtilityRole(context.Context, embedded.CallOptions) (*protocol.UtilityRole, error) {
+	return &m.utility, nil
 }
 
-func (stub *modelConfigBindingStub) SetUtilityRole(_ context.Context, request protocol.UtilityRole, options embedded.CommandOptions) (*protocol.UtilityRole, error) {
-	stub.utilitySet(request, options)
-	if stub.utilityReply != nil {
-		return stub.utilityReply, nil
+func (m *modelConfigBindingStub) SetUtilityRole(_ context.Context, request protocol.UtilityRole, options embedded.CommandOptions) (*protocol.UtilityRole, error) {
+	m.utilitySet(request, options)
+	if m.utilityReply != nil {
+		return m.utilityReply, nil
 	}
-	stub.utility = request
-	return &stub.utility, nil
+	m.utility = request
+	return &m.utility, nil
 }
 
-func (stub *modelConfigBindingStub) GetEmbeddingRole(context.Context, embedded.CallOptions) (*protocol.EmbeddingRole, error) {
-	return &stub.embedding, nil
+func (m *modelConfigBindingStub) GetEmbeddingRole(context.Context, embedded.CallOptions) (*protocol.EmbeddingRole, error) {
+	return &m.embedding, nil
 }
 
-func (stub *modelConfigBindingStub) SetEmbeddingRole(_ context.Context, request protocol.EmbeddingRole, options embedded.CommandOptions) (*protocol.EmbeddingRole, error) {
-	stub.embeddingSet(request, options)
-	stub.embedding = request
-	return &stub.embedding, nil
+func (m *modelConfigBindingStub) SetEmbeddingRole(_ context.Context, request protocol.EmbeddingRole, options embedded.CommandOptions) (*protocol.EmbeddingRole, error) {
+	m.embeddingSet(request, options)
+	m.embedding = request
+	return &m.embedding, nil
 }
 
-func (stub *modelConfigBindingStub) ListProviders(context.Context, embedded.CallOptions) (*protocol.Page[protocol.Provider], error) {
-	return protocol.NewPage(stub.providers), nil
+func (m *modelConfigBindingStub) ListProviders(context.Context, embedded.CallOptions) (*protocol.Page[protocol.Provider], error) {
+	return protocol.NewPage(m.providers), nil
 }
 
-func (stub *modelConfigBindingStub) UpdateProvider(_ context.Context, request protocol.UpdateProviderRequest, options embedded.CommandOptions) (*protocol.Provider, error) {
-	stub.updated(request, options)
-	if stub.providerReply != nil {
-		return stub.providerReply, nil
+func (m *modelConfigBindingStub) UpdateProvider(_ context.Context, request protocol.UpdateProviderRequest, options embedded.CommandOptions) (*protocol.Provider, error) {
+	m.updated(request, options)
+	if m.providerReply != nil {
+		return m.providerReply, nil
 	}
-	return &stub.providers[0], nil
+	return &m.providers[0], nil
 }
 
 func TestModelConfigurationRejectsMutationIdentityDrift(t *testing.T) {
@@ -286,67 +286,67 @@ type goalBindingStub struct {
 	last         string
 }
 
-func (stub *goalBindingStub) UpdateGoal(_ context.Context, request protocol.UpdateGoalRequest, options embedded.CommandOptions) (*protocol.Goal, error) {
+func (g *goalBindingStub) UpdateGoal(_ context.Context, request protocol.UpdateGoalRequest, options embedded.CommandOptions) (*protocol.Goal, error) {
 	if request.SessionID != "ses_1" || request.Objective == "" || options.IdempotencyKey == "" {
-		stub.t.Fatalf("update goal request = %+v, options = %+v", request, options)
+		g.t.Fatalf("update goal request = %+v, options = %+v", request, options)
 	}
-	stub.last = "update"
-	if stub.updateResult != nil {
-		return stub.updateResult, nil
+	g.last = "update"
+	if g.updateResult != nil {
+		return g.updateResult, nil
 	}
-	updated := *stub.current
+	updated := *g.current
 	updated.Objective = request.Objective
-	stub.current = &updated
-	return stub.current, nil
+	g.current = &updated
+	return g.current, nil
 }
 
-func (stub *goalBindingStub) ClearGoal(_ context.Context, request protocol.GoalRequest, options embedded.CommandOptions) error {
+func (g *goalBindingStub) ClearGoal(_ context.Context, request protocol.GoalRequest, options embedded.CommandOptions) error {
 	if request.SessionID == "" || options.IdempotencyKey == "" {
-		stub.t.Fatalf("clear goal request = %+v, options = %+v", request, options)
+		g.t.Fatalf("clear goal request = %+v, options = %+v", request, options)
 	}
-	stub.last = "clear"
-	stub.current = nil
+	g.last = "clear"
+	g.current = nil
 	return nil
 }
 
-func (stub *goalBindingStub) GetGoal(context.Context, protocol.GoalRequest, embedded.CallOptions) (*protocol.Goal, error) {
-	return stub.current, nil
+func (g *goalBindingStub) GetGoal(context.Context, protocol.GoalRequest, embedded.CallOptions) (*protocol.Goal, error) {
+	return g.current, nil
 }
 
-func (stub *goalBindingStub) StartGoal(_ context.Context, request protocol.StartGoalRequest, options embedded.CommandOptions) (*protocol.Goal, error) {
+func (g *goalBindingStub) StartGoal(_ context.Context, request protocol.StartGoalRequest, options embedded.CommandOptions) (*protocol.Goal, error) {
 	if request.SessionID != "ses_1" || request.Objective != "finish" || request.Budget.MaxRuns != 3 || options.IdempotencyKey == "" {
-		stub.t.Fatalf("start goal request = %+v, options = %+v", request, options)
+		g.t.Fatalf("start goal request = %+v, options = %+v", request, options)
 	}
-	stub.last = "start"
-	if stub.startResult != nil {
-		return stub.startResult, nil
+	g.last = "start"
+	if g.startResult != nil {
+		return g.startResult, nil
 	}
-	stub.current = activeProtocolGoal()
-	return stub.current, nil
+	g.current = activeProtocolGoal()
+	return g.current, nil
 }
 
-func (stub *goalBindingStub) StopGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
-	stub.last = "stop"
-	if stub.stopResult != nil {
-		return stub.stopResult, nil
+func (g *goalBindingStub) StopGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
+	g.last = "stop"
+	if g.stopResult != nil {
+		return g.stopResult, nil
 	}
-	stopped := *stub.current
+	stopped := *g.current
 	stopped.Status = protocol.GoalPaused
 	stopped.Reason = &protocol.GoalReason{Code: protocol.GoalReasonStoppedByUser}
-	stub.current = &stopped
-	return stub.current, nil
+	g.current = &stopped
+	return g.current, nil
 }
 
-func (stub *goalBindingStub) ResumeGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
-	stub.last = "resume"
-	if stub.resumeResult != nil {
-		return stub.resumeResult, nil
+func (g *goalBindingStub) ResumeGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error) {
+	g.last = "resume"
+	if g.resumeResult != nil {
+		return g.resumeResult, nil
 	}
-	resumed := *stub.current
+	resumed := *g.current
 	resumed.Status = protocol.GoalActive
 	resumed.Reason = nil
-	stub.current = &resumed
-	return stub.current, nil
+	g.current = &resumed
+	return g.current, nil
 }
 
 func activeProtocolGoal() *protocol.Goal {

@@ -30,9 +30,9 @@ type stepArg struct {
 	Status      string `json:"status" jsonschema:"enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = active work; completed = fully done."`
 }
 
-func (a setArgs) steps() []plandomain.Step {
-	steps := make([]plandomain.Step, len(a.Steps))
-	for index, step := range a.Steps {
+func (s setArgs) steps() []plandomain.Step {
+	steps := make([]plandomain.Step, len(s.Steps))
+	for index, step := range s.Steps {
 		steps[index] = plandomain.Step{Description: step.Description, Status: plandomain.Status(step.Status)}
 	}
 	return steps

@@ -48,19 +48,19 @@ func newExit(modes planExitPolicy, plan planStateReader, interrupt runs.Interrup
 	)
 }
 
-func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
+func (e *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "", errors.New("exit_plan_mode: no active session")
 	}
-	mode, err := t.modes.Mode(ctx, sessionID)
+	mode, err := e.modes.Mode(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
 	if mode != approval.ModePlan {
 		return "", errors.New("exit_plan_mode: current session is not in Plan mode")
 	}
-	state, err := t.plan.State(ctx, sessionID)
+	state, err := e.plan.State(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +88,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("exit_plan_mode: %w", err)
 	}
-	resolution, err := t.interrupt(
+	resolution, err := e.interrupt(
 		ctx,
 		interrupt.Key(interrupt.Question.String(), tool.ExitPlanMode, arguments),
 		pending,
@@ -99,7 +99,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	if selectedChoice(resolution.Answers) != approveLabel {
 		return "Plan not approved. The session remains in Plan mode; revise the Plan or continue investigating.", nil
 	}
-	restored, changed, err := t.modes.ExitPlanMode(ctx, sessionID)
+	restored, changed, err := e.modes.ExitPlanMode(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}

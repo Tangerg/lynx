@@ -23,15 +23,15 @@ type agentMemorySearchRequest struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum memories to return. Defaults to 8."`
 }
 
-func (r agentMemorySearchRequest) normalize() (agentMemorySearchRequest, error) {
-	r.Query = strings.TrimSpace(r.Query)
-	if r.Query == "" {
+func (a agentMemorySearchRequest) normalize() (agentMemorySearchRequest, error) {
+	a.Query = strings.TrimSpace(a.Query)
+	if a.Query == "" {
 		return agentMemorySearchRequest{}, errors.New("query is required")
 	}
-	if r.Limit <= 0 {
-		r.Limit = agentMemorySearchDefaultLimit
+	if a.Limit <= 0 {
+		a.Limit = agentMemorySearchDefaultLimit
 	}
-	return r, nil
+	return a, nil
 }
 
 // AgentMemorySearch is the agent-memory search capability this tool consumes.
@@ -63,7 +63,7 @@ func agentMemorySearchDefinition() toolcontract.FuncConfig {
 	}
 }
 
-func (t *agentMemorySearcher) run(ctx context.Context, req agentMemorySearchRequest) (string, error) {
+func (a *agentMemorySearcher) run(ctx context.Context, req agentMemorySearchRequest) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
 		return "", fmt.Errorf("search_memory: %w", err)
@@ -72,7 +72,7 @@ func (t *agentMemorySearcher) run(ctx context.Context, req agentMemorySearchRequ
 	if cwd == "" {
 		return "No project is associated with this session, so there is no project memory to search.", nil
 	}
-	items, err := t.search.Search(ctx, filepath.Clean(cwd), req.Query, req.Limit)
+	items, err := a.search.Search(ctx, filepath.Clean(cwd), req.Query, req.Limit)
 	if err != nil {
 		return "", err
 	}
@@ -81,12 +81,12 @@ func (t *agentMemorySearcher) run(ctx context.Context, req agentMemorySearchRequ
 
 type agentMemorySearchResults []agentmemory.Item
 
-func (r agentMemorySearchResults) String() string {
-	if len(r) == 0 {
+func (a agentMemorySearchResults) String() string {
+	if len(a) == 0 {
 		return "No relevant memories found for this project. It may not have been recorded yet."
 	}
 	var b strings.Builder
-	for i, item := range r {
+	for i, item := range a {
 		content := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(item.Content), "- "))
 		fmt.Fprintf(&b, "%d. %s\n", i+1, content)
 	}

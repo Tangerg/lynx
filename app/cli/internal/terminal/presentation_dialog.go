@@ -16,32 +16,32 @@ type presentationLease struct {
 	active    func() bool
 }
 
-func (lease *presentationLease) bind(active func() bool) {
+func (p *presentationLease) bind(active func() bool) {
 	if active == nil {
 		panic("terminal: presentation lease requires an activity predicate")
 	}
-	if lease.active != nil {
+	if p.active != nil {
 		panic("terminal: presentation lease is already bound")
 	}
-	lease.active = active
+	p.active = active
 }
 
-func (lease *presentationLease) renew() {
-	lease.current++
-	if lease.current == 0 {
+func (p *presentationLease) renew() {
+	p.current++
+	if p.current == 0 {
 		panic("terminal: presentation lease exhausted")
 	}
 }
 
-func (lease *presentationLease) stage(frame headless.Frame) {
-	lease.presented.Stage(frame, lease.current)
+func (p *presentationLease) stage(frame headless.Frame) {
+	p.presented.Stage(frame, p.current)
 }
 
-func (lease *presentationLease) acceptsInput() bool {
-	if lease.active == nil {
+func (p *presentationLease) acceptsInput() bool {
+	if p.active == nil {
 		return true
 	}
-	return lease.active() && lease.current != 0 && lease.presented.Value() == lease.current
+	return p.active() && p.current != 0 && p.presented.Value() == p.current
 }
 
 // presentationGuard is a decorator for reusable dialog bodies. It preserves
@@ -52,23 +52,23 @@ type presentationGuard struct {
 	lease presentationLease
 }
 
-func (guard *presentationGuard) Draw(frame headless.Frame) {
-	guard.lease.stage(frame)
-	if guard.body != nil {
-		guard.body.Draw(frame)
+func (p *presentationGuard) Draw(frame headless.Frame) {
+	p.lease.stage(frame)
+	if p.body != nil {
+		p.body.Draw(frame)
 	}
 }
 
-func (guard *presentationGuard) Handle(event input.Event) bool {
-	if !guard.lease.acceptsInput() {
+func (p *presentationGuard) Handle(event input.Event) bool {
+	if !p.lease.acceptsInput() {
 		return true
 	}
-	interactive, ok := guard.body.(headless.Interactive)
+	interactive, ok := p.body.(headless.Interactive)
 	return ok && interactive.Handle(event)
 }
 
-func (guard *presentationGuard) Focus(has bool) {
-	if focusable, ok := guard.body.(headless.Focusable); ok {
+func (p *presentationGuard) Focus(has bool) {
+	if focusable, ok := p.body.(headless.Focusable); ok {
 		focusable.Focus(has)
 	}
 }
@@ -89,27 +89,27 @@ func newPresentationDialog(config kit.DialogConfig) *presentationDialog {
 	return &presentationDialog{dialog: dialog, guard: guard}
 }
 
-func (dialog *presentationDialog) Show() {
-	if dialog == nil || dialog.dialog == nil || dialog.guard == nil {
+func (p *presentationDialog) Show() {
+	if p == nil || p.dialog == nil || p.guard == nil {
 		return
 	}
-	dialog.guard.lease.renew()
-	dialog.dialog.Show()
+	p.guard.lease.renew()
+	p.dialog.Show()
 }
 
-func (dialog *presentationDialog) Dismiss() {
-	if dialog != nil && dialog.dialog != nil {
-		dialog.dialog.Dismiss()
+func (p *presentationDialog) Dismiss() {
+	if p != nil && p.dialog != nil {
+		p.dialog.Dismiss()
 	}
 }
 
-func (dialog *presentationDialog) Open() bool {
-	return dialog != nil && dialog.dialog != nil && dialog.dialog.Open()
+func (p *presentationDialog) Open() bool {
+	return p != nil && p.dialog != nil && p.dialog.Open()
 }
 
-func (dialog *presentationDialog) Controller() *headless.Dialog {
-	if dialog == nil || dialog.dialog == nil {
+func (p *presentationDialog) Controller() *headless.Dialog {
+	if p == nil || p.dialog == nil {
 		return nil
 	}
-	return dialog.dialog.Controller()
+	return p.dialog.Controller()
 }

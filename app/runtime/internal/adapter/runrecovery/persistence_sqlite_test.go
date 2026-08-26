@@ -42,14 +42,14 @@ func (alwaysResumable) CanResumeWaitingExecution(
 
 type goalRunRecorderFunc func(context.Context, goal.RunRecord) error
 
-func (record goalRunRecorderFunc) RecordRun(ctx context.Context, value goal.RunRecord) error {
-	return record(ctx, value)
+func (g goalRunRecorderFunc) RecordRun(ctx context.Context, value goal.RunRecord) error {
+	return g(ctx, value)
 }
 
 type childRunStartReservationsFunc func(context.Context, string) error
 
-func (cleanup childRunStartReservationsFunc) DeleteSession(ctx context.Context, sessionID string) error {
-	return cleanup(ctx, sessionID)
+func (c childRunStartReservationsFunc) DeleteSession(ctx context.Context, sessionID string) error {
+	return c(ctx, sessionID)
 }
 
 func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
@@ -331,11 +331,11 @@ func TestRecoveryCleanupIsScopedToClaimedSessions(t *testing.T) {
 
 type waitingExecutionResumabilityFunc func(context.Context, runs.WaitingContinuation) (bool, error)
 
-func (probe waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
+func (w waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
 	ctx context.Context,
 	continuation runs.WaitingContinuation,
 ) (bool, error) {
-	return probe(ctx, continuation)
+	return w(ctx, continuation)
 }
 
 // TestRecoveryRepairsWholeDurableLifecycle proves

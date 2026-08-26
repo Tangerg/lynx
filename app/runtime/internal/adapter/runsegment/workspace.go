@@ -24,8 +24,8 @@ func NewWorkspaceNotifier(publish FileChangePublisher) WorkspaceNotifier {
 	return WorkspaceNotifier{publish: publish}
 }
 
-func (n WorkspaceNotifier) Nudge(cwd string, paths []string) {
-	if n.publish != nil && len(paths) > 0 {
-		n.publish(workspaceapp.FileChangeNotice{CWD: cwd, Paths: slices.Clone(paths)})
+func (w WorkspaceNotifier) Nudge(cwd string, paths []string) {
+	if w.publish != nil && len(paths) > 0 {
+		w.publish(workspaceapp.FileChangeNotice{CWD: cwd, Paths: slices.Clone(paths)})
 	}
 }

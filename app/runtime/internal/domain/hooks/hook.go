@@ -263,41 +263,41 @@ type SubagentInput struct {
 // command hooks. Human-readable prompt/result material may use an explicit
 // marked prefix; canonical Tool arguments never truncate because doing so would
 // describe a different effect to policy code.
-func (in Input) CommandProjection() (Input, error) {
-	out := in
-	out.Prompt, out.PromptTruncated = boundedCommandText(in.Prompt, MaxPromptBytes, in.PromptTruncated)
-	out.Reason, _ = boundedCommandText(in.Reason, MaxReasonBytes, false)
-	if in.Tool != nil {
-		if len(in.Tool.Arguments) > MaxArgumentsBytes {
+func (i Input) CommandProjection() (Input, error) {
+	out := i
+	out.Prompt, out.PromptTruncated = boundedCommandText(i.Prompt, MaxPromptBytes, i.PromptTruncated)
+	out.Reason, _ = boundedCommandText(i.Reason, MaxReasonBytes, false)
+	if i.Tool != nil {
+		if len(i.Tool.Arguments) > MaxArgumentsBytes {
 			return Input{}, fmt.Errorf(
 				"%w: tool arguments use %d bytes, maximum %d",
 				ErrCommandInputTooLarge,
-				len(in.Tool.Arguments),
+				len(i.Tool.Arguments),
 				MaxArgumentsBytes,
 			)
 		}
-		tool := *in.Tool
+		tool := *i.Tool
 		tool.Result, tool.ResultTruncated = boundedCommandText(
-			in.Tool.Result,
+			i.Tool.Result,
 			MaxResultBytes,
-			in.Tool.ResultTruncated,
+			i.Tool.ResultTruncated,
 		)
 		out.Tool = &tool
 	}
-	if in.Subagent != nil {
-		subagent := *in.Subagent
-		subagent.Description, _ = boundedCommandText(in.Subagent.Description, MaxReasonBytes, false)
+	if i.Subagent != nil {
+		subagent := *i.Subagent
+		subagent.Description, _ = boundedCommandText(i.Subagent.Description, MaxReasonBytes, false)
 		subagent.Prompt, subagent.PromptTruncated = boundedCommandText(
-			in.Subagent.Prompt,
+			i.Subagent.Prompt,
 			MaxPromptBytes,
-			in.Subagent.PromptTruncated,
+			i.Subagent.PromptTruncated,
 		)
 		subagent.Result, subagent.ResultTruncated = boundedCommandText(
-			in.Subagent.Result,
+			i.Subagent.Result,
 			MaxResultBytes,
-			in.Subagent.ResultTruncated,
+			i.Subagent.ResultTruncated,
 		)
-		subagent.Error, _ = boundedCommandText(in.Subagent.Error, MaxReasonBytes, false)
+		subagent.Error, _ = boundedCommandText(i.Subagent.Error, MaxReasonBytes, false)
 		out.Subagent = &subagent
 	}
 	if err := out.ValidateCommandMaterial(); err != nil {
@@ -309,33 +309,33 @@ func (in Input) CommandProjection() (Input, error) {
 // ValidateCommandMaterial is the process-boundary backstop for callers that
 // bypass CommandProjection. It rejects lossy or oversized semantic input before
 // JSON encoding and process creation.
-func (in Input) ValidateCommandMaterial() error {
-	if len(in.Prompt) > MaxPromptBytes || len(in.Reason) > MaxReasonBytes {
+func (i Input) ValidateCommandMaterial() error {
+	if len(i.Prompt) > MaxPromptBytes || len(i.Reason) > MaxReasonBytes {
 		return ErrCommandInputTooLarge
 	}
-	values := []string{string(in.Event), in.SessionID, in.CWD, in.Prompt, in.Reason}
-	if in.Tool != nil {
-		if len(in.Tool.Arguments) > MaxArgumentsBytes || len(in.Tool.Result) > MaxResultBytes {
+	values := []string{string(i.Event), i.SessionID, i.CWD, i.Prompt, i.Reason}
+	if i.Tool != nil {
+		if len(i.Tool.Arguments) > MaxArgumentsBytes || len(i.Tool.Result) > MaxResultBytes {
 			return ErrCommandInputTooLarge
 		}
-		values = append(values, in.Tool.Name, in.Tool.Arguments, in.Tool.Result)
+		values = append(values, i.Tool.Name, i.Tool.Arguments, i.Tool.Result)
 	}
-	if in.Subagent != nil {
-		if len(in.Subagent.Description) > MaxReasonBytes ||
-			len(in.Subagent.Prompt) > MaxPromptBytes ||
-			len(in.Subagent.Result) > MaxResultBytes ||
-			len(in.Subagent.Error) > MaxReasonBytes {
+	if i.Subagent != nil {
+		if len(i.Subagent.Description) > MaxReasonBytes ||
+			len(i.Subagent.Prompt) > MaxPromptBytes ||
+			len(i.Subagent.Result) > MaxResultBytes ||
+			len(i.Subagent.Error) > MaxReasonBytes {
 			return ErrCommandInputTooLarge
 		}
 		values = append(
 			values,
-			in.Subagent.RunID,
-			in.Subagent.ParentRunID,
-			in.Subagent.Description,
-			in.Subagent.Prompt,
-			string(in.Subagent.Status),
-			in.Subagent.Result,
-			in.Subagent.Error,
+			i.Subagent.RunID,
+			i.Subagent.ParentRunID,
+			i.Subagent.Description,
+			i.Subagent.Prompt,
+			string(i.Subagent.Status),
+			i.Subagent.Result,
+			i.Subagent.Error,
 		)
 	}
 	for _, value := range values {

@@ -104,8 +104,8 @@ func BuildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error)
 	return []toolcontract.Tool{list, create, deleteSchedule}, nil
 }
 
-func (t *scheduleManagementTools) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
-	items, err := t.coordinator.List(ctx)
+func (s *scheduleManagementTools) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
+	items, err := s.coordinator.List(ctx)
 	if err != nil {
 		return scheduleListResponse{}, fmt.Errorf("list_schedules: %w", err)
 	}
@@ -116,12 +116,12 @@ func (t *scheduleManagementTools) list(ctx context.Context, _ struct{}) (schedul
 	return scheduleListResponse{Schedules: views}, nil
 }
 
-func (t *scheduleManagementTools) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
+func (s *scheduleManagementTools) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return scheduleResponse{}, fmt.Errorf("create_schedule: %w", err)
 	}
-	created, err := t.coordinator.Create(ctx, scheduleapp.CreateCommand{
+	created, err := s.coordinator.Create(ctx, scheduleapp.CreateCommand{
 		Title:          in.Title,
 		Instructions:   in.Instructions,
 		CWD:            in.WorkspacePath,
@@ -135,8 +135,8 @@ func (t *scheduleManagementTools) create(ctx context.Context, in createScheduleA
 	return scheduleResponse{Schedule: viewSchedule(created)}, nil
 }
 
-func (t *scheduleManagementTools) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
-	if err := t.coordinator.Delete(ctx, in.ScheduleID); err != nil {
+func (s *scheduleManagementTools) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
+	if err := s.coordinator.Delete(ctx, in.ScheduleID); err != nil {
 		return scheduleDeleteResponse{}, fmt.Errorf("delete_schedule: %w", err)
 	}
 	return scheduleDeleteResponse(in), nil

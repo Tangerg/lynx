@@ -32,30 +32,30 @@ func newTerminalImagePresenter(transport terminalImageTransport) *terminalImageP
 	return &terminalImagePresenter{transport: transport, cache: make(map[[sha256.Size]byte]graphics.Image)}
 }
 
-func (presenter *terminalImagePresenter) Present(theme kit.Theme, image agent.InlineImage) headless.Block {
+func (t *terminalImagePresenter) Present(theme kit.Theme, image agent.InlineImage) headless.Block {
 	fallback := fallbackInlineImage(theme, image)
-	if presenter == nil || presenter.transport.Protocol() == graphics.None {
+	if t == nil || t.transport.Protocol() == graphics.None {
 		return fallback
 	}
-	_, available := presenter.transport.CellSize()
+	_, available := t.transport.CellSize()
 	if !available {
 		return fallback
 	}
 	key := sha256.Sum256(image.Data)
-	handle, cached := presenter.cache[key]
+	handle, cached := t.cache[key]
 	if !cached {
 		data, err := normalizePNG(image.Data)
 		if err != nil {
 			return fallback
 		}
-		handle, err = presenter.transport.Transmit(data)
+		handle, err = t.transport.Transmit(data)
 		if err != nil {
 			return fallback
 		}
-		presenter.cache[key] = handle
+		t.cache[key] = handle
 	}
 	return &terminalImageBlock{
-		transport: presenter.transport, handle: handle, alt: inlineImageLabel(image), theme: theme,
+		transport: t.transport, handle: handle, alt: inlineImageLabel(image), theme: theme,
 	}
 }
 
@@ -66,13 +66,13 @@ type terminalImageBlock struct {
 	theme     kit.Theme
 }
 
-func (block *terminalImageBlock) Measure(width int) int { return block.view().Measure(width) }
+func (t *terminalImageBlock) Measure(width int) int { return t.view().Measure(width) }
 
-func (block *terminalImageBlock) Draw(view grid.View) { block.view().Draw(view) }
+func (t *terminalImageBlock) Draw(view grid.View) { t.view().Draw(view) }
 
-func (block *terminalImageBlock) view() kit.Image {
-	cell, _ := block.transport.CellSize()
-	return kit.Image{Of: block.handle, Cell: cell, Alt: block.alt, Theme: block.theme}
+func (t *terminalImageBlock) view() kit.Image {
+	cell, _ := t.transport.CellSize()
+	return kit.Image{Of: t.handle, Cell: cell, Alt: t.alt, Theme: t.theme}
 }
 
 func fallbackInlineImage(theme kit.Theme, image agent.InlineImage) headless.Block {

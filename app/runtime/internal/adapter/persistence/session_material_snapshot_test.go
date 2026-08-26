@@ -22,14 +22,14 @@ type blockingGoalProjection struct {
 	release chan struct{}
 }
 
-func (projection *blockingGoalProjection) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
-	close(projection.entered)
+func (b *blockingGoalProjection) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+	close(b.entered)
 	select {
-	case <-projection.release:
+	case <-b.release:
 	case <-ctx.Done():
 		return goal.Goal{}, false, ctx.Err()
 	}
-	return projection.GoalStore.Get(ctx, sessionID)
+	return b.GoalStore.Get(ctx, sessionID)
 }
 
 func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.T) {

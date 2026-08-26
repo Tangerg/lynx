@@ -91,7 +91,7 @@ func newValidators(registry *operation.Registry, shapes *dispatch.Shapes) string
 		if len(checks) == 0 {
 			continue
 		}
-		fmt.Fprintf(&out, "\nfunc (value %s) ValidateWire() error {\n", target.Name())
+		fmt.Fprintf(&out, "\nfunc (%s %s) ValidateWire() error {\n", receiverName(target), target.Name())
 		fmt.Fprintf(&out, "\treturn collectWireViolations(%q,\n", target.Name())
 		for _, check := range checks {
 			fmt.Fprintf(&out, "\t\t%s,\n", check)
@@ -101,6 +101,17 @@ func newValidators(registry *operation.Registry, shapes *dispatch.Shapes) string
 	return out.String()
 }
 
+// receiverName is the identifier the generated method binds its receiver to.
+// Generated methods follow the same rule as hand-written ones — the lowercased
+// first letter of the type — so a shape does not answer to two different names
+// depending on which half of the file a reader is in.
+func receiverName(shape reflect.Type) string {
+	if shape.Name() == "" {
+		panic("contractgen: cannot name a receiver for an unnamed shape")
+	}
+	return strings.ToLower(shape.Name()[:1])
+}
+
 // validatorChecks builds every frame-local check registered for one wire shape.
 func validatorChecks(
 	shape reflect.Type,
@@ -108,6 +119,7 @@ func validatorChecks(
 	union dispatch.UnionSpec,
 	rules []dispatch.PresenceRule,
 ) []string {
+	recv := receiverName(shape)
 	checks := make([]string, 0, len(constraints))
 	for _, constraint := range constraints {
 		if check := constraintCheck(shape, constraint, union); check != "" {
@@ -115,8 +127,8 @@ func validatorChecks(
 		}
 	}
 	checks = append(checks, enumChecks(shape)...)
-	checks = append(checks, unionChecks(union)...)
-	checks = append(checks, objectChecks(rules)...)
+	checks = append(checks, unionChecks(union, recv)...)
+	checks = append(checks, objectChecks(rules, recv)...)
 	return checks
 }
 
@@ -130,6 +142,7 @@ func constraintCheck(
 		panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
 	}
 	field := strconv.Quote(constraint.Field)
+	ref := receiverName(shape) + "." + selector
 	switch constraint.Kind {
 	case dispatch.ConstraintNonEmpty:
 		// A non-pointer scalar cannot distinguish an omitted JSON property from its
@@ -144,7 +157,7 @@ func constraintCheck(
 		if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalText"
 		}
-		return fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type))
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(shape, selector, leaf.Type))
 	case dispatch.ConstraintPositive:
 		validatorName := "positiveNumber"
 		if leaf.Type.Kind() == reflect.Pointer {
@@ -152,33 +165,33 @@ func constraintCheck(
 		} else if leaf.Optional {
 			validatorName = "optionalPositiveScalarNumber"
 		}
-		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, ref)
 	case dispatch.ConstraintNonNegative:
 		validatorName := "nonNegativeNumber"
 		if leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalNonNegativeNumber"
 		}
-		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, ref)
 	case dispatch.ConstraintNonEmptyItems:
 		validatorName := "requiredItems"
 		if leaf.Optional {
 			validatorName = "nonEmptyItems"
 		}
-		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, ref)
 	case dispatch.ConstraintNonEmptyProperties:
-		return fmt.Sprintf("nonEmptyProperties(%s, value.%s)", field, selector)
+		return fmt.Sprintf("nonEmptyProperties(%s, %s)", field, ref)
 	case dispatch.ConstraintUniqueItems:
 		validatorName := "uniqueItems"
 		if leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalUniqueItems"
 		}
-		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, ref)
 	case dispatch.ConstraintMinItems:
 		validatorName := "requiredMinItems"
 		if leaf.Optional {
 			validatorName = "optionalMinItems"
 		}
-		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+		return fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, ref, constraint.Limit)
 	case dispatch.ConstraintMaxLength:
 		validatorName := "maxLength"
 		if leaf.Type.Kind() == reflect.Pointer {
@@ -188,7 +201,7 @@ func constraintCheck(
 			"%s(%s, %s, %d)",
 			validatorName,
 			field,
-			stringExpr(selector, leaf.Type),
+			stringExpr(shape, selector, leaf.Type),
 			constraint.Limit,
 		)
 	case dispatch.ConstraintMinimum:
@@ -196,13 +209,13 @@ func constraintCheck(
 		if leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalMinimumNumber"
 		}
-		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+		return fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, ref, constraint.Limit)
 	case dispatch.ConstraintMaximum:
 		validatorName := "maximumNumber"
 		if leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalMaximumNumber"
 		}
-		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+		return fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, ref, constraint.Limit)
 	default:
 		panic(fmt.Sprintf(
 			"contractgen: %s.%s uses unsupported constraint %s",
@@ -229,24 +242,25 @@ func unionRequiresField(union dispatch.UnionSpec, field string) bool {
 }
 
 func enumChecks(shape reflect.Type) []string {
+	recv := receiverName(shape)
 	var checks []string
 	for _, field := range contractshape.Fields(shape) {
 		if values, found := contractcatalog.EnumValues(field.Type); found {
-			checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
-				strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
+			checks = append(checks, fmt.Sprintf("closedEnum(%s, string(%s.%s), %s, %t)",
+				strconv.Quote(field.Name), recv, field.GoName, valueList(values), field.Optional))
 			continue
 		}
 		if field.Type.Kind() == reflect.Slice {
 			if values, found := contractcatalog.EnumValues(field.Type.Elem()); found {
-				checks = append(checks, fmt.Sprintf("closedEnumItems(%s, value.%s, %s)",
-					strconv.Quote(field.Name), field.GoName, valueList(values)))
+				checks = append(checks, fmt.Sprintf("closedEnumItems(%s, %s.%s, %s)",
+					strconv.Quote(field.Name), recv, field.GoName, valueList(values)))
 			}
 		}
 	}
 	return checks
 }
 
-func unionChecks(union dispatch.UnionSpec) []string {
+func unionChecks(union dispatch.UnionSpec, recv string) []string {
 	if union.GoType == nil {
 		return nil
 	}
@@ -262,34 +276,34 @@ func unionChecks(union dispatch.UnionSpec) []string {
 			tags = append(tags, variant.Tag)
 		}
 		checks = append(checks, fmt.Sprintf(
-			"unionTag(%q, string(value.%s), %s, %q)",
-			union.Discriminator, field.GoName, valueList(tags), pattern.TagPattern,
+			"unionTag(%q, string(%s.%s), %s, %q)",
+			union.Discriminator, recv, field.GoName, valueList(tags), pattern.TagPattern,
 		))
 	}
 	for _, variant := range union.Variants {
-		applies := fmt.Sprintf("wireFieldEquals(value, %q, %q)", union.Discriminator, variant.Tag)
+		applies := fmt.Sprintf("wireFieldEquals(%s, %q, %q)", recv, union.Discriminator, variant.Tag)
 		allowed := append(slices.Clone(variant.Required), variant.Optional...)
 		for _, field := range variant.Required {
-			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, %s)", applies, field, recv))
 		}
 		for _, field := range paths {
 			if slices.Contains(allowed, field) {
 				continue
 			}
-			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, %s)", applies, field, recv))
 		}
 	}
 	if pattern := union.PatternVariant; pattern != nil {
-		applies := fmt.Sprintf("wireFieldMatches(value, %q, %q)", union.Discriminator, pattern.TagPattern)
+		applies := fmt.Sprintf("wireFieldMatches(%s, %q, %q)", recv, union.Discriminator, pattern.TagPattern)
 		allowed := append(slices.Clone(pattern.Required), pattern.Optional...)
 		for _, field := range pattern.Required {
-			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, %s)", applies, field, recv))
 		}
 		for _, field := range paths {
 			if slices.Contains(allowed, field) {
 				continue
 			}
-			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, %s)", applies, field, recv))
 		}
 	}
 	return checks
@@ -314,21 +328,21 @@ func unionPaths(union dispatch.UnionSpec) []string {
 	return paths
 }
 
-func objectChecks(rules []dispatch.PresenceRule) []string {
+func objectChecks(rules []dispatch.PresenceRule, recv string) []string {
 	var checks []string
 	for _, rule := range rules {
-		applies := conditionExpression(rule.When)
+		applies := conditionExpression(rule.When, recv)
 		for _, field := range rule.Required {
-			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("requiredWhen(%s, %q, %s)", applies, field, recv))
 		}
 		for _, field := range rule.Forbidden {
-			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, value)", applies, field))
+			checks = append(checks, fmt.Sprintf("forbiddenWhen(%s, %q, %s)", applies, field, recv))
 		}
 	}
 	return checks
 }
 
-func conditionExpression(conditions []operation.FieldCondition) string {
+func conditionExpression(conditions []operation.FieldCondition, recv string) string {
 	if len(conditions) == 0 {
 		return "true"
 	}
@@ -337,10 +351,10 @@ func conditionExpression(conditions []operation.FieldCondition) string {
 		switch condition.Operator.String() {
 		case "equals":
 			parts = append(parts, fmt.Sprintf(
-				"wireFieldEquals(value, %q, %q)", condition.Field, condition.Value,
+				"wireFieldEquals(%s, %q, %q)", recv, condition.Field, condition.Value,
 			))
 		case "present":
-			parts = append(parts, fmt.Sprintf("wireFieldPresent(value, %q)", condition.Field))
+			parts = append(parts, fmt.Sprintf("wireFieldPresent(%s, %q)", recv, condition.Field))
 		default:
 			panic(fmt.Sprintf("contractgen: unsupported presence operator %q", condition.Operator))
 		}
@@ -352,17 +366,17 @@ func conditionExpression(conditions []operation.FieldCondition) string {
 // needs the conversion, and a plain string must not have one: an identity conversion
 // is what the linter deletes, so emitting one everywhere would make the generated
 // file fail the check it is generated to pass.
-func stringExpr(selector string, leaf reflect.Type) string {
+func stringExpr(shape reflect.Type, selector string, leaf reflect.Type) string {
 	const builtinStringTypeName = "string"
 
-	value := "value." + selector
+	ref := receiverName(shape) + "." + selector
 	if leaf.Kind() == reflect.Pointer {
-		return value
+		return ref
 	}
 	if leaf.Kind() == reflect.String && leaf.Name() != builtinStringTypeName {
-		return fmt.Sprintf("string(value.%s)", selector)
+		return fmt.Sprintf("string(%s)", ref)
 	}
-	return value
+	return ref
 }
 
 func valueList(values []string) string {

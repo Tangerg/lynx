@@ -89,22 +89,22 @@ func ParseInputSchema(data []byte) (InputSchema, error) {
 }
 
 // JSON returns an ownership-isolated canonical representation.
-func (s InputSchema) JSON() []byte {
-	return []byte(s.String())
+func (i InputSchema) JSON() []byte {
+	return []byte(i.String())
 }
 
 // String returns the canonical JSON schema.
-func (s InputSchema) String() string {
-	if s.object == "" {
+func (i InputSchema) String() string {
+	if i.object == "" {
 		return emptyInputSchema
 	}
-	return s.object
+	return i.object
 }
 
 // Map projects the immutable schema to a fresh MCP tool contract. Each call
 // returns a fresh object graph and preserves JSON numbers exactly.
-func (s InputSchema) Map() map[string]any {
-	decoder := json.NewDecoder(bytes.NewBufferString(s.String()))
+func (i InputSchema) Map() map[string]any {
+	decoder := json.NewDecoder(bytes.NewBufferString(i.String()))
 	decoder.UseNumber()
 	var object map[string]any
 	if err := decoder.Decode(&object); err != nil {

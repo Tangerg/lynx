@@ -21,29 +21,29 @@ type agentMemoryBindingStub struct {
 	addResult    *protocol.AgentMemoryItem
 }
 
-func (stub *agentMemoryBindingStub) ListAgentMemory(_ context.Context, request protocol.AgentMemoryListRequest, options embedded.CallOptions) (*protocol.AgentMemoryList, error) {
-	stub.assertMeta(options.RequestMeta)
+func (a *agentMemoryBindingStub) ListAgentMemory(_ context.Context, request protocol.AgentMemoryListRequest, options embedded.CallOptions) (*protocol.AgentMemoryList, error) {
+	a.assertMeta(options.RequestMeta)
 	switch request.Scope {
 	case protocol.AgentMemoryScopeProject:
 		if request.Workspace == nil || request.Workspace.Path != "/workspace" {
-			stub.t.Fatalf("project list request = %+v", request)
+			a.t.Fatalf("project list request = %+v", request)
 		}
 	case protocol.AgentMemoryScopeUser:
 		if request.Workspace != nil {
-			stub.t.Fatalf("user list request leaked workspace: %+v", request)
+			a.t.Fatalf("user list request leaked workspace: %+v", request)
 		}
 	default:
-		stub.t.Fatalf("list request = %+v", request)
+		a.t.Fatalf("list request = %+v", request)
 	}
-	if stub.nilList {
+	if a.nilList {
 		return nil, nil
 	}
-	if stub.listed != nil {
-		return stub.listed, nil
+	if a.listed != nil {
+		return a.listed, nil
 	}
 	return &protocol.AgentMemoryList{Items: []protocol.AgentMemoryItem{{
 		ID: "mem_1", Scope: request.Scope, Content: "durable fact", Origin: protocol.AgentMemoryOriginAuto,
-		Status: protocol.AgentMemoryStatusPending, CreatedAt: stub.now, UpdatedAt: stub.now,
+		Status: protocol.AgentMemoryStatusPending, CreatedAt: a.now, UpdatedAt: a.now,
 	}}}, nil
 }
 
@@ -91,61 +91,61 @@ func TestAgentMemoryAdapterRejectsBrokenRuntimeProjections(t *testing.T) {
 	}
 }
 
-func (stub *agentMemoryBindingStub) ReviewAgentMemory(_ context.Context, request protocol.AgentMemoryReviewRequest, options embedded.CommandOptions) error {
-	stub.assertCommand(options)
-	stub.actions = append(stub.actions, "review:"+request.ID+":"+string(request.Decision))
+func (a *agentMemoryBindingStub) ReviewAgentMemory(_ context.Context, request protocol.AgentMemoryReviewRequest, options embedded.CommandOptions) error {
+	a.assertCommand(options)
+	a.actions = append(a.actions, "review:"+request.ID+":"+string(request.Decision))
 	return nil
 }
 
-func (stub *agentMemoryBindingStub) UpdateAgentMemory(_ context.Context, request protocol.AgentMemoryUpdateRequest, options embedded.CommandOptions) (*protocol.AgentMemoryItem, error) {
-	stub.assertCommand(options)
+func (a *agentMemoryBindingStub) UpdateAgentMemory(_ context.Context, request protocol.AgentMemoryUpdateRequest, options embedded.CommandOptions) (*protocol.AgentMemoryItem, error) {
+	a.assertCommand(options)
 	if request.Content == nil || *request.Content != "edited" || request.Pinned == nil || !*request.Pinned {
-		stub.t.Fatalf("update request = %+v", request)
+		a.t.Fatalf("update request = %+v", request)
 	}
-	stub.actions = append(stub.actions, "update:"+request.ID)
-	if stub.updateResult != nil {
-		return stub.updateResult, nil
+	a.actions = append(a.actions, "update:"+request.ID)
+	if a.updateResult != nil {
+		return a.updateResult, nil
 	}
-	return stub.item(request.ID, protocol.AgentMemoryScopeProject, "edited", true), nil
+	return a.item(request.ID, protocol.AgentMemoryScopeProject, "edited", true), nil
 }
 
-func (stub *agentMemoryBindingStub) DeleteAgentMemory(_ context.Context, request protocol.AgentMemoryItemRequest, options embedded.CommandOptions) error {
-	stub.assertCommand(options)
-	stub.actions = append(stub.actions, "delete:"+request.ID)
+func (a *agentMemoryBindingStub) DeleteAgentMemory(_ context.Context, request protocol.AgentMemoryItemRequest, options embedded.CommandOptions) error {
+	a.assertCommand(options)
+	a.actions = append(a.actions, "delete:"+request.ID)
 	return nil
 }
 
-func (stub *agentMemoryBindingStub) AddAgentMemory(_ context.Context, request protocol.AgentMemoryAddRequest, options embedded.CommandOptions) (*protocol.AgentMemoryItem, error) {
-	stub.assertCommand(options)
+func (a *agentMemoryBindingStub) AddAgentMemory(_ context.Context, request protocol.AgentMemoryAddRequest, options embedded.CommandOptions) (*protocol.AgentMemoryItem, error) {
+	a.assertCommand(options)
 	if request.Scope != protocol.AgentMemoryScopeUser || request.Workspace != nil || request.Content != "authored" {
-		stub.t.Fatalf("add request = %+v", request)
+		a.t.Fatalf("add request = %+v", request)
 	}
-	stub.actions = append(stub.actions, "add:user")
-	if stub.addResult != nil {
-		return stub.addResult, nil
+	a.actions = append(a.actions, "add:user")
+	if a.addResult != nil {
+		return a.addResult, nil
 	}
-	return stub.item("mem_2", request.Scope, request.Content, false), nil
+	return a.item("mem_2", request.Scope, request.Content, false), nil
 }
 
-func (stub *agentMemoryBindingStub) item(id string, scope protocol.AgentMemoryScope, content string, pinned bool) *protocol.AgentMemoryItem {
+func (a *agentMemoryBindingStub) item(id string, scope protocol.AgentMemoryScope, content string, pinned bool) *protocol.AgentMemoryItem {
 	return &protocol.AgentMemoryItem{
 		ID: id, Scope: scope, Content: content, Origin: protocol.AgentMemoryOriginUser,
-		Status: protocol.AgentMemoryStatusActive, Pinned: pinned, CreatedAt: stub.now, UpdatedAt: stub.now,
+		Status: protocol.AgentMemoryStatusActive, Pinned: pinned, CreatedAt: a.now, UpdatedAt: a.now,
 	}
 }
 
-func (stub *agentMemoryBindingStub) assertMeta(meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (a *agentMemoryBindingStub) assertMeta(meta protocol.RequestMeta) {
+	a.t.Helper()
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("request meta = %+v", meta)
+		a.t.Fatalf("request meta = %+v", meta)
 	}
 }
 
-func (stub *agentMemoryBindingStub) assertCommand(options embedded.CommandOptions) {
-	stub.t.Helper()
-	stub.assertMeta(options.RequestMeta)
+func (a *agentMemoryBindingStub) assertCommand(options embedded.CommandOptions) {
+	a.t.Helper()
+	a.assertMeta(options.RequestMeta)
 	if options.IdempotencyKey == "" {
-		stub.t.Fatal("command has no idempotency key")
+		a.t.Fatal("command has no idempotency key")
 	}
 }
 

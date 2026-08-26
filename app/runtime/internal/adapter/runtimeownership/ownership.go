@@ -93,19 +93,19 @@ func (m *Manager) AcquireRecoverySweep(ctx context.Context) (ownershiprecovery.L
 
 type advisoryLease struct{ lease *advisorylock.Lease }
 
-func (l advisoryLease) Release() { _ = l.lease.Release() }
+func (a advisoryLease) Release() { _ = a.lease.Release() }
 
 type fileLease struct {
 	file  *os.File
 	lease *advisorylock.Lease
 }
 
-func (l *fileLease) Release() {
-	if l == nil {
+func (f *fileLease) Release() {
+	if f == nil {
 		return
 	}
-	if err := l.lease.Release(); err == nil {
-		_ = l.file.Close()
+	if err := f.lease.Release(); err == nil {
+		_ = f.file.Close()
 	}
 }
 

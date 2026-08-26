@@ -18,12 +18,12 @@ type toolRegistryFake struct {
 	invokedPayload string
 }
 
-func (r *toolRegistryFake) List(context.Context) ([]tool.Tool, error) { return r.tools, nil }
+func (t *toolRegistryFake) List(context.Context) ([]tool.Tool, error) { return t.tools, nil }
 
-func (r *toolRegistryFake) Invoke(_ context.Context, in toolapp.Invocation) (tool.Result, error) {
-	r.invokedCWD = in.CWD
-	r.invokedName = in.Name
-	r.invokedPayload = in.Arguments
+func (t *toolRegistryFake) Invoke(_ context.Context, in toolapp.Invocation) (tool.Result, error) {
+	t.invokedCWD = in.CWD
+	t.invokedName = in.Name
+	t.invokedPayload = in.Arguments
 	return tool.StringResult("ok"), nil
 }
 

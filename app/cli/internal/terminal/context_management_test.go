@@ -39,31 +39,31 @@ type blockingAgentMemoryUpdateService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingAgentMemoryUpdateService) Update(
+func (b *blockingAgentMemoryUpdateService) Update(
 	ctx context.Context,
 	patch agentmemory.Patch,
 ) (agentmemory.Item, error) {
-	service.started <- patch
+	b.started <- patch
 	select {
-	case <-service.release:
-		return service.Service.Update(ctx, patch)
+	case <-b.release:
+		return b.Service.Update(ctx, patch)
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return agentmemory.Item{}, context.Cause(ctx)
 	}
 }
 
-func (service *blockingAgentMemoryReviewService) Review(
+func (b *blockingAgentMemoryReviewService) Review(
 	ctx context.Context,
 	id string,
 	decision agentmemory.ReviewDecision,
 ) error {
-	service.started <- decision
+	b.started <- decision
 	select {
-	case <-service.release:
-		return service.Service.Review(ctx, id, decision)
+	case <-b.release:
+		return b.Service.Review(ctx, id, decision)
 	case <-ctx.Done():
-		close(service.canceled)
+		close(b.canceled)
 		return context.Cause(ctx)
 	}
 }
@@ -85,50 +85,50 @@ func newAgentMemoryServiceStub() *agentMemoryServiceStub {
 	}
 }
 
-func (service *agentMemoryServiceStub) Items(_ context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
+func (a *agentMemoryServiceStub) Items(_ context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
 	if err := target.Validate(); err != nil {
 		return nil, err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if target.Scope == agentmemory.User {
-		return append([]agentmemory.Item(nil), service.user...), nil
+		return append([]agentmemory.Item(nil), a.user...), nil
 	}
-	return append([]agentmemory.Item(nil), service.project...), nil
+	return append([]agentmemory.Item(nil), a.project...), nil
 }
 
-func (service *agentMemoryServiceStub) Review(_ context.Context, id string, decision agentmemory.ReviewDecision) error {
+func (a *agentMemoryServiceStub) Review(_ context.Context, id string, decision agentmemory.ReviewDecision) error {
 	if err := decision.Validate(); err != nil {
 		return err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.project {
-		if service.project[index].ID != id {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for index := range a.project {
+		if a.project[index].ID != id {
 			continue
 		}
-		if service.project[index].Status != agentmemory.Pending {
+		if a.project[index].Status != agentmemory.Pending {
 			return errors.New("not pending")
 		}
 		if decision == agentmemory.Reject {
-			service.project = append(service.project[:index], service.project[index+1:]...)
+			a.project = append(a.project[:index], a.project[index+1:]...)
 		} else {
-			service.project[index].Status = agentmemory.Active
-			service.project[index].UpdatedAt = time.Now()
+			a.project[index].Status = agentmemory.Active
+			a.project[index].UpdatedAt = time.Now()
 		}
-		service.review <- decision
+		a.review <- decision
 		return nil
 	}
 	return errors.New("not found")
 }
 
-func (service *agentMemoryServiceStub) Update(_ context.Context, patch agentmemory.Patch) (agentmemory.Item, error) {
+func (a *agentMemoryServiceStub) Update(_ context.Context, patch agentmemory.Patch) (agentmemory.Item, error) {
 	if err := patch.Validate(); err != nil {
 		return agentmemory.Item{}, err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for _, items := range []*[]agentmemory.Item{&service.project, &service.user} {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, items := range []*[]agentmemory.Item{&a.project, &a.user} {
 		for index := range *items {
 			item := &(*items)[index]
 			if item.ID != patch.ID {
@@ -147,10 +147,10 @@ func (service *agentMemoryServiceStub) Update(_ context.Context, patch agentmemo
 	return agentmemory.Item{}, errors.New("not found")
 }
 
-func (service *agentMemoryServiceStub) Delete(_ context.Context, id string) error {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for _, items := range []*[]agentmemory.Item{&service.project, &service.user} {
+func (a *agentMemoryServiceStub) Delete(_ context.Context, id string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, items := range []*[]agentmemory.Item{&a.project, &a.user} {
 		for index := range *items {
 			if (*items)[index].ID == id {
 				*items = append((*items)[:index], (*items)[index+1:]...)
@@ -161,7 +161,7 @@ func (service *agentMemoryServiceStub) Delete(_ context.Context, id string) erro
 	return errors.New("not found")
 }
 
-func (service *agentMemoryServiceStub) Add(_ context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
+func (a *agentMemoryServiceStub) Add(_ context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
 	if err := target.Validate(); err != nil {
 		return agentmemory.Item{}, err
 	}
@@ -170,14 +170,14 @@ func (service *agentMemoryServiceStub) Add(_ context.Context, target agentmemory
 		ID: "mem_added", Scope: target.Scope, Content: content, Origin: agentmemory.Authored,
 		Status: agentmemory.Active, CreatedAt: now, UpdatedAt: now,
 	}
-	service.mu.Lock()
+	a.mu.Lock()
 	if target.Scope == agentmemory.User {
-		service.user = append(service.user, item)
+		a.user = append(a.user, item)
 	} else {
-		service.project = append(service.project, item)
+		a.project = append(a.project, item)
 	}
-	service.mu.Unlock()
-	service.added <- content
+	a.mu.Unlock()
+	a.added <- content
 	return item, nil
 }
 
@@ -206,59 +206,59 @@ func newKnowledgeServiceStub() *knowledgeServiceStub {
 	}
 }
 
-func (service *knowledgeServiceStub) Entries(context.Context, string) ([]knowledge.Entry, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
+func (k *knowledgeServiceStub) Entries(context.Context, string) ([]knowledge.Entry, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	now := time.Now()
 	return []knowledge.Entry{
-		{Scope: knowledge.WorkingDirectory, Content: service.content[knowledge.WorkingDirectory], Revision: service.revisions[knowledge.WorkingDirectory], UpdatedAt: &now},
-		{Scope: knowledge.ProjectRoot, Content: service.content[knowledge.ProjectRoot], Revision: service.revisions[knowledge.ProjectRoot], UpdatedAt: &now},
-		{Scope: knowledge.Home, Content: service.content[knowledge.Home], Revision: service.revisions[knowledge.Home], UpdatedAt: &now},
+		{Scope: knowledge.WorkingDirectory, Content: k.content[knowledge.WorkingDirectory], Revision: k.revisions[knowledge.WorkingDirectory], UpdatedAt: &now},
+		{Scope: knowledge.ProjectRoot, Content: k.content[knowledge.ProjectRoot], Revision: k.revisions[knowledge.ProjectRoot], UpdatedAt: &now},
+		{Scope: knowledge.Home, Content: k.content[knowledge.Home], Revision: k.revisions[knowledge.Home], UpdatedAt: &now},
 	}, nil
 }
 
-func (service *knowledgeServiceStub) Document(_ context.Context, target knowledge.Target) (knowledge.Entry, error) {
+func (k *knowledgeServiceStub) Document(_ context.Context, target knowledge.Target) (knowledge.Entry, error) {
 	if err := target.Validate(); err != nil {
 		return knowledge.Entry{}, err
 	}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	return knowledge.Entry{Scope: target.Scope, Content: service.content[target.Scope], Revision: service.revisions[target.Scope]}, nil
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return knowledge.Entry{Scope: target.Scope, Content: k.content[target.Scope], Revision: k.revisions[target.Scope]}, nil
 }
 
-func (service *knowledgeServiceStub) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
+func (k *knowledgeServiceStub) Save(ctx context.Context, update knowledge.Update) (knowledge.Entry, error) {
 	if err := update.Validate(); err != nil {
 		return knowledge.Entry{}, err
 	}
 	target, content := update.Target, update.Content
-	service.mu.Lock()
-	if service.revisions[target.Scope] != update.ExpectedRevision {
-		service.mu.Unlock()
+	k.mu.Lock()
+	if k.revisions[target.Scope] != update.ExpectedRevision {
+		k.mu.Unlock()
 		return knowledge.Entry{}, errors.New("revision conflict")
 	}
-	if service.failNext {
-		service.failNext = false
-		service.mu.Unlock()
-		service.failed <- struct{}{}
+	if k.failNext {
+		k.failNext = false
+		k.mu.Unlock()
+		k.failed <- struct{}{}
 		return knowledge.Entry{}, errors.New("write refused")
 	}
-	block := service.blockNext
-	service.blockNext = nil
-	service.mu.Unlock()
+	block := k.blockNext
+	k.blockNext = nil
+	k.mu.Unlock()
 	if block != nil {
-		service.started <- content
+		k.started <- content
 		select {
 		case <-block:
 		case <-ctx.Done():
 			return knowledge.Entry{}, context.Cause(ctx)
 		}
 	}
-	service.mu.Lock()
-	service.content[target.Scope] = content
-	service.revisions[target.Scope] += "+1"
-	entry := knowledge.Entry{Scope: target.Scope, Content: content, Revision: service.revisions[target.Scope]}
-	service.mu.Unlock()
-	service.saved <- content
+	k.mu.Lock()
+	k.content[target.Scope] = content
+	k.revisions[target.Scope] += "+1"
+	entry := knowledge.Entry{Scope: target.Scope, Content: content, Revision: k.revisions[target.Scope]}
+	k.mu.Unlock()
+	k.saved <- content
 	return entry, nil
 }
 

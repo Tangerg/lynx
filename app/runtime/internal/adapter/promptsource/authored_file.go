@@ -46,9 +46,9 @@ type promptContextReader struct {
 	reader io.Reader
 }
 
-func (reader promptContextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
+func (p promptContextReader) Read(buffer []byte) (int, error) {
+	if err := p.ctx.Err(); err != nil {
 		return 0, err
 	}
-	return reader.reader.Read(buffer)
+	return p.reader.Read(buffer)
 }

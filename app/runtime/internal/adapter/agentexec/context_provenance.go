@@ -34,12 +34,12 @@ const (
 	contextPurposeData        contextPurpose = "data"
 )
 
-func (kind contextSourceKind) source(reference string) contextSource {
-	return contextSource{Kind: kind, Reference: reference, Purpose: kind.purpose()}
+func (c contextSourceKind) source(reference string) contextSource {
+	return contextSource{Kind: c, Reference: reference, Purpose: c.purpose()}
 }
 
-func (kind contextSourceKind) purpose() contextPurpose {
-	switch kind {
+func (c contextSourceKind) purpose() contextPurpose {
+	switch c {
 	case contextSourcePinnedMemory, contextSourceRecalledMemory:
 		return contextPurposeData
 	case contextSourceBasePrompt,
@@ -67,8 +67,8 @@ type contextProvenance struct {
 
 type contextSources []contextSource
 
-func (sources contextSources) provenance() (contextProvenance, error) {
-	for index, source := range sources {
+func (c contextSources) provenance() (contextProvenance, error) {
+	for index, source := range c {
 		expectedPurpose := source.Kind.purpose()
 		if expectedPurpose == "" || source.Purpose != expectedPurpose {
 			return contextProvenance{}, fmt.Errorf(
@@ -81,15 +81,15 @@ func (sources contextSources) provenance() (contextProvenance, error) {
 	}
 	return contextProvenance{
 		SchemaVersion: contextProvenanceSchemaVersion,
-		Sources:       slices.Clone(sources),
+		Sources:       slices.Clone(c),
 	}, nil
 }
 
-func (sources contextSources) attach(target *coremetadata.Map, targetName string) error {
-	if len(sources) == 0 {
+func (c contextSources) attach(target *coremetadata.Map, targetName string) error {
+	if len(c) == 0 {
 		return nil
 	}
-	provenance, err := sources.provenance()
+	provenance, err := c.provenance()
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ type promptComposition struct {
 	sections []promptSection
 }
 
-func (composition *promptComposition) append(
+func (p *promptComposition) append(
 	text string,
 	source contextSource,
 	additionalSources ...contextSource,
@@ -119,14 +119,14 @@ func (composition *promptComposition) append(
 	sources := make(contextSources, 1, 1+len(additionalSources))
 	sources[0] = source
 	sources = append(sources, additionalSources...)
-	composition.sections = append(composition.sections, promptSection{
+	p.sections = append(p.sections, promptSection{
 		text: text, sources: sources,
 	})
 }
 
-func (composition promptComposition) render() string {
+func (p promptComposition) render() string {
 	var rendered strings.Builder
-	for index, section := range composition.sections {
+	for index, section := range p.sections {
 		if index > 0 {
 			rendered.WriteString("\n\n")
 		}
@@ -135,21 +135,21 @@ func (composition promptComposition) render() string {
 	return rendered.String()
 }
 
-func (composition promptComposition) sources() contextSources {
+func (p promptComposition) sources() contextSources {
 	count := 0
-	for _, section := range composition.sections {
+	for _, section := range p.sections {
 		count += len(section.sources)
 	}
 	sources := make(contextSources, 0, count)
-	for _, section := range composition.sections {
+	for _, section := range p.sections {
 		sources = append(sources, section.sources...)
 	}
 	return sources
 }
 
-func (composition promptComposition) systemMessage() (corechat.Message, error) {
-	message := corechat.NewSystemMessage(composition.render())
-	if err := composition.sources().attach(&message.Metadata, "system message"); err != nil {
+func (p promptComposition) systemMessage() (corechat.Message, error) {
+	message := corechat.NewSystemMessage(p.render())
+	if err := p.sources().attach(&message.Metadata, "system message"); err != nil {
 		return corechat.Message{}, err
 	}
 	return message, nil

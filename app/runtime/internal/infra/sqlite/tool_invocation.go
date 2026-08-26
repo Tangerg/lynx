@@ -26,14 +26,14 @@ func NewToolInvocationStore(db *sql.DB) *ToolInvocationStore {
 
 // ListStartedToolInvocations yields every Tool attempt still owned by a
 // pre-crash process without importing recovery application types into storage.
-func (store *ToolInvocationStore) ListStartedToolInvocations(
+func (t *ToolInvocationStore) ListStartedToolInvocations(
 	ctx context.Context,
 	yield func(sessionID, runID, segmentID, callID, itemID string, startedAt time.Time) error,
 ) error {
 	if yield == nil {
 		return errors.New("sqlite: Tool invocation reader is required")
 	}
-	rows, err := conn(ctx, store.db).QueryContext(ctx, `
+	rows, err := conn(ctx, t.db).QueryContext(ctx, `
 		SELECT session_id, run_id, segment_id, call_id, item_id, started_at
 		  FROM tool_invocations
 		 WHERE state = ?
@@ -59,7 +59,7 @@ func (store *ToolInvocationStore) ListStartedToolInvocations(
 	return nil
 }
 
-func (store *ToolInvocationStore) StartToolInvocation(
+func (t *ToolInvocationStore) StartToolInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID, itemID string,
 	startedAt time.Time,
@@ -70,7 +70,7 @@ func (store *ToolInvocationStore) StartToolInvocation(
 	if startedAt.IsZero() {
 		return errors.New("sqlite: Tool invocation start time is required")
 	}
-	_, err := conn(ctx, store.db).ExecContext(ctx,
+	_, err := conn(ctx, t.db).ExecContext(ctx,
 		`INSERT INTO tool_invocations(
 		   call_id, item_id, session_id, run_id, segment_id, state, started_at, finished_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
@@ -88,29 +88,29 @@ func (store *ToolInvocationStore) StartToolInvocation(
 	return nil
 }
 
-func (store *ToolInvocationStore) CompleteToolInvocation(
+func (t *ToolInvocationStore) CompleteToolInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID, itemID string,
 	startedAt, finishedAt time.Time,
 ) error {
-	return store.finish(
+	return t.finish(
 		ctx, sessionID, runID, segmentID, callID, itemID,
 		startedAt, finishedAt, toolInvocationCompleted,
 	)
 }
 
-func (store *ToolInvocationStore) MarkToolInvocationIncomplete(
+func (t *ToolInvocationStore) MarkToolInvocationIncomplete(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID, itemID string,
 	startedAt, finishedAt time.Time,
 ) error {
-	return store.finish(
+	return t.finish(
 		ctx, sessionID, runID, segmentID, callID, itemID,
 		startedAt, finishedAt, toolInvocationIncomplete,
 	)
 }
 
-func (store *ToolInvocationStore) finish(
+func (t *ToolInvocationStore) finish(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID, itemID string,
 	startedAt, finishedAt time.Time,
@@ -125,7 +125,7 @@ func (store *ToolInvocationStore) finish(
 	if finishedAt.Before(startedAt) {
 		return errors.New("sqlite: Tool invocation finish time precedes start time")
 	}
-	result, err := conn(ctx, store.db).ExecContext(ctx,
+	result, err := conn(ctx, t.db).ExecContext(ctx,
 		`UPDATE tool_invocations
 		    SET state = ?, finished_at = ?
 		  WHERE call_id = ? AND item_id = ? AND session_id = ? AND run_id = ? AND segment_id = ?

@@ -51,37 +51,37 @@ type runtimeProvider struct {
 	notice string
 }
 
-func (p runtimeProvider) Open(cmd *cobra.Command) (agent.Runtime, error) {
-	services, err := p.OpenServices(cmd)
+func (r runtimeProvider) Open(cmd *cobra.Command) (agent.Runtime, error) {
+	services, err := r.OpenServices(cmd)
 	if err != nil {
 		return nil, err
 	}
 	return services.Agent, nil
 }
 
-func (p runtimeProvider) OpenServices(cmd *cobra.Command) (backend.Services, error) {
-	services, err := p.resolve(cmd.Context())
+func (r runtimeProvider) OpenServices(cmd *cobra.Command) (backend.Services, error) {
+	services, err := r.resolve(cmd.Context())
 	if err != nil {
 		return backend.Services{}, err
 	}
-	if p.notice != "" {
-		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), p.notice); err != nil {
+	if r.notice != "" {
+		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), r.notice); err != nil {
 			return backend.Services{}, fmt.Errorf("announce runtime: %w", err)
 		}
 	}
 	return services, nil
 }
 
-func (p runtimeProvider) OpenQuietly(cmd *cobra.Command) (agent.Runtime, error) {
-	services, err := p.resolve(cmd.Context())
+func (r runtimeProvider) OpenQuietly(cmd *cobra.Command) (agent.Runtime, error) {
+	services, err := r.resolve(cmd.Context())
 	return services.Agent, err
 }
 
-func (p runtimeProvider) resolve(ctx context.Context) (backend.Services, error) {
-	if p.open == nil {
+func (r runtimeProvider) resolve(ctx context.Context) (backend.Services, error) {
+	if r.open == nil {
 		return backend.Services{}, errors.New("runtime factory is required")
 	}
-	services, err := p.open(ctx)
+	services, err := r.open(ctx)
 	if err != nil {
 		return backend.Services{}, err
 	}

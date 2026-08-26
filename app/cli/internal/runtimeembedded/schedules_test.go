@@ -22,39 +22,39 @@ type scheduleBindingStub struct {
 	updateResult *protocol.Schedule
 }
 
-func (stub *scheduleBindingStub) ListSchedules(_ context.Context, query protocol.PageQuery, options embedded.CallOptions) (*protocol.Page[protocol.Schedule], error) {
-	stub.assertMeta(options.RequestMeta)
+func (s *scheduleBindingStub) ListSchedules(_ context.Context, query protocol.PageQuery, options embedded.CallOptions) (*protocol.Page[protocol.Schedule], error) {
+	s.assertMeta(options.RequestMeta)
 	if query.Limit != schedulePageLimit {
-		stub.t.Fatalf("schedule page limit = %d", query.Limit)
+		s.t.Fatalf("schedule page limit = %d", query.Limit)
 	}
-	first := wireSchedule(stub.now, "sch_1")
+	first := wireSchedule(s.now, "sch_1")
 	if query.Cursor == "" {
 		return protocol.NewPageWithCursor([]protocol.Schedule{first}, "next"), nil
 	}
-	second := wireSchedule(stub.now.Add(time.Minute), "sch_2")
+	second := wireSchedule(s.now.Add(time.Minute), "sch_2")
 	return protocol.NewPage([]protocol.Schedule{second}), nil
 }
 
-func (stub *scheduleBindingStub) CreateSchedule(_ context.Context, request protocol.CreateScheduleRequest, options embedded.CommandOptions) (*protocol.Schedule, error) {
-	stub.assertCommand("create", options)
-	stub.created = request
-	if stub.createResult != nil {
-		return stub.createResult, nil
+func (s *scheduleBindingStub) CreateSchedule(_ context.Context, request protocol.CreateScheduleRequest, options embedded.CommandOptions) (*protocol.Schedule, error) {
+	s.assertCommand("create", options)
+	s.created = request
+	if s.createResult != nil {
+		return s.createResult, nil
 	}
-	created := wireSchedule(stub.now, "sch_created")
+	created := wireSchedule(s.now, "sch_created")
 	created.Title, created.Instructions, created.Cron = request.Title, request.Instructions, request.Cron
 	created.Provider, created.Model = request.Provider, request.Model
 	created.Workspace = request.Workspace
 	return &created, nil
 }
 
-func (stub *scheduleBindingStub) UpdateSchedule(_ context.Context, request protocol.UpdateScheduleRequest, options embedded.CommandOptions) (*protocol.Schedule, error) {
-	stub.assertCommand("update", options)
-	stub.updated = request
-	if stub.updateResult != nil {
-		return stub.updateResult, nil
+func (s *scheduleBindingStub) UpdateSchedule(_ context.Context, request protocol.UpdateScheduleRequest, options embedded.CommandOptions) (*protocol.Schedule, error) {
+	s.assertCommand("update", options)
+	s.updated = request
+	if s.updateResult != nil {
+		return s.updateResult, nil
 	}
-	updated := wireSchedule(stub.now, request.ID)
+	updated := wireSchedule(s.now, request.ID)
 	updated.Revision = request.ExpectedRevision + 1
 	if request.Title != nil {
 		updated.Title = *request.Title
@@ -83,34 +83,34 @@ func (stub *scheduleBindingStub) UpdateSchedule(_ context.Context, request proto
 	return &updated, nil
 }
 
-func (stub *scheduleBindingStub) DeleteSchedule(_ context.Context, request protocol.DeleteScheduleRequest, options embedded.CommandOptions) error {
-	stub.assertCommand("delete:"+request.ID, options)
+func (s *scheduleBindingStub) DeleteSchedule(_ context.Context, request protocol.DeleteScheduleRequest, options embedded.CommandOptions) error {
+	s.assertCommand("delete:"+request.ID, options)
 	return nil
 }
 
-func (stub *scheduleBindingStub) RunScheduleNow(_ context.Context, request protocol.RunScheduleNowRequest, options embedded.CommandOptions) (*protocol.RunScheduleNowResponse, error) {
-	stub.assertCommand("run:"+request.ID, options)
+func (s *scheduleBindingStub) RunScheduleNow(_ context.Context, request protocol.RunScheduleNowRequest, options embedded.CommandOptions) (*protocol.RunScheduleNowResponse, error) {
+	s.assertCommand("run:"+request.ID, options)
 	return &protocol.RunScheduleNowResponse{SessionID: "ses_headless", RunID: "run_headless"}, nil
 }
 
-func (stub *scheduleBindingStub) assertMeta(meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (s *scheduleBindingStub) assertMeta(meta protocol.RequestMeta) {
+	s.t.Helper()
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("schedule request meta = %+v", meta)
+		s.t.Fatalf("schedule request meta = %+v", meta)
 	}
 }
 
-func (stub *scheduleBindingStub) assertCommand(action string, options embedded.CommandOptions) {
-	stub.t.Helper()
-	stub.assertMeta(options.RequestMeta)
+func (s *scheduleBindingStub) assertCommand(action string, options embedded.CommandOptions) {
+	s.t.Helper()
+	s.assertMeta(options.RequestMeta)
 	if options.IdempotencyKey == "" {
-		stub.t.Fatal("schedule command has no idempotency key")
+		s.t.Fatal("schedule command has no idempotency key")
 	}
-	if _, duplicate := stub.keys[options.IdempotencyKey]; duplicate {
-		stub.t.Fatalf("schedule command reused idempotency key %q", options.IdempotencyKey)
+	if _, duplicate := s.keys[options.IdempotencyKey]; duplicate {
+		s.t.Fatalf("schedule command reused idempotency key %q", options.IdempotencyKey)
 	}
-	stub.keys[options.IdempotencyKey] = struct{}{}
-	stub.actions = append(stub.actions, action)
+	s.keys[options.IdempotencyKey] = struct{}{}
+	s.actions = append(s.actions, action)
 }
 
 func wireSchedule(now time.Time, id string) protocol.Schedule {

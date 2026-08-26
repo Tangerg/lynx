@@ -60,7 +60,7 @@ func (p Provider) Apply(patch Patch) Provider {
 	return p
 }
 
-// Empty reports whether patch preserves every persisted field.
-func (patch Patch) Empty() bool {
-	return patch.APIKey == nil && patch.BaseURL == nil
+// Empty reports whether p preserves every persisted field.
+func (p Patch) Empty() bool {
+	return p.APIKey == nil && p.BaseURL == nil
 }

@@ -17,9 +17,9 @@ const (
 	Safe Safety = "safe"
 )
 
-func (safety Safety) Validate() error {
-	if safety != Safe {
-		return fmt.Errorf("direct diagnostic tool safety must be safe, got %q", safety)
+func (s Safety) Validate() error {
+	if s != Safe {
+		return fmt.Errorf("direct diagnostic tool safety must be safe, got %q", s)
 	}
 	return nil
 }
@@ -31,19 +31,19 @@ type Descriptor struct {
 	Safety      Safety
 }
 
-func (descriptor Descriptor) Validate() error {
-	if strings.TrimSpace(descriptor.Name) == "" {
+func (d Descriptor) Validate() error {
+	if strings.TrimSpace(d.Name) == "" {
 		return errors.New("diagnostic tool name is empty")
 	}
-	if err := descriptor.Safety.Validate(); err != nil {
-		return fmt.Errorf("diagnostic tool %s: %w", descriptor.Name, err)
+	if err := d.Safety.Validate(); err != nil {
+		return fmt.Errorf("diagnostic tool %s: %w", d.Name, err)
 	}
-	return validateObject("diagnostic tool schema", descriptor.Schema)
+	return validateObject("diagnostic tool schema", d.Schema)
 }
 
-func (descriptor Descriptor) Clone() Descriptor {
-	descriptor.Schema = append(json.RawMessage(nil), descriptor.Schema...)
-	return descriptor
+func (d Descriptor) Clone() Descriptor {
+	d.Schema = append(json.RawMessage(nil), d.Schema...)
+	return d
 }
 
 type Invocation struct {
@@ -52,27 +52,27 @@ type Invocation struct {
 	Workspace string
 }
 
-func (invocation Invocation) Validate() error {
-	if err := invocation.Tool.Validate(); err != nil {
+func (i Invocation) Validate() error {
+	if err := i.Tool.Validate(); err != nil {
 		return fmt.Errorf("diagnostic tool invocation: %w", err)
 	}
-	if strings.TrimSpace(invocation.Workspace) == "" {
+	if strings.TrimSpace(i.Workspace) == "" {
 		return errors.New("diagnostic tool invocation workspace is empty")
 	}
-	return validateObject("diagnostic tool arguments", invocation.Arguments)
+	return validateObject("diagnostic tool arguments", i.Arguments)
 }
 
 type Result struct{ JSON json.RawMessage }
 
-func (result Result) Validate() error {
-	if len(result.JSON) == 0 || !json.Valid(result.JSON) {
+func (r Result) Validate() error {
+	if len(r.JSON) == 0 || !json.Valid(r.JSON) {
 		return errors.New("diagnostic tool result is not valid JSON")
 	}
 	return nil
 }
 
-func (result Result) Clone() Result {
-	return Result{JSON: append(json.RawMessage(nil), result.JSON...)}
+func (r Result) Clone() Result {
+	return Result{JSON: append(json.RawMessage(nil), r.JSON...)}
 }
 
 type Service interface {

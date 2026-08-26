@@ -17,12 +17,12 @@ const (
 	DocumentHome             DocumentScope = "home"
 )
 
-func (scope DocumentScope) Validate() error {
-	switch scope {
+func (d DocumentScope) Validate() error {
+	switch d {
 	case DocumentWorkingDirectory, DocumentProjectRoot, DocumentHome:
 		return nil
 	default:
-		return fmt.Errorf("agent document scope %q is invalid", scope)
+		return fmt.Errorf("agent document scope %q is invalid", d)
 	}
 }
 
@@ -32,11 +32,11 @@ type Document struct {
 	Scope DocumentScope
 }
 
-func (document Document) Validate() error {
-	if strings.TrimSpace(document.Path) == "" {
+func (d Document) Validate() error {
+	if strings.TrimSpace(d.Path) == "" {
 		return errors.New("agent document path is empty")
 	}
-	return document.Scope.Validate()
+	return d.Scope.Validate()
 }
 
 type RecipeScope string
@@ -46,9 +46,9 @@ const (
 	GlobalRecipe  RecipeScope = "global"
 )
 
-func (scope RecipeScope) Validate() error {
-	if scope != ProjectRecipe && scope != GlobalRecipe {
-		return fmt.Errorf("recipe scope %q is invalid", scope)
+func (r RecipeScope) Validate() error {
+	if r != ProjectRecipe && r != GlobalRecipe {
+		return fmt.Errorf("recipe scope %q is invalid", r)
 	}
 	return nil
 }
@@ -62,29 +62,29 @@ type Recipe struct {
 	Source       string
 }
 
-func (recipe Recipe) Validate() error {
-	if strings.TrimSpace(recipe.Name) == "" {
+func (r Recipe) Validate() error {
+	if strings.TrimSpace(r.Name) == "" {
 		return errors.New("recipe name is empty")
 	}
-	if strings.TrimSpace(recipe.Body) == "" {
-		return fmt.Errorf("recipe %s body is empty", recipe.Name)
+	if strings.TrimSpace(r.Body) == "" {
+		return fmt.Errorf("recipe %s body is empty", r.Name)
 	}
-	if strings.TrimSpace(recipe.Source) == "" {
-		return fmt.Errorf("recipe %s source is empty", recipe.Name)
+	if strings.TrimSpace(r.Source) == "" {
+		return fmt.Errorf("recipe %s source is empty", r.Name)
 	}
-	return recipe.Scope.Validate()
+	return r.Scope.Validate()
 }
 
 // Expand applies the runtime's documented client-side recipe substitution.
 // $ARGUMENTS receives the trimmed input and $1..$9 receive whitespace-delimited
 // arguments. A token such as $10 stays literal.
-func (recipe Recipe) Expand(arguments string) (string, error) {
-	if err := recipe.Validate(); err != nil {
+func (r Recipe) Expand(arguments string) (string, error) {
+	if err := r.Validate(); err != nil {
 		return "", err
 	}
 	trimmed := strings.TrimSpace(arguments)
 	parts := strings.Fields(trimmed)
-	return expandRecipeTemplate(recipe.Body, trimmed, parts), nil
+	return expandRecipeTemplate(r.Body, trimmed, parts), nil
 }
 
 func expandRecipeTemplate(template, allArguments string, positional []string) string {

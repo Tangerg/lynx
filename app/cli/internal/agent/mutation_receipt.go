@@ -18,8 +18,8 @@ func NewAcceptedMutationError(receipt SegmentStream, cause error) error {
 	return &AcceptedMutationError{receipt: receipt, cause: cause}
 }
 
-func (e *AcceptedMutationError) Error() string { return e.cause.Error() }
-func (e *AcceptedMutationError) Unwrap() error { return e.cause }
+func (a *AcceptedMutationError) Error() string { return a.cause.Error() }
+func (a *AcceptedMutationError) Unwrap() error { return a.cause }
 
 // AcceptedMutationReceipt extracts the partial receipt of a mutation known to
 // have reached the runtime. False means the error came from the call itself and

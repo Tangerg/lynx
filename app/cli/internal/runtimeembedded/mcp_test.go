@@ -25,26 +25,26 @@ type mcpBindingStub struct {
 	updateResult *protocol.MCPServer
 }
 
-func (stub *mcpBindingStub) ListMCPServers(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.MCPServer], error) {
-	stub.assertMeta(options.RequestMeta)
+func (m *mcpBindingStub) ListMCPServers(_ context.Context, options embedded.CallOptions) (*protocol.Page[protocol.MCPServer], error) {
+	m.assertMeta(options.RequestMeta)
 	return protocol.NewPage([]protocol.MCPServer{wireMCPServer()}), nil
 }
 
-func (stub *mcpBindingStub) CreateMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CommandOptions) (*protocol.MCPServer, error) {
-	stub.assertCommand("create", options)
-	stub.created = request
-	if stub.createResult != nil {
-		return stub.createResult, nil
+func (m *mcpBindingStub) CreateMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CommandOptions) (*protocol.MCPServer, error) {
+	m.assertCommand("create", options)
+	m.created = request
+	if m.createResult != nil {
+		return m.createResult, nil
 	}
 	server := wireMCPServerFromCandidate(request)
 	return &server, nil
 }
 
-func (stub *mcpBindingStub) UpdateMCPServer(_ context.Context, request protocol.UpdateMCPServerRequest, options embedded.CommandOptions) (*protocol.MCPServer, error) {
-	stub.assertCommand("update", options)
-	stub.updated = request
-	if stub.updateResult != nil {
-		return stub.updateResult, nil
+func (m *mcpBindingStub) UpdateMCPServer(_ context.Context, request protocol.UpdateMCPServerRequest, options embedded.CommandOptions) (*protocol.MCPServer, error) {
+	m.assertCommand("update", options)
+	m.updated = request
+	if m.updateResult != nil {
+		return m.updateResult, nil
 	}
 	server := wireMCPServer()
 	server.Name = request.Server
@@ -73,69 +73,69 @@ func (stub *mcpBindingStub) UpdateMCPServer(_ context.Context, request protocol.
 	return &server, nil
 }
 
-func (stub *mcpBindingStub) DeleteMCPServer(_ context.Context, request protocol.MCPServerRequest, options embedded.CommandOptions) error {
-	stub.assertCommand("delete:"+request.Server, options)
+func (m *mcpBindingStub) DeleteMCPServer(_ context.Context, request protocol.MCPServerRequest, options embedded.CommandOptions) error {
+	m.assertCommand("delete:"+request.Server, options)
 	return nil
 }
 
-func (stub *mcpBindingStub) TestMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CallOptions) (*protocol.MCPTestResult, error) {
-	stub.assertMeta(options.RequestMeta)
-	stub.actions = append(stub.actions, "test:"+request.Name)
+func (m *mcpBindingStub) TestMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CallOptions) (*protocol.MCPTestResult, error) {
+	m.assertMeta(options.RequestMeta)
+	m.actions = append(m.actions, "test:"+request.Name)
 	return &protocol.MCPTestResult{Error: &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}}, nil
 }
 
-func (stub *mcpBindingStub) ListMCPTools(_ context.Context, request protocol.MCPListToolsRequest, options embedded.CallOptions) (*protocol.Page[protocol.MCPTool], error) {
-	stub.assertMeta(options.RequestMeta)
-	stub.actions = append(stub.actions, "tools:"+request.Server)
+func (m *mcpBindingStub) ListMCPTools(_ context.Context, request protocol.MCPListToolsRequest, options embedded.CallOptions) (*protocol.Page[protocol.MCPTool], error) {
+	m.assertMeta(options.RequestMeta)
+	m.actions = append(m.actions, "tools:"+request.Server)
 	return protocol.NewPage([]protocol.MCPTool{{
 		Server: "docs", Name: "search", Description: "Search docs",
 		InputSchema: map[string]any{"type": "object"},
 	}}), nil
 }
 
-func (stub *mcpBindingStub) ReconnectMCPServer(_ context.Context, request protocol.MCPServerRequest, options embedded.CommandOptions) error {
-	stub.assertCommand("reconnect:"+request.Server, options)
+func (m *mcpBindingStub) ReconnectMCPServer(_ context.Context, request protocol.MCPServerRequest, options embedded.CommandOptions) error {
+	m.assertCommand("reconnect:"+request.Server, options)
 	return nil
 }
 
-func (stub *mcpBindingStub) CreateMCPAuthorizationAttempt(_ context.Context, request protocol.CreateMCPAuthorizationAttemptRequest, options embedded.CommandOptions) (*protocol.MCPAuthorizationAttempt, error) {
-	stub.assertCommand("authorize:"+request.Server, options)
+func (m *mcpBindingStub) CreateMCPAuthorizationAttempt(_ context.Context, request protocol.CreateMCPAuthorizationAttemptRequest, options embedded.CommandOptions) (*protocol.MCPAuthorizationAttempt, error) {
+	m.assertCommand("authorize:"+request.Server, options)
 	return &protocol.MCPAuthorizationAttempt{
 		ID: "auth_1", Server: request.Server, Status: protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptPending},
-		CreatedAt: stub.now,
+		CreatedAt: m.now,
 	}, nil
 }
 
-func (stub *mcpBindingStub) GetMCPAuthorizationAttempt(_ context.Context, request protocol.MCPAuthorizationAttemptRequest, options embedded.CallOptions) (*protocol.MCPAuthorizationAttempt, error) {
-	stub.assertMeta(options.RequestMeta)
-	stub.actions = append(stub.actions, "authorization:"+request.AttemptID)
-	if stub.authErr != nil {
-		return nil, stub.authErr
+func (m *mcpBindingStub) GetMCPAuthorizationAttempt(_ context.Context, request protocol.MCPAuthorizationAttemptRequest, options embedded.CallOptions) (*protocol.MCPAuthorizationAttempt, error) {
+	m.assertMeta(options.RequestMeta)
+	m.actions = append(m.actions, "authorization:"+request.AttemptID)
+	if m.authErr != nil {
+		return nil, m.authErr
 	}
-	if stub.authGet != nil {
-		return stub.authGet, nil
+	if m.authGet != nil {
+		return m.authGet, nil
 	}
-	finished := stub.now.Add(time.Second)
+	finished := m.now.Add(time.Second)
 	return &protocol.MCPAuthorizationAttempt{
 		ID: request.AttemptID, Server: "docs", Status: protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptSucceeded},
-		CreatedAt: stub.now, FinishedAt: &finished,
+		CreatedAt: m.now, FinishedAt: &finished,
 	}, nil
 }
 
-func (stub *mcpBindingStub) assertMeta(meta protocol.RequestMeta) {
-	stub.t.Helper()
+func (m *mcpBindingStub) assertMeta(meta protocol.RequestMeta) {
+	m.t.Helper()
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
-		stub.t.Fatalf("MCP request meta = %+v", meta)
+		m.t.Fatalf("MCP request meta = %+v", meta)
 	}
 }
 
-func (stub *mcpBindingStub) assertCommand(action string, options embedded.CommandOptions) {
-	stub.t.Helper()
-	stub.assertMeta(options.RequestMeta)
+func (m *mcpBindingStub) assertCommand(action string, options embedded.CommandOptions) {
+	m.t.Helper()
+	m.assertMeta(options.RequestMeta)
 	if options.IdempotencyKey == "" {
-		stub.t.Fatalf("MCP command options = %+v", options)
+		m.t.Fatalf("MCP command options = %+v", options)
 	}
-	stub.actions = append(stub.actions, action)
+	m.actions = append(m.actions, action)
 }
 
 func wireMCPServer() protocol.MCPServer {

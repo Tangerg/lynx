@@ -47,37 +47,37 @@ type blockingMCPReconnectService struct {
 	canceled chan struct{}
 }
 
-func (service *blockingMCPReconnectService) ReconnectServer(ctx context.Context, server string) error {
+func (b *blockingMCPReconnectService) ReconnectServer(ctx context.Context, server string) error {
 	select {
-	case service.started <- server:
+	case b.started <- server:
 	default:
 	}
 	select {
-	case <-service.release:
-		return service.mcpServiceStub.ReconnectServer(ctx, server)
+	case <-b.release:
+		return b.mcpServiceStub.ReconnectServer(ctx, server)
 	case <-ctx.Done():
 		select {
-		case service.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return context.Cause(ctx)
 	}
 }
 
-func (service *blockingMCPAuthorizationService) GetAuthorization(
+func (b *blockingMCPAuthorizationService) GetAuthorization(
 	ctx context.Context,
 	reference mcp.AuthorizationReference,
 ) (mcp.AuthorizationAttempt, error) {
 	select {
-	case service.started <- struct{}{}:
+	case b.started <- struct{}{}:
 	default:
 	}
 	select {
-	case <-service.release:
-		return service.mcpServiceStub.GetAuthorization(ctx, reference)
+	case <-b.release:
+		return b.mcpServiceStub.GetAuthorization(ctx, reference)
 	case <-ctx.Done():
 		select {
-		case service.canceled <- struct{}{}:
+		case b.canceled <- struct{}{}:
 		default:
 		}
 		return mcp.AuthorizationAttempt{}, context.Cause(ctx)
@@ -98,42 +98,42 @@ func newMCPServiceStub() *mcpServiceStub {
 	}
 }
 
-func (service *mcpServiceStub) Servers(context.Context) ([]mcp.Server, error) {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	servers := make([]mcp.Server, len(service.servers))
-	for index := range service.servers {
-		servers[index] = service.servers[index].Clone()
+func (m *mcpServiceStub) Servers(context.Context) ([]mcp.Server, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	servers := make([]mcp.Server, len(m.servers))
+	for index := range m.servers {
+		servers[index] = m.servers[index].Clone()
 	}
 	return servers, nil
 }
 
-func (service *mcpServiceStub) CreateServer(_ context.Context, candidate mcp.Candidate) (mcp.Server, error) {
+func (m *mcpServiceStub) CreateServer(_ context.Context, candidate mcp.Candidate) (mcp.Server, error) {
 	if err := candidate.Validate(); err != nil {
 		return mcp.Server{}, err
 	}
-	service.created <- candidate.Clone()
+	m.created <- candidate.Clone()
 	server := mcp.Server{
 		Name: candidate.Name, Description: candidate.Description, TimeoutSeconds: candidate.TimeoutSeconds,
 		Connection:    mcp.Connection{Transport: candidate.Connection.Transport, URL: candidate.Connection.URL, Command: candidate.Connection.Command, Args: candidate.Connection.Args, Directory: candidate.Connection.Directory},
 		DisabledTools: candidate.DisabledTools, AutoApproveTools: candidate.AutoApproveTools,
 		State: mcp.State{Type: mcp.Disconnected},
 	}
-	service.mu.Lock()
-	service.servers = append(service.servers, server)
-	service.mu.Unlock()
+	m.mu.Lock()
+	m.servers = append(m.servers, server)
+	m.mu.Unlock()
 	return server.Clone(), nil
 }
 
-func (service *mcpServiceStub) UpdateServer(_ context.Context, update mcp.ServerUpdate) (mcp.Server, error) {
+func (m *mcpServiceStub) UpdateServer(_ context.Context, update mcp.ServerUpdate) (mcp.Server, error) {
 	if err := update.Validate(); err != nil {
 		return mcp.Server{}, err
 	}
-	service.updated <- update
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.servers {
-		server := &service.servers[index]
+	m.updated <- update
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for index := range m.servers {
+		server := &m.servers[index]
 		if server.Name != update.Server {
 			continue
 		}
@@ -149,24 +149,24 @@ func (service *mcpServiceStub) UpdateServer(_ context.Context, update mcp.Server
 	return mcp.Server{}, errors.New("server not found")
 }
 
-func (service *mcpServiceStub) DeleteServer(_ context.Context, name string) error {
-	service.deleted <- name
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for index := range service.servers {
-		if service.servers[index].Name == name {
-			service.servers = append(service.servers[:index], service.servers[index+1:]...)
+func (m *mcpServiceStub) DeleteServer(_ context.Context, name string) error {
+	m.deleted <- name
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for index := range m.servers {
+		if m.servers[index].Name == name {
+			m.servers = append(m.servers[:index], m.servers[index+1:]...)
 			return nil
 		}
 	}
 	return errors.New("server not found")
 }
 
-func (service *mcpServiceStub) TestServer(_ context.Context, candidate mcp.Candidate) (mcp.TestResult, error) {
+func (m *mcpServiceStub) TestServer(_ context.Context, candidate mcp.Candidate) (mcp.TestResult, error) {
 	if err := candidate.Validate(); err != nil {
 		return mcp.TestResult{}, err
 	}
-	service.probed <- candidate.Clone()
+	m.probed <- candidate.Clone()
 	return mcp.TestResult{OK: true}, nil
 }
 
@@ -177,26 +177,26 @@ func (*mcpServiceStub) Tools(_ context.Context, server string) ([]mcp.Tool, erro
 	return []mcp.Tool{{Server: "docs", Name: "search", Description: "Search docs", InputSchema: []byte(`{"type":"object"}`)}}, nil
 }
 
-func (service *mcpServiceStub) ReconnectServer(_ context.Context, server string) error {
-	service.reconnected <- server
+func (m *mcpServiceStub) ReconnectServer(_ context.Context, server string) error {
+	m.reconnected <- server
 	return nil
 }
 
-func (service *mcpServiceStub) StartAuthorization(_ context.Context, server string) (mcp.AuthorizationAttempt, error) {
-	return mcp.AuthorizationAttempt{ID: "auth_1", Server: server, Status: mcp.AuthorizationPending, CreatedAt: service.now}, nil
+func (m *mcpServiceStub) StartAuthorization(_ context.Context, server string) (mcp.AuthorizationAttempt, error) {
+	return mcp.AuthorizationAttempt{ID: "auth_1", Server: server, Status: mcp.AuthorizationPending, CreatedAt: m.now}, nil
 }
 
-func (service *mcpServiceStub) GetAuthorization(context.Context, mcp.AuthorizationReference) (mcp.AuthorizationAttempt, error) {
-	service.authReads.Add(1)
+func (m *mcpServiceStub) GetAuthorization(context.Context, mcp.AuthorizationReference) (mcp.AuthorizationAttempt, error) {
+	m.authReads.Add(1)
 	select {
-	case err := <-service.authErrors:
+	case err := <-m.authErrors:
 		return mcp.AuthorizationAttempt{}, err
 	default:
 	}
-	finished := service.now.Add(time.Second)
+	finished := m.now.Add(time.Second)
 	return mcp.AuthorizationAttempt{
 		ID: "auth_1", Server: "docs", Status: mcp.AuthorizationSucceeded,
-		CreatedAt: service.now, FinishedAt: &finished,
+		CreatedAt: m.now, FinishedAt: &finished,
 	}, nil
 }
 

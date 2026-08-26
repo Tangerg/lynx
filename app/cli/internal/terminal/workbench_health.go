@@ -17,20 +17,20 @@ type workbenchHealth struct {
 	problems [workbenchConcernCount]string
 }
 
-func (health *workbenchHealth) update(concern workbenchConcern, err error) bool {
+func (w *workbenchHealth) update(concern workbenchConcern, err error) bool {
 	problem := ""
 	if err != nil {
 		problem = "workbench: " + err.Error()
 	}
-	if health.problems[concern] == problem {
+	if w.problems[concern] == problem {
 		return false
 	}
-	health.problems[concern] = problem
+	w.problems[concern] = problem
 	return true
 }
 
-func (health workbenchHealth) problem() string {
-	for _, problem := range health.problems {
+func (w workbenchHealth) problem() string {
+	for _, problem := range w.problems {
 		if problem != "" {
 			return problem
 		}
@@ -42,9 +42,9 @@ func (health workbenchHealth) problem() string {
 // retaining application-wide workbench health such as prompt-history writes.
 // Destination outboxes are reconciled after installation and report their own
 // failures, so carrying source-session errors would misidentify the new owner.
-func (health *workbenchHealth) enterSession() {
+func (w *workbenchHealth) enterSession() {
 	for concern := range workbenchSessionConcernCount {
-		health.problems[concern] = ""
+		w.problems[concern] = ""
 	}
 }
 

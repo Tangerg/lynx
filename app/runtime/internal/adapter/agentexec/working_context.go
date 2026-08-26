@@ -62,11 +62,11 @@ func NewWorkingContextComposer(config WorkingContextConfig) *WorkingContextCompo
 // SessionStart fires once per Session per Runtime process; UserPromptSubmit
 // fires once per fresh root. Hook injection becomes an additional text part on
 // the current user message so media and user-authored part ordering stay intact.
-func (composer *WorkingContextComposer) ComposeWorkingContext(
+func (w *WorkingContextComposer) ComposeWorkingContext(
 	ctx context.Context,
 	input runs.WorkingContextInput,
 ) ([]corechat.Message, error) {
-	if composer == nil {
+	if w == nil {
 		return nil, errors.New("agentexec: working-context composer is nil")
 	}
 	if strings.TrimSpace(input.SessionID) == "" || input.SessionID != strings.TrimSpace(input.SessionID) {
@@ -85,7 +85,7 @@ func (composer *WorkingContextComposer) ComposeWorkingContext(
 		}
 	}
 
-	hookResult, err := composer.evaluatePromptHooks(ctx, input)
+	hookResult, err := w.evaluatePromptHooks(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -93,13 +93,13 @@ func (composer *WorkingContextComposer) ComposeWorkingContext(
 		return nil, err
 	}
 
-	system, err := composer.composeSystemMessage(ctx, input.SessionID, input.CWD)
+	system, err := w.composeSystemMessage(ctx, input.SessionID, input.CWD)
 	if err != nil {
 		return nil, err
 	}
 	contextMessages := make([]corechat.Message, 0, len(seed)+2)
 	contextMessages = append(contextMessages, system)
-	if recalled, found, err := composer.recallMessage(ctx, input.CWD, input.PromptText); err != nil {
+	if recalled, found, err := w.recallMessage(ctx, input.CWD, input.PromptText); err != nil {
 		return nil, err
 	} else if found {
 		contextMessages = append(contextMessages, recalled)
@@ -113,43 +113,43 @@ type promptHookResult struct {
 	sources  contextSources
 }
 
-func (result promptHookResult) applyTo(message *corechat.Message) error {
-	if result.decision.Block {
-		reason := strings.TrimSpace(result.decision.Reason)
+func (p promptHookResult) applyTo(message *corechat.Message) error {
+	if p.decision.Block {
+		reason := strings.TrimSpace(p.decision.Reason)
 		if reason == "" {
 			reason = "blocked by a lifecycle hook"
 		}
 		return fmt.Errorf("%w: %s", ErrPromptRejected, reason)
 	}
-	injected := strings.TrimSpace(result.decision.InjectContext)
+	injected := strings.TrimSpace(p.decision.InjectContext)
 	if injected == "" {
 		return nil
 	}
-	if len(result.sources) == 0 {
+	if len(p.sources) == 0 {
 		return errors.New("agentexec: injected hook context has no provenance source")
 	}
 	part := corechat.NewTextPart("<hook-context>\n" + injected + "\n</hook-context>")
-	if err := result.sources.attach(&part.Metadata, "hook context part"); err != nil {
+	if err := p.sources.attach(&part.Metadata, "hook context part"); err != nil {
 		return err
 	}
 	message.Parts = append([]corechat.Part{part}, message.Parts...)
 	return nil
 }
 
-func (composer *WorkingContextComposer) evaluatePromptHooks(
+func (w *WorkingContextComposer) evaluatePromptHooks(
 	ctx context.Context,
 	input runs.WorkingContextInput,
 ) (promptHookResult, error) {
-	if composer.config.Hooks == nil {
+	if w.config.Hooks == nil {
 		return promptHookResult{}, nil
 	}
-	bound, err := composer.config.Hooks.For(ctx, input.CWD)
+	bound, err := w.config.Hooks.For(ctx, input.CWD)
 	if err != nil {
 		return promptHookResult{}, fmt.Errorf("agentexec: resolve prompt lifecycle hooks: %w", err)
 	}
 
 	result := promptHookResult{}
-	if composer.claimSessionStart(input.SessionID) {
+	if w.claimSessionStart(input.SessionID) {
 		result.decision = bound.Run(ctx, domainhooks.Input{
 			Event: domainhooks.SessionStart, SessionID: input.SessionID, CWD: input.CWD,
 		})
@@ -180,38 +180,38 @@ func (composer *WorkingContextComposer) evaluatePromptHooks(
 	return result, nil
 }
 
-func (composer *WorkingContextComposer) claimSessionStart(sessionID string) bool {
-	composer.mu.Lock()
-	defer composer.mu.Unlock()
-	if _, seen := composer.seenSessions[sessionID]; seen {
+func (w *WorkingContextComposer) claimSessionStart(sessionID string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, seen := w.seenSessions[sessionID]; seen {
 		return false
 	}
-	composer.seenSessions[sessionID] = struct{}{}
+	w.seenSessions[sessionID] = struct{}{}
 	return true
 }
 
 // ForgetSession releases the process-local SessionStart marker after the
 // Session aggregate is durably deleted.
-func (composer *WorkingContextComposer) ForgetSession(sessionID string) {
-	if composer == nil {
+func (w *WorkingContextComposer) ForgetSession(sessionID string) {
+	if w == nil {
 		return
 	}
-	composer.mu.Lock()
-	delete(composer.seenSessions, sessionID)
-	composer.mu.Unlock()
+	w.mu.Lock()
+	delete(w.seenSessions, sessionID)
+	w.mu.Unlock()
 }
 
 // BeforeToolUse projects the trusted Runtime hook decision onto the Interaction
 // executor's framework-neutral Tool boundary. A hook's ASK remains a product
 // approval escalation; it is not encoded as an Agent Framework Signal here.
-func (composer *WorkingContextComposer) BeforeToolUse(
+func (w *WorkingContextComposer) BeforeToolUse(
 	ctx context.Context,
 	input InteractionToolHookInput,
 ) (InteractionToolHookDecision, error) {
-	if composer == nil || composer.config.Hooks == nil {
+	if w == nil || w.config.Hooks == nil {
 		return InteractionToolHookDecision{}, nil
 	}
-	bound, err := composer.config.Hooks.For(ctx, input.CWD)
+	bound, err := w.config.Hooks.For(ctx, input.CWD)
 	if err != nil {
 		return InteractionToolHookDecision{}, fmt.Errorf("agentexec: resolve pre-Tool hooks: %w", err)
 	}
@@ -244,14 +244,14 @@ func (composer *WorkingContextComposer) BeforeToolUse(
 
 // AfterToolUse runs the observe-only post-call hook. Its decision cannot alter
 // an already settled Tool result.
-func (composer *WorkingContextComposer) AfterToolUse(
+func (w *WorkingContextComposer) AfterToolUse(
 	ctx context.Context,
 	input InteractionToolHookInput,
 ) error {
-	if composer == nil || composer.config.Hooks == nil {
+	if w == nil || w.config.Hooks == nil {
 		return nil
 	}
-	bound, err := composer.config.Hooks.For(ctx, input.CWD)
+	bound, err := w.config.Hooks.For(ctx, input.CWD)
 	if err != nil {
 		return fmt.Errorf("agentexec: resolve post-Tool hooks: %w", err)
 	}
@@ -275,14 +275,14 @@ func (composer *WorkingContextComposer) AfterToolUse(
 
 // BeforeCompaction runs the veto-capable lifecycle hook exactly when the
 // maintenance pipeline selected a compaction candidate.
-func (composer *WorkingContextComposer) BeforeCompaction(
+func (w *WorkingContextComposer) BeforeCompaction(
 	ctx context.Context,
 	sessionID, cwd string,
 ) bool {
-	if composer == nil || composer.config.Hooks == nil {
+	if w == nil || w.config.Hooks == nil {
 		return true
 	}
-	bound, err := composer.config.Hooks.For(ctx, cwd)
+	bound, err := w.config.Hooks.For(ctx, cwd)
 	if err != nil {
 		return true
 	}
@@ -294,30 +294,30 @@ func (composer *WorkingContextComposer) BeforeCompaction(
 
 // NotifyWaiting runs the observe-only notification hook for a committed
 // external-input boundary.
-func (composer *WorkingContextComposer) NotifyWaiting(
+func (w *WorkingContextComposer) NotifyWaiting(
 	ctx context.Context,
 	sessionID, cwd string,
 ) {
-	composer.runObserveOnlyHook(ctx, domainhooks.Notification, sessionID, cwd, "interrupt")
+	w.runObserveOnlyHook(ctx, domainhooks.Notification, sessionID, cwd, "interrupt")
 }
 
 // NotifyStopped runs the observe-only terminal hook.
-func (composer *WorkingContextComposer) NotifyStopped(
+func (w *WorkingContextComposer) NotifyStopped(
 	ctx context.Context,
 	sessionID, cwd, reason string,
 ) {
-	composer.runObserveOnlyHook(ctx, domainhooks.Stop, sessionID, cwd, reason)
+	w.runObserveOnlyHook(ctx, domainhooks.Stop, sessionID, cwd, reason)
 }
 
-func (composer *WorkingContextComposer) runObserveOnlyHook(
+func (w *WorkingContextComposer) runObserveOnlyHook(
 	ctx context.Context,
 	event domainhooks.Event,
 	sessionID, cwd, reason string,
 ) {
-	if composer == nil || composer.config.Hooks == nil {
+	if w == nil || w.config.Hooks == nil {
 		return
 	}
-	bound, err := composer.config.Hooks.For(ctx, cwd)
+	bound, err := w.config.Hooks.For(ctx, cwd)
 	if err != nil {
 		return
 	}
@@ -326,17 +326,17 @@ func (composer *WorkingContextComposer) runObserveOnlyHook(
 	})
 }
 
-func (composer *WorkingContextComposer) recallMessage(
+func (w *WorkingContextComposer) recallMessage(
 	ctx context.Context,
 	cwd string,
 	query string,
 ) (corechat.Message, bool, error) {
-	if composer.config.AgentMemorySearch == nil || strings.TrimSpace(query) == "" || strings.TrimSpace(cwd) == "" {
+	if w.config.AgentMemorySearch == nil || strings.TrimSpace(query) == "" || strings.TrimSpace(cwd) == "" {
 		return corechat.Message{}, false, nil
 	}
 	ctx, span := recallTracer.Start(ctx, "memory.recall")
 	defer span.End()
-	items, err := composer.config.AgentMemorySearch.Search(
+	items, err := w.config.AgentMemorySearch.Search(
 		ctx,
 		filepath.Clean(cwd),
 		query,

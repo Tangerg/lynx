@@ -24,27 +24,27 @@ type runBindingStub struct {
 	steer     func(context.Context, protocol.SteerRunRequest, embedded.CommandOptions) error
 }
 
-func (s runBindingStub) SteerRun(ctx context.Context, request protocol.SteerRunRequest, options embedded.CommandOptions) error {
-	if s.steer == nil {
+func (r runBindingStub) SteerRun(ctx context.Context, request protocol.SteerRunRequest, options embedded.CommandOptions) error {
+	if r.steer == nil {
 		return errors.New("unexpected steer")
 	}
-	return s.steer(ctx, request, options)
+	return r.steer(ctx, request, options)
 }
 
-func (s runBindingStub) StartRun(ctx context.Context, request protocol.StartRunRequest, options embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
-	return s.start(ctx, request, options)
+func (r runBindingStub) StartRun(ctx context.Context, request protocol.StartRunRequest, options embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+	return r.start(ctx, request, options)
 }
 
-func (s runBindingStub) ResumeRun(ctx context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
-	return s.resume(ctx, request, options)
+func (r runBindingStub) ResumeRun(ctx context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+	return r.resume(ctx, request, options)
 }
 
-func (s runBindingStub) SubscribeRun(ctx context.Context, request protocol.SubscribeRunRequest, options embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
-	return s.subscribe(ctx, request, options)
+func (r runBindingStub) SubscribeRun(ctx context.Context, request protocol.SubscribeRunRequest, options embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+	return r.subscribe(ctx, request, options)
 }
 
-func (s runBindingStub) CancelRun(ctx context.Context, request protocol.CancelRunRequest, options embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
-	return s.cancel(ctx, request, options)
+func (r runBindingStub) CancelRun(ctx context.Context, request protocol.CancelRunRequest, options embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
+	return r.cancel(ctx, request, options)
 }
 
 func TestStartRunMapsOptionsAndProjectsAtomicStream(t *testing.T) {

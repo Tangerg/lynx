@@ -81,14 +81,14 @@ func newWireChecks(registry *operation.Registry, shapes *dispatch.Shapes, set *s
 
 // httpResponses binds each sidecar name to its Delivery-declared response type.
 // It is the flat-JSON equivalent of METHOD_RESULTS.
-func (e *checkEmitter) httpResponses() string {
+func (c *checkEmitter) httpResponses() string {
 	var out strings.Builder
 	out.WriteString("\nconst HTTP_RESPONSES: Record<Wire.HTTPSidecarEndpointName, WireCheck> = {\n")
 	for _, endpoint := range runtimehttp.Contract().Endpoints {
 		if endpoint.Kind != runtimehttp.EndpointKindSidecar || endpoint.ResponseType == nil {
 			continue
 		}
-		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(endpoint.Name), indent(e.compile(e.set.walk(endpoint.ResponseType))))
+		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(endpoint.Name), indent(c.compile(c.set.walk(endpoint.ResponseType))))
 	}
 	out.WriteString("};\n")
 	out.WriteString(`
@@ -134,15 +134,15 @@ export function validateWire(type: WireTypeName, value: unknown): WireViolation[
 // methodResults emits the terminal result check for every callable method. Ack-only
 // methods still have one wire result — the empty success object — so every entry is
 // total and a client never needs a "validator missing" fallback.
-func (e *checkEmitter) methodResults(registry *operation.Registry) string {
+func (c *checkEmitter) methodResults(registry *operation.Registry) string {
 	var out strings.Builder
 	out.WriteString("\nconst METHOD_RESULTS: Record<WireMethodName, WireCheck> = {\n")
 	for _, meta := range registry.Metas() {
-		check := e.call("object", "{}", "[]")
+		check := c.call("object", "{}", "[]")
 		if meta.Result != nil {
-			check = e.compile(e.set.walk(meta.Result))
+			check = c.compile(c.set.walk(meta.Result))
 			if meta.ResultNullable {
-				check = e.call("nullable", check)
+				check = c.call("nullable", check)
 			}
 		}
 		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name.String()), indent(check))
@@ -162,7 +162,7 @@ export function validateMethodResult(method: WireMethodName, value: unknown): Wi
 // notifications emits the closed downstream method set and each method's params
 // check. Both come from NotificationSpec, so dispatch, generated names and runtime
 // validation cannot disagree about what one notification carries.
-func (e *checkEmitter) notifications(shapes *dispatch.Shapes) string {
+func (c *checkEmitter) notifications(shapes *dispatch.Shapes) string {
 	notifications := shapes.Notifications()
 	var out strings.Builder
 	out.WriteString("\nexport const WIRE_NOTIFICATION_NAMES = [\n")
@@ -174,7 +174,7 @@ func (e *checkEmitter) notifications(shapes *dispatch.Shapes) string {
 	out.WriteString("\n/** The validated params carried by each downstream notification. */\n")
 	out.WriteString("export interface WireNotificationParams {\n")
 	for _, notification := range notifications {
-		node := e.set.walk(notification.ParamsType)
+		node := c.set.walk(notification.ParamsType)
 		name, ok := strings.CutPrefix(node.Ref, refPrefix)
 		if !ok {
 			panic(fmt.Sprintf("contractgen: notification %q params has no published shape", notification.Name))
@@ -188,7 +188,7 @@ func (e *checkEmitter) notifications(shapes *dispatch.Shapes) string {
 			&out,
 			"  %s: %s,\n",
 			strconv.Quote(notification.Name),
-			indent(e.compile(e.set.walk(notification.ParamsType))),
+			indent(c.compile(c.set.walk(notification.ParamsType))),
 		)
 	}
 	out.WriteString("};\n")
@@ -213,7 +213,7 @@ export function validateNotificationParams(
 
 // compile renders one schema node as a check expression, rendered as if it began at
 // column zero — a container re-indents what it embeds.
-func (e *checkEmitter) compile(node *schema) string {
+func (c *checkEmitter) compile(node *schema) string {
 	if len(node.AnyOf) > 0 {
 		// Nothing emits anyOf today. Translating it wrong is worse than not compiling:
 		// a rule the schema publishes would go unchecked with nobody the wiser.
@@ -221,7 +221,7 @@ func (e *checkEmitter) compile(node *schema) string {
 	}
 	if node.Ref != "" {
 		name, _ := strings.CutPrefix(node.Ref, refPrefix)
-		return e.call("ref", "() => CHECKS."+name)
+		return c.call("ref", "() => CHECKS."+name)
 	}
 
 	// A node is the conjunction of its keywords, so each keyword contributes one
@@ -233,62 +233,62 @@ func (e *checkEmitter) compile(node *schema) string {
 	var parts []string
 	switch {
 	case node.Const != "":
-		parts = append(parts, e.call("literal", strconv.Quote(node.Const)))
+		parts = append(parts, c.call("literal", strconv.Quote(node.Const)))
 	case len(node.Enum) > 0:
-		parts = append(parts, e.call("enumOf", "["+strings.Join(quoteAll(node.Enum), ", ")+"]"))
+		parts = append(parts, c.call("enumOf", "["+strings.Join(quoteAll(node.Enum), ", ")+"]"))
 	default:
-		if part := e.value(node); part != "" {
+		if part := c.value(node); part != "" {
 			parts = append(parts, part)
 		}
 	}
 	if node.MinLength != nil {
-		parts = append(parts, e.call("minLength", strconv.Itoa(*node.MinLength)))
+		parts = append(parts, c.call("minLength", strconv.Itoa(*node.MinLength)))
 	}
 	if node.MaxLength != nil {
-		parts = append(parts, e.call("maxLength", strconv.Itoa(*node.MaxLength)))
+		parts = append(parts, c.call("maxLength", strconv.Itoa(*node.MaxLength)))
 	}
 	if node.Pattern != "" {
-		parts = append(parts, e.call("pattern", strconv.Quote(node.Pattern)))
+		parts = append(parts, c.call("pattern", strconv.Quote(node.Pattern)))
 	}
 	if node.Minimum != nil {
-		parts = append(parts, e.call("minimum", strconv.FormatInt(*node.Minimum, 10)))
+		parts = append(parts, c.call("minimum", strconv.FormatInt(*node.Minimum, 10)))
 	}
 	if node.Maximum != nil {
-		parts = append(parts, e.call("maximum", strconv.FormatInt(*node.Maximum, 10)))
+		parts = append(parts, c.call("maximum", strconv.FormatInt(*node.Maximum, 10)))
 	}
 	if node.MinItems != nil {
-		parts = append(parts, e.call("minItems", strconv.Itoa(*node.MinItems)))
+		parts = append(parts, c.call("minItems", strconv.Itoa(*node.MinItems)))
 	}
 	if node.MinProperties != nil {
-		parts = append(parts, e.call("minProperties", strconv.Itoa(*node.MinProperties)))
+		parts = append(parts, c.call("minProperties", strconv.Itoa(*node.MinProperties)))
 	}
 	if node.UniqueItems {
-		parts = append(parts, e.call("uniqueItems"))
+		parts = append(parts, c.call("uniqueItems"))
 	}
 	if len(node.OneOf) > 0 {
-		parts = append(parts, e.call("oneOf", e.list(node.OneOf)))
+		parts = append(parts, c.call("oneOf", c.list(node.OneOf)))
 	}
 	for _, member := range node.AllOf {
-		parts = append(parts, e.compile(member))
+		parts = append(parts, c.compile(member))
 	}
 	if node.If != nil {
 		// Both halves of a presence rule are objects in their own right, so they get a
 		// line each rather than running together inside one argument list.
-		parts = append(parts, e.callBlock("ifThen", e.compile(node.If), e.compile(node.Then)))
+		parts = append(parts, c.callBlock("ifThen", c.compile(node.If), c.compile(node.Then)))
 	}
 
 	switch len(parts) {
 	case 0:
-		return e.call("anything")
+		return c.call("anything")
 	case 1:
 		return parts[0]
 	default:
-		return e.call("allOf", block(parts))
+		return c.call("allOf", block(parts))
 	}
 }
 
 // value renders the `type` keyword and the constraints that ride on it.
-func (e *checkEmitter) value(node *schema) string {
+func (c *checkEmitter) value(node *schema) string {
 	keyword := node.Type
 	switch keyword {
 	case schemaTypeObject:
@@ -297,24 +297,24 @@ func (e *checkEmitter) value(node *schema) string {
 			if !ok {
 				panic(fmt.Sprintf("contractgen: additionalProperties is %T, which the check compiler cannot read", node.AdditionalProps))
 			}
-			return e.call("record", e.compile(child))
+			return c.call("record", c.compile(child))
 		}
-		return e.call("object", e.properties(node), values(node.Required))
+		return c.call("object", c.properties(node), values(node.Required))
 	case schemaTypeArray:
-		return e.call("array", e.compile(node.Items))
+		return c.call("array", c.compile(node.Items))
 	case schemaTypeString:
-		return e.call("text")
+		return c.call("text")
 	case schemaTypeInteger:
-		return e.call("integer")
+		return c.call("integer")
 	case schemaTypeNumber:
-		return e.call("numeric")
+		return c.call("numeric")
 	case schemaTypeBoolean:
-		return e.call("flag")
+		return c.call("flag")
 	case "":
 		// A union branch and a presence rule state fields with no type keyword: the
 		// definition they sit inside already asserted the object.
 		if len(node.Properties) > 0 || len(node.Required) > 0 {
-			return e.call("fields", e.properties(node), values(node.Required))
+			return c.call("fields", c.properties(node), values(node.Required))
 		}
 		return ""
 	default:
@@ -322,7 +322,7 @@ func (e *checkEmitter) value(node *schema) string {
 	}
 }
 
-func (e *checkEmitter) properties(node *schema) string {
+func (c *checkEmitter) properties(node *schema) string {
 	names := slices.Sorted(maps.Keys(node.Properties))
 	if len(names) == 0 {
 		return "{}"
@@ -330,21 +330,21 @@ func (e *checkEmitter) properties(node *schema) string {
 	var out strings.Builder
 	out.WriteString("{\n")
 	for _, name := range names {
-		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(name), indent(e.property(node.Properties[name])))
+		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(name), indent(c.property(node.Properties[name])))
 	}
 	out.WriteString("}")
 	return out.String()
 }
 
-func (e *checkEmitter) property(node any) string {
+func (c *checkEmitter) property(node any) string {
 	switch typed := node.(type) {
 	case *schema:
-		return e.compile(typed)
+		return c.compile(typed)
 	case bool:
 		if typed {
-			return e.call("anything")
+			return c.call("anything")
 		}
-		return e.call("absent")
+		return c.call("absent")
 	default:
 		panic(fmt.Sprintf("contractgen: a property is %T, which is neither a schema nor a boolean schema", node))
 	}
@@ -352,22 +352,22 @@ func (e *checkEmitter) property(node any) string {
 
 // list renders sibling schemas one per line, which keeps a union's diff readable:
 // adding a variant touches one line.
-func (e *checkEmitter) list(nodes []*schema) string {
+func (c *checkEmitter) list(nodes []*schema) string {
 	rendered := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		rendered = append(rendered, e.compile(node))
+		rendered = append(rendered, c.compile(node))
 	}
 	return block(rendered)
 }
 
-func (e *checkEmitter) call(name string, arguments ...string) string {
-	e.used[name] = true
+func (c *checkEmitter) call(name string, arguments ...string) string {
+	c.used[name] = true
 	return name + "(" + strings.Join(arguments, ", ") + ")"
 }
 
 // callBlock renders a call with one argument per line.
-func (e *checkEmitter) callBlock(name string, arguments ...string) string {
-	e.used[name] = true
+func (c *checkEmitter) callBlock(name string, arguments ...string) string {
+	c.used[name] = true
 	var out strings.Builder
 	out.WriteString(name + "(\n")
 	for _, argument := range arguments {

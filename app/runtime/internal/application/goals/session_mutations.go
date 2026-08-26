@@ -34,11 +34,11 @@ func NewSessionMutations() *SessionMutations {
 // Goal drive reconciliation does not prevent shutdown from closing task admission.
 // Once the read side is held, shutdown cannot cross the command's launch
 // boundary.
-func (m *SessionMutations) acquire(sessionIDs ...string) func() {
-	releaseSessions := m.acquireSessions(sessionIDs...)
-	m.admission.RLock()
+func (s *SessionMutations) acquire(sessionIDs ...string) func() {
+	releaseSessions := s.acquireSessions(sessionIDs...)
+	s.admission.RLock()
 	return func() {
-		m.admission.RUnlock()
+		s.admission.RUnlock()
 		releaseSessions()
 	}
 }
@@ -46,23 +46,23 @@ func (m *SessionMutations) acquire(sessionIDs ...string) func() {
 // acquireSessions is the internal half of acquire. Background reconciliation
 // participates in per-session ordering but not external command admission; its
 // task-group ownership is the shutdown join boundary.
-func (m *SessionMutations) acquireSessions(sessionIDs ...string) func() {
+func (s *SessionMutations) acquireSessions(sessionIDs ...string) func() {
 	ids := normalizeSessionIDs(sessionIDs)
-	m.mu.Lock()
-	if m.commandLocks == nil {
-		m.commandLocks = make(map[string]*sessionCommandLock)
+	s.mu.Lock()
+	if s.commandLocks == nil {
+		s.commandLocks = make(map[string]*sessionCommandLock)
 	}
 	locks := make([]*sessionCommandLock, 0, len(ids))
 	for _, sessionID := range ids {
-		lock := m.commandLocks[sessionID]
+		lock := s.commandLocks[sessionID]
 		if lock == nil {
 			lock = &sessionCommandLock{}
-			m.commandLocks[sessionID] = lock
+			s.commandLocks[sessionID] = lock
 		}
 		lock.refs++
 		locks = append(locks, lock)
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 
 	for _, lock := range locks {
 		lock.mu.Lock()
@@ -71,15 +71,15 @@ func (m *SessionMutations) acquireSessions(sessionIDs ...string) func() {
 		for _, lock := range slices.Backward(locks) {
 			lock.mu.Unlock()
 		}
-		m.mu.Lock()
+		s.mu.Lock()
 		for i, sessionID := range ids {
 			lock := locks[i]
 			lock.refs--
 			if lock.refs == 0 {
-				delete(m.commandLocks, sessionID)
+				delete(s.commandLocks, sessionID)
 			}
 		}
-		m.mu.Unlock()
+		s.mu.Unlock()
 	}
 }
 
@@ -89,23 +89,23 @@ func normalizeSessionIDs(sessionIDs []string) []string {
 	return slices.Compact(ids)
 }
 
-func (m *SessionMutations) acquireAll() func() {
-	m.admission.Lock()
-	return m.admission.Unlock
+func (s *SessionMutations) acquireAll() func() {
+	s.admission.Lock()
+	return s.admission.Unlock
 }
 
 // WithSessionMutation owns both phases of a session mutation. A failed commit
 // leaves the authoritative Goal drive intact. Once commit succeeds, affected
 // drives are quiesced and afterCommit is always attempted; failures from either
 // post-commit phase are reported together.
-func (m *SessionMutations) WithSessionMutation(
+func (s *SessionMutations) WithSessionMutation(
 	ctx context.Context,
 	sessionIDs []string,
 	commit func(context.Context) error,
 	afterCommit func(context.Context) error,
 ) error {
 	sessionIDs = normalizeSessionIDs(sessionIDs)
-	release := m.acquire(sessionIDs...)
+	release := s.acquire(sessionIDs...)
 	defer release()
 	if err := commit(ctx); err != nil {
 		return err
@@ -116,7 +116,7 @@ func (m *SessionMutations) WithSessionMutation(
 	}
 	drives := make([]ownedDrive, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		if drive := m.quiesce(sessionID); drive != nil {
+		if drive := s.quiesce(sessionID); drive != nil {
 			drives = append(drives, ownedDrive{sessionID: sessionID, drive: drive})
 		}
 	}
@@ -124,46 +124,46 @@ func (m *SessionMutations) WithSessionMutation(
 	for _, owned := range drives {
 		errs = append(errs, owned.drive.await(ctx))
 		if owned.drive.completed() {
-			m.forget(owned.sessionID, owned.drive)
+			s.forget(owned.sessionID, owned.drive)
 		}
 	}
 	errs = append(errs, afterCommit(ctx))
 	return errors.Join(errs...)
 }
 
-func (m *SessionMutations) launch(sessionID string, drive *goalDrive) {
-	m.mu.Lock()
-	if m.drives == nil {
-		m.drives = map[string]*goalDrive{}
+func (s *SessionMutations) launch(sessionID string, drive *goalDrive) {
+	s.mu.Lock()
+	if s.drives == nil {
+		s.drives = map[string]*goalDrive{}
 	}
-	if m.drives[sessionID] != nil {
-		m.mu.Unlock()
+	if s.drives[sessionID] != nil {
+		s.mu.Unlock()
 		panic("goals: launch attempted before the prior Goal drive was joined")
 	}
-	m.drives[sessionID] = drive
-	m.mu.Unlock()
+	s.drives[sessionID] = drive
+	s.mu.Unlock()
 }
 
-func (m *SessionMutations) forget(sessionID string, drive *goalDrive) {
-	m.mu.Lock()
-	if m.drives[sessionID] == drive {
-		delete(m.drives, sessionID)
+func (s *SessionMutations) forget(sessionID string, drive *goalDrive) {
+	s.mu.Lock()
+	if s.drives[sessionID] == drive {
+		delete(s.drives, sessionID)
 	}
-	m.mu.Unlock()
+	s.mu.Unlock()
 }
 
-func (m *SessionMutations) quiesce(sessionID string) *goalDrive {
-	m.mu.Lock()
-	drive := m.drives[sessionID]
-	m.mu.Unlock()
+func (s *SessionMutations) quiesce(sessionID string) *goalDrive {
+	s.mu.Lock()
+	drive := s.drives[sessionID]
+	s.mu.Unlock()
 	if drive != nil {
 		drive.quiesce()
 	}
 	return drive
 }
 
-func (m *SessionMutations) activeDrive(sessionID string) *goalDrive {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.drives[sessionID]
+func (s *SessionMutations) activeDrive(sessionID string) *goalDrive {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.drives[sessionID]
 }

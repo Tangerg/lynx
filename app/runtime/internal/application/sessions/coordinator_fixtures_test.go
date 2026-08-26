@@ -65,20 +65,20 @@ type testStores interface {
 	ForgetSession(string)
 }
 
-func (s coordinatorStores) Session() Store              { return emptySessionStore{} }
-func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
-func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
-func (s coordinatorStores) Runs() RunStore              { return emptyTranscript{} }
-func (s coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
-	if s.snapshotReads != nil {
-		*s.snapshotReads++
+func (c coordinatorStores) Session() Store              { return emptySessionStore{} }
+func (c coordinatorStores) Interrupts() InterruptStore  { return c.interrupts }
+func (c coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
+func (c coordinatorStores) Runs() RunStore              { return emptyTranscript{} }
+func (c coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
+	if c.snapshotReads != nil {
+		*c.snapshotReads++
 	}
-	return s.snapshot, nil
+	return c.snapshot, nil
 }
-func (s coordinatorStores) ForgetSession(string) {}
-func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.Session, error) {
-	if s.forked != nil {
-		*s.forked = plan
+func (c coordinatorStores) ForgetSession(string) {}
+func (c coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.Session, error) {
+	if c.forked != nil {
+		*c.forked = plan
 	}
 	return plan.Child, nil
 }
@@ -86,32 +86,32 @@ func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
 // the coordinator tests observe them (the run-state transition an ApplyTerminal /
 // ApplyRollback also commits is verified at the sqlite/bootstrap level).
-func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan) error {
-	if s.rolledBack != nil {
-		*s.rolledBack = plan
+func (c coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan) error {
+	if c.rolledBack != nil {
+		*c.rolledBack = plan
 	}
 	for _, runID := range plan.DropRunIDs {
-		_ = s.interrupts.Delete(ctx, plan.SessionID, runID)
+		_ = c.interrupts.Delete(ctx, plan.SessionID, runID)
 	}
 	return nil
 }
-func (s coordinatorStores) ApplyRestore(context.Context, RestorePlan) error { return nil }
-func (s coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) error {
-	pending, _ := s.interrupts.List(ctx, plan.SessionID)
+func (c coordinatorStores) ApplyRestore(context.Context, RestorePlan) error { return nil }
+func (c coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) error {
+	pending, _ := c.interrupts.List(ctx, plan.SessionID)
 	for _, p := range pending {
-		_ = s.interrupts.Delete(ctx, plan.SessionID, p.RootRunID)
+		_ = c.interrupts.Delete(ctx, plan.SessionID, p.RootRunID)
 	}
 	return nil
 }
-func (s coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan) error {
-	if s.terminal != nil {
-		*s.terminal = plan
+func (c coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan) error {
+	if c.terminal != nil {
+		*c.terminal = plan
 	}
 	root, ok := plan.RootRun()
 	if !ok {
 		return errors.New("terminal plan has no root Run")
 	}
-	return s.interrupts.Delete(ctx, root.SessionID(), root.ID())
+	return c.interrupts.Delete(ctx, root.SessionID(), root.ID())
 }
 
 type coordinatorInterrupts struct {
@@ -120,20 +120,20 @@ type coordinatorInterrupts struct {
 	onDelete func(string)
 }
 
-func (s *coordinatorInterrupts) Open(_ context.Context, p runs.Pending) error {
-	if s.pending == nil {
-		s.pending = map[string]runs.Pending{}
+func (c *coordinatorInterrupts) Open(_ context.Context, p runs.Pending) error {
+	if c.pending == nil {
+		c.pending = map[string]runs.Pending{}
 	}
-	if _, exists := s.pending[p.RootRunID]; exists {
+	if _, exists := c.pending[p.RootRunID]; exists {
 		return transcript.ErrIdentityConflict
 	}
-	s.pending[p.RootRunID] = p
+	c.pending[p.RootRunID] = p
 	return nil
 }
 
-func (s *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
-	out := make([]runs.Pending, 0, len(s.pending))
-	for _, p := range s.pending {
+func (c *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
+	out := make([]runs.Pending, 0, len(c.pending))
+	for _, p := range c.pending {
 		if sessionID == "" || p.SessionID == sessionID {
 			out = append(out, p)
 		}
@@ -141,28 +141,28 @@ func (s *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]run
 	return out, nil
 }
 
-func (s *coordinatorInterrupts) Get(_ context.Context, parentRunID string) (runs.Pending, bool, error) {
-	p, ok := s.pending[parentRunID]
+func (c *coordinatorInterrupts) Get(_ context.Context, parentRunID string) (runs.Pending, bool, error) {
+	p, ok := c.pending[parentRunID]
 	return p, ok, nil
 }
 
-func (s *coordinatorInterrupts) Consume(_ context.Context, sessionID, parentRunID string) (runs.Pending, bool, error) {
-	p, ok := s.pending[parentRunID]
+func (c *coordinatorInterrupts) Consume(_ context.Context, sessionID, parentRunID string) (runs.Pending, bool, error) {
+	p, ok := c.pending[parentRunID]
 	if ok && p.SessionID != sessionID {
 		return runs.Pending{}, false, nil
 	}
 	if ok {
-		delete(s.pending, parentRunID)
+		delete(c.pending, parentRunID)
 	}
 	return p, ok, nil
 }
 
-func (s *coordinatorInterrupts) Delete(_ context.Context, _ string, parentRunID string) error {
-	s.deleted = append(s.deleted, parentRunID)
-	if s.onDelete != nil {
-		s.onDelete(parentRunID)
+func (c *coordinatorInterrupts) Delete(_ context.Context, _ string, parentRunID string) error {
+	c.deleted = append(c.deleted, parentRunID)
+	if c.onDelete != nil {
+		c.onDelete(parentRunID)
 	}
-	delete(s.pending, parentRunID)
+	delete(c.pending, parentRunID)
 	return nil
 }
 
@@ -171,17 +171,17 @@ type testClaimer struct {
 	released []string
 }
 
-func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
-	if c.claimed == nil {
-		c.claimed = map[string]bool{}
+func (t *testClaimer) AcquireSession(sessionID string) (func(), bool) {
+	if t.claimed == nil {
+		t.claimed = map[string]bool{}
 	}
-	if c.claimed[sessionID] {
+	if t.claimed[sessionID] {
 		return nil, false
 	}
-	c.claimed[sessionID] = true
+	t.claimed[sessionID] = true
 	return func() {
-		c.released = append(c.released, sessionID)
-		delete(c.claimed, sessionID)
+		t.released = append(t.released, sessionID)
+		delete(t.claimed, sessionID)
 	}, true
 }
 
@@ -335,24 +335,24 @@ type testWorkspaceResolver struct {
 	err      error
 }
 
-func (r testWorkspaceResolver) ResolveExistingDir(path string) (string, error) {
-	if r.err != nil {
-		return "", r.err
+func (t testWorkspaceResolver) ResolveExistingDir(path string) (string, error) {
+	if t.err != nil {
+		return "", t.err
 	}
-	if r.resolved != "" {
-		return r.resolved, nil
+	if t.resolved != "" {
+		return t.resolved, nil
 	}
 	return path, nil
 }
 
-func (r testWorkspaceResolver) Inspect(path string) (workspace.Resolved, error) {
-	if r.err != nil {
-		return workspace.Resolved{}, r.err
+func (t testWorkspaceResolver) Inspect(path string) (workspace.Resolved, error) {
+	if t.err != nil {
+		return workspace.Resolved{}, t.err
 	}
-	if r.resolved != "" {
-		path = r.resolved
+	if t.resolved != "" {
+		path = t.resolved
 	}
-	return workspace.Resolved{Path: path, ProjectRoot: path, Missing: r.missing}, nil
+	return workspace.Resolved{Path: path, ProjectRoot: path, Missing: t.missing}, nil
 }
 
 type emptyTranscript struct{}

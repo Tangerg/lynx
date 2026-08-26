@@ -23,9 +23,9 @@ func requireRuntimeContractViolation(t testing.TB, err error) {
 	}
 }
 
-func (err runtimeProblemError) Error() string                 { return err.data.Type }
-func (err runtimeProblemError) Unwrap() error                 { return err.cause }
-func (err runtimeProblemError) Problem() protocol.ProblemData { return err.data }
+func (r runtimeProblemError) Error() string                 { return r.data.Type }
+func (r runtimeProblemError) Unwrap() error                 { return r.cause }
+func (r runtimeProblemError) Problem() protocol.ProblemData { return r.data }
 
 func TestClassifyErrorPreservesIdentityAndProjectsRecoveryMetadata(t *testing.T) {
 	t.Parallel()

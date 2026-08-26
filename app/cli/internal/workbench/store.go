@@ -58,16 +58,16 @@ type stashTransfer struct {
 	Stash     Stash         `json:"stash"`
 }
 
-func (transfer stashTransfer) validate() error {
-	if strings.TrimSpace(transfer.SessionID) == "" {
+func (s stashTransfer) validate() error {
+	if strings.TrimSpace(s.SessionID) == "" {
 		return errors.New("stash transfer session id is empty")
 	}
-	if messageEmpty(transfer.Draft) || messageEmpty(transfer.Stash.Message) {
+	if messageEmpty(s.Draft) || messageEmpty(s.Stash.Message) {
 		return errors.New("stash transfer prompt is empty")
 	}
-	identity, err := hex.DecodeString(transfer.Stash.ID)
-	if err != nil || len(identity) != 8 || transfer.Stash.CreatedAt.IsZero() ||
-		!transfer.Stash.Message.Equal(transfer.Draft) {
+	identity, err := hex.DecodeString(s.Stash.ID)
+	if err != nil || len(identity) != 8 || s.Stash.CreatedAt.IsZero() ||
+		!s.Stash.Message.Equal(s.Draft) {
 		return errors.New("stash transfer identity or prompt is inconsistent")
 	}
 	return nil
@@ -121,33 +121,33 @@ type PendingSessionDeletion struct {
 	Replay    ReplayGuard          `json:"replay"`
 }
 
-func (pending PendingSessionDeletion) validate() error {
-	if strings.TrimSpace(pending.SessionID) == "" {
+func (p PendingSessionDeletion) validate() error {
+	if strings.TrimSpace(p.SessionID) == "" {
 		return errors.New("session deletion id is empty")
 	}
-	switch pending.Phase {
+	switch p.Phase {
 	case SessionDeletionPrepared:
-		if err := pending.CommandID.Validate(); err != nil {
+		if err := p.CommandID.Validate(); err != nil {
 			return fmt.Errorf("session deletion command: %w", err)
 		}
 	case SessionDeletionConfirmed:
-		if pending.CommandID != "" {
-			if err := pending.CommandID.Validate(); err != nil {
+		if p.CommandID != "" {
+			if err := p.CommandID.Validate(); err != nil {
 				return fmt.Errorf("session deletion command: %w", err)
 			}
 		}
 	default:
-		return fmt.Errorf("session deletion phase %q is invalid", pending.Phase)
+		return fmt.Errorf("session deletion phase %q is invalid", p.Phase)
 	}
-	if err := pending.Replay.Validate(); err != nil {
+	if err := p.Replay.Validate(); err != nil {
 		return err
 	}
 	return nil
 }
 
 // Request reconstructs the exact runtime mutation owned by a prepared record.
-func (pending PendingSessionDeletion) Request() agent.DeleteSession {
-	return agent.DeleteSession{CommandID: pending.CommandID, SessionID: pending.SessionID}
+func (p PendingSessionDeletion) Request() agent.DeleteSession {
+	return agent.DeleteSession{CommandID: p.CommandID, SessionID: p.SessionID}
 }
 
 type PendingRunState string
@@ -177,29 +177,29 @@ type PendingResume struct {
 	Replay       ReplayGuard         `json:"replay"`
 }
 
-func (pending PendingResume) validate() error {
-	if err := pending.Command.Validate(); err != nil {
+func (p PendingResume) validate() error {
+	if err := p.Command.Validate(); err != nil {
 		return err
 	}
-	if err := pending.Replay.Validate(); err != nil {
+	if err := p.Replay.Validate(); err != nil {
 		return err
 	}
-	if pending.Command.CommandID == "" {
+	if p.Command.CommandID == "" {
 		return errors.New("resume command id is empty")
 	}
-	if err := agent.ValidateInteractions(pending.Interactions); err != nil {
+	if err := agent.ValidateInteractions(p.Interactions); err != nil {
 		return err
 	}
-	for index, interaction := range pending.Interactions {
-		if agent.InteractionRunID(interaction) != pending.Command.RunID {
+	for index, interaction := range p.Interactions {
+		if agent.InteractionRunID(interaction) != p.Command.RunID {
 			return fmt.Errorf("interaction %d belongs to another run", index+1)
 		}
 	}
-	if len(pending.Command.Answers) != len(pending.Interactions) {
+	if len(p.Command.Answers) != len(p.Interactions) {
 		return errors.New("resume answer count does not match interactions")
 	}
-	for index, interaction := range pending.Interactions {
-		response := pending.Command.Answers[index]
+	for index, interaction := range p.Interactions {
+		response := p.Command.Answers[index]
 		if response.ItemID != agent.InteractionItemID(interaction) {
 			return fmt.Errorf("resume answer %d targets another interaction", index+1)
 		}
@@ -226,19 +226,19 @@ type pendingInteractionJSON struct {
 	QuestionAnswer *agent.QuestionAnswer `json:"questionAnswer,omitempty"`
 }
 
-func (pending PendingResume) MarshalJSON() ([]byte, error) {
-	if err := pending.validate(); err != nil {
+func (p PendingResume) MarshalJSON() ([]byte, error) {
+	if err := p.validate(); err != nil {
 		return nil, err
 	}
 	wire := pendingResumeJSON{
-		CommandID:    pending.Command.CommandID,
-		RunID:        pending.Command.RunID,
-		Message:      pending.Command.Message,
-		Interactions: make([]pendingInteractionJSON, len(pending.Interactions)),
-		Replay:       pending.Replay,
+		CommandID:    p.Command.CommandID,
+		RunID:        p.Command.RunID,
+		Message:      p.Command.Message,
+		Interactions: make([]pendingInteractionJSON, len(p.Interactions)),
+		Replay:       p.Replay,
 	}
-	for index, interaction := range pending.Interactions {
-		answer := pending.Command.Answers[index].Answer
+	for index, interaction := range p.Interactions {
+		answer := p.Command.Answers[index].Answer
 		switch item := interaction.(type) {
 		case agent.Approval:
 			decision := answer.(agent.ApprovalAnswer)
@@ -257,7 +257,7 @@ func (pending PendingResume) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-func (pending *PendingResume) UnmarshalJSON(encoded []byte) error {
+func (p *PendingResume) UnmarshalJSON(encoded []byte) error {
 	var wire pendingResumeJSON
 	if err := json.Unmarshal(encoded, &wire); err != nil {
 		return err
@@ -295,104 +295,104 @@ func (pending *PendingResume) UnmarshalJSON(encoded []byte) error {
 	if err := decoded.validate(); err != nil {
 		return err
 	}
-	*pending = clonePendingResume(decoded)
+	*p = clonePendingResume(decoded)
 	return nil
 }
 
-func (pending PendingRun) validate(sessionID string) error {
-	if pending.State != PendingRunQueued && pending.State != PendingRunDispatching && pending.State != PendingRunCanceling {
-		return fmt.Errorf("state %q is invalid", pending.State)
+func (p PendingRun) validate(sessionID string) error {
+	if p.State != PendingRunQueued && p.State != PendingRunDispatching && p.State != PendingRunCanceling {
+		return fmt.Errorf("state %q is invalid", p.State)
 	}
-	if err := pending.Command.Validate(); err != nil {
+	if err := p.Command.Validate(); err != nil {
 		return err
 	}
-	if pending.Command.CommandID == "" {
+	if p.Command.CommandID == "" {
 		return errors.New("command id is empty")
 	}
-	if err := pending.Replay.Validate(); err != nil {
+	if err := p.Replay.Validate(); err != nil {
 		return err
 	}
-	if err := pending.CancelReplay.Validate(); err != nil {
+	if err := p.CancelReplay.Validate(); err != nil {
 		return err
 	}
-	switch pending.State {
+	switch p.State {
 	case PendingRunCanceling:
-		if err := pending.CancelCommandID.Validate(); err != nil {
+		if err := p.CancelCommandID.Validate(); err != nil {
 			return fmt.Errorf("cancel command: %w", err)
 		}
 	default:
-		if pending.CancelCommandID != "" {
+		if p.CancelCommandID != "" {
 			return errors.New("non-canceling run carries a cancel command")
 		}
 	}
-	if pending.State == PendingRunQueued && (!pending.Replay.Empty() || !pending.CancelReplay.Empty()) {
+	if p.State == PendingRunQueued && (!p.Replay.Empty() || !p.CancelReplay.Empty()) {
 		return errors.New("queued run carries a runtime replay guard")
 	}
-	if pending.Command.SessionID != sessionID {
-		return fmt.Errorf("command belongs to session %s", pending.Command.SessionID)
+	if p.Command.SessionID != sessionID {
+		return fmt.Errorf("command belongs to session %s", p.Command.SessionID)
 	}
 	return nil
 }
 
-func (pending *PendingRun) beginDispatch(replay ReplayGuard) error {
+func (p *PendingRun) beginDispatch(replay ReplayGuard) error {
 	if err := replay.Validate(); err != nil {
 		return err
 	}
-	switch pending.State {
+	switch p.State {
 	case PendingRunQueued:
-		pending.State = PendingRunDispatching
-		pending.Replay = replay
+		p.State = PendingRunDispatching
+		p.Replay = replay
 		return nil
 	case PendingRunDispatching, PendingRunCanceling:
 		return nil
 	default:
-		return fmt.Errorf("pending run cannot begin dispatch from %q", pending.State)
+		return fmt.Errorf("pending run cannot begin dispatch from %q", p.State)
 	}
 }
 
-func (pending *PendingRun) beginCancellation(
+func (p *PendingRun) beginCancellation(
 	replay ReplayGuard,
 	newCommandID func() (agent.CommandID, error),
 ) (agent.CommandID, error) {
 	if err := replay.Validate(); err != nil {
 		return "", err
 	}
-	switch pending.State {
+	switch p.State {
 	case PendingRunDispatching:
 		cancelCommandID, err := newCommandID()
 		if err != nil {
 			return "", err
 		}
-		pending.State = PendingRunCanceling
-		pending.CancelCommandID = cancelCommandID
-		pending.CancelReplay = replay
+		p.State = PendingRunCanceling
+		p.CancelCommandID = cancelCommandID
+		p.CancelReplay = replay
 		return cancelCommandID, nil
 	case PendingRunCanceling:
-		return pending.CancelCommandID, nil
+		return p.CancelCommandID, nil
 	default:
-		return "", fmt.Errorf("pending run cannot begin cancellation from %q", pending.State)
+		return "", fmt.Errorf("pending run cannot begin cancellation from %q", p.State)
 	}
 }
 
-func (pending *PendingRun) requeue(newCommandID func() (agent.CommandID, error)) (agent.CommandID, error) {
-	if pending.State != PendingRunDispatching {
-		return "", fmt.Errorf("pending run cannot be requeued from %q", pending.State)
+func (p *PendingRun) requeue(newCommandID func() (agent.CommandID, error)) (agent.CommandID, error) {
+	if p.State != PendingRunDispatching {
+		return "", fmt.Errorf("pending run cannot be requeued from %q", p.State)
 	}
 	replacement, err := newCommandID()
 	if err != nil {
 		return "", err
 	}
-	pending.State = PendingRunQueued
-	pending.Command.CommandID = replacement
-	pending.CancelCommandID = ""
-	pending.Replay = ReplayGuard{}
-	pending.CancelReplay = ReplayGuard{}
+	p.State = PendingRunQueued
+	p.Command.CommandID = replacement
+	p.CancelCommandID = ""
+	p.Replay = ReplayGuard{}
+	p.CancelReplay = ReplayGuard{}
 	return replacement, nil
 }
 
-func (pending PendingRun) acknowledgeable() error {
-	if pending.State != PendingRunDispatching && pending.State != PendingRunCanceling {
-		return fmt.Errorf("pending run cannot be acknowledged from %q", pending.State)
+func (p PendingRun) acknowledgeable() error {
+	if p.State != PendingRunDispatching && p.State != PendingRunCanceling {
+		return fmt.Errorf("pending run cannot be acknowledged from %q", p.State)
 	}
 	return nil
 }

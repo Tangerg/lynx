@@ -183,8 +183,8 @@ type searchByteCounter struct {
 	bytes  int64
 }
 
-func (reader *searchByteCounter) Read(buffer []byte) (int, error) {
-	read, err := reader.reader.Read(buffer)
-	reader.bytes += int64(read)
+func (s *searchByteCounter) Read(buffer []byte) (int, error) {
+	read, err := s.reader.Read(buffer)
+	s.bytes += int64(read)
 	return read, err
 }

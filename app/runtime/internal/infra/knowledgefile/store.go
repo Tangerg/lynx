@@ -295,12 +295,12 @@ type knowledgeContextReader struct {
 	reader io.Reader
 }
 
-func (r knowledgeContextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(r.ctx); cause != nil {
+func (k knowledgeContextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(k.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := r.reader.Read(buffer)
-	if cause := context.Cause(r.ctx); cause != nil {
+	read, err := k.reader.Read(buffer)
+	if cause := context.Cause(k.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err

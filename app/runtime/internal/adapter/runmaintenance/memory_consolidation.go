@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -38,24 +38,24 @@ type MemoryCurationConfig struct {
 	MaxAge          time.Duration
 }
 
-func (c MemoryCurationConfig) normalized() MemoryCurationConfig {
-	if c.MinPendingFacts <= 0 {
-		c.MinPendingFacts = defaultMemoryCurationMinPending
+func (m MemoryCurationConfig) normalized() MemoryCurationConfig {
+	if m.MinPendingFacts <= 0 {
+		m.MinPendingFacts = defaultMemoryCurationMinPending
 	}
-	if c.MaxPendingFacts <= 0 {
-		c.MaxPendingFacts = defaultMemoryCurationMaxPending
+	if m.MaxPendingFacts <= 0 {
+		m.MaxPendingFacts = defaultMemoryCurationMaxPending
 	}
-	c.MaxPendingFacts = min(c.MaxPendingFacts, agentmemory.MaxLedgerFoldFacts)
-	if c.MinPendingFacts > c.MaxPendingFacts {
-		c.MinPendingFacts = c.MaxPendingFacts
+	m.MaxPendingFacts = min(m.MaxPendingFacts, agentmemory.MaxLedgerFoldFacts)
+	if m.MinPendingFacts > m.MaxPendingFacts {
+		m.MinPendingFacts = m.MaxPendingFacts
 	}
-	if c.MaxTokens <= 0 {
-		c.MaxTokens = defaultMemoryCurationMaxTokens
+	if m.MaxTokens <= 0 {
+		m.MaxTokens = defaultMemoryCurationMaxTokens
 	}
-	if c.MaxAge <= 0 {
-		c.MaxAge = defaultMemoryCurationMaxAge
+	if m.MaxAge <= 0 {
+		m.MaxAge = defaultMemoryCurationMaxAge
 	}
-	return c
+	return m
 }
 
 type agentMemory interface {
@@ -99,25 +99,25 @@ func NewMemoryConsolidator(store messageReader, memory agentMemory, client utili
 // project ledger, and publishes a curated generation when its watermark gate
 // is due. Short conversations skip extraction but still fold pending ledger
 // entries, so a previous provider failure can recover on a later Run.
-func (c *MemoryConsolidator) Consolidate(ctx context.Context, sessionID, cwd string) error {
-	if c == nil || c.memory == nil || sessionID == "" || cwd == "" {
+func (m *MemoryConsolidator) Consolidate(ctx context.Context, sessionID, cwd string) error {
+	if m == nil || m.memory == nil || sessionID == "" || cwd == "" {
 		return nil
 	}
 	project := filepath.Clean(cwd)
-	messages, err := c.history.Read(ctx, sessionID)
+	messages, err := m.history.Read(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("memory extraction: read session %q: %w", sessionID, err)
 	}
-	now := c.now()
-	if len(messages) < c.minMsgs {
-		return c.maybeCurate(ctx, project, now)
+	now := m.now()
+	if len(messages) < m.minMsgs {
+		return m.maybeCurate(ctx, project, now)
 	}
 
-	markdown, err := c.askForFacts(ctx, messages)
+	markdown, err := m.askForFacts(ctx, messages)
 	if err != nil {
 		return fmt.Errorf("memory extraction: identify facts: %w", err)
 	}
-	appended, err := c.memory.AppendLedger(ctx, agentmemory.FactBatch{
+	appended, err := m.memory.AppendLedger(ctx, agentmemory.FactBatch{
 		Project:    project,
 		SessionID:  sessionID,
 		Day:        now.Format(time.DateOnly),
@@ -128,38 +128,38 @@ func (c *MemoryConsolidator) Consolidate(ctx context.Context, sessionID, cwd str
 		return fmt.Errorf("memory extraction: append daily ledger: %w", err)
 	}
 	recordExtractedFacts(ctx, len(appended))
-	return c.maybeCurate(ctx, project, now)
+	return m.maybeCurate(ctx, project, now)
 }
 
-func (c *MemoryConsolidator) maybeCurate(ctx context.Context, project string, now time.Time) error {
-	state, err := c.memory.State(ctx, project)
+func (m *MemoryConsolidator) maybeCurate(ctx context.Context, project string, now time.Time) error {
+	state, err := m.memory.State(ctx, project)
 	if err != nil {
 		return fmt.Errorf("memory curation: load watermark: %w", err)
 	}
-	pending, err := c.memory.PendingLedger(ctx, project, state.Watermark, c.config.MaxPendingFacts)
+	pending, err := m.memory.PendingLedger(ctx, project, state.Watermark, m.config.MaxPendingFacts)
 	if err != nil {
 		return fmt.Errorf("memory curation: read ledger after watermark %d: %w", state.Watermark, err)
 	}
-	if !c.curationDue(state, len(pending), now) {
+	if !m.curationDue(state, len(pending), now) {
 		return nil
 	}
 	pending = boundedLedgerPrefix(pending, memoryCurationLedgerBytes)
 	if len(pending) == 0 {
 		return errors.New("memory curation: pending ledger cannot fit model input envelope")
 	}
-	current, err := c.currentMemory(ctx, project)
+	current, err := m.currentMemory(ctx, project)
 	if err != nil {
 		return fmt.Errorf("memory curation: load current items: %w", err)
 	}
-	content, err := c.askForCuration(ctx, current, pending)
+	content, err := m.askForCuration(ctx, current, pending)
 	if err != nil {
 		return fmt.Errorf("memory curation: generate memory: %w", err)
 	}
-	if tokens := estimateTextTokens(content); tokens > c.config.MaxTokens {
-		return fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, c.config.MaxTokens)
+	if tokens := estimateTextTokens(content); tokens > m.config.MaxTokens {
+		return fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, m.config.MaxTokens)
 	}
 	through := pending[len(pending)-1].Sequence
-	published, err := c.memory.PublishGeneration(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
+	published, err := m.memory.PublishGeneration(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
 	if err != nil {
 		return fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}
@@ -172,8 +172,8 @@ func (c *MemoryConsolidator) maybeCurate(ctx context.Context, project string, no
 // currentMemory renders the project's existing automatic items as the current
 // curated body, so each fold merges against the preceding generation rather
 // than starting from an empty page.
-func (c *MemoryConsolidator) currentMemory(ctx context.Context, project string) (string, error) {
-	items, err := c.memory.Items(ctx, agentmemory.ScopeProject, project)
+func (m *MemoryConsolidator) currentMemory(ctx context.Context, project string) (string, error) {
+	items, err := m.memory.Items(ctx, agentmemory.ScopeProject, project)
 	if err != nil {
 		return "", err
 	}
@@ -214,19 +214,19 @@ func boundedLedgerPrefix(facts []agentmemory.LedgerFact, budget int) []agentmemo
 	return facts
 }
 
-func (c *MemoryConsolidator) curationDue(state agentmemory.State, pending int, now time.Time) bool {
+func (m *MemoryConsolidator) curationDue(state agentmemory.State, pending int, now time.Time) bool {
 	if pending == 0 {
 		return false
 	}
-	if state.Watermark == 0 || pending >= c.config.MinPendingFacts {
+	if state.Watermark == 0 || pending >= m.config.MinPendingFacts {
 		return true
 	}
-	return !state.UpdatedAt.IsZero() && now.Sub(state.UpdatedAt) >= c.config.MaxAge
+	return !state.UpdatedAt.IsZero() && now.Sub(state.UpdatedAt) >= m.config.MaxAge
 }
 
 // askForFacts queries the utility model directly, outside conversation
 // middleware, and returns its raw bullet response.
-func (c *MemoryConsolidator) askForFacts(ctx context.Context, messages []chat.Message) (string, error) {
+func (m *MemoryConsolidator) askForFacts(ctx context.Context, messages []chat.Message) (string, error) {
 	transcript := renderTranscript(messages)
 	prompt := `You are mining a coding-agent conversation for durable facts.
 Output short markdown bullets; each bullet must be stand-alone and useful in a
@@ -239,9 +239,9 @@ transient state, one-off observations, and facts already obvious from source.
 If nothing deserves the append-only memory ledger, respond exactly NO_FACTS.
 Otherwise output at most ` + strconv.Itoa(agentmemory.MaxFactsPerBatch) + ` bullets,
 ordered from most important to least important, without a preamble or code fence.`
-	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), utilitymodel.Prompt{
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
 		SystemPrompt: prompt, UserPrompt: transcript,
-		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(c.config.MaxTokens),
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(m.config.MaxTokens),
 	})
 	if err != nil {
 		return "", err
@@ -253,7 +253,7 @@ ordered from most important to least important, without a preamble or code fence
 	return trimmed, nil
 }
 
-func (c *MemoryConsolidator) askForCuration(ctx context.Context, current string, pending []agentmemory.LedgerFact) (string, error) {
+func (m *MemoryConsolidator) askForCuration(ctx context.Context, current string, pending []agentmemory.LedgerFact) (string, error) {
 	systemPrompt := `You curate a coding agent's project memory from an immutable fact ledger.
 Return the complete replacement set of memory items, not a patch.
 
@@ -264,7 +264,7 @@ list: one self-contained, standalone fact per bullet, no headings and no
 nesting — each bullet is stored as an individually addressable memory. Output
 at most ` + strconv.Itoa(agentmemory.MaxCurationProposals) + ` bullets, ordered
 from most important to least important, without a code fence. Keep the result
-within ` + strconv.Itoa(c.config.MaxTokens) + ` tokens.
+within ` + strconv.Itoa(m.config.MaxTokens) + ` tokens.
 If no facts remain useful, respond exactly NO_MEMORY.`
 
 	var input strings.Builder
@@ -279,9 +279,9 @@ If no facts remain useful, respond exactly NO_MEMORY.`
 	for _, fact := range pending {
 		fmt.Fprintf(&input, "[%s #%d] %s\n", fact.Day, fact.Sequence, fact.Content)
 	}
-	text, err := utilitymodel.Complete(ctx, c.resolveClient(ctx), utilitymodel.Prompt{
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), utilitymodel.Prompt{
 		SystemPrompt: systemPrompt, UserPrompt: input.String(),
-		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(c.config.MaxTokens),
+		MaxInputBytes: maintenanceModelInputBytes, MaxOutputTokens: int64(m.config.MaxTokens),
 	})
 	if err != nil {
 		return "", err
@@ -296,11 +296,11 @@ If no facts remain useful, respond exactly NO_MEMORY.`
 	return text, nil
 }
 
-func (c *MemoryConsolidator) resolveClient(ctx context.Context) *chatclient.Client {
-	if c.client == nil {
+func (m *MemoryConsolidator) resolveClient(ctx context.Context) *chatclient.Client {
+	if m.client == nil {
 		return nil
 	}
-	return c.client(ctx)
+	return m.client(ctx)
 }
 
 func estimateTextTokens(text string) int {

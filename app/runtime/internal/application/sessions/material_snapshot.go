@@ -41,13 +41,13 @@ func (c *Coordinator) MaterialSnapshot(ctx context.Context, sessionID string) (M
 
 // Validate checks the cross-projection identities a storage transaction must
 // preserve before the snapshot crosses the Application boundary.
-func (snapshot MaterialSnapshot) Validate() error {
-	if err := snapshot.Session.Validate(); err != nil {
+func (m MaterialSnapshot) Validate() error {
+	if err := m.Session.Validate(); err != nil {
 		return fmt.Errorf("sessions: material snapshot Session: %w", err)
 	}
-	sessionID := snapshot.Session.ID()
-	runsByID := make(map[string]run.Run, len(snapshot.Runs))
-	for _, record := range snapshot.Runs {
+	sessionID := m.Session.ID()
+	runsByID := make(map[string]run.Run, len(m.Runs))
+	for _, record := range m.Runs {
 		if err := record.Validate(); err != nil {
 			return fmt.Errorf("sessions: material snapshot Run %q: %w", record.ID(), err)
 		}
@@ -59,8 +59,8 @@ func (snapshot MaterialSnapshot) Validate() error {
 		}
 		runsByID[record.ID()] = record
 	}
-	itemsByID := make(map[string]transcript.Item, len(snapshot.Items))
-	for _, item := range snapshot.Items {
+	itemsByID := make(map[string]transcript.Item, len(m.Items))
+	for _, item := range m.Items {
 		if err := item.Validate(); err != nil {
 			return fmt.Errorf("sessions: material snapshot Item %q: %w", item.ID(), err)
 		}
@@ -79,12 +79,12 @@ func (snapshot MaterialSnapshot) Validate() error {
 		}
 		itemsByID[item.ID()] = item
 	}
-	if err := validateSnapshotRunTree(snapshot.Runs, itemsByID); err != nil {
+	if err := validateSnapshotRunTree(m.Runs, itemsByID); err != nil {
 		return fmt.Errorf("sessions: material snapshot Run tree: %w", err)
 	}
-	interruptsByRoot := make(map[string]struct{}, len(snapshot.Interrupts))
-	for _, pending := range snapshot.Interrupts {
-		if err := pending.ValidateProjection(snapshot.Runs, snapshot.Items); err != nil {
+	interruptsByRoot := make(map[string]struct{}, len(m.Interrupts))
+	for _, pending := range m.Interrupts {
+		if err := pending.ValidateProjection(m.Runs, m.Items); err != nil {
 			return fmt.Errorf("sessions: material snapshot interrupt %q: %w", pending.RootRunID, err)
 		}
 		if pending.SessionID != sessionID {
@@ -102,7 +102,7 @@ func (snapshot MaterialSnapshot) Validate() error {
 		}
 		interruptsByRoot[pending.RootRunID] = struct{}{}
 	}
-	for _, record := range snapshot.Runs {
+	for _, record := range m.Runs {
 		if record.State() != run.Waiting {
 			continue
 		}
@@ -115,17 +115,17 @@ func (snapshot MaterialSnapshot) Validate() error {
 			)
 		}
 	}
-	if err := snapshot.Plan.Validate(); err != nil {
+	if err := m.Plan.Validate(); err != nil {
 		return fmt.Errorf("sessions: material snapshot Plan: %w", err)
 	}
-	if snapshot.Goal != nil {
-		if err := snapshot.Goal.ValidateSnapshot(); err != nil {
+	if m.Goal != nil {
+		if err := m.Goal.ValidateSnapshot(); err != nil {
 			return fmt.Errorf("sessions: material snapshot Goal: %w", err)
 		}
-		if snapshot.Goal.SessionID != sessionID {
+		if m.Goal.SessionID != sessionID {
 			return fmt.Errorf(
 				"sessions: material snapshot Goal belongs to Session %q, want %q",
-				snapshot.Goal.SessionID,
+				m.Goal.SessionID,
 				sessionID,
 			)
 		}

@@ -62,12 +62,12 @@ type faultingGoalStore struct {
 	failed chan struct{}
 }
 
-func (s *faultingGoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
-	if s.gets.Add(1) == s.failAt {
-		close(s.failed)
-		return goal.Goal{}, false, s.err
+func (f *faultingGoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+	if f.gets.Add(1) == f.failAt {
+		close(f.failed)
+		return goal.Goal{}, false, f.err
 	}
-	return s.memStore.Get(ctx, sessionID)
+	return f.memStore.Get(ctx, sessionID)
 }
 
 type pauseCompletionRaceStore struct {
@@ -81,48 +81,48 @@ type conflictingReconcileStore struct {
 	rejectClear bool
 }
 
-func (s conflictingReconcileStore) Save(
+func (c conflictingReconcileStore) Save(
 	context.Context,
 	goal.Goal,
 	goal.Version,
 ) (goal.Goal, bool, error) {
-	if s.rejectSave {
+	if c.rejectSave {
 		return goal.Goal{}, false, nil
 	}
 	panic("unexpected Save")
 }
 
-func (s conflictingReconcileStore) ClearIf(
+func (c conflictingReconcileStore) ClearIf(
 	context.Context,
 	string,
 	goal.Version,
 ) (bool, error) {
-	if s.rejectClear {
+	if c.rejectClear {
 		return false, nil
 	}
 	panic("unexpected ClearIf")
 }
 
-func (s *pauseCompletionRaceStore) Save(
+func (p *pauseCompletionRaceStore) Save(
 	ctx context.Context,
 	candidate goal.Goal,
 	expected goal.Version,
 ) (goal.Goal, bool, error) {
-	if candidate.Reason.Code != goal.ReasonRunStartFailed || !s.won.CompareAndSwap(false, true) {
-		return s.memStore.Save(ctx, candidate, expected)
+	if candidate.Reason.Code != goal.ReasonRunStartFailed || !p.won.CompareAndSwap(false, true) {
+		return p.memStore.Save(ctx, candidate, expected)
 	}
-	if err := s.lock(ctx); err != nil {
+	if err := p.lock(ctx); err != nil {
 		return goal.Goal{}, false, err
 	}
-	defer s.mu.Unlock()
-	current, ok := s.goals[candidate.SessionID]
+	defer p.mu.Unlock()
+	current, ok := p.goals[candidate.SessionID]
 	if !ok || current.Version() != expected {
 		return goal.Goal{}, false, nil
 	}
 	current.Complete(time.Now())
 	current.Revision++
-	s.goals[current.SessionID] = current
-	s.notifyLocked()
+	p.goals[current.SessionID] = current
+	p.notifyLocked()
 	return goal.Goal{}, false, nil
 }
 
@@ -134,19 +134,19 @@ func newMemStore() *memStore {
 	}
 }
 
-// lock observes cancellation before and after waiting for the fake's mutex. The
+// lock observes cancellation before and after waiting for the fake'm mutex. The
 // second check matters: a drive can be canceled while blocked on a concurrent
 // store operation, and must not mutate state after it finally acquires the lock.
-func (s *memStore) lock(ctx context.Context) error {
+func (m *memStore) lock(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if s.afterContextCheck != nil {
-		s.afterContextCheck()
+	if m.afterContextCheck != nil {
+		m.afterContextCheck()
 	}
-	s.mu.Lock()
+	m.mu.Lock()
 	if err := ctx.Err(); err != nil {
-		s.mu.Unlock()
+		m.mu.Unlock()
 		return err
 	}
 	return nil
@@ -155,26 +155,26 @@ func (s *memStore) lock(ctx context.Context) error {
 // The store methods honor ctx cancellation to model the production sqlite store.
 // This is load-bearing for the Goal drive: a superseded straggler whose ctx was
 // canceled by Stop bails at its next store operation instead of racing recovery.
-func (s *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
+	if err := m.lock(ctx); err != nil {
 		return goal.Goal{}, false, err
 	}
-	defer s.mu.Unlock()
-	g, ok := s.goals[id]
+	defer m.mu.Unlock()
+	g, ok := m.goals[id]
 	return g, ok, nil
 }
-func (s *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
+	if err := m.lock(ctx); err != nil {
 		return goal.Goal{}, false, err
 	}
-	defer s.mu.Unlock()
-	if s.failSave != nil {
-		if err := s.failSave(g); err != nil {
-			s.failSave = nil
+	defer m.mu.Unlock()
+	if m.failSave != nil {
+		if err := m.failSave(g); err != nil {
+			m.failSave = nil
 			return goal.Goal{}, false, err
 		}
 	}
-	cur, ok := s.goals[g.SessionID]
+	cur, ok := m.goals[g.SessionID]
 	switch {
 	case expected == (goal.Version{}):
 		if ok {
@@ -186,50 +186,50 @@ func (s *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version)
 	default:
 		g.Revision = expected.Revision + 1
 	}
-	s.goals[g.SessionID] = g
-	s.notifyLocked()
+	m.goals[g.SessionID] = g
+	m.notifyLocked()
 	return g, true, nil
 }
 
-func (s *memStore) failNextStopSave(err error) {
-	s.mu.Lock()
-	s.failSave = func(g goal.Goal) error {
+func (m *memStore) failNextStopSave(err error) {
+	m.mu.Lock()
+	m.failSave = func(g goal.Goal) error {
 		if g.Reason.Code == goal.ReasonStoppedByUser {
 			return err
 		}
 		return nil
 	}
-	s.mu.Unlock()
+	m.mu.Unlock()
 }
-func (s *memStore) Clear(ctx context.Context, id string) error {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) Clear(ctx context.Context, id string) error {
+	if err := m.lock(ctx); err != nil {
 		return err
 	}
-	defer s.mu.Unlock()
-	delete(s.goals, id)
-	s.notifyLocked()
+	defer m.mu.Unlock()
+	delete(m.goals, id)
+	m.notifyLocked()
 	return nil
 }
-func (s *memStore) ClearIf(ctx context.Context, id string, expected goal.Version) (bool, error) {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) ClearIf(ctx context.Context, id string, expected goal.Version) (bool, error) {
+	if err := m.lock(ctx); err != nil {
 		return false, err
 	}
-	defer s.mu.Unlock()
-	cur, ok := s.goals[id]
+	defer m.mu.Unlock()
+	cur, ok := m.goals[id]
 	if !ok || cur.Version() != expected {
 		return false, nil
 	}
-	delete(s.goals, id)
-	s.notifyLocked()
+	delete(m.goals, id)
+	m.notifyLocked()
 	return true, nil
 }
-func (s *memStore) List(ctx context.Context) ([]goal.Goal, error) {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) List(ctx context.Context) ([]goal.Goal, error) {
+	if err := m.lock(ctx); err != nil {
 		return nil, err
 	}
-	defer s.mu.Unlock()
-	out := make([]goal.Goal, 0, len(s.goals))
-	for _, g := range s.goals {
+	defer m.mu.Unlock()
+	out := make([]goal.Goal, 0, len(m.goals))
+	for _, g := range m.goals {
 		out = append(out, g)
 	}
 	return out, nil
@@ -237,36 +237,36 @@ func (s *memStore) List(ctx context.Context) ([]goal.Goal, error) {
 
 // RecordRun models the terminal Run transaction: its idempotency identity and
 // the Goal aggregate mutation appear together before the drive sees the event.
-func (s *memStore) RecordRun(ctx context.Context, record goal.RunRecord) error {
-	if err := s.lock(ctx); err != nil {
+func (m *memStore) RecordRun(ctx context.Context, record goal.RunRecord) error {
+	if err := m.lock(ctx); err != nil {
 		return err
 	}
-	defer s.mu.Unlock()
-	if _, exists := s.runs[record.RunID]; exists {
+	defer m.mu.Unlock()
+	if _, exists := m.runs[record.RunID]; exists {
 		return nil
 	}
-	s.runs[record.RunID] = struct{}{}
-	g, exists := s.goals[record.SessionID]
+	m.runs[record.RunID] = struct{}{}
+	g, exists := m.goals[record.SessionID]
 	if !exists || g.IncarnationID != record.IncarnationID {
 		return nil
 	}
 	g.RecordRun(record)
 	g.Revision++
-	s.goals[g.SessionID] = g
-	s.notifyLocked()
+	m.goals[g.SessionID] = g
+	m.notifyLocked()
 	return nil
 }
 
-func (s *memStore) observe(id string) (goal.Goal, bool, <-chan struct{}) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	g, ok := s.goals[id]
-	return g, ok, s.changed
+func (m *memStore) observe(id string) (goal.Goal, bool, <-chan struct{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	g, ok := m.goals[id]
+	return g, ok, m.changed
 }
 
-func (s *memStore) notifyLocked() {
-	close(s.changed)
-	s.changed = make(chan struct{})
+func (m *memStore) notifyLocked() {
+	close(m.changed)
+	m.changed = make(chan struct{})
 }
 
 // Run scripts one autonomous Run's outcome. setStatus simulates the model
@@ -545,19 +545,19 @@ type terminalRaceRuns struct {
 
 func (*terminalRaceRuns) WaitSessionStartable(context.Context, string) error { return nil }
 
-func (f *terminalRaceRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
-	f.session = cmd.SessionID
-	f.incarnation = cmd.GoalIncarnationID
-	close(f.started)
+func (t *terminalRaceRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
+	t.session = cmd.SessionID
+	t.incarnation = cmd.GoalIncarnationID
+	close(t.started)
 	return runs.StartResult{
 		RunID: "run_terminal_race", SessionID: cmd.SessionID,
 		Events: func(func(runs.Event) bool) { <-ctx.Done() },
 	}, nil
 }
 
-func (f *terminalRaceRuns) Cancel(context.Context, runs.CancelCommand) (runs.CancelResult, error) {
-	err := f.store.RecordRun(context.Background(), goal.RunRecord{
-		SessionID: f.session, IncarnationID: f.incarnation, RunID: "run_terminal_race",
+func (t *terminalRaceRuns) Cancel(context.Context, runs.CancelCommand) (runs.CancelResult, error) {
+	err := t.store.RecordRun(context.Background(), goal.RunRecord{
+		SessionID: t.session, IncarnationID: t.incarnation, RunID: "run_terminal_race",
 		Outcome: run.OutcomeCompleted, CompletedAt: time.Now(),
 	})
 	return runs.CancelResult{}, err
@@ -1475,10 +1475,10 @@ type notifyingSpanExporter struct {
 	exported chan struct{}
 }
 
-func (e *notifyingSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
-	err := e.InMemoryExporter.ExportSpans(ctx, spans)
+func (n *notifyingSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	err := n.InMemoryExporter.ExportSpans(ctx, spans)
 	select {
-	case e.exported <- struct{}{}:
+	case n.exported <- struct{}{}:
 	default:
 	}
 	return err
@@ -1513,18 +1513,18 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 
 type testDriveLease struct{ release func() }
 
-func (l testDriveLease) Release() { l.release() }
+func (t testDriveLease) Release() { t.release() }
 
 type selectiveDriveOwnership struct {
 	busy     map[string]bool
 	released map[string]int
 }
 
-func (o *selectiveDriveOwnership) TryGoalDrive(sessionID string) (goals.DriveLease, bool) {
-	if o.busy[sessionID] {
+func (s *selectiveDriveOwnership) TryGoalDrive(sessionID string) (goals.DriveLease, bool) {
+	if s.busy[sessionID] {
 		return nil, false
 	}
-	return testDriveLease{release: func() { o.released[sessionID]++ }}, true
+	return testDriveLease{release: func() { s.released[sessionID]++ }}, true
 }
 
 func TestReconcileSkipsGoalDriveOwnedByAnotherRuntime(t *testing.T) {

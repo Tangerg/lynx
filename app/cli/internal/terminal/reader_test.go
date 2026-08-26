@@ -160,9 +160,9 @@ type readerDocumentSourceProbe struct {
 	released int
 }
 
-func (source *readerDocumentSourceProbe) Observe(observer func(readerDocument)) func() {
+func (r *readerDocumentSourceProbe) Observe(observer func(readerDocument)) func() {
 	observer(readerDocument{Title: "live transcript tool"})
-	return func() { source.released++ }
+	return func() { r.released++ }
 }
 
 func TestSameSessionProjectionReplacementRetiresALiveTranscriptReader(t *testing.T) {

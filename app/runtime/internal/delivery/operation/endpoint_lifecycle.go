@@ -33,27 +33,27 @@ func newInvocationGroup(lifetime context.Context) *invocationGroup {
 	return group
 }
 
-func (g *invocationGroup) Attach(parent context.Context) (context.Context, func(), bool) {
+func (i *invocationGroup) Attach(parent context.Context) (context.Context, func(), bool) {
 	ctx, cancel := context.WithCancel(parent)
-	g.mu.Lock()
-	if g.stopping || g.lifetime.Err() != nil {
-		g.mu.Unlock()
+	i.mu.Lock()
+	if i.stopping || i.lifetime.Err() != nil {
+		i.mu.Unlock()
 		cancel()
 		return nil, nil, false
 	}
-	g.nextID++
-	id := g.nextID
-	g.active[id] = cancel
-	g.mu.Unlock()
+	i.nextID++
+	id := i.nextID
+	i.active[id] = cancel
+	i.mu.Unlock()
 
 	var once sync.Once
 	release := func() {
 		once.Do(func() {
 			cancel()
-			g.mu.Lock()
-			delete(g.active, id)
-			g.finishShutdownLocked()
-			g.mu.Unlock()
+			i.mu.Lock()
+			delete(i.active, id)
+			i.finishShutdownLocked()
+			i.mu.Unlock()
 		})
 	}
 	return ctx, release, true
@@ -62,39 +62,39 @@ func (g *invocationGroup) Attach(parent context.Context) (context.Context, func(
 // BeginShutdown closes admission and broadcasts cancellation before waiting on
 // any one operation. Calls already inside their source remain registered until
 // they actually return.
-func (g *invocationGroup) BeginShutdown() {
-	g.mu.Lock()
-	g.stopping = true
-	cancels := make([]context.CancelFunc, 0, len(g.active))
-	for _, cancel := range g.active {
+func (i *invocationGroup) BeginShutdown() {
+	i.mu.Lock()
+	i.stopping = true
+	cancels := make([]context.CancelFunc, 0, len(i.active))
+	for _, cancel := range i.active {
 		cancels = append(cancels, cancel)
 	}
-	g.finishShutdownLocked()
-	g.mu.Unlock()
+	i.finishShutdownLocked()
+	i.mu.Unlock()
 
 	for _, cancel := range cancels {
 		cancel()
 	}
 }
 
-func (g *invocationGroup) AwaitShutdown(ctx context.Context) error {
+func (i *invocationGroup) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("operation: shutdown context is required")
 	}
 	select {
-	case <-g.done:
+	case <-i.done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (g *invocationGroup) finishShutdownLocked() {
-	if !g.stopping || len(g.active) != 0 || g.finished {
+func (i *invocationGroup) finishShutdownLocked() {
+	if !i.stopping || len(i.active) != 0 || i.finished {
 		return
 	}
-	close(g.done)
-	g.finished = true
+	close(i.done)
+	i.finished = true
 }
 
 // ownStream keeps one accepted operation registered until its source returns.

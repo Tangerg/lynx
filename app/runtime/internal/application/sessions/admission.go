@@ -20,9 +20,9 @@ type WorkingTreeAdmission struct {
 }
 
 // Release drops the held working-tree slot.
-func (a WorkingTreeAdmission) Release() {
-	if a.release != nil {
-		a.release.run()
+func (w WorkingTreeAdmission) Release() {
+	if w.release != nil {
+		w.release.run()
 	}
 }
 

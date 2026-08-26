@@ -18,8 +18,8 @@ import (
 // sessions port sentinel, so a file rollback restores under the coordinator.
 type testCheckpointRestorer struct{ cp *workspace.Checkpoints }
 
-func (r testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, runID string) error {
-	if err := r.cp.Restore(ctx, sessionID, cwd, runID); err != nil {
+func (t testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, runID string) error {
+	if err := t.cp.Restore(ctx, sessionID, cwd, runID); err != nil {
 		switch {
 		case errors.Is(err, workspace.ErrCheckpointUnavailable):
 			return sessions.ErrCheckpointUnavailable
@@ -31,8 +31,8 @@ func (r testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, run
 	return nil
 }
 
-func (r testCheckpointRestorer) DropSession(sessionID string) error {
-	return r.cp.DropSession(sessionID)
+func (t testCheckpointRestorer) DropSession(sessionID string) error {
+	return t.cp.DropSession(sessionID)
 }
 
 // checkpointHarness extends the rollback harness with a real shadow-git

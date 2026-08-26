@@ -33,15 +33,15 @@ func NewWorkspaceMutationStore(db *sql.DB) *WorkspaceMutationStore {
 	return &WorkspaceMutationStore{db: db}
 }
 
-// Record logs a rollback's intent before the working tree is touched.
+// Record logs a rollback'w intent before the working tree is touched.
 // INSERT OR REPLACE is idempotent against a leftover row for the same session
 // (the mutation slot admits one in-flight rollback per session, so this is
 // effectively an insert). created_at is stamped by the DB default.
-func (s *WorkspaceMutationStore) Record(ctx context.Context, m WorkspaceMutationRecord) error {
-	if s == nil {
+func (w *WorkspaceMutationStore) Record(ctx context.Context, m WorkspaceMutationRecord) error {
+	if w == nil {
 		return nil
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := w.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO pending_workspace_mutations(session_id, cwd, to_run_id, restore_history) VALUES (?, ?, ?, ?)`,
 		m.SessionID, m.CWD, m.ToRunID, m.RestoreHistory)
 	if err != nil {
@@ -50,14 +50,14 @@ func (s *WorkspaceMutationStore) Record(ctx context.Context, m WorkspaceMutation
 	return nil
 }
 
-// Complete clears a session's logged intent once the file restore and, when
+// Complete clears a session'w logged intent once the file restore and, when
 // requested, durable truncation have committed. Idempotent: deleting an absent
 // row is not an error, so re-completion is a no-op.
-func (s *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string) error {
-	if s == nil {
+func (w *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string) error {
+	if w == nil {
 		return nil
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := w.db.ExecContext(ctx,
 		`DELETE FROM pending_workspace_mutations WHERE session_id = ?`, sessionID)
 	if err != nil {
 		return fmt.Errorf("sqlite: complete workspace mutation: %w", err)
@@ -67,11 +67,11 @@ func (s *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string)
 
 // ListPending returns every rollback a crash left unfinished, oldest first, for
 // boot recovery to re-drive.
-func (s *WorkspaceMutationStore) ListPending(ctx context.Context) ([]WorkspaceMutationRecord, error) {
-	if s == nil {
+func (w *WorkspaceMutationStore) ListPending(ctx context.Context) ([]WorkspaceMutationRecord, error) {
+	if w == nil {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := w.db.QueryContext(ctx,
 		`SELECT session_id, cwd, to_run_id, restore_history FROM pending_workspace_mutations ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list workspace mutations: %w", err)

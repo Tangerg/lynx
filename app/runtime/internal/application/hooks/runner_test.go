@@ -18,22 +18,22 @@ type commandStub struct {
 	requests []CommandRequest
 }
 
-func (s *commandStub) RunHookCommand(_ context.Context, req CommandRequest) CommandResult {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.requests = append(s.requests, req)
-	if len(s.results) == 0 {
+func (c *commandStub) RunHookCommand(_ context.Context, req CommandRequest) CommandResult {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.requests = append(c.requests, req)
+	if len(c.results) == 0 {
 		return CommandResult{}
 	}
-	out := s.results[0]
-	s.results = s.results[1:]
+	out := c.results[0]
+	c.results = c.results[1:]
 	return out
 }
 
-func (s *commandStub) calls() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.requests)
+func (c *commandStub) calls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.requests)
 }
 
 func TestRunner_DeclarativeInject(t *testing.T) {

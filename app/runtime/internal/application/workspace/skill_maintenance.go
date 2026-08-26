@@ -28,21 +28,21 @@ func NewSkillMaintenance(sweeper IdleSkillSweeper, observations *AuthoredWatch, 
 }
 
 // Available reports whether automatic Skill curation is wired.
-func (m *SkillMaintenance) Available() bool { return m != nil && m.sweeper != nil }
+func (s *SkillMaintenance) Available() bool { return s != nil && s.sweeper != nil }
 
 // ArchiveIdle applies automatic user-library curation and reports the names it
 // archived. A sweep may commit file changes before returning an error, so every
 // non-empty identity set invalidates the public Skill projections.
-func (m *SkillMaintenance) ArchiveIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error) {
-	if !m.Available() {
+func (s *SkillMaintenance) ArchiveIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error) {
+	if !s.Available() {
 		return nil, ErrSkillLibraryUnavailable
 	}
-	archived, identities, err := m.sweeper.SweepIdle(ctx, now, archiveAfter)
+	archived, identities, err := s.sweeper.SweepIdle(ctx, now, archiveAfter)
 	if len(identities) > 0 {
-		if m.observations != nil {
-			m.observations.Accept(AuthoredChange{Resource: AuthoredSkills, Identities: identities})
+		if s.observations != nil {
+			s.observations.Accept(AuthoredChange{Resource: AuthoredSkills, Identities: identities})
 		}
-		m.invalidations.Notify(invalidation.Notice{Resource: invalidation.Skills})
+		s.invalidations.Notify(invalidation.Notice{Resource: invalidation.Skills})
 	}
 	return archived, err
 }

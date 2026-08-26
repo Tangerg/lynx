@@ -23,8 +23,8 @@ type lineError struct {
 	cause  error
 }
 
-func (err *lineError) Error() string { return err.cause.Error() }
-func (err *lineError) Unwrap() error { return err.cause }
+func (l *lineError) Error() string { return l.cause.Error() }
+func (l *lineError) Unwrap() error { return l.cause }
 
 // LineNumber returns the one-based line attached to a scan failure, or zero
 // when the failure is not line-specific.
@@ -177,58 +177,58 @@ type lineCollector struct {
 	clipped     bool
 }
 
-func (collector *lineCollector) consume(line []byte) {
-	index := collector.total
-	collector.total++
-	if index < collector.start || collector.clipped ||
-		(collector.maxLines > 0 && collector.selected >= collector.maxLines) {
+func (l *lineCollector) consume(line []byte) {
+	index := l.total
+	l.total++
+	if index < l.start || l.clipped ||
+		(l.maxLines > 0 && l.selected >= l.maxLines) {
 		return
 	}
-	if collector.append(line) {
-		collector.selected++
+	if l.append(line) {
+		l.selected++
 	}
 }
 
-func (collector *lineCollector) append(line []byte) bool {
-	separator := collector.selected > 0
-	remaining := collector.maxBytes - collector.content.Len()
+func (l *lineCollector) append(line []byte) bool {
+	separator := l.selected > 0
+	remaining := l.maxBytes - l.content.Len()
 	if separator {
 		remaining--
 	}
 	if remaining < 0 {
-		collector.clipped = true
+		l.clipped = true
 		return false
 	}
 	if len(line) <= remaining {
 		if separator {
-			collector.content.WriteByte('\n')
+			l.content.WriteByte('\n')
 		}
-		collector.content.Write(line)
+		l.content.Write(line)
 		return true
 	}
-	if !collector.partialLine {
-		collector.clipped = true
+	if !l.partialLine {
+		l.clipped = true
 		return false
 	}
 	prefix := validPrefix(line, remaining)
 	if prefix == 0 {
-		collector.clipped = true
+		l.clipped = true
 		return false
 	}
 	if separator {
-		collector.content.WriteByte('\n')
+		l.content.WriteByte('\n')
 	}
-	collector.content.Write(line[:prefix])
-	collector.clipped = true
+	l.content.Write(line[:prefix])
+	l.clipped = true
 	return true
 }
 
-func (collector *lineCollector) result() Result {
-	start := min(collector.start, collector.total)
-	end := start + collector.selected
+func (l *lineCollector) result() Result {
+	start := min(l.start, l.total)
+	end := start + l.selected
 	return Result{
-		Content: collector.content.String(), StartLine: start, EndLine: end, TotalLines: collector.total,
-		Truncated: start > 0 || end < collector.total || collector.clipped, OutputTruncated: collector.clipped,
+		Content: l.content.String(), StartLine: start, EndLine: end, TotalLines: l.total,
+		Truncated: start > 0 || end < l.total || l.clipped, OutputTruncated: l.clipped,
 	}
 }
 
@@ -255,12 +255,12 @@ type contextReader struct {
 	reader io.Reader
 }
 
-func (reader contextReader) Read(buffer []byte) (int, error) {
-	if cause := context.Cause(reader.ctx); cause != nil {
+func (c contextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(c.ctx); cause != nil {
 		return 0, cause
 	}
-	read, err := reader.reader.Read(buffer)
-	if cause := context.Cause(reader.ctx); cause != nil {
+	read, err := c.reader.Read(buffer)
+	if cause := context.Cause(c.ctx); cause != nil {
 		return read, cause
 	}
 	return read, err
@@ -271,8 +271,8 @@ type byteCounter struct {
 	bytes  int64
 }
 
-func (reader *byteCounter) Read(buffer []byte) (int, error) {
-	read, err := reader.reader.Read(buffer)
-	reader.bytes += int64(read)
+func (b *byteCounter) Read(buffer []byte) (int, error) {
+	read, err := b.reader.Read(buffer)
+	b.bytes += int64(read)
 	return read, err
 }

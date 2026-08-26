@@ -55,7 +55,7 @@ func newResumeBindingBuilder(resolutions map[string]ToolApprovalResolution) *res
 	}}
 }
 
-func (builder *resumeBindingBuilder) addItem(
+func (r *resumeBindingBuilder) addItem(
 	callID string,
 	name string,
 	arguments string,
@@ -65,17 +65,17 @@ func (builder *resumeBindingBuilder) addItem(
 ) {
 	identity := resumableItem{id: itemID, occurredAt: occurredAt, approvalDecision: decision}
 	if callID != "" {
-		builder.binding.callItems[callID] = identity
+		r.binding.callItems[callID] = identity
 	}
-	builder.binding.toolItems[resumeKey(name, arguments)] = identity
-	if _, duplicate := builder.binding.byName[name]; duplicate {
-		builder.binding.byName[name] = resumableItem{}
+	r.binding.toolItems[resumeKey(name, arguments)] = identity
+	if _, duplicate := r.binding.byName[name]; duplicate {
+		r.binding.byName[name] = resumableItem{}
 	} else {
-		builder.binding.byName[name] = identity
+		r.binding.byName[name] = identity
 	}
 }
 
-func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Interrupt, runID string) {
+func (r *resumeBindingBuilder) addInterrupts(interrupts []transcript.Interrupt, runID string) {
 	for _, pending := range interrupts {
 		if pending.RunID != runID || pending.ItemID == "" {
 			continue
@@ -83,8 +83,8 @@ func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Inter
 		switch pending.Kind {
 		case interrupt.Approval:
 			if pending.Approval != nil && pending.Approval.Tool.Name != "" {
-				resolution := builder.approvalResolutions[pending.ItemID]
-				builder.addItem(
+				resolution := r.approvalResolutions[pending.ItemID]
+				r.addItem(
 					resolution.CallID,
 					pending.Approval.Tool.Name,
 					argumentIdentity(pending.Approval.Tool.Arguments),
@@ -101,8 +101,8 @@ func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Inter
 	}
 }
 
-func (builder *resumeBindingBuilder) addTools(member Continuation) error {
-	builder.binding.drained = slices.Clone(member.DrainedTools)
+func (r *resumeBindingBuilder) addTools(member Continuation) error {
+	r.binding.drained = slices.Clone(member.DrainedTools)
 	for _, drained := range member.DrainedTools {
 		if drained.Name == "" || drained.ItemID == "" {
 			continue
@@ -111,7 +111,7 @@ func (builder *resumeBindingBuilder) addTools(member Continuation) error {
 		if err != nil {
 			return fmt.Errorf("resume drained tool %q arguments: %w", drained.Name, err)
 		}
-		builder.addItem(
+		r.addItem(
 			drained.CallID,
 			drained.Name,
 			argumentIdentity(arguments),
@@ -126,13 +126,13 @@ func (builder *resumeBindingBuilder) addTools(member Continuation) error {
 			return fmt.Errorf("resume committed tool %q arguments: %w", committed.Name, err)
 		}
 		committed.Arguments = argumentIdentity(arguments)
-		builder.binding.committed[committed.CallID] = committed
+		r.binding.committed[committed.CallID] = committed
 	}
 	return nil
 }
 
-func (builder *resumeBindingBuilder) build() *resumeBinding {
-	binding := &builder.binding
+func (r *resumeBindingBuilder) build() *resumeBinding {
+	binding := &r.binding
 	if len(binding.callItems) == 0 && len(binding.toolItems) == 0 &&
 		len(binding.committed) == 0 {
 		return nil
@@ -163,21 +163,21 @@ func (r *reducer) reuseOrCreateToolItem(callID, toolName string, arguments tool.
 	return resumableItem{id: r.nextItemID(), occurredAt: r.now()}, false
 }
 
-func (b *resumeBinding) consumeToolItem(id string) {
+func (r *resumeBinding) consumeToolItem(id string) {
 	if id == "" {
 		return
 	}
-	b.consumed[id] = struct{}{}
-	maps.DeleteFunc(b.callItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
-	maps.DeleteFunc(b.toolItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
-	maps.DeleteFunc(b.byName, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+	r.consumed[id] = struct{}{}
+	maps.DeleteFunc(r.callItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+	maps.DeleteFunc(r.toolItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+	maps.DeleteFunc(r.byName, func(_ string, candidate resumableItem) bool { return candidate.id == id })
 }
 
-func (b *resumeBinding) approvalDecision(itemID string) approval.Decision {
-	if b == nil || itemID == "" {
+func (r *resumeBinding) approvalDecision(itemID string) approval.Decision {
+	if r == nil || itemID == "" {
 		return ""
 	}
-	for _, items := range []map[string]resumableItem{b.callItems, b.toolItems, b.byName} {
+	for _, items := range []map[string]resumableItem{r.callItems, r.toolItems, r.byName} {
 		for _, item := range items {
 			if item.id == itemID {
 				return item.approvalDecision
@@ -187,28 +187,28 @@ func (b *resumeBinding) approvalDecision(itemID string) approval.Decision {
 	return ""
 }
 
-func (b *resumeBinding) remainingDrainedTools() []DrainedTool {
-	if b == nil || len(b.drained) == 0 {
+func (r *resumeBinding) remainingDrainedTools() []DrainedTool {
+	if r == nil || len(r.drained) == 0 {
 		return nil
 	}
-	out := make([]DrainedTool, 0, len(b.drained))
-	for _, tool := range b.drained {
-		if _, consumed := b.consumed[tool.ItemID]; !consumed {
+	out := make([]DrainedTool, 0, len(r.drained))
+	for _, tool := range r.drained {
+		if _, consumed := r.consumed[tool.ItemID]; !consumed {
 			out = append(out, tool)
 		}
 	}
 	return out
 }
 
-func (b *resumeBinding) rejectCommittedToolStart(
+func (r *resumeBinding) rejectCommittedToolStart(
 	callID string,
 	toolName string,
 	arguments tool.Arguments,
 ) error {
-	if b == nil {
+	if r == nil {
 		return nil
 	}
-	committed, exists := b.committed[callID]
+	committed, exists := r.committed[callID]
 	if !exists {
 		return nil
 	}
@@ -225,11 +225,11 @@ func (b *resumeBinding) rejectCommittedToolStart(
 	return fmt.Errorf("committed tool call %q was executed again", callID)
 }
 
-func (b *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, error) {
-	if b == nil {
+func (r *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, error) {
+	if r == nil {
 		return false, nil
 	}
-	committed, exists := b.committed[event.CallID]
+	committed, exists := r.committed[event.CallID]
 	if !exists {
 		return false, nil
 	}
@@ -250,16 +250,16 @@ func (b *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, erro
 			)
 		}
 	}
-	delete(b.committed, event.CallID)
+	delete(r.committed, event.CallID)
 	return true, nil
 }
 
-func (b *resumeBinding) remainingCommittedTools() []CommittedTool {
-	if b == nil || len(b.committed) == 0 {
+func (r *resumeBinding) remainingCommittedTools() []CommittedTool {
+	if r == nil || len(r.committed) == 0 {
 		return nil
 	}
-	out := make([]CommittedTool, 0, len(b.committed))
-	for _, committed := range b.committed {
+	out := make([]CommittedTool, 0, len(r.committed))
+	for _, committed := range r.committed {
 		out = append(out, committed)
 	}
 	slices.SortFunc(out, func(left, right CommittedTool) int {

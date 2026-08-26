@@ -22,14 +22,14 @@ type callDecorator struct {
 	call  func(ctx context.Context, arguments string) (string, error)
 }
 
-func (d *callDecorator) Definition() chat.ToolDefinition { return d.inner.Definition() }
+func (c *callDecorator) Definition() chat.ToolDefinition { return c.inner.Definition() }
 
-func (d *callDecorator) Call(ctx context.Context, arguments string) (string, error) {
-	return d.call(ctx, arguments)
+func (c *callDecorator) Call(ctx context.Context, arguments string) (string, error) {
+	return c.call(ctx, arguments)
 }
 
 // Unwrap exposes the wrapped tool so its optional tool-loop declarations — a
 // keyed file tool's per-path conflict class, where its mutations land, a
 // return-direct policy — survive the whole decorator stack. Only Call is
 // overridden here.
-func (d *callDecorator) Unwrap() toolcontract.Tool { return d.inner }
+func (c *callDecorator) Unwrap() toolcontract.Tool { return c.inner }

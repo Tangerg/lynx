@@ -62,70 +62,70 @@ func newWireMethods(registry *operation.Registry, set *schemaSet) string {
 // methodPolicy emits the semantic category and response/replay behavior for every
 // method. The SDK consumes this table to attach idempotency keys to commands by
 // construction; method wrappers never classify themselves.
-func (e *methodsEmitter) methodPolicy(metas []operation.MethodMeta) {
-	e.line("export type WireOperationKind = \"query\" | \"command\" | \"subscription\";")
-	e.line("export type WireResponseKind = \"unary\" | \"stream\";")
-	e.line("export type WireIdempotencyPolicy = \"none\" | \"replayResponse\" | \"replayRunStream\";")
-	e.line("export type WireReplayCursorPolicy = \"none\" | \"run\";")
-	e.line("export type WirePaginationKind = \"none\" | \"cursor\";")
-	e.line("")
-	e.line("export interface WireMethodPolicy {")
-	e.line("  operation: WireOperationKind;")
-	e.line("  response: WireResponseKind;")
-	e.line("  idempotency: WireIdempotencyPolicy;")
-	e.line("  replayCursor: WireReplayCursorPolicy;")
-	e.line("  pagination: WirePaginationKind;")
-	e.line("}")
-	e.line("")
-	e.line("export const WIRE_METHOD_POLICY = {")
+func (m *methodsEmitter) methodPolicy(metas []operation.MethodMeta) {
+	m.line("export type WireOperationKind = \"query\" | \"command\" | \"subscription\";")
+	m.line("export type WireResponseKind = \"unary\" | \"stream\";")
+	m.line("export type WireIdempotencyPolicy = \"none\" | \"replayResponse\" | \"replayRunStream\";")
+	m.line("export type WireReplayCursorPolicy = \"none\" | \"run\";")
+	m.line("export type WirePaginationKind = \"none\" | \"cursor\";")
+	m.line("")
+	m.line("export interface WireMethodPolicy {")
+	m.line("  operation: WireOperationKind;")
+	m.line("  response: WireResponseKind;")
+	m.line("  idempotency: WireIdempotencyPolicy;")
+	m.line("  replayCursor: WireReplayCursorPolicy;")
+	m.line("  pagination: WirePaginationKind;")
+	m.line("}")
+	m.line("")
+	m.line("export const WIRE_METHOD_POLICY = {")
 	for _, meta := range metas {
-		e.line("  %s: {", strconv.Quote(meta.Name.String()))
-		e.line("    operation: %s,", strconv.Quote(meta.Operation.String()))
-		e.line("    response: %s,", strconv.Quote(meta.Kind.String()))
-		e.line("    idempotency: %s,", strconv.Quote(meta.Idempotency.String()))
-		e.line("    replayCursor: %s,", strconv.Quote(meta.ReplayCursor.String()))
-		e.line("    pagination: %s,", strconv.Quote(meta.Pagination.String()))
-		e.line("  },")
+		m.line("  %s: {", strconv.Quote(meta.Name.String()))
+		m.line("    operation: %s,", strconv.Quote(meta.Operation.String()))
+		m.line("    response: %s,", strconv.Quote(meta.Kind.String()))
+		m.line("    idempotency: %s,", strconv.Quote(meta.Idempotency.String()))
+		m.line("    replayCursor: %s,", strconv.Quote(meta.ReplayCursor.String()))
+		m.line("    pagination: %s,", strconv.Quote(meta.Pagination.String()))
+		m.line("  },")
 	}
-	e.line("} as const satisfies { readonly [M in WireMethodName]: WireMethodPolicy };")
-	e.line("")
-	e.line("/** True only for calls whose first response the runtime durably replays. */")
-	e.line("export type WireMutationMethodName = {")
-	e.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"operation\"] extends \"command\"")
-	e.line("    ? M")
-	e.line("    : never;")
-	e.line("}[WireMethodName];")
-	e.line("")
-	e.line("export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {")
-	e.line("  return WIRE_METHOD_POLICY[method].operation === \"command\";")
-	e.line("}")
-	e.line("")
-	e.line("/** Every stream that accepts an opaque Run event replay cursor. */")
-	e.line("export type WireReplayCursorMethodName = {")
-	e.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"replayCursor\"] extends \"run\"")
-	e.line("    ? M")
-	e.line("    : never;")
-	e.line("}[WireMethodName];")
-	e.line("")
-	e.line("export function wireMethodAcceptsReplayCursor(")
-	e.line("  method: WireMethodName,")
-	e.line("): method is WireReplayCursorMethodName {")
-	e.line("  return WIRE_METHOD_POLICY[method].replayCursor === \"run\";")
-	e.line("}")
-	e.line("")
-	e.line("/** Every cursor-paginated method, derived from the method policy above. */")
-	e.line("export type WirePaginatedMethodName = {")
-	e.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"pagination\"] extends \"cursor\"")
-	e.line("    ? M")
-	e.line("    : never;")
-	e.line("}[WireMethodName];")
-	e.line("")
-	e.line("export function wireMethodIsPaginated(")
-	e.line("  method: WireMethodName,")
-	e.line("): method is WirePaginatedMethodName {")
-	e.line("  return WIRE_METHOD_POLICY[method].pagination === \"cursor\";")
-	e.line("}")
-	e.line("")
+	m.line("} as const satisfies { readonly [M in WireMethodName]: WireMethodPolicy };")
+	m.line("")
+	m.line("/** True only for calls whose first response the runtime durably replays. */")
+	m.line("export type WireMutationMethodName = {")
+	m.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"operation\"] extends \"command\"")
+	m.line("    ? M")
+	m.line("    : never;")
+	m.line("}[WireMethodName];")
+	m.line("")
+	m.line("export function wireMethodRequiresIdempotency(method: WireMethodName): boolean {")
+	m.line("  return WIRE_METHOD_POLICY[method].operation === \"command\";")
+	m.line("}")
+	m.line("")
+	m.line("/** Every stream that accepts an opaque Run event replay cursor. */")
+	m.line("export type WireReplayCursorMethodName = {")
+	m.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"replayCursor\"] extends \"run\"")
+	m.line("    ? M")
+	m.line("    : never;")
+	m.line("}[WireMethodName];")
+	m.line("")
+	m.line("export function wireMethodAcceptsReplayCursor(")
+	m.line("  method: WireMethodName,")
+	m.line("): method is WireReplayCursorMethodName {")
+	m.line("  return WIRE_METHOD_POLICY[method].replayCursor === \"run\";")
+	m.line("}")
+	m.line("")
+	m.line("/** Every cursor-paginated method, derived from the method policy above. */")
+	m.line("export type WirePaginatedMethodName = {")
+	m.line("  [M in WireMethodName]: (typeof WIRE_METHOD_POLICY)[M][\"pagination\"] extends \"cursor\"")
+	m.line("    ? M")
+	m.line("    : never;")
+	m.line("}[WireMethodName];")
+	m.line("")
+	m.line("export function wireMethodIsPaginated(")
+	m.line("  method: WireMethodName,")
+	m.line("): method is WirePaginatedMethodName {")
+	m.line("  return WIRE_METHOD_POLICY[method].pagination === \"cursor\";")
+	m.line("}")
+	m.line("")
 }
 
 // policy emits the capability rules the SDK preflights against what the server
@@ -133,38 +133,38 @@ func (e *methodsEmitter) methodPolicy(metas []operation.MethodMeta) {
 // discovery and the SDK — and forbids any of them keeping a second switch. Typing
 // the table with WireFeature also makes a rule naming an unpublished key a compile
 // error on this side, not only in Go.
-func (e *methodsEmitter) policy(metas []operation.MethodMeta) {
-	e.line("/** One condition on the request that decides whether a rule applies. */")
-	e.line("export interface WireCapabilityCondition {")
-	e.line("  field: string;")
-	e.line("  operator: \"present\" | \"equals\";")
-	e.line("  value?: string;")
-	e.line("}")
-	e.line("")
-	e.line("/**")
-	e.line(" * What a method needs negotiated. An absent `when` gates the whole method; a")
-	e.line(" * condition gates only the requests that match it.")
-	e.line(" */")
-	e.line("export interface WireCapabilityRule {")
-	e.line("  when?: readonly WireCapabilityCondition[];")
-	e.line("  requires: readonly WireFeature[];")
-	e.line("}")
-	e.line("")
-	e.line("export const WIRE_CAPABILITY_POLICY: {")
-	e.line("  readonly [M in WireMethodName]?: readonly WireCapabilityRule[];")
-	e.line("} = {")
+func (m *methodsEmitter) policy(metas []operation.MethodMeta) {
+	m.line("/** One condition on the request that decides whether a rule applies. */")
+	m.line("export interface WireCapabilityCondition {")
+	m.line("  field: string;")
+	m.line("  operator: \"present\" | \"equals\";")
+	m.line("  value?: string;")
+	m.line("}")
+	m.line("")
+	m.line("/**")
+	m.line(" * What a method needs negotiated. An absent `when` gates the whole method; a")
+	m.line(" * condition gates only the requests that match it.")
+	m.line(" */")
+	m.line("export interface WireCapabilityRule {")
+	m.line("  when?: readonly WireCapabilityCondition[];")
+	m.line("  requires: readonly WireFeature[];")
+	m.line("}")
+	m.line("")
+	m.line("export const WIRE_CAPABILITY_POLICY: {")
+	m.line("  readonly [M in WireMethodName]?: readonly WireCapabilityRule[];")
+	m.line("} = {")
 	for _, meta := range metas {
 		if len(meta.CapabilityRules) == 0 {
 			continue
 		}
-		e.line("  %s: [", strconv.Quote(meta.Name.String()))
+		m.line("  %s: [", strconv.Quote(meta.Name.String()))
 		for _, rule := range meta.CapabilityRules {
-			e.line("    { %s },", renderRule(rule))
+			m.line("    { %s },", renderRule(rule))
 		}
-		e.line("  ],")
+		m.line("  ],")
 	}
-	e.line("};")
-	e.line("")
+	m.line("};")
+	m.line("")
 }
 
 // renderRule writes one capability rule's members.
@@ -188,95 +188,95 @@ func renderRule(rule operation.CapabilityRule) string {
 	return strings.Join(members, ", ")
 }
 
-func (e *methodsEmitter) header() {
-	e.line("// Code generated by cmd/contractgen. DO NOT EDIT.")
-	e.line("//")
-	e.line("// The method surface of the Lyra Runtime Protocol: which methods exist, what each")
-	e.line("// one carries, and what has to be negotiated before one will run.")
-	e.line("//")
-	e.line("// The SDK in methods.ts composes these with transport concerns. Every protocol")
-	e.line("// fact in this file is read from the Contract Registry.")
-	e.line("")
+func (m *methodsEmitter) header() {
+	m.line("// Code generated by cmd/contractgen. DO NOT EDIT.")
+	m.line("//")
+	m.line("// The method surface of the Lyra Runtime Protocol: which methods exist, what each")
+	m.line("// one carries, and what has to be negotiated before one will run.")
+	m.line("//")
+	m.line("// The SDK in methods.ts composes these with transport concerns. Every protocol")
+	m.line("// fact in this file is read from the Contract Registry.")
+	m.line("")
 }
 
-func (e *methodsEmitter) imports() {
-	names := slices.Sorted(maps.Keys(e.imported))
+func (m *methodsEmitter) imports() {
+	names := slices.Sorted(maps.Keys(m.imported))
 	if len(names) == 0 {
 		return
 	}
-	e.line("import type {")
+	m.line("import type {")
 	for _, name := range names {
-		e.line("  %s,", name)
+		m.line("  %s,", name)
 	}
-	e.line("} from \"./wire.generated\";")
-	e.line("")
+	m.line("} from \"./wire.generated\";")
+	m.line("")
 }
 
-func (e *methodsEmitter) features() {
-	e.line("// Every capability key discovery may advertise (API.md §9). Private: it exists to")
-	e.line("// derive the union, and a published array with no reader would be a second table.")
-	e.line("const FEATURES = [")
+func (m *methodsEmitter) features() {
+	m.line("// Every capability key discovery may advertise (API.md §9). Private: it exists to")
+	m.line("// derive the union, and a published array with no reader would be a second table.")
+	m.line("const FEATURES = [")
 	for _, key := range protocol.FeatureKeys() {
-		e.line("  %s,", strconv.Quote(key))
+		m.line("  %s,", strconv.Quote(key))
 	}
-	e.line("] as const;")
-	e.line("")
-	e.line("/** One capability key discovery may advertise. */")
-	e.line("export type WireFeature = (typeof FEATURES)[number];")
-	e.line("")
+	m.line("] as const;")
+	m.line("")
+	m.line("/** One capability key discovery may advertise. */")
+	m.line("export type WireFeature = (typeof FEATURES)[number];")
+	m.line("")
 }
 
-func (e *methodsEmitter) names(metas []operation.MethodMeta) {
-	e.line("// Every method the runtime routes, in registration order.")
-	e.line("const METHOD_NAMES = [")
+func (m *methodsEmitter) names(metas []operation.MethodMeta) {
+	m.line("// Every method the runtime routes, in registration order.")
+	m.line("const METHOD_NAMES = [")
 	for _, meta := range metas {
-		e.line("  %s,", strconv.Quote(meta.Name.String()))
+		m.line("  %s,", strconv.Quote(meta.Name.String()))
 	}
-	e.line("] as const;")
-	e.line("")
-	e.line("/** One method the runtime routes. */")
-	e.line("export type WireMethodName = (typeof METHOD_NAMES)[number];")
-	e.line("")
+	m.line("] as const;")
+	m.line("")
+	m.line("/** One method the runtime routes. */")
+	m.line("export type WireMethodName = (typeof METHOD_NAMES)[number];")
+	m.line("")
 }
 
-func (e *methodsEmitter) streamingNames(metas []operation.MethodMeta) {
-	e.line("// Every method whose HTTP response remains open as an event stream.")
-	e.line("export const WIRE_STREAMING_METHOD_NAMES = [")
+func (m *methodsEmitter) streamingNames(metas []operation.MethodMeta) {
+	m.line("// Every method whose HTTP response remains open as an event stream.")
+	m.line("export const WIRE_STREAMING_METHOD_NAMES = [")
 	for _, meta := range metas {
 		if meta.Event != nil {
-			e.line("  %s,", strconv.Quote(meta.Name.String()))
+			m.line("  %s,", strconv.Quote(meta.Name.String()))
 		}
 	}
-	e.line("] as const;")
-	e.line("")
-	e.line("export type WireStreamingMethodName = (typeof WIRE_STREAMING_METHOD_NAMES)[number];")
-	e.line("")
-	e.line("export function isWireStreamingMethodName(")
-	e.line("  method: WireMethodName,")
-	e.line("): method is WireStreamingMethodName {")
-	e.line("  return (WIRE_STREAMING_METHOD_NAMES as readonly string[]).includes(method);")
-	e.line("}")
-	e.line("")
+	m.line("] as const;")
+	m.line("")
+	m.line("export type WireStreamingMethodName = (typeof WIRE_STREAMING_METHOD_NAMES)[number];")
+	m.line("")
+	m.line("export function isWireStreamingMethodName(")
+	m.line("  method: WireMethodName,")
+	m.line("): method is WireStreamingMethodName {")
+	m.line("  return (WIRE_STREAMING_METHOD_NAMES as readonly string[]).includes(method);")
+	m.line("}")
+	m.line("")
 }
 
-func (e *methodsEmitter) valueMethodNames(metas []operation.MethodMeta) {
-	e.line("// Methods whose validated wire result becomes a value in the ergonomic SDK.")
-	e.line("const VALUE_METHOD_NAMES = [")
+func (m *methodsEmitter) valueMethodNames(metas []operation.MethodMeta) {
+	m.line("// Methods whose validated wire result becomes a value in the ergonomic SDK.")
+	m.line("const VALUE_METHOD_NAMES = [")
 	for _, meta := range metas {
 		if meta.Result != nil {
-			e.line("  %s,", strconv.Quote(meta.Name.String()))
+			m.line("  %s,", strconv.Quote(meta.Name.String()))
 		}
 	}
-	e.line("] as const;")
-	e.line("")
-	e.line("type WireValueMethodName = (typeof VALUE_METHOD_NAMES)[number];")
-	e.line("")
-	e.line("export function wireMethodReturnsValue(")
-	e.line("  method: WireMethodName,")
-	e.line("): method is WireValueMethodName {")
-	e.line("  return (VALUE_METHOD_NAMES as readonly string[]).includes(method);")
-	e.line("}")
-	e.line("")
+	m.line("] as const;")
+	m.line("")
+	m.line("type WireValueMethodName = (typeof VALUE_METHOD_NAMES)[number];")
+	m.line("")
+	m.line("export function wireMethodReturnsValue(")
+	m.line("  method: WireMethodName,")
+	m.line("): method is WireValueMethodName {")
+	m.line("  return (VALUE_METHOD_NAMES as readonly string[]).includes(method);")
+	m.line("}")
+	m.line("")
 }
 
 // shapes renders the frames each method carries. A method with no result has no
@@ -286,14 +286,14 @@ func (e *methodsEmitter) valueMethodNames(metas []operation.MethodMeta) {
 // A stream's events are absent for the same reason its ack is present: the SDK names
 // RunEvent and WorkspaceEvent directly, which are already this contract's types, so
 // a per-method event alias would only add a second way to spell one of two answers.
-func (e *methodsEmitter) shapes(metas []operation.MethodMeta) string {
+func (m *methodsEmitter) shapes(metas []operation.MethodMeta) string {
 	var out strings.Builder
 	fmt.Fprintln(&out, "/** The frames each method carries. */")
 	fmt.Fprintln(&out, "export interface WireShapes {")
 	for _, meta := range metas {
-		members := []string{"params: " + e.shape(meta.Params)}
+		members := []string{"params: " + m.shape(meta.Params)}
 		if meta.Result != nil {
-			result := e.shape(meta.Result)
+			result := m.shape(meta.Result)
 			if meta.ResultNullable {
 				result += " | null"
 			}
@@ -306,26 +306,26 @@ func (e *methodsEmitter) shapes(metas []operation.MethodMeta) string {
 	return out.String()
 }
 
-func (e *methodsEmitter) helpers() {
-	e.line("export type WireParams<M extends WireMethodName> = WireShapes[M][\"params\"];")
-	e.line("")
-	e.line("/** A method with no result answers with an empty success. */")
-	e.line("export type WireResult<M extends WireMethodName> =")
-	e.line("  WireShapes[M] extends { result: infer R } ? R : void;")
+func (m *methodsEmitter) helpers() {
+	m.line("export type WireParams<M extends WireMethodName> = WireShapes[M][\"params\"];")
+	m.line("")
+	m.line("/** A method with no result answers with an empty success. */")
+	m.line("export type WireResult<M extends WireMethodName> =")
+	m.line("  WireShapes[M] extends { result: infer R } ? R : void;")
 }
 
 // shape names a Go frame type as TypeScript spells it, recording a published shape
 // so the import list can name it. A frame with no published definition renders
 // inline instead — the empty request struct as `Record<string, never>`, an opaque
 // tool result as `unknown` — and there is nothing to import.
-func (e *methodsEmitter) shape(t reflect.Type) string {
-	name := e.typeName(t)
-	if _, published := e.set.defs[name]; published {
-		e.imported[name] = true
+func (m *methodsEmitter) shape(t reflect.Type) string {
+	name := m.typeName(t)
+	if _, published := m.set.defs[name]; published {
+		m.imported[name] = true
 	}
 	return name
 }
 
-func (e *methodsEmitter) line(format string, arguments ...any) {
-	fmt.Fprintf(&e.out, format+"\n", arguments...)
+func (m *methodsEmitter) line(format string, arguments ...any) {
+	fmt.Fprintf(&m.out, format+"\n", arguments...)
 }

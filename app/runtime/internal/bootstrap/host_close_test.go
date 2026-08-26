@@ -234,26 +234,26 @@ func TestHostCloseBoundsNonCooperativeToolCloserWithoutConcurrentRetry(t *testin
 
 type closerFunc func() error
 
-func (f closerFunc) Close() error { return f() }
+func (c closerFunc) Close() error { return c() }
 
 type shutdownFunc struct {
 	stop func()
 	wait func(context.Context) error
 }
 
-func (f shutdownFunc) BeginShutdown() {
-	if f.stop != nil {
-		f.stop()
+func (s shutdownFunc) BeginShutdown() {
+	if s.stop != nil {
+		s.stop()
 	}
 }
 
-func (f shutdownFunc) AwaitShutdown(ctx context.Context) error {
-	if f.wait == nil {
+func (s shutdownFunc) AwaitShutdown(ctx context.Context) error {
+	if s.wait == nil {
 		return nil
 	}
-	return f.wait(ctx)
+	return s.wait(ctx)
 }
 
-func (f shutdownFunc) Cancel() { f.BeginShutdown() }
+func (s shutdownFunc) Cancel() { s.BeginShutdown() }
 
-func (f shutdownFunc) Wait(ctx context.Context) error { return f.AwaitShutdown(ctx) }
+func (s shutdownFunc) Wait(ctx context.Context) error { return s.AwaitShutdown(ctx) }

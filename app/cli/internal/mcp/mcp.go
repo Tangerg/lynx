@@ -33,9 +33,9 @@ const (
 	StreamableHTTP Transport = "streamableHttp"
 )
 
-func (transport Transport) Validate() error {
-	if transport != Stdio && transport != StreamableHTTP {
-		return fmt.Errorf("MCP transport %q is invalid", transport)
+func (t Transport) Validate() error {
+	if t != Stdio && t != StreamableHTTP {
+		return fmt.Errorf("MCP transport %q is invalid", t)
 	}
 	return nil
 }
@@ -57,25 +57,25 @@ type State struct {
 	Problem   *failure.Problem
 }
 
-func (state State) Validate() error {
-	switch state.Type {
+func (s State) Validate() error {
+	switch s.Type {
 	case Disabled, Disconnected, Connecting:
-		if state.ToolCount != nil || state.Problem != nil {
-			return fmt.Errorf("MCP %s state carries foreign data", state.Type)
+		if s.ToolCount != nil || s.Problem != nil {
+			return fmt.Errorf("MCP %s state carries foreign data", s.Type)
 		}
 	case Connected:
-		if state.ToolCount == nil || *state.ToolCount < 0 || state.Problem != nil {
+		if s.ToolCount == nil || *s.ToolCount < 0 || s.Problem != nil {
 			return errors.New("connected MCP state requires a non-negative tool count and no problem")
 		}
 	case Failed, NeedsAuth:
-		if state.ToolCount != nil || state.Problem == nil {
-			return fmt.Errorf("MCP %s state requires only a problem", state.Type)
+		if s.ToolCount != nil || s.Problem == nil {
+			return fmt.Errorf("MCP %s state requires only a problem", s.Type)
 		}
-		if err := state.Problem.Validate(); err != nil {
+		if err := s.Problem.Validate(); err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("MCP state %q is invalid", state.Type)
+		return fmt.Errorf("MCP state %q is invalid", s.Type)
 	}
 	return nil
 }
@@ -91,37 +91,37 @@ type Connection struct {
 	Directory           string
 }
 
-func (connection Connection) Validate() error {
-	if err := connection.Transport.Validate(); err != nil {
+func (c Connection) Validate() error {
+	if err := c.Transport.Validate(); err != nil {
 		return err
 	}
-	switch connection.Transport {
+	switch c.Transport {
 	case StreamableHTTP:
-		if strings.TrimSpace(connection.URL) == "" {
+		if strings.TrimSpace(c.URL) == "" {
 			return errors.New("HTTP MCP connection URL is empty")
 		}
-		if connection.Command != "" || len(connection.Args) != 0 || len(connection.EnvironmentMasked) != 0 || connection.Directory != "" {
+		if c.Command != "" || len(c.Args) != 0 || len(c.EnvironmentMasked) != 0 || c.Directory != "" {
 			return errors.New("HTTP MCP connection carries stdio fields")
 		}
 	case Stdio:
-		if strings.TrimSpace(connection.Command) == "" {
+		if strings.TrimSpace(c.Command) == "" {
 			return errors.New("stdio MCP connection command is empty")
 		}
-		if connection.URL != "" || connection.AuthorizationMasked != "" || len(connection.HeadersMasked) != 0 {
+		if c.URL != "" || c.AuthorizationMasked != "" || len(c.HeadersMasked) != 0 {
 			return errors.New("stdio MCP connection carries HTTP fields")
 		}
 	}
-	if err := validateStringMap("masked MCP headers", connection.HeadersMasked); err != nil {
+	if err := validateStringMap("masked MCP headers", c.HeadersMasked); err != nil {
 		return err
 	}
-	return validateStringMap("masked MCP environment", connection.EnvironmentMasked)
+	return validateStringMap("masked MCP environment", c.EnvironmentMasked)
 }
 
-func (connection Connection) Clone() Connection {
-	connection.Args = slices.Clone(connection.Args)
-	connection.HeadersMasked = maps.Clone(connection.HeadersMasked)
-	connection.EnvironmentMasked = maps.Clone(connection.EnvironmentMasked)
-	return connection
+func (c Connection) Clone() Connection {
+	c.Args = slices.Clone(c.Args)
+	c.HeadersMasked = maps.Clone(c.HeadersMasked)
+	c.EnvironmentMasked = maps.Clone(c.EnvironmentMasked)
+	return c
 }
 
 type Server struct {
@@ -134,36 +134,36 @@ type Server struct {
 	State            State
 }
 
-func (server Server) Validate() error {
-	if strings.TrimSpace(server.Name) == "" {
+func (s Server) Validate() error {
+	if strings.TrimSpace(s.Name) == "" {
 		return errors.New("MCP server name is empty")
 	}
-	if server.TimeoutSeconds < 0 {
+	if s.TimeoutSeconds < 0 {
 		return errors.New("MCP server timeout is negative")
 	}
-	if err := server.Connection.Validate(); err != nil {
-		return fmt.Errorf("MCP server %s: %w", server.Name, err)
+	if err := s.Connection.Validate(); err != nil {
+		return fmt.Errorf("MCP server %s: %w", s.Name, err)
 	}
-	if err := server.State.Validate(); err != nil {
-		return fmt.Errorf("MCP server %s: %w", server.Name, err)
+	if err := s.State.Validate(); err != nil {
+		return fmt.Errorf("MCP server %s: %w", s.Name, err)
 	}
-	if err := validateUniqueStrings("disabled MCP tools", server.DisabledTools); err != nil {
+	if err := validateUniqueStrings("disabled MCP tools", s.DisabledTools); err != nil {
 		return err
 	}
-	return validateUniqueStrings("auto-approved MCP tools", server.AutoApproveTools)
+	return validateUniqueStrings("auto-approved MCP tools", s.AutoApproveTools)
 }
 
-func (server Server) Clone() Server {
-	server.Connection = server.Connection.Clone()
-	server.DisabledTools = slices.Clone(server.DisabledTools)
-	server.AutoApproveTools = slices.Clone(server.AutoApproveTools)
-	if server.State.ToolCount != nil {
-		server.State.ToolCount = new(*server.State.ToolCount)
+func (s Server) Clone() Server {
+	s.Connection = s.Connection.Clone()
+	s.DisabledTools = slices.Clone(s.DisabledTools)
+	s.AutoApproveTools = slices.Clone(s.AutoApproveTools)
+	if s.State.ToolCount != nil {
+		s.State.ToolCount = new(*s.State.ToolCount)
 	}
-	if server.State.Problem != nil {
-		server.State.Problem = server.State.Problem.Clone()
+	if s.State.Problem != nil {
+		s.State.Problem = s.State.Problem.Clone()
 	}
-	return server
+	return s
 }
 
 type ChangeKind string
@@ -173,9 +173,9 @@ const (
 	Clear ChangeKind = "clear"
 )
 
-func (kind ChangeKind) Validate() error {
-	if kind != Set && kind != Clear {
-		return fmt.Errorf("MCP secret change %q is invalid", kind)
+func (c ChangeKind) Validate() error {
+	if c != Set && c != Clear {
+		return fmt.Errorf("MCP secret change %q is invalid", c)
 	}
 	return nil
 }
@@ -185,14 +185,14 @@ type AuthorizationChange struct {
 	Value string
 }
 
-func (change AuthorizationChange) Validate() error {
-	if err := change.Kind.Validate(); err != nil {
+func (a AuthorizationChange) Validate() error {
+	if err := a.Kind.Validate(); err != nil {
 		return err
 	}
-	if change.Kind == Set && strings.TrimSpace(change.Value) == "" {
+	if a.Kind == Set && strings.TrimSpace(a.Value) == "" {
 		return errors.New("MCP authorization set value is empty")
 	}
-	if change.Kind == Clear && change.Value != "" {
+	if a.Kind == Clear && a.Value != "" {
 		return errors.New("MCP authorization clear carries a value")
 	}
 	return nil
@@ -203,8 +203,8 @@ type HeadersChange struct {
 	Value map[string]string
 }
 
-func (change HeadersChange) Validate() error {
-	return validateMapChange("MCP headers", change.Kind, change.Value)
+func (h HeadersChange) Validate() error {
+	return validateMapChange("MCP headers", h.Kind, h.Value)
 }
 
 type EnvironmentChange struct {
@@ -212,8 +212,8 @@ type EnvironmentChange struct {
 	Value map[string]string
 }
 
-func (change EnvironmentChange) Validate() error {
-	return validateMapChange("MCP environment", change.Kind, change.Value)
+func (e EnvironmentChange) Validate() error {
+	return validateMapChange("MCP environment", e.Kind, e.Value)
 }
 
 type ConnectionInput struct {
@@ -227,37 +227,37 @@ type ConnectionInput struct {
 	Directory     string
 }
 
-func (connection ConnectionInput) Validate() error {
-	if err := connection.Transport.Validate(); err != nil {
+func (c ConnectionInput) Validate() error {
+	if err := c.Transport.Validate(); err != nil {
 		return err
 	}
-	switch connection.Transport {
+	switch c.Transport {
 	case StreamableHTTP:
-		if strings.TrimSpace(connection.URL) == "" {
+		if strings.TrimSpace(c.URL) == "" {
 			return errors.New("HTTP MCP connection input URL is empty")
 		}
-		if connection.Command != "" || len(connection.Args) != 0 || connection.Environment != nil || connection.Directory != "" {
+		if c.Command != "" || len(c.Args) != 0 || c.Environment != nil || c.Directory != "" {
 			return errors.New("HTTP MCP connection input carries stdio fields")
 		}
-		if connection.Authorization != nil {
-			if err := connection.Authorization.Validate(); err != nil {
+		if c.Authorization != nil {
+			if err := c.Authorization.Validate(); err != nil {
 				return err
 			}
 		}
-		if connection.Headers != nil {
-			if err := connection.Headers.Validate(); err != nil {
+		if c.Headers != nil {
+			if err := c.Headers.Validate(); err != nil {
 				return err
 			}
 		}
 	case Stdio:
-		if strings.TrimSpace(connection.Command) == "" {
+		if strings.TrimSpace(c.Command) == "" {
 			return errors.New("stdio MCP connection input command is empty")
 		}
-		if connection.URL != "" || connection.Authorization != nil || connection.Headers != nil {
+		if c.URL != "" || c.Authorization != nil || c.Headers != nil {
 			return errors.New("stdio MCP connection input carries HTTP fields")
 		}
-		if connection.Environment != nil {
-			if err := connection.Environment.Validate(); err != nil {
+		if c.Environment != nil {
+			if err := c.Environment.Validate(); err != nil {
 				return err
 			}
 		}
@@ -265,32 +265,32 @@ func (connection ConnectionInput) Validate() error {
 	return nil
 }
 
-func (connection ConnectionInput) Clone() ConnectionInput {
-	connection.Args = slices.Clone(connection.Args)
-	if connection.Authorization != nil {
-		connection.Authorization = new(*connection.Authorization)
+func (c ConnectionInput) Clone() ConnectionInput {
+	c.Args = slices.Clone(c.Args)
+	if c.Authorization != nil {
+		c.Authorization = new(*c.Authorization)
 	}
-	if connection.Headers != nil {
-		cloned := *connection.Headers
-		cloned.Value = maps.Clone(connection.Headers.Value)
-		connection.Headers = &cloned
+	if c.Headers != nil {
+		cloned := *c.Headers
+		cloned.Value = maps.Clone(c.Headers.Value)
+		c.Headers = &cloned
 	}
-	if connection.Environment != nil {
-		cloned := *connection.Environment
-		cloned.Value = maps.Clone(connection.Environment.Value)
-		connection.Environment = &cloned
+	if c.Environment != nil {
+		cloned := *c.Environment
+		cloned.Value = maps.Clone(c.Environment.Value)
+		c.Environment = &cloned
 	}
-	return connection
+	return c
 }
 
-func (connection ConnectionInput) validateCandidateSecrets() error {
-	if connection.Authorization != nil && connection.Authorization.Kind == Clear {
+func (c ConnectionInput) validateCandidateSecrets() error {
+	if c.Authorization != nil && c.Authorization.Kind == Clear {
 		return errors.New("MCP candidate cannot clear authorization without an existing server")
 	}
-	if connection.Headers != nil && connection.Headers.Kind == Clear {
+	if c.Headers != nil && c.Headers.Kind == Clear {
 		return errors.New("MCP candidate cannot clear headers without an existing server")
 	}
-	if connection.Environment != nil && connection.Environment.Kind == Clear {
+	if c.Environment != nil && c.Environment.Kind == Clear {
 		return errors.New("MCP candidate cannot clear environment without an existing server")
 	}
 	return nil
@@ -306,59 +306,59 @@ type Candidate struct {
 	AutoApproveTools []string
 }
 
-func (candidate Candidate) Validate() error {
-	if strings.TrimSpace(candidate.Name) == "" {
+func (c Candidate) Validate() error {
+	if strings.TrimSpace(c.Name) == "" {
 		return errors.New("MCP candidate name is empty")
 	}
-	if candidate.TimeoutSeconds < 0 {
+	if c.TimeoutSeconds < 0 {
 		return errors.New("MCP candidate timeout is negative")
 	}
-	if err := candidate.Connection.Validate(); err != nil {
-		return fmt.Errorf("MCP candidate %s: %w", candidate.Name, err)
+	if err := c.Connection.Validate(); err != nil {
+		return fmt.Errorf("MCP candidate %s: %w", c.Name, err)
 	}
-	if err := candidate.Connection.validateCandidateSecrets(); err != nil {
-		return fmt.Errorf("MCP candidate %s: %w", candidate.Name, err)
+	if err := c.Connection.validateCandidateSecrets(); err != nil {
+		return fmt.Errorf("MCP candidate %s: %w", c.Name, err)
 	}
-	if err := validateUniqueStrings("disabled MCP tools", candidate.DisabledTools); err != nil {
+	if err := validateUniqueStrings("disabled MCP tools", c.DisabledTools); err != nil {
 		return err
 	}
-	return validateUniqueStrings("auto-approved MCP tools", candidate.AutoApproveTools)
+	return validateUniqueStrings("auto-approved MCP tools", c.AutoApproveTools)
 }
 
-func (candidate Candidate) Clone() Candidate {
-	candidate.Connection = candidate.Connection.Clone()
-	candidate.DisabledTools = slices.Clone(candidate.DisabledTools)
-	candidate.AutoApproveTools = slices.Clone(candidate.AutoApproveTools)
-	return candidate
+func (c Candidate) Clone() Candidate {
+	c.Connection = c.Connection.Clone()
+	c.DisabledTools = slices.Clone(c.DisabledTools)
+	c.AutoApproveTools = slices.Clone(c.AutoApproveTools)
+	return c
 }
 
-func (candidate Candidate) ValidateResult(result Server) error {
-	if err := candidate.Validate(); err != nil {
+func (c Candidate) ValidateResult(result Server) error {
+	if err := c.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.Name != candidate.Name {
-		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, candidate.Name))
+	if result.Name != c.Name {
+		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, c.Name))
 	}
-	if result.Description != candidate.Description {
-		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, candidate.Description))
+	if result.Description != c.Description {
+		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, c.Description))
 	}
-	if result.TimeoutSeconds != candidate.TimeoutSeconds {
-		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, candidate.TimeoutSeconds))
+	if result.TimeoutSeconds != c.TimeoutSeconds {
+		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, c.TimeoutSeconds))
 	}
-	if !slices.Equal(result.DisabledTools, candidate.DisabledTools) {
-		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, candidate.DisabledTools))
+	if !slices.Equal(result.DisabledTools, c.DisabledTools) {
+		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, c.DisabledTools))
 	}
-	if !slices.Equal(result.AutoApproveTools, candidate.AutoApproveTools) {
-		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, candidate.AutoApproveTools))
+	if !slices.Equal(result.AutoApproveTools, c.AutoApproveTools) {
+		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, c.AutoApproveTools))
 	}
-	problems = append(problems, validateEnabledResult(candidate.Enabled, result.State))
-	problems = append(problems, candidate.Connection.validateCreateResult(result.Connection))
+	problems = append(problems, validateEnabledResult(c.Enabled, result.State))
+	problems = append(problems, c.Connection.validateCreateResult(result.Connection))
 	if err := errors.Join(problems...); err != nil {
-		return fmt.Errorf("MCP candidate %s: %w", candidate.Name, err)
+		return fmt.Errorf("MCP candidate %s: %w", c.Name, err)
 	}
 	return nil
 }
@@ -373,70 +373,70 @@ type ServerUpdate struct {
 	AutoApproveTools *[]string
 }
 
-func (update ServerUpdate) Validate() error {
-	if strings.TrimSpace(update.Server) == "" {
+func (s ServerUpdate) Validate() error {
+	if strings.TrimSpace(s.Server) == "" {
 		return errors.New("MCP update server is empty")
 	}
-	if !update.HasChanges() {
+	if !s.HasChanges() {
 		return errors.New("MCP update has no changes")
 	}
-	if update.Connection != nil {
-		if err := update.Connection.Validate(); err != nil {
-			return fmt.Errorf("MCP update %s: %w", update.Server, err)
+	if s.Connection != nil {
+		if err := s.Connection.Validate(); err != nil {
+			return fmt.Errorf("MCP update %s: %w", s.Server, err)
 		}
 	}
-	if update.TimeoutSeconds != nil && *update.TimeoutSeconds < 0 {
+	if s.TimeoutSeconds != nil && *s.TimeoutSeconds < 0 {
 		return errors.New("MCP update timeout is negative")
 	}
-	if update.DisabledTools != nil {
-		if err := validateUniqueStrings("disabled MCP tools", *update.DisabledTools); err != nil {
+	if s.DisabledTools != nil {
+		if err := validateUniqueStrings("disabled MCP tools", *s.DisabledTools); err != nil {
 			return err
 		}
 	}
-	if update.AutoApproveTools != nil {
-		if err := validateUniqueStrings("auto-approved MCP tools", *update.AutoApproveTools); err != nil {
+	if s.AutoApproveTools != nil {
+		if err := validateUniqueStrings("auto-approved MCP tools", *s.AutoApproveTools); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (update ServerUpdate) HasChanges() bool {
-	return update.Enabled != nil || update.Description != nil || update.Connection != nil || update.TimeoutSeconds != nil ||
-		update.DisabledTools != nil || update.AutoApproveTools != nil
+func (s ServerUpdate) HasChanges() bool {
+	return s.Enabled != nil || s.Description != nil || s.Connection != nil || s.TimeoutSeconds != nil ||
+		s.DisabledTools != nil || s.AutoApproveTools != nil
 }
 
-func (update ServerUpdate) ValidateResult(result Server) error {
-	if err := update.Validate(); err != nil {
+func (s ServerUpdate) ValidateResult(result Server) error {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	var problems []error
 	if err := result.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("runtime result: %w", err))
 	}
-	if result.Name != update.Server {
-		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, update.Server))
+	if result.Name != s.Server {
+		problems = append(problems, fmt.Errorf("runtime returned server %q, want %q", result.Name, s.Server))
 	}
-	if update.Enabled != nil {
-		problems = append(problems, validateEnabledResult(*update.Enabled, result.State))
+	if s.Enabled != nil {
+		problems = append(problems, validateEnabledResult(*s.Enabled, result.State))
 	}
-	if update.Description != nil && result.Description != *update.Description {
-		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, *update.Description))
+	if s.Description != nil && result.Description != *s.Description {
+		problems = append(problems, fmt.Errorf("runtime returned description %q, want %q", result.Description, *s.Description))
 	}
-	if update.TimeoutSeconds != nil && result.TimeoutSeconds != *update.TimeoutSeconds {
-		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, *update.TimeoutSeconds))
+	if s.TimeoutSeconds != nil && result.TimeoutSeconds != *s.TimeoutSeconds {
+		problems = append(problems, fmt.Errorf("runtime returned timeout %d, want %d", result.TimeoutSeconds, *s.TimeoutSeconds))
 	}
-	if update.DisabledTools != nil && !slices.Equal(result.DisabledTools, *update.DisabledTools) {
-		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, *update.DisabledTools))
+	if s.DisabledTools != nil && !slices.Equal(result.DisabledTools, *s.DisabledTools) {
+		problems = append(problems, fmt.Errorf("runtime returned disabled tools %v, want %v", result.DisabledTools, *s.DisabledTools))
 	}
-	if update.AutoApproveTools != nil && !slices.Equal(result.AutoApproveTools, *update.AutoApproveTools) {
-		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, *update.AutoApproveTools))
+	if s.AutoApproveTools != nil && !slices.Equal(result.AutoApproveTools, *s.AutoApproveTools) {
+		problems = append(problems, fmt.Errorf("runtime returned auto-approved tools %v, want %v", result.AutoApproveTools, *s.AutoApproveTools))
 	}
-	if update.Connection != nil {
-		problems = append(problems, update.Connection.validateUpdateResult(result.Connection))
+	if s.Connection != nil {
+		problems = append(problems, s.Connection.validateUpdateResult(result.Connection))
 	}
 	if err := errors.Join(problems...); err != nil {
-		return fmt.Errorf("MCP update %s: %w", update.Server, err)
+		return fmt.Errorf("MCP update %s: %w", s.Server, err)
 	}
 	return nil
 }
@@ -449,64 +449,64 @@ func validateEnabledResult(enabled bool, state State) error {
 	return nil
 }
 
-func (connection ConnectionInput) validateCreateResult(result Connection) error {
-	if err := connection.validateVisibleResult(result); err != nil {
+func (c ConnectionInput) validateCreateResult(result Connection) error {
+	if err := c.validateVisibleResult(result); err != nil {
 		return err
 	}
-	switch connection.Transport {
+	switch c.Transport {
 	case StreamableHTTP:
-		if err := validateMaskedSecret("authorization", connection.Authorization, result.AuthorizationMasked); err != nil {
+		if err := validateMaskedSecret("authorization", c.Authorization, result.AuthorizationMasked); err != nil {
 			return err
 		}
-		return validateMaskedMap("headers", connection.Headers, result.HeadersMasked)
+		return validateMaskedMap("headers", c.Headers, result.HeadersMasked)
 	case Stdio:
-		return validateMaskedMap("environment", connection.Environment, result.EnvironmentMasked)
+		return validateMaskedMap("environment", c.Environment, result.EnvironmentMasked)
 	default:
 		return nil
 	}
 }
 
-func (connection ConnectionInput) validateUpdateResult(result Connection) error {
-	if err := connection.validateVisibleResult(result); err != nil {
+func (c ConnectionInput) validateUpdateResult(result Connection) error {
+	if err := c.validateVisibleResult(result); err != nil {
 		return err
 	}
-	switch connection.Transport {
+	switch c.Transport {
 	case StreamableHTTP:
-		if connection.Authorization != nil {
-			if err := validateMaskedSecret("authorization", connection.Authorization, result.AuthorizationMasked); err != nil {
+		if c.Authorization != nil {
+			if err := validateMaskedSecret("authorization", c.Authorization, result.AuthorizationMasked); err != nil {
 				return err
 			}
 		}
-		if connection.Headers != nil {
-			return validateMaskedMap("headers", connection.Headers, result.HeadersMasked)
+		if c.Headers != nil {
+			return validateMaskedMap("headers", c.Headers, result.HeadersMasked)
 		}
 	case Stdio:
-		if connection.Environment != nil {
-			return validateMaskedMap("environment", connection.Environment, result.EnvironmentMasked)
+		if c.Environment != nil {
+			return validateMaskedMap("environment", c.Environment, result.EnvironmentMasked)
 		}
 	}
 	return nil
 }
 
-func (connection ConnectionInput) validateVisibleResult(result Connection) error {
+func (c ConnectionInput) validateVisibleResult(result Connection) error {
 	var problems []error
-	if result.Transport != connection.Transport {
-		problems = append(problems, fmt.Errorf("runtime returned transport %q, want %q", result.Transport, connection.Transport))
+	if result.Transport != c.Transport {
+		problems = append(problems, fmt.Errorf("runtime returned transport %q, want %q", result.Transport, c.Transport))
 	}
-	switch connection.Transport {
+	switch c.Transport {
 	case StreamableHTTP:
-		if result.URL != connection.URL {
-			problems = append(problems, fmt.Errorf("runtime returned URL %q, want %q", result.URL, connection.URL))
+		if result.URL != c.URL {
+			problems = append(problems, fmt.Errorf("runtime returned URL %q, want %q", result.URL, c.URL))
 		}
 	case Stdio:
-		if result.Command != connection.Command {
-			problems = append(problems, fmt.Errorf("runtime returned command %q, want %q", result.Command, connection.Command))
+		if result.Command != c.Command {
+			problems = append(problems, fmt.Errorf("runtime returned command %q, want %q", result.Command, c.Command))
 		}
-		if !slices.Equal(result.Args, connection.Args) {
-			problems = append(problems, fmt.Errorf("runtime returned args %v, want %v", result.Args, connection.Args))
+		if !slices.Equal(result.Args, c.Args) {
+			problems = append(problems, fmt.Errorf("runtime returned args %v, want %v", result.Args, c.Args))
 		}
-		if result.Directory != connection.Directory {
-			problems = append(problems, fmt.Errorf("runtime returned directory %q, want %q", result.Directory, connection.Directory))
+		if result.Directory != c.Directory {
+			problems = append(problems, fmt.Errorf("runtime returned directory %q, want %q", result.Directory, c.Directory))
 		}
 	}
 	return errors.Join(problems...)
@@ -569,12 +569,12 @@ type TestResult struct {
 	Problem *failure.Problem
 }
 
-func (result TestResult) Validate() error {
-	if result.OK == (result.Problem != nil) {
+func (t TestResult) Validate() error {
+	if t.OK == (t.Problem != nil) {
 		return errors.New("MCP test result must contain exactly one success or problem state")
 	}
-	if result.Problem != nil {
-		return result.Problem.Validate()
+	if t.Problem != nil {
+		return t.Problem.Validate()
 	}
 	return nil
 }
@@ -586,12 +586,12 @@ type Tool struct {
 	InputSchema json.RawMessage
 }
 
-func (tool Tool) Validate() error {
-	if strings.TrimSpace(tool.Server) == "" || strings.TrimSpace(tool.Name) == "" {
+func (t Tool) Validate() error {
+	if strings.TrimSpace(t.Server) == "" || strings.TrimSpace(t.Name) == "" {
 		return errors.New("MCP tool requires server and name")
 	}
-	if len(tool.InputSchema) != 0 && !json.Valid(tool.InputSchema) {
-		return fmt.Errorf("MCP tool %s/%s has invalid input schema JSON", tool.Server, tool.Name)
+	if len(t.InputSchema) != 0 && !json.Valid(t.InputSchema) {
+		return fmt.Errorf("MCP tool %s/%s has invalid input schema JSON", t.Server, t.Name)
 	}
 	return nil
 }
@@ -622,46 +622,46 @@ type AuthorizationReference struct {
 	Server string
 }
 
-func (reference AuthorizationReference) Validate() error {
-	if strings.TrimSpace(reference.ID) == "" || strings.TrimSpace(reference.Server) == "" {
+func (a AuthorizationReference) Validate() error {
+	if strings.TrimSpace(a.ID) == "" || strings.TrimSpace(a.Server) == "" {
 		return errors.New("MCP authorization reference requires attempt id and server")
 	}
 	return nil
 }
 
-func (attempt AuthorizationAttempt) Validate() error {
-	if strings.TrimSpace(attempt.ID) == "" || strings.TrimSpace(attempt.Server) == "" || attempt.CreatedAt.IsZero() {
+func (a AuthorizationAttempt) Validate() error {
+	if strings.TrimSpace(a.ID) == "" || strings.TrimSpace(a.Server) == "" || a.CreatedAt.IsZero() {
 		return errors.New("MCP authorization attempt identity is incomplete")
 	}
-	switch attempt.Status {
+	switch a.Status {
 	case AuthorizationPending:
-		if attempt.Problem != nil || attempt.FinishedAt != nil {
+		if a.Problem != nil || a.FinishedAt != nil {
 			return errors.New("pending MCP authorization carries a terminal result")
 		}
 	case AuthorizationSucceeded, AuthorizationCanceled:
-		if attempt.Problem != nil || attempt.FinishedAt == nil {
-			return fmt.Errorf("%s MCP authorization has an invalid terminal result", attempt.Status)
+		if a.Problem != nil || a.FinishedAt == nil {
+			return fmt.Errorf("%s MCP authorization has an invalid terminal result", a.Status)
 		}
 	case AuthorizationFailed:
-		if attempt.Problem == nil || attempt.FinishedAt == nil {
+		if a.Problem == nil || a.FinishedAt == nil {
 			return errors.New("failed MCP authorization requires a problem and finish time")
 		}
-		if err := attempt.Problem.Validate(); err != nil {
+		if err := a.Problem.Validate(); err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("MCP authorization status %q is invalid", attempt.Status)
+		return fmt.Errorf("MCP authorization status %q is invalid", a.Status)
 	}
-	if attempt.FinishedAt != nil && attempt.FinishedAt.Before(attempt.CreatedAt) {
+	if a.FinishedAt != nil && a.FinishedAt.Before(a.CreatedAt) {
 		return errors.New("MCP authorization finished before it started")
 	}
 	return nil
 }
 
-func (attempt AuthorizationAttempt) Pending() bool { return attempt.Status == AuthorizationPending }
+func (a AuthorizationAttempt) Pending() bool { return a.Status == AuthorizationPending }
 
-func (attempt AuthorizationAttempt) Reference() AuthorizationReference {
-	return AuthorizationReference{ID: attempt.ID, Server: attempt.Server}
+func (a AuthorizationAttempt) Reference() AuthorizationReference {
+	return AuthorizationReference{ID: a.ID, Server: a.Server}
 }
 
 type Service interface {

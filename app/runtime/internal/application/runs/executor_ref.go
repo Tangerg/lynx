@@ -19,15 +19,15 @@ type ExecutorRef struct {
 
 // ValidateFor checks that the executor returned a complete identity bound to
 // the admitted session.
-func (r ExecutorRef) ValidateFor(sessionID string) error {
-	if strings.TrimSpace(r.SessionID) == "" || strings.TrimSpace(r.SessionID) != r.SessionID {
+func (e ExecutorRef) ValidateFor(sessionID string) error {
+	if strings.TrimSpace(e.SessionID) == "" || strings.TrimSpace(e.SessionID) != e.SessionID {
 		return fmt.Errorf("%w: session ID must be non-empty without surrounding whitespace", ErrInvalidExecutorRef)
 	}
-	if strings.TrimSpace(r.ExecutorID) == "" || strings.TrimSpace(r.ExecutorID) != r.ExecutorID {
+	if strings.TrimSpace(e.ExecutorID) == "" || strings.TrimSpace(e.ExecutorID) != e.ExecutorID {
 		return fmt.Errorf("%w: executor ID must be non-empty without surrounding whitespace", ErrInvalidExecutorRef)
 	}
-	if r.SessionID != sessionID {
-		return fmt.Errorf("%w: executor session %q does not match admitted session %q", ErrInvalidExecutorRef, r.SessionID, sessionID)
+	if e.SessionID != sessionID {
+		return fmt.Errorf("%w: executor session %q does not match admitted session %q", ErrInvalidExecutorRef, e.SessionID, sessionID)
 	}
 	return nil
 }

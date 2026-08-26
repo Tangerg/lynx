@@ -212,24 +212,24 @@ type orderedSource struct {
 	operations []string
 }
 
-func (s *orderedSource) GetSession(ctx context.Context, id string) (agent.SessionSnapshot, error) {
-	s.record("read")
-	return s.Source.GetSession(ctx, id)
+func (o *orderedSource) GetSession(ctx context.Context, id string) (agent.SessionSnapshot, error) {
+	o.record("read")
+	return o.Source.GetSession(ctx, id)
 }
 
-func (s *orderedSource) SubscribeRun(ctx context.Context, request agent.SubscribeRun) (agent.SegmentStream, error) {
-	s.record("attach")
-	return s.Source.SubscribeRun(ctx, request)
+func (o *orderedSource) SubscribeRun(ctx context.Context, request agent.SubscribeRun) (agent.SegmentStream, error) {
+	o.record("attach")
+	return o.Source.SubscribeRun(ctx, request)
 }
 
-func (s *orderedSource) record(operation string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.operations = append(s.operations, operation)
+func (o *orderedSource) record(operation string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.operations = append(o.operations, operation)
 }
 
-func (s *orderedSource) snapshot() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.operations)
+func (o *orderedSource) snapshot() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.operations)
 }

@@ -28,8 +28,8 @@ const (
 	RequirementRuntimeTopic  RequirementKind = "runtimeTopic"
 )
 
-func (kind RequirementKind) valid() bool {
-	switch kind {
+func (r RequirementKind) valid() bool {
+	switch r {
 	case RequirementFeature, RequirementInterruptType, RequirementRuntimeTopic:
 		return true
 	default:
@@ -84,16 +84,16 @@ func FromError(err error) (*Problem, bool) {
 
 // Validate checks the portable structure without copying the runtime's
 // provider-extensible problem-type registry into the CLI core.
-func (problem Problem) Validate() error {
+func (p Problem) Validate() error {
 	var problems []error
-	if strings.TrimSpace(problem.Type) == "" {
+	if strings.TrimSpace(p.Type) == "" {
 		problems = append(problems, errors.New("type is empty"))
 	}
-	if problem.RetryAfterSeconds < 0 {
+	if p.RetryAfterSeconds < 0 {
 		problems = append(problems, errors.New("retry delay is negative"))
 	}
-	seen := make(map[CapabilityRequirement]struct{}, len(problem.RequiredCapabilities))
-	for index, requirement := range problem.RequiredCapabilities {
+	seen := make(map[CapabilityRequirement]struct{}, len(p.RequiredCapabilities))
+	for index, requirement := range p.RequiredCapabilities {
 		if !requirement.Kind.valid() {
 			problems = append(problems, fmt.Errorf("required capability %d has invalid kind %q", index+1, requirement.Kind))
 		}
@@ -105,17 +105,17 @@ func (problem Problem) Validate() error {
 		}
 		seen[requirement] = struct{}{}
 	}
-	if problem.ActiveRun != nil {
-		if strings.TrimSpace(problem.ActiveRun.RunID) == "" {
+	if p.ActiveRun != nil {
+		if strings.TrimSpace(p.ActiveRun.RunID) == "" {
 			problems = append(problems, errors.New("active run id is empty"))
 		}
-		switch problem.ActiveRun.Status {
+		switch p.ActiveRun.Status {
 		case "running", "waiting", "finished":
 		default:
-			problems = append(problems, fmt.Errorf("active run status %q is invalid", problem.ActiveRun.Status))
+			problems = append(problems, fmt.Errorf("active run status %q is invalid", p.ActiveRun.Status))
 		}
 	}
-	for index, field := range problem.Errors {
+	for index, field := range p.Errors {
 		if strings.TrimSpace(field.Field) == "" {
 			problems = append(problems, fmt.Errorf("field error %d has an empty field", index+1))
 		}
@@ -130,38 +130,38 @@ func (problem Problem) Validate() error {
 }
 
 // Clone returns an independently owned problem. It is safe on a nil receiver.
-func (problem *Problem) Clone() *Problem {
-	if problem == nil {
+func (p *Problem) Clone() *Problem {
+	if p == nil {
 		return nil
 	}
-	cloned := *problem
-	cloned.RequiredCapabilities = slices.Clone(problem.RequiredCapabilities)
-	cloned.Errors = slices.Clone(problem.Errors)
-	if problem.ActiveRun != nil {
-		cloned.ActiveRun = new(*problem.ActiveRun)
+	cloned := *p
+	cloned.RequiredCapabilities = slices.Clone(p.RequiredCapabilities)
+	cloned.Errors = slices.Clone(p.Errors)
+	if p.ActiveRun != nil {
+		cloned.ActiveRun = new(*p.ActiveRun)
 	}
 	return &cloned
 }
 
 // Equal reports whether two optional problems carry the same information.
-func (problem *Problem) Equal(other *Problem) bool {
-	if problem == nil || other == nil {
-		return problem == other
+func (p *Problem) Equal(other *Problem) bool {
+	if p == nil || other == nil {
+		return p == other
 	}
-	if problem.Type != other.Type || problem.Detail != other.Detail || problem.DocURL != other.DocURL ||
-		problem.RetryAfterSeconds != other.RetryAfterSeconds || !slices.Equal(problem.RequiredCapabilities, other.RequiredCapabilities) ||
-		!slices.Equal(problem.Errors, other.Errors) || (problem.ActiveRun == nil) != (other.ActiveRun == nil) {
+	if p.Type != other.Type || p.Detail != other.Detail || p.DocURL != other.DocURL ||
+		p.RetryAfterSeconds != other.RetryAfterSeconds || !slices.Equal(p.RequiredCapabilities, other.RequiredCapabilities) ||
+		!slices.Equal(p.Errors, other.Errors) || (p.ActiveRun == nil) != (other.ActiveRun == nil) {
 		return false
 	}
-	return problem.ActiveRun == nil || *problem.ActiveRun == *other.ActiveRun
+	return p.ActiveRun == nil || *p.ActiveRun == *other.ActiveRun
 }
 
 // Message returns the most useful concise explanation for status lines.
-func (problem Problem) Message(fallback string) string {
-	if detail := strings.TrimSpace(problem.Detail); detail != "" {
+func (p Problem) Message(fallback string) string {
+	if detail := strings.TrimSpace(p.Detail); detail != "" {
 		return detail
 	}
-	if problemType := strings.TrimSpace(problem.Type); problemType != "" {
+	if problemType := strings.TrimSpace(p.Type); problemType != "" {
 		return problemType
 	}
 	return fallback
@@ -170,30 +170,30 @@ func (problem Problem) Message(fallback string) string {
 // String returns a complete, single-line human projection. Machine consumers
 // marshal Problem directly and therefore retain the same information without
 // parsing this text.
-func (problem Problem) String() string {
-	parts := []string{problem.Type}
-	if detail := strings.TrimSpace(problem.Detail); detail != "" {
+func (p Problem) String() string {
+	parts := []string{p.Type}
+	if detail := strings.TrimSpace(p.Detail); detail != "" {
 		parts[0] += ": " + detail
 	}
-	if problem.RetryAfterSeconds > 0 {
-		parts = append(parts, fmt.Sprintf("retry after %ds", problem.RetryAfterSeconds))
+	if p.RetryAfterSeconds > 0 {
+		parts = append(parts, fmt.Sprintf("retry after %ds", p.RetryAfterSeconds))
 	}
-	if problem.DocURL != "" {
-		parts = append(parts, "docs "+problem.DocURL)
+	if p.DocURL != "" {
+		parts = append(parts, "docs "+p.DocURL)
 	}
-	if len(problem.RequiredCapabilities) > 0 {
-		required := make([]string, 0, len(problem.RequiredCapabilities))
-		for _, capability := range problem.RequiredCapabilities {
+	if len(p.RequiredCapabilities) > 0 {
+		required := make([]string, 0, len(p.RequiredCapabilities))
+		for _, capability := range p.RequiredCapabilities {
 			required = append(required, string(capability.Kind)+":"+capability.Name)
 		}
 		parts = append(parts, "requires "+strings.Join(required, ", "))
 	}
-	if problem.ActiveRun != nil {
-		parts = append(parts, fmt.Sprintf("active run %s (%s)", problem.ActiveRun.RunID, problem.ActiveRun.Status))
+	if p.ActiveRun != nil {
+		parts = append(parts, fmt.Sprintf("active run %s (%s)", p.ActiveRun.RunID, p.ActiveRun.Status))
 	}
-	if len(problem.Errors) > 0 {
-		fields := make([]string, 0, len(problem.Errors))
-		for _, field := range problem.Errors {
+	if len(p.Errors) > 0 {
+		fields := make([]string, 0, len(p.Errors))
+		for _, field := range p.Errors {
 			fields = append(fields, field.Field+": "+field.Detail)
 		}
 		parts = append(parts, "fields "+strings.Join(fields, ", "))

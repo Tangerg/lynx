@@ -77,7 +77,7 @@ func newOAuthFlow(ctx context.Context) (*oauthFlow, error) {
 
 // handleCallback captures the authorization code (or error) from the redirect,
 // shows the user a close-this-tab page, and hands the outcome to fetch.
-func (f *oauthFlow) handleCallback(w http.ResponseWriter, r *http.Request) {
+func (o *oauthFlow) handleCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	cb := oauthCallback{code: q.Get("code"), state: q.Get("state")}
 	switch {
@@ -93,19 +93,19 @@ func (f *oauthFlow) handleCallback(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(oauthResultHTML("Authorized — close this tab and return to Lyra.")))
 	}
 	select {
-	case f.result <- cb:
+	case o.result <- cb:
 	default:
 	}
 }
 
 // fetch is the [auth.AuthorizationCodeFetcher]: open the browser to the
 // authorization URL, then wait for the loopback redirect (or ctx timeout).
-func (f *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
+func (o *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
 	if err := openBrowser(ctx, args.URL); err != nil {
 		return nil, fmt.Errorf("mcp oauth: open browser (visit %s manually): %w", args.URL, err)
 	}
 	select {
-	case cb := <-f.result:
+	case cb := <-o.result:
 		if cb.err != nil {
 			return nil, cb.err
 		}
@@ -120,15 +120,15 @@ func (f *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*a
 // detach cancellation with WithoutCancel — which keeps the trace span/baggage
 // (full-link observability, unlike a bare context.Background) — and bound the
 // graceful Shutdown with its own 1s timeout.
-func (f *oauthFlow) close(ctx context.Context) {
+func (o *oauthFlow) close(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
-	shutdownErr := f.server.Shutdown(shutdownCtx)
+	shutdownErr := o.server.Shutdown(shutdownCtx)
 	var forceErr error
 	if shutdownErr != nil {
-		forceErr = f.server.Close()
+		forceErr = o.server.Close()
 	}
-	serveErr := <-f.serveDone
+	serveErr := <-o.serveDone
 	if errors.Is(serveErr, http.ErrServerClosed) {
 		serveErr = nil
 	}

@@ -18,13 +18,13 @@ const interactionBarrierPauseReason = "runtime human-input tree barrier"
 // CancelRunningSubtree submits a product-owned cancellation to one exact live
 // managed Delegate. Agent Framework owns propagation to descendants and the resulting
 // child completion; Runtime observes those facts through the normal tree pump.
-func (executor *InteractionExecutor) CancelRunningSubtree(
+func (i *InteractionExecutor) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	memberID string,
 	reason string,
 ) error {
-	session, err := executor.session(ref)
+	session, err := i.session(ref)
 	if err != nil {
 		return err
 	}
@@ -63,19 +63,19 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 // boundary. A parent waiting only on children is not itself a product barrier;
 // pausing its still-opening child before this proof would capture a half-step
 // with no durable Interrupt to resume.
-func (session *interactionSession) captureHumanInputBarrier(
+func (i *interactionSession) captureHumanInputBarrier(
 	ctx context.Context,
 ) (agent.TreeSnapshot, []runs.MemberInterruption, bool, error) {
-	root := session.state.processHandle()
+	root := i.state.processHandle()
 	if root == nil || root.Status() != agent.StatusWaiting {
 		return agent.TreeSnapshot{}, nil, false, errors.New("agentexec: Interaction root is not waiting")
 	}
 	for {
-		tree, err := session.engine.CaptureTree(ctx, root.Relation().RootID())
+		tree, err := i.engine.CaptureTree(ctx, root.Relation().RootID())
 		if err != nil {
 			return agent.TreeSnapshot{}, nil, false, err
 		}
-		interruptions, err := session.pendingInterruptions(tree)
+		interruptions, err := i.pendingInterruptions(tree)
 		if err != nil {
 			return agent.TreeSnapshot{}, nil, false, err
 		}
@@ -87,7 +87,7 @@ func (session *interactionSession) captureHumanInputBarrier(
 			if snapshot.Status() != agent.StatusRunning {
 				continue
 			}
-			process, found := session.engine.Process(snapshot.ProcessID())
+			process, found := i.engine.Process(snapshot.ProcessID())
 			if !found {
 				paused = true
 				continue
@@ -105,7 +105,7 @@ func (session *interactionSession) captureHumanInputBarrier(
 	}
 }
 
-func (session *interactionSession) pendingInterruptions(
+func (i *interactionSession) pendingInterruptions(
 	tree agent.TreeSnapshot,
 ) ([]runs.MemberInterruption, error) {
 	if !tree.Valid() {
@@ -120,7 +120,7 @@ func (session *interactionSession) pendingInterruptions(
 		if !found {
 			continue
 		}
-		if _, bound := session.executorMemberByProcessID(snapshot.ProcessID()); !bound {
+		if _, bound := i.executorMemberByProcessID(snapshot.ProcessID()); !bound {
 			return nil, fmt.Errorf("pending Interaction member %s has no product binding", snapshot.ProcessID())
 		}
 		prompt, err := interactioninput.DecodePrompt(pending.Prompt())
@@ -140,14 +140,14 @@ func (session *interactionSession) pendingInterruptions(
 	return interruptions, nil
 }
 
-func (session *interactionSession) unknownEffectIDs(ctx context.Context) ([]agent.EffectID, error) {
-	session.state.mu.Lock()
-	root := session.state.process
-	children := make([]agent.ProcessID, 0, len(session.state.delegateChildren))
-	for processID := range session.state.delegateChildren {
+func (i *interactionSession) unknownEffectIDs(ctx context.Context) ([]agent.EffectID, error) {
+	i.state.mu.Lock()
+	root := i.state.process
+	children := make([]agent.ProcessID, 0, len(i.state.delegateChildren))
+	for processID := range i.state.delegateChildren {
 		children = append(children, processID)
 	}
-	session.state.mu.Unlock()
+	i.state.mu.Unlock()
 	if root == nil {
 		return nil, runs.ErrExecutorNotLive
 	}
@@ -157,7 +157,7 @@ func (session *interactionSession) unknownEffectIDs(ctx context.Context) ([]agen
 	processes := make([]*agent.Process, 0, len(children)+1)
 	processes = append(processes, root)
 	for _, processID := range children {
-		process, found := session.engine.Process(processID)
+		process, found := i.engine.Process(processID)
 		if found {
 			processes = append(processes, process)
 		}
@@ -177,10 +177,10 @@ func (session *interactionSession) unknownEffectIDs(ctx context.Context) ([]agen
 	return ids, nil
 }
 
-func (session *interactionSession) pausedProcessIDs() ([]agent.ProcessID, error) {
-	session.state.mu.Lock()
-	checkpoint := session.state.waitingCheckpoint.Clone()
-	session.state.mu.Unlock()
+func (i *interactionSession) pausedProcessIDs() ([]agent.ProcessID, error) {
+	i.state.mu.Lock()
+	checkpoint := i.state.waitingCheckpoint.Clone()
+	i.state.mu.Unlock()
 	state, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
 	if err != nil {
 		return nil, err
@@ -194,13 +194,13 @@ func (session *interactionSession) pausedProcessIDs() ([]agent.ProcessID, error)
 	return paused, nil
 }
 
-func (session *interactionSession) resumePausedProcesses(
+func (i *interactionSession) resumePausedProcesses(
 	ctx context.Context,
 	processIDs []agent.ProcessID,
 ) error {
 	processes := make([]*agent.Process, len(processIDs))
 	for index, processID := range processIDs {
-		process, found := session.engine.Process(processID)
+		process, found := i.engine.Process(processID)
 		if !found {
 			return fmt.Errorf("agentexec: paused Interaction member %s is unavailable", processID)
 		}

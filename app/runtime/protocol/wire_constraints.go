@@ -174,12 +174,12 @@ type ConstraintError struct {
 	Fields []FieldError
 }
 
-func (e *ConstraintError) Error() string {
-	parts := make([]string, 0, len(e.Fields))
-	for _, f := range e.Fields {
+func (c *ConstraintError) Error() string {
+	parts := make([]string, 0, len(c.Fields))
+	for _, f := range c.Fields {
 		path := f.Field
-		if e.Shape != "" {
-			path = e.Shape + "." + path
+		if c.Shape != "" {
+			path = c.Shape + "." + path
 		}
 		parts = append(parts, path+": "+f.Detail)
 	}
@@ -188,8 +188,8 @@ func (e *ConstraintError) Error() string {
 
 // Enrich preserves the exact offending fields when a nested decoder returns the
 // error through the normal dispatcher error path.
-func (e *ConstraintError) Enrich(data *ProblemData) {
-	data.Errors = append(data.Errors, e.Fields...)
+func (c *ConstraintError) Enrich(data *ProblemData) {
+	data.Errors = append(data.Errors, c.Fields...)
 }
 
 // collectWireViolations returns nil when there is nothing to report, so a

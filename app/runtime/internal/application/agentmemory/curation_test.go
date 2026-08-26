@@ -26,24 +26,24 @@ func (s *singleWinnerCurationStore) Reconcile(context.Context, string, int64, in
 	return s.won.CompareAndSwap(false, true), nil
 }
 
-func (s *fakeCurationStore) AppendLedger(context.Context, domain.FactBatch) ([]domain.LedgerFact, error) {
-	return nil, s.err
+func (f *fakeCurationStore) AppendLedger(context.Context, domain.FactBatch) ([]domain.LedgerFact, error) {
+	return nil, f.err
 }
 
-func (s *fakeCurationStore) PendingLedger(context.Context, string, int64, int) ([]domain.LedgerFact, error) {
-	return nil, s.err
+func (f *fakeCurationStore) PendingLedger(context.Context, string, int64, int) ([]domain.LedgerFact, error) {
+	return nil, f.err
 }
 
-func (s *fakeCurationStore) State(context.Context, string) (domain.State, error) {
-	return domain.State{}, s.err
+func (f *fakeCurationStore) State(context.Context, string) (domain.State, error) {
+	return domain.State{}, f.err
 }
 
-func (s *fakeCurationStore) Reconcile(context.Context, string, int64, int64, []string, time.Time) (bool, error) {
-	return s.published, s.err
+func (f *fakeCurationStore) Reconcile(context.Context, string, int64, int64, []string, time.Time) (bool, error) {
+	return f.published, f.err
 }
 
-func (s *fakeCurationStore) Items(context.Context, domain.Scope, string) ([]domain.Item, error) {
-	return nil, s.err
+func (f *fakeCurationStore) Items(context.Context, domain.Scope, string) ([]domain.Item, error) {
+	return nil, f.err
 }
 
 func TestCurationReconcilePublishesOnlyNewGeneration(t *testing.T) {

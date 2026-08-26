@@ -694,8 +694,8 @@ func buildCancellationRunTree(
 	return runTree, nil
 }
 
-func (tree cancellationRunTree) validateLifecycle() error {
-	root := tree.root
+func (c cancellationRunTree) validateLifecycle() error {
+	root := c.root
 	if root.State() != rundomain.Running && root.State() != rundomain.Waiting {
 		return fmt.Errorf(
 			"runs: build cancellation plan: root Run %q is %s",
@@ -703,14 +703,14 @@ func (tree cancellationRunTree) validateLifecycle() error {
 			root.State(),
 		)
 	}
-	if tree.target.State().IsTerminal() {
+	if c.target.State().IsTerminal() {
 		return fmt.Errorf(
 			"runs: build cancellation plan: target Run %q is %s",
-			tree.target.ID(),
-			tree.target.State(),
+			c.target.ID(),
+			c.target.State(),
 		)
 	}
-	for _, run := range tree.byRunID {
+	for _, run := range c.byRunID {
 		if !run.State().IsTerminal() && run.State() != root.State() {
 			return fmt.Errorf(
 				"runs: build cancellation plan: non-terminal Run %q is %s while root %q is %s",
@@ -724,12 +724,12 @@ func (tree cancellationRunTree) validateLifecycle() error {
 	return nil
 }
 
-func (tree cancellationRunTree) openRunIDs(
+func (c cancellationRunTree) openRunIDs(
 	bindings map[string]cancellationRun,
 ) ([]string, error) {
-	openRunIDs := make([]string, 0, len(tree.byRunID))
-	for _, runID := range tree.topology.Postorder() {
-		run := tree.byRunID[runID]
+	openRunIDs := make([]string, 0, len(c.byRunID))
+	for _, runID := range c.topology.Postorder() {
+		run := c.byRunID[runID]
 		if run.State().IsTerminal() {
 			continue
 		}

@@ -816,19 +816,19 @@ func testFinalizer(stores *fakeStores, cfg FinalizerConfig) *Finalizer {
 	return mustNewFinalizer(cfg)
 }
 
-func (s *fakeStores) Interrupts() InterruptStore   { return s.interrupts }
-func (s *fakeStores) Session() SessionStore        { return s.session }
-func (s *fakeStores) Transcript() TranscriptStore  { return s.transcript }
-func (s *fakeStores) ToolResults() ToolResultStore { return s.toolResults }
-func (s *fakeStores) Count(context.Context, string) (int, error) {
-	return s.mark, s.markErr
+func (f *fakeStores) Interrupts() InterruptStore   { return f.interrupts }
+func (f *fakeStores) Session() SessionStore        { return f.session }
+func (f *fakeStores) Transcript() TranscriptStore  { return f.transcript }
+func (f *fakeStores) ToolResults() ToolResultStore { return f.toolResults }
+func (f *fakeStores) Count(context.Context, string) (int, error) {
+	return f.mark, f.markErr
 }
 func (*fakeStores) Write(context.Context, string, ...chat.Message) error { return nil }
-func (s *fakeStores) Generate(context.Context, string) (string, error) {
-	if s.operations != nil {
-		*s.operations = append(*s.operations, "title.generate")
+func (f *fakeStores) Generate(context.Context, string) (string, error) {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "title.generate")
 	}
-	return s.title, s.titleErr
+	return f.title, f.titleErr
 }
 
 // finishedRunRecord is the terminal Run a reducer hands to a terminal commit: it
@@ -878,28 +878,28 @@ func (*fakeRunState) Run(context.Context, string) (run.Run, bool, error) {
 	return run.Run{}, false, nil
 }
 
-func (r *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
-	r.admitted = append(r.admitted, draft)
+func (f *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
+	f.admitted = append(f.admitted, draft)
 	return nil
 }
 
-func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ run.ResumeDraft, _ time.Time) error {
-	r.resumed = append(r.resumed, sessionID)
+func (f *fakeRunState) Resume(_ context.Context, sessionID string, _ run.ResumeDraft, _ time.Time) error {
+	f.resumed = append(f.resumed, sessionID)
 	return nil
 }
 
-func (r *fakeRunState) RequireActiveSegment(_ context.Context, sessionID, runID, segmentID string) error {
-	r.eventSegments = append(r.eventSegments, sessionID+"/"+runID+"/"+segmentID)
+func (f *fakeRunState) RequireActiveSegment(_ context.Context, sessionID, runID, segmentID string) error {
+	f.eventSegments = append(f.eventSegments, sessionID+"/"+runID+"/"+segmentID)
 	return nil
 }
 
-func (r *fakeRunState) Suspend(_ context.Context, run run.Run) error {
-	r.suspended = append(r.suspended, run)
+func (f *fakeRunState) Suspend(_ context.Context, run run.Run) error {
+	f.suspended = append(f.suspended, run)
 	return nil
 }
 
-func (r *fakeRunState) Terminalize(_ context.Context, run run.Run) error {
-	r.terminalized = append(r.terminalized, run)
+func (f *fakeRunState) Terminalize(_ context.Context, run run.Run) error {
+	f.terminalized = append(f.terminalized, run)
 	return nil
 }
 
@@ -915,8 +915,8 @@ func (*fakeRunState) UpdateProgress(
 	return nil
 }
 
-func (r *fakeRunState) TerminalizeEvent(_ context.Context, run run.Run, _, _ string) error {
-	r.terminalized = append(r.terminalized, run)
+func (f *fakeRunState) TerminalizeEvent(_ context.Context, run run.Run, _, _ string) error {
+	f.terminalized = append(f.terminalized, run)
 	return nil
 }
 
@@ -926,8 +926,8 @@ func (*fakeRunState) RecordRunCommit(context.Context, string, string, string, st
 func (*fakeRunState) RecordWaitingRunCommit(context.Context, string, string, string) error {
 	return nil
 }
-func (r *fakeRunState) SuspendBarrier(ctx context.Context, value run.Run, _, _ string) error {
-	return r.Suspend(ctx, value)
+func (f *fakeRunState) SuspendBarrier(ctx context.Context, value run.Run, _, _ string) error {
+	return f.Suspend(ctx, value)
 }
 func (*fakeRunState) RunCommitCommitted(context.Context, string, string, string, string) (bool, error) {
 	return false, nil
@@ -936,8 +936,8 @@ func (*fakeRunState) RunCommitCommitted(context.Context, string, string, string,
 // fakeTx records how many transactions the commit opens and runs the body inline.
 type fakeTx struct{ calls int }
 
-func (t *fakeTx) run(ctx context.Context, fn func(context.Context) error) error {
-	t.calls++
+func (f *fakeTx) run(ctx context.Context, fn func(context.Context) error) error {
+	f.calls++
 	return fn(ctx)
 }
 
@@ -946,13 +946,13 @@ type nonReentrantTx struct {
 	active bool
 }
 
-func (t *nonReentrantTx) run(ctx context.Context, fn func(context.Context) error) error {
-	t.calls++
-	if t.active {
+func (n *nonReentrantTx) run(ctx context.Context, fn func(context.Context) error) error {
+	n.calls++
+	if n.active {
 		return errors.New("nested transaction")
 	}
-	t.active = true
-	defer func() { t.active = false }()
+	n.active = true
+	defer func() { n.active = false }()
 	return fn(ctx)
 }
 
@@ -962,12 +962,12 @@ func (*fakeChildRunStarts) Reserve(context.Context, sqlite.ChildRunStartReservat
 	return nil
 }
 
-func (store *fakeChildRunStarts) Conclude(
+func (f *fakeChildRunStarts) Conclude(
 	context.Context,
 	sqlite.ChildRunStartReservationRecord,
 	sqlite.ChildRunStartConclusion,
 ) (bool, error) {
-	store.conclusions++
+	f.conclusions++
 	return true, nil
 }
 
@@ -989,20 +989,20 @@ type fakeToolResults struct {
 	discarded []toolResultBinding
 }
 
-func (s *fakeToolResults) Bind(_ context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
-	s.bindings = append(s.bindings, toolResultBinding{
+func (f *fakeToolResults) Bind(_ context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
+	f.bindings = append(f.bindings, toolResultBinding{
 		sessionID: sessionID, itemID: itemID, preview: preview, ref: ref,
 	})
 	return nil
 }
 
-func (s *fakeToolResults) Discard(_ context.Context, sessionID string, ref toolresult.Ref) error {
-	s.discarded = append(s.discarded, toolResultBinding{sessionID: sessionID, ref: ref})
+func (f *fakeToolResults) Discard(_ context.Context, sessionID string, ref toolresult.Ref) error {
+	f.discarded = append(f.discarded, toolResultBinding{sessionID: sessionID, ref: ref})
 	return nil
 }
 
-func (s *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error {
-	s.items = append(s.items, it)
+func (f *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error {
+	f.items = append(f.items, it)
 	return nil
 }
 
@@ -1011,49 +1011,49 @@ type fakeInterrupts struct {
 	resumeClaimed bool
 }
 
-func (s *fakeInterrupts) Open(_ context.Context, p runs.Pending) error {
-	if s.pending.RootRunID != "" {
+func (f *fakeInterrupts) Open(_ context.Context, p runs.Pending) error {
+	if f.pending.RootRunID != "" {
 		return transcript.ErrIdentityConflict
 	}
-	s.pending = p
+	f.pending = p
 	return nil
 }
 
-func (s *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (runs.Pending, bool, error) {
-	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
+func (f *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (runs.Pending, bool, error) {
+	if f.pending.SessionID != sessionID || f.pending.RootRunID != runID {
 		return runs.Pending{}, false, nil
 	}
-	pending := s.pending
-	s.pending = runs.Pending{}
+	pending := f.pending
+	f.pending = runs.Pending{}
 	return pending, true, nil
 }
 
-func (s *fakeInterrupts) Delete(_ context.Context, sessionID, runID string) error {
-	if s.pending.RootRunID == "" {
+func (f *fakeInterrupts) Delete(_ context.Context, sessionID, runID string) error {
+	if f.pending.RootRunID == "" {
 		return nil
 	}
-	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
+	if f.pending.SessionID != sessionID || f.pending.RootRunID != runID {
 		return transcript.ErrIdentityConflict
 	}
-	s.pending = runs.Pending{}
+	f.pending = runs.Pending{}
 	return nil
 }
 
-func (s *fakeInterrupts) ClaimResume(
+func (f *fakeInterrupts) ClaimResume(
 	_ context.Context,
 	sessionID, runID string,
 	_ []runs.InterruptAnswer,
 	_ time.Time,
 ) (runs.Pending, bool, error) {
-	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID || s.resumeClaimed {
+	if f.pending.SessionID != sessionID || f.pending.RootRunID != runID || f.resumeClaimed {
 		return runs.Pending{}, false, nil
 	}
-	s.resumeClaimed = true
-	return s.pending, true, nil
+	f.resumeClaimed = true
+	return f.pending, true, nil
 }
 
-func (s *fakeInterrupts) RequireResumeClaim(_ context.Context, sessionID, runID string) error {
-	if !s.resumeClaimed || s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
+func (f *fakeInterrupts) RequireResumeClaim(_ context.Context, sessionID, runID string) error {
+	if !f.resumeClaimed || f.pending.SessionID != sessionID || f.pending.RootRunID != runID {
 		return errors.New("fake: resume claim is unavailable")
 	}
 	return nil
@@ -1068,75 +1068,75 @@ type fakeSession struct {
 	renameErr  error
 }
 
-func (s *fakeSession) List(context.Context) ([]session.Session, error) { return nil, nil }
+func (f *fakeSession) List(context.Context) ([]session.Session, error) { return nil, nil }
 
-func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error) {
-	if s.operations != nil {
-		*s.operations = append(*s.operations, "session.get")
+func (f *fakeSession) Get(_ context.Context, id string) (session.Session, error) {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "session.get")
 	}
-	if s.getErr != nil {
-		return session.Session{}, s.getErr
+	if f.getErr != nil {
+		return session.Session{}, f.getErr
 	}
-	if id != s.sess.ID() {
+	if id != f.sess.ID() {
 		return session.Session{}, session.ErrNotFound
 	}
-	return s.sess, nil
+	return f.sess, nil
 }
 
-func (s *fakeSession) Insert(_ context.Context, value session.Session) error {
-	if s.sess.ID() != "" {
+func (f *fakeSession) Insert(_ context.Context, value session.Session) error {
+	if f.sess.ID() != "" {
 		return session.ErrRevisionConflict
 	}
-	s.sess = value
+	f.sess = value
 	return nil
 }
 
-func (s *fakeSession) Save(_ context.Context, expected uint64, replacement session.Session) error {
-	if replacement.ID() != s.sess.ID() {
+func (f *fakeSession) Save(_ context.Context, expected uint64, replacement session.Session) error {
+	if replacement.ID() != f.sess.ID() {
 		return session.ErrNotFound
 	}
-	if s.sess.Revision() != expected {
+	if f.sess.Revision() != expected {
 		return session.ErrRevisionConflict
 	}
-	if s.modelErr != nil {
-		return s.modelErr
+	if f.modelErr != nil {
+		return f.modelErr
 	}
-	s.sess = replacement
+	f.sess = replacement
 	return nil
 }
 
-func (s *fakeSession) NeedsGeneratedTitle(_ context.Context, id string) (bool, error) {
-	if s.operations != nil {
-		*s.operations = append(*s.operations, "session.get")
+func (f *fakeSession) NeedsGeneratedTitle(_ context.Context, id string) (bool, error) {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "session.get")
 	}
-	if s.getErr != nil {
-		return false, s.getErr
+	if f.getErr != nil {
+		return false, f.getErr
 	}
-	if id != s.sess.ID() {
+	if id != f.sess.ID() {
 		return false, session.ErrNotFound
 	}
-	return s.sess.Title() == "", nil
+	return f.sess.Title() == "", nil
 }
 
-func (s *fakeSession) ApplyGeneratedTitle(_ context.Context, id, title string) error {
-	if s.operations != nil {
-		*s.operations = append(*s.operations, "session.rename")
+func (f *fakeSession) ApplyGeneratedTitle(_ context.Context, id, title string) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "session.rename")
 	}
-	if id != s.sess.ID() {
+	if id != f.sess.ID() {
 		return session.ErrNotFound
 	}
-	if s.renamed != nil {
-		s.renamed <- title
+	if f.renamed != nil {
+		f.renamed <- title
 	}
-	if s.renameErr != nil {
-		return s.renameErr
+	if f.renameErr != nil {
+		return f.renameErr
 	}
-	replacement, changed, err := s.sess.NameIfUntitled(title, time.Now().UTC())
+	replacement, changed, err := f.sess.NameIfUntitled(title, time.Now().UTC())
 	if err != nil {
 		return err
 	}
 	if changed {
-		s.sess = replacement
+		f.sess = replacement
 	}
 	return nil
 }
@@ -1149,20 +1149,20 @@ type fakeCheckpoints struct {
 	release     <-chan struct{}
 }
 
-func (c fakeCheckpoints) Snapshot(_ context.Context, sessionID, cwd, runID string) error {
-	if c.operations != nil {
-		*c.operations = append(*c.operations, "checkpoint.snapshot")
+func (f fakeCheckpoints) Snapshot(_ context.Context, sessionID, cwd, runID string) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "checkpoint.snapshot")
 	}
-	if c.snapshotted != nil {
-		c.snapshotted <- sessionID + ":" + cwd + ":" + runID
+	if f.snapshotted != nil {
+		f.snapshotted <- sessionID + ":" + cwd + ":" + runID
 	}
-	if c.started != nil {
-		c.started <- struct{}{}
+	if f.started != nil {
+		f.started <- struct{}{}
 	}
-	if c.release != nil {
-		<-c.release
+	if f.release != nil {
+		<-f.release
 	}
-	return c.err
+	return f.err
 }
 
 type inlineTaskLauncher struct{}

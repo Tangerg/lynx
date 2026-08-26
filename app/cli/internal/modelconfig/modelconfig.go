@@ -18,9 +18,9 @@ const (
 	EmbeddingRole RoleKind = "embedding"
 )
 
-func (kind RoleKind) Validate() error {
-	if kind != UtilityRole && kind != EmbeddingRole {
-		return fmt.Errorf("model role kind %q is invalid", kind)
+func (r RoleKind) Validate() error {
+	if r != UtilityRole && r != EmbeddingRole {
+		return fmt.Errorf("model role kind %q is invalid", r)
 	}
 	return nil
 }
@@ -31,27 +31,27 @@ type Role struct {
 	Model    string
 }
 
-func (role Role) Validate() error {
-	if err := role.Kind.Validate(); err != nil {
+func (r Role) Validate() error {
+	if err := r.Kind.Validate(); err != nil {
 		return err
 	}
-	provider, model := strings.TrimSpace(role.Provider), strings.TrimSpace(role.Model)
+	provider, model := strings.TrimSpace(r.Provider), strings.TrimSpace(r.Model)
 	if (provider == "") != (model == "") {
 		return errors.New("model role provider and model must both be set or both be empty")
 	}
 	return nil
 }
 
-func (role Role) Configured() bool { return role.Provider != "" && role.Model != "" }
+func (r Role) Configured() bool { return r.Provider != "" && r.Model != "" }
 
-func (role Role) Label() string {
-	if !role.Configured() {
-		if role.Kind == UtilityRole {
+func (r Role) Label() string {
+	if !r.Configured() {
+		if r.Kind == UtilityRole {
 			return "inherit the run model"
 		}
 		return "disabled"
 	}
-	return role.Provider + "/" + role.Model
+	return r.Provider + "/" + r.Model
 }
 
 type Roles struct {
@@ -59,14 +59,14 @@ type Roles struct {
 	Embedding Role
 }
 
-func (roles Roles) Validate() error {
-	if roles.Utility.Kind != UtilityRole || roles.Embedding.Kind != EmbeddingRole {
+func (r Roles) Validate() error {
+	if r.Utility.Kind != UtilityRole || r.Embedding.Kind != EmbeddingRole {
 		return errors.New("model roles are assigned to the wrong slots")
 	}
-	if err := roles.Utility.Validate(); err != nil {
+	if err := r.Utility.Validate(); err != nil {
 		return fmt.Errorf("utility role: %w", err)
 	}
-	if err := roles.Embedding.Validate(); err != nil {
+	if err := r.Embedding.Validate(); err != nil {
 		return fmt.Errorf("embedding role: %w", err)
 	}
 	return nil
@@ -89,24 +89,24 @@ type Provider struct {
 	DefaultEmbeddingModel string
 }
 
-func (provider Provider) Validate() error {
-	if strings.TrimSpace(provider.ID) == "" {
+func (p Provider) Validate() error {
+	if strings.TrimSpace(p.ID) == "" {
 		return errors.New("provider id is empty")
 	}
-	if provider.KeySource != "" && provider.KeySource != KeyStored && provider.KeySource != KeyEnv {
-		return fmt.Errorf("provider %s has invalid key source %q", provider.ID, provider.KeySource)
+	if p.KeySource != "" && p.KeySource != KeyStored && p.KeySource != KeyEnv {
+		return fmt.Errorf("provider %s has invalid key source %q", p.ID, p.KeySource)
 	}
-	if provider.APIKeyMasked == "" && provider.KeySource != "" {
-		return fmt.Errorf("provider %s has a key source without a configured key", provider.ID)
+	if p.APIKeyMasked == "" && p.KeySource != "" {
+		return fmt.Errorf("provider %s has a key source without a configured key", p.ID)
 	}
-	if provider.APIKeyMasked != "" && provider.KeySource == "" {
-		return fmt.Errorf("provider %s has a configured key without its source", provider.ID)
+	if p.APIKeyMasked != "" && p.KeySource == "" {
+		return fmt.Errorf("provider %s has a configured key without its source", p.ID)
 	}
 	return nil
 }
 
-func (provider Provider) Configured() bool  { return provider.APIKeyMasked != "" }
-func (provider Provider) KeyEditable() bool { return provider.KeySource != KeyEnv }
+func (p Provider) Configured() bool  { return p.APIKeyMasked != "" }
+func (p Provider) KeyEditable() bool { return p.KeySource != KeyEnv }
 
 type ChangeKind string
 
@@ -120,18 +120,18 @@ type ValueChange struct {
 	Value string
 }
 
-func (change ValueChange) Validate() error {
-	switch change.Kind {
+func (v ValueChange) Validate() error {
+	switch v.Kind {
 	case SetValue:
-		if strings.TrimSpace(change.Value) == "" {
+		if strings.TrimSpace(v.Value) == "" {
 			return errors.New("set change value is empty")
 		}
 	case ClearValue:
-		if change.Value != "" {
+		if v.Value != "" {
 			return errors.New("clear change carries a value")
 		}
 	default:
-		return fmt.Errorf("provider change kind %q is invalid", change.Kind)
+		return fmt.Errorf("provider change kind %q is invalid", v.Kind)
 	}
 	return nil
 }
@@ -142,19 +142,19 @@ type UpdateProvider struct {
 	APIKey   *ValueChange
 }
 
-func (update UpdateProvider) Validate() error {
-	if strings.TrimSpace(update.Provider) == "" {
+func (u UpdateProvider) Validate() error {
+	if strings.TrimSpace(u.Provider) == "" {
 		return errors.New("update provider id is empty")
 	}
-	if update.BaseURL == nil && update.APIKey == nil {
+	if u.BaseURL == nil && u.APIKey == nil {
 		return errors.New("update provider has no changes")
 	}
 	for _, field := range []struct {
 		name   string
 		change *ValueChange
 	}{
-		{name: "base URL", change: update.BaseURL},
-		{name: "API key", change: update.APIKey},
+		{name: "base URL", change: u.BaseURL},
+		{name: "API key", change: u.APIKey},
 	} {
 		if field.change != nil {
 			if err := field.change.Validate(); err != nil {
@@ -170,12 +170,12 @@ type TestResult struct {
 	Problem *failure.Problem
 }
 
-func (result TestResult) Validate() error {
-	if result.OK == (result.Problem != nil) {
+func (t TestResult) Validate() error {
+	if t.OK == (t.Problem != nil) {
 		return errors.New("provider test result must contain exactly one success or problem state")
 	}
-	if result.Problem != nil {
-		return result.Problem.Validate()
+	if t.Problem != nil {
+		return t.Problem.Validate()
 	}
 	return nil
 }

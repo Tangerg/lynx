@@ -74,13 +74,13 @@ func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) (agen
 	return agentDocumentsPrompt{text: prompt.String(), sources: sources}, nil
 }
 
-func (prompt agentDocumentsPrompt) appendTo(composition *promptComposition) {
-	if prompt.text == "" {
+func (a agentDocumentsPrompt) appendTo(composition *promptComposition) {
+	if a.text == "" {
 		return
 	}
 	composition.append(
-		agentDocPromptHeader+"\n\n"+prompt.text,
-		prompt.sources[0],
-		prompt.sources[1:]...,
+		agentDocPromptHeader+"\n\n"+a.text,
+		a.sources[0],
+		a.sources[1:]...,
 	)
 }

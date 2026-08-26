@@ -401,22 +401,22 @@ type sessionDraftTransition struct {
 	disposition     sourceDraftDisposition
 }
 
-func (transition sessionDraftTransition) resolve(
+func (s sessionDraftTransition) resolve(
 	store *workbench.Store,
 	destinationSessionID string,
 	destinationDraft agent.Message,
 	currentDraft agent.Message,
 ) (agent.Message, error) {
-	switch transition.disposition {
+	switch s.disposition {
 	case retireSourceDraft:
-		if destinationSessionID == transition.sourceSessionID {
+		if destinationSessionID == s.sourceSessionID {
 			return agent.Message{}, fmt.Errorf("replacement session reused retired identity %s", destinationSessionID)
 		}
 		if strings.TrimSpace(currentDraft.Text) == "" && len(currentDraft.Attachments) == 0 {
 			return currentDraft, nil
 		}
 		if err := store.ApplyDraftTransfer(workbench.DraftTransfer{
-			SourceSessionID: transition.sourceSessionID, DestinationSessionID: destinationSessionID,
+			SourceSessionID: s.sourceSessionID, DestinationSessionID: destinationSessionID,
 			SourceBefore: currentDraft, DestinationBefore: destinationDraft,
 			DestinationAfter: currentDraft,
 		}); err != nil {
@@ -427,15 +427,15 @@ func (transition sessionDraftTransition) resolve(
 		// Mutations such as rollback replace the authoritative projection without
 		// changing session identity. prepareDestinationDraft already flushed the
 		// current composer into this aggregate, so there is no cross-file transfer.
-		if destinationSessionID == transition.sourceSessionID {
+		if destinationSessionID == s.sourceSessionID {
 			return currentDraft, nil
 		}
-		if currentDraft.Equal(transition.baseline) {
+		if currentDraft.Equal(s.baseline) {
 			return destinationDraft, nil
 		}
 		if err := store.ApplyDraftTransfer(workbench.DraftTransfer{
-			SourceSessionID: transition.sourceSessionID, DestinationSessionID: destinationSessionID,
-			SourceBefore: currentDraft, SourceAfter: transition.baseline,
+			SourceSessionID: s.sourceSessionID, DestinationSessionID: destinationSessionID,
+			SourceBefore: currentDraft, SourceAfter: s.baseline,
 			DestinationBefore: destinationDraft, DestinationAfter: currentDraft,
 		}); err != nil {
 			return agent.Message{}, fmt.Errorf("transfer session draft: %w", err)
@@ -545,43 +545,43 @@ func (a *app) readSessionAfterMutation(ctx context.Context, sessionID string) (a
 	}
 }
 
-func (installation sessionInstallation) apply(a *app) {
+func (s sessionInstallation) apply(a *app) {
 	previousSessionID := a.session.ID
 	previousWorkspace := a.session.Workspace
-	a.prepareSessionProjectionReplacement(installation.snapshot.Session, installation.projection.conversation)
+	a.prepareSessionProjectionReplacement(s.snapshot.Session, s.projection.conversation)
 	a.cancelPluginCommands()
 	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
-	a.setActiveSession(installation.snapshot.Session)
+	a.setActiveSession(s.snapshot.Session)
 	a.queue.ReleaseDispatch(previousSessionID)
 	a.openingRunID = ""
-	a.conversation = installation.projection.conversation
-	a.attachments = installation.attachments
-	a.transcript = installation.projection.transcript
-	a.wireTranscript(installation.projection.transcript)
-	a.restoreComposer(installation.draft)
-	a.draftState.Reset(a.session.ID, installation.draft)
+	a.conversation = s.projection.conversation
+	a.attachments = s.attachments
+	a.transcript = s.projection.transcript
+	a.wireTranscript(s.projection.transcript)
+	a.restoreComposer(s.draft)
+	a.draftState.Reset(a.session.ID, s.draft)
 	a.activity.Reset()
 	a.status.Reset(a.options)
 	a.workbenchHealth.enterSession()
 	a.status.setProblem(a.workbenchHealth.problem())
-	a.header.SetUsage(installation.projection.conversation.Usage())
+	a.header.SetUsage(s.projection.conversation.Usage())
 	a.prompt.SetOptions(a.options)
-	a.prompt.SetBusy(installation.projection.conversation.Busy())
-	a.shell.SetTranscript(installation.projection.transcript)
+	a.prompt.SetBusy(s.projection.conversation.Busy())
+	a.shell.SetTranscript(s.projection.transcript)
 	a.syncQueue()
 	previousTranscript.Close()
 	a.listenForSearch()
 	a.setWindowTitle()
-	a.restoreActivity(installation.snapshot)
+	a.restoreActivity(s.snapshot)
 	a.restoreSessionOutbox()
 	if a.session.Workspace != previousWorkspace {
 		a.followRuntimeChanges()
 	}
 	if a.conversation.Phase() == agent.ConversationIdle {
-		a.message("session · " + displayTitle(installation.snapshot.Session))
+		a.message("session · " + displayTitle(s.snapshot.Session))
 		if a.sessionInvalidated {
 			a.refreshInvalidatedSession(false)
 		}

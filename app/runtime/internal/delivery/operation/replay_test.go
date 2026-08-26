@@ -17,8 +17,8 @@ type countingCancelService struct {
 	calls atomic.Int32
 }
 
-func (s *countingCancelService) CancelRun(_ context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-	s.calls.Add(1)
+func (c *countingCancelService) CancelRun(_ context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
+	c.calls.Add(1)
 	outcome := protocol.RunOutcome{Type: protocol.OutcomeCanceled}
 	return &protocol.CancelRunResponse{
 		Type: protocol.CancelRunRoot,
@@ -54,71 +54,71 @@ type cancellationAwareCompletionStore struct {
 	once     sync.Once
 }
 
-func (s *claimLostOnceStore) Claim(
+func (c *claimLostOnceStore) Claim(
 	ctx context.Context,
 	key string,
 	fingerprint string,
 ) (idempotency.Record, bool, error) {
-	return s.backing.Claim(ctx, key, fingerprint)
+	return c.backing.Claim(ctx, key, fingerprint)
 }
 
-func (s *claimLostOnceStore) Complete(ctx context.Context, record idempotency.Record) error {
+func (c *claimLostOnceStore) Complete(ctx context.Context, record idempotency.Record) error {
 	lost := false
-	s.once.Do(func() {
-		s.backing.mu.Lock()
-		delete(s.backing.records, record.Key)
-		s.backing.mu.Unlock()
+	c.once.Do(func() {
+		c.backing.mu.Lock()
+		delete(c.backing.records, record.Key)
+		c.backing.mu.Unlock()
 		lost = true
 	})
 	if lost {
 		return idempotency.ErrClaimLost
 	}
-	return s.backing.Complete(ctx, record)
+	return c.backing.Complete(ctx, record)
 }
 
-func (s *competingCompletionStore) Claim(
+func (c *competingCompletionStore) Claim(
 	ctx context.Context,
 	key string,
 	fingerprint string,
 ) (idempotency.Record, bool, error) {
-	return s.backing.Claim(ctx, key, fingerprint)
+	return c.backing.Claim(ctx, key, fingerprint)
 }
 
-func (s *competingCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
+func (c *competingCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
 	intercepted := false
-	s.once.Do(func() {
+	c.once.Do(func() {
 		intercepted = true
 		durable := record
-		durable.Payload = s.durablePayload
-		s.durableErr = s.backing.Complete(ctx, durable)
+		durable.Payload = c.durablePayload
+		c.durableErr = c.backing.Complete(ctx, durable)
 	})
 	if intercepted {
-		if s.durableErr != nil {
-			return s.durableErr
+		if c.durableErr != nil {
+			return c.durableErr
 		}
 		return errors.New("completion acknowledgement was lost")
 	}
-	return s.backing.Complete(ctx, record)
+	return c.backing.Complete(ctx, record)
 }
 
-func (s *cancellationAwareCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
-	if s.attempts.Add(1) == 1 {
+func (c *cancellationAwareCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
+	if c.attempts.Add(1) == 1 {
 		return errors.New("temporary completion failure")
 	}
-	s.once.Do(func() { close(s.entered) })
+	c.once.Do(func() { close(c.entered) })
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-s.release:
-		return s.Store.Complete(ctx, record)
+	case <-c.release:
+		return c.Store.Complete(ctx, record)
 	}
 }
 
-func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
-	if s.failures.Add(-1) >= 0 {
+func (f *flakyCompletionStore) Complete(ctx context.Context, record idempotency.Record) error {
+	if f.failures.Add(-1) >= 0 {
 		return errors.New("temporary completion failure")
 	}
-	return s.Store.Complete(ctx, record)
+	return f.Store.Complete(ctx, record)
 }
 
 func TestEndpointRejectsIdempotencyStoreMismatchBeforeBusinessAdmission(t *testing.T) {
