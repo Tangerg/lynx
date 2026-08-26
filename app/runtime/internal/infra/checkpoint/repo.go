@@ -256,8 +256,8 @@ func (s *Store) materializeAlternates(ctx context.Context, gitDir string) error 
 			return fmt.Errorf("checkpoint: inspect active alternates: %w", statErr)
 		}
 		if verifyLocalObjectsErr := s.verifyLocalObjects(ctx, gitDir); verifyLocalObjectsErr == nil {
-			if err := os.Remove(pendingPath); err != nil {
-				return fmt.Errorf("checkpoint: remove detached alternates: %w", err)
+			if removeErr := os.Remove(pendingPath); removeErr != nil {
+				return fmt.Errorf("checkpoint: remove detached alternates: %w", removeErr)
 			}
 			return nil
 		}

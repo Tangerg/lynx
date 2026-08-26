@@ -44,9 +44,9 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 				approvalItems[index] = item
 				parkItems = append(parkItems, item)
 				if publishStart {
-					started, err := newToolItemStart(item)
-					if err != nil {
-						return factReduction{}, err
+					started, newToolItemStartErr := newToolItemStart(item)
+					if newToolItemStartErr != nil {
+						return factReduction{}, newToolItemStartErr
 					}
 					out = append(out, ItemStarted{Item: started})
 				}
@@ -98,9 +98,9 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 				}
 				parkItems = append(parkItems, item)
 				if publishStart {
-					started, err := newToolItemStart(item)
-					if err != nil {
-						return factReduction{}, err
+					started, newToolItemStartErr := newToolItemStart(item)
+					if newToolItemStartErr != nil {
+						return factReduction{}, newToolItemStartErr
 					}
 					out = append(out, ItemStarted{Item: started})
 				}

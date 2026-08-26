@@ -437,8 +437,8 @@ func (o *observedInteractionTool) prepare(
 		if beforeToolUseErr != nil {
 			return tool.Arguments{}, false, "", fmt.Errorf("agentexec: run pre-Tool hook: %w", beforeToolUseErr)
 		}
-		if err := validateHookDecision(decision); err != nil {
-			return tool.Arguments{}, false, "", err
+		if validateHookDecisionErr := validateHookDecision(decision); validateHookDecisionErr != nil {
+			return tool.Arguments{}, false, "", validateHookDecisionErr
 		}
 		if decision.EffectiveArguments != nil {
 			arguments = *decision.EffectiveArguments

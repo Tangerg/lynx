@@ -540,8 +540,8 @@ func (a *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 			if execContextErr != nil {
 				return fmt.Errorf("sqlite: revive rejected agent memory item: %w", execContextErr)
 			}
-			if err := affectedOne(result, "revive"); err != nil {
-				return err
+			if affectedOneErr := affectedOne(result, "revive"); affectedOneErr != nil {
+				return affectedOneErr
 			}
 			stored = existing
 			changed = true

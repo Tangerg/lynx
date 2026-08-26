@@ -54,10 +54,10 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		if decoded.Value != "artifact:evidence" {
 			return interaction.CompletionDecision{}, fmt.Errorf("decoded artifact = %#v", decoded)
 		}
-		if _, err := artifact.Decode[struct {
+		if _, mismatchErr := artifact.Decode[struct {
 			Other string `json:"other"`
-		}](); !errors.Is(err, interaction.ErrInvalidArtifact) || !errors.Is(err, agent.ErrInvalidOutput) {
-			return interaction.CompletionDecision{}, fmt.Errorf("wrong typed decode error = %v", err)
+		}](); !errors.Is(mismatchErr, interaction.ErrInvalidArtifact) || !errors.Is(mismatchErr, agent.ErrInvalidOutput) {
+			return interaction.CompletionDecision{}, fmt.Errorf("wrong typed decode error = %v", mismatchErr)
 		}
 		output := candidate.Output()
 		candidateText := ""

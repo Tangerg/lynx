@@ -184,8 +184,8 @@ func (a *AgentMemoryStore) Reconcile(
 			published = false
 			return nil // lost CAS — do not reconcile items against a stale fold
 		}
-		if err := a.reconcileItems(ctx, project, contents, now); err != nil {
-			return err
+		if reconcileItemsErr := a.reconcileItems(ctx, project, contents, now); reconcileItemsErr != nil {
+			return reconcileItemsErr
 		}
 		published = true
 		return nil

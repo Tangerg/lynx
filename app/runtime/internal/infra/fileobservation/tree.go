@@ -215,9 +215,9 @@ func scanTree(candidate treeTarget) (treeSnapshot, []string, error) {
 			return nil, nil, fmt.Errorf("observe trees: confine %q: %w", candidate.path, containsErr)
 		}
 		if !inside {
-			directory, err := nearestExistingDirectory(filepath.Dir(candidate.path))
-			if err != nil {
-				return nil, nil, err
+			directory, nearestExistingDirectoryErr := nearestExistingDirectory(filepath.Dir(candidate.path))
+			if nearestExistingDirectoryErr != nil {
+				return nil, nil, nearestExistingDirectoryErr
 			}
 			return treeSnapshot{}, []string{directory}, nil
 		}

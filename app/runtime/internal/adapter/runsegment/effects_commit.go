@@ -58,8 +58,8 @@ func (e *Effects) CommitStartedChildRun(
 			alreadyConcluded = true
 			return nil
 		}
-		if err := e.commitOpening(ctx, opening); err != nil {
-			return fmt.Errorf("runsegment: commit started child Run opening: %w", err)
+		if commitOpeningErr := e.commitOpening(ctx, opening); commitOpeningErr != nil {
+			return fmt.Errorf("runsegment: commit started child Run opening: %w", commitOpeningErr)
 		}
 		return nil
 	})
@@ -209,25 +209,25 @@ func (e *Effects) ClaimResume(
 			return errors.New("runsegment: waiting hand-off changed before answer claim")
 		}
 		for _, resolution := range approvalResolutions {
-			if err := e.resolveToolApproval(ctx, resolution); err != nil {
-				return fmt.Errorf("runsegment: record Tool approval %q: %w", resolution.Identity.ItemID, err)
+			if resolveToolApprovalErr := e.resolveToolApproval(ctx, resolution); resolveToolApprovalErr != nil {
+				return fmt.Errorf("runsegment: record Tool approval %q: %w", resolution.Identity.ItemID, resolveToolApprovalErr)
 			}
 		}
 		for _, replacement := range questionReplacements {
-			if err := e.itemReplacer.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); err != nil {
-				return fmt.Errorf("runsegment: record answered question %q: %w", replacement.Expected.ID(), err)
+			if replaceItemErr := e.itemReplacer.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); replaceItemErr != nil {
+				return fmt.Errorf("runsegment: record answered question %q: %w", replacement.Expected.ID(), replaceItemErr)
 			}
 		}
-		if err := e.executorCheckpoints.DeleteCheckpoints(
+		if deleteCheckpointsErr := e.executorCheckpoints.DeleteCheckpoints(
 			ctx, claim.Expected.SessionID, []string{root.MemberID},
-		); err != nil {
-			return fmt.Errorf("runsegment: invalidate claimed executor checkpoint: %w", err)
+		); deleteCheckpointsErr != nil {
+			return fmt.Errorf("runsegment: invalidate claimed executor checkpoint: %w", deleteCheckpointsErr)
 		}
 		checkpoint = loaded.Clone()
-		if err := e.runState.RecordWaitingRunCommit(
+		if recordWaitingRunCommitErr := e.runState.RecordWaitingRunCommit(
 			ctx, claim.Expected.SessionID, claim.Expected.RootRunID, claim.CommitID,
-		); err != nil {
-			return fmt.Errorf("runsegment: record resume claim commit receipt: %w", err)
+		); recordWaitingRunCommitErr != nil {
+			return fmt.Errorf("runsegment: record resume claim commit receipt: %w", recordWaitingRunCommitErr)
 		}
 		return nil
 	})

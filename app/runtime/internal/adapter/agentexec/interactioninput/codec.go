@@ -131,14 +131,14 @@ func validateUniqueJSONNames(decoder *json.Decoder, path string) error {
 				return fmt.Errorf("duplicate field %q at %s", name, path)
 			}
 			seen[name] = struct{}{}
-			if err := validateUniqueJSONNames(decoder, path+"."+name); err != nil {
-				return err
+			if memberErr := validateUniqueJSONNames(decoder, path+"."+name); memberErr != nil {
+				return memberErr
 			}
 		}
 	case '[':
 		for index := 0; decoder.More(); index++ {
-			if validateUniqueJSONNamesErr := validateUniqueJSONNames(decoder, fmt.Sprintf("%s[%d]", path, index)); validateUniqueJSONNamesErr != nil {
-				return validateUniqueJSONNamesErr
+			if elementErr := validateUniqueJSONNames(decoder, fmt.Sprintf("%s[%d]", path, index)); elementErr != nil {
+				return elementErr
 			}
 		}
 	default:

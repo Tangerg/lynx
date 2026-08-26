@@ -72,13 +72,13 @@ func (i *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 			return nil
 		}
 		stored := idempotency.Record{Key: key}
-		if err := db.QueryRowContext(ctx,
+		if scanErr := db.QueryRowContext(ctx,
 			`SELECT fingerprint, payload FROM idempotency_records WHERE key = ?`, key,
-		).Scan(&stored.Fingerprint, &stored.Payload); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		).Scan(&stored.Fingerprint, &stored.Payload); scanErr != nil {
+			if errors.Is(scanErr, sql.ErrNoRows) {
 				return idempotency.ErrClaimLost
 			}
-			return fmt.Errorf("sqlite: read idempotency claim: %w", err)
+			return fmt.Errorf("sqlite: read idempotency claim: %w", scanErr)
 		}
 		if stored.Fingerprint != fingerprint {
 			return idempotency.ErrKeyConflict
