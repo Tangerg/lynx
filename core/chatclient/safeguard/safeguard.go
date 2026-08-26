@@ -57,9 +57,9 @@ type Matcher interface {
 // MatcherFunc adapts an ordinary function to Matcher.
 type MatcherFunc func(ctx context.Context, text string) (Match, error)
 
-// Match invokes f.
-func (f MatcherFunc) Match(ctx context.Context, text string) (Match, error) {
-	return f(ctx, text)
+// Match invokes m.
+func (m MatcherFunc) Match(ctx context.Context, text string) (Match, error) {
+	return m(ctx, text)
 }
 
 // Block describes a policy rejection delivered to Config.OnBlock.
@@ -73,18 +73,18 @@ type UnsafeError struct {
 	Block Block
 }
 
-func (e *UnsafeError) Error() string {
-	if e == nil {
+func (u *UnsafeError) Error() string {
+	if u == nil {
 		return ErrUnsafeContent.Error()
 	}
-	if e.Block.Term == "" {
-		return fmt.Sprintf("%s: %s blocked", ErrUnsafeContent, e.Block.Scope)
+	if u.Block.Term == "" {
+		return fmt.Sprintf("%s: %s blocked", ErrUnsafeContent, u.Block.Scope)
 	}
-	return fmt.Sprintf("%s: %s matched %q", ErrUnsafeContent, e.Block.Scope, e.Block.Term)
+	return fmt.Sprintf("%s: %s matched %q", ErrUnsafeContent, u.Block.Scope, u.Block.Term)
 }
 
 // Unwrap supports errors.Is(err, ErrUnsafeContent).
-func (e *UnsafeError) Unwrap() error {
+func (u *UnsafeError) Unwrap() error {
 	return ErrUnsafeContent
 }
 

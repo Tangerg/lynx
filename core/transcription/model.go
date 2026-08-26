@@ -14,6 +14,6 @@ type Model interface {
 // ModelFunc adapts a function to [Model].
 type ModelFunc func(context.Context, *Request) (*Response, error)
 
-func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
-	return f(ctx, request)
+func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return m(ctx, request)
 }

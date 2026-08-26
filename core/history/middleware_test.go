@@ -428,39 +428,39 @@ type recordingStore struct {
 	writeCalls int
 }
 
-func (s *recordingStore) Read(context.Context, history.ConversationID) ([]chat.Message, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.readCalls++
-	if s.readErr != nil {
-		return nil, s.readErr
+func (r *recordingStore) Read(context.Context, history.ConversationID) ([]chat.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.readCalls++
+	if r.readErr != nil {
+		return nil, r.readErr
 	}
-	return cloneMessages(s.read), nil
+	return cloneMessages(r.read), nil
 }
 
-func (s *recordingStore) Write(_ context.Context, _ history.ConversationID, messages ...chat.Message) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.writeCalls++
-	if s.writeErr != nil {
-		return s.writeErr
+func (r *recordingStore) Write(_ context.Context, _ history.ConversationID, messages ...chat.Message) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.writeCalls++
+	if r.writeErr != nil {
+		return r.writeErr
 	}
-	s.writes = append(s.writes, cloneMessages(messages))
+	r.writes = append(r.writes, cloneMessages(messages))
 	return nil
 }
 
-func (s *recordingStore) counts() (int, int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.readCalls, s.writeCalls
+func (r *recordingStore) counts() (int, int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.readCalls, r.writeCalls
 }
 
-func (s *recordingStore) writesSnapshot() [][]chat.Message {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	cloned := make([][]chat.Message, len(s.writes))
-	for i := range s.writes {
-		cloned[i] = cloneMessages(s.writes[i])
+func (r *recordingStore) writesSnapshot() [][]chat.Message {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cloned := make([][]chat.Message, len(r.writes))
+	for i := range r.writes {
+		cloned[i] = cloneMessages(r.writes[i])
 	}
 	return cloned
 }

@@ -15,8 +15,8 @@ type stubTool struct {
 	result     string
 }
 
-func (t *stubTool) Definition() chat.ToolDefinition              { return t.definition }
-func (t *stubTool) Call(context.Context, string) (string, error) { return t.result, nil }
+func (s *stubTool) Definition() chat.ToolDefinition              { return s.definition }
+func (s *stubTool) Call(context.Context, string) (string, error) { return s.result, nil }
 
 func newStubTool(name string) *stubTool {
 	return &stubTool{

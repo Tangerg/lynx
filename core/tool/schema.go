@@ -129,7 +129,7 @@ func (schemaContract) consumeEOF(decoder *json.Decoder) error {
 	return nil
 }
 
-func (b schemaBuilder) build(typeOf reflect.Type) (schemaNode, error) {
+func (s schemaBuilder) build(typeOf reflect.Type) (schemaNode, error) {
 	for typeOf.Kind() == reflect.Pointer {
 		typeOf = typeOf.Elem()
 	}
@@ -159,12 +159,12 @@ func (b schemaBuilder) build(typeOf reflect.Type) (schemaNode, error) {
 		if typeOf == rawMessageType {
 			return schemaNode{}, nil
 		}
-		if b.visiting[typeOf] {
+		if s.visiting[typeOf] {
 			return schemaNode{}, fmt.Errorf("recursive type %s cannot be fully inlined", typeOf)
 		}
-		b.visiting[typeOf] = true
-		items, err := b.build(typeOf.Elem())
-		delete(b.visiting, typeOf)
+		s.visiting[typeOf] = true
+		items, err := s.build(typeOf.Elem())
+		delete(s.visiting, typeOf)
 		if err != nil {
 			return schemaNode{}, err
 		}
@@ -178,29 +178,29 @@ func (b schemaBuilder) build(typeOf reflect.Type) (schemaNode, error) {
 		if typeOf.Key().Kind() != reflect.String && !typeOf.Key().Implements(textMarshalerType) {
 			return schemaNode{}, fmt.Errorf("map key %s is not JSON object-compatible", typeOf.Key())
 		}
-		if b.visiting[typeOf] {
+		if s.visiting[typeOf] {
 			return schemaNode{}, fmt.Errorf("recursive type %s cannot be fully inlined", typeOf)
 		}
-		b.visiting[typeOf] = true
-		values, err := b.build(typeOf.Elem())
-		delete(b.visiting, typeOf)
+		s.visiting[typeOf] = true
+		values, err := s.build(typeOf.Elem())
+		delete(s.visiting, typeOf)
 		if err != nil {
 			return schemaNode{}, err
 		}
 		return schemaNode{Type: "object", AdditionalProperties: values}, nil
 	case reflect.Struct:
-		return b.buildStruct(typeOf)
+		return s.buildStruct(typeOf)
 	default:
 		return schemaNode{}, fmt.Errorf("unsupported JSON type %s", typeOf)
 	}
 }
 
-func (b schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
-	if b.visiting[typeOf] {
+func (s schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
+	if s.visiting[typeOf] {
 		return schemaNode{}, fmt.Errorf("recursive type %s cannot be fully inlined", typeOf)
 	}
-	b.visiting[typeOf] = true
-	defer delete(b.visiting, typeOf)
+	s.visiting[typeOf] = true
+	defer delete(s.visiting, typeOf)
 
 	node := schemaNode{
 		Type:                 "object",
@@ -225,7 +225,7 @@ func (b schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 			fieldType = fieldType.Elem()
 		}
 		if field.Anonymous && !jsonField.explicit && fieldType.Kind() == reflect.Struct {
-			embedded, err := b.buildStruct(fieldType)
+			embedded, err := s.buildStruct(fieldType)
 			if err != nil {
 				return schemaNode{}, err
 			}
@@ -239,7 +239,7 @@ func (b schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 			continue
 		}
 
-		property, err := b.build(field.Type)
+		property, err := s.build(field.Type)
 		if err != nil {
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
@@ -282,7 +282,7 @@ func parseJSONField(field reflect.StructField) (jsonField, error) {
 	return result, nil
 }
 
-func (node *schemaNode) applyTag(tag string) (bool, error) {
+func (s *schemaNode) applyTag(tag string) (bool, error) {
 	var required bool
 	for option := range strings.SplitSeq(tag, ",") {
 		if option == "" {
@@ -299,22 +299,22 @@ func (node *schemaNode) applyTag(tag string) (bool, error) {
 			if !hasValue || value == "" {
 				return false, errors.New("enum requires a value")
 			}
-			if node.Type != "string" {
+			if s.Type != "string" {
 				return false, errors.New("enum requires a string field")
 			}
-			node.Enum = append(node.Enum, value)
+			s.Enum = append(s.Enum, value)
 		case "minLength":
 			parsed, err := schemaTagInt(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.MinLength = new(parsed)
+			s.MinLength = new(parsed)
 		case "maxLength":
 			parsed, err := schemaTagInt(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.MaxLength = new(parsed)
+			s.MaxLength = new(parsed)
 		case "pattern":
 			if !hasValue || value == "" {
 				return false, errors.New("pattern requires a value")
@@ -323,59 +323,59 @@ func (node *schemaNode) applyTag(tag string) (bool, error) {
 			if err != nil {
 				return false, fmt.Errorf("pattern must be a valid regular expression: %w", err)
 			}
-			node.Pattern = value
-			node.pattern = compiled
+			s.Pattern = value
+			s.pattern = compiled
 		case "minimum":
 			parsed, err := schemaTagFloat(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.Minimum = new(parsed)
+			s.Minimum = new(parsed)
 		case "maximum":
 			parsed, err := schemaTagFloat(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.Maximum = new(parsed)
+			s.Maximum = new(parsed)
 		case "minItems":
 			parsed, err := schemaTagInt(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.MinItems = new(parsed)
+			s.MinItems = new(parsed)
 		case "maxItems":
 			parsed, err := schemaTagInt(key, value, hasValue)
 			if err != nil {
 				return false, err
 			}
-			node.MaxItems = new(parsed)
+			s.MaxItems = new(parsed)
 		default:
 			return false, fmt.Errorf("unsupported jsonschema option %q", key)
 		}
 	}
-	if (node.MinLength != nil || node.MaxLength != nil || node.Pattern != "") && node.Type != "string" {
+	if (s.MinLength != nil || s.MaxLength != nil || s.Pattern != "") && s.Type != "string" {
 		return false, errors.New("minLength, maxLength, and pattern require a string field")
 	}
-	if node.MinLength != nil && node.MaxLength != nil && *node.MinLength > *node.MaxLength {
+	if s.MinLength != nil && s.MaxLength != nil && *s.MinLength > *s.MaxLength {
 		return false, errors.New("minLength exceeds maxLength")
 	}
-	if (node.Minimum != nil || node.Maximum != nil) && node.Type != "integer" && node.Type != "number" {
+	if (s.Minimum != nil || s.Maximum != nil) && s.Type != "integer" && s.Type != "number" {
 		return false, errors.New("minimum and maximum require a numeric field")
 	}
-	if node.Minimum != nil && node.Maximum != nil && *node.Minimum > *node.Maximum {
+	if s.Minimum != nil && s.Maximum != nil && *s.Minimum > *s.Maximum {
 		return false, errors.New("minimum exceeds maximum")
 	}
-	if (node.MinItems != nil || node.MaxItems != nil) && node.Type != "array" {
+	if (s.MinItems != nil || s.MaxItems != nil) && s.Type != "array" {
 		return false, errors.New("minItems and maxItems require an array field")
 	}
-	if node.MinItems != nil && node.MaxItems != nil && *node.MinItems > *node.MaxItems {
+	if s.MinItems != nil && s.MaxItems != nil && *s.MinItems > *s.MaxItems {
 		return false, errors.New("minItems exceeds maxItems")
 	}
 	return required, nil
 }
 
-func (node schemaNode) validate(value any, path string) error {
-	switch node.Type {
+func (s schemaNode) validate(value any, path string) error {
+	switch s.Type {
 	case "":
 		return nil
 	case "object":
@@ -383,20 +383,20 @@ func (node schemaNode) validate(value any, path string) error {
 		if !ok {
 			return fmt.Errorf("%s must be an object", path)
 		}
-		for _, name := range node.Required {
+		for _, name := range s.Required {
 			if _, exists := object[name]; !exists {
 				return fmt.Errorf("%s.%s is required", path, name)
 			}
 		}
 		for _, name := range slices.Sorted(maps.Keys(object)) {
-			property, known := node.Properties[name]
+			property, known := s.Properties[name]
 			if known {
 				if err := property.validate(object[name], path+"."+name); err != nil {
 					return err
 				}
 				continue
 			}
-			switch additional := node.AdditionalProperties.(type) {
+			switch additional := s.AdditionalProperties.(type) {
 			case nil:
 				continue
 			case bool:
@@ -417,15 +417,15 @@ func (node schemaNode) validate(value any, path string) error {
 		if !ok {
 			return fmt.Errorf("%s must be an array", path)
 		}
-		if node.MinItems != nil && len(array) < *node.MinItems {
-			return fmt.Errorf("%s must contain at least %d items", path, *node.MinItems)
+		if s.MinItems != nil && len(array) < *s.MinItems {
+			return fmt.Errorf("%s must contain at least %d items", path, *s.MinItems)
 		}
-		if node.MaxItems != nil && len(array) > *node.MaxItems {
-			return fmt.Errorf("%s must contain at most %d items", path, *node.MaxItems)
+		if s.MaxItems != nil && len(array) > *s.MaxItems {
+			return fmt.Errorf("%s must contain at most %d items", path, *s.MaxItems)
 		}
-		if node.Items != nil {
+		if s.Items != nil {
 			for index, item := range array {
-				if err := node.Items.validate(item, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+				if err := s.Items.validate(item, fmt.Sprintf("%s[%d]", path, index)); err != nil {
 					return err
 				}
 			}
@@ -437,17 +437,17 @@ func (node schemaNode) validate(value any, path string) error {
 			return fmt.Errorf("%s must be a string", path)
 		}
 		length := utf8.RuneCountInString(text)
-		if node.MinLength != nil && length < *node.MinLength {
-			return fmt.Errorf("%s must contain at least %d characters", path, *node.MinLength)
+		if s.MinLength != nil && length < *s.MinLength {
+			return fmt.Errorf("%s must contain at least %d characters", path, *s.MinLength)
 		}
-		if node.MaxLength != nil && length > *node.MaxLength {
-			return fmt.Errorf("%s must contain at most %d characters", path, *node.MaxLength)
+		if s.MaxLength != nil && length > *s.MaxLength {
+			return fmt.Errorf("%s must contain at most %d characters", path, *s.MaxLength)
 		}
-		if node.pattern != nil && !node.pattern.MatchString(text) {
-			return fmt.Errorf("%s must match %q", path, node.Pattern)
+		if s.pattern != nil && !s.pattern.MatchString(text) {
+			return fmt.Errorf("%s must match %q", path, s.Pattern)
 		}
-		if len(node.Enum) > 0 && !slices.Contains(node.Enum, text) {
-			return fmt.Errorf("%s must be one of %v", path, node.Enum)
+		if len(s.Enum) > 0 && !slices.Contains(s.Enum, text) {
+			return fmt.Errorf("%s must be one of %v", path, s.Enum)
 		}
 		return nil
 	case "boolean":
@@ -458,24 +458,24 @@ func (node schemaNode) validate(value any, path string) error {
 	case "integer", "number":
 		number, ok := value.(json.Number)
 		if !ok {
-			return fmt.Errorf("%s must be a %s", path, node.Type)
+			return fmt.Errorf("%s must be a %s", path, s.Type)
 		}
 		parsed, err := number.Float64()
 		if err != nil || math.IsInf(parsed, 0) || math.IsNaN(parsed) {
-			return fmt.Errorf("%s must be a finite %s", path, node.Type)
+			return fmt.Errorf("%s must be a finite %s", path, s.Type)
 		}
-		if node.Type == "integer" && math.Trunc(parsed) != parsed {
+		if s.Type == "integer" && math.Trunc(parsed) != parsed {
 			return fmt.Errorf("%s must be an integer", path)
 		}
-		if node.Minimum != nil && parsed < *node.Minimum {
-			return fmt.Errorf("%s must be at least %v", path, *node.Minimum)
+		if s.Minimum != nil && parsed < *s.Minimum {
+			return fmt.Errorf("%s must be at least %v", path, *s.Minimum)
 		}
-		if node.Maximum != nil && parsed > *node.Maximum {
-			return fmt.Errorf("%s must be at most %v", path, *node.Maximum)
+		if s.Maximum != nil && parsed > *s.Maximum {
+			return fmt.Errorf("%s must be at most %v", path, *s.Maximum)
 		}
 		return nil
 	default:
-		return fmt.Errorf("%s has unsupported schema type %q", path, node.Type)
+		return fmt.Errorf("%s has unsupported schema type %q", path, s.Type)
 	}
 }
 

@@ -11,11 +11,11 @@ import (
 
 type batcherFunc func(context.Context, []*document.Document) ([][]*document.Document, error)
 
-func (f batcherFunc) Batch(
+func (b batcherFunc) Batch(
 	ctx context.Context,
 	documents []*document.Document,
 ) ([][]*document.Document, error) {
-	return f(ctx, documents)
+	return b(ctx, documents)
 }
 
 func TestIndexRequestValidate(t *testing.T) {

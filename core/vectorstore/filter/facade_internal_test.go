@@ -11,10 +11,10 @@ type recordingVisitor struct {
 	visits  int
 }
 
-func (v *recordingVisitor) Visit(predicate Predicate) error {
-	v.visits++
-	v.visited = predicate
-	return v.err
+func (r *recordingVisitor) Visit(predicate Predicate) error {
+	r.visits++
+	r.visited = predicate
+	return r.err
 }
 
 var _ Visitor = (*recordingVisitor)(nil)

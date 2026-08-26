@@ -20,9 +20,9 @@ type Model interface {
 // as net/http.HandlerFunc.
 type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
 
-// Call invokes f.
-func (f ModelFunc) Call(ctx context.Context, req *Request) (*Response, error) {
-	return f(ctx, req)
+// Call invokes m.
+func (m ModelFunc) Call(ctx context.Context, req *Request) (*Response, error) {
+	return m(ctx, req)
 }
 
 // Streamer is the optional streaming chat capability. It is independent of
@@ -43,7 +43,7 @@ type Streamer interface {
 // StreamerFunc adapts an ordinary function to Streamer.
 type StreamerFunc func(ctx context.Context, req *Request) iter.Seq2[*Response, error]
 
-// Stream invokes f.
-func (f StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	return f(ctx, req)
+// Stream invokes s.
+func (s StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+	return s(ctx, req)
 }

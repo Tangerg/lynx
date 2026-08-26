@@ -28,8 +28,8 @@ type accumulatedOutput struct {
 
 // Add validates and atomically merges one stream chunk. An error leaves the
 // accumulator unchanged.
-func (a *ResponseAccumulator) Add(chunk *Response) error {
-	if a == nil {
+func (r *ResponseAccumulator) Add(chunk *Response) error {
+	if r == nil {
 		return errors.New("chat: nil response accumulator")
 	}
 	if chunk == nil {
@@ -39,71 +39,71 @@ func (a *ResponseAccumulator) Add(chunk *Response) error {
 		return fmt.Errorf("chat: accumulate: %w", err)
 	}
 
-	next := a.clone()
+	next := r.clone()
 	if err := next.merge(chunk); err != nil {
 		return err
 	}
 	if err := next.snapshot().Validate(); err != nil {
 		return fmt.Errorf("chat: accumulated response: %w", err)
 	}
-	*a = next
+	*r = next
 	return nil
 }
 
 // Response returns an independent snapshot, or nil before the first
 // successful Add. Mutating the returned value cannot affect the accumulator.
-func (a *ResponseAccumulator) Response() *Response {
-	if a == nil || !a.seen {
+func (r *ResponseAccumulator) Response() *Response {
+	if r == nil || !r.seen {
 		return nil
 	}
-	return a.snapshot()
+	return r.snapshot()
 }
 
-func (a *ResponseAccumulator) merge(chunk *Response) error {
-	a.seen = true
+func (r *ResponseAccumulator) merge(chunk *Response) error {
+	r.seen = true
 	if chunk.Metadata != nil {
-		if a.metadata == nil {
-			a.metadata = &ResponseMetadata{}
+		if r.metadata == nil {
+			r.metadata = &ResponseMetadata{}
 		}
-		if err := a.metadata.merge(*chunk.Metadata); err != nil {
+		if err := r.metadata.merge(*chunk.Metadata); err != nil {
 			return fmt.Errorf("chat: accumulate response metadata: %w", err)
 		}
 	}
 	if chunk.Output == nil {
 		return nil
 	}
-	if a.output == nil {
-		a.output = &accumulatedOutput{toolParts: make(map[string]int)}
+	if r.output == nil {
+		r.output = &accumulatedOutput{toolParts: make(map[string]int)}
 	}
-	if err := a.output.merge(*chunk.Output); err != nil {
+	if err := r.output.merge(*chunk.Output); err != nil {
 		return fmt.Errorf("chat: accumulate output: %w", err)
 	}
 	return nil
 }
 
-func (a *ResponseAccumulator) snapshot() *Response {
+func (r *ResponseAccumulator) snapshot() *Response {
 	response := &Response{}
-	if a.metadata != nil {
-		response.Metadata = a.metadata.clone()
+	if r.metadata != nil {
+		response.Metadata = r.metadata.clone()
 	}
-	if a.output != nil {
-		response.Output = a.output.output.clone()
+	if r.output != nil {
+		response.Output = r.output.output.clone()
 	}
 	return response
 }
 
-func (a *ResponseAccumulator) clone() ResponseAccumulator {
-	if a == nil {
+func (r *ResponseAccumulator) clone() ResponseAccumulator {
+	if r == nil {
 		return ResponseAccumulator{}
 	}
-	clone := ResponseAccumulator{seen: a.seen}
-	if a.metadata != nil {
-		clone.metadata = a.metadata.clone()
+	clone := ResponseAccumulator{seen: r.seen}
+	if r.metadata != nil {
+		clone.metadata = r.metadata.clone()
 	}
-	if a.output != nil {
+	if r.output != nil {
 		clone.output = &accumulatedOutput{
-			output:    *a.output.output.clone(),
-			toolParts: maps.Clone(a.output.toolParts),
+			output:    *r.output.output.clone(),
+			toolParts: maps.Clone(r.output.toolParts),
 		}
 	}
 	return clone

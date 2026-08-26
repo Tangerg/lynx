@@ -25,9 +25,9 @@ const (
 	PartToolResult PartKind = "tool_result"
 )
 
-// Valid reports whether k is a part kind known by the protocol.
-func (k PartKind) Valid() bool {
-	switch k {
+// Valid reports whether p is a part kind known by the protocol.
+func (p PartKind) Valid() bool {
+	switch p {
 	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolResult:
 		return true
 	default:

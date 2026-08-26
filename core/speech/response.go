@@ -16,36 +16,36 @@ type OutputMetadata struct {
 }
 
 // Set encodes provider-specific output metadata into Extra.
-func (m *OutputMetadata) Set(key string, value any) error {
-	if m == nil {
+func (o *OutputMetadata) Set(key string, value any) error {
+	if o == nil {
 		return fmt.Errorf("speech.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	if err := m.Extra.Set(key, value); err != nil {
+	if err := o.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("speech.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *OutputMetadata) validate() error {
-	if m == nil {
+func (o *OutputMetadata) validate() error {
+	if o == nil {
 		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
 	}
-	if err := m.Extra.Validate(); err != nil {
+	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&m).validate(); err != nil {
+func (o OutputMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&o).validate(); err != nil {
 		return nil, err
 	}
 	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(m))
+	return json.Marshal(wireOutputMetadata(o))
 }
 
-func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if m == nil {
+func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
+	if o == nil {
 		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
 	type wireOutputMetadata OutputMetadata
@@ -57,7 +57,7 @@ func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if err := candidate.validate(); err != nil {
 		return err
 	}
-	*m = candidate
+	*o = candidate
 	return nil
 }
 
@@ -84,29 +84,29 @@ func NewOutput(audio []byte, metadata *OutputMetadata) (*Output, error) {
 }
 
 // Validate verifies audio content and output metadata.
-func (r *Output) Validate() error {
-	if r == nil {
+func (o *Output) Validate() error {
+	if o == nil {
 		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
-	if len(r.Audio) == 0 {
+	if len(o.Audio) == 0 {
 		return fmt.Errorf("%w: audio must not be empty", ErrInvalidResponse)
 	}
-	if err := r.Metadata.validate(); err != nil {
+	if err := o.Metadata.validate(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r Output) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (o Output) MarshalJSON() ([]byte, error) {
+	if err := (&o).Validate(); err != nil {
 		return nil, err
 	}
 	type wireOutput Output
-	return json.Marshal(wireOutput(r))
+	return json.Marshal(wireOutput(o))
 }
 
-func (r *Output) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (o *Output) UnmarshalJSON(data []byte) error {
+	if o == nil {
 		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
 	type wireOutput Output
@@ -118,7 +118,7 @@ func (r *Output) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*o = candidate
 	return nil
 }
 
@@ -135,42 +135,42 @@ type ResponseMetadata struct {
 }
 
 // Set encodes provider-specific response metadata into Extra.
-func (m *ResponseMetadata) Set(key string, value any) error {
-	if m == nil {
+func (r *ResponseMetadata) Set(key string, value any) error {
+	if r == nil {
 		return fmt.Errorf("speech.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	if err := m.Extra.Set(key, value); err != nil {
+	if err := r.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("speech.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResponseMetadata) validate() error {
-	if m == nil {
+func (r *ResponseMetadata) validate() error {
+	if r == nil {
 		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
 	}
-	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+	if r.Model != "" && strings.TrimSpace(r.Model) != r.Model {
 		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
 	}
-	if m.Created < 0 {
+	if r.Created < 0 {
 		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
 	}
-	if err := m.Extra.Validate(); err != nil {
+	if err := r.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m ResponseMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&m).validate(); err != nil {
+func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&r).validate(); err != nil {
 		return nil, err
 	}
 	type wireResponseMetadata ResponseMetadata
-	return json.Marshal(wireResponseMetadata(m))
+	return json.Marshal(wireResponseMetadata(r))
 }
 
-func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
-	if m == nil {
+func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
+	if r == nil {
 		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
 	}
 	type wireResponseMetadata ResponseMetadata
@@ -182,7 +182,7 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	if err := candidate.validate(); err != nil {
 		return err
 	}
-	*m = candidate
+	*r = candidate
 	return nil
 }
 

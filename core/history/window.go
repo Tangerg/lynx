@@ -42,34 +42,34 @@ func NewWindowStore(store Store, limit int) (WindowStore, error) {
 }
 
 // Write delegates to the underlying Store.
-func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error {
-	return s.store.Write(ctx, conversationID, messages...)
+func (w WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error {
+	return w.store.Write(ctx, conversationID, messages...)
 }
 
 // Read returns the windowed projection. It returns ErrWindowTooSmall rather
 // than splitting the newest turn when that turn does not fit.
-func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) {
-	messages, err := s.store.Read(ctx, conversationID)
+func (w WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) {
+	messages, err := w.store.Read(ctx, conversationID)
 	if err != nil {
 		return nil, err
 	}
-	return newMessageWindow(messages, s.limit).project()
+	return newMessageWindow(messages, w.limit).project()
 }
 
 // Clear delegates to the underlying Store.
-func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error {
-	return s.store.Clear(ctx, conversationID)
+func (w WindowStore) Clear(ctx context.Context, conversationID ConversationID) error {
+	return w.store.Clear(ctx, conversationID)
 }
 
 type conversationTurn []chat.Message
 
 type conversationTurns []conversationTurn
 
-func (turns conversationTurns) suffix(limit int) ([]chat.Message, error) {
-	if len(turns) == 0 {
+func (c conversationTurns) suffix(limit int) ([]chat.Message, error) {
+	if len(c) == 0 {
 		return []chat.Message{}, nil
 	}
-	newestTurnSize := len(turns[len(turns)-1])
+	newestTurnSize := len(c[len(c)-1])
 	if newestTurnSize > limit {
 		return nil, fmt.Errorf(
 			"%w: newest turn has %d messages, available limit is %d",
@@ -79,10 +79,10 @@ func (turns conversationTurns) suffix(limit int) ([]chat.Message, error) {
 		)
 	}
 
-	start := len(turns) - 1
+	start := len(c) - 1
 	messageCount := newestTurnSize
 	for start > 0 {
-		previousSize := len(turns[start-1])
+		previousSize := len(c[start-1])
 		if previousSize > limit-messageCount {
 			break
 		}
@@ -91,7 +91,7 @@ func (turns conversationTurns) suffix(limit int) ([]chat.Message, error) {
 	}
 
 	messages := make([]chat.Message, 0, messageCount)
-	for _, turn := range turns[start:] {
+	for _, turn := range c[start:] {
 		messages = append(messages, turn...)
 	}
 	return messages, nil
@@ -119,26 +119,26 @@ func newMessageWindow(messages []chat.Message, limit int) messageWindow {
 	return window
 }
 
-func (window messageWindow) project() ([]chat.Message, error) {
-	projected := make([]chat.Message, 0, window.limit)
-	if len(window.systemMessages) > 0 {
-		merged, err := window.mergedSystemMessage()
+func (m messageWindow) project() ([]chat.Message, error) {
+	projected := make([]chat.Message, 0, m.limit)
+	if len(m.systemMessages) > 0 {
+		merged, err := m.mergedSystemMessage()
 		if err != nil {
 			return nil, err
 		}
 		projected = append(projected, merged)
 	}
 
-	recent, err := window.turns.suffix(window.limit - len(projected))
+	recent, err := m.turns.suffix(m.limit - len(projected))
 	if err != nil {
 		return nil, err
 	}
 	return append(projected, recent...), nil
 }
 
-func (window messageWindow) mergedSystemMessage() (chat.Message, error) {
+func (m messageWindow) mergedSystemMessage() (chat.Message, error) {
 	merged := chat.Message{Role: chat.RoleSystem, Metadata: metadata.Map{}}
-	for i, message := range window.systemMessages {
+	for i, message := range m.systemMessages {
 		if i > 0 {
 			merged.Parts = append(merged.Parts, chat.NewTextPart("\n\n"))
 		}

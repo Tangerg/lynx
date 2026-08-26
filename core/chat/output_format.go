@@ -51,98 +51,98 @@ func NewJSONSchemaOutputFormat(name string, schema json.RawMessage) (OutputForma
 	return format, nil
 }
 
-// Clone returns an independent copy of f. A nil receiver returns nil.
-func (f *OutputFormat) Clone() *OutputFormat {
-	if f == nil {
+// Clone returns an independent copy of o. A nil receiver returns nil.
+func (o *OutputFormat) Clone() *OutputFormat {
+	if o == nil {
 		return nil
 	}
-	clone := *f
-	clone.Schema = bytes.Clone(f.Schema)
+	clone := *o
+	clone.Schema = bytes.Clone(o.Schema)
 	return &clone
 }
 
-// SchemaAs decodes f's JSON Schema into T. It lets protocol adapters choose
+// SchemaAs decodes o's JSON Schema into T. It lets protocol adapters choose
 // the representation required by their SDK without taking ownership of schema
 // validation or decoding. Only json_schema formats have a schema.
-func (f *OutputFormat) SchemaAs[T any]() (T, error) {
+func (o *OutputFormat) SchemaAs[T any]() (T, error) {
 	var zero T
-	if f == nil {
+	if o == nil {
 		return zero, fmt.Errorf("%w: nil receiver", ErrInvalidOutputFormat)
 	}
-	if err := f.Validate(); err != nil {
+	if err := o.Validate(); err != nil {
 		return zero, err
 	}
-	if f.Type != OutputFormatJSONSchema {
-		return zero, fmt.Errorf("%w: %s output has no schema", ErrInvalidOutputFormat, f.Type)
+	if o.Type != OutputFormatJSONSchema {
+		return zero, fmt.Errorf("%w: %s output has no schema", ErrInvalidOutputFormat, o.Type)
 	}
 	var schema T
-	if err := jsonv2.Unmarshal(f.Schema, &schema); err != nil {
+	if err := jsonv2.Unmarshal(o.Schema, &schema); err != nil {
 		return zero, fmt.Errorf("chat.OutputFormat.SchemaAs: %w", err)
 	}
 	return schema, nil
 }
 
 // FallbackInstruction returns an equivalent model instruction for adapters
-// whose native protocol cannot represent f. A nil or text format needs no
+// whose native protocol cannot represent o. A nil or text format needs no
 // instruction.
-func (f *OutputFormat) FallbackInstruction() (string, error) {
-	if f == nil || f.Type == OutputFormatText {
+func (o *OutputFormat) FallbackInstruction() (string, error) {
+	if o == nil || o.Type == OutputFormatText {
 		return "", nil
 	}
-	if err := f.Validate(); err != nil {
+	if err := o.Validate(); err != nil {
 		return "", err
 	}
 	const prefix = "Return only one valid JSON object. Do not include markdown fences, explanations, commentary, or leading or trailing text."
-	if f.Type == OutputFormatJSON {
+	if o.Type == OutputFormatJSON {
 		return prefix, nil
 	}
 	var schema bytes.Buffer
-	if err := json.Compact(&schema, f.Schema); err != nil {
+	if err := json.Compact(&schema, o.Schema); err != nil {
 		return "", fmt.Errorf("chat.OutputFormat.FallbackInstruction: compact schema: %w", err)
 	}
 	return prefix + " The object must conform to this JSON Schema:\n" + schema.String(), nil
 }
 
 // Validate verifies the output-format contract and its type-specific invariants.
-func (f OutputFormat) Validate() error {
-	switch f.Type {
+func (o OutputFormat) Validate() error {
+	switch o.Type {
 	case OutputFormatText, OutputFormatJSON:
-		if f.Name != "" || f.Description != "" || len(f.Schema) != 0 {
-			return fmt.Errorf("%w: %s output must not define schema fields", ErrInvalidOutputFormat, f.Type)
+		if o.Name != "" || o.Description != "" || len(o.Schema) != 0 {
+			return fmt.Errorf("%w: %s output must not define schema fields", ErrInvalidOutputFormat, o.Type)
 		}
 		return nil
 	case OutputFormatJSONSchema:
-		if f.Name == "" {
+		if o.Name == "" {
 			return fmt.Errorf("%w: json_schema name must not be empty", ErrInvalidOutputFormat)
 		}
-		if strings.TrimSpace(f.Name) != f.Name {
+		if strings.TrimSpace(o.Name) != o.Name {
 			return fmt.Errorf("%w: json_schema name must not have surrounding whitespace", ErrInvalidOutputFormat)
 		}
-		if f.Description != "" && strings.TrimSpace(f.Description) != f.Description {
+		if o.Description != "" && strings.TrimSpace(o.Description) != o.Description {
 			return fmt.Errorf("%w: json_schema description must not have surrounding whitespace", ErrInvalidOutputFormat)
 		}
 		var object map[string]json.RawMessage
-		if len(f.Schema) == 0 || jsonv2.Unmarshal(f.Schema, &object) != nil || object == nil {
+		if len(o.Schema) == 0 || jsonv2.Unmarshal(o.Schema, &object) != nil || object == nil {
 			return fmt.Errorf("%w: json_schema schema must be a JSON object", ErrInvalidOutputFormat)
 		}
 		return nil
 	default:
-		return fmt.Errorf("%w: unsupported type %q", ErrInvalidOutputFormat, f.Type)
+		return fmt.Errorf("%w: unsupported type %q", ErrInvalidOutputFormat, o.Type)
 	}
 }
 
 // MarshalJSON validates OutputFormat before writing its wire representation.
-func (f OutputFormat) MarshalJSON() ([]byte, error) {
-	if err := f.Validate(); err != nil {
+func (o OutputFormat) MarshalJSON() ([]byte, error) {
+	if err := o.Validate(); err != nil {
 		return nil, err
 	}
 	type wireOutputFormat OutputFormat
-	return json.Marshal(wireOutputFormat(f))
+	return json.Marshal(wireOutputFormat(o))
 }
 
 // UnmarshalJSON decodes and validates OutputFormat before replacing the receiver.
-func (f *OutputFormat) UnmarshalJSON(data []byte) error {
-	if f == nil {
+func (o *OutputFormat) UnmarshalJSON(data []byte) error {
+	if o == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidOutputFormat)
 	}
 	type wireOutputFormat OutputFormat
@@ -154,6 +154,6 @@ func (f *OutputFormat) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*f = candidate
+	*o = candidate
 	return nil
 }

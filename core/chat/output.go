@@ -19,12 +19,12 @@ const (
 	FinishReasonOther         FinishReason = "other"
 )
 
-func (r FinishReason) String() string { return string(r) }
+func (f FinishReason) String() string { return string(f) }
 
-// Valid reports whether r is empty (not finished) or a known normalized
+// Valid reports whether f is empty (not finished) or a known normalized
 // finish reason. Provider-native reasons map to Other and output metadata.
-func (r FinishReason) Valid() bool {
-	switch r {
+func (f FinishReason) Valid() bool {
+	switch f {
 	case "", FinishReasonStop, FinishReasonLength, FinishReasonToolCalls, FinishReasonContentFilter, FinishReasonOther:
 		return true
 	default:
@@ -38,42 +38,42 @@ type OutputMetadata struct {
 }
 
 // Set encodes provider-specific output metadata into Extra.
-func (m *OutputMetadata) Set(key string, value any) error {
-	if m == nil {
+func (o *OutputMetadata) Set(key string, value any) error {
+	if o == nil {
 		return fmt.Errorf("chat.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	if err := m.Extra.Set(key, value); err != nil {
+	if err := o.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("chat.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *OutputMetadata) validate() error {
-	if m == nil {
+func (o *OutputMetadata) validate() error {
+	if o == nil {
 		return nil
 	}
-	if err := m.Extra.Validate(); err != nil {
+	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m OutputMetadata) clone() *OutputMetadata {
-	return &OutputMetadata{Extra: m.Extra.Clone()}
+func (o OutputMetadata) clone() *OutputMetadata {
+	return &OutputMetadata{Extra: o.Extra.Clone()}
 }
 
 // MarshalJSON validates OutputMetadata before writing its wire representation.
-func (m OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&m).validate(); err != nil {
+func (o OutputMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&o).validate(); err != nil {
 		return nil, err
 	}
 	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(m))
+	return json.Marshal(wireOutputMetadata(o))
 }
 
 // UnmarshalJSON decodes and validates OutputMetadata before replacing the receiver.
-func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if m == nil {
+func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
+	if o == nil {
 		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
 	type wireOutputMetadata OutputMetadata
@@ -85,7 +85,7 @@ func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if err := candidate.validate(); err != nil {
 		return err
 	}
-	*m = candidate
+	*o = candidate
 	return nil
 }
 
@@ -108,62 +108,62 @@ func NewOutput(message *Message, finishReason FinishReason, metadata *OutputMeta
 }
 
 // Text returns the assistant text, or an empty string when absent.
-func (r *Output) Text() string {
-	if r == nil || r.Message == nil {
+func (o *Output) Text() string {
+	if o == nil || o.Message == nil {
 		return ""
 	}
-	return r.Message.Text()
+	return o.Message.Text()
 }
 
 // Validate verifies the assistant message, normalized finish reason, and
 // JSON-safe output metadata.
-func (r *Output) Validate() error {
-	if r == nil {
+func (o *Output) Validate() error {
+	if o == nil {
 		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
-	if r.Message == nil && r.FinishReason == "" && r.Metadata == nil {
+	if o.Message == nil && o.FinishReason == "" && o.Metadata == nil {
 		return fmt.Errorf("%w: output has no message, finish reason, or metadata", ErrInvalidResponse)
 	}
-	if r.Message != nil {
-		if err := r.Message.Validate(); err != nil {
+	if o.Message != nil {
+		if err := o.Message.Validate(); err != nil {
 			return fmt.Errorf("%w: message: %w", ErrInvalidResponse, err)
 		}
-		if r.Message.Role != RoleAssistant {
-			return fmt.Errorf("%w: message role must be %q, got %q", ErrInvalidResponse, RoleAssistant, r.Message.Role)
+		if o.Message.Role != RoleAssistant {
+			return fmt.Errorf("%w: message role must be %q, got %q", ErrInvalidResponse, RoleAssistant, o.Message.Role)
 		}
 	}
-	if !r.FinishReason.Valid() {
-		return fmt.Errorf("%w: unknown finish reason %q", ErrInvalidResponse, r.FinishReason)
+	if !o.FinishReason.Valid() {
+		return fmt.Errorf("%w: unknown finish reason %q", ErrInvalidResponse, o.FinishReason)
 	}
-	if err := r.Metadata.validate(); err != nil {
+	if err := o.Metadata.validate(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r Output) clone() *Output {
-	clone := r
-	if r.Message != nil {
-		clone.Message = new(r.Message.Clone())
+func (o Output) clone() *Output {
+	clone := o
+	if o.Message != nil {
+		clone.Message = new(o.Message.Clone())
 	}
-	if r.Metadata != nil {
-		clone.Metadata = r.Metadata.clone()
+	if o.Metadata != nil {
+		clone.Metadata = o.Metadata.clone()
 	}
 	return &clone
 }
 
 // MarshalJSON validates Output before writing its wire representation.
-func (r Output) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (o Output) MarshalJSON() ([]byte, error) {
+	if err := (&o).Validate(); err != nil {
 		return nil, err
 	}
 	type wireOutput Output
-	return json.Marshal(wireOutput(r))
+	return json.Marshal(wireOutput(o))
 }
 
 // UnmarshalJSON decodes and validates Output before replacing the receiver.
-func (r *Output) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (o *Output) UnmarshalJSON(data []byte) error {
+	if o == nil {
 		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
 	type wireOutput Output
@@ -175,6 +175,6 @@ func (r *Output) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*o = candidate
 	return nil
 }

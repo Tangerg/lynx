@@ -20,22 +20,22 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 }
 
-// Clone returns an independent copy of d.
-func (d ToolDefinition) Clone() ToolDefinition {
-	d.InputSchema = bytes.Clone(d.InputSchema)
-	return d
+// Clone returns an independent copy of t.
+func (t ToolDefinition) Clone() ToolDefinition {
+	t.InputSchema = bytes.Clone(t.InputSchema)
+	return t
 }
 
 // Validate verifies the provider-compatible tool name and object input schema.
-func (d ToolDefinition) Validate() error {
-	if !toolNamePattern.MatchString(d.Name) {
+func (t ToolDefinition) Validate() error {
+	if !toolNamePattern.MatchString(t.Name) {
 		return fmt.Errorf("%w: name must match %s", ErrInvalidToolDefinition, toolNamePattern)
 	}
 	var schema map[string]json.RawMessage
-	if len(d.InputSchema) == 0 {
+	if len(t.InputSchema) == 0 {
 		return fmt.Errorf("%w: missing input schema", ErrInvalidToolDefinition)
 	}
-	if err := json.Unmarshal(d.InputSchema, &schema); err != nil || schema == nil {
+	if err := json.Unmarshal(t.InputSchema, &schema); err != nil || schema == nil {
 		return fmt.Errorf("%w: input schema must be a JSON object", ErrInvalidToolDefinition)
 	}
 	var schemaType string
@@ -45,19 +45,19 @@ func (d ToolDefinition) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates d before writing its wire representation.
-func (d ToolDefinition) MarshalJSON() ([]byte, error) {
-	if err := d.Validate(); err != nil {
+// MarshalJSON validates t before writing its wire representation.
+func (t ToolDefinition) MarshalJSON() ([]byte, error) {
+	if err := t.Validate(); err != nil {
 		return nil, err
 	}
 	type wireToolDefinition ToolDefinition
-	return json.Marshal(wireToolDefinition(d))
+	return json.Marshal(wireToolDefinition(t))
 }
 
 // UnmarshalJSON decodes and validates a definition before replacing the
 // receiver.
-func (d *ToolDefinition) UnmarshalJSON(data []byte) error {
-	if d == nil {
+func (t *ToolDefinition) UnmarshalJSON(data []byte) error {
+	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidToolDefinition)
 	}
 	type wireToolDefinition ToolDefinition
@@ -69,6 +69,6 @@ func (d *ToolDefinition) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*d = candidate
+	*t = candidate
 	return nil
 }

@@ -59,16 +59,16 @@ func (r *IndexRequest) Validate() error {
 	return nil
 }
 
-func (r IndexRequest) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (i IndexRequest) MarshalJSON() ([]byte, error) {
+	if err := (&i).Validate(); err != nil {
 		return nil, err
 	}
 	type wireIndexRequest IndexRequest
-	return json.Marshal(wireIndexRequest(r))
+	return json.Marshal(wireIndexRequest(i))
 }
 
-func (r *IndexRequest) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (i *IndexRequest) UnmarshalJSON(data []byte) error {
+	if i == nil {
 		return fmt.Errorf("%w: nil IndexRequest receiver", ErrInvalidRequest)
 	}
 	type wireIndexRequest IndexRequest
@@ -80,7 +80,7 @@ func (r *IndexRequest) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*i = candidate
 	return nil
 }
 
@@ -113,26 +113,26 @@ func (r *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequ
 	return batches, nil
 }
 
-func (r *IndexRequest) validateBatches(batches [][]*document.Document) error {
+func (i *IndexRequest) validateBatches(batches [][]*document.Document) error {
 	next := 0
 	for batchIndex, batch := range batches {
 		if len(batch) == 0 {
 			return fmt.Errorf("%w: batch %d is empty", ErrInvalidBatcherOutput, batchIndex)
 		}
 		for documentIndex, doc := range batch {
-			if next >= len(r.Documents) {
+			if next >= len(i.Documents) {
 				return fmt.Errorf("%w: unexpected document at batch %d index %d",
 					ErrInvalidBatcherOutput, batchIndex, documentIndex)
 			}
-			if doc != r.Documents[next] {
+			if doc != i.Documents[next] {
 				return fmt.Errorf("%w: document at batch %d index %d does not match input index %d",
 					ErrInvalidBatcherOutput, batchIndex, documentIndex, next)
 			}
 			next++
 		}
 	}
-	if next != len(r.Documents) {
-		return fmt.Errorf("%w: returned %d of %d documents", ErrInvalidBatcherOutput, next, len(r.Documents))
+	if next != len(i.Documents) {
+		return fmt.Errorf("%w: returned %d of %d documents", ErrInvalidBatcherOutput, next, len(i.Documents))
 	}
 	return nil
 }

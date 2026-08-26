@@ -28,15 +28,15 @@ type StoreConfig struct {
 	Similarity Similarity
 }
 
-func (c *StoreConfig) applyDefaults() {
-	if c.Similarity == nil {
-		c.Similarity = CosineSimilarity
+func (s *StoreConfig) applyDefaults() {
+	if s.Similarity == nil {
+		s.Similarity = CosineSimilarity
 	}
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.EmbeddingModel == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
 	return nil

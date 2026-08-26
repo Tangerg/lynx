@@ -18,8 +18,8 @@ type callOnly struct {
 	call func(context.Context, *chat.Request) (*chat.Response, error)
 }
 
-func (m callOnly) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-	return m.call(ctx, request)
+func (c callOnly) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	return c.call(ctx, request)
 }
 
 type streamOnly struct {

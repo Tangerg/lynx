@@ -42,18 +42,18 @@ type ChatBehaviorSuite struct {
 }
 
 // Run executes the shared Call/Stream behavior contract.
-func (s ChatBehaviorSuite) Run(t *testing.T) {
+func (c ChatBehaviorSuite) Run(t *testing.T) {
 	t.Helper()
-	if s.Request == nil || s.CallCancellation == nil || s.StreamCancellation == nil || s.EarlyStop == nil || s.FirstError == nil {
+	if c.Request == nil || c.CallCancellation == nil || c.StreamCancellation == nil || c.EarlyStop == nil || c.FirstError == nil {
 		t.Fatal("modeltest.ChatBehaviorSuite requires every factory")
 	}
 
 	t.Run("call context cancellation", func(t *testing.T) {
-		test := s.CallCancellation(t)
+		test := c.CallCancellation(t)
 		if test.Model == nil {
 			t.Fatal("CallCancellation returned nil Model")
 		}
-		request := s.validRequest(t)
+		request := c.validRequest(t)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		type result struct {
@@ -76,11 +76,11 @@ func (s ChatBehaviorSuite) Run(t *testing.T) {
 	})
 
 	t.Run("stream context cancellation", func(t *testing.T) {
-		test := s.StreamCancellation(t)
+		test := c.StreamCancellation(t)
 		if test.Streamer == nil {
 			t.Fatal("StreamCancellation returned nil Streamer")
 		}
-		request := s.validRequest(t)
+		request := c.validRequest(t)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		completed := make(chan []streamYield, 1)
@@ -96,11 +96,11 @@ func (s ChatBehaviorSuite) Run(t *testing.T) {
 	})
 
 	t.Run("caller early stop", func(t *testing.T) {
-		test := s.EarlyStop(t)
+		test := c.EarlyStop(t)
 		if test.Streamer == nil {
 			t.Fatal("EarlyStop returned nil Streamer")
 		}
-		request := s.validRequest(t)
+		request := c.validRequest(t)
 		count := 0
 		for response, err := range test.Streamer.Stream(t.Context(), request) {
 			if err != nil {
@@ -118,18 +118,18 @@ func (s ChatBehaviorSuite) Run(t *testing.T) {
 	})
 
 	t.Run("first error terminates", func(t *testing.T) {
-		streamer := s.FirstError(t)
+		streamer := c.FirstError(t)
 		if streamer == nil {
 			t.Fatal("FirstError returned nil Streamer")
 		}
-		outcome := drainStream(streamer.Stream(t.Context(), s.validRequest(t)))
+		outcome := drainStream(streamer.Stream(t.Context(), c.validRequest(t)))
 		_ = assertTerminalError(t, outcome, true)
 	})
 }
 
-func (s ChatBehaviorSuite) validRequest(t *testing.T) *chat.Request {
+func (c ChatBehaviorSuite) validRequest(t *testing.T) *chat.Request {
 	t.Helper()
-	request := s.Request(t)
+	request := c.Request(t)
 	if request == nil {
 		t.Fatal("ChatBehaviorSuite.Request returned nil")
 	}

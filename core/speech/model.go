@@ -16,8 +16,8 @@ type Model interface {
 // ModelFunc adapts a function to [Model].
 type ModelFunc func(context.Context, *Request) (*Response, error)
 
-func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
-	return f(ctx, request)
+func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return m(ctx, request)
 }
 
 // Streamer is the optional streaming capability. Every yielded response obeys
@@ -30,6 +30,6 @@ type Streamer interface {
 // StreamerFunc adapts a function to [Streamer].
 type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 
-func (f StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
-	return f(ctx, request)
+func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
+	return s(ctx, request)
 }

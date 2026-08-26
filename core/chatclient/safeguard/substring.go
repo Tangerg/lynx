@@ -52,7 +52,7 @@ func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatc
 }
 
 // Match reports the first configured term contained in text.
-func (m *SubstringMatcher) Match(ctx context.Context, text string) (Match, error) {
+func (s *SubstringMatcher) Match(ctx context.Context, text string) (Match, error) {
 	if err := ctx.Err(); err != nil {
 		return Match{}, err
 	}
@@ -60,14 +60,14 @@ func (m *SubstringMatcher) Match(ctx context.Context, text string) (Match, error
 		return Match{}, nil
 	}
 	haystack := text
-	if !m.config.CaseSensitive {
+	if !s.config.CaseSensitive {
 		haystack = strings.ToLower(haystack)
 	}
-	for _, term := range m.terms {
+	for _, term := range s.terms {
 		if !strings.Contains(haystack, term.match) {
 			continue
 		}
-		if m.config.HideMatch {
+		if s.config.HideMatch {
 			return Match{Found: true}, nil
 		}
 		return Match{Term: term.display, Found: true}, nil

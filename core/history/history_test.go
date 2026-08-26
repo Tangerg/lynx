@@ -70,17 +70,17 @@ type basicStore struct {
 	clears   int
 }
 
-func (s *basicStore) Write(_ context.Context, _ history.ConversationID, messages ...chat.Message) error {
-	s.messages = append(s.messages, messages...)
+func (b *basicStore) Write(_ context.Context, _ history.ConversationID, messages ...chat.Message) error {
+	b.messages = append(b.messages, messages...)
 	return nil
 }
 
-func (s *basicStore) Read(context.Context, history.ConversationID) ([]chat.Message, error) {
-	return append([]chat.Message(nil), s.messages...), nil
+func (b *basicStore) Read(context.Context, history.ConversationID) ([]chat.Message, error) {
+	return append([]chat.Message(nil), b.messages...), nil
 }
 
-func (s *basicStore) Clear(context.Context, history.ConversationID) error {
-	s.clears++
-	s.messages = nil
+func (b *basicStore) Clear(context.Context, history.ConversationID) error {
+	b.clears++
+	b.messages = nil
 	return nil
 }

@@ -203,10 +203,10 @@ func (m Middleware) forward(sequence iter.Seq2[*chat.Response, error], yield fun
 
 type historyMessages []chat.Message
 
-func (messages historyMessages) split() (systems, nonSystems historyMessages) {
-	systems = make([]chat.Message, 0, len(messages))
-	nonSystems = make([]chat.Message, 0, len(messages))
-	for _, message := range messages {
+func (h historyMessages) split() (systems, nonSystems historyMessages) {
+	systems = make([]chat.Message, 0, len(h))
+	nonSystems = make([]chat.Message, 0, len(h))
+	for _, message := range h {
 		if message.Role == chat.RoleSystem {
 			systems = append(systems, message)
 		} else {
@@ -216,13 +216,13 @@ func (messages historyMessages) split() (systems, nonSystems historyMessages) {
 	return systems, nonSystems
 }
 
-func (messages historyMessages) snapshot() ([]chat.Message, error) {
-	cloned := make([]chat.Message, len(messages))
-	for index := range messages {
-		if err := messages[index].Validate(); err != nil {
+func (h historyMessages) snapshot() ([]chat.Message, error) {
+	cloned := make([]chat.Message, len(h))
+	for index := range h {
+		if err := h[index].Validate(); err != nil {
 			return nil, fmt.Errorf("history: messages[%d]: %w", index, err)
 		}
-		cloned[index] = messages[index].Clone()
+		cloned[index] = h[index].Clone()
 	}
 	return cloned, nil
 }

@@ -5,46 +5,38 @@ chat: const ( FinishReasonStop FinishReason = "stop" FinishReasonLength FinishRe
 chat: const ( OutputFormatText OutputFormatType = "text" OutputFormatJSON OutputFormatType = "json" OutputFormatJSONSchema OutputFormatType = "json_schema" )
 chat: const ( PartText PartKind = "text" PartMedia PartKind = "media" PartReasoning PartKind = "reasoning" PartToolCall PartKind = "tool_call" PartToolResult PartKind = "tool_result" )
 chat: const ( RoleSystem Role = "system" RoleUser Role = "user" RoleAssistant Role = "assistant" RoleTool Role = "tool" )
-chat: func (a *ResponseAccumulator) Add(chunk *Response) error
-chat: func (a *ResponseAccumulator) Response() *Response
-chat: func (c ToolCall) Validate() error
-chat: func (d *ToolDefinition) UnmarshalJSON(data []byte) error
-chat: func (d ToolDefinition) Clone() ToolDefinition
-chat: func (d ToolDefinition) MarshalJSON() ([]byte, error)
-chat: func (d ToolDefinition) Validate() error
-chat: func (f *OutputFormat) Clone() *OutputFormat
-chat: func (f *OutputFormat) FallbackInstruction() (string, error)
-chat: func (f *OutputFormat) SchemaAs[T any]() (T, error)
-chat: func (f *OutputFormat) UnmarshalJSON(data []byte) error
-chat: func (f ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)
-chat: func (f OutputFormat) MarshalJSON() ([]byte, error)
-chat: func (f OutputFormat) Validate() error
-chat: func (f StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
-chat: func (k PartKind) Valid() bool
+chat: func (f FinishReason) String() string
+chat: func (f FinishReason) Valid() bool
 chat: func (m *Message) Text() string
 chat: func (m *Message) UnmarshalJSON(data []byte) error
-chat: func (m *OutputMetadata) Set(key string, value any) error
-chat: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-chat: func (m *ResponseMetadata) Set(key string, value any) error
-chat: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 chat: func (m Message) Clone() Message
 chat: func (m Message) MarshalJSON() ([]byte, error)
 chat: func (m Message) Validate() error
-chat: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-chat: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+chat: func (m ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)
 chat: func (o *Options) SetExtension(key string, value any) error
 chat: func (o *Options) UnmarshalJSON(data []byte) error
+chat: func (o *Output) Text() string
+chat: func (o *Output) UnmarshalJSON(data []byte) error
+chat: func (o *Output) Validate() error
+chat: func (o *OutputFormat) Clone() *OutputFormat
+chat: func (o *OutputFormat) FallbackInstruction() (string, error)
+chat: func (o *OutputFormat) SchemaAs[T any]() (T, error)
+chat: func (o *OutputFormat) UnmarshalJSON(data []byte) error
+chat: func (o *OutputMetadata) Set(key string, value any) error
+chat: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 chat: func (o Options) Clone() Options
 chat: func (o Options) MarshalJSON() ([]byte, error)
 chat: func (o Options) Merged(overrides ...Options) (Options, error)
 chat: func (o Options) Validate() error
+chat: func (o Output) MarshalJSON() ([]byte, error)
+chat: func (o OutputFormat) MarshalJSON() ([]byte, error)
+chat: func (o OutputFormat) Validate() error
+chat: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 chat: func (p *Part) UnmarshalJSON(data []byte) error
 chat: func (p Part) Clone() Part
 chat: func (p Part) MarshalJSON() ([]byte, error)
 chat: func (p Part) Validate() error
-chat: func (r *Output) Text() string
-chat: func (r *Output) UnmarshalJSON(data []byte) error
-chat: func (r *Output) Validate() error
+chat: func (p PartKind) Valid() bool
 chat: func (r *Request) Clone() *Request
 chat: func (r *Request) UnmarshalJSON(data []byte) error
 chat: func (r *Request) Validate() error
@@ -52,13 +44,21 @@ chat: func (r *Response) Clone() *Response
 chat: func (r *Response) Text() string
 chat: func (r *Response) UnmarshalJSON(data []byte) error
 chat: func (r *Response) Validate() error
-chat: func (r FinishReason) String() string
-chat: func (r FinishReason) Valid() bool
-chat: func (r Output) MarshalJSON() ([]byte, error)
+chat: func (r *ResponseAccumulator) Add(chunk *Response) error
+chat: func (r *ResponseAccumulator) Response() *Response
+chat: func (r *ResponseMetadata) Set(key string, value any) error
+chat: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 chat: func (r Request) MarshalJSON() ([]byte, error)
 chat: func (r Response) MarshalJSON() ([]byte, error)
+chat: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 chat: func (r Role) Valid() bool
-chat: func (r ToolResult) Validate() error
+chat: func (s StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+chat: func (t *ToolDefinition) UnmarshalJSON(data []byte) error
+chat: func (t ToolCall) Validate() error
+chat: func (t ToolDefinition) Clone() ToolDefinition
+chat: func (t ToolDefinition) MarshalJSON() ([]byte, error)
+chat: func (t ToolDefinition) Validate() error
+chat: func (t ToolResult) Validate() error
 chat: func (u *Usage) UnmarshalJSON(data []byte) error
 chat: func (u Usage) MarshalJSON() ([]byte, error)
 chat: func (u Usage) TotalTokens() int64
@@ -112,13 +112,13 @@ chat: var ErrInvalidResponse = errors.New("chat: invalid response")
 chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
 chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
 chatclient/safeguard: const ( ScopeInput Scope = "input" ScopeOutput Scope = "output" ScopeBoth Scope = "both" )
-chatclient/safeguard: func (e *UnsafeError) Error() string
-chatclient/safeguard: func (e *UnsafeError) Unwrap() error
-chatclient/safeguard: func (f MatcherFunc) Match(ctx context.Context, text string) (Match, error)
 chatclient/safeguard: func (m *Middleware) Call(next chat.Model) chat.Model
 chatclient/safeguard: func (m *Middleware) Stream(next chat.Streamer) chat.Streamer
-chatclient/safeguard: func (m *SubstringMatcher) Match(ctx context.Context, text string) (Match, error)
+chatclient/safeguard: func (m MatcherFunc) Match(ctx context.Context, text string) (Match, error)
+chatclient/safeguard: func (s *SubstringMatcher) Match(ctx context.Context, text string) (Match, error)
 chatclient/safeguard: func (s Scope) Valid() bool
+chatclient/safeguard: func (u *UnsafeError) Error() string
+chatclient/safeguard: func (u *UnsafeError) Unwrap() error
 chatclient/safeguard: func New(matcher Matcher, config Config) (*Middleware, error)
 chatclient/safeguard: func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatcher, error)
 chatclient/safeguard: type Block struct { Scope Scope Term string }
@@ -158,29 +158,29 @@ chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
-embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-embedding: func (m *OutputMetadata) Set(key string, value any) error
-embedding: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-embedding: func (m *ResponseMetadata) Set(key string, value any) error
-embedding: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
-embedding: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-embedding: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+embedding: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 embedding: func (o *Options) SetExtension(key string, value any) error
 embedding: func (o *Options) UnmarshalJSON(data []byte) error
+embedding: func (o *Output) UnmarshalJSON(data []byte) error
+embedding: func (o *Output) Validate() error
+embedding: func (o *OutputMetadata) Set(key string, value any) error
+embedding: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 embedding: func (o Options) Clone() Options
 embedding: func (o Options) MarshalJSON() ([]byte, error)
 embedding: func (o Options) Merged(overrides ...Options) (Options, error)
 embedding: func (o Options) Validate() error
-embedding: func (r *Output) UnmarshalJSON(data []byte) error
-embedding: func (r *Output) Validate() error
+embedding: func (o Output) MarshalJSON() ([]byte, error)
+embedding: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 embedding: func (r *Request) UnmarshalJSON(data []byte) error
 embedding: func (r *Request) Validate() error
 embedding: func (r *Response) First() *Output
 embedding: func (r *Response) UnmarshalJSON(data []byte) error
 embedding: func (r *Response) Validate() error
-embedding: func (r Output) MarshalJSON() ([]byte, error)
+embedding: func (r *ResponseMetadata) Set(key string, value any) error
+embedding: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 embedding: func (r Request) MarshalJSON() ([]byte, error)
 embedding: func (r Response) MarshalJSON() ([]byte, error)
+embedding: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 embedding: func (u *Usage) UnmarshalJSON(data []byte) error
 embedding: func (u Usage) MarshalJSON() ([]byte, error)
 embedding: func Float32Vector(source []float64) []float32
@@ -213,13 +213,13 @@ history/inmemory: func (s *Store) Replace(ctx context.Context, conversationID hi
 history/inmemory: func (s *Store) Write(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error
 history/inmemory: func New() *Store
 history/inmemory: type Store struct { mu sync.RWMutex messages map[history.ConversationID][]chat.Message }
-history: func (conversationID ConversationID) String() string
-history: func (conversationID ConversationID) Validate() error
+history: func (c ConversationID) String() string
+history: func (c ConversationID) Validate() error
 history: func (m Middleware) Call(next chat.Model) chat.Model
 history: func (m Middleware) Stream(next chat.Streamer) chat.Streamer
-history: func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error
-history: func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
-history: func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
+history: func (w WindowStore) Clear(ctx context.Context, conversationID ConversationID) error
+history: func (w WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
+history: func (w WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
 history: func ConversationIDFromContext(ctx context.Context) (ConversationID, bool)
 history: func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error)
 history: func NewConversationID(value string) (ConversationID, error)
@@ -242,29 +242,29 @@ history: var ( ErrInvalidWindow = errors.New("history: invalid message window") 
 history: var ( ErrNilStore = errors.New("history: nil store") ErrReplacementUnsupported = errors.New("history: replacement unsupported") )
 history: var ErrInvalidConversationID = errors.New("history: invalid conversation ID")
 history: var ErrNilStream = errors.New("history: middleware: nil stream sequence")
-image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-image: func (m *OutputMetadata) Set(key string, value any) error
-image: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-image: func (m *ResponseMetadata) Set(key string, value any) error
-image: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
-image: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-image: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+image: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (o *Options) SetExtension(key string, value any) error
 image: func (o *Options) UnmarshalJSON(data []byte) error
+image: func (o *Output) UnmarshalJSON(data []byte) error
+image: func (o *Output) Validate() error
+image: func (o *OutputMetadata) Set(key string, value any) error
+image: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 image: func (o Options) Clone() Options
 image: func (o Options) MarshalJSON() ([]byte, error)
 image: func (o Options) Merged(overrides ...Options) (Options, error)
 image: func (o Options) Validate() error
-image: func (r *Output) UnmarshalJSON(data []byte) error
-image: func (r *Output) Validate() error
+image: func (o Output) MarshalJSON() ([]byte, error)
+image: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 image: func (r *Request) UnmarshalJSON(data []byte) error
 image: func (r *Request) Validate() error
 image: func (r *Response) First() *Output
 image: func (r *Response) UnmarshalJSON(data []byte) error
 image: func (r *Response) Validate() error
-image: func (r Output) MarshalJSON() ([]byte, error)
+image: func (r *ResponseMetadata) Set(key string, value any) error
+image: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 image: func (r Request) MarshalJSON() ([]byte, error)
 image: func (r Response) MarshalJSON() ([]byte, error)
+image: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 image: func NewOptions(model string) (Options, error)
 image: func NewOutput(value *media.Media, metadata *OutputMetadata) (*Output, error)
 image: func NewRequest(prompt string) (*Request, error)
@@ -307,10 +307,10 @@ metadata: func (m Map) Values() (map[string]any, error)
 metadata: func FromValues(values map[string]any) (Map, error)
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
+modeltest: func (c ChatBehaviorSuite) Run(t *testing.T)
+modeltest: func (c ChatSuite) Run(t *testing.T)
 modeltest: func (p *PollCounter) Inc() int32
 modeltest: func (p *PollCounter) N() int32
-modeltest: func (s ChatBehaviorSuite) Run(t *testing.T)
-modeltest: func (s ChatSuite) Run(t *testing.T)
 modeltest: func AnthropicSSEServer(events []AnthropicEvent) *httptest.Server
 modeltest: func BinaryServer(status int, contentType string, body []byte, inspect ...func(r *http.Request)) *httptest.Server
 modeltest: func CollectN[T any](seq iter.Seq2[T, error], n int) ([]T, error)
@@ -338,29 +338,29 @@ modeltest: type StreamBehaviorCase struct { Streamer chat.Streamer Lifecycle Lif
 moderation: func (c *Categories) UnmarshalJSON(data []byte) error
 moderation: func (c Categories) Flagged() bool
 moderation: func (c Categories) MarshalJSON() ([]byte, error)
-moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-moderation: func (m *OutputMetadata) Set(key string, value any) error
-moderation: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-moderation: func (m *ResponseMetadata) Set(key string, value any) error
-moderation: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
-moderation: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-moderation: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+moderation: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 moderation: func (o *Options) SetExtension(key string, value any) error
 moderation: func (o *Options) UnmarshalJSON(data []byte) error
+moderation: func (o *Output) UnmarshalJSON(data []byte) error
+moderation: func (o *Output) Validate() error
+moderation: func (o *OutputMetadata) Set(key string, value any) error
+moderation: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 moderation: func (o Options) Clone() Options
 moderation: func (o Options) MarshalJSON() ([]byte, error)
 moderation: func (o Options) Merged(overrides ...Options) (Options, error)
 moderation: func (o Options) Validate() error
-moderation: func (r *Output) UnmarshalJSON(data []byte) error
-moderation: func (r *Output) Validate() error
+moderation: func (o Output) MarshalJSON() ([]byte, error)
+moderation: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 moderation: func (r *Request) UnmarshalJSON(data []byte) error
 moderation: func (r *Request) Validate() error
 moderation: func (r *Response) First() *Output
 moderation: func (r *Response) UnmarshalJSON(data []byte) error
 moderation: func (r *Response) Validate() error
-moderation: func (r Output) MarshalJSON() ([]byte, error)
+moderation: func (r *ResponseMetadata) Set(key string, value any) error
+moderation: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 moderation: func (r Request) MarshalJSON() ([]byte, error)
 moderation: func (r Response) MarshalJSON() ([]byte, error)
+moderation: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 moderation: func (v *Verdict) UnmarshalJSON(data []byte) error
 moderation: func (v Verdict) MarshalJSON() ([]byte, error)
 moderation: func NewOptions(model string) (Options, error)
@@ -378,29 +378,29 @@ moderation: type Response struct { Outputs []*Output `json:"outputs,omitzero"` M
 moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
 moderation: var ( ErrInvalidOptions = errors.New("moderation: invalid options") ErrInvalidRequest = errors.New("moderation: invalid request") ErrInvalidResponse = errors.New("moderation: invalid response") )
-speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-speech: func (f StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
-speech: func (m *OutputMetadata) Set(key string, value any) error
-speech: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-speech: func (m *ResponseMetadata) Set(key string, value any) error
-speech: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
-speech: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-speech: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+speech: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 speech: func (o *Options) SetExtension(key string, value any) error
 speech: func (o *Options) UnmarshalJSON(data []byte) error
+speech: func (o *Output) UnmarshalJSON(data []byte) error
+speech: func (o *Output) Validate() error
+speech: func (o *OutputMetadata) Set(key string, value any) error
+speech: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 speech: func (o Options) Clone() Options
 speech: func (o Options) MarshalJSON() ([]byte, error)
 speech: func (o Options) Merged(overrides ...Options) (Options, error)
 speech: func (o Options) Validate() error
-speech: func (r *Output) UnmarshalJSON(data []byte) error
-speech: func (r *Output) Validate() error
+speech: func (o Output) MarshalJSON() ([]byte, error)
+speech: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 speech: func (r *Request) UnmarshalJSON(data []byte) error
 speech: func (r *Request) Validate() error
 speech: func (r *Response) UnmarshalJSON(data []byte) error
 speech: func (r *Response) Validate() error
-speech: func (r Output) MarshalJSON() ([]byte, error)
+speech: func (r *ResponseMetadata) Set(key string, value any) error
+speech: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 speech: func (r Request) MarshalJSON() ([]byte, error)
 speech: func (r Response) MarshalJSON() ([]byte, error)
+speech: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
+speech: func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 speech: func NewOptions(model string) (Options, error)
 speech: func NewOutput(audio []byte, metadata *OutputMetadata) (*Output, error)
 speech: func NewRequest(text string) (*Request, error)
@@ -438,28 +438,28 @@ tool: type WrappingTool interface { Unwrap() Tool }
 tool: var ( ErrDuplicateTool = errors.New("tool: duplicate tool") ErrInvalidRegistry = errors.New("tool: invalid registry") )
 tool: var ErrInvalidTool = errors.New("tool: invalid tool")
 tool: var ErrInvalidWrappingChain = errors.New("tool: invalid wrapping chain")
-transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-transcription: func (m *OutputMetadata) Set(key string, value any) error
-transcription: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
-transcription: func (m *ResponseMetadata) Set(key string, value any) error
-transcription: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
-transcription: func (m OutputMetadata) MarshalJSON() ([]byte, error)
-transcription: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+transcription: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 transcription: func (o *Options) SetExtension(key string, value any) error
 transcription: func (o *Options) UnmarshalJSON(data []byte) error
+transcription: func (o *Output) UnmarshalJSON(data []byte) error
+transcription: func (o *Output) Validate() error
+transcription: func (o *OutputMetadata) Set(key string, value any) error
+transcription: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 transcription: func (o Options) Clone() Options
 transcription: func (o Options) MarshalJSON() ([]byte, error)
 transcription: func (o Options) Merged(overrides ...Options) (Options, error)
 transcription: func (o Options) Validate() error
-transcription: func (r *Output) UnmarshalJSON(data []byte) error
-transcription: func (r *Output) Validate() error
+transcription: func (o Output) MarshalJSON() ([]byte, error)
+transcription: func (o OutputMetadata) MarshalJSON() ([]byte, error)
 transcription: func (r *Request) UnmarshalJSON(data []byte) error
 transcription: func (r *Request) Validate() error
 transcription: func (r *Response) UnmarshalJSON(data []byte) error
 transcription: func (r *Response) Validate() error
-transcription: func (r Output) MarshalJSON() ([]byte, error)
+transcription: func (r *ResponseMetadata) Set(key string, value any) error
+transcription: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
 transcription: func (r Request) MarshalJSON() ([]byte, error)
 transcription: func (r Response) MarshalJSON() ([]byte, error)
+transcription: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 transcription: func NewOptions(model string) (Options, error)
 transcription: func NewOutput(text string, metadata *OutputMetadata) (*Output, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
@@ -492,7 +492,6 @@ vectorstore/filter: func (b *BinaryExpr) Start() Position
 vectorstore/filter: func (b *BinaryExpr) String() string
 vectorstore/filter: func (b *BinaryExpr) Validate() error
 vectorstore/filter: func (b *BinaryExpr) Value() (any, error)
-vectorstore/filter: func (e *SyntaxError) Error() string
 vectorstore/filter: func (i *Ident) End() Position
 vectorstore/filter: func (i *Ident) Equal(other Expr) bool
 vectorstore/filter: func (i *Ident) Name() string
@@ -547,6 +546,7 @@ vectorstore/filter: func (o Operator) Name() string
 vectorstore/filter: func (o Operator) Negated() (Operator, error)
 vectorstore/filter: func (o Operator) String() string
 vectorstore/filter: func (p Position) String() string
+vectorstore/filter: func (s *SyntaxError) Error() string
 vectorstore/filter: func (u *UnaryExpr) Accept(visitor Visitor) error
 vectorstore/filter: func (u *UnaryExpr) Dispatch(onNot func(*UnaryExpr) error) error
 vectorstore/filter: func (u *UnaryExpr) End() Position
@@ -596,7 +596,6 @@ vectorstore/filter: type SyntaxError struct { Position Position Token string Mes
 vectorstore/filter: type UnaryExpr struct { operator Operator right Predicate start Position end Position }
 vectorstore/filter: type Visitor interface { Visit(Predicate) error }
 vectorstore/inmemory: const Provider = "InMemory"
-vectorstore/inmemory: func (c StoreConfig) Validate() error
 vectorstore/inmemory: func (e *evaluator) Visit(predicate filter.Predicate) error
 vectorstore/inmemory: func (s *Store) Clear()
 vectorstore/inmemory: func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error)
@@ -604,6 +603,7 @@ vectorstore/inmemory: func (s *Store) DeleteWhere(ctx context.Context, expr filt
 vectorstore/inmemory: func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error)
 vectorstore/inmemory: func (s *Store) Len() int
 vectorstore/inmemory: func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error)
+vectorstore/inmemory: func (s StoreConfig) Validate() error
 vectorstore/inmemory: func CosineSimilarity(a, b []float64) vectorstore.Score
 vectorstore/inmemory: func DotProductSimilarity(a, b []float64) vectorstore.Score
 vectorstore/inmemory: func EuclideanSimilarity(a, b []float64) vectorstore.Score
@@ -620,29 +620,29 @@ vectorstore/storetest: type Capabilities struct { Indexer bool Searcher bool IDD
 vectorstore/storetest: type Compiler struct { Visit func(filter.Predicate) error Snapshot func() any }
 vectorstore/storetest: type Options struct { Unsupported []string }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
-vectorstore: func (o *SearchOptions) UnmarshalJSON(data []byte) error
-vectorstore: func (o SearchOptions) MarshalJSON() ([]byte, error)
-vectorstore: func (o SearchOptions) Validate() error
+vectorstore: func (i *IndexRequest) UnmarshalJSON(data []byte) error
+vectorstore: func (i IndexRequest) MarshalJSON() ([]byte, error)
 vectorstore: func (r *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error)
-vectorstore: func (r *IndexRequest) UnmarshalJSON(data []byte) error
 vectorstore: func (r *IndexRequest) Validate() error
-vectorstore: func (r *SearchRequest) UnmarshalJSON(data []byte) error
-vectorstore: func (r *SearchRequest) Validate() error
-vectorstore: func (r *SearchResponse) Documents() []*document.Document
-vectorstore: func (r *SearchResponse) First() *SearchResult
-vectorstore: func (r *SearchResponse) UnmarshalJSON(data []byte) error
-vectorstore: func (r *SearchResponse) Validate() error
-vectorstore: func (r *SearchResponse) ValidateFor(request *SearchRequest) error
-vectorstore: func (r *SearchResult) UnmarshalJSON(data []byte) error
-vectorstore: func (r *SearchResult) Validate() error
-vectorstore: func (r IndexRequest) MarshalJSON() ([]byte, error)
-vectorstore: func (r SearchRequest) MarshalJSON() ([]byte, error)
-vectorstore: func (r SearchResponse) MarshalJSON() ([]byte, error)
-vectorstore: func (r SearchResult) MarshalJSON() ([]byte, error)
 vectorstore: func (s *Score) UnmarshalJSON(data []byte) error
+vectorstore: func (s *SearchOptions) UnmarshalJSON(data []byte) error
+vectorstore: func (s *SearchRequest) UnmarshalJSON(data []byte) error
+vectorstore: func (s *SearchRequest) Validate() error
+vectorstore: func (s *SearchResponse) Documents() []*document.Document
+vectorstore: func (s *SearchResponse) First() *SearchResult
+vectorstore: func (s *SearchResponse) UnmarshalJSON(data []byte) error
+vectorstore: func (s *SearchResponse) Validate() error
+vectorstore: func (s *SearchResponse) ValidateFor(request *SearchRequest) error
+vectorstore: func (s *SearchResult) UnmarshalJSON(data []byte) error
+vectorstore: func (s *SearchResult) Validate() error
 vectorstore: func (s Score) Float64() float64
 vectorstore: func (s Score) MarshalJSON() ([]byte, error)
 vectorstore: func (s Score) Validate() error
+vectorstore: func (s SearchOptions) MarshalJSON() ([]byte, error)
+vectorstore: func (s SearchOptions) Validate() error
+vectorstore: func (s SearchRequest) MarshalJSON() ([]byte, error)
+vectorstore: func (s SearchResponse) MarshalJSON() ([]byte, error)
+vectorstore: func (s SearchResult) MarshalJSON() ([]byte, error)
 vectorstore: func NewIndexRequest(documents []*document.Document) (*IndexRequest, error)
 vectorstore: func NewSearchOptions() SearchOptions
 vectorstore: func NewSearchRequest(query string) (*SearchRequest, error)

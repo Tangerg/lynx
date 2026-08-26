@@ -50,17 +50,17 @@ func JSONSchema[T any](name string, schema []byte) (OutputFormat[T], error) {
 	return OutputFormat[T]{contract: contract, decoder: decoder.json[T]}, nil
 }
 
-func (f OutputFormat[T]) validate() error {
-	if err := f.contract.Validate(); err != nil {
+func (o OutputFormat[T]) validate() error {
+	if err := o.contract.Validate(); err != nil {
 		return fmt.Errorf("%w: contract: %w", ErrInvalidOutputFormat, err)
 	}
-	if f.decoder == nil {
+	if o.decoder == nil {
 		return fmt.Errorf("%w: nil decoder", ErrInvalidOutputFormat)
 	}
 	return nil
 }
 
-func (f OutputFormat[T]) decode(responses iter.Seq2[*chat.Response, error]) (T, error) {
+func (o OutputFormat[T]) decode(responses iter.Seq2[*chat.Response, error]) (T, error) {
 	var zero T
 	if responses == nil {
 		return zero, fmt.Errorf("%w: nil response sequence", ErrInvalidOutputFormat)
@@ -84,7 +84,7 @@ func (f OutputFormat[T]) decode(responses iter.Seq2[*chat.Response, error]) (T, 
 	if !seen {
 		return zero, fmt.Errorf("%w: empty response sequence", ErrInvalidOutputFormat)
 	}
-	value, err := f.decoder([]byte(text.String()))
+	value, err := o.decoder([]byte(text.String()))
 	if err != nil {
 		return zero, fmt.Errorf("chatclient: decode result: %w", err)
 	}
@@ -105,11 +105,11 @@ func (outputDecoder) text(raw []byte) (string, error) {
 	return string(raw), nil
 }
 
-func (d outputDecoder) json[T any](raw []byte) (T, error) {
+func (o outputDecoder) json[T any](raw []byte) (T, error) {
 	var lastErr error
-	for _, candidate := range d.jsonCandidates(raw) {
+	for _, candidate := range o.jsonCandidates(raw) {
 		attempts := [][]byte{candidate}
-		if repaired, changed := d.escapeStringControls(candidate); changed {
+		if repaired, changed := o.escapeStringControls(candidate); changed {
 			attempts = append(attempts, repaired)
 		}
 		for _, attempt := range attempts {
@@ -128,15 +128,15 @@ func (d outputDecoder) json[T any](raw []byte) (T, error) {
 	return zero, fmt.Errorf("invalid JSON: %w", lastErr)
 }
 
-func (d outputDecoder) jsonCandidates(raw []byte) [][]byte {
+func (o outputDecoder) jsonCandidates(raw []byte) [][]byte {
 	trimmed := bytes.TrimSpace(raw)
 	candidates := make([][]byte, 0, 3)
-	candidates = d.appendUnique(candidates, trimmed)
-	if fenced, ok := d.stripMarkdownFence(trimmed); ok {
-		candidates = d.appendUnique(candidates, fenced)
+	candidates = o.appendUnique(candidates, trimmed)
+	if fenced, ok := o.stripMarkdownFence(trimmed); ok {
+		candidates = o.appendUnique(candidates, fenced)
 	}
-	if balanced, ok := d.firstBalancedJSON(trimmed); ok {
-		candidates = d.appendUnique(candidates, balanced)
+	if balanced, ok := o.firstBalancedJSON(trimmed); ok {
+		candidates = o.appendUnique(candidates, balanced)
 	}
 	return candidates
 }
@@ -168,14 +168,14 @@ func (outputDecoder) stripMarkdownFence(raw []byte) ([]byte, bool) {
 	return bytes.TrimSpace(raw[openerEnd+1 : len(raw)-3]), true
 }
 
-func (d outputDecoder) firstBalancedJSON(raw []byte) ([]byte, bool) {
+func (o outputDecoder) firstBalancedJSON(raw []byte) ([]byte, bool) {
 	var found []byte
 	for start := 0; start < len(raw); start++ {
 		value := raw[start]
 		if value != '{' && value != '[' {
 			continue
 		}
-		end, ok := d.balancedJSONEnd(raw, start)
+		end, ok := o.balancedJSONEnd(raw, start)
 		if !ok {
 			return nil, false
 		}
@@ -188,7 +188,7 @@ func (d outputDecoder) firstBalancedJSON(raw []byte) ([]byte, bool) {
 	return found, found != nil
 }
 
-func (d outputDecoder) balancedJSONEnd(raw []byte, start int) (int, bool) {
+func (o outputDecoder) balancedJSONEnd(raw []byte, start int) (int, bool) {
 	stack := make([]byte, 0, 8)
 	inString := false
 	escaped := false
@@ -213,7 +213,7 @@ func (d outputDecoder) balancedJSONEnd(raw []byte, start int) (int, bool) {
 		case '{', '[':
 			stack = append(stack, value)
 		case '}', ']':
-			if len(stack) == 0 || !d.matchingDelimiters(stack[len(stack)-1], value) {
+			if len(stack) == 0 || !o.matchingDelimiters(stack[len(stack)-1], value) {
 				return 0, false
 			}
 			stack = stack[:len(stack)-1]

@@ -27,16 +27,16 @@ func NewConversationID(value string) (ConversationID, error) {
 }
 
 // String returns the storage representation of the conversation identity.
-func (conversationID ConversationID) String() string {
-	return string(conversationID)
+func (c ConversationID) String() string {
+	return string(c)
 }
 
 // Validate verifies the partition identity required by Store operations. IDs
 // are opaque UTF-8 text, but control characters and leading or trailing
 // whitespace are rejected because they commonly indicate propagation bugs and
 // create invisible or unsafe storage partitions.
-func (conversationID ConversationID) Validate() error {
-	value := conversationID.String()
+func (c ConversationID) Validate() error {
+	value := c.String()
 	if value == "" {
 		return fmt.Errorf("%w: empty", ErrInvalidConversationID)
 	}

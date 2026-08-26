@@ -36,31 +36,31 @@ func NewSearchOptions() SearchOptions {
 }
 
 // Validate verifies every search policy independently from its query.
-func (o SearchOptions) Validate() error {
-	if o.TopK <= 0 {
-		return fmt.Errorf("%w: TopK must be > 0, got %d", ErrInvalidOptions, o.TopK)
+func (s SearchOptions) Validate() error {
+	if s.TopK <= 0 {
+		return fmt.Errorf("%w: TopK must be > 0, got %d", ErrInvalidOptions, s.TopK)
 	}
-	if err := o.MinScore.Validate(); err != nil {
+	if err := s.MinScore.Validate(); err != nil {
 		return fmt.Errorf("%w: MinScore: %w", ErrInvalidOptions, err)
 	}
-	if o.Filter != nil {
-		if err := o.Filter.Validate(); err != nil {
+	if s.Filter != nil {
+		if err := s.Filter.Validate(); err != nil {
 			return fmt.Errorf("%w: filter: %w", ErrInvalidOptions, err)
 		}
 	}
 	return nil
 }
 
-func (o SearchOptions) MarshalJSON() ([]byte, error) {
-	if err := o.Validate(); err != nil {
+func (s SearchOptions) MarshalJSON() ([]byte, error) {
+	if err := s.Validate(); err != nil {
 		return nil, err
 	}
 	type wireSearchOptions SearchOptions
-	return json.Marshal(wireSearchOptions(o))
+	return json.Marshal(wireSearchOptions(s))
 }
 
-func (o *SearchOptions) UnmarshalJSON(data []byte) error {
-	if o == nil {
+func (s *SearchOptions) UnmarshalJSON(data []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil SearchOptions receiver", ErrInvalidOptions)
 	}
 	type wireSearchOptions SearchOptions
@@ -72,7 +72,7 @@ func (o *SearchOptions) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*o = candidate
+	*s = candidate
 	return nil
 }
 
@@ -92,29 +92,29 @@ func NewSearchRequest(query string) (*SearchRequest, error) {
 }
 
 // Validate verifies the query and its options before provider I/O.
-func (r *SearchRequest) Validate() error {
-	if r == nil {
+func (s *SearchRequest) Validate() error {
+	if s == nil {
 		return fmt.Errorf("%w: search request is nil", ErrInvalidRequest)
 	}
-	if strings.TrimSpace(r.Query) == "" {
+	if strings.TrimSpace(s.Query) == "" {
 		return fmt.Errorf("%w: Query must not be empty", ErrInvalidRequest)
 	}
-	if err := r.Options.Validate(); err != nil {
+	if err := s.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
 	}
 	return nil
 }
 
-func (r SearchRequest) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (s SearchRequest) MarshalJSON() ([]byte, error) {
+	if err := (&s).Validate(); err != nil {
 		return nil, err
 	}
 	type wireSearchRequest SearchRequest
-	return json.Marshal(wireSearchRequest(r))
+	return json.Marshal(wireSearchRequest(s))
 }
 
-func (r *SearchRequest) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (s *SearchRequest) UnmarshalJSON(data []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil SearchRequest receiver", ErrInvalidRequest)
 	}
 	type wireSearchRequest SearchRequest
@@ -126,7 +126,7 @@ func (r *SearchRequest) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*s = candidate
 	return nil
 }
 
@@ -147,35 +147,35 @@ func NewSearchResult(doc *document.Document, score Score) (*SearchResult, error)
 	return result, nil
 }
 
-func (r *SearchResult) Validate() error {
-	if r == nil {
+func (s *SearchResult) Validate() error {
+	if s == nil {
 		return fmt.Errorf("%w: result is nil", ErrInvalidResponse)
 	}
-	if r.Document == nil {
+	if s.Document == nil {
 		return fmt.Errorf("%w: result document is nil", ErrInvalidResponse)
 	}
-	if err := r.Document.Validate(); err != nil {
+	if err := s.Document.Validate(); err != nil {
 		return fmt.Errorf("%w: result document: %w", ErrInvalidResponse, err)
 	}
-	if strings.TrimSpace(r.Document.ID) == "" {
+	if strings.TrimSpace(s.Document.ID) == "" {
 		return fmt.Errorf("%w: result: %w", ErrInvalidResponse, ErrMissingDocumentID)
 	}
-	if err := r.Score.Validate(); err != nil {
+	if err := s.Score.Validate(); err != nil {
 		return fmt.Errorf("%w: result score: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (r SearchResult) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (s SearchResult) MarshalJSON() ([]byte, error) {
+	if err := (&s).Validate(); err != nil {
 		return nil, err
 	}
 	type wireSearchResult SearchResult
-	return json.Marshal(wireSearchResult(r))
+	return json.Marshal(wireSearchResult(s))
 }
 
-func (r *SearchResult) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (s *SearchResult) UnmarshalJSON(data []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil SearchResult receiver", ErrInvalidResponse)
 	}
 	type wireSearchResult SearchResult
@@ -187,7 +187,7 @@ func (r *SearchResult) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*s = candidate
 	return nil
 }
 
@@ -206,31 +206,31 @@ func NewSearchResponse(results []*SearchResult) (*SearchResponse, error) {
 }
 
 // Validate verifies the response's provider-independent invariants.
-func (r *SearchResponse) Validate() error {
-	if r == nil {
+func (s *SearchResponse) Validate() error {
+	if s == nil {
 		return fmt.Errorf("%w: response is nil", ErrInvalidResponse)
 	}
-	for i, result := range r.Results {
+	for i, result := range s.Results {
 		if err := result.Validate(); err != nil {
 			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
 		}
-		if i > 0 && r.Results[i-1].Score < result.Score {
+		if i > 0 && s.Results[i-1].Score < result.Score {
 			return fmt.Errorf("%w: results are not sorted by descending score at index %d", ErrInvalidResponse, i)
 		}
 	}
 	return nil
 }
 
-func (r SearchResponse) MarshalJSON() ([]byte, error) {
-	if err := (&r).Validate(); err != nil {
+func (s SearchResponse) MarshalJSON() ([]byte, error) {
+	if err := (&s).Validate(); err != nil {
 		return nil, err
 	}
 	type wireSearchResponse SearchResponse
-	return json.Marshal(wireSearchResponse(r))
+	return json.Marshal(wireSearchResponse(s))
 }
 
-func (r *SearchResponse) UnmarshalJSON(data []byte) error {
-	if r == nil {
+func (s *SearchResponse) UnmarshalJSON(data []byte) error {
+	if s == nil {
 		return fmt.Errorf("%w: nil SearchResponse receiver", ErrInvalidResponse)
 	}
 	type wireSearchResponse SearchResponse
@@ -242,22 +242,22 @@ func (r *SearchResponse) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*r = candidate
+	*s = candidate
 	return nil
 }
 
 // ValidateFor verifies that a valid response also honors request policy.
-func (r *SearchResponse) ValidateFor(request *SearchRequest) error {
+func (s *SearchResponse) ValidateFor(request *SearchRequest) error {
 	if err := request.Validate(); err != nil {
 		return err
 	}
-	if err := r.Validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
-	if len(r.Results) > request.Options.TopK {
-		return fmt.Errorf("%w: got %d results, TopK is %d", ErrInvalidResponse, len(r.Results), request.Options.TopK)
+	if len(s.Results) > request.Options.TopK {
+		return fmt.Errorf("%w: got %d results, TopK is %d", ErrInvalidResponse, len(s.Results), request.Options.TopK)
 	}
-	for i, result := range r.Results {
+	for i, result := range s.Results {
 		if result.Score < request.Options.MinScore {
 			return fmt.Errorf("%w: results[%d] score %v is below MinScore %v",
 				ErrInvalidResponse, i, result.Score, request.Options.MinScore)
@@ -267,20 +267,20 @@ func (r *SearchResponse) ValidateFor(request *SearchRequest) error {
 }
 
 // First returns the highest-ranked result, or nil when the response is empty.
-func (r *SearchResponse) First() *SearchResult {
-	if r == nil || len(r.Results) == 0 {
+func (s *SearchResponse) First() *SearchResult {
+	if s == nil || len(s.Results) == 0 {
 		return nil
 	}
-	return r.Results[0]
+	return s.Results[0]
 }
 
 // Documents projects the ranked response into its complete documents.
-func (r *SearchResponse) Documents() []*document.Document {
-	if r == nil {
+func (s *SearchResponse) Documents() []*document.Document {
+	if s == nil {
 		return nil
 	}
-	documents := make([]*document.Document, len(r.Results))
-	for i, result := range r.Results {
+	documents := make([]*document.Document, len(s.Results))
+	for i, result := range s.Results {
 		if result != nil {
 			documents[i] = result.Document
 		}

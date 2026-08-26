@@ -21,70 +21,70 @@ type ResponseMetadata struct {
 }
 
 // Set encodes provider-specific response metadata into Extra.
-func (m *ResponseMetadata) Set(key string, value any) error {
-	if m == nil {
+func (r *ResponseMetadata) Set(key string, value any) error {
+	if r == nil {
 		return fmt.Errorf("chat.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	if err := m.Extra.Set(key, value); err != nil {
+	if err := r.Extra.Set(key, value); err != nil {
 		return fmt.Errorf("chat.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResponseMetadata) validate() error {
-	if m == nil {
+func (r *ResponseMetadata) validate() error {
+	if r == nil {
 		return nil
 	}
-	if m.ID != "" && strings.TrimSpace(m.ID) != m.ID {
+	if r.ID != "" && strings.TrimSpace(r.ID) != r.ID {
 		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)
 	}
-	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+	if r.Model != "" && strings.TrimSpace(r.Model) != r.Model {
 		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
 	}
-	if err := m.Usage.Validate(); err != nil {
+	if err := r.Usage.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
-	if err := m.Extra.Validate(); err != nil {
+	if err := r.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResponseMetadata) merge(src ResponseMetadata) error {
+func (r *ResponseMetadata) merge(src ResponseMetadata) error {
 	if src.ID != "" {
-		m.ID = src.ID
+		r.ID = src.ID
 	}
 	if src.Model != "" {
-		m.Model = src.Model
+		r.Model = src.Model
 	}
 	if !src.Usage.isZero() {
-		m.Usage = src.Usage.clone()
+		r.Usage = src.Usage.clone()
 	}
-	if err := m.Extra.Merge(src.Extra); err != nil {
+	if err := r.Extra.Merge(src.Extra); err != nil {
 		return fmt.Errorf("merge extras: %w", err)
 	}
 	return nil
 }
 
-func (m ResponseMetadata) clone() *ResponseMetadata {
-	clone := m
-	clone.Usage = m.Usage.clone()
-	clone.Extra = m.Extra.Clone()
+func (r ResponseMetadata) clone() *ResponseMetadata {
+	clone := r
+	clone.Usage = r.Usage.clone()
+	clone.Extra = r.Extra.Clone()
 	return &clone
 }
 
 // MarshalJSON validates ResponseMetadata before writing its wire representation.
-func (m ResponseMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&m).validate(); err != nil {
+func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
+	if err := (&r).validate(); err != nil {
 		return nil, err
 	}
 	type wireResponseMetadata ResponseMetadata
-	return json.Marshal(wireResponseMetadata(m))
+	return json.Marshal(wireResponseMetadata(r))
 }
 
 // UnmarshalJSON decodes and validates ResponseMetadata before replacing the receiver.
-func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
-	if m == nil {
+func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
+	if r == nil {
 		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
 	}
 	type wireResponseMetadata ResponseMetadata
@@ -96,7 +96,7 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	if err := candidate.validate(); err != nil {
 		return err
 	}
-	*m = candidate
+	*r = candidate
 	return nil
 }
 

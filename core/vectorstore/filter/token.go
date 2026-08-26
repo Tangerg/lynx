@@ -37,8 +37,8 @@ type lexeme struct {
 	start, end Position
 }
 
-func (k tokenKind) string() string {
-	switch k {
+func (t tokenKind) string() string {
+	switch t {
 	case tokenEOF:
 		return "end of input"
 	case tokenIdent:

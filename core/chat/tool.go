@@ -13,11 +13,11 @@ type ToolCall struct {
 
 // Validate verifies call identity. Arguments is intentionally not parsed here:
 // model output may be partial or malformed and still needs to round-trip.
-func (c ToolCall) Validate() error {
-	if c.ID == "" {
+func (t ToolCall) Validate() error {
+	if t.ID == "" {
 		return fmt.Errorf("%w: empty ID", ErrInvalidToolCall)
 	}
-	if c.Name == "" {
+	if t.Name == "" {
 		return fmt.Errorf("%w: empty name", ErrInvalidToolCall)
 	}
 	return nil
@@ -33,11 +33,11 @@ type ToolResult struct {
 
 // Validate verifies result identity. An empty Result is valid because a tool
 // may complete without producing output.
-func (r ToolResult) Validate() error {
-	if r.ID == "" {
+func (t ToolResult) Validate() error {
+	if t.ID == "" {
 		return fmt.Errorf("%w: empty ID", ErrInvalidToolResult)
 	}
-	if r.Name == "" {
+	if t.Name == "" {
 		return fmt.Errorf("%w: empty name", ErrInvalidToolResult)
 	}
 	return nil

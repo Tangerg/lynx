@@ -13,12 +13,12 @@ func newSyntaxError(position Position, token, message string) *SyntaxError {
 	return &SyntaxError{Position: position, Token: token, Message: message}
 }
 
-func (e *SyntaxError) Error() string {
-	if e == nil {
+func (s *SyntaxError) Error() string {
+	if s == nil {
 		return "filter: syntax error"
 	}
-	if e.Token == "" {
-		return fmt.Sprintf("filter: %s at %s", e.Message, e.Position)
+	if s.Token == "" {
+		return fmt.Sprintf("filter: %s at %s", s.Message, s.Position)
 	}
-	return fmt.Sprintf("filter: %s at %s near %q", e.Message, e.Position, e.Token)
+	return fmt.Sprintf("filter: %s at %s near %q", s.Message, s.Position, s.Token)
 }

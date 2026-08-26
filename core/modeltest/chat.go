@@ -20,21 +20,21 @@ type ChatSuite struct {
 }
 
 // Run executes the shared synchronous and streaming conformance cases.
-func (s ChatSuite) Run(t *testing.T) {
+func (c ChatSuite) Run(t *testing.T) {
 	t.Helper()
-	if s.New == nil {
+	if c.New == nil {
 		t.Fatal("modeltest.ChatSuite.New must not be nil")
 	}
-	if s.Request == nil {
+	if c.Request == nil {
 		t.Fatal("modeltest.ChatSuite.Request must not be nil")
 	}
 
 	t.Run("call", func(t *testing.T) {
-		model, _ := s.New(t)
+		model, _ := c.New(t)
 		if model == nil {
 			t.Fatal("provider returned nil Model")
 		}
-		request := s.validRequest(t)
+		request := c.validRequest(t)
 		before := requestWire(t, request)
 		response, err := model.Call(t.Context(), request)
 		if err != nil {
@@ -44,17 +44,17 @@ func (s ChatSuite) Run(t *testing.T) {
 		if after := requestWire(t, request); !bytes.Equal(before, after) {
 			t.Fatalf("Call mutated Request\nbefore: %s\nafter:  %s", before, after)
 		}
-		if s.AssertCall != nil {
-			s.AssertCall(t, response)
+		if c.AssertCall != nil {
+			c.AssertCall(t, response)
 		}
 	})
 
 	t.Run("stream", func(t *testing.T) {
-		_, streamer := s.New(t)
+		_, streamer := c.New(t)
 		if streamer == nil {
 			t.Fatal("provider returned nil Streamer")
 		}
-		request := s.validRequest(t)
+		request := c.validRequest(t)
 		before := requestWire(t, request)
 		var responses []*chat.Response
 		var accumulator chat.ResponseAccumulator
@@ -74,20 +74,20 @@ func (s ChatSuite) Run(t *testing.T) {
 		if after := requestWire(t, request); !bytes.Equal(before, after) {
 			t.Fatalf("Stream mutated Request\nbefore: %s\nafter:  %s", before, after)
 		}
-		if s.AssertStream != nil {
-			s.AssertStream(t, responses)
+		if c.AssertStream != nil {
+			c.AssertStream(t, responses)
 		}
 		aggregated := accumulator.Response()
 		assertResponse(t, aggregated)
-		if s.AssertAggregated != nil {
-			s.AssertAggregated(t, aggregated)
+		if c.AssertAggregated != nil {
+			c.AssertAggregated(t, aggregated)
 		}
 	})
 }
 
-func (s ChatSuite) validRequest(t *testing.T) *chat.Request {
+func (c ChatSuite) validRequest(t *testing.T) *chat.Request {
 	t.Helper()
-	request := s.Request(t)
+	request := c.Request(t)
 	if request == nil {
 		t.Fatal("provider returned nil Request fixture")
 	}
