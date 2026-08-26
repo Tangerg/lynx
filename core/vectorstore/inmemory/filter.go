@@ -32,11 +32,11 @@ func (e *evaluator) Visit(predicate filter.Predicate) error {
 // errors (type mismatch, unsupported node, etc.) are surfaced rather
 // than swallowed — a malformed filter is a programmer bug.
 func matchesFilter(expr filter.Predicate, metadata map[string]any) (bool, error) {
-	evaluator := evaluator{metadata: metadata}
-	if err := expr.Accept(&evaluator); err != nil {
+	visitor := evaluator{metadata: metadata}
+	if err := expr.Accept(&visitor); err != nil {
 		return false, err
 	}
-	return evaluator.match, nil
+	return visitor.match, nil
 }
 
 func (e *evaluator) eval(expr filter.Expr) (any, error) {

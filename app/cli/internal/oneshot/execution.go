@@ -233,9 +233,9 @@ func (e *executionDriver) run(ctx context.Context) (disposition, error) {
 		if followed.applied > 0 {
 			e.failures = 0
 		}
-		disposition, err := e.reconnect(ctx, cause)
-		if disposition != continuing {
-			return disposition, err
+		reconnectDisposition, err := e.reconnect(ctx, cause)
+		if reconnectDisposition != continuing {
+			return reconnectDisposition, err
 		}
 	}
 }

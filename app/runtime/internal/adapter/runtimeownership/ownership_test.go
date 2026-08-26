@@ -25,16 +25,16 @@ func TestManagersShareSessionAndGoalDriveOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("first Session lease was refused")
 	}
-	if _, ok := second.TrySession("session-1"); ok {
+	if _, trySessionOk := second.TrySession("session-1"); trySessionOk {
 		t.Fatal("second manager acquired the same Session writer")
 	}
-	if other, ok := second.TrySession("session-2"); !ok {
+	if other, trySessionOk := second.TrySession("session-2"); !trySessionOk {
 		t.Fatal("unrelated Session was blocked")
 	} else {
 		other.Release()
 	}
 	sessionLease.Release()
-	if next, ok := second.TrySession("session-1"); !ok {
+	if next, trySessionOk := second.TrySession("session-1"); !trySessionOk {
 		t.Fatal("Session writer did not transfer after release")
 	} else {
 		next.Release()
@@ -44,7 +44,7 @@ func TestManagersShareSessionAndGoalDriveOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("first Goal drive lease was refused")
 	}
-	if _, ok := second.TryGoalDrive("session-1"); ok {
+	if _, tryGoalDriveOk := second.TryGoalDrive("session-1"); tryGoalDriveOk {
 		t.Fatal("second manager acquired the same Goal drive")
 	}
 	drive.Release()
@@ -83,11 +83,11 @@ func TestWorkingTreeRunsSharePhysicalIdentityAndExcludeMutation(t *testing.T) {
 	if !ok {
 		t.Fatal("second shared working-tree lease through alias was refused")
 	}
-	if _, ok := second.TryWorkingTree(cwd, false); ok {
+	if _, tryWorkingTreeOk := second.TryWorkingTree(cwd, false); tryWorkingTreeOk {
 		t.Fatal("destructive mutation crossed active Run leases")
 	}
 	runA.Release()
-	if _, ok := first.TryWorkingTree(cwd, false); ok {
+	if _, tryWorkingTreeOk := first.TryWorkingTree(cwd, false); tryWorkingTreeOk {
 		t.Fatal("destructive mutation crossed the remaining Run lease")
 	}
 	runB.Release()

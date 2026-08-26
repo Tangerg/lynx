@@ -1192,8 +1192,8 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	}); err == nil {
 		t.Fatal("ClaimResume accepted a stale waiting hand-off")
 	}
-	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || !found {
-		t.Fatalf("interrupt after rolled-back claim = found:%t err:%v", found, err)
+	if _, getFound, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || !getFound {
+		t.Fatalf("interrupt after rolled-back claim = found:%t err:%v", getFound, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, root.MemberID); err != nil {
 		t.Fatalf("checkpoint after rolled-back claim: %v", err)
@@ -1209,8 +1209,8 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 		!reflect.DeepEqual(claimed.Checkpoint, checkpoint) {
 		t.Fatalf("claimed resume = %+v", claimed)
 	}
-	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || found {
-		t.Fatalf("open interrupt after claim = found:%t err:%v, want hidden", found, err)
+	if _, getFound, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || getFound {
+		t.Fatalf("open interrupt after claim = found:%t err:%v, want hidden", getFound, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, root.MemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("checkpoint after claim = %v, want not found", err)
@@ -1363,8 +1363,8 @@ func TestClaimResumeAtomicallyPersistsToolApprovalDecision(t *testing.T) {
 	if err != nil || !found || rolledBack.ApprovalDecision() != "" {
 		t.Fatalf("ToolCall after rollback = found:%t decision:%q err:%v", found, rolledBack.ApprovalDecision(), err)
 	}
-	if _, found, err := interrupts.Get(ctx, pending.RootRunID); err != nil || !found {
-		t.Fatalf("Pending after rollback = found:%t err:%v", found, err)
+	if _, getFound, err := interrupts.Get(ctx, pending.RootRunID); err != nil || !getFound {
+		t.Fatalf("Pending after rollback = found:%t err:%v", getFound, err)
 	}
 	if _, err := checkpoints.LoadCheckpoint(ctx, root.MemberID); err != nil {
 		t.Fatalf("checkpoint after rollback: %v", err)

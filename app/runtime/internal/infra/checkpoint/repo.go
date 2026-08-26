@@ -143,7 +143,7 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 				p = filepath.Join(srcObjects, p)
 			}
 			p = filepath.Clean(p)
-			if info, statErr := os.Stat(p); statErr == nil && info.IsDir() {
+			if statInfo, statErr := os.Stat(p); statErr == nil && statInfo.IsDir() {
 				if len(alternates) == maxSourceAlternates {
 					return fmt.Errorf(
 						"%w: source repository has more than %d object stores",

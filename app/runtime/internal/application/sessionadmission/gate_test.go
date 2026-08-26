@@ -16,7 +16,7 @@ func TestGateHoldsSessionThroughMaintenance(t *testing.T) {
 	if !opening.Admit("run_1") {
 		t.Fatal("opening admission did not become live")
 	}
-	if _, ok := gate.AcquireWorkingTreeMutation("/repo"); ok {
+	if _, mutationOk := gate.AcquireWorkingTreeMutation("/repo"); mutationOk {
 		t.Fatal("live run did not block a working-tree mutation")
 	}
 
@@ -27,10 +27,10 @@ func TestGateHoldsSessionThroughMaintenance(t *testing.T) {
 	if !gate.ActiveSessions()["ses_1"] {
 		t.Fatal("maintenance release erased the session claim")
 	}
-	if _, ok := gate.AcquireSession("ses_1"); ok {
+	if _, sessionOk := gate.AcquireSession("ses_1"); sessionOk {
 		t.Fatal("new admission crossed the maintenance boundary")
 	}
-	if _, ok := gate.AcquireWorkingTreeMutation("/repo"); ok {
+	if _, mutationOk := gate.AcquireWorkingTreeMutation("/repo"); mutationOk {
 		t.Fatal("terminal maintenance did not retain the working tree")
 	}
 
@@ -57,13 +57,13 @@ func TestGateExcludesWorkingTreeRunAdmissionsAndMutations(t *testing.T) {
 	if !ok {
 		t.Fatal("second run admission was rejected")
 	}
-	if _, ok := gate.AcquireWorkingTreeMutation(cwd); ok {
+	if _, mutationOk := gate.AcquireWorkingTreeMutation(cwd); mutationOk {
 		t.Fatal("mutation admission crossed pending run admissions")
 	}
 
 	first.Release()
 	first.Release()
-	if _, ok := gate.AcquireWorkingTreeMutation(cwd); ok {
+	if _, mutationOk := gate.AcquireWorkingTreeMutation(cwd); mutationOk {
 		t.Fatal("duplicate release consumed another run's admission")
 	}
 	second.Release()

@@ -29,20 +29,20 @@ func TestRegistryRemovesCompletedRun(t *testing.T) {
 }
 
 func TestRegistryOldSegmentCannotRemoveItsReplacement(t *testing.T) {
-	var registry registry
+	var reg registry
 	oldOwner := &runTreeOwner{}
 	newOwner := &runTreeOwner{}
-	registry.Open(Record{ID: "run_1", SegmentID: "segment_old"}, oldOwner)
-	registry.Open(Record{ID: "run_1", SegmentID: "segment_new"}, newOwner)
+	reg.Open(Record{ID: "run_1", SegmentID: "segment_old"}, oldOwner)
+	reg.Open(Record{ID: "run_1", SegmentID: "segment_new"}, newOwner)
 
-	if removed, ok := registry.RemoveSegment("run_1", "segment_old"); ok {
+	if removed, ok := reg.RemoveSegment("run_1", "segment_old"); ok {
 		t.Fatalf("old Segment removed replacement: %+v", removed)
 	}
-	live, ok := registry.Get("run_1")
+	live, ok := reg.Get("run_1")
 	if !ok || live.record.SegmentID != "segment_new" || live.owner != newOwner {
 		t.Fatalf("replacement after old removal = %+v, found=%t", live, ok)
 	}
-	if removed, ok := registry.RemoveSegment("run_1", "segment_new"); !ok || removed.owner != newOwner {
+	if removed, ok := reg.RemoveSegment("run_1", "segment_new"); !ok || removed.owner != newOwner {
 		t.Fatalf("exact replacement removal = %+v, found=%t", removed, ok)
 	}
 }
@@ -63,20 +63,20 @@ func TestRegistryCancelReason(t *testing.T) {
 }
 
 func TestRegistryOwnsRunCapabilities(t *testing.T) {
-	var registry registry
+	var reg registry
 	capabilities := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
-	registry.Open(Record{ID: "run_1", Capabilities: capabilities}, nil)
+	reg.Open(Record{ID: "run_1", Capabilities: capabilities}, nil)
 	capabilities.InterruptKinds[0] = interrupt.Question
 
-	first, ok := registry.Get("run_1")
+	first, ok := reg.Get("run_1")
 	if !ok || first.record.Capabilities.InterruptKinds[0] != interrupt.Approval {
 		t.Fatalf("stored capabilities followed caller mutation: %+v", first.record.Capabilities)
 	}
 	first.record.Capabilities.InterruptKinds[0] = interrupt.Question
 
-	second, ok := registry.Get("run_1")
+	second, ok := reg.Get("run_1")
 	if !ok || second.record.Capabilities.InterruptKinds[0] != interrupt.Approval {
 		t.Fatalf("Get leaked stored capabilities ownership: %+v", second.record.Capabilities)
 	}

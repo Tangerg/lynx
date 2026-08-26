@@ -219,11 +219,11 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		if !owned {
 			return "", nil
 		}
-		disposition, err := d.settleOwned(ctx, g)
+		settleDisposition, err := d.settleOwned(ctx, g)
 		if err != nil {
 			return "", err
 		}
-		if disposition != dispContinue {
+		if settleDisposition != dispContinue {
 			// This drive did not launch a Run, so leave the metric disposition
 			// empty. The Run that changed the Goal owns its own observation.
 			return "", nil

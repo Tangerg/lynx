@@ -838,7 +838,7 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 				!a.operations.Release(lease) {
 				return
 			}
-			opened, accepted := observedSegmentStream(opened, err)
+			observed, accepted := observedSegmentStream(opened, err)
 			if !accepted {
 				if mutation.OutcomeUnknown(err) {
 					a.fail(fmt.Errorf("reconcile canceled start: %w", err))
@@ -849,8 +849,8 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 				}
 				return
 			}
-			validationErr := opened.ValidateStart()
-			if strings.TrimSpace(opened.RunID) == "" {
+			validationErr := observed.ValidateStart()
+			if strings.TrimSpace(observed.RunID) == "" {
 				a.fail(errors.Join(
 					errors.New("reconcile canceled start: accepted receipt has no run identity"),
 					err,
@@ -863,7 +863,7 @@ func (a *app) reconcileCanceledStart(pending workbench.PendingRun) {
 			}
 			a.requestRuntimeCancellation(agent.CancelRun{
 				CommandID: pending.CancelCommandID,
-				RunID:     opened.RunID,
+				RunID:     observed.RunID,
 				Reason:    "canceled while start delivery was unconfirmed",
 			}, preserveProjectionAndReportCanceled)
 		})

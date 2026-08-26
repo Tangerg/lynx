@@ -82,7 +82,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 		// One server span per task execution. Opened when the SDK drains the
 		// sequence, closed at the terminal event; a mid-stream agent error is
 		// recorded before the Failed terminal goes out.
-		ctx, span := a2aTracer.Start(ctx, "a2a.agent.serve",
+		spanCtx, span := a2aTracer.Start(ctx, "a2a.agent.serve",
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
 				attribute.String(attrTaskID, string(execCtx.TaskID)),
@@ -112,7 +112,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 			message := sdka2a.NewMessage(sdka2a.MessageRoleAgent, sdka2a.NewTextPart(err.Error()))
 			yield(sdka2a.NewStatusUpdateEvent(execCtx, sdka2a.TaskStateFailed, message), nil)
 		}
-		sequence := e.agent.Run(ctx, input)
+		sequence := e.agent.Run(spanCtx, input)
 		if sequence == nil {
 			fail(errNilAgentSequence)
 			return

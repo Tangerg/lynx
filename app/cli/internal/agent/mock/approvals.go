@@ -142,8 +142,8 @@ func ruleApplies(rule storedRule, sessionID, workspace string) bool {
 func approvalRuleParts(approval agent.Approval) (tool, subject string) {
 	hint := strings.TrimSpace(approval.RuleHint)
 	if hint != "" {
-		if tool, subject, ok := strings.Cut(hint, ":"); ok && strings.TrimSpace(tool) != "" {
-			return strings.TrimSpace(tool), strings.TrimSpace(subject)
+		if hintTool, hintSubject, ok := strings.Cut(hint, ":"); ok && strings.TrimSpace(hintTool) != "" {
+			return strings.TrimSpace(hintTool), strings.TrimSpace(hintSubject)
 		}
 	}
 	if approval.Tool == nil {
