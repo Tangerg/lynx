@@ -927,10 +927,10 @@ github.com/Tangerg/lynx/agent v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:hLd2G
 github.com/Tangerg/lynx/agent v0.0.0-20260721023422-b01ee95543a4/go.mod h1:hLd2Gp8/8R6Srd5eHTIoy7ES54vg7bsMbAW4hd+IFro=
 github.com/Tangerg/lynx/agent v0.0.0-20260809020332-1225c9752d4f/go.mod h1:GUC4jamzZUAARms+6eb4ZreEfNJER2j1AsLqo/j5fzA=
 github.com/Tangerg/lynx/agent v0.0.0-20260825065905-a02034eb7570/go.mod h1:VNqsORyI9JmNoQISrOJtxKjPCiM7U5LGXuo6BTX3nv0=
+github.com/Tangerg/lynx/app/runtime v0.0.0-20260826084142-3bd0b1c0942e/go.mod h1:Q5+5kKo3ohnFQo40CW8/SJqc5B49GQ3YInHrhST++y4=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9 h1:8BhoC1PKzDbC1wrg+MpHupvHYiPrUF16yoSNAIwCFvk=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
-github.com/Tangerg/lynx/chathistory v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:29yD8K9sQ+qQwuuzuq31R8KM0LScn7fSPmrkMuYd8p4=
 github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375/go.mod h1:bBPiCdrGjFI3Y7Gws4QqmbZf9rePGvpQrx7tyevOXc8=
 github.com/Tangerg/lynx/core v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=

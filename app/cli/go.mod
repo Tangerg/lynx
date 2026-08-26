@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/app/cli
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/app/runtime v0.0.0-20260826075319-44ce3225cd9e
+	github.com/Tangerg/lynx/app/runtime v0.0.0-20260826084142-3bd0b1c0942e
 	github.com/Tangerg/oolong/components v0.12.0
 	github.com/Tangerg/oolong/core v0.12.0
 	github.com/Tangerg/oolong/highlight v0.12.0
@@ -24,7 +24,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx/a2a v0.0.0-20260826074258-420034c45aec // indirect
 	github.com/Tangerg/lynx/agent v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b // indirect
+	github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2 // indirect
 	github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec // indirect
 	github.com/Tangerg/lynx/models/alibaba v0.0.0-20260826074620-641b4fc16dbb // indirect
 	github.com/Tangerg/lynx/models/anthropic v0.0.0-20260826074620-641b4fc16dbb // indirect
@@ -48,7 +48,7 @@ require (
 	github.com/Tangerg/lynx/models/xiaomi v0.0.0-20260826074620-641b4fc16dbb // indirect
 	github.com/Tangerg/lynx/models/zhipu v0.0.0-20260826074620-641b4fc16dbb // indirect
 	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b // indirect
-	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec // indirect
+	github.com/Tangerg/lynx/tools v0.0.0-20260826083855-adf089f2e7f2 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect
