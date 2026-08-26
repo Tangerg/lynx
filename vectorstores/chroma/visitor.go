@@ -510,9 +510,9 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 			return nil, err
 		}
 		if integer {
-			value, err := lit.Int()
-			if err != nil {
-				return nil, err
+			value, intErr := lit.Int()
+			if intErr != nil {
+				return nil, intErr
 			}
 			return chromaNumber{integer: value, isInteger: true}, nil
 		}

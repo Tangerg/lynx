@@ -84,8 +84,8 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		}
 		apiReq.LanguageConfig.Languages = []string{mergedOpts.Language}
 	}
-	if err := validateTranscriptionRequest(apiReq); err != nil {
-		return nil, err
+	if validateTranscriptionRequestErr := validateTranscriptionRequest(apiReq); validateTranscriptionRequestErr != nil {
+		return nil, validateTranscriptionRequestErr
 	}
 	if apiReq.AudioURL == "" {
 		var audio []byte
@@ -113,23 +113,23 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	outputMetadata := &transcription.OutputMetadata{}
 	if len(final.Result.Transcription.Languages) > 0 {
-		if err := outputMetadata.Set("gladia/languages", final.Result.Transcription.Languages); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("gladia/languages", final.Result.Transcription.Languages); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if len(final.Result.Transcription.Utterances) > 0 {
-		if err := outputMetadata.Set("gladia/utterances", final.Result.Transcription.Utterances); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("gladia/utterances", final.Result.Transcription.Utterances); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if final.Result.Translation != nil {
-		if err := outputMetadata.Set("gladia/translation", final.Result.Translation); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("gladia/translation", final.Result.Translation); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if final.Result.Summarization != nil {
-		if err := outputMetadata.Set("gladia/summarization", final.Result.Summarization); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("gladia/summarization", final.Result.Summarization); setErr != nil {
+			return nil, setErr
 		}
 	}
 

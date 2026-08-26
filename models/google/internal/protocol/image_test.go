@@ -37,11 +37,11 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.OutputFormat = "image/jpeg"
-	if err := opts.SetExtension(protocol.ImageRequestExtensionKey, protocol.ImageGenerationOptions{
+	if setExtensionErr := opts.SetExtension(protocol.ImageRequestExtensionKey, protocol.ImageGenerationOptions{
 		AspectRatio: "16:9",
 		ImageSize:   "2K",
-	}); err != nil {
-		t.Fatal(err)
+	}); setExtensionErr != nil {
+		t.Fatal(setExtensionErr)
 	}
 	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
 		APIKey:         "test-key",

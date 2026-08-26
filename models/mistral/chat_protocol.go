@@ -148,7 +148,7 @@ func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[
 		defer body.Close()
 
 		state := newChatStreamState()
-		if err := scanMistralSSE(body, func(data []byte) bool {
+		if scanMistralSSEErr := scanMistralSSE(body, func(data []byte) bool {
 			var chunk chatCompletionChunk
 			if decodeErr := json.Unmarshal(data, &chunk); decodeErr != nil {
 				err = fmt.Errorf("mistral: decode chat stream chunk: %w", decodeErr)
@@ -160,8 +160,8 @@ func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[
 				return false
 			}
 			return yield(response, nil)
-		}); err != nil {
-			yield(nil, err)
+		}); scanMistralSSEErr != nil {
+			yield(nil, scanMistralSSEErr)
 		}
 	}
 }
@@ -185,8 +185,8 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 		if _, exists := fields["response_format"]; exists {
 			return nil, fmt.Errorf("mistral: extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
 		}
-		if err := extension.Validate(); err != nil {
-			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
+		if validateErr := extension.Validate(); validateErr != nil {
+			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, validateErr)
 		}
 	}
 	options, err := c.defaults.Merged(request.Options)

@@ -202,8 +202,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Index embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("azureaisearch.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("azureaisearch.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

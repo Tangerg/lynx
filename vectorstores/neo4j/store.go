@@ -259,8 +259,8 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 
 // Index embeds documents and upserts them as nodes.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("neo4j.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("neo4j.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

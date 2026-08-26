@@ -61,8 +61,8 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if len(options.Stop) > 0 {
 		config.StopSequences = slices.Clone(options.Stop)
 	}
-	if err := mapProtocolOutputFormat(options.OutputFormat, config); err != nil {
-		return "", nil, nil, err
+	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(options.OutputFormat, config); mapProtocolOutputFormatErr != nil {
+		return "", nil, nil, mapProtocolOutputFormatErr
 	}
 
 	system, contents, err := mapProtocolMessages(provider, req.Messages)

@@ -464,8 +464,8 @@ func (s *Store) vectorArgs() *goredis.FTVectorArgs {
 // Index embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("redis.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("redis.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest
@@ -484,9 +484,9 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		pipe := s.client.Pipeline()
 		for i, doc := range docs {
 			id := doc.ID
-			metadataValues, err := doc.Metadata.Values()
-			if err != nil {
-				return fmt.Errorf("redis: decode metadata for %s: %w", id, err)
+			metadataValues, valuesErr := doc.Metadata.Values()
+			if valuesErr != nil {
+				return fmt.Errorf("redis: decode metadata for %s: %w", id, valuesErr)
 			}
 			fields := map[string]any{
 				s.contentField:   doc.Text,

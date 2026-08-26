@@ -107,15 +107,15 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	alt := apiResp.Results.Channels[0].Alternatives[0]
 
 	outputMetadata := &transcription.OutputMetadata{}
-	if err := outputMetadata.Set("deepgram/confidence", alt.Confidence); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set("deepgram/confidence", alt.Confidence); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set("deepgram/words", alt.Words); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set("deepgram/words", alt.Words); setErr != nil {
+		return nil, setErr
 	}
 	if len(apiResp.Results.Utterances) > 0 {
-		if err := outputMetadata.Set("deepgram/utterances", apiResp.Results.Utterances); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("deepgram/utterances", apiResp.Results.Utterances); setErr != nil {
+			return nil, setErr
 		}
 	}
 

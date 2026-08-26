@@ -256,8 +256,8 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 
 // Index embeds documents and bulk-upserts them by _id.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("mongodb.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("mongodb.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

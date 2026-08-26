@@ -260,8 +260,8 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // Index embeds documents and upserts them via MERGE.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("oracle.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("oracle.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

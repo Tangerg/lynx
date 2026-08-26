@@ -78,8 +78,8 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if apiReq.LanguageCode == "" && mergedOpts.Language != "" {
 		apiReq.LanguageCode = mergedOpts.Language
 	}
-	if err := validateTranscriptionRequest(apiReq); err != nil {
-		return nil, err
+	if validateTranscriptionRequestErr := validateTranscriptionRequest(apiReq); validateTranscriptionRequestErr != nil {
+		return nil, validateTranscriptionRequestErr
 	}
 
 	audio, err := req.Audio.Bytes()
@@ -94,21 +94,21 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	outputMetadata := &transcription.OutputMetadata{}
 	if apiResp.LanguageCode != "" {
-		if err := outputMetadata.Set("elevenlabs/language_code", apiResp.LanguageCode); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("elevenlabs/language_code", apiResp.LanguageCode); setErr != nil {
+			return nil, setErr
 		}
-		if err := outputMetadata.Set("elevenlabs/language_probability", apiResp.LanguageProbability); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("elevenlabs/language_probability", apiResp.LanguageProbability); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if len(apiResp.Words) > 0 {
-		if err := outputMetadata.Set("elevenlabs/words", apiResp.Words); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("elevenlabs/words", apiResp.Words); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if len(apiResp.Entities) > 0 {
-		if err := outputMetadata.Set("elevenlabs/entities", apiResp.Entities); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("elevenlabs/entities", apiResp.Entities); setErr != nil {
+			return nil, setErr
 		}
 	}
 

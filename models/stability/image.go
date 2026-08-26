@@ -136,12 +136,12 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 
 	outputMetadata := &image.OutputMetadata{}
 	if envelope.FinishReason != "" {
-		if err := outputMetadata.Set("stability/finish_reason", envelope.FinishReason); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("stability/finish_reason", envelope.FinishReason); setErr != nil {
+			return nil, setErr
 		}
 	}
-	if err := outputMetadata.Set("stability/seed", envelope.Seed); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set("stability/seed", envelope.Seed); setErr != nil {
+		return nil, setErr
 	}
 
 	output, err := image.NewOutput(value, outputMetadata)

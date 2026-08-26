@@ -159,8 +159,8 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if mergedOpts.Model != a.model {
 		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", mergedOpts.Model, a.model)
 	}
-	if err := a.inputSchema.validateOptions(mergedOpts); err != nil {
-		return nil, err
+	if validateOptionsErr := a.inputSchema.validateOptions(mergedOpts); validateOptionsErr != nil {
+		return nil, validateOptionsErr
 	}
 
 	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](SpeechRequestExtensionKey)
@@ -209,13 +209,13 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 	outputMetadata := &tts.OutputMetadata{}
 	if contentType != "" {
-		if err := outputMetadata.Set("replicate/mime_type", contentType); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("replicate/mime_type", contentType); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if final.Metrics.PredictTime > 0 {
-		if err := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); setErr != nil {
+			return nil, setErr
 		}
 	}
 

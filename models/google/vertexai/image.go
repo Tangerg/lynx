@@ -87,8 +87,8 @@ func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := i.validateOptions(mergedOpts); err != nil {
-		return "", nil, nil, err
+	if validateOptionsErr := i.validateOptions(mergedOpts); validateOptionsErr != nil {
+		return "", nil, nil, validateOptionsErr
 	}
 
 	providerOptsValue, _, err := mergedOpts.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
@@ -194,8 +194,8 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 				return nil, fmt.Errorf("vertexai: image: candidates[%d].parts[%d]: %w", candidateIndex, partIndex, err)
 			}
 			outputMetadata := &image.OutputMetadata{}
-			if err := outputMetadata.Set("vertexai/native_part", part); err != nil {
-				return nil, err
+			if setErr := outputMetadata.Set("vertexai/native_part", part); setErr != nil {
+				return nil, setErr
 			}
 			output, err := image.NewOutput(value, outputMetadata)
 			if err != nil {

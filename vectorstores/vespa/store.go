@@ -201,8 +201,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Index embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("vespa.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("vespa.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

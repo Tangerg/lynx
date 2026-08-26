@@ -203,12 +203,12 @@ func (s *Store) initialize(ctx context.Context) error {
 		return err
 	}
 	if exists {
-		info, err := s.client.GetCollectionInfo(ctx, s.collectionName)
-		if err != nil {
-			return fmt.Errorf("qdrant: inspect existing collection %s: %w", s.collectionName, err)
+		info, getCollectionInfoErr := s.client.GetCollectionInfo(ctx, s.collectionName)
+		if getCollectionInfoErr != nil {
+			return fmt.Errorf("qdrant: inspect existing collection %s: %w", s.collectionName, getCollectionInfoErr)
 		}
-		if err = validateCollectionSchema(info, dimensions, distance); err != nil {
-			return fmt.Errorf("qdrant: collection %s: %w", s.collectionName, err)
+		if getCollectionInfoErr = validateCollectionSchema(info, dimensions, distance); getCollectionInfoErr != nil {
+			return fmt.Errorf("qdrant: collection %s: %w", s.collectionName, getCollectionInfoErr)
 		}
 		return nil
 	}
@@ -313,13 +313,13 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 }
 
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("qdrant.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("qdrant.Store.Index: %w", validateErr)
 	}
 	docs := request.Documents
 	for _, doc := range docs {
-		if _, err := parsePointID(doc.ID); err != nil {
-			return fmt.Errorf("qdrant.Store.Index: %w", err)
+		if _, parsePointIDErr := parsePointID(doc.ID); parsePointIDErr != nil {
+			return fmt.Errorf("qdrant.Store.Index: %w", parsePointIDErr)
 		}
 	}
 

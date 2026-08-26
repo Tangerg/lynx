@@ -86,8 +86,8 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := a.validateOptions(mergedOpts); err != nil {
-		return "", nil, nil, err
+	if validateOptionsErr := a.validateOptions(mergedOpts); validateOptionsErr != nil {
+		return "", nil, nil, validateOptionsErr
 	}
 
 	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "transcription_request"))

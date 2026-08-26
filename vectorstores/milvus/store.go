@@ -163,14 +163,14 @@ func (s *Store) initialize(ctx context.Context) error {
 	}
 
 	if !exists {
-		dimensions, err := s.embeddingClient.Dimensions(ctx)
-		if err != nil {
-			return fmt.Errorf("milvus: resolve embedding dimensions: %w", err)
+		dimensions, dimensionsErr := s.embeddingClient.Dimensions(ctx)
+		if dimensionsErr != nil {
+			return fmt.Errorf("milvus: resolve embedding dimensions: %w", dimensionsErr)
 		}
 
 		schema := s.createSchema(int64(dimensions))
-		if err = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); err != nil {
-			return fmt.Errorf("milvus: create collection %s: %w", s.collectionName, err)
+		if dimensionsErr = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); dimensionsErr != nil {
+			return fmt.Errorf("milvus: create collection %s: %w", s.collectionName, dimensionsErr)
 		}
 
 		idx := index.NewAutoIndex(s.metricType)
@@ -178,8 +178,8 @@ func (s *Store) initialize(ctx context.Context) error {
 		if createErr != nil {
 			return fmt.Errorf("milvus: create index on collection %s: %w", s.collectionName, createErr)
 		}
-		if err = indexTask.Await(ctx); err != nil {
-			return fmt.Errorf("milvus: await index creation on collection %s: %w", s.collectionName, err)
+		if dimensionsErr = indexTask.Await(ctx); dimensionsErr != nil {
+			return fmt.Errorf("milvus: await index creation on collection %s: %w", s.collectionName, dimensionsErr)
 		}
 	}
 
@@ -225,11 +225,11 @@ func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 }
 
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("milvus.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("milvus.Store.Index: %w", validateErr)
 	}
-	if err := validateProviderDocuments(request.Documents); err != nil {
-		return fmt.Errorf("milvus.Store.Index: %w", err)
+	if validateProviderDocumentsErr := validateProviderDocuments(request.Documents); validateProviderDocumentsErr != nil {
+		return fmt.Errorf("milvus.Store.Index: %w", validateProviderDocumentsErr)
 	}
 
 	var batches []*vectorstore.IndexRequest
@@ -367,8 +367,8 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	if req.Options.Filter != nil {
 		visitor := NewVisitor()
-		if err := req.Options.Filter.Accept(visitor); err != nil {
-			return nil, fmt.Errorf("milvus: convert filter: %w", err)
+		if acceptErr := req.Options.Filter.Accept(visitor); acceptErr != nil {
+			return nil, fmt.Errorf("milvus: convert filter: %w", acceptErr)
 		}
 		searchOpt = searchOpt.WithFilter(visitor.Result())
 	}

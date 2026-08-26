@@ -107,8 +107,8 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 	apiReq.SpeechModels = prioritizedSpeechModels(mergedOpts.Model, apiReq.SpeechModels)
-	if err := validateTranscriptRequest(apiReq); err != nil {
-		return nil, err
+	if validateTranscriptRequestErr := validateTranscriptRequest(apiReq); validateTranscriptRequestErr != nil {
+		return nil, validateTranscriptRequestErr
 	}
 	if apiReq.LanguageCode == "" && mergedOpts.Language != "" {
 		apiReq.LanguageCode = mergedOpts.Language

@@ -114,13 +114,13 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	outputMetadata := &transcription.OutputMetadata{}
 	if final.Language != "" {
-		if err := outputMetadata.Set("revai/language", final.Language); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("revai/language", final.Language); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if final.DurationSeconds > 0 {
-		if err := outputMetadata.Set("revai/duration_seconds", final.DurationSeconds); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("revai/duration_seconds", final.DurationSeconds); setErr != nil {
+			return nil, setErr
 		}
 	}
 

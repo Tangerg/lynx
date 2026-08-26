@@ -142,8 +142,8 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 	if err != nil {
 		return nil, err
 	}
-	if err := i.validateOptions(mergedOpts); err != nil {
-		return nil, err
+	if validateOptionsErr := i.validateOptions(mergedOpts); validateOptionsErr != nil {
+		return nil, validateOptionsErr
 	}
 
 	providerOptsValue, _, err := mergedOpts.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
@@ -383,8 +383,8 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 				return nil, fmt.Errorf("google: image: steps[%d].content[%d]: %w", stepIndex, contentIndex, err)
 			}
 			outputMetadata := &image.OutputMetadata{}
-			if err := outputMetadata.Set("google/image_content", rawContent); err != nil {
-				return nil, err
+			if setErr := outputMetadata.Set("google/image_content", rawContent); setErr != nil {
+				return nil, setErr
 			}
 			output, err := image.NewOutput(value, outputMetadata)
 			if err != nil {

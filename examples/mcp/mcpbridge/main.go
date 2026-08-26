@@ -37,8 +37,8 @@ func main() {
 		&sdkmcp.Implementation{Name: "lynx-bridge", Version: "v0.1.0"},
 		nil,
 	)
-	if err := lynxmcp.Register(server, echo); err != nil {
-		log.Fatal(err)
+	if registerErr := lynxmcp.Register(server, echo); registerErr != nil {
+		log.Fatal(registerErr)
 	}
 
 	// 3. Drive the server end-to-end with a tiny in-memory client so the

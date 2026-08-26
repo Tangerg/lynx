@@ -82,10 +82,10 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectUnsupportedOptions("openai: translation", map[string]bool{
+	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions("openai: translation", map[string]bool{
 		"language": mergedOpts.Language != "",
-	}); err != nil {
-		return nil, err
+	}); rejectUnsupportedOptionsErr != nil {
+		return nil, rejectUnsupportedOptionsErr
 	}
 
 	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"), "model", "file")

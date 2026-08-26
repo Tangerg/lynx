@@ -149,17 +149,17 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	outputMetadata := &image.OutputMetadata{}
-	if err := outputMetadata.Set("blackforestlabs/output_url", final.Result.Sample); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set("blackforestlabs/output_url", final.Result.Sample); setErr != nil {
+		return nil, setErr
 	}
 	if final.Result.Seed != 0 {
-		if err := outputMetadata.Set("blackforestlabs/seed", final.Result.Seed); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("blackforestlabs/seed", final.Result.Seed); setErr != nil {
+			return nil, setErr
 		}
 	}
 	if final.Result.Duration != 0 {
-		if err := outputMetadata.Set("blackforestlabs/duration_ms", final.Result.Duration); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("blackforestlabs/duration_ms", final.Result.Duration); setErr != nil {
+			return nil, setErr
 		}
 	}
 

@@ -16,8 +16,8 @@ func TestProtocolOutputFormatUsesNativeSchemaAndPromptFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	params := anthropicsdk.MessageNewParams{}
-	if err := mapProtocolOutputFormat(&schema, Dialect{NativeJSONSchema: true}, &params); err != nil {
-		t.Fatal(err)
+	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(&schema, Dialect{NativeJSONSchema: true}, &params); mapProtocolOutputFormatErr != nil {
+		t.Fatal(mapProtocolOutputFormatErr)
 	}
 	if len(params.OutputConfig.Format.Schema) == 0 || len(params.System) != 0 {
 		t.Fatalf("native schema mapping = %#v", params)

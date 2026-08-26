@@ -37,11 +37,11 @@ func TestChatBuildConverseInput(t *testing.T) {
 		}},
 		Options: corechat.Options{Temperature: &temperature},
 	}
-	if err := request.Options.SetExtension(ChatRequestExtensionKey, ChatRequestOptions{
+	if setExtensionErr := request.Options.SetExtension(ChatRequestExtensionKey, ChatRequestOptions{
 		AdditionalModelRequestFields: map[string]any{"thinking": true},
 		RequestMetadata:              map[string]string{"tenant": "test"},
-	}); err != nil {
-		t.Fatal(err)
+	}); setExtensionErr != nil {
+		t.Fatal(setExtensionErr)
 	}
 
 	model := &Chat{api: &api{}, defaults: corechat.Options{Model: "anthropic.claude-test"}}

@@ -95,8 +95,8 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	}
 	params.System = append(params.System, system...)
 	params.Messages = append(params.Messages, messages...)
-	if err := mapProtocolOutputFormat(options.OutputFormat, dialect, &params); err != nil {
-		return nil, err
+	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(options.OutputFormat, dialect, &params); mapProtocolOutputFormatErr != nil {
+		return nil, mapProtocolOutputFormatErr
 	}
 	tools, err := mapProtocolTools(req.Tools)
 	if err != nil {

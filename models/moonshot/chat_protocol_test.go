@@ -45,8 +45,8 @@ func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
 		corechat.NewAssistantMessage(previousThinking, corechat.NewTextPart("previous answer")),
 		corechat.NewUserMessage(corechat.NewTextPart("again")),
 	}}
-	if err := request.Options.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{ReasoningEffort: moonshot.ReasoningEffortHigh}); err != nil {
-		t.Fatalf("SetExtension: %v", err)
+	if setExtensionErr := request.Options.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{ReasoningEffort: moonshot.ReasoningEffortHigh}); setExtensionErr != nil {
+		t.Fatalf("SetExtension: %v", setExtensionErr)
 	}
 	response, err := model.Call(t.Context(), request)
 	if err != nil {

@@ -64,8 +64,8 @@ func TestOutputFormatFallsBackOnlyWhenDialectLacksNativeShape(t *testing.T) {
 	dialect := Dialect{NativeOutputFormat: func(formatType corechat.OutputFormatType) bool {
 		return formatType != corechat.OutputFormatJSONSchema
 	}}
-	if err := applyChatOutputFormat(&format, &params, dialect); err != nil {
-		t.Fatal(err)
+	if applyChatOutputFormatErr := applyChatOutputFormat(&format, &params, dialect); applyChatOutputFormatErr != nil {
+		t.Fatal(applyChatOutputFormatErr)
 	}
 	if params.ResponseFormat.OfJSONSchema != nil || len(params.Messages) != 2 {
 		t.Fatalf("fallback request = %#v", params)

@@ -110,8 +110,8 @@ func (d DistanceMetric) score(distance float64) vectorstore.Score {
 
 // Index embeds the documents and upserts them into the configured table.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("%s.Store.Index: %w", s.provider, err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("%s.Store.Index: %w", s.provider, validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

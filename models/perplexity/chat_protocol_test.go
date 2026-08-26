@@ -55,7 +55,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	request.Options.OutputFormat = &format
 	returnImages := true
 	disableSearch := false
-	if err := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
+	if setExtensionErr := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
 		SearchMode:            perplexity.SearchModeWeb,
 		ReturnImages:          &returnImages,
 		DisableSearch:         &disableSearch,
@@ -66,8 +66,8 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 		LanguagePreference:    "en",
 		SearchAfterDateFilter: perplexity.SearchDate("01/01/2026"),
 		WebSearchOptions:      &perplexity.WebSearchOptions{SearchContextSize: perplexity.SearchContextHigh, SearchType: perplexity.SearchTypeFast},
-	}); err != nil {
-		t.Fatalf("SetExtension: %v", err)
+	}); setExtensionErr != nil {
+		t.Fatalf("SetExtension: %v", setExtensionErr)
 	}
 
 	response, err := model.Call(t.Context(), request)

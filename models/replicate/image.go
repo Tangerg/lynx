@@ -199,8 +199,8 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if mergedOpts.Model != i.model {
 		return nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", mergedOpts.Model, i.model)
 	}
-	if err := i.inputSchema.validateOptions(mergedOpts); err != nil {
-		return nil, err
+	if validateOptionsErr := i.inputSchema.validateOptions(mergedOpts); validateOptionsErr != nil {
+		return nil, validateOptionsErr
 	}
 	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](ImageRequestExtensionKey)
 	apiReq := &apiReqValue
@@ -264,12 +264,12 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 			return nil, err
 		}
 		outputMetadata := &image.OutputMetadata{}
-		if err := outputMetadata.Set("replicate/output_url", outputURL); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("replicate/output_url", outputURL); setErr != nil {
+			return nil, setErr
 		}
 		if final.Metrics.PredictTime > 0 {
-			if err := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
-				return nil, err
+			if setErr := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); setErr != nil {
+				return nil, setErr
 			}
 		}
 		output, err := image.NewOutput(value, outputMetadata)

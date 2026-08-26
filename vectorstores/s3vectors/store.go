@@ -142,8 +142,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 // PutVectors batch at 500 vectors, so the document batcher should
 // produce shards smaller than that.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("s3vectors.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("s3vectors.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

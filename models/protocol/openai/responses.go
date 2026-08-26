@@ -143,9 +143,9 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		params.TopP = openaisdk.Float(*options.TopP)
 	}
 	if options.OutputFormat != nil {
-		format, err := mapResponsesOutputFormat(options.OutputFormat)
-		if err != nil {
-			return nil, err
+		format, mapResponsesOutputFormatErr := mapResponsesOutputFormat(options.OutputFormat)
+		if mapResponsesOutputFormatErr != nil {
+			return nil, mapResponsesOutputFormatErr
 		}
 		params.Text.Format = format
 	}

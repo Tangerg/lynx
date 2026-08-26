@@ -119,8 +119,8 @@ func NewStore(config StoreConfig) (*Store, error) {
 // service performs its own embedding internally, so no embedding
 // client is required here.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("vectara.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("vectara.Store.Index: %w", validateErr)
 	}
 
 	var batches []*vectorstore.IndexRequest

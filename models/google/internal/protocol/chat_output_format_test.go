@@ -15,8 +15,8 @@ func TestMapProtocolOutputFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := &genai.GenerateContentConfig{}
-	if err := mapProtocolOutputFormat(&format, config); err != nil {
-		t.Fatal(err)
+	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(&format, config); mapProtocolOutputFormatErr != nil {
+		t.Fatal(mapProtocolOutputFormatErr)
 	}
 	if config.ResponseMIMEType != "application/json" || config.ResponseJsonSchema == nil {
 		t.Fatalf("schema config = %#v", config)

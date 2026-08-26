@@ -94,8 +94,8 @@ func (i *ImageModel) Call(ctx context.Context, request *image.Request) (*image.R
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectUnsupportedOptions(optionsValue); err != nil {
-		return nil, err
+	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions(optionsValue); rejectUnsupportedOptionsErr != nil {
+		return nil, rejectUnsupportedOptionsErr
 	}
 
 	paramsValue, _, err := optionsValue.Extensions.Decode[lumaagents.GenerationNewParams](ImageRequestExtensionKey)
@@ -198,8 +198,8 @@ func (i *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Gen
 			return nil, err
 		}
 		outputMetadata := &image.OutputMetadata{}
-		if err := outputMetadata.Set("luma/output", generationOutput); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set("luma/output", generationOutput); setErr != nil {
+			return nil, setErr
 		}
 		output, err := image.NewOutput(value, outputMetadata)
 		if err != nil {

@@ -148,17 +148,17 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	outputMetadata := &tts.OutputMetadata{}
 	if len(apiResp.Generations) > 0 {
 		g := apiResp.Generations[0]
-		if err := outputMetadata.Set(metadataEncodingFormat, g.Encoding.Format); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set(metadataEncodingFormat, g.Encoding.Format); setErr != nil {
+			return nil, setErr
 		}
-		if err := outputMetadata.Set(metadataSampleRate, g.Encoding.SampleRate); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set(metadataSampleRate, g.Encoding.SampleRate); setErr != nil {
+			return nil, setErr
 		}
-		if err := outputMetadata.Set(metadataDurationSeconds, g.Duration); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set(metadataDurationSeconds, g.Duration); setErr != nil {
+			return nil, setErr
 		}
-		if err := outputMetadata.Set(metadataGenerationID, g.ID); err != nil {
-			return nil, err
+		if setErr := outputMetadata.Set(metadataGenerationID, g.ID); setErr != nil {
+			return nil, setErr
 		}
 	}
 	output, err := tts.NewOutput(audio, outputMetadata)
@@ -235,32 +235,32 @@ func (t *ttsStreamEvent) response(model string) (*tts.Response, error) {
 		return nil, err
 	}
 	outputMetadata := &tts.OutputMetadata{}
-	if err := outputMetadata.Set(metadataAudioFormat, t.AudioFormat); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataAudioFormat, t.AudioFormat); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataChunkIndex, t.ChunkIndex); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataChunkIndex, t.ChunkIndex); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataGenerationID, t.GenerationID); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataGenerationID, t.GenerationID); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataIsLastChunk, t.IsLastChunk); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataIsLastChunk, t.IsLastChunk); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataSnippetID, t.SnippetID); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataSnippetID, t.SnippetID); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataText, t.Text); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataText, t.Text); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataTranscribedText, t.TranscribedText); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataTranscribedText, t.TranscribedText); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataUtteranceIndex, t.UtteranceIndex); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataUtteranceIndex, t.UtteranceIndex); setErr != nil {
+		return nil, setErr
 	}
-	if err := outputMetadata.Set(metadataStreamAudioEvent, t); err != nil {
-		return nil, err
+	if setErr := outputMetadata.Set(metadataStreamAudioEvent, t); setErr != nil {
+		return nil, setErr
 	}
 	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {

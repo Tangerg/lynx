@@ -301,8 +301,8 @@ func (e *EmbeddingModel) embedCohere(
 	}
 
 	var response cohereEmbeddingResponse
-	if err := json.Unmarshal(responseBody, &response); err != nil {
-		return nil, fmt.Errorf("bedrock: decode Cohere embedding response: %w", err)
+	if unmarshalErr := json.Unmarshal(responseBody, &response); unmarshalErr != nil {
+		return nil, fmt.Errorf("bedrock: decode Cohere embedding response: %w", unmarshalErr)
 	}
 	vectors, err := decodeCohereFloatEmbeddings(response.Embeddings)
 	if err != nil {

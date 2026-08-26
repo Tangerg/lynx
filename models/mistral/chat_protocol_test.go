@@ -62,11 +62,11 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 		}},
 	}
 	parallel := false
-	if err := firstRequest.Options.SetExtension(mistral.RequestExtensionKey, mistral.ChatRequestOptions{
+	if setExtensionErr := firstRequest.Options.SetExtension(mistral.RequestExtensionKey, mistral.ChatRequestOptions{
 		ReasoningEffort:   mistral.ReasoningEffortHigh,
 		ParallelToolCalls: &parallel,
-	}); err != nil {
-		t.Fatalf("SetExtension: %v", err)
+	}); setExtensionErr != nil {
+		t.Fatalf("SetExtension: %v", setExtensionErr)
 	}
 	firstResponse, err := model.Call(t.Context(), firstRequest)
 	if err != nil {

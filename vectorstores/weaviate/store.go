@@ -226,12 +226,12 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 }
 
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("weaviate.Store.Index: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return fmt.Errorf("weaviate.Store.Index: %w", validateErr)
 	}
 	for i, doc := range request.Documents {
-		if err := validateObjectID(doc.ID); err != nil {
-			return fmt.Errorf("weaviate.Store.Index: documents[%d]: %w", i, err)
+		if validateObjectIDErr := validateObjectID(doc.ID); validateObjectIDErr != nil {
+			return fmt.Errorf("weaviate.Store.Index: documents[%d]: %w", i, validateObjectIDErr)
 		}
 	}
 
@@ -323,8 +323,8 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	if req.Options.Filter != nil {
 		visitor := NewVisitor()
-		if err := req.Options.Filter.Accept(visitor); err != nil {
-			return nil, fmt.Errorf("weaviate: convert filter: %w", err)
+		if acceptErr := req.Options.Filter.Accept(visitor); acceptErr != nil {
+			return nil, fmt.Errorf("weaviate: convert filter: %w", acceptErr)
 		}
 		getBuilder = getBuilder.WithWhere(visitor.Result())
 	}
@@ -449,8 +449,8 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 		return nil
 	}
 	for i, id := range ids {
-		if err := validateObjectID(id); err != nil {
-			return fmt.Errorf("weaviate.Store.DeleteIDs: ids[%d]: %w", i, err)
+		if validateObjectIDErr := validateObjectID(id); validateObjectIDErr != nil {
+			return fmt.Errorf("weaviate.Store.DeleteIDs: ids[%d]: %w", i, validateObjectIDErr)
 		}
 	}
 

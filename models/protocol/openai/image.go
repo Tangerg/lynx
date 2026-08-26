@@ -72,11 +72,11 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectUnsupportedOptions("openai: image", map[string]bool{
+	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions("openai: image", map[string]bool{
 		"negative_prompt": mergedOpts.NegativePrompt != "",
 		"seed":            mergedOpts.Seed != nil,
-	}); err != nil {
-		return nil, err
+	}); rejectUnsupportedOptionsErr != nil {
+		return nil, rejectUnsupportedOptionsErr
 	}
 	if (mergedOpts.Width == nil) != (mergedOpts.Height == nil) {
 		return nil, errors.New("openai: image: width and height must be set together")
@@ -117,8 +117,8 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType st
 		}
 		outputMetadata := &image.OutputMetadata{}
 		if generated.RevisedPrompt != "" {
-			if err := outputMetadata.Set(i.provider+"/revised_prompt", generated.RevisedPrompt); err != nil {
-				return nil, err
+			if setErr := outputMetadata.Set(i.provider+"/revised_prompt", generated.RevisedPrompt); setErr != nil {
+				return nil, setErr
 			}
 		}
 		output, err := image.NewOutput(value, outputMetadata)
