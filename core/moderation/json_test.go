@@ -52,21 +52,21 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("failed Request decode mutated receiver: %#v", request)
 	}
 
-	result, err := moderation.NewResult(
+	output, err := moderation.NewOutput(
 		moderation.Categories{"safe": {}},
-		&moderation.ResultMetadata{},
+		&moderation.OutputMetadata{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	response := moderation.Response{
-		Results:  []*moderation.Result{result},
+		Outputs:  []*moderation.Output{output},
 		Metadata: &moderation.ResponseMetadata{},
 	}
-	if err := json.Unmarshal([]byte(`{"results":[],"metadata":{}}`), &response); !errors.Is(err, moderation.ErrInvalidResponse) {
+	if err := json.Unmarshal([]byte(`{"outputs":[],"metadata":{}}`), &response); !errors.Is(err, moderation.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal Response error = %v", err)
 	}
-	if response.First() != result {
+	if response.First() != output {
 		t.Fatalf("failed Response decode mutated receiver: %#v", response)
 	}
 

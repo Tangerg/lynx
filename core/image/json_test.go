@@ -54,18 +54,18 @@ func TestJSONBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := image.NewResult(generated, &image.ResultMetadata{})
+	output, err := image.NewOutput(generated, &image.OutputMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	response := image.Response{
-		Results:  []*image.Result{result},
+		Outputs:  []*image.Output{output},
 		Metadata: &image.ResponseMetadata{},
 	}
-	if err := json.Unmarshal([]byte(`{"results":[],"metadata":{}}`), &response); !errors.Is(err, image.ErrInvalidResponse) {
+	if err := json.Unmarshal([]byte(`{"outputs":[],"metadata":{}}`), &response); !errors.Is(err, image.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal Response error = %v", err)
 	}
-	if response.First() != result {
+	if response.First() != output {
 		t.Fatalf("failed Response decode mutated receiver: %#v", response)
 	}
 }

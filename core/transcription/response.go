@@ -8,51 +8,51 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ResultMetadata holds per-segment metadata returned by the provider.
-type ResultMetadata struct {
+// OutputMetadata holds per-segment metadata returned by the provider.
+type OutputMetadata struct {
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific result metadata into Extra.
-func (m *ResultMetadata) Set(key string, value any) error {
+// Set encodes provider-specific output metadata into Extra.
+func (m *OutputMetadata) Set(key string, value any) error {
 	if m == nil {
-		return fmt.Errorf("transcription.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("transcription.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := m.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("transcription.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("transcription.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResultMetadata) validate() error {
+func (m *OutputMetadata) validate() error {
 	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
 	}
 	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+func (m OutputMetadata) MarshalJSON() ([]byte, error) {
 	if err := (&m).validate(); err != nil {
 		return nil, err
 	}
-	type wireResultMetadata ResultMetadata
-	return json.Marshal(wireResultMetadata(m))
+	type wireOutputMetadata OutputMetadata
+	return json.Marshal(wireOutputMetadata(m))
 }
 
-func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if m == nil {
-		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
-	type wireResultMetadata ResultMetadata
-	var decoded wireResultMetadata
+	type wireOutputMetadata OutputMetadata
+	var decoded wireOutputMetadata
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
 	}
-	candidate := ResultMetadata(decoded)
+	candidate := OutputMetadata(decoded)
 	if err := candidate.validate(); err != nil {
 		return err
 	}
@@ -60,29 +60,29 @@ func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Result is one transcription segment.
-type Result struct {
+// Output is one transcription segment.
+type Output struct {
 	// Text is the transcribed text. Empty is allowed for partial /
 	// silence segments.
 	Text string `json:"text"`
 
 	// Metadata carries per-segment extras.
-	Metadata *ResultMetadata `json:"metadata,omitempty"`
+	Metadata *OutputMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Text may be empty; metadata is required.
-func NewResult(text string, metadata *ResultMetadata) (*Result, error) {
-	result := &Result{Text: text, Metadata: metadata}
-	if err := result.Validate(); err != nil {
-		return nil, fmt.Errorf("transcription.NewResult: %w", err)
+// NewOutput builds a [Output]. Text may be empty; metadata is required.
+func NewOutput(text string, metadata *OutputMetadata) (*Output, error) {
+	output := &Output{Text: text, Metadata: metadata}
+	if err := output.Validate(); err != nil {
+		return nil, fmt.Errorf("transcription.NewOutput: %w", err)
 	}
-	return result, nil
+	return output, nil
 }
 
-// Validate verifies transcription result metadata.
-func (r *Result) Validate() error {
+// Validate verifies transcription output metadata.
+func (r *Output) Validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
 	if err := r.Metadata.validate(); err != nil {
 		return err
@@ -90,24 +90,24 @@ func (r *Result) Validate() error {
 	return nil
 }
 
-func (r Result) MarshalJSON() ([]byte, error) {
+func (r Output) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
 	}
-	type wireResult Result
-	return json.Marshal(wireResult(r))
+	type wireOutput Output
+	return json.Marshal(wireOutput(r))
 }
 
-func (r *Result) UnmarshalJSON(data []byte) error {
+func (r *Output) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
-	type wireResult Result
-	var decoded wireResult
+	type wireOutput Output
+	var decoded wireOutput
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output: %w", ErrInvalidResponse, err)
 	}
-	candidate := Result(decoded)
+	candidate := Output(decoded)
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
@@ -181,18 +181,18 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 
 // Response is one transcription call's output plus shared metadata.
 // Providers that emit per-segment timing (Whisper verbose_json) should
-// stash the segment array under Result.Metadata.Extra; the top-level
-// Result holds the merged transcript text.
+// stash the segment array under Output.Metadata.Extra; the top-level
+// Output holds the merged transcript text.
 type Response struct {
-	// Result holds the transcribed text. Non-nil after [NewResponse].
-	Result *Result `json:"result,omitempty"`
+	// Output holds the transcribed text. Non-nil after [NewResponse].
+	Output *Output `json:"output,omitempty"`
 
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from a non-nil result and metadata.
-func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
-	response := &Response{Result: result, Metadata: metadata}
+// NewResponse builds a [Response] from a non-nil output and metadata.
+func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Output: output, Metadata: metadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("transcription.NewResponse: %w", err)
 	}
@@ -204,8 +204,8 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if err := r.Result.Validate(); err != nil {
-		return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
+	if err := r.Output.Validate(); err != nil {
+		return fmt.Errorf("%w: output: %w", ErrInvalidResponse, err)
 	}
 	if err := r.Metadata.validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)

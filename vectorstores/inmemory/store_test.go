@@ -21,9 +21,9 @@ import (
 type fakeEmbeddingModel struct{}
 
 func (fakeEmbeddingModel) Call(_ context.Context, req *embedding.Request) (*embedding.Response, error) {
-	results := make([]*embedding.Result, 0, len(req.Texts))
+	results := make([]*embedding.Output, 0, len(req.Texts))
 	for _, text := range req.Texts {
-		r, err := embedding.NewResult(vectorFor(text), &embedding.ResultMetadata{})
+		r, err := embedding.NewOutput(vectorFor(text), &embedding.OutputMetadata{})
 		if err != nil {
 			return nil, err
 		}

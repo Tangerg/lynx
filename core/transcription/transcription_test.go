@@ -73,14 +73,14 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	result, err := transcription.NewResult("", &transcription.ResultMetadata{})
+	output, err := transcription.NewOutput("", &transcription.OutputMetadata{})
 	if err != nil {
-		t.Fatalf("NewResult rejected empty transcript: %v", err)
+		t.Fatalf("NewOutput rejected empty transcript: %v", err)
 	}
-	if _, err := transcription.NewResult("text", nil); err == nil {
-		t.Fatal("NewResult accepted nil metadata")
+	if _, err := transcription.NewOutput("text", nil); err == nil {
+		t.Fatal("NewOutput accepted nil metadata")
 	}
-	if _, err := transcription.NewResponse(result, &transcription.ResponseMetadata{}); err != nil {
+	if _, err := transcription.NewResponse(output, &transcription.ResponseMetadata{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -111,11 +111,11 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 
 func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	t.Helper()
-	result, err := metadata.FromValues(values)
+	output, err := metadata.FromValues(values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	return output
 }
 
 func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
@@ -128,14 +128,14 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestResponseErrorBoundaries(t *testing.T) {
-	result, _ := transcription.NewResult("lynx", &transcription.ResultMetadata{})
+	output, _ := transcription.NewOutput("lynx", &transcription.OutputMetadata{})
 	if _, err := transcription.NewResponse(nil, &transcription.ResponseMetadata{}); err == nil {
-		t.Fatal("NewResponse accepted nil result")
+		t.Fatal("NewResponse accepted nil output")
 	}
-	if _, err := transcription.NewResponse(result, nil); err == nil {
+	if _, err := transcription.NewResponse(output, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
-	if err := (&transcription.Response{Result: result, Metadata: &transcription.ResponseMetadata{Created: -1}}).Validate(); err == nil {
+	if err := (&transcription.Response{Output: output, Metadata: &transcription.ResponseMetadata{Created: -1}}).Validate(); err == nil {
 		t.Fatal("Validate accepted a negative creation time")
 	}
 }

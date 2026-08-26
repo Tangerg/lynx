@@ -108,51 +108,51 @@ func (c *Categories) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ResultMetadata holds per-input metadata returned by the provider.
-type ResultMetadata struct {
+// OutputMetadata holds per-input metadata returned by the provider.
+type OutputMetadata struct {
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific result metadata into Extra.
-func (m *ResultMetadata) Set(key string, value any) error {
+// Set encodes provider-specific output metadata into Extra.
+func (m *OutputMetadata) Set(key string, value any) error {
 	if m == nil {
-		return fmt.Errorf("moderation.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("moderation.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := m.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("moderation.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("moderation.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResultMetadata) validate() error {
+func (m *OutputMetadata) validate() error {
 	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
 	}
 	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+func (m OutputMetadata) MarshalJSON() ([]byte, error) {
 	if err := (&m).validate(); err != nil {
 		return nil, err
 	}
-	type wireResultMetadata ResultMetadata
-	return json.Marshal(wireResultMetadata(m))
+	type wireOutputMetadata OutputMetadata
+	return json.Marshal(wireOutputMetadata(m))
 }
 
-func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if m == nil {
-		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
-	type wireResultMetadata ResultMetadata
-	var decoded wireResultMetadata
+	type wireOutputMetadata OutputMetadata
+	var decoded wireOutputMetadata
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
 	}
-	candidate := ResultMetadata(decoded)
+	candidate := OutputMetadata(decoded)
 	if err := candidate.validate(); err != nil {
 		return err
 	}
@@ -160,29 +160,29 @@ func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Result is one input's moderation verdict plus metadata.
-type Result struct {
+// Output is one input's moderation verdict plus metadata.
+type Output struct {
 	// Categories holds the per-category verdict.
 	Categories Categories `json:"categories,omitzero"`
 
 	// Metadata carries per-input extras.
-	Metadata *ResultMetadata `json:"metadata,omitempty"`
+	Metadata *OutputMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when categories or
+// NewOutput builds a [Output]. Returns an error when categories or
 // metadata is nil.
-func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error) {
-	result := &Result{Categories: maps.Clone(categories), Metadata: metadata}
-	if err := result.Validate(); err != nil {
-		return nil, fmt.Errorf("moderation.NewResult: %w", err)
+func NewOutput(categories Categories, metadata *OutputMetadata) (*Output, error) {
+	output := &Output{Categories: maps.Clone(categories), Metadata: metadata}
+	if err := output.Validate(); err != nil {
+		return nil, fmt.Errorf("moderation.NewOutput: %w", err)
 	}
-	return result, nil
+	return output, nil
 }
 
-// Validate verifies category verdicts and result metadata.
-func (r *Result) Validate() error {
+// Validate verifies category verdicts and output metadata.
+func (r *Output) Validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
 	if err := r.Categories.validate(); err != nil {
 		return err
@@ -193,24 +193,24 @@ func (r *Result) Validate() error {
 	return nil
 }
 
-func (r Result) MarshalJSON() ([]byte, error) {
+func (r Output) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
 	}
-	type wireResult Result
-	return json.Marshal(wireResult(r))
+	type wireOutput Output
+	return json.Marshal(wireOutput(r))
 }
 
-func (r *Result) UnmarshalJSON(data []byte) error {
+func (r *Output) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
-	type wireResult Result
-	var decoded wireResult
+	type wireOutput Output
+	var decoded wireOutput
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output: %w", ErrInvalidResponse, err)
 	}
-	candidate := Result(decoded)
+	candidate := Output(decoded)
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
@@ -288,20 +288,20 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Response is the full moderation result: one [*Result] per input plus
+// Response is the full moderation output: one [*Output] per input plus
 // shared response metadata.
 type Response struct {
-	// Results holds one entry per input, in the same order.
-	Results []*Result `json:"results,omitzero"`
+	// Outputs holds one entry per input, in the same order.
+	Outputs []*Output `json:"outputs,omitzero"`
 
 	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one result and a
+// NewResponse builds a [Response] from at least one output and a
 // non-nil metadata.
-func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	response := &Response{Results: slices.Clone(results), Metadata: metadata}
+func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Outputs: slices.Clone(outputs), Metadata: metadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("moderation.NewResponse: %w", err)
 	}
@@ -313,12 +313,12 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if len(r.Results) == 0 {
-		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
+	if len(r.Outputs) == 0 {
+		return fmt.Errorf("%w: at least one output is required", ErrInvalidResponse)
 	}
-	for i, result := range r.Results {
-		if err := result.Validate(); err != nil {
-			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
+	for i, output := range r.Outputs {
+		if err := output.Validate(); err != nil {
+			return fmt.Errorf("%w: outputs[%d]: %w", ErrInvalidResponse, i, err)
 		}
 	}
 	if err := r.Metadata.validate(); err != nil {
@@ -328,12 +328,12 @@ func (r *Response) Validate() error {
 }
 
 // First returns the first verdict — the common single-input shortcut.
-// Returns nil when Results is empty.
-func (r *Response) First() *Result {
-	if r == nil || len(r.Results) == 0 {
+// Returns nil when Outputs is empty.
+func (r *Response) First() *Output {
+	if r == nil || len(r.Outputs) == 0 {
 		return nil
 	}
-	return r.Results[0]
+	return r.Outputs[0]
 }
 
 func (r Response) MarshalJSON() ([]byte, error) {

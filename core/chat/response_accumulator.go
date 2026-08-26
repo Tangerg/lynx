@@ -17,12 +17,12 @@ import (
 // previous snapshot.
 type ResponseAccumulator struct {
 	metadata *ResponseMetadata
-	result   *accumulatedResult
+	output   *accumulatedOutput
 	seen     bool
 }
 
-type accumulatedResult struct {
-	result    Result
+type accumulatedOutput struct {
+	output    Output
 	toolParts map[string]int
 }
 
@@ -69,14 +69,14 @@ func (a *ResponseAccumulator) merge(chunk *Response) error {
 			return fmt.Errorf("chat: accumulate response metadata: %w", err)
 		}
 	}
-	if chunk.Result == nil {
+	if chunk.Output == nil {
 		return nil
 	}
-	if a.result == nil {
-		a.result = &accumulatedResult{toolParts: make(map[string]int)}
+	if a.output == nil {
+		a.output = &accumulatedOutput{toolParts: make(map[string]int)}
 	}
-	if err := a.result.merge(*chunk.Result); err != nil {
-		return fmt.Errorf("chat: accumulate result: %w", err)
+	if err := a.output.merge(*chunk.Output); err != nil {
+		return fmt.Errorf("chat: accumulate output: %w", err)
 	}
 	return nil
 }
@@ -86,8 +86,8 @@ func (a *ResponseAccumulator) snapshot() *Response {
 	if a.metadata != nil {
 		response.Metadata = a.metadata.clone()
 	}
-	if a.result != nil {
-		response.Result = a.result.result.clone()
+	if a.output != nil {
+		response.Output = a.output.output.clone()
 	}
 	return response
 }
@@ -100,34 +100,34 @@ func (a *ResponseAccumulator) clone() ResponseAccumulator {
 	if a.metadata != nil {
 		clone.metadata = a.metadata.clone()
 	}
-	if a.result != nil {
-		clone.result = &accumulatedResult{
-			result:    *a.result.result.clone(),
-			toolParts: maps.Clone(a.result.toolParts),
+	if a.output != nil {
+		clone.output = &accumulatedOutput{
+			output:    *a.output.output.clone(),
+			toolParts: maps.Clone(a.output.toolParts),
 		}
 	}
 	return clone
 }
 
-func (a *accumulatedResult) merge(delta Result) error {
+func (a *accumulatedOutput) merge(delta Output) error {
 	if delta.FinishReason != "" {
-		a.result.FinishReason = delta.FinishReason
+		a.output.FinishReason = delta.FinishReason
 	}
 	if delta.Metadata != nil {
-		if a.result.Metadata == nil {
-			a.result.Metadata = &ResultMetadata{}
+		if a.output.Metadata == nil {
+			a.output.Metadata = &OutputMetadata{}
 		}
-		if err := a.result.Metadata.Extra.Merge(delta.Metadata.Extra); err != nil {
-			return fmt.Errorf("result metadata: %w", err)
+		if err := a.output.Metadata.Extra.Merge(delta.Metadata.Extra); err != nil {
+			return fmt.Errorf("output metadata: %w", err)
 		}
 	}
 	if delta.Message == nil {
 		return nil
 	}
-	if a.result.Message == nil {
-		a.result.Message = &Message{Role: RoleAssistant}
+	if a.output.Message == nil {
+		a.output.Message = &Message{Role: RoleAssistant}
 	}
-	if err := a.result.Message.Metadata.Merge(delta.Message.Metadata); err != nil {
+	if err := a.output.Message.Metadata.Merge(delta.Message.Metadata); err != nil {
 		return fmt.Errorf("message metadata: %w", err)
 	}
 	for i := range delta.Message.Parts {
@@ -138,8 +138,8 @@ func (a *accumulatedResult) merge(delta Result) error {
 	return nil
 }
 
-func (a *accumulatedResult) mergePart(delta Part) error {
-	parts := &a.result.Message.Parts
+func (a *accumulatedOutput) mergePart(delta Part) error {
+	parts := &a.output.Message.Parts
 	switch delta.Kind {
 	case PartText:
 		if len(*parts) > 0 && (*parts)[len(*parts)-1].Kind == PartText && (*parts)[len(*parts)-1].Metadata.Equal(delta.Metadata) {

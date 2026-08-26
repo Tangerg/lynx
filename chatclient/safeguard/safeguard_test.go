@@ -259,7 +259,7 @@ func TestStreamReportsNilSequenceAndMalformedChunk(t *testing.T) {
 
 	badStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			yield(&chat.Response{Result: &chat.Result{}}, nil)
+			yield(&chat.Response{Output: &chat.Output{}}, nil)
 		}
 	})
 	gotErr = nil
@@ -307,10 +307,10 @@ func mustRequest(t *testing.T, messages ...chat.Message) *chat.Request {
 
 func response(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
 func chunk(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{Message: &message}}
+	return &chat.Response{Output: &chat.Output{Message: &message}}
 }

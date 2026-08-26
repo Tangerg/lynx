@@ -115,7 +115,7 @@
     }
   },
   "chat_response": {
-    "result": {
+    "output": {
       "message": {
         "role": "assistant",
         "parts": [
@@ -193,7 +193,7 @@
     }
   },
   "embedding_response": {
-    "results": [
+    "outputs": [
       {
         "embedding": [
           0.1,
@@ -235,7 +235,7 @@
     }
   },
   "image_response": {
-    "results": [
+    "outputs": [
       {
         "media": {
           "mime": "image/png",
@@ -312,7 +312,7 @@
     }
   },
   "moderation_response": {
-    "results": [
+    "outputs": [
       {
         "categories": {
           "dangerous_and_criminal_content": {
@@ -419,7 +419,7 @@
     }
   },
   "speech_response": {
-    "result": {
+    "output": {
       "audio": "YXVkaW8=",
       "metadata": {
         "extra": {
@@ -454,7 +454,7 @@
     }
   },
   "transcription_response": {
-    "result": {
+    "output": {
       "text": "A lynx.",
       "metadata": {
         "extra": {

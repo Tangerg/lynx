@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-func assistantResult(text string) *chat.Result {
+func assistantResult(text string) *chat.Output {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}
+	return &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}
 }
 
 func TestFinishReason(t *testing.T) {
@@ -32,7 +32,7 @@ func TestFinishReason(t *testing.T) {
 		}
 	}
 	if chat.FinishReason("provider-native").Valid() {
-		t.Fatal("provider-native reason must map to Other plus result metadata")
+		t.Fatal("provider-native reason must map to Other plus output metadata")
 	}
 }
 
@@ -52,8 +52,8 @@ func TestMessageText(t *testing.T) {
 }
 
 func TestResultValidate(t *testing.T) {
-	metadataOnly := &chat.ResultMetadata{}
-	valid := []*chat.Result{
+	metadataOnly := &chat.OutputMetadata{}
+	valid := []*chat.Output{
 		assistantResult("hello"),
 		{FinishReason: chat.FinishReasonStop},
 		{Metadata: metadataOnly},
@@ -70,19 +70,19 @@ func TestResultValidateRejectsInvalidValues(t *testing.T) {
 	invalidMessage := chat.Message{Role: chat.RoleAssistant}
 	tests := []struct {
 		name   string
-		result *chat.Result
+		output *chat.Output
 		also   error
 	}{
-		{name: "nil", result: nil},
-		{name: "empty", result: &chat.Result{}},
-		{name: "invalid message", result: &chat.Result{Message: &invalidMessage}, also: chat.ErrInvalidMessage},
-		{name: "user message", result: &chat.Result{Message: &user}},
-		{name: "unknown finish", result: &chat.Result{FinishReason: "future"}},
-		{name: "invalid metadata", result: &chat.Result{Metadata: &chat.ResultMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
+		{name: "nil", output: nil},
+		{name: "empty", output: &chat.Output{}},
+		{name: "invalid message", output: &chat.Output{Message: &invalidMessage}, also: chat.ErrInvalidMessage},
+		{name: "user message", output: &chat.Output{Message: &user}},
+		{name: "unknown finish", output: &chat.Output{FinishReason: "future"}},
+		{name: "invalid metadata", output: &chat.Output{Metadata: &chat.OutputMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.result.Validate()
+			err := tt.output.Validate()
 			if !errors.Is(err, chat.ErrInvalidResponse) {
 				t.Fatalf("Validate error = %v, want ErrInvalidResponse", err)
 			}
@@ -94,41 +94,41 @@ func TestResultValidateRejectsInvalidValues(t *testing.T) {
 }
 
 func TestResultHelpersAndJSON(t *testing.T) {
-	result := assistantResult("hello")
-	result.Metadata = &chat.ResultMetadata{}
-	if result.Text() != "hello" {
-		t.Fatalf("Text = %q", result.Text())
+	output := assistantResult("hello")
+	output.Metadata = &chat.OutputMetadata{}
+	if output.Text() != "hello" {
+		t.Fatalf("Text = %q", output.Text())
 	}
-	if err := result.Metadata.Set("openai/logprobs", []float64{-0.1}); err != nil {
+	if err := output.Metadata.Set("openai/logprobs", []float64{-0.1}); err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := json.Marshal(result)
+	encoded, err := json.Marshal(output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got chat.Result
+	var got chat.Output
 	if err := json.Unmarshal(encoded, &got); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, *result) {
-		t.Fatalf("round trip = %#v, want %#v", got, *result)
+	if !reflect.DeepEqual(got, *output) {
+		t.Fatalf("round trip = %#v, want %#v", got, *output)
 	}
 
-	var nilResult *chat.Result
+	var nilResult *chat.Output
 	if nilResult.Text() != "" {
-		t.Fatal("nil Result.Text must be empty")
+		t.Fatal("nil Output.Text must be empty")
 	}
 }
 
 func TestResultUnmarshalIsAtomic(t *testing.T) {
-	result := assistantResult("keep")
-	if err := json.Unmarshal([]byte(`{"finish_reason":"future"}`), result); !errors.Is(err, chat.ErrInvalidResponse) {
+	output := assistantResult("keep")
+	if err := json.Unmarshal([]byte(`{"finish_reason":"future"}`), output); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}
-	if result.Text() != "keep" {
-		t.Fatalf("failed Unmarshal mutated result: %+v", result)
+	if output.Text() != "keep" {
+		t.Fatalf("failed Unmarshal mutated output: %+v", output)
 	}
-	var nilResult *chat.Result
+	var nilResult *chat.Output
 	if err := nilResult.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("nil UnmarshalJSON error = %v", err)
 	}
@@ -149,7 +149,7 @@ func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
 
 	cloned := response.Clone()
 	cloned.Metadata.Model = "mutated"
-	cloned.Result.Message.Parts[0].Text = "mutated"
+	cloned.Output.Message.Parts[0].Text = "mutated"
 	*cloned.Metadata.Usage.ReasoningTokens = 9
 	cloned.Metadata.Extra["test/value"][0] = 'x'
 
@@ -167,7 +167,7 @@ func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
 
 func TestResponseZeroAndNilHelpers(t *testing.T) {
 	response := &chat.Response{}
-	if response.Result != nil || response.Text() != "" {
+	if response.Output != nil || response.Text() != "" {
 		t.Fatal("empty response helpers must be nil/empty")
 	}
 	encoded, err := json.Marshal(response)
@@ -190,7 +190,7 @@ func TestResponseValidateRejectsInvalidValues(t *testing.T) {
 		{name: "nil", response: nil},
 		{name: "ID whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{ID: " id"}}},
 		{name: "model whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{Model: "model "}}},
-		{name: "invalid result", response: &chat.Response{Result: &chat.Result{}}},
+		{name: "invalid output", response: &chat.Response{Output: &chat.Output{}}},
 		{name: "invalid usage", response: &chat.Response{Metadata: &chat.ResponseMetadata{Usage: invalidUsage}}, also: chat.ErrInvalidUsage},
 		{name: "invalid metadata", response: &chat.Response{Metadata: &chat.ResponseMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
@@ -236,7 +236,7 @@ func TestResponseJSONRoundTrip(t *testing.T) {
 
 func TestResponseUnmarshalIsAtomic(t *testing.T) {
 	response := &chat.Response{Metadata: &chat.ResponseMetadata{ID: "keep"}}
-	if err := json.Unmarshal([]byte(`{"result":{}}`), response); !errors.Is(err, chat.ErrInvalidResponse) {
+	if err := json.Unmarshal([]byte(`{"output":{}}`), response); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}
 	if response.Metadata.ID != "keep" {
@@ -250,7 +250,7 @@ func TestResponseUnmarshalIsAtomic(t *testing.T) {
 
 func TestResponseProtocolFieldsExcludeToolLoopState(t *testing.T) {
 	typ := reflect.TypeFor[chat.Response]()
-	want := []string{"Result", "Metadata"}
+	want := []string{"Output", "Metadata"}
 	if typ.NumField() != len(want) {
 		t.Fatalf("Response has %d fields, want %d", typ.NumField(), len(want))
 	}

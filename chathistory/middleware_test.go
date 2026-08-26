@@ -352,7 +352,7 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 		middleware := mustMiddleware(t, store)
 		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			return func(yield func(*chat.Response, error) bool) {
-				yield(&chat.Response{Result: &chat.Result{}}, nil)
+				yield(&chat.Response{Output: &chat.Output{}}, nil)
 			}
 		})
 		var errorsSeen int
@@ -514,10 +514,10 @@ func boundContext(t *testing.T) context.Context {
 }
 
 func response(message chat.Message) *chat.Response {
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
 func chunk(text string, finish chat.FinishReason) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: finish}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: finish}}
 }

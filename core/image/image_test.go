@@ -97,19 +97,19 @@ func TestResponseValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := image.NewResult(generated, &image.ResultMetadata{})
+	output, err := image.NewOutput(generated, &image.OutputMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := image.NewResponse([]*image.Result{result}, &image.ResponseMetadata{})
+	response, err := image.NewResponse([]*image.Output{output}, &image.ResponseMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.First() != result {
-		t.Fatal("First did not return the first result")
+	if response.First() != output {
+		t.Fatal("First did not return the first output")
 	}
 	if (&image.Response{}).First() != nil || (*image.Response)(nil).First() != nil {
-		t.Fatal("empty response returned a result")
+		t.Fatal("empty response returned a output")
 	}
 	response.Metadata.Created = -1
 	if err := response.Validate(); err == nil {
@@ -152,39 +152,39 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 }
 
 func TestResponseMetadataAndErrors(t *testing.T) {
-	resultMetadata := &image.ResultMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "lynx"})}
+	resultMetadata := &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "lynx"})}
 	responseMetadata := &image.ResponseMetadata{Extra: mustMetadata(t, map[string]any{"region": "local"})}
 
 	generated, _ := media.NewURI("image/png", "https://example.com/image.png")
-	if _, err := image.NewResult(nil, resultMetadata); err == nil {
-		t.Fatal("NewResult accepted nil media")
+	if _, err := image.NewOutput(nil, resultMetadata); err == nil {
+		t.Fatal("NewOutput accepted nil media")
 	}
-	if _, err := image.NewResult(generated, nil); err == nil {
-		t.Fatal("NewResult accepted nil metadata")
+	if _, err := image.NewOutput(generated, nil); err == nil {
+		t.Fatal("NewOutput accepted nil metadata")
 	}
 	audio, _ := media.NewBytes("audio/mpeg", []byte("audio"))
-	if _, err := image.NewResult(audio, resultMetadata); err == nil {
-		t.Fatal("NewResult accepted non-image media")
+	if _, err := image.NewOutput(audio, resultMetadata); err == nil {
+		t.Fatal("NewOutput accepted non-image media")
 	}
-	result, _ := image.NewResult(generated, resultMetadata)
+	output, _ := image.NewOutput(generated, resultMetadata)
 	if _, err := image.NewResponse(nil, responseMetadata); err == nil {
-		t.Fatal("NewResponse accepted no results")
+		t.Fatal("NewResponse accepted no outputs")
 	}
-	if _, err := image.NewResponse([]*image.Result{nil}, responseMetadata); err == nil {
-		t.Fatal("NewResponse accepted nil result")
+	if _, err := image.NewResponse([]*image.Output{nil}, responseMetadata); err == nil {
+		t.Fatal("NewResponse accepted nil output")
 	}
-	if _, err := image.NewResponse([]*image.Result{result}, nil); err == nil {
+	if _, err := image.NewResponse([]*image.Output{output}, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
 }
 
 func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	t.Helper()
-	result, err := metadata.FromValues(values)
+	output, err := metadata.FromValues(values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	return output
 }
 
 func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {

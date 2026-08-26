@@ -80,11 +80,11 @@ func TestProtocolValueCopies(t *testing.T) {
 
 func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	t.Helper()
-	result, err := metadata.FromValues(values)
+	output, err := metadata.FromValues(values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	return output
 }
 
 func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
@@ -100,33 +100,33 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 	if merged, err := (embedding.Options{}).Merged(); err != nil || merged.Model != "" || merged.Dimensions != nil || len(merged.Extensions) != 0 {
 		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
-	if _, err := embedding.NewResult(nil, &embedding.ResultMetadata{}); err == nil {
-		t.Fatal("NewResult accepted an empty vector")
+	if _, err := embedding.NewOutput(nil, &embedding.OutputMetadata{}); err == nil {
+		t.Fatal("NewOutput accepted an empty vector")
 	}
-	if _, err := embedding.NewResult([]float64{1}, nil); err == nil {
-		t.Fatal("NewResult accepted nil metadata")
+	if _, err := embedding.NewOutput([]float64{1}, nil); err == nil {
+		t.Fatal("NewOutput accepted nil metadata")
 	}
 	vector := []float64{1}
-	result, _ := embedding.NewResult(vector, &embedding.ResultMetadata{})
+	output, _ := embedding.NewOutput(vector, &embedding.OutputMetadata{})
 	vector[0] = 2
-	if result.Embedding[0] != 1 {
-		t.Fatal("NewResult aliases the input vector")
+	if output.Embedding[0] != 1 {
+		t.Fatal("NewOutput aliases the input vector")
 	}
 	if _, err := embedding.NewResponse(nil, &embedding.ResponseMetadata{}); err == nil {
-		t.Fatal("NewResponse accepted no results")
+		t.Fatal("NewResponse accepted no outputs")
 	}
-	if _, err := embedding.NewResponse([]*embedding.Result{result}, nil); err == nil {
+	if _, err := embedding.NewResponse([]*embedding.Output{output}, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
-	response, _ := embedding.NewResponse([]*embedding.Result{result}, &embedding.ResponseMetadata{})
-	if response.First() != result {
-		t.Fatal("First did not return the first result")
+	response, _ := embedding.NewResponse([]*embedding.Output{output}, &embedding.ResponseMetadata{})
+	if response.First() != output {
+		t.Fatal("First did not return the first output")
 	}
 	if (&embedding.Response{}).First() != nil || (*embedding.Response)(nil).First() != nil {
-		t.Fatal("empty response returned a result")
+		t.Fatal("empty response returned a output")
 	}
 	invalid := &embedding.Response{
-		Results:  []*embedding.Result{{Embedding: []float64{math.NaN()}, Metadata: &embedding.ResultMetadata{}}},
+		Outputs:  []*embedding.Output{{Embedding: []float64{math.NaN()}, Metadata: &embedding.OutputMetadata{}}},
 		Metadata: &embedding.ResponseMetadata{},
 	}
 	if err := invalid.Validate(); err == nil {

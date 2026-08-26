@@ -87,9 +87,9 @@ func FuzzRequestJSON(f *testing.F) {
 func FuzzResponseJSON(f *testing.F) {
 	for _, seed := range []string{
 		`{}`,
-		`{"result":{"message":{"role":"assistant","parts":[{"kind":"text","text":"hello"}]},"finish_reason":"stop"}}`,
-		`{"result":{"finish_reason":"stop"},"metadata":{"usage":{"input_tokens":1,"output_tokens":2}}}`,
-		`{"result":{"finish_reason":"future"}}`,
+		`{"output":{"message":{"role":"assistant","parts":[{"kind":"text","text":"hello"}]},"finish_reason":"stop"}}`,
+		`{"output":{"finish_reason":"stop"},"metadata":{"usage":{"input_tokens":1,"output_tokens":2}}}`,
+		`{"output":{"finish_reason":"future"}}`,
 	} {
 		f.Add([]byte(seed))
 	}

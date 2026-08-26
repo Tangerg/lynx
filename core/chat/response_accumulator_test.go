@@ -13,27 +13,27 @@ import (
 func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 	chunks := []*chat.Response{
 		{
-			Result: responseResult(chat.NewReasoningPart("step ", []byte("sig-"))),
+			Output: responseResult(chat.NewReasoningPart("step ", []byte("sig-"))),
 			Metadata: &chat.ResponseMetadata{
 				ID:    "response-1",
 				Model: "model-initial",
 			},
 		},
 		{
-			Result: responseResult(
+			Output: responseResult(
 				chat.NewReasoningPart("one", []byte("nature")),
 				chat.NewTextPart("hel"),
 				chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"`}),
 			),
 		},
 		{
-			Result: &chat.Result{
+			Output: &chat.Output{
 				Message: assistant(
 					chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `lynx"}`}),
 					chat.NewTextPart("lo"),
 				),
 				FinishReason: chat.FinishReasonToolCalls,
-				Metadata:     &chat.ResultMetadata{},
+				Metadata:     &chat.OutputMetadata{},
 			},
 			Metadata: &chat.ResponseMetadata{
 				Model: "model-final",
@@ -48,7 +48,7 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 	if err := chunks[2].Metadata.Set("test/value", "last"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chunks[2].Result.Metadata.Set("test/finish", true); err != nil {
+	if err := chunks[2].Output.Metadata.Set("test/finish", true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -66,21 +66,21 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 		t.Errorf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 	}
 	wantKinds := []chat.PartKind{chat.PartReasoning, chat.PartText, chat.PartToolCall, chat.PartText}
-	if got := partKinds(response.Result.Message); !slices.Equal(got, wantKinds) {
+	if got := partKinds(response.Output.Message); !slices.Equal(got, wantKinds) {
 		t.Fatalf("part kinds = %v; want %v", got, wantKinds)
 	}
-	if response.Result.Message.Parts[0].Text != "step one" || string(response.Result.Message.Parts[0].Signature) != "sig-nature" {
-		t.Errorf("reasoning = %#v", response.Result.Message.Parts[0])
+	if response.Output.Message.Parts[0].Text != "step one" || string(response.Output.Message.Parts[0].Signature) != "sig-nature" {
+		t.Errorf("reasoning = %#v", response.Output.Message.Parts[0])
 	}
-	if response.Result.Message.Parts[1].Text != "hel" || response.Result.Message.Parts[3].Text != "lo" {
-		t.Errorf("text boundaries = %#v", response.Result.Message.Parts)
+	if response.Output.Message.Parts[1].Text != "hel" || response.Output.Message.Parts[3].Text != "lo" {
+		t.Errorf("text boundaries = %#v", response.Output.Message.Parts)
 	}
-	call := response.Result.Message.Parts[2].ToolCall
+	call := response.Output.Message.Parts[2].ToolCall
 	if call == nil || call.ID != "call-1" || call.Name != "search" || call.Arguments != `{"q":"lynx"}` {
 		t.Errorf("tool call = %#v", call)
 	}
-	if response.Result.FinishReason != chat.FinishReasonToolCalls {
-		t.Errorf("finish = %q", response.Result.FinishReason)
+	if response.Output.FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("finish = %q", response.Output.FinishReason)
 	}
 	if response.Metadata.Usage.InputTokens != 12 || response.Metadata.Usage.OutputTokens != 5 {
 		t.Errorf("usage = %#v", response.Metadata.Usage)
@@ -88,8 +88,8 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 	if got := decode[string](t, response.Metadata.Extra, "test/value"); got != "last" {
 		t.Errorf("response metadata = %q", got)
 	}
-	if got := decode[bool](t, response.Result.Metadata.Extra, "test/finish"); !got {
-		t.Error("result metadata was not merged")
+	if got := decode[bool](t, response.Output.Metadata.Extra, "test/finish"); !got {
+		t.Error("output metadata was not merged")
 	}
 	if err := response.Validate(); err != nil {
 		t.Fatalf("Response.Validate: %v", err)
@@ -113,7 +113,7 @@ func TestResponseAccumulatorMergesInterleavedParallelToolCalls(t *testing.T) {
 			t.Fatalf("Add: %v", err)
 		}
 	}
-	parts := accumulator.Response().Result.Message.Parts
+	parts := accumulator.Response().Output.Message.Parts
 	if len(parts) != 2 || parts[0].ToolCall.Arguments != `{"a":1}` || parts[1].ToolCall.Arguments != `{"b":2}` {
 		t.Fatalf("parallel tools = %#v", parts)
 	}
@@ -159,7 +159,7 @@ func TestResponseAccumulatorDoesNotAliasChunksOrSnapshots(t *testing.T) {
 	}
 
 	snapshot := first.Response()
-	snapshot.Result.Message.Parts[0].Text = "mutated"
+	snapshot.Output.Message.Parts[0].Text = "mutated"
 	if got := first.Response().Text(); got != "pong" {
 		t.Fatalf("snapshot mutation changed accumulator to %q", got)
 	}
@@ -175,18 +175,18 @@ func TestResponseAccumulatorClonesMediaAndMessageMetadata(t *testing.T) {
 	if err := message.Metadata.Set("test/value", "original"); err != nil {
 		t.Fatal(err)
 	}
-	chunk := &chat.Response{Result: &chat.Result{Message: message}}
+	chunk := &chat.Response{Output: &chat.Output{Message: message}}
 
 	var accumulator chat.ResponseAccumulator
 	if err := accumulator.Add(chunk); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := accumulator.Response()
-	snapshotMedia := snapshot.Result.Message.Parts[0].Media
+	snapshotMedia := snapshot.Output.Message.Parts[0].Media
 	snapshotMedia.Source.Bytes[0] = 'X'
-	snapshot.Result.Message.Metadata["test/value"][0] = 'X'
+	snapshot.Output.Message.Metadata["test/value"][0] = 'X'
 
-	got := accumulator.Response().Result.Message
+	got := accumulator.Response().Output.Message
 	if string(got.Parts[0].Media.Source.Bytes) != "image" || decode[string](t, got.Metadata, "test/value") != "original" {
 		t.Fatalf("snapshot aliases accumulator: %#v", got)
 	}
@@ -208,7 +208,7 @@ func TestResponseAccumulatorRejectsConflictingToolIdentityAtomically(t *testing.
 	if err == nil {
 		t.Fatal("Add accepted conflicting tool name")
 	}
-	call := accumulator.Response().Result.Message.Parts[0].ToolCall
+	call := accumulator.Response().Output.Message.Parts[0].ToolCall
 	if call.Name != "search" || call.Arguments != "{" {
 		t.Fatalf("failed Add mutated accumulator: %#v", call)
 	}
@@ -222,7 +222,7 @@ func TestResponseAccumulatorNilAndZeroBehavior(t *testing.T) {
 	if err := accumulator.Add(nil); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Add(nil) error = %v; want ErrInvalidResponse", err)
 	}
-	invalid := &chat.Response{Result: &chat.Result{}}
+	invalid := &chat.Response{Output: &chat.Output{}}
 	if err := accumulator.Add(invalid); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Add(invalid) error = %v; want ErrInvalidResponse", err)
 	}
@@ -232,7 +232,7 @@ func TestResponseAccumulatorNilAndZeroBehavior(t *testing.T) {
 	if err := accumulator.Add(&chat.Response{}); err != nil {
 		t.Fatalf("Add zero response: %v", err)
 	}
-	if response := accumulator.Response(); response == nil || response.Result != nil || response.Metadata != nil {
+	if response := accumulator.Response(); response == nil || response.Output != nil || response.Metadata != nil {
 		t.Fatalf("zero response snapshot = %#v", response)
 	}
 	var nilAccumulator *chat.ResponseAccumulator
@@ -246,12 +246,12 @@ func assistant(parts ...chat.Part) *chat.Message {
 	return &message
 }
 
-func responseResult(parts ...chat.Part) *chat.Result {
-	return &chat.Result{Message: assistant(parts...)}
+func responseResult(parts ...chat.Part) *chat.Output {
+	return &chat.Output{Message: assistant(parts...)}
 }
 
 func responseWithParts(parts ...chat.Part) *chat.Response {
-	return &chat.Response{Result: responseResult(parts...)}
+	return &chat.Response{Output: responseResult(parts...)}
 }
 
 func partKinds(message *chat.Message) []chat.PartKind {

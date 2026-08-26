@@ -182,15 +182,15 @@ func (m Middleware) snapshotRequest(request *chat.Request) (*chat.Request, error
 }
 
 func (m Middleware) persistableAssistant(response *chat.Response) (chat.Message, bool) {
-	if response == nil || response.Result == nil || response.Result.Message == nil || response.Result.Message.Role != chat.RoleAssistant {
+	if response == nil || response.Output == nil || response.Output.Message == nil || response.Output.Message.Role != chat.RoleAssistant {
 		return chat.Message{}, false
 	}
-	for _, part := range response.Result.Message.Parts {
+	for _, part := range response.Output.Message.Parts {
 		if part.Kind == chat.PartToolCall {
 			return chat.Message{}, false
 		}
 	}
-	return response.Result.Message.Clone(), true
+	return response.Output.Message.Clone(), true
 }
 
 func (m Middleware) forward(sequence iter.Seq2[*chat.Response, error], yield func(*chat.Response, error) bool) {

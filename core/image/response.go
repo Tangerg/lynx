@@ -11,51 +11,51 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ResultMetadata holds per-image metadata returned by the provider.
-type ResultMetadata struct {
+// OutputMetadata holds per-image metadata returned by the provider.
+type OutputMetadata struct {
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific result metadata into Extra.
-func (m *ResultMetadata) Set(key string, value any) error {
+// Set encodes provider-specific output metadata into Extra.
+func (m *OutputMetadata) Set(key string, value any) error {
 	if m == nil {
-		return fmt.Errorf("image.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("image.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := m.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("image.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("image.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResultMetadata) validate() error {
+func (m *OutputMetadata) validate() error {
 	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
 	}
 	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+func (m OutputMetadata) MarshalJSON() ([]byte, error) {
 	if err := (&m).validate(); err != nil {
 		return nil, err
 	}
-	type wireResultMetadata ResultMetadata
-	return json.Marshal(wireResultMetadata(m))
+	type wireOutputMetadata OutputMetadata
+	return json.Marshal(wireOutputMetadata(m))
 }
 
-func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if m == nil {
-		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
-	type wireResultMetadata ResultMetadata
-	var decoded wireResultMetadata
+	type wireOutputMetadata OutputMetadata
+	var decoded wireOutputMetadata
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
 	}
-	candidate := ResultMetadata(decoded)
+	candidate := OutputMetadata(decoded)
 	if err := candidate.validate(); err != nil {
 		return err
 	}
@@ -63,29 +63,29 @@ func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Result is one generated image plus its metadata.
-type Result struct {
+// Output is one generated image plus its metadata.
+type Output struct {
 	// Media holds the generated image as bytes or an absolute URI.
 	Media *media.Media `json:"media,omitempty"`
 
 	// Metadata carries per-image extras.
-	Metadata *ResultMetadata `json:"metadata,omitempty"`
+	Metadata *OutputMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when media or metadata
+// NewOutput builds a [Output]. Returns an error when media or metadata
 // is nil.
-func NewResult(value *media.Media, metadata *ResultMetadata) (*Result, error) {
-	result := &Result{Media: value, Metadata: metadata}
-	if err := result.Validate(); err != nil {
-		return nil, fmt.Errorf("image.NewResult: %w", err)
+func NewOutput(value *media.Media, metadata *OutputMetadata) (*Output, error) {
+	output := &Output{Media: value, Metadata: metadata}
+	if err := output.Validate(); err != nil {
+		return nil, fmt.Errorf("image.NewOutput: %w", err)
 	}
-	return result, nil
+	return output, nil
 }
 
-// Validate verifies generated media and result metadata.
-func (r *Result) Validate() error {
+// Validate verifies generated media and output metadata.
+func (r *Output) Validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
 	if err := r.Media.Validate(); err != nil {
 		return fmt.Errorf("%w: media: %w", ErrInvalidResponse, err)
@@ -100,24 +100,24 @@ func (r *Result) Validate() error {
 	return nil
 }
 
-func (r Result) MarshalJSON() ([]byte, error) {
+func (r Output) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
 	}
-	type wireResult Result
-	return json.Marshal(wireResult(r))
+	type wireOutput Output
+	return json.Marshal(wireOutput(r))
 }
 
-func (r *Result) UnmarshalJSON(data []byte) error {
+func (r *Output) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
-	type wireResult Result
-	var decoded wireResult
+	type wireOutput Output
+	var decoded wireOutput
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output: %w", ErrInvalidResponse, err)
 	}
-	candidate := Result(decoded)
+	candidate := Output(decoded)
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
@@ -184,20 +184,20 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Response is the full image-generation result: every rendered image plus
+// Response is the full image-generation output: every rendered image plus
 // shared response metadata.
 type Response struct {
-	// Results contains every image returned by the provider, in provider order.
-	Results []*Result `json:"results,omitzero"`
+	// Outputs contains every image returned by the provider, in provider order.
+	Outputs []*Output `json:"outputs,omitzero"`
 
 	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one result and non-nil
+// NewResponse builds a [Response] from at least one output and non-nil
 // metadata.
-func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	response := &Response{Results: slices.Clone(results), Metadata: metadata}
+func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Outputs: slices.Clone(outputs), Metadata: metadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("image.NewResponse: %w", err)
 	}
@@ -209,12 +209,12 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if len(r.Results) == 0 {
-		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
+	if len(r.Outputs) == 0 {
+		return fmt.Errorf("%w: at least one output is required", ErrInvalidResponse)
 	}
-	for i, result := range r.Results {
-		if err := result.Validate(); err != nil {
-			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
+	for i, output := range r.Outputs {
+		if err := output.Validate(); err != nil {
+			return fmt.Errorf("%w: outputs[%d]: %w", ErrInvalidResponse, i, err)
 		}
 	}
 	if err := r.Metadata.validate(); err != nil {
@@ -224,11 +224,11 @@ func (r *Response) Validate() error {
 }
 
 // First returns the first generated image, or nil when the response is empty.
-func (r *Response) First() *Result {
-	if r == nil || len(r.Results) == 0 {
+func (r *Response) First() *Output {
+	if r == nil || len(r.Outputs) == 0 {
 		return nil
 	}
-	return r.Results[0]
+	return r.Outputs[0]
 }
 
 func (r Response) MarshalJSON() ([]byte, error) {

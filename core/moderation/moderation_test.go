@@ -71,20 +71,20 @@ func TestCategoriesAndResponse(t *testing.T) {
 	if !categories.Flagged() {
 		t.Fatal("Flagged did not aggregate Hate")
 	}
-	result, err := moderation.NewResult(categories, &moderation.ResultMetadata{})
+	output, err := moderation.NewOutput(categories, &moderation.OutputMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := moderation.NewResponse([]*moderation.Result{result}, &moderation.ResponseMetadata{})
+	response, err := moderation.NewResponse([]*moderation.Output{output}, &moderation.ResponseMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.First() != result {
-		t.Fatal("First did not return first result")
+	if response.First() != output {
+		t.Fatal("First did not return first output")
 	}
 	categories["provider/new_category"] = moderation.Verdict{}
-	if !result.Categories["provider/new_category"].Flagged {
-		t.Fatal("NewResult aliases caller categories")
+	if !output.Categories["provider/new_category"].Flagged {
+		t.Fatal("NewOutput aliases caller categories")
 	}
 }
 
@@ -111,11 +111,11 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 
 func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	t.Helper()
-	result, err := metadata.FromValues(values)
+	output, err := metadata.FromValues(values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	return output
 }
 
 func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
@@ -139,29 +139,29 @@ func TestCategoriesRemainOpen(t *testing.T) {
 
 func TestResponseConstructorsRejectInvalidValues(t *testing.T) {
 	categories := moderation.Categories{"safe": {}}
-	metadata := new(moderation.ResultMetadata)
-	if _, err := moderation.NewResult(nil, metadata); err == nil {
-		t.Fatal("NewResult accepted empty categories")
+	metadata := new(moderation.OutputMetadata)
+	if _, err := moderation.NewOutput(nil, metadata); err == nil {
+		t.Fatal("NewOutput accepted empty categories")
 	}
-	if _, err := moderation.NewResult(categories, nil); err == nil {
-		t.Fatal("NewResult accepted nil metadata")
+	if _, err := moderation.NewOutput(categories, nil); err == nil {
+		t.Fatal("NewOutput accepted nil metadata")
 	}
 	for name, verdict := range map[string]moderation.Verdict{
 		"negative": {Score: -0.1},
 		"too high": {Score: 1.1},
 	} {
-		if _, err := moderation.NewResult(moderation.Categories{name: verdict}, metadata); err == nil {
-			t.Fatalf("NewResult accepted %s score", name)
+		if _, err := moderation.NewOutput(moderation.Categories{name: verdict}, metadata); err == nil {
+			t.Fatalf("NewOutput accepted %s score", name)
 		}
 	}
-	result, _ := moderation.NewResult(categories, metadata)
+	output, _ := moderation.NewOutput(categories, metadata)
 	if _, err := moderation.NewResponse(nil, &moderation.ResponseMetadata{}); err == nil {
-		t.Fatal("NewResponse accepted no results")
+		t.Fatal("NewResponse accepted no outputs")
 	}
-	if _, err := moderation.NewResponse([]*moderation.Result{result}, nil); err == nil {
+	if _, err := moderation.NewResponse([]*moderation.Output{output}, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
 	if (&moderation.Response{}).First() != nil || (*moderation.Response)(nil).First() != nil {
-		t.Fatal("empty response returned a result")
+		t.Fatal("empty response returned a output")
 	}
 }

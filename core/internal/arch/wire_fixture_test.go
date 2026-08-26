@@ -84,10 +84,10 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	mustSetChatExtension(t, chatRequest.Options.SetExtension("provider/request", map[string]any{"mode": "strict"}))
 
 	assistant := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
-	chatResponse, err := chat.NewResponse(&chat.Result{
+	chatResponse, err := chat.NewResponse(&chat.Output{
 		Message:      &assistant,
 		FinishReason: chat.FinishReasonStop,
-		Metadata: &chat.ResultMetadata{
+		Metadata: &chat.OutputMetadata{
 			Extra: mustMetadata(t, map[string]any{"provider/logprob": -0.25}),
 		},
 	}, &chat.ResponseMetadata{
@@ -128,9 +128,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		},
 	}
 	embeddingResponse := &embedding.Response{
-		Results: []*embedding.Result{{
+		Outputs: []*embedding.Output{{
 			Embedding: []float64{0.1, 0.2, 0.3},
-			Metadata: &embedding.ResultMetadata{
+			Metadata: &embedding.OutputMetadata{
 				Extra: mustMetadata(t, map[string]any{"source": "fixture"}),
 			},
 		}},
@@ -155,9 +155,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		},
 	}
 	imageResponse := &image.Response{
-		Results: []*image.Result{{
+		Outputs: []*image.Output{{
 			Media:    generatedMedia,
-			Metadata: &image.ResultMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed lynx"})},
+			Metadata: &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed lynx"})},
 		}},
 		Metadata: &image.ResponseMetadata{
 			Created: 1700000001,
@@ -173,9 +173,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		},
 	}
 	moderationResponse := &moderation.Response{
-		Results: []*moderation.Result{{
+		Outputs: []*moderation.Output{{
 			Categories: representativeCategories(),
-			Metadata:   &moderation.ResultMetadata{Extra: mustMetadata(t, map[string]any{"input_index": 1})},
+			Metadata:   &moderation.OutputMetadata{Extra: mustMetadata(t, map[string]any{"input_index": 1})},
 		}},
 		Metadata: &moderation.ResponseMetadata{
 			ID:      "moderation-1",
@@ -196,9 +196,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		},
 	}
 	speechResponse := &speech.Response{
-		Result: &speech.Result{
+		Output: &speech.Output{
 			Audio:    []byte("audio"),
-			Metadata: &speech.ResultMetadata{Extra: mustMetadata(t, map[string]any{"duration_ms": 250})},
+			Metadata: &speech.OutputMetadata{Extra: mustMetadata(t, map[string]any{"duration_ms": 250})},
 		},
 		Metadata: &speech.ResponseMetadata{
 			Model:   "speech-model",
@@ -216,9 +216,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		},
 	}
 	transcriptionResponse := &transcription.Response{
-		Result: &transcription.Result{
+		Output: &transcription.Output{
 			Text:     "A lynx.",
-			Metadata: &transcription.ResultMetadata{Extra: mustMetadata(t, map[string]any{"duration": 1.5})},
+			Metadata: &transcription.OutputMetadata{Extra: mustMetadata(t, map[string]any{"duration": 1.5})},
 		},
 		Metadata: &transcription.ResponseMetadata{
 			Model:   "transcription-model",
@@ -282,11 +282,11 @@ func representativeCategories() moderation.Categories {
 
 func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	t.Helper()
-	result, err := metadata.FromValues(values)
+	output, err := metadata.FromValues(values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return result
+	return output
 }
 
 func mustSetChatExtension(t *testing.T, err error) {

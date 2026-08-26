@@ -45,7 +45,7 @@ func TestRequestGolden(t *testing.T) {
 func TestResponseGolden(t *testing.T) {
 	firstMessage := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
 	response, err := chat.NewResponse(
-		&chat.Result{Message: &firstMessage, FinishReason: chat.FinishReasonStop, Metadata: &chat.ResultMetadata{}},
+		&chat.Output{Message: &firstMessage, FinishReason: chat.FinishReasonStop, Metadata: &chat.OutputMetadata{}},
 		&chat.ResponseMetadata{ID: "response-1", Model: "provider-model"},
 	)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestResponseGolden(t *testing.T) {
 	if err := response.Metadata.Set("openai/system_fingerprint", "fp-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Result.Metadata.Set("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
+	if err := response.Output.Metadata.Set("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
 		t.Fatal(err)
 	}
 	assertChatGolden(t, "response.golden.json", response)

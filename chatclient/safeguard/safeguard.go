@@ -168,10 +168,10 @@ func (m *Middleware) scanOutput(ctx context.Context, response *chat.Response) (*
 	if !m.config.Scope.inspects(ScopeOutput) || response == nil {
 		return nil, nil
 	}
-	if response.Result == nil || response.Result.Message == nil {
+	if response.Output == nil || response.Output.Message == nil {
 		return nil, nil
 	}
-	block, err := m.match(ctx, ScopeOutput, response.Result.Message.Text())
+	block, err := m.match(ctx, ScopeOutput, response.Output.Message.Text())
 	if err != nil || block != nil {
 		return block, err
 	}

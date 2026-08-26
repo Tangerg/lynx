@@ -103,7 +103,7 @@ func textResponse(text string) *chat.Response {
 
 func response(text string, reason chat.FinishReason) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message:      &message,
 		FinishReason: reason,
 	}}

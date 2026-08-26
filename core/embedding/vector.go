@@ -6,9 +6,9 @@ func Float32Vector(source []float64) []float32 {
 	if source == nil {
 		return nil
 	}
-	result := make([]float32, len(source))
+	output := make([]float32, len(source))
 	for i, value := range source {
-		result[i] = float32(value)
+		output[i] = float32(value)
 	}
-	return result
+	return output
 }

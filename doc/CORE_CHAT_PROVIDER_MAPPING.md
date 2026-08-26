@@ -6,7 +6,7 @@
 
 本文锁定当前 `core/chat` 协议对四个差异 provider 的表达能力。可执行契约由各 provider 自己的协议测试拥有；不存在跨 provider 的第二套实现或集中式 conformance 包。
 
-Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用参数和 provider 扩展，`Response.Result` 承载唯一生成结果，`Response.Metadata` 承载响应身份、用量和响应级扩展。provider 原生但仍需保留的 JSON-safe 数据进入对应 metadata 的 namespaced `Extra`，不提升为 Core 公共字段。
+Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用参数和 provider 扩展，`Response.Output` 承载唯一模型输出，`Response.Metadata` 承载响应身份、用量和响应级扩展。provider 原生但仍需保留的 JSON-safe 数据进入对应 metadata 的 namespaced `Extra`，不提升为 Core 公共字段。
 
 ## 1. 统一映射规则
 

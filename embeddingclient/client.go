@@ -49,13 +49,13 @@ func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, er
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("embeddingclient: embed texts: invalid model response: %w", err)
 	}
-	if len(response.Results) != len(texts) {
-		return nil, fmt.Errorf("embeddingclient: embed texts: got %d results for %d inputs", len(response.Results), len(texts))
+	if len(response.Outputs) != len(texts) {
+		return nil, fmt.Errorf("embeddingclient: embed texts: got %d outputs for %d inputs", len(response.Outputs), len(texts))
 	}
 
-	vectors := make([][]float64, len(response.Results))
-	for i, result := range response.Results {
-		vectors[i] = slices.Clone(result.Embedding)
+	vectors := make([][]float64, len(response.Outputs))
+	for i, output := range response.Outputs {
+		vectors[i] = slices.Clone(output.Embedding)
 	}
 	return vectors, nil
 }
@@ -69,7 +69,7 @@ func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	return vectors[0], nil
 }
 
-// Dimensions probes the model once and returns its vector width. The result is
+// Dimensions probes the model once and returns its vector width. The output is
 // deliberately not cached; callers own any cache lifetime and invalidation.
 func (c Client) Dimensions(ctx context.Context) (int, error) {
 	vector, err := c.EmbedText(ctx, "dimension probe")

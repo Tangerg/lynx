@@ -18,11 +18,11 @@ func (*pointerModel) Call(context.Context, *embedding.Request) (*embedding.Respo
 }
 
 func responseFor(texts []string) *embedding.Response {
-	results := make([]*embedding.Result, len(texts))
+	outputs := make([]*embedding.Output, len(texts))
 	for i := range texts {
-		results[i], _ = embedding.NewResult([]float64{1, 2, 3, 4}, &embedding.ResultMetadata{})
+		outputs[i], _ = embedding.NewOutput([]float64{1, 2, 3, 4}, &embedding.OutputMetadata{})
 	}
-	response, _ := embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
+	response, _ := embedding.NewResponse(outputs, &embedding.ResponseMetadata{Model: "fake"})
 	return response
 }
 
@@ -45,7 +45,7 @@ func TestClientEmbedsIndependentVectors(t *testing.T) {
 		t.Fatalf("EmbedTexts() = %#v, %v", vectors, err)
 	}
 	vectors[0][0] = 99
-	if providerResponses[0].Results[0].Embedding[0] == 99 {
+	if providerResponses[0].Outputs[0].Embedding[0] == 99 {
 		t.Fatal("returned vectors alias the provider response")
 	}
 	if vector, err := client.EmbedText(t.Context(), "one"); err != nil || len(vector) != 4 {
@@ -94,9 +94,9 @@ func TestClientValidatesResultsAndDocuments(t *testing.T) {
 		name     string
 		response *embedding.Response
 	}{
-		{name: "wrong result count", response: &embedding.Response{}},
-		{name: "nil result", response: &embedding.Response{Results: []*embedding.Result{nil}}},
-		{name: "empty vector", response: &embedding.Response{Results: []*embedding.Result{{}}}},
+		{name: "wrong output count", response: &embedding.Response{}},
+		{name: "nil output", response: &embedding.Response{Outputs: []*embedding.Output{nil}}},
+		{name: "empty vector", response: &embedding.Response{Outputs: []*embedding.Output{{}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestClientValidatesResultsAndDocuments(t *testing.T) {
 				return tt.response, nil
 			}))
 			if _, err := client.EmbedText(t.Context(), "text"); err == nil {
-				t.Fatal("EmbedText accepted an invalid result")
+				t.Fatal("EmbedText accepted an invalid output")
 			}
 		})
 	}

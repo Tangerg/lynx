@@ -20,16 +20,16 @@ func TestModalityModelsExposeConsistentOwnedBehavior(t *testing.T) {
 		options          any
 		request          any
 		resultMetadata   any
-		result           any
+		output           any
 		responseMetadata any
 		response         any
 	}{
-		{"chat", chat.Options{}, chat.Request{}, chat.ResultMetadata{}, chat.Result{}, chat.ResponseMetadata{}, chat.Response{}},
-		{"embedding", embedding.Options{}, embedding.Request{}, embedding.ResultMetadata{}, embedding.Result{}, embedding.ResponseMetadata{}, embedding.Response{}},
-		{"image", image.Options{}, image.Request{}, image.ResultMetadata{}, image.Result{}, image.ResponseMetadata{}, image.Response{}},
-		{"moderation", moderation.Options{}, moderation.Request{}, moderation.ResultMetadata{}, moderation.Result{}, moderation.ResponseMetadata{}, moderation.Response{}},
-		{"speech", speech.Options{}, speech.Request{}, speech.ResultMetadata{}, speech.Result{}, speech.ResponseMetadata{}, speech.Response{}},
-		{"transcription", transcription.Options{}, transcription.Request{}, transcription.ResultMetadata{}, transcription.Result{}, transcription.ResponseMetadata{}, transcription.Response{}},
+		{"chat", chat.Options{}, chat.Request{}, chat.OutputMetadata{}, chat.Output{}, chat.ResponseMetadata{}, chat.Response{}},
+		{"embedding", embedding.Options{}, embedding.Request{}, embedding.OutputMetadata{}, embedding.Output{}, embedding.ResponseMetadata{}, embedding.Response{}},
+		{"image", image.Options{}, image.Request{}, image.OutputMetadata{}, image.Output{}, image.ResponseMetadata{}, image.Response{}},
+		{"moderation", moderation.Options{}, moderation.Request{}, moderation.OutputMetadata{}, moderation.Output{}, moderation.ResponseMetadata{}, moderation.Response{}},
+		{"speech", speech.Options{}, speech.Request{}, speech.OutputMetadata{}, speech.Output{}, speech.ResponseMetadata{}, speech.Response{}},
+		{"transcription", transcription.Options{}, transcription.Request{}, transcription.OutputMetadata{}, transcription.Output{}, transcription.ResponseMetadata{}, transcription.Response{}},
 	}
 
 	for _, modality := range modalities {
@@ -43,8 +43,8 @@ func TestModalityModelsExposeConsistentOwnedBehavior(t *testing.T) {
 			assertMethods(t, reflect.TypeOf(modality.resultMetadata), "MarshalJSON")
 			assertPointerMethods(t, modality.resultMetadata, "Set", "UnmarshalJSON")
 
-			assertMethods(t, reflect.TypeOf(modality.result), "MarshalJSON")
-			assertPointerMethods(t, modality.result, "UnmarshalJSON", "Validate")
+			assertMethods(t, reflect.TypeOf(modality.output), "MarshalJSON")
+			assertPointerMethods(t, modality.output, "UnmarshalJSON", "Validate")
 
 			assertMethods(t, reflect.TypeOf(modality.responseMetadata), "MarshalJSON")
 			assertPointerMethods(t, modality.responseMetadata, "Set", "UnmarshalJSON")

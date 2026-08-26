@@ -15,7 +15,7 @@ import (
 type EmbeddingContract struct {
 	// ModelID is the model id passed into the embedding request.
 	ModelID string
-	// Response is the canned JSON body — must encode 2 results so the
+	// Response is the canned JSON body — must encode 2 outputs so the
 	// contract can validate batching.
 	Response string
 	// ExpectedPath is the URL path the SDK should hit (e.g. "/embeddings"
@@ -26,7 +26,7 @@ type EmbeddingContract struct {
 }
 
 // RunEmbeddingContract exercises an embedding vendor against canned
-// JSON: Call returns 2 results with non-empty embeddings.
+// JSON: Call returns 2 outputs with non-empty embeddings.
 func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
@@ -49,12 +49,12 @@ func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
 		if c.ExpectedPath != "" && seenPath != c.ExpectedPath {
 			t.Errorf("URL = %q; want %q", seenPath, c.ExpectedPath)
 		}
-		if len(resp.Results) != 2 {
-			t.Fatalf("got %d results; want 2", len(resp.Results))
+		if len(resp.Outputs) != 2 {
+			t.Fatalf("got %d outputs; want 2", len(resp.Outputs))
 		}
-		for i, r := range resp.Results {
+		for i, r := range resp.Outputs {
 			if len(r.Embedding) == 0 {
-				t.Errorf("result %d has empty embedding", i)
+				t.Errorf("output %d has empty embedding", i)
 			}
 		}
 	})
@@ -62,7 +62,7 @@ func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
 }
 
 // IntegrationEmbeddingProbe is the standard real-API embedding smoke
-// probe: Call returns 2 results with non-empty embeddings.
+// probe: Call returns 2 outputs with non-empty embeddings.
 type IntegrationEmbeddingProbe struct {
 	Provider string
 	Build    func(t *testing.T, key string) embedding.Model
@@ -83,12 +83,12 @@ func RunIntegrationEmbedding(t *testing.T, p IntegrationEmbeddingProbe) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(resp.Results) != 2 {
-		t.Fatalf("got %d results; want 2", len(resp.Results))
+	if len(resp.Outputs) != 2 {
+		t.Fatalf("got %d outputs; want 2", len(resp.Outputs))
 	}
-	for i, r := range resp.Results {
+	for i, r := range resp.Outputs {
 		if len(r.Embedding) == 0 {
-			t.Errorf("result %d has empty embedding", i)
+			t.Errorf("output %d has empty embedding", i)
 		}
 	}
 }

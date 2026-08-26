@@ -9,51 +9,51 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ResultMetadata holds per-segment metadata returned by the provider.
-type ResultMetadata struct {
+// OutputMetadata holds per-segment metadata returned by the provider.
+type OutputMetadata struct {
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific result metadata into Extra.
-func (m *ResultMetadata) Set(key string, value any) error {
+// Set encodes provider-specific output metadata into Extra.
+func (m *OutputMetadata) Set(key string, value any) error {
 	if m == nil {
-		return fmt.Errorf("speech.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("speech.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := m.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("speech.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("speech.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m *ResultMetadata) validate() error {
+func (m *OutputMetadata) validate() error {
 	if m == nil {
-		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
 	}
 	if err := m.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
-func (m ResultMetadata) MarshalJSON() ([]byte, error) {
+func (m OutputMetadata) MarshalJSON() ([]byte, error) {
 	if err := (&m).validate(); err != nil {
 		return nil, err
 	}
-	type wireResultMetadata ResultMetadata
-	return json.Marshal(wireResultMetadata(m))
+	type wireOutputMetadata OutputMetadata
+	return json.Marshal(wireOutputMetadata(m))
 }
 
-func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
+func (m *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if m == nil {
-		return fmt.Errorf("%w: nil ResultMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
 	}
-	type wireResultMetadata ResultMetadata
-	var decoded wireResultMetadata
+	type wireOutputMetadata OutputMetadata
+	var decoded wireOutputMetadata
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result metadata: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
 	}
-	candidate := ResultMetadata(decoded)
+	candidate := OutputMetadata(decoded)
 	if err := candidate.validate(); err != nil {
 		return err
 	}
@@ -61,32 +61,32 @@ func (m *ResultMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Result is one chunk of generated audio. For synchronous calls the
+// Output is one chunk of generated audio. For synchronous calls the
 // chunk is the entire audio; for streaming calls Audio is whatever
 // segment the provider just produced.
-type Result struct {
+type Output struct {
 	// Audio holds the encoded bytes in the format selected by
 	// Request.Options.OutputFormat.
 	Audio []byte `json:"audio,omitzero"`
 
 	// Metadata carries per-chunk extras.
-	Metadata *ResultMetadata `json:"metadata,omitempty"`
+	Metadata *OutputMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when audio is empty
+// NewOutput builds a [Output]. Returns an error when audio is empty
 // or metadata is nil.
-func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error) {
-	result := &Result{Audio: slices.Clone(audio), Metadata: metadata}
-	if err := result.Validate(); err != nil {
-		return nil, fmt.Errorf("speech.NewResult: %w", err)
+func NewOutput(audio []byte, metadata *OutputMetadata) (*Output, error) {
+	output := &Output{Audio: slices.Clone(audio), Metadata: metadata}
+	if err := output.Validate(); err != nil {
+		return nil, fmt.Errorf("speech.NewOutput: %w", err)
 	}
-	return result, nil
+	return output, nil
 }
 
-// Validate verifies audio content and result metadata.
-func (r *Result) Validate() error {
+// Validate verifies audio content and output metadata.
+func (r *Output) Validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
+		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
 	if len(r.Audio) == 0 {
 		return fmt.Errorf("%w: audio must not be empty", ErrInvalidResponse)
@@ -97,24 +97,24 @@ func (r *Result) Validate() error {
 	return nil
 }
 
-func (r Result) MarshalJSON() ([]byte, error) {
+func (r Output) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
 	}
-	type wireResult Result
-	return json.Marshal(wireResult(r))
+	type wireOutput Output
+	return json.Marshal(wireOutput(r))
 }
 
-func (r *Result) UnmarshalJSON(data []byte) error {
+func (r *Output) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Result receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
 	}
-	type wireResult Result
-	var decoded wireResult
+	type wireOutput Output
+	var decoded wireOutput
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode result: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("%w: decode output: %w", ErrInvalidResponse, err)
 	}
-	candidate := Result(decoded)
+	candidate := Output(decoded)
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
@@ -187,19 +187,19 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 }
 
 // Response is one TTS call's audio output plus shared metadata. For
-// synchronous calls Result holds the entire audio; for streaming calls
-// each chunk yields a Response with the just-produced segment in Result.
+// synchronous calls Output holds the entire audio; for streaming calls
+// each chunk yields a Response with the just-produced segment in Output.
 type Response struct {
-	// Result holds the generated audio. Non-nil after [NewResponse].
-	Result *Result `json:"result,omitempty"`
+	// Output holds the generated audio. Non-nil after [NewResponse].
+	Output *Output `json:"output,omitempty"`
 
 	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from a non-nil result and metadata.
-func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
-	response := &Response{Result: result, Metadata: metadata}
+// NewResponse builds a [Response] from a non-nil output and metadata.
+func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Output: output, Metadata: metadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("speech.NewResponse: %w", err)
 	}
@@ -211,8 +211,8 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if err := r.Result.Validate(); err != nil {
-		return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
+	if err := r.Output.Validate(); err != nil {
+		return fmt.Errorf("%w: output: %w", ErrInvalidResponse, err)
 	}
 	if err := r.Metadata.validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)

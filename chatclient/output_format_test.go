@@ -149,7 +149,7 @@ func TestOutputFormatDecodeBoundaries(t *testing.T) {
 func responseWithText(t *testing.T, text string) *chat.Response {
 	t.Helper()
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, err := chat.NewResponse(&chat.Result{Message: &message}, &chat.ResponseMetadata{})
+	response, err := chat.NewResponse(&chat.Output{Message: &message}, &chat.ResponseMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}

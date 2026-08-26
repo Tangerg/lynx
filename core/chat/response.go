@@ -100,19 +100,19 @@ func (m *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Response is provider output with at most one generation result. Its zero
+// Response is provider output with at most one generation output. Its zero
 // value is valid so a stream can represent an empty or metadata-only chunk.
 type Response struct {
-	Result   *Result           `json:"result,omitempty"`
+	Output   *Output           `json:"output,omitempty"`
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds and validates a response from one result and shared metadata.
-func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
-	if result == nil {
-		return nil, fmt.Errorf("chat.NewResponse: %w: result must not be nil", ErrInvalidResponse)
+// NewResponse builds and validates a response from one output and shared metadata.
+func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error) {
+	if output == nil {
+		return nil, fmt.Errorf("chat.NewResponse: %w: output must not be nil", ErrInvalidResponse)
 	}
-	response := &Response{Result: result, Metadata: metadata}
+	response := &Response{Output: output, Metadata: metadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("chat.NewResponse: %w", err)
 	}
@@ -125,8 +125,8 @@ func (r *Response) Clone() *Response {
 		return nil
 	}
 	clone := &Response{}
-	if r.Result != nil {
-		clone.Result = r.Result.clone()
+	if r.Output != nil {
+		clone.Output = r.Output.clone()
 	}
 	if r.Metadata != nil {
 		clone.Metadata = r.Metadata.clone()
@@ -134,23 +134,23 @@ func (r *Response) Clone() *Response {
 	return clone
 }
 
-// Text returns the result's assistant text. It is nil/empty-safe.
+// Text returns the output's assistant text. It is nil/empty-safe.
 func (r *Response) Text() string {
 	if r == nil {
 		return ""
 	}
-	return r.Result.Text()
+	return r.Output.Text()
 }
 
-// Validate recursively verifies response data. A nil Result is valid for
+// Validate recursively verifies response data. A nil Output is valid for
 // stream chunks that only carry usage or provider metadata.
 func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if r.Result != nil {
-		if err := r.Result.Validate(); err != nil {
-			return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
+	if r.Output != nil {
+		if err := r.Output.Validate(); err != nil {
+			return fmt.Errorf("%w: output: %w", ErrInvalidResponse, err)
 		}
 	}
 	if err := r.Metadata.validate(); err != nil {
