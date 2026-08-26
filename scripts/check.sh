@@ -95,7 +95,9 @@ run_in_module() {
   echo "── $mod ── $check"
   case "$check" in
     build)
-      if [[ ${#MODULE_BUILD_PACKAGES[@]} -eq 1 ]] &&
+      if [[ ${#MODULE_BUILD_PACKAGES[@]} -eq 0 ]]; then
+        echo "$mod: test-only module; no production package to build"
+      elif [[ ${#MODULE_BUILD_PACKAGES[@]} -eq 1 ]] &&
         [[ $(cd "$mod" && go list -f '{{.Name}}' "${MODULE_BUILD_PACKAGES[0]}") == "main" ]]; then
         (cd "$mod" && go build -o /dev/null "${MODULE_BUILD_PACKAGES[0]}")
       else
@@ -137,11 +139,6 @@ for mod in "${MODULES[@]}"; do
       while IFS= read -r package; do
         [[ -z "$package" ]] || MODULE_BUILD_PACKAGES+=("$package")
       done < <(scripts/module-packages.sh --buildable "$mod")
-      if [[ ${#MODULE_BUILD_PACKAGES[@]} -eq 0 ]]; then
-        echo "$mod: no buildable Go packages found" >&2
-        failed+=("$mod/buildable-packages")
-        continue
-      fi
     fi
   fi
   for check in "${CHECKS[@]}"; do
