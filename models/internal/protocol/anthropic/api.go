@@ -49,23 +49,23 @@ func newAPI(cfg apiConfig) (*api, error) {
 	return &api{client: &client}, nil
 }
 
-func (a *api) chatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
+func (a *api) chatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams) (*anthropicsdk.Message, error) {
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return a.wrapResult(a.client.Messages.New(ctx, *req, opts...))
+	return a.wrapResult(a.client.Messages.New(ctx, *req))
 }
 
-func (a *api) chatCompletionStream(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) *ssestream.Stream[anthropicsdk.MessageStreamEventUnion] {
+func (a *api) chatCompletionStream(ctx context.Context, req *anthropicsdk.MessageNewParams) *ssestream.Stream[anthropicsdk.MessageStreamEventUnion] {
 	if req == nil {
 		return nil
 	}
-	return a.client.Messages.NewStreaming(ctx, *req, opts...)
+	return a.client.Messages.NewStreaming(ctx, *req)
 }
 
-func (a *api) countTokens(ctx context.Context, req *anthropicsdk.MessageCountTokensParams, opts ...option.RequestOption) (*anthropicsdk.MessageTokensCount, error) {
+func (a *api) countTokens(ctx context.Context, req *anthropicsdk.MessageCountTokensParams) (*anthropicsdk.MessageTokensCount, error) {
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return a.wrapResult(a.client.Messages.CountTokens(ctx, *req, opts...))
+	return a.wrapResult(a.client.Messages.CountTokens(ctx, *req))
 }

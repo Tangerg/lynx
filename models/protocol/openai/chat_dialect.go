@@ -99,10 +99,10 @@ type Dialect struct {
 // parallel defaulting rules.
 func (dialect Dialect) Validate() error {
 	if err := validateProvider(dialect.Provider); err != nil {
-		return fmt.Errorf("Provider: %w", err)
+		return fmt.Errorf("provider: %w", err)
 	}
 	if !dialect.TokenLimitField.Valid() {
-		return fmt.Errorf("TokenLimitField %q is invalid", dialect.TokenLimitField)
+		return fmt.Errorf("token limit field %q is invalid", dialect.TokenLimitField)
 	}
 	return nil
 }

@@ -6,7 +6,7 @@
 
 ## 0. 判据来源（用什么尺子）
 
-- 对标 **go-sdk（尤其 `design/`）+ Go 标准库**：minimal、idiomatic、*accept interfaces / return structs*、小接口、options struct、future-proof、零值可用。
+- 对标 **go-sdk（尤其 `design/`）+ Go 标准库**：minimal、idiomatic、*accept interfaces / return structs*、小接口、构造期 `Config` 值、future-proof、零值可用。自有 API 的构造配置优先传 `Config` 结构体，不采用 `func(*T)` functional-options；外部 SDK 的 functional-options 只允许收敛在 adapter 内部。
 - **精修 ≠ 重写**：外科级、可逆、**在源头改对**，不在错的设计上叠补丁（治本，不治标 —— 见 [`CLAUDE.md`](CLAUDE.md) 第二法则）。参考业界只取思想、**不作命名锚**。
 - **唯一允许背的"债"是"设计还没想清楚"本身**；绝不允许"明知更好、却为省事不改"。
 

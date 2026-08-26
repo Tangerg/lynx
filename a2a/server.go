@@ -27,11 +27,6 @@ type ServerConfig struct {
 	// RPCPattern overrides where the JSON-RPC endpoint is mounted. Empty
 	// uses [DefaultRPCPattern].
 	RPCPattern string
-
-	// HandlerOptions are forwarded to [a2asrv.NewHandler] (task store, push
-	// notifications, interceptors, ...). Empty uses the SDK defaults
-	// (in-memory task store).
-	HandlerOptions []a2asrv.RequestHandlerOption
 }
 
 // NewHTTPHandler builds an http.Handler serving the A2A protocol for a lynx
@@ -56,7 +51,7 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 		cfg.RPCPattern = DefaultRPCPattern
 	}
 
-	requestHandler := a2asrv.NewHandler(exec, cfg.HandlerOptions...)
+	requestHandler := a2asrv.NewHandler(exec)
 
 	mux := http.NewServeMux()
 	mux.Handle(a2asrv.WellKnownAgentCardPath, cardHandler)

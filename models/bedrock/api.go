@@ -77,30 +77,30 @@ func newAPI(ctx context.Context, cfg apiConfig) (*api, error) {
 
 // Converse runs the unified inference API across every Bedrock-hosted
 // model family (Claude / Llama / Titan / Mistral / Cohere / DeepSeek).
-func (a *api) converse(ctx context.Context, params *bedrockruntime.ConverseInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseOutput, error) {
+func (a *api) converse(ctx context.Context, params *bedrockruntime.ConverseInput) (*bedrockruntime.ConverseOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}
-	return a.client.Converse(ctx, params, opts...)
+	return a.client.Converse(ctx, params)
 }
 
 // ConverseStream is the streaming variant. The event channel is on the
 // returned EventStream — callers iterate via stream.Events() then
 // stream.Close().
-func (a *api) converseStream(ctx context.Context, params *bedrockruntime.ConverseStreamInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseStreamOutput, error) {
+func (a *api) converseStream(ctx context.Context, params *bedrockruntime.ConverseStreamInput) (*bedrockruntime.ConverseStreamOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}
-	return a.client.ConverseStream(ctx, params, opts...)
+	return a.client.ConverseStream(ctx, params)
 }
 
 // InvokeModel is the raw per-model endpoint. Bedrock embeddings (Titan
 // Embed v2, Cohere Embed v3, ...) only go through this — each family
 // expects its own JSON body shape, so the lynx [EmbeddingModel] below
 // branches by model family.
-func (a *api) invokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+func (a *api) invokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput) (*bedrockruntime.InvokeModelOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}
-	return a.client.InvokeModel(ctx, params, opts...)
+	return a.client.InvokeModel(ctx, params)
 }
