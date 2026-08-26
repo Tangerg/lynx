@@ -13,10 +13,10 @@ type responseError struct {
 	header http.Header
 }
 
-func (err *responseError) Error() string           { return err.err.Error() }
-func (err *responseError) Unwrap() error           { return err.err }
-func (err *responseError) HTTPStatus() int         { return err.status }
-func (err *responseError) HTTPHeader() http.Header { return err.header.Clone() }
+func (r *responseError) Error() string           { return r.err.Error() }
+func (r *responseError) Unwrap() error           { return r.err }
+func (r *responseError) HTTPStatus() int         { return r.status }
+func (r *responseError) HTTPHeader() http.Header { return r.header.Clone() }
 
 func (*api) wrapError(err error) error {
 	if err == nil {

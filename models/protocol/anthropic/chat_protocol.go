@@ -26,11 +26,11 @@ type ChatConfig struct {
 }
 
 // Validate verifies construction-time configuration.
-func (config ChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("anthropic: DefaultOptions: %w", err)
 	}
 	return nil

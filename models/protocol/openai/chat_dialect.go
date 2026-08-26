@@ -48,28 +48,28 @@ type CompatibleRequest struct {
 
 // Model returns the effective model after Core defaults and request options
 // have been merged.
-func (request *CompatibleRequest) Model() string { return request.model }
+func (c *CompatibleRequest) Model() string { return c.model }
 
 // Temperature returns the effective temperature when one was supplied.
-func (request *CompatibleRequest) Temperature() (float64, bool) {
-	if request.temperature == nil {
+func (c *CompatibleRequest) Temperature() (float64, bool) {
+	if c.temperature == nil {
 		return 0, false
 	}
-	return *request.temperature, true
+	return *c.temperature, true
 }
 
 // Stream reports whether the request will use the streaming endpoint.
-func (request *CompatibleRequest) Stream() bool { return request.stream }
+func (c *CompatibleRequest) Stream() bool { return c.stream }
 
 // SetExtraField adds or replaces one provider-owned top-level JSON field.
-func (request *CompatibleRequest) SetExtraField(name string, value any) error {
+func (c *CompatibleRequest) SetExtraField(name string, value any) error {
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
 		return errors.New("openai: extra field name is required and must not have surrounding whitespace")
 	}
-	if request.extraFields == nil {
-		request.extraFields = make(map[string]any)
+	if c.extraFields == nil {
+		c.extraFields = make(map[string]any)
 	}
-	request.extraFields[name] = value
+	c.extraFields[name] = value
 	return nil
 }
 
@@ -97,12 +97,12 @@ type Dialect struct {
 // Validate verifies the protocol choices owned by this dialect. Keeping this
 // invariant on Dialect prevents constructors and request mapping from growing
 // parallel defaulting rules.
-func (dialect Dialect) Validate() error {
-	if err := validateProvider(dialect.Provider); err != nil {
+func (d Dialect) Validate() error {
+	if err := validateProvider(d.Provider); err != nil {
 		return fmt.Errorf("provider: %w", err)
 	}
-	if !dialect.TokenLimitField.Valid() {
-		return fmt.Errorf("token limit field %q is invalid", dialect.TokenLimitField)
+	if !d.TokenLimitField.Valid() {
+		return fmt.Errorf("token limit field %q is invalid", d.TokenLimitField)
 	}
 	return nil
 }
@@ -123,11 +123,11 @@ const (
 // Valid reports whether the field names a supported Chat Completions token
 // limit property. The zero value is deliberately invalid: each dialect must
 // state its wire contract explicitly.
-func (field TokenLimitField) Valid() bool {
-	return field == TokenLimitMaxTokens || field == TokenLimitMaxCompletionTokens
+func (t TokenLimitField) Valid() bool {
+	return t == TokenLimitMaxTokens || t == TokenLimitMaxCompletionTokens
 }
 
-func (field TokenLimitField) String() string { return string(field) }
+func (t TokenLimitField) String() string { return string(t) }
 
 // ReasoningContentDialect maps the common reasoning_content extension while
 // treating it as output-only state.
@@ -224,7 +224,7 @@ func protocolRefusalDeltaExtensionKey(provider string) string {
 	return provider + "/openai_refusal_delta"
 }
 
-func (codec textReasoningCodec) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
+func (t textReasoningCodec) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
 	wireIndex := 0
 	for i := range source.Messages {
 		message := source.Messages[i]
@@ -232,14 +232,14 @@ func (codec textReasoningCodec) PrepareRequest(source *corechat.Request, target 
 			if wireIndex >= len(target.Messages) || target.Messages[wireIndex].OfAssistant == nil {
 				return fmt.Errorf("messages[%d]: assistant wire mapping is missing", i)
 			}
-			reasoning, hasToolCalls, err := assistantReplayState(message, codec.provider, codec.field)
+			reasoning, hasToolCalls, err := assistantReplayState(message, t.provider, t.field)
 			if err != nil {
 				return fmt.Errorf("messages[%d]: %w", i, err)
 			}
-			shouldReplay := codec.replay == reasoningReplayAlways ||
-				(codec.replay == reasoningReplayWithToolCalls && hasToolCalls)
+			shouldReplay := t.replay == reasoningReplayAlways ||
+				(t.replay == reasoningReplayWithToolCalls && hasToolCalls)
 			if reasoning != "" && shouldReplay {
-				target.Messages[wireIndex].OfAssistant.SetExtraFields(map[string]any{codec.field: reasoning})
+				target.Messages[wireIndex].OfAssistant.SetExtraFields(map[string]any{t.field: reasoning})
 			}
 		}
 		wireIndex += wireMessageCount(message)
@@ -250,12 +250,12 @@ func (codec textReasoningCodec) PrepareRequest(source *corechat.Request, target 
 	return nil
 }
 
-func (codec textReasoningCodec) FinalizeMessage(source openaisdk.ChatCompletionMessage, target *corechat.Message) error {
-	return prependTextReasoning(source.JSON.ExtraFields, codec.provider, codec.field, target)
+func (t textReasoningCodec) FinalizeMessage(source openaisdk.ChatCompletionMessage, target *corechat.Message) error {
+	return prependTextReasoning(source.JSON.ExtraFields, t.provider, t.field, target)
 }
 
-func (codec textReasoningCodec) FinalizeDelta(source openaisdk.ChatCompletionChunkChoiceDelta, target *corechat.Message) error {
-	return prependTextReasoning(source.JSON.ExtraFields, codec.provider, codec.field, target)
+func (t textReasoningCodec) FinalizeDelta(source openaisdk.ChatCompletionChunkChoiceDelta, target *corechat.Message) error {
+	return prependTextReasoning(source.JSON.ExtraFields, t.provider, t.field, target)
 }
 
 func assistantReplayState(message corechat.Message, provider, field string) (reasoning string, hasToolCalls bool, err error) {

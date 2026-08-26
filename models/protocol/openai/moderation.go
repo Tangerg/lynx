@@ -19,17 +19,17 @@ type ModerationModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ModerationModelConfig) Validate() error {
-	if err := validateProvider(c.Provider); err != nil {
+func (m ModerationModelConfig) Validate() error {
+	if err := validateProvider(m.Provider); err != nil {
 		return fmt.Errorf("openai: Provider: %w", err)
 	}
-	if c.APIKey == "" {
+	if m.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if m.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := m.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

@@ -40,10 +40,10 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c apiConfig) validate() error {
+func (a apiConfig) validate() error {
 	// Vertex AI authenticates via ADC / service account, not API key;
 	// every other backend requires the typed APIKey.
-	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
+	if a.Backend != genai.BackendVertexAI && a.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	return nil

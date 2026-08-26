@@ -17,14 +17,14 @@ type AudioTTSModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTTSModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (a AudioTTSModelConfig) Validate() error {
+	if a.APIKey == "" {
 		return errors.New("deepgram: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("deepgram: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

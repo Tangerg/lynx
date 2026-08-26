@@ -23,17 +23,17 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ImageModelConfig) Validate() error {
-	if c.Project == "" {
+func (i ImageModelConfig) Validate() error {
+	if i.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
-	if c.Location == "" {
+	if i.Location == "" {
 		return errors.New("vertexai: Location is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("vertexai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil
@@ -82,12 +82,12 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	return &ImageModel{client: client, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
-func (m *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	mergedOpts, err := m.defaultOptions.Merged(req.Options)
+func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
+	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := m.validateOptions(mergedOpts); err != nil {
+	if err := i.validateOptions(mergedOpts); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -167,7 +167,7 @@ func vertexImagePart(value *media.Media) (*genai.Part, error) {
 	}
 }
 
-func (m *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*image.Response, error) {
+func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*image.Response, error) {
 	if apiResp == nil {
 		return nil, errors.New("vertexai: image: nil GenerateContent response")
 	}
@@ -218,20 +218,20 @@ func (m *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 	return image.NewResponse(outputs, metadata)
 }
 
-func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if m == nil || m.client == nil {
+func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if i == nil || i.client == nil {
 		return nil, errors.New("vertexai: image: nil model")
 	}
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	modelName, contents, config, err := m.buildRequest(req)
+	modelName, contents, config, err := i.buildRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	apiResp, err := m.client.Models.GenerateContent(ctx, modelName, contents, config)
+	apiResp, err := i.client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
 		return nil, fmt.Errorf("vertexai: image: GenerateContent: %w", err)
 	}
-	return m.buildResponse(apiResp)
+	return i.buildResponse(apiResp)
 }

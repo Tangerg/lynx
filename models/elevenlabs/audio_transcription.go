@@ -16,14 +16,14 @@ type AudioTranscriptionModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (a AudioTranscriptionModelConfig) Validate() error {
+	if a.APIKey == "" {
 		return errors.New("elevenlabs: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("elevenlabs: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

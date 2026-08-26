@@ -22,14 +22,14 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config ChatConfig) Validate() error {
-	if config.Project == "" {
+func (c ChatConfig) Validate() error {
+	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
-	if config.Location == "" {
+	if c.Location == "" {
 		return errors.New("vertexai: Location is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("vertexai: DefaultOptions: %w", err)
 	}
 	return nil

@@ -29,17 +29,17 @@ type AudioTranscriptionModelConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c AudioTranscriptionModelConfig) Validate() error {
-	if err := validateProvider(c.Provider); err != nil {
+func (a AudioTranscriptionModelConfig) Validate() error {
+	if err := validateProvider(a.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
+	if a.Backend != genai.BackendVertexAI && a.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

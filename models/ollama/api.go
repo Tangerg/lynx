@@ -34,7 +34,7 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c apiConfig) validate() error {
+func (a apiConfig) validate() error {
 	return nil
 }
 
@@ -186,18 +186,18 @@ type nativeStatusError struct {
 	message    string
 }
 
-func (err nativeStatusError) Error() string {
+func (n nativeStatusError) Error() string {
 	switch {
-	case err.status != "" && err.message != "":
-		return err.status + ": " + err.message
-	case err.status != "":
-		return err.status
-	case err.statusCode != 0 && err.message != "":
-		return fmt.Sprintf("%d: %s", err.statusCode, err.message)
-	case err.statusCode != 0:
-		return fmt.Sprintf("ollama: HTTP status %d", err.statusCode)
-	case err.message != "":
-		return err.message
+	case n.status != "" && n.message != "":
+		return n.status + ": " + n.message
+	case n.status != "":
+		return n.status
+	case n.statusCode != 0 && n.message != "":
+		return fmt.Sprintf("%d: %s", n.statusCode, n.message)
+	case n.statusCode != 0:
+		return fmt.Sprintf("ollama: HTTP status %d", n.statusCode)
+	case n.message != "":
+		return n.message
 	default:
 		return "ollama: request failed"
 	}

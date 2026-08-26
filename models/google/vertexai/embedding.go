@@ -19,17 +19,17 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c EmbeddingModelConfig) Validate() error {
-	if c.Project == "" {
+func (e EmbeddingModelConfig) Validate() error {
+	if e.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
-	if c.Location == "" {
+	if e.Location == "" {
 		return errors.New("vertexai: Location is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if e.DefaultOptions.Model == "" {
 		return errors.New("vertexai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := e.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil
@@ -59,9 +59,9 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return &EmbeddingModel{protocol: adapter}, nil
 }
 
-func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	if m == nil || m.protocol == nil {
+func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if e == nil || e.protocol == nil {
 		return nil, errors.New("vertexai: nil EmbeddingModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return e.protocol.Call(ctx, req)
 }

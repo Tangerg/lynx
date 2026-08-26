@@ -19,17 +19,17 @@ type AudioTranscriptionModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.Project == "" {
+func (a AudioTranscriptionModelConfig) Validate() error {
+	if a.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
-	if c.Location == "" {
+	if a.Location == "" {
 		return errors.New("vertexai: Location is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("vertexai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil
@@ -61,9 +61,9 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	return &AudioTranscriptionModel{protocol: adapter}, nil
 }
 
-func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	if m == nil || m.protocol == nil {
+func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if a == nil || a.protocol == nil {
 		return nil, errors.New("vertexai: nil AudioTranscriptionModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return a.protocol.Call(ctx, req)
 }

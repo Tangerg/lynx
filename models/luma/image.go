@@ -25,14 +25,14 @@ type ImageModelConfig struct {
 	PollTimeout    time.Duration
 }
 
-func (config ImageModelConfig) Validate() error {
-	if config.APIKey == "" {
+func (i ImageModelConfig) Validate() error {
+	if i.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
-	if config.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("luma: DefaultOptions.Model is required")
 	}
-	if _, err := config.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return fmt.Errorf("luma: DefaultOptions: %w", err)
 	}
 	return nil
@@ -83,14 +83,14 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	}, nil
 }
 
-func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*image.Response, error) {
-	if model == nil || model.api == nil {
+func (i *ImageModel) Call(ctx context.Context, request *image.Request) (*image.Response, error) {
+	if i == nil || i.api == nil {
 		return nil, errors.New("luma: nil ImageModel")
 	}
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("luma: request: %w", err)
 	}
-	optionsValue, err := model.defaultOptions.Merged(request.Options)
+	optionsValue, err := i.defaultOptions.Merged(request.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -123,15 +123,15 @@ func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*ima
 		}
 	}
 
-	submitted, err := model.api.createGeneration(ctx, *params)
+	submitted, err := i.api.createGeneration(ctx, *params)
 	if err != nil {
 		return nil, fmt.Errorf("luma: create generation: %w", err)
 	}
-	completed, err := model.pollUntilDone(ctx, submitted.ID)
+	completed, err := i.pollUntilDone(ctx, submitted.ID)
 	if err != nil {
 		return nil, err
 	}
-	return model.mapResponse(ctx, completed)
+	return i.mapResponse(ctx, completed)
 }
 
 func rejectUnsupportedOptions(options image.Options) error {
@@ -155,13 +155,13 @@ func rejectUnsupportedOptions(options image.Options) error {
 	return fmt.Errorf("luma: image: unsupported options: %s", strings.Join(unsupported, ", "))
 }
 
-func (model *ImageModel) pollUntilDone(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
-	deadline, cancel := context.WithTimeout(ctx, model.pollTimeout)
+func (i *ImageModel) pollUntilDone(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
+	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
 	defer cancel()
-	ticker := time.NewTicker(model.pollInterval)
+	ticker := time.NewTicker(i.pollInterval)
 	defer ticker.Stop()
 	for {
-		generation, err := model.api.getGeneration(deadline, generationID)
+		generation, err := i.api.getGeneration(deadline, generationID)
 		if err != nil {
 			return nil, fmt.Errorf("luma: get generation %q: %w", generationID, err)
 		}
@@ -179,7 +179,7 @@ func (model *ImageModel) pollUntilDone(ctx context.Context, generationID string)
 	}
 }
 
-func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Generation) (*image.Response, error) {
+func (i *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Generation) (*image.Response, error) {
 	if generation == nil {
 		return nil, errors.New("luma: nil generation response")
 	}
@@ -189,7 +189,7 @@ func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents
 	outputs := make([]*image.Output, 0, len(generation.Output))
 	for outputIndex := range generation.Output {
 		generationOutput := generation.Output[outputIndex]
-		data, mimeType, err := model.downloadOutput(ctx, generationOutput.URL)
+		data, mimeType, err := i.downloadOutput(ctx, generationOutput.URL)
 		if err != nil {
 			return nil, fmt.Errorf("luma: output[%d]: %w", outputIndex, err)
 		}
@@ -218,12 +218,12 @@ func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents
 	return image.NewResponse(outputs, metadata)
 }
 
-func (model *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
+func (i *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("build download request: %w", err)
 	}
-	response, err := model.httpClient.Do(request)
+	response, err := i.httpClient.Do(request)
 	if err != nil {
 		return nil, "", fmt.Errorf("download: %w", err)
 	}

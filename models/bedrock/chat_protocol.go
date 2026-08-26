@@ -595,8 +595,8 @@ func newProtocolChunkAccumulator(model string) *protocolChunkAccumulator {
 	return &protocolChunkAccumulator{model: model, tools: make(map[int32]protocolToolIdentity)}
 }
 
-func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.Response, bool, error) {
-	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{Model: a.model}}
+func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.Response, bool, error) {
+	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{Model: p.model}}
 	var output *corechat.Output
 
 	switch typed := event.(type) {
@@ -606,12 +606,12 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 			return nil, false, nil
 		}
 		identity := protocolToolIdentity{id: *tool.Value.ToolUseId, name: *tool.Value.Name}
-		a.tools[*typed.Value.ContentBlockIndex] = identity
+		p.tools[*typed.Value.ContentBlockIndex] = identity
 		part := corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name})
 		message := corechat.NewAssistantMessage(part)
 		output = &corechat.Output{Message: &message}
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
-		part, include, err := a.mapDelta(typed.Value)
+		part, include, err := p.mapDelta(typed.Value)
 		if err != nil || !include {
 			return nil, false, err
 		}
@@ -643,7 +643,7 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 	return response, true, nil
 }
 
-func (a *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) (corechat.Part, bool, error) {
+func (p *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) (corechat.Part, bool, error) {
 	switch value := delta.Delta.(type) {
 	case *types.ContentBlockDeltaMemberText:
 		if value.Value == "" {
@@ -684,7 +684,7 @@ func (a *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) 
 		if value.Value.Input == nil || *value.Value.Input == "" || delta.ContentBlockIndex == nil {
 			return corechat.Part{}, false, nil
 		}
-		identity, ok := a.tools[*delta.ContentBlockIndex]
+		identity, ok := p.tools[*delta.ContentBlockIndex]
 		if !ok {
 			return corechat.Part{}, false, fmt.Errorf("bedrock: tool delta for unknown content block %d", *delta.ContentBlockIndex)
 		}

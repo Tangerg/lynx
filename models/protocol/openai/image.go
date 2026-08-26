@@ -22,17 +22,17 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ImageModelConfig) Validate() error {
-	if err := validateProvider(c.Provider); err != nil {
+func (i ImageModelConfig) Validate() error {
+	if err := validateProvider(i.Provider); err != nil {
 		return fmt.Errorf("openai: Provider: %w", err)
 	}
-	if c.APIKey == "" {
+	if i.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

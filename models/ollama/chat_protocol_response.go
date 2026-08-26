@@ -25,7 +25,7 @@ func newProtocolResponseMapper() *protocolResponseMapper {
 	return new(protocolResponseMapper)
 }
 
-func (m *protocolResponseMapper) mapResponse(requestModel string, response nativeChatResponse) (*corechat.Response, error) {
+func (p *protocolResponseMapper) mapResponse(requestModel string, response nativeChatResponse) (*corechat.Response, error) {
 	modelName := response.Model
 	if modelName == "" {
 		modelName = requestModel
@@ -43,7 +43,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
 
-	output, present, err := m.mapOutput(response)
+	output, present, err := p.mapOutput(response)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 	return mapped, nil
 }
 
-func (m *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corechat.Output, bool, error) {
+func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corechat.Output, bool, error) {
 	output := &corechat.Output{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
 		output.Metadata = &corechat.OutputMetadata{}

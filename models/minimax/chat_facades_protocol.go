@@ -41,11 +41,11 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("minimax: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("minimax: DefaultOptions: %w", err)
 	}
 	return nil
@@ -84,11 +84,11 @@ type AnthropicChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config AnthropicChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (a AnthropicChatConfig) Validate() error {
+	if a.APIKey == "" {
 		return errors.New("minimax: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("minimax: DefaultOptions: %w", err)
 	}
 	return nil

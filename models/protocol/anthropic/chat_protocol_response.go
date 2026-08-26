@@ -180,9 +180,9 @@ func newProtocolStreamState(provider string) *protocolStreamState {
 	}
 }
 
-func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, bool, error) {
-	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{ID: s.id, Model: s.model}}
-	if err := response.Metadata.Set(s.streamEventKey, event); err != nil {
+func (p *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, bool, error) {
+	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{ID: p.id, Model: p.model}}
+	if err := response.Metadata.Set(p.streamEventKey, event); err != nil {
 		return nil, false, err
 	}
 	var output *corechat.Output
@@ -190,22 +190,22 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 
 	switch value := event.AsAny().(type) {
 	case anthropicsdk.MessageStartEvent:
-		s.id = value.Message.ID
-		s.model = string(value.Message.Model)
-		response.Metadata.ID = s.id
-		response.Metadata.Model = s.model
-		s.usage = mapProtocolUsage(value.Message.Usage)
-		response.Metadata.Usage = s.usage
+		p.id = value.Message.ID
+		p.model = string(value.Message.Model)
+		response.Metadata.ID = p.id
+		response.Metadata.Model = p.model
+		p.usage = mapProtocolUsage(value.Message.Usage)
+		response.Metadata.Usage = p.usage
 		if err := response.Metadata.Set(protocolUsageKey, value.Message.Usage); err != nil {
 			return nil, false, err
 		}
 		if len(value.Message.Content) > 0 {
-			parts, err := mapProtocolContent(value.Message.Content, s.provider)
+			parts, err := mapProtocolContent(value.Message.Content, p.provider)
 			if err != nil {
 				return nil, false, err
 			}
 			if len(parts) > 0 {
-				message, err := s.protocolMessage(parts)
+				message, err := p.protocolMessage(parts)
 				if err != nil {
 					return nil, false, err
 				}
@@ -215,12 +215,12 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 		include = true
 
 	case anthropicsdk.ContentBlockStartEvent:
-		part, hasPart, err := s.mapBlockStart(value)
+		part, hasPart, err := p.mapBlockStart(value)
 		if err != nil {
 			return nil, false, err
 		}
 		if hasPart {
-			message, err := s.protocolMessage([]corechat.Part{part})
+			message, err := p.protocolMessage([]corechat.Part{part})
 			if err != nil {
 				return nil, false, err
 			}
@@ -229,12 +229,12 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 		}
 
 	case anthropicsdk.ContentBlockDeltaEvent:
-		mapped, hasPart, extension, err := s.mapBlockDelta(value)
+		mapped, hasPart, extension, err := p.mapBlockDelta(value)
 		if err != nil {
 			return nil, false, err
 		}
 		if hasPart {
-			message, err := s.protocolMessage([]corechat.Part{mapped})
+			message, err := p.protocolMessage([]corechat.Part{mapped})
 			if err != nil {
 				return nil, false, err
 			}
@@ -256,8 +256,8 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 				return nil, false, err
 			}
 		}
-		s.mergeDeltaUsage(value.Usage)
-		response.Metadata.Usage = s.usage
+		p.mergeDeltaUsage(value.Usage)
+		response.Metadata.Usage = p.usage
 		if err := response.Metadata.Set(protocolUsageKey, value.Usage); err != nil {
 			return nil, false, err
 		}
@@ -285,15 +285,15 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 	}
 	// Usage is a cumulative stream snapshot. Event-only chunks still carry the
 	// latest known value so observing native lifecycle events cannot make a
-	// consumer's view of usage move backwards.
-	response.Metadata.Usage = s.usage
+	// consumer'p view of usage move backwards.
+	response.Metadata.Usage = p.usage
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("anthropic: mapped stream response: %w", err)
 	}
 	return response, true, nil
 }
 
-func (s *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStartEvent) (corechat.Part, bool, error) {
+func (p *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStartEvent) (corechat.Part, bool, error) {
 	block := event.ContentBlock
 	switch block.Type {
 	case "text":
@@ -306,7 +306,7 @@ func (s *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStart
 			return corechat.Part{}, false, nil
 		}
 		part := corechat.NewReasoningPart(block.Thinking, []byte(block.Signature))
-		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+		if err := setProtocolReasoningState(&part, p.provider, protocolReasoningThinking); err != nil {
 			return corechat.Part{}, false, err
 		}
 		return part, true, nil
@@ -315,28 +315,28 @@ func (s *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStart
 			return corechat.Part{}, false, errors.New("anthropic: empty redacted thinking block")
 		}
 		part := corechat.NewReasoningPart("", []byte(block.Data))
-		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningRedacted); err != nil {
+		if err := setProtocolReasoningState(&part, p.provider, protocolReasoningRedacted); err != nil {
 			return corechat.Part{}, false, err
 		}
 		return part, true, nil
 	case "tool_use":
-		tool := s.tools[event.Index]
+		tool := p.tools[event.Index]
 		tool.id = block.ID
 		tool.name = block.Name
-		s.tools[event.Index] = tool
+		p.tools[event.Index] = tool
 		if tool.id == "" || tool.name == "" {
 			return corechat.Part{}, false, errors.New("anthropic: tool_use start requires ID and name")
 		}
 		arguments := tool.pendingArguments
 		tool.pendingArguments = ""
-		s.tools[event.Index] = tool
+		p.tools[event.Index] = tool
 		return corechat.NewToolCallPart(corechat.ToolCall{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil
 	default:
 		return corechat.Part{}, false, nil
 	}
 }
 
-func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDeltaEvent) (corechat.Part, bool, any, error) {
+func (p *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDeltaEvent) (corechat.Part, bool, any, error) {
 	switch delta := event.Delta.AsAny().(type) {
 	case anthropicsdk.TextDelta:
 		if delta.Text == "" {
@@ -348,7 +348,7 @@ func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 			return corechat.Part{}, false, nil, nil
 		}
 		part := corechat.NewReasoningPart(delta.Thinking, nil)
-		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+		if err := setProtocolReasoningState(&part, p.provider, protocolReasoningThinking); err != nil {
 			return corechat.Part{}, false, nil, err
 		}
 		return part, true, nil, nil
@@ -357,20 +357,20 @@ func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 			return corechat.Part{}, false, nil, nil
 		}
 		part := corechat.NewReasoningPart("", []byte(delta.Signature))
-		if err := setProtocolReasoningState(&part, s.provider, protocolReasoningThinking); err != nil {
+		if err := setProtocolReasoningState(&part, p.provider, protocolReasoningThinking); err != nil {
 			return corechat.Part{}, false, nil, err
 		}
 		return part, true, nil, nil
 	case anthropicsdk.InputJSONDelta:
-		tool := s.tools[event.Index]
+		tool := p.tools[event.Index]
 		tool.pendingArguments += delta.PartialJSON
-		s.tools[event.Index] = tool
+		p.tools[event.Index] = tool
 		if tool.id == "" || tool.name == "" {
 			return corechat.Part{}, false, nil, nil
 		}
 		arguments := tool.pendingArguments
 		tool.pendingArguments = ""
-		s.tools[event.Index] = tool
+		p.tools[event.Index] = tool
 		return corechat.NewToolCallPart(corechat.ToolCall{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil, nil
 	case anthropicsdk.CitationsDelta:
 		return corechat.Part{}, false, delta, nil
@@ -379,25 +379,25 @@ func (s *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 	}
 }
 
-func (s *protocolStreamState) protocolMessage(parts []corechat.Part) (*corechat.Message, error) {
+func (p *protocolStreamState) protocolMessage(parts []corechat.Part) (*corechat.Message, error) {
 	return &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}, nil
 }
 
-func (s *protocolStreamState) mergeDeltaUsage(usage anthropicsdk.MessageDeltaUsage) {
+func (p *protocolStreamState) mergeDeltaUsage(usage anthropicsdk.MessageDeltaUsage) {
 	if usage.InputTokens > 0 || usage.CacheReadInputTokens > 0 || usage.CacheCreationInputTokens > 0 {
-		s.usage.InputTokens = protocolTotalInputTokens(usage.InputTokens, usage.CacheReadInputTokens, usage.CacheCreationInputTokens)
+		p.usage.InputTokens = protocolTotalInputTokens(usage.InputTokens, usage.CacheReadInputTokens, usage.CacheCreationInputTokens)
 	}
-	s.usage.OutputTokens = usage.OutputTokens
+	p.usage.OutputTokens = usage.OutputTokens
 	if usage.OutputTokensDetails.ThinkingTokens != 0 || usage.OutputTokensDetails.JSON.ThinkingTokens.Valid() {
 		value := usage.OutputTokensDetails.ThinkingTokens
-		s.usage.ReasoningTokens = &value
+		p.usage.ReasoningTokens = &value
 	}
 	if usage.CacheReadInputTokens != 0 {
 		value := usage.CacheReadInputTokens
-		s.usage.CacheReadInputTokens = &value
+		p.usage.CacheReadInputTokens = &value
 	}
 	if usage.CacheCreationInputTokens != 0 {
 		value := usage.CacheCreationInputTokens
-		s.usage.CacheWriteInputTokens = &value
+		p.usage.CacheWriteInputTokens = &value
 	}
 }

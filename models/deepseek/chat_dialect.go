@@ -27,12 +27,12 @@ type ThinkingConfig struct {
 	Type ThinkingMode `json:"type"`
 }
 
-func (config ThinkingConfig) Validate() error {
-	switch config.Type {
+func (t ThinkingConfig) Validate() error {
+	switch t.Type {
 	case ThinkingEnabled, ThinkingDisabled:
 		return nil
 	default:
-		return fmt.Errorf("thinking.type has unsupported value %q", config.Type)
+		return fmt.Errorf("thinking.type has unsupported value %q", t.Type)
 	}
 }
 
@@ -81,7 +81,7 @@ type requestDialect struct {
 	defaults corechat.Options
 }
 
-func (dialect requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
+func (r requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
 	fields, _, err := request.Options.Extensions.Decode[map[string]any](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
@@ -93,7 +93,7 @@ func (dialect requestDialect) prepareRequest(request *corechat.Request, target *
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}
-	effective, err := dialect.defaults.Merged(request.Options)
+	effective, err := r.defaults.Merged(request.Options)
 	if err != nil {
 		return fmt.Errorf("options: %w", err)
 	}
@@ -150,19 +150,19 @@ func (dialect requestDialect) prepareRequest(request *corechat.Request, target *
 	return nil
 }
 
-func (options RequestOptions) ValidateFor(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {
-	thinkingEnabled := options.Thinking == nil || options.Thinking.Type != ThinkingDisabled
-	if options.Thinking != nil {
-		if err := options.Thinking.Validate(); err != nil {
+func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {
+	thinkingEnabled := r.Thinking == nil || r.Thinking.Type != ThinkingDisabled
+	if r.Thinking != nil {
+		if err := r.Thinking.Validate(); err != nil {
 			return err
 		}
 	}
-	switch options.ReasoningEffort {
+	switch r.ReasoningEffort {
 	case "", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax:
 	default:
-		return fmt.Errorf("reasoning_effort has unsupported value %q", options.ReasoningEffort)
+		return fmt.Errorf("reasoning_effort has unsupported value %q", r.ReasoningEffort)
 	}
-	if !thinkingEnabled && options.ReasoningEffort != "" {
+	if !thinkingEnabled && r.ReasoningEffort != "" {
 		return errors.New("reasoning_effort requires thinking.type=enabled")
 	}
 	if generation.FrequencyPenalty != nil {
@@ -184,58 +184,58 @@ func (options RequestOptions) ValidateFor(generation corechat.Options, tools []c
 		return errors.New("tools must contain at most 128 functions for DeepSeek")
 	}
 
-	if err := options.ToolChoice.ValidateFor(tools); err != nil {
+	if err := r.ToolChoice.ValidateFor(tools); err != nil {
 		return fmt.Errorf("tool_choice: %w", err)
 	}
-	if options.TopLogProbs != nil {
-		if *options.TopLogProbs < 0 || *options.TopLogProbs > 20 {
+	if r.TopLogProbs != nil {
+		if *r.TopLogProbs < 0 || *r.TopLogProbs > 20 {
 			return errors.New("top_logprobs must be between 0 and 20")
 		}
-		if options.LogProbs == nil || !*options.LogProbs {
+		if r.LogProbs == nil || !*r.LogProbs {
 			return errors.New("top_logprobs requires logprobs=true")
 		}
 	}
-	if options.IncludeUsage != nil && !stream {
+	if r.IncludeUsage != nil && !stream {
 		return errors.New("include_usage is valid only for streaming requests")
 	}
-	if options.UserID != "" {
-		if len(options.UserID) > 512 {
+	if r.UserID != "" {
+		if len(r.UserID) > 512 {
 			return errors.New("user_id must contain at most 512 characters")
 		}
-		if !userIDPattern.MatchString(options.UserID) {
+		if !userIDPattern.MatchString(r.UserID) {
 			return errors.New("user_id may contain only ASCII letters, digits, hyphens, and underscores")
 		}
 	}
 	return nil
 }
 
-func (choice *ToolChoice) ValidateFor(tools []corechat.ToolDefinition) error {
-	if choice == nil {
+func (t *ToolChoice) ValidateFor(tools []corechat.ToolDefinition) error {
+	if t == nil {
 		return nil
 	}
-	if choice.Mode != "" && choice.FunctionName != "" {
+	if t.Mode != "" && t.FunctionName != "" {
 		return errors.New("mode and function_name are mutually exclusive")
 	}
-	if choice.Mode == "" && choice.FunctionName == "" {
+	if t.Mode == "" && t.FunctionName == "" {
 		return errors.New("mode or function_name is required")
 	}
-	if choice.Mode != "" {
-		switch choice.Mode {
+	if t.Mode != "" {
+		switch t.Mode {
 		case ToolChoiceNone:
 			return nil
 		case ToolChoiceAuto, ToolChoiceRequired:
 			if len(tools) == 0 {
-				return fmt.Errorf("mode %q requires at least one tool", choice.Mode)
+				return fmt.Errorf("mode %q requires at least one tool", t.Mode)
 			}
 			return nil
 		default:
-			return fmt.Errorf("mode has unsupported value %q", choice.Mode)
+			return fmt.Errorf("mode has unsupported value %q", t.Mode)
 		}
 	}
 	for index := range tools {
-		if tools[index].Name == choice.FunctionName {
+		if tools[index].Name == t.FunctionName {
 			return nil
 		}
 	}
-	return fmt.Errorf("function_name %q does not match a declared tool", choice.FunctionName)
+	return fmt.Errorf("function_name %q does not match a declared tool", t.FunctionName)
 }

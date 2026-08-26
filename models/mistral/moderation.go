@@ -15,14 +15,14 @@ type ModerationModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ModerationModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (m ModerationModelConfig) Validate() error {
+	if m.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if m.DefaultOptions.Model == "" {
 		return errors.New("mistral: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := m.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

@@ -34,12 +34,12 @@ const (
 	ReasoningEffortNone ReasoningEffort = "none"
 )
 
-func (effort ReasoningEffort) Validate() error {
-	switch effort {
+func (r ReasoningEffort) Validate() error {
+	switch r {
 	case "", ReasoningEffortHigh, ReasoningEffortNone:
 		return nil
 	default:
-		return fmt.Errorf("unsupported reasoning effort %q", effort)
+		return fmt.Errorf("unsupported reasoning effort %q", r)
 	}
 }
 
@@ -56,19 +56,19 @@ type ChatRequestOptions struct {
 	Guardrails        []json.RawMessage `json:"guardrails,omitempty"`
 }
 
-func (options ChatRequestOptions) Validate() error {
-	if err := options.ReasoningEffort.Validate(); err != nil {
+func (c ChatRequestOptions) Validate() error {
+	if err := c.ReasoningEffort.Validate(); err != nil {
 		return err
 	}
 	for name, raw := range map[string]json.RawMessage{
-		"tool_choice": options.ToolChoice,
+		"tool_choice": c.ToolChoice,
 	} {
 		if len(raw) > 0 && !json.Valid(raw) {
 			return fmt.Errorf("%s contains invalid JSON", name)
 		}
 	}
-	for index := range options.Guardrails {
-		if !json.Valid(options.Guardrails[index]) {
+	for index := range c.Guardrails {
+		if !json.Valid(c.Guardrails[index]) {
 			return fmt.Errorf("guardrails[%d] contains invalid JSON", index)
 		}
 	}
@@ -83,11 +83,11 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config ChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("mistral: DefaultOptions: %w", err)
 	}
 	return nil
@@ -121,26 +121,26 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	return &Chat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
-func (chat *Chat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	wireRequest, err := chat.buildRequest(request, false)
+func (c *Chat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
+	wireRequest, err := c.buildRequest(request, false)
 	if err != nil {
 		return nil, err
 	}
-	wireResponse, err := chat.api.chatCompletion(ctx, wireRequest)
+	wireResponse, err := c.api.chatCompletion(ctx, wireRequest)
 	if err != nil {
 		return nil, err
 	}
 	return mapChatCompletion(wireResponse)
 }
 
-func (chat *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
+func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
 	return func(yield func(*corechat.Response, error) bool) {
-		wireRequest, err := chat.buildRequest(request, true)
+		wireRequest, err := c.buildRequest(request, true)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		body, err := chat.api.chatCompletionStream(ctx, wireRequest)
+		body, err := c.api.chatCompletionStream(ctx, wireRequest)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -166,8 +166,8 @@ func (chat *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Se
 	}
 }
 
-func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCompletionRequest, error) {
-	if chat == nil || chat.api == nil {
+func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCompletionRequest, error) {
+	if c == nil || c.api == nil {
 		return nil, errors.New("mistral: nil Chat")
 	}
 	if err := request.Validate(); err != nil {
@@ -189,7 +189,7 @@ func (chat *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCom
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 		}
 	}
-	options, err := chat.defaults.Merged(request.Options)
+	options, err := c.defaults.Merged(request.Options)
 	if err != nil {
 		return nil, fmt.Errorf("mistral: options: %w", err)
 	}
@@ -645,7 +645,7 @@ func newChatStreamState() *chatStreamState {
 	return &chatStreamState{tools: make(map[int]chatStreamTool)}
 }
 
-func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Response, error) {
+func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Response, error) {
 	response := &corechat.Response{
 		Metadata: &corechat.ResponseMetadata{
 			ID: chunk.ID, Model: chunk.Model, Usage: mapMistralUsage(chunk.Usage),
@@ -666,7 +666,7 @@ func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Res
 		if err != nil {
 			return nil, fmt.Errorf("mistral: stream output content: %w", err)
 		}
-		toolParts, err := state.mapToolDeltas(wireChoice.Delta.ToolCalls)
+		toolParts, err := c.mapToolDeltas(wireChoice.Delta.ToolCalls)
 		if err != nil {
 			return nil, fmt.Errorf("mistral: stream output tool calls: %w", err)
 		}
@@ -684,12 +684,12 @@ func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Res
 	return response, nil
 }
 
-func (state *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, error) {
+func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, error) {
 	parts := make([]corechat.Part, 0, len(calls))
 	for position := range calls {
 		call := calls[position]
 		index := call.Index
-		tool := state.tools[index]
+		tool := c.tools[index]
 		if call.ID != "" {
 			tool.id = call.ID
 		}
@@ -701,13 +701,13 @@ func (state *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Pa
 			return nil, fmt.Errorf("tool call %d arguments: %w", index, err)
 		}
 		tool.pendingArguments += arguments
-		state.tools[index] = tool
+		c.tools[index] = tool
 		if tool.id == "" || tool.name == "" {
 			continue
 		}
 		deltaArguments := tool.pendingArguments
 		tool.pendingArguments = ""
-		state.tools[index] = tool
+		c.tools[index] = tool
 		parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
 			ID: tool.id, Name: tool.name, Arguments: deltaArguments,
 		}))

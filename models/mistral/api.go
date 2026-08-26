@@ -28,22 +28,22 @@ type APIError struct {
 	Message    string
 }
 
-func (err *APIError) Error() string {
-	if err == nil {
+func (a *APIError) Error() string {
+	if a == nil {
 		return "mistral: nil API error"
 	}
-	detail := fmt.Sprintf("mistral: %s returned HTTP %d", err.Operation, err.StatusCode)
-	if err.Message != "" {
-		detail += ": " + err.Message
+	detail := fmt.Sprintf("mistral: %s returned HTTP %d", a.Operation, a.StatusCode)
+	if a.Message != "" {
+		detail += ": " + a.Message
 	}
-	if err.RequestID != "" {
-		detail += " (request_id=" + err.RequestID + ")"
+	if a.RequestID != "" {
+		detail += " (request_id=" + a.RequestID + ")"
 	}
 	return detail
 }
 
-func (c apiConfig) validate() error {
-	if c.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
 	return nil

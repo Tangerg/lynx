@@ -36,14 +36,14 @@ type AudioTTSModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTTSModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (a AudioTTSModelConfig) Validate() error {
+	if a.APIKey == "" {
 		return errors.New("hume: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("hume: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil
@@ -229,37 +229,37 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	}
 }
 
-func (event *ttsStreamEvent) response(model string) (*tts.Response, error) {
-	audio, err := event.DecodeAudio()
+func (t *ttsStreamEvent) response(model string) (*tts.Response, error) {
+	audio, err := t.DecodeAudio()
 	if err != nil {
 		return nil, err
 	}
 	outputMetadata := &tts.OutputMetadata{}
-	if err := outputMetadata.Set(metadataAudioFormat, event.AudioFormat); err != nil {
+	if err := outputMetadata.Set(metadataAudioFormat, t.AudioFormat); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataChunkIndex, event.ChunkIndex); err != nil {
+	if err := outputMetadata.Set(metadataChunkIndex, t.ChunkIndex); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataGenerationID, event.GenerationID); err != nil {
+	if err := outputMetadata.Set(metadataGenerationID, t.GenerationID); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataIsLastChunk, event.IsLastChunk); err != nil {
+	if err := outputMetadata.Set(metadataIsLastChunk, t.IsLastChunk); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataSnippetID, event.SnippetID); err != nil {
+	if err := outputMetadata.Set(metadataSnippetID, t.SnippetID); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataText, event.Text); err != nil {
+	if err := outputMetadata.Set(metadataText, t.Text); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataTranscribedText, event.TranscribedText); err != nil {
+	if err := outputMetadata.Set(metadataTranscribedText, t.TranscribedText); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataUtteranceIndex, event.UtteranceIndex); err != nil {
+	if err := outputMetadata.Set(metadataUtteranceIndex, t.UtteranceIndex); err != nil {
 		return nil, err
 	}
-	if err := outputMetadata.Set(metadataStreamAudioEvent, event); err != nil {
+	if err := outputMetadata.Set(metadataStreamAudioEvent, t); err != nil {
 		return nil, err
 	}
 	output, err := tts.NewOutput(audio, outputMetadata)
@@ -267,8 +267,8 @@ func (event *ttsStreamEvent) response(model string) (*tts.Response, error) {
 		return nil, err
 	}
 	responseMetadata := &tts.ResponseMetadata{Model: model}
-	if event.RequestID != "" {
-		if err := responseMetadata.Set(metadataRequestID, event.RequestID); err != nil {
+	if t.RequestID != "" {
+		if err := responseMetadata.Set(metadataRequestID, t.RequestID); err != nil {
 			return nil, err
 		}
 	}

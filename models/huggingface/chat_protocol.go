@@ -32,11 +32,11 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("huggingface: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("huggingface: DefaultOptions: %w", err)
 	}
 	return nil

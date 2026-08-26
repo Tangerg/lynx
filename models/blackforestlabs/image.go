@@ -26,14 +26,14 @@ type ImageModelConfig struct {
 	PollTimeout  time.Duration
 }
 
-func (c ImageModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (i ImageModelConfig) Validate() error {
+	if i.APIKey == "" {
 		return errors.New("blackforestlabs: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("blackforestlabs: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

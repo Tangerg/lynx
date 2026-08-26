@@ -24,8 +24,8 @@ type ChatRequestOptions struct {
 	Thinking ThinkingType `json:"thinking,omitempty"`
 }
 
-func (options ChatRequestOptions) Validate() error {
-	switch options.Thinking {
+func (c ChatRequestOptions) Validate() error {
+	switch c.Thinking {
 	case "", ThinkingEnabled, ThinkingDisabled:
 		return nil
 	default:

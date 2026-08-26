@@ -31,11 +31,11 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("perplexity: APIKey is required")
 	}
-	if err := validateCoreOptions(config.DefaultOptions); err != nil {
+	if err := validateCoreOptions(o.DefaultOptions); err != nil {
 		return fmt.Errorf("perplexity: DefaultOptions: %w", err)
 	}
 	return nil

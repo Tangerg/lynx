@@ -16,8 +16,8 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (config apiConfig) validate() error {
-	if config.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
 	return nil
@@ -41,19 +41,19 @@ func newAPI(config apiConfig) (*api, error) {
 	return &api{client: lumaagents.NewClient(requestOptions...)}, nil
 }
 
-func (api *api) createGeneration(ctx context.Context, params lumaagents.GenerationNewParams) (*lumaagents.Generation, error) {
-	if api == nil || api.client == nil || api.client.Generations == nil {
+func (a *api) createGeneration(ctx context.Context, params lumaagents.GenerationNewParams) (*lumaagents.Generation, error) {
+	if a == nil || a.client == nil || a.client.Generations == nil {
 		return nil, errors.New("luma: nil API")
 	}
-	return api.client.Generations.New(ctx, params)
+	return a.client.Generations.New(ctx, params)
 }
 
-func (api *api) getGeneration(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
-	if api == nil || api.client == nil || api.client.Generations == nil {
+func (a *api) getGeneration(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
+	if a == nil || a.client == nil || a.client.Generations == nil {
 		return nil, errors.New("luma: nil API")
 	}
 	if generationID == "" {
 		return nil, errors.New("luma: generation ID is required")
 	}
-	return api.client.Generations.Get(ctx, generationID)
+	return a.client.Generations.Get(ctx, generationID)
 }

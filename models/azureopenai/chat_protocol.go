@@ -31,14 +31,14 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config ChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("azureopenai: APIKey is required")
 	}
-	if _, err := normalizeBaseURL(config.BaseURL); err != nil {
+	if _, err := normalizeBaseURL(c.BaseURL); err != nil {
 		return err
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("azureopenai: DefaultOptions: %w", err)
 	}
 	return nil

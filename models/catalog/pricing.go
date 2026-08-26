@@ -19,8 +19,8 @@ func (p Pricing) IsZero() bool { return p == Pricing{} }
 type PricingSchedule []Pricing
 
 // Clone returns a caller-owned copy of the complete rate card.
-func (schedule PricingSchedule) Clone() PricingSchedule {
-	return slices.Clone(schedule)
+func (p PricingSchedule) Clone() PricingSchedule {
+	return slices.Clone(p)
 }
 
 // Usage is the provider-neutral token breakdown required for pricing.
@@ -32,14 +32,14 @@ type Usage struct {
 }
 
 // Cost selects the highest applicable pricing band and computes USD cost.
-func (schedule PricingSchedule) Cost(usage Usage) float64 {
-	if len(schedule) == 0 {
+func (p PricingSchedule) Cost(usage Usage) float64 {
+	if len(p) == 0 {
 		return 0
 	}
-	band := schedule[0]
-	for i := len(schedule) - 1; i >= 0; i-- {
-		if usage.InputTokens >= schedule[i].Threshold {
-			band = schedule[i]
+	band := p[0]
+	for i := len(p) - 1; i >= 0; i-- {
+		if usage.InputTokens >= p[i].Threshold {
+			band = p[i]
 			break
 		}
 	}

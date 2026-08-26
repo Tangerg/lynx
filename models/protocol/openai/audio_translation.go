@@ -24,17 +24,17 @@ type AudioTranslationModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTranslationModelConfig) Validate() error {
-	if err := validateProvider(c.Provider); err != nil {
+func (a AudioTranslationModelConfig) Validate() error {
+	if err := validateProvider(a.Provider); err != nil {
 		return fmt.Errorf("openai: Provider: %w", err)
 	}
-	if c.APIKey == "" {
+	if a.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

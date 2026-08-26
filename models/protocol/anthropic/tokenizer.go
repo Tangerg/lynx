@@ -21,11 +21,11 @@ type TextEstimatorConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c TextEstimatorConfig) Validate() error {
-	if c.APIKey == "" {
+func (t TextEstimatorConfig) Validate() error {
+	if t.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
-	if c.Model == "" {
+	if t.Model == "" {
 		return errors.New("anthropic: DefaultOptions is required")
 	}
 	return nil

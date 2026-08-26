@@ -28,20 +28,20 @@ type ReasoningDetailsConfig struct {
 	ReplayPlainText bool
 }
 
-func (config ReasoningDetailsConfig) Validate() error {
-	if strings.TrimSpace(config.Provider) == "" {
+func (r ReasoningDetailsConfig) Validate() error {
+	if strings.TrimSpace(r.Provider) == "" {
 		return errors.New("openai: reasoning details provider is required")
 	}
-	if strings.TrimSpace(config.Provider) != config.Provider {
+	if strings.TrimSpace(r.Provider) != r.Provider {
 		return errors.New("openai: reasoning details provider must not have surrounding whitespace")
 	}
-	if len(config.Provider) > int(^uint16(0)) {
+	if len(r.Provider) > int(^uint16(0)) {
 		return errors.New("openai: reasoning details provider exceeds framing limit")
 	}
-	if config.TextField == "" {
+	if r.TextField == "" {
 		return errors.New("openai: reasoning details text field is required")
 	}
-	if config.DetailsField == "" {
+	if r.DetailsField == "" {
 		return errors.New("openai: reasoning details field is required")
 	}
 	return nil
@@ -66,7 +66,7 @@ type reasoningDetailsCodec struct {
 	config ReasoningDetailsConfig
 }
 
-func (codec reasoningDetailsCodec) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
+func (r reasoningDetailsCodec) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
 	wireIndex := 0
 	for messageIndex := range source.Messages {
 		message := source.Messages[messageIndex]
@@ -74,16 +74,16 @@ func (codec reasoningDetailsCodec) PrepareRequest(source *corechat.Request, targ
 			if wireIndex >= len(target.Messages) || target.Messages[wireIndex].OfAssistant == nil {
 				return fmt.Errorf("messages[%d]: assistant wire mapping is missing", messageIndex)
 			}
-			details, plainReasoning, err := codec.mapHistory(message.Parts)
+			details, plainReasoning, err := r.mapHistory(message.Parts)
 			if err != nil {
 				return fmt.Errorf("messages[%d]: %w", messageIndex, err)
 			}
 			extraFields := make(map[string]any, 2)
 			if len(details) > 0 {
-				extraFields[codec.config.DetailsField] = details
+				extraFields[r.config.DetailsField] = details
 			}
-			if plainReasoning != "" && codec.config.ReplayPlainText {
-				extraFields[codec.config.TextField] = plainReasoning
+			if plainReasoning != "" && r.config.ReplayPlainText {
+				extraFields[r.config.TextField] = plainReasoning
 			}
 			if len(extraFields) > 0 {
 				target.Messages[wireIndex].OfAssistant.SetExtraFields(extraFields)
@@ -97,18 +97,18 @@ func (codec reasoningDetailsCodec) PrepareRequest(source *corechat.Request, targ
 	return nil
 }
 
-func (codec reasoningDetailsCodec) FinalizeMessage(source openaisdk.ChatCompletionMessage, target *corechat.Message) error {
-	return codec.prependReasoning(source.JSON.ExtraFields, target)
+func (r reasoningDetailsCodec) FinalizeMessage(source openaisdk.ChatCompletionMessage, target *corechat.Message) error {
+	return r.prependReasoning(source.JSON.ExtraFields, target)
 }
 
-func (codec reasoningDetailsCodec) FinalizeDelta(source openaisdk.ChatCompletionChunkChoiceDelta, target *corechat.Message) error {
-	return codec.prependReasoning(source.JSON.ExtraFields, target)
+func (r reasoningDetailsCodec) FinalizeDelta(source openaisdk.ChatCompletionChunkChoiceDelta, target *corechat.Message) error {
+	return r.prependReasoning(source.JSON.ExtraFields, target)
 }
 
-func (codec reasoningDetailsCodec) prependReasoning(fields map[string]respjson.Field, target *corechat.Message) error {
-	detailsField, hasDetails := fields[codec.config.DetailsField]
+func (r reasoningDetailsCodec) prependReasoning(fields map[string]respjson.Field, target *corechat.Message) error {
+	detailsField, hasDetails := fields[r.config.DetailsField]
 	if hasDetails && detailsField.Raw() != "" && detailsField.Raw() != "null" {
-		parts, err := codec.decodeDetails([]byte(detailsField.Raw()))
+		parts, err := r.decodeDetails([]byte(detailsField.Raw()))
 		if err != nil {
 			return err
 		}
@@ -117,26 +117,26 @@ func (codec reasoningDetailsCodec) prependReasoning(fields map[string]respjson.F
 			return nil
 		}
 	}
-	return prependTextReasoning(fields, codec.config.Provider, codec.config.TextField, target)
+	return prependTextReasoning(fields, r.config.Provider, r.config.TextField, target)
 }
 
-func (codec reasoningDetailsCodec) decodeDetails(raw []byte) ([]corechat.Part, error) {
+func (r reasoningDetailsCodec) decodeDetails(raw []byte) ([]corechat.Part, error) {
 	var details []json.RawMessage
 	if err := json.Unmarshal(raw, &details); err != nil {
-		return nil, fmt.Errorf("%s: decode %s: %w", codec.config.Provider, codec.config.DetailsField, err)
+		return nil, fmt.Errorf("%s: decode %s: %w", r.config.Provider, r.config.DetailsField, err)
 	}
 	parts := make([]corechat.Part, 0, len(details))
 	for index := range details {
-		part, err := codec.decodeDetail(details[index])
+		part, err := r.decodeDetail(details[index])
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s[%d]: %w", codec.config.Provider, codec.config.DetailsField, index, err)
+			return nil, fmt.Errorf("%s: %s[%d]: %w", r.config.Provider, r.config.DetailsField, index, err)
 		}
 		parts = append(parts, part)
 	}
 	return parts, nil
 }
 
-func (codec reasoningDetailsCodec) decodeDetail(raw json.RawMessage) (corechat.Part, error) {
+func (r reasoningDetailsCodec) decodeDetail(raw json.RawMessage) (corechat.Part, error) {
 	var detail struct {
 		Type    string `json:"type"`
 		Text    string `json:"text"`
@@ -155,28 +155,28 @@ func (codec reasoningDetailsCodec) decodeDetail(raw json.RawMessage) (corechat.P
 	case "reasoning.summary":
 		text = detail.Summary
 	}
-	frame, err := codec.encodeFrame(raw)
+	frame, err := r.encodeFrame(raw)
 	if err != nil {
 		return corechat.Part{}, err
 	}
 	return corechat.NewReasoningPart(text, frame), nil
 }
 
-func (codec reasoningDetailsCodec) encodeFrame(raw json.RawMessage) ([]byte, error) {
+func (r reasoningDetailsCodec) encodeFrame(raw json.RawMessage) ([]byte, error) {
 	if uint64(len(raw)) > uint64(^uint32(0)) {
 		return nil, errors.New("reasoning detail exceeds framing limit")
 	}
-	providerLength := len(codec.config.Provider)
+	providerLength := len(r.config.Provider)
 	frame := make([]byte, reasoningDetailFrameHeaderSize+providerLength+len(raw))
 	copy(frame, reasoningDetailFrameMagic[:])
 	binary.BigEndian.PutUint16(frame[4:6], uint16(providerLength))
 	binary.BigEndian.PutUint32(frame[6:reasoningDetailFrameHeaderSize], uint32(len(raw)))
-	copy(frame[reasoningDetailFrameHeaderSize:], codec.config.Provider)
+	copy(frame[reasoningDetailFrameHeaderSize:], r.config.Provider)
 	copy(frame[reasoningDetailFrameHeaderSize+providerLength:], raw)
 	return frame, nil
 }
 
-func (codec reasoningDetailsCodec) mapHistory(parts []corechat.Part) ([]json.RawMessage, string, error) {
+func (r reasoningDetailsCodec) mapHistory(parts []corechat.Part) ([]json.RawMessage, string, error) {
 	frames := make([]json.RawMessage, 0)
 	var plain strings.Builder
 	for partIndex := range parts {
@@ -188,7 +188,7 @@ func (codec reasoningDetailsCodec) mapHistory(parts []corechat.Part) ([]json.Raw
 			plain.WriteString(part.Text)
 			continue
 		}
-		decoded, framed, ownProvider, err := codec.decodeFrames(part.Signature)
+		decoded, framed, ownProvider, err := r.decodeFrames(part.Signature)
 		if err != nil {
 			return nil, "", fmt.Errorf("parts[%d].reasoning signature: %w", partIndex, err)
 		}
@@ -205,7 +205,7 @@ func (codec reasoningDetailsCodec) mapHistory(parts []corechat.Part) ([]json.Raw
 	return details, plain.String(), nil
 }
 
-func (codec reasoningDetailsCodec) decodeFrames(signature []byte) ([]json.RawMessage, bool, bool, error) {
+func (r reasoningDetailsCodec) decodeFrames(signature []byte) ([]json.RawMessage, bool, bool, error) {
 	if len(signature) < len(reasoningDetailFrameMagic) || !bytes.Equal(signature[:len(reasoningDetailFrameMagic)], reasoningDetailFrameMagic[:]) {
 		return nil, false, false, nil
 	}
@@ -233,7 +233,7 @@ func (codec reasoningDetailsCodec) decodeFrames(signature []byte) ([]json.RawMes
 		if !json.Valid(raw) {
 			return nil, true, false, errors.New("frame contains invalid JSON")
 		}
-		if provider != codec.config.Provider {
+		if provider != r.config.Provider {
 			ownProvider = false
 		} else {
 			frames = append(frames, raw)

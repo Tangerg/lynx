@@ -103,11 +103,11 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("google: DefaultOptions: %w", err)
 	}
 	return nil
@@ -133,12 +133,12 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c EmbeddingModelConfig) Validate() error { return c.protocol().Validate() }
+func (e EmbeddingModelConfig) Validate() error { return e.protocol().Validate() }
 
-func (c EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
+func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
 	return protocol.EmbeddingModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
-		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: e.APIKey, DefaultOptions: e.DefaultOptions,
+		BaseURL: e.BaseURL, HTTPClient: e.HTTPClient,
 	}
 }
 
@@ -154,11 +154,11 @@ func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return &EmbeddingModel{protocol: model}, nil
 }
 
-func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	if m == nil || m.protocol == nil {
+func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if e == nil || e.protocol == nil {
 		return nil, errors.New("google: nil EmbeddingModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return e.protocol.Call(ctx, req)
 }
 
 type AudioTTSModelConfig struct {
@@ -168,12 +168,12 @@ type AudioTTSModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTTSModelConfig) Validate() error { return c.protocol().Validate() }
+func (a AudioTTSModelConfig) Validate() error { return a.protocol().Validate() }
 
-func (c AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
+func (a AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
 	return protocol.AudioTTSModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
-		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
+		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
 	}
 }
 
@@ -187,21 +187,21 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	return &AudioTTSModel{protocol: model}, nil
 }
 
-func (m *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	if m == nil || m.protocol == nil {
+func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if a == nil || a.protocol == nil {
 		return nil, errors.New("google: nil AudioTTSModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return a.protocol.Call(ctx, req)
 }
 
-func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
-	if m == nil || m.protocol == nil {
+func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
+	if a == nil || a.protocol == nil {
 		return func(yield func(*tts.Response, error) bool) { yield(nil, errors.New("google: nil AudioTTSModel")) }
 	}
 	if err := req.Validate(); err != nil {
 		return func(yield func(*tts.Response, error) bool) { yield(nil, err) }
 	}
-	return m.protocol.Stream(ctx, req)
+	return a.protocol.Stream(ctx, req)
 }
 
 type AudioTranscriptionModelConfig struct {
@@ -211,12 +211,12 @@ type AudioTranscriptionModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c AudioTranscriptionModelConfig) Validate() error { return c.protocol().Validate() }
+func (a AudioTranscriptionModelConfig) Validate() error { return a.protocol().Validate() }
 
-func (c AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
+func (a AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
 	return protocol.AudioTranscriptionModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
-		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
+		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
 	}
 }
 
@@ -232,11 +232,11 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 	return &AudioTranscriptionModel{protocol: model}, nil
 }
 
-func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	if m == nil || m.protocol == nil {
+func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if a == nil || a.protocol == nil {
 		return nil, errors.New("google: nil AudioTranscriptionModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return a.protocol.Call(ctx, req)
 }
 
 type ImageModelConfig struct {
@@ -246,10 +246,10 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ImageModelConfig) Validate() error { return c.protocol().Validate() }
+func (i ImageModelConfig) Validate() error { return i.protocol().Validate() }
 
-func (c ImageModelConfig) protocol() protocol.ImageModelConfig {
-	return protocol.ImageModelConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
+func (i ImageModelConfig) protocol() protocol.ImageModelConfig {
+	return protocol.ImageModelConfig{APIKey: i.APIKey, DefaultOptions: i.DefaultOptions, BaseURL: i.BaseURL, HTTPClient: i.HTTPClient}
 }
 
 type ImageGenerationOptions struct {
@@ -287,11 +287,11 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	return &ImageModel{protocol: model}, nil
 }
 
-func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if m == nil || m.protocol == nil {
+func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if i == nil || i.protocol == nil {
 		return nil, errors.New("google: nil ImageModel")
 	}
-	return m.protocol.Call(ctx, req)
+	return i.protocol.Call(ctx, req)
 }
 
 type TextEstimatorConfig struct {
@@ -301,11 +301,11 @@ type TextEstimatorConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c TextEstimatorConfig) Validate() error { return c.protocol().Validate() }
+func (t TextEstimatorConfig) Validate() error { return t.protocol().Validate() }
 
-func (c TextEstimatorConfig) protocol() protocol.TextEstimatorConfig {
+func (t TextEstimatorConfig) protocol() protocol.TextEstimatorConfig {
 	return protocol.TextEstimatorConfig{
-		APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		APIKey: t.APIKey, Model: t.Model, BaseURL: t.BaseURL, HTTPClient: t.HTTPClient,
 	}
 }
 
@@ -319,9 +319,9 @@ func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 	return &TextEstimator{protocol: estimator}, nil
 }
 
-func (e *TextEstimator) EstimateText(ctx context.Context, value string) (int, error) {
-	if e == nil || e.protocol == nil {
+func (t *TextEstimator) EstimateText(ctx context.Context, value string) (int, error) {
+	if t == nil || t.protocol == nil {
 		return 0, errors.New("google: nil TextEstimator")
 	}
-	return e.protocol.EstimateText(ctx, value)
+	return t.protocol.EstimateText(ctx, value)
 }

@@ -19,8 +19,8 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c apiConfig) validate() error {
-	if c.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("replicate: APIKey is required")
 	}
 	return nil
@@ -62,24 +62,24 @@ type predictionRequest struct {
 	WebhookEventsFilter []string       `json:"webhook_events_filter,omitzero"`
 }
 
-func (r predictionRequest) Validate() error {
-	if r.Input == nil {
+func (p predictionRequest) Validate() error {
+	if p.Input == nil {
 		return errors.New("replicate: prediction input is required")
 	}
-	if _, err := json.Marshal(r.Input); err != nil {
+	if _, err := json.Marshal(p.Input); err != nil {
 		return fmt.Errorf("replicate: prediction input is not valid JSON: %w", err)
 	}
-	if r.Webhook != "" {
-		parsed, err := url.Parse(r.Webhook)
+	if p.Webhook != "" {
+		parsed, err := url.Parse(p.Webhook)
 		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return fmt.Errorf("replicate: webhook must be an absolute HTTPS URL: %q", r.Webhook)
+			return fmt.Errorf("replicate: webhook must be an absolute HTTPS URL: %q", p.Webhook)
 		}
 	}
-	if len(r.WebhookEventsFilter) > 0 && r.Webhook == "" {
+	if len(p.WebhookEventsFilter) > 0 && p.Webhook == "" {
 		return errors.New("replicate: webhook_events_filter requires webhook")
 	}
-	seenEvents := make(map[string]struct{}, len(r.WebhookEventsFilter))
-	for index, event := range r.WebhookEventsFilter {
+	seenEvents := make(map[string]struct{}, len(p.WebhookEventsFilter))
+	for index, event := range p.WebhookEventsFilter {
 		switch event {
 		case "start", "output", "logs", "completed":
 		default:

@@ -47,23 +47,23 @@ type ChatRequestOptions struct {
 	Partial          *bool           `json:"partial,omitempty"`
 }
 
-func (options ChatRequestOptions) ValidateFor(model string) error {
-	if options.Thinking != nil {
-		switch options.Thinking.Type {
+func (c ChatRequestOptions) ValidateFor(model string) error {
+	if c.Thinking != nil {
+		switch c.Thinking.Type {
 		case ThinkingEnabled, ThinkingDisabled:
 		default:
 			return fmt.Errorf("thinking.type must be %q or %q", ThinkingEnabled, ThinkingDisabled)
 		}
-		switch options.Thinking.Keep {
+		switch c.Thinking.Keep {
 		case "", ThinkingKeepAll:
 		default:
 			return fmt.Errorf("thinking.keep must be %q when set", ThinkingKeepAll)
 		}
-		if options.Thinking.Type == ThinkingDisabled && options.Thinking.Keep != "" {
+		if c.Thinking.Type == ThinkingDisabled && c.Thinking.Keep != "" {
 			return fmt.Errorf("thinking.keep requires thinking.type %q", ThinkingEnabled)
 		}
 	}
-	switch options.ReasoningEffort {
+	switch c.ReasoningEffort {
 	case "", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax:
 	default:
 		return fmt.Errorf("reasoning_effort must be %q, %q, or %q", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax)
@@ -71,21 +71,21 @@ func (options ChatRequestOptions) ValidateFor(model string) error {
 
 	switch model {
 	case ModelK3:
-		if options.Thinking != nil {
+		if c.Thinking != nil {
 			return fmt.Errorf("model %q does not accept thinking; use reasoning_effort", model)
 		}
 	case ModelK27Code, ModelK27CodeHighSpeed:
-		if options.ReasoningEffort != "" {
+		if c.ReasoningEffort != "" {
 			return fmt.Errorf("model %q does not accept reasoning_effort", model)
 		}
-		if options.Thinking != nil && (options.Thinking.Type != ThinkingEnabled || options.Thinking.Keep != ThinkingKeepAll) {
+		if c.Thinking != nil && (c.Thinking.Type != ThinkingEnabled || c.Thinking.Keep != ThinkingKeepAll) {
 			return fmt.Errorf("model %q only accepts thinking {type:%q, keep:%q}", model, ThinkingEnabled, ThinkingKeepAll)
 		}
 	case ModelK26, ModelK25:
-		if options.ReasoningEffort != "" {
+		if c.ReasoningEffort != "" {
 			return fmt.Errorf("model %q does not accept reasoning_effort", model)
 		}
-		if model == ModelK25 && options.Thinking != nil && options.Thinking.Keep != "" {
+		if model == ModelK25 && c.Thinking != nil && c.Thinking.Keep != "" {
 			return fmt.Errorf("model %q does not accept thinking.keep", model)
 		}
 	}

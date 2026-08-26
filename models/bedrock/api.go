@@ -27,12 +27,12 @@ type apiConfig struct {
 	Credentials *Credentials
 }
 
-func (c apiConfig) validate() error {
-	if c.Credentials != nil {
-		if c.Credentials.AccessKeyID == "" {
+func (a apiConfig) validate() error {
+	if a.Credentials != nil {
+		if a.Credentials.AccessKeyID == "" {
 			return errors.New("bedrock: Credentials.AccessKeyID is required")
 		}
-		if c.Credentials.SecretAccessKey == "" {
+		if a.Credentials.SecretAccessKey == "" {
 			return errors.New("bedrock: Credentials.SecretAccessKey is required")
 		}
 	}

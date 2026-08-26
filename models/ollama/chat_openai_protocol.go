@@ -32,8 +32,8 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if err := config.DefaultOptions.Validate(); err != nil {
+func (o OpenAIChatConfig) Validate() error {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("ollama: DefaultOptions: %w", err)
 	}
 	return nil

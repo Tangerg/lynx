@@ -43,14 +43,14 @@ type imageURLChunk struct {
 
 type imageURLValue string
 
-func (value imageURLValue) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(value))
+func (i imageURLValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(i))
 }
 
-func (value *imageURLValue) UnmarshalJSON(data []byte) error {
+func (i *imageURLValue) UnmarshalJSON(data []byte) error {
 	var direct string
 	if err := json.Unmarshal(data, &direct); err == nil {
-		*value = imageURLValue(direct)
+		*i = imageURLValue(direct)
 		return nil
 	}
 	var object struct {
@@ -59,7 +59,7 @@ func (value *imageURLValue) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &object); err != nil {
 		return err
 	}
-	*value = imageURLValue(object.URL)
+	*i = imageURLValue(object.URL)
 	return nil
 }
 

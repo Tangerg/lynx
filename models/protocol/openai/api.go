@@ -18,8 +18,8 @@ type apiConfig struct {
 	Headers    http.Header
 }
 
-func (c apiConfig) validate() error {
-	if c.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	return nil

@@ -27,17 +27,17 @@ type ImageModelConfig struct {
 	PollTimeout  time.Duration
 }
 
-func (c ImageModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (i ImageModelConfig) Validate() error {
+	if i.APIKey == "" {
 		return errors.New("replicate: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("replicate: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return err
 	}
-	if err := c.InputSchema.Validate(); err != nil {
+	if err := i.InputSchema.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -67,30 +67,30 @@ type ImageInputSchema struct {
 	OutputKind        FileOutputKind
 }
 
-func (s ImageInputSchema) Clone() ImageInputSchema {
-	s.OutputFormats = maps.Clone(s.OutputFormats)
-	return s
+func (i ImageInputSchema) Clone() ImageInputSchema {
+	i.OutputFormats = maps.Clone(i.OutputFormats)
+	return i
 }
 
-func (s ImageInputSchema) Validate() error {
-	if s.PromptKey == "" {
+func (i ImageInputSchema) Validate() error {
+	if i.PromptKey == "" {
 		return errors.New("replicate: ImageInputSchema.PromptKey is required")
 	}
-	if s.OutputKind != FileOutputURI && s.OutputKind != FileOutputURIList {
+	if i.OutputKind != FileOutputURI && i.OutputKind != FileOutputURIList {
 		return fmt.Errorf("replicate: ImageInputSchema.OutputKind must be %q or %q", FileOutputURI, FileOutputURIList)
 	}
-	if s.OutputFormatKey == "" && len(s.OutputFormats) > 0 {
+	if i.OutputFormatKey == "" && len(i.OutputFormats) > 0 {
 		return errors.New("replicate: ImageInputSchema.OutputFormats requires OutputFormatKey")
 	}
-	if s.OutputFormatKey != "" && len(s.OutputFormats) == 0 {
+	if i.OutputFormatKey != "" && len(i.OutputFormats) == 0 {
 		return errors.New("replicate: ImageInputSchema.OutputFormatKey requires OutputFormats")
 	}
-	for mimeType, value := range s.OutputFormats {
+	for mimeType, value := range i.OutputFormats {
 		if !strings.HasPrefix(mimeType, "image/") || value == "" {
 			return fmt.Errorf("replicate: ImageInputSchema.OutputFormats contains invalid mapping %q -> %q", mimeType, value)
 		}
 	}
-	keys := []string{s.PromptKey, s.NegativePromptKey, s.WidthKey, s.HeightKey, s.SeedKey, s.OutputFormatKey}
+	keys := []string{i.PromptKey, i.NegativePromptKey, i.WidthKey, i.HeightKey, i.SeedKey, i.OutputFormatKey}
 	seen := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
 		if key == "" {
@@ -104,21 +104,21 @@ func (s ImageInputSchema) Validate() error {
 	return nil
 }
 
-func (s ImageInputSchema) validateOptions(options image.Options) error {
+func (i ImageInputSchema) validateOptions(options image.Options) error {
 	unsupported := make([]string, 0, 5)
-	if options.Height != nil && s.HeightKey == "" {
+	if options.Height != nil && i.HeightKey == "" {
 		unsupported = append(unsupported, "height")
 	}
-	if options.NegativePrompt != "" && s.NegativePromptKey == "" {
+	if options.NegativePrompt != "" && i.NegativePromptKey == "" {
 		unsupported = append(unsupported, "negative_prompt")
 	}
-	if options.OutputFormat != "" && s.OutputFormatKey == "" {
+	if options.OutputFormat != "" && i.OutputFormatKey == "" {
 		unsupported = append(unsupported, "output_format")
 	}
-	if options.Seed != nil && s.SeedKey == "" {
+	if options.Seed != nil && i.SeedKey == "" {
 		unsupported = append(unsupported, "seed")
 	}
-	if options.Width != nil && s.WidthKey == "" {
+	if options.Width != nil && i.WidthKey == "" {
 		unsupported = append(unsupported, "width")
 	}
 	if len(unsupported) == 0 {

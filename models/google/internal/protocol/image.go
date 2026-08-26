@@ -23,14 +23,14 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c ImageModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (i ImageModelConfig) Validate() error {
+	if i.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if i.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := i.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

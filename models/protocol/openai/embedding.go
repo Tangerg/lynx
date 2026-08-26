@@ -19,17 +19,17 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c EmbeddingModelConfig) Validate() error {
-	if err := validateProvider(c.Provider); err != nil {
+func (e EmbeddingModelConfig) Validate() error {
+	if err := validateProvider(e.Provider); err != nil {
 		return fmt.Errorf("openai: Provider: %w", err)
 	}
-	if c.APIKey == "" {
+	if e.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if e.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := e.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

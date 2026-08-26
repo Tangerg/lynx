@@ -47,11 +47,11 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("anthropic: DefaultOptions: %w", err)
 	}
 	return nil
@@ -77,10 +77,10 @@ type TextEstimatorConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c TextEstimatorConfig) Validate() error { return c.protocol().Validate() }
+func (t TextEstimatorConfig) Validate() error { return t.protocol().Validate() }
 
-func (c TextEstimatorConfig) protocol() anthropicprotocol.TextEstimatorConfig {
-	return anthropicprotocol.TextEstimatorConfig{APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
+func (t TextEstimatorConfig) protocol() anthropicprotocol.TextEstimatorConfig {
+	return anthropicprotocol.TextEstimatorConfig{APIKey: t.APIKey, Model: t.Model, BaseURL: t.BaseURL, HTTPClient: t.HTTPClient}
 }
 
 // TextEstimator is Anthropic's token-counting estimator.

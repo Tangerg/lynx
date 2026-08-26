@@ -44,11 +44,11 @@ type EmbeddingModelConfig struct {
 	Credentials    *Credentials
 }
 
-func (c EmbeddingModelConfig) Validate() error {
-	if c.DefaultOptions.Model == "" {
+func (e EmbeddingModelConfig) Validate() error {
+	if e.DefaultOptions.Model == "" {
 		return errors.New("bedrock: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := e.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

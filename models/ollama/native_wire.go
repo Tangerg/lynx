@@ -18,14 +18,14 @@ type nativeDuration struct {
 	time.Duration
 }
 
-func (duration nativeDuration) MarshalJSON() ([]byte, error) {
-	if duration.Duration < 0 {
+func (n nativeDuration) MarshalJSON() ([]byte, error) {
+	if n.Duration < 0 {
 		return []byte("-1"), nil
 	}
-	return json.Marshal(duration.String())
+	return json.Marshal(n.String())
 }
 
-func (duration *nativeDuration) UnmarshalJSON(data []byte) error {
+func (n *nativeDuration) UnmarshalJSON(data []byte) error {
 	var value any
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
@@ -33,10 +33,10 @@ func (duration *nativeDuration) UnmarshalJSON(data []byte) error {
 	switch typed := value.(type) {
 	case float64:
 		if typed < 0 {
-			duration.Duration = time.Duration(math.MaxInt64)
+			n.Duration = time.Duration(math.MaxInt64)
 			return nil
 		}
-		duration.Duration = time.Duration(typed * float64(time.Second))
+		n.Duration = time.Duration(typed * float64(time.Second))
 		return nil
 	case string:
 		parsed, err := time.ParseDuration(typed)
@@ -46,7 +46,7 @@ func (duration *nativeDuration) UnmarshalJSON(data []byte) error {
 		if parsed < 0 {
 			parsed = time.Duration(math.MaxInt64)
 		}
-		duration.Duration = parsed
+		n.Duration = parsed
 		return nil
 	default:
 		return errors.New("ollama: duration must be a number of seconds or duration string")
@@ -57,10 +57,10 @@ type nativeThinkValue struct {
 	value any
 }
 
-func (value *nativeThinkValue) UnmarshalJSON(data []byte) error {
+func (n *nativeThinkValue) UnmarshalJSON(data []byte) error {
 	var boolean bool
 	if err := json.Unmarshal(data, &boolean); err == nil {
-		value.value = boolean
+		n.value = boolean
 		return nil
 	}
 	var level string
@@ -69,15 +69,15 @@ func (value *nativeThinkValue) UnmarshalJSON(data []byte) error {
 	}
 	switch level {
 	case "high", "medium", "low", "max":
-		value.value = level
+		n.value = level
 		return nil
 	default:
 		return fmt.Errorf("ollama: invalid think value %q", level)
 	}
 }
 
-func (value nativeThinkValue) MarshalJSON() ([]byte, error) {
-	return json.Marshal(value.value)
+func (n nativeThinkValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(n.value)
 }
 
 type nativeJSONObject struct {
@@ -88,7 +88,7 @@ func emptyNativeJSONObject() nativeJSONObject {
 	return nativeJSONObject{raw: json.RawMessage("{}")}
 }
 
-func (object *nativeJSONObject) UnmarshalJSON(data []byte) error {
+func (n *nativeJSONObject) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value map[string]any
@@ -98,15 +98,15 @@ func (object *nativeJSONObject) UnmarshalJSON(data []byte) error {
 	if value == nil {
 		return errors.New("must be a JSON object")
 	}
-	object.raw = bytes.Clone(data)
+	n.raw = bytes.Clone(data)
 	return nil
 }
 
-func (object nativeJSONObject) MarshalJSON() ([]byte, error) {
-	if len(object.raw) == 0 {
+func (n nativeJSONObject) MarshalJSON() ([]byte, error) {
+	if len(n.raw) == 0 {
 		return []byte("{}"), nil
 	}
-	return object.raw, nil
+	return n.raw, nil
 }
 
 type nativeImageData []byte
@@ -121,14 +121,14 @@ type nativeMessage struct {
 	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
-func (message *nativeMessage) UnmarshalJSON(data []byte) error {
+func (n *nativeMessage) UnmarshalJSON(data []byte) error {
 	type alias nativeMessage
 	var decoded alias
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	*message = nativeMessage(decoded)
-	message.Role = strings.ToLower(message.Role)
+	*n = nativeMessage(decoded)
+	n.Role = strings.ToLower(n.Role)
 	return nil
 }
 
@@ -196,14 +196,14 @@ type nativeChatResponse struct {
 	raw json.RawMessage
 }
 
-func (response *nativeChatResponse) UnmarshalJSON(data []byte) error {
+func (n *nativeChatResponse) UnmarshalJSON(data []byte) error {
 	type alias nativeChatResponse
 	var decoded alias
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	*response = nativeChatResponse(decoded)
-	response.raw = bytes.Clone(data)
+	*n = nativeChatResponse(decoded)
+	n.raw = bytes.Clone(data)
 	return nil
 }
 

@@ -24,11 +24,11 @@ type TextEstimatorConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c TextEstimatorConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
+func (t TextEstimatorConfig) Validate() error {
+	if t.Backend != genai.BackendVertexAI && t.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.Model == "" {
+	if t.Model == "" {
 		return errors.New("google: DefaultOptions is required")
 	}
 	return nil

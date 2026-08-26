@@ -19,8 +19,8 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c apiConfig) validate() error {
-	if c.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("hume: APIKey is required")
 	}
 	return nil
@@ -115,14 +115,14 @@ type ttsStreamEvent struct {
 }
 
 // DecodeAudio decodes an audio stream event.
-func (event *ttsStreamEvent) DecodeAudio() ([]byte, error) {
-	if event.Type != "audio" {
-		return nil, fmt.Errorf("hume: stream event type %q has no audio", event.Type)
+func (t *ttsStreamEvent) DecodeAudio() ([]byte, error) {
+	if t.Type != "audio" {
+		return nil, fmt.Errorf("hume: stream event type %q has no audio", t.Type)
 	}
-	if event.Audio == "" {
+	if t.Audio == "" {
 		return nil, errors.New("hume: audio stream event has no audio")
 	}
-	audio, err := base64.StdEncoding.DecodeString(event.Audio)
+	audio, err := base64.StdEncoding.DecodeString(t.Audio)
 	if err != nil {
 		return nil, fmt.Errorf("hume: decode streamed audio: %w", err)
 	}
@@ -130,14 +130,14 @@ func (event *ttsStreamEvent) DecodeAudio() ([]byte, error) {
 }
 
 // DecodeAudio returns the raw audio bytes from the first generation.
-func (r *ttsResponse) DecodeAudio() ([]byte, error) {
-	if len(r.Generations) == 0 {
+func (t *ttsResponse) DecodeAudio() ([]byte, error) {
+	if len(t.Generations) == 0 {
 		return nil, errors.New("hume: TTS response has no generations")
 	}
-	if r.Generations[0].Audio == "" {
+	if t.Generations[0].Audio == "" {
 		return nil, errors.New("hume: TTS response generation has no audio")
 	}
-	audio, err := base64.StdEncoding.DecodeString(r.Generations[0].Audio)
+	audio, err := base64.StdEncoding.DecodeString(t.Generations[0].Audio)
 	if err != nil {
 		return nil, fmt.Errorf("hume: decode TTS response audio: %w", err)
 	}

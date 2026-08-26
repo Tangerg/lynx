@@ -39,13 +39,13 @@ type ChatRequestOptions struct {
 	ServiceTier    ServiceTier  `json:"service_tier,omitempty"`
 }
 
-func (options ChatRequestOptions) Validate() error {
-	switch options.Thinking {
+func (c ChatRequestOptions) Validate() error {
+	switch c.Thinking {
 	case "", ThinkingAdaptive, ThinkingDisabled:
 	default:
 		return fmt.Errorf("thinking must be %q or %q", ThinkingAdaptive, ThinkingDisabled)
 	}
-	switch options.ServiceTier {
+	switch c.ServiceTier {
 	case "", ServiceTierStandard, ServiceTierPriority:
 	default:
 		return fmt.Errorf("service_tier must be %q or %q", ServiceTierStandard, ServiceTierPriority)

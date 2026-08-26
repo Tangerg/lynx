@@ -17,8 +17,8 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c apiConfig) validate() error {
-	if c.APIKey == "" {
+func (a apiConfig) validate() error {
+	if a.APIKey == "" {
 		return errors.New("lmnt: APIKey is required")
 	}
 	return nil

@@ -59,12 +59,12 @@ func NewResponsesChat(cfg ChatConfig) (*ResponsesChat, error) {
 }
 
 // Call performs one non-streaming Responses API request.
-func (c *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	params, err := c.buildResponsesRequest(req)
+func (r *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
+	params, err := r.buildResponsesRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.api.responseNew(ctx, params)
+	response, err := r.api.responseNew(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func (c *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corec
 
 // Stream performs one streaming Responses API request and yields ordered Core
 // response deltas.
-func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+func (r *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
 	return func(yield func(*corechat.Response, error) bool) {
-		params, err := c.buildResponsesRequest(req)
+		params, err := r.buildResponsesRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		stream, err := c.api.responseNewStream(ctx, params)
+		stream, err := r.api.responseNewStream(ctx, params)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -99,13 +99,13 @@ func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.
 			}
 		}
 		if streamErr := stream.Err(); streamErr != nil {
-			yield(nil, c.api.wrapError(streamErr))
+			yield(nil, r.api.wrapError(streamErr))
 		}
 	}
 }
 
-func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses.ResponseNewParams, error) {
-	if c == nil || c.api == nil {
+func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses.ResponseNewParams, error) {
+	if r == nil || r.api == nil {
 		return nil, errors.New("openai responses: nil ResponsesChat")
 	}
 	if err := req.Validate(); err != nil {
@@ -122,7 +122,7 @@ func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		params = responses.ResponseNewParams{}
 	}
 
-	options, err := c.defaults.Merged(req.Options)
+	options, err := r.defaults.Merged(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("openai responses: options: %w", err)
 	}
@@ -510,11 +510,11 @@ func newResponsesStreamState() *responsesStreamState {
 	return &responsesStreamState{tools: make(map[string]responsesToolIdentity)}
 }
 
-func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion) (*corechat.Response, bool, error) {
+func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion) (*corechat.Response, bool, error) {
 	switch typed := event.AsAny().(type) {
 	case responses.ResponseCreatedEvent:
-		s.responseID = typed.Response.ID
-		s.model = string(typed.Response.Model)
+		r.responseID = typed.Response.ID
+		r.model = string(typed.Response.Model)
 		return nil, false, nil
 	case responses.ResponseOutputItemAddedEvent:
 		if typed.Item.Type != "function_call" {
@@ -528,32 +528,32 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		if id == "" || call.Name == "" {
 			return nil, false, errors.New("openai responses: stream function call lacks ID or name")
 		}
-		s.tools[call.ID] = responsesToolIdentity{id: id, name: call.Name}
-		return s.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: call.Name}))
+		r.tools[call.ID] = responsesToolIdentity{id: id, name: call.Name}
+		return r.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: call.Name}))
 	case responses.ResponseTextDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil
 		}
-		return s.deltaResponse(corechat.NewTextPart(typed.Delta))
+		return r.deltaResponse(corechat.NewTextPart(typed.Delta))
 	case responses.ResponseFunctionCallArgumentsDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil
 		}
-		identity, ok := s.tools[typed.ItemID]
+		identity, ok := r.tools[typed.ItemID]
 		if !ok {
 			return nil, false, fmt.Errorf("openai responses: arguments delta for unknown item %q", typed.ItemID)
 		}
-		return s.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name, Arguments: typed.Delta}))
+		return r.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name, Arguments: typed.Delta}))
 	case responses.ResponseReasoningTextDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil
 		}
-		return s.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
+		return r.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
 	case responses.ResponseReasoningSummaryTextDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil
 		}
-		return s.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
+		return r.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
 	case responses.ResponseOutputItemDoneEvent:
 		if typed.Item.Type != "reasoning" {
 			return nil, false, nil
@@ -563,7 +563,7 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		if err != nil {
 			return nil, false, fmt.Errorf("openai responses: stream reasoning item: %w", err)
 		}
-		return s.deltaResponse(corechat.NewReasoningPart("", signature))
+		return r.deltaResponse(corechat.NewReasoningPart("", signature))
 	case responses.ResponseCompletedEvent:
 		hasToolCall := slices.ContainsFunc(typed.Response.Output, func(item responses.ResponseOutputItemUnion) bool {
 			return item.Type == "function_call"
@@ -571,7 +571,7 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		response := &corechat.Response{
 			Output: &corechat.Output{FinishReason: responsesFinishReason(&typed.Response, hasToolCall)},
 			Metadata: &corechat.ResponseMetadata{
-				ID: s.responseID, Model: s.model, Usage: responsesUsage(typed.Response.Usage),
+				ID: r.responseID, Model: r.model, Usage: responsesUsage(typed.Response.Usage),
 			},
 		}
 		if err := response.Metadata.Set(ResponsesResponseExtensionKey, typed.Response); err != nil {
@@ -631,11 +631,11 @@ func decodeResponsesReasoningFrames(signature []byte) ([]responses.ResponseReaso
 	return items, true, nil
 }
 
-func (s *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {
+func (r *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {
 	message := corechat.NewAssistantMessage(part)
 	response := &corechat.Response{
 		Output:   &corechat.Output{Message: &message},
-		Metadata: &corechat.ResponseMetadata{ID: s.responseID, Model: s.model},
+		Metadata: &corechat.ResponseMetadata{ID: r.responseID, Model: r.model},
 	}
 	if err := response.Validate(); err != nil {
 		return nil, false, err

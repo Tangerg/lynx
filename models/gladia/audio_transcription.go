@@ -19,14 +19,14 @@ type AudioTranscriptionModelConfig struct {
 	PollTimeout    time.Duration
 }
 
-func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (a AudioTranscriptionModelConfig) Validate() error {
+	if a.APIKey == "" {
 		return errors.New("gladia: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if a.DefaultOptions.Model == "" {
 		return errors.New("gladia: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := a.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil

@@ -23,14 +23,14 @@ type OpenAIChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (config OpenAIChatConfig) Validate() error {
-	if config.APIKey == "" {
+func (o OpenAIChatConfig) Validate() error {
+	if o.APIKey == "" {
 		return errors.New("deepseek: APIKey is required")
 	}
-	if err := config.DefaultOptions.Validate(); err != nil {
+	if err := o.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
-	if err := (RequestOptions{}).ValidateFor(config.DefaultOptions, nil, false); err != nil {
+	if err := (RequestOptions{}).ValidateFor(o.DefaultOptions, nil, false); err != nil {
 		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
 	return nil

@@ -18,14 +18,14 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c EmbeddingModelConfig) Validate() error {
-	if c.APIKey == "" {
+func (e EmbeddingModelConfig) Validate() error {
+	if e.APIKey == "" {
 		return errors.New("cohere: APIKey is required")
 	}
-	if c.DefaultOptions.Model == "" {
+	if e.DefaultOptions.Model == "" {
 		return errors.New("cohere: DefaultOptions.Model is required")
 	}
-	if _, err := c.DefaultOptions.Merged(); err != nil {
+	if _, err := e.DefaultOptions.Merged(); err != nil {
 		return err
 	}
 	return nil
