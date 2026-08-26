@@ -55,7 +55,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil || out.Result.Text == "" {
+	if out.Output == nil || out.Output.Text == "" {
 		t.Fatal("empty transcript")
 	}
 }

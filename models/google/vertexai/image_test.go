@@ -59,7 +59,7 @@ func TestImageModelUsesVertexGenerateContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(response.Results) != 1 || string(response.Results[0].Media.Source.Bytes) != "PNG" {
-		t.Fatalf("results = %#v", response.Results)
+	if len(response.Outputs) != 1 || string(response.Outputs[0].Media.Source.Bytes) != "PNG" {
+		t.Fatalf("outputs = %#v", response.Outputs)
 	}
 }

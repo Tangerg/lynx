@@ -33,7 +33,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil || out.Result.Text != "hello world" {
-		t.Fatalf("text = %v; want 'hello world'", out.Result)
+	if out.Output == nil || out.Output.Text != "hello world" {
+		t.Fatalf("text = %v; want 'hello world'", out.Output)
 	}
 }

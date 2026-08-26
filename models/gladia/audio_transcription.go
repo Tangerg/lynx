@@ -111,29 +111,29 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	resultMeta := &transcription.ResultMetadata{}
+	outputMetadata := &transcription.OutputMetadata{}
 	if len(final.Result.Transcription.Languages) > 0 {
-		if err := resultMeta.Set("gladia/languages", final.Result.Transcription.Languages); err != nil {
+		if err := outputMetadata.Set("gladia/languages", final.Result.Transcription.Languages); err != nil {
 			return nil, err
 		}
 	}
 	if len(final.Result.Transcription.Utterances) > 0 {
-		if err := resultMeta.Set("gladia/utterances", final.Result.Transcription.Utterances); err != nil {
+		if err := outputMetadata.Set("gladia/utterances", final.Result.Transcription.Utterances); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Translation != nil {
-		if err := resultMeta.Set("gladia/translation", final.Result.Translation); err != nil {
+		if err := outputMetadata.Set("gladia/translation", final.Result.Translation); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Summarization != nil {
-		if err := resultMeta.Set("gladia/summarization", final.Result.Summarization); err != nil {
+		if err := outputMetadata.Set("gladia/summarization", final.Result.Summarization); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := transcription.NewResult(final.Result.Transcription.FullTranscript, resultMeta)
+	output, err := transcription.NewOutput(final.Result.Transcription.FullTranscript, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := meta.Set(ResponseExtensionKey, final.Raw); err != nil {
 		return nil, err
 	}
-	return transcription.NewResponse(result, meta)
+	return transcription.NewResponse(output, meta)
 }
 
 func validateTranscriptionRequest(req *transcriptionRequest) error {

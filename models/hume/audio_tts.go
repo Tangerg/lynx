@@ -73,7 +73,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsR
 		return nil, fmt.Errorf("hume: speech: model must be %q or %q", ModelOctave1, ModelOctave2)
 	}
 	if body.NumGenerations > 1 {
-		return nil, errors.New("hume: speech: num_generations greater than 1 cannot be represented by Core's single-result response")
+		return nil, errors.New("hume: speech: num_generations greater than 1 cannot be represented by Core's single-output response")
 	}
 	if len(body.Utterances) == 0 {
 		body.Utterances = []utterance{{}}
@@ -128,23 +128,23 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	if err != nil {
 		return nil, err
 	}
-	resultMeta := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	if len(apiResp.Generations) > 0 {
 		g := apiResp.Generations[0]
-		if err := resultMeta.Set("hume/encoding_format", g.Encoding.Format); err != nil {
+		if err := outputMetadata.Set("hume/encoding_format", g.Encoding.Format); err != nil {
 			return nil, err
 		}
-		if err := resultMeta.Set("hume/sample_rate", g.Encoding.SampleRate); err != nil {
+		if err := outputMetadata.Set("hume/sample_rate", g.Encoding.SampleRate); err != nil {
 			return nil, err
 		}
-		if err := resultMeta.Set("hume/duration_seconds", g.Duration); err != nil {
+		if err := outputMetadata.Set("hume/duration_seconds", g.Duration); err != nil {
 			return nil, err
 		}
-		if err := resultMeta.Set("hume/generation_id", g.ID); err != nil {
+		if err := outputMetadata.Set("hume/generation_id", g.ID); err != nil {
 			return nil, err
 		}
 	}
-	result, err := tts.NewResult(audio, resultMeta)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	if err := meta.Set("hume/response", apiResp); err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, meta)
+	return tts.NewResponse(output, meta)
 }
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
@@ -217,7 +217,7 @@ func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, er
 	if err != nil {
 		return nil, err
 	}
-	resultMetadata := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	for key, value := range map[string]any{
 		"hume/audio_format":       event.AudioFormat,
 		"hume/chunk_index":        event.ChunkIndex,
@@ -229,11 +229,11 @@ func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, er
 		"hume/utterance_index":    event.UtteranceIndex,
 		"hume/stream_audio_event": event,
 	} {
-		if err := resultMetadata.Set(key, value); err != nil {
+		if err := outputMetadata.Set(key, value); err != nil {
 			return nil, err
 		}
 	}
-	result, err := tts.NewResult(audio, resultMetadata)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -243,5 +243,5 @@ func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, er
 			return nil, err
 		}
 	}
-	return tts.NewResponse(result, responseMetadata)
+	return tts.NewResponse(output, responseMetadata)
 }

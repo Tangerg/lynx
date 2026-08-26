@@ -69,7 +69,7 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 	if messages[1].(map[string]any)["reasoning_content"] != "tool thinking" {
 		t.Fatalf("assistant history = %#v", messages[1])
 	}
-	parts := response.Result.Message.Parts
+	parts := response.Output.Message.Parts
 	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" {
 		t.Fatalf("response parts = %#v", parts)
 	}

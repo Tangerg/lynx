@@ -43,10 +43,10 @@ func TestChat_CoreConformance(t *testing.T) {
 			var final *corechat.Response
 			for _, response := range responses {
 				final = response
-				if response.Result == nil || response.Result.Message == nil {
+				if response.Output == nil || response.Output.Message == nil {
 					continue
 				}
-				for _, part := range response.Result.Message.Parts {
+				for _, part := range response.Output.Message.Parts {
 					switch part.Kind {
 					case corechat.PartReasoning:
 						reasoning.WriteString(part.Text)
@@ -281,10 +281,10 @@ func assertProtocolRequestWire(t *testing.T, body protocolChatRequestWire) {
 
 func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 	t.Helper()
-	if response.Metadata.Model != "qwen3:8b" || response.Result == nil {
+	if response.Metadata.Model != "qwen3:8b" || response.Output == nil {
 		t.Fatalf("response = %#v", response)
 	}
-	result := response.Result
+	result := response.Output
 	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
 		t.Fatalf("result = %#v", result)
 	}

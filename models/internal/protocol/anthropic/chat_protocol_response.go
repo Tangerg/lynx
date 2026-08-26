@@ -25,18 +25,18 @@ func mapProtocolMessage(message *anthropicsdk.Message, provider string) (*corech
 	if err != nil {
 		return nil, err
 	}
-	result := &corechat.Result{
+	output := &corechat.Output{
 		FinishReason: normalizeProtocolStopReason(message.StopReason),
-		Metadata:     &corechat.ResultMetadata{},
+		Metadata:     &corechat.OutputMetadata{},
 	}
-	if err := result.Metadata.Set(protocolNativeStopReasonKey, message.StopReason); err != nil {
+	if err := output.Metadata.Set(protocolNativeStopReasonKey, message.StopReason); err != nil {
 		return nil, err
 	}
 	if len(parts) > 0 {
-		result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
 	response := &corechat.Response{
-		Result: result,
+		Output: output,
 		Metadata: &corechat.ResponseMetadata{
 			ID:    message.ID,
 			Model: string(message.Model),
@@ -185,7 +185,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 	if err := response.Metadata.Set(s.streamEventKey, event); err != nil {
 		return nil, false, err
 	}
-	var result *corechat.Result
+	var output *corechat.Output
 	include := true
 
 	switch value := event.AsAny().(type) {
@@ -209,7 +209,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 				if err != nil {
 					return nil, false, err
 				}
-				result = &corechat.Result{Message: message}
+				output = &corechat.Output{Message: message}
 			}
 		}
 		include = true
@@ -224,7 +224,7 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 			if err != nil {
 				return nil, false, err
 			}
-			result = &corechat.Result{Message: message}
+			output = &corechat.Output{Message: message}
 			include = true
 		}
 
@@ -238,21 +238,21 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 			if err != nil {
 				return nil, false, err
 			}
-			result = &corechat.Result{Message: message}
+			output = &corechat.Output{Message: message}
 			include = true
 		} else if extension != nil {
-			result = &corechat.Result{Metadata: &corechat.ResultMetadata{}}
-			if err := result.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
+			output = &corechat.Output{Metadata: &corechat.OutputMetadata{}}
+			if err := output.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
 				return nil, false, err
 			}
 			include = true
 		}
 
 	case anthropicsdk.MessageDeltaEvent:
-		result = &corechat.Result{FinishReason: normalizeProtocolStopReason(value.Delta.StopReason)}
+		output = &corechat.Output{FinishReason: normalizeProtocolStopReason(value.Delta.StopReason)}
 		if value.Delta.StopReason != "" {
-			result.Metadata = &corechat.ResultMetadata{}
-			if err := result.Metadata.Set(protocolNativeStopReasonKey, value.Delta.StopReason); err != nil {
+			output.Metadata = &corechat.OutputMetadata{}
+			if err := output.Metadata.Set(protocolNativeStopReasonKey, value.Delta.StopReason); err != nil {
 				return nil, false, err
 			}
 		}
@@ -266,10 +266,10 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 				return nil, false, err
 			}
 		}
-		if result.FinishReason == "" && result.Metadata == nil {
-			result = nil
+		if output.FinishReason == "" && output.Metadata == nil {
+			output = nil
 		}
-		include = result != nil || len(response.Metadata.Extra) > 0
+		include = output != nil || len(response.Metadata.Extra) > 0
 
 	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
 
@@ -277,8 +277,8 @@ func (s *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 		// Preserve forward-compatible events in StreamEventExtensionKey.
 	}
 
-	if result != nil {
-		response.Result = result
+	if output != nil {
+		response.Output = output
 	}
 	if !include {
 		return nil, false, nil

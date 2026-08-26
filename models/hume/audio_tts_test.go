@@ -40,8 +40,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil {
-		t.Fatal("nil result")
+	if out.Output == nil {
+		t.Fatal("nil output")
 	}
 }
 
@@ -74,7 +74,7 @@ func TestAudioTTSModel_Stream_Mock(t *testing.T) {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
-		audio.Write(response.Result.Audio)
+		audio.Write(response.Output.Audio)
 	}
 	if got := audio.String(); got != "firstsecond" {
 		t.Fatalf("streamed audio = %q", got)

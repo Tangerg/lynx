@@ -350,7 +350,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 	if apiResp == nil {
 		return nil, errors.New("google: image: nil Interactions response")
 	}
-	results := make([]*image.Result, 0)
+	outputs := make([]*image.Output, 0)
 	for stepIndex, rawStep := range apiResp.Steps {
 		var step imageInteractionStep
 		if err := json.Unmarshal(rawStep, &step); err != nil {
@@ -363,29 +363,29 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 			continue
 		}
 		for contentIndex, rawContent := range step.Content {
-			var output imageInteractionOutput
-			if err := json.Unmarshal(rawContent, &output); err != nil {
+			var interactionOutput imageInteractionOutput
+			if err := json.Unmarshal(rawContent, &interactionOutput); err != nil {
 				return nil, fmt.Errorf("google: image: decode steps[%d].content[%d]: %w", stepIndex, contentIndex, err)
 			}
-			if output.Type != "image" {
+			if interactionOutput.Type != "image" {
 				continue
 			}
-			value, err := imageMediaFromInteractionOutput(output)
+			value, err := imageMediaFromInteractionOutput(interactionOutput)
 			if err != nil {
 				return nil, fmt.Errorf("google: image: steps[%d].content[%d]: %w", stepIndex, contentIndex, err)
 			}
-			resultMeta := &image.ResultMetadata{}
-			if err := resultMeta.Set("google/image_content", rawContent); err != nil {
+			outputMetadata := &image.OutputMetadata{}
+			if err := outputMetadata.Set("google/image_content", rawContent); err != nil {
 				return nil, err
 			}
-			result, err := image.NewResult(value, resultMeta)
+			output, err := image.NewOutput(value, outputMetadata)
 			if err != nil {
 				return nil, err
 			}
-			results = append(results, result)
+			outputs = append(outputs, output)
 		}
 	}
-	if len(results) == 0 {
+	if len(outputs) == 0 {
 		return nil, fmt.Errorf("google: image: Interactions response status %q has no model-output images", apiResp.Status)
 	}
 
@@ -400,7 +400,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 	if err := meta.Set(ImageResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(results, meta)
+	return image.NewResponse(outputs, meta)
 }
 
 func imageMediaFromInteractionOutput(output imageInteractionOutput) (*media.Media, error) {

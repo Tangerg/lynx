@@ -230,7 +230,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	results := make([]*image.Result, 0, len(urls))
+	outputs := make([]*image.Output, 0, len(urls))
 	for outputIndex, outputURL := range urls {
 		data, contentType, err := i.api.downloadOutput(ctx, outputURL)
 		if err != nil {
@@ -247,20 +247,20 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		if err != nil {
 			return nil, err
 		}
-		resultMetadata := &image.ResultMetadata{}
-		if err := resultMetadata.Set("replicate/output_url", outputURL); err != nil {
+		outputMetadata := &image.OutputMetadata{}
+		if err := outputMetadata.Set("replicate/output_url", outputURL); err != nil {
 			return nil, err
 		}
 		if final.Metrics.PredictTime > 0 {
-			if err := resultMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+			if err := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
 				return nil, err
 			}
 		}
-		result, err := image.NewResult(value, resultMetadata)
+		output, err := image.NewOutput(value, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &image.ResponseMetadata{}
@@ -285,7 +285,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := meta.Set(ImageResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(results, meta)
+	return image.NewResponse(outputs, meta)
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.

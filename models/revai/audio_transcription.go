@@ -112,19 +112,19 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	resultMeta := &transcription.ResultMetadata{}
+	outputMetadata := &transcription.OutputMetadata{}
 	if final.Language != "" {
-		if err := resultMeta.Set("revai/language", final.Language); err != nil {
+		if err := outputMetadata.Set("revai/language", final.Language); err != nil {
 			return nil, err
 		}
 	}
 	if final.DurationSeconds > 0 {
-		if err := resultMeta.Set("revai/duration_seconds", final.DurationSeconds); err != nil {
+		if err := outputMetadata.Set("revai/duration_seconds", final.DurationSeconds); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := transcription.NewResult(text, resultMeta)
+	output, err := transcription.NewOutput(text, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := meta.Set(ResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
-	return transcription.NewResponse(result, meta)
+	return transcription.NewResponse(output, meta)
 }
 
 func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*job, error) {

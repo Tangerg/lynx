@@ -84,18 +84,18 @@ func (e *EmbeddingModel) buildResponse(apiResp *embeddingResponse, expectedResul
 		return nil, errors.New("nomic: embedding response has no data")
 	}
 	if len(apiResp.Embeddings) != expectedResults {
-		return nil, fmt.Errorf("nomic: embedding response returned %d results for %d inputs", len(apiResp.Embeddings), expectedResults)
+		return nil, fmt.Errorf("nomic: embedding response returned %d outputs for %d inputs", len(apiResp.Embeddings), expectedResults)
 	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
+	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings))
 	for _, vec := range apiResp.Embeddings {
-		resultMeta := &embedding.ResultMetadata{}
+		outputMetadata := &embedding.OutputMetadata{}
 
-		result, err := embedding.NewResult(vec, resultMeta)
+		output, err := embedding.NewOutput(vec, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &embedding.ResponseMetadata{
@@ -105,7 +105,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *embeddingResponse, expectedResul
 		},
 	}
 
-	return embedding.NewResponse(results, meta)
+	return embedding.NewResponse(outputs, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

@@ -194,19 +194,19 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	resultMeta := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	if contentType != "" {
-		if err := resultMeta.Set("replicate/mime_type", contentType); err != nil {
+		if err := outputMetadata.Set("replicate/mime_type", contentType); err != nil {
 			return nil, err
 		}
 	}
 	if final.Metrics.PredictTime > 0 {
-		if err := resultMeta.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+		if err := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := tts.NewResult(audio, resultMeta)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err := meta.Set(SpeechResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, meta)
+	return tts.NewResponse(output, meta)
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.

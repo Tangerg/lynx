@@ -40,7 +40,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(out.Results) == 0 {
-		t.Fatal("empty results")
+	if len(out.Outputs) == 0 {
+		t.Fatal("empty outputs")
 	}
 }

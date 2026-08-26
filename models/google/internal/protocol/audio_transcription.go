@@ -134,7 +134,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 		}
 	}
 
-	result, err := transcription.NewResult(text.String(), &transcription.ResultMetadata{})
+	output, err := transcription.NewOutput(text.String(), &transcription.OutputMetadata{})
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 		return nil, err
 	}
 
-	return transcription.NewResponse(result, meta)
+	return transcription.NewResponse(output, meta)
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {

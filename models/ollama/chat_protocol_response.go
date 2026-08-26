@@ -43,12 +43,12 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
 
-	result, present, err := m.mapResult(response)
+	output, present, err := m.mapOutput(response)
 	if err != nil {
 		return nil, err
 	}
 	if present {
-		mapped.Result = result
+		mapped.Output = output
 	}
 	if !response.CreatedAt.IsZero() {
 		if err := mapped.Metadata.Set(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
@@ -81,11 +81,11 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response nativ
 	return mapped, nil
 }
 
-func (m *protocolResponseMapper) mapResult(response nativeChatResponse) (*corechat.Result, bool, error) {
-	result := &corechat.Result{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
+func (m *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corechat.Output, bool, error) {
+	output := &corechat.Output{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
-		result.Metadata = &corechat.ResultMetadata{}
-		if err := result.Metadata.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
+		output.Metadata = &corechat.OutputMetadata{}
+		if err := output.Metadata.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
 			return nil, false, err
 		}
 	}
@@ -117,10 +117,10 @@ func (m *protocolResponseMapper) mapResult(response nativeChatResponse) (*corech
 		}))
 	}
 	if len(parts) > 0 {
-		result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
-	present := result.Message != nil || result.FinishReason != "" || result.Metadata != nil
-	return result, present, nil
+	present := output.Message != nil || output.FinishReason != "" || output.Metadata != nil
+	return output, present, nil
 }
 
 func normalizeProtocolDoneReason(reason string) corechat.FinishReason {

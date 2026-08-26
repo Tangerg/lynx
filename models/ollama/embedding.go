@@ -84,23 +84,23 @@ func (e *EmbeddingModel) buildResponse(apiResp *nativeEmbedResponse, expectedRes
 		return nil, errors.New("ollama: embed response has no embeddings")
 	}
 	if len(apiResp.Embeddings) != expectedResults {
-		return nil, fmt.Errorf("ollama: embed response returned %d results for %d inputs", len(apiResp.Embeddings), expectedResults)
+		return nil, fmt.Errorf("ollama: embed response returned %d outputs for %d inputs", len(apiResp.Embeddings), expectedResults)
 	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
+	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings))
 	for _, vec := range apiResp.Embeddings {
 		values := make([]float64, len(vec))
 		for i, value := range vec {
 			values[i] = float64(value)
 		}
 
-		resultMeta := &embedding.ResultMetadata{}
+		outputMetadata := &embedding.OutputMetadata{}
 
-		result, err := embedding.NewResult(values, resultMeta)
+		output, err := embedding.NewOutput(values, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &embedding.ResponseMetadata{
@@ -116,7 +116,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *nativeEmbedResponse, expectedRes
 		return nil, err
 	}
 
-	return embedding.NewResponse(results, meta)
+	return embedding.NewResponse(outputs, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

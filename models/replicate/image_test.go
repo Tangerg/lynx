@@ -79,7 +79,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(out.Results) != 2 || out.First() == nil {
-		t.Fatalf("results = %#v", out.Results)
+	if len(out.Outputs) != 2 || out.First() == nil {
+		t.Fatalf("outputs = %#v", out.Outputs)
 	}
 }

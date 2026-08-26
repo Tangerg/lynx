@@ -123,7 +123,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	result, err := image.NewResult(value, &image.ResultMetadata{})
+	output, err := image.NewOutput(value, &image.OutputMetadata{})
 	if err != nil {
 		return nil, err
 	}
@@ -132,5 +132,5 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := metadata.Set("prodia/job_type", apiReq.Type); err != nil {
 		return nil, err
 	}
-	return image.NewResponse([]*image.Result{result}, metadata)
+	return image.NewResponse([]*image.Output{output}, metadata)
 }

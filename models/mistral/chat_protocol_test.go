@@ -75,7 +75,7 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" || requests[0]["parallel_tool_calls"] != false {
 		t.Fatalf("first wire request = %#v", requests)
 	}
-	result := firstResponse.Result
+	result := firstResponse.Output
 	if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil || len(result.Message.Parts) != 3 {
 		t.Fatalf("result = %#v", result)
 	}
@@ -161,10 +161,10 @@ func TestChatCoalescesStreamedThinkingForReplay(t *testing.T) {
 		}
 	}
 	aggregated := accumulator.Response()
-	if aggregated == nil || aggregated.Result == nil || aggregated.Result.Message == nil {
+	if aggregated == nil || aggregated.Output == nil || aggregated.Output.Message == nil {
 		t.Fatalf("aggregated = %#v", aggregated)
 	}
-	message := aggregated.Result.Message
+	message := aggregated.Output.Message
 	if len(message.Parts) != 2 || message.Parts[0].Text != "plan next" || message.Parts[1].Text != "answer done" {
 		t.Fatalf("aggregated parts = %#v", message.Parts)
 	}

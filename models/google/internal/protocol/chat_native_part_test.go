@@ -26,7 +26,7 @@ func TestProtocolMetadataUsesEndpointNamespace(t *testing.T) {
 	if _, leaked := mapped.Metadata.Extra[ResponseExtensionKey]; leaked {
 		t.Fatal("response metadata leaked the Google provider namespace")
 	}
-	if _, found := mapped.Result.Message.Parts[0].Metadata["vertexai/native_part"]; !found {
+	if _, found := mapped.Output.Message.Parts[0].Metadata["vertexai/native_part"]; !found {
 		t.Fatal("part metadata does not use the endpoint namespace")
 	}
 }

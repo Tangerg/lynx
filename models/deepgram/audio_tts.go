@@ -110,14 +110,14 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	if len(audio) == 0 {
 		return nil, errors.New("deepgram: speech response contained no audio")
 	}
-	resultMeta := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		if err := resultMeta.Set("deepgram/mime_type", ct); err != nil {
+		if err := outputMetadata.Set("deepgram/mime_type", ct); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := tts.NewResult(audio, resultMeta)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	}); err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, meta)
+	return tts.NewResponse(output, meta)
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {

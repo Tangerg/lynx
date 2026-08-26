@@ -41,7 +41,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response *gena
 		return nil, fmt.Errorf("google: preserve native response: %w", err)
 	}
 	if len(response.Candidates) > 1 {
-		return nil, fmt.Errorf("google: response has %d candidates; Core supports one result", len(response.Candidates))
+		return nil, fmt.Errorf("google: response has %d candidates; Core supports one output", len(response.Candidates))
 	}
 	if len(response.Candidates) == 1 {
 		candidate := response.Candidates[0]
@@ -51,11 +51,11 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response *gena
 		if candidate.Index != 0 {
 			return nil, fmt.Errorf("google: candidate index is %d, want 0", candidate.Index)
 		}
-		result, err := m.mapCandidate(candidate)
+		output, err := m.mapCandidate(candidate)
 		if err != nil {
-			return nil, fmt.Errorf("google: result: %w", err)
+			return nil, fmt.Errorf("google: output: %w", err)
 		}
-		mapped.Result = result
+		mapped.Output = output
 	}
 	if response.UsageMetadata != nil {
 		mapped.Metadata.Usage = mapProtocolUsage(response.UsageMetadata)
@@ -84,28 +84,28 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response *gena
 	return mapped, nil
 }
 
-func (m *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*corechat.Result, error) {
-	result := &corechat.Result{
+func (m *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*corechat.Output, error) {
+	output := &corechat.Output{
 		FinishReason: normalizeProtocolFinishReason(candidate.FinishReason),
-		Metadata:     &corechat.ResultMetadata{},
+		Metadata:     &corechat.OutputMetadata{},
 	}
 	if candidate.FinishReason != "" {
-		if err := result.Metadata.Set(protocolKey(m.provider, "native_finish_reason"), candidate.FinishReason); err != nil {
+		if err := output.Metadata.Set(protocolKey(m.provider, "native_finish_reason"), candidate.FinishReason); err != nil {
 			return nil, err
 		}
 	}
 	if len(candidate.SafetyRatings) > 0 {
-		if err := result.Metadata.Set(protocolKey(m.provider, "safety_ratings"), candidate.SafetyRatings); err != nil {
+		if err := output.Metadata.Set(protocolKey(m.provider, "safety_ratings"), candidate.SafetyRatings); err != nil {
 			return nil, err
 		}
 	}
 	if candidate.FinishMessage != "" {
-		if err := result.Metadata.Set(protocolKey(m.provider, "finish_message"), candidate.FinishMessage); err != nil {
+		if err := output.Metadata.Set(protocolKey(m.provider, "finish_message"), candidate.FinishMessage); err != nil {
 			return nil, err
 		}
 	}
 	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
-		return result, nil
+		return output, nil
 	}
 
 	offset := m.partOffset
@@ -121,8 +121,8 @@ func (m *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*core
 		parts = append(parts, mapped)
 	}
 	m.partOffset = offset + len(candidate.Content.Parts)
-	result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-	return result, nil
+	output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	return output, nil
 }
 
 func mapProtocolCandidatePart(provider string, partIndex int, part *genai.Part) (corechat.Part, error) {
@@ -200,7 +200,7 @@ func normalizeProtocolFinishReason(reason genai.FinishReason) corechat.FinishRea
 }
 
 func mapProtocolUsage(usage *genai.GenerateContentResponseUsageMetadata) corechat.Usage {
-	// Gemini reports tool-result prompt tokens and thought tokens outside the
+	// Gemini reports tool-output prompt tokens and thought tokens outside the
 	// similarly named prompt/candidate counters. Core totals include both, while
 	// cache and reasoning remain optional breakdowns.
 	mapped := corechat.Usage{

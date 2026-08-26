@@ -133,7 +133,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 	if final.Result.Sample == "" {
-		return nil, errors.New("blackforestlabs: ready result has no sample URL")
+		return nil, errors.New("blackforestlabs: ready output has no sample URL")
 	}
 
 	data, mimeType, err := i.api.downloadOutput(ctx, final.Result.Sample)
@@ -151,22 +151,22 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	resultMeta := &image.ResultMetadata{}
-	if err := resultMeta.Set("blackforestlabs/output_url", final.Result.Sample); err != nil {
+	outputMetadata := &image.OutputMetadata{}
+	if err := outputMetadata.Set("blackforestlabs/output_url", final.Result.Sample); err != nil {
 		return nil, err
 	}
 	if final.Result.Seed != 0 {
-		if err := resultMeta.Set("blackforestlabs/seed", final.Result.Seed); err != nil {
+		if err := outputMetadata.Set("blackforestlabs/seed", final.Result.Seed); err != nil {
 			return nil, err
 		}
 	}
 	if final.Result.Duration != 0 {
-		if err := resultMeta.Set("blackforestlabs/duration_ms", final.Result.Duration); err != nil {
+		if err := outputMetadata.Set("blackforestlabs/duration_ms", final.Result.Duration); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := image.NewResult(value, resultMeta)
+	output, err := image.NewOutput(value, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := meta.Set("blackforestlabs/result_response", final); err != nil {
 		return nil, err
 	}
-	return image.NewResponse([]*image.Result{result}, meta)
+	return image.NewResponse([]*image.Output{output}, meta)
 }
 
 func (i *ImageModel) pollUntilDone(ctx context.Context, pollingURL string) (*pollResult, error) {

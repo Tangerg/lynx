@@ -56,8 +56,8 @@ func TestNativeClaudePreservesServerToolResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mapProtocolMessage: %v", err)
 	}
-	if response.Result.Message == nil || response.Result.Message.Text() != "result" {
-		t.Fatalf("Core response = %#v", response.Result)
+	if response.Output.Message == nil || response.Output.Message.Text() != "result" {
+		t.Fatalf("Core response = %#v", response.Output)
 	}
 	preserved, found, err := response.Metadata.Extra.Decode[anthropicsdk.Message](ResponseExtensionKey)
 	if err != nil || !found {
@@ -79,7 +79,7 @@ func TestReasoningReplayIsScopedToIssuingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mapProtocolMessage: %v", err)
 	}
-	assistant := *response.Result.Message
+	assistant := *response.Output.Message
 
 	matching, err := mapProtocolAssistant(assistant, "minimax")
 	if err != nil || len(matching) != 1 || matching[0].GetSignature() == nil || *matching[0].GetSignature() != "provider-signature" {

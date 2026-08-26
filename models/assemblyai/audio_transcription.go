@@ -176,27 +176,27 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 }
 
 func (a *AudioTranscriptionModel) buildResponse(apiResp *transcriptResponse) (*transcription.Response, error) {
-	resultMeta := &transcription.ResultMetadata{}
-	if err := resultMeta.Set("assemblyai/confidence", apiResp.Confidence); err != nil {
+	outputMetadata := &transcription.OutputMetadata{}
+	if err := outputMetadata.Set("assemblyai/confidence", apiResp.Confidence); err != nil {
 		return nil, err
 	}
 	if apiResp.LanguageCode != "" {
-		if err := resultMeta.Set("assemblyai/language_code", apiResp.LanguageCode); err != nil {
+		if err := outputMetadata.Set("assemblyai/language_code", apiResp.LanguageCode); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Utterances) > 0 {
-		if err := resultMeta.Set("assemblyai/utterances", apiResp.Utterances); err != nil {
+		if err := outputMetadata.Set("assemblyai/utterances", apiResp.Utterances); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Words) > 0 {
-		if err := resultMeta.Set("assemblyai/words", apiResp.Words); err != nil {
+		if err := outputMetadata.Set("assemblyai/words", apiResp.Words); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := transcription.NewResult(apiResp.Text, resultMeta)
+	output, err := transcription.NewOutput(apiResp.Text, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (a *AudioTranscriptionModel) buildResponse(apiResp *transcriptResponse) (*t
 		return nil, err
 	}
 
-	return transcription.NewResponse(result, meta)
+	return transcription.NewResponse(output, meta)
 }
 
 func prioritizedSpeechModels(primary string, fallbacks []string) []string {

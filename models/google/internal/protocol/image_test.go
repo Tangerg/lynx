@@ -57,11 +57,11 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(out.Results) != 2 || out.First() == nil {
-		t.Fatalf("results = %#v", out.Results)
+	if len(out.Outputs) != 2 || out.First() == nil {
+		t.Fatalf("outputs = %#v", out.Outputs)
 	}
-	if out.Results[1].Media.MIME != "image/jpeg" {
-		t.Fatalf("second MIME = %q", out.Results[1].Media.MIME)
+	if out.Outputs[1].Media.MIME != "image/jpeg" {
+		t.Fatalf("second MIME = %q", out.Outputs[1].Media.MIME)
 	}
 	if got := out.Metadata.Created; got != time.Date(2026, 7, 31, 10, 20, 30, 0, time.UTC).Unix() {
 		t.Fatalf("Created = %d", got)

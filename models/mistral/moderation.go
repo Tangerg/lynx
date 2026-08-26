@@ -67,21 +67,21 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 		return nil, err
 	}
 
-	results := make([]*moderation.Result, 0, len(apiResp.Results))
+	outputs := make([]*moderation.Output, 0, len(apiResp.Results))
 	for _, item := range apiResp.Results {
 		cats := mapMistralCategories(item.Categories, item.CategoryScores)
-		res, err := moderation.NewResult(cats, &moderation.ResultMetadata{})
+		res, err := moderation.NewOutput(cats, &moderation.OutputMetadata{})
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, res)
+		outputs = append(outputs, res)
 	}
 
 	meta := &moderation.ResponseMetadata{
 		ID:    apiResp.ID,
 		Model: apiResp.Model,
 	}
-	return moderation.NewResponse(results, meta)
+	return moderation.NewResponse(outputs, meta)
 }
 
 func mapMistralCategories(flags map[string]bool, scores map[string]float64) moderation.Categories {

@@ -54,11 +54,11 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil {
-		t.Fatal("nil result")
+	if out.Output == nil {
+		t.Fatal("nil output")
 	}
-	if string(out.Result.Audio) != "FAKE-WAV" {
-		t.Fatalf("audio = %q", out.Result.Audio)
+	if string(out.Output.Audio) != "FAKE-WAV" {
+		t.Fatalf("audio = %q", out.Output.Audio)
 	}
 	if requestBody.Text != "hello world" || requestBody.Model != lmnt.ModelBlizzard || requestBody.Voice != "lily" {
 		t.Fatalf("request = %#v", requestBody)

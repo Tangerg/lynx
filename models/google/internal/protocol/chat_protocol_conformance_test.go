@@ -38,7 +38,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			if response.Metadata.ID != "response-1" || response.Metadata.Model != "gemini-3-pro-001" {
 				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 			}
-			result := response.Result
+			result := response.Output
 			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
 				t.Fatalf("result = %#v", result)
 			}
@@ -65,10 +65,10 @@ func TestChat_CoreConformance(t *testing.T) {
 			var finalUsage corechat.Usage
 			for _, response := range responses {
 				finalUsage = response.Metadata.Usage
-				if response.Result == nil || response.Result.Message == nil {
+				if response.Output == nil || response.Output.Message == nil {
 					continue
 				}
-				for _, part := range response.Result.Message.Parts {
+				for _, part := range response.Output.Message.Parts {
 					switch part.Kind {
 					case corechat.PartText:
 						text.WriteString(part.Text)
@@ -92,10 +92,10 @@ func TestChat_CoreConformance(t *testing.T) {
 		},
 		AssertAggregated: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.Metadata.ID != "response-stream" || response.Metadata.Model != "gemini-3-pro-001" || response.Result == nil {
+			if response.Metadata.ID != "response-stream" || response.Metadata.Model != "gemini-3-pro-001" || response.Output == nil {
 				t.Fatalf("aggregated response = %#v", response)
 			}
-			result := response.Result
+			result := response.Output
 			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
 				t.Fatalf("aggregated result = %#v", result)
 			}
@@ -130,7 +130,7 @@ func TestChatRejectsMultipleProviderCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one result") {
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one output") {
 		t.Fatalf("Call error = %v; want multiple-candidate rejection", err)
 	}
 }

@@ -40,7 +40,7 @@ func TestOpenAIChatUsesSplitReasoningByDefault(t *testing.T) {
 	if body["reasoning_split"] != true {
 		t.Fatalf("reasoning_split = %#v; want true", body["reasoning_split"])
 	}
-	parts := response.Result.Message.Parts
+	parts := response.Output.Message.Parts
 	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" || parts[1].Text != "answer" {
 		t.Fatalf("response parts = %#v", parts)
 	}
@@ -110,7 +110,7 @@ func TestOpenAIChatReplaysStructuredReasoningDetails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Call: %v", err)
 	}
-	assistantMessage := response.Result.Message
+	assistantMessage := response.Output.Message
 	if assistantMessage == nil || len(assistantMessage.Parts) != 2 || len(assistantMessage.Parts[0].Signature) == 0 {
 		t.Fatalf("assistant message = %#v", assistantMessage)
 	}

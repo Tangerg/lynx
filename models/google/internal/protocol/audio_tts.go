@@ -168,14 +168,14 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 		return nil, errNoAudio
 	}
 
-	resultMeta := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	if mimeType != "" {
-		if err := resultMeta.Set(protocolKey(a.provider, "mime_type"), mimeType); err != nil {
+		if err := outputMetadata.Set(protocolKey(a.provider, "mime_type"), mimeType); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := tts.NewResult(audio, resultMeta)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 		return nil, err
 	}
 
-	return tts.NewResponse(result, meta)
+	return tts.NewResponse(output, meta)
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {

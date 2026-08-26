@@ -36,9 +36,9 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // and the long tail of Deepgram knobs live on [ListenParams] and reach
 // the API via the extension-threaded SDK params, see [getOptionsParams].
 //
-// The returned [transcription.Result] holds the merged transcript of
+// The returned [transcription.Output] holds the merged transcript of
 // channel 0 / alternative 0; per-word + per-utterance breakdown is
-// stashed on the result metadata so callers needing diarization or
+// stashed on the output metadata so callers needing diarization or
 // timestamps can dig in.
 type AudioTranscriptionModel struct {
 	api            *api
@@ -106,20 +106,20 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	alt := apiResp.Results.Channels[0].Alternatives[0]
 
-	resultMeta := &transcription.ResultMetadata{}
-	if err := resultMeta.Set("deepgram/confidence", alt.Confidence); err != nil {
+	outputMetadata := &transcription.OutputMetadata{}
+	if err := outputMetadata.Set("deepgram/confidence", alt.Confidence); err != nil {
 		return nil, err
 	}
-	if err := resultMeta.Set("deepgram/words", alt.Words); err != nil {
+	if err := outputMetadata.Set("deepgram/words", alt.Words); err != nil {
 		return nil, err
 	}
 	if len(apiResp.Results.Utterances) > 0 {
-		if err := resultMeta.Set("deepgram/utterances", apiResp.Results.Utterances); err != nil {
+		if err := outputMetadata.Set("deepgram/utterances", apiResp.Results.Utterances); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := transcription.NewResult(alt.Transcript, resultMeta)
+	output, err := transcription.NewOutput(alt.Transcript, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -138,5 +138,5 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	return transcription.NewResponse(result, meta)
+	return transcription.NewResponse(output, meta)
 }

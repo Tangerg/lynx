@@ -114,31 +114,31 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 		return nil, errors.New("google: embed_content response has no embeddings")
 	}
 	if len(apiResp.Embeddings) != expectedResults {
-		return nil, fmt.Errorf("google: embed_content response returned %d results for %d inputs", len(apiResp.Embeddings), expectedResults)
+		return nil, fmt.Errorf("google: embed_content response returned %d outputs for %d inputs", len(apiResp.Embeddings), expectedResults)
 	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
+	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings))
 	for _, item := range apiResp.Embeddings {
 		values := make([]float64, len(item.Values))
 		for i, value := range item.Values {
 			values[i] = float64(value)
 		}
 
-		resultMeta := &embedding.ResultMetadata{}
+		outputMetadata := &embedding.OutputMetadata{}
 		if item.Statistics != nil {
-			if err := resultMeta.Set(protocolKey(e.provider, "token_count"), item.Statistics.TokenCount); err != nil {
+			if err := outputMetadata.Set(protocolKey(e.provider, "token_count"), item.Statistics.TokenCount); err != nil {
 				return nil, err
 			}
-			if err := resultMeta.Set(protocolKey(e.provider, "truncated"), item.Statistics.Truncated); err != nil {
+			if err := outputMetadata.Set(protocolKey(e.provider, "truncated"), item.Statistics.Truncated); err != nil {
 				return nil, err
 			}
 		}
 
-		result, err := embedding.NewResult(values, resultMeta)
+		output, err := embedding.NewOutput(values, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &embedding.ResponseMetadata{
@@ -156,7 +156,7 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 		}
 	}
 
-	return embedding.NewResponse(results, meta)
+	return embedding.NewResponse(outputs, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

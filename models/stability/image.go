@@ -133,17 +133,17 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 		return nil, err
 	}
 
-	resultMeta := &image.ResultMetadata{}
+	outputMetadata := &image.OutputMetadata{}
 	if envelope.FinishReason != "" {
-		if err := resultMeta.Set("stability/finish_reason", envelope.FinishReason); err != nil {
+		if err := outputMetadata.Set("stability/finish_reason", envelope.FinishReason); err != nil {
 			return nil, err
 		}
 	}
-	if err := resultMeta.Set("stability/seed", envelope.Seed); err != nil {
+	if err := outputMetadata.Set("stability/seed", envelope.Seed); err != nil {
 		return nil, err
 	}
 
-	result, err := image.NewResult(value, resultMeta)
+	output, err := image.NewOutput(value, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 		return nil, err
 	}
 
-	return image.NewResponse([]*image.Result{result}, meta)
+	return image.NewResponse([]*image.Output{output}, meta)
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {

@@ -41,7 +41,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(out.Results) != 2 {
-		t.Fatalf("got %d results; want 2", len(out.Results))
+	if len(out.Outputs) != 2 {
+		t.Fatalf("got %d outputs; want 2", len(out.Outputs))
 	}
 }

@@ -456,7 +456,7 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 		return nil, errors.New("mistral: nil chat completion response")
 	}
 	if len(completion.Choices) != 1 {
-		return nil, fmt.Errorf("mistral: response has %d choices; Core requires one result", len(completion.Choices))
+		return nil, fmt.Errorf("mistral: response has %d choices; Core requires one output", len(completion.Choices))
 	}
 	response := &corechat.Response{
 		Metadata: &corechat.ResponseMetadata{
@@ -472,16 +472,16 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 	}
 	parts, err := mapMistralContent(wireChoice.Message.Content)
 	if err != nil {
-		return nil, fmt.Errorf("mistral: result message content: %w", err)
+		return nil, fmt.Errorf("mistral: output message content: %w", err)
 	}
 	toolParts, err := mapMistralToolCalls(wireChoice.Message.ToolCalls)
 	if err != nil {
-		return nil, fmt.Errorf("mistral: result message tool calls: %w", err)
+		return nil, fmt.Errorf("mistral: output message tool calls: %w", err)
 	}
 	parts = append(parts, toolParts...)
-	response.Result = &corechat.Result{FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason)}
+	response.Output = &corechat.Output{FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason)}
 	if len(parts) > 0 {
-		response.Result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		response.Output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: mapped chat completion: %w", err)
@@ -655,7 +655,7 @@ func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Res
 		return nil, err
 	}
 	if len(chunk.Choices) > 1 {
-		return nil, fmt.Errorf("mistral: stream chunk has %d choices; Core supports one result", len(chunk.Choices))
+		return nil, fmt.Errorf("mistral: stream chunk has %d choices; Core supports one output", len(chunk.Choices))
 	}
 	if len(chunk.Choices) == 1 {
 		wireChoice := chunk.Choices[0]
@@ -664,18 +664,18 @@ func (state *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Res
 		}
 		parts, err := mapMistralContent(wireChoice.Delta.Content)
 		if err != nil {
-			return nil, fmt.Errorf("mistral: stream result content: %w", err)
+			return nil, fmt.Errorf("mistral: stream output content: %w", err)
 		}
 		toolParts, err := state.mapToolDeltas(wireChoice.Delta.ToolCalls)
 		if err != nil {
-			return nil, fmt.Errorf("mistral: stream result tool calls: %w", err)
+			return nil, fmt.Errorf("mistral: stream output tool calls: %w", err)
 		}
 		parts = append(parts, toolParts...)
-		response.Result = &corechat.Result{
+		response.Output = &corechat.Output{
 			FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason),
 		}
 		if len(parts) > 0 {
-			response.Result.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+			response.Output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 		}
 	}
 	if err := response.Validate(); err != nil {

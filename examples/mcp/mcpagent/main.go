@@ -241,12 +241,12 @@ func hasToolMessage(messages []chat.Message) bool {
 
 func responseWithText(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, _ := chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
+	response, _ := chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 	return response
 }
 
 func responseWithToolCall(name, args string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: name, Arguments: args}))
-	response, _ := chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonToolCalls}, nil)
+	response, _ := chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls}, nil)
 	return response
 }

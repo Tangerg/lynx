@@ -107,13 +107,13 @@ func buildResponse(audio []byte, headers http.Header, model string) (*tts.Respon
 	if len(audio) == 0 {
 		return nil, errors.New("lmnt: speech response contained no audio")
 	}
-	resultMetadata := &tts.ResultMetadata{}
+	outputMetadata := &tts.OutputMetadata{}
 	if contentType := headers.Get("Content-Type"); contentType != "" {
-		if err := resultMetadata.Set("lmnt/mime_type", contentType); err != nil {
+		if err := outputMetadata.Set("lmnt/mime_type", contentType); err != nil {
 			return nil, err
 		}
 	}
-	result, err := tts.NewResult(audio, resultMetadata)
+	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func buildResponse(audio []byte, headers http.Header, model string) (*tts.Respon
 	}); err != nil {
 		return nil, err
 	}
-	return tts.NewResponse(result, metadata)
+	return tts.NewResponse(output, metadata)
 }
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {

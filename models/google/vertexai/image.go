@@ -163,7 +163,7 @@ func (m *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 	if apiResp == nil {
 		return nil, errors.New("vertexai: image: nil GenerateContent response")
 	}
-	results := make([]*image.Result, 0)
+	outputs := make([]*image.Output, 0)
 	for candidateIndex, candidate := range apiResp.Candidates {
 		if candidate == nil || candidate.Content == nil {
 			continue
@@ -185,18 +185,18 @@ func (m *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 			if err != nil {
 				return nil, fmt.Errorf("vertexai: image: candidates[%d].parts[%d]: %w", candidateIndex, partIndex, err)
 			}
-			resultMeta := &image.ResultMetadata{}
-			if err := resultMeta.Set("vertexai/native_part", part); err != nil {
+			outputMetadata := &image.OutputMetadata{}
+			if err := outputMetadata.Set("vertexai/native_part", part); err != nil {
 				return nil, err
 			}
-			result, err := image.NewResult(value, resultMeta)
+			output, err := image.NewOutput(value, outputMetadata)
 			if err != nil {
 				return nil, err
 			}
-			results = append(results, result)
+			outputs = append(outputs, output)
 		}
 	}
-	if len(results) == 0 {
+	if len(outputs) == 0 {
 		return nil, errors.New("vertexai: image: GenerateContent response has no final image parts")
 	}
 
@@ -207,7 +207,7 @@ func (m *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 	if err := metadata.Set(ImageResponseExtensionKey, apiResp); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(results, metadata)
+	return image.NewResponse(outputs, metadata)
 }
 
 func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {

@@ -92,27 +92,27 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	resultMeta := &transcription.ResultMetadata{}
+	outputMetadata := &transcription.OutputMetadata{}
 	if apiResp.LanguageCode != "" {
-		if err := resultMeta.Set("elevenlabs/language_code", apiResp.LanguageCode); err != nil {
+		if err := outputMetadata.Set("elevenlabs/language_code", apiResp.LanguageCode); err != nil {
 			return nil, err
 		}
-		if err := resultMeta.Set("elevenlabs/language_probability", apiResp.LanguageProbability); err != nil {
+		if err := outputMetadata.Set("elevenlabs/language_probability", apiResp.LanguageProbability); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Words) > 0 {
-		if err := resultMeta.Set("elevenlabs/words", apiResp.Words); err != nil {
+		if err := outputMetadata.Set("elevenlabs/words", apiResp.Words); err != nil {
 			return nil, err
 		}
 	}
 	if len(apiResp.Entities) > 0 {
-		if err := resultMeta.Set("elevenlabs/entities", apiResp.Entities); err != nil {
+		if err := outputMetadata.Set("elevenlabs/entities", apiResp.Entities); err != nil {
 			return nil, err
 		}
 	}
 
-	result, err := transcription.NewResult(apiResp.Text, resultMeta)
+	output, err := transcription.NewOutput(apiResp.Text, outputMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := responseMetadata.Set(TranscriptionResponseExtensionKey, apiResp); err != nil {
 		return nil, err
 	}
-	return transcription.NewResponse(result, responseMetadata)
+	return transcription.NewResponse(output, responseMetadata)
 }
 
 func validateTranscriptionRequest(req *transcriptionRequest) error {

@@ -65,7 +65,7 @@ func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
 	if messages[1].(map[string]any)["reasoning_content"] != "previous thinking" {
 		t.Fatalf("assistant history = %#v", messages[1])
 	}
-	parts := response.Result.Message.Parts
+	parts := response.Output.Message.Parts
 	if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "thinking" || parts[1].Text != "answer" {
 		t.Fatalf("response parts = %#v", parts)
 	}
