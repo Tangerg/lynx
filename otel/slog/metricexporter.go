@@ -53,8 +53,8 @@ func (m *MetricExporter) Aggregation(k sdkmetric.InstrumentKind) sdkmetric.Aggre
 // Export writes one slog record per metric. It reports cancellation, nil
 // input, and the SDK's shutdown state; slog handler failures are not exposed by
 // log/slog and therefore cannot become collection errors.
-func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
-	if e.shutdown.Load() {
+func (m *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
+	if m.shutdown.Load() {
 		return sdkmetric.ErrExporterShutdown
 	}
 	if err := ctx.Err(); err != nil {
@@ -64,22 +64,22 @@ func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetr
 		return errNilResourceMetrics
 	}
 	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
+		for _, metric := range sm.Metrics {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if e.shutdown.Load() {
+			if m.shutdown.Load() {
 				return sdkmetric.ErrExporterShutdown
 			}
 			attrs := []stdslog.Attr{
-				stdslog.String("metric", m.Name),
+				stdslog.String("metric", metric.Name),
 				stdslog.String("scope", sm.Scope.Name),
 			}
-			if m.Unit != "" {
-				attrs = append(attrs, stdslog.String("unit", m.Unit))
+			if metric.Unit != "" {
+				attrs = append(attrs, stdslog.String("unit", metric.Unit))
 			}
-			attrs = append(attrs, stdslog.String("value", e.summarize(m.Data)))
-			e.logger.LogAttrs(ctx, stdslog.LevelInfo, "metric", attrs...)
+			attrs = append(attrs, stdslog.String("value", m.summarize(metric.Data)))
+			m.logger.LogAttrs(ctx, stdslog.LevelInfo, "metric", attrs...)
 		}
 	}
 	return nil

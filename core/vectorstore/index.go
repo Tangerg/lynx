@@ -28,33 +28,33 @@ func NewIndexRequest(documents []*document.Document) (*IndexRequest, error) {
 
 // Validate enforces the provider-independent ingestion contract before a
 // batcher, embedding model, or provider client observes the input.
-func (r *IndexRequest) Validate() error {
-	if r == nil {
+func (i *IndexRequest) Validate() error {
+	if i == nil {
 		return fmt.Errorf("%w: index request is nil", ErrInvalidRequest)
 	}
-	if len(r.Documents) == 0 {
+	if len(i.Documents) == 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidRequest, ErrEmptyDocuments)
 	}
 
-	seen := make(map[string]int, len(r.Documents))
-	for i, doc := range r.Documents {
+	seen := make(map[string]int, len(i.Documents))
+	for index, doc := range i.Documents {
 		if doc == nil {
-			return fmt.Errorf("%w: %w: documents[%d] is nil", ErrInvalidRequest, ErrInvalidDocument, i)
+			return fmt.Errorf("%w: %w: documents[%d] is nil", ErrInvalidRequest, ErrInvalidDocument, index)
 		}
 		if err := doc.Validate(); err != nil {
-			return fmt.Errorf("%w: %w: documents[%d]: %w", ErrInvalidRequest, ErrInvalidDocument, i, err)
+			return fmt.Errorf("%w: %w: documents[%d]: %w", ErrInvalidRequest, ErrInvalidDocument, index, err)
 		}
 		if strings.TrimSpace(doc.ID) == "" {
-			return fmt.Errorf("%w: %w: documents[%d]", ErrInvalidRequest, ErrMissingDocumentID, i)
+			return fmt.Errorf("%w: %w: documents[%d]", ErrInvalidRequest, ErrMissingDocumentID, index)
 		}
 		if doc.Text == "" {
-			return fmt.Errorf("%w: %w: documents[%d] has no text to embed", ErrInvalidRequest, ErrInvalidDocument, i)
+			return fmt.Errorf("%w: %w: documents[%d] has no text to embed", ErrInvalidRequest, ErrInvalidDocument, index)
 		}
 		if first, duplicate := seen[doc.ID]; duplicate {
 			return fmt.Errorf("%w: %w %q at documents[%d] and documents[%d]",
-				ErrInvalidRequest, ErrDuplicateDocumentID, doc.ID, first, i)
+				ErrInvalidRequest, ErrDuplicateDocumentID, doc.ID, first, index)
 		}
-		seen[doc.ID] = i
+		seen[doc.ID] = index
 	}
 	return nil
 }
@@ -86,29 +86,29 @@ func (i *IndexRequest) UnmarshalJSON(data []byte) error {
 
 // Batch delegates to batcher and returns validated, order-preserving child
 // requests. The receiver itself must be valid.
-func (r *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error) {
-	if err := r.Validate(); err != nil {
+func (i *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error) {
+	if err := i.Validate(); err != nil {
 		return nil, err
 	}
 	if batcher == nil {
 		return nil, errors.New("vectorstore.IndexRequest.Batch: batcher must not be nil")
 	}
 
-	documentBatches, err := batcher.Batch(ctx, r.Documents)
+	documentBatches, err := batcher.Batch(ctx, i.Documents)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.validateBatches(documentBatches); err != nil {
+	if err := i.validateBatches(documentBatches); err != nil {
 		return nil, err
 	}
 
 	batches := make([]*IndexRequest, len(documentBatches))
-	for i, documents := range documentBatches {
+	for index, documents := range documentBatches {
 		batch, err := NewIndexRequest(documents)
 		if err != nil {
-			return nil, fmt.Errorf("vectorstore.IndexRequest.Batch: batch %d: %w", i, err)
+			return nil, fmt.Errorf("vectorstore.IndexRequest.Batch: batch %d: %w", index, err)
 		}
-		batches[i] = batch
+		batches[index] = batch
 	}
 	return batches, nil
 }

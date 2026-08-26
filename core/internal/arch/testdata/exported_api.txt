@@ -620,10 +620,10 @@ vectorstore/storetest: type Capabilities struct { Indexer bool Searcher bool IDD
 vectorstore/storetest: type Compiler struct { Visit func(filter.Predicate) error Snapshot func() any }
 vectorstore/storetest: type Options struct { Unsupported []string }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
+vectorstore: func (i *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error)
 vectorstore: func (i *IndexRequest) UnmarshalJSON(data []byte) error
+vectorstore: func (i *IndexRequest) Validate() error
 vectorstore: func (i IndexRequest) MarshalJSON() ([]byte, error)
-vectorstore: func (r *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequest, error)
-vectorstore: func (r *IndexRequest) Validate() error
 vectorstore: func (s *Score) UnmarshalJSON(data []byte) error
 vectorstore: func (s *SearchOptions) UnmarshalJSON(data []byte) error
 vectorstore: func (s *SearchRequest) UnmarshalJSON(data []byte) error
