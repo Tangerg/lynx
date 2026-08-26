@@ -21,17 +21,6 @@ require (
 	github.com/Tangerg/lynx/models/xiaomi v0.0.0-20260826074620-641b4fc16dbb
 	github.com/Tangerg/lynx/models/zhipu v0.0.0-20260826074620-641b4fc16dbb
 	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec
-	github.com/Tangerg/lynx/tools/webfetch/exa v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/webfetch/firecrawl v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/webfetch/tavily v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/brave v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/exa v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/firecrawl v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/jina v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/perplexity v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/serper v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/tavily v0.0.0-20260826074620-641b4fc16dbb
 )
 
 require (

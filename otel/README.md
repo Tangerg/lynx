@@ -80,7 +80,7 @@ Core 协议代码不变。
 
 ```text
 core/chat         <-- otel/chat         --> OpenTelemetry API
-chathistory       <-- otel/chathistory  --> OpenTelemetry API
+history       <-- otel/history  --> OpenTelemetry API
 core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
                        otel/slog        --> OpenTelemetry SDK --> log/slog
 ```

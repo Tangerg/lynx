@@ -468,7 +468,7 @@
 
 ### 批次 7g
 
-- 最终验证矩阵全部通过：root module 完整 test/build/vet；Agent module workspace + standalone test/build/vet；`httpreq` / `webfetch` / `websearch` 三模块 workspace + standalone test/build/vet；Runtime 除明确延后的前端契约漂移包外，workspace + standalone 全包 test/build/vet；
+- 最终验证矩阵全部通过：各 module 完整 test/build/vet；Agent module workspace + standalone test/build/vet；`tools` module 内的 `httpreq` / `web` package workspace + standalone test/build/vet；Runtime 除明确延后的前端契约漂移包外，workspace + standalone 全包 test/build/vet；
 - 完整 `app/runtime go test ./...` 只失败于 `internal/arch` 与 `internal/delivery/protocol`：桌面 TypeScript generated contract 未反映 Plan/GetPlan 与 artifact v10，canonical samples 仍是 Todo/artifact v9，另有旧 plan delta/item samples 已无 server binding。它们完全落在用户指定的下一轮前端专项范围，本轮没有越界生成或修改；
 - 生产 Go 源码扫描确认旧工具名、旧参数名和 `weather_query` 均无模型入口；固定内建 catalog 的 safety/strict-schema/implementation-word 三组 fitness checks 全部通过；
 - 最终边界扫描再次确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；没有为收尾新增 facade、胖接口、通用 manifest 状态或兼容 decoder；

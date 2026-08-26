@@ -3,8 +3,8 @@ package rag
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // rewriteDefaultTemplate asks the LLM to rewrite the query to be

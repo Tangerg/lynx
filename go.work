@@ -7,12 +7,12 @@ use (
 	./app/desktop
 	./app/runtime
 	./app/runtime/localruntime
-	./chathistory/cassandra
-	./chathistory/cosmosdb
-	./chathistory/mongodb
-	./chathistory/neo4j
-	./chathistory/postgres
-	./chathistory/redis
+	./history/cassandra
+	./history/cosmosdb
+	./history/mongodb
+	./history/neo4j
+	./history/postgres
+	./history/redis
 	./core
 	./dev/providerconformance
 	./dev/repoarch
@@ -68,19 +68,6 @@ use (
 	./skills
 	./tokenizers/tiktoken
 	./tools
-	./tools/httpreq
-	./tools/skills
-	./tools/webfetch/exa
-	./tools/webfetch/firecrawl
-	./tools/webfetch/jina
-	./tools/webfetch/tavily
-	./tools/websearch/brave
-	./tools/websearch/exa
-	./tools/websearch/firecrawl
-	./tools/websearch/jina
-	./tools/websearch/perplexity
-	./tools/websearch/serper
-	./tools/websearch/tavily
 	./vectorstores/azureaisearch
 	./vectorstores/azurecosmos
 	./vectorstores/bedrockkb

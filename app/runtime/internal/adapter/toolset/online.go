@@ -6,21 +6,20 @@ import (
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/Tangerg/lynx/tools/httpreq"
-	"github.com/Tangerg/lynx/tools/webfetch"
-	"github.com/Tangerg/lynx/tools/webfetch/jina"
-	"github.com/Tangerg/lynx/tools/websearch"
-	"github.com/Tangerg/lynx/tools/websearch/tavily"
+	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/lynx/tools/web/jina"
+	"github.com/Tangerg/lynx/tools/web/tavily"
 )
 
-// OnlineConfig groups the credentials network-reaching tools need (webfetch /
-// websearch / httpreq). Empty fields disable the corresponding tool — no tool
+// OnlineConfig groups the credentials network-reaching tools need (web /
+// httpreq). Empty fields disable the corresponding tool — no tool
 // is registered without explicit opt-in, so an offline-only install makes no
 // surprise outbound calls.
 type OnlineConfig struct {
-	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
+	// JinaAPIKey enables page fetching through Jina Reader.
 	JinaAPIKey string
 
-	// TavilyAPIKey enables the websearch tool backed by Tavily.
+	// TavilyAPIKey enables web search through Tavily.
 	TavilyAPIKey string
 
 	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit allowlist
@@ -41,23 +40,23 @@ func buildOnline(online OnlineConfig) ([]toolcontract.Tool, error) {
 		err error
 	)
 
-	out, err = appendEnabled(out, online.JinaAPIKey != "", "webfetch (jina)", func() (toolcontract.Tool, error) {
+	out, err = appendEnabled(out, online.JinaAPIKey != "", "web fetch (jina)", func() (toolcontract.Tool, error) {
 		client, clientErr := jina.NewClient(jina.Config{APIKey: online.JinaAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
 		}
-		return webfetch.NewTool(client)
+		return web.NewFetchTool(client)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	out, err = appendEnabled(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (toolcontract.Tool, error) {
+	out, err = appendEnabled(out, online.TavilyAPIKey != "", "web search (tavily)", func() (toolcontract.Tool, error) {
 		client, clientErr := tavily.NewClient(tavily.Config{APIKey: online.TavilyAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
 		}
-		return websearch.NewTool(client)
+		return web.NewSearchTool(client)
 	})
 	if err != nil {
 		return nil, err

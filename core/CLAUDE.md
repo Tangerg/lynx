@@ -6,13 +6,13 @@
 
 ## 定位
 
-- **模块是发布边界，package 是职责边界**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义；同一标准库依赖预算下的 `chatclient`、`embeddingclient`、`tool`、`tokenizer`、`chathistory` 与内存参考实现也在本 module，但仍保持独立 package，不揉成一个总框架。
+- **模块是发布边界，package 是职责边界**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义；同一标准库依赖预算下的 `chatclient`、`embeddingclient`、`tool`、`tokenizer`、`history` 与内存参考实现也在本 module，但仍保持独立 package，不揉成一个总框架。
 - **生产代码只依赖标准库和 Core 自身包**：Core 不 import sibling module、provider SDK、具体 tokenizer 库、UUID、cast 或 OTel；`internal/arch` 对该依赖预算 fail-fast，不接受临时白名单。跨 provider 的公共契约测试由 `core/modeltest` 与 `core/vectorstore/storetest` 持有，仍只依赖标准库和 Core。
 - **依赖方向单向**：provider、能力模块、agent 与 OTel adapter 可以 import Core；Core 不反向 import 任何 sibling module。
 
 ## 架构心智
 
-- **扁平且语义分区**：协议包使用 `core/chat`、`core/embedding`、`core/image` 等领域名；紧邻协议的使用体验位于 `core/chatclient`、`core/embeddingclient`；跨协议基础能力位于 `core/tool`、`core/tokenizer`、`core/chathistory`、`core/vectorstore`。目录层次表达语义或所有权，不用于装饰。
+- **扁平且语义分区**：协议包使用 `core/chat`、`core/embedding`、`core/image` 等领域名；紧邻协议的使用体验位于 `core/chatclient`、`core/embeddingclient`；跨协议基础能力位于 `core/tool`、`core/tokenizer`、`core/history`、`core/vectorstore`。目录层次表达语义或所有权，不用于装饰。
 - **最小能力接口**：每个 modality 的 `Model` 默认只有 `Call`；真实流能力以独立 `Streamer` 表达，需要发请求的维度探测归消费工作流，不伪装为 Core SPI。
 - **协议值可序列化**：DTO 不携带闭包、reader、logger、tracer、registry、native client 或任意运行时对象；Metadata/Extensions 必须 JSON-safe，并在 I/O 边界显式 `Validate`。
 - **Tagged value，而非 sealed hierarchy**：Message/Part 使用公开 discriminator 与普通值；未知类型返回可诊断错误，不依赖未导出方法封口。

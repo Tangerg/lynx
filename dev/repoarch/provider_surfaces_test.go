@@ -56,25 +56,24 @@ func TestWebProvidersExposeOnlyNormalizedTransport(t *testing.T) {
 	t.Parallel()
 
 	root := repositoryRoot(t)
-	for _, family := range []string{"tools/webfetch", "tools/websearch"} {
-		familyDir := filepath.Join(root, filepath.FromSlash(family))
-		entries, err := os.ReadDir(familyDir)
-		if err != nil {
-			t.Fatal(err)
+	family := "tools/web"
+	familyDir := filepath.Join(root, filepath.FromSlash(family))
+	entries, err := os.ReadDir(familyDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "internal" {
+			continue
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() || entry.Name() == "internal" {
-				continue
-			}
-			dir := filepath.Join(familyDir, entry.Name())
-			if !hasProductionGoFiles(t, dir) {
-				continue
-			}
-			t.Run(strings.ReplaceAll(family+"/"+entry.Name(), "/", "_"), func(t *testing.T) {
-				assertOwnedPublicSurface(t, dir, retiredProviderSymbols)
-				assertProviderTestsAreOffline(t, dir)
-			})
+		dir := filepath.Join(familyDir, entry.Name())
+		if !hasProductionGoFiles(t, dir) {
+			continue
 		}
+		t.Run(strings.ReplaceAll(family+"/"+entry.Name(), "/", "_"), func(t *testing.T) {
+			assertOwnedPublicSurface(t, dir, retiredProviderSymbols)
+			assertProviderTestsAreOffline(t, dir)
+		})
 	}
 }
 

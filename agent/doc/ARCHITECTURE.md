@@ -163,7 +163,7 @@ Lynx 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condit
 - `chatclient`：直接模型调用、middleware 和结构化输出。
 - `embeddingclient`：直接 embedding 能力。
 - `tool`/`tools`：工具协议、schema、调用和具体工具。
-- `chathistory`：独立 history 能力。
+- `history`：独立 history 能力。
 - `otel`：官方 OTel API 的组合与 adapter。
 
 Agent 复用这些能力，不复制 Client、Model、Tool、Message、Embedding 或 OTel 抽象。

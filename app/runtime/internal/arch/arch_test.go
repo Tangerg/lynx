@@ -320,7 +320,7 @@ func TestDomainHooksStayPure(t *testing.T) {
 // TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
 // heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
 // process I/O, network, database driver, or external SDK/storage library
-// (including the reusable chathistory adapter contract). Domain has no Agent
+// (including the reusable history adapter contract). Domain has no Agent
 // SDK exception: agentexec projects framework values into application-owned
 // domain values at the boundary.
 func TestDomainStaysFrameworkFree(t *testing.T) {
@@ -1777,7 +1777,7 @@ var frameworkImports = []string{
 	"github.com/go-git",
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
-	"github.com/Tangerg/lynx/core/chathistory",
+	"github.com/Tangerg/lynx/core/history",
 	"github.com/Tangerg/lynx/models/catalog",
 	"gopkg.in/yaml.v3",
 }

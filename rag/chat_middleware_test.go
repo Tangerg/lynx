@@ -131,7 +131,7 @@ func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		capturedHistory, _, err = query.Value(rag.ChatHistoryValueKey())
+		capturedHistory, _, err = query.Value(rag.HistoryValueKey())
 		return nil, err
 	})
 	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever})

@@ -156,43 +156,6 @@ chatclient: type Template struct { source string compiled *template.Template }
 chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") )
 chatclient: var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
-chathistory/inmemory: func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) error
-chathistory/inmemory: func (s *Store) Conversations(ctx context.Context) ([]chathistory.ConversationID, error)
-chathistory/inmemory: func (s *Store) Count(ctx context.Context, conversationID chathistory.ConversationID) (int, error)
-chathistory/inmemory: func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) ([]chat.Message, error)
-chathistory/inmemory: func (s *Store) Replace(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error
-chathistory/inmemory: func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error
-chathistory/inmemory: func New() *Store
-chathistory/inmemory: type Store struct { mu sync.RWMutex messages map[chathistory.ConversationID][]chat.Message }
-chathistory: func (conversationID ConversationID) String() string
-chathistory: func (conversationID ConversationID) Validate() error
-chathistory: func (m Middleware) Call(next chat.Model) chat.Model
-chathistory: func (m Middleware) Stream(next chat.Streamer) chat.Streamer
-chathistory: func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error
-chathistory: func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
-chathistory: func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
-chathistory: func ConversationIDFromContext(ctx context.Context) (ConversationID, bool)
-chathistory: func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error)
-chathistory: func NewConversationID(value string) (ConversationID, error)
-chathistory: func NewMiddleware(store ReadWriter) (Middleware, error)
-chathistory: func NewWindowStore(store Store, limit int) (WindowStore, error)
-chathistory: func Replace(ctx context.Context, store Store, conversationID ConversationID, messages ...chat.Message) error
-chathistory: func WithConversationID(ctx context.Context, conversationID ConversationID) context.Context
-chathistory: type Clearer interface { Clear(ctx context.Context, conversationID ConversationID) error }
-chathistory: type ConversationID string
-chathistory: type Counter interface { Count(ctx context.Context, conversationID ConversationID) (int, error) }
-chathistory: type Lister interface { Conversations(ctx context.Context) ([]ConversationID, error) }
-chathistory: type Middleware struct { store ReadWriter }
-chathistory: type ReadWriter interface { Reader Writer }
-chathistory: type Reader interface { Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) }
-chathistory: type Replacer interface { Replace(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
-chathistory: type Store interface { ReadWriter Clearer }
-chathistory: type WindowStore struct { store Store limit int }
-chathistory: type Writer interface { Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
-chathistory: var ( ErrInvalidWindow = errors.New("chathistory: invalid message window") ErrWindowTooSmall = errors.New("chathistory: message window too small") )
-chathistory: var ( ErrNilStore = errors.New("chathistory: nil store") ErrReplacementUnsupported = errors.New("chathistory: replacement unsupported") )
-chathistory: var ErrInvalidConversationID = errors.New("chathistory: invalid conversation ID")
-chathistory: var ErrNilStream = errors.New("chathistory: middleware: nil stream sequence")
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
@@ -243,6 +206,43 @@ embeddingclient: func (c Client) EmbedTexts(ctx context.Context, texts []string)
 embeddingclient: func New(model embedding.Model) (Client, error)
 embeddingclient: type Client struct { model embedding.Model }
 embeddingclient: var ErrNilModel = errors.New("embeddingclient: nil model")
+history/inmemory: func (s *Store) Clear(ctx context.Context, conversationID history.ConversationID) error
+history/inmemory: func (s *Store) Conversations(ctx context.Context) ([]history.ConversationID, error)
+history/inmemory: func (s *Store) Count(ctx context.Context, conversationID history.ConversationID) (int, error)
+history/inmemory: func (s *Store) Read(ctx context.Context, conversationID history.ConversationID) ([]chat.Message, error)
+history/inmemory: func (s *Store) Replace(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error
+history/inmemory: func (s *Store) Write(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error
+history/inmemory: func New() *Store
+history/inmemory: type Store struct { mu sync.RWMutex messages map[history.ConversationID][]chat.Message }
+history: func (conversationID ConversationID) String() string
+history: func (conversationID ConversationID) Validate() error
+history: func (m Middleware) Call(next chat.Model) chat.Model
+history: func (m Middleware) Stream(next chat.Streamer) chat.Streamer
+history: func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error
+history: func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
+history: func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
+history: func ConversationIDFromContext(ctx context.Context) (ConversationID, bool)
+history: func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error)
+history: func NewConversationID(value string) (ConversationID, error)
+history: func NewMiddleware(store ReadWriter) (Middleware, error)
+history: func NewWindowStore(store Store, limit int) (WindowStore, error)
+history: func Replace(ctx context.Context, store Store, conversationID ConversationID, messages ...chat.Message) error
+history: func WithConversationID(ctx context.Context, conversationID ConversationID) context.Context
+history: type Clearer interface { Clear(ctx context.Context, conversationID ConversationID) error }
+history: type ConversationID string
+history: type Counter interface { Count(ctx context.Context, conversationID ConversationID) (int, error) }
+history: type Lister interface { Conversations(ctx context.Context) ([]ConversationID, error) }
+history: type Middleware struct { store ReadWriter }
+history: type ReadWriter interface { Reader Writer }
+history: type Reader interface { Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) }
+history: type Replacer interface { Replace(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
+history: type Store interface { ReadWriter Clearer }
+history: type WindowStore struct { store Store limit int }
+history: type Writer interface { Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
+history: var ( ErrInvalidWindow = errors.New("history: invalid message window") ErrWindowTooSmall = errors.New("history: message window too small") )
+history: var ( ErrNilStore = errors.New("history: nil store") ErrReplacementUnsupported = errors.New("history: replacement unsupported") )
+history: var ErrInvalidConversationID = errors.New("history: invalid conversation ID")
+history: var ErrNilStream = errors.New("history: middleware: nil stream sequence")
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *OutputMetadata) Set(key string, value any) error
 image: func (m *OutputMetadata) UnmarshalJSON(data []byte) error

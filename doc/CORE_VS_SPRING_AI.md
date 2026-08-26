@@ -215,7 +215,7 @@ interface BaseAdvisor   extends CallAdvisor, StreamAdvisor {   // around-advice:
 
 - core `chat` 的两个 middleware 类型分别装饰 `Model` 与 `Streamer`;它们是同一种组合机制的能力对称版本。**没有内置 memory/RAG/safeguard/logger advisor**。
 - 高层便利(ChatClient 的短链、typed output、模板)位于 **`core/chatclient` package**，与协议同 module、不同职责边界。
-- memory contract/middleware 是 `core/chathistory` package，持久化 provider 位于 `chathistory/*` 叶子 module；RAG 是 `rag` module，safeguard 是 `core/chatclient/safeguard`，logger/observation 是 `otel` 装饰器。它们各自有 owner，通过 middleware 组合，而不是都塞进一条 advisor 链。
+- memory contract/middleware 是 `core/history` package，持久化 provider 位于 `history/*` 叶子 module；RAG 是 `rag` module，safeguard 是 `core/chatclient/safeguard`，logger/observation 是 `otel` 装饰器。它们各自有 owner，通过 middleware 组合，而不是都塞进一条 advisor 链。
 
 **取舍与理由**:
 
@@ -336,7 +336,7 @@ class NonTransientAiException extends RuntimeException {}    // 4xx → 不重�
 ## 12. Spring AI 有、而 core 刻意没有
 
 - **retry 分类与 RetryTemplate**(§9)—— 交给 SDK / agent action 级。
-- **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `core/chathistory`、`rag`、`core/chatclient/safeguard` 与 `otel`，用 owner-specific middleware 接入。
+- **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `core/history`、`rag`、`core/chatclient/safeguard` 与 `otel`，用 owner-specific middleware 接入。
 - **ANTLR 文法与生成 parser**(§8)—— 手写。
 - **Micrometer 内嵌 SPI**(§10)—— `otel` 边界装饰。
 - **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `core/chatclient`；结构化输出由 `chatclient.OutputFormat[T]` 统一表达。

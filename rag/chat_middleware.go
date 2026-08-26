@@ -23,13 +23,13 @@ var (
 const RetrievedCandidatesKey = "rag/retrieved_candidates"
 
 var (
-	chatHistoryValueKey              = MustValueKey[[]chat.Message]("chat history")
+	historyValueKey                  = MustValueKey[[]chat.Message]("chat history")
 	requestOptionsExtensionsValueKey = MustValueKey[metadata.Map]("chat request options extensions")
 )
 
-// ChatHistoryValueKey returns the immutable message snapshot slot populated
+// HistoryValueKey returns the immutable message snapshot slot populated
 // when a query originates from [NewMiddleware].
-func ChatHistoryValueKey() ValueKey[[]chat.Message] { return chatHistoryValueKey }
+func HistoryValueKey() ValueKey[[]chat.Message] { return historyValueKey }
 
 // RequestOptionsExtensionsValueKey returns the request Options extension
 // envelope slot. The envelope remains separate from the RAG value namespace
@@ -139,7 +139,7 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 			return preparedChatRequest{}, fmt.Errorf("rag: attach request Options extensions: %w", err)
 		}
 	}
-	query, err = query.WithValue(chatHistoryValueKey, slices.Clone(prepared.request.Messages))
+	query, err = query.WithValue(historyValueKey, slices.Clone(prepared.request.Messages))
 	if err != nil {
 		return preparedChatRequest{}, fmt.Errorf("rag: attach chat history: %w", err)
 	}

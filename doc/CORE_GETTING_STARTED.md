@@ -14,8 +14,8 @@
 | 实例工具集合与 Registry | `tools` |
 | 把 typed function 变成可执行工具 | `core/tool` |
 | 可恢复的模型/工具自主循环、暂停/恢复和子 Process | `agent`、`agent/interaction` |
-| 聊天历史 contract、middleware 与内存实现 | `core/chathistory` |
-| OpenTelemetry | `otel/chat`、`otel/chathistory`、`otel/vectorstore`、`otel/slog` |
+| 聊天历史 contract、middleware 与内存实现 | `core/history` |
+| OpenTelemetry | `otel/chat`、`otel/history`、`otel/vectorstore`、`otel/slog` |
 
 Provider 只需实现 `chat.Model`；流式能力独立实现 `chat.Streamer`。当前
 OpenAI、Anthropic、Google 和 Ollama 的适配器分别由各 provider 包的

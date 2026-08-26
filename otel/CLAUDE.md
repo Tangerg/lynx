@@ -7,7 +7,7 @@
 
 ## 定位
 
-- **按领域拆分的观测外挂**：`otel` 是无根包的命名空间；`otel/chat`、`otel/chathistory`、`otel/vectorstore` 分别包装自己领域的能力，`otel/slog` 只拥有开发态 exporter。Core 不 import 本模块或官方 OTel。wrapper 是普通 decorator，不引入 `Observation`/`Tracer` 自定义接口。
+- **按领域拆分的观测外挂**：`otel` 是无根包的命名空间；`otel/chat`、`otel/history`、`otel/vectorstore` 分别包装自己领域的能力，`otel/slog` 只拥有开发态 exporter。Core 不 import 本模块或官方 OTel。wrapper 是普通 decorator，不引入 `Observation`/`Tracer` 自定义接口。
 - **三驾马车都落到 slog**:span、metric、OTel log record 各有一个 exporter 写成 slog record。
 - **为什么走 OTel 而不是直接写 slog**:可替换性 —— dev 用 slog 看着方便,生产把每个 exporter 换成 OTLP(→ 云端 tracing / logging),**业务代码零改**。这是 vendor-neutral 的意义。
 - **Logs 也是一等 OTel 信号**:应用经 contrib 的 `otelslog` bridge 把 slog 喂进 LoggerProvider,再由本模块的 log exporter 落地 —— 不是"绕开 OTel 直接打日志"。

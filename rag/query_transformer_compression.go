@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // compressionDefaultTemplate asks the LLM to fold a chat history plus a
@@ -48,7 +48,7 @@ type compressionPromptVariables struct {
 
 // NewCompressionTransformer returns a [Transformer] that collapses chat history
 // plus a follow-up question into a single self-contained query. It reads chat
-// history from the query value stored under [ChatHistoryValueKey].
+// history from the query value stored under [HistoryValueKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
 	prompt, err := newModelPrompt(
 		cfg.Model,
@@ -88,10 +88,10 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 }
 
 // extractHistory pulls the conversation messages out of the query value under
-// [ChatHistoryValueKey] and renders them as one string.
+// [HistoryValueKey] and renders them as one string.
 // Returns "" when the slot is missing.
 func (c *compressionTransformer) extractHistory(query *Query) (string, error) {
-	messages, exists, err := query.Value(chatHistoryValueKey)
+	messages, exists, err := query.Value(historyValueKey)
 	if err != nil {
 		return "", fmt.Errorf("rag: read chat history: %w", err)
 	}

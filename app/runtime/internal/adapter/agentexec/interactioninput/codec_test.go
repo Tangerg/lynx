@@ -47,7 +47,7 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	approval := runs.Interrupt{
 		Kind: interrupt.Approval,
 		Approval: &runs.ApprovalPrompt{
-			ToolName: "webfetch", Arguments: `{"url":"https://example.com"}`,
+			ToolName: "web_fetch", Arguments: `{"url":"https://example.com"}`,
 			SafetyClass: tool.SafetyClassNetwork, Risk: tool.RiskHigh,
 		},
 	}

@@ -2,7 +2,7 @@
 
 > Lynx 在应用、integration 和独立 `otel` module 中**直接使用 OpenTelemetry API**，不自造观测抽象。Core 不 import OTel；`otel` wrapper 从外层包装 Core 协议调用。
 >
-> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel/chat.Middleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。Core 的生产代码和 module graph 不依赖 OTel；Chat/Embedding 等能力在独立 `otel` module 或消费方边界包装。
+> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel/chat.Middleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、History 的外圈埋点继续直接使用官方 API。Core 的生产代码和 module graph 不依赖 OTel；Chat/Embedding 等能力在独立 `otel` module 或消费方边界包装。
 
 ---
 
@@ -430,7 +430,7 @@ otel.SetTracerProvider(tp)
 - [x] `otel/vectorstore.New` 从外层为 VectorStore 发射统一的 `db.vector.*` 埋点；25 个 provider 保持纯存储职责，CockroachDB 与 pgvector 仅复用 module-internal PostgreSQL 执行内核，不存在伪 provider alias
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/otel.Observer` 单向消费 Framework Event：Process/Step/Effect spans，以及 Process start/exit、Step/Effect duration、Delta drop metrics；Kernel 与具体 Strategy 不依赖 OTel
-- [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
+- [x] `history/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
 - [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics；MCP dial（`mcp.dial_servers`）、直调 tool（`execute_tool`）span；session/run 生命周期由 RPC server span + turn span 覆盖（**不撒 slog**——见 §1.2 P6）
 
 ### 8.3 Core 外移状态
@@ -441,7 +441,7 @@ otel.SetTracerProvider(tp)
 - [x] P3-07/P3-08：tool/tool-loop 观测归 `tools`、`agent`、MCP/A2A adapter 或外圈 decorator
 - [x] 删除 Core 对 OTel API/SDK 的依赖并收紧 `internal/arch` 依赖预算
 - [x] vectorstore decorator 的能力保持与 span 行为单测
-- [ ] chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
+- [ ] history 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
 
 ### 8.4 不做的事
 

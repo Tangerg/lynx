@@ -1,0 +1,33 @@
+// Package history defines provider-neutral conversation history contracts
+// and model middleware.
+//
+// Reader, Writer, Clearer, and Store use core/chat protocol values directly.
+// WindowStore is an explicit read-side retention decorator. It merges system
+// messages and retains only complete user-led turns, so assistant Tool calls,
+// Tool results, reasoning, and final text cannot be split at the read boundary.
+// Optional cross-conversation and replacement capabilities remain separate
+// interfaces.
+// The zero-value-ready reference implementation lives in core/history/inmemory.
+//
+// Conversation IDs are runtime scope carried with [WithConversationID], not
+// serialized request metadata. Middleware binds that scope to model calls.
+//
+// Writes preserve message order within one call. Conversation listing is an
+// optional capability and returns unique IDs in lexical order. Concurrent
+// writes and writes through distinct Store instances have no common ordering
+// guarantee unless a backend documents one.
+//
+// Persistent backends live in independent leaf modules so database drivers do
+// not enter Core:
+//
+//	history/postgres/  — PostgreSQL (pgx + JSONB)
+//	history/redis/     — Redis (RPUSH / LRANGE lists)
+//	history/mongodb/   — MongoDB (document per message)
+//	history/cassandra/ — Cassandra (TIMEUUID clustering key)
+//	history/neo4j/     — Neo4j (node per message)
+//	history/cosmosdb/  — Azure Cosmos DB (NoSQL API)
+//
+// Every backend reads and writes only the current core/chat tagged JSON wire.
+// Historical wire migration is an explicit application data operation, not a
+// permanent compatibility branch in the library.
+package history

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/rag"
 )
@@ -243,7 +243,7 @@ func TestMultiQueryExpanderConfigRejectsMissingModel(t *testing.T) {
 
 // --- CompressionTransformer ---------------------------------------
 
-func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
+func TestCompressionTransformer_UsesHistory(t *testing.T) {
 	model := newFakeChatModel(t, "compressed query")
 	tr, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{Model: model})
 	if err != nil {
@@ -251,7 +251,7 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("follow-up")
-	q, err = q.WithValue(rag.ChatHistoryValueKey(), []chat.Message{
+	q, err = q.WithValue(rag.HistoryValueKey(), []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("first turn")),
 		chat.NewAssistantMessage(chat.NewTextPart("first reply")),
 	})

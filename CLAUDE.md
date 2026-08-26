@@ -32,13 +32,15 @@
 
 ## 定位与导览
 
-`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是标准库限定的稳定基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`tools`、`documentpipeline`、`documentreaders`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`chathistory/<provider>` 与网络工具 provider 是独立叶子模块。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
+`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是标准库限定的稳定基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`tools`、`documentpipeline`、`documentreaders`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`history/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
 
 ---
 
 ## 共用强约定（违反 = 回归）
 
 - **统一 Go 版本**：所有模块 `go.mod` 同步；用当前版本的现代 stdlib（`iter.Seq2` / `slices.*` / `maps.*` / 类型化 atomic 等）。
+- **Module 与 package 各司其职**：module 只表达独立依赖预算、发布周期和版本边界；package 表达职责。相同依赖与生命周期不为形式一致拆 module，不同重型 SDK 也不硬塞进聚合 module。
+- **单复数按语义**：可导入的单一能力 package 优先使用单数或不可数领域名（`tool`、`history`、`web`）；只承载一组平级实现、且自身不形成 package 的命名空间才使用复数（`models`、`vectorstores`、`tokenizers`）。协议或行业专名按其固有名称（Agent Skills）处理，不机械改单复数。
 - **依赖接口、不依赖具体类型**：跨包消费走 interface，且**接口在消费方定义**（不在被消费方）。要拿整个 `*Engine` / `*Client` / `*Store` 时，先停下来想能不能只依赖用到的那几个方法。
 - **ISP 切碎接口**：接口只放调用方真用的方法；胖接口拆成按需组合的子接口，装配处 union、消费者各依赖自己那片。
 - **错误**：`errors.New` 优先于 `fmt.Errorf("常量")`；`fmt.Errorf` 只在真要格式化时用，包装错误一律 `%w`（才能 `errors.Is/As`）。

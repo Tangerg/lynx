@@ -31,10 +31,6 @@ require (
 	github.com/Tangerg/lynx/otel v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b
 	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec
-	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260826074258-420034c45aec
-	github.com/Tangerg/lynx/tools/skills v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0-20260826074620-641b4fc16dbb
-	github.com/Tangerg/lynx/tools/websearch/tavily v0.0.0-20260826074620-641b4fc16dbb
 	github.com/Tangerg/sse v0.0.5
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1

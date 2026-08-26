@@ -49,10 +49,6 @@ require (
 	github.com/Tangerg/lynx/models/zhipu v0.0.0-20260826074620-641b4fc16dbb // indirect
 	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b // indirect
 	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/lynx/tools/skills v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/lynx/tools/websearch/tavily v0.0.0-20260826074620-641b4fc16dbb // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect

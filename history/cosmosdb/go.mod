@@ -1,0 +1,15 @@
+module github.com/Tangerg/lynx/history/cosmosdb
+
+go 1.27.0
+
+require (
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+)
+
+require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+)

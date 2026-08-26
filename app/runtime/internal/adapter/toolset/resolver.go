@@ -97,7 +97,7 @@ type resolverDeps struct {
 	DefaultCWD         string
 	SkillsUserDir      string
 	SkillUsage         builtin.SkillUsageRecorder
-	Online             []toolcontract.Tool // network tools (webfetch/websearch/httpreq)
+	Online             []toolcontract.Tool // network tools (web/httpreq)
 	A2A                []toolcontract.Tool // remote A2A delegation tools
 	LSP                []toolcontract.Tool // code-intelligence tools
 	Shell              []toolcontract.Tool // shell tools (shell / read_shell_output / stop_shell); nil means omitted

@@ -1,0 +1,7 @@
+// Package tavily integrates Tavily Search and Extract with the
+// provider-neutral web contracts.
+//
+// A [Client] implements both web.Searcher and web.Fetcher. Search requests use
+// POST /search; page fetching uses POST /extract. Tavily transport DTOs,
+// provider limits, and format fallbacks remain private to this package.
+package tavily
