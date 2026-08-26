@@ -17,23 +17,25 @@ lynx/
 │   ├── history/             history contract、middleware 与内存实现
 │   └── vectorstore/         store/filter 契约、测试套件与内存实现
 ├── agent, a2a, mcp, rag/    可组合的上层能力 module
+├── evaluation/              与 RAG 平级的通用可评估性 module
+├── etl/                     文档提取、变换与加载能力 module
+│   ├── text,json,markdown/   同一基础 module 内的格式 package
+│   └── html,pdf/            重解析依赖隔离的叶子 module
 ├── tools/                   具体工具与 web 中立 Searcher/Fetcher SPI
 │   └── web/<provider>/      同一 tools module 内的 provider 实现 package
-├── documentpipeline/        文档变换、切分、批处理与 ID
-├── documentreaders/         轻量 reader 基础 module；重依赖 reader 独立 module
 ├── skills, otel/            Skills 基础能力与 OTel adapter
 ├── models/
 │   ├── protocol/            可复用 OpenAI/Anthropic wire module
 │   └── <provider>/          每个模型 provider 一个叶子 module
 ├── vectorstores/<provider>/ 每个外部向量库一个叶子 module
-├── history/<provider>/      每个持久化后端一个叶子 module
+├── historystores/<provider> 每个会话历史持久化后端一个叶子 module
 ├── tokenizers/tiktoken/     tokenizer 具体实现 module
 ├── examples/                最外层示例消费者
 ├── dev/                     架构守卫与跨 provider conformance
 └── app/                     待迁出的消费应用，不参与库模块分层
 ```
 
-依赖只允许由外向内：示例/开发工具 → provider/能力模块 → protocol/core → 标准库。`models`、`vectorstores`、`tokenizers` 等复数目录是 provider 集合命名空间，不是聚合 module；不可数领域名 `history` 同样只是 provider 命名空间。模块边界表达真实的依赖与发布单元；同一依赖预算、同一生命周期的基础能力通过 Core 内的 package 边界保持语义清晰，不为形式一致额外拆 module。
+依赖只允许由外向内：示例/开发工具 → provider/能力模块 → protocol/core → 标准库。`models`、`vectorstores`、`historystores`、`tokenizers` 等复数目录是 provider 集合命名空间，不是聚合 module；领域契约仍使用单数 `core/history`、`core/vectorstore`。模块边界表达真实的依赖与发布单元；同一依赖预算、同一生命周期的基础能力通过 package 边界保持语义清晰，不为形式一致额外拆 module。
 
 ## 文档地图
 

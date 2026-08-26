@@ -20,12 +20,12 @@
 // Persistent backends live in independent leaf modules so database drivers do
 // not enter Core:
 //
-//	history/postgres/  — PostgreSQL (pgx + JSONB)
-//	history/redis/     — Redis (RPUSH / LRANGE lists)
-//	history/mongodb/   — MongoDB (document per message)
-//	history/cassandra/ — Cassandra (TIMEUUID clustering key)
-//	history/neo4j/     — Neo4j (node per message)
-//	history/cosmosdb/  — Azure Cosmos DB (NoSQL API)
+//	historystores/postgres/  — PostgreSQL (pgx + JSONB)
+//	historystores/redis/     — Redis (RPUSH / LRANGE lists)
+//	historystores/mongodb/   — MongoDB (document per message)
+//	historystores/cassandra/ — Cassandra (TIMEUUID clustering key)
+//	historystores/neo4j/     — Neo4j (node per message)
+//	historystores/cosmosdb/  — Azure Cosmos DB (NoSQL API)
 //
 // Every backend reads and writes only the current core/chat tagged JSON wire.
 // Historical wire migration is an explicit application data operation, not a

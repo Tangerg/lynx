@@ -155,9 +155,9 @@ func TestFixedConstructionStateUsesConfig(t *testing.T) {
 	for _, relative := range []string{
 		"app/runtime/internal/delivery/dispatch",
 		"core/chatclient",
-		"documentreaders/html",
-		"documentreaders/markdown",
-		"documentreaders/pdf",
+		"etl/html",
+		"etl/markdown",
+		"etl/pdf",
 	} {
 		dir := filepath.Join(root, filepath.FromSlash(relative))
 		for _, file := range parseImmediateProductionFiles(t, dir) {

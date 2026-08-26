@@ -7,22 +7,20 @@ use (
 	./app/desktop
 	./app/runtime
 	./app/runtime/localruntime
-	./history/cassandra
-	./history/cosmosdb
-	./history/mongodb
-	./history/neo4j
-	./history/postgres
-	./history/redis
 	./core
 	./dev/providerconformance
 	./dev/repoarch
-	./documentpipeline
-	./documentpipeline/markdown
-	./documentreaders
-	./documentreaders/html
-	./documentreaders/markdown
-	./documentreaders/pdf
+	./etl
+	./etl/html
+	./etl/pdf
+	./evaluation
 	./examples
+	./historystores/cassandra
+	./historystores/cosmosdb
+	./historystores/mongodb
+	./historystores/neo4j
+	./historystores/postgres
+	./historystores/redis
 	./mcp
 	./models/alibaba
 	./models/anthropic

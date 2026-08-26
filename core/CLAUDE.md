@@ -41,5 +41,5 @@
 ## 改动前必看
 
 - Message/Request/Response 变更会影响全部 chat provider 和多个 agent/RAG/tool 消费模块。
-- Document/VectorStore 同路径变更必须覆盖 documentreaders、RAG 和 27 个 backend。
+- Document/VectorStore 同路径变更必须覆盖 ETL、RAG 和全部 vectorstores backend。
 - Filter 公共面变更必须同步所有 backend visitor；lexer/parser/token/visitor 不能继续成为新外部依赖。

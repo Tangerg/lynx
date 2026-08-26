@@ -203,10 +203,12 @@ func TestCoreModuleOwnsTheStdlibOnlyFoundation(t *testing.T) {
 func TestProviderFamiliesUseLeafModules(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
-	for _, family := range []string{"history", "models", "tokenizers", "vectorstores"} {
+	for _, family := range []string{"historystores", "models", "tokenizers", "vectorstores"} {
 		assertImmediateProviderModules(t, root, family, map[string]struct{}{"internal": {}, "protocol": {}}, true)
 	}
-	assertImmediateProviderModules(t, root, "documentreaders", map[string]struct{}{"internal": {}}, false)
+	assertImmediateProviderModules(t, root, "etl", map[string]struct{}{
+		"internal": {}, "json": {}, "markdown": {}, "text": {},
+	}, false)
 	assertImmediateProviderModules(t, root, "models/protocol", map[string]struct{}{"internal": {}}, true)
 }
 
@@ -227,7 +229,7 @@ func TestWebProvidersShareToolsModule(t *testing.T) {
 	}
 }
 
-func TestVectorAndHistoryProvidersAreIndependentAndConformant(t *testing.T) {
+func TestVectorAndHistoryStoreProvidersAreIndependentAndConformant(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
@@ -237,7 +239,7 @@ func TestVectorAndHistoryProvidersAreIndependentAndConformant(t *testing.T) {
 		assertVectorConformance(t, provider)
 		assertDependencyIsland(t, provider, modules)
 	}
-	for _, provider := range discoverHistoryProviders(t, root) {
+	for _, provider := range discoverHistoryStoreProviders(t, root) {
 		assertProviderBoundary(t, provider)
 		assertDependencyIsland(t, provider, modules)
 	}
@@ -248,13 +250,15 @@ func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 	root := repositoryRoot(t)
 	assertFamilySiblingBoundary(t, root, "models", map[string]struct{}{"catalog": {}, "protocol": {}})
 	assertFamilySiblingBoundary(t, root, "tools/web", map[string]struct{}{"internal": {}})
-	assertFamilySiblingBoundary(t, root, "documentreaders", nil)
+	assertFamilySiblingBoundary(t, root, "etl", map[string]struct{}{
+		"json": {}, "markdown": {}, "text": {},
+	})
 }
 
 func TestNamespaceRootsStayPackageFree(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
-	for _, relative := range []string{"core", "documentreaders", "examples", "history", "models", "otel", "tokenizers", "tools", "vectorstores"} {
+	for _, relative := range []string{"core", "examples", "historystores", "models", "otel", "tokenizers", "tools", "vectorstores"} {
 		entries, err := os.ReadDir(filepath.Join(root, relative))
 		if err != nil {
 			t.Errorf("read namespace root %s: %v", relative, err)
@@ -333,7 +337,11 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"vectorstores/inmemory",
 		"models/go.mod",
 		"models/internal",
-		"historystores",
+		"documentpipeline",
+		"documentreaders",
+		"etl/markdown/go.mod",
+		"history",
+		"rag/evaluation",
 		"internal/historykit",
 		"internal/repoarch",
 		"internal/vectorstorekit",
@@ -418,7 +426,7 @@ func moduleLayer(dir string) int {
 	switch dir {
 	case "core", "skills", "models/catalog":
 		return 0
-	case "a2a", "agent", "documentpipeline", "documentreaders", "mcp", "otel", "rag", "tools":
+	case "a2a", "agent", "etl", "evaluation", "mcp", "otel", "rag", "tools":
 		return 1
 	case "examples":
 		return 3
@@ -429,9 +437,8 @@ func moduleLayer(dir string) int {
 		return 1
 	}
 	for _, prefix := range []string{
-		"history/",
-		"documentpipeline/",
-		"documentreaders/",
+		"etl/",
+		"historystores/",
 		"models/",
 		"tokenizers/",
 		"tools/",
@@ -458,9 +465,6 @@ func allowedRepositoryDependency(source, target repositoryModule) bool {
 	}
 	if strings.HasPrefix(source.dir, "models/") && !strings.HasPrefix(source.dir, "models/protocol/") {
 		return strings.HasPrefix(target.dir, "models/protocol/")
-	}
-	if source.dir == "documentpipeline/markdown" {
-		return target.dir == "documentpipeline"
 	}
 	if source.dir == "tools" {
 		return target.dir == "skills"
@@ -534,9 +538,9 @@ func discoverVectorProviders(t *testing.T, root string) []providerPackage {
 	return providers
 }
 
-func discoverHistoryProviders(t *testing.T, root string) []providerPackage {
+func discoverHistoryStoreProviders(t *testing.T, root string) []providerPackage {
 	t.Helper()
-	familyDir := filepath.Join(root, "history")
+	familyDir := filepath.Join(root, "historystores")
 	entries, err := os.ReadDir(familyDir)
 	if err != nil {
 		t.Fatal(err)
@@ -548,7 +552,7 @@ func discoverHistoryProviders(t *testing.T, root string) []providerPackage {
 		}
 		dir := filepath.Join(familyDir, entry.Name())
 		if hasProductionGoFiles(t, dir) {
-			providers = append(providers, newProvider("history", entry.Name(), dir))
+			providers = append(providers, newProvider("historystores", entry.Name(), dir))
 		}
 	}
 	slices.SortFunc(providers, func(a, b providerPackage) int { return strings.Compare(a.relative, b.relative) })

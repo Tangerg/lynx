@@ -1,0 +1,121 @@
+package html_test
+
+import (
+	"io"
+	"strings"
+	"testing"
+
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/etl/html"
+)
+
+type pointerReader struct{}
+
+func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
+
+func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := values.Decode[T](key)
+	if err != nil || !ok {
+		t.Fatalf("metadata %q = (%v, %v)", key, ok, err)
+	}
+	return value
+}
+
+const samplePage = `<!doctype html>
+<html>
+<head>
+  <title>Test Page</title>
+  <meta name="description" content="An example page for the HTML reader.">
+  <link rel="canonical" href="https://example.com/test">
+  <style>.hidden { display: none }</style>
+  <script>console.log('drop me');</script>
+</head>
+<body>
+  <h1>Welcome</h1>
+  <article>
+    <h2>First Article</h2>
+    <p>Hello, world.</p>
+  </article>
+  <article>
+    <h2>Second Article</h2>
+    <p>Goodbye, world.</p>
+  </article>
+  <script>alert('still drop me')</script>
+</body>
+</html>`
+
+func TestWholePage(t *testing.T) {
+	r, err := html.New(strings.NewReader(samplePage), html.Config{SourceName: "test.html"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := r.Read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("want 1 doc, got %d", len(docs))
+	}
+	body := docs[0].Text
+	if !strings.Contains(body, "Hello, world.") || !strings.Contains(body, "Goodbye, world.") {
+		t.Errorf("body missing expected text: %q", body)
+	}
+	if strings.Contains(body, "drop me") {
+		t.Errorf("script content leaked into body: %q", body)
+	}
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataTitle); got != "Test Page" {
+		t.Errorf("title: want %q, got %v", "Test Page", got)
+	}
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataCanonical); got != "https://example.com/test" {
+		t.Errorf("canonical: got %v", got)
+	}
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataSourceName); got != "test.html" {
+		t.Errorf("source: got %v", got)
+	}
+}
+
+func TestSelector(t *testing.T) {
+	r, err := html.New(
+		strings.NewReader(samplePage),
+		html.Config{Selector: "article"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := r.Read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("want 2 articles, got %d", len(docs))
+	}
+	if !strings.Contains(docs[0].Text, "Hello, world.") {
+		t.Errorf("docs[0]: %q", docs[0].Text)
+	}
+	if !strings.Contains(docs[1].Text, "Goodbye, world.") {
+		t.Errorf("docs[1]: %q", docs[1].Text)
+	}
+	for i, d := range docs {
+		if got := metadataValue[string](t, d.Metadata, html.MetadataSelector); got != "article" {
+			t.Errorf("docs[%d] selector: got %v", i, got)
+		}
+	}
+}
+
+func TestNewRejectsInvalidConfiguration(t *testing.T) {
+	config := html.Config{Selector: "["}
+	if _, err := html.New(strings.NewReader(samplePage), config); err == nil {
+		t.Fatalf("New(%+v) error = nil", config)
+	}
+}
+
+func TestNewRejectsNilSource(t *testing.T) {
+	var typedNil *pointerReader
+	if _, err := html.New(nil, html.Config{}); err == nil {
+		t.Fatal("nil source must fail")
+	}
+	if _, err := html.New(typedNil, html.Config{}); err == nil {
+		t.Fatal("typed nil source must fail")
+	}
+}

@@ -1,8 +1,8 @@
-// Package document defines the serializable [Document] content value and the
-// minimal [Reader] and [Writer] I/O vocabulary.
+// Package document defines the canonical serializable [Document] content
+// value shared by extraction, retrieval, and model-facing components.
 //
 // NewDocument requires text, media, or both. Metadata is JSON-safe and belongs
 // to the document itself; query-specific relevance belongs to the vector-store
-// match value. Loading, splitting, enrichment, batching, retries, and pipeline
-// policy live in the separate documentpipeline module.
+// match value. Extraction, formatting, splitting, identifier assignment,
+// batching, and loading policy live in the separate etl module.
 package document
