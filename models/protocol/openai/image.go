@@ -109,26 +109,26 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType st
 		return nil, errors.New("openai: image response has no data")
 	}
 
-	results := make([]*image.Result, 0, len(resp.Data))
+	outputs := make([]*image.Output, 0, len(resp.Data))
 	for index, generated := range resp.Data {
 		value, err := openAIImageMedia(mimeType, generated.URL, generated.B64JSON)
 		if err != nil {
 			return nil, fmt.Errorf("openai: image %d: %w", index, err)
 		}
-		resultMetadata := &image.ResultMetadata{}
+		outputMetadata := &image.OutputMetadata{}
 		if generated.RevisedPrompt != "" {
-			if err := resultMetadata.Set(i.provider+"/revised_prompt", generated.RevisedPrompt); err != nil {
+			if err := outputMetadata.Set(i.provider+"/revised_prompt", generated.RevisedPrompt); err != nil {
 				return nil, err
 			}
 		}
-		result, err := image.NewResult(value, resultMetadata)
+		output, err := image.NewOutput(value, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
-	return image.NewResponse(results, &image.ResponseMetadata{Created: resp.Created})
+	return image.NewResponse(outputs, &image.ResponseMetadata{Created: resp.Created})
 }
 
 func openAIImageMedia(mimeType, uri, encoded string) (*media.Media, error) {

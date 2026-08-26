@@ -141,12 +141,12 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 	}
 	if len(calls) == 0 {
 		if execution.state.PendingSteer != nil {
-			result := response.Result
-			if result == nil || result.Message == nil || result.FinishReason == "" {
+			modelOutput := response.Output
+			if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 				return agent.Transition{}, fmt.Errorf("%w: steered response has no finished assistant message", ErrInvalidExecutionState)
 			}
 			request := execution.state.WorkingContext.Clone()
-			request.Messages = append(request.Messages, result.Message.Clone())
+			request.Messages = append(request.Messages, modelOutput.Message.Clone())
 			execution.state.WorkingContext = request
 			appliedSteerSignalIDs, err := execution.applyPendingSteer()
 			if err != nil {
@@ -155,15 +155,15 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 			execution.state.Phase = phaseReadyModel
 			return execution.requestModel(consumedSignals, appliedSteerSignalIDs)
 		}
-		result := response.Result
-		if result == nil || result.Message == nil || result.FinishReason == "" {
+		modelOutput := response.Output
+		if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 			return agent.Transition{}, fmt.Errorf("%w: final response has no finished assistant message", ErrInvalidExecutionState)
 		}
 		return execution.finishOrRetry(consumedSignals, Output{
 			Source:        CompletionSourceModelResponse,
 			ModelResponse: response,
 			ModelCalls:    execution.state.ModelCallCount,
-		}, []chat.Message{result.Message.Clone()})
+		}, []chat.Message{modelOutput.Message.Clone()})
 	}
 
 	execution.state.PendingModelResponse = response

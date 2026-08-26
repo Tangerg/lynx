@@ -101,18 +101,18 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse, expe
 		return nil, errors.New("cohere: embed response has no float embeddings")
 	}
 	if len(apiResp.Embeddings.Float) != expectedResults {
-		return nil, fmt.Errorf("cohere: embed response returned %d results for %d inputs", len(apiResp.Embeddings.Float), expectedResults)
+		return nil, fmt.Errorf("cohere: embed response returned %d outputs for %d inputs", len(apiResp.Embeddings.Float), expectedResults)
 	}
 
-	results := make([]*embedding.Result, 0, len(apiResp.Embeddings.Float))
+	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings.Float))
 	for _, vec := range apiResp.Embeddings.Float {
-		resultMeta := &embedding.ResultMetadata{}
+		outputMetadata := &embedding.OutputMetadata{}
 
-		result, err := embedding.NewResult(vec, resultMeta)
+		output, err := embedding.NewOutput(vec, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &embedding.ResponseMetadata{}
@@ -124,7 +124,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse, expe
 		meta.Usage = usage
 	}
 
-	return embedding.NewResponse(results, meta)
+	return embedding.NewResponse(outputs, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

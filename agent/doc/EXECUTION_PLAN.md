@@ -3,8 +3,8 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-26
-> 当前阶段：P1–P21 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core Chat 单 Result 协议迁移与 Go 1.27 typed-edge ownership 均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 当前阶段：P1–P22 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core Chat 单输出协议、Core 模态 Output 统一与 Go 1.27 typed-edge ownership 均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -89,6 +89,7 @@ go test ./...
 | P19 Host 前置边界失败合同 | 完成 | 2/2 | 让外部调用前的 Host 拒绝确定终止，不伪装 provider/Tool 业务结果 |
 | P20 Core Chat 单 Result 协议迁移 | 完成 | 2/2 | 删除多候选假抽象，并显式升级 Interaction owner wire |
 | P21 Go 1.27 typed-edge ownership | 完成 | 2/2 | 用方法泛型删除无消费者包装，让 schema/value owner 持有编解码 |
+| P22 Core 模态 Output 词汇迁移 | 完成 | 2/2 | 让 Interaction 跟随 Core 六模态统一输出词汇，并显式升级 owner wire |
 
 ---
 
@@ -276,6 +277,11 @@ go test ./...
 - [x] P21-01 删除无生产消费者的 `Typed[I,O]`，让 `Descriptor`、`Input`、`Output` 与 `Artifact` 通过 Go 1.27 方法泛型直接拥有 typed-edge 行为；Workflow Map/Fork 泛型编解码收回有状态 owner。
 - [x] P21-02 修复既有 ExecutionObserver 公共合同漂移，完成 ADR、Baseline 24、Go 1.27 wire 表示 digest、standalone build/vet/test/race 与 command consumer 门禁。
 
+### P22：Core 模态 Output 词汇迁移
+
+- [x] P22-01 将 Interaction、examples 与 Runtime consumer 从 Core Chat `Response.Result` 迁移到 `Response.Output`，保持单输出不变量并删除旧词汇。
+- [x] P22-02 将嵌入 Core Chat Response 的 Interaction ExecutionState/protocol 升级到 v8/v7，冻结 Baseline 25并完成 prior-version、owner wire 与跨模块消费者门禁。
+
 ---
 
 ## 6. 最终完成定义
@@ -321,6 +327,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-26 | P22（Baseline 25） | Core 六个模型模态将响应内产物从 Result/Results 统一为 Output/Outputs，Interaction 同步使用单 `Response.Output`；因 state、settlement 与 Delta 嵌入 Core Chat wire，ExecutionState/protocol 升级为 v8/v7且不双读旧版本 | Core API/wire baseline、Interaction owner wire、provider、Runtime 与 workspace 消费者在本批统一迁移和验收；Agent 公共 API、Kernel、其他 Strategy 与共同 snapshot/observation wire不变 |
 | 2026-08-26 | P21（Baseline 24） | Go 1.27 方法泛型让 Descriptor/Input/Output/Artifact 直接拥有 typed-edge 编解码；删除零生产消费者的 Typed 泛型包装和三个自由解码入口。Workflow Map/Fork 的泛型 codec 与根 wire 的 normalize/decode/EOF 算法收回各自 codec owner；Tool batch worker 的 Add/Done 生命周期收敛为 WaitGroup.Go；既有 ExecutionObserver 的参数与 ToolSettlement 字段完成公开合同审计。Kernel 与 Strategy runtime 仍保持 erased 窄腰，没有新增 service/builder/registry 或兼容层 | standalone compile gate 已证明全部 package 使用新方法 API；完整 build/vet/test/race、examples、digest 与 tidy-diff 在本批提交前统一验收。Go 1.27 下四组 wire 摘要因标准库 raw JSON 类型名呈现变化而重新冻结，JSON 字段、版本与语义不变 |
 | 2026-08-25 | P20（Baseline 23） | Core Chat 从从未被调用能力支持的复数 Choice 模型收敛为唯一 `Response.Result`；Interaction 直接消费单 Result，删除多候选 ToolCall 分支。因 Strategy state、model settlement 与 stream Delta 嵌入 Core Chat wire，ExecutionState/protocol 显式升级为 v7/v6且不双读旧版本；Agent 公共 API、Kernel、Planning、Workflow 与共同 snapshot/observation wire不变 | Core、models、root consumer 全量测试通过；Agent Interaction 定向协议、恢复与行为测试通过。干净 HEAD 对照证明当前 Agent GoDoc 及 Kernel/Observation/Planning/Workflow hash failures 是本批前已存在的独立基线漂移，本批没有更新或掩盖这些无关合同 |
 | 2026-08-15 | P19（Baseline 22） | 真实 Runtime consumer 证明模型/Tool 外部调用前的 Host 权威前置边界失败原先会被误作 provider/Tool 业务错误；Tool 路径甚至会继续下一模型轮次。Interaction 现以中性 host-failure marker、protocol v5 互斥 settlement 与稳定 terminal code 收敛该事实，不引入 Runtime、RPC、数据库、transaction 或产品终态 | Agent/Runtime 定向场景 10 轮与 race 全绿；Agent 全包测试、public/private baseline、prior-version、协议互斥和 architecture gate 全绿。独立 module build/vet/staticcheck/test/race/tidy-diff 随 canonical source 提交前门禁完成；形成 Baseline 22，P19 2/2 完成 |

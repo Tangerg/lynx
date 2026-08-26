@@ -101,7 +101,7 @@ func TestTextReasoningDialects(t *testing.T) {
 					t.Errorf("unexpected request field %s = %#v", field, value)
 				}
 			}
-			parts := response.Result.Message.Parts
+			parts := response.Output.Message.Parts
 			if len(parts) != 2 || parts[0].Kind != corechat.PartReasoning || parts[0].Text != "fresh reasoning" || parts[1].Text != "answer" {
 				t.Fatalf("response parts = %#v", parts)
 			}

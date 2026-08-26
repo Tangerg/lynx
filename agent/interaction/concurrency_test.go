@@ -430,7 +430,7 @@ func toolBatchResponse(calls ...chat.ToolCall) *chat.Response {
 		call := calls[index]
 		parts[index] = chat.NewToolCallPart(call)
 	}
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message: pointerMessage(chat.NewAssistantMessage(parts...)), FinishReason: chat.FinishReasonToolCalls,
 	}}
 }

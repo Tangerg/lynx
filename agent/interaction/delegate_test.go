@@ -347,7 +347,7 @@ func (model *delegateFailureModel) Call(_ context.Context, request *chat.Request
 				ID: "call_unavailable", Name: "delegate_unavailable", Arguments: `{"value":"valid"}`,
 			}),
 		)
-		return &chat.Response{Result: &chat.Result{
+		return &chat.Response{Output: &chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}}, nil
 	}
@@ -384,7 +384,7 @@ func (model *mixedDelegateModel) Call(_ context.Context, request *chat.Request) 
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_worker_2", Name: "delegate_uppercase", Arguments: `{"value":"second"}`}),
 			chat.NewToolCallPart(chat.ToolCall{ID: "call_after", Name: "echo", Arguments: `{"value":"after"}`}),
 		)
-		return &chat.Response{Result: &chat.Result{
+		return &chat.Response{Output: &chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}}, nil
 	}

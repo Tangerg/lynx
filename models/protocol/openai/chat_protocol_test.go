@@ -46,7 +46,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			if response.Metadata.ID != "chatcmpl-core" || response.Metadata.Model != "gpt-5.2" {
 				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
 			}
-			result := response.Result
+			result := response.Output
 			if result.FinishReason != corechat.FinishReasonToolCalls {
 				t.Errorf("finish reason = %q", result.FinishReason)
 			}
@@ -84,10 +84,10 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 					t.Error("compatible stream leaked into OpenAI's native extension namespace")
 				}
 				finalUsage = response.Metadata.Usage
-				if response.Result == nil || response.Result.Message == nil {
+				if response.Output == nil || response.Output.Message == nil {
 					continue
 				}
-				for _, part := range response.Result.Message.Parts {
+				for _, part := range response.Output.Message.Parts {
 					switch part.Kind {
 					case corechat.PartText:
 						text.WriteString(part.Text)
@@ -115,10 +115,10 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 		},
 		AssertAggregated: func(t *testing.T, response *corechat.Response) {
 			t.Helper()
-			if response.Metadata.ID != "chatcmpl-stream" || response.Metadata.Model != "gpt-5.2" || response.Result == nil {
+			if response.Metadata.ID != "chatcmpl-stream" || response.Metadata.Model != "gpt-5.2" || response.Output == nil {
 				t.Fatalf("aggregated response = %#v", response)
 			}
-			result := response.Result
+			result := response.Output
 			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonToolCalls {
 				t.Fatalf("aggregated result = %#v", result)
 			}
@@ -151,7 +151,7 @@ func TestCompatibleChatRejectsMultipleProviderChoices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one result") {
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "supports one output") {
 		t.Fatalf("Call error = %v; want multiple-choice rejection", err)
 	}
 }
@@ -174,8 +174,8 @@ func TestCompatibleChatRejectsResultCountOption(t *testing.T) {
 	if err := request.Options.SetExtension("test/openai_request", map[string]any{"n": 2}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
-	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "produces one result") {
-		t.Fatalf("Call error = %v; want result-count rejection", err)
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "produces one output") {
+		t.Fatalf("Call error = %v; want output-count rejection", err)
 	}
 }
 

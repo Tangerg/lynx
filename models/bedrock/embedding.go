@@ -112,13 +112,13 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	results := make([]*embedding.Result, len(batch.vectors))
+	outputs := make([]*embedding.Output, len(batch.vectors))
 	for index, vector := range batch.vectors {
-		result, resultErr := embedding.NewResult(vector, &embedding.ResultMetadata{})
+		output, resultErr := embedding.NewOutput(vector, &embedding.OutputMetadata{})
 		if resultErr != nil {
-			return nil, fmt.Errorf("bedrock: embedding response result %d: %w", index, resultErr)
+			return nil, fmt.Errorf("bedrock: embedding response output %d: %w", index, resultErr)
 		}
-		results[index] = result
+		outputs[index] = output
 	}
 
 	metadata := &embedding.ResponseMetadata{Model: merged.Model}
@@ -134,7 +134,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 			return nil, err
 		}
 	}
-	return embedding.NewResponse(results, metadata)
+	return embedding.NewResponse(outputs, metadata)
 }
 
 type embeddingFamily uint8
@@ -309,7 +309,7 @@ func (e *EmbeddingModel) embedCohere(
 		return nil, err
 	}
 	if len(vectors) != len(texts) {
-		return nil, fmt.Errorf("bedrock: Cohere embedding response returned %d results for %d inputs", len(vectors), len(texts))
+		return nil, fmt.Errorf("bedrock: Cohere embedding response returned %d outputs for %d inputs", len(vectors), len(texts))
 	}
 	return &embeddingBatch{
 		vectors:        vectors,

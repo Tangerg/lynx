@@ -94,7 +94,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 		return nil, errors.New("openai: embeddings response has no data")
 	}
 	if len(apiResp.Data) != expectedResults {
-		return nil, fmt.Errorf("openai: embeddings response returned %d results for %d inputs", len(apiResp.Data), expectedResults)
+		return nil, fmt.Errorf("openai: embeddings response returned %d outputs for %d inputs", len(apiResp.Data), expectedResults)
 	}
 
 	meta := &embedding.ResponseMetadata{
@@ -104,27 +104,27 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 		},
 	}
 
-	results := make([]*embedding.Result, len(apiResp.Data))
+	outputs := make([]*embedding.Output, len(apiResp.Data))
 	seen := make([]bool, len(apiResp.Data))
 	for _, item := range apiResp.Data {
-		if item.Index < 0 || item.Index >= int64(len(results)) {
+		if item.Index < 0 || item.Index >= int64(len(outputs)) {
 			return nil, fmt.Errorf("openai: embeddings response index %d is out of range", item.Index)
 		}
 		if seen[item.Index] {
 			return nil, fmt.Errorf("openai: embeddings response repeats index %d", item.Index)
 		}
-		resultMeta := &embedding.ResultMetadata{}
+		outputMetadata := &embedding.OutputMetadata{}
 
-		result, err := embedding.NewResult(item.Embedding, resultMeta)
+		output, err := embedding.NewOutput(item.Embedding, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
 
-		results[item.Index] = result
+		outputs[item.Index] = output
 		seen[item.Index] = true
 	}
 
-	return embedding.NewResponse(results, meta)
+	return embedding.NewResponse(outputs, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

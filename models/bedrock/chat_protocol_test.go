@@ -91,11 +91,11 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Metadata.Model != "model" || response.Result.FinishReason != corechat.FinishReasonToolCalls {
+	if response.Metadata.Model != "model" || response.Output.FinishReason != corechat.FinishReasonToolCalls {
 		t.Fatalf("response = %#v", response)
 	}
 	wantKinds := []corechat.PartKind{corechat.PartReasoning, corechat.PartReasoning, corechat.PartText, corechat.PartToolCall}
-	parts := response.Result.Message.Parts
+	parts := response.Output.Message.Parts
 	for index, want := range wantKinds {
 		if parts[index].Kind != want {
 			t.Fatalf("part[%d] = %q, want %q", index, parts[index].Kind, want)
@@ -121,7 +121,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 		}},
 	}}
 	response, include, err := accumulator.add(start)
-	if err != nil || !include || response.Result.Message.Parts[0].ToolCall.Name != "weather" {
+	if err != nil || !include || response.Output.Message.Parts[0].ToolCall.Name != "weather" {
 		t.Fatalf("start = %#v, %v, %v", response, include, err)
 	}
 
@@ -134,7 +134,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 	if err != nil || !include {
 		t.Fatalf("delta = %#v, %v, %v", response, include, err)
 	}
-	call := response.Result.Message.Parts[0].ToolCall
+	call := response.Output.Message.Parts[0].ToolCall
 	if call.ID != "call-1" || call.Name != "weather" || call.Arguments != arguments {
 		t.Fatalf("tool call = %#v", call)
 	}

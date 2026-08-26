@@ -116,7 +116,7 @@ func (model *calculatorModel) Call(_ context.Context, request *chat.Request) (*c
 		message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
 			ID: "calculation_1", Name: "add", Arguments: `{"left":20,"right":22}`,
 		}))
-		return &chat.Response{Result: &chat.Result{
+		return &chat.Response{Output: &chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}}, nil
 	case 2:
@@ -126,7 +126,7 @@ func (model *calculatorModel) Call(_ context.Context, request *chat.Request) (*c
 			return nil, errors.New("model did not receive the addition result")
 		}
 		message := chat.NewAssistantMessage(chat.NewTextPart("20 + 22 = 42"))
-		return &chat.Response{Result: &chat.Result{
+		return &chat.Response{Output: &chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonStop,
 		}}, nil
 	default:

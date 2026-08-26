@@ -41,7 +41,7 @@ func (m *echoChatModel) capture(req *chat.Request) string {
 
 func textResponse(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, err := chat.NewResponse(&chat.Result{
+	response, err := chat.NewResponse(&chat.Output{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
 	}, nil)

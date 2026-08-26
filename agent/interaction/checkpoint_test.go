@@ -356,5 +356,5 @@ func toolCallsResponse(calls ...chat.ToolCall) *chat.Response {
 		parts[index] = chat.NewToolCallPart(calls[index])
 	}
 	message := chat.NewAssistantMessage(parts...)
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonToolCalls}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls}}
 }

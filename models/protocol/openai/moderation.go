@@ -86,7 +86,7 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 }
 
 func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResponse) (*moderation.Response, error) {
-	results := make([]*moderation.Result, 0, len(resp.Results))
+	outputs := make([]*moderation.Output, 0, len(resp.Results))
 
 	for _, item := range resp.Results {
 		cats := moderation.Categories{
@@ -144,12 +144,12 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 			},
 		}
 
-		result, err := moderation.NewResult(cats, &moderation.ResultMetadata{})
+		output, err := moderation.NewOutput(cats, &moderation.OutputMetadata{})
 		if err != nil {
 			return nil, err
 		}
 
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 
 	meta := &moderation.ResponseMetadata{
@@ -157,7 +157,7 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 		Model: resp.Model,
 	}
 
-	return moderation.NewResponse(results, meta)
+	return moderation.NewResponse(outputs, meta)
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {

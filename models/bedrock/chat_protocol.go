@@ -460,19 +460,19 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 	if err != nil {
 		return nil, err
 	}
-	result := &corechat.Result{FinishReason: mapProtocolStopReason(output.StopReason)}
+	modelOutput := &corechat.Output{FinishReason: mapProtocolStopReason(output.StopReason)}
 	if len(parts) != 0 {
 		message := corechat.NewAssistantMessage(parts...)
-		result.Message = &message
+		modelOutput.Message = &message
 	}
-	if result.FinishReason == corechat.FinishReasonOther {
-		result.Metadata = &corechat.ResultMetadata{}
-		if err := result.Metadata.Set(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
+	if modelOutput.FinishReason == corechat.FinishReasonOther {
+		modelOutput.Metadata = &corechat.OutputMetadata{}
+		if err := modelOutput.Metadata.Set(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
 			return nil, err
 		}
 	}
 	response := &corechat.Response{
-		Result:   result,
+		Output:   modelOutput,
 		Metadata: &corechat.ResponseMetadata{Model: model, Usage: mapProtocolUsage(output.Usage)},
 	}
 	if err := response.Metadata.Set(ChatResponseExtensionKey, output); err != nil {
@@ -597,7 +597,7 @@ func newProtocolChunkAccumulator(model string) *protocolChunkAccumulator {
 
 func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.Response, bool, error) {
 	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{Model: a.model}}
-	var result *corechat.Result
+	var output *corechat.Output
 
 	switch typed := event.(type) {
 	case *types.ConverseStreamOutputMemberContentBlockStart:
@@ -609,19 +609,19 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		a.tools[*typed.Value.ContentBlockIndex] = identity
 		part := corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name})
 		message := corechat.NewAssistantMessage(part)
-		result = &corechat.Result{Message: &message}
+		output = &corechat.Output{Message: &message}
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
 		part, include, err := a.mapDelta(typed.Value)
 		if err != nil || !include {
 			return nil, false, err
 		}
 		message := corechat.NewAssistantMessage(part)
-		result = &corechat.Result{Message: &message}
+		output = &corechat.Output{Message: &message}
 	case *types.ConverseStreamOutputMemberMessageStop:
-		result = &corechat.Result{FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
-		if result.FinishReason == corechat.FinishReasonOther {
-			result.Metadata = &corechat.ResultMetadata{}
-			if err := result.Metadata.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
+		output = &corechat.Output{FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
+		if output.FinishReason == corechat.FinishReasonOther {
+			output.Metadata = &corechat.OutputMetadata{}
+			if err := output.Metadata.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
 				return nil, false, err
 			}
 		}
@@ -634,8 +634,8 @@ func (a *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		return nil, false, nil
 	}
 
-	if result != nil {
-		response.Result = result
+	if output != nil {
+		response.Output = output
 	}
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("bedrock: stream response: %w", err)

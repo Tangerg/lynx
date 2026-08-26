@@ -471,10 +471,10 @@ func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message,
 	var calls []chat.ToolCall
 	var message *chat.Message
 	seenCallIDs := make(map[string]struct{})
-	if response.Result == nil || response.Result.Message == nil {
+	if response.Output == nil || response.Output.Message == nil {
 		return nil, nil, nil
 	}
-	for _, part := range response.Result.Message.Parts {
+	for _, part := range response.Output.Message.Parts {
 		if part.Kind == chat.PartToolCall {
 			if _, duplicate := seenCallIDs[part.ToolCall.ID]; duplicate {
 				return nil, nil, fmt.Errorf("interaction: duplicate tool call ID %q", part.ToolCall.ID)
@@ -484,7 +484,7 @@ func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message,
 		}
 	}
 	if len(calls) > 0 {
-		cloned := response.Result.Message.Clone()
+		cloned := response.Output.Message.Clone()
 		message = &cloned
 	}
 	return calls, message, nil

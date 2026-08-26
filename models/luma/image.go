@@ -186,10 +186,10 @@ func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents
 	if len(generation.Output) == 0 {
 		return nil, fmt.Errorf("luma: generation %q completed without output", generation.ID)
 	}
-	results := make([]*image.Result, 0, len(generation.Output))
+	outputs := make([]*image.Output, 0, len(generation.Output))
 	for outputIndex := range generation.Output {
-		output := generation.Output[outputIndex]
-		data, mimeType, err := model.downloadOutput(ctx, output.URL)
+		generationOutput := generation.Output[outputIndex]
+		data, mimeType, err := model.downloadOutput(ctx, generationOutput.URL)
 		if err != nil {
 			return nil, fmt.Errorf("luma: output[%d]: %w", outputIndex, err)
 		}
@@ -197,15 +197,15 @@ func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents
 		if err != nil {
 			return nil, err
 		}
-		resultMetadata := &image.ResultMetadata{}
-		if err := resultMetadata.Set("luma/output", output); err != nil {
+		outputMetadata := &image.OutputMetadata{}
+		if err := outputMetadata.Set("luma/output", generationOutput); err != nil {
 			return nil, err
 		}
-		result, err := image.NewResult(value, resultMetadata)
+		output, err := image.NewOutput(value, outputMetadata)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, result)
+		outputs = append(outputs, output)
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, generation.CreatedAt)
 	if err != nil {
@@ -215,7 +215,7 @@ func (model *ImageModel) mapResponse(ctx context.Context, generation *lumaagents
 	if err := metadata.Set(ResponseExtensionKey, generation); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(results, metadata)
+	return image.NewResponse(outputs, metadata)
 }
 
 func (model *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {

@@ -381,7 +381,7 @@ func newDeployment(t *testing.T, model chat.Model, tools []tool.Tool, maxModelCa
 
 func textResponse(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
 	}}
@@ -389,7 +389,7 @@ func textResponse(text string) *chat.Response {
 
 func toolCallResponse(call chat.ToolCall) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(call))
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message:      &message,
 		FinishReason: chat.FinishReasonToolCalls,
 	}}

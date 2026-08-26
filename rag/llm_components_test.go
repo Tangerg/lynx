@@ -36,7 +36,7 @@ func (m *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Respon
 	if m.err != nil {
 		return nil, m.err
 	}
-	result := &chat.Result{FinishReason: chat.FinishReasonStop}
+	result := &chat.Output{FinishReason: chat.FinishReasonStop}
 	if m.reply != "" {
 		message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
 		result.Message = &message

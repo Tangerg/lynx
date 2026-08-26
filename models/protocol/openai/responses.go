@@ -391,13 +391,13 @@ func mapResponsesResponse(response *responses.Response) (*corechat.Response, err
 	if err != nil {
 		return nil, err
 	}
-	result := &corechat.Result{FinishReason: responsesFinishReason(response, hasToolCalls)}
+	output := &corechat.Output{FinishReason: responsesFinishReason(response, hasToolCalls)}
 	if len(parts) != 0 {
 		message := corechat.NewAssistantMessage(parts...)
-		result.Message = &message
+		output.Message = &message
 	}
 	mapped := &corechat.Response{
-		Result: result,
+		Output: output,
 		Metadata: &corechat.ResponseMetadata{
 			ID: response.ID, Model: string(response.Model), Usage: responsesUsage(response.Usage),
 		},
@@ -569,7 +569,7 @@ func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 			return item.Type == "function_call"
 		})
 		response := &corechat.Response{
-			Result: &corechat.Result{FinishReason: responsesFinishReason(&typed.Response, hasToolCall)},
+			Output: &corechat.Output{FinishReason: responsesFinishReason(&typed.Response, hasToolCall)},
 			Metadata: &corechat.ResponseMetadata{
 				ID: s.responseID, Model: s.model, Usage: responsesUsage(typed.Response.Usage),
 			},
@@ -634,7 +634,7 @@ func decodeResponsesReasoningFrames(signature []byte) ([]responses.ResponseReaso
 func (s *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {
 	message := corechat.NewAssistantMessage(part)
 	response := &corechat.Response{
-		Result:   &corechat.Result{Message: &message},
+		Output:   &corechat.Output{Message: &message},
 		Metadata: &corechat.ResponseMetadata{ID: s.responseID, Model: s.model},
 	}
 	if err := response.Validate(); err != nil {

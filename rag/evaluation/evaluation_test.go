@@ -351,7 +351,7 @@ func (m *fakeModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 		return &chat.Response{}, nil
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message: &message, FinishReason: chat.FinishReasonStop,
 	}}, nil
 }

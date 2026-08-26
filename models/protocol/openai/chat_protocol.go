@@ -167,7 +167,7 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 			return nil, err
 		}
 		if _, exists := fields["n"]; exists {
-			return nil, fmt.Errorf("openai: extension %q field %q is unsupported; Core Chat produces one result", extensionKey, "n")
+			return nil, fmt.Errorf("openai: extension %q field %q is unsupported; Core Chat produces one output", extensionKey, "n")
 		}
 		params.SetExtraFields(fields)
 	}
@@ -458,14 +458,14 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 		return nil, errors.New("openai: response has no choices")
 	}
 	if len(response.Choices) > 1 {
-		return nil, fmt.Errorf("openai: response has %d choices; Core supports one result", len(response.Choices))
+		return nil, fmt.Errorf("openai: response has %d choices; Core supports one output", len(response.Choices))
 	}
-	result, err := mapCompletionResult(params, response.Choices[0], dialect.Provider, dialect.response)
+	output, err := mapCompletionOutput(params, response.Choices[0], dialect.Provider, dialect.response)
 	if err != nil {
-		return nil, fmt.Errorf("openai: result: %w", err)
+		return nil, fmt.Errorf("openai: output: %w", err)
 	}
 	mapped := &corechat.Response{
-		Result: result,
+		Output: output,
 		Metadata: &corechat.ResponseMetadata{
 			ID:    response.ID,
 			Model: response.Model,
@@ -481,11 +481,11 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 	return mapped, nil
 }
 
-func mapCompletionResult(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect responseDialect) (*corechat.Result, error) {
+func mapCompletionOutput(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect responseDialect) (*corechat.Output, error) {
 	if choice.Index != 0 {
 		return nil, fmt.Errorf("choice index is %d, want 0", choice.Index)
 	}
-	mapped := &corechat.Result{FinishReason: normalizeFinishReason(choice.FinishReason)}
+	mapped := &corechat.Output{FinishReason: normalizeFinishReason(choice.FinishReason)}
 	message, err := mapCompletionMessage(params, choice.Message, provider, dialect)
 	if err != nil {
 		return nil, err
@@ -663,15 +663,15 @@ func (s *openAIStreamState) mapChunk(chunk openaisdk.ChatCompletionChunk) (*core
 		},
 	}
 	if len(chunk.Choices) > 1 {
-		return nil, fmt.Errorf("openai: stream chunk has %d choices; Core supports one result", len(chunk.Choices))
+		return nil, fmt.Errorf("openai: stream chunk has %d choices; Core supports one output", len(chunk.Choices))
 	}
 	if len(chunk.Choices) == 1 {
-		result, include, err := s.mapChunkResult(chunk.Choices[0])
+		output, include, err := s.mapChunkOutput(chunk.Choices[0])
 		if err != nil {
-			return nil, fmt.Errorf("openai: stream result: %w", err)
+			return nil, fmt.Errorf("openai: stream output: %w", err)
 		}
 		if include {
-			mapped.Result = result
+			mapped.Output = output
 		}
 	}
 	if err := mapped.Metadata.Set(s.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
@@ -690,11 +690,11 @@ func exactProviderResponse(raw string, fallback any) any {
 	return fallback
 }
 
-func (s *openAIStreamState) mapChunkResult(choice openaisdk.ChatCompletionChunkChoice) (*corechat.Result, bool, error) {
+func (s *openAIStreamState) mapChunkOutput(choice openaisdk.ChatCompletionChunkChoice) (*corechat.Output, bool, error) {
 	if choice.Index != 0 {
 		return nil, false, fmt.Errorf("choice index is %d, want 0", choice.Index)
 	}
-	mapped := &corechat.Result{FinishReason: normalizeFinishReason(choice.FinishReason)}
+	mapped := &corechat.Output{FinishReason: normalizeFinishReason(choice.FinishReason)}
 	parts := make([]corechat.Part, 0, 2+len(choice.Delta.ToolCalls))
 	if choice.Delta.Content != "" {
 		parts = append(parts, corechat.NewTextPart(choice.Delta.Content))
@@ -722,7 +722,7 @@ func (s *openAIStreamState) mapChunkResult(choice openaisdk.ChatCompletionChunkC
 		}
 		mapped.Message = message
 	} else if choice.Delta.Refusal != "" {
-		mapped.Metadata = &corechat.ResultMetadata{}
+		mapped.Metadata = &corechat.OutputMetadata{}
 		if err := mapped.Metadata.Set(s.refusalKey, choice.Delta.Refusal); err != nil {
 			return nil, false, err
 		}

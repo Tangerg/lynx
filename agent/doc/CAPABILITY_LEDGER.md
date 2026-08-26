@@ -657,7 +657,7 @@
 
 ## 22. P20 Core Chat 单 Result 迁移证据
 
-- Core Chat 的真实调用合同始终只产生一个结果；旧 `Choice`/`Choices`/`Index` 只是从 provider wire 泄漏出的多候选表示，没有调用方 `n` 能力或真实多结果消费者。Core 现只公开 `Response.Result`，provider adapter 对多个候选明确失败，不能静默截断。
+- Core Chat 的真实调用合同始终只产生一个产物；旧 `Choice`/`Choices`/`Index` 只是从 provider wire 泄漏出的多候选表示，没有调用方 `n` 能力或真实多产物消费者。P20 当时先收敛为唯一 `Response.Result`，随后由 P22 统一命名为 `Response.Output`；provider adapter 对多个候选始终明确失败，不能静默截断。
 - Interaction 的模型完成、ToolCall 提取、WorkingContext 推进与最终 Output 都直接由同一个 `Result` owner 提供，不再循环候选或维护“多个候选中只有一个可请求 Tool”的过程式分支。
 - Interaction ExecutionState 与 protocol 都嵌入 Core Chat Request/Response，因此分别升级为 v7/v6并拒绝旧版本；这是真实恢复协议变化，不以外层 Kernel snapshot 版本掩盖，也不提供 dual-read、alias 或转换 helper。
 - Agent 公共 API、Kernel、Planning、Workflow、Process Snapshot v6、TreeSnapshot v4 与 observation wire 均未改变。Runtime 和 examples 已在同一批次迁移单 Result 使用，未复制 Core 类型或引入第二响应模型。
@@ -668,3 +668,10 @@
 - `Descriptor.EncodeInput[T]`/`DecodeOutput[T]` 直接复用权威 Input/Output Schema；`Input.Decode[T]`、`Output.Decode[T]` 与 `Artifact.Decode[T]` 让值对象自己拥有严格 JSON 解码。Engine、Definition、Execution、snapshot 与所有 Strategy state 仍保持 erased/non-generic，异构存储和恢复合同不变。
 - Workflow Map 的 stage ID、item limit 和四份 schema 收敛到 `mapValueCodec`，Fork/Map 共同输出解码收敛到 `fanoutOutputDecoder`；两者使用 Go 1.27 方法泛型，但不进入公共代数或 runtime state。泛型 Stage constructors、Schema factory 和无合法 receiver 的跨类型投影继续保持自由函数，没有为追求方法数量制造 builder/service。
 - clean HEAD 的前置 race gate已暴露 `ExecutionObserver` 公开参数/字段 GoDoc未通过守卫，以及 Go 1.27 标准库 raw JSON 类型名导致的 Kernel/observation/Planning/Workflow 摘要漂移。本批先核对字段、tag、version 与 strict codec，再冻结 Baseline 24；没有直接改 hash 掩盖语义变化，也没有升级实际 wire。
+
+## 24. P22 Core 模态 Output 词汇迁移证据
+
+- Core 的 chat、embedding、image、moderation、speech 与 transcription 都以 Request/Options 进入 Model，并由 Response 承载一个或多个模型产物与响应级 Metadata；`Output/Outputs` 是唯一能不偏向某一模态、同时覆盖流式片段和完整值的产物词汇。
+- Core 公开 API、构造器、GoDoc、错误上下文和 JSON tag 已从裸 `Result` 全量切换到 `Output`，没有 alias、旧 tag、兼容 decoder 或 chat 专属 `Generation`。`ToolResult` 与 `vectorstore.SearchResult` 属于独立领域合同，不做机械改名。
+- Interaction 仍只接受一个 Chat Output；ExecutionState、model settlement 和 stream Delta 因嵌入 Core Chat Response wire升级为 v8/v7并拒绝旧版本。Agent 公共 API、Kernel、Planning、Workflow、共同 snapshot/tree 与 observation wire不变。
+- models、chatclient、embeddingclient、RAG、OTel、Runtime、examples 和契约 fixture 同批迁移，未在消费侧复制 Response/Output 类型或保留双词汇。

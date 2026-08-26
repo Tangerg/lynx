@@ -17,7 +17,7 @@ func TestSchemaForAcceptsInteractionProviderMetadataAndReasoningSignature(t *tes
 		"openai/reasoning_provider": json.RawMessage(`"deepseek"`),
 	}
 	message := chat.NewAssistantMessage(reasoning, chat.NewTextPart("provider answer"))
-	response, err := chat.NewResponse(&chat.Result{
+	response, err := chat.NewResponse(&chat.Output{
 		Message:      &message,
 		FinishReason: chat.FinishReasonStop,
 	}, &chat.ResponseMetadata{})

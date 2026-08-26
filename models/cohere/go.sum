@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef h1:Ml4MatoQ8GpbTmCwtXS9tHIu2SRnGsq3PsRH3UZCbcM=
-github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx v0.0.0-20260826030243-00f87ed5a24f h1:AUvip3hhjRakZwRMz0v0SKNyyEHJgu8+OHHLbfdq8r8=
+github.com/Tangerg/lynx v0.0.0-20260826030243-00f87ed5a24f/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
 github.com/cohere-ai/cohere-go/v2 v2.18.0 h1:Y5NyY+YTCN6XrrxHWicgVdpBi4tSBa0bjesD2fJGdvQ=
 github.com/cohere-ai/cohere-go/v2 v2.18.0/go.mod h1:MuiJkCxlR18BDV2qQPbz2Yb/OCVphT1y6nD2zYaKeR0=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=

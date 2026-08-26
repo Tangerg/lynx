@@ -95,11 +95,11 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 }
 
 func (a *AudioTranscriptionModel) buildTranscriptionResponse(resp *openai.AudioTranscriptionNewResponseUnion) (*transcription.Response, error) {
-	result, err := transcription.NewResult(resp.Text, &transcription.ResultMetadata{})
+	output, err := transcription.NewOutput(resp.Text, &transcription.OutputMetadata{})
 	if err != nil {
 		return nil, err
 	}
-	return transcription.NewResponse(result, &transcription.ResponseMetadata{})
+	return transcription.NewResponse(output, &transcription.ResponseMetadata{})
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {

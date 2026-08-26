@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/models/bedrock
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef
+	github.com/Tangerg/lynx v0.0.0-20260826030243-00f87ed5a24f
 	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/config v1.32.34
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33

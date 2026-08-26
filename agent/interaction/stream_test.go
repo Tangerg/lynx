@@ -215,7 +215,7 @@ func responseStream(chunks ...*chat.Response) chat.Streamer {
 
 func streamTextChunk(text string, finish chat.FinishReason) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: finish}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: finish}}
 }
 
 type deltaCollector struct {

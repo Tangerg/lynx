@@ -656,3 +656,12 @@
 - 决策：Workflow 只把确有共同状态的泛型行为收回 `mapValueCodec` 与 `fanoutOutputDecoder`；不建立 generic service、builder、registry 或把 sealed Stage/runtime 泛型化。此前已进入当前 HEAD 的 `ExecutionObserver` 同批完成具名参数和 `ToolSettlement` 字段 GoDoc 审计，而不是直接更新 digest 掩盖公共合同漂移。
 - 决策：模块统一以 Go 1.27 编译。标准库在该版本把相关 raw JSON 字段的反射类型名呈现为 `jsontext.Value`，因此 Kernel、observation、Planning 与 Workflow 的结构摘要 digest 显式重新冻结；JSON tag、字段集合、schema version、strict codec 与恢复语义均未改变，不升级 wire version或提供双读。
 - 后果：形成 Baseline 24。typed edge 由真实领域 owner 提供，删除无消费者包装并减少自由泛型入口；Engine 仍能异构保存所有 Definition。Root/Interaction public digest 与四组 Go 1.27 wire 表示 digest 更新，其他六个 public package、Interaction private wire、Process Snapshot v6、TreeSnapshot v4 及全部协议语义保持不变。
+
+## ADR-A2-079：Interaction 跟随 Core 模态统一使用 Output 词汇
+
+- 状态：已接受并实施；形成 Baseline 25。
+- 证据：Core 六个模型模态共享 `Model.Call(Request) → Response` 心智，`Options` 是请求级控制，`Output/Outputs` 是响应内的单个或多个模型产物。裸 `Result` 把响应内产物误称为整个调用结果，也暗示流式值已经完成；chat 专属 `Generation` 又无法覆盖 embedding、image、moderation、speech 和 transcription。
+- 决策：Core 模态统一把 `Result`、`ResultMetadata`、`Response.Result(s)` 与 `NewResult` 直接替换为 `Output`、`OutputMetadata`、`Response.Output(s)` 与 `NewOutput`，Go API 和 JSON tag 同步切换且不保留 alias、旧字段或双读。Interaction 继续只接受 Core Chat 的单输出不变量，不恢复 Choice/Candidate 或多候选仲裁。
+- 决策：Interaction ExecutionState、model settlement 与 stream Delta 都嵌入 Core Chat Response wire，因此 state/protocol 从 v7/v6 直接升级到 v8/v7并拒绝旧版本。Agent 公共 identifier、Kernel、Planning、Workflow、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不改变；Runtime 只迁移消费字段，不复制 Core 响应模型。
+- 原因：统一应发生在跨模态的稳定词汇和层级，而不是用 chat 局部术语覆盖全部模态。`Response` 是调用信封，`Output` 是其中的模型产物，二者边界明确且对流式/非流式都成立。
+- 后果：形成 Baseline 25；Interaction owner wire 显式更新，其余公共与恢复合同保持原 owner 和版本。

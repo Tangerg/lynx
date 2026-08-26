@@ -65,8 +65,8 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	if !strings.HasSuffix(seenURL, "/embeddings") {
 		t.Errorf("URL = %q; want suffix /embeddings", seenURL)
 	}
-	if len(out.Results) != 2 {
-		t.Fatalf("got %d results; want 2", len(out.Results))
+	if len(out.Outputs) != 2 {
+		t.Fatalf("got %d outputs; want 2", len(out.Outputs))
 	}
 	if out.Metadata.Usage == nil || out.Metadata.Usage.InputTokens != 8 {
 		t.Errorf("usage = %+v; want InputTokens=8", out.Metadata.Usage)

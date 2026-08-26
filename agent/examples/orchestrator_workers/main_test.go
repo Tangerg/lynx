@@ -278,7 +278,7 @@ func (model *planningDelegateModel) Call(_ context.Context, request *chat.Reques
 				ID: "call_planning_risks", Name: "review_with_planning", Arguments: string(second),
 			}),
 		)
-		return chat.NewResponse(&chat.Result{
+		return chat.NewResponse(&chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}, nil)
 	}
@@ -297,7 +297,7 @@ func (model *planningDelegateModel) Call(_ context.Context, request *chat.Reques
 		}
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart("planning workers achieved 2 tasks"))
-	return chat.NewResponse(&chat.Result{
+	return chat.NewResponse(&chat.Output{
 		Message: &message, FinishReason: chat.FinishReasonStop,
 	}, nil)
 }

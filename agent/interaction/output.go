@@ -63,8 +63,8 @@ func (output Output) Validate() error {
 		if err := output.ModelResponse.Validate(); err != nil {
 			return fmt.Errorf("interaction: output model response: %w", err)
 		}
-		result := output.ModelResponse.Result
-		if result == nil || result.Message == nil || result.FinishReason == "" {
+		modelOutput := output.ModelResponse.Output
+		if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
 			return errors.New("interaction: output has no finished assistant response")
 		}
 	case CompletionSourceDirectToolResults:

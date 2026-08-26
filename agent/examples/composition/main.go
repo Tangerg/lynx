@@ -398,7 +398,7 @@ func (compositionModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 		return nil, errors.New("composition model requires one message")
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart("model: " + request.Messages[len(request.Messages)-1].Text()))
-	return &chat.Response{Result: &chat.Result{
+	return &chat.Response{Output: &chat.Output{
 		Message: &message, FinishReason: chat.FinishReasonStop,
 	}}, nil
 }

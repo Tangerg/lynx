@@ -71,7 +71,7 @@ func request(model string) *chat.Request {
 func response(text string, finish chat.FinishReason, input, output int64) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
 	return &chat.Response{
-		Result: &chat.Result{Message: &message, FinishReason: finish},
+		Output: &chat.Output{Message: &message, FinishReason: finish},
 		Metadata: &chat.ResponseMetadata{
 			ID: "response-1", Model: "served-model",
 			Usage: chat.Usage{InputTokens: input, OutputTokens: output},
@@ -120,7 +120,7 @@ func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 func TestCallRecordsCurrentGenAISemantics(t *testing.T) {
 	middleware, rig := newRig(t, "anthropic")
 	want := &chat.Response{
-		Result: &chat.Result{FinishReason: chat.FinishReasonStop},
+		Output: &chat.Output{FinishReason: chat.FinishReasonStop},
 		Metadata: &chat.ResponseMetadata{
 			ID: "response-1", Model: "claude-served",
 			Usage: chat.Usage{InputTokens: 12, OutputTokens: 7},
@@ -330,7 +330,7 @@ func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 
 func TestStreamDoesNotTurnObservationFailureIntoBusinessFailure(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
-	invalid := &chat.Response{Result: &chat.Result{}}
+	invalid := &chat.Response{Output: &chat.Output{}}
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) { yield(invalid, nil) }
 	})

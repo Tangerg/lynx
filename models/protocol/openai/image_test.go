@@ -60,10 +60,10 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if !strings.HasSuffix(seenURL, "/images/generations") {
 		t.Errorf("URL = %q; want /images/generations suffix", seenURL)
 	}
-	if len(out.Results) != 2 || out.First() == nil {
-		t.Fatalf("results = %#v", out.Results)
+	if len(out.Outputs) != 2 || out.First() == nil {
+		t.Fatalf("outputs = %#v", out.Outputs)
 	}
-	if got, err := out.Results[1].Media.URI(); err != nil || got != "https://example.com/img2.png" {
+	if got, err := out.Outputs[1].Media.URI(); err != nil || got != "https://example.com/img2.png" {
 		t.Fatalf("second URI = %q, %v", got, err)
 	}
 }

@@ -36,7 +36,7 @@ func TestAudioTranslationModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil || out.Result.Text != "good morning" {
-		t.Fatalf("text = %v; want 'good morning'", out.Result)
+	if out.Output == nil || out.Output.Text != "good morning" {
+		t.Fatalf("text = %v; want 'good morning'", out.Output)
 	}
 }

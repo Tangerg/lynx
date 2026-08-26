@@ -307,8 +307,8 @@ func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 			attrs = append(attrs, semconv.GenAIUsageOutputTokensKey.Int64(response.Metadata.Usage.OutputTokens))
 		}
 	}
-	if response.Result != nil && response.Result.FinishReason != "" {
-		attrs = append(attrs, semconv.GenAIResponseFinishReasons(response.Result.FinishReason.String()))
+	if response.Output != nil && response.Output.FinishReason != "" {
+		attrs = append(attrs, semconv.GenAIResponseFinishReasons(response.Output.FinishReason.String()))
 	}
 	return attrs
 }
@@ -342,7 +342,7 @@ func hasGeneratedContent(response *corechat.Response) bool {
 	if response == nil {
 		return false
 	}
-	return response.Result != nil && response.Result.Message != nil && len(response.Result.Message.Parts) > 0
+	return response.Output != nil && response.Output.Message != nil && len(response.Output.Message.Parts) > 0
 }
 
 func errorType(err error) string {

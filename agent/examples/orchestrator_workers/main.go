@@ -339,7 +339,7 @@ func jsonResponse(value any) (*chat.Response, error) {
 		return nil, err
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart(string(data)))
-	return chat.NewResponse(&chat.Result{
+	return chat.NewResponse(&chat.Output{
 		Message: &message, FinishReason: chat.FinishReasonStop,
 	}, nil)
 }
