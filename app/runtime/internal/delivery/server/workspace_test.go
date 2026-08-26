@@ -168,16 +168,16 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	if len(first.Data) != 2 || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want two entries and a cursor", first)
 	}
-	if _, err := base64.RawURLEncoding.DecodeString(first.NextCursor); err != nil {
-		t.Fatalf("cursor = %q, want opaque base64 key: %v", first.NextCursor, err)
+	if _, decodeStringErr := base64.RawURLEncoding.DecodeString(first.NextCursor); decodeStringErr != nil {
+		t.Fatalf("cursor = %q, want opaque base64 key: %v", first.NextCursor, decodeStringErr)
 	}
 	if first.Data[0].Type != protocol.FileEntryFile || first.Data[0].SizeBytes == nil || *first.Data[0].SizeBytes == 0 || first.Data[0].ModifiedAt == "" {
 		t.Fatalf("entry is not fully inspected: %+v", first.Data[0])
 	}
 	// The cursor is an ordered key rather than a row-existence dependency: if
 	// its file disappears between pages, the next page still advances.
-	if err := os.Remove(filepath.Join(dir, first.Data[1].Path)); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(filepath.Join(dir, first.Data[1].Path)); removeErr != nil {
+		t.Fatal(removeErr)
 	}
 
 	second, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{

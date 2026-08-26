@@ -149,8 +149,8 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	}
 
 	if plan.action == trimCompaction {
-		if err := c.store.RewriteForCompaction(ctx, sessionID, len(msgs), 0, 0, plan.trimmed...); err != nil {
-			return CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
+		if rewriteForCompactionErr := c.store.RewriteForCompaction(ctx, sessionID, len(msgs), 0, 0, plan.trimmed...); rewriteForCompactionErr != nil {
+			return CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", rewriteForCompactionErr)
 		}
 		return CompactionResult{}, nil
 	}

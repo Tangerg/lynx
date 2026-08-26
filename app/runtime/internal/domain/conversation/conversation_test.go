@@ -20,8 +20,8 @@ func TestConversationOwnsSequenceTransitions(t *testing.T) {
 	if history.Count() != 2 {
 		t.Fatalf("count = %d, want 2", history.Count())
 	}
-	if _, err := history.Seed(seed); !errors.Is(err, ErrNotEmpty) {
-		t.Fatalf("second seed error = %v, want ErrNotEmpty", err)
+	if _, seedErr := history.Seed(seed); !errors.Is(seedErr, ErrNotEmpty) {
+		t.Fatalf("second seed error = %v, want ErrNotEmpty", seedErr)
 	}
 	history = history.Truncate(1)
 	history, err = history.Append(chat.NewAssistantMessage(chat.NewTextPart("four")))

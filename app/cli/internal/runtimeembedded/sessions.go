@@ -67,9 +67,9 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 			return agent.SessionPage{}, runtimeContractViolation("list sessions exceeded the requested one-row page")
 		}
 		for _, value := range page.Data {
-			projected, err := projectSession(value)
-			if err != nil {
-				return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid session: %v", err)
+			projected, projectSessionErr := projectSession(value)
+			if projectSessionErr != nil {
+				return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid session: %v", projectSessionErr)
 			}
 			if matchesSession(projected, search, workspace) {
 				result.Items = append(result.Items, projected)
@@ -150,9 +150,9 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 	}
 	validated := input
 	if input.Workspace != "" {
-		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: input.Workspace})
-		if err != nil {
-			return agent.Session{}, fmt.Errorf("create session workspace: %w", err)
+		resolved, resolveErr := r.Resolve(ctx, workspace.ResolveRequest{Path: input.Workspace})
+		if resolveErr != nil {
+			return agent.Session{}, fmt.Errorf("create session workspace: %w", resolveErr)
 		}
 		validated.Workspace = resolved.Path
 	}
@@ -186,9 +186,9 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 	}
 	validated := input
 	if input.Workspace != nil {
-		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: *input.Workspace})
-		if err != nil {
-			return agent.Session{}, fmt.Errorf("update session workspace: %w", err)
+		resolved, resolveErr := r.Resolve(ctx, workspace.ResolveRequest{Path: *input.Workspace})
+		if resolveErr != nil {
+			return agent.Session{}, fmt.Errorf("update session workspace: %w", resolveErr)
 		}
 		validated.Workspace = &resolved.Path
 	}

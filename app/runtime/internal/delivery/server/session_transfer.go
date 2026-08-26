@@ -81,8 +81,8 @@ func (s *Server) ImportSession(ctx context.Context, request protocol.ImportSessi
 	}
 	// Before any write: restoring the conversation while dropping its Plan would
 	// import a session the archive does not describe.
-	if err := s.validateArtifactPlanCapability(artifact.Plan); err != nil {
-		return nil, err
+	if validateArtifactPlanCapabilityErr := s.validateArtifactPlanCapability(artifact.Plan); validateArtifactPlanCapabilityErr != nil {
+		return nil, validateArtifactPlanCapabilityErr
 	}
 	sessionID := artifact.Session.ID
 

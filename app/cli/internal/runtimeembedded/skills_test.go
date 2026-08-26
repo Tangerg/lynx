@@ -103,11 +103,11 @@ func TestSkillAdapterProjectsCatalogsAndExactMutationReferences(t *testing.T) {
 	if err != nil || len(proposals) != 1 || proposals[0].Key() != "user/release-checks@0123456789ab" {
 		t.Fatalf("Proposals = (%+v, %v)", proposals, err)
 	}
-	if err := runtime.Archive(t.Context(), "review"); err != nil {
-		t.Fatal(err)
+	if archiveErr := runtime.Archive(t.Context(), "review"); archiveErr != nil {
+		t.Fatal(archiveErr)
 	}
-	if err := runtime.Restore(t.Context(), "review"); err != nil {
-		t.Fatal(err)
+	if restoreErr := runtime.Restore(t.Context(), "review"); restoreErr != nil {
+		t.Fatal(restoreErr)
 	}
 	reference, err := proposals[0].Reference("/workspace")
 	if err != nil {

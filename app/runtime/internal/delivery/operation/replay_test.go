@@ -185,12 +185,12 @@ func TestMemoryIdempotencyStoreKeepsAbandonedClaimReserved(t *testing.T) {
 	if err != nil || claimed || len(got.Payload) != 0 {
 		t.Fatalf("aged pending claim = (%+v, %v, %v), want reserved", got, claimed, err)
 	}
-	if _, _, err := store.Claim(t.Context(), record.Key, "second"); !errors.Is(err, idempotency.ErrKeyConflict) {
-		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", err)
+	if _, _, claimErr := store.Claim(t.Context(), record.Key, "second"); !errors.Is(claimErr, idempotency.ErrKeyConflict) {
+		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", claimErr)
 	}
 	record.Payload = []byte(`{"version":1}`)
-	if err := store.Complete(t.Context(), record); err != nil {
-		t.Fatalf("complete aged pending claim: %v", err)
+	if completeErr := store.Complete(t.Context(), record); completeErr != nil {
+		t.Fatalf("complete aged pending claim: %v", completeErr)
 	}
 	got, claimed, err = store.Claim(t.Context(), record.Key, record.Fingerprint)
 	if err != nil || claimed || string(got.Payload) != string(record.Payload) {
@@ -244,8 +244,8 @@ func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
 	endpoint.BeginShutdown()
-	if err := endpoint.AwaitShutdown(t.Context()); err != nil {
-		t.Fatalf("AwaitShutdown: %v", err)
+	if awaitShutdownErr := endpoint.AwaitShutdown(t.Context()); awaitShutdownErr != nil {
+		t.Fatalf("AwaitShutdown: %v", awaitShutdownErr)
 	}
 
 	reopenedService := &countingCancelService{}

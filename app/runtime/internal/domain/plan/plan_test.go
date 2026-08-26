@@ -101,8 +101,8 @@ func TestReplaceRejectsTimeTravelAndRevisionOverflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := state.Replace(nil, now.Add(-time.Nanosecond)); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("time-travel error = %v, want ErrInvalid", err)
+	if _, replaceErr := state.Replace(nil, now.Add(-time.Nanosecond)); !errors.Is(replaceErr, ErrInvalid) {
+		t.Fatalf("time-travel error = %v, want ErrInvalid", replaceErr)
 	}
 	overflow, err := Restore(Snapshot{Revision: math.MaxUint64, UpdatedAt: now})
 	if err != nil {

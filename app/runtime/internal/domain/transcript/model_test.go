@@ -131,10 +131,10 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 	if completed.Status() != transcript.ItemCompleted || !completed.FinishedAt().Equal(finishedAt) {
 		t.Fatalf("completed timing = (%v, %v)", completed.Status(), completed.FinishedAt())
 	}
-	if _, err := completed.CompleteToolCall(invocation, executionStartedAt, finishedAt.Add(time.Second)); err == nil {
+	if _, completeToolCallErr := completed.CompleteToolCall(invocation, executionStartedAt, finishedAt.Add(time.Second)); completeToolCallErr == nil {
 		t.Fatal("second CompleteToolCall() succeeded")
 	}
-	if _, err := running.CompleteToolCall(invocation, startedAt.Add(-time.Millisecond), finishedAt); err == nil {
+	if _, completeToolCallErr := running.CompleteToolCall(invocation, startedAt.Add(-time.Millisecond), finishedAt); completeToolCallErr == nil {
 		t.Fatal("CompleteToolCall() accepted execution before occurrence")
 	}
 	abandoned, err := running.AbandonToolCall(nil, finishedAt)

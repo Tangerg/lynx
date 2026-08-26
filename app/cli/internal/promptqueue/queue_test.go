@@ -13,8 +13,8 @@ func TestQueueKeepsSessionQueuesIsolatedAndSnapshotsDetached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := queue.Enqueue("two", agent.Message{Text: "other session"}); err != nil {
-		t.Fatal(err)
+	if _, enqueueErr := queue.Enqueue("two", agent.Message{Text: "other session"}); enqueueErr != nil {
+		t.Fatal(enqueueErr)
 	}
 	second, err := queue.Enqueue("one", agent.Message{Text: "second"})
 	if err != nil {

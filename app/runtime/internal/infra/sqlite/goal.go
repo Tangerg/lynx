@@ -84,18 +84,18 @@ func (g *GoalStore) Save(ctx context.Context, record goal.Goal, expected goal.Ve
 		return goal.Goal{}, false, fmt.Errorf("sqlite: encode goal capabilities: %w", err)
 	}
 	if expected == (goal.Version{}) {
-		res, err := conn(ctx, g.db).ExecContext(ctx,
+		res, execContextErr := conn(ctx, g.db).ExecContext(ctx,
 			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, capabilities, budget, used, incarnation_id, revision, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
 			record.SessionID, record.Objective, string(record.Status), string(record.Reason.Code), record.Reason.Detail, record.ModelSelection.Provider(), record.ModelSelection.Model(),
 			capabilities, string(budget), string(used), record.IncarnationID, record.Revision, record.CreatedAt.UTC().UnixNano(), record.UpdatedAt.UTC().UnixNano())
-		if err != nil {
-			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", err)
+		if execContextErr != nil {
+			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", execContextErr)
 		}
-		applied, err := rowsAffected(res)
-		if err != nil || !applied {
-			return goal.Goal{}, applied, err
+		applied, execContextErr := rowsAffected(res)
+		if execContextErr != nil || !applied {
+			return goal.Goal{}, applied, execContextErr
 		}
 		return record, true, nil
 	}

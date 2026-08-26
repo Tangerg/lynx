@@ -589,19 +589,19 @@ func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
 		{CommandID: agent.CommandID("cli_33333333333333333333333333333333"), SessionID: "session", Message: agent.Message{Text: "promote me"}},
 	}
 	for _, command := range commands {
-		if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
-			t.Fatal(err)
+		if stagePendingRunErr := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); stagePendingRunErr != nil {
+			t.Fatal(stagePendingRunErr)
 		}
-		if _, err := queue.EnqueueCommand(command.CommandID, command.SessionID, command.Message, command.Options); err != nil {
-			t.Fatal(err)
+		if _, enqueueCommandErr := queue.EnqueueCommand(command.CommandID, command.SessionID, command.Message, command.Options); enqueueCommandErr != nil {
+			t.Fatal(enqueueCommandErr)
 		}
 	}
 	dispatching, ok := queue.BeginDispatch("session")
 	if !ok {
 		t.Fatal("queue did not reserve its first entry")
 	}
-	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID, workbench.ReplayGuard{}); err != nil {
-		t.Fatal(err)
+	if markPendingRunDispatchingErr := store.MarkPendingRunDispatching("session", dispatching.CommandID, workbench.ReplayGuard{}); markPendingRunDispatchingErr != nil {
+		t.Fatal(markPendingRunDispatchingErr)
 	}
 	before := queue.State("session")
 
@@ -612,15 +612,15 @@ func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
 	}
 	statePath := filepath.Join(stateDirectory, states[0].Name())
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block state replacement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block state replacement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
 	queueView := newQueueView(kit.Dark(), kit.Unicode())
@@ -630,9 +630,9 @@ func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
 		queueView: queueView, prompt: prompt,
 	}
 	promotedID := before.Entries[2].ID
-	if err := application.commitQueueMutation(func() error {
+	if commitQueueMutationErr := application.commitQueueMutation(func() error {
 		return queue.Promote("session", promotedID)
-	}); err == nil {
+	}); commitQueueMutationErr == nil {
 		t.Fatal("queue mutation unexpectedly survived a failed durable replacement")
 	}
 	after := queue.State("session")
@@ -644,14 +644,14 @@ func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
 		t.Fatalf("rolled-back prompt queue count = %d, want %d", prompt.queued, len(before.Entries))
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err := workbench.Open(directory, workbench.Config{})
 	if err != nil {
@@ -811,15 +811,15 @@ func TestAcceptedStartRetainsTheFIFOBoundaryUntilDurableSettlementRecovers(t *te
 	}
 	statePath := filepath.Join(stateDirectory, "sessions", states[0].Name())
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block acknowledged start settlement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block acknowledged start settlement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
 	close(gate.release)
@@ -829,14 +829,14 @@ func TestAcceptedStartRetainsTheFIFOBoundaryUntilDurableSettlementRecovers(t *te
 		t.Fatalf("second command crossed the failed settlement boundary: %d starts", got)
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	host.Shows(t, "SECOND_SETTLEMENT_RAN")
 	host.Shows(t, "complete")

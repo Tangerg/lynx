@@ -20,14 +20,14 @@ func TestInteractionReviewRecordsEditsAndCommitsInRuntimeOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := review.Record(agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberSession}); err != nil {
-		t.Fatal(err)
+	if recordErr := review.Record(agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberSession}); recordErr != nil {
+		t.Fatal(recordErr)
 	}
 	if !review.Advance() {
 		t.Fatal("review did not advance to the question")
 	}
-	if err := review.Record(agent.QuestionAnswer{Values: [][]string{{"linux"}}}); err != nil {
-		t.Fatal(err)
+	if recordErr := review.Record(agent.QuestionAnswer{Values: [][]string{{"linux"}}}); recordErr != nil {
+		t.Fatal(recordErr)
 	}
 	if review.Advance() || !review.Reviewing() {
 		t.Fatal("review did not enter final review")
@@ -35,8 +35,8 @@ func TestInteractionReviewRecordsEditsAndCommitsInRuntimeOrder(t *testing.T) {
 	if !review.Back() {
 		t.Fatal("review did not return to the final item")
 	}
-	if err := review.Record(agent.QuestionAnswer{Values: [][]string{{"darwin"}}}); err != nil {
-		t.Fatal(err)
+	if recordErr := review.Record(agent.QuestionAnswer{Values: [][]string{{"darwin"}}}); recordErr != nil {
+		t.Fatal(recordErr)
 	}
 	review.Advance()
 	responses, err := review.Responses()

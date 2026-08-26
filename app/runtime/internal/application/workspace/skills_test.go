@@ -65,11 +65,11 @@ func TestSkillMutationsPublishOnlyCommittedFilesystemFacts(t *testing.T) {
 		notices = append(notices, notice)
 	})
 
-	if err := c.Archive(context.Background(), "lint"); err != nil {
-		t.Fatal(err)
+	if archiveErr2 := c.Archive(context.Background(), "lint"); archiveErr2 != nil {
+		t.Fatal(archiveErr2)
 	}
-	if err := c.Restore(context.Background(), "lint"); err != nil {
-		t.Fatal(err)
+	if restoreErr := c.Restore(context.Background(), "lint"); restoreErr != nil {
+		t.Fatal(restoreErr)
 	}
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "lint", Description: "Lint the current project before final verification.", Instructions: "Run the linter."}
 	ref, err := c.SubmitProposal(context.Background(), "/repo", proposal)

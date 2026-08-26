@@ -38,8 +38,8 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 	if err != nil {
 		return err
 	}
-	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
-		return err
+	if stageChangesErr := s.stageChanges(ctx, gitDir, cwd); stageChangesErr != nil {
+		return stageChangesErr
 	}
 	// Commit only when the staged tree actually differs from HEAD (or there is
 	// no HEAD yet — the baseline). A no-change run skips the commit and just

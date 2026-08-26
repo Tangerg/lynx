@@ -364,16 +364,16 @@ func TestConfiguredSessionOutlivesRequestScope(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := connections.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("Shutdown: %v", err)
+		if shutdownErr := connections.Shutdown(context.WithoutCancel(t.Context())); shutdownErr != nil {
+			t.Errorf("Shutdown: %v", shutdownErr)
 		}
 	})
 
 	requestCtx, cancelRequest := context.WithCancel(t.Context())
-	if err := connections.Configure(requestCtx, ServerConfig{
+	if configureErr := connections.Configure(requestCtx, ServerConfig{
 		Name: "dynamic", Transport: TransportHTTP, Endpoint: httpServer.URL,
-	}); err != nil {
-		t.Fatalf("Configure: %v", err)
+	}); configureErr != nil {
+		t.Fatalf("Configure: %v", configureErr)
 	}
 	cancelRequest()
 
@@ -473,8 +473,8 @@ func TestConfigureRejectsCrossServerPublicToolNameCollision(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("Shutdown: %v", err)
+		if shutdownErr := c.Shutdown(context.WithoutCancel(t.Context())); shutdownErr != nil {
+			t.Errorf("Shutdown: %v", shutdownErr)
 		}
 	})
 	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c"}) {
@@ -525,8 +525,8 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("Shutdown: %v", err)
+		if shutdownErr := c.Shutdown(context.WithoutCancel(t.Context())); shutdownErr != nil {
+			t.Errorf("Shutdown: %v", shutdownErr)
 		}
 	})
 	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c", "a_safe"}) {

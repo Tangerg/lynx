@@ -121,18 +121,18 @@ func (c *Coordinator) cancelLiveChild(
 	}
 	cleanupCtx, cancel := owner.cleanupContext(ctx)
 	defer cancel()
-	if err := c.runningSubtreeCanceler.CancelRunningSubtree(
+	if cancelRunningSubtreeErr := c.runningSubtreeCanceler.CancelRunningSubtree(
 		cleanupCtx,
 		plan.executor,
 		plan.target.memberID,
 		cmd.Reason,
-	); err != nil {
-		owner.abortChildCancellation(attempt, err)
+	); cancelRunningSubtreeErr != nil {
+		owner.abortChildCancellation(attempt, cancelRunningSubtreeErr)
 		return CancelResult{}, fmt.Errorf(
 			"runs: cancel child Run %q executor subtree %q: %w",
 			plan.target.run.ID(),
 			plan.target.memberID,
-			err,
+			cancelRunningSubtreeErr,
 		)
 	}
 	target, root, err := owner.waitChildCancellation(cleanupCtx, attempt)
@@ -212,8 +212,8 @@ func (c *Coordinator) cancelWaitingChild(
 	if err != nil {
 		return CancelResult{}, err
 	}
-	if err := prepared.Validate(); err != nil {
-		return CancelResult{}, err
+	if validateErr := prepared.Validate(); validateErr != nil {
+		return CancelResult{}, validateErr
 	}
 	defer func() {
 		if discardErr := prepared.Change.Discard(); discardErr != nil {
@@ -268,8 +268,8 @@ func (c *Coordinator) resolveClaimedWaitingChildCancellation(
 		// A just-committed park releases admission immediately before its pump
 		// removes the live registry entry. Join that already-terminal boundary and
 		// then resolve the now-authoritative parked facts.
-		if err := entry.owner.wait(ctx); err != nil {
-			return cancellationPlan{}, err
+		if waitErr := entry.owner.wait(ctx); waitErr != nil {
+			return cancellationPlan{}, waitErr
 		}
 		plan, _, live, err = c.cancellationPlanFor(ctx, cmd)
 		if err != nil {
@@ -451,13 +451,13 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 	if err != nil {
 		return c.failCommittedWaitingCancellationRecovery(recoveryCtx, plan, err)
 	}
-	if err := c.segments.release(recoveryCtx, plan.executor); err != nil &&
-		!errors.Is(err, ErrExecutorNotLive) {
+	if releaseErr := c.segments.release(recoveryCtx, plan.executor); releaseErr != nil &&
+		!errors.Is(releaseErr, ErrExecutorNotLive) {
 		return fmt.Errorf(
 			"runs: release obsolete executor %q before restoring committed root Run %q: %w",
 			plan.executor.ExecutorID,
 			plan.root.run.ID(),
-			err,
+			releaseErr,
 		)
 	}
 	restored, err := c.waitingRestorer.RestoreWaitingExecution(recoveryCtx, continuation)

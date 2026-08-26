@@ -49,8 +49,8 @@ func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); err != nil {
-		t.Fatalf("seed plan: %v", err)
+	if saveTestPlanErr := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); saveTestPlanErr != nil {
+		t.Fatalf("seed plan: %v", saveTestPlanErr)
 	}
 
 	first, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID()})
@@ -71,8 +71,8 @@ func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 		t.Fatalf("cold read list = %+v, want the stored list", first.Steps)
 	}
 
-	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); err != nil {
-		t.Fatalf("advance plan: %v", err)
+	if saveTestPlanErr := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); saveTestPlanErr != nil {
+		t.Fatalf("advance plan: %v", saveTestPlanErr)
 	}
 	second, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID()})
 	if err != nil {

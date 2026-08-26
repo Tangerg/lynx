@@ -993,8 +993,8 @@ func (a *app) cancelRootRun(
 		},
 	)
 	if err == nil {
-		if err := result.ValidateTarget(target.RunID); err != nil {
-			return agent.Run{}, fmt.Errorf("cancel run: %w", err)
+		if validateTargetErr := result.ValidateTarget(target.RunID); validateTargetErr != nil {
+			return agent.Run{}, fmt.Errorf("cancel run: %w", validateTargetErr)
 		}
 		return result.Root, nil
 	}

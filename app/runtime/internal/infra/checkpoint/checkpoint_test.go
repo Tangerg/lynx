@@ -510,8 +510,8 @@ func TestStore_ResetFailureReportsPossiblyIncompleteRestore(t *testing.T) {
 	binDir := t.TempDir()
 	fakeGit := filepath.Join(binDir, "git")
 	script := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = reset ]; then echo forced-reset-failure >&2; exit 1; fi\nexec %q \"$@\"\n", realGit)
-	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake git: %v", err)
+	if writeFileErr := os.WriteFile(fakeGit, []byte(script), 0o755); writeFileErr != nil {
+		t.Fatalf("write fake git: %v", writeFileErr)
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 

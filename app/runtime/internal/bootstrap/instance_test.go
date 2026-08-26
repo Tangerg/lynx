@@ -95,12 +95,12 @@ func TestOpenInstanceOwnsOneEndpointAndCanonicalDirectory(t *testing.T) {
 	if secondDiscovery.ServerInfo.InstanceID == discovery.ServerInfo.InstanceID {
 		t.Fatalf("second Runtime instance identity = %q, want a fresh identity", secondDiscovery.ServerInfo.InstanceID)
 	}
-	if err := second.Close(); err != nil {
-		t.Fatalf("close second instance: %v", err)
+	if closeErr := second.Close(); closeErr != nil {
+		t.Fatalf("close second instance: %v", closeErr)
 	}
 
-	if err := instance.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	if closeErr := instance.Close(); closeErr != nil {
+		t.Fatalf("Close: %v", closeErr)
 	}
 	reopened, _, err := OpenInstance(t.Context(), cfg)
 	if err != nil {

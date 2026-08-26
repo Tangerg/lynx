@@ -22,8 +22,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 	if !found {
 		return StartResult{}, ErrInterruptNotOpen
 	}
-	if err := pending.Validate(); err != nil {
-		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", err)
+	if validateErr := pending.Validate(); validateErr != nil {
+		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", validateErr)
 	}
 	if gap := pending.Capabilities.MissingFrom(cmd.CallerCapabilities); !gap.IsEmpty() {
 		return StartResult{}, &run.InsufficientCapabilitiesError{RunID: cmd.RunID, Missing: gap}
@@ -45,8 +45,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := validatePendingRunTree(pending, parkedRuns); err != nil {
-		return StartResult{}, err
+	if validatePendingRunTreeErr := validatePendingRunTree(pending, parkedRuns); validatePendingRunTreeErr != nil {
+		return StartResult{}, validatePendingRunTreeErr
 	}
 
 	claim := ResumeClaimCommit{
@@ -63,8 +63,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 			result = StartResult{}
 		}
 	}()
-	if err := validateClaimedResume(claimed, pending, answers, sess); err != nil {
-		return StartResult{}, err
+	if validateClaimedResumeErr := validateClaimedResume(claimed, pending, answers, sess); validateClaimedResumeErr != nil {
+		return StartResult{}, validateClaimedResumeErr
 	}
 	rootContinuation, ok := pending.RootContinuation()
 	if !ok {
@@ -81,8 +81,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 		return StartResult{}, err
 	}
 	attempt.ownStagedExecution(&c.segments, ref)
-	if err := attempt.staged.validateFor(pending.SessionID); err != nil {
-		return StartResult{}, err
+	if validateForErr := attempt.staged.validateFor(pending.SessionID); validateForErr != nil {
+		return StartResult{}, validateForErr
 	}
 	segmentID := c.newSegmentID()
 	createdAt := rootContinuation.RunCreatedAt
@@ -95,8 +95,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 	if err != nil {
 		return StartResult{}, fmt.Errorf("runs: prepare Tool approval continuation: %w", err)
 	}
-	if err := continuation.bindToolApprovalResolutions(approvalResolutions); err != nil {
-		return StartResult{}, fmt.Errorf("runs: bind Tool approval continuation: %w", err)
+	if bindToolApprovalResolutionsErr := continuation.bindToolApprovalResolutions(approvalResolutions); bindToolApprovalResolutionsErr != nil {
+		return StartResult{}, fmt.Errorf("runs: bind Tool approval continuation: %w", bindToolApprovalResolutionsErr)
 	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:             cmd.RunID,

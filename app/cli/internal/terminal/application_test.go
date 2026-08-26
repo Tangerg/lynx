@@ -148,8 +148,8 @@ func blockSessionStateWrites(t *testing.T, stateDirectory, sessionID string) fun
 	hadState := false
 	if _, err := os.Stat(statePath); err == nil {
 		hadState = true
-		if err := os.Rename(statePath, backupPath); err != nil {
-			t.Fatal(err)
+		if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+			t.Fatal(renameErr)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		t.Fatal(err)
@@ -832,15 +832,15 @@ func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T
 	}
 	statePath := filepath.Join(stateDirectory, "sessions", stateFiles[0].Name())
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block pending resume retirement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block pending resume retirement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
 	close(runtime.release)
@@ -852,14 +852,14 @@ func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T
 		t.Fatalf("failed retirement submitted %d resume commands, want one", calls)
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
 	if err != nil {
@@ -1181,10 +1181,10 @@ func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+	if stagePendingResumeErr := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
 		Command: command, Interactions: snapshot.Interactions,
-	}); err != nil {
-		t.Fatal(err)
+	}); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	runtime := &replayingResumeRuntime{Runtime: base}
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
@@ -1288,13 +1288,13 @@ func TestLaunchRetiresAnExpiredResumeAlreadyProvenByTheRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
-	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+	if stagePendingResumeErr := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
 		Command: command, Interactions: waiting.Interactions,
 		Replay: workbench.ReplayGuard{
 			Namespace: profile.Limits.IdempotencyNamespace, Until: time.Now().UTC().Add(-time.Second),
 		},
-	}); err != nil {
-		t.Fatal(err)
+	}); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	runtime := &replayingResumeRuntime{Runtime: base}
 	host, stop := runUIFromConfig(t, Config{
@@ -1359,13 +1359,13 @@ func TestLaunchReidentifiesAnExpiredResumeProvenUncommitted(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile := steerReplayTestProfile("/tmp/lyra-cli-test")
-	if err := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
+	if stagePendingResumeErr := store.StagePendingResume("ses_demo_1", workbench.PendingResume{
 		Command: oldCommand, Interactions: waiting.Interactions,
 		Replay: workbench.ReplayGuard{
 			Namespace: profile.Limits.IdempotencyNamespace, Until: time.Now().UTC().Add(-time.Second),
 		},
-	}); err != nil {
-		t.Fatal(err)
+	}); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	runtime := &replayingResumeRuntime{Runtime: base}
 	host, stop := runUIFromConfig(t, Config{
@@ -1453,8 +1453,8 @@ func TestSwitchingSessionsRecoversTheDestinationPendingRunOutbox(t *testing.T) {
 		SessionID: "ses_demo_2",
 		Message:   agent.Message{Text: "recover destination queued prompt"},
 	}
-	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
-		t.Fatal(err)
+	if stagePendingRunErr := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); stagePendingRunErr != nil {
+		t.Fatal(stagePendingRunErr)
 	}
 
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
@@ -1526,10 +1526,10 @@ func TestSwitchingSessionsRecoversTheDestinationPendingResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StagePendingResume("ses_demo_2", workbench.PendingResume{
+	if stagePendingResumeErr := store.StagePendingResume("ses_demo_2", workbench.PendingResume{
 		Command: command, Interactions: snapshot.Interactions,
-	}); err != nil {
-		t.Fatal(err)
+	}); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	runtime := &replayingResumeRuntime{Runtime: base}
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
@@ -2835,8 +2835,8 @@ func TestSessionChangeDoesNotInstallAfterAnInFlightDraftSaveFailure(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "saved before transition"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_demo_1", agent.Message{Text: "saved before transition"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	host, stop := runUIWithState(t, backend, "", "ses_demo_1", stateDirectory)
 	host.Shows(t, "saved before transition")
@@ -2859,22 +2859,22 @@ func TestSessionChangeDoesNotInstallAfterAnInFlightDraftSaveFailure(t *testing.T
 	}
 	draftPath := filepath.Join(draftsDirectory, entries[0].Name())
 	backupPath := draftPath + ".backup"
-	if err := os.Rename(draftPath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(draftPath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(draftPath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(draftPath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
-	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block replacement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block replacement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 	host.Send(input.Paste{Text: " plus input during transition"})
 	host.Shows(t, "saved before transition plus input during transition")
 	host.Shows(t, "workbench:")
 	close(backend.releaseChange)
 	host.Until(t, "failed session transition to settle", func() bool {
-		page, err := base.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
-		return err == nil && len(page.Items) == 4 && host.Repaint()
+		page, listSessionsErr := base.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
+		return listSessionsErr == nil && len(page.Items) == 4 && host.Repaint()
 	})
 	host.Shows(t, "saved before transition plus input during transition")
 	host.Shows(t, "Flaky cache expiry test")
@@ -3345,19 +3345,19 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "durable prefix"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_demo_1", agent.Message{Text: "durable prefix"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "durable prefix")
 
 	draftsDirectory := filepath.Join(stateDirectory, "sessions")
 	backupDirectory := filepath.Join(stateDirectory, "sessions-backup")
-	if err := os.Rename(draftsDirectory, backupDirectory); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(draftsDirectory, backupDirectory); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.WriteFile(draftsDirectory, []byte("block draft writes"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(draftsDirectory, []byte("block draft writes"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 	host.Send(input.Paste{Text: " plus unsaved input"})
 	host.Shows(t, "workbench:")
@@ -3405,8 +3405,8 @@ func TestPromptSubmissionStopsBeforeRuntimeWhenTheOutboxCannotBeSaved(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "must remain editable"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_demo_1", agent.Message{Text: "must remain editable"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "must remain editable")
@@ -3456,8 +3456,8 @@ func TestPromptSubmissionCommitsHistoryOnlyAfterRuntimeAcknowledgement(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "history must commit first"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_demo_1", agent.Message{Text: "history must commit first"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
 	host.Shows(t, "history must commit first")

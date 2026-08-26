@@ -60,8 +60,8 @@ func (a *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 		return fmt.Errorf("sqlite: plan agent memory fold: %w", err)
 	}
 	for _, id := range plan.PruneIDs {
-		if _, err := conn(ctx, a.db).ExecContext(ctx, `DELETE FROM agent_memory_items WHERE id = ?`, id); err != nil {
-			return fmt.Errorf("sqlite: prune agent memory item: %w", err)
+		if _, execContextErr := conn(ctx, a.db).ExecContext(ctx, `DELETE FROM agent_memory_items WHERE id = ?`, id); execContextErr != nil {
+			return fmt.Errorf("sqlite: prune agent memory item: %w", execContextErr)
 		}
 	}
 	visible, err := a.countVisibleItems(ctx, agentmemory.ScopeProject, project)
@@ -109,8 +109,8 @@ func (a *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]age
 			item       agentmemory.Item
 			statusText string
 		)
-		if err := rows.Scan(&item.ID, &item.Content, &statusText); err != nil {
-			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", err)
+		if scanErr := rows.Scan(&item.ID, &item.Content, &statusText); scanErr != nil {
+			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", scanErr)
 		}
 		item.Status, err = agentmemory.ParseStatus(statusText)
 		if err != nil {
@@ -261,9 +261,9 @@ func (a *AgentMemoryStore) SearchCorpus(ctx context.Context, project string) ([]
 			space                             string
 			blob                              []byte
 		)
-		if err := rows.Scan(&item.ID, &scopeText, &item.Project, &item.Content, &originText, &statusText,
-			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt, &space, &blob); err != nil {
-			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", err)
+		if scanErr := rows.Scan(&item.ID, &scopeText, &item.Project, &item.Content, &originText, &statusText,
+			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt, &space, &blob); scanErr != nil {
+			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", scanErr)
 		}
 		item, err = decodeItem(item, scopeText, originText, statusText, pinned, createdAt, updatedAt)
 		if err != nil {
@@ -404,18 +404,18 @@ func (a *AgentMemoryStore) Review(ctx context.Context, id string, decision agent
 		}
 		if matched == 1 {
 			if status == agentmemory.StatusRejected {
-				if err := a.pruneRejectedItems(ctx, id); err != nil {
-					return err
+				if pruneRejectedItemsErr := a.pruneRejectedItems(ctx, id); pruneRejectedItemsErr != nil {
+					return pruneRejectedItemsErr
 				}
 			}
 			return nil
 		}
 		var stored string
-		if err := conn(ctx, a.db).QueryRowContext(ctx,
-			`SELECT status FROM agent_memory_items WHERE id = ?`, id).Scan(&stored); errors.Is(err, sql.ErrNoRows) {
+		if scanErr := conn(ctx, a.db).QueryRowContext(ctx,
+			`SELECT status FROM agent_memory_items WHERE id = ?`, id).Scan(&stored); errors.Is(scanErr, sql.ErrNoRows) {
 			return agentmemory.ErrNotFound
-		} else if err != nil {
-			return fmt.Errorf("sqlite: inspect agent memory review target: %w", err)
+		} else if scanErr != nil {
+			return fmt.Errorf("sqlite: inspect agent memory review target: %w", scanErr)
 		}
 		current, err := agentmemory.ParseStatus(stored)
 		if err != nil {
@@ -501,9 +501,9 @@ func (a *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 	var stored agentmemory.Item
 	changed := false
 	err = RunInTx(ctx, a.db, func(ctx context.Context) error {
-		existing, found, err := a.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
-		if err != nil {
-			return err
+		existing, found, itemByDigestErr := a.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
+		if itemByDigestErr != nil {
+			return itemByDigestErr
 		}
 		if found {
 			if existing.Status == agentmemory.StatusActive {
@@ -511,9 +511,9 @@ func (a *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 				return nil
 			}
 			if existing.Status == agentmemory.StatusRejected {
-				visible, err := a.countVisibleItems(ctx, scope, project)
-				if err != nil {
-					return err
+				visible, countVisibleItemsErr := a.countVisibleItems(ctx, scope, project)
+				if countVisibleItemsErr != nil {
+					return countVisibleItemsErr
 				}
 				if visible >= agentmemory.MaxVisiblePerTarget {
 					return agentmemory.ErrTargetFull
@@ -528,17 +528,17 @@ func (a *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 			existing.UpdatedAt = item.UpdatedAt
 			existing.EmbeddingSpace = ""
 			existing.Embedding = nil
-			if err := existing.Validate(); err != nil {
-				return err
+			if validateErr := existing.Validate(); validateErr != nil {
+				return validateErr
 			}
-			result, err := conn(ctx, a.db).ExecContext(ctx, `
+			result, execContextErr := conn(ctx, a.db).ExecContext(ctx, `
 				UPDATE agent_memory_items
 				SET content = ?, digest = ?, origin = 'user', status = 'active', pinned = 0,
 					session_id = '', day = ?, embedding_space = '', embedding = x'', updated_at = ?
 				WHERE id = ?`, existing.Content, agentmemory.Digest(existing.Content), existing.Day,
 				existing.UpdatedAt.UTC().UnixNano(), existing.ID)
-			if err != nil {
-				return fmt.Errorf("sqlite: revive rejected agent memory item: %w", err)
+			if execContextErr != nil {
+				return fmt.Errorf("sqlite: revive rejected agent memory item: %w", execContextErr)
 			}
 			if err := affectedOne(result, "revive"); err != nil {
 				return err
@@ -547,16 +547,16 @@ func (a *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, pro
 			changed = true
 			return nil
 		}
-		visible, err := a.countVisibleItems(ctx, scope, project)
-		if err != nil {
-			return err
+		visible, itemByDigestErr := a.countVisibleItems(ctx, scope, project)
+		if itemByDigestErr != nil {
+			return itemByDigestErr
 		}
 		if visible >= agentmemory.MaxVisiblePerTarget {
 			return agentmemory.ErrTargetFull
 		}
-		inserted, err := a.insertItem(ctx, item)
-		if err != nil {
-			return err
+		inserted, itemByDigestErr := a.insertItem(ctx, item)
+		if itemByDigestErr != nil {
+			return itemByDigestErr
 		}
 		if !inserted {
 			return errors.New("sqlite: agent memory insert lost digest identity inside transaction")

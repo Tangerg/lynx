@@ -55,13 +55,13 @@ func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*Memory
 	memory := sqlite.NewAgentMemoryStore(db)
 	memoryCuration := agentmemoryapp.NewCuration(agentmemoryapp.CurationConfig{Store: memory})
 	messages := conversationfixture.New()
-	if err := messages.Write(t.Context(), "ses_1",
+	if writeErr := messages.Write(t.Context(), "ses_1",
 		chat.NewUserMessage(chat.NewTextPart("first")),
 		chat.NewAssistantMessage(chat.NewTextPart("reply")),
 		chat.NewUserMessage(chat.NewTextPart("second")),
 		chat.NewAssistantMessage(chat.NewTextPart("reply")),
-	); err != nil {
-		t.Fatal(err)
+	); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	model := &scriptedModel{replies: replies}
 	client, err := chatclient.New(model, chatclient.Config{})
@@ -147,8 +147,8 @@ func TestMemoryConsolidatorLeavesWatermarkOnCurationFailureThenRecovers(t *testi
 	if err != nil || state.Watermark != 0 {
 		t.Fatalf("failed curation advanced watermark: (%+v, %v)", state, err)
 	}
-	if items, err := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo"); err != nil || len(items) != 0 {
-		t.Fatalf("failed curation published items: (%+v, %v)", items, err)
+	if items, itemsErr := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo"); itemsErr != nil || len(items) != 0 {
+		t.Fatalf("failed curation published items: (%+v, %v)", items, itemsErr)
 	}
 	pending, err := memory.PendingLedger(t.Context(), "/repo", 0, 10)
 	if err != nil || len(pending) != 1 {

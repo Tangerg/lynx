@@ -228,12 +228,12 @@ func (e *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 				err,
 			)
 		}
-		if err := checkpoint.Usage.ValidateAdvanceFrom(storedUsage); err != nil {
+		if validateAdvanceFromErr := checkpoint.Usage.ValidateAdvanceFrom(storedUsage); validateAdvanceFromErr != nil {
 			return fmt.Errorf(
 				"sqlite: executor checkpoint %q cumulative usage cannot advance: %w: %w",
 				checkpoint.RootMemberID,
 				ErrInvalidExecutorCheckpointRecord,
-				err,
+				validateAdvanceFromErr,
 			)
 		}
 		result, err := conn(ctx, e.db).ExecContext(ctx,

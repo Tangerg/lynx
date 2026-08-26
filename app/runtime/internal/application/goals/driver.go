@@ -199,13 +199,13 @@ func (d *Driver) Start(
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); err != nil {
-			return goal.Goal{}, err
+		if ensureDriveLockedErr := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); ensureDriveLockedErr != nil {
+			return goal.Goal{}, ensureDriveLockedErr
 		}
 		return goal.Goal{}, ErrGoalActive
 	}
-	if err := d.quiesceDrive(ctx, sessionID); err != nil {
-		return goal.Goal{}, err
+	if quiesceDriveErr := d.quiesceDrive(ctx, sessionID); quiesceDriveErr != nil {
+		return goal.Goal{}, quiesceDriveErr
 	}
 	// A terminating drive may have committed its final accounting after the
 	// first read. Re-read after the ownership boundary so the replacement CAS
@@ -215,8 +215,8 @@ func (d *Driver) Start(
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); err != nil {
-			return goal.Goal{}, err
+		if ensureDriveLockedErr := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); ensureDriveLockedErr != nil {
+			return goal.Goal{}, ensureDriveLockedErr
 		}
 		return goal.Goal{}, ErrGoalActive
 	}
@@ -271,13 +271,13 @@ func (d *Driver) Resume(ctx context.Context, sessionID string, caller run.Capabi
 		return goal.Goal{}, &InsufficientCapabilitiesError{SessionID: sessionID, Missing: missing}
 	}
 	if g.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {
-			return goal.Goal{}, err
+		if ensureDriveLockedErr := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); ensureDriveLockedErr != nil {
+			return goal.Goal{}, ensureDriveLockedErr
 		}
 		return g, nil
 	}
-	if err := d.quiesceDrive(ctx, sessionID); err != nil {
-		return goal.Goal{}, err
+	if quiesceDriveErr := d.quiesceDrive(ctx, sessionID); quiesceDriveErr != nil {
+		return goal.Goal{}, quiesceDriveErr
 	}
 	g, ok, err = d.goals.Get(ctx, sessionID)
 	if err != nil {
@@ -290,14 +290,14 @@ func (d *Driver) Resume(ctx context.Context, sessionID string, caller run.Capabi
 		return goal.Goal{}, &InsufficientCapabilitiesError{SessionID: sessionID, Missing: missing}
 	}
 	if g.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {
-			return goal.Goal{}, err
+		if ensureDriveLockedErr := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); ensureDriveLockedErr != nil {
+			return goal.Goal{}, ensureDriveLockedErr
 		}
 		return g, nil
 	}
 	expected := g.Version()
-	if err := g.Resume(d.now()); err != nil {
-		return goal.Goal{}, err
+	if resumeErr := g.Resume(d.now()); resumeErr != nil {
+		return goal.Goal{}, resumeErr
 	}
 	driveLease, ok := d.tryDriveLease(sessionID)
 	if !ok {
@@ -444,12 +444,12 @@ func (d *Driver) UpdateObjective(
 		return goal.Goal{}, errors.Join(goal.ErrNotEditable, quiesceErr)
 	}
 	expected := current.Version()
-	if err := current.ReviseObjective(objective, d.newIncarnation(), d.now()); err != nil {
-		return goal.Goal{}, errors.Join(err, quiesceErr)
+	if reviseObjectiveErr := current.ReviseObjective(objective, d.newIncarnation(), d.now()); reviseObjectiveErr != nil {
+		return goal.Goal{}, errors.Join(reviseObjectiveErr, quiesceErr)
 	}
 	if wasActive && current.Status == goal.StatusPaused {
-		if err := current.Resume(d.now()); err != nil {
-			return goal.Goal{}, errors.Join(err, quiesceErr)
+		if resumeErr := current.Resume(d.now()); resumeErr != nil {
+			return goal.Goal{}, errors.Join(resumeErr, quiesceErr)
 		}
 	}
 

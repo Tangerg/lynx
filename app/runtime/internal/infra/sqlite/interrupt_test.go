@@ -116,11 +116,11 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 
 	// Nothing recorded → ok=false.
-	if _, ok, err := store.Consume(ctx, "ses_a", "run_x"); err != nil || ok {
-		t.Fatalf("Consume(empty) = ok=%v err=%v, want ok=false", ok, err)
+	if _, ok, consumeErr := store.Consume(ctx, "ses_a", "run_x"); consumeErr != nil || ok {
+		t.Fatalf("Consume(empty) = ok=%v err=%v, want ok=false", ok, consumeErr)
 	}
 
-	if err := store.Open(ctx, runs.Pending{
+	if openErr := store.Open(ctx, runs.Pending{
 		RootRunID:  "run_1",
 		SessionID:  "ses_a",
 		ExecutorID: "turn_1",
@@ -144,8 +144,8 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 			RunID: "run_1", MemberID: "member_1", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
-	}); err != nil {
-		t.Fatalf("Open: %v", err)
+	}); openErr != nil {
+		t.Fatalf("Open: %v", openErr)
 	}
 
 	// First consume returns the full record.

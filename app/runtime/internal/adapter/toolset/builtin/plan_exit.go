@@ -85,8 +85,8 @@ func (e *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 			}},
 		},
 	}
-	if err := pending.Validate(); err != nil {
-		return "", fmt.Errorf("exit_plan_mode: %w", err)
+	if validateErr := pending.Validate(); validateErr != nil {
+		return "", fmt.Errorf("exit_plan_mode: %w", validateErr)
 	}
 	resolution, err := e.interrupt(
 		ctx,

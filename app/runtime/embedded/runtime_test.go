@@ -65,14 +65,14 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 	if err != nil || discovery.ProtocolVersion != protocol.ProtocolVersion {
 		t.Fatalf("Discover = (%+v, %v)", discovery, err)
 	}
-	if _, err := runtime.Discover(t.Context(), CallOptions{RequestMeta: protocol.RequestMeta{
+	if _, discoverErr := runtime.Discover(t.Context(), CallOptions{RequestMeta: protocol.RequestMeta{
 		ProtocolVersion: "1900-01-01",
-	}}); !errors.Is(err, protocol.ErrInvalidProtocolVersion) {
-		t.Fatalf("unsupported protocol error = %v", err)
+	}}); !errors.Is(discoverErr, protocol.ErrInvalidProtocolVersion) {
+		t.Fatalf("unsupported protocol error = %v", discoverErr)
 	} else {
 		var problem protocol.ProblemError
-		if !errors.As(err, &problem) || problem.Problem().Type != protocol.ErrInvalidProtocolVersion.Error() {
-			t.Fatalf("structured unsupported protocol error = %T %v", err, err)
+		if !errors.As(discoverErr, &problem) || problem.Problem().Type != protocol.ErrInvalidProtocolVersion.Error() {
+			t.Fatalf("structured unsupported protocol error = %T %v", discoverErr, discoverErr)
 		}
 	}
 
@@ -89,8 +89,8 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 		t.Fatalf("replayed CreateSession = (%+v, %v), want %s", replayed, err, first.ID)
 	}
 	create.Title = "different"
-	if _, err := runtime.CreateSession(t.Context(), create, CommandOptions{IdempotencyKey: "create-once"}); !errors.Is(err, protocol.ErrIdempotencyConflict) {
-		t.Fatalf("idempotency conflict error = %v", err)
+	if _, createSessionErr := runtime.CreateSession(t.Context(), create, CommandOptions{IdempotencyKey: "create-once"}); !errors.Is(createSessionErr, protocol.ErrIdempotencyConflict) {
+		t.Fatalf("idempotency conflict error = %v", createSessionErr)
 	}
 
 	second, err := Open(t.Context(), config)
@@ -116,11 +116,11 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 			return
 		}
 	}()
-	if _, err := runtime.CreateSession(t.Context(), protocol.CreateSessionRequest{
+	if _, createSessionErr := runtime.CreateSession(t.Context(), protocol.CreateSessionRequest{
 		Workspace: &protocol.WorkspaceRef{Path: config.DefaultWorkspacePath},
 		Title:     "notifies",
-	}, CommandOptions{IdempotencyKey: "create-notification"}); err != nil {
-		t.Fatalf("CreateSession for notification: %v", err)
+	}, CommandOptions{IdempotencyKey: "create-notification"}); createSessionErr != nil {
+		t.Fatalf("CreateSession for notification: %v", createSessionErr)
 	}
 	select {
 	case event := <-eventReceived:
@@ -131,16 +131,16 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("peer Runtime commit produced no scoped resync")
 	}
-	if err := second.Close(); err != nil {
-		t.Fatalf("close second Runtime: %v", err)
+	if closeErr := second.Close(); closeErr != nil {
+		t.Fatalf("close second Runtime: %v", closeErr)
 	}
 	<-streamDone
 
-	if err := runtime.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	if closeErr := runtime.Close(); closeErr != nil {
+		t.Fatalf("Close: %v", closeErr)
 	}
-	if _, err := runtime.Discover(t.Context(), CallOptions{}); !errors.Is(err, ErrClosed) {
-		t.Fatalf("Discover after Close error = %v, want ErrClosed", err)
+	if _, discoverErr := runtime.Discover(t.Context(), CallOptions{}); !errors.Is(discoverErr, ErrClosed) {
+		t.Fatalf("Discover after Close error = %v, want ErrClosed", discoverErr)
 	}
 
 	reopened, err := Open(t.Context(), config)

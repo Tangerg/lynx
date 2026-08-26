@@ -255,11 +255,11 @@ func TestModelConfigurationAdapterPreservesRoleAndSecretMutationSemantics(t *tes
 	if err != nil || roles.Utility.Label() != "deepseek/chat" || roles.Embedding.Configured() {
 		t.Fatalf("Roles = (%+v, %v)", roles, err)
 	}
-	if _, err := runtime.SetRole(t.Context(), modelconfig.Role{Kind: modelconfig.UtilityRole, Provider: "openai", Model: "utility"}); err != nil {
-		t.Fatal(err)
+	if _, setRoleErr := runtime.SetRole(t.Context(), modelconfig.Role{Kind: modelconfig.UtilityRole, Provider: "openai", Model: "utility"}); setRoleErr != nil {
+		t.Fatal(setRoleErr)
 	}
-	if _, err := runtime.SetRole(t.Context(), modelconfig.Role{Kind: modelconfig.EmbeddingRole}); err != nil {
-		t.Fatal(err)
+	if _, setRoleErr := runtime.SetRole(t.Context(), modelconfig.Role{Kind: modelconfig.EmbeddingRole}); setRoleErr != nil {
+		t.Fatal(setRoleErr)
 	}
 	providers, err := runtime.Providers(t.Context())
 	if err != nil || len(providers) != 1 || !providers[0].Configured() {
@@ -267,8 +267,8 @@ func TestModelConfigurationAdapterPreservesRoleAndSecretMutationSemantics(t *tes
 	}
 	secret := modelconfig.ValueChange{Kind: modelconfig.SetValue, Value: "secret"}
 	clear := modelconfig.ValueChange{Kind: modelconfig.ClearValue}
-	if _, err := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{Provider: "deepseek", BaseURL: &clear, APIKey: &secret}); err != nil {
-		t.Fatal(err)
+	if _, updateProviderErr := runtime.UpdateProvider(t.Context(), modelconfig.UpdateProvider{Provider: "deepseek", BaseURL: &clear, APIKey: &secret}); updateProviderErr != nil {
+		t.Fatal(updateProviderErr)
 	}
 	tested, err := runtime.TestProvider(t.Context(), "deepseek")
 	if err != nil || tested.OK || tested.Problem == nil || tested.Problem.String() != "provider_unavailable: deepseek · retry after 3s · docs https://docs.example/providers" {

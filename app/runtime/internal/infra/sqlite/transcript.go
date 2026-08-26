@@ -237,9 +237,9 @@ func materializeTranscriptItem(
 		OccurredAt: time.Unix(0, occurredAt).UTC(),
 	}
 	if rawOffloadID == "" {
-		item, err := transcript.RestoreItem(snapshot)
-		if err != nil {
-			return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, err)
+		item, restoreItemErr := transcript.RestoreItem(snapshot)
+		if restoreItemErr != nil {
+			return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, restoreItemErr)
 		}
 		return item, nil
 	}

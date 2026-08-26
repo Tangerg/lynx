@@ -698,8 +698,8 @@ func TestLaunchCancelsAnAcceptedRunWithAnInvalidRecoveredReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	stageDispatchingRun(t, store, command)
-	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, workbench.ReplayGuard{}); err != nil {
-		t.Fatal(err)
+	if _, markPendingRunCancelingErr := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, workbench.ReplayGuard{}); markPendingRunCancelingErr != nil {
+		t.Fatal(markPendingRunCancelingErr)
 	}
 	runtime := &invalidAcceptedStartRuntime{Runtime: base}
 

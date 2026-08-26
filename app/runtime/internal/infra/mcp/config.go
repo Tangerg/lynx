@@ -196,11 +196,11 @@ func dial(
 		if command == nil {
 			return nil
 		}
-		err := stopStdioProcess(command)
-		if errors.Is(err, os.ErrProcessDone) {
+		stopStdioProcessErr := stopStdioProcess(command)
+		if errors.Is(stopStdioProcessErr, os.ErrProcessDone) {
 			return nil
 		}
-		return err
+		return stopStdioProcessErr
 	})
 	if err != nil {
 		return nil, nil, errors.Join(err, cleanup())

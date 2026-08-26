@@ -53,8 +53,8 @@ func TestRuntimeSearchDoesNotDependOnHostSearchBinaries(t *testing.T) {
 		t.Fatalf("glob without host find: %v", err)
 	}
 	var glob runtimeGlobResponse
-	if err := json.Unmarshal([]byte(globBody), &glob); err != nil {
-		t.Fatalf("decode glob response: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(globBody), &glob); unmarshalErr != nil {
+		t.Fatalf("decode glob response: %v", unmarshalErr)
 	}
 	if len(glob.Paths) != 1 || glob.Paths[0] != "main.go" || glob.Total != 1 || glob.Truncated {
 		t.Fatalf("glob response = %+v, want one ignore-aware result", glob)

@@ -43,35 +43,35 @@ func TestUpdateSession(t *testing.T) {
 		t.Errorf("selection = %s/%s, want %s/%s", out.Provider, out.Model, provider, model)
 	}
 
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
 		SessionID: created.ID(), Provider: &provider,
-	}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Errorf("provider-only selection err = %v, want ErrInvalidParams", err)
+	}); !errors.Is(updateSessionErr, protocol.ErrInvalidParams) {
+		t.Errorf("provider-only selection err = %v, want ErrInvalidParams", updateSessionErr)
 	}
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
 		SessionID: created.ID(), Model: &model,
-	}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Errorf("model-only selection err = %v, want ErrInvalidParams", err)
+	}); !errors.Is(updateSessionErr, protocol.ErrInvalidParams) {
+		t.Errorf("model-only selection err = %v, want ErrInvalidParams", updateSessionErr)
 	}
 
 	// whitespace-only title → invalid_params (a session title must be non-empty)
 	blank := "   "
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Title: &blank}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Errorf("blank title err = %v, want ErrInvalidParams", err)
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Title: &blank}); !errors.Is(updateSessionErr, protocol.ErrInvalidParams) {
+		t.Errorf("blank title err = %v, want ErrInvalidParams", updateSessionErr)
 	}
 
 	// unknown id → session_not_found
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: "nope", Title: &title}); !errors.Is(err, protocol.ErrSessionNotFound) {
-		t.Errorf("unknown id err = %v, want ErrSessionNotFound", err)
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: "nope", Title: &title}); !errors.Is(updateSessionErr, protocol.ErrSessionNotFound) {
+		t.Errorf("unknown id err = %v, want ErrSessionNotFound", updateSessionErr)
 	}
 
 	// relocate to a non-existent dir → workspace_unavailable (a stale path would
 	// silently break later runs)
 	ghost := "/no/such/dir"
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
 		SessionID: created.ID(), Workspace: &protocol.WorkspaceRef{Path: ghost},
-	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
-		t.Errorf("relocate to ghost err = %v, want ErrWorkspaceUnavailable", err)
+	}); !errors.Is(updateSessionErr, protocol.ErrWorkspaceUnavailable) {
+		t.Errorf("relocate to ghost err = %v, want ErrWorkspaceUnavailable", updateSessionErr)
 	}
 
 	// relocate to a real dir → cwd surfaces on the wire
@@ -90,15 +90,15 @@ func TestUpdateSession(t *testing.T) {
 		t.Fatal("claim active session")
 	}
 	busyCWD := t.TempDir()
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
 		SessionID: created.ID(), Workspace: &protocol.WorkspaceRef{Path: busyCWD},
-	}); !errors.Is(err, protocol.ErrSessionBusy) {
-		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
+	}); !errors.Is(updateSessionErr, protocol.ErrSessionBusy) {
+		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", updateSessionErr)
 	}
 	releaseSession()
 
-	if err := os.RemoveAll(newCWD); err != nil {
-		t.Fatalf("remove cwd: %v", err)
+	if removeAllErr := os.RemoveAll(newCWD); removeAllErr != nil {
+		t.Fatalf("remove cwd: %v", removeAllErr)
 	}
 	out, err = s.GetSession(ctx, created.ID())
 	if err != nil {

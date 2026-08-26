@@ -25,9 +25,9 @@ func (a *app) stashPrompt() error {
 	// Flush the exact visible value first, serializing this transfer after every
 	// autosave. The store can then move that durable draft into the stash
 	// collection without racing an older writer that would resurrect it.
-	if err := a.saveDraft(message); err != nil {
-		a.reportWorkbenchIssue(workbenchDraft, err)
-		return fmt.Errorf("save session draft before stashing: %w", err)
+	if saveDraftErr := a.saveDraft(message); saveDraftErr != nil {
+		a.reportWorkbenchIssue(workbenchDraft, saveDraftErr)
+		return fmt.Errorf("save session draft before stashing: %w", saveDraftErr)
 	}
 	stash, err := a.workbench.StashDraft(a.session.ID, message)
 	a.reportWorkbenchIssue(workbenchDraft, err)

@@ -25,8 +25,8 @@ func readAuthoredPromptFile(ctx context.Context, path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%w: %q is not a regular file", workspaceapp.ErrInvalidPromptSource, path)
 	}
-	if err := workspaceapp.ValidateAuthoredPromptDocumentSize(info.Size()); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+	if validateAuthoredPromptDocumentSizeErr := workspaceapp.ValidateAuthoredPromptDocumentSize(info.Size()); validateAuthoredPromptDocumentSizeErr != nil {
+		return nil, fmt.Errorf("%s: %w", path, validateAuthoredPromptDocumentSizeErr)
 	}
 	document, err := io.ReadAll(io.LimitReader(
 		promptContextReader{ctx: ctx, reader: file},

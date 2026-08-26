@@ -58,17 +58,17 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 	}
 	queue := promptqueue.New()
 	for _, sessionID := range []string{"retired", "active"} {
-		if err := store.SaveDraft(sessionID, agent.Message{Text: sessionID + " draft"}); err != nil {
-			t.Fatal(err)
+		if saveDraftErr := store.SaveDraft(sessionID, agent.Message{Text: sessionID + " draft"}); saveDraftErr != nil {
+			t.Fatal(saveDraftErr)
 		}
-		if _, err := queue.Enqueue(sessionID, agent.Message{Text: sessionID + " queued"}); err != nil {
-			t.Fatal(err)
+		if _, enqueueErr := queue.Enqueue(sessionID, agent.Message{Text: sessionID + " queued"}); enqueueErr != nil {
+			t.Fatal(enqueueErr)
 		}
 		approval := agent.Approval{
 			RunID: sessionID + "_run", ItemID: sessionID + "_approval", Title: "Approve",
 			Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
 		}
-		if err := store.StagePendingResume(sessionID, workbench.PendingResume{
+		if stagePendingResumeErr := store.StagePendingResume(sessionID, workbench.PendingResume{
 			Command: agent.ResumeRun{
 				CommandID: agent.CommandID("cli_" + map[string]string{
 					"retired": "11111111111111111111111111111111",
@@ -80,8 +80,8 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 				}},
 			},
 			Interactions: []agent.Interaction{approval},
-		}); err != nil {
-			t.Fatal(err)
+		}); stagePendingResumeErr != nil {
+			t.Fatal(stagePendingResumeErr)
 		}
 	}
 	application := &app{workbench: store, queue: queue}
@@ -120,8 +120,8 @@ func TestRetiringSessionStateClearsTheQueueAfterDurableTombstone(t *testing.T) {
 		t.Fatal(err)
 	}
 	const sessionID = "session"
-	if err := store.SaveDraft(sessionID, agent.Message{Text: "keep authoring state"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, agent.Message{Text: "keep authoring state"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	queue := promptqueue.New()
 	_, err = queue.Enqueue(sessionID, agent.Message{Text: "keep queued prompt"})
@@ -133,14 +133,14 @@ func TestRetiringSessionStateClearsTheQueueAfterDurableTombstone(t *testing.T) {
 		t.Fatalf("session state files = %d, %v", len(entries), err)
 	}
 	statePath := filepath.Join(directory, "sessions", entries[0].Name())
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
-	if err := os.WriteFile(filepath.Join(statePath, "blocker"), []byte("block deletion"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(filepath.Join(statePath, "blocker"), []byte("block deletion"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
 	application := &app{workbench: store, queue: queue}
@@ -175,8 +175,8 @@ func TestSessionCenterConvergesPostCommitDeleteFailureAndRetiresLocalState(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft(target.ID, agent.Message{Text: "must not survive deletion"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(target.ID, agent.Message{Text: "must not survive deletion"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	backend := &postCommitSessionDeleteRuntime{Runtime: base, deleted: make(chan struct{}, 1)}
 	host, stop := runUIFromConfig(t, Config{
@@ -201,8 +201,8 @@ func TestSessionCenterConvergesPostCommitDeleteFailureAndRetiresLocalState(t *te
 	if calls != 1 || request.SessionID != target.ID || request.CommandID == "" {
 		t.Fatalf("runtime deletion = %+v, calls %d", request, calls)
 	}
-	if _, err := base.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
-		t.Fatalf("deleted session read = %v", err)
+	if _, getSessionErr := base.GetSession(t.Context(), target.ID); !errors.Is(getSessionErr, agent.ErrSessionNotFound) {
+		t.Fatalf("deleted session read = %v", getSessionErr)
 	}
 	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
 	if err != nil {
@@ -228,14 +228,14 @@ func TestStartupReplaysPreparedSessionDeletionBeforeLoadingDrafts(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveDraft(target.ID, agent.Message{Text: "orphaned draft"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(target.ID, agent.Message{Text: "orphaned draft"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	request := agent.DeleteSession{
 		CommandID: agent.CommandID("cli_66666666666666666666666666666666"), SessionID: target.ID,
 	}
-	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{}); err != nil {
-		t.Fatal(err)
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, workbench.ReplayGuard{}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 
 	host, stop := runUIFromConfig(t, Config{
@@ -243,8 +243,8 @@ func TestStartupReplaysPreparedSessionDeletionBeforeLoadingDrafts(t *testing.T) 
 	})
 	host.Shows(t, "Ask lyra")
 	stop()
-	if _, err := backend.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
-		t.Fatalf("recovered deletion read = %v", err)
+	if _, getSessionErr := backend.GetSession(t.Context(), target.ID); !errors.Is(getSessionErr, agent.ErrSessionNotFound) {
+		t.Fatalf("recovered deletion read = %v", getSessionErr)
 	}
 	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
 	if err != nil {
@@ -311,23 +311,23 @@ func TestRollbackPreviewProvesOnlyTheExactHistoryOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := preview.ValidateApplied(before); err == nil {
+	if validateAppliedErr := preview.ValidateApplied(before); validateAppliedErr == nil {
 		t.Fatal("unchanged session was accepted as a committed rollback")
 	}
-	if _, err := backend.RollbackSession(t.Context(), request); err != nil {
-		t.Fatal(err)
+	if _, rollbackSessionErr := backend.RollbackSession(t.Context(), request); rollbackSessionErr != nil {
+		t.Fatal(rollbackSessionErr)
 	}
 	after, err := backend.GetSession(t.Context(), request.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := preview.ValidateApplied(after); err != nil {
-		t.Fatalf("authoritative rollback outcome: %v", err)
+	if validateAppliedErr := preview.ValidateApplied(after); validateAppliedErr != nil {
+		t.Fatalf("authoritative rollback outcome: %v", validateAppliedErr)
 	}
 	wrong := after
 	wrong.Runs = slices.Clone(after.Runs)
 	wrong.Runs = append(wrong.Runs, before.Runs[len(before.Runs)-1])
-	if err := preview.ValidateApplied(wrong); err == nil {
+	if validateAppliedErr := preview.ValidateApplied(wrong); validateAppliedErr == nil {
 		t.Fatal("rollback outcome with a surviving dropped run was accepted")
 	}
 	files, err := previewRollback(before, agent.RollbackSession{

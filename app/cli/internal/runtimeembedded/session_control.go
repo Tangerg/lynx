@@ -127,8 +127,8 @@ func (r *Runtime) ExportSession(ctx context.Context, request sessiontransfer.Exp
 		if response.Artifact == nil || response.Markdown != "" {
 			return sessiontransfer.Document{}, runtimeContractViolation("export session returned a malformed JSON result")
 		}
-		if err := protocol.ValidateWireTree(*response.Artifact); err != nil {
-			return sessiontransfer.Document{}, runtimeContractViolation("export session returned an invalid artifact: %v", err)
+		if validateWireTreeErr := protocol.ValidateWireTree(*response.Artifact); validateWireTreeErr != nil {
+			return sessiontransfer.Document{}, runtimeContractViolation("export session returned an invalid artifact: %v", validateWireTreeErr)
 		}
 		if response.Artifact.Session.ID != request.SessionID {
 			return sessiontransfer.Document{}, runtimeContractViolation(

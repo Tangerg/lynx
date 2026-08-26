@@ -630,8 +630,8 @@ func (r *reducer) endSegment(ended SegmentEnded) (factReduction, error) {
 	if err != nil {
 		return factReduction{}, err
 	}
-	if err := r.trackUnconsumedResumeToolCalls(); err != nil {
-		return factReduction{}, fmt.Errorf("%w: track resumed Tool context: %w", errReducerInvariant, err)
+	if trackUnconsumedResumeToolCallsErr := r.trackUnconsumedResumeToolCalls(); trackUnconsumedResumeToolCallsErr != nil {
+		return factReduction{}, fmt.Errorf("%w: track resumed Tool context: %w", errReducerInvariant, trackUnconsumedResumeToolCallsErr)
 	}
 	openTools := r.tools.ordered()
 	events, err := r.segmentEnd(ended)
@@ -1075,8 +1075,8 @@ func validateReductionBatch(batch reductionBatch) error {
 	if terminalAt < 0 {
 		return nil
 	}
-	if err := validateTerminalReduction(batch.events[terminalAt]); err != nil {
-		return err
+	if validateTerminalReductionErr := validateTerminalReduction(batch.events[terminalAt]); validateTerminalReductionErr != nil {
+		return validateTerminalReductionErr
 	}
 	combined, err := combineTerminalEventCommit(batch)
 	if err != nil {

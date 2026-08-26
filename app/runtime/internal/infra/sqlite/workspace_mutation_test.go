@@ -16,13 +16,13 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 	store := NewWorkspaceMutationStore(db)
 	ctx := context.Background()
 
-	if err := store.Record(ctx, WorkspaceMutationRecord{
+	if recordErr := store.Record(ctx, WorkspaceMutationRecord{
 		SessionID: "ses_1", CWD: "/repo", ToRunID: "run_1", RestoreHistory: true,
-	}); err != nil {
-		t.Fatalf("record: %v", err)
+	}); recordErr != nil {
+		t.Fatalf("record: %v", recordErr)
 	}
-	if err := store.Record(ctx, WorkspaceMutationRecord{SessionID: "ses_2", CWD: "/repo2", ToRunID: "run_9"}); err != nil {
-		t.Fatalf("record 2: %v", err)
+	if recordErr := store.Record(ctx, WorkspaceMutationRecord{SessionID: "ses_2", CWD: "/repo2", ToRunID: "run_9"}); recordErr != nil {
+		t.Fatalf("record 2: %v", recordErr)
 	}
 
 	pending, err := store.ListPending(ctx)

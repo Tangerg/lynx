@@ -79,8 +79,8 @@ func (s *Store) ensureRepo(ctx context.Context, sessionID, cwd string) (string, 
 // represented a completed checkpoint boundary.
 func publishRepo(stagingDir, dst string) error {
 	if _, err := os.Lstat(dst); err == nil {
-		if err := os.RemoveAll(dst); err != nil {
-			return fmt.Errorf("checkpoint: remove incomplete repository: %w", err)
+		if removeAllErr := os.RemoveAll(dst); removeAllErr != nil {
+			return fmt.Errorf("checkpoint: remove incomplete repository: %w", removeAllErr)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("checkpoint: inspect repository destination: %w", err)
@@ -133,7 +133,7 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 	// stores that still exist so the chain resolves. Git interprets relative
 	// entries relative to the object database that owns the alternates file.
 	alternates := []string{srcObjects}
-	if data, err := readSourceAlternates(filepath.Join(srcObjects, "info", "alternates")); err == nil {
+	if data, readSourceAlternatesErr := readSourceAlternates(filepath.Join(srcObjects, "info", "alternates")); readSourceAlternatesErr == nil {
 		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 			p := strings.TrimSpace(line)
 			if p == "" {
@@ -155,11 +155,11 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 				return fmt.Errorf("checkpoint: inspect source alternate %q: %w", p, statErr)
 			}
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checkpoint: read source alternates: %w", err)
+	} else if !errors.Is(readSourceAlternatesErr, os.ErrNotExist) {
+		return fmt.Errorf("checkpoint: read source alternates: %w", readSourceAlternatesErr)
 	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects", "info"), 0o755); err != nil {
-		return fmt.Errorf("checkpoint: create alternates directory: %w", err)
+	if mkdirAllErr := os.MkdirAll(filepath.Join(gitDir, "objects", "info"), 0o755); mkdirAllErr != nil {
+		return fmt.Errorf("checkpoint: create alternates directory: %w", mkdirAllErr)
 	}
 	encodedAlternates := []byte(strings.Join(alternates, "\n") + "\n")
 	if len(encodedAlternates) > maxSourceAlternatesBytes {
@@ -168,8 +168,8 @@ func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) error {
 			ErrSnapshotTooLarge, maxSourceAlternatesBytes,
 		)
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "objects", "info", "alternates"), encodedAlternates, 0o644); err != nil {
-		return fmt.Errorf("checkpoint: write source alternates: %w", err)
+	if writeFileErr := os.WriteFile(filepath.Join(gitDir, "objects", "info", "alternates"), encodedAlternates, 0o644); writeFileErr != nil {
+		return fmt.Errorf("checkpoint: write source alternates: %w", writeFileErr)
 	}
 
 	srcIndex, err := gitIn(ctx, cwd, "rev-parse", "--path-format=absolute", "--git-path", "index")
@@ -250,19 +250,19 @@ func (s *Store) materializeAlternates(ctx context.Context, gitDir string) error 
 	pendingPath := filepath.Join(infoDir, "alternates.pending")
 
 	if _, err := os.Stat(pendingPath); err == nil {
-		if _, err := os.Stat(alternatesPath); err == nil {
+		if _, statErr := os.Stat(alternatesPath); statErr == nil {
 			return errors.New("checkpoint: both active and pending alternates exist")
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("checkpoint: inspect active alternates: %w", err)
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("checkpoint: inspect active alternates: %w", statErr)
 		}
-		if err := s.verifyLocalObjects(ctx, gitDir); err == nil {
+		if verifyLocalObjectsErr := s.verifyLocalObjects(ctx, gitDir); verifyLocalObjectsErr == nil {
 			if err := os.Remove(pendingPath); err != nil {
 				return fmt.Errorf("checkpoint: remove detached alternates: %w", err)
 			}
 			return nil
 		}
-		if err := os.Rename(pendingPath, alternatesPath); err != nil {
-			return fmt.Errorf("checkpoint: restore interrupted alternates detach: %w", err)
+		if renameErr := os.Rename(pendingPath, alternatesPath); renameErr != nil {
+			return fmt.Errorf("checkpoint: restore interrupted alternates detach: %w", renameErr)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("checkpoint: inspect pending alternates: %w", err)

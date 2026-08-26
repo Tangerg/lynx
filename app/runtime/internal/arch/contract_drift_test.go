@@ -264,8 +264,8 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatalf("decode manifest: %v", err)
+	if unmarshalErr := json.Unmarshal(raw, &manifest); unmarshalErr != nil {
+		t.Fatalf("decode manifest: %v", unmarshalErr)
 	}
 	if manifest.ProtocolVersion != protocol.ProtocolVersion {
 		t.Errorf("manifest protocol %q != code %q", manifest.ProtocolVersion, protocol.ProtocolVersion)
@@ -278,9 +278,9 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	dateLiteral := regexp.MustCompile(`\b20\d\d-\d\d-\d\d\b`)
 	for _, name := range []string{"API.md", "AUX_API.md", "TRANSPORT.md"} {
 		path := filepath.Join(root, "doc", name)
-		text, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
+		text, readFileErr := os.ReadFile(path)
+		if readFileErr != nil {
+			t.Fatalf("read %s: %v", name, readFileErr)
 		}
 		found := false
 		for _, match := range dateLiteral.FindAllString(string(text), -1) {

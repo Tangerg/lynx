@@ -192,11 +192,11 @@ func readPlugin(directory string) (extensions.Plugin, bool, error) {
 	var declared pluginManifest
 	decoder := json.NewDecoder(io.LimitReader(file, maxManifestBytes+1))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&declared); err != nil {
-		return extensions.Plugin{}, false, fmt.Errorf("decode plugin manifest %q: %w", path, err)
+	if decodeErr := decoder.Decode(&declared); decodeErr != nil {
+		return extensions.Plugin{}, false, fmt.Errorf("decode plugin manifest %q: %w", path, decodeErr)
 	}
-	if err := rejectTrailingJSON(decoder); err != nil {
-		return extensions.Plugin{}, false, fmt.Errorf("decode plugin manifest %q: %w", path, err)
+	if rejectTrailingJSONErr := rejectTrailingJSON(decoder); rejectTrailingJSONErr != nil {
+		return extensions.Plugin{}, false, fmt.Errorf("decode plugin manifest %q: %w", path, rejectTrailingJSONErr)
 	}
 	plugin, err := compilePlugin(directory, declared)
 	if err != nil {

@@ -79,8 +79,8 @@ func (p *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 		Origin:        skills.ProposalOriginRequested,
 		SourceSession: sessionID,
 	}
-	if err := proposal.Validate(); err != nil {
-		return proposalResult{}, fmt.Errorf("propose_skill: invalid proposal: %w", err)
+	if validateErr := proposal.Validate(); validateErr != nil {
+		return proposalResult{}, fmt.Errorf("propose_skill: invalid proposal: %w", validateErr)
 	}
 	ref, err := p.proposals.SubmitProposal(ctx, cwd, proposal)
 	if err != nil {

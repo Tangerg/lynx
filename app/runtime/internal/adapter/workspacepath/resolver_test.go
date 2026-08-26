@@ -151,8 +151,8 @@ func TestResolverInspectReportsUnavailableWorkspace(t *testing.T) {
 	}
 
 	file := filepath.Join(t.TempDir(), "file")
-	if err := os.WriteFile(file, []byte("not a directory"), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
+	if writeFileErr := os.WriteFile(file, []byte("not a directory"), 0o644); writeFileErr != nil {
+		t.Fatalf("write file: %v", writeFileErr)
 	}
 	identity, err = (workspacepath.Resolver{}).Inspect(file)
 	if err != nil || !identity.Missing {

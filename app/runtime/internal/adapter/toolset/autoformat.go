@@ -88,7 +88,7 @@ func formatPath(ctx context.Context, path string) error {
 			return nil
 		}
 		var buffer bytes.Buffer
-		if err := json.Indent(&buffer, input, "", "  "); err != nil {
+		if indentErr := json.Indent(&buffer, input, "", "  "); indentErr != nil {
 			return nil
 		}
 		buffer.WriteByte('\n')

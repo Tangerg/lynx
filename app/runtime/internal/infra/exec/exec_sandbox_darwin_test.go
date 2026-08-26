@@ -26,9 +26,9 @@ func TestLaunchSandboxConfinesWrites(t *testing.T) {
 	t.Cleanup(func() { _ = shells.KillAll() })
 
 	run := func(command string) *Shell {
-		id, err := shells.Launch(t.Context(), "s1", workspace, command, 10*time.Second, false)
-		if err != nil {
-			t.Fatalf("launch: %v", err)
+		id, launchErr := shells.Launch(t.Context(), "s1", workspace, command, 10*time.Second, false)
+		if launchErr != nil {
+			t.Fatalf("launch: %v", launchErr)
 		}
 		sh, ok := shells.Get(id)
 		if !ok {

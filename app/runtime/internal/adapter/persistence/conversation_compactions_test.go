@@ -95,16 +95,16 @@ func TestConversationCompactionRebasesRunsAcrossRepeatedLongTurns(t *testing.T) 
 			t.Errorf("Run %s mark = %d, want %d", current.ID(), current.MessageMark(), wantMarks[index])
 		}
 	}
-	if _, err := sessions.ResolveForkBoundary(after, afterRuns, "run_b"); err != nil {
-		t.Fatalf("compacted Run timeline must remain forkable: %v", err)
+	if _, resolveForkBoundaryErr := sessions.ResolveForkBoundary(after, afterRuns, "run_b"); resolveForkBoundaryErr != nil {
+		t.Fatalf("compacted Run timeline must remain forkable: %v", resolveForkBoundaryErr)
 	}
 
 	// Continue the same single-client conversation until it compacts again. Old
 	// boundaries are already in the first replacement's coordinates; the second
 	// rewrite must transform them once, not reuse their original counts.
 	for range 5 {
-		if err := messages.Write(t.Context(), "ses_long", chat.NewUserMessage(chat.NewTextPart("next turn"))); err != nil {
-			t.Fatal(err)
+		if writeErr := messages.Write(t.Context(), "ses_long", chat.NewUserMessage(chat.NewTextPart("next turn"))); writeErr != nil {
+			t.Fatal(writeErr)
 		}
 	}
 	at := time.Unix(10, 0).UTC()
@@ -112,11 +112,11 @@ func TestConversationCompactionRebasesRunsAcrossRepeatedLongTurns(t *testing.T) 
 		ID: "run_e", SessionID: "ses_long", State: run.Completed,
 		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 8,
 	})
-	if err := runs.Restore(t.Context(), latest); err != nil {
-		t.Fatal(err)
+	if restoreErr := runs.Restore(t.Context(), latest); restoreErr != nil {
+		t.Fatal(restoreErr)
 	}
-	if err := service.RewriteForCompaction(t.Context(), "ses_long", 8, 6, 1, compactedMessages()...); err != nil {
-		t.Fatal(err)
+	if rewriteForCompactionErr := service.RewriteForCompaction(t.Context(), "ses_long", 8, 6, 1, compactedMessages()...); rewriteForCompactionErr != nil {
+		t.Fatal(rewriteForCompactionErr)
 	}
 	after, err = messages.Read(t.Context(), "ses_long")
 	if err != nil {

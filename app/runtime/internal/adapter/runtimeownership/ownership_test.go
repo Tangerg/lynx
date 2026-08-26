@@ -137,8 +137,8 @@ func TestSessionOwnershipTransfersAfterProcessKill(t *testing.T) {
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
+	if startErr := command.Start(); startErr != nil {
+		t.Fatal(startErr)
 	}
 	t.Cleanup(func() { _ = command.Process.Kill() })
 	waitForFile(t, ready, &output)

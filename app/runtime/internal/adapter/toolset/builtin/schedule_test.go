@@ -30,8 +30,8 @@ func TestSchedulesCreateListDelete(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	var created scheduleResponse
-	if err := json.Unmarshal([]byte(body), &created); err != nil {
-		t.Fatalf("unmarshal create: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(body), &created); unmarshalErr != nil {
+		t.Fatalf("unmarshal create: %v", unmarshalErr)
 	}
 	if created.Schedule.ScheduleID == "" || created.Schedule.NextRunAt == "" || created.Schedule.Instructions != "summarize" {
 		t.Fatalf("created schedule = %+v", created.Schedule)

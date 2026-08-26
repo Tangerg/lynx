@@ -71,8 +71,8 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare Plan: %v", err)
 	}
-	if err := rt.plan.Save(t.Context(), "ses_1", 0, state); err != nil {
-		t.Fatalf("save Plan: %v", err)
+	if saveErr := rt.plan.Save(t.Context(), "ses_1", 0, state); saveErr != nil {
+		t.Fatalf("save Plan: %v", saveErr)
 	}
 	standingGoal, err := goal.New(
 		"ses_1", "Finish the recovery", modelref.Selection{}, goal.Budget{}, capabilities,
@@ -81,8 +81,8 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare Goal: %v", err)
 	}
-	if _, applied, err := rt.goals.Save(t.Context(), standingGoal, goal.Version{}); err != nil || !applied {
-		t.Fatalf("save Goal: applied=%t err=%v", applied, err)
+	if _, applied, saveErr := rt.goals.Save(t.Context(), standingGoal, goal.Version{}); saveErr != nil || !applied {
+		t.Fatalf("save Goal: applied=%t err=%v", applied, saveErr)
 	}
 
 	ctx := withClientCapabilities(protocol.ClientCapabilities{

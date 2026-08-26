@@ -124,8 +124,8 @@ func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.
 		if continued.Key != key {
 			return interrupt.Resolution{}, errors.New("agentexec interaction input: continuation addresses another request")
 		}
-		storedJSON, err := EncodePrompt(continued.Interrupt)
-		if err != nil || !bytes.Equal(storedJSON, promptJSON) {
+		storedJSON, encodePromptErr := EncodePrompt(continued.Interrupt)
+		if encodePromptErr != nil || !bytes.Equal(storedJSON, promptJSON) {
 			return interrupt.Resolution{}, errors.New("agentexec interaction input: prompt changed during continuation")
 		}
 		return continued.Resolution, nil

@@ -23,45 +23,45 @@ func TestStoreRecoversSessionDraftTransferAfterPartialCommit(t *testing.T) {
 		DestinationBefore:    agent.Message{Text: "destination draft"},
 		DestinationAfter:     agent.Message{Text: "latest source edit"},
 	}
-	if err := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.SaveDraft(transfer.DestinationSessionID, transfer.DestinationBefore); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.DestinationSessionID, transfer.DestinationBefore); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 
 	sourcePath := store.path(store.sessionStateName(transfer.SourceSessionID))
 	backupPath := sourcePath + ".backup"
-	if err := os.Rename(sourcePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(sourcePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(sourcePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(sourcePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
-	if err := os.WriteFile(filepath.Join(sourcePath, "blocker"), []byte("block replacement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(filepath.Join(sourcePath, "blocker"), []byte("block replacement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
-	if err := store.ApplyDraftTransfer(transfer); err == nil {
+	if applyDraftTransferErr := store.ApplyDraftTransfer(transfer); applyDraftTransferErr == nil {
 		t.Fatal("partially blocked draft transfer unexpectedly succeeded")
 	}
-	if err := store.SaveDraft(transfer.SourceSessionID, agent.Message{Text: "must not overwrite the journal"}); err == nil ||
-		!strings.Contains(err.Error(), "draft transfer") {
-		t.Fatalf("source mutation while transfer is pending = %v", err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, agent.Message{Text: "must not overwrite the journal"}); saveDraftErr == nil ||
+		!strings.Contains(saveDraftErr.Error(), "draft transfer") {
+		t.Fatalf("source mutation while transfer is pending = %v", saveDraftErr)
 	}
-	if destination, found, err := store.Draft(transfer.DestinationSessionID); err != nil || !found ||
+	if destination, found, draftErr := store.Draft(transfer.DestinationSessionID); draftErr != nil || !found ||
 		!destination.Equal(transfer.DestinationAfter) {
-		t.Fatalf("partially committed destination = %+v, found %t, error %v", destination, found, err)
+		t.Fatalf("partially committed destination = %+v, found %t, error %v", destination, found, draftErr)
 	}
 
-	if err := os.Remove(filepath.Join(sourcePath, "blocker")); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(filepath.Join(sourcePath, "blocker")); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(sourcePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(sourcePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, sourcePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, sourcePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err := Open(directory, Config{})
 	if err != nil {
@@ -86,16 +86,16 @@ func TestStoreRecoversRetiredSourceDraftWithoutDuplicatingOwnership(t *testing.T
 		SourceBefore:         agent.Message{Text: "move me"},
 		DestinationAfter:     agent.Message{Text: "move me"},
 	}
-	if err := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.save(sessionDraftTransferName, transfer); err != nil {
-		t.Fatal(err)
+	if saveErr := store.save(sessionDraftTransferName, transfer); saveErr != nil {
+		t.Fatal(saveErr)
 	}
 	// Simulate a crash after the source retirement but before the destination
 	// replacement. Recovery must finish the move instead of losing the draft.
-	if err := store.SaveDraft(transfer.SourceSessionID, agent.Message{}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, agent.Message{}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -119,22 +119,22 @@ func TestStoreRefusesToReplayDraftTransferOverNewerAuthoringState(t *testing.T) 
 		SourceAfter:          agent.Message{Text: "baseline"},
 		DestinationAfter:     agent.Message{Text: "before"},
 	}
-	if err := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, transfer.SourceBefore); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.save(sessionDraftTransferName, transfer); err != nil {
-		t.Fatal(err)
+	if saveErr := store.save(sessionDraftTransferName, transfer); saveErr != nil {
+		t.Fatal(saveErr)
 	}
 	newer := agent.Message{Text: "authored after the stale journal"}
-	if err := store.SaveDraft(transfer.SourceSessionID, newer); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(transfer.SourceSessionID, newer); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 
-	if _, err := Open(directory, Config{}); err == nil || !strings.Contains(err.Error(), "source draft changed") {
-		t.Fatalf("open with conflicting draft transfer = %v", err)
+	if _, openErr := Open(directory, Config{}); openErr == nil || !strings.Contains(openErr.Error(), "source draft changed") {
+		t.Fatalf("open with conflicting draft transfer = %v", openErr)
 	}
-	if err := os.Remove(store.path(sessionDraftTransferName)); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(store.path(sessionDraftTransferName)); removeErr != nil {
+		t.Fatal(removeErr)
 	}
 	reopened, err := Open(directory, Config{})
 	if err != nil {

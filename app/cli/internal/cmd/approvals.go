@@ -43,8 +43,8 @@ func newApprovalsCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runtime.DeleteApprovalRule(cmd.Context(), args[0]); err != nil {
-				return err
+			if deleteApprovalRuleErr := runtime.DeleteApprovalRule(cmd.Context(), args[0]); deleteApprovalRuleErr != nil {
+				return deleteApprovalRuleErr
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), args[0])
 			return err

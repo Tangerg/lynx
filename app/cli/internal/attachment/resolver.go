@@ -102,8 +102,8 @@ func (r *Resolver) inspect(input string) (string, fs.FileInfo, []byte, error) {
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("attachment: inspect %q: %w", input, err)
 	}
-	if err := validateAttachmentInfo(info, input, r.maxBytes); err != nil {
-		return "", nil, nil, err
+	if validateAttachmentInfoErr := validateAttachmentInfo(info, input, r.maxBytes); validateAttachmentInfoErr != nil {
+		return "", nil, nil, validateAttachmentInfoErr
 	}
 	header, err := readAttachmentHeader(file, input)
 	if err != nil {

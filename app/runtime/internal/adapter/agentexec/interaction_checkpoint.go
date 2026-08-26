@@ -235,19 +235,19 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 			index > 0 && member.MemberID <= previousMember {
 			return interactionCheckpointState{}, errors.New("agentexec: Interaction checkpoint members are not canonical")
 		}
-		processID, err := agent.ParseProcessID(member.MemberID)
-		if err != nil {
-			return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint member: %w", err)
+		processID, parseProcessIDErr := agent.ParseProcessID(member.MemberID)
+		if parseProcessIDErr != nil {
+			return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint member: %w", parseProcessIDErr)
 		}
 		if _, found := processes[processID]; !found {
 			return interactionCheckpointState{}, errors.New("agentexec: Interaction checkpoint accounting names a foreign member")
 		}
-		models, err := decodeInteractionCallCounts(member.Models)
-		if err != nil || len(models) == 0 {
-			if err == nil {
-				err = errors.New("member call counts are empty")
+		models, parseProcessIDErr := decodeInteractionCallCounts(member.Models)
+		if parseProcessIDErr != nil || len(models) == 0 {
+			if parseProcessIDErr == nil {
+				parseProcessIDErr = errors.New("member call counts are empty")
 			}
-			return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint member %s: %w", processID, err)
+			return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint member %s: %w", processID, parseProcessIDErr)
 		}
 		state.callsByProcess[processID] = models
 		previousMember = member.MemberID

@@ -180,8 +180,8 @@ func TestPlanBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 
 	// An imported Run finished in another runtime: stamping the importing session's
 	// live list would invent a boundary that Run never had.
-	if err := runs.Restore(ctx, finishedRun("run_imported", "ses_B", run.OutcomeCompleted)); err != nil {
-		t.Fatalf("restore: %v", err)
+	if restoreErr := runs.Restore(ctx, finishedRun("run_imported", "ses_B", run.OutcomeCompleted)); restoreErr != nil {
+		t.Fatalf("restore: %v", restoreErr)
 	}
 	if _, recorded, err = plans.Boundary(ctx, "run_imported"); err != nil || recorded {
 		t.Fatalf("Boundary(imported run) recorded %v, err %v, want not recorded", recorded, err)
@@ -290,8 +290,8 @@ func TestPlanStoreRejectsStaleReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	savePlan(t, ctx, store, "ses_A", []plan.Step{{Description: "winner", Status: plan.StatusInProgress}})
-	if err := store.Save(ctx, "ses_A", first.Revision(), stale); !errors.Is(err, plan.ErrRevisionConflict) {
-		t.Fatalf("stale Save error = %v, want ErrRevisionConflict", err)
+	if saveErr := store.Save(ctx, "ses_A", first.Revision(), stale); !errors.Is(saveErr, plan.ErrRevisionConflict) {
+		t.Fatalf("stale Save error = %v, want ErrRevisionConflict", saveErr)
 	}
 	current, err := store.State(ctx, "ses_A")
 	if err != nil {

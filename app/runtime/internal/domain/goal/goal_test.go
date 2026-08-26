@@ -26,7 +26,7 @@ func TestNewValidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New("s", "obj", selection, Budget{}, run.Capabilities{}, "", now); err == nil {
+	if _, newErr := New("s", "obj", selection, Budget{}, run.Capabilities{}, "", now); newErr == nil {
 		t.Fatal("empty incarnation should error")
 	}
 	g, err := New("s", "obj", selection, Budget{MaxRuns: 3}, run.Capabilities{}, "lease", now)

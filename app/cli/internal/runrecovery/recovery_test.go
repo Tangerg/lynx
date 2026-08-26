@@ -26,8 +26,8 @@ func TestRecoverReadsAFinishedRunAfterItsSegmentExpires(t *testing.T) {
 		t.Fatal(err)
 	}
 	consumeSegment(t, opened)
-	if _, err := runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: opened.RunID, SegmentID: opened.SegmentID}); !runrecovery.Required(err) {
-		t.Fatalf("subscribe error = %v, want a cold-recovery condition", err)
+	if _, subscribeRunErr := runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: opened.RunID, SegmentID: opened.SegmentID}); !runrecovery.Required(subscribeRunErr) {
+		t.Fatalf("subscribe error = %v, want a cold-recovery condition", subscribeRunErr)
 	}
 	recovered, err := runrecovery.Recover(t.Context(), runtime, session.ID, opened.RunID)
 	if err != nil {

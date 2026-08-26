@@ -197,13 +197,13 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		}
 	}()
 
-	if err := ctx.Err(); err != nil {
+	if ctxErr := ctx.Err(); ctxErr != nil {
 		return "", nil
 	}
 	var result runs.StartResult
 	for {
-		if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
-			return d.resolveGoalRunStartError(ctx, g, span, err)
+		if waitSessionStartableErr := d.runs.WaitSessionStartable(ctx, g.SessionID); waitSessionStartableErr != nil {
+			return d.resolveGoalRunStartError(ctx, g, span, waitSessionStartableErr)
 		}
 
 		// Waiting is an observation boundary, not a reservation. The Run that
@@ -211,17 +211,17 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		// reported its terminal outcome. Re-read before every admission attempt so
 		// a resumed HITL Run can block/complete the Goal without an extra Run being
 		// launched from the pre-wait snapshot.
-		owned, err := d.refreshOwnedGoal(ctx, g)
-		if err != nil {
-			span.RecordError(err)
-			return "", err
+		owned, refreshOwnedGoalErr := d.refreshOwnedGoal(ctx, g)
+		if refreshOwnedGoalErr != nil {
+			span.RecordError(refreshOwnedGoalErr)
+			return "", refreshOwnedGoalErr
 		}
 		if !owned {
 			return "", nil
 		}
-		settleDisposition, err := d.settleOwned(ctx, g)
-		if err != nil {
-			return "", err
+		settleDisposition, refreshOwnedGoalErr := d.settleOwned(ctx, g)
+		if refreshOwnedGoalErr != nil {
+			return "", refreshOwnedGoalErr
 		}
 		if settleDisposition != dispContinue {
 			// This drive did not launch a Run, so leave the metric disposition
@@ -229,10 +229,10 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 			return "", nil
 		}
 
-		result, err = d.runs.Start(ctx, d.command(*g))
-		if !errors.Is(err, runs.ErrRunAdmissionBusy) {
-			if err != nil {
-				return d.resolveGoalRunStartError(ctx, g, span, err)
+		result, refreshOwnedGoalErr = d.runs.Start(ctx, d.command(*g))
+		if !errors.Is(refreshOwnedGoalErr, runs.ErrRunAdmissionBusy) {
+			if refreshOwnedGoalErr != nil {
+				return d.resolveGoalRunStartError(ctx, g, span, refreshOwnedGoalErr)
 			}
 			break
 		}

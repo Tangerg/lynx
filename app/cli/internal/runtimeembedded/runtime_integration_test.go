@@ -57,16 +57,16 @@ func requireGoalMutationLifecycle(t *testing.T, runtime *Runtime, sessionID stri
 	if err != nil {
 		t.Fatalf("StartGoal: %v", err)
 	}
-	if err := start.ValidateResult(started); err != nil {
-		t.Fatalf("started goal: %v", err)
+	if validateResultErr := start.ValidateResult(started); validateResultErr != nil {
+		t.Fatalf("started goal: %v", validateResultErr)
 	}
 	update := goal.Update{SessionID: sessionID, Objective: "verify revised embedded goal lifecycle"}
 	updated, err := runtime.UpdateGoal(t.Context(), update)
 	if err != nil {
 		t.Fatalf("UpdateGoal: %v", err)
 	}
-	if err := update.ValidateResult(updated); err != nil {
-		t.Fatalf("updated goal: %v", err)
+	if validateResultErr := update.ValidateResult(updated); validateResultErr != nil {
+		t.Fatalf("updated goal: %v", validateResultErr)
 	}
 	stopped, err := runtime.StopGoal(t.Context(), sessionID)
 	if err != nil {
@@ -140,8 +140,8 @@ func requireExternalAuthoredInvalidations(t *testing.T, runtime *Runtime, worksp
 	}()
 
 	knowledgePath := filepath.Join(workspace, "LYRA.md")
-	if err := os.WriteFile(knowledgePath, []byte("# External knowledge\n"), 0o600); err != nil {
-		t.Fatalf("write external knowledge: %v", err)
+	if writeFileErr := os.WriteFile(knowledgePath, []byte("# External knowledge\n"), 0o600); writeFileErr != nil {
+		t.Fatalf("write external knowledge: %v", writeFileErr)
 	}
 	awaitRuntimeInvalidation(t, events, streamErrors, changefeed.KnowledgeChanged)
 	target, err := knowledge.NewTarget(knowledge.WorkingDirectory, workspace)
@@ -154,15 +154,15 @@ func requireExternalAuthoredInvalidations(t *testing.T, runtime *Runtime, worksp
 	}
 
 	hooksDirectory := filepath.Join(workspace, ".lyra")
-	if err := os.MkdirAll(hooksDirectory, 0o700); err != nil {
-		t.Fatalf("create external hooks directory: %v", err)
+	if mkdirAllErr := os.MkdirAll(hooksDirectory, 0o700); mkdirAllErr != nil {
+		t.Fatalf("create external hooks directory: %v", mkdirAllErr)
 	}
-	if err := os.WriteFile(
+	if writeFileErr := os.WriteFile(
 		filepath.Join(hooksDirectory, "hooks.json"),
 		[]byte(`{"hooks":[{"event":"SessionStart","inject":"external context"}]}`),
 		0o600,
-	); err != nil {
-		t.Fatalf("write external hooks: %v", err)
+	); writeFileErr != nil {
+		t.Fatalf("write external hooks: %v", writeFileErr)
 	}
 	awaitRuntimeInvalidation(t, events, streamErrors, changefeed.HooksChanged)
 	catalog, err := runtime.services().Hooks.Catalog(t.Context(), workspace)
@@ -243,8 +243,8 @@ func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) 
 	if err != nil || !updated.Pinned {
 		t.Fatalf("Update agent memory = (%+v, %v)", updated, err)
 	}
-	if err := services.AgentMemory.Delete(t.Context(), added.ID); err != nil {
-		t.Fatalf("Delete agent memory: %v", err)
+	if deleteErr := services.AgentMemory.Delete(t.Context(), added.ID); deleteErr != nil {
+		t.Fatalf("Delete agent memory: %v", deleteErr)
 	}
 	entries, err := services.Knowledge.Entries(t.Context(), workspace)
 	if err != nil {
@@ -262,8 +262,8 @@ func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := services.Knowledge.Save(t.Context(), update); err != nil {
-		t.Fatalf("Save knowledge: %v", err)
+	if _, saveErr := services.Knowledge.Save(t.Context(), update); saveErr != nil {
+		t.Fatalf("Save knowledge: %v", saveErr)
 	}
 	document, err := services.Knowledge.Document(t.Context(), target)
 	if err != nil || document.Content != "# Integration knowledge\n" {
@@ -403,8 +403,8 @@ func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) age
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
-	if err := snapshot.Validate(); err != nil {
-		t.Fatalf("snapshot: %v", err)
+	if validateErr := snapshot.Validate(); validateErr != nil {
+		t.Fatalf("snapshot: %v", validateErr)
 	}
 	if snapshot.Session.ID != created.ID || len(snapshot.Runs) != 0 || len(snapshot.Transcript) != 0 {
 		t.Fatalf("snapshot = %+v", snapshot)
@@ -473,28 +473,28 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace
 	if err != nil || usageSummary.SinceDays != 30 {
 		t.Fatalf("Summary = (%+v, %v)", usageSummary, err)
 	}
-	if current, exists, err := runtime.GetGoal(t.Context(), sessionID); err != nil || exists {
-		t.Fatalf("GetGoal without a goal = (%+v, %t, %v)", current, exists, err)
+	if current, exists, getGoalErr := runtime.GetGoal(t.Context(), sessionID); getGoalErr != nil || exists {
+		t.Fatalf("GetGoal without a goal = (%+v, %t, %v)", current, exists, getGoalErr)
 	}
-	if discovered, err := runtime.Discover(t.Context(), workspace); err != nil {
-		t.Fatalf("Discover skills = (%+v, %v)", discovered, err)
+	if discovered, discoverErr := runtime.Discover(t.Context(), workspace); discoverErr != nil {
+		t.Fatalf("Discover skills = (%+v, %v)", discovered, discoverErr)
 	}
-	if managed, err := runtime.Managed(t.Context()); err != nil {
-		t.Fatalf("Managed skills = (%+v, %v)", managed, err)
+	if managed, managedErr := runtime.Managed(t.Context()); managedErr != nil {
+		t.Fatalf("Managed skills = (%+v, %v)", managed, managedErr)
 	}
-	if proposals, err := runtime.Proposals(t.Context(), workspace); err != nil {
-		t.Fatalf("Skill proposals = (%+v, %v)", proposals, err)
+	if proposals, proposalsErr := runtime.Proposals(t.Context(), workspace); proposalsErr != nil {
+		t.Fatalf("Skill proposals = (%+v, %v)", proposals, proposalsErr)
 	}
-	if servers, err := runtime.Servers(t.Context()); err != nil {
-		t.Fatalf("MCP servers = (%+v, %v)", servers, err)
+	if servers, serversErr := runtime.Servers(t.Context()); serversErr != nil {
+		t.Fatalf("MCP servers = (%+v, %v)", servers, serversErr)
 	}
-	if tools, err := runtime.Tools(t.Context(), ""); err != nil {
-		t.Fatalf("MCP tools = (%+v, %v)", tools, err)
+	if tools, toolsErr := runtime.Tools(t.Context(), ""); toolsErr != nil {
+		t.Fatalf("MCP tools = (%+v, %v)", tools, toolsErr)
 	}
 	requireMCPMutationLifecycle(t, runtime)
 	requireScheduleLifecycle(t, runtime, workspace)
-	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
-		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
+	if rules, listApprovalRulesErr := runtime.ListApprovalRules(t.Context(), sessionID); listApprovalRulesErr != nil || len(rules) != 0 {
+		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, listApprovalRulesErr)
 	}
 
 	applied, err := runtime.SetApprovalMode(t.Context(), agent.ApprovalModeSafe)
@@ -523,8 +523,8 @@ func requireMCPMutationLifecycle(t *testing.T, runtime *Runtime) {
 	if err != nil {
 		t.Fatalf("Create MCP server: %v", err)
 	}
-	if err := candidate.ValidateResult(created); err != nil {
-		t.Fatalf("created MCP server: %v", err)
+	if validateResultErr := candidate.ValidateResult(created); validateResultErr != nil {
+		t.Fatalf("created MCP server: %v", validateResultErr)
 	}
 	clearAuthorization := mcp.AuthorizationChange{Kind: mcp.Clear}
 	clearHeaders := mcp.HeadersChange{Kind: mcp.Clear}

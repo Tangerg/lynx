@@ -24,20 +24,20 @@ func TestStorePersistsBoundedHistoryDraftsStashesAndWorkspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, text := range []string{"one", "two", "three"} {
-		if err := store.Remember(agent.Message{Text: text}); err != nil {
-			t.Fatal(err)
+		if rememberErr := store.Remember(agent.Message{Text: text}); rememberErr != nil {
+			t.Fatal(rememberErr)
 		}
 	}
 	draft := agent.Message{Text: "unfinished", Attachments: []agent.Attachment{{ID: "attachment", Path: "/tmp/a.go", Name: "a.go", Kind: agent.AttachmentText}}}
-	if err := store.SaveDraft("../../session", draft); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("../../session", draft); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if _, err := store.StashPrompt(agent.Message{Text: "saved prompt"}); err != nil {
-		t.Fatal(err)
+	if _, stashPromptErr := store.StashPrompt(agent.Message{Text: "saved prompt"}); stashPromptErr != nil {
+		t.Fatal(stashPromptErr)
 	}
 	for _, workspace := range []string{"one", "two", "three"} {
-		if err := store.RememberWorkspace(filepath.Join(directory, workspace)); err != nil {
-			t.Fatal(err)
+		if rememberWorkspaceErr := store.RememberWorkspace(filepath.Join(directory, workspace)); rememberWorkspaceErr != nil {
+			t.Fatal(rememberWorkspaceErr)
 		}
 	}
 
@@ -91,21 +91,21 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 	}
 	const sessionID = "session"
 	want := agent.Message{Text: "keep this draft"}
-	if err := store.SaveDraft(sessionID, want); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, want); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	draftPath := store.path(store.sessionStateName(sessionID))
-	if err := os.Remove(draftPath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(draftPath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Mkdir(draftPath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(draftPath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
-	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block deletion"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block deletion"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
-	if err := store.DiscardDraft(sessionID); err == nil {
+	if discardDraftErr := store.DiscardDraft(sessionID); discardDraftErr == nil {
 		t.Fatal("durable draft deletion unexpectedly succeeded")
 	}
 	got, ok, err := store.Draft(sessionID)
@@ -169,8 +169,8 @@ func TestStoreStashesDraftWithoutRetiringSessionOutboxes(t *testing.T) {
 			SessionID: sessionID, Message: agent.Message{Text: "pending run"},
 		},
 	}
-	if err := store.StagePendingRun(pending); err != nil {
-		t.Fatal(err)
+	if stagePendingRunErr := store.StagePendingRun(pending); stagePendingRunErr != nil {
+		t.Fatal(stagePendingRunErr)
 	}
 	approval := agent.Approval{
 		RunID: "run_waiting", ItemID: "approval", Title: "Approve",
@@ -183,15 +183,15 @@ func TestStoreStashesDraftWithoutRetiringSessionOutboxes(t *testing.T) {
 		},
 		Interactions: []agent.Interaction{approval},
 	}
-	if err := store.StagePendingResume(sessionID, resume); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume(sessionID, resume); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	draft := agent.Message{Text: "stash only this draft"}
-	if err := store.SaveDraft(sessionID, draft); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, draft); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if _, err := store.StashDraft(sessionID, draft); err != nil {
-		t.Fatal(err)
+	if _, stashDraftErr := store.StashDraft(sessionID, draft); stashDraftErr != nil {
+		t.Fatal(stashDraftErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -220,13 +220,13 @@ func TestStoreCompletesInterruptedStashTransfersOnOpen(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := store.StashPrompt(agent.Message{Text: "older stash"}); err != nil {
-				t.Fatal(err)
+			if _, stashPromptErr := store.StashPrompt(agent.Message{Text: "older stash"}); stashPromptErr != nil {
+				t.Fatal(stashPromptErr)
 			}
 			const sessionID = "session"
 			draft := agent.Message{Text: "restart-safe draft transfer"}
-			if err := store.SaveDraft(sessionID, draft); err != nil {
-				t.Fatal(err)
+			if saveDraftErr := store.SaveDraft(sessionID, draft); saveDraftErr != nil {
+				t.Fatal(saveDraftErr)
 			}
 			transfer := stashTransfer{
 				SessionID: sessionID, Draft: draft,
@@ -235,18 +235,18 @@ func TestStoreCompletesInterruptedStashTransfersOnOpen(t *testing.T) {
 					Message: draft,
 				},
 			}
-			if err := store.save(stashTransferName, transfer); err != nil {
-				t.Fatal(err)
+			if saveErr := store.save(stashTransferName, transfer); saveErr != nil {
+				t.Fatal(saveErr)
 			}
 			if phase == "stash saved" || phase == "source retired" {
 				next := tailStashes(append(slices.Clone(store.stashes), transfer.Stash), store.stashLimit)
-				if err := store.save("stashes.json", next); err != nil {
-					t.Fatal(err)
+				if saveErr := store.save("stashes.json", next); saveErr != nil {
+					t.Fatal(saveErr)
 				}
 			}
 			if phase == "source retired" {
-				if err := store.saveSessionState(sessionID, agent.Message{}, nil); err != nil {
-					t.Fatal(err)
+				if saveSessionStateErr := store.saveSessionState(sessionID, agent.Message{}, nil); saveSessionStateErr != nil {
+					t.Fatal(saveSessionStateErr)
 				}
 			}
 
@@ -254,8 +254,8 @@ func TestStoreCompletesInterruptedStashTransfersOnOpen(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, found, err := reopened.Draft(sessionID); err != nil || found {
-				t.Fatalf("draft after recovery = found %t, error %v", found, err)
+			if _, found, draftErr := reopened.Draft(sessionID); draftErr != nil || found {
+				t.Fatalf("draft after recovery = found %t, error %v", found, draftErr)
 			}
 			stashes := reopened.Stashes()
 			if len(stashes) != 2 || stashes[0].ID != transfer.Stash.ID || !stashes[0].Message.Equal(draft) {
@@ -280,19 +280,19 @@ func TestStoreDoesNotReplayAStashTransferOverANewerDraft(t *testing.T) {
 	}
 	const sessionID = "session"
 	old := agent.Message{Text: "old transfer source"}
-	if err := store.SaveDraft(sessionID, old); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, old); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	transfer := stashTransfer{
 		SessionID: sessionID, Draft: old,
 		Stash: Stash{ID: "0123456789abcdef", CreatedAt: time.Now().UTC(), Message: old},
 	}
-	if err := store.save(stashTransferName, transfer); err != nil {
-		t.Fatal(err)
+	if saveErr := store.save(stashTransferName, transfer); saveErr != nil {
+		t.Fatal(saveErr)
 	}
 	newer := agent.Message{Text: "new owner"}
-	if err := store.SaveDraft(sessionID, newer); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, newer); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -341,8 +341,8 @@ func TestStoreRetiresCompleteSessionStateBehindADurableTombstone(t *testing.T) {
 			SessionID: sessionID, Message: agent.Message{Text: "pending run"},
 		},
 	}
-	if err := store.StagePendingRun(command); err != nil {
-		t.Fatal(err)
+	if stagePendingRunErr := store.StagePendingRun(command); stagePendingRunErr != nil {
+		t.Fatal(stagePendingRunErr)
 	}
 	approval := agent.Approval{
 		RunID: "run_waiting", ItemID: "approval", Title: "Approve",
@@ -355,32 +355,32 @@ func TestStoreRetiresCompleteSessionStateBehindADurableTombstone(t *testing.T) {
 		},
 		Interactions: []agent.Interaction{approval},
 	}
-	if err := store.StagePendingResume(sessionID, resume); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume(sessionID, resume); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	draft := agent.Message{Text: "unsent draft"}
-	if err := store.SaveDraft(sessionID, draft); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, draft); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 
 	statePath := store.path(store.sessionStateName(sessionID))
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block deletion"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block deletion"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 
-	if err := store.RetireSessionState(sessionID); err != nil {
-		t.Fatal(err)
+	if retireSessionStateErr := store.RetireSessionState(sessionID); retireSessionStateErr != nil {
+		t.Fatal(retireSessionStateErr)
 	}
-	if got, found, err := store.Draft(sessionID); err != nil || found {
-		t.Fatalf("retired draft = %+v, %v, %v", got, found, err)
+	if got, found, draftErr := store.Draft(sessionID); draftErr != nil || found {
+		t.Fatalf("retired draft = %+v, %v, %v", got, found, draftErr)
 	}
 	if got := store.PendingRuns(sessionID); len(got) != 0 {
 		t.Fatalf("retired runs remain = %+v", got)
@@ -396,8 +396,8 @@ func TestStoreRetiresCompleteSessionStateBehindADurableTombstone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, found, err := reopened.Draft(sessionID); err != nil || found || len(reopened.PendingRuns(sessionID)) != 0 {
-		t.Fatalf("reopened retired state has draft=%+v found=%v runs=%+v error=%v", got, found, reopened.PendingRuns(sessionID), err)
+	if got, found, draftErr := reopened.Draft(sessionID); draftErr != nil || found || len(reopened.PendingRuns(sessionID)) != 0 {
+		t.Fatalf("reopened retired state has draft=%+v found=%v runs=%+v error=%v", got, found, reopened.PendingRuns(sessionID), draftErr)
 	}
 	if pending, found := reopened.PendingResume(sessionID); found {
 		t.Fatalf("reopened retired resume = %+v", pending)
@@ -406,14 +406,14 @@ func TestStoreRetiresCompleteSessionStateBehindADurableTombstone(t *testing.T) {
 		t.Fatalf("reopened deletion tombstones = %+v", deletions)
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err = Open(directory, Config{})
 	if err != nil {
@@ -440,11 +440,11 @@ func TestStoreRecoversPreparedSessionDeletionWithStableIdentity(t *testing.T) {
 	request := agent.DeleteSession{
 		CommandID: agent.CommandID("cli_33333333333333333333333333333333"), SessionID: sessionID,
 	}
-	if err := store.SaveDraft(sessionID, agent.Message{Text: "owned until runtime confirmation"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, agent.Message{Text: "owned until runtime confirmation"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.StageSessionDeletion(request, ReplayGuard{}); err != nil {
-		t.Fatal(err)
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, ReplayGuard{}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -498,8 +498,8 @@ func TestStorePersistsAndAtomicallyConsumesSessionRollbackRecovery(t *testing.T)
 		t.Fatal(err)
 	}
 	const sessionID = "session"
-	if err := store.SaveDraft(sessionID, agent.Message{Text: "new thought"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, agent.Message{Text: "new thought"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	pending := PendingSessionRollback{
 		Phase:     SessionRollbackPrepared,
@@ -509,8 +509,8 @@ func TestStorePersistsAndAtomicallyConsumesSessionRollbackRecovery(t *testing.T)
 		OpeningText: "restored opening", OpeningImages: 2,
 		StagedAt: time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
 	}
-	if err := store.StageSessionRollback(pending); err != nil {
-		t.Fatal(err)
+	if stageSessionRollbackErr := store.StageSessionRollback(pending); stageSessionRollbackErr != nil {
+		t.Fatal(stageSessionRollbackErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -521,8 +521,8 @@ func TestStorePersistsAndAtomicallyConsumesSessionRollbackRecovery(t *testing.T)
 	if !exists || !pendingSessionRollbackEqual(stored, pending) {
 		t.Fatalf("prepared rollback = %+v, present %t", stored, exists)
 	}
-	if err := reopened.ConfirmSessionRollback(sessionID, pending.CommandID); err != nil {
-		t.Fatal(err)
+	if confirmSessionRollbackErr := reopened.ConfirmSessionRollback(sessionID, pending.CommandID); confirmSessionRollbackErr != nil {
+		t.Fatal(confirmSessionRollbackErr)
 	}
 	recovery, found, err := reopened.ConsumeConfirmedSessionRollback(sessionID)
 	if err != nil {
@@ -557,14 +557,14 @@ func TestStoreDoesNotDuplicateAnEditedRecoveredRollbackDraft(t *testing.T) {
 		BeforeRevision: 2, BeforeRunIDs: []string{"run_1"}, OpeningText: "opening",
 		StagedAt: time.Date(2026, 8, 13, 10, 0, 0, 0, time.UTC),
 	}
-	if err := store.StageSessionRollback(pending); err != nil {
-		t.Fatal(err)
+	if stageSessionRollbackErr := store.StageSessionRollback(pending); stageSessionRollbackErr != nil {
+		t.Fatal(stageSessionRollbackErr)
 	}
-	if err := store.SaveDraft(pending.SessionID, agent.Message{Text: "opening!"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(pending.SessionID, agent.Message{Text: "opening!"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.ConfirmSessionRollback(pending.SessionID, pending.CommandID); err != nil {
-		t.Fatal(err)
+	if confirmSessionRollbackErr := store.ConfirmSessionRollback(pending.SessionID, pending.CommandID); confirmSessionRollbackErr != nil {
+		t.Fatal(confirmSessionRollbackErr)
 	}
 	recovery, found, err := store.ConsumeConfirmedSessionRollback(pending.SessionID)
 	if err != nil || !found || recovery.Merged || recovery.Draft.Text != "opening!" {
@@ -636,8 +636,8 @@ func TestStorePersistsAndAcknowledgesPendingRunsByCommandIdentity(t *testing.T) 
 		CommandID: commandID, SessionID: "ses_1", Message: agent.Message{Text: "recover this start"},
 		Options: agent.RunOptions{Provider: "deepseek", Model: "deepseek-v4-flash", Generation: agent.GenerationParams{Stop: []string{"done"}}},
 	}
-	if err := store.SaveDraft("ses_1", pending.Message); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_1", pending.Message); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	stageDispatchingPendingRun(t, store, pending)
 	pending.Message.Text = "mutated"
@@ -679,38 +679,38 @@ func TestPendingRunAcknowledgementIsIdempotentAfterSessionStatePersistenceFailur
 
 	statePath := store.path(store.sessionStateName(command.SessionID))
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
-	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err == nil {
+	if acknowledgePendingRunErr := store.AcknowledgePendingRun(command.SessionID, command.CommandID); acknowledgePendingRunErr == nil {
 		t.Fatal("pending run acknowledgement survived blocked outbox retirement")
 	}
 	if history := store.History(); len(history) != 1 || !history[0].Equal(command.Message) {
 		t.Fatalf("first settlement half did not publish history: %+v", history)
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err := Open(directory, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := reopened.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
-		t.Fatal(err)
+	if acknowledgePendingRunErr := reopened.AcknowledgePendingRun(command.SessionID, command.CommandID); acknowledgePendingRunErr != nil {
+		t.Fatal(acknowledgePendingRunErr)
 	}
 	if history := reopened.History(); len(history) != 1 || !history[0].Equal(command.Message) {
 		t.Fatalf("retried settlement duplicated history: %+v", history)
@@ -742,34 +742,34 @@ func TestBoundedHistoryRetainsAnUnsettledCommandIdentity(t *testing.T) {
 
 	statePath := store.path(store.sessionStateName(command.SessionID))
 	backupPath := statePath + ".backup"
-	if err := os.Rename(statePath, backupPath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(statePath, backupPath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
-	if err := os.Mkdir(statePath, 0o700); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(statePath, 0o700); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	blocker := filepath.Join(statePath, "blocker")
-	if err := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
-	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err == nil {
+	if acknowledgePendingRunErr := store.AcknowledgePendingRun(command.SessionID, command.CommandID); acknowledgePendingRunErr == nil {
 		t.Fatal("acknowledgement unexpectedly retired the blocked outbox")
 	}
-	if err := store.Remember(agent.Message{Text: "newer plain history"}); err != nil {
-		t.Fatal(err)
+	if rememberErr := store.Remember(agent.Message{Text: "newer plain history"}); rememberErr != nil {
+		t.Fatal(rememberErr)
 	}
 	if history := store.History(); len(history) != 2 || !history[0].Equal(command.Message) || history[1].Text != "newer plain history" {
 		t.Fatalf("history limit evicted unsettled command identity: %+v", history)
 	}
 
-	if err := os.Remove(blocker); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(blocker); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Remove(statePath); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(statePath); removeErr != nil {
+		t.Fatal(removeErr)
 	}
-	if err := os.Rename(backupPath, statePath); err != nil {
-		t.Fatal(err)
+	if renameErr := os.Rename(backupPath, statePath); renameErr != nil {
+		t.Fatal(renameErr)
 	}
 	reopened, err := Open(directory, Config{HistoryLimit: 1})
 	if err != nil {
@@ -937,8 +937,8 @@ func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replayed, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{}); err != nil || replayed != cancelID {
-		t.Fatalf("idempotent cancel transition = %q, %v; want %q", replayed, err, cancelID)
+	if replayed, markPendingRunCancelingErr := store.MarkPendingRunCanceling(command.SessionID, command.CommandID, ReplayGuard{}); markPendingRunCancelingErr != nil || replayed != cancelID {
+		t.Fatalf("idempotent cancel transition = %q, %v; want %q", replayed, markPendingRunCancelingErr, cancelID)
 	}
 	reopened, err := Open(directory, Config{})
 	if err != nil {
@@ -1061,8 +1061,8 @@ func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T)
 		},
 		Interactions: []agent.Interaction{approval},
 	}
-	if err := store.StagePendingResume("ses_1", pending); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume("ses_1", pending); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	pending.Command.Answers[0].Answer = agent.ApprovalAnswer{Decision: agent.ApprovalApprove}
 	pending.Interactions[0] = agent.Approval{RunID: "mutated"}
@@ -1169,8 +1169,8 @@ func TestStoreRequeuesAnExpiredResumeWithOneDurableReplacementIdentity(t *testin
 			Namespace: "runtime-a", Until: time.Now().UTC().Add(-time.Second),
 		},
 	}
-	if err := store.StagePendingResume("ses_1", pending); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume("ses_1", pending); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	replay := ReplayGuard{Namespace: "runtime-a", Until: time.Now().UTC().Add(time.Hour)}
 	requeued, err := store.RequeuePendingResume("ses_1", pending.Command.CommandID, replay)
@@ -1254,8 +1254,8 @@ func TestStorePersistsTheCompleteMixedInteractionReview(t *testing.T) {
 		},
 		Interactions: []agent.Interaction{approval, question},
 	}
-	if err := store.StagePendingResume("ses_1", pending); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume("ses_1", pending); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 	reopened, err := Open(directory, Config{})
 	if err != nil {

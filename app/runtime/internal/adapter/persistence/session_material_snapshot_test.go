@@ -52,8 +52,8 @@ func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.
 		ID: "ses_snapshot", Workspace: sessionfixture.MustWorkspace("/workspace"), Title: "before",
 		StartedAt: createdAt, UpdatedAt: createdAt, Revision: 1,
 	})
-	if err := writerSessionStore.Insert(ctx, original); err != nil {
-		t.Fatalf("seed Session: %v", err)
+	if insertErr := writerSessionStore.Insert(ctx, original); insertErr != nil {
+		t.Fatalf("seed Session: %v", insertErr)
 	}
 	readerPlanStore := sqlite.NewPlanStore(readerDB)
 	writerPlanStore := sqlite.NewPlanStore(writerDB)
@@ -63,8 +63,8 @@ func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.
 	if err != nil {
 		t.Fatalf("prepare Plan: %v", err)
 	}
-	if err := writerPlanStore.Save(ctx, original.ID(), 0, originalPlan); err != nil {
-		t.Fatalf("seed Plan: %v", err)
+	if saveErr := writerPlanStore.Save(ctx, original.ID(), 0, originalPlan); saveErr != nil {
+		t.Fatalf("seed Plan: %v", saveErr)
 	}
 	readerGoalStore := sqlite.NewGoalStore(readerDB)
 	writerGoalStore := sqlite.NewGoalStore(writerDB)
@@ -98,13 +98,13 @@ func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.
 		err              error
 	}, 1)
 	go func() {
-		snapshot, err := stores.ReadMaterialSnapshot(ctx, original.ID())
+		snapshot, readMaterialSnapshotErr := stores.ReadMaterialSnapshot(ctx, original.ID())
 		snapshotResult <- struct {
 			snapshotRevision uint64
 			planRevision     uint64
 			goalRevision     int64
 			err              error
-		}{snapshot.Session.Revision(), snapshot.Plan.Revision(), snapshot.Goal.Revision, err}
+		}{snapshot.Session.Revision(), snapshot.Plan.Revision(), snapshot.Goal.Revision, readMaterialSnapshotErr}
 	}()
 	<-blockingGoal.entered
 
@@ -126,21 +126,21 @@ func TestReadMaterialSnapshotKeepsSessionPlanAndGoalOnOneTransaction(t *testing.
 	writerDone := make(chan error, 1)
 	go func() {
 		writerDone <- sqlite.RunInTx(ctx, writerDB, func(ctx context.Context) error {
-			if err := writerSessionStore.Save(ctx, original.Revision(), updatedSession); err != nil {
-				return err
+			if saveErr := writerSessionStore.Save(ctx, original.Revision(), updatedSession); saveErr != nil {
+				return saveErr
 			}
-			if err := writerPlanStore.Save(ctx, original.ID(), originalPlan.Revision(), updatedPlan); err != nil {
-				return err
+			if saveErr := writerPlanStore.Save(ctx, original.ID(), originalPlan.Revision(), updatedPlan); saveErr != nil {
+				return saveErr
 			}
-			_, applied, err := writerGoalStore.Save(ctx, updatedGoal, originalGoal.Version())
-			if err == nil && !applied {
+			_, applied, saveErr := writerGoalStore.Save(ctx, updatedGoal, originalGoal.Version())
+			if saveErr == nil && !applied {
 				return errors.New("replace Goal: CAS did not apply")
 			}
-			return err
+			return saveErr
 		})
 	}()
-	if err := <-writerDone; err != nil {
-		t.Fatalf("commit concurrent successor state: %v", err)
+	if writerErr := <-writerDone; writerErr != nil {
+		t.Fatalf("commit concurrent successor state: %v", writerErr)
 	}
 	close(blockingGoal.release)
 

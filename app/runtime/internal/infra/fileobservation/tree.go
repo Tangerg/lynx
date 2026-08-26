@@ -210,9 +210,9 @@ func scanTree(candidate treeTarget) (treeSnapshot, []string, error) {
 		return nil, nil, fmt.Errorf("observe trees: resolve %q: %w", candidate.path, err)
 	}
 	if candidate.physicalBoundary != "" {
-		inside, err := pathidentity.Contains(candidate.physicalBoundary, physical)
-		if err != nil {
-			return nil, nil, fmt.Errorf("observe trees: confine %q: %w", candidate.path, err)
+		inside, containsErr := pathidentity.Contains(candidate.physicalBoundary, physical)
+		if containsErr != nil {
+			return nil, nil, fmt.Errorf("observe trees: confine %q: %w", candidate.path, containsErr)
 		}
 		if !inside {
 			directory, err := nearestExistingDirectory(filepath.Dir(candidate.path))
@@ -254,14 +254,14 @@ func scanTree(candidate treeTarget) (treeSnapshot, []string, error) {
 		if entry.Name() != candidate.fileName {
 			return nil
 		}
-		relative, err := filepath.Rel(physical, path)
-		if err != nil {
-			return err
+		relative, relErr := filepath.Rel(physical, path)
+		if relErr != nil {
+			return relErr
 		}
 		logical := filepath.Join(candidate.path, relative)
-		value, resolved, err := fingerprintTreeFile(logical, path, candidate.physicalBoundary)
-		if err != nil {
-			return err
+		value, resolved, relErr := fingerprintTreeFile(logical, path, candidate.physicalBoundary)
+		if relErr != nil {
+			return relErr
 		}
 		snapshot[logical] = treeEntry{fingerprint: value, physical: resolved}
 		return nil
@@ -285,9 +285,9 @@ func fingerprintTreeFile(logical, physical, boundary string) (fingerprint, strin
 		return fingerprint{}, "", fmt.Errorf("observe trees: resolve file %q: %w", logical, err)
 	}
 	if boundary != "" {
-		inside, err := pathidentity.Contains(boundary, resolved)
-		if err != nil {
-			return fingerprint{}, "", fmt.Errorf("observe trees: confine file %q: %w", logical, err)
+		inside, containsErr := pathidentity.Contains(boundary, resolved)
+		if containsErr != nil {
+			return fingerprint{}, "", fmt.Errorf("observe trees: confine file %q: %w", logical, containsErr)
 		}
 		if !inside {
 			return fingerprint{}, resolved, nil

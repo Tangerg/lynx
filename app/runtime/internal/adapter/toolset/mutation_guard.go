@@ -70,13 +70,13 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, cwd string) too
 			return "", fmt.Errorf("inspect mutation paths before applying patch: %w", err)
 		}
 		for _, path := range paths {
-			abs, err := pathidentity.Canonical(cwd, path)
-			if err != nil {
-				return "", fmt.Errorf("resolve mutation path: %w", err)
+			abs, canonicalErr := pathidentity.Canonical(cwd, path)
+			if canonicalErr != nil {
+				return "", fmt.Errorf("resolve mutation path: %w", canonicalErr)
 			}
-			fingerprint, exists, err := fingerprintExistingFile(ctx, abs, 0)
-			if err != nil {
-				return "", fmt.Errorf("fingerprint mutation path %s: %w", path, err)
+			fingerprint, exists, canonicalErr := fingerprintExistingFile(ctx, abs, 0)
+			if canonicalErr != nil {
+				return "", fmt.Errorf("fingerprint mutation path %s: %w", path, canonicalErr)
 			}
 			if !exists {
 				continue

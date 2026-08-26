@@ -89,8 +89,8 @@ func (w *WorkingContextComposer) ComposeWorkingContext(
 	if err != nil {
 		return nil, err
 	}
-	if err := hookResult.applyTo(&seed[len(seed)-1]); err != nil {
-		return nil, err
+	if applyToErr := hookResult.applyTo(&seed[len(seed)-1]); applyToErr != nil {
+		return nil, applyToErr
 	}
 
 	system, err := w.composeSystemMessage(ctx, input.SessionID, input.CWD)

@@ -408,10 +408,10 @@ func TestApprovalModeMutationOutlivesSameSessionProjectionReplacement(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := base.UpdateSession(t.Context(), agent.UpdateSession{
+	if _, updateSessionErr := base.UpdateSession(t.Context(), agent.UpdateSession{
 		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
-	}); err != nil {
-		t.Fatal(err)
+	}); updateSessionErr != nil {
+		t.Fatal(updateSessionErr)
 	}
 	source.events <- changefeed.Event{
 		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
@@ -513,10 +513,10 @@ func TestSessionCenterMutationOutlivesCurrentSessionProjectionReplacement(t *tes
 	host.Press(input.Enter)
 	host.Shows(t, "wait for the current session action to finish")
 
-	if _, err := base.RollbackSession(t.Context(), agent.RollbackSession{
+	if _, rollbackSessionErr := base.RollbackSession(t.Context(), agent.RollbackSession{
 		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
-	}); err != nil {
-		t.Fatal(err)
+	}); rollbackSessionErr != nil {
+		t.Fatal(rollbackSessionErr)
 	}
 	title := "Session catalog refresh installed"
 	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
@@ -1553,8 +1553,8 @@ func TestDeletedActiveSessionTransfersItsUnsentDraftToTheReplacement(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if draft, found, err := store.Draft("ses_demo_1"); err != nil || found {
-		t.Fatalf("deleted session draft = %+v, found %t, error %v", draft, found, err)
+	if draft, found, draftErr := store.Draft("ses_demo_1"); draftErr != nil || found {
+		t.Fatalf("deleted session draft = %+v, found %t, error %v", draft, found, draftErr)
 	}
 	draft, found, err := store.Draft(replacementID)
 	if err != nil || !found || draft.Text != "unsent draft survives forced replacement" {
@@ -1595,8 +1595,8 @@ func TestDeletedSessionReplacementClosesItsQueueEditor(t *testing.T) {
 	if !ok {
 		t.Fatal("queued editor test has no active run")
 	}
-	if _, err := base.CancelRun(t.Context(), agent.CancelRun{RunID: active.ID}); err != nil {
-		t.Fatal(err)
+	if _, cancelRunErr := base.CancelRun(t.Context(), agent.CancelRun{RunID: active.ID}); cancelRunErr != nil {
+		t.Fatal(cancelRunErr)
 	}
 	snapshot, err = base.GetSession(t.Context(), "ses_demo_1")
 	if err != nil {

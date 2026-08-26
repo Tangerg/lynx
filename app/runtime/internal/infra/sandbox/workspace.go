@@ -72,8 +72,8 @@ func newWorkspace(ctx context.Context, config Config, source string, runner comm
 	if !filepath.IsAbs(config.BaseDir) {
 		return nil, errors.New("sandbox: base directory must be absolute")
 	}
-	if err := os.MkdirAll(config.BaseDir, 0o700); err != nil {
-		return nil, fmt.Errorf("sandbox: create base directory: %w", err)
+	if mkdirAllErr := os.MkdirAll(config.BaseDir, 0o700); mkdirAllErr != nil {
+		return nil, fmt.Errorf("sandbox: create base directory: %w", mkdirAllErr)
 	}
 	dir, err := os.MkdirTemp(config.BaseDir, "workspace-")
 	if err != nil {

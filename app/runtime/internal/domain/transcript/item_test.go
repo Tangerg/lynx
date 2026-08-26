@@ -24,7 +24,7 @@ func TestToolApprovalDecisionIsImmutableAndSurvivesSettlement(t *testing.T) {
 	if running.ApprovalDecision() != "" || resolved.ApprovalDecision() != approval.Allow {
 		t.Fatalf("approval decisions = original %q, resolved %q", running.ApprovalDecision(), resolved.ApprovalDecision())
 	}
-	if _, err := resolved.ResolveToolApproval(approval.Deny); err == nil {
+	if _, resolveToolApprovalErr := resolved.ResolveToolApproval(approval.Deny); resolveToolApprovalErr == nil {
 		t.Fatal("ResolveToolApproval accepted a second decision")
 	}
 	result := tool.StringResult("ok")
@@ -192,7 +192,7 @@ func TestItemForkReidentifiesTerminalHistoryAndRemapsOffload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewToolCall: %v", err)
 	}
-	if _, err := running.Fork("session-child", "run-child", "item-child", nil); err == nil {
+	if _, forkErr := running.Fork("session-child", "run-child", "item-child", nil); forkErr == nil {
 		t.Fatal("Fork accepted a running Item")
 	}
 	preview := tool.StringResult("preview")
@@ -202,7 +202,7 @@ func TestItemForkReidentifiesTerminalHistoryAndRemapsOffload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteToolCall: %v", err)
 	}
-	if _, err := completed.Fork("session-child", "run-child", "item-child", nil); err == nil {
+	if _, forkErr := completed.Fork("session-child", "run-child", "item-child", nil); forkErr == nil {
 		t.Fatal("Fork removed an existing offload reference")
 	}
 	forked, err := completed.Fork(
@@ -291,7 +291,7 @@ func TestToolCallFailureAndAbandonmentHaveOneWayTransitions(t *testing.T) {
 	if failed.Status() != transcript.ItemIncomplete || !present || gotFailure != failure {
 		t.Fatalf("failed ToolCall = status %v, failure %+v/%t", failed.Status(), gotFailure, present)
 	}
-	if _, err := failed.ClassifyAbandonedToolCall(failure); err == nil {
+	if _, classifyAbandonedToolCallErr := failed.ClassifyAbandonedToolCall(failure); classifyAbandonedToolCallErr == nil {
 		t.Fatal("already-classified ToolCall accepted another failure")
 	}
 

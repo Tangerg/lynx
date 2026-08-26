@@ -93,8 +93,8 @@ func (c *Coordinator) PrepareScheduled(
 	if !selection.Configured() {
 		selection = c.defaultModelSelection
 	}
-	if err := selection.Validate(); err != nil {
-		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection: %w", err)
+	if validateErr := selection.Validate(); validateErr != nil {
+		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection: %w", validateErr)
 	}
 	created, err := session.New(session.Draft{
 		ID: id, Title: title, Workspace: workspace, Selection: selection, StartedAt: c.now(),

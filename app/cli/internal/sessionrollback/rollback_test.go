@@ -101,15 +101,15 @@ func TestRecoverConfirmsAnAlreadyAppliedRollbackWithoutReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StageSessionRollback(pending); err != nil {
-		t.Fatal(err)
+	if stageSessionRollbackErr := store.StageSessionRollback(pending); stageSessionRollbackErr != nil {
+		t.Fatal(stageSessionRollbackErr)
 	}
-	if _, err := underlying.RollbackSession(t.Context(), pending.Request()); err != nil {
-		t.Fatal(err)
+	if _, rollbackSessionErr := underlying.RollbackSession(t.Context(), pending.Request()); rollbackSessionErr != nil {
+		t.Fatal(rollbackSessionErr)
 	}
 	runtime := &recordingRuntime{Runtime: underlying}
-	if err := Recover(t.Context(), runtime, store, window, retry.Backoff{}); err != nil {
-		t.Fatal(err)
+	if recoverErr := Recover(t.Context(), runtime, store, window, retry.Backoff{}); recoverErr != nil {
+		t.Fatal(recoverErr)
 	}
 	if runtime.calls != 0 {
 		t.Fatalf("already-applied rollback was replayed %d times", runtime.calls)
@@ -141,8 +141,8 @@ func TestPreviewKeepsTheBoundaryRootDescendants(t *testing.T) {
 	later.ID = "run_later"
 	later.CreatedAt = root.CreatedAt.Add(2 * time.Millisecond)
 	snapshot.Runs = []agent.Run{root, child, later}
-	if err := snapshot.Validate(); err != nil {
-		t.Fatal(err)
+	if validateErr := snapshot.Validate(); validateErr != nil {
+		t.Fatal(validateErr)
 	}
 	preview, err := PreviewSession(snapshot, agent.RollbackSession{
 		SessionID: snapshot.Session.ID, ToRunID: root.ID, Scope: agent.RestoreHistory,
@@ -236,8 +236,8 @@ func TestRecoverRefusesUnprovenFileRollbackReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.StageSessionRollback(pending); err != nil {
-				t.Fatal(err)
+			if stageSessionRollbackErr := store.StageSessionRollback(pending); stageSessionRollbackErr != nil {
+				t.Fatal(stageSessionRollbackErr)
 			}
 			runtime := &recordingRuntime{Runtime: underlying}
 			err = Recover(t.Context(), runtime, store, test.current, retry.Backoff{})
@@ -298,8 +298,8 @@ func TestRecoverPreservesHistoryRollbackRejectedByAnotherRuntimeStore(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StageSessionRollback(pending); err != nil {
-		t.Fatal(err)
+	if stageSessionRollbackErr := store.StageSessionRollback(pending); stageSessionRollbackErr != nil {
+		t.Fatal(stageSessionRollbackErr)
 	}
 	runtime := &recordingRuntime{Runtime: underlying, reject: agent.ErrCommandStoreMismatch}
 	err = Recover(t.Context(), runtime, store, window, retry.Backoff{})

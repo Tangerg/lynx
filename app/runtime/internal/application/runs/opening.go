@@ -17,11 +17,11 @@ import (
 // the command's acceptance point; executor activation continues behind the
 // package's lifecycle supervisor and cannot retain the accepted response.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result StartResult, err error) {
-	if err := cmd.ValidateScheduledIdentity(); err != nil {
-		return StartResult{}, err
+	if validateScheduledIdentityErr := cmd.ValidateScheduledIdentity(); validateScheduledIdentityErr != nil {
+		return StartResult{}, validateScheduledIdentityErr
 	}
-	if err := cmd.ModelSelection.Validate(); err != nil {
-		return StartResult{}, fmt.Errorf("runs: model selection: %w", err)
+	if validateErr := cmd.ModelSelection.Validate(); validateErr != nil {
+		return StartResult{}, fmt.Errorf("runs: model selection: %w", validateErr)
 	}
 	requestedSelection := cmd.ModelSelection
 	message, media, openingUserText, err := cmd.MaterializeInput()
@@ -39,8 +39,8 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if !cmd.ModelSelection.Configured() {
 		cmd.ModelSelection = sess.Selection()
 	}
-	if err := cmd.ModelSelection.Validate(); err != nil {
-		return StartResult{}, fmt.Errorf("runs: effective model selection: %w", err)
+	if validateErr := cmd.ModelSelection.Validate(); validateErr != nil {
+		return StartResult{}, fmt.Errorf("runs: effective model selection: %w", validateErr)
 	}
 	if !cmd.ModelSelection.Configured() {
 		return StartResult{}, errors.New("runs: effective model selection is required")
@@ -60,11 +60,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		return StartResult{}, err
 	}
 	draft.WorkingContext = []corechat.Message{currentMessage}
-	if err := draft.Validate(); err != nil {
-		return StartResult{}, err
+	if validateErr := draft.Validate(); validateErr != nil {
+		return StartResult{}, validateErr
 	}
-	if err := c.rootStarts.ValidateRootStart(draft); err != nil {
-		return StartResult{}, err
+	if validateRootStartErr := c.rootStarts.ValidateRootStart(draft); validateRootStartErr != nil {
+		return StartResult{}, validateRootStartErr
 	}
 
 	runAdmission, err := c.claimFreshRun(ctx, sess)
@@ -107,8 +107,8 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 			result = StartResult{}
 		}
 	}()
-	if err := staged.validateFor(sess.ID()); err != nil {
-		return StartResult{}, err
+	if validateForErr := staged.validateFor(sess.ID()); validateForErr != nil {
+		return StartResult{}, validateForErr
 	}
 
 	runID := cmd.RunID
@@ -120,9 +120,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	modelOnlyInput := cmd.GoalIncarnationID != ""
 	var sessionReplacement *SessionReplacement
 	if initialSession == nil && requestedSelection.Configured() {
-		next, changed, err := sess.Apply(session.Patch{Selection: &requestedSelection}, createdAt)
-		if err != nil {
-			return StartResult{}, fmt.Errorf("runs: prepare Session model-selection replacement: %w", err)
+		next, changed, applyErr := sess.Apply(session.Patch{Selection: &requestedSelection}, createdAt)
+		if applyErr != nil {
+			return StartResult{}, fmt.Errorf("runs: prepare Session model-selection replacement: %w", applyErr)
 		}
 		if changed {
 			sessionReplacement = &SessionReplacement{

@@ -54,27 +54,27 @@ func (d *draftEditor) Edit(ctx context.Context, session program.Session, workspa
 	}
 	path := temporary.Name()
 	defer os.Remove(path)
-	if err := temporary.Chmod(0o600); err != nil {
+	if chmodErr := temporary.Chmod(0o600); chmodErr != nil {
 		_ = temporary.Close()
-		return "", fmt.Errorf("protect editor draft: %w", err)
+		return "", fmt.Errorf("protect editor draft: %w", chmodErr)
 	}
-	if _, err := io.WriteString(temporary, original); err != nil {
+	if _, writeStringErr := io.WriteString(temporary, original); writeStringErr != nil {
 		_ = temporary.Close()
-		return "", fmt.Errorf("write editor draft: %w", err)
+		return "", fmt.Errorf("write editor draft: %w", writeStringErr)
 	}
-	if err := temporary.Sync(); err != nil {
+	if syncErr := temporary.Sync(); syncErr != nil {
 		_ = temporary.Close()
-		return "", fmt.Errorf("sync editor draft: %w", err)
+		return "", fmt.Errorf("sync editor draft: %w", syncErr)
 	}
-	if err := temporary.Close(); err != nil {
-		return "", fmt.Errorf("close editor draft: %w", err)
+	if closeErr := temporary.Close(); closeErr != nil {
+		return "", fmt.Errorf("close editor draft: %w", closeErr)
 	}
 	arguments := append(slices.Clone(d.command[1:]), path)
 	command := exec.CommandContext(ctx, d.command[0], arguments...) //nolint:gosec // The user explicitly configures their editor command.
 	command.Dir = workspace
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := session.Hand(command.Run); err != nil {
-		return "", fmt.Errorf("run external editor: %w", err)
+	if handErr := session.Hand(command.Run); handErr != nil {
+		return "", fmt.Errorf("run external editor: %w", handErr)
 	}
 	file, err := os.Open(path)
 	if err != nil {

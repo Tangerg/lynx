@@ -19,11 +19,11 @@ func TestStorePersistsRunAndResumeReplayOwnership(t *testing.T) {
 		CommandID: "cli_88888888888888888888888888888888", SessionID: "ses_1",
 		Message: agent.Message{Text: "persist guards"},
 	}
-	if err := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: start}); err != nil {
-		t.Fatal(err)
+	if stagePendingRunErr := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: start}); stagePendingRunErr != nil {
+		t.Fatal(stagePendingRunErr)
 	}
-	if err := store.MarkPendingRunDispatching(start.SessionID, start.CommandID, startGuard); err != nil {
-		t.Fatal(err)
+	if markPendingRunDispatchingErr := store.MarkPendingRunDispatching(start.SessionID, start.CommandID, startGuard); markPendingRunDispatchingErr != nil {
+		t.Fatal(markPendingRunDispatchingErr)
 	}
 	cancelID, err := store.MarkPendingRunCanceling(start.SessionID, start.CommandID, cancelGuard)
 	if err != nil {
@@ -43,8 +43,8 @@ func TestStorePersistsRunAndResumeReplayOwnership(t *testing.T) {
 		},
 		Interactions: []agent.Interaction{approval}, Replay: resumeGuard,
 	}
-	if err := store.StagePendingResume("ses_2", resume); err != nil {
-		t.Fatal(err)
+	if stagePendingResumeErr := store.StagePendingResume("ses_2", resume); stagePendingResumeErr != nil {
+		t.Fatal(stagePendingResumeErr)
 	}
 
 	reopened, err := Open(directory, Config{})

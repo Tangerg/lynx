@@ -341,8 +341,8 @@ func runInteractionHarness(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := executor.Release(context.Background(), ref); err != nil {
-			t.Errorf("Release: %v", err)
+		if releaseErr := executor.Release(context.Background(), ref); releaseErr != nil {
+			t.Errorf("Release: %v", releaseErr)
 		}
 	})
 	sequence, err := executor.Observe(context.Background(), ref)

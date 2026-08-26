@@ -481,18 +481,18 @@ func (a *app) prepareDestinationDraft(
 	if err != nil {
 		return agent.Message{}, nil, err
 	}
-	if err := a.saveDraft(current); err != nil {
-		return agent.Message{}, nil, fmt.Errorf("save source session draft: %w", err)
+	if saveDraftErr := a.saveDraft(current); saveDraftErr != nil {
+		return agent.Message{}, nil, fmt.Errorf("save source session draft: %w", saveDraftErr)
 	}
-	if err := a.workbench.ActivateSessionState(session.ID); err != nil {
-		return agent.Message{}, nil, fmt.Errorf("activate destination session state: %w", err)
+	if activateSessionStateErr := a.workbench.ActivateSessionState(session.ID); activateSessionStateErr != nil {
+		return agent.Message{}, nil, fmt.Errorf("activate destination session state: %w", activateSessionStateErr)
 	}
 	draft, _, err := a.workbench.Draft(session.ID)
 	if err != nil {
 		return agent.Message{}, nil, fmt.Errorf("load session draft: %w", err)
 	}
-	if err := a.workbench.RememberWorkspace(session.Workspace.Path); err != nil {
-		return agent.Message{}, nil, fmt.Errorf("remember workspace: %w", err)
+	if rememberWorkspaceErr := a.workbench.RememberWorkspace(session.Workspace.Path); rememberWorkspaceErr != nil {
+		return agent.Message{}, nil, fmt.Errorf("remember workspace: %w", rememberWorkspaceErr)
 	}
 	transition := a.sessionDraftTransition
 	if transition != nil {

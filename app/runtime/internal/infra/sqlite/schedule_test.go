@@ -70,8 +70,8 @@ func TestScheduleCRUD(t *testing.T) {
 	got.Enabled = false
 	got.NextRunAt = time.Time{}
 	got.Title = "renamed"
-	if _, err := s.Update(ctx, got, got.Revision); err != nil {
-		t.Fatalf("update: %v", err)
+	if _, updateErr := s.Update(ctx, got, got.Revision); updateErr != nil {
+		t.Fatalf("update: %v", updateErr)
 	}
 	reread, _ := s.Get(ctx, created.ID)
 	if reread.Enabled || reread.Title != "renamed" || !reread.NextRunAt.IsZero() {
@@ -85,8 +85,8 @@ func TestScheduleCRUD(t *testing.T) {
 	if !deleted {
 		t.Fatal("delete reported no committed mutation")
 	}
-	if _, err := s.Get(ctx, created.ID); err != schedule.ErrNotFound {
-		t.Errorf("get after delete err = %v, want ErrNotFound", err)
+	if _, getErr := s.Get(ctx, created.ID); getErr != schedule.ErrNotFound {
+		t.Errorf("get after delete err = %v, want ErrNotFound", getErr)
 	}
 	deleted, err = s.Delete(ctx, created.ID)
 	if err != nil || deleted {
@@ -225,8 +225,8 @@ func TestScheduleOccurrenceSurvivesDispatchAndAcceptsOnce(t *testing.T) {
 	if err != nil || !got.NextRunAt.Equal(nextAt) || !got.LastRunAt.IsZero() {
 		t.Fatalf("schedule after Claim = (%+v, %v), want advanced cursor and no accepted run", got, err)
 	}
-	if err := store.Accept(ctx, occurrence.ID, occurrence.RunID); err != nil {
-		t.Fatalf("Accept: %v", err)
+	if acceptErr := store.Accept(ctx, occurrence.ID, occurrence.RunID); acceptErr != nil {
+		t.Fatalf("Accept: %v", acceptErr)
 	}
 	if pending, err = store.Pending(ctx, 100); err != nil || len(pending) != 0 {
 		t.Fatalf("Pending after Accept = (%+v, %v), want empty", pending, err)
@@ -280,8 +280,8 @@ func TestScheduleClaimKeepsOnlyOnePendingOccurrencePerSchedule(t *testing.T) {
 		t.Fatalf("Pending = (%+v, %v), want only first occurrence", pending, err)
 	}
 
-	if err := store.Accept(ctx, first.ID, first.RunID); err != nil {
-		t.Fatalf("Accept first occurrence: %v", err)
+	if acceptErr := store.Accept(ctx, first.ID, first.RunID); acceptErr != nil {
+		t.Fatalf("Accept first occurrence: %v", acceptErr)
 	}
 	second.Schedule, err = store.Get(ctx, created.ID)
 	if err != nil {
@@ -368,8 +368,8 @@ func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close initial store: %v", err)
+	if closeErr := db.Close(); closeErr != nil {
+		t.Fatalf("close initial store: %v", closeErr)
 	}
 
 	reopenedDB, err := sqlite.Open(t.Context(), path)
@@ -396,13 +396,13 @@ func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 	createdAt := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC).UnixMilli()
 	nextRunAt := time.Date(2026, 7, 19, 11, 0, 0, 0, time.UTC).UnixMilli()
 	for _, id := range []string{"sch_a", "sch_c", "sch_b"} {
-		_, err := db.ExecContext(t.Context(), `INSERT INTO schedules(
+		_, execContextErr := db.ExecContext(t.Context(), `INSERT INTO schedules(
 			id, title, instructions, cwd, provider, model, cron, enabled,
 			last_run_at, next_run_at, created_at, revision
 		) VALUES (?, '', 'review', '', '', '', '0 9 * * *', 1, 0, ?, ?, 1)`,
 			id, nextRunAt, createdAt)
-		if err != nil {
-			t.Fatalf("insert %s: %v", id, err)
+		if execContextErr != nil {
+			t.Fatalf("insert %s: %v", id, execContextErr)
 		}
 	}
 
@@ -455,13 +455,13 @@ func TestScheduleDuePrioritizesOldestBacklog(t *testing.T) {
 	newDueAt := oldDueAt.Add(time.Minute)
 	insert := func(id string, dueAt time.Time) {
 		t.Helper()
-		_, err := db.ExecContext(ctx, `INSERT INTO schedules(
+		_, execContextErr := db.ExecContext(ctx, `INSERT INTO schedules(
 			id, title, instructions, cwd, provider, model, cron, enabled,
 			last_run_at, next_run_at, created_at, revision
 		) VALUES (?, '', 'review', '', '', '', '0 9 * * *', 1, 0, ?, ?, 1)`,
 			id, dueAt.UnixMilli(), dueAt.UnixMilli())
-		if err != nil {
-			t.Fatalf("insert %s: %v", id, err)
+		if execContextErr != nil {
+			t.Fatalf("insert %s: %v", id, execContextErr)
 		}
 	}
 	insert("sch_old", oldDueAt)

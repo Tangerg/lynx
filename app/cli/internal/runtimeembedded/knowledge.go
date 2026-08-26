@@ -103,8 +103,8 @@ func (k *knowledgeAdapter) Save(ctx context.Context, update knowledge.Update) (k
 		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned nil")
 	}
 	entry := projectKnowledgeEntry(*updated)
-	if err := entry.Validate(); err != nil {
-		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned an invalid entry: %v", err)
+	if validateErr := entry.Validate(); validateErr != nil {
+		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned an invalid entry: %v", validateErr)
 	}
 	if entry.Scope != target.Scope || entry.Content != update.Content {
 		return knowledge.Entry{}, runtimeContractViolation("update knowledge returned a mismatched entry")

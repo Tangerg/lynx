@@ -42,15 +42,15 @@ func TestPermissionModeStoreRoundTripAndSessionLifecycle(t *testing.T) {
 	}
 
 	restored := approval.SessionMode{Mode: approval.ModeBalanced}
-	if err := modes.PutMode(t.Context(), created.ID(), restored); err != nil {
-		t.Fatalf("PutMode(restored): %v", err)
+	if putModeErr := modes.PutMode(t.Context(), created.ID(), restored); putModeErr != nil {
+		t.Fatalf("PutMode(restored): %v", putModeErr)
 	}
 	if got, found, err = modes.LookupMode(t.Context(), created.ID()); err != nil || !found || got != restored {
 		t.Fatalf("LookupMode(restored) = %+v, found %v, err %v", got, found, err)
 	}
 
-	if err := sessions.Delete(t.Context(), created.ID()); err != nil {
-		t.Fatalf("delete session: %v", err)
+	if deleteErr := sessions.Delete(t.Context(), created.ID()); deleteErr != nil {
+		t.Fatalf("delete session: %v", deleteErr)
 	}
 	if _, found, err = modes.LookupMode(t.Context(), created.ID()); err != nil || found {
 		t.Fatalf("LookupMode after session delete = found %v, err %v", found, err)

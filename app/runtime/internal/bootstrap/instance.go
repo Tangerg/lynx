@@ -63,8 +63,8 @@ const instanceShutdownTimeout = 10 * time.Second
 // Runtime processes may subsequently share the directory; finer application
 // ownership prevents conflicting execution and recovery.
 func OpenInstance(ctx context.Context, cfg InstanceConfig) (_ *Instance, _ config.Settings, err error) {
-	if err := cfg.validate(); err != nil {
-		return nil, config.Settings{}, err
+	if validateErr := cfg.validate(); validateErr != nil {
+		return nil, config.Settings{}, validateErr
 	}
 	setup, err := runtimeownership.PrepareDataDirectory(ctx, cfg.DataDirectory)
 	if err != nil {

@@ -83,8 +83,8 @@ func (o *observedInteractionModel) Call(
 	if err != nil {
 		return nil, err
 	}
-	if err := attempt.beginExternalCall(); err != nil {
-		return nil, err
+	if beginExternalCallErr := attempt.beginExternalCall(); beginExternalCallErr != nil {
+		return nil, beginExternalCallErr
 	}
 	response, err := o.inner.Call(ctx, request)
 	if err != nil {
@@ -430,12 +430,12 @@ func (o *observedInteractionTool) prepare(
 	}
 	forceApproval := false
 	if o.hooks != nil {
-		decision, err := o.hooks.BeforeToolUse(ctx, InteractionToolHookInput{
+		decision, beforeToolUseErr := o.hooks.BeforeToolUse(ctx, InteractionToolHookInput{
 			SessionID: o.start.SessionID, CWD: o.start.CWD,
 			CallID: callID, ToolName: name, Arguments: arguments,
 		})
-		if err != nil {
-			return tool.Arguments{}, false, "", fmt.Errorf("agentexec: run pre-Tool hook: %w", err)
+		if beforeToolUseErr != nil {
+			return tool.Arguments{}, false, "", fmt.Errorf("agentexec: run pre-Tool hook: %w", beforeToolUseErr)
 		}
 		if err := validateHookDecision(decision); err != nil {
 			return tool.Arguments{}, false, "", err

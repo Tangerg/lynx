@@ -71,12 +71,12 @@ func TestWorkspaceCopyDoesNotMaterializeSourceInHeap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := file.Truncate(sourceBytes); err != nil {
+	if truncateErr := file.Truncate(sourceBytes); truncateErr != nil {
 		_ = file.Close()
-		t.Fatal(err)
+		t.Fatal(truncateErr)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := file.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	runtime.GC()

@@ -625,8 +625,8 @@ func (c *Coordinator) prepareChildOpening(
 			spec.SessionID,
 		)
 	}
-	if err := spawningItem.Validate(); err != nil {
-		return nil, fmt.Errorf("runs: open child member %q spawning item: %w", member.MemberID, err)
+	if validateErr := spawningItem.Validate(); validateErr != nil {
+		return nil, fmt.Errorf("runs: open child member %q spawning item: %w", member.MemberID, validateErr)
 	}
 	childRunID := c.newRunID()
 	if childRunID == "" {
@@ -641,8 +641,8 @@ func (c *Coordinator) prepareChildOpening(
 		ParentRunID:     parent.runID,
 		RootRunID:       parent.rootRunID,
 	}
-	if err := lineage.Validate(childRunID); err != nil {
-		return nil, fmt.Errorf("runs: open child member %q lineage: %w", member.MemberID, err)
+	if validateErr := lineage.Validate(childRunID); validateErr != nil {
+		return nil, fmt.Errorf("runs: open child member %q lineage: %w", member.MemberID, validateErr)
 	}
 	startedAt = startedAt.UTC()
 	child := &executorRoute{
@@ -668,8 +668,8 @@ func (c *Coordinator) prepareChildOpening(
 		Now:            c.publications.nowUTC,
 		CancelReason:   cancellationReason(owner.CancelReasonFor, child.runID),
 	})
-	if err := owner.bindExecutorMember(child.runID, member.MemberID); err != nil {
-		return nil, err
+	if bindExecutorMemberErr := owner.bindExecutorMember(child.runID, member.MemberID); bindExecutorMemberErr != nil {
+		return nil, bindExecutorMemberErr
 	}
 	release := true
 	defer func() {

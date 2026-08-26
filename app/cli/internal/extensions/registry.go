@@ -298,8 +298,8 @@ func (s *Scope) Contribute[T any](point Point[T], value T, options Contribution)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.validateContribution(point); err != nil {
-		return nil, err
+	if validateContributionErr := s.validateContribution(point); validateContributionErr != nil {
+		return nil, validateContributionErr
 	}
 	key, sequence, err := s.registry.insertContribution(s.plugin, point, key, value, options.Order)
 	if err != nil {

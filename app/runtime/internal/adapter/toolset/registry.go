@@ -66,11 +66,11 @@ func (DiagnosticRegistry) Invoke(ctx context.Context, root, name, arguments stri
 		if candidate.Definition().Name != name {
 			continue
 		}
-		output, err := candidate.Call(ctx, arguments)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			return tool.Result{}, err
+		output, callErr := candidate.Call(ctx, arguments)
+		if callErr != nil {
+			span.RecordError(callErr)
+			span.SetStatus(codes.Error, callErr.Error())
+			return tool.Result{}, callErr
 		}
 		return directResult(output), nil
 	}

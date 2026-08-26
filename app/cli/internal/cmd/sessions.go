@@ -126,8 +126,8 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := page.Validate(); err != nil {
-				return fmt.Errorf("list sessions: %w", err)
+			if validateErr := page.Validate(); validateErr != nil {
+				return fmt.Errorf("list sessions: %w", validateErr)
 			}
 			if asJSON {
 				return render.WriteSessionPageJSON(cmd.OutOrStdout(), page)
@@ -138,12 +138,12 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 				if title == "" {
 					title = "(untitled)"
 				}
-				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, relativeAge(session.UpdatedAt), title, sessionWorkspaceLabel(session)); err != nil {
-					return err
+				if _, fprintfErr := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, relativeAge(session.UpdatedAt), title, sessionWorkspaceLabel(session)); fprintfErr != nil {
+					return fprintfErr
 				}
 			}
-			if err := w.Flush(); err != nil {
-				return err
+			if flushErr := w.Flush(); flushErr != nil {
+				return flushErr
 			}
 			if page.NextCursor != "" {
 				_, err = fmt.Fprintf(cmd.ErrOrStderr(), "more sessions: --cursor %s\n", page.NextCursor)
@@ -251,8 +251,8 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := forked.Validate(); err != nil {
-				return fmt.Errorf("fork session: %w", err)
+			if validateErr := forked.Validate(); validateErr != nil {
+				return fmt.Errorf("fork session: %w", validateErr)
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), forked.ID)
 			return err
@@ -306,8 +306,8 @@ func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *
 			default:
 				return errors.New("delete session returned an invalid settlement outcome")
 			}
-			if err := sessiondeletion.Confirm(authoring, result); err != nil {
-				return fmt.Errorf("retire deleted session state: %w", err)
+			if confirmErr := sessiondeletion.Confirm(authoring, result); confirmErr != nil {
+				return fmt.Errorf("retire deleted session state: %w", confirmErr)
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), args[0])
 			return err

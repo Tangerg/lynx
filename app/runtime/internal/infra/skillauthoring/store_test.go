@@ -35,14 +35,14 @@ func TestSubmitProposalThenApproveProposal(t *testing.T) {
 	if len(submitted) != 1 || submitted[0] != filepath.Join(root, "_proposals", ref.Name, skillspec.SkillFile) {
 		t.Fatalf("SubmitProposal identities = %v", submitted)
 	}
-	if duplicate, replayed, err := store.SubmitProposal(t.Context(), proposal); err != nil || duplicate != ref || len(replayed) != 0 {
-		t.Fatalf("replayed SubmitProposal = (%+v, %v, %v), want original ref and no mutation", duplicate, replayed, err)
+	if duplicate, replayed, submitProposalErr := store.SubmitProposal(t.Context(), proposal); submitProposalErr != nil || duplicate != ref || len(replayed) != 0 {
+		t.Fatalf("replayed SubmitProposal = (%+v, %v, %v), want original ref and no mutation", duplicate, replayed, submitProposalErr)
 	}
 	// The proposal is under _proposals (invisible to the read-only source) — not active.
-	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Name, "SKILL.md")); err != nil {
-		t.Fatalf("proposal not written: %v", err)
+	if _, statErr := os.Stat(filepath.Join(root, "_proposals", ref.Name, "SKILL.md")); statErr != nil {
+		t.Fatalf("proposal not written: %v", statErr)
 	}
-	if _, err := os.Stat(filepath.Join(root, proposal.Name, "SKILL.md")); !os.IsNotExist(err) {
+	if _, statErr := os.Stat(filepath.Join(root, proposal.Name, "SKILL.md")); !os.IsNotExist(statErr) {
 		t.Fatal("an unapproved proposal must not appear in the active set")
 	}
 
@@ -54,7 +54,7 @@ func TestSubmitProposalThenApproveProposal(t *testing.T) {
 		t.Fatalf("ApproveProposal identities = %v, want proposal and active files", approved)
 	}
 	// Now active, and the proposal is gone.
-	if _, err := os.Stat(filepath.Join(root, "_proposals", ref.Name)); !os.IsNotExist(err) {
+	if _, statErr := os.Stat(filepath.Join(root, "_proposals", ref.Name)); !os.IsNotExist(statErr) {
 		t.Fatal("approval should remove the proposal")
 	}
 
@@ -132,11 +132,11 @@ func TestArchiveRestoreAndList(t *testing.T) {
 	if lc, _ := lifecycleOf(list, "alpha-skill"); lc != skills.Archived {
 		t.Fatalf("alpha should be archived, got %q", lc)
 	}
-	if _, err := os.Stat(filepath.Join(root, "alpha-skill", "SKILL.md")); !os.IsNotExist(err) {
+	if _, statErr := os.Stat(filepath.Join(root, "alpha-skill", "SKILL.md")); !os.IsNotExist(statErr) {
 		t.Fatal("archived skill must leave the active directory")
 	}
-	if _, err := os.Stat(filepath.Join(root, "_archive", "alpha-skill", "SKILL.md")); err != nil {
-		t.Fatalf("archived skill must be preserved under _archive: %v", err)
+	if _, statErr := os.Stat(filepath.Join(root, "_archive", "alpha-skill", "SKILL.md")); statErr != nil {
+		t.Fatalf("archived skill must be preserved under _archive: %v", statErr)
 	}
 
 	// Restore → active again.
@@ -231,14 +231,14 @@ func TestSameNameProposalSupersessionKeepsCurrentApprovedBytes(t *testing.T) {
 	if firstRef == secondRef {
 		t.Fatal("different proposal bytes received the same ref")
 	}
-	if _, err := store.RejectProposal(t.Context(), firstRef); !errors.Is(err, skills.ErrProposalChanged) {
-		t.Fatalf("reject superseded proposal error = %v, want ErrProposalChanged", err)
+	if _, rejectProposalErr := store.RejectProposal(t.Context(), firstRef); !errors.Is(rejectProposalErr, skills.ErrProposalChanged) {
+		t.Fatalf("reject superseded proposal error = %v, want ErrProposalChanged", rejectProposalErr)
 	}
-	if _, err := os.Stat(filepath.Join(root, proposalSubdir, secondRef.Name, "SKILL.md")); err != nil {
-		t.Fatalf("stale decision removed the current proposal: %v", err)
+	if _, statErr := os.Stat(filepath.Join(root, proposalSubdir, secondRef.Name, "SKILL.md")); statErr != nil {
+		t.Fatalf("stale decision removed the current proposal: %v", statErr)
 	}
-	if _, err := store.ApproveProposal(t.Context(), secondRef); err != nil {
-		t.Fatalf("approve second proposal: %v", err)
+	if _, approveProposalErr := store.ApproveProposal(t.Context(), secondRef); approveProposalErr != nil {
+		t.Fatalf("approve second proposal: %v", approveProposalErr)
 	}
 	content, err := os.ReadFile(filepath.Join(root, second.Name, "SKILL.md"))
 	if err != nil {

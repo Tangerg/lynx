@@ -842,9 +842,9 @@ func (a *app) dispatchPrompt(message agent.Message) {
 		a.message("prompt submission blocked: " + err.Error())
 		return
 	}
-	if err := a.commitPromptSubmission(commandID, message); err != nil {
-		a.reportWorkbenchIssue(workbenchRunOutbox, err)
-		a.message("prompt submission blocked: " + err.Error())
+	if commitPromptSubmissionErr := a.commitPromptSubmission(commandID, message); commitPromptSubmissionErr != nil {
+		a.reportWorkbenchIssue(workbenchRunOutbox, commitPromptSubmissionErr)
+		a.message("prompt submission blocked: " + commitPromptSubmissionErr.Error())
 		return
 	}
 	a.reportWorkbenchIssue(workbenchRunOutbox, nil)

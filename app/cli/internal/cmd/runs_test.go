@@ -166,7 +166,7 @@ func TestRunsCancelRequiresConfirmationAndReturnsRootSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := executeCommand(t, runtime, "", "runs", "cancel", opened.RunID); err == nil {
+	if _, _, executeCommandErr := executeCommand(t, runtime, "", "runs", "cancel", opened.RunID); executeCommandErr == nil {
 		t.Fatal("runs cancel did not require --yes")
 	}
 	stillRunning, err := runtime.GetRun(t.Context(), opened.RunID)

@@ -45,13 +45,13 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 		cancelPrepare()
 		t.Fatal(err)
 	}
-	if err := prepared.Validate(); err != nil {
+	if validateErr := prepared.Validate(); validateErr != nil {
 		cancelPrepare()
-		t.Fatal(err)
+		t.Fatal(validateErr)
 	}
 	cancelPrepare()
-	if err := prepared.Change.Discard(); err != nil {
-		t.Fatal(err)
+	if discardErr := prepared.Change.Discard(); discardErr != nil {
+		t.Fatal(discardErr)
 	}
 	liveSession, err := fixture.executor.session(ref)
 	if err != nil {

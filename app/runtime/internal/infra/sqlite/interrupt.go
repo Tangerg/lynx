@@ -345,8 +345,8 @@ func (i *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (
 		sessionID, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err := i.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
-			return InterruptRecord{}, false, err
+		if rejectForeignPendingOwnerErr := i.rejectForeignPendingOwner(ctx, sessionID, runID); rejectForeignPendingOwnerErr != nil {
+			return InterruptRecord{}, false, rejectForeignPendingOwnerErr
 		}
 		return InterruptRecord{}, false, nil
 	}
@@ -384,8 +384,8 @@ func (i *InterruptStore) ClaimResume(
 	)
 	record, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err := i.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
-			return InterruptRecord{}, false, err
+		if rejectForeignPendingOwnerErr := i.rejectForeignPendingOwner(ctx, sessionID, runID); rejectForeignPendingOwnerErr != nil {
+			return InterruptRecord{}, false, rejectForeignPendingOwnerErr
 		}
 		return InterruptRecord{}, false, nil
 	}
@@ -545,15 +545,15 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
 	}
 	var continuationValues []continuationRow
-	if err := decodeInterruptJSON(continuations, &continuationValues); err != nil {
-		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
+	if decodeInterruptJSONErr := decodeInterruptJSON(continuations, &continuationValues); decodeInterruptJSONErr != nil {
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", decodeInterruptJSONErr)
 	}
 	if p.Continuations, err = continuationsFromRows(continuationValues); err != nil {
 		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
 	var bindingValues []interruptBindingRow
-	if err := decodeInterruptJSON(encodedBindings, &bindingValues); err != nil {
-		return InterruptRecord{}, fmt.Errorf("sqlite: decode input-request bindings: %w", err)
+	if decodeInterruptJSONErr := decodeInterruptJSON(encodedBindings, &bindingValues); decodeInterruptJSONErr != nil {
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode input-request bindings: %w", decodeInterruptJSONErr)
 	}
 	p.Bindings = interruptBindingsFromRows(bindingValues)
 	if p.Capabilities, err = decodeRunCapabilities(capabilities); err != nil {

@@ -85,8 +85,8 @@ func TestStoreRejectsOversizedKnowledgeDocuments(t *testing.T) {
 			t.Fatal(err)
 		}
 		content := strings.Repeat("x", int(knowledge.MaxDocumentBytes))
-		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); err != nil {
-			t.Fatalf("Update exact boundary: %v", err)
+		if _, updateErr := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); updateErr != nil {
+			t.Fatalf("Update exact boundary: %v", updateErr)
 		}
 		got, err := store.Get(t.Context(), knowledge.ScopeHome, "")
 		if err != nil || got.Content != content {
@@ -178,8 +178,8 @@ func TestStoreUsesInScopeSymlinkPhysicalIdentityAndPreservesMode(t *testing.T) {
 	if written.Content != "after" || written.Revision == fresh.Revision {
 		t.Fatalf("written = %+v, fresh = %+v", written, fresh)
 	}
-	if info, err := os.Lstat(alias); err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("knowledge alias was replaced: info=%v err=%v", info, err)
+	if info, lstatErr := os.Lstat(alias); lstatErr != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("knowledge alias was replaced: info=%v err=%v", info, lstatErr)
 	}
 	got, err := os.ReadFile(target)
 	if err != nil {
@@ -234,8 +234,8 @@ func TestStoreUpdatePreservesRegularFileMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, "after"); err != nil {
-		t.Fatal(err)
+	if _, updateErr := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, "after"); updateErr != nil {
+		t.Fatal(updateErr)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -263,8 +263,8 @@ func TestStoreUsesPrivateModeForNewHomeAndReadableModeForNewWorkspace(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Update(t.Context(), scope.value, scope.dir, fresh.Revision, "created"); err != nil {
-			t.Fatal(err)
+		if _, updateErr := store.Update(t.Context(), scope.value, scope.dir, fresh.Revision, "created"); updateErr != nil {
+			t.Fatal(updateErr)
 		}
 		info, err := os.Stat(scope.path)
 		if err != nil {
@@ -287,8 +287,8 @@ func TestStoreConcurrentUpdatesRejectStaleRevisionsWithoutTornWrites(t *testing.
 
 	// A fixed sibling used by an older implementation must not be a reserved path.
 	legacyTemporary := filepath.Join(home, "LYRA.md.tmp")
-	if err := os.Mkdir(legacyTemporary, 0o755); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.Mkdir(legacyTemporary, 0o755); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 
 	wantBodies := make(map[string]struct{}, 32)
@@ -299,11 +299,11 @@ func TestStoreConcurrentUpdatesRejectStaleRevisionsWithoutTornWrites(t *testing.
 		body := fmt.Sprintf("knowledge from writer %02d", index)
 		wantBodies[body] = struct{}{}
 		writes.Go(func() {
-			entry, err := store.Update(
+			entry, updateErr := store.Update(
 				t.Context(), knowledge.ScopeHome, "", fresh.Revision, body,
 			)
-			if err != nil {
-				writeErrors <- err
+			if updateErr != nil {
+				writeErrors <- updateErr
 				return
 			}
 			written <- entry
@@ -474,30 +474,30 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 	var output strings.Builder
 	command.Stdout = &output
 	command.Stderr = &output
-	if err := command.Start(); err != nil {
+	if startErr := command.Start(); startErr != nil {
 		_ = lease.Release()
-		t.Fatal(err)
+		t.Fatal(startErr)
 	}
 	t.Cleanup(func() { _ = command.Process.Kill() })
 	for {
-		if _, err := os.Stat(ready); err == nil {
+		if _, statErr := os.Stat(ready); statErr == nil {
 			break
-		} else if !errors.Is(err, os.ErrNotExist) {
+		} else if !errors.Is(statErr, os.ErrNotExist) {
 			_ = lease.Release()
-			t.Fatal(err)
+			t.Fatal(statErr)
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if err := lease.Release(); err != nil {
-		t.Fatal(err)
+	if releaseErr := lease.Release(); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
 
 	deadline := time.Now().Add(10 * time.Second)
 	staged := ""
 	for staged == "" && time.Now().Before(deadline) {
-		entries, err := os.ReadDir(home)
-		if err != nil {
-			t.Fatal(err)
+		entries, readDirErr := os.ReadDir(home)
+		if readDirErr != nil {
+			t.Fatal(readDirErr)
 		}
 		for _, entry := range entries {
 			if strings.HasPrefix(entry.Name(), ".LYRA.md.lyra-stage-") {
@@ -511,8 +511,8 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 		_ = command.Wait()
 		t.Fatalf("writer produced no observable staging file: %s", output.String())
 	}
-	if err := command.Process.Kill(); err != nil {
-		t.Fatal(err)
+	if killErr := command.Process.Kill(); killErr != nil {
+		t.Fatal(killErr)
 	}
 	_ = command.Wait()
 
@@ -524,8 +524,8 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 	if afterCrash.Content != "before" || afterCrash.Revision != written.Revision {
 		t.Fatalf("after crash = %+v, want the pre-crash committed document", afterCrash)
 	}
-	if _, err := os.Stat(staged); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("cold read did not remove orphan staging file: %v", err)
+	if _, statErr := os.Stat(staged); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("cold read did not remove orphan staging file: %v", statErr)
 	}
 	recovered, err := restarted.Update(t.Context(), knowledge.ScopeHome, "", written.Revision, "after")
 	if err != nil {
@@ -635,9 +635,9 @@ func TestStoreListPreservesDistinctCascadeScopes(t *testing.T) {
 		{knowledge.ScopeCWD, "workspace knowledge", filepath.Join(cwd, "LYRA.md")},
 	} {
 		got := entries[index]
-		physicalPath, err := filepath.EvalSymlinks(want.path)
-		if err != nil {
-			t.Fatal(err)
+		physicalPath, evalSymlinksErr := filepath.EvalSymlinks(want.path)
+		if evalSymlinksErr != nil {
+			t.Fatal(evalSymlinksErr)
 		}
 		if got.Scope != want.scope || got.Content != want.body || got.Path != physicalPath || got.UpdatedAt.IsZero() {
 			t.Errorf("entries[%d] = %+v, want scope=%s body=%q path=%q with mtime", index, got, want.scope, want.body, want.path)

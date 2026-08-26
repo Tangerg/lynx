@@ -126,8 +126,8 @@ func readHooksFile(ctx context.Context, path string) (hooksFile, bool, error) {
 	if !info.Mode().IsRegular() {
 		return hooksFile{}, false, errors.New("not a regular file")
 	}
-	if err := domainhooks.ValidateConfigurationFileSize(info.Size()); err != nil {
-		return hooksFile{}, false, err
+	if validateConfigurationFileSizeErr := domainhooks.ValidateConfigurationFileSize(info.Size()); validateConfigurationFileSizeErr != nil {
+		return hooksFile{}, false, validateConfigurationFileSizeErr
 	}
 	data, err := io.ReadAll(io.LimitReader(
 		hooksContextReader{ctx: ctx, reader: handle},

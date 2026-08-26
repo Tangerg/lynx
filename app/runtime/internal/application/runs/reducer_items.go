@@ -290,8 +290,8 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tool %q arguments: %w", e.ToolName, err)
 	}
-	if err := r.resume.rejectCommittedToolStart(e.CallID, e.ToolName, arguments); err != nil {
-		return nil, err
+	if rejectCommittedToolStartErr := r.resume.rejectCommittedToolStart(e.CallID, e.ToolName, arguments); rejectCommittedToolStartErr != nil {
+		return nil, rejectCommittedToolStartErr
 	}
 	out, err := r.closeStreaming(transcript.MessageCommentary)
 	if err != nil {
@@ -510,8 +510,8 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 		return nil, err
 	}
 	if e.Failure != nil {
-		if err := e.Failure.Validate(); err != nil {
-			return nil, fmt.Errorf("tool %q failure: %w", ref.name, err)
+		if validateErr := e.Failure.Validate(); validateErr != nil {
+			return nil, fmt.Errorf("tool %q failure: %w", ref.name, validateErr)
 		}
 		item, err = item.FailToolCall(*invocation, *e.Failure, ref.attemptStartedAt, ref.finishedAt)
 	} else {

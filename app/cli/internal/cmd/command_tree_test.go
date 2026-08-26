@@ -686,8 +686,8 @@ func TestSessionUpdateRejectsWorkspaceBeforeCallingAnUnnegotiatedRuntime(t *test
 		"ses_demo_1", "--revision", strconv.FormatUint(snapshot.Session.Revision, 10),
 		"--workspace", t.TempDir(),
 	})
-	if err := command.ExecuteContext(t.Context()); err == nil || !strings.Contains(err.Error(), "relocate") {
-		t.Fatalf("sessions update error = %v", err)
+	if executeContextErr := command.ExecuteContext(t.Context()); executeContextErr == nil || !strings.Contains(executeContextErr.Error(), "relocate") {
+		t.Fatalf("sessions update error = %v", executeContextErr)
 	}
 	after, err := base.GetSession(t.Context(), "ses_demo_1")
 	if err != nil {
@@ -722,8 +722,8 @@ func requireSessionUpdate(t *testing.T, runtime agent.Runtime, id string) {
 		Model    string `json:"model"`
 		Favorite bool   `json:"favorite"`
 	}
-	if err := json.Unmarshal([]byte(out), &updated); err != nil {
-		t.Fatalf("sessions update output: %v\n%s", err, out)
+	if unmarshalErr := json.Unmarshal([]byte(out), &updated); unmarshalErr != nil {
+		t.Fatalf("sessions update output: %v\n%s", unmarshalErr, out)
 	}
 	wantWorkspace, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
@@ -821,8 +821,8 @@ func TestSessionsDeleteConvergesPostCommitFailureAndRetiresWorkbenchState(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := authoring.SaveDraft(target, agent.Message{Text: "must be retired"}); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := authoring.SaveDraft(target, agent.Message{Text: "must be retired"}); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	runtime := &postCommitDeleteRuntime{Runtime: base}
 	var output bytes.Buffer
@@ -833,8 +833,8 @@ func TestSessionsDeleteConvergesPostCommitFailureAndRetiresWorkbenchState(t *tes
 	root.SetOut(&output)
 	root.SetErr(io.Discard)
 	root.SetArgs([]string{"sessions", "delete", "--yes", target})
-	if err := root.ExecuteContext(t.Context()); err != nil {
-		t.Fatal(err)
+	if executeContextErr := root.ExecuteContext(t.Context()); executeContextErr != nil {
+		t.Fatal(executeContextErr)
 	}
 	if strings.TrimSpace(output.String()) != target {
 		t.Fatalf("delete output = %q", output.String())

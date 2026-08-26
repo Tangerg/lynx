@@ -75,8 +75,8 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 	if len(payloadsOf[runs.ToolCallStarted](first)) != 1 || toolCalls != 0 {
 		t.Fatalf("before answer starts=%d Tool calls=%d", len(payloadsOf[runs.ToolCallStarted](first)), toolCalls)
 	}
-	if err := executor.Release(t.Context(), ref); err != nil {
-		t.Fatal(err)
+	if releaseErr := executor.Release(t.Context(), ref); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
 
 	continuation := rootInteractionWaitingContinuation(
@@ -92,11 +92,11 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 	if restoredWaiting != ref {
 		t.Fatalf("restored waiting ref = %+v, want %+v", restoredWaiting, ref)
 	}
-	if _, err := executor.RestoreWaitingExecution(t.Context(), continuation); !errors.Is(err, runs.ErrExecutionClaimed) {
-		t.Fatalf("second RestoreWaitingExecution error = %v, want ErrExecutionClaimed", err)
+	if _, restoreWaitingExecutionErr := executor.RestoreWaitingExecution(t.Context(), continuation); !errors.Is(restoreWaitingExecutionErr, runs.ErrExecutionClaimed) {
+		t.Fatalf("second RestoreWaitingExecution error = %v, want ErrExecutionClaimed", restoreWaitingExecutionErr)
 	}
-	if err := executor.Release(t.Context(), restoredWaiting); err != nil {
-		t.Fatal(err)
+	if releaseErr := executor.Release(t.Context(), restoredWaiting); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
 	restored, err := executor.StageContinuation(t.Context(), continuation)
 	if err != nil {
@@ -176,15 +176,15 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 		len(starts) != 1 || barrier.Interruptions[0].Interrupt.Question.CallID != starts[0].CallID {
 		t.Fatalf("ask_user interruption = %#v", barrier.Interruptions)
 	}
-	if err := executor.Release(t.Context(), ref); err != nil {
-		t.Fatal(err)
+	if releaseErr := executor.Release(t.Context(), ref); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
-	if _, err := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+	if _, stageContinuationErr := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
 		barrier.Checkpoint,
 		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
-	)); err != nil {
-		t.Fatal(err)
+	)); stageContinuationErr != nil {
+		t.Fatal(stageContinuationErr)
 	}
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {
@@ -244,8 +244,8 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 	if len(payloadsOf[runs.ToolCallStarted](first)) != 0 || toolCalls != 0 || hooks.before != 1 || approvals.planned != 1 {
 		t.Fatalf("before approval starts=%d calls=%d hooks=%d plans=%d", len(payloadsOf[runs.ToolCallStarted](first)), toolCalls, hooks.before, approvals.planned)
 	}
-	if err := executor.Release(t.Context(), ref); err != nil {
-		t.Fatal(err)
+	if releaseErr := executor.Release(t.Context(), ref); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
 	continuation := rootInteractionWaitingContinuation(
 		barrier.Checkpoint,
@@ -253,8 +253,8 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
 	)
 
-	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
-		t.Fatal(err)
+	if _, stageContinuationErr := executor.StageContinuation(t.Context(), continuation); stageContinuationErr != nil {
+		t.Fatal(stageContinuationErr)
 	}
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {
@@ -318,8 +318,8 @@ func TestInteractionExecutorCancellationStopsApprovedInflightTool(t *testing.T) 
 		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
 	)
-	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
-		t.Fatal(err)
+	if _, stageContinuationErr := executor.StageContinuation(t.Context(), continuation); stageContinuationErr != nil {
+		t.Fatal(stageContinuationErr)
 	}
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {
@@ -393,8 +393,8 @@ func TestInteractionExecutorCancellationStopsApprovedForegroundShell(t *testing.
 		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
 	)
-	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
-		t.Fatal(err)
+	if _, stageContinuationErr := executor.StageContinuation(t.Context(), continuation); stageContinuationErr != nil {
+		t.Fatal(stageContinuationErr)
 	}
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {
@@ -446,15 +446,15 @@ func TestInteractionExecutorPreservesDeferredAdvertisementAcrossWaitingRestore(t
 	question, err := toolcontract.NewFunc(toolcontract.FuncConfig{
 		Name: "ask", Description: "Ask before continuing.",
 	}, func(ctx context.Context, _ struct{}) (string, error) {
-		resolution, err := interactioninput.Require(ctx, "question.after-search", runs.Interrupt{
+		resolution, requireErr := interactioninput.Require(ctx, "question.after-search", runs.Interrupt{
 			Kind: interrupt.Question,
 			Question: &runs.QuestionPrompt{
 				ToolName: "ask", Arguments: `{}`,
 				Fields: []runs.QuestionFieldSpec{{Prompt: "Continue?"}},
 			},
 		})
-		if err != nil {
-			return "", err
+		if requireErr != nil {
+			return "", requireErr
 		}
 		return resolution.Answers[0][0], nil
 	})
@@ -478,15 +478,15 @@ func TestInteractionExecutorPreservesDeferredAdvertisementAcrossWaitingRestore(t
 	_, barrier := observeInteractionUntilWaiting(t, executor, ref, func() error {
 		return executor.BeginRoot(t.Context(), ref)
 	})
-	if err := executor.Release(t.Context(), ref); err != nil {
-		t.Fatal(err)
+	if releaseErr := executor.Release(t.Context(), ref); releaseErr != nil {
+		t.Fatal(releaseErr)
 	}
-	if _, err := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+	if _, stageContinuationErr := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
 		barrier.Checkpoint,
 		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
-	)); err != nil {
-		t.Fatal(err)
+	)); stageContinuationErr != nil {
+		t.Fatal(stageContinuationErr)
 	}
 	sequence, err := executor.Observe(context.Background(), ref)
 	if err != nil {

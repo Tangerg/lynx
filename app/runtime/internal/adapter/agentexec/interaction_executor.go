@@ -270,8 +270,8 @@ func (i *InteractionExecutor) assembleInteraction(
 	if err != nil {
 		return nil, err
 	}
-	if err := session.installDeployments(deployments); err != nil {
-		return nil, err
+	if installDeploymentsErr := session.installDeployments(deployments); installDeploymentsErr != nil {
+		return nil, installDeploymentsErr
 	}
 	engine, err := agent.NewEngine(agent.EngineConfig{
 		DeploymentResolver:              deployments,
@@ -535,8 +535,8 @@ func (i *InteractionExecutor) StageContinuation(
 	ref := runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}
 	session, err := i.session(ref)
 	if err == nil {
-		if err := session.stageContinuation(continuation.Checkpoint); err != nil {
-			return runs.ExecutorRef{}, err
+		if stageContinuationErr := session.stageContinuation(continuation.Checkpoint); stageContinuationErr != nil {
+			return runs.ExecutorRef{}, stageContinuationErr
 		}
 		return ref, nil
 	}
@@ -633,9 +633,9 @@ func (i *InteractionExecutor) restoreWaitingTree(
 		_ = session.engine.Close()
 		return fmt.Errorf("%w: restore exact Interaction tree: %w", runs.ErrExecutorStateLost, err)
 	}
-	if err := session.initializeRestoredContinuation(process, continuation, checkpoint, boundary); err != nil {
+	if initializeRestoredContinuationErr := session.initializeRestoredContinuation(process, continuation, checkpoint, boundary); initializeRestoredContinuationErr != nil {
 		discardRestoredInteraction(session, process)
-		return err
+		return initializeRestoredContinuationErr
 	}
 	unknown, err := session.unknownEffectIDs(ctx)
 	if err != nil {
@@ -712,8 +712,8 @@ func (i *InteractionExecutor) BeginContinuation(
 	if err != nil {
 		return err
 	}
-	if err := session.beginContinuation(allowedInterrupts); err != nil {
-		return err
+	if beginContinuationErr := session.beginContinuation(allowedInterrupts); beginContinuationErr != nil {
+		return beginContinuationErr
 	}
 	paused, err := session.pausedProcessIDs()
 	if err != nil {

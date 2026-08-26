@@ -299,14 +299,14 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
-	if err := r.appendStatic(ctx, &tools, afterSkill, role); err != nil {
-		return manifestBuilder{}, err
+	if appendStaticErr := r.appendStatic(ctx, &tools, afterSkill, role); appendStaticErr != nil {
+		return manifestBuilder{}, appendStaticErr
 	}
 	// Both roles can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question waits at the same durable tree boundary as a
 	// child approval.
-	if err := r.appendStatic(ctx, &tools, interactionTail, role); err != nil {
-		return manifestBuilder{}, err
+	if appendStaticErr := r.appendStatic(ctx, &tools, interactionTail, role); appendStaticErr != nil {
+		return manifestBuilder{}, appendStaticErr
 	}
 	if role == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns
@@ -318,8 +318,8 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 		}
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		if err := r.appendStatic(ctx, &tools, rootTail, role); err != nil {
-			return manifestBuilder{}, err
+		if appendStaticErr := r.appendStatic(ctx, &tools, rootTail, role); appendStaticErr != nil {
+			return manifestBuilder{}, appendStaticErr
 		}
 	}
 	// search_tools is the sole model-facing entry to every capability withheld

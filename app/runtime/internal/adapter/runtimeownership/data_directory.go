@@ -39,8 +39,8 @@ func PrepareDataDirectory(ctx context.Context, directory string) (*DataDirectory
 		return nil, fmt.Errorf("runtime ownership: resolve data directory %q: %w", cleaned, err)
 	}
 	canonical = filepath.Clean(canonical)
-	if err := os.Chmod(canonical, 0o700); err != nil {
-		return nil, fmt.Errorf("runtime ownership: protect data directory %q: %w", canonical, err)
+	if chmodErr := os.Chmod(canonical, 0o700); chmodErr != nil {
+		return nil, fmt.Errorf("runtime ownership: protect data directory %q: %w", canonical, chmodErr)
 	}
 	lease, err := advisorylock.AcquireDirectory(ctx, canonical)
 	if err != nil {

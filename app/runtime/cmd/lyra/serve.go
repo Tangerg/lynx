@@ -41,9 +41,9 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		if tokenPath == "" {
 			tokenPath = filepath.Join(paths.dataDirectory, "local-token")
 		}
-		t, err := localruntime.OpenToken(tokenPath)
-		if err != nil {
-			return err
+		t, openTokenErr := localruntime.OpenToken(tokenPath)
+		if openTokenErr != nil {
+			return openTokenErr
 		}
 		token = t
 	}

@@ -37,10 +37,10 @@ func TestRecoverDoesNotReplayADeletionIntoAnotherRuntimeStore(t *testing.T) {
 	request := agent.DeleteSession{
 		CommandID: "cli_77777777777777777777777777777777", SessionID: "ses_1",
 	}
-	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, workbench.ReplayGuard{
 		Namespace: "runtime-a", Until: time.Now().UTC().Add(time.Hour),
-	}); err != nil {
-		t.Fatal(err)
+	}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 	runtime := new(deletionRuntimeStub)
 	err = Recover(t.Context(), runtime, store, ReplayWindow{
@@ -83,10 +83,10 @@ func TestRecoverRetiresAnExpiredDeletionProvenByTheOwningRuntime(t *testing.T) {
 		CommandID: "cli_99999999999999999999999999999999", SessionID: "ses_1",
 	}
 	deadline := time.Now().UTC().Add(-time.Second)
-	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, workbench.ReplayGuard{
 		Namespace: "runtime-a", Until: deadline,
-	}); err != nil {
-		t.Fatal(err)
+	}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 	runtime := &deletionRuntimeStub{readErr: agent.ErrSessionNotFound}
 	err = Recover(t.Context(), runtime, store, ReplayWindow{
@@ -111,10 +111,10 @@ func TestExecuteConfirmsAnExpiredDeletionProvenByTheOwningRuntime(t *testing.T) 
 	request := agent.DeleteSession{
 		CommandID: "cli_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", SessionID: "ses_1",
 	}
-	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, workbench.ReplayGuard{
 		Namespace: "runtime-a", Until: time.Now().UTC().Add(-time.Second),
-	}); err != nil {
-		t.Fatal(err)
+	}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 	runtime := &deletionRuntimeStub{readErr: agent.ErrSessionNotFound}
 	result, err := Execute(t.Context(), runtime, store, request.SessionID, ReplayWindow{
@@ -136,10 +136,10 @@ func TestExecuteRejectsAnExpiredDeletionWhenTheSessionStillExists(t *testing.T) 
 	request := agent.DeleteSession{
 		CommandID: "cli_abababababababababababababababab", SessionID: "ses_1",
 	}
-	if err := store.StageSessionDeletion(request, workbench.ReplayGuard{
+	if stageSessionDeletionErr := store.StageSessionDeletion(request, workbench.ReplayGuard{
 		Namespace: "runtime-a", Until: time.Now().UTC().Add(-time.Second),
-	}); err != nil {
-		t.Fatal(err)
+	}); stageSessionDeletionErr != nil {
+		t.Fatal(stageSessionDeletionErr)
 	}
 	runtime := new(deletionRuntimeStub)
 	result, err := Execute(t.Context(), runtime, store, request.SessionID, ReplayWindow{

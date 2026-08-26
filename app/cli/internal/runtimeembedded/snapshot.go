@@ -99,9 +99,9 @@ func projectSnapshot(read coldRead) (agent.SessionSnapshot, error) {
 	}
 	snapshot := agent.SessionSnapshot{Session: session, Transcript: make([]agent.Block, 0, len(read.items))}
 	for _, value := range read.items {
-		block, err := projectItem(value)
-		if err != nil {
-			return agent.SessionSnapshot{}, err
+		block, projectItemErr := projectItem(value)
+		if projectItemErr != nil {
+			return agent.SessionSnapshot{}, projectItemErr
 		}
 		snapshot.Transcript = append(snapshot.Transcript, block)
 	}
@@ -111,9 +111,9 @@ func projectSnapshot(read coldRead) (agent.SessionSnapshot, error) {
 	})
 	snapshot.Runs = make([]agent.Run, 0, len(orderedRuns))
 	for _, value := range orderedRuns {
-		run, err := projectRun(value)
-		if err != nil {
-			return agent.SessionSnapshot{}, err
+		run, projectRunErr := projectRun(value)
+		if projectRunErr != nil {
+			return agent.SessionSnapshot{}, projectRunErr
 		}
 		snapshot.Runs = append(snapshot.Runs, run)
 	}

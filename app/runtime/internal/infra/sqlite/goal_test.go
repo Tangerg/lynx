@@ -37,23 +37,23 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
-		t.Fatalf("Save = (%v, %v), want true, nil", applied, err)
+	if _, applied, saveErr := store.Save(t.Context(), g, goal.Version{}); saveErr != nil || !applied {
+		t.Fatalf("Save = (%v, %v), want true, nil", applied, saveErr)
 	}
 	record := goal.RunRecord{
 		SessionID: sessionID, IncarnationID: g.IncarnationID, RunID: "run_goal_run",
 		Outcome: run.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
 	}
-	if err := store.RecordRun(t.Context(), record); err != nil {
-		t.Fatalf("RecordRun: %v", err)
+	if recordRunErr := store.RecordRun(t.Context(), record); recordRunErr != nil {
+		t.Fatalf("RecordRun: %v", recordRunErr)
 	}
-	if err := store.RecordRun(t.Context(), record); err != nil {
-		t.Fatalf("repeat RecordRun: %v", err)
+	if recordRunErr := store.RecordRun(t.Context(), record); recordRunErr != nil {
+		t.Fatalf("repeat RecordRun: %v", recordRunErr)
 	}
 	conflict := record
 	conflict.IncarnationID = "another_lease"
-	if err := store.RecordRun(t.Context(), conflict); !errors.Is(err, goal.ErrRunIdentityConflict) {
-		t.Fatalf("conflicting RecordRun = %v, want ErrRunIdentityConflict", err)
+	if recordRunErr := store.RecordRun(t.Context(), conflict); !errors.Is(recordRunErr, goal.ErrRunIdentityConflict) {
+		t.Fatalf("conflicting RecordRun = %v, want ErrRunIdentityConflict", recordRunErr)
 	}
 	got, found, err := store.Get(t.Context(), sessionID)
 	if err != nil || !found {
@@ -148,8 +148,8 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	g.AddRun(0.4, 3, now)
-	if _, applied, err := store.Save(ctx, g, goal.Version{}); err != nil || !applied {
-		t.Fatalf("Save: applied=%v err=%v", applied, err)
+	if _, applied, saveErr := store.Save(ctx, g, goal.Version{}); saveErr != nil || !applied {
+		t.Fatalf("Save: applied=%v err=%v", applied, saveErr)
 	}
 
 	got, ok, err := store.Get(ctx, sess)

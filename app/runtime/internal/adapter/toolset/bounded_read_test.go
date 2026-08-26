@@ -38,8 +38,8 @@ func TestRuntimeReadReturnsOnlyCompleteLinesWithinDefaultBudget(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 	var response fs.ReadResponse
-	if err := json.Unmarshal([]byte(body), &response); err != nil {
-		t.Fatalf("decode read response: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(body), &response); unmarshalErr != nil {
+		t.Fatalf("decode read response: %v", unmarshalErr)
 	}
 	if response.Content != first || response.StartLine != 1 || response.EndLine != 1 || response.TotalLines != 2 || !response.Truncated {
 		t.Fatalf(

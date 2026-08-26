@@ -172,8 +172,8 @@ func Execute(
 	if err != nil {
 		return Result{}, err
 	}
-	if err := preview.ValidateCommit(latest); err != nil {
-		return Result{}, err
+	if validateCommitErr := preview.ValidateCommit(latest); validateCommitErr != nil {
+		return Result{}, validateCommitErr
 	}
 	commandID, err := agent.NewCommandID()
 	if err != nil {

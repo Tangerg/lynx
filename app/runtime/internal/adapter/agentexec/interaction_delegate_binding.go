@@ -129,8 +129,8 @@ func decodeDelegateCall(call corechat.ToolCall) (delegateInput, tool.Arguments, 
 	if err != nil {
 		return delegateInput{}, tool.Arguments{}, err
 	}
-	if err := input.Validate(); err != nil {
-		return delegateInput{}, tool.Arguments{}, err
+	if validateErr := input.Validate(); validateErr != nil {
+		return delegateInput{}, tool.Arguments{}, validateErr
 	}
 	arguments, err := tool.ParseArguments(string(erased.JSON()))
 	if err != nil {

@@ -26,7 +26,7 @@ func (a *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 	var inserted []agentmemory.LedgerFact
 	err = RunInTx(ctx, a.db, func(ctx context.Context) error {
 		for _, fact := range normalized.Facts {
-			result, err := conn(ctx, a.db).ExecContext(ctx,
+			result, execContextErr := conn(ctx, a.db).ExecContext(ctx,
 				`INSERT OR IGNORE INTO agent_memory_ledger(
 					project, day, session_id, fact, digest, captured_at
 				) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -37,19 +37,19 @@ func (a *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 				agentmemory.Digest(fact),
 				normalized.CapturedAt.UTC().UnixNano(),
 			)
-			if err != nil {
-				return fmt.Errorf("sqlite: append agent memory ledger: %w", err)
+			if execContextErr != nil {
+				return fmt.Errorf("sqlite: append agent memory ledger: %w", execContextErr)
 			}
-			changed, err := result.RowsAffected()
-			if err != nil {
-				return fmt.Errorf("sqlite: inspect agent memory append: %w", err)
+			changed, execContextErr := result.RowsAffected()
+			if execContextErr != nil {
+				return fmt.Errorf("sqlite: inspect agent memory append: %w", execContextErr)
 			}
 			if changed == 0 {
 				continue
 			}
-			sequence, err := result.LastInsertId()
-			if err != nil {
-				return fmt.Errorf("sqlite: read agent memory sequence: %w", err)
+			sequence, execContextErr := result.LastInsertId()
+			if execContextErr != nil {
+				return fmt.Errorf("sqlite: read agent memory sequence: %w", execContextErr)
 			}
 			inserted = append(inserted, agentmemory.LedgerFact{
 				Sequence:   sequence,
@@ -156,29 +156,29 @@ func (a *AgentMemoryStore) Reconcile(
 	}
 	err = RunInTx(ctx, a.db, func(ctx context.Context) error {
 		var one int
-		if err := conn(ctx, a.db).QueryRowContext(ctx,
+		if scanErr := conn(ctx, a.db).QueryRowContext(ctx,
 			`SELECT 1 FROM agent_memory_ledger WHERE project = ? AND seq = ?`,
-			project, through).Scan(&one); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			project, through).Scan(&one); scanErr != nil {
+			if errors.Is(scanErr, sql.ErrNoRows) {
 				return fmt.Errorf("sqlite: agent memory watermark %d does not belong to project", through)
 			}
-			return fmt.Errorf("sqlite: verify agent memory watermark: %w", err)
+			return fmt.Errorf("sqlite: verify agent memory watermark: %w", scanErr)
 		}
-		if _, err := conn(ctx, a.db).ExecContext(ctx,
+		if _, execContextErr := conn(ctx, a.db).ExecContext(ctx,
 			`INSERT OR IGNORE INTO agent_memory_state(project, watermark, updated_at) VALUES (?, 0, 0)`,
-			project); err != nil {
-			return fmt.Errorf("sqlite: initialize agent memory state: %w", err)
+			project); execContextErr != nil {
+			return fmt.Errorf("sqlite: initialize agent memory state: %w", execContextErr)
 		}
-		result, err := conn(ctx, a.db).ExecContext(ctx,
+		result, execContextErr := conn(ctx, a.db).ExecContext(ctx,
 			`UPDATE agent_memory_state SET watermark = ?, updated_at = ?
 			 WHERE project = ? AND watermark = ?`,
 			through, now.UTC().UnixNano(), project, expectedWatermark)
-		if err != nil {
-			return fmt.Errorf("sqlite: advance agent memory watermark: %w", err)
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: advance agent memory watermark: %w", execContextErr)
 		}
-		changed, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("sqlite: inspect agent memory watermark: %w", err)
+		changed, execContextErr := result.RowsAffected()
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: inspect agent memory watermark: %w", execContextErr)
 		}
 		if changed != 1 {
 			published = false

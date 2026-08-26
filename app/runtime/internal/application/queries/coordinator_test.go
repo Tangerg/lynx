@@ -304,11 +304,11 @@ func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("other session page: %v", err)
 	}
-	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, other.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", err)
+	if _, listItemPageErr := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, other.NextCursor, 2); !errors.Is(listItemPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", listItemPageErr)
 	}
-	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "not-a-cursor", 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
+	if _, listItemPageErr := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "not-a-cursor", 2); !errors.Is(listItemPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", listItemPageErr)
 	}
 
 	// Direction is part of the query, not a display preference applied afterwards: an
@@ -317,8 +317,8 @@ func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("forward page: %v", err)
 	}
-	if _, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.NewestFirst, forward.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("reversed-direction cursor err = %v, want ErrInvalidCursor", err)
+	if _, listItemPageErr := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.NewestFirst, forward.NextCursor, 2); !errors.Is(listItemPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("reversed-direction cursor err = %v, want ErrInvalidCursor", listItemPageErr)
 	}
 
 	// A run scope is a different collection from the session that contains it, even
@@ -596,8 +596,8 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 		t.Fatalf("filtered page = %+v (asked %q), want only run_1's set", page.Rows, ints.rootRun)
 	}
 
-	if _, err := c.ListPendingInterruptPage(ctx, "", "run_child", run.Capabilities{}, "", 0); !errors.Is(err, transcript.ErrNotRoot) {
-		t.Fatalf("child filter err = %v, want transcript.ErrNotRoot", err)
+	if _, listPendingInterruptPageErr := c.ListPendingInterruptPage(ctx, "", "run_child", run.Capabilities{}, "", 0); !errors.Is(listPendingInterruptPageErr, transcript.ErrNotRoot) {
+		t.Fatalf("child filter err = %v, want transcript.ErrNotRoot", listPendingInterruptPageErr)
 	}
 
 	// The filter is part of the cursor's identity: the same anchor against a
@@ -727,8 +727,8 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("other session page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, otherSession.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", err)
+	if _, listRunPageErr := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, otherSession.NextCursor, 2); !errors.Is(listRunPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("cross-session cursor err = %v, want ErrInvalidCursor", listRunPageErr)
 	}
 
 	// Changing the status filter changes which rows exist, so the anchor no longer
@@ -737,11 +737,11 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unfiltered page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, RunPageFilter{
+	if _, listRunPageErr := c.ListRunPage(ctx, RunPageFilter{
 		SessionID: "ses_1",
 		Statuses:  []run.Status{run.StatusRunning},
-	}, unfiltered.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("cross-filter cursor err = %v, want ErrInvalidCursor", err)
+	}, unfiltered.NextCursor, 2); !errors.Is(listRunPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("cross-filter cursor err = %v, want ErrInvalidCursor", listRunPageErr)
 	}
 
 	// The interrupt page is scoped the same way and ordered by a timestamp too, so
@@ -750,8 +750,8 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interrupt page: %v", err)
 	}
-	if _, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, interruptPage.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("cross-query cursor err = %v, want ErrInvalidCursor", err)
+	if _, listRunPageErr := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, interruptPage.NextCursor, 2); !errors.Is(listRunPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("cross-query cursor err = %v, want ErrInvalidCursor", listRunPageErr)
 	}
 
 	itemPage, err := c.ListItemPage(ctx, SessionItems("ses_1"), transcript.OldestFirst, "", 2)
@@ -797,8 +797,8 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	if len(second.Rows) != 1 || second.Rows[0].RootRunID != "run_3" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
-	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", run.Capabilities{}, first.NextCursor+"x", 2); !errors.Is(err, pagination.ErrInvalidCursor) {
-		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
+	if _, listPendingInterruptPageErr := c.ListPendingInterruptPage(ctx, "ses_1", "", run.Capabilities{}, first.NextCursor+"x", 2); !errors.Is(listPendingInterruptPageErr, pagination.ErrInvalidCursor) {
+		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", listPendingInterruptPageErr)
 	}
 
 	// The run page is scoped and ordered the same way, so only the query namespace

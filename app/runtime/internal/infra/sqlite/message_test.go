@@ -23,14 +23,14 @@ func TestMessageStore_ReplaceIsTransactional(t *testing.T) {
 	store := sqlite.NewMessageStore(db)
 	ctx := context.Background()
 
-	if err := store.Write(ctx, "conv",
-		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); err != nil {
-		t.Fatalf("Write: %v", err)
+	if writeErr := store.Write(ctx, "conv",
+		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); writeErr != nil {
+		t.Fatalf("Write: %v", writeErr)
 	}
 
 	// Replace the history with just the first message — exact overwrite.
-	if err := store.Replace(ctx, "conv", chat.NewUserMessage(chat.NewTextPart("one"))); err != nil {
-		t.Fatalf("Replace: %v", err)
+	if replaceErr := store.Replace(ctx, "conv", chat.NewUserMessage(chat.NewTextPart("one"))); replaceErr != nil {
+		t.Fatalf("Replace: %v", replaceErr)
 	}
 	got, err := store.Read(ctx, "conv")
 	if err != nil {
@@ -62,13 +62,13 @@ func TestMessageStore_CountMatchesReadLength(t *testing.T) {
 	store := sqlite.NewMessageStore(db)
 	ctx := context.Background()
 
-	if n, err := store.Count(ctx, "conv"); err != nil || n != 0 {
-		t.Fatalf("Count of empty = (%d, %v), want (0, nil)", n, err)
+	if n, countErr := store.Count(ctx, "conv"); countErr != nil || n != 0 {
+		t.Fatalf("Count of empty = (%d, %v), want (0, nil)", n, countErr)
 	}
 
-	if err := store.Write(ctx, "conv",
-		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); err != nil {
-		t.Fatalf("Write: %v", err)
+	if writeErr := store.Write(ctx, "conv",
+		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); writeErr != nil {
+		t.Fatalf("Write: %v", writeErr)
 	}
 	got, err := store.Read(ctx, "conv")
 	if err != nil {

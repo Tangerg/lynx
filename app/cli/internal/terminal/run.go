@@ -98,8 +98,8 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	if err != nil {
 		return err
 	}
-	if err := requireLoadedPlugin(results, "terminal.core"); err != nil {
-		return err
+	if requireLoadedPluginErr := requireLoadedPlugin(results, "terminal.core"); requireLoadedPluginErr != nil {
+		return requireLoadedPluginErr
 	}
 
 	var active *app
@@ -173,27 +173,27 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
 	}
-	if err := sessiondeletion.Recover(
+	if recoverErr := sessiondeletion.Recover(
 		ctx, cfg.Runtime, authoring, deletionReplayWindow(profile), runtimeRecoveryBackoff,
-	); err != nil {
-		return preparedSession{}, fmt.Errorf("recover session deletions: %w", err)
+	); recoverErr != nil {
+		return preparedSession{}, fmt.Errorf("recover session deletions: %w", recoverErr)
 	}
-	if err := steering.Recover(
+	if recoverErr := steering.Recover(
 		ctx, cfg.Runtime, authoring, steeringReplayWindow(profile), runtimeRecoveryBackoff,
-	); err != nil {
-		return preparedSession{}, fmt.Errorf("recover steer commands: %w", err)
+	); recoverErr != nil {
+		return preparedSession{}, fmt.Errorf("recover steer commands: %w", recoverErr)
 	}
-	if err := sessionrollback.Recover(
+	if recoverErr := sessionrollback.Recover(
 		ctx, cfg.Runtime, authoring, rollbackReplayWindow(profile), runtimeRecoveryBackoff,
-	); err != nil {
-		return preparedSession{}, fmt.Errorf("recover session rollbacks: %w", err)
+	); recoverErr != nil {
+		return preparedSession{}, fmt.Errorf("recover session rollbacks: %w", recoverErr)
 	}
 	opened, err := session.Open(ctx, cfg.Runtime, cfg.SessionID, cfg.Workspace)
 	if err != nil {
 		return preparedSession{}, err
 	}
-	if err := authoring.ActivateSessionState(opened.Session.ID); err != nil {
-		return preparedSession{}, fmt.Errorf("activate session authoring state: %w", err)
+	if activateSessionStateErr := authoring.ActivateSessionState(opened.Session.ID); activateSessionStateErr != nil {
+		return preparedSession{}, fmt.Errorf("activate session authoring state: %w", activateSessionStateErr)
 	}
 	recovery, recovered, err := authoring.ConsumeConfirmedSessionRollback(opened.Session.ID)
 	if err != nil {
@@ -203,8 +203,8 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
 	}
-	if err := authoring.RememberWorkspace(opened.Session.Workspace.Path); err != nil {
-		return preparedSession{}, fmt.Errorf("remember workspace: %w", err)
+	if rememberWorkspaceErr := authoring.RememberWorkspace(opened.Session.Workspace.Path); rememberWorkspaceErr != nil {
+		return preparedSession{}, fmt.Errorf("remember workspace: %w", rememberWorkspaceErr)
 	}
 	draft, _, err := authoring.Draft(opened.Session.ID)
 	if err != nil {

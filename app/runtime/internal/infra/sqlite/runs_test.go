@@ -278,8 +278,8 @@ func TestRunProgressFootprintSurvivesTerminalRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Terminate: %v", err)
 	}
-	if err := store.Terminalize(ctx, terminal); err != nil {
-		t.Fatalf("Terminalize: %v", err)
+	if terminalizeErr := store.Terminalize(ctx, terminal); terminalizeErr != nil {
+		t.Fatalf("Terminalize: %v", terminalizeErr)
 	}
 	recovered, found, err := store.Run(ctx, "run_context")
 	if err != nil || !found {
@@ -511,8 +511,8 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	if err != nil || !matched {
 		t.Fatalf("active marker matched=%t err=%v, want true/nil", matched, err)
 	}
-	if err := store.Suspend(ctx, parkedRun("run_1", "ses_A")); err != nil {
-		t.Fatalf("Suspend: %v", err)
+	if suspendErr := store.Suspend(ctx, parkedRun("run_1", "ses_A")); suspendErr != nil {
+		t.Fatalf("Suspend: %v", suspendErr)
 	}
 	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
@@ -520,10 +520,10 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	if err != nil || matched {
 		t.Fatalf("suspended marker matched=%t err=%v, want false/nil", matched, err)
 	}
-	if err := store.Resume(
+	if resumeErr := store.Resume(
 		ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Unix(6, 0).UTC(),
-	); err != nil {
-		t.Fatalf("Resume: %v", err)
+	); resumeErr != nil {
+		t.Fatalf("Resume: %v", resumeErr)
 	}
 	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_open", "event_commit_old",
@@ -531,10 +531,10 @@ func TestEventCommitMarkerDoesNotCrossSuspendResumeGeneration(t *testing.T) {
 	if err != nil || matched {
 		t.Fatalf("resumed old marker matched=%t err=%v, want false/nil", matched, err)
 	}
-	if err := store.RecordRunCommit(
+	if recordRunCommitErr := store.RecordRunCommit(
 		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
-	); err != nil {
-		t.Fatalf("RecordRunCommit next: %v", err)
+	); recordRunCommitErr != nil {
+		t.Fatalf("RecordRunCommit next: %v", recordRunCommitErr)
 	}
 	matched, err = store.RunCommitCommitted(
 		ctx, "ses_A", "run_1", "seg_next", "event_commit_next",
@@ -770,8 +770,8 @@ func TestPageRunsSelectsRootsOrDescendants(t *testing.T) {
 		found.SessionID() != "ses_A" {
 		t.Fatalf("child = %+v, want its complete lineage and session", found)
 	}
-	if _, ok, err := store.Run(ctx, "run_absent"); err != nil || ok {
-		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, err)
+	if _, ok, runErr := store.Run(ctx, "run_absent"); runErr != nil || ok {
+		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, runErr)
 	}
 
 	lineage, err := store.RunsWithAncestors(ctx, []string{grandchild.ID()})

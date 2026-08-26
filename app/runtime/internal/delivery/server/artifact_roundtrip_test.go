@@ -74,16 +74,16 @@ func TestArtifactV23RoundTripsEveryFieldItCarries(t *testing.T) {
 	assertArtifactFixtureIsComplete(t, *exported.Artifact)
 
 	// Wipe the session so the import restores rather than merges.
-	if err := rt.sess.Delete(ctx, sessionID); err != nil {
-		t.Fatalf("delete session: %v", err)
+	if deleteErr := rt.sess.Delete(ctx, sessionID); deleteErr != nil {
+		t.Fatalf("delete session: %v", deleteErr)
 	}
-	if err := rt.Transcript().DeleteSession(ctx, sessionID); err != nil {
-		t.Fatalf("delete transcript: %v", err)
+	if deleteSessionErr := rt.Transcript().DeleteSession(ctx, sessionID); deleteSessionErr != nil {
+		t.Fatalf("delete transcript: %v", deleteSessionErr)
 	}
 	_ = rt.TruncateMessages(ctx, sessionID, 0)
 
-	if _, err := s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
-		t.Fatalf("import: %v", err)
+	if _, importSessionErr := s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); importSessionErr != nil {
+		t.Fatalf("import: %v", importSessionErr)
 	}
 	reexported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: sessionID})
 	if err != nil {
@@ -105,32 +105,32 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	outcome := run.OutcomeCompleted
-	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_root", State: run.Completed,
+	if restoreErr := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_root", State: run.Completed,
 		Outcome:      &outcome,
 		Capabilities: run.Capabilities{ChildRuns: true},
 		CreatedAt:    time.Unix(1, 0).UTC(),
 		FinishedAt:   time.Unix(1, 0).UTC(),
 		UpdatedAt:    time.Unix(1, 0).UTC()}),
-	); err != nil {
-		t.Fatalf("seed root run: %v", err)
+	); restoreErr != nil {
+		t.Fatalf("seed root run: %v", restoreErr)
 	}
-	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
+	if appendItemErr := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: ses.ID(), RunID: "run_root", ID: "item_spawn",
 		OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(1, 0).UTC(),
 		Status: transcript.ItemCompleted,
 		Kind:   transcript.ToolCall,
 		Tool:   &transcript.ToolInvocation{Name: "delegate_task"},
-	})); err != nil {
-		t.Fatalf("seed spawning item: %v", err)
+	})); appendItemErr != nil {
+		t.Fatalf("seed spawning item: %v", appendItemErr)
 	}
-	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_child",
+	if restoreErr := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_child",
 
 		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 		UpdatedAt: time.Unix(2, 0).UTC(), Lineage: run.Lineage{SpawnedByItemID: "item_spawn",
 			ParentRunID: "run_root", RootRunID: "run_root"}}),
-	); err != nil {
-		t.Fatalf("seed child run: %v", err)
+	); restoreErr != nil {
+		t.Fatalf("seed child run: %v", restoreErr)
 	}
 
 	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})

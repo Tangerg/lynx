@@ -547,11 +547,11 @@ func (r *recoveryPlanner) planTree(rootRunID string) error {
 	}
 	open, hasInterrupt := r.pendingByRoot[rootRunID]
 	if tree.root.State() == rundomain.Waiting && hasInterrupt {
-		sess, err := r.session(tree.root.SessionID())
-		if err != nil {
-			return err
+		sess, sessionErr := r.session(tree.root.SessionID())
+		if sessionErr != nil {
+			return sessionErr
 		}
-		resumable, err := validateRecoveryParkedTree(
+		resumable, sessionErr := validateRecoveryParkedTree(
 			r.ctx,
 			tree,
 			open,
@@ -560,8 +560,8 @@ func (r *recoveryPlanner) planTree(rootRunID string) error {
 			r.store,
 			r.resumability,
 		)
-		if err != nil {
-			return err
+		if sessionErr != nil {
+			return sessionErr
 		}
 		if resumable {
 			r.preserved[rootRunID] = struct{}{}

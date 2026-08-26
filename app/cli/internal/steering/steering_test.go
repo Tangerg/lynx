@@ -137,8 +137,8 @@ func stagedSteer(t *testing.T) (*workbench.Store, workbench.PendingSteer, Replay
 		Message: agent.Message{Text: "inspect the parser", Attachments: []agent.Attachment{attachment}},
 	}
 	source := agent.Message{Text: "/steer inspect the parser", Attachments: []agent.Attachment{attachment}}
-	if err := store.SaveDraft("ses_1", source); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft("ses_1", source); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	pending, err := Stage(store, "ses_1", request, source, window)
 	if err != nil {

@@ -33,8 +33,8 @@ func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
 // closes the session; a connection test that touches no live state. Honors any
 // cfg.OAuthHandler so a probe can be authorized. Returns nil on success.
 func probe(ctx context.Context, cfg ServerConfig) (err error) {
-	if err := cfg.Validate(); err != nil {
-		return err
+	if validateErr := cfg.Validate(); validateErr != nil {
+		return validateErr
 	}
 	ctx, span := tracer.Start(ctx, "mcp.probe",
 		trace.WithAttributes(attribute.String("mcp.server.name", cfg.Name)))

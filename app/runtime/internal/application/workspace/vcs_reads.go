@@ -138,9 +138,9 @@ func (v *VCS) Diff(ctx context.Context, input DiffInput) (Diff, error) {
 		return Diff{}, ErrVCSUnavailable
 	}
 	if input.Raw {
-		patch, err := v.git.RawDiff(ctx, root, path, input.Base, MaxWorkspaceDiffBytes)
-		if err != nil {
-			return Diff{}, err
+		patch, rawDiffErr := v.git.RawDiff(ctx, root, path, input.Base, MaxWorkspaceDiffBytes)
+		if rawDiffErr != nil {
+			return Diff{}, rawDiffErr
 		}
 		if len(patch) > MaxWorkspaceDiffBytes {
 			return Diff{}, fmt.Errorf("%w: raw diff exceeds %d bytes", ErrVCSResultTooLarge, MaxWorkspaceDiffBytes)

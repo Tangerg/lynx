@@ -175,8 +175,8 @@ func TestRuntimeReconnectUsesOpaqueReplayCheckpoint(t *testing.T) {
 			disconnected = streamErr
 			break
 		}
-		if _, err := conversation.ApplyRunEvent(event); err != nil {
-			t.Fatal(err)
+		if _, applyRunEventErr := conversation.ApplyRunEvent(event); applyRunEventErr != nil {
+			t.Fatal(applyRunEventErr)
 		}
 	}
 	if !errors.Is(disconnected, agent.ErrDisconnected) {
@@ -384,8 +384,8 @@ func TestRuntimeColdReadTracksAndSettlesRunningItems(t *testing.T) {
 	if got := running.Transcript[len(running.Transcript)-1]; got.Status != agent.BlockStatusRunning || got.ID != opened.RunID+":tool" || got.Kind != agent.BlockTool {
 		t.Fatalf("running item = %+v", got)
 	}
-	if _, err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID}); err != nil {
-		t.Fatal(err)
+	if _, cancelRunErr := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID}); cancelRunErr != nil {
+		t.Fatal(cancelRunErr)
 	}
 	settled, err := runtime.GetSession(t.Context(), session.ID)
 	if err != nil {

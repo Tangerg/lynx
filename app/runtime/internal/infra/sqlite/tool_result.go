@@ -49,8 +49,8 @@ func (t *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolre
 	if strings.TrimSpace(sessionID) == "" {
 		return "", false, errors.New("sqlite: fetch tool result requires a session ID")
 	}
-	if err := id.Validate(); err != nil {
-		return "", false, fmt.Errorf("sqlite: fetch tool result: %w", err)
+	if validateErr := id.Validate(); validateErr != nil {
+		return "", false, fmt.Errorf("sqlite: fetch tool result: %w", validateErr)
 	}
 	err = conn(ctx, t.db).QueryRowContext(ctx,
 		`SELECT body FROM tool_result_blobs WHERE id = ? AND session_id = ?`,
@@ -125,8 +125,8 @@ func (t *ToolResultStore) List(ctx context.Context, sessionID string) ([]toolres
 		var blob toolresult.Blob
 		var rawID string
 		var createdAt int64
-		if err := rows.Scan(&rawID, &blob.SessionID, &blob.ItemID, &blob.ToolName, &blob.Preview, &blob.Body, &createdAt); err != nil {
-			return nil, fmt.Errorf("sqlite: scan tool result: %w", err)
+		if scanErr := rows.Scan(&rawID, &blob.SessionID, &blob.ItemID, &blob.ToolName, &blob.Preview, &blob.Body, &createdAt); scanErr != nil {
+			return nil, fmt.Errorf("sqlite: scan tool result: %w", scanErr)
 		}
 		blob.ID, err = toolresult.ParseID(rawID)
 		if err != nil {

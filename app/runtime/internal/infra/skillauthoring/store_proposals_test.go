@@ -66,8 +66,8 @@ func TestListProposalsReportsRefsAndProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubmitProposal(mined): %v", err)
 	}
-	if _, _, err := store.SubmitProposal(t.Context(), authored); err != nil {
-		t.Fatalf("SubmitProposal(authored): %v", err)
+	if _, _, submitProposalErr := store.SubmitProposal(t.Context(), authored); submitProposalErr != nil {
+		t.Fatalf("SubmitProposal(authored): %v", submitProposalErr)
 	}
 
 	proposals, err := store.ListProposals(t.Context())
@@ -110,8 +110,8 @@ func TestListProposalsExcludesApprovedProposal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.ApproveProposal(t.Context(), ref); err != nil {
-		t.Fatalf("ApproveProposal: %v", err)
+	if _, approveProposalErr := store.ApproveProposal(t.Context(), ref); approveProposalErr != nil {
+		t.Fatalf("ApproveProposal: %v", approveProposalErr)
 	}
 	proposals, err := store.ListProposals(t.Context())
 	if err != nil {

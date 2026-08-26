@@ -66,9 +66,9 @@ func (r *replayStore) invoke(
 		if pending.Fingerprint != fingerprint {
 			return failed(NewFailure(protocol.ErrIdempotencyConflict, "idempotency key is already bound to another operation"))
 		}
-		payload, err := r.settlePendingCompletion(ctx, pending)
-		if err != nil {
-			return failed(r.persistenceFailure(err))
+		payload, settlePendingCompletionErr := r.settlePendingCompletion(ctx, pending)
+		if settlePendingCompletionErr != nil {
+			return failed(r.persistenceFailure(settlePendingCompletionErr))
 		}
 		r.forgetPendingCompletion(key, fingerprint)
 		return r.replay(ctx, method, payload, target)
@@ -245,8 +245,8 @@ func (r *replayStore) settlePendingCompletionWithin(
 	if !claimed && len(record.Payload) != 0 {
 		return record.Payload, nil
 	}
-	if err := r.completeWithin(ctx, pending); err != nil {
-		return nil, err
+	if completeWithinErr := r.completeWithin(ctx, pending); completeWithinErr != nil {
+		return nil, completeWithinErr
 	}
 	record, claimed, err = r.claimWithin(ctx, pending.Key, pending.Fingerprint)
 	if err != nil {

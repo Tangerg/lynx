@@ -85,8 +85,8 @@ func writeFile(root *os.Root, path string, content []byte) (err error) {
 }
 
 func stageProposal(ctx context.Context, root *os.Root, destination string, content []byte) (err error) {
-	if err := root.MkdirAll(destination, 0o755); err != nil {
-		return fmt.Errorf("skillauthoring: create proposal slot: %w", err)
+	if mkdirAllErr := root.MkdirAll(destination, 0o755); mkdirAllErr != nil {
+		return fmt.Errorf("skillauthoring: create proposal slot: %w", mkdirAllErr)
 	}
 	temporary := filepath.Join(destination, ".stage-"+rand.Text())
 	defer func() {
@@ -112,8 +112,8 @@ func stageProposal(ctx context.Context, root *os.Root, destination string, conte
 
 func stageSkill(ctx context.Context, root *os.Root, destination string, content []byte) (err error) {
 	temporary := ".skill-stage-" + rand.Text()
-	if err := root.Mkdir(temporary, 0o755); err != nil {
-		return fmt.Errorf("skillauthoring: create skill staging directory: %w", err)
+	if mkdirErr := root.Mkdir(temporary, 0o755); mkdirErr != nil {
+		return fmt.Errorf("skillauthoring: create skill staging directory: %w", mkdirErr)
 	}
 	defer func() {
 		if cleanupErr := root.RemoveAll(temporary); cleanupErr != nil && !errors.Is(cleanupErr, fs.ErrNotExist) {

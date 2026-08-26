@@ -105,8 +105,8 @@ func TestSessionCRUD(t *testing.T) {
 	created := sessionfixture.MustRestore(session.Snapshot{
 		ID: "ses_first", Title: "first session", Workspace: sessionfixture.MustWorkspace("/work"),
 	})
-	if err := svc.Insert(ctx, created); err != nil {
-		t.Fatalf("Insert: %v", err)
+	if insertErr := svc.Insert(ctx, created); insertErr != nil {
+		t.Fatalf("Insert: %v", insertErr)
 	}
 
 	// get
@@ -161,8 +161,8 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	created := sessionfixture.MustRestore(session.Snapshot{
 		ID: "ses_persistent", Title: "persistent", Workspace: sessionfixture.MustWorkspace("/work"),
 	})
-	if err := svc1.Insert(ctx, created); err != nil {
-		t.Fatalf("Insert: %v", err)
+	if insertErr := svc1.Insert(ctx, created); insertErr != nil {
+		t.Fatalf("Insert: %v", insertErr)
 	}
 	_ = db1.Close()
 
@@ -283,29 +283,29 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	ctx := t.Context()
 	now := time.Now().UTC()
 
-	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); err != nil {
-		t.Fatalf("seed run: %v", err)
+	if admitErr := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); admitErr != nil {
+		t.Fatalf("seed run: %v", admitErr)
 	}
-	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
+	if appendItemErr := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now,
-	})); err != nil {
-		t.Fatalf("seed item: %v", err)
+	})); appendItemErr != nil {
+		t.Fatalf("seed item: %v", appendItemErr)
 	}
 
 	// A run id belongs to one session for its whole lifetime — and the refusal must
 	// say so, not report the innocent session as busy.
-	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, run.ErrIdentityConflict) {
-		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
+	if admitErr := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(admitErr, run.ErrIdentityConflict) {
+		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", admitErr)
 	}
-	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
+	if appendItemErr := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_b", RunID: "run_other", ID: "item_shared", OccurredAt: now,
-	})); !errors.Is(err, transcript.ErrIdentityConflict) {
-		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", err)
+	})); !errors.Is(appendItemErr, transcript.ErrIdentityConflict) {
+		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", appendItemErr)
 	}
-	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
+	if appendItemErr := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now.Add(time.Second),
-	})); !errors.Is(err, transcript.ErrIdentityConflict) {
-		t.Fatalf("move item occurrence error = %v, want ErrIdentityConflict", err)
+	})); !errors.Is(appendItemErr, transcript.ErrIdentityConflict) {
+		t.Fatalf("move item occurrence error = %v, want ErrIdentityConflict", appendItemErr)
 	}
 
 	itemsA, err := store.List(ctx, "ses_a")
@@ -351,8 +351,8 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		Kind:       transcript.ToolCall,
 		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	})
-	if err := store.AppendItem(t.Context(), original); err != nil {
-		t.Fatalf("seed Item: %v", err)
+	if appendItemErr := store.AppendItem(t.Context(), original); appendItemErr != nil {
+		t.Fatalf("seed Item: %v", appendItemErr)
 	}
 	failure := tool.Failure{
 		Kind:   tool.FailureChildRunCanceled,
@@ -362,8 +362,8 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("classify Item: %v", err)
 	}
-	if err := store.ReplaceItem(t.Context(), original, replacement); err != nil {
-		t.Fatalf("ReplaceItem: %v", err)
+	if replaceItemErr := store.ReplaceItem(t.Context(), original, replacement); replaceItemErr != nil {
+		t.Fatalf("ReplaceItem: %v", replaceItemErr)
 	}
 	stored, found, err := store.Item(t.Context(), original.ID())
 	if err != nil || !found {
@@ -411,8 +411,8 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 			Name: "shell", Result: &preview, Offload: &resultoffload.Ref{ID: "BLOB234"},
 		},
 	})
-	if err := store.AppendItem(t.Context(), original); err != nil {
-		t.Fatalf("seed item: %v", err)
+	if appendItemErr := store.AppendItem(t.Context(), original); appendItemErr != nil {
+		t.Fatalf("seed item: %v", appendItemErr)
 	}
 
 	changedSnapshot := original.Snapshot()
@@ -424,8 +424,8 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	if err != nil {
 		t.Fatalf("restore changed item: %v", err)
 	}
-	if err := store.AppendItem(t.Context(), changed); !errors.Is(err, transcript.ErrIdentityConflict) {
-		t.Fatalf("replace offload error = %v, want ErrIdentityConflict", err)
+	if appendItemErr := store.AppendItem(t.Context(), changed); !errors.Is(appendItemErr, transcript.ErrIdentityConflict) {
+		t.Fatalf("replace offload error = %v, want ErrIdentityConflict", appendItemErr)
 	}
 
 	duplicateSnapshot := original.Snapshot()
@@ -467,8 +467,8 @@ func assertMismatchedSchemaRefused(t *testing.T, staleEpoch int) {
 		_ = staleDatabase.Close()
 		t.Fatalf("seed stale schema: %v", seedError)
 	}
-	if err := staleDatabase.Close(); err != nil {
-		t.Fatalf("close stale database: %v", err)
+	if closeErr := staleDatabase.Close(); closeErr != nil {
+		t.Fatalf("close stale database: %v", closeErr)
 	}
 
 	database, openError := sqlite.Open(t.Context(), path)
@@ -514,11 +514,11 @@ func TestOpenInstallsIntoAnEmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create empty database: %v", err)
 	}
-	if _, err := empty.Exec(`PRAGMA user_version = 0`); err != nil {
-		t.Fatalf("touch empty database: %v", err)
+	if _, execErr := empty.Exec(`PRAGMA user_version = 0`); execErr != nil {
+		t.Fatalf("touch empty database: %v", execErr)
 	}
-	if err := empty.Close(); err != nil {
-		t.Fatalf("close empty database: %v", err)
+	if closeErr := empty.Close(); closeErr != nil {
+		t.Fatalf("close empty database: %v", closeErr)
 	}
 
 	db, err := sqlite.Open(t.Context(), path)

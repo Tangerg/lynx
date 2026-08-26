@@ -132,7 +132,7 @@ func (s *ScheduleStore) Claim(ctx context.Context, occurrence schedule.Occurrenc
 		return false, errors.New("sqlite: schedule occurrence identity is required")
 	}
 	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
-		res, err := conn(ctx, s.db).ExecContext(ctx,
+		res, execContextErr := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE schedules SET next_run_at = ?, revision = revision + 1
 				 WHERE id = ? AND revision = ? AND next_run_at = ?
 				   AND NOT EXISTS (
@@ -141,17 +141,17 @@ func (s *ScheduleStore) Claim(ctx context.Context, occurrence schedule.Occurrenc
 				   )`,
 			toMillis(occurrence.NextRunAt), occurrence.Schedule.ID, occurrence.Schedule.Revision,
 			toMillis(occurrence.DueAt), occurrence.Schedule.ID)
-		if err != nil {
-			return fmt.Errorf("sqlite: claim schedule occurrence: %w", err)
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: claim schedule occurrence: %w", execContextErr)
 		}
-		changed, err := res.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("sqlite: inspect schedule occurrence claim: %w", err)
+		changed, execContextErr := res.RowsAffected()
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: inspect schedule occurrence claim: %w", execContextErr)
 		}
 		if changed == 0 {
 			return nil
 		}
-		_, err = conn(ctx, s.db).ExecContext(ctx,
+		_, execContextErr = conn(ctx, s.db).ExecContext(ctx,
 			`INSERT INTO schedule_firings(
 				id, schedule_id, title, instructions, cwd, provider, model, cron,
 				due_at, fired_at, next_run_at, session_id, run_id, state
@@ -159,8 +159,8 @@ func (s *ScheduleStore) Claim(ctx context.Context, occurrence schedule.Occurrenc
 			occurrence.ID, occurrence.Schedule.ID, occurrence.Schedule.Title, occurrence.Schedule.Instructions,
 			occurrence.Schedule.CWD, occurrence.Schedule.ModelSelection.Provider(), occurrence.Schedule.ModelSelection.Model(), occurrence.Schedule.Cron,
 			toMillis(occurrence.DueAt), toMillis(occurrence.FiredAt), toMillis(occurrence.NextRunAt), occurrence.SessionID, occurrence.RunID)
-		if err != nil {
-			return fmt.Errorf("sqlite: persist schedule occurrence: %w", err)
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: persist schedule occurrence: %w", execContextErr)
 		}
 		claimed = true
 		return nil
@@ -215,15 +215,15 @@ func (s *ScheduleStore) Accept(ctx context.Context, occurrenceID, runID string) 
 	if changed != 0 {
 		var scheduleID string
 		var firedAt int64
-		if err := conn(ctx, s.db).QueryRowContext(ctx,
-			`SELECT schedule_id, fired_at FROM schedule_firings WHERE id = ? AND run_id = ?`, occurrenceID, runID).Scan(&scheduleID, &firedAt); err != nil {
-			return fmt.Errorf("sqlite: load accepted schedule occurrence: %w", err)
+		if scanErr := conn(ctx, s.db).QueryRowContext(ctx,
+			`SELECT schedule_id, fired_at FROM schedule_firings WHERE id = ? AND run_id = ?`, occurrenceID, runID).Scan(&scheduleID, &firedAt); scanErr != nil {
+			return fmt.Errorf("sqlite: load accepted schedule occurrence: %w", scanErr)
 		}
-		if _, err := conn(ctx, s.db).ExecContext(ctx,
+		if _, execContextErr := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE schedules
 			 SET last_run_at = MAX(last_run_at, ?), revision = revision + 1
-			 WHERE id = ?`, firedAt, scheduleID); err != nil {
-			return fmt.Errorf("sqlite: record accepted schedule occurrence: %w", err)
+			 WHERE id = ?`, firedAt, scheduleID); execContextErr != nil {
+			return fmt.Errorf("sqlite: record accepted schedule occurrence: %w", execContextErr)
 		}
 		return nil
 	}

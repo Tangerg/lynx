@@ -25,8 +25,8 @@ func TestSessionStorePersistsExactReplacement(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatalf("Apply changed=%v err=%v", changed, err)
 	}
-	if err := store.Save(t.Context(), current.Revision(), replacement); err != nil {
-		t.Fatalf("Save: %v", err)
+	if saveErr := store.Save(t.Context(), current.Revision(), replacement); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
 	}
 	got, err := store.Get(t.Context(), current.ID())
 	if err != nil {

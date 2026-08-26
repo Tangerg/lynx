@@ -32,14 +32,14 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 	approvalItems := make(map[int]transcript.Item, len(matched))
 	for _, ref := range open {
 		if index, ok := matched[ref]; ok {
-			if err := r.closeSuspendedToolAttempt(ref); err != nil {
-				return factReduction{}, err
+			if closeSuspendedToolAttemptErr := r.closeSuspendedToolAttempt(ref); closeSuspendedToolAttemptErr != nil {
+				return factReduction{}, closeSuspendedToolAttemptErr
 			}
 			switch pending := e.Interrupts[index]; pending.Kind {
 			case interrupt.Approval:
-				item, publishStart, err := r.approvalItem(*pending.Approval, ref)
-				if err != nil {
-					return factReduction{}, err
+				item, publishStart, approvalItemErr := r.approvalItem(*pending.Approval, ref)
+				if approvalItemErr != nil {
+					return factReduction{}, approvalItemErr
 				}
 				approvalItems[index] = item
 				parkItems = append(parkItems, item)
@@ -56,26 +56,26 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 				// that Tool Item as running and carry its identity through the
 				// continuation; publishing a completion here would make resume
 				// complete the same client block a second time.
-				item, err := r.runningToolItem(ref)
-				if err != nil {
-					return factReduction{}, err
+				item, runningToolItemErr := r.runningToolItem(ref)
+				if runningToolItemErr != nil {
+					return factReduction{}, runningToolItemErr
 				}
 				parkItems = append(parkItems, item)
 			}
 			continue
 		}
 		if ref.end != nil {
-			completed, err := r.completeTool(ref, *ref.end)
-			if err != nil {
-				return factReduction{}, err
+			completed, completeToolErr := r.completeTool(ref, *ref.end)
+			if completeToolErr != nil {
+				return factReduction{}, completeToolErr
 			}
 			out = append(out, completed...)
 			parkItems = completedEventItems(parkItems, completed)
 			continue
 		}
-		suspended, err := r.suspendedToolItem(ref)
-		if err != nil {
-			return factReduction{}, err
+		suspended, suspendedToolItemErr := r.suspendedToolItem(ref)
+		if suspendedToolItemErr != nil {
+			return factReduction{}, suspendedToolItemErr
 		}
 		parkItems = append(parkItems, suspended)
 	}
@@ -91,10 +91,10 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 				pendingInterrupt = approvalTranscriptInterrupt(item, *in.Approval)
 			} else {
 				var publishStart bool
-				var err error
-				item, pendingInterrupt, publishStart, err = r.approvalInterrupt(in)
-				if err != nil {
-					return factReduction{}, err
+				var approvalErr error
+				item, pendingInterrupt, publishStart, approvalErr = r.approvalInterrupt(in)
+				if approvalErr != nil {
+					return factReduction{}, approvalErr
 				}
 				parkItems = append(parkItems, item)
 				if publishStart {
@@ -106,10 +106,10 @@ func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 				}
 			}
 		case interrupt.Question:
-			var err error
-			item, pendingInterrupt, err = r.questionInterrupt(in)
-			if err != nil {
-				return factReduction{}, err
+			var questionErr error
+			item, pendingInterrupt, questionErr = r.questionInterrupt(in)
+			if questionErr != nil {
+				return factReduction{}, questionErr
 			}
 			out = append(out, ItemCompleted{Item: item})
 			parkItems = append(parkItems, item)
@@ -146,17 +146,17 @@ func (r *reducer) suspend(duration time.Duration) (factReduction, error) {
 	)
 	for _, ref := range open {
 		if ref.end != nil {
-			completed, err := r.completeTool(ref, *ref.end)
-			if err != nil {
-				return factReduction{}, err
+			completed, completeToolErr := r.completeTool(ref, *ref.end)
+			if completeToolErr != nil {
+				return factReduction{}, completeToolErr
 			}
 			out = append(out, completed...)
 			parkItems = completedEventItems(parkItems, completed)
 			continue
 		}
-		suspended, err := r.suspendedToolItem(ref)
-		if err != nil {
-			return factReduction{}, err
+		suspended, suspendedToolItemErr := r.suspendedToolItem(ref)
+		if suspendedToolItemErr != nil {
+			return factReduction{}, suspendedToolItemErr
 		}
 		parkItems = append(parkItems, suspended)
 	}

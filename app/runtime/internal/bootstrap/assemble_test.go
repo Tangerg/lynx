@@ -463,11 +463,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = host.Close() })
 
-	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
-		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
+	if pending, listErr := cfg.InterruptStore.List(ctx, sessionID); listErr != nil || len(pending) != 0 {
+		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, listErr)
 	}
-	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
-		t.Fatalf("executor checkpoint after assemble = %v, want not found", err)
+	if _, loadCheckpointErr := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, memberID); !errors.Is(loadCheckpointErr, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after assemble = %v, want not found", loadCheckpointErr)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)
 	failure, failed := run.Failure{}, false

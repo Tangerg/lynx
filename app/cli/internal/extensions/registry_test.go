@@ -109,11 +109,11 @@ func TestPluginMustUnloadBeforeItCanReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(registry, plugin); err == nil {
+	if _, loadErr := Load(registry, plugin); loadErr == nil {
 		t.Fatal("loaded the same plugin twice")
 	}
-	if err := loaded.Dispose(); err != nil {
-		t.Fatal(err)
+	if disposeErr := loaded.Dispose(); disposeErr != nil {
+		t.Fatal(disposeErr)
 	}
 	loaded, err = Load(registry, plugin)
 	if err != nil {

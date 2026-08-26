@@ -56,8 +56,8 @@ func (c *Coordinator) CreateServer(ctx context.Context, input ServerInput) (Serv
 		return Server{}, err
 	}
 	defer write.close()
-	if _, found, err := c.registry.Get(write.requestCtx, input.Name); err != nil {
-		return Server{}, err
+	if _, found, getErr := c.registry.Get(write.requestCtx, input.Name); getErr != nil {
+		return Server{}, getErr
 	} else if found {
 		return Server{}, ErrServerAlreadyExists
 	}

@@ -21,8 +21,8 @@ func TestToolArgumentOverrideOwnsANormalizedJSONObject(t *testing.T) {
 	}
 	detached := override.JSON()
 	detached[0] = '['
-	if err := override.Validate(); err != nil {
-		t.Fatalf("caller mutated the override through JSON(): %v", err)
+	if validateErr := override.Validate(); validateErr != nil {
+		t.Fatalf("caller mutated the override through JSON(): %v", validateErr)
 	}
 	object, err := override.Object()
 	if err != nil {

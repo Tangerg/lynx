@@ -336,8 +336,8 @@ func TestStatusObservationDoesNotRefreshGitIndex(t *testing.T) {
 		t.Fatalf("stat tracked file: %v", err)
 	}
 	changed := info.ModTime().Add(2 * time.Second)
-	if err := os.Chtimes(filepath.Join(dir, "a.txt"), changed, changed); err != nil {
-		t.Fatalf("change tracked file timestamp: %v", err)
+	if chtimesErr := os.Chtimes(filepath.Join(dir, "a.txt"), changed, changed); chtimesErr != nil {
+		t.Fatalf("change tracked file timestamp: %v", chtimesErr)
 	}
 
 	status, err := run(t.Context(), dir, "status", "--porcelain=v1", "-z")

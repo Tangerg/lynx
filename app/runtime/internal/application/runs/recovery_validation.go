@@ -63,7 +63,7 @@ func validateRecoveryParkedTree(
 			err,
 		)
 	}
-	if err := checkpoint.ValidateFor(expected); err != nil {
+	if validateForErr := checkpoint.ValidateFor(expected); validateForErr != nil {
 		return false, nil
 	}
 	continuation, err := waitingContinuationFromPending(pending, checkpoint)

@@ -86,9 +86,9 @@ func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderComm
 				return ProviderSummary{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
 			}
 		} else {
-			existing, _, err := c.providers.Get(ctx, cmd.ID)
-			if err != nil {
-				return ProviderSummary{}, err
+			existing, _, getErr := c.providers.Get(ctx, cmd.ID)
+			if getErr != nil {
+				return ProviderSummary{}, getErr
 			}
 			if existing.BaseURL == "" {
 				return ProviderSummary{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)

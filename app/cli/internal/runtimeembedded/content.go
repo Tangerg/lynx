@@ -30,8 +30,8 @@ func (a attachmentTooLargeError) Error() string {
 type attachmentLoader func(context.Context, string, int64) ([]byte, error)
 
 func loadAttachmentFile(ctx context.Context, path string, maximumBytes int64) (_ []byte, err error) {
-	if err := context.Cause(ctx); err != nil {
-		return nil, err
+	if causeErr := context.Cause(ctx); causeErr != nil {
+		return nil, causeErr
 	}
 	file, err := os.Open(path)
 	if err != nil {

@@ -53,8 +53,8 @@ func TestLibrariesRejectProposalFromItsScopedStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := libraries.RejectProposal(t.Context(), projectRoot, ref); err != nil {
-		t.Fatalf("RejectProposal: %v", err)
+	if _, rejectProposalErr := libraries.RejectProposal(t.Context(), projectRoot, ref); rejectProposalErr != nil {
+		t.Fatalf("RejectProposal: %v", rejectProposalErr)
 	}
 	got, err := libraries.ListProposals(t.Context(), projectRoot)
 	if err != nil {

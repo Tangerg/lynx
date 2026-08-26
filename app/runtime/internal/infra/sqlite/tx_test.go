@@ -38,11 +38,11 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	boom := errors.New("boom")
 	err = sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
 		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", Title: "t"})
-		if err := sess.Insert(ctx, value); err != nil {
-			return err
+		if insertErr := sess.Insert(ctx, value); insertErr != nil {
+			return insertErr
 		}
-		if err := msg.Write(ctx, "s1", chat.NewUserMessage(chat.NewTextPart("hi"))); err != nil {
-			return err
+		if writeErr := msg.Write(ctx, "s1", chat.NewUserMessage(chat.NewTextPart("hi"))); writeErr != nil {
+			return writeErr
 		}
 		return boom // a later step fails (e.g. a DB IO error during import)
 	})
@@ -57,14 +57,14 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	}
 
 	// A successful write-set commits both stores.
-	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
+	if runInTxErr := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
 		value := sessionfixture.MustRestore(session.Snapshot{ID: "s2", Title: "t"})
-		if err := sess.Insert(ctx, value); err != nil {
-			return err
+		if insertErr := sess.Insert(ctx, value); insertErr != nil {
+			return insertErr
 		}
 		return msg.Write(ctx, "s2", chat.NewUserMessage(chat.NewTextPart("hi")))
-	}); err != nil {
-		t.Fatalf("commit tx: %v", err)
+	}); runInTxErr != nil {
+		t.Fatalf("commit tx: %v", runInTxErr)
 	}
 	if _, gerr := sess.Get(ctx, "s2"); gerr != nil {
 		t.Errorf("committed session missing: %v", gerr)
@@ -73,7 +73,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		t.Errorf("committed messages = %d, want 1", n)
 	}
 
-	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
+	if runInTxErr := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
 		pendingSet := pendingForRun(
 			"run_1",
 			"s2",
@@ -85,19 +85,19 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 			}},
 			time.Unix(2, 0).UTC(),
 		)
-		if err := ints.Open(ctx, pendingSet); err != nil {
-			return err
+		if openErr := ints.Open(ctx, pendingSet); openErr != nil {
+			return openErr
 		}
-		pendingList, err := ints.List(ctx, "s2")
-		if err != nil {
-			return err
+		pendingList, listErr := ints.List(ctx, "s2")
+		if listErr != nil {
+			return listErr
 		}
 		if len(pendingList) != 1 || pendingList[0].RootRunID != "run_1" {
 			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pendingList)
 		}
 		return ints.Delete(ctx, "s2", "run_1")
-	}); err != nil {
-		t.Fatalf("interrupt store inside tx: %v", err)
+	}); runInTxErr != nil {
+		t.Fatalf("interrupt store inside tx: %v", runInTxErr)
 	}
 	pending, err := ints.List(ctx, "s2")
 	if err != nil {

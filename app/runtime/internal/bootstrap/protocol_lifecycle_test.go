@@ -58,8 +58,8 @@ func TestAssemblyPreservesParkedQuestionAcrossCrashLikeRestart(t *testing.T) {
 	restartedHost, restartedAPI := buildProtocolRuntime(t, restartedConfig, stores.DataDirectory)
 	defer func() {
 		restartedAPI.Close()
-		if err := restartedHost.Close(); err != nil {
-			t.Errorf("close restarted runtime: %v", err)
+		if closeErr := restartedHost.Close(); closeErr != nil {
+			t.Errorf("close restarted runtime: %v", closeErr)
 		}
 	}()
 	restarted, err := restartedAPI.GetRun(fixture.ctx, protocol.GetRunRequest{RunID: fixture.started.RunID})
@@ -159,15 +159,15 @@ func (p *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
 		p.t.Fatal("timed out waiting for first model call")
 	}
 
-	if err := p.api.SteerRun(p.ctx, protocol.SteerRunRequest{
+	if steerRunErr := p.api.SteerRun(p.ctx, protocol.SteerRunRequest{
 		RunID:             started.RunID,
 		ExpectedSegmentID: started.SegmentID,
 		Input: []protocol.ContentBlock{{
 			Type: protocol.ContentBlockText,
 			Text: protocolLifecycleSteeringText,
 		}},
-	}); err != nil {
-		p.t.Fatalf("runs.steer: %v", err)
+	}); steerRunErr != nil {
+		p.t.Fatalf("runs.steer: %v", steerRunErr)
 	}
 	close(p.model.releaseFirstCall)
 	waitForRunEvents(p.t, startEventsDone, "waiting segment")
@@ -448,9 +448,9 @@ func buildProtocolRuntime(t *testing.T, cfg Config, cwd string) (*Host, *runtime
 		_ = CloseAssembly(assembly)
 		t.Fatalf("build runtime: %v", err)
 	}
-	if err := host.application.recoverStartup(t.Context()); err != nil {
+	if recoverStartupErr := host.application.recoverStartup(t.Context()); recoverStartupErr != nil {
 		_ = host.Close()
-		t.Fatalf("recover runtime: %v", err)
+		t.Fatalf("recover runtime: %v", recoverStartupErr)
 	}
 	api, err := protocolServer(host, cwd)
 	if err != nil {

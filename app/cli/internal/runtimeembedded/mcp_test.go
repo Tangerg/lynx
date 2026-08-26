@@ -198,8 +198,8 @@ func TestMCPAdapterProjectsEveryServerToolAndAuthorizationOperation(t *testing.T
 		Name: "new-docs", Enabled: true,
 		Connection: mcp.ConnectionInput{Transport: mcp.StreamableHTTP, URL: "https://new.example/tools", Authorization: &authorization},
 	}
-	if _, err := runtime.CreateServer(t.Context(), candidate); err != nil {
-		t.Fatal(err)
+	if _, createServerErr := runtime.CreateServer(t.Context(), candidate); createServerErr != nil {
+		t.Fatal(createServerErr)
 	}
 	if stub.created.Connection.Authorization == nil || stub.created.Connection.Authorization.Value != "Bearer secret" {
 		t.Fatalf("created candidate = %+v", stub.created)
@@ -207,14 +207,14 @@ func TestMCPAdapterProjectsEveryServerToolAndAuthorizationOperation(t *testing.T
 	description := "Updated docs"
 	enabled := false
 	update := mcp.ServerUpdate{Server: "docs", Enabled: &enabled, Description: &description}
-	if _, err := runtime.UpdateServer(t.Context(), update); err != nil {
-		t.Fatal(err)
+	if _, updateServerErr := runtime.UpdateServer(t.Context(), update); updateServerErr != nil {
+		t.Fatal(updateServerErr)
 	}
 	if stub.updated.Enabled == nil || *stub.updated.Enabled || stub.updated.Description == nil || *stub.updated.Description != description {
 		t.Fatalf("updated request = %+v", stub.updated)
 	}
-	if err := runtime.DeleteServer(t.Context(), "docs"); err != nil {
-		t.Fatal(err)
+	if deleteServerErr := runtime.DeleteServer(t.Context(), "docs"); deleteServerErr != nil {
+		t.Fatal(deleteServerErr)
 	}
 	tested, err := runtime.TestServer(t.Context(), candidate)
 	if err != nil || tested.OK || tested.Problem == nil || tested.Problem.Type != "mcp_dial_failed" {
@@ -224,8 +224,8 @@ func TestMCPAdapterProjectsEveryServerToolAndAuthorizationOperation(t *testing.T
 	if err != nil || len(tools) != 1 || string(tools[0].InputSchema) != `{"type":"object"}` {
 		t.Fatalf("Tools = (%+v, %v)", tools, err)
 	}
-	if err := runtime.ReconnectServer(t.Context(), "docs"); err != nil {
-		t.Fatal(err)
+	if reconnectServerErr := runtime.ReconnectServer(t.Context(), "docs"); reconnectServerErr != nil {
+		t.Fatal(reconnectServerErr)
 	}
 	attempt, err := runtime.StartAuthorization(t.Context(), "docs")
 	if err != nil || !attempt.Pending() || attempt.ID != "auth_1" {

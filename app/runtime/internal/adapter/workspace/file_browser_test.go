@@ -21,11 +21,11 @@ func TestFileBrowserReadOwnsSourceLineAndWindowLimits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := file.Truncate(workspaceapp.MaxFileReadSourceBytes + 1); err != nil {
-			t.Fatal(err)
+		if truncateErr := file.Truncate(workspaceapp.MaxFileReadSourceBytes + 1); truncateErr != nil {
+			t.Fatal(truncateErr)
 		}
-		if err := file.Close(); err != nil {
-			t.Fatal(err)
+		if closeErr := file.Close(); closeErr != nil {
+			t.Fatal(closeErr)
 		}
 		_, err = (FileBrowser{}).Read(t.Context(), root, workspaceapp.FileReadInput{Path: "oversized.txt"})
 		if !errors.Is(err, workspaceapp.ErrFileReadTooLarge) {
@@ -160,11 +160,11 @@ func TestFileBrowserGrepSearchesOnlyCompleteAdmittedTextFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := oversized.Truncate(workspaceapp.MaxGrepFileBytes + 1); err != nil {
-		t.Fatal(err)
+	if truncateErr := oversized.Truncate(workspaceapp.MaxGrepFileBytes + 1); truncateErr != nil {
+		t.Fatal(truncateErr)
 	}
-	if err := oversized.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := oversized.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	got, err := (FileBrowser{}).Grep(t.Context(), root, workspaceapp.GrepPlan{

@@ -56,8 +56,8 @@ func newRunsListCommand(provider runtimeProvider) *cobra.Command {
 				SessionID: sessionID, Statuses: statuses, IncludeDescendants: includeDescendants,
 				Cursor: cursor, Limit: limit,
 			}
-			if err := query.Validate(); err != nil {
-				return err
+			if validateErr := query.Validate(); validateErr != nil {
+				return validateErr
 			}
 			services, err := provider.OpenServices(cmd)
 			if err != nil {
@@ -71,14 +71,14 @@ func newRunsListCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := page.Validate(); err != nil {
-				return fmt.Errorf("list runs: %w", err)
+			if validateErr := page.Validate(); validateErr != nil {
+				return fmt.Errorf("list runs: %w", validateErr)
 			}
 			if asJSON {
 				return render.WriteRunPageJSON(cmd.OutOrStdout(), page)
 			}
-			if err := writeRunList(cmd, page); err != nil {
-				return err
+			if writeRunListErr := writeRunList(cmd, page); writeRunListErr != nil {
+				return writeRunListErr
 			}
 			if page.NextCursor != "" {
 				_, err = fmt.Fprintf(cmd.ErrOrStderr(), "more runs: --cursor %s\n", page.NextCursor)
@@ -200,8 +200,8 @@ func newRunsCancelCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := result.ValidateTarget(args[0]); err != nil {
-				return fmt.Errorf("cancel run: %w", err)
+			if validateTargetErr := result.ValidateTarget(args[0]); validateTargetErr != nil {
+				return fmt.Errorf("cancel run: %w", validateTargetErr)
 			}
 			if asJSON {
 				return render.WriteRunCancellationJSON(cmd.OutOrStdout(), result)

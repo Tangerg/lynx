@@ -33,8 +33,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			Field: "options", Kind: ConstraintMinItems,
 		}},
 	}
-	if err := bounded.validate(); err == nil || !strings.Contains(err.Error(), "positive limit") {
-		t.Fatalf("bounded constraint error = %v, want positive limit", err)
+	if validateErr := bounded.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "positive limit") {
+		t.Fatalf("bounded constraint error = %v, want positive limit", validateErr)
 	}
 
 	unbounded := FieldConstraintSpec{
@@ -43,8 +43,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			Field: "runId", Kind: ConstraintNonEmpty, Limit: 1,
 		}},
 	}
-	if err := unbounded.validate(); err == nil || !strings.Contains(err.Error(), "does not accept a limit") {
-		t.Fatalf("unbounded constraint error = %v, want rejected limit", err)
+	if validateErr := unbounded.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "does not accept a limit") {
+		t.Fatalf("unbounded constraint error = %v, want rejected limit", validateErr)
 	}
 
 	duplicateBound := FieldConstraintSpec{
@@ -54,8 +54,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			{Field: "options", Kind: ConstraintMinItems, Limit: 3},
 		},
 	}
-	if err := duplicateBound.validate(); err == nil || !strings.Contains(err.Error(), "declares constraint minItems twice") {
-		t.Fatalf("duplicate bounded constraint error = %v, want duplicate rejection", err)
+	if validateErr := duplicateBound.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "declares constraint minItems twice") {
+		t.Fatalf("duplicate bounded constraint error = %v, want duplicate rejection", validateErr)
 	}
 
 	wrongType := FieldConstraintSpec{
@@ -64,8 +64,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			Field: "options", Kind: ConstraintMaxLength, Limit: 12,
 		}},
 	}
-	if err := wrongType.validate(); err == nil || !strings.Contains(err.Error(), "only a string has a length") {
-		t.Fatalf("bounded constraint type error = %v, want string requirement", err)
+	if validateErr := wrongType.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "only a string has a length") {
+		t.Fatalf("bounded constraint type error = %v, want string requirement", validateErr)
 	}
 
 	wrongMaximumType := FieldConstraintSpec{
@@ -74,8 +74,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			Field: "options", Kind: ConstraintMaximum, Limit: 3,
 		}},
 	}
-	if err := wrongMaximumType.validate(); err == nil || !strings.Contains(err.Error(), "only a number can have a maximum") {
-		t.Fatalf("maximum constraint type error = %v, want numeric requirement", err)
+	if validateErr := wrongMaximumType.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "only a number can have a maximum") {
+		t.Fatalf("maximum constraint type error = %v, want numeric requirement", validateErr)
 	}
 
 	wrongMinimumType := FieldConstraintSpec{
@@ -84,8 +84,8 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 			Field: "options", Kind: ConstraintMinimum, Limit: 3,
 		}},
 	}
-	if err := wrongMinimumType.validate(); err == nil || !strings.Contains(err.Error(), "only a number can have a minimum") {
-		t.Fatalf("minimum constraint type error = %v, want numeric requirement", err)
+	if validateErr := wrongMinimumType.validate(); validateErr == nil || !strings.Contains(validateErr.Error(), "only a number can have a minimum") {
+		t.Fatalf("minimum constraint type error = %v, want numeric requirement", validateErr)
 	}
 
 	objectSpec := ObjectConstraintSpec{

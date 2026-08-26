@@ -43,16 +43,16 @@ func (e *Effects) CommitStartedChildRun(
 	if err != nil {
 		return err
 	}
-	if err := validateStartedChildOpening(reservation, opening); err != nil {
-		return err
+	if validateStartedChildOpeningErr := validateStartedChildOpening(reservation, opening); validateStartedChildOpeningErr != nil {
+		return validateStartedChildOpeningErr
 	}
 	alreadyConcluded := false
 	err = e.runInTx(ctx, func(ctx context.Context) error {
-		changed, err := e.childRunStarts.Conclude(
+		changed, concludeErr := e.childRunStarts.Conclude(
 			ctx, record, sqlite.ChildRunStartConclusionStarted,
 		)
-		if err != nil {
-			return fmt.Errorf("runsegment: conclude started child Run reservation: %w", err)
+		if concludeErr != nil {
+			return fmt.Errorf("runsegment: conclude started child Run reservation: %w", concludeErr)
 		}
 		if !changed {
 			alreadyConcluded = true
@@ -185,22 +185,22 @@ func (e *Effects) ClaimResume(
 		return runs.ClaimedResume{}, fmt.Errorf("runsegment: prepare Tool approval resolutions: %w", err)
 	}
 	err = e.runInTx(ctx, func(ctx context.Context) error {
-		loaded, err := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
-		if err != nil {
-			return fmt.Errorf("runsegment: load claimed executor checkpoint: %w", err)
+		loaded, loadCheckpointErr := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
+		if loadCheckpointErr != nil {
+			return fmt.Errorf("runsegment: load claimed executor checkpoint: %w", loadCheckpointErr)
 		}
-		if err := loaded.ValidateOwnership(root.MemberID, claim.Expected.SessionID); err != nil {
-			return err
+		if validateOwnershipErr := loaded.ValidateOwnership(root.MemberID, claim.Expected.SessionID); validateOwnershipErr != nil {
+			return validateOwnershipErr
 		}
 		if loaded.ModelSelection != root.ModelSelection || loaded.Limits != root.Limits ||
 			loaded.Scope.GoalIncarnationID != claim.Expected.GoalIncarnationID {
 			return fmt.Errorf("%w: claimed checkpoint policy differs from Pending", runs.ErrInvalidExecutorCheckpoint)
 		}
-		consumed, found, err := e.resumeClaims.ClaimResume(
+		consumed, found, loadCheckpointErr := e.resumeClaims.ClaimResume(
 			ctx, claim.Expected.SessionID, claim.Expected.RootRunID, claim.Answers, claim.ClaimedAt,
 		)
-		if err != nil {
-			return fmt.Errorf("runsegment: consume resume Pending: %w", err)
+		if loadCheckpointErr != nil {
+			return fmt.Errorf("runsegment: consume resume Pending: %w", loadCheckpointErr)
 		}
 		if !found {
 			return runs.ErrInterruptNotOpen

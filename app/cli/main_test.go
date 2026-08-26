@@ -182,8 +182,8 @@ func requireSubmittedInputSequence(t *testing.T, binary string, size ptytest.Siz
 	}
 	t.Cleanup(func() { _ = session.Close() })
 	waitForVisibleTerminalText(t, session, size, "Ask lyra")
-	if written, err := io.WriteString(session, test.input); err != nil || written != len(test.input) {
-		t.Fatalf("write input = (%d, %v), want %d bytes", written, err, len(test.input))
+	if written, writeStringErr := io.WriteString(session, test.input); writeStringErr != nil || written != len(test.input) {
+		t.Fatalf("write input = (%d, %v), want %d bytes", written, writeStringErr, len(test.input))
 	}
 	// This item appears only after the runtime receives the submission, so it
 	// proves Enter was decoded separately from the preceding input bytes.
@@ -570,18 +570,18 @@ func TestInteractiveBinaryExpandsCompletedToolFromTranscript(t *testing.T) {
 	t.Cleanup(func() { _ = session.Close() })
 
 	waitForVisibleTerminalText(t, session, size, "Ask lyra")
-	if _, err := io.WriteString(session, "tool-expand-contract\r"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "tool-expand-contract\r"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	waitForVisibleTerminalText(t, session, size, "Tool approval")
-	if _, err := io.WriteString(session, "\r"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "\r"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	waitForVisibleTerminalText(t, session, size, "Ran the test 50 times", "$0.0412")
 	// The retained selection starts at the last assistant entry. Move to the
 	// preceding completed tool and expand it from the keyboard.
-	if _, err := io.WriteString(session, "\t\x1b[A\r"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "\t\x1b[A\r"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	waitForVisibleTerminalText(t, session, size, "2.104s")
 	quitInteractiveSession(t, session)
@@ -617,19 +617,19 @@ func TestInteractiveBinaryKeepsScrolledTranscriptStableWhileStreaming(t *testing
 	t.Cleanup(func() { _ = session.Close() })
 
 	waitForVisibleTerminalText(t, session, size, "Ask lyra")
-	if _, err := io.WriteString(session, "stream-scroll-contract\r"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "stream-scroll-contract\r"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	waitForVisibleTerminalText(t, session, size, "The sleep is the bug")
-	if _, err := io.WriteString(session, "\x1b[5~"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "\x1b[5~"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	// The modal is painted independently of the transcript viewport, so it proves
 	// the stream reached its interrupt without requiring the newly appended tail
 	// to become visible after bottom-following was suspended.
 	waitForVisibleTerminalText(t, session, size, "Tool approval")
-	if _, err := io.WriteString(session, "\x03"); err != nil {
-		t.Fatal(err)
+	if _, writeStringErr := io.WriteString(session, "\x03"); writeStringErr != nil {
+		t.Fatal(writeStringErr)
 	}
 	waitForVisibleTerminalText(t, session, size, "$0.0291")
 	quitInteractiveSession(t, session)

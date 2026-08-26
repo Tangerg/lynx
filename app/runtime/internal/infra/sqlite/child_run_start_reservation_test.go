@@ -19,11 +19,11 @@ func TestChildRunStartReservationRetainsIdempotentConclusion(t *testing.T) {
 		MemberID: "member-child", SessionID: "session-1",
 		Payload: []byte(`{"run":"child"}`), CreatedAt: time.Unix(1, 2).UTC(),
 	}
-	if err := store.Reserve(t.Context(), record); err != nil {
-		t.Fatalf("Reserve: %v", err)
+	if reserveErr := store.Reserve(t.Context(), record); reserveErr != nil {
+		t.Fatalf("Reserve: %v", reserveErr)
 	}
-	if err := store.Reserve(t.Context(), record); err != nil {
-		t.Fatalf("Reserve exact replay: %v", err)
+	if reserveErr := store.Reserve(t.Context(), record); reserveErr != nil {
+		t.Fatalf("Reserve exact replay: %v", reserveErr)
 	}
 	changed, err := store.Conclude(
 		t.Context(), record, storage.ChildRunStartConclusionStarted,

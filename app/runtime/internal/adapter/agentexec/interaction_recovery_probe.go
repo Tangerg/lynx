@@ -67,12 +67,12 @@ func (i *InteractionExecutor) CanResumeWaitingExecution(
 		return false, nil
 	}
 	defer discardRestoredInteraction(assembled, process)
-	if err := assembled.initializeRestoredContinuation(
+	if initializeRestoredContinuationErr := assembled.initializeRestoredContinuation(
 		process,
 		continuation,
 		state,
 		interactionBoundaryWaiting,
-	); err != nil {
+	); initializeRestoredContinuationErr != nil {
 		return false, nil
 	}
 	unknown, err := assembled.unknownEffectIDs(ctx)

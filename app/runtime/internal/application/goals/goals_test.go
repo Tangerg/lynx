@@ -904,8 +904,8 @@ func TestResumeObservesOutstandingGoalRunTerminalReport(t *testing.T) {
 	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), nil, testPrompt)
 	cleanupDriver(t, d)
 
-	if _, err := d.Resume(t.Context(), "s1", run.Capabilities{}); err != nil {
-		t.Fatalf("Resume: %v", err)
+	if _, resumeErr := d.Resume(t.Context(), "s1", run.Capabilities{}); resumeErr != nil {
+		t.Fatalf("Resume: %v", resumeErr)
 	}
 	select {
 	case <-waitStarted:
@@ -1594,8 +1594,8 @@ func TestReconcileFailsClosedWhenARecoveryCASDoesNotLand(t *testing.T) {
 			d := goals.NewDriver(conflicting, &fakeRuns{t: t, store: store}, &fakeSessions{}, goals.NewSessionMutations(), nil, testPrompt)
 			cleanupDriver(t, d)
 
-			if err := d.Reconcile(t.Context()); !errors.Is(err, goals.ErrGoalConflict) {
-				t.Fatalf("Reconcile conflict error = %v, want %v", err, goals.ErrGoalConflict)
+			if reconcileErr := d.Reconcile(t.Context()); !errors.Is(reconcileErr, goals.ErrGoalConflict) {
+				t.Fatalf("Reconcile conflict error = %v, want %v", reconcileErr, goals.ErrGoalConflict)
 			}
 			current, present, err := store.Get(t.Context(), seed.SessionID)
 			if err != nil || !present || current.Version() != seed.Version() || current.Status != test.status {

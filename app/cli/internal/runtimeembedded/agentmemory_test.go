@@ -172,11 +172,11 @@ func TestAgentMemoryAdapterPreservesTargetReviewAndMutationSemantics(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Items(t.Context(), user); err != nil {
-		t.Fatal(err)
+	if _, itemsErr := adapter.Items(t.Context(), user); itemsErr != nil {
+		t.Fatal(itemsErr)
 	}
-	if err := adapter.Review(t.Context(), "mem_1", agentmemory.Approve); err != nil {
-		t.Fatal(err)
+	if reviewErr := adapter.Review(t.Context(), "mem_1", agentmemory.Approve); reviewErr != nil {
+		t.Fatal(reviewErr)
 	}
 	content, pinned := "edited", true
 	updated, err := adapter.Update(t.Context(), agentmemory.Patch{ID: "mem_1", Content: &content, Pinned: &pinned})

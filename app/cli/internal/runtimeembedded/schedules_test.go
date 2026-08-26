@@ -157,8 +157,8 @@ func TestScheduleAdapterConsumesEveryOperationAndPaginates(t *testing.T) {
 	if stub.updated.ExpectedRevision != created.Revision || stub.updated.Title == nil || *stub.updated.Title != title {
 		t.Fatalf("update request = %+v", stub.updated)
 	}
-	if err := runtime.Delete(t.Context(), created.ID); err != nil {
-		t.Fatal(err)
+	if deleteErr := runtime.Delete(t.Context(), created.ID); deleteErr != nil {
+		t.Fatal(deleteErr)
 	}
 	handle, err := runtime.RunNow(t.Context(), "sch_1")
 	if err != nil || handle.SessionID != "ses_headless" || handle.RunID != "run_headless" {

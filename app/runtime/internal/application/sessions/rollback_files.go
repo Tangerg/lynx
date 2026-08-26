@@ -93,33 +93,33 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	// that operation from the cross-resource files+history variant.
 	mutationRecorded := spec.RestoreFiles && c.mutations != nil
 	if mutationRecorded {
-		if err := c.recordMutation(ctx, WorkspaceMutation{
+		if recordMutationErr := c.recordMutation(ctx, WorkspaceMutation{
 			SessionID: spec.SessionID, CWD: cwd, ToRunID: spec.ToRunID,
 			RestoreHistory: spec.RestoreHistory,
-		}); err != nil {
-			return result, err
+		}); recordMutationErr != nil {
+			return result, recordMutationErr
 		}
 	}
 
 	// Errors before reset begins leave the tree unchanged, so their intent can be
 	// cleared. ErrCheckpointRestoreIncomplete is different: reset may have
 	// changed only part of the tree, and its intent must survive for recovery.
-	if err := c.restoreRollbackFiles(ctx, spec, cwd, mutationRecorded); err != nil {
-		return result, err
+	if restoreRollbackFilesErr := c.restoreRollbackFiles(ctx, spec, cwd, mutationRecorded); restoreRollbackFilesErr != nil {
+		return result, restoreRollbackFilesErr
 	}
 
 	// The tree is restored now; a durable failure here leaves the intent logged so
 	// boot recovery completes the truncation (the tree + history would otherwise
 	// disagree).
 	if spec.RestoreHistory && len(resolvedBoundary.timeline.Dropped) > 0 {
-		if err := c.applyRollback(ctx, spec.SessionID, resolvedBoundary.timeline); err != nil {
-			return result, err
+		if applyRollbackErr := c.applyRollback(ctx, spec.SessionID, resolvedBoundary.timeline); applyRollbackErr != nil {
+			return result, applyRollbackErr
 		}
 	}
 
 	if mutationRecorded {
-		if err := c.completeMutationDetached(ctx, spec.SessionID); err != nil {
-			return result, err
+		if completeMutationDetachedErr := c.completeMutationDetached(ctx, spec.SessionID); completeMutationDetachedErr != nil {
+			return result, completeMutationDetachedErr
 		}
 	}
 	result.Session, err = c.view(currentSession, ActivityIdle)

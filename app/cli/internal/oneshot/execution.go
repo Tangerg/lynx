@@ -79,8 +79,8 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	if err != nil {
 		return err
 	}
-	if err := opened.ValidateStart(); err != nil {
-		return fmt.Errorf("start run: %w", err)
+	if validateStartErr := opened.ValidateStart(); validateStartErr != nil {
+		return fmt.Errorf("start run: %w", validateStartErr)
 	}
 	run := agent.Run{
 		ID: opened.RunID, SessionID: invocation.Start.SessionID,
@@ -92,8 +92,8 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 		// permits the pair to be empty.
 		run.Model = ""
 	}
-	if err := invocation.Renderer.Begin(run, invocation.Start.Options); err != nil {
-		return err
+	if beginErr := invocation.Renderer.Begin(run, invocation.Start.Options); beginErr != nil {
+		return beginErr
 	}
 
 	disposition, err := drive(ctx, invocation, opened)
@@ -288,8 +288,8 @@ func (e *executionDriver) reconnect(ctx context.Context, cause error) (dispositi
 			RunID: e.current.RunID, SegmentID: e.current.SegmentID, AfterEventID: e.conversation.Checkpoint(),
 		})
 		if err == nil {
-			if err := rebound.ValidateSubscription(); err != nil {
-				return abandoned, fmt.Errorf("subscribe run: %w", err)
+			if validateSubscriptionErr := rebound.ValidateSubscription(); validateSubscriptionErr != nil {
+				return abandoned, fmt.Errorf("subscribe run: %w", validateSubscriptionErr)
 			}
 			e.current = rebound
 			return continuing, nil

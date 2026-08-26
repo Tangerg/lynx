@@ -77,8 +77,8 @@ func TestPlanModeIsSessionScopedAndRestoresEntryMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || !changed {
-		t.Fatalf("EnterPlanMode = %v, %v", changed, err)
+	if changed, enterPlanModeErr := policy.EnterPlanMode(t.Context(), "session-a"); enterPlanModeErr != nil || !changed {
+		t.Fatalf("EnterPlanMode = %v, %v", changed, enterPlanModeErr)
 	}
 	if mode, _ := policy.Mode(t.Context(), "session-a"); mode != approval.ModePlan {
 		t.Fatalf("session-a mode = %v, want Plan", mode)
@@ -86,11 +86,11 @@ func TestPlanModeIsSessionScopedAndRestoresEntryMode(t *testing.T) {
 	if mode, _ := policy.Mode(t.Context(), "session-b"); mode != approval.ModeBalanced {
 		t.Fatalf("session-b mode = %v, want Balanced", mode)
 	}
-	if err := policy.SetDefaultMode(t.Context(), approval.ModeYolo); err != nil {
-		t.Fatal(err)
+	if setDefaultModeErr := policy.SetDefaultMode(t.Context(), approval.ModeYolo); setDefaultModeErr != nil {
+		t.Fatal(setDefaultModeErr)
 	}
-	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || changed {
-		t.Fatalf("second EnterPlanMode = %v, %v, want unchanged", changed, err)
+	if changed, enterPlanModeErr := policy.EnterPlanMode(t.Context(), "session-a"); enterPlanModeErr != nil || changed {
+		t.Fatalf("second EnterPlanMode = %v, %v, want unchanged", changed, enterPlanModeErr)
 	}
 	restored, changed, err := policy.ExitPlanMode(t.Context(), "session-a")
 	if err != nil || !changed || restored != approval.ModeBalanced {

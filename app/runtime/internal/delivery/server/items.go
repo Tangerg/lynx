@@ -41,10 +41,10 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 		return nil, err
 	}
 	if in.Scope.Type == protocol.ItemScopeRun {
-		run, found, err := s.queries.Run(ctx, in.Scope.RunID)
+		run, found, runErr := s.queries.Run(ctx, in.Scope.RunID)
 		switch {
-		case err != nil:
-			return nil, err
+		case runErr != nil:
+			return nil, runErr
 		case !found:
 			return nil, protocol.ErrRunNotFound
 		case run.Lineage().IsChild():

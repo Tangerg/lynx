@@ -17,15 +17,15 @@ func TestPendingSteerAtomicallyReturnsAttachmentsIntoANewerDraft(t *testing.T) {
 	sessionID := "ses_steer"
 	attachment := steerTestAttachment(t.TempDir())
 	source := agent.Message{Text: "/steer inspect the parser", Attachments: []agent.Attachment{attachment}}
-	if err := store.SaveDraft(sessionID, source); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, source); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	pending := steerTestPending(sessionID, attachment)
-	if err := store.StagePendingSteer(pending, source); err != nil {
-		t.Fatal(err)
+	if stagePendingSteerErr := store.StagePendingSteer(pending, source); stagePendingSteerErr != nil {
+		t.Fatal(stagePendingSteerErr)
 	}
-	if draft, found, err := store.Draft(sessionID); err != nil || found {
-		t.Fatalf("draft after staging = %+v, found %t, error %v", draft, found, err)
+	if draft, found, draftErr := store.Draft(sessionID); draftErr != nil || found {
+		t.Fatalf("draft after staging = %+v, found %t, error %v", draft, found, draftErr)
 	}
 
 	reopened, err := Open(directory, Config{})
@@ -37,8 +37,8 @@ func TestPendingSteerAtomicallyReturnsAttachmentsIntoANewerDraft(t *testing.T) {
 		t.Fatalf("reopened pending steer = %+v, found %t", staged, found)
 	}
 	newer := agent.Message{Text: "new input while steer settles"}
-	if err := reopened.SaveDraft(sessionID, newer); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := reopened.SaveDraft(sessionID, newer); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
 	recovered, err := reopened.RejectPendingSteer(sessionID, pending.Command.CommandID, newer)
 	if err != nil {
@@ -71,18 +71,18 @@ func TestPendingSteerAcknowledgementIsRestartIdempotentAndPreservesDraft(t *test
 	attachment := steerTestAttachment(t.TempDir())
 	source := agent.Message{Text: "/steer inspect the parser", Attachments: []agent.Attachment{attachment}}
 	pending := steerTestPending(sessionID, attachment)
-	if err := store.SaveDraft(sessionID, source); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, source); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.StagePendingSteer(pending, source); err != nil {
-		t.Fatal(err)
+	if stagePendingSteerErr := store.StagePendingSteer(pending, source); stagePendingSteerErr != nil {
+		t.Fatal(stagePendingSteerErr)
 	}
 	newer := agent.Message{Text: "keep this newer thought"}
-	if err := store.SaveDraft(sessionID, newer); err != nil {
-		t.Fatal(err)
+	if saveDraftErr := store.SaveDraft(sessionID, newer); saveDraftErr != nil {
+		t.Fatal(saveDraftErr)
 	}
-	if err := store.AcknowledgePendingSteer(sessionID, pending.Command.CommandID); err != nil {
-		t.Fatal(err)
+	if acknowledgePendingSteerErr := store.AcknowledgePendingSteer(sessionID, pending.Command.CommandID); acknowledgePendingSteerErr != nil {
+		t.Fatal(acknowledgePendingSteerErr)
 	}
 
 	reopened, err := Open(directory, Config{})

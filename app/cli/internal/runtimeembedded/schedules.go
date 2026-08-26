@@ -40,8 +40,8 @@ func (r *Runtime) Schedules(ctx context.Context) ([]schedule.Schedule, error) {
 		}
 		for index, value := range page.Data {
 			projected := projectSchedule(value)
-			if err := projected.Validate(); err != nil {
-				return nil, runtimeContractViolation("list schedules item %d after cursor %q is invalid: %v", index+1, cursor, err)
+			if validateErr := projected.Validate(); validateErr != nil {
+				return nil, runtimeContractViolation("list schedules item %d after cursor %q is invalid: %v", index+1, cursor, validateErr)
 			}
 			if _, duplicate := seenIDs[projected.ID]; duplicate {
 				return nil, runtimeContractViolation("list schedules repeats %q", projected.ID)
@@ -69,9 +69,9 @@ func (r *Runtime) Create(ctx context.Context, candidate schedule.Candidate) (sch
 	}
 	validated := candidate
 	if candidate.Workspace != "" {
-		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: candidate.Workspace})
-		if err != nil {
-			return schedule.Schedule{}, fmt.Errorf("create schedule workspace: %w", err)
+		resolved, resolveErr := r.Resolve(ctx, workspace.ResolveRequest{Path: candidate.Workspace})
+		if resolveErr != nil {
+			return schedule.Schedule{}, fmt.Errorf("create schedule workspace: %w", resolveErr)
 		}
 		validated.Workspace = resolved.Path
 	}
@@ -103,9 +103,9 @@ func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Sc
 	}
 	validated := patch
 	if path, bound := patch.Workspace.Binding(); bound {
-		resolved, err := r.Resolve(ctx, workspace.ResolveRequest{Path: path})
-		if err != nil {
-			return schedule.Schedule{}, fmt.Errorf("update schedule workspace: %w", err)
+		resolved, resolveErr := r.Resolve(ctx, workspace.ResolveRequest{Path: path})
+		if resolveErr != nil {
+			return schedule.Schedule{}, fmt.Errorf("update schedule workspace: %w", resolveErr)
 		}
 		validated.Workspace = schedule.BindWorkspace(resolved.Path)
 	}

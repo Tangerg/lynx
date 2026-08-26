@@ -106,8 +106,8 @@ func TestAcceptedQuestionRevealsItsDurableAnswerInPlace(t *testing.T) {
 		ID: question.ItemID, RunID: question.RunID, Status: agent.BlockStatusCompleted,
 		Kind: agent.BlockQuestion, Question: &question,
 	}
-	if err := view.Apply(agent.BlockCompleted{Block: block}, registry); err != nil {
-		t.Fatal(err)
+	if applyErr := view.Apply(agent.BlockCompleted{Block: block}, registry); applyErr != nil {
+		t.Fatal(applyErr)
 	}
 	if drawn := drawRoot(t, view, 48, 6); strings.Contains(drawn, question.Title) {
 		t.Fatalf("pending question leaked an interaction-looking transcript row:\n%s", drawn)

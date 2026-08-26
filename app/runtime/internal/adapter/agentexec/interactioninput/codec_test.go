@@ -91,8 +91,8 @@ func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 		t.Fatalf("EncodeResolution: %v", err)
 	}
 	var wire map[string]any
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		t.Fatalf("decode encoded response: %v", err)
+	if unmarshalErr := json.Unmarshal(raw, &wire); unmarshalErr != nil {
+		t.Fatalf("decode encoded response: %v", unmarshalErr)
 	}
 	if wire["approved"] != true || wire["remember_scope"] != "session" || wire["answers"] == nil {
 		t.Fatalf("response wire = %#v", wire)
@@ -100,10 +100,10 @@ func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 	if _, found := wire["Approved"]; found {
 		t.Fatalf("response leaked Go field name: %#v", wire)
 	}
-	if _, err := DecodeResolution([]byte(`{"Answers":[]}`)); err == nil {
+	if _, decodeResolutionErr := DecodeResolution([]byte(`{"Answers":[]}`)); decodeResolutionErr == nil {
 		t.Fatal("DecodeResolution accepted a case-insensitive Go field name")
 	}
-	if _, err := DecodeResolution([]byte(`{"approved":true,"approved":false}`)); err == nil {
+	if _, decodeResolutionErr := DecodeResolution([]byte(`{"approved":true,"approved":false}`)); decodeResolutionErr == nil {
 		t.Fatal("DecodeResolution accepted a duplicate field")
 	}
 	decoded, err := DecodeResolution(raw)

@@ -26,8 +26,8 @@ func TestStorePublishesWithoutClobberingAndLoadsPortableJSON(t *testing.T) {
 	if first != filepath.Join(canonicalWorkspace, "archive.json") {
 		t.Fatalf("first path = %q", first)
 	}
-	if err := os.WriteFile(first, []byte("different"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(first, []byte("different"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
 	second, err := store.Publish(workspace, "Portable session", "archive.json", document)
 	if err != nil {

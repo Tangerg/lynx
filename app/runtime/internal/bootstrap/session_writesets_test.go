@@ -280,18 +280,18 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		t.Fatalf("cancel parked Run: %v", err)
 	}
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); err != nil {
-		t.Fatalf("ApplyTerminal: %v", err)
+	if applyTerminalErr := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); applyTerminalErr != nil {
+		t.Fatalf("ApplyTerminal: %v", applyTerminalErr)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
-		t.Fatalf("executor checkpoint after cancel = %v, want not found", err)
+	if _, loadCheckpointErr := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(loadCheckpointErr, runsapp.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after cancel = %v, want not found", loadCheckpointErr)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
-	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
-		t.Fatalf("admit after cancel = %v, want the slot freed", err)
+	if admitErr := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); admitErr != nil {
+		t.Fatalf("admit after cancel = %v, want the slot freed", admitErr)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
 	if err != nil || len(storedRuns) != 2 || storedRuns[0].State() != run.Canceled {
@@ -316,17 +316,17 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 		t.Fatalf("recover parked Run: %v", err)
 	}
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); err != nil {
-		t.Fatalf("ApplyTerminal run_lost: %v", err)
+	if applyTerminalErr := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); applyTerminalErr != nil {
+		t.Fatalf("ApplyTerminal run_lost: %v", applyTerminalErr)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived run_lost: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
-		t.Fatalf("executor checkpoint after run_lost = %v, want not found", err)
+	if _, loadCheckpointErr := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(loadCheckpointErr, runsapp.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after run_lost = %v, want not found", loadCheckpointErr)
 	}
-	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
-		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
+	if admitErr := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); admitErr != nil {
+		t.Fatalf("admit after run_lost = %v, want the slot freed", admitErr)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
 	failure, failed := run.Failure{}, false
@@ -352,17 +352,17 @@ func TestApplyTerminalRecoversClaimedResumeAtomically(t *testing.T) {
 		RequestID:       pending.Bindings[0].RequestID,
 		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
 	}}
-	if _, claimResumeFound, err := ints.ClaimResume(
+	if _, claimResumeFound, claimResumeErr := ints.ClaimResume(
 		ctx,
 		pending.SessionID,
 		pending.RootRunID,
 		answers,
 		parkCreatedAt.Add(time.Second),
-	); err != nil || !claimResumeFound {
-		t.Fatalf("ClaimResume: found=%t err=%v", claimResumeFound, err)
+	); claimResumeErr != nil || !claimResumeFound {
+		t.Fatalf("ClaimResume: found=%t err=%v", claimResumeFound, claimResumeErr)
 	}
-	if _, open, err := ints.Get(ctx, pending.RootRunID); err != nil || open {
-		t.Fatalf("open interrupt after claim = open:%t err:%v", open, err)
+	if _, open, getErr := ints.Get(ctx, pending.RootRunID); getErr != nil || open {
+		t.Fatalf("open interrupt after claim = open:%t err:%v", open, getErr)
 	}
 
 	parked, found, err := runs.Run(ctx, pending.RootRunID)
@@ -374,16 +374,16 @@ func TestApplyTerminalRecoversClaimedResumeAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recover parked Run: %v", err)
 	}
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
+	if applyTerminalErr := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
 		Runs: []run.Run{terminal}, CheckpointRootID: memberID, ResumeClaimed: true,
-	}); err != nil {
-		t.Fatalf("ApplyTerminal claimed Resume: %v", err)
+	}); applyTerminalErr != nil {
+		t.Fatalf("ApplyTerminal claimed Resume: %v", applyTerminalErr)
 	}
-	if err := ints.RequireResumeClaim(ctx, pending.SessionID, pending.RootRunID); err == nil {
+	if requireResumeClaimErr := ints.RequireResumeClaim(ctx, pending.SessionID, pending.RootRunID); requireResumeClaimErr == nil {
 		t.Fatal("claimed Resume interrupt survived terminal write-set")
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
-		t.Fatalf("executor checkpoint after claimed RunLost = %v, want not found", err)
+	if _, loadCheckpointErr := ss.checkpoints.LoadCheckpoint(ctx, memberID); !errors.Is(loadCheckpointErr, runsapp.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("executor checkpoint after claimed RunLost = %v, want not found", loadCheckpointErr)
 	}
 	stored, found, err := runs.Run(ctx, pending.RootRunID)
 	if err != nil || !found || stored.State() != run.Failed {
@@ -417,8 +417,8 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new Goal: %v", err)
 	}
-	if _, applied, err := ss.goals.Save(ctx, goalValue, goal.Version{}); err != nil || !applied {
-		t.Fatalf("save Goal: applied=%t err=%v", applied, err)
+	if _, applied, saveErr := ss.goals.Save(ctx, goalValue, goal.Version{}); saveErr != nil || !applied {
+		t.Fatalf("save Goal: applied=%t err=%v", applied, saveErr)
 	}
 
 	costUSD := 0.75
@@ -442,10 +442,10 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		SessionID: "ses_A", IncarnationID: incarnationID, RunID: terminal.ID(),
 		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
 	}
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
+	if applyTerminalErr := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
 		Runs: []run.Run{terminal}, CheckpointRootID: memberID, GoalRun: &goalRun,
-	}); err != nil {
-		t.Fatalf("ApplyTerminal: %v", err)
+	}); applyTerminalErr != nil {
+		t.Fatalf("ApplyTerminal: %v", applyTerminalErr)
 	}
 
 	storedGoal, found, err := ss.goals.Get(ctx, "ses_A")
@@ -528,14 +528,14 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	}
 
 	boundary := []plan.Step{{Description: "the plan at the boundary", Status: plan.StatusPending}}
-	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
+	if applyRollbackErr := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
 		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{memberID},
 		PlanReplacement:   prepareFixturePlan(t, ctx, ss.plan, "ses_A", boundary),
-	}); err != nil {
-		t.Fatalf("ApplyRollback: %v", err)
+	}); applyRollbackErr != nil {
+		t.Fatalf("ApplyRollback: %v", applyRollbackErr)
 	}
 
 	after, err := ss.plan.State(ctx, "ses_A")
@@ -564,14 +564,14 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 		t.Fatalf("read plan: %v", err)
 	}
 
-	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
+	if applyRollbackErr := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
 		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{memberID},
 		PlanReplacement:   prepareFixturePlan(t, ctx, ss.plan, "ses_A", nil),
-	}); err != nil {
-		t.Fatalf("ApplyRollback: %v", err)
+	}); applyRollbackErr != nil {
+		t.Fatalf("ApplyRollback: %v", applyRollbackErr)
 	}
 
 	after, err := ss.plan.State(ctx, "ses_A")
@@ -654,8 +654,8 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	if err != nil || len(got) != 1 || got[0].Description != "inherited plan" {
 		t.Fatalf("child plan = %+v (err %v), want the boundary list", got, err)
 	}
-	if got, err := ss.plan.List(ctx, parent.ID()); err != nil || len(got) != 0 {
-		t.Fatalf("parent plan = %+v (err %v), want none written by the fork", got, err)
+	if got, listErr := ss.plan.List(ctx, parent.ID()); listErr != nil || len(got) != 0 {
+		t.Fatalf("parent plan = %+v (err %v), want none written by the fork", got, listErr)
 	}
 	gotRuns, err := runStore.ListRuns(ctx, child.ID())
 	if err != nil || len(gotRuns) != 1 || gotRuns[0].ID() != forkedRun.ID() {
@@ -762,8 +762,8 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err != nil || after.Revision() <= before.Revision() {
 		t.Fatalf("Plan revision after restore = %d err=%v, want greater than %d", after.Revision(), err, before.Revision())
 	}
-	if _, ok, err := ss.goals.Get(ctx, "ses_A"); err != nil || ok {
-		t.Fatalf("goal survived the restore: ok=%v err=%v", ok, err)
+	if _, ok, getErr := ss.goals.Get(ctx, "ses_A"); getErr != nil || ok {
+		t.Fatalf("goal survived the restore: ok=%v err=%v", ok, getErr)
 	}
 	rules, err := ss.approvals.Visible(ctx, "ses_A", "/repo")
 	if err != nil {

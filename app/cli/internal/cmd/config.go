@@ -81,17 +81,17 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if err := selectConfigSource(v, path); err != nil {
-		return err
+	if selectConfigSourceErr := selectConfigSource(v, path); selectConfigSourceErr != nil {
+		return selectConfigSourceErr
 	}
-	if err := v.ReadInConfig(); err != nil {
-		_, notFound := errors.AsType[viper.ConfigFileNotFoundError](err)
+	if readInConfigErr := v.ReadInConfig(); readInConfigErr != nil {
+		_, notFound := errors.AsType[viper.ConfigFileNotFoundError](readInConfigErr)
 		if path != "" || !notFound {
-			return fmt.Errorf("read configuration: %w", err)
+			return fmt.Errorf("read configuration: %w", readInConfigErr)
 		}
 	}
-	if err := bindSettingFlags(v, cmd); err != nil {
-		return err
+	if bindSettingFlagsErr := bindSettingFlags(v, cmd); bindSettingFlagsErr != nil {
+		return bindSettingFlagsErr
 	}
 	_, err = readSettings(v)
 	return err

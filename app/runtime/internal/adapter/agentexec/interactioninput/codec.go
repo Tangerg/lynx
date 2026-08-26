@@ -119,9 +119,9 @@ func validateUniqueJSONNames(decoder *json.Decoder, path string) error {
 	case '{':
 		seen := make(map[string]struct{})
 		for decoder.More() {
-			nameToken, err := decoder.Token()
-			if err != nil {
-				return err
+			nameToken, tokenErr := decoder.Token()
+			if tokenErr != nil {
+				return tokenErr
 			}
 			name, ok := nameToken.(string)
 			if !ok {
@@ -137,8 +137,8 @@ func validateUniqueJSONNames(decoder *json.Decoder, path string) error {
 		}
 	case '[':
 		for index := 0; decoder.More(); index++ {
-			if err := validateUniqueJSONNames(decoder, fmt.Sprintf("%s[%d]", path, index)); err != nil {
-				return err
+			if validateUniqueJSONNamesErr := validateUniqueJSONNames(decoder, fmt.Sprintf("%s[%d]", path, index)); validateUniqueJSONNamesErr != nil {
+				return validateUniqueJSONNamesErr
 			}
 		}
 	default:

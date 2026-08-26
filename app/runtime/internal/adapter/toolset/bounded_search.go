@@ -252,8 +252,8 @@ func runtimeSearchPath(root, requested string) (string, error) {
 	if !inside {
 		return "", fmt.Errorf("%w: %q", workspaceapp.ErrPathOutsideRoot, requested)
 	}
-	if _, err := os.Stat(target); err != nil {
-		return "", fmt.Errorf("toolset: inspect search path %q: %w", requested, err)
+	if _, statErr := os.Stat(target); statErr != nil {
+		return "", fmt.Errorf("toolset: inspect search path %q: %w", requested, statErr)
 	}
 	relative, err := filepath.Rel(canonicalRoot, target)
 	if err != nil {

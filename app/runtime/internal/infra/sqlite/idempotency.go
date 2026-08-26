@@ -50,22 +50,22 @@ func (i *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 		// reservation: releasing it on elapsed wall time would let the same key
 		// execute its business mutation again after a process crash, even though
 		// the first mutation may already have committed.
-		if _, err := db.ExecContext(ctx,
+		if _, execContextErr := db.ExecContext(ctx,
 			`DELETE FROM idempotency_records WHERE expires_at <= ? AND length(payload) > 0`, now,
-		); err != nil {
-			return fmt.Errorf("sqlite: prune idempotency records: %w", err)
+		); execContextErr != nil {
+			return fmt.Errorf("sqlite: prune idempotency records: %w", execContextErr)
 		}
-		res, err := db.ExecContext(ctx, `INSERT INTO idempotency_records(
+		res, execContextErr := db.ExecContext(ctx, `INSERT INTO idempotency_records(
 				key, fingerprint, payload, created_at, expires_at
 			) VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(key) DO NOTHING`,
 			key, fingerprint, []byte{}, now, now+int64(idempotency.Retention/time.Second))
-		if err != nil {
-			return fmt.Errorf("sqlite: insert idempotency claim: %w", err)
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: insert idempotency claim: %w", execContextErr)
 		}
-		changed, err := res.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("sqlite: inspect idempotency claim: %w", err)
+		changed, execContextErr := res.RowsAffected()
+		if execContextErr != nil {
+			return fmt.Errorf("sqlite: inspect idempotency claim: %w", execContextErr)
 		}
 		if changed != 0 {
 			record, claimed = idempotency.Record{Key: key, Fingerprint: fingerprint}, true

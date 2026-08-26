@@ -401,9 +401,9 @@ func buildAssemblyCore(
 		// generic tool after Runs and the Driver exist. This must precede Run
 		// recovery because it is part of the exact Deployment configuration used
 		// to validate a durable executor checkpoint.
-		createGoalTool, err := builtin.NewCreate(goalDriver)
-		if err != nil {
-			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
+		createGoalTool, newCreateErr := builtin.NewCreate(goalDriver)
+		if newCreateErr != nil {
+			return nil, fmt.Errorf("runtime: build create_goal: %w", newCreateErr)
 		}
 		if execution.tools.tools.Resolver != nil {
 			execution.tools.tools.Resolver.UseCreateGoalTool(createGoalTool)

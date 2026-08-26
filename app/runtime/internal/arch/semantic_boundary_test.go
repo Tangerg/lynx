@@ -211,7 +211,7 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 		filepath.Join("internal", "adapter", "runsegment"),
 		filepath.Join("internal", "infra", "sqlite"),
 	} {
-		err := filepath.WalkDir(filepath.Join(root, relative), func(path string, entry fs.DirEntry, walkErr error) error {
+		walkDirErr := filepath.WalkDir(filepath.Join(root, relative), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
@@ -229,8 +229,8 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 			}
 			return nil
 		})
-		if err != nil {
-			t.Fatalf("scan %s Run capability vocabulary: %v", relative, err)
+		if walkDirErr != nil {
+			t.Fatalf("scan %s Run capability vocabulary: %v", relative, walkDirErr)
 		}
 	}
 

@@ -64,8 +64,8 @@ func (s *Store) SubmitProposal(ctx context.Context, proposal skills.Proposal) (s
 		return skills.ProposalRef{}, nil, err
 	}
 	ref := skills.NewProposalRef(s.scope, proposal.Name, content)
-	if err := contextError(ctx, "save proposal"); err != nil {
-		return skills.ProposalRef{}, nil, err
+	if contextErrorErr := contextError(ctx, "save proposal"); contextErrorErr != nil {
+		return skills.ProposalRef{}, nil, contextErrorErr
 	}
 
 	s.mu.Lock()
@@ -138,14 +138,14 @@ func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]
 	if !found {
 		return nil, fmt.Errorf("skillauthoring: no proposal %q at revision %q: %w", ref.Name, ref.Revision, skills.ErrNotFound)
 	}
-	if err := validateSkill(ref.Name, content); err != nil {
-		return nil, err
+	if validateSkillErr := validateSkill(ref.Name, content); validateSkillErr != nil {
+		return nil, validateSkillErr
 	}
 	// A revision replaces the active skill of the same name (archiving the old
 	// version) rather than conflicting; it also handles its own archive slot, so
 	// it runs before the archived-conflict guard below.
-	if revises, err := proposalRevises(content); err != nil {
-		return nil, err
+	if revises, proposalRevisesErr := proposalRevises(content); proposalRevisesErr != nil {
+		return nil, proposalRevisesErr
 	} else if revises {
 		return s.replaceActive(ctx, root, ref, content)
 	}
@@ -162,13 +162,13 @@ func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]
 		if !bytes.Equal(active, content) {
 			return nil, fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
 		}
-		removed, err := removeProposal(root, ref)
+		removed, removeProposalErr := removeProposal(root, ref)
 		identities := identitiesIf(removed, s.skillIdentities(s.proposalDir(ref)))
-		if errors.Is(err, skills.ErrProposalChanged) {
+		if errors.Is(removeProposalErr, skills.ErrProposalChanged) {
 			return nil, nil
 		}
-		if err != nil {
-			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
+		if removeProposalErr != nil {
+			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, removeProposalErr)
 		}
 		return identities, nil
 	}
@@ -177,14 +177,14 @@ func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) ([]
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
 		return nil, fmt.Errorf("skillauthoring: inspect active skill %q: %w", ref.Name, statErr)
 	}
-	if err := ensureManagedSkillCapacity(root); err != nil {
-		return nil, err
+	if ensureManagedSkillCapacityErr := ensureManagedSkillCapacity(root); ensureManagedSkillCapacityErr != nil {
+		return nil, ensureManagedSkillCapacityErr
 	}
-	if err := contextError(ctx, "approve proposal"); err != nil {
-		return nil, err
+	if contextErrorErr := contextError(ctx, "approve proposal"); contextErrorErr != nil {
+		return nil, contextErrorErr
 	}
-	if err := stageSkill(ctx, root, activeDir, content); err != nil {
-		return nil, err
+	if stageSkillErr := stageSkill(ctx, root, activeDir, content); stageSkillErr != nil {
+		return nil, stageSkillErr
 	}
 	identities := s.skillIdentities(activeDir)
 	removed, err := removeProposal(root, ref)
@@ -226,18 +226,18 @@ func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.Pro
 		return nil, err
 	}
 	if exists && bytes.Equal(active, content) {
-		removed, err := removeProposal(root, ref)
+		removed, removeProposalErr := removeProposal(root, ref)
 		identities := identitiesIf(removed, s.skillIdentities(s.proposalDir(ref)))
-		if errors.Is(err, skills.ErrProposalChanged) {
+		if errors.Is(removeProposalErr, skills.ErrProposalChanged) {
 			return nil, nil
 		}
-		if err != nil {
-			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
+		if removeProposalErr != nil {
+			return identities, fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, removeProposalErr)
 		}
 		return identities, nil
 	}
-	if err := contextError(ctx, "replace skill"); err != nil {
-		return nil, err
+	if contextErrorErr := contextError(ctx, "replace skill"); contextErrorErr != nil {
+		return nil, contextErrorErr
 	}
 	needsSlot := !exists
 	if exists {
@@ -248,20 +248,20 @@ func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.Pro
 		}
 	}
 	if needsSlot {
-		if err := ensureManagedSkillCapacity(root); err != nil {
-			return nil, err
+		if ensureManagedSkillCapacityErr := ensureManagedSkillCapacity(root); ensureManagedSkillCapacityErr != nil {
+			return nil, ensureManagedSkillCapacityErr
 		}
 	}
 	var identities []string
 	if exists {
-		archived, err := s.archiveActive(root, ref.Name)
+		archived, archiveActiveErr := s.archiveActive(root, ref.Name)
 		identities = append(identities, archived...)
-		if err != nil {
-			return identities, err
+		if archiveActiveErr != nil {
+			return identities, archiveActiveErr
 		}
 	}
-	if err := stageSkill(ctx, root, activeDir, content); err != nil {
-		return identities, fmt.Errorf("skillauthoring: install revised skill %q: %w", ref.Name, err)
+	if stageSkillErr := stageSkill(ctx, root, activeDir, content); stageSkillErr != nil {
+		return identities, fmt.Errorf("skillauthoring: install revised skill %q: %w", ref.Name, stageSkillErr)
 	}
 	identities = append(identities, s.skillIdentities(activeDir)...)
 	removed, err := removeProposal(root, ref)
@@ -358,8 +358,8 @@ func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.
 	if err != nil {
 		return nil, err
 	}
-	if err := contextError(ctx, operation+" skill"); err != nil {
-		return nil, err
+	if contextErrorErr := contextError(ctx, operation+" skill"); contextErrorErr != nil {
+		return nil, contextErrorErr
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

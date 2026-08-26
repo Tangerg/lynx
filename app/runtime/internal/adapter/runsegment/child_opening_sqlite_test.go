@@ -29,8 +29,8 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		CreatedAt: time.Unix(1, 0),
 	}
-	if err := runStore.Admit(t.Context(), root); err != nil {
-		t.Fatalf("admit root: %v", err)
+	if admitErr := runStore.Admit(t.Context(), root); admitErr != nil {
+		t.Fatalf("admit root: %v", admitErr)
 	}
 	effects := mustNewEffects(Config{
 		State:      runStore,
@@ -60,14 +60,14 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 		SpawnedByItemID: spawningItem.ID(), ParentRunID: root.RunID, RootRunID: root.RunID,
 		CreatedAt: time.Unix(3, 0),
 	}
-	if err := effects.CommitOpening(t.Context(), runs.OpeningCommit{
+	if commitOpeningErr := effects.CommitOpening(t.Context(), runs.OpeningCommit{
 		CommitID: "run_commit_child_opening", Admit: &child,
 		Events: []runs.EventCommit{{
 			RunID: root.RunID, SessionID: root.SessionID, SegmentID: root.SegmentID,
 			Items: []transcript.Item{spawningItem},
 		}},
-	}); err != nil {
-		t.Fatalf("CommitOpening: %v", err)
+	}); commitOpeningErr != nil {
+		t.Fatalf("CommitOpening: %v", commitOpeningErr)
 	}
 
 	persistedChild, found, err := runStore.Run(t.Context(), child.RunID)
@@ -118,8 +118,8 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if !errors.Is(err, rollbackErr) {
 		t.Fatalf("rolled-back CommitOpening error = %v, want %v", err, rollbackErr)
 	}
-	if _, found, err := runStore.Run(t.Context(), rolledBackChild.RunID); err != nil || found {
-		t.Fatalf("rolled-back child: found=%v error=%v, want absent", found, err)
+	if _, found, runErr := runStore.Run(t.Context(), rolledBackChild.RunID); runErr != nil || found {
+		t.Fatalf("rolled-back child: found=%v error=%v, want absent", found, runErr)
 	}
 	items, err = transcriptStore.List(t.Context(), root.SessionID)
 	if err != nil {
@@ -144,8 +144,8 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		CreatedAt: time.Unix(1, 0).UTC(),
 	}
-	if err := runStore.Admit(ctx, root); err != nil {
-		t.Fatalf("admit root: %v", err)
+	if admitErr := runStore.Admit(ctx, root); admitErr != nil {
+		t.Fatalf("admit root: %v", admitErr)
 	}
 	arguments, err := tool.ParseArguments(`{"description":"delegate"}`)
 	if err != nil {
@@ -179,17 +179,17 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 	effects := mustNewEffects(Config{
 		State: runStore, Transcript: transcriptStore, ChildRunStarts: childStarts,
 		Tx: func(ctx context.Context, apply func(context.Context) error) error {
-			err := sqlite.RunInTx(ctx, db, apply)
-			if err == nil && loseReceipt {
+			runInTxErr := sqlite.RunInTx(ctx, db, apply)
+			if runInTxErr == nil && loseReceipt {
 				loseReceipt = false
 				cancelCommit()
 				return errors.New("lost child opening commit receipt")
 			}
-			return err
+			return runInTxErr
 		},
 	})
-	if err := effects.ReserveChildRunStart(ctx, reservation); err != nil {
-		t.Fatalf("ReserveChildRunStart: %v", err)
+	if reserveChildRunStartErr := effects.ReserveChildRunStart(ctx, reservation); reserveChildRunStartErr != nil {
+		t.Fatalf("ReserveChildRunStart: %v", reserveChildRunStartErr)
 	}
 	opening := runs.OpeningCommit{
 		CommitID: "run_commit_child_started", Admit: &child,
@@ -199,8 +199,8 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 		}},
 	}
 	loseReceipt = true
-	if err := effects.CommitStartedChildRun(commitCtx, reservation, opening); err != nil {
-		t.Fatalf("ambiguous CommitStartedChildRun = %v, want reconciled success", err)
+	if commitStartedChildRunErr := effects.CommitStartedChildRun(commitCtx, reservation, opening); commitStartedChildRunErr != nil {
+		t.Fatalf("ambiguous CommitStartedChildRun = %v, want reconciled success", commitStartedChildRunErr)
 	}
 	matched, err := runStore.RunCommitCommitted(
 		ctx, child.SessionID, child.RunID, child.SegmentID, opening.CommitID,
@@ -208,11 +208,11 @@ func TestStartedChildOpeningReconcilesOnlyItsExactWriteSet(t *testing.T) {
 	if err != nil || !matched {
 		t.Fatalf("child opening marker matched=%t err=%v, want true/nil", matched, err)
 	}
-	if err := effects.CommitStartedChildRun(ctx, reservation, opening); err != nil {
-		t.Fatalf("exact concluded child opening = %v, want idempotent success", err)
+	if commitStartedChildRunErr := effects.CommitStartedChildRun(ctx, reservation, opening); commitStartedChildRunErr != nil {
+		t.Fatalf("exact concluded child opening = %v, want idempotent success", commitStartedChildRunErr)
 	}
 	opening.CommitID = "run_commit_other_child_started"
-	if err := effects.CommitStartedChildRun(ctx, reservation, opening); err == nil {
+	if commitStartedChildRunErr := effects.CommitStartedChildRun(ctx, reservation, opening); commitStartedChildRunErr == nil {
 		t.Fatal("different child opening write-set reused a concluded reservation")
 	}
 	items, err := transcriptStore.List(ctx, root.SessionID)

@@ -27,16 +27,16 @@ func (a *app) steerRun(instruction string) error {
 		return err
 	}
 	message := agent.Message{Text: instruction, Attachments: slices.Clone(draft.Attachments)}
-	if err := a.validateMessageCapabilities(message); err != nil {
-		return err
+	if validateMessageCapabilitiesErr := a.validateMessageCapabilities(message); validateMessageCapabilitiesErr != nil {
+		return validateMessageCapabilitiesErr
 	}
 	commandID, err := agent.NewCommandID()
 	if err != nil {
 		return err
 	}
 	request := agent.SteerRun{CommandID: commandID, RunID: runID, SegmentID: segmentID, Message: message}
-	if err := request.Validate(); err != nil {
-		return err
+	if validateErr := request.Validate(); validateErr != nil {
+		return validateErr
 	}
 
 	// Reconstruct the parsed command as a durable ownership precondition. If the
@@ -44,9 +44,9 @@ func (a *app) steerRun(instruction string) error {
 	// following aggregate replacement then transfers it and its attachments into
 	// the steer journal atomically.
 	sourceDraft := agent.Message{Text: "/steer " + instruction, Attachments: slices.Clone(draft.Attachments)}
-	if err := a.saveDraft(sourceDraft); err != nil {
-		a.reportWorkbenchIssue(workbenchDraft, err)
-		return fmt.Errorf("steer blocked: save command draft: %w", err)
+	if saveDraftErr := a.saveDraft(sourceDraft); saveDraftErr != nil {
+		a.reportWorkbenchIssue(workbenchDraft, saveDraftErr)
+		return fmt.Errorf("steer blocked: save command draft: %w", saveDraftErr)
 	}
 	a.reportWorkbenchIssue(workbenchDraft, nil)
 	pending, err := steeringoutbox.Stage(
@@ -135,9 +135,9 @@ func (a *app) rejectSteer(pending workbench.PendingSteer) (agent.Message, error)
 	if err != nil {
 		return agent.Message{}, fmt.Errorf("read composer for attachment recovery: %w", err)
 	}
-	if err := a.saveDraft(current); err != nil {
-		a.reportWorkbenchIssue(workbenchDraft, err)
-		return agent.Message{}, fmt.Errorf("save current session draft: %w", err)
+	if saveDraftErr := a.saveDraft(current); saveDraftErr != nil {
+		a.reportWorkbenchIssue(workbenchDraft, saveDraftErr)
+		return agent.Message{}, fmt.Errorf("save current session draft: %w", saveDraftErr)
 	}
 	a.reportWorkbenchIssue(workbenchDraft, nil)
 	recovered, err := a.workbench.RejectPendingSteer(

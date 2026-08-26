@@ -29,30 +29,30 @@ func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
 	if len(got.Payload) != 0 {
 		t.Fatalf("new claim payload = %q, want empty", got.Payload)
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, first.Key); err != nil {
-		t.Fatalf("age pending claim: %v", err)
+	if _, execContextErr := db.ExecContext(ctx, `UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, first.Key); execContextErr != nil {
+		t.Fatalf("age pending claim: %v", execContextErr)
 	}
 	got, claimed, err = store.Claim(ctx, first.Key, first.Fingerprint)
 	if err != nil || claimed || len(got.Payload) != 0 {
 		t.Fatalf("aged pending claim: record=%+v claimed=%v err=%v", got, claimed, err)
 	}
 	conflicting := idempotency.Record{Key: first.Key, Fingerprint: "second"}
-	if _, _, err := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(err, idempotency.ErrKeyConflict) {
-		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", err)
+	if _, _, claimErr := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(claimErr, idempotency.ErrKeyConflict) {
+		t.Fatalf("reuse aged pending claim = %v, want ErrKeyConflict", claimErr)
 	}
-	if err := store.Complete(ctx, first); err != nil {
-		t.Fatalf("complete aged pending record: %v", err)
+	if completeErr := store.Complete(ctx, first); completeErr != nil {
+		t.Fatalf("complete aged pending record: %v", completeErr)
 	}
 	got, claimed, err = store.Claim(ctx, first.Key, first.Fingerprint)
 	if err != nil || claimed || string(got.Payload) != string(first.Payload) {
 		t.Fatalf("completed claim: record=%+v claimed=%v err=%v", got, claimed, err)
 	}
-	if _, _, err := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(err, idempotency.ErrKeyConflict) {
-		t.Fatalf("claim conflicting record = %v, want ErrKeyConflict", err)
+	if _, _, claimErr := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(claimErr, idempotency.ErrKeyConflict) {
+		t.Fatalf("claim conflicting record = %v, want ErrKeyConflict", claimErr)
 	}
 
-	if _, err := db.ExecContext(ctx, `UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, first.Key); err != nil {
-		t.Fatalf("expire record: %v", err)
+	if _, execContextErr := db.ExecContext(ctx, `UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, first.Key); execContextErr != nil {
+		t.Fatalf("expire record: %v", execContextErr)
 	}
 	got, claimed, err = store.Claim(ctx, conflicting.Key, conflicting.Fingerprint)
 	if err != nil || !claimed || got.Fingerprint != conflicting.Fingerprint {
@@ -71,13 +71,13 @@ func TestIdempotencyStoreKeepsAbandonedClaimAcrossReopen(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("initial claim = (%+v, %v, %v)", record, claimed, err)
 	}
-	if _, err := db.ExecContext(t.Context(),
+	if _, execContextErr := db.ExecContext(t.Context(),
 		`UPDATE idempotency_records SET expires_at = 0 WHERE key = ?`, record.Key,
-	); err != nil {
-		t.Fatalf("age pending claim: %v", err)
+	); execContextErr != nil {
+		t.Fatalf("age pending claim: %v", execContextErr)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close before reopen: %v", err)
+	if closeErr := db.Close(); closeErr != nil {
+		t.Fatalf("close before reopen: %v", closeErr)
 	}
 
 	db, err = sqlite.Open(t.Context(), path)

@@ -98,8 +98,8 @@ func (a *asker) ask(ctx context.Context, args askUserArgs) (string, error) {
 		Fields:    args.toFields(),
 	}
 	pending := runs.Interrupt{Kind: interrupt.Question, Question: &in}
-	if err := pending.Validate(); err != nil {
-		return "", fmt.Errorf("ask_user: %w", err)
+	if validateErr := pending.Validate(); validateErr != nil {
+		return "", fmt.Errorf("ask_user: %w", validateErr)
 	}
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.

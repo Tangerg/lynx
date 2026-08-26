@@ -178,10 +178,10 @@ func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
-	if _, err := value.Resume("segment_2", createdAt); err == nil {
+	if _, resumeErr := value.Resume("segment_2", createdAt); resumeErr == nil {
 		t.Fatal("running Run resumed")
 	}
-	if _, err := value.Suspend(createdAt.Add(-time.Nanosecond)); err == nil {
+	if _, suspendErr := value.Suspend(createdAt.Add(-time.Nanosecond)); suspendErr == nil {
 		t.Fatal("Run accepted a transition before its last update")
 	}
 	advanced, err := NewMetrics(nil, 2, time.Second)
@@ -196,7 +196,7 @@ func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMetrics: %v", err)
 	}
-	if _, err := value.AdvanceProgress(regressed, 0, createdAt.Add(2*time.Second)); err == nil {
+	if _, advanceProgressErr := value.AdvanceProgress(regressed, 0, createdAt.Add(2*time.Second)); advanceProgressErr == nil {
 		t.Fatal("Run accepted regressing metrics")
 	}
 	terminal, err := value.Terminate(Termination{

@@ -190,8 +190,8 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	if err := c.requireScope(ctx, scope); err != nil {
-		return ItemPage{}, err
+	if requireScopeErr := c.requireScope(ctx, scope); requireScopeErr != nil {
+		return ItemPage{}, requireScopeErr
 	}
 
 	// One row past the page: having it is how "there is more" is known without a
@@ -428,8 +428,8 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, r
 	if err != nil {
 		return pagination.Page[runs.Pending]{}, err
 	}
-	if err := c.requireRoot(ctx, rootRunID); err != nil {
-		return pagination.Page[runs.Pending]{}, err
+	if requireRootErr := c.requireRoot(ctx, rootRunID); requireRootErr != nil {
+		return pagination.Page[runs.Pending]{}, requireRootErr
 	}
 	rows, err := c.interrupts.ListPage(ctx, sessionID, rootRunID, afterCreatedAt, afterID, size+1)
 	if err != nil {

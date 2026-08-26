@@ -158,8 +158,8 @@ func TestRestoreOAuthHandlerRejectsCredentialWithoutInteractiveFlow(t *testing.T
 	if err != nil {
 		t.Fatalf("TokenSource: %v", err)
 	}
-	if got, err := source.Token(); err != nil || got.AccessToken != token.AccessToken {
-		t.Fatalf("restored token = %+v, %v", got, err)
+	if got, tokenErr := source.Token(); tokenErr != nil || got.AccessToken != token.AccessToken {
+		t.Fatalf("restored token = %+v, %v", got, tokenErr)
 	}
 
 	response := &http.Response{StatusCode: http.StatusUnauthorized, Body: http.NoBody}

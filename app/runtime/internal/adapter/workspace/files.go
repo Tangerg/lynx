@@ -206,8 +206,8 @@ func walkFiles(ctx context.Context, root, sub string, includeIgnored bool) ([]st
 	}
 	var files []string
 	walkErr := filepath.WalkDir(start, func(p string, d fs.DirEntry, err error) error {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
 		if err != nil {
 			return fmt.Errorf("visit %q: %w", p, err)

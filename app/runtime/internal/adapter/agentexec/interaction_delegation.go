@@ -169,8 +169,8 @@ func (d *delegatedInteractionDefinition) Start(input agent.Input) (agent.Executi
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: decode delegated task: %w", err)
 	}
-	if err := task.Validate(); err != nil {
-		return nil, fmt.Errorf("agentexec: invalid delegated task: %w", err)
+	if validateErr := task.Validate(); validateErr != nil {
+		return nil, fmt.Errorf("agentexec: invalid delegated task: %w", validateErr)
 	}
 	messages := cloneChatMessages(d.instructions)
 	messages = append(messages, corechat.NewUserMessage(corechat.NewTextPart(task.Instructions)))

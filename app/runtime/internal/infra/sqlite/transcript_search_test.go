@@ -91,13 +91,13 @@ func TestReopenKeepsTheSearchIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := sqlite.NewTranscriptStore(db).AppendItem(
+	if appendItemErr := sqlite.NewTranscriptStore(db).AppendItem(
 		t.Context(), msgItem("s1", "u1", transcript.UserMessage, "sapphire indexed row"),
-	); err != nil {
-		t.Fatalf("seed indexed row: %v", err)
+	); appendItemErr != nil {
+		t.Fatalf("seed indexed row: %v", appendItemErr)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close: %v", err)
+	if closeErr := db.Close(); closeErr != nil {
+		t.Fatalf("close: %v", closeErr)
 	}
 
 	reopened, err := sqlite.Open(t.Context(), path)

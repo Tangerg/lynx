@@ -291,8 +291,8 @@ func (s *segmentPump) handleAuthoritativeFact(
 	}
 	result := authoritativeFactResult{runID: route.runID}
 	if route.member.MemberID != "" {
-		if err := s.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
-			return result, err
+		if bindExecutorMemberErr := s.owner.bindExecutorMember(route.runID, route.member.MemberID); bindExecutorMemberErr != nil {
+			return result, bindExecutorMemberErr
 		}
 	}
 	if route.reducer == nil {
@@ -457,8 +457,8 @@ func (s *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 		return false, err
 	}
 	if route.member.MemberID != "" {
-		if err := s.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
-			return false, err
+		if bindExecutorMemberErr := s.owner.bindExecutorMember(route.runID, route.member.MemberID); bindExecutorMemberErr != nil {
+			return false, bindExecutorMemberErr
 		}
 	}
 	if route.reducer == nil {

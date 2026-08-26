@@ -126,14 +126,14 @@ func TestMCPServerStoreBindsOAuthSessionLifecycle(t *testing.T) {
 		Name: "remote", Transport: mcpserver.TransportStreamableHTTP,
 		Enabled: true, URL: "https://mcp.example.test/tools",
 	}
-	if err := store.Save(t.Context(), server); err != nil {
-		t.Fatalf("Save server: %v", err)
+	if saveErr := store.Save(t.Context(), server); saveErr != nil {
+		t.Fatalf("Save server: %v", saveErr)
 	}
 
 	origin := "https://mcp.example.test:443"
 	payload := []byte(`{"version":1}`)
-	if err := store.SaveOAuthSession(t.Context(), server.Name, origin, payload); err != nil {
-		t.Fatalf("SaveOAuthSession: %v", err)
+	if saveOAuthSessionErr := store.SaveOAuthSession(t.Context(), server.Name, origin, payload); saveOAuthSessionErr != nil {
+		t.Fatalf("SaveOAuthSession: %v", saveOAuthSessionErr)
 	}
 	got, found, err := store.LoadOAuthSession(t.Context(), server.Name, origin)
 	if err != nil || !found || !bytes.Equal(got, payload) {

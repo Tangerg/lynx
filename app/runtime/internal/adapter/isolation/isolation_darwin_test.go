@@ -30,15 +30,15 @@ func TestIsolatorCopiesReusesAndDiscards(t *testing.T) {
 		t.Fatal("isolated workspace must be a copy, not the project itself")
 	}
 	// The project's files are present in the copy.
-	if got, err := os.ReadFile(filepath.Join(copyDir, "file.txt")); err != nil || string(got) != "hello" {
-		t.Fatalf("copied file = (%q, %v), want hello", got, err)
+	if got, readFileErr := os.ReadFile(filepath.Join(copyDir, "file.txt")); readFileErr != nil || string(got) != "hello" {
+		t.Fatalf("copied file = (%q, %v), want hello", got, readFileErr)
 	}
 	// A write in the copy does not touch the real project.
-	if err := os.WriteFile(filepath.Join(copyDir, "scratch.txt"), []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
+	if writeFileErr := os.WriteFile(filepath.Join(copyDir, "scratch.txt"), []byte("x"), 0o600); writeFileErr != nil {
+		t.Fatal(writeFileErr)
 	}
-	if _, err := os.Stat(filepath.Join(project, "scratch.txt")); !os.IsNotExist(err) {
-		t.Fatalf("isolated write leaked into the project: %v", err)
+	if _, statErr := os.Stat(filepath.Join(project, "scratch.txt")); !os.IsNotExist(statErr) {
+		t.Fatalf("isolated write leaked into the project: %v", statErr)
 	}
 
 	// Same session reuses the same copy (work accumulates across turns).
