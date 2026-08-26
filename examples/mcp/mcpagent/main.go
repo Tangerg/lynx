@@ -12,10 +12,10 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/core/tool"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief.

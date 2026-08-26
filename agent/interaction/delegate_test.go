@@ -14,9 +14,9 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/workflow"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/core/tool"
 )
 
 type delegateRequest struct {

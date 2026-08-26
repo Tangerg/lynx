@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ImageModelConfig struct {
@@ -84,10 +83,8 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("blackforestlabs: image", map[string]bool{
-		"negative_prompt": mergedOpts.NegativePrompt != "",
-	}); err != nil {
-		return nil, err
+	if mergedOpts.NegativePrompt != "" {
+		return nil, errors.New("blackforestlabs: image: unsupported option: negative_prompt")
 	}
 
 	apiReqValue, _, err := mergedOpts.Extensions.Decode[generateRequest](ImageRequestExtensionKey)
@@ -98,15 +95,15 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.Width != nil {
-		apiReq.Width, err = options.Int("blackforestlabs: image: width", *mergedOpts.Width)
-		if err != nil {
-			return nil, err
+		apiReq.Width = int(*mergedOpts.Width)
+		if int64(apiReq.Width) != *mergedOpts.Width {
+			return nil, fmt.Errorf("blackforestlabs: image: width %d exceeds int", *mergedOpts.Width)
 		}
 	}
 	if mergedOpts.Height != nil {
-		apiReq.Height, err = options.Int("blackforestlabs: image: height", *mergedOpts.Height)
-		if err != nil {
-			return nil, err
+		apiReq.Height = int(*mergedOpts.Height)
+		if int64(apiReq.Height) != *mergedOpts.Height {
+			return nil, fmt.Errorf("blackforestlabs: image: height %d exceeds int", *mergedOpts.Height)
 		}
 	}
 	if mergedOpts.Seed != nil {

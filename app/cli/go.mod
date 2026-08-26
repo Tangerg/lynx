@@ -22,18 +22,15 @@ require (
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00 // indirect
+	github.com/Tangerg/lynx/core v0.0.0 // indirect
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22 // indirect
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 // indirect
-	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af // indirect
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad // indirect
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c // indirect
-	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12 // indirect
-	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803212807-75ccd6a3db12 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect

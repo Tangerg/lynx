@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	skillspec "github.com/Tangerg/lynx/skills"
 	skillstool "github.com/Tangerg/lynx/tools/skills"

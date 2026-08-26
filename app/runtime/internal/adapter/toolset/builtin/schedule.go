@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"

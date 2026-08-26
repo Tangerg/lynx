@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 type concurrencyKeyer interface {

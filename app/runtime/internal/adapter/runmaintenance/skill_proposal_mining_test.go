@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	skillspec "github.com/Tangerg/lynx/skills"
 

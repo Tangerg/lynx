@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // Config is the construction-time bundle for [NewAssembly]. It contains Host

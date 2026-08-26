@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ImageModelConfig struct {
@@ -75,11 +74,13 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *generateReque
 	if err != nil {
 		return "", nil, err
 	}
-	if err := options.RejectUnsupported("stability: image", map[string]bool{
-		"height": mergedOpts.Height != nil,
-		"width":  mergedOpts.Width != nil,
-	}); err != nil {
-		return "", nil, err
+	switch {
+	case mergedOpts.Height != nil && mergedOpts.Width != nil:
+		return "", nil, errors.New("stability: image: unsupported options: height, width")
+	case mergedOpts.Height != nil:
+		return "", nil, errors.New("stability: image: unsupported option: height")
+	case mergedOpts.Width != nil:
+		return "", nil, errors.New("stability: image: unsupported option: width")
 	}
 
 	apiReqValue, _, err := mergedOpts.Extensions.Decode[generateRequest](RequestExtensionKey)

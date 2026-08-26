@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 

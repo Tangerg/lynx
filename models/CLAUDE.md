@@ -1,4 +1,4 @@
-# CLAUDE.md — models module
+# CLAUDE.md — models provider family
 
 > LLM / embedding / image / audio 各家 provider 的统一适配层:每个 provider 一个独立子包,全部实现 core 定义的 Model 接口。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。provider 名录 / 成熟度 / 依赖版本以代码为准 —— 本则只讲宏观。
@@ -8,18 +8,19 @@
 ## 定位
 
 - **把各家异构 SDK 收敛成 core 的统一 Model 接口**:上层只见 `chat.Model` 等契约,看不到某一家 SDK 的形状。
+- **`models` 只是命名空间**：不存在聚合 `models` module；每个 `models/<provider>` 都是可独立选择、发布和升级的叶子 module。
 - **加 provider = 复制现成结构 + 换 SDK 调用**,绝不为某一家改 lynx 协议。
 
 ## 架构心智
 
 - **每 provider 一个自洽子包,固定三件套**:Config(校验 + 工厂)、provider 自有 Model 类型(实现 core 接口)、端点/方言组合。原生 adapter 使用 `NewChat`；兼容 facade 使用 `NewOpenAIChat`/`NewAnthropicChat`。
-- **wire protocol 是更低一层的实现**:跨模块复用的 OpenAI wire 位于独立 `models/protocol/openai`；仅本模块复用的 Anthropic wire 位于 `internal/protocol/anthropic`。provider 可以向下组合 protocol,protocol 不能反向依赖 provider；provider 之间禁止互相 import,公开 API 也禁止泄露 protocol 具体类型。
+- **wire protocol 是更低一层的实现**：跨 provider 复用的 OpenAI 与 Anthropic wire 分别位于独立 `models/protocol/openai`、`models/protocol/anthropic` module。provider 可以向下组合 protocol，protocol 不能反向依赖 provider；provider 之间禁止互相 import，公开 API 也禁止泄露 protocol 具体类型。
 - **不抽公共基类**:各家 SDK 的 shape 差异大于相似度,强抽 helper 是虚假 DRY —— 宁可每家重复。
 - **适配策略分几档**(靠这个判断新 provider 落哪档):原生跟自家 SDK / 委托 OpenAI 客户端改 BaseURL / 一个 provider 同时暴露 OpenAI 与 Anthropic 两种 API / 托管平台走 IAM(无 API key)/ 本地容器。
 - **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
 - **流式逐事件累积**:每 provider 自己的 accumulator 把 SSE delta 拼成 chunk,上层再 stitch 成完整消息 —— 用 `iter.Seq2`,不用 channel。
 - **能力差异按 provider 填空**:reasoning signature(续流必需)有的家有、有的没有,适配层用中性字节承载,不强求统一。
-- **公共契约测试归 Core**：所有 provider 直接复用 `core/modeltest`；provider module 不复制 conformance、HTTP fixture 或 stream helper。扩展参数直接用 `core/metadata.Map.Decode`，只有跨多个本 module provider 的真实校验逻辑才允许留在 `internal`。
+- **公共契约测试归契约 owner**：行为套件归 `core/modeltest`，跨 provider 构造/API 一致性归 `dev/providerconformance`；provider module 不复制 conformance 或跨厂商 helper。扩展参数直接用 `core/metadata.Map.Decode`，provider-local transport helper 留在自己的 module。
 
 ## 模块特有反向不变量
 

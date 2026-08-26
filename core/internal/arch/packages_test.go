@@ -8,17 +8,25 @@ import (
 
 var targetPublicPackages = map[string]struct{}{
 	"chat":                  {},
+	"chatclient":            {},
+	"chatclient/safeguard":  {},
+	"chathistory":           {},
+	"chathistory/inmemory":  {},
 	"document":              {},
 	"embedding":             {},
+	"embeddingclient":       {},
 	"image":                 {},
 	"media":                 {},
 	"metadata":              {},
 	"modeltest":             {},
 	"moderation":            {},
 	"speech":                {},
+	"tokenizer":             {},
+	"tool":                  {},
 	"transcription":         {},
 	"vectorstore":           {},
 	"vectorstore/filter":    {},
+	"vectorstore/inmemory":  {},
 	"vectorstore/storetest": {},
 }
 

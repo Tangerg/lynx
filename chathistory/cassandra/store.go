@@ -9,7 +9,7 @@ import (
 
 	"github.com/gocql/gocql"
 
-	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

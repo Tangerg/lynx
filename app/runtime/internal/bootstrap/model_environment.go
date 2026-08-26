@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"

@@ -74,7 +74,7 @@ Core Chat 的公开模型只表达一次生成：`Request.Options` 承载通用�
 ## 4. 可执行证据与后续使用
 
 - `models/protocol/openai/chat_protocol_behavior_test.go` 与 `chat_protocol_test.go`：OpenAI-compatible wire 的双向映射和行为契约。
-- `models/internal/protocol/anthropic/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Anthropic 映射、reasoning/tool/usage 行为契约。
+- `models/protocol/anthropic/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Anthropic 映射、reasoning/tool/usage 行为契约。
 - `models/google/internal/protocol/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Google 映射与 provider 特有能力契约。
 - `models/ollama/chat_protocol_behavior_test.go` 与 `chat_protocol_conformance_test.go`：Ollama native chat 映射与行为契约。
 

@@ -3,7 +3,7 @@ package toolset
 import (
 	"context"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 )

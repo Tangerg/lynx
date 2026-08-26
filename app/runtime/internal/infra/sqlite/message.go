@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	history "github.com/Tangerg/lynx/chathistory"
+	history "github.com/Tangerg/lynx/core/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

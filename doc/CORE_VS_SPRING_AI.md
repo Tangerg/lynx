@@ -14,7 +14,7 @@
 |---|---|---|
 | `spring-ai-model`(Model SPI + chat/embedding/image/audio/moderation) | `core/chat`、`core/embedding`、`core/image`、`core/speech`、`core/transcription`、`core/moderation` | 扁平领域包,不用 `core/model/<modality>` 的 Java 式层次 |
 | `spring-ai-commons`(Content/Media/Document/Metadata) | `core/media`、`core/document`、`core/metadata` | |
-| `spring-ai-client-chat`(ChatClient + Advisors) | **`chatclient` 模块**(不在 core) | core 只留 `chat.CallMiddleware` / `chat.StreamMiddleware` + 纯组合;高层便利层拆出去 |
+| `spring-ai-client-chat`(ChatClient + Advisors) | **`core/chatclient` package** | 同一 stdlib-only module 内按 package 隔离协议与调用体验，不引入第二个发布单元 |
 | `spring-ai-vector-store`(VectorStore + Filter DSL) | `core/vectorstore`、`core/vectorstore/filter` | |
 | `spring-ai-retry`(Transient/NonTransient + RetryTemplate) | **刻意不移植** | 见 §9 |
 | Micrometer `Observation`(内嵌进 SPI) | **`otel` 模块**(装饰在协议边界,core 不 import) | 见 §10 |
@@ -183,12 +183,12 @@ interface ToolCallingManager { List<ToolDefinition> resolveToolDefinitions(...);
 
 工具循环由 `ToolCallingAdvisor` 在 advisor chain 里跑(见 §6),或由 `ToolCallingManager` 编排。
 
-**lynx**:**core 只保留协议值**(`ToolDefinition`、tool-call part、tool-result part),**可执行 Tool 与托管循环分别属于 `tool` 和 `agent/interaction`**。
+**lynx**：`core/chat` 保留模型 wire 值，**可执行 Tool/Registry 与托管循环分别属于 `core/tool` 和 `agent/interaction`**。
 
-- core `chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值，**没有可执行 `Tool` 接口**，也没有 `ToolCallingManager` 这类编排服务。可执行工具的最小接口位于外圈 `tool` 模块，typed function 和具体实现继续通过 sibling `tools` 组合。
+- `core/chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值；`core/tool` 拥有可执行 `Tool`、typed function、schema 与不可变 Registry；具体 shell/fs/web 能力继续由 `tools` module family 组合。Core 不提供 `ToolCallingManager` 这类 agent 编排服务。
 - 托管模型→Tool→模型循环是原生 `agent/interaction` Strategy：Definition 冻结契约与上限，Dispatcher 持有 `chatclient.Client` 和可执行 Tools，Engine 通过 Process/Effect/Signal 推进并以完整 TreeSnapshot 恢复。工具默认串行，只有 `ConcurrentTool` 明确声明后才按 resource key 有界并发；结果与 continuation 始终按原 ToolCall 顺序提交。无可证明 settlement 不自动重试；Tool 输入等待由 Engine-minted WaitID 和 Strategy-owned checkpoint 表达，不往 provider `Response` 塞运行时状态，也不存在第二 Runner/Resume 生命周期。
 
-**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把执行窄腰放在 Agent Framework，core 只定义"一个 ToolCall 长什么样"。结构化输出由 provider-neutral `chat.Options.OutputFormat` 表达；adapter 优先使用原生能力，只有不支持时才注入 prompt。`chatclient.OutputFormat[T]` 在同一对象上拥有请求 contract 和同步/流式共用的 decoder，并通过 `client.Output(format).Call/Stream(...)` 的不可变短链执行；需要恢复和治理时再由 typed Agent Input/Output schema 接入 managed Process。
+**取舍与理由**：Core module 是稳定基础，不是 agent 总框架。可执行 Tool 的中立窄腰与 chat 协议共享 stdlib 依赖预算，因此属于 `core/tool`；具体执行器和 provider 仍在外圈。模型→Tool→模型循环涉及计费、并发、恢复与治理，仍只由 Agent Framework 拥有。结构化输出由 provider-neutral `chat.Options.OutputFormat` 表达；adapter 优先使用原生能力，只有不支持时才注入 prompt。`chatclient.OutputFormat[T]` 在同一对象上拥有请求 contract 和同步/流式共用的 decoder，并通过 `client.Output(format).Call/Stream(...)` 的不可变短链执行。
 
 ---
 
@@ -214,8 +214,8 @@ interface BaseAdvisor   extends CallAdvisor, StreamAdvisor {   // around-advice:
 **lynx**:**一个扩展机制 —— 函数式 middleware/decorator**;core 为同步与流式两个独立能力分别保留 `chat.CallMiddleware` / `chat.StreamMiddleware`,以及 `Wrap` / `WrapStream` 纯组合,不保留任何具体 advisor 实现。
 
 - core `chat` 的两个 middleware 类型分别装饰 `Model` 与 `Streamer`;它们是同一种组合机制的能力对称版本。**没有内置 memory/RAG/safeguard/logger advisor**。
-- 高层便利(ChatClient 的 fluent 面、entity 映射)在**独立的 `chatclient` 模块**,不在 core。
-- memory 是 `chathistory` 模块,RAG 是 `rag` 模块,safeguard 是 agent 的 guardrails,logger/observation 是 `otel` 装饰器 —— 各自一域,通过 middleware 组合,而**不是**都塞进一条 advisor 链。
+- 高层便利(ChatClient 的短链、typed output、模板)位于 **`core/chatclient` package**，与协议同 module、不同职责边界。
+- memory contract/middleware 是 `core/chathistory` package，持久化 provider 位于 `chathistory/*` 叶子 module；RAG 是 `rag` module，safeguard 是 `core/chatclient/safeguard`，logger/observation 是 `otel` 装饰器。它们各自有 owner，通过 middleware 组合，而不是都塞进一条 advisor 链。
 
 **取舍与理由**:
 
@@ -336,10 +336,10 @@ class NonTransientAiException extends RuntimeException {}    // 4xx → 不重�
 ## 12. Spring AI 有、而 core 刻意没有
 
 - **retry 分类与 RetryTemplate**(§9)—— 交给 SDK / agent action 级。
-- **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `chathistory`/`rag`/agent guardrails,用 middleware 接入。
+- **advisor 库**(memory/RAG/safeguard/logger/结构化校验)(§6)—— 拆到 `core/chathistory`、`rag`、`core/chatclient/safeguard` 与 `otel`，用 owner-specific middleware 接入。
 - **ANTLR 文法与生成 parser**(§8)—— 手写。
 - **Micrometer 内嵌 SPI**(§10)—— `otel` 边界装饰。
-- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `chatclient`;结构化输出由 `chatclient.OutputFormat[T]` 统一表达。
+- **StringTemplate(ST)模板引擎 / `BeanOutputConverter`**(ChatClient 的 `entity()` + 模板渲染)—— 高层便利在 `core/chatclient`；结构化输出由 `chatclient.OutputFormat[T]` 统一表达。
 - **`getNativeUsage()` / `getNativeClient()` 原始对象逃生口** —— 协议层不开逃生口。
 - **RAG advisor(`QuestionAnswerAdvisor`/`RetrievalAugmentationAdvisor`)** —— 独立 `rag` 模块。
 

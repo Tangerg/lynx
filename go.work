@@ -1,41 +1,87 @@
 go 1.27.0
 
 use (
-	.
 	./a2a
 	./agent
 	./app/cli
 	./app/desktop
 	./app/runtime
+	./app/runtime/localruntime
 	./chathistory/cassandra
 	./chathistory/cosmosdb
 	./chathistory/mongodb
 	./chathistory/neo4j
 	./chathistory/postgres
 	./chathistory/redis
+	./core
+	./dev/providerconformance
 	./dev/repoarch
 	./documentpipeline
 	./documentpipeline/markdown
+	./documentreaders
 	./documentreaders/html
 	./documentreaders/markdown
 	./documentreaders/pdf
-	./examples/mcp
+	./examples
 	./mcp
-	./models
+	./models/alibaba
+	./models/anthropic
+	./models/assemblyai
+	./models/azureopenai
 	./models/bedrock
+	./models/blackforestlabs
+	./models/catalog
 	./models/cohere
+	./models/deepgram
+	./models/deepseek
+	./models/elevenlabs
+	./models/fireworks
+	./models/gladia
 	./models/google
+	./models/groq
+	./models/huggingface
+	./models/hume
+	./models/jina
+	./models/lmnt
 	./models/luma
+	./models/minimax
+	./models/mistral
+	./models/moonshot
+	./models/nomic
 	./models/ollama
+	./models/openai
+	./models/openrouter
+	./models/perplexity
+	./models/prodia
+	./models/protocol/anthropic
 	./models/protocol/openai
+	./models/replicate
+	./models/revai
+	./models/stability
+	./models/together
+	./models/voyage
+	./models/xai
+	./models/xiaomi
+	./models/zhipu
 	./otel
 	./rag
 	./skills
-	./tokenizer/tiktoken
+	./tokenizers/tiktoken
+	./tools
 	./tools/httpreq
 	./tools/skills
-	./tools/webfetch
-	./tools/websearch
+	./tools/webfetch/exa
+	./tools/webfetch/firecrawl
+	./tools/webfetch/jina
+	./tools/webfetch/tavily
+	./tools/websearch/brave
+	./tools/websearch/exa
+	./tools/websearch/firecrawl
+	./tools/websearch/jina
+	./tools/websearch/perplexity
+	./tools/websearch/serper
+	./tools/websearch/tavily
+	./vectorstores/azureaisearch
 	./vectorstores/azurecosmos
 	./vectorstores/bedrockkb
 	./vectorstores/cassandra
@@ -43,15 +89,228 @@ use (
 	./vectorstores/clickhouse
 	./vectorstores/couchbase
 	./vectorstores/elasticsearch
+	./vectorstores/mariadb
 	./vectorstores/milvus
 	./vectorstores/mongodb
 	./vectorstores/neo4j
 	./vectorstores/opensearch
+	./vectorstores/oracle
 	./vectorstores/pinecone
 	./vectorstores/postgres
 	./vectorstores/qdrant
 	./vectorstores/redis
 	./vectorstores/s3vectors
+	./vectorstores/tidb
 	./vectorstores/typesense
+	./vectorstores/vectara
+	./vectorstores/vespa
 	./vectorstores/weaviate
 )
+
+replace github.com/Tangerg/lynx/core v0.0.0 => ./core
+
+replace github.com/Tangerg/lynx/a2a v0.0.0 => ./a2a
+
+replace github.com/Tangerg/lynx/agent v0.0.0 => ./agent
+
+replace github.com/Tangerg/lynx/app/cli v0.0.0 => ./app/cli
+
+replace github.com/Tangerg/lynx/app/desktop v0.0.0 => ./app/desktop
+
+replace github.com/Tangerg/lynx/app/runtime v0.0.0 => ./app/runtime
+
+replace github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0 => ./app/runtime/localruntime
+
+replace github.com/Tangerg/lynx/chathistory/cassandra v0.0.0 => ./chathistory/cassandra
+
+replace github.com/Tangerg/lynx/chathistory/cosmosdb v0.0.0 => ./chathistory/cosmosdb
+
+replace github.com/Tangerg/lynx/chathistory/mongodb v0.0.0 => ./chathistory/mongodb
+
+replace github.com/Tangerg/lynx/chathistory/neo4j v0.0.0 => ./chathistory/neo4j
+
+replace github.com/Tangerg/lynx/chathistory/postgres v0.0.0 => ./chathistory/postgres
+
+replace github.com/Tangerg/lynx/chathistory/redis v0.0.0 => ./chathistory/redis
+
+replace github.com/Tangerg/lynx/dev/providerconformance v0.0.0 => ./dev/providerconformance
+
+replace github.com/Tangerg/lynx/dev/repoarch v0.0.0 => ./dev/repoarch
+
+replace github.com/Tangerg/lynx/documentpipeline v0.0.0 => ./documentpipeline
+
+replace github.com/Tangerg/lynx/documentpipeline/markdown v0.0.0 => ./documentpipeline/markdown
+
+replace github.com/Tangerg/lynx/documentreaders v0.0.0 => ./documentreaders
+
+replace github.com/Tangerg/lynx/documentreaders/html v0.0.0 => ./documentreaders/html
+
+replace github.com/Tangerg/lynx/documentreaders/markdown v0.0.0 => ./documentreaders/markdown
+
+replace github.com/Tangerg/lynx/documentreaders/pdf v0.0.0 => ./documentreaders/pdf
+
+replace github.com/Tangerg/lynx/examples v0.0.0 => ./examples
+
+replace github.com/Tangerg/lynx/mcp v0.0.0 => ./mcp
+
+replace github.com/Tangerg/lynx/models/bedrock v0.0.0 => ./models/bedrock
+
+replace github.com/Tangerg/lynx/models/alibaba v0.0.0 => ./models/alibaba
+
+replace github.com/Tangerg/lynx/models/anthropic v0.0.0 => ./models/anthropic
+
+replace github.com/Tangerg/lynx/models/assemblyai v0.0.0 => ./models/assemblyai
+
+replace github.com/Tangerg/lynx/models/azureopenai v0.0.0 => ./models/azureopenai
+
+replace github.com/Tangerg/lynx/models/blackforestlabs v0.0.0 => ./models/blackforestlabs
+
+replace github.com/Tangerg/lynx/models/catalog v0.0.0 => ./models/catalog
+
+replace github.com/Tangerg/lynx/models/cohere v0.0.0 => ./models/cohere
+
+replace github.com/Tangerg/lynx/models/deepgram v0.0.0 => ./models/deepgram
+
+replace github.com/Tangerg/lynx/models/deepseek v0.0.0 => ./models/deepseek
+
+replace github.com/Tangerg/lynx/models/elevenlabs v0.0.0 => ./models/elevenlabs
+
+replace github.com/Tangerg/lynx/models/fireworks v0.0.0 => ./models/fireworks
+
+replace github.com/Tangerg/lynx/models/gladia v0.0.0 => ./models/gladia
+
+replace github.com/Tangerg/lynx/models/google v0.0.0 => ./models/google
+
+replace github.com/Tangerg/lynx/models/groq v0.0.0 => ./models/groq
+
+replace github.com/Tangerg/lynx/models/huggingface v0.0.0 => ./models/huggingface
+
+replace github.com/Tangerg/lynx/models/hume v0.0.0 => ./models/hume
+
+replace github.com/Tangerg/lynx/models/jina v0.0.0 => ./models/jina
+
+replace github.com/Tangerg/lynx/models/lmnt v0.0.0 => ./models/lmnt
+
+replace github.com/Tangerg/lynx/models/luma v0.0.0 => ./models/luma
+
+replace github.com/Tangerg/lynx/models/minimax v0.0.0 => ./models/minimax
+
+replace github.com/Tangerg/lynx/models/mistral v0.0.0 => ./models/mistral
+
+replace github.com/Tangerg/lynx/models/moonshot v0.0.0 => ./models/moonshot
+
+replace github.com/Tangerg/lynx/models/nomic v0.0.0 => ./models/nomic
+
+replace github.com/Tangerg/lynx/models/ollama v0.0.0 => ./models/ollama
+
+replace github.com/Tangerg/lynx/models/openai v0.0.0 => ./models/openai
+
+replace github.com/Tangerg/lynx/models/openrouter v0.0.0 => ./models/openrouter
+
+replace github.com/Tangerg/lynx/models/perplexity v0.0.0 => ./models/perplexity
+
+replace github.com/Tangerg/lynx/models/prodia v0.0.0 => ./models/prodia
+
+replace github.com/Tangerg/lynx/models/protocol/anthropic v0.0.0 => ./models/protocol/anthropic
+
+replace github.com/Tangerg/lynx/models/protocol/openai v0.0.0 => ./models/protocol/openai
+
+replace github.com/Tangerg/lynx/models/replicate v0.0.0 => ./models/replicate
+
+replace github.com/Tangerg/lynx/models/revai v0.0.0 => ./models/revai
+
+replace github.com/Tangerg/lynx/models/stability v0.0.0 => ./models/stability
+
+replace github.com/Tangerg/lynx/models/together v0.0.0 => ./models/together
+
+replace github.com/Tangerg/lynx/models/voyage v0.0.0 => ./models/voyage
+
+replace github.com/Tangerg/lynx/models/xai v0.0.0 => ./models/xai
+
+replace github.com/Tangerg/lynx/models/xiaomi v0.0.0 => ./models/xiaomi
+
+replace github.com/Tangerg/lynx/models/zhipu v0.0.0 => ./models/zhipu
+
+replace github.com/Tangerg/lynx/otel v0.0.0 => ./otel
+
+replace github.com/Tangerg/lynx/rag v0.0.0 => ./rag
+
+replace github.com/Tangerg/lynx/skills v0.0.0 => ./skills
+
+replace github.com/Tangerg/lynx/tokenizers/tiktoken v0.0.0 => ./tokenizers/tiktoken
+
+replace github.com/Tangerg/lynx/tools v0.0.0 => ./tools
+
+replace github.com/Tangerg/lynx/tools/httpreq v0.0.0 => ./tools/httpreq
+
+replace github.com/Tangerg/lynx/tools/skills v0.0.0 => ./tools/skills
+
+replace github.com/Tangerg/lynx/tools/webfetch/exa v0.0.0 => ./tools/webfetch/exa
+
+replace github.com/Tangerg/lynx/tools/webfetch/firecrawl v0.0.0 => ./tools/webfetch/firecrawl
+
+replace github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0 => ./tools/webfetch/jina
+
+replace github.com/Tangerg/lynx/tools/webfetch/tavily v0.0.0 => ./tools/webfetch/tavily
+
+replace github.com/Tangerg/lynx/tools/websearch/brave v0.0.0 => ./tools/websearch/brave
+
+replace github.com/Tangerg/lynx/tools/websearch/exa v0.0.0 => ./tools/websearch/exa
+
+replace github.com/Tangerg/lynx/tools/websearch/firecrawl v0.0.0 => ./tools/websearch/firecrawl
+
+replace github.com/Tangerg/lynx/tools/websearch/jina v0.0.0 => ./tools/websearch/jina
+
+replace github.com/Tangerg/lynx/tools/websearch/perplexity v0.0.0 => ./tools/websearch/perplexity
+
+replace github.com/Tangerg/lynx/tools/websearch/serper v0.0.0 => ./tools/websearch/serper
+
+replace github.com/Tangerg/lynx/tools/websearch/tavily v0.0.0 => ./tools/websearch/tavily
+
+replace github.com/Tangerg/lynx/vectorstores/azureaisearch v0.0.0 => ./vectorstores/azureaisearch
+
+replace github.com/Tangerg/lynx/vectorstores/azurecosmos v0.0.0 => ./vectorstores/azurecosmos
+
+replace github.com/Tangerg/lynx/vectorstores/bedrockkb v0.0.0 => ./vectorstores/bedrockkb
+
+replace github.com/Tangerg/lynx/vectorstores/cassandra v0.0.0 => ./vectorstores/cassandra
+
+replace github.com/Tangerg/lynx/vectorstores/chroma v0.0.0 => ./vectorstores/chroma
+
+replace github.com/Tangerg/lynx/vectorstores/clickhouse v0.0.0 => ./vectorstores/clickhouse
+
+replace github.com/Tangerg/lynx/vectorstores/couchbase v0.0.0 => ./vectorstores/couchbase
+
+replace github.com/Tangerg/lynx/vectorstores/elasticsearch v0.0.0 => ./vectorstores/elasticsearch
+
+replace github.com/Tangerg/lynx/vectorstores/mariadb v0.0.0 => ./vectorstores/mariadb
+
+replace github.com/Tangerg/lynx/vectorstores/milvus v0.0.0 => ./vectorstores/milvus
+
+replace github.com/Tangerg/lynx/vectorstores/mongodb v0.0.0 => ./vectorstores/mongodb
+
+replace github.com/Tangerg/lynx/vectorstores/neo4j v0.0.0 => ./vectorstores/neo4j
+
+replace github.com/Tangerg/lynx/vectorstores/opensearch v0.0.0 => ./vectorstores/opensearch
+
+replace github.com/Tangerg/lynx/vectorstores/oracle v0.0.0 => ./vectorstores/oracle
+
+replace github.com/Tangerg/lynx/vectorstores/pinecone v0.0.0 => ./vectorstores/pinecone
+
+replace github.com/Tangerg/lynx/vectorstores/postgres v0.0.0 => ./vectorstores/postgres
+
+replace github.com/Tangerg/lynx/vectorstores/qdrant v0.0.0 => ./vectorstores/qdrant
+
+replace github.com/Tangerg/lynx/vectorstores/redis v0.0.0 => ./vectorstores/redis
+
+replace github.com/Tangerg/lynx/vectorstores/s3vectors v0.0.0 => ./vectorstores/s3vectors
+
+replace github.com/Tangerg/lynx/vectorstores/tidb v0.0.0 => ./vectorstores/tidb
+
+replace github.com/Tangerg/lynx/vectorstores/typesense v0.0.0 => ./vectorstores/typesense
+
+replace github.com/Tangerg/lynx/vectorstores/vectara v0.0.0 => ./vectorstores/vectara
+
+replace github.com/Tangerg/lynx/vectorstores/vespa v0.0.0 => ./vectorstores/vespa
+
+replace github.com/Tangerg/lynx/vectorstores/weaviate v0.0.0 => ./vectorstores/weaviate

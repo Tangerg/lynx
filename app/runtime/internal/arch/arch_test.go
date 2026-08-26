@@ -405,7 +405,7 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"),
 		append([]string{
 			"github.com/Tangerg/lynx/agent",
-			"github.com/Tangerg/lynx/chatclient",
+			"github.com/Tangerg/lynx/core/chatclient",
 		}, frameworkImports...))
 }
 
@@ -1777,7 +1777,7 @@ var frameworkImports = []string{
 	"github.com/go-git",
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
-	"github.com/Tangerg/lynx/chathistory",
+	"github.com/Tangerg/lynx/core/chathistory",
 	"github.com/Tangerg/lynx/models/catalog",
 	"gopkg.in/yaml.v3",
 }

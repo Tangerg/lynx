@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/models/catalog"
 	skillspec "github.com/Tangerg/lynx/skills"
 

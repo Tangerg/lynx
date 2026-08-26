@@ -43,8 +43,9 @@ func TestModelProvidersOwnTheirPublicSurface(t *testing.T) {
 		}
 	}
 
-	// The reusable OpenAI protocol is public infrastructure rather than a
-	// provider facade, but its Dialect and Config APIs must still hide the SDK.
+	// Reusable wire protocols are public infrastructure rather than provider
+	// facades, but their semantic APIs must still hide SDK-owned types.
+	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "anthropic"), nil)
 	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "openai"), nil)
 }
 
@@ -85,7 +86,7 @@ func TestFixedConstructionStateUsesConfig(t *testing.T) {
 	root := repositoryRoot(t)
 	for _, relative := range []string{
 		"app/runtime/internal/delivery/dispatch",
-		"chatclient",
+		"core/chatclient",
 		"documentreaders/html",
 		"documentreaders/markdown",
 		"documentreaders/pdf",

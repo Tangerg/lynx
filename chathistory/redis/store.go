@@ -10,7 +10,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

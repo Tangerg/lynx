@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 // TestMutationDiagnosticsAppendsProblems verifies the highest-value LSP

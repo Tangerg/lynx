@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/rag/evaluation"

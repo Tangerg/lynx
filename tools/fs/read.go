@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 // ReadRequest is the LLM-facing argument shape for the read tool. StartLine is

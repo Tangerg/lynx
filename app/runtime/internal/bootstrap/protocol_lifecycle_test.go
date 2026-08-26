@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

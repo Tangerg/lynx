@@ -11,7 +11,6 @@ import (
 	"google.golang.org/genai"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
 type AudioTTSModelConfig struct {
@@ -93,10 +92,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := options.RejectUnsupported("google: speech", map[string]bool{
-		"output_format": mergedOpts.OutputFormat != "",
-		"speed":         mergedOpts.Speed != 0,
-	}); err != nil {
+	if err := a.validateOptions(mergedOpts); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -137,6 +133,17 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	}
 
 	return mergedOpts.Model, contents, cfg, nil
+}
+
+func (*AudioTTSModel) validateOptions(options tts.Options) error {
+	switch {
+	case options.OutputFormat != "":
+		return errors.New("google: speech: output_format is not supported")
+	case options.Speed != 0:
+		return errors.New("google: speech: speed is not supported")
+	default:
+		return nil
+	}
 }
 
 // errNoAudio signals "this chunk contained no audio Parts". Returned by

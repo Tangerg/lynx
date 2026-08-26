@@ -13,7 +13,7 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/core/tool"
 )
 
 func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {

@@ -8,8 +8,6 @@ import (
 	"net/http"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
 type AudioTTSModelConfig struct {
@@ -70,10 +68,8 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *speakParams,
 	if err != nil {
 		return "", nil, err
 	}
-	if err := options.RejectUnsupported("deepgram: speech", map[string]bool{
-		"voice": mergedOpts.Voice != "",
-	}); err != nil {
-		return "", nil, err
+	if mergedOpts.Voice != "" {
+		return "", nil, errors.New("deepgram: speech: unsupported option: voice")
 	}
 
 	paramsValue, _, err := mergedOpts.Extensions.Decode[speakParams](SpeechRequestExtensionKey)
@@ -174,7 +170,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		}
 		defer body.Close()
 
-		for chunk, err := range streamio.Read(body) {
+		for chunk, err := range readAudioChunks(body) {
 			if err != nil {
 				yield(nil, err)
 				return

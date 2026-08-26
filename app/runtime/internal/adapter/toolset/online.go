@@ -3,7 +3,7 @@ package toolset
 import (
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/Tangerg/lynx/tools/httpreq"
 	"github.com/Tangerg/lynx/tools/webfetch"

@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	anthropicprotocol "github.com/Tangerg/lynx/models/internal/protocol/anthropic"
+	anthropicprotocol "github.com/Tangerg/lynx/models/protocol/anthropic"
 	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
 )
 

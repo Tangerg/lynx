@@ -3,7 +3,7 @@ package toolset
 import (
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )

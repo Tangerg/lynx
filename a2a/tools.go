@@ -7,7 +7,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 // Tools resolves every endpoint and wraps each remote agent as a chat tool.

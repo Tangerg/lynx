@@ -11,8 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tool"
-	toolset "github.com/Tangerg/lynx/tools"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 // Register installs every [tool.Tool] in tools onto server using
@@ -33,7 +32,7 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 		return ErrNilServer
 	}
 
-	registry, err := toolset.NewRegistry(tools...)
+	registry, err := toolcontract.NewRegistry(tools...)
 	if err != nil {
 		return fmt.Errorf("mcp: register tools: %w", err)
 	}

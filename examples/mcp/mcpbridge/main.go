@@ -9,7 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/core/tool"
 )
 
 type echoInput struct {

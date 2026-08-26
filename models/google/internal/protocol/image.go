@@ -14,7 +14,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
 type ImageModelConfig struct {
@@ -143,11 +142,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("google: image", map[string]bool{
-		"height":          mergedOpts.Height != nil,
-		"negative_prompt": mergedOpts.NegativePrompt != "",
-		"width":           mergedOpts.Width != nil,
-	}); err != nil {
+	if err := i.validateOptions(mergedOpts); err != nil {
 		return nil, err
 	}
 
@@ -217,6 +212,19 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 		}}
 	}
 	return apiReq, nil
+}
+
+func (*ImageModel) validateOptions(options image.Options) error {
+	switch {
+	case options.Height != nil:
+		return errors.New("google: image: height is not supported")
+	case options.NegativePrompt != "":
+		return errors.New("google: image: negative_prompt is not supported")
+	case options.Width != nil:
+		return errors.New("google: image: width is not supported")
+	default:
+		return nil
+	}
 }
 
 func imageInteractionContentFromMedia(value *media.Media) (imageInteractionContent, error) {

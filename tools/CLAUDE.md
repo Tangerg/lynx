@@ -1,22 +1,22 @@
-# CLAUDE.md — tools package family
+# CLAUDE.md — tools module family
 
-> 复数根包只拥有 `tool.Tool` 的集合语义；子包提供 shell、文件系统、HTTP、网页抓取、网页搜索、skill 等具体工具。单工具协议、typed function 与 schema 辅助能力属于底层 `tool` 包。
+> `tools` module 提供可直接装配的 shell、文件系统、HTTP、网页抓取、网页搜索和 skill 工具。单工具协议、typed function、schema 与实例 Registry 属于更低层的 `core/tool`。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
 
 ## 定位
 
-- **根包只做集合**：`tools.Registry` 是唯一实例工具集合；不拥有单工具抽象、函数适配、schema 生成或具体执行逻辑。
-- **具体能力各自拥有实现**：`fakeweather`、`fs`、`shell` 等保持独立子包。两层 SPI：**Tool 层**对 LLM(JSON in/out + schema + 交互)，**Executor / Provider 层**做真正执行(本地 / 远程 / 沙箱后端可换)。
-- **外部依赖按能力成岛**：基础 `tools` package family 与根 module 共存，只依赖标准库和更低层的 `core` / `tool`；`httpreq`、`skills`、`webfetch`、`websearch` 各自是 nested module，只携带本能力的 SDK 依赖。
+- **模块拥有具体工具，Core 拥有工具模型**：`core/tool.Registry` 管理实例集合，`tools/*` 只实现可执行能力，不再维护第二套集合抽象。
+- **具体能力各自拥有实现**：`fs`、`shell` 等保持独立子包。两层 SPI：**Tool 层**对 LLM(JSON in/out + schema + 交互)，**Executor / Provider 层**做真正执行(本地 / 远程 / 沙箱后端可换)。演示工具属于 `examples`。
+- **外部依赖按能力成岛**：`tools` module 拥有 stdlib/Core-only 工具以及 `webfetch`、`websearch` 的中立 SPI；`httpreq`、`skills` 和每个网络 provider 使用自己的叶子 module，只携带该集成所需依赖。
 
 ## 架构心智
 
 - **两层 SPI 是核心**:Tool 层只做 JSON ↔ Go + schema 校验 + LLM 交互;**所有业务逻辑**(行号、binary 检测、写锁、路径锚定 …)都在 Executor 层 —— 这样远程 backend 能独立优化,不必往返整个文件。
 - **手动注册,无全局 registry**:调用方显式把工具注册进自己的 toolset,多 agent / 多进程各管各的。
-- **只有一套可执行 Tool 身份**：`tools.Registry` 只管理普通 `tool.Tool`；Agent Framework `interaction.Dispatcher` 冻结同一批 Tool，不建立第二套 Tool 类型、可变 registry 或 bridge。
-- **schema 归单工具层**：`tool.NewFunc` 从 Input struct 派生 schema；手写具体 Tool 使用 `tool.Schema`，不在本 family 复制 schema 内核。
+- **只有一套可执行 Tool 身份**：`core/tool.Registry` 只管理普通 `tool.Tool`；Agent Framework `interaction.Dispatcher` 冻结同一批 Tool，不建立第二套 Tool 类型、可变 registry 或 bridge。
+- **schema 归单工具层**：`core/tool.NewFunc` 从 Input struct 派生 schema；手写具体 Tool 使用 `tool.Schema`，不在本 family 复制 schema 内核。
 - **typed helper 不承载 runtime policy**：`tool.NewFunc` 不处理并发、重试、HITL、直接返回或 Tool loop 终止；这些属于 `agent/interaction` 与 Host adapter。
 - **Nil-safety 双标**:有本地实现的(shell / fs 等)`New(nil)` 默认本地、开箱即用;必须外部配置的(websearch / webfetch / httpreq)`New(nil)` **返错** —— 没有本地 fallback。
 - **输出超限截断而非报错**:带 truncated 标记,LLM 据此决定下一步。
@@ -26,8 +26,8 @@
 ## 模块特有反向不变量
 
 - ❌ **全局 tool registry** —— 显式注册是有意的,多 agent / 多进程各自管理 toolset。
-- ❌ **把单工具原语或具体能力放进 `tools` 根包** —— 根包只拥有 collection / registry 语义。
-- ❌ **重新添加 `tools/go.mod` 或把 provider SDK 拉进根 module** —— 可选外部依赖必须停留在对应 nested module。
+- ❌ **在 `tools` 复制 Tool/Registry/schema 原语** —— 这些只由 `core/tool` 拥有。
+- ❌ **把 provider SDK 拉进 `tools` module** —— 可选外部依赖必须停留在对应 provider 叶子 module。
 - ❌ **在 Tool 层做业务逻辑** —— 业务全在 Executor,Tool 只是 JSON ↔ Go + schema。
 - ❌ **给 shell 加 root 限制** —— 信任调用方,要 jail 在外层(进程上下文 / 容器)。
 - ❌ **httpreq 带默认 allowlist** —— 必须显式配置;"忘配也能跑" 是 SSRF 敞口。

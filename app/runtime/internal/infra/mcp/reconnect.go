@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"go.opentelemetry.io/otel/trace"

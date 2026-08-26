@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/tokenizer"
+	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
 const defaultBatcherMaxTokens = 8191

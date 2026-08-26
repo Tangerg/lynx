@@ -16,7 +16,7 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-const repositoryModulePath = "github.com/Tangerg/lynx"
+const repositoryModulePrefix = "github.com/Tangerg/lynx"
 
 type repositoryModule struct {
 	path  string
@@ -32,7 +32,7 @@ type providerPackage struct {
 	importPath string
 }
 
-func TestWorkspaceCoversEveryRepositoryModule(t *testing.T) {
+func TestWorkspaceCoversEveryProductModule(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
@@ -79,13 +79,16 @@ func TestWorkspaceCoversEveryRepositoryModule(t *testing.T) {
 	}
 
 	for dir := range workspaceDirs {
+		if isExcludedAppDir(dir) {
+			continue
+		}
 		if _, ok := moduleByDir(modules, dir); !ok {
-			t.Errorf("go.work contains module %q that repository discovery did not classify", dir)
+			t.Errorf("go.work contains product module %q that repository discovery did not classify", dir)
 		}
 	}
 }
 
-func TestModulesStayOutOfInternalDirectories(t *testing.T) {
+func TestProductModulesStayOutOfInternalDirectories(t *testing.T) {
 	t.Parallel()
 	for _, module := range discoverModules(t, repositoryRoot(t)) {
 		if containsPathSegment(module.dir, "internal") {
@@ -94,16 +97,15 @@ func TestModulesStayOutOfInternalDirectories(t *testing.T) {
 	}
 }
 
-func TestModuleGraphHasOneWayDependencyBudgets(t *testing.T) {
+func TestProductModuleGraphFollowsLayeredOwnership(t *testing.T) {
 	t.Parallel()
 	modules := discoverModules(t, repositoryRoot(t))
 	graph := make(map[string][]string, len(modules))
 
 	for _, module := range modules {
 		if len(module.file.Replace) != 0 {
-			t.Errorf("%s uses replace; every module must resolve outside go.work", module.path)
+			t.Errorf("%s uses replace; every product module must resolve outside go.work", module.path)
 		}
-		allowed := allowedRepositoryDependencies(module.path)
 		for _, requirement := range module.file.Require {
 			dependency := requirement.Mod.Path
 			if !isRepositoryImport(dependency) {
@@ -111,17 +113,12 @@ func TestModuleGraphHasOneWayDependencyBudgets(t *testing.T) {
 			}
 			dependencyModule, ok := modules[dependency]
 			if !ok {
-				t.Errorf("%s requires undiscovered Lynx module %s", module.path, dependency)
+				t.Errorf("%s requires undiscovered product module %s", module.path, dependency)
 				continue
 			}
 			graph[module.path] = append(graph[module.path], dependency)
-			if _, ok := allowed[dependency]; !ok {
-				t.Errorf("%s must not depend on %s; allowed Lynx modules: %v",
-					module.path, dependency, mapKeys(allowed))
-			}
-			if module.layer <= dependencyModule.layer {
-				t.Errorf("reverse or peer module dependency: layer %d %s -> layer %d %s",
-					module.layer, module.path, dependencyModule.layer, dependency)
+			if !allowedRepositoryDependency(module, dependencyModule) {
+				t.Errorf("layer %d module %s must not depend on layer %d module %s", module.layer, module.path, dependencyModule.layer, dependency)
 			}
 		}
 	}
@@ -129,64 +126,61 @@ func TestModuleGraphHasOneWayDependencyBudgets(t *testing.T) {
 	assertAcyclic(t, graph, modules)
 }
 
-func TestRootModuleIsStdlibOnlyAndLayered(t *testing.T) {
+func TestCoreModuleOwnsTheStdlibOnlyFoundation(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
-	foundation := modules[repositoryModulePath]
-	if len(foundation.file.Require) != 0 {
-		t.Errorf("root foundation module must not carry third-party requirements")
+	core, ok := modules[repositoryModulePrefix+"/core"]
+	if !ok {
+		t.Fatal("core module was not discovered")
+	}
+	if len(core.file.Require) != 0 {
+		t.Errorf("core must remain stdlib-only; found %d module requirements", len(core.file.Require))
 	}
 
-	walkRootProductionFiles(t, root, modules, func(path, relative string, file *ast.File) {
-		sourceFamily := firstPathSegment(relative)
-		sourceLayer, ok := rootFamilyLayer(sourceFamily)
-		if !ok {
-			t.Errorf("%s belongs to an unclassified root package family %q", filepath.ToSlash(path), sourceFamily)
-			return
+	err := filepath.WalkDir(filepath.Join(root, "core"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-
-		for _, spec := range file.Imports {
-			importPath, err := strconv.Unquote(spec.Path.Value)
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
 			if err != nil {
 				continue
 			}
-			if !isRepositoryImport(importPath) {
-				if isThirdPartyImport(importPath) {
-					t.Errorf("%s imports third-party package %s; move the dependency to a nested module", filepath.ToSlash(path), importPath)
-				}
-				continue
+			if !isRepositoryImport(importPath) && isThirdPartyImport(importPath) {
+				t.Errorf("%s imports third-party package %s", filepath.ToSlash(path), importPath)
 			}
-
-			owner, ok := moduleForImport(modules, importPath)
-			if !ok {
-				t.Errorf("%s imports unowned Lynx package %s", filepath.ToSlash(path), importPath)
-				continue
-			}
-			if owner.path != repositoryModulePath {
-				t.Errorf("%s reverses the module direction by importing higher module %s", filepath.ToSlash(path), owner.path)
-				continue
-			}
-
-			dependencyFamily := importFamily(importPath)
-			dependencyLayer, ok := rootFamilyLayer(dependencyFamily)
-			if !ok {
-				t.Errorf("%s imports unclassified root package family %q", filepath.ToSlash(path), dependencyFamily)
-				continue
-			}
-			if sourceLayer < dependencyLayer {
-				t.Errorf("reverse root package dependency: layer %d %s -> layer %d %s",
-					sourceLayer, sourceFamily, dependencyLayer, dependencyFamily)
-			}
-			if sourceLayer == dependencyLayer && sourceFamily != dependencyFamily {
-				t.Errorf("peer root package families must not couple: %s -> %s in %s",
-					sourceFamily, dependencyFamily, filepath.ToSlash(path))
+			if isRepositoryImport(importPath) && importPath != core.path && !strings.HasPrefix(importPath, core.path+"/") {
+				t.Errorf("%s imports higher module %s", filepath.ToSlash(path), importPath)
 			}
 		}
+		return nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
-func TestProviderPackagesAreIndependentAndConformant(t *testing.T) {
+func TestProviderFamiliesUseLeafModules(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	for _, family := range []string{"chathistory", "models", "tokenizers", "vectorstores"} {
+		assertImmediateProviderModules(t, root, family, map[string]struct{}{"internal": {}, "protocol": {}}, true)
+	}
+	assertImmediateProviderModules(t, root, "documentreaders", map[string]struct{}{"internal": {}}, false)
+	assertImmediateProviderModules(t, root, "models/protocol", map[string]struct{}{"internal": {}}, true)
+	assertImmediateProviderModules(t, root, "tools/webfetch", map[string]struct{}{"internal": {}}, true)
+	assertImmediateProviderModules(t, root, "tools/websearch", map[string]struct{}{"internal": {}}, true)
+}
+
+func TestVectorAndHistoryProvidersAreIndependentAndConformant(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
@@ -200,25 +194,12 @@ func TestProviderPackagesAreIndependentAndConformant(t *testing.T) {
 		assertProviderBoundary(t, provider)
 		assertDependencyIsland(t, provider, modules)
 	}
-
-	postgresRoot := filepath.Join(root, "vectorstores", "postgres")
-	entries, err := os.ReadDir(postgresRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".go" {
-			t.Errorf("vectorstores/postgres must expose provider packages, not an aggregate root package: %s", entry.Name())
-		}
-	}
 }
 
 func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
-	assertFamilySiblingBoundary(t, root, "models", map[string]struct{}{
-		"catalog": {}, "internal": {}, "protocol": {},
-	})
+	assertFamilySiblingBoundary(t, root, "models", map[string]struct{}{"catalog": {}, "protocol": {}})
 	assertFamilySiblingBoundary(t, root, "tools/webfetch", map[string]struct{}{"internal": {}})
 	assertFamilySiblingBoundary(t, root, "tools/websearch", map[string]struct{}{"internal": {}})
 	assertFamilySiblingBoundary(t, root, "documentreaders", nil)
@@ -227,7 +208,7 @@ func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 func TestNamespaceRootsStayPackageFree(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
-	for _, relative := range []string{"core", "documentreaders", "models", "otel", "vectorstores"} {
+	for _, relative := range []string{"core", "chathistory", "models", "otel", "tokenizers", "vectorstores"} {
 		entries, err := os.ReadDir(filepath.Join(root, relative))
 		if err != nil {
 			t.Errorf("read namespace root %s: %v", relative, err)
@@ -245,34 +226,25 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	for _, relative := range []string{
-		"agent/internal/schema",
-		"app/runtime/internal/adapter/toolset/schema",
-		"chatclient/options.go",
-		"chatclient/middleware",
+		"go.mod",
+		"chatclient",
+		"embeddingclient",
+		"tool",
+		"tokenizer",
+		"tools/fakeweather",
+		"tools/webfetch/go.mod",
+		"tools/websearch/go.mod",
+		"vectorstores/inmemory",
+		"models/go.mod",
+		"models/internal",
 		"chathistorystores",
-		"documentpipeline/id",
 		"internal/chathistorykit",
-		"internal/chathistoryotel",
 		"internal/repoarch",
 		"internal/vectorstorekit",
 		"internal/vectorstorepg",
-		"models/google/internal/conformance",
-		"models/google/internal/testutil",
-		"models/internal/chatconformance",
-		"models/internal/conformance",
-		"models/internal/testutil",
-		"models/ollama/internal/conformance",
-		"models/protocol/openai/internal/conformance",
+		"models/google/internal/options",
 		"models/protocol/openai/internal/options",
-		"models/protocol/openai/internal/testutil",
-		"otel/chat.go",
-		"otel/chathistory.go",
-		"otel/vectorstore.go",
-		"pkg",
-		"tool/registry.go",
 		"tools/function",
-		"tools/go.mod",
-		"tools/go.sum",
 		"tools/internal/schema",
 		"vectorstores/cockroachdb",
 		"vectorstores/pgvector",
@@ -293,12 +265,13 @@ func discoverModules(t *testing.T, root string) map[string]repositoryModule {
 		if walkErr != nil {
 			return walkErr
 		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
 		if entry.IsDir() {
-			relative, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			if shouldSkipRepositoryDir(filepath.ToSlash(relative), entry.Name()) {
+			if isExcludedAppDir(relative) || shouldSkipRepositoryDir(relative, entry.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -319,22 +292,19 @@ func discoverModules(t *testing.T, root string) map[string]repositoryModule {
 			t.Errorf("%s has no module directive", path)
 			return nil
 		}
-		relativeDir, err := filepath.Rel(root, filepath.Dir(path))
-		if err != nil {
-			return err
+		relativeDir := filepath.ToSlash(filepath.Dir(relative))
+		if relativeDir == "." {
+			t.Errorf("repository root must be a workspace, not a Go module")
+			return nil
 		}
-		relativeDir = filepath.ToSlash(relativeDir)
-		wantPath := repositoryModulePath
-		if relativeDir != "." {
-			wantPath += "/" + relativeDir
-		}
+		wantPath := repositoryModulePrefix + "/" + relativeDir
 		modulePath := parsed.Module.Mod.Path
 		if modulePath != wantPath {
 			t.Errorf("module path does not match directory: %s; want %s", modulePath, wantPath)
 		}
-		layer := moduleLayer(modulePath)
+		layer := moduleLayer(relativeDir)
 		if layer < 0 {
-			t.Errorf("module %s has no declared architecture layer", modulePath)
+			t.Errorf("module %s has no architecture layer", modulePath)
 		}
 		if previous, exists := modules[modulePath]; exists {
 			t.Errorf("duplicate module path %s in %s and %s", modulePath, previous.dir, relativeDir)
@@ -348,147 +318,87 @@ func discoverModules(t *testing.T, root string) map[string]repositoryModule {
 	return modules
 }
 
-func moduleLayer(path string) int {
-	switch path {
-	case repositoryModulePath, repositoryModulePath + "/skills":
+func moduleLayer(dir string) int {
+	switch dir {
+	case "core", "skills", "models/catalog":
 		return 0
-	case repositoryModulePath + "/documentpipeline/markdown",
-		repositoryModulePath + "/models",
-		repositoryModulePath + "/models/google",
-		repositoryModulePath + "/models/ollama",
-		repositoryModulePath + "/tools/httpreq",
-		repositoryModulePath + "/tools/skills",
-		repositoryModulePath + "/tools/webfetch",
-		repositoryModulePath + "/tools/websearch":
-		return 2
-	case repositoryModulePath + "/examples/mcp":
+	case "a2a", "agent", "documentpipeline", "documentreaders", "mcp", "otel", "rag", "tools":
+		return 1
+	case "examples":
 		return 3
-	case repositoryModulePath + "/app/desktop",
-		repositoryModulePath + "/app/runtime":
-		return 3
-	case repositoryModulePath + "/dev/repoarch":
+	case "dev/providerconformance", "dev/repoarch":
 		return 4
-	default:
-		if strings.HasPrefix(path, repositoryModulePath+"/") {
-			return 1
+	}
+	if strings.HasPrefix(dir, "models/protocol/") {
+		return 1
+	}
+	for _, prefix := range []string{
+		"chathistory/",
+		"documentpipeline/",
+		"documentreaders/",
+		"models/",
+		"tokenizers/",
+		"tools/",
+		"vectorstores/",
+	} {
+		if strings.HasPrefix(dir, prefix) {
+			return 2
 		}
-		return -1
 	}
+	return -1
 }
 
-func allowedRepositoryDependencies(path string) map[string]struct{} {
-	dependencies := func(paths ...string) map[string]struct{} {
-		result := make(map[string]struct{}, len(paths))
-		for _, dependency := range paths {
-			result[dependency] = struct{}{}
-		}
-		return result
+func allowedRepositoryDependency(source, target repositoryModule) bool {
+	switch source.dir {
+	case "core", "skills", "models/catalog", "dev/repoarch":
+		return false
+	case "examples":
+		return target.layer < source.layer && !strings.HasPrefix(target.dir, "dev/")
+	case "dev/providerconformance":
+		return target.layer < source.layer && target.dir != "examples"
 	}
-	switch path {
-	case repositoryModulePath,
-		repositoryModulePath + "/skills",
-		repositoryModulePath + "/dev/repoarch":
-		return dependencies()
-	case repositoryModulePath + "/documentpipeline/markdown":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/documentpipeline")
-	case repositoryModulePath + "/models",
-		repositoryModulePath + "/models/google",
-		repositoryModulePath + "/models/ollama":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/models/protocol/openai")
-	case repositoryModulePath + "/tools/httpreq",
-		repositoryModulePath + "/tools/webfetch",
-		repositoryModulePath + "/tools/websearch":
-		return dependencies(repositoryModulePath)
-	case repositoryModulePath + "/tools/skills":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/skills")
-	case repositoryModulePath + "/examples/mcp":
-		return dependencies(
-			repositoryModulePath,
-			repositoryModulePath+"/agent",
-			repositoryModulePath+"/mcp",
-		)
-	case repositoryModulePath + "/app/desktop":
-		return dependencies()
-	case repositoryModulePath + "/app/runtime":
-		return dependencies(
-			repositoryModulePath,
-			repositoryModulePath+"/a2a",
-			repositoryModulePath+"/agent",
-			repositoryModulePath+"/mcp",
-			repositoryModulePath+"/models",
-			repositoryModulePath+"/models/google",
-			repositoryModulePath+"/models/ollama",
-			repositoryModulePath+"/models/protocol/openai",
-			repositoryModulePath+"/otel",
-			repositoryModulePath+"/skills",
-			repositoryModulePath+"/tools/httpreq",
-			repositoryModulePath+"/tools/skills",
-			repositoryModulePath+"/tools/webfetch",
-			repositoryModulePath+"/tools/websearch",
-		)
-	default:
-		return dependencies(repositoryModulePath)
+	if target.dir == "core" {
+		return true
 	}
+	if strings.HasPrefix(source.dir, "models/") && !strings.HasPrefix(source.dir, "models/protocol/") {
+		return strings.HasPrefix(target.dir, "models/protocol/")
+	}
+	if source.dir == "documentpipeline/markdown" {
+		return target.dir == "documentpipeline"
+	}
+	if source.dir == "tools/skills" {
+		return target.dir == "skills"
+	}
+	if strings.HasPrefix(source.dir, "tools/webfetch/") || strings.HasPrefix(source.dir, "tools/websearch/") {
+		return target.dir == "tools"
+	}
+	return false
 }
 
-func rootFamilyLayer(family string) (int, bool) {
-	switch family {
-	case "core":
-		return 0, true
-	case "chatclient", "chathistory", "documentreaders", "embeddingclient", "tokenizer", "tool":
-		return 1, true
-	case "tools", "vectorstores":
-		return 2, true
-	default:
-		return -1, false
-	}
-}
-
-func walkRootProductionFiles(
-	t *testing.T,
-	root string,
-	modules map[string]repositoryModule,
-	visit func(path, relative string, file *ast.File),
-) {
+func assertImmediateProviderModules(t *testing.T, root, family string, shared map[string]struct{}, all bool) {
 	t.Helper()
-	nestedModules := make(map[string]struct{})
-	for _, module := range modules {
-		if module.dir != "." {
-			nestedModules[module.dir] = struct{}{}
-		}
-	}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		relative = filepath.ToSlash(relative)
-		if entry.IsDir() {
-			if relative != "." {
-				if _, nested := nestedModules[relative]; nested {
-					return filepath.SkipDir
-				}
-			}
-			if shouldSkipRepositoryDir(relative, entry.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		visit(path, relative, file)
-		return nil
-	})
+	familyDir := filepath.Join(root, filepath.FromSlash(family))
+	entries, err := os.ReadDir(familyDir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, skip := shared[entry.Name()]; skip {
+			continue
+		}
+		dir := filepath.Join(familyDir, entry.Name())
+		if !hasAnyProductionGoFile(t, dir) {
+			continue
+		}
+		if !all && !hasThirdPartyProductionImport(t, dir) {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+			t.Errorf("provider %s/%s must own a go.mod: %v", family, entry.Name(), err)
+		}
 	}
 }
 
@@ -557,7 +467,7 @@ func newProvider(family, relative, dir string) providerPackage {
 		family:     family,
 		relative:   relative,
 		dir:        dir,
-		importPath: repositoryModulePath + "/" + family + "/" + relative,
+		importPath: repositoryModulePrefix + "/" + family + "/" + relative,
 	}
 }
 
@@ -593,7 +503,7 @@ func assertProviderBoundary(t *testing.T, provider providerPackage) {
 
 func assertNoProviderSiblingImport(t *testing.T, provider providerPackage, path, importPath string) {
 	t.Helper()
-	prefix := repositoryModulePath + "/" + provider.family + "/"
+	prefix := repositoryModulePrefix + "/" + provider.family + "/"
 	if !strings.HasPrefix(importPath, prefix) {
 		return
 	}
@@ -601,10 +511,8 @@ func assertNoProviderSiblingImport(t *testing.T, provider providerPackage, path,
 	if target == provider.relative || strings.HasPrefix(target, provider.relative+"/") {
 		return
 	}
-	if provider.family == "vectorstores" {
-		if strings.HasPrefix(provider.relative, "postgres/") && strings.HasPrefix(target, "postgres/internal/") {
-			return
-		}
+	if provider.family == "vectorstores" && strings.HasPrefix(provider.relative, "postgres/") && strings.HasPrefix(target, "postgres/internal/") {
+		return
 	}
 	t.Errorf("%s imports sibling provider %s", filepath.ToSlash(path), importPath)
 }
@@ -621,7 +529,7 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 	aliases := make(map[string]struct{})
 	for _, spec := range file.Imports {
 		importPath, err := strconv.Unquote(spec.Path.Value)
-		if err != nil || importPath != repositoryModulePath+"/core/vectorstore/storetest" {
+		if err != nil || importPath != repositoryModulePrefix+"/core/vectorstore/storetest" {
 			continue
 		}
 		alias := "storetest"
@@ -653,9 +561,6 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 
 func assertDependencyIsland(t *testing.T, provider providerPackage, modules map[string]repositoryModule) {
 	t.Helper()
-	if !hasThirdPartyProductionImport(t, provider.dir) {
-		return
-	}
 	relative, err := filepath.Rel(repositoryRoot(t), provider.dir)
 	if err != nil {
 		t.Error(err)
@@ -664,7 +569,7 @@ func assertDependencyIsland(t *testing.T, provider providerPackage, modules map[
 	relative = filepath.ToSlash(relative)
 	owner, ok := moduleForDirectory(modules, relative)
 	if !ok {
-		t.Errorf("%s has third-party imports without a module owner", provider.importPath)
+		t.Errorf("%s has no module owner", provider.importPath)
 		return
 	}
 	wantDir := provider.family + "/" + provider.relative
@@ -672,8 +577,7 @@ func assertDependencyIsland(t *testing.T, provider providerPackage, modules map[
 		wantDir = "vectorstores/postgres"
 	}
 	if owner.dir != wantDir {
-		t.Errorf("%s third-party dependency island is owned by %s; want module at %s",
-			provider.importPath, owner.dir, wantDir)
+		t.Errorf("%s is owned by module %s; want %s", provider.importPath, owner.dir, wantDir)
 	}
 }
 
@@ -684,10 +588,7 @@ func assertFamilySiblingBoundary(t *testing.T, root, family string, shared map[s
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() {
-			return nil
-		}
-		if filepath.Ext(path) != ".go" {
+		if entry.IsDir() || filepath.Ext(path) != ".go" {
 			return nil
 		}
 		relative, err := filepath.Rel(familyDir, path)
@@ -706,7 +607,7 @@ func assertFamilySiblingBoundary(t *testing.T, root, family string, shared map[s
 		if err != nil {
 			return err
 		}
-		prefix := repositoryModulePath + "/" + family + "/"
+		prefix := repositoryModulePrefix + "/" + family + "/"
 		for _, spec := range file.Imports {
 			importPath, err := strconv.Unquote(spec.Path.Value)
 			if err != nil || !strings.HasPrefix(importPath, prefix) {
@@ -742,59 +643,62 @@ func hasProductionGoFiles(t *testing.T, dir string) bool {
 	return false
 }
 
-func hasThirdPartyProductionImport(t *testing.T, dir string) bool {
+func hasAnyProductionGoFile(t *testing.T, dir string) bool {
 	t.Helper()
-	entries, err := os.ReadDir(dir)
+	found := false
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go") {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
+	return found
+}
+
+func hasThirdPartyProductionImport(t *testing.T, dir string) bool {
+	t.Helper()
+	found := false
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		path := filepath.Join(dir, entry.Name())
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		for _, spec := range file.Imports {
-			importPath, err := strconv.Unquote(spec.Path.Value)
+		for _, imported := range file.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
 			if err == nil && !isRepositoryImport(importPath) && isThirdPartyImport(importPath) {
-				return true
+				found = true
+				return fs.SkipAll
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return false
+	return found
 }
 
 func moduleForDirectory(modules map[string]repositoryModule, dir string) (repositoryModule, bool) {
 	var best repositoryModule
 	found := false
 	for _, module := range modules {
-		if module.dir == "." {
-			if !found {
-				best, found = module, true
-			}
-			continue
-		}
 		if dir != module.dir && !strings.HasPrefix(dir, module.dir+"/") {
 			continue
 		}
 		if !found || len(module.dir) > len(best.dir) {
-			best, found = module, true
-		}
-	}
-	return best, found
-}
-
-func moduleForImport(modules map[string]repositoryModule, importPath string) (repositoryModule, bool) {
-	var best repositoryModule
-	found := false
-	for path, module := range modules {
-		if importPath != path && !strings.HasPrefix(importPath, path+"/") {
-			continue
-		}
-		if !found || len(path) > len(best.path) {
 			best, found = module, true
 		}
 	}
@@ -838,21 +742,12 @@ func assertAcyclic(t *testing.T, graph map[string][]string, modules map[string]r
 	}
 }
 
-func mapKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	return keys
-}
-
 func cleanWorkspacePath(path string) string {
 	cleaned := filepath.ToSlash(filepath.Clean(path))
 	if cleaned == "" {
 		return "."
 	}
-	return cleaned
+	return strings.TrimPrefix(cleaned, "./")
 }
 
 func containsPathSegment(path, want string) bool {
@@ -865,30 +760,23 @@ func firstPathSegment(path string) string {
 	return segment
 }
 
-func importFamily(importPath string) string {
-	if importPath == repositoryModulePath {
-		return ""
-	}
-	return firstPathSegment(strings.TrimPrefix(importPath, repositoryModulePath+"/"))
-}
-
 func isRepositoryImport(path string) bool {
-	return path == repositoryModulePath || strings.HasPrefix(path, repositoryModulePath+"/")
+	return path == repositoryModulePrefix || strings.HasPrefix(path, repositoryModulePrefix+"/")
 }
 
 func isThirdPartyImport(path string) bool {
-	first := firstPathSegment(path)
-	return strings.Contains(first, ".")
+	return strings.Contains(firstPathSegment(path), ".")
+}
+
+func isExcludedAppDir(relative string) bool {
+	return relative == "app" || strings.HasPrefix(relative, "app/")
 }
 
 func shouldSkipRepositoryDir(relative, name string) bool {
 	if relative == "." {
 		return false
 	}
-	if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" {
-		return true
-	}
-	return false
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor"
 }
 
 func repositoryRoot(t *testing.T) string {

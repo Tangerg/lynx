@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 var _ toolcontract.Tool = (*Tool)(nil)

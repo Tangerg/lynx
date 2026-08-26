@@ -1,15 +1,20 @@
-# Tokenizer 实现模块迁移
+# Tokenizer 模块迁移
 
-`github.com/Tangerg/lynx/tokenizer` 现在是只依赖标准库的能力契约模块。
-原先内嵌的 tiktoken adapter 已成为独立模块：
-`github.com/Tangerg/lynx/tokenizer/tiktoken`。
+Tokenizer 的 provider-neutral contract 现在由 stdlib-only 的 Core module 拥有：
 
-Go import path 和公开 API 没有变化，但模块依赖必须按实际使用声明：
+```text
+github.com/Tangerg/lynx/core/tokenizer
+```
 
-- 只使用 `TextEstimator` / `Encoder` / `Decoder` / `Tokenizer` 接口的模块，只 require
-  `github.com/Tangerg/lynx/tokenizer`；
-- 直接构造 `tiktoken.Tokenizer` 的模块，另行 require
-  `github.com/Tangerg/lynx/tokenizer/tiktoken`。
+tiktoken 词表实现是独立的可选 module：
 
-新的单向依赖为：具体 tiktoken 实现 → tokenizer SPI → stdlib。SPI 不再把词表库、正则引擎
-或 UUID 实现传递给只需要接口的 provider 与 document pipeline。
+```text
+github.com/Tangerg/lynx/tokenizers/tiktoken
+```
+
+这是 breaking import-path change，不保留旧路径 alias：
+
+- 只消费 `TextEstimator`、`Encoder`、`Decoder` 或 `Tokenizer` 的代码 import `core/tokenizer`，并 require `github.com/Tangerg/lynx/core`；
+- 直接构造 tiktoken 实现的代码 import `tokenizers/tiktoken`，并额外 require 该实现 module。
+
+依赖方向固定为：具体 tokenizer 实现 → `core/tokenizer` → 标准库。词表、模型名映射和第三方 tokenizer 库不会进入 Core，也不会传递给只需要能力接口的模块。

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

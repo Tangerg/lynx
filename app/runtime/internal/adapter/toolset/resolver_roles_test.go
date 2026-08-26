@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 type roleGoalStub struct{}

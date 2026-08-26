@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

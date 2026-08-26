@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
 type AudioTTSModelConfig struct {
@@ -149,7 +148,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 		defer body.Close()
-		for chunk, err := range streamio.Read(body) {
+		for chunk, err := range readAudioChunks(body) {
 			if err != nil {
 				yield(nil, err)
 				return

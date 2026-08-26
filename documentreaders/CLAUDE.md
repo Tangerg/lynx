@@ -26,4 +26,4 @@
 ## 改动前必看(波及面)
 
 - **改元数据 key 命名**:下游 RAG pipeline 可能直接按 key 读,跨 reader 协调后再改。
-- **加新格式**:新建独立子包 + go.mod,返回 Core `Document`,元数据用本格式前缀；只有真实消费方需要时才在消费方定义小接口。
+- **加新格式**：新建独立子包并返回 Core `Document`，元数据使用格式前缀；仅标准库/Core 的轻量实现留在 `documentreaders` module，引入可选解析库时才建立叶子 module。

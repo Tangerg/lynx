@@ -111,6 +111,88 @@ chat: var ErrInvalidRequest = errors.New("chat: invalid request")
 chat: var ErrInvalidResponse = errors.New("chat: invalid response")
 chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
 chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
+chatclient/safeguard: const ( ScopeInput Scope = 1 << iota ScopeOutput ScopeBoth = ScopeInput | ScopeOutput )
+chatclient/safeguard: func (e *UnsafeError) Error() string
+chatclient/safeguard: func (e *UnsafeError) Unwrap() error
+chatclient/safeguard: func (f MatcherFunc) Match(ctx context.Context, text string) (Match, error)
+chatclient/safeguard: func (m *Middleware) Call(next chat.Model) chat.Model
+chatclient/safeguard: func (m *Middleware) Stream(next chat.Streamer) chat.Streamer
+chatclient/safeguard: func (m *SubstringMatcher) Match(ctx context.Context, text string) (Match, error)
+chatclient/safeguard: func (s Scope) String() string
+chatclient/safeguard: func (s Scope) Valid() bool
+chatclient/safeguard: func New(matcher Matcher, config Config) (*Middleware, error)
+chatclient/safeguard: func NewSubstringMatcher(terms []string, options SubstringOptions) (*SubstringMatcher, error)
+chatclient/safeguard: type Block struct { Scope Scope Term string }
+chatclient/safeguard: type Config struct { Scope Scope OnBlock func(context.Context, Block) }
+chatclient/safeguard: type Match struct { Term string Found bool }
+chatclient/safeguard: type Matcher interface { Match(ctx context.Context, text string) (Match, error) }
+chatclient/safeguard: type MatcherFunc func(ctx context.Context, text string) (Match, error)
+chatclient/safeguard: type Middleware struct { matcher Matcher config Config }
+chatclient/safeguard: type Scope uint8
+chatclient/safeguard: type SubstringMatcher struct { terms []substringTerm options SubstringOptions }
+chatclient/safeguard: type SubstringOptions struct { CaseSensitive bool HideMatch bool }
+chatclient/safeguard: type UnsafeError struct { Block Block }
+chatclient/safeguard: var ( ErrUnsafeContent = errors.New("safeguard: unsafe content") ErrInvalidConfig = errors.New("safeguard: invalid config") ErrNilStream = errors.New("safeguard: nil stream sequence") )
+chatclient: func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error)
+chatclient: func (c *Client) Output[T any](format OutputFormat[T]) Generation[T]
+chatclient: func (c *Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error]
+chatclient: func (g Generation[T]) Call(ctx context.Context, request *chat.Request) (T, error)
+chatclient: func (g Generation[T]) Stream(ctx context.Context, request *chat.Request) (T, error)
+chatclient: func (t *Template) Render(data any) (string, error)
+chatclient: func (t *Template) Require(names ...string) error
+chatclient: func (t *Template) Source() string
+chatclient: func (t *Template) SystemMessage(data any) (chat.Message, error)
+chatclient: func (t *Template) UserMessage(data any, attachments ...*media.Media) (chat.Message, error)
+chatclient: func JSONSchema[T any](name string, schema []byte) (OutputFormat[T], error)
+chatclient: func JSON[T any]() OutputFormat[T]
+chatclient: func New(model chat.Model, config Config) (*Client, error)
+chatclient: func ParseTemplate(source string) (*Template, error)
+chatclient: func Text() OutputFormat[string]
+chatclient: type Client struct { model chat.Model streamer chat.Streamer defaults chat.Options }
+chatclient: type Config struct { Defaults chat.Options Streamer chat.Streamer CallMiddleware []chat.CallMiddleware StreamMiddleware []chat.StreamMiddleware }
+chatclient: type Generation[T any] struct { client *Client format OutputFormat[T] }
+chatclient: type OutputFormat[T any] struct { contract chat.OutputFormat decoder func([]byte) (T, error) }
+chatclient: type Template struct { source string compiled *template.Template }
+chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") )
+chatclient: var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
+chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
+chathistory/inmemory: func (s *Store) Clear(ctx context.Context, conversationID chathistory.ConversationID) error
+chathistory/inmemory: func (s *Store) Conversations(ctx context.Context) ([]chathistory.ConversationID, error)
+chathistory/inmemory: func (s *Store) Count(ctx context.Context, conversationID chathistory.ConversationID) (int, error)
+chathistory/inmemory: func (s *Store) Read(ctx context.Context, conversationID chathistory.ConversationID) ([]chat.Message, error)
+chathistory/inmemory: func (s *Store) Replace(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error
+chathistory/inmemory: func (s *Store) Write(ctx context.Context, conversationID chathistory.ConversationID, messages ...chat.Message) error
+chathistory/inmemory: func New() *Store
+chathistory/inmemory: type Store struct { mu sync.RWMutex messages map[chathistory.ConversationID][]chat.Message }
+chathistory: func (conversationID ConversationID) String() string
+chathistory: func (conversationID ConversationID) Validate() error
+chathistory: func (m Middleware) Call(next chat.Model) chat.Model
+chathistory: func (m Middleware) Stream(next chat.Streamer) chat.Streamer
+chathistory: func (s WindowStore) Clear(ctx context.Context, conversationID ConversationID) error
+chathistory: func (s WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
+chathistory: func (s WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
+chathistory: func ConversationIDFromContext(ctx context.Context) (ConversationID, bool)
+chathistory: func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error)
+chathistory: func NewConversationID(value string) (ConversationID, error)
+chathistory: func NewMiddleware(store ReadWriter) (Middleware, error)
+chathistory: func NewWindowStore(store Store, limit int) (WindowStore, error)
+chathistory: func Replace(ctx context.Context, store Store, conversationID ConversationID, messages ...chat.Message) error
+chathistory: func WithConversationID(ctx context.Context, conversationID ConversationID) context.Context
+chathistory: type Clearer interface { Clear(ctx context.Context, conversationID ConversationID) error }
+chathistory: type ConversationID string
+chathistory: type Counter interface { Count(ctx context.Context, conversationID ConversationID) (int, error) }
+chathistory: type Lister interface { Conversations(ctx context.Context) ([]ConversationID, error) }
+chathistory: type Middleware struct { store ReadWriter }
+chathistory: type ReadWriter interface { Reader Writer }
+chathistory: type Reader interface { Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) }
+chathistory: type Replacer interface { Replace(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
+chathistory: type Store interface { ReadWriter Clearer }
+chathistory: type WindowStore struct { store Store limit int }
+chathistory: type Writer interface { Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error }
+chathistory: var ( ErrInvalidWindow = errors.New("chathistory: invalid message window") ErrWindowTooSmall = errors.New("chathistory: message window too small") )
+chathistory: var ( ErrNilStore = errors.New("chathistory: nil store") ErrReplacementUnsupported = errors.New("chathistory: replacement unsupported") )
+chathistory: var ErrInvalidConversationID = errors.New("chathistory: invalid conversation ID")
+chathistory: var ErrNilStream = errors.New("chathistory: middleware: nil stream sequence")
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
@@ -154,6 +236,13 @@ embedding: type Response struct { Outputs []*Output `json:"outputs,omitzero"` Me
 embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usage `json:"usage,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Usage struct { InputTokens int64 `json:"input_tokens"` }
 embedding: var ( ErrInvalidOptions = errors.New("embedding: invalid options") ErrInvalidRequest = errors.New("embedding: invalid request") ErrInvalidResponse = errors.New("embedding: invalid response") )
+embeddingclient: func (c Client) Dimensions(ctx context.Context) (int, error)
+embeddingclient: func (c Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, error)
+embeddingclient: func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error)
+embeddingclient: func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, error)
+embeddingclient: func New(model embedding.Model) (Client, error)
+embeddingclient: type Client struct { model embedding.Model }
+embeddingclient: var ErrNilModel = errors.New("embeddingclient: nil model")
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *OutputMetadata) Set(key string, value any) error
 image: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
@@ -328,6 +417,28 @@ speech: type ResponseMetadata struct { Model string `json:"model"` Created int64
 speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
 speech: type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 speech: var ( ErrInvalidOptions = errors.New("speech: invalid options") ErrInvalidRequest = errors.New("speech: invalid request") ErrInvalidResponse = errors.New("speech: invalid response") )
+tokenizer: type Decoder interface { Decode(context.Context, []int) (string, error) }
+tokenizer: type Encoder interface { Encode(context.Context, string) ([]int, error) }
+tokenizer: type TextEstimator interface { EstimateText(context.Context, string) (int, error) }
+tokenizer: type Tokenizer interface { Encoder Decoder }
+tool: func (f Func[In, Out]) Call(ctx context.Context, arguments string) (string, error)
+tool: func (f Func[In, Out]) Definition() chat.ToolDefinition
+tool: func (r *Registry) Definitions() []chat.ToolDefinition
+tool: func (r *Registry) Register(values ...Tool) error
+tool: func (r *Registry) Resolve(name string) (Tool, bool)
+tool: func (s schemaContract) JSON() json.RawMessage
+tool: func Capability[T any](value Tool) (capability T, found bool, err error)
+tool: func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (Func[In, Out], error)
+tool: func NewRegistry(initial ...Tool) (*Registry, error)
+tool: func Schema[T any]() (json.RawMessage, error)
+tool: type FuncConfig struct { Name string Description string }
+tool: type Func[In, Out any] struct { config FuncConfig input schemaContract function func(context.Context, In) (Out, error) }
+tool: type Registry struct { mu sync.RWMutex entries map[string]entry }
+tool: type Tool interface { Definition() chat.ToolDefinition Call(ctx context.Context, arguments string) (string, error) }
+tool: type WrappingTool interface { Unwrap() Tool }
+tool: var ( ErrDuplicateTool = errors.New("tool: duplicate tool") ErrInvalidRegistry = errors.New("tool: invalid registry") )
+tool: var ErrInvalidTool = errors.New("tool: invalid tool")
+tool: var ErrInvalidWrappingChain = errors.New("tool: invalid wrapping chain")
 transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 transcription: func (m *OutputMetadata) Set(key string, value any) error
 transcription: func (m *OutputMetadata) UnmarshalJSON(data []byte) error
@@ -485,6 +596,23 @@ vectorstore/filter: type Selector interface { Expr Path() ([]string, error) sele
 vectorstore/filter: type SyntaxError struct { Position Position Token string Message string }
 vectorstore/filter: type UnaryExpr struct { operator Operator right Predicate start Position end Position }
 vectorstore/filter: type Visitor interface { Visit(Predicate) error }
+vectorstore/inmemory: const Provider = "InMemory"
+vectorstore/inmemory: func (c StoreConfig) Validate() error
+vectorstore/inmemory: func (e *evaluator) Visit(predicate filter.Predicate) error
+vectorstore/inmemory: func (s *Store) Clear()
+vectorstore/inmemory: func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error)
+vectorstore/inmemory: func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error)
+vectorstore/inmemory: func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error)
+vectorstore/inmemory: func (s *Store) Len() int
+vectorstore/inmemory: func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error)
+vectorstore/inmemory: func CosineSimilarity(a, b []float64) vectorstore.Score
+vectorstore/inmemory: func DotProductSimilarity(a, b []float64) vectorstore.Score
+vectorstore/inmemory: func EuclideanSimilarity(a, b []float64) vectorstore.Score
+vectorstore/inmemory: func NewStore(cfg StoreConfig) (*Store, error)
+vectorstore/inmemory: type Similarity func(a, b []float64) vectorstore.Score
+vectorstore/inmemory: type Store struct { embeddingClient embeddingclient.Client similarity Similarity mu sync.RWMutex records map[string]record }
+vectorstore/inmemory: type StoreConfig struct { EmbeddingModel embedding.Model Similarity Similarity }
+vectorstore/inmemory: var ErrMissingEmbeddingModel = errors.New("inmemory: EmbeddingModel is required")
 vectorstore/storetest: func Run(t *testing.T, store any, want Capabilities)
 vectorstore/storetest: func VisitorConformance(t *testing.T, build BuildFn, opts ...Options)
 vectorstore/storetest: func VisitorLifecycle(t *testing.T, factory func() Compiler)

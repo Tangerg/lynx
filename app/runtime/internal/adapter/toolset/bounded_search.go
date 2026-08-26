@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"

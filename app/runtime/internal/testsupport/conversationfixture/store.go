@@ -6,8 +6,8 @@ package conversationfixture
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/chathistory"
-	"github.com/Tangerg/lynx/chathistory/inmemory"
+	"github.com/Tangerg/lynx/core/chathistory"
+	"github.com/Tangerg/lynx/core/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

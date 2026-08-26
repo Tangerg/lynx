@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/Tangerg/lynx/core/chat"
 )

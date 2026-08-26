@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTTSModelConfig struct {
@@ -74,6 +74,23 @@ func (s SpeechInputSchema) Validate() error {
 		seen[key] = struct{}{}
 	}
 	return nil
+}
+
+func (s SpeechInputSchema) validateOptions(options tts.Options) error {
+	unsupported := make([]string, 0, 3)
+	if options.OutputFormat != "" {
+		unsupported = append(unsupported, "output_format")
+	}
+	if options.Speed != 0 && s.SpeedKey == "" {
+		unsupported = append(unsupported, "speed")
+	}
+	if options.Voice != "" && s.VoiceKey == "" {
+		unsupported = append(unsupported, "voice")
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	return fmt.Errorf("replicate: speech: unsupported options: %s", strings.Join(unsupported, ", "))
 }
 
 // XTTSV2SpeechInputSchema returns the official schema binding for the pinned
@@ -142,11 +159,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if mergedOpts.Model != a.model {
 		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", mergedOpts.Model, a.model)
 	}
-	if err := options.RejectUnsupported("replicate: speech", map[string]bool{
-		"output_format": mergedOpts.OutputFormat != "",
-		"speed":         mergedOpts.Speed != 0 && a.inputSchema.SpeedKey == "",
-		"voice":         mergedOpts.Voice != "" && a.inputSchema.VoiceKey == "",
-	}); err != nil {
+	if err := a.inputSchema.validateOptions(mergedOpts); err != nil {
 		return nil, err
 	}
 

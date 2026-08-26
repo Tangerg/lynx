@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/models/ollama
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260826030243-00f87ed5a24f
+	github.com/Tangerg/lynx/core v0.0.0
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826030511-a2e31eda9de1
 )
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

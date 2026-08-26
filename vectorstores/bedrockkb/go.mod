@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/vectorstores/bedrockkb
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3
+	github.com/Tangerg/lynx/core v0.0.0
 	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.55.3
 )

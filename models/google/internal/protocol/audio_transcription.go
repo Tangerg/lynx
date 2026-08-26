@@ -10,7 +10,6 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -87,9 +86,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := options.RejectUnsupported("google: transcription", map[string]bool{
-		"language": mergedOpts.Language != "",
-	}); err != nil {
+	if err := a.validateOptions(mergedOpts); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -114,6 +111,13 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	}
 
 	return mergedOpts.Model, contents, cfg, nil
+}
+
+func (*AudioTranscriptionModel) validateOptions(options transcription.Options) error {
+	if options.Language != "" {
+		return errors.New("google: transcription: language is not supported")
+	}
+	return nil
 }
 
 func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.GenerateContentResponse) (*transcription.Response, error) {

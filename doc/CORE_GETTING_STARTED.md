@@ -9,12 +9,12 @@
 | 需求 | 使用包 |
 |---|---|
 | 定义消息、请求、响应和最小 Model SPI | `core/chat` |
-| 默认参数、middleware、同步/流式调用、模板和结构化输出 | `chatclient` |
-| 最小工具契约、decorator 能力发现和 typed/schema 辅助 | `tool` |
+| 默认参数、middleware、同步/流式调用、模板和结构化输出 | `core/chatclient` |
+| 最小工具契约、Registry、decorator 能力发现和 typed/schema 辅助 | `core/tool` |
 | 实例工具集合与 Registry | `tools` |
-| 把 typed function 变成可执行工具 | `tool` |
+| 把 typed function 变成可执行工具 | `core/tool` |
 | 可恢复的模型/工具自主循环、暂停/恢复和子 Process | `agent`、`agent/interaction` |
-| 聊天历史 | `chathistory` |
+| 聊天历史 contract、middleware 与内存实现 | `core/chathistory` |
 | OpenTelemetry | `otel/chat`、`otel/chathistory`、`otel/vectorstore`、`otel/slog` |
 
 Provider 只需实现 `chat.Model`；流式能力独立实现 `chat.Streamer`。当前
@@ -137,8 +137,8 @@ decoder 接受完整 JSON、JSON markdown fence 和单个被说明文字包围�
 ## 7. 下一步
 
 - `go doc github.com/Tangerg/lynx/core/chat`
-- `go doc github.com/Tangerg/lynx/chatclient`
-- `go doc github.com/Tangerg/lynx/tool`
+- `go doc github.com/Tangerg/lynx/core/chatclient`
+- `go doc github.com/Tangerg/lynx/core/tool`
 - `go doc github.com/Tangerg/lynx/tools`
 - `go doc github.com/Tangerg/lynx/agent`
 - `go doc github.com/Tangerg/lynx/agent/interaction`

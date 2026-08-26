@@ -13,7 +13,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
 type ImageModelConfig struct {
@@ -88,11 +87,7 @@ func (m *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if err := options.RejectUnsupported("vertexai: image", map[string]bool{
-		"height":          mergedOpts.Height != nil,
-		"negative_prompt": mergedOpts.NegativePrompt != "",
-		"width":           mergedOpts.Width != nil,
-	}); err != nil {
+	if err := m.validateOptions(mergedOpts); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -139,6 +134,19 @@ func (m *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 	}
 	contents := []*genai.Content{genai.NewContentFromParts(parts, genai.RoleUser)}
 	return mergedOpts.Model, contents, &config, nil
+}
+
+func (*ImageModel) validateOptions(options image.Options) error {
+	switch {
+	case options.Height != nil:
+		return errors.New("vertexai: image: height is not supported")
+	case options.NegativePrompt != "":
+		return errors.New("vertexai: image: negative_prompt is not supported")
+	case options.Width != nil:
+		return errors.New("vertexai: image: width is not supported")
+	default:
+		return nil
+	}
 }
 
 func vertexImagePart(value *media.Media) (*genai.Part, error) {

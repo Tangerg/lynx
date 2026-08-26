@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/document"
 )
 

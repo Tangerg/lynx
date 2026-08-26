@@ -103,8 +103,8 @@ func isPackageOrChild(importPath string, packagePrefix string) bool {
 }
 
 func isInteractionDependency(importPath string) bool {
-	return isPackageOrChild(importPath, "github.com/Tangerg/lynx/chatclient") ||
-		isPackageOrChild(importPath, "github.com/Tangerg/lynx/tool") ||
+	return isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/chatclient") ||
+		isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/tool") ||
 		isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/chat")
 }
 

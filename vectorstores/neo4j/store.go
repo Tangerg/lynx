@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/core/embeddingclient"
 )
 
 const Provider = "Neo4j"

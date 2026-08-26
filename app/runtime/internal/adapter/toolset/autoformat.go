@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 const (

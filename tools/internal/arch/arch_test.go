@@ -37,7 +37,7 @@ func TestRootToolsOwnOnlyCollections(t *testing.T) {
 			importPath := strings.Trim(spec.Path.Value, `"`)
 			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/") &&
 				importPath != "github.com/Tangerg/lynx/core/chat" &&
-				importPath != "github.com/Tangerg/lynx/tool" {
+				importPath != "github.com/Tangerg/lynx/core/tool" {
 				t.Errorf("root tools production file %s imports non-collection dependency %s", name, importPath)
 			}
 		}

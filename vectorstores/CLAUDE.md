@@ -9,7 +9,7 @@
 
 - **一组小能力接口,多个数据库后端**:上层只要求实际调用的能力,不通过胖 `Store` 强迫只读或不可删后端伪实现方法。
 - **加后端 = 实现真实能力 + 写 filter compiler**,不动统一的 filter 语义。
-- **一个后端一个公开包**:`vectorstores/<backend>` 只携带自己的实现；后端之间禁止互相 import。需要第三方 SDK 的后端以依赖岛 module 隔离。只有共享同一 pgwire/pgvector 技术栈的 PostgreSQL 家族共用 `vectorstores/postgres` module，并各自保留 `pgvector`、`cockroachdb` 公开包；非 PostgreSQL 后端不得继承这组依赖。
+- **一个外部后端一个叶子 module**：`vectorstores/<backend>` 只携带自己的实现；后端之间禁止互相 import。只有共享同一 pgwire/pgvector 技术栈的 PostgreSQL 家族共用 `vectorstores/postgres` module，并各自保留 `pgvector`、`cockroachdb` 公开包。零依赖参考实现位于 `core/vectorstore/inmemory`，不属于 provider namespace。
 
 ## 架构心智
 
@@ -33,4 +33,4 @@
 
 - **动 core 的 filter AST/Visitor**:所有后端 compiler 都要跟,先跑共享 conformance 套件。
 - **动能力接口**:是 core 的契约,爆炸半径 = 实现该能力的后端 + 对应消费方(如 rag)。
-- **加新后端**:拿内存实现当模板,只实现真实能力并注册进 conformance 套件。
+- **加新后端**：参考 `core/vectorstore/inmemory` 的契约语义，在独立 module 中只实现真实能力并运行 conformance 套件。

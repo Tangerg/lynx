@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chatclient"
 )
 
 // LoadConfig loads the app config and resolves provider defaults plus env-key

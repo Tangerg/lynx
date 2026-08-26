@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ImageModelConfig struct {
@@ -105,6 +104,29 @@ func (s ImageInputSchema) Validate() error {
 	return nil
 }
 
+func (s ImageInputSchema) validateOptions(options image.Options) error {
+	unsupported := make([]string, 0, 5)
+	if options.Height != nil && s.HeightKey == "" {
+		unsupported = append(unsupported, "height")
+	}
+	if options.NegativePrompt != "" && s.NegativePromptKey == "" {
+		unsupported = append(unsupported, "negative_prompt")
+	}
+	if options.OutputFormat != "" && s.OutputFormatKey == "" {
+		unsupported = append(unsupported, "output_format")
+	}
+	if options.Seed != nil && s.SeedKey == "" {
+		unsupported = append(unsupported, "seed")
+	}
+	if options.Width != nil && s.WidthKey == "" {
+		unsupported = append(unsupported, "width")
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	return fmt.Errorf("replicate: image: unsupported options: %s", strings.Join(unsupported, ", "))
+}
+
 // FluxSchnellImageInputSchema returns the current official schema binding for
 // black-forest-labs/flux-schnell. Dimensions, seed, and negative prompt are
 // intentionally absent because that model's current schema does not expose
@@ -177,13 +199,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if mergedOpts.Model != i.model {
 		return nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", mergedOpts.Model, i.model)
 	}
-	if err := options.RejectUnsupported("replicate: image", map[string]bool{
-		"height":          mergedOpts.Height != nil && i.inputSchema.HeightKey == "",
-		"negative_prompt": mergedOpts.NegativePrompt != "" && i.inputSchema.NegativePromptKey == "",
-		"output_format":   mergedOpts.OutputFormat != "" && i.inputSchema.OutputFormatKey == "",
-		"seed":            mergedOpts.Seed != nil && i.inputSchema.SeedKey == "",
-		"width":           mergedOpts.Width != nil && i.inputSchema.WidthKey == "",
-	}); err != nil {
+	if err := i.inputSchema.validateOptions(mergedOpts); err != nil {
 		return nil, err
 	}
 	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](ImageRequestExtensionKey)

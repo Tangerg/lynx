@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 

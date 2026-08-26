@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/embeddingclient"
+	"github.com/Tangerg/lynx/core/embeddingclient"
 
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"

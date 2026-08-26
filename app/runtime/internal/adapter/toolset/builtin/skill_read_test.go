@@ -11,7 +11,7 @@ import (
 	"time"
 
 	skillspec "github.com/Tangerg/lynx/skills"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 )

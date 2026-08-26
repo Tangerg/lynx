@@ -32,7 +32,7 @@
 
 ## 定位与导览
 
-`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定稳定协议与最小 SPI，`models` 适配 LLM provider，`vectorstores` 适配向量库，`tools` 提供工具运行时，`agent` 跑 planner 驱动的 runtime，`app/runtime` 是 in-house backend runtime；`chatclient`、`documentpipeline`、`tokenizer` 按 Core 演进计划从协议层拆出，其余模块（`rag` / `chathistory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
+`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是标准库限定的稳定基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`tools`、`documentpipeline`、`documentreaders`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`chathistory/<provider>` 与网络工具 provider 是独立叶子模块。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
 
 ---
 

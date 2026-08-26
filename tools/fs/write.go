@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/tool"
+	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
 // WriteRequest is the LLM-facing argument shape for the write tool.

@@ -3,20 +3,38 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260826030651-a44943bd78f3
+	github.com/Tangerg/lynx/core v0.0.0
 	github.com/Tangerg/lynx/a2a v0.0.0-20260825133344-d508117a2e44
 	github.com/Tangerg/lynx/agent v0.0.0-20260826030651-a44943bd78f3
 	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
 	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71
-	github.com/Tangerg/lynx/models v0.0.0-20260826030651-a44943bd78f3
+	github.com/Tangerg/lynx/models/alibaba v0.0.0
+	github.com/Tangerg/lynx/models/anthropic v0.0.0
+	github.com/Tangerg/lynx/models/azureopenai v0.0.0
+	github.com/Tangerg/lynx/models/catalog v0.0.0
+	github.com/Tangerg/lynx/models/deepseek v0.0.0
+	github.com/Tangerg/lynx/models/fireworks v0.0.0
 	github.com/Tangerg/lynx/models/google v0.0.0-20260826030651-a44943bd78f3
+	github.com/Tangerg/lynx/models/groq v0.0.0
+	github.com/Tangerg/lynx/models/huggingface v0.0.0
+	github.com/Tangerg/lynx/models/minimax v0.0.0
+	github.com/Tangerg/lynx/models/mistral v0.0.0
+	github.com/Tangerg/lynx/models/moonshot v0.0.0
+	github.com/Tangerg/lynx/models/openai v0.0.0
+	github.com/Tangerg/lynx/models/openrouter v0.0.0
+	github.com/Tangerg/lynx/models/perplexity v0.0.0
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826030651-a44943bd78f3
+	github.com/Tangerg/lynx/models/together v0.0.0
+	github.com/Tangerg/lynx/models/xai v0.0.0
+	github.com/Tangerg/lynx/models/xiaomi v0.0.0
+	github.com/Tangerg/lynx/models/zhipu v0.0.0
 	github.com/Tangerg/lynx/otel v0.0.0-20260826030651-a44943bd78f3
 	github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb
+	github.com/Tangerg/lynx/tools v0.0.0
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260825142415-d09c68692be1
-	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803212807-75ccd6a3db12
-	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803212807-75ccd6a3db12
+	github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0
+	github.com/Tangerg/lynx/tools/websearch/tavily v0.0.0
 	github.com/Tangerg/sse v0.0.5
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1
