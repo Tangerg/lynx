@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/embeddingclient"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores/postgres/internal/pgstore"
 )
 

@@ -337,6 +337,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-26 | Go 1.27 formatting hygiene | 统一 Agent examples 与 Interaction 文件的标准 import 排序；没有改变公开 API、wire、状态机、并发或 Host 边界 | 非 app module 全量 lint 为 0 issue；Agent 独立 build/vet/test/tidy-diff 全绿，定向 active-child 与根 package 非缓存重跑通过 |
 | 2026-08-26 | P24（Baseline 27） | Planning `Truth` 直接以 `unknown/false/true` 作为唯一身份并拥有验证与严格 JSON codec；删除 ordinal 身份，空零值不再静默等于 Unknown | Planning public digest 显式升级；JSON、state/protocol digest、schema version、搜索与恢复语义不变，standalone 门禁在本批收口 |
 | 2026-08-26 | P23（Baseline 26） | Kernel 稳定文本 enum 由 `uint8 + String/parse switch + wire string` 收敛为 named string value object；聚合通过领域 `Valid` 校验，状态规则显式列举，不再依赖序号。Event payload 与 OTel adapter 共享 typed `StepStatus`，删除 `"succeeded"`/`"failed"` 裸字符串；内部 FSM、三值逻辑、位掩码不机械迁移 | JSON 字段和值、schema version 与行为保持不变；root public、Kernel wire 与 observation wire digest 显式升级，standalone build/vet/test/race 在本批完成前统一验收 |
 | 2026-08-26 | P22（Baseline 25） | Core 六个模型模态将响应内产物从 Result/Results 统一为 Output/Outputs，Interaction 同步使用单 `Response.Output`；因 state、settlement 与 Delta 嵌入 Core Chat wire，ExecutionState/protocol 升级为 v8/v7且不双读旧版本 | Core API/wire baseline、Interaction owner wire、provider、Runtime 与 workspace 消费者在本批统一迁移和验收；Agent 公共 API、Kernel、其他 Strategy 与共同 snapshot/observation wire不变 |

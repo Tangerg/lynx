@@ -14,8 +14,8 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/documentpipeline"
 	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/lynx/documentpipeline"
 )
 
 const (

@@ -14,7 +14,7 @@ import (
 func TestProductionDependencyBoundary(t *testing.T) {
 	allowed := map[string]bool{
 		"github.com/Tangerg/lynx/core/tokenizer": true,
-		"github.com/pkoukk/tiktoken-go":     true,
+		"github.com/pkoukk/tiktoken-go":          true,
 	}
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
