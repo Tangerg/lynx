@@ -23,14 +23,14 @@ require (
 	github.com/Tangerg/lynx/models/openai v0.0.0
 	github.com/Tangerg/lynx/models/openrouter v0.0.0
 	github.com/Tangerg/lynx/models/perplexity v0.0.0
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826030651-a44943bd78f3
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/models/together v0.0.0
 	github.com/Tangerg/lynx/models/xai v0.0.0
 	github.com/Tangerg/lynx/models/xiaomi v0.0.0
 	github.com/Tangerg/lynx/models/zhipu v0.0.0
 	github.com/Tangerg/lynx/otel v0.0.0-20260826030651-a44943bd78f3
-	github.com/Tangerg/lynx/skills v0.0.0-20260825142300-18eaf5d45cbb
-	github.com/Tangerg/lynx/tools v0.0.0
+	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260825142415-d09c68692be1
 	github.com/Tangerg/lynx/tools/webfetch/jina v0.0.0

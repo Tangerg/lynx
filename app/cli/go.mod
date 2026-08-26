@@ -27,8 +27,8 @@ require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22 // indirect
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10 // indirect
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
-	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af // indirect
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826074258-420034c45aec // indirect
+	github.com/Tangerg/lynx/skills v0.0.0-20260826074033-2e35cbad116b // indirect
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad // indirect
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803203708-339a9f1da83c // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
