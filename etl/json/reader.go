@@ -44,19 +44,19 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err != nil {
 		return nil, fmt.Errorf("json reader: read source: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
 	}
 
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
 		return r.parseArray(ctx, trimmed)
 	}
-	if err := json.Unmarshal(trimmed, new(any)); err != nil {
-		return nil, fmt.Errorf("json reader: decode source: %w", err)
+	if unmarshalErr := json.Unmarshal(trimmed, new(any)); unmarshalErr != nil {
+		return nil, fmt.Errorf("json reader: decode source: %w", unmarshalErr)
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
 	}
 
 	doc, err := document.NewDocument(string(trimmed), nil)

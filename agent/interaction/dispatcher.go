@@ -188,8 +188,8 @@ func (d *Dispatcher) dispatchModel(
 		return agent.Settlement{}, err
 	}
 	modelRequest.Tools = definitions
-	if err := modelRequest.Validate(); err != nil {
-		return agent.Settlement{}, fmt.Errorf("interaction: prepare model request: %w", err)
+	if validateErr := modelRequest.Validate(); validateErr != nil {
+		return agent.Settlement{}, fmt.Errorf("interaction: prepare model request: %w", validateErr)
 	}
 	ctx = withModelInvocation(
 		ctx,
@@ -209,8 +209,8 @@ func (d *Dispatcher) dispatchModel(
 	if response == nil {
 		return modelFailureSettlement(request.ID(), errors.New("model returned a nil response"))
 	}
-	if err := response.Validate(); err != nil {
-		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", err))
+	if validateErr := response.Validate(); validateErr != nil {
+		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", validateErr))
 	}
 	d.observeModel(ctx, modelInvocationFromRequest(
 		request, call.ModelCallSequence, call.AppliedSteerSignalIDs,
@@ -375,8 +375,8 @@ func (t *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
 		)
 	}
 	if required != nil {
-		settlement, err := t.pause(uint32(t.start), *required)
-		return settlement, true, err
+		settlement, pauseErr := t.pause(uint32(t.start), *required)
+		return settlement, true, pauseErr
 	}
 	t.results = append(t.results, result)
 	t.advertisedToolNames, err = mergeAdvertisedToolNames(
@@ -418,8 +418,8 @@ func (t *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) 
 						call.ID,
 					)
 				}
-				settlement, err := t.pause(uint32(t.start+offset), *outcome.required)
-				return settlement, true, err
+				settlement, pauseErr := t.pause(uint32(t.start+offset), *outcome.required)
+				return settlement, true, pauseErr
 			}
 		}
 		for _, outcome := range outcomes {

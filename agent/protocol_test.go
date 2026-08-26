@@ -146,8 +146,8 @@ func TestFrameworkAndChildProtocolsRejectPriorSchemaVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	priorWaitPayload := withSchemaVersion(t, waitEffect.Payload(), 1)
-	if _, _, err := decodeWaitRequestPayload(priorWaitPayload); !errors.Is(err, ErrInvalidEffect) {
-		t.Fatalf("prior Framework Effect error = %v, want ErrInvalidEffect", err)
+	if _, _, decodeWaitRequestPayloadErr := decodeWaitRequestPayload(priorWaitPayload); !errors.Is(decodeWaitRequestPayloadErr, ErrInvalidEffect) {
+		t.Fatalf("prior Framework Effect error = %v, want ErrInvalidEffect", decodeWaitRequestPayloadErr)
 	}
 
 	childKey, _ := ParseChildKey("child:prior-version")

@@ -70,8 +70,8 @@ func run(ctx context.Context, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("platform execution: %w", err)
 	}
-	if err := compareRuns(embedded, governed); err != nil {
-		return err
+	if compareRunsErr := compareRuns(embedded, governed); compareRunsErr != nil {
+		return compareRunsErr
 	}
 	_, err = fmt.Fprintf(
 		output,

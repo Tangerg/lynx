@@ -319,8 +319,8 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil && !errors.Is(err, agent.ErrEngineHasActiveProcesses) {
-			t.Errorf("Close: %v", err)
+		if closeErr := engine.Close(); closeErr != nil && !errors.Is(closeErr, agent.ErrEngineHasActiveProcesses) {
+			t.Errorf("Close: %v", closeErr)
 		}
 	})
 	input, _ := agent.EncodeInput(struct{}{})
@@ -349,8 +349,8 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := process.ResolveEffect(context.Background(), settlement); err != nil {
-		t.Fatal(err)
+	if resolveEffectErr := process.ResolveEffect(context.Background(), settlement); resolveEffectErr != nil {
+		t.Fatal(resolveEffectErr)
 	}
 	result, err := process.Await(context.Background())
 	if err != nil {
@@ -611,8 +611,8 @@ func runManaged(t testing.TB, config agent.EngineConfig, deployment agent.Deploy
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := engine.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Errorf("Close: %v", closeErr)
 		}
 	}()
 	input, err := agent.EncodeInput(struct{}{})

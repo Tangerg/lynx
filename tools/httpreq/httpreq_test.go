@@ -169,8 +169,8 @@ func TestDo_RedirectHostAllowlist(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := httpClient.CheckRedirect(nil, nil); !errors.Is(err, callerPolicyErr) {
-			t.Fatalf("NewClient mutated caller-owned redirect policy: %v", err)
+		if checkRedirectErr := httpClient.CheckRedirect(nil, nil); !errors.Is(checkRedirectErr, callerPolicyErr) {
+			t.Fatalf("NewClient mutated caller-owned redirect policy: %v", checkRedirectErr)
 		}
 		_, err = client.Do(t.Context(), &Request{URL: source.URL})
 		if !errors.Is(err, ErrHostNotAllowed) {

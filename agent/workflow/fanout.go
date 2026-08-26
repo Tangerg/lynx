@@ -142,8 +142,8 @@ func (f fanoutOutputDecoder) decode[T any](encodedOutputs []json.RawMessage) ([]
 		if err != nil {
 			return nil, fmt.Errorf("%s %q %s %d output: %w", f.stageName, f.stageID, f.memberName, index, err)
 		}
-		if err := f.schema.ValidateOutput(output); err != nil {
-			return nil, fmt.Errorf("%s %q %s %d output contract: %w", f.stageName, f.stageID, f.memberName, index, err)
+		if validateOutputErr := f.schema.ValidateOutput(output); validateOutputErr != nil {
+			return nil, fmt.Errorf("%s %q %s %d output contract: %w", f.stageName, f.stageID, f.memberName, index, validateOutputErr)
 		}
 		decoded, err := output.Decode[T]()
 		if err != nil {

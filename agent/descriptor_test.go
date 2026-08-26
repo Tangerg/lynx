@@ -32,8 +32,8 @@ func TestDescriptorOwnsContractAndValidatesValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := descriptor.ValidateInput(input); err != nil {
-		t.Fatal(err)
+	if validateInputErr := descriptor.ValidateInput(input); validateInputErr != nil {
+		t.Fatal(validateInputErr)
 	}
 	output, err := ParseOutput([]byte(`{"message":false}`))
 	if err != nil {
@@ -96,16 +96,16 @@ func TestDescriptorJSONRejectsDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	var decoded Descriptor
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
+	if unmarshalErr := json.Unmarshal(data, &decoded); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
 	}
 	if decoded.Digest() != descriptor.Digest() {
 		t.Fatalf("decoded digest = %q, want %q", decoded.Digest(), descriptor.Digest())
 	}
 
 	var wire map[string]any
-	if err := json.Unmarshal(data, &wire); err != nil {
-		t.Fatal(err)
+	if unmarshalErr := json.Unmarshal(data, &wire); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
 	}
 	wire["version"] = "1.0.1"
 	tampered, err := json.Marshal(wire)

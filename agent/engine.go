@@ -211,14 +211,14 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 	admission := newProcessAdmission(
 		relation, deployment, budget, e.capabilities, startedAt,
 	)
-	if err := e.reserveProcessStart(
+	if reserveProcessStartErr := e.reserveProcessStart(
 		relation, deployment.DeploymentRef(), e.treeLimits, Digest{},
-	); err != nil {
-		return nil, err
+	); reserveProcessStartErr != nil {
+		return nil, reserveProcessStartErr
 	}
-	if err := requestProcessAdmission(ctx, e.admitter, admission); err != nil {
+	if requestProcessAdmissionErr := requestProcessAdmission(ctx, e.admitter, admission); requestProcessAdmissionErr != nil {
 		e.discardProcessStartReservation(id)
-		return nil, err
+		return nil, requestProcessAdmissionErr
 	}
 	execution, state, failure, err := initializeExecution(deployment.Definition(), input)
 	if err != nil {

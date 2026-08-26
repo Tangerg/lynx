@@ -154,8 +154,8 @@ func TestTerminalTreeSnapshotClosesUnconsumedChildWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForProcessStatus(t, root, StatusWaiting)
-	if err := root.Kill(context.Background(), "capture terminal tree"); err != nil {
-		t.Fatal(err)
+	if killErr := root.Kill(context.Background(), "capture terminal tree"); killErr != nil {
+		t.Fatal(killErr)
 	}
 	if result := mustAwait(t, root); result.Status() != StatusKilled {
 		t.Fatalf("root status = %s", result.Status())
@@ -200,8 +200,8 @@ func testTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 	}
 	captured := make(chan captureResult, 1)
 	go func() {
-		snapshot, err := engine.CaptureTree(context.Background(), root.ID())
-		captured <- captureResult{snapshot: snapshot, err: err}
+		snapshot, captureTreeErr := engine.CaptureTree(context.Background(), root.ID())
+		captured <- captureResult{snapshot: snapshot, err: captureTreeErr}
 	}()
 	synctest.Wait()
 	select {
@@ -215,9 +215,9 @@ func testTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 		t.Fatal(result.err)
 	}
 	for _, snapshot := range result.snapshot.ProcessSnapshots() {
-		wire, err := snapshot.wire()
-		if err != nil {
-			t.Fatal(err)
+		wire, wireErr := snapshot.wire()
+		if wireErr != nil {
+			t.Fatal(wireErr)
 		}
 		if wire.Prepared != nil {
 			for _, effect := range wire.Prepared.Effects {
@@ -263,11 +263,11 @@ func TestTreeRestoreResolvesEveryExactDeployment(t *testing.T) {
 	}
 
 	withoutResolver, _ := NewEngine(EngineConfig{})
-	if _, err := withoutResolver.RestoreTree(context.Background(), parentDeployment, tree); !errors.Is(err, ErrInvalidTreeSnapshot) {
-		t.Fatalf("missing resolver error = %v", err)
+	if _, restoreTreeErr := withoutResolver.RestoreTree(context.Background(), parentDeployment, tree); !errors.Is(restoreTreeErr, ErrInvalidTreeSnapshot) {
+		t.Fatalf("missing resolver error = %v", restoreTreeErr)
 	}
-	if err := withoutResolver.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := withoutResolver.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	restoredEngine, _ := NewEngine(EngineConfig{DeploymentResolver: resolver})
 	restored, err := restoredEngine.RestoreTree(context.Background(), parentDeployment, tree)
@@ -470,8 +470,8 @@ func completedTreeSnapshot(t testing.TB) TreeSnapshot {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result, err := root.Await(context.Background()); err != nil || result.Status() != StatusCompleted {
-		t.Fatalf("root result = %#v, error = %v", result, err)
+	if result, awaitErr := root.Await(context.Background()); awaitErr != nil || result.Status() != StatusCompleted {
+		t.Fatalf("root result = %#v, error = %v", result, awaitErr)
 	}
 	tree, err := engine.CaptureTree(context.Background(), root.ID())
 	if err != nil {

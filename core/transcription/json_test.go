@@ -47,8 +47,8 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := transcription.Request{Audio: audio}
-	if err := json.Unmarshal([]byte(`{"audio":null}`), &request); !errors.Is(err, transcription.ErrInvalidRequest) {
-		t.Fatalf("Unmarshal Request error = %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(`{"audio":null}`), &request); !errors.Is(unmarshalErr, transcription.ErrInvalidRequest) {
+		t.Fatalf("Unmarshal Request error = %v", unmarshalErr)
 	}
 	if request.Audio != audio {
 		t.Fatalf("failed Request decode mutated receiver: %#v", request)

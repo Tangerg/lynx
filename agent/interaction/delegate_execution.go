@@ -38,8 +38,8 @@ func (e *execution) startDelegateSegment(
 			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
-		if err := delegate.validateInput(input); err != nil {
-			result := delegateErrorResult(call, "arguments violate the delegated worker input contract: "+err.Error())
+		if validateInputErr := delegate.validateInput(input); validateInputErr != nil {
+			result := delegateErrorResult(call, "arguments violate the delegated worker input contract: "+validateInputErr.Error())
 			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
@@ -80,8 +80,8 @@ func (e *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transiti
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	calls, err := e.activeCallSegment()
 	if err != nil || e.state.DelegateSegment == nil {
@@ -120,9 +120,9 @@ func (e *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transiti
 	}
 	children := e.delegateChildren()
 	if len(children) == 0 {
-		results, err := delegateSegmentResults(*e.state.DelegateSegment)
-		if err != nil {
-			return agent.Transition{}, err
+		results, delegateSegmentResultsErr := delegateSegmentResults(*e.state.DelegateSegment)
+		if delegateSegmentResultsErr != nil {
+			return agent.Transition{}, delegateSegmentResultsErr
 		}
 		e.state.SettledToolResults = append(e.state.SettledToolResults, results...)
 		e.state.NextToolCallIndex = e.state.ActiveToolCallEndIndex
@@ -149,8 +149,8 @@ func (e *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transiti
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	want, err := e.delegateWaitSpec()
 	if err != nil {
@@ -171,8 +171,8 @@ func (e *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, e
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	if e.state.WaitID == nil || completed.WaitID() != *e.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion addressed the wrong wait", ErrInvalidExecutionState)

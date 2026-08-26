@@ -38,8 +38,8 @@ func ParseSchema(data json.RawMessage) (Schema, error) {
 	compiler := validationjsonschema.NewCompiler()
 	compiler.DefaultDraft(validationjsonschema.Draft2020)
 	compiler.UseLoader(validationjsonschema.SchemeURLLoader{})
-	if err := compiler.AddResource(schemaResourceURL, document); err != nil {
-		return Schema{}, fmt.Errorf("%w: add resource: %w", ErrInvalidSchema, err)
+	if addResourceErr := compiler.AddResource(schemaResourceURL, document); addResourceErr != nil {
+		return Schema{}, fmt.Errorf("%w: add resource: %w", ErrInvalidSchema, addResourceErr)
 	}
 	compiled, err := compiler.Compile(schemaResourceURL)
 	if err != nil {

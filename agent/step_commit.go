@@ -64,9 +64,9 @@ func (p *processLoop) prepareNextStep(ctx context.Context) {
 		return
 	}
 	if output, completes := transition.Output(); completes {
-		if err := p.deployment.Descriptor().ValidateOutput(output); err != nil {
+		if validateOutputErr := p.deployment.Descriptor().ValidateOutput(output); validateOutputErr != nil {
 			p.discardExecution()
-			p.fail(FailureKindContract, "execution.output.invalid", err)
+			p.fail(FailureKindContract, "execution.output.invalid", validateOutputErr)
 			return
 		}
 	}
@@ -248,8 +248,8 @@ func (p *preparedStepFinalization) registerChildWait(record preparedEffectWire) 
 		return WaitID{}, errors.New("invalid child-wait Effect")
 	}
 	waitID := *record.WaitID
-	if err := p.mailbox.registerWait(spec.Key, waitID, false); err != nil {
-		return WaitID{}, err
+	if registerWaitErr := p.mailbox.registerWait(spec.Key, waitID, false); registerWaitErr != nil {
+		return WaitID{}, registerWaitErr
 	}
 	immediateSignal, immediatelySatisfied, err := p.loop.engine.registerChildWait(
 		p.loop.controller.processID, waitID, spec,

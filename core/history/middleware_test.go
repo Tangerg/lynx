@@ -186,15 +186,15 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 	}
 	user := chat.NewUserMessage(chat.NewMediaPart(image))
 	user.Metadata = metadata.Map{}
-	if err := user.Metadata.Set("turn", 1); err != nil {
-		t.Fatal(err)
+	if setErr := user.Metadata.Set("turn", 1); setErr != nil {
+		t.Fatal(setErr)
 	}
 	temperature := 0.5
 	request := mustRequest(t, user)
 	request.Tools = []chat.ToolDefinition{{Name: "weather", InputSchema: []byte(`{"type":"object"}`)}}
 	request.Options = chat.Options{Temperature: &temperature, Stop: []string{"END"}}
-	if err := request.Options.SetExtension("test/value", "original"); err != nil {
-		t.Fatal(err)
+	if setExtensionErr := request.Options.SetExtension("test/value", "original"); setExtensionErr != nil {
+		t.Fatal(setExtensionErr)
 	}
 
 	store := &recordingStore{}

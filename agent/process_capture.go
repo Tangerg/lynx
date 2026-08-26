@@ -17,9 +17,9 @@ func prepareRestoredProcess(
 		)
 	}
 	if wire.Output != nil {
-		if err := deployment.Descriptor().ValidateOutput(*wire.Output); err != nil {
+		if validateOutputErr := deployment.Descriptor().ValidateOutput(*wire.Output); validateOutputErr != nil {
 			return nil, nil, processSnapshotWire{}, fmt.Errorf(
-				"%w: output schema: %w", ErrInvalidSnapshot, err,
+				"%w: output schema: %w", ErrInvalidSnapshot, validateOutputErr,
 			)
 		}
 	}

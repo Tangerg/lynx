@@ -105,8 +105,8 @@ func Transform[I, O any](id string, transform TransformFunc[I, O]) (Stage, error
 		if err != nil {
 			return nil, fmt.Errorf("transform %q input: %w", id, err)
 		}
-		if err := inputSchema.ValidateInput(input); err != nil {
-			return nil, fmt.Errorf("transform %q input contract: %w", id, err)
+		if validateInputErr := inputSchema.ValidateInput(input); validateInputErr != nil {
+			return nil, fmt.Errorf("transform %q input contract: %w", id, validateInputErr)
 		}
 		decoded, err := input.Decode[I]()
 		if err != nil {

@@ -270,15 +270,15 @@ func (p *parser) parseList() (*ListLiteral, error) {
 	}
 	values := []*Literal{first}
 	for p.current.kind == tokenComma {
-		if err := p.advance(); err != nil {
-			return nil, err
+		if advanceErr := p.advance(); advanceErr != nil {
+			return nil, advanceErr
 		}
 		if p.current.kind == tokenRightParen {
 			return nil, newSyntaxError(p.current.start, p.current.literal, "trailing comma in list")
 		}
-		value, err := p.parseLiteral()
-		if err != nil {
-			return nil, err
+		value, parseLiteralErr := p.parseLiteral()
+		if parseLiteralErr != nil {
+			return nil, parseLiteralErr
 		}
 		values = append(values, value)
 	}

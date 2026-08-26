@@ -31,8 +31,8 @@ func TestApplyPatch_MoveCarriesContentAndRemovesTheOrigin(t *testing.T) {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
 
-	if _, err := os.Stat(from); !os.IsNotExist(err) {
-		t.Errorf("origin still exists (err = %v)", err)
+	if _, statErr := os.Stat(from); !os.IsNotExist(statErr) {
+		t.Errorf("origin still exists (err = %v)", statErr)
 	}
 	landed, err := os.ReadFile(to)
 	if err != nil {

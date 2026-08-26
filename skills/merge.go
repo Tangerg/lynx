@@ -134,8 +134,8 @@ func (m *merged) resolve(ctx context.Context, name, operation string) (*skillBun
 			return nil, ctxErr
 		}
 		if err == nil {
-			if err := skill.Validate(); err != nil {
-				return nil, invalidSkill(name, err)
+			if validateErr := skill.Validate(); validateErr != nil {
+				return nil, invalidSkill(name, validateErr)
 			}
 			if skill.Name != name {
 				return nil, invalidSkill(name, fmt.Errorf(

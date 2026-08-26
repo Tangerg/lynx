@@ -100,13 +100,13 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := inline.Metadata.Set("origin", "caller"); err != nil {
-		t.Fatal(err)
+	if setErr := inline.Metadata.Set("origin", "caller"); setErr != nil {
+		t.Fatal(setErr)
 	}
 	message := chat.NewUserMessage(chat.NewMediaPart(inline))
 	message.Metadata = metadata.Map{}
-	if err := message.Metadata.Set("turn", 1); err != nil {
-		t.Fatal(err)
+	if setErr := message.Metadata.Set("turn", 1); setErr != nil {
+		t.Fatal(setErr)
 	}
 	assistant := chat.NewAssistantMessage(
 		chat.NewReasoningPart("thinking", []byte{4, 5}),
@@ -127,8 +127,8 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 			Stop:      []string{},
 		},
 	}
-	if err := request.Options.Extensions.Set("test/value", "caller"); err != nil {
-		t.Fatal(err)
+	if setErr := request.Options.Extensions.Set("test/value", "caller"); setErr != nil {
+		t.Fatal(setErr)
 	}
 
 	temperature := 0.25

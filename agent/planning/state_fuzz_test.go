@@ -56,8 +56,8 @@ func FuzzExecutionStateRestore(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	if _, err := execution.Step(context.Background(), nil); err != nil {
-		f.Fatal(err)
+	if _, stepErr := execution.Step(context.Background(), nil); stepErr != nil {
+		f.Fatal(stepErr)
 	}
 	awaiting, err := execution.Snapshot()
 	if err != nil {

@@ -189,8 +189,8 @@ func newEvaluatorOptimizer(
 			Threshold float64   `json:"threshold"`
 		}{Scores: frozenScores, Threshold: threshold},
 		func(state optimizationState) (optimizationState, error) {
-			if err := validatePendingState(state, threshold); err != nil {
-				return optimizationState{}, err
+			if validatePendingStateErr := validatePendingState(state, threshold); validatePendingStateErr != nil {
+				return optimizationState{}, validatePendingStateErr
 			}
 			index := len(state.History)
 			score := frozenScores[index]
@@ -208,8 +208,8 @@ func newEvaluatorOptimizer(
 				state.HasBest = true
 			}
 			state.Accepted = state.Best.Assessment.Score >= threshold
-			if err := validateSettledState(state, threshold); err != nil {
-				return optimizationState{}, err
+			if validateSettledStateErr := validateSettledState(state, threshold); validateSettledStateErr != nil {
+				return optimizationState{}, validateSettledStateErr
 			}
 			return state, nil
 		},
@@ -276,8 +276,8 @@ func newEvaluatorOptimizer(
 		ID: "refine", Body: iteration, Budget: iterationBudget,
 		MaxIterations: maxIterations,
 		Predicate: func(state optimizationState) (bool, error) {
-			if err := validateSettledState(state, threshold); err != nil {
-				return false, err
+			if validateSettledStateErr := validateSettledState(state, threshold); validateSettledStateErr != nil {
+				return false, validateSettledStateErr
 			}
 			return state.Accepted, nil
 		},
@@ -292,8 +292,8 @@ func newEvaluatorOptimizer(
 		if !result.Valid() || result.Satisfied != state.Accepted {
 			return optimizationReport{}, errors.New("loop result and acceptance state disagree")
 		}
-		if err := validateSettledState(state, threshold); err != nil {
-			return optimizationReport{}, err
+		if validateSettledStateErr := validateSettledState(state, threshold); validateSettledStateErr != nil {
+			return optimizationReport{}, validateSettledStateErr
 		}
 		if !state.HasBest || uint32(len(state.History)) != result.Iterations {
 			return optimizationReport{}, errors.New("loop result has incomplete attempt history")

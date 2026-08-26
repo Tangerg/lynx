@@ -45,8 +45,8 @@ func NewToolInputRequest(
 	if err != nil {
 		return ToolInputRequest{}, fmt.Errorf("%w: response schema: %w", ErrInvalidToolInputRequest, err)
 	}
-	if _, err := agent.ParseSchema(responseSchema); err != nil {
-		return ToolInputRequest{}, fmt.Errorf("%w: response schema: %w", ErrInvalidToolInputRequest, err)
+	if _, parseSchemaErr := agent.ParseSchema(responseSchema); parseSchemaErr != nil {
+		return ToolInputRequest{}, fmt.Errorf("%w: response schema: %w", ErrInvalidToolInputRequest, parseSchemaErr)
 	}
 	continuationState, err = canonicalJSON(continuationState)
 	if err != nil {

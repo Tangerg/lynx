@@ -45,16 +45,16 @@ func TestDeploymentRefStrictJSONRejectsTampering(t *testing.T) {
 		t.Fatal(err)
 	}
 	var decoded DeploymentRef
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
+	if unmarshalErr := json.Unmarshal(data, &decoded); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
 	}
 	if decoded != reference {
 		t.Fatalf("decoded DeploymentRef = %+v, want %+v", decoded, reference)
 	}
 
 	var wire map[string]any
-	if err := json.Unmarshal(data, &wire); err != nil {
-		t.Fatal(err)
+	if unmarshalErr := json.Unmarshal(data, &wire); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
 	}
 	wire["version"] = "9.9.9"
 	tampered, err := json.Marshal(wire)

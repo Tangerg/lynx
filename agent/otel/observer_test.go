@@ -122,8 +122,8 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	if result, runErr := engine.Run(context.Background(), testDeployment(t), input); runErr != nil || !result.Valid() {
 		t.Fatalf("result = %#v, error = %v", result, runErr)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	reader := sdkmetric.NewManualReader()

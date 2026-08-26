@@ -218,8 +218,8 @@ func TestResponseJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Metadata.Set("openai/system_fingerprint", "fp-1"); err != nil {
-		t.Fatal(err)
+	if setErr := response.Metadata.Set("openai/system_fingerprint", "fp-1"); setErr != nil {
+		t.Fatal(setErr)
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil {

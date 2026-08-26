@@ -169,8 +169,8 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatalf("Tools: %v", err)
 	}
 	defer func() {
-		if err := closeTools(); err != nil {
-			t.Fatalf("close tools: %v", err)
+		if closeToolsErr := closeTools(); closeToolsErr != nil {
+			t.Fatalf("close tools: %v", closeToolsErr)
 		}
 	}()
 

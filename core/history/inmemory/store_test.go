@@ -39,16 +39,16 @@ func TestStoreOwnsMessagesAndSupportsOptionalCapabilities(t *testing.T) {
 		t.Fatalf("second Read = %#v, %v", readAgain, err)
 	}
 
-	if count, err := store.Count(t.Context(), "conversation"); err != nil || count != 1 {
-		t.Fatalf("Count = %d, %v", count, err)
+	if count, countErr := store.Count(t.Context(), "conversation"); countErr != nil || count != 1 {
+		t.Fatalf("Count = %d, %v", count, countErr)
 	}
-	if ids, err := store.Conversations(t.Context()); err != nil || !slices.Equal(ids, []history.ConversationID{"conversation"}) {
-		t.Fatalf("Conversations = %v, %v", ids, err)
+	if ids, conversationsErr := store.Conversations(t.Context()); conversationsErr != nil || !slices.Equal(ids, []history.ConversationID{"conversation"}) {
+		t.Fatalf("Conversations = %v, %v", ids, conversationsErr)
 	}
 
 	replacement := chat.NewAssistantMessage(chat.NewTextPart("replacement"))
-	if err := history.Replace(t.Context(), &store, "conversation", replacement); err != nil {
-		t.Fatal(err)
+	if replaceErr := history.Replace(t.Context(), &store, "conversation", replacement); replaceErr != nil {
+		t.Fatal(replaceErr)
 	}
 	read, err = store.Read(t.Context(), "conversation")
 	if err != nil || len(read) != 1 || read[0].Text() != "replacement" {

@@ -50,17 +50,17 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	if len(initialChildren) != 2 {
 		t.Fatalf("initial child count = %d", len(initialChildren))
 	}
-	if err := root.Kill(context.Background(), "replace captured Workflow tree"); err != nil {
-		t.Fatal(err)
+	if killErr := root.Kill(context.Background(), "replace captured Workflow tree"); killErr != nil {
+		t.Fatal(killErr)
 	}
-	if result, err := root.Await(context.Background()); err != nil || result.Status() != agent.StatusKilled {
-		t.Fatalf("original root result = %#v, %v", result, err)
+	if result, awaitErr := root.Await(context.Background()); awaitErr != nil || result.Status() != agent.StatusKilled {
+		t.Fatalf("original root result = %#v, %v", result, awaitErr)
 	}
-	if _, err := engine.CaptureTree(context.Background(), root.ID()); err != nil {
-		t.Fatal(err)
+	if _, captureTreeErr := engine.CaptureTree(context.Background(), root.ID()); captureTreeErr != nil {
+		t.Fatal(captureTreeErr)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
@@ -76,8 +76,8 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 		if child.Status() != agent.StatusPaused {
 			t.Fatalf("restored child %s status = %s", initialChildren[index], child.Status())
 		}
-		if err := child.Resume(context.Background()); err != nil {
-			t.Fatal(err)
+		if resumeErr := child.Resume(context.Background()); resumeErr != nil {
+			t.Fatal(resumeErr)
 		}
 	}
 	secondWindow := awaitPausedWindow(t, restoredEngine, restoredRoot.ID(), 4)
@@ -95,8 +95,8 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	if !found {
 		t.Fatalf("second-window child %s was not registered", thirdChild)
 	}
-	if err := child.Resume(context.Background()); err != nil {
-		t.Fatal(err)
+	if resumeErr := child.Resume(context.Background()); resumeErr != nil {
+		t.Fatal(resumeErr)
 	}
 	result, err := restoredRoot.Await(context.Background())
 	if err != nil {
@@ -136,8 +136,8 @@ func TestWorkflowCancellationPropagatesToPausedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = awaitPausedWindow(t, engine, root.ID(), 2)
-	if err := root.RequestCancellation(context.Background(), "cancel Workflow consumer request"); err != nil {
-		t.Fatal(err)
+	if requestCancellationErr := root.RequestCancellation(context.Background(), "cancel Workflow consumer request"); requestCancellationErr != nil {
+		t.Fatal(requestCancellationErr)
 	}
 	result, err := root.Await(context.Background())
 	if err != nil || result.Status() != agent.StatusCanceled ||

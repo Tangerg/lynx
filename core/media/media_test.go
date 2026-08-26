@@ -185,8 +185,8 @@ func TestJSONRoundTrip(t *testing.T) {
 			}
 			src.ID = "media-1"
 			src.Name = "image.png"
-			if err := src.Metadata.Set("width", 64); err != nil {
-				t.Fatal(err)
+			if setErr := src.Metadata.Set("width", 64); setErr != nil {
+				t.Fatal(setErr)
 			}
 
 			encoded, err := json.Marshal(src)

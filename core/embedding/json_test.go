@@ -81,8 +81,8 @@ func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
 		Usage:   &embedding.Usage{InputTokens: 7},
 		Created: 42,
 	}
-	if err := responseMetadata.Set("provider/response", "request-id"); err != nil {
-		t.Fatal(err)
+	if setErr := responseMetadata.Set("provider/response", "request-id"); setErr != nil {
+		t.Fatal(setErr)
 	}
 	response, err := embedding.NewResponse([]*embedding.Output{output}, responseMetadata)
 	if err != nil {

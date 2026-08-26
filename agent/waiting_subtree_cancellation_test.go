@@ -39,14 +39,14 @@ func TestPreparedWaitingSubtreeCancellationAppliesExactTreeState(t *testing.T) {
 	}
 
 	assertPreparedWaitingSubtree(t, prepared, root.ID(), target.ID(), descendant.ID())
-	if err := prepared.Apply(); err != nil {
-		t.Fatal(err)
+	if applyErr := prepared.Apply(); applyErr != nil {
+		t.Fatal(applyErr)
 	}
-	if err := prepared.Apply(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
-		t.Fatalf("second Apply error = %v, want resolved", err)
+	if applyErr := prepared.Apply(); !errors.Is(applyErr, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("second Apply error = %v, want resolved", applyErr)
 	}
-	if err := prepared.Discard(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
-		t.Fatalf("Discard after Apply error = %v, want resolved", err)
+	if discardErr := prepared.Discard(); !errors.Is(discardErr, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("Discard after Apply error = %v, want resolved", discardErr)
 	}
 	targetResult := mustAwait(t, target)
 	if targetResult.Status() != StatusCanceled ||

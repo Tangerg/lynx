@@ -88,8 +88,8 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 			TopK: v.topK, MinScore: v.minScore, Filter: expr,
 		},
 	}
-	if err := request.Validate(); err != nil {
-		return nil, fmt.Errorf("rag: build vector-store request: %w", err)
+	if validateErr := request.Validate(); validateErr != nil {
+		return nil, fmt.Errorf("rag: build vector-store request: %w", validateErr)
 	}
 	response, err := v.vectorStore.Search(ctx, request)
 	if err != nil {

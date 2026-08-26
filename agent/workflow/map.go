@@ -142,8 +142,8 @@ func (m mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.schemas.input.ValidateInput(input); err != nil {
-		return nil, err
+	if validateInputErr := m.schemas.input.ValidateInput(input); validateInputErr != nil {
+		return nil, validateInputErr
 	}
 	values, err := input.Decode[[]I]()
 	if err != nil {

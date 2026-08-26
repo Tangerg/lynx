@@ -151,13 +151,13 @@ func (e *execution) acceptFanoutCompletion(signals []agent.Signal) (agent.Transi
 		}
 		outcome := outcomes[outcomeIndex]
 		outcomeIndex++
-		wantChildKey, err := e.fanoutChildKey(child.FanoutIndex)
-		if err != nil || outcome.Key() != wantChildKey || outcome.Result().ProcessID() != *child.ChildProcessID {
+		wantChildKey, fanoutChildKeyErr := e.fanoutChildKey(child.FanoutIndex)
+		if fanoutChildKeyErr != nil || outcome.Key() != wantChildKey || outcome.Result().ProcessID() != *child.ChildProcessID {
 			return agent.Transition{}, fmt.Errorf("%w: fan-out member outcome mismatch", ErrInvalidProtocol)
 		}
-		failure, output, err := e.fanoutOutcome(child.FanoutIndex, outcome.Result())
-		if err != nil {
-			return agent.Transition{}, err
+		failure, output, fanoutChildKeyErr := e.fanoutOutcome(child.FanoutIndex, outcome.Result())
+		if fanoutChildKeyErr != nil {
+			return agent.Transition{}, fanoutChildKeyErr
 		}
 		if failure != nil {
 			child.Failure = failure

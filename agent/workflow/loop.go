@@ -85,8 +85,8 @@ func Loop[T any](config LoopConfig[T]) (Stage, error) {
 		if err != nil {
 			return false, err
 		}
-		if err := valueSchema.ValidateOutput(output); err != nil {
-			return false, err
+		if validateOutputErr := valueSchema.ValidateOutput(output); validateOutputErr != nil {
+			return false, validateOutputErr
 		}
 		value, err := output.Decode[T]()
 		if err != nil {

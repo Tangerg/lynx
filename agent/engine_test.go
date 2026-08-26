@@ -366,8 +366,8 @@ func TestEngineMintsWaitIDAndRequiresAddressedAnswer(t *testing.T) {
 	}
 	plainID, _ := ParseSignalID("signal:plain")
 	plain, _ := NewSignalRequest(plainID, WaitID{}, json.RawMessage(`{"kind":"answer","value":"wrong"}`))
-	if _, err := process.DeliverSignal(context.Background(), plain); !errors.Is(err, ErrSignalRejected) {
-		t.Fatalf("unaddressed answer error=%v", err)
+	if _, deliverSignalErr := process.DeliverSignal(context.Background(), plain); !errors.Is(deliverSignalErr, ErrSignalRejected) {
+		t.Fatalf("unaddressed answer error=%v", deliverSignalErr)
 	}
 	answerID, _ := ParseSignalID("signal:answer")
 	answer, _ := NewSignalRequest(answerID, waitID, json.RawMessage(`{"kind":"answer","value":"approved"}`))
@@ -512,8 +512,8 @@ func TestPausedProcessCapturesRestoresAndResumesAtSafeBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-dispatcher.started
-	if err := process.Pause(context.Background(), "operator inspection"); err != nil {
-		t.Fatal(err)
+	if pauseErr := process.Pause(context.Background(), "operator inspection"); pauseErr != nil {
+		t.Fatal(pauseErr)
 	}
 	if process.Status() == StatusPaused {
 		t.Fatal("Pause became visible before the in-flight Effect settled")

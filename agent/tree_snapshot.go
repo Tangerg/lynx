@@ -382,9 +382,9 @@ func (e *Engine) quiesceTree(
 			})
 			if err != nil {
 				if errors.Is(err, ErrProcessFinished) {
-					if err := waitTreeSettled(ctx, controller); err != nil {
+					if waitTreeSettledErr := waitTreeSettled(ctx, controller); waitTreeSettledErr != nil {
 						close(release)
-						return nil, err
+						return nil, waitTreeSettledErr
 					}
 					continue
 				}

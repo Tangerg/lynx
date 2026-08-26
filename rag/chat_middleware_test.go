@@ -139,11 +139,11 @@ func TestMiddlewareKeepsChatExtensionsAndHistoryInTypedSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
-	if err := request.Options.SetExtension("test/tenant", "acme"); err != nil {
-		t.Fatal(err)
+	if setExtensionErr := request.Options.SetExtension("test/tenant", "acme"); setExtensionErr != nil {
+		t.Fatal(setExtensionErr)
 	}
-	if _, err := callMiddleware(&echoChatModel{}).Call(t.Context(), request); err != nil {
-		t.Fatal(err)
+	if _, callErr := callMiddleware(&echoChatModel{}).Call(t.Context(), request); callErr != nil {
+		t.Fatal(callErr)
 	}
 	tenant, found, err := capturedExtensions.Decode[string]("test/tenant")
 	if err != nil || !found || tenant != "acme" {

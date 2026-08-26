@@ -12,8 +12,8 @@ func Example() {
 		panic(err)
 	}
 	doc.ID = "doc-1"
-	if err := doc.Metadata.Set("source", "field-guide"); err != nil {
-		panic(err)
+	if setErr := doc.Metadata.Set("source", "field-guide"); setErr != nil {
+		panic(setErr)
 	}
 	source, _, err := doc.Metadata.Decode[string]("source")
 	if err != nil {

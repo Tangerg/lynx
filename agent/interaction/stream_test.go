@@ -32,8 +32,8 @@ func TestStreamingOutputDoesNotDependOnDeltaListeners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if result.Status() != agent.StatusCompleted {
 		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())
@@ -93,8 +93,8 @@ func TestStreamingUsesBoundedBestEffortDeltaQueue(t *testing.T) {
 		t.Fatal("missing agent.delta.dropped event")
 	}
 	listener.Release()
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	erased, _ := result.Output()
 	output, err := erased.Decode[interaction.Output]()
@@ -124,8 +124,8 @@ func TestRestoringCompletedInteractionDoesNotReplayDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := firstEngine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := firstEngine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	collector := &deltaCollector{}

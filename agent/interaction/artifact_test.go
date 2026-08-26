@@ -47,9 +47,9 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		if candidate.Artifacts().All()[0].DelegateName() != "delegate_artifact" {
 			return interaction.CompletionDecision{}, errors.New("Artifact snapshot aliases validator-owned slice")
 		}
-		decoded, err := artifact.Decode[delegateResponse]()
-		if err != nil {
-			return interaction.CompletionDecision{}, fmt.Errorf("decode artifact: %w", err)
+		decoded, decodeErr := artifact.Decode[delegateResponse]()
+		if decodeErr != nil {
+			return interaction.CompletionDecision{}, fmt.Errorf("decode artifact: %w", decodeErr)
 		}
 		if decoded.Value != "artifact:evidence" {
 			return interaction.CompletionDecision{}, fmt.Errorf("decoded artifact = %#v", decoded)
@@ -88,8 +88,8 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if result.Status() != agent.StatusCompleted || model.Calls() != 3 {
 		t.Fatalf("status=%s model calls=%d", result.Status(), model.Calls())

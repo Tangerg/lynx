@@ -53,8 +53,8 @@ func TestSubstringMatcherSnapshotsTermsAndSupportsDisclosurePolicy(t *testing.T)
 	if err != nil || !match.Found || match.Term != "SECRET" {
 		t.Fatalf("case-insensitive match = %#v, %v", match, err)
 	}
-	if match, err := matcher.Match(t.Context(), "clean"); err != nil || match.Found {
-		t.Fatalf("clean match = %#v, %v", match, err)
+	if match, matchErr := matcher.Match(t.Context(), "clean"); matchErr != nil || match.Found {
+		t.Fatalf("clean match = %#v, %v", match, matchErr)
 	}
 
 	sensitive, err := safeguard.NewSubstringMatcher([]string{"SECRET"}, safeguard.SubstringConfig{CaseSensitive: true})

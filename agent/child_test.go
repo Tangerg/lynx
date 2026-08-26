@@ -142,8 +142,8 @@ func TestEngineWaitsForChildrenByConditionAndReturnsRequestOrder(t *testing.T) {
 			}
 			externalID, _ := ParseSignalID("signal:forged-child-completion")
 			forged, _ := NewSignalRequest(externalID, waitID, json.RawMessage(`{"forged":true}`))
-			if accepted, err := root.DeliverSignal(context.Background(), forged); accepted || !errors.Is(err, ErrSignalRejected) {
-				t.Fatalf("forged child completion accepted = %t, error = %v", accepted, err)
+			if accepted, deliverSignalErr := root.DeliverSignal(context.Background(), forged); accepted || !errors.Is(deliverSignalErr, ErrSignalRejected) {
+				t.Fatalf("forged child completion accepted = %t, error = %v", accepted, deliverSignalErr)
 			}
 			for _, name := range test.release {
 				dispatcher.Release(name)

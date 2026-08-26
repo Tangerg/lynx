@@ -53,9 +53,9 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 			return interaction.CompletionDecision{Feedback: "Complete both planned review tasks."}, nil
 		}
 		for index, artifact := range artifacts {
-			output, err := artifact.Decode[planning.Output]()
-			if err != nil {
-				return interaction.CompletionDecision{}, err
+			output, decodeErr := artifact.Decode[planning.Output]()
+			if decodeErr != nil {
+				return interaction.CompletionDecision{}, decodeErr
 			}
 			if artifact.DelegateName() != "review_with_planning" ||
 				output.Outcome != planning.OutcomeAchieved {
@@ -96,8 +96,8 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
-			t.Errorf("close Engine: %v", err)
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Errorf("close Engine: %v", closeErr)
 		}
 	})
 	input, err := agent.EncodeInput(interaction.Input{Messages: []chat.Message{
@@ -199,9 +199,9 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 		_ context.Context,
 		request planning.ObservationRequest,
 	) (planning.WorldState, error) {
-		task, err := request.Input.Decode[workerTask]()
-		if err != nil {
-			return planning.WorldState{}, err
+		task, decodeErr := request.Input.Decode[workerTask]()
+		if decodeErr != nil {
+			return planning.WorldState{}, decodeErr
 		}
 		state.mu.Lock()
 		done := state.completed[task.ID]
@@ -219,9 +219,9 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 		if request.ActionName != "review" {
 			return planning.ActionResult{}, errors.New("unexpected planning action")
 		}
-		task, err := request.Input.Decode[workerTask]()
-		if err != nil {
-			return planning.ActionResult{}, err
+		task, decodeErr := request.Input.Decode[workerTask]()
+		if decodeErr != nil {
+			return planning.ActionResult{}, decodeErr
 		}
 		state.mu.Lock()
 		state.completed[task.ID] = true

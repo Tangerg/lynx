@@ -75,8 +75,8 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err != nil {
 		return nil, fmt.Errorf("markdown: read source: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
 	}
 
 	if r.headingSplitLevel == 0 {

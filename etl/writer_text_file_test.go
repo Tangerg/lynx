@@ -20,8 +20,8 @@ func TestTextFileWriterDefaultsToTextAndSupportsAppend(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc, _ := document.NewDocument("first", nil)
-	if err := first.Write(t.Context(), []*document.Document{doc}); err != nil {
-		t.Fatal(err)
+	if writeErr := first.Write(t.Context(), []*document.Document{doc}); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	second, err := etl.NewTextFileWriter(etl.TextFileWriterConfig{
@@ -31,8 +31,8 @@ func TestTextFileWriterDefaultsToTextAndSupportsAppend(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc, _ = document.NewDocument("second", nil)
-	if err := second.Write(t.Context(), []*document.Document{doc}); err != nil {
-		t.Fatal(err)
+	if writeErr := second.Write(t.Context(), []*document.Document{doc}); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	data, err := os.ReadFile(path)
@@ -65,8 +65,8 @@ func TestTextFileWriterPreservesEncodedPageRange(t *testing.T) {
 		"start_page_number": []byte("9007199254740993"),
 		"end_page_number":   []byte("9007199254740994"),
 	}
-	if err := writer.Write(t.Context(), []*document.Document{doc}); err != nil {
-		t.Fatal(err)
+	if writeErr := writer.Write(t.Context(), []*document.Document{doc}); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

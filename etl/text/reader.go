@@ -37,8 +37,8 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err != nil {
 		return nil, fmt.Errorf("text reader: read source: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
 	}
 	text := string(data)
 	if strings.TrimSpace(text) == "" {

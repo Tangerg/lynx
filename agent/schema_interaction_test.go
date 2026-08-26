@@ -32,8 +32,8 @@ func TestSchemaForAcceptsInteractionProviderMetadataAndReasoningSignature(t *tes
 		ModelResponse: response,
 		ModelCalls:    1,
 	}
-	if err := value.Validate(); err != nil {
-		t.Fatal(err)
+	if validateErr := value.Validate(); validateErr != nil {
+		t.Fatal(validateErr)
 	}
 
 	schema, err := agent.SchemaFor[interaction.Output]()

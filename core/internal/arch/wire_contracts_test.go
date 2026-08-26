@@ -103,8 +103,8 @@ func TestWireContractsMatchGolden(t *testing.T) {
 
 	filename := filepath.Join(coreRoot(t), "internal", "arch", "testdata", "wire_contracts.golden.json")
 	if *updateWireFixtures {
-		if err := os.WriteFile(filename, got, 0o644); err != nil {
-			t.Fatal(err)
+		if writeFileErr := os.WriteFile(filename, got, 0o644); writeFileErr != nil {
+			t.Fatal(writeFileErr)
 		}
 	}
 	want, err := os.ReadFile(filename)

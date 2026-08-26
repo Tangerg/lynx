@@ -227,8 +227,8 @@ func TestToolInputCheckpointKeepsOnlyCompletedToolAdvertisements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if accepted, err := process.DeliverSignal(context.Background(), signal); err != nil || !accepted {
-		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, err)
+	if accepted, deliverSignalErr := process.DeliverSignal(context.Background(), signal); deliverSignalErr != nil || !accepted {
+		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, deliverSignalErr)
 	}
 	result, err := process.Await(context.Background())
 	if err != nil {

@@ -69,8 +69,8 @@ func dial(ctx context.Context, endpoint Endpoint) (*a2aclient.Client, *sdka2a.Ag
 	if card == nil {
 		return nil, nil, ErrNilCard
 	}
-	if err := policy.validateCard(card); err != nil {
-		return nil, nil, err
+	if validateCardErr := policy.validateCard(card); validateCardErr != nil {
+		return nil, nil, validateCardErr
 	}
 
 	rpcClient := policy.rpcOrigins.restrict(baseClient)

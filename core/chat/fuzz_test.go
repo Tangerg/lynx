@@ -31,8 +31,8 @@ func assertJSONFixedPoint[T any](t *testing.T, data []byte) {
 	}
 
 	var second T
-	if err := json.Unmarshal(firstWire, &second); err != nil {
-		t.Fatalf("Unmarshal canonical wire: %v", err)
+	if unmarshalErr := json.Unmarshal(firstWire, &second); unmarshalErr != nil {
+		t.Fatalf("Unmarshal canonical wire: %v", unmarshalErr)
 	}
 	secondWire, err := json.Marshal(second)
 	if err != nil {

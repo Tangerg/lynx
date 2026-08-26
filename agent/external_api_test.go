@@ -162,8 +162,8 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	if err != nil || value.Value != "done" {
 		t.Fatalf("output=%+v err=%v", value, err)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if dispatcher.Remaining() != 0 || len(dispatcher.Requests()) != 1 {
 		t.Fatalf("remaining dispatches=%d requests=%d", dispatcher.Remaining(), len(dispatcher.Requests()))

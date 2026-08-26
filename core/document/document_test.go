@@ -52,8 +52,8 @@ func TestDocumentJSONRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var decoded document.Document
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
+	if unmarshalErr := json.Unmarshal(data, &decoded); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
 	}
 	source, ok, err := decoded.Metadata.Decode[string]("source")
 	if decoded.ID != original.ID || decoded.Text != original.Text || err != nil || !ok || source != "test" {

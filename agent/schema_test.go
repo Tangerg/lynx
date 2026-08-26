@@ -21,8 +21,8 @@ func TestSchemaForValidatesTypedWireValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.ValidateInput(valid); err != nil {
-		t.Fatalf("ValidateInput(valid) error = %v", err)
+	if validateInputErr := schema.ValidateInput(valid); validateInputErr != nil {
+		t.Fatalf("ValidateInput(valid) error = %v", validateInputErr)
 	}
 	invalid, err := ParseInput([]byte(`{"message":3}`))
 	if err != nil {
@@ -52,24 +52,24 @@ func TestSchemaForMatchesEncodingJSONWireTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.ValidateOutput(valid); err != nil {
-		t.Fatalf("ValidateOutput(valid JSON wire values) error = %v; schema = %s", err, schema.JSON())
+	if validateOutputErr := schema.ValidateOutput(valid); validateOutputErr != nil {
+		t.Fatalf("ValidateOutput(valid JSON wire values) error = %v; schema = %s", validateOutputErr, schema.JSON())
 	}
 
 	nilSignature, err := EncodeOutput(jsonWireFixture{Metadata: map[string]json.RawMessage{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.ValidateOutput(nilSignature); err != nil {
-		t.Fatalf("ValidateOutput(nil byte slice) error = %v; schema = %s", err, schema.JSON())
+	if validateOutputErr := schema.ValidateOutput(nilSignature); validateOutputErr != nil {
+		t.Fatalf("ValidateOutput(nil byte slice) error = %v; schema = %s", validateOutputErr, schema.JSON())
 	}
 
 	arraySignature, err := ParseOutput([]byte(`{"metadata":{"provider":"deepseek"},"signature":[1,2,3]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.ValidateOutput(arraySignature); !errors.Is(err, ErrInvalidOutput) {
-		t.Fatalf("ValidateOutput(array signature) error = %v, want ErrInvalidOutput", err)
+	if validateOutputErr := schema.ValidateOutput(arraySignature); !errors.Is(validateOutputErr, ErrInvalidOutput) {
+		t.Fatalf("ValidateOutput(array signature) error = %v, want ErrInvalidOutput", validateOutputErr)
 	}
 	if !bytes.Contains(schema.JSON(), []byte(`"contentEncoding":"base64"`)) {
 		t.Fatalf("derived schema does not identify the byte-slice encoding: %s", schema.JSON())

@@ -46,8 +46,8 @@ func TestSteerDuringModelCallIsVisibleOnlyToNextModelCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if result.Status() != agent.StatusCompleted || model.Calls() != 2 {
 		t.Fatalf("status = %s, model calls = %d", result.Status(), model.Calls())

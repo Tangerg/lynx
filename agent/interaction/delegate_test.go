@@ -133,12 +133,12 @@ func TestDelegateRejectsNonObjectInputAndToolNameCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := interaction.NewDefinition(interaction.DefinitionConfig{
+	if _, newDefinitionErr := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.duplicate_delegates", Description: "Reject duplicate managed Delegate names.",
 		Version: "1.0.0", MaxModelCalls: 2,
 		Delegates: []interaction.Delegate{delegate, delegate},
-	}); !errors.Is(err, interaction.ErrInvalidDefinitionConfig) {
-		t.Fatalf("duplicate Delegate error = %v", err)
+	}); !errors.Is(newDefinitionErr, interaction.ErrInvalidDefinitionConfig) {
+		t.Fatalf("duplicate Delegate error = %v", newDefinitionErr)
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.delegate_collision", Description: "Reject an ambiguous model capability manifest.",
@@ -232,12 +232,12 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	if err != nil || !found || len(activeChildren) != 1 {
 		t.Fatalf("active Delegate children = %#v, found = %t, error = %v", activeChildren, found, err)
 	}
-	if pending, snapshotFound, err := interaction.PendingToolInputFromSnapshot(rootSnapshot); err != nil || snapshotFound {
+	if pending, snapshotFound, pendingToolInputFromSnapshotErr := interaction.PendingToolInputFromSnapshot(rootSnapshot); pendingToolInputFromSnapshotErr != nil || snapshotFound {
 		t.Fatalf(
 			"Delegate-waiting root pending Tool input = %#v, found = %t, error = %v",
 			pending,
 			snapshotFound,
-			err,
+			pendingToolInputFromSnapshotErr,
 		)
 	}
 	activeChild := activeChildren[0]
@@ -246,21 +246,21 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 		activeChild.ChildKey().String() == "" || activeChild.ProcessID() != childID {
 		t.Fatalf("active Delegate child = %#v", activeChild)
 	}
-	if err := root.Kill(context.Background(), "replace captured Delegate tree"); err != nil {
-		t.Fatal(err)
+	if killErr := root.Kill(context.Background(), "replace captured Delegate tree"); killErr != nil {
+		t.Fatal(killErr)
 	}
-	if result, err := root.Await(context.Background()); err != nil || result.Status() != agent.StatusKilled {
-		t.Fatalf("original root result = %#v, %v", result.Termination(), err)
+	if result, awaitErr := root.Await(context.Background()); awaitErr != nil || result.Status() != agent.StatusKilled {
+		t.Fatalf("original root result = %#v, %v", result.Termination(), awaitErr)
 	}
 	originalChild, found := engine.Process(childID)
 	if !found {
 		t.Fatalf("original child %s was not registered", childID)
 	}
-	if childResult, err := originalChild.Await(context.Background()); err != nil || childResult.Status() != agent.StatusCanceled {
-		t.Fatalf("original child result = %#v, %v", childResult.Termination(), err)
+	if childResult, awaitErr := originalChild.Await(context.Background()); awaitErr != nil || childResult.Status() != agent.StatusCanceled {
+		t.Fatalf("original child result = %#v, %v", childResult.Termination(), awaitErr)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
@@ -275,8 +275,8 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	if restoredChild.Status() != agent.StatusPaused {
 		t.Fatalf("restored child %s status = %s", childID, restoredChild.Status())
 	}
-	if err := restoredChild.Resume(context.Background()); err != nil {
-		t.Fatal(err)
+	if resumeErr := restoredChild.Resume(context.Background()); resumeErr != nil {
+		t.Fatal(resumeErr)
 	}
 	result, err := restoredRoot.Await(context.Background())
 	if err != nil || result.Status() != agent.StatusCompleted || model.Calls() != 2 {

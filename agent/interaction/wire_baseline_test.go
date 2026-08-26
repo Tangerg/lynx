@@ -42,7 +42,7 @@ func TestInteractionRejectsPriorProtocolVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	prior := interactionPriorProtocolPayload(t, payload)
-	if _, err := decodeEffect(prior); err == nil {
+	if _, decodeEffectErr := decodeEffect(prior); decodeEffectErr == nil {
 		t.Fatal("decodeEffect accepted the prior Interaction protocol version")
 	}
 
@@ -57,7 +57,7 @@ func TestInteractionRejectsPriorProtocolVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := decodeSignal(interactionPriorProtocolPayload(t, signalRequest.Payload())); err == nil {
+	if _, decodeSignalErr := decodeSignal(interactionPriorProtocolPayload(t, signalRequest.Payload())); decodeSignalErr == nil {
 		t.Fatal("decodeSignal accepted the prior Interaction protocol version")
 	}
 

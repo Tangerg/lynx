@@ -21,9 +21,9 @@ func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []agent.Deployment{first, replacement} {
-		got, err := catalog.Resolve(want.DeploymentRef())
-		if err != nil || got.DeploymentRef() != want.DeploymentRef() {
-			t.Fatalf("Resolve(%s) = %s, %v", want.DeploymentRef(), got.DeploymentRef(), err)
+		got, resolveErr := catalog.Resolve(want.DeploymentRef())
+		if resolveErr != nil || got.DeploymentRef() != want.DeploymentRef() {
+			t.Fatalf("Resolve(%s) = %s, %v", want.DeploymentRef(), got.DeploymentRef(), resolveErr)
 		}
 	}
 	missingReference, err := agent.NewDeploymentRef(

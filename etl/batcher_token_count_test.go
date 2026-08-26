@@ -109,8 +109,8 @@ func TestTokenCountBatcherRejectsInvalidStageValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := batcher.Batch(t.Context(), []*document.Document{nil}); !errors.Is(err, etl.ErrNilDocument) {
-		t.Fatalf("Batch(nil document) error = %v, want ErrNilDocument", err)
+	if _, batchErr := batcher.Batch(t.Context(), []*document.Document{nil}); !errors.Is(batchErr, etl.ErrNilDocument) {
+		t.Fatalf("Batch(nil document) error = %v, want ErrNilDocument", batchErr)
 	}
 
 	batcher, err = etl.NewTokenCountBatcher(etl.TokenCountBatcherConfig{

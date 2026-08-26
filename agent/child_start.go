@@ -49,28 +49,28 @@ func (p *processLoop) startChild(
 	if err != nil {
 		return failedChildStart(spec, FailureKindExternal, "engine.child.deployment_unavailable", err)
 	}
-	if err := deployment.Descriptor().ValidateInput(spec.Input); err != nil {
-		return failedChildStart(spec, FailureKindContract, "engine.child.input.invalid", err)
+	if validateInputErr := deployment.Descriptor().ValidateInput(spec.Input); validateInputErr != nil {
+		return failedChildStart(spec, FailureKindContract, "engine.child.input.invalid", validateInputErr)
 	}
 	startedAt := time.Now().Round(0).UTC()
 	admission := newProcessAdmission(
 		relation, deployment, spec.Budget, spec.Capabilities, startedAt,
 	)
-	if err := p.engine.reserveProcessStart(
+	if reserveProcessStartErr := p.engine.reserveProcessStart(
 		relation, deployment.DeploymentRef(), p.treeLimits, requestDigest,
-	); err != nil {
-		if errors.Is(err, ErrResourceLimitExceeded) {
-			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", err)
+	); reserveProcessStartErr != nil {
+		if errors.Is(reserveProcessStartErr, ErrResourceLimitExceeded) {
+			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", reserveProcessStartErr)
 		}
-		if errors.Is(err, ErrEngineClosed) {
-			return failedChildStart(spec, FailureKindExternal, "engine.child.start.unavailable", err)
+		if errors.Is(reserveProcessStartErr, ErrEngineClosed) {
+			return failedChildStart(spec, FailureKindExternal, "engine.child.start.unavailable", reserveProcessStartErr)
 		}
-		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", err)
+		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", reserveProcessStartErr)
 	}
-	if err := requestProcessAdmission(ctx, p.engine.admitter, admission); err != nil {
+	if requestProcessAdmissionErr := requestProcessAdmission(ctx, p.engine.admitter, admission); requestProcessAdmissionErr != nil {
 		p.engine.discardProcessStartReservation(childID)
 		return failedChildStart(
-			spec, FailureKindExternal, "engine.child.admission.rejected", err,
+			spec, FailureKindExternal, "engine.child.admission.rejected", requestProcessAdmissionErr,
 		)
 	}
 	execution, state, failure, err := initializeExecution(deployment.Definition(), spec.Input)

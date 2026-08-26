@@ -54,14 +54,14 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := process.Kill(context.Background(), "replace with restored Process"); err != nil {
-		t.Fatal(err)
+	if killErr := process.Kill(context.Background(), "replace with restored Process"); killErr != nil {
+		t.Fatal(killErr)
 	}
-	if _, err := process.Await(context.Background()); err != nil {
-		t.Fatal(err)
+	if _, awaitErr := process.Await(context.Background()); awaitErr != nil {
+		t.Fatal(awaitErr)
 	}
-	if err := firstEngine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := firstEngine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	pending, found, err := interaction.PendingToolInputFromSnapshot(snapshot)
 	if err != nil || !found {
@@ -87,8 +87,8 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pending.ResponseSignal(invalidID, json.RawMessage(`42`)); !errors.Is(err, interaction.ErrInvalidToolInputRequest) {
-		t.Fatalf("invalid response error = %v, want ErrInvalidToolInputRequest", err)
+	if _, responseSignalErr := pending.ResponseSignal(invalidID, json.RawMessage(`42`)); !errors.Is(responseSignalErr, interaction.ErrInvalidToolInputRequest) {
+		t.Fatalf("invalid response error = %v, want ErrInvalidToolInputRequest", responseSignalErr)
 	}
 	wrongWaitID, err := agent.ParseWaitID("wait:wrong")
 	if err != nil {
@@ -98,8 +98,8 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if accepted, err := restored.DeliverSignal(context.Background(), wrong); accepted || !errors.Is(err, agent.ErrSignalRejected) {
-		t.Fatalf("wrong-wait delivery accepted = %t, error = %v", accepted, err)
+	if accepted, deliverSignalErr := restored.DeliverSignal(context.Background(), wrong); accepted || !errors.Is(deliverSignalErr, agent.ErrSignalRejected) {
+		t.Fatalf("wrong-wait delivery accepted = %t, error = %v", accepted, deliverSignalErr)
 	}
 	answer, err := pending.ResponseSignal(signalID, json.RawMessage(`"Ada"`))
 	if err != nil {
@@ -119,8 +119,8 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := restoredEngine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := restoredEngine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if result.Status() != agent.StatusCompleted {
 		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())

@@ -53,8 +53,8 @@ func TestTemplateRequireUsesParsedTopLevelFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := template.Require("User", "Enabled", "Items", "User"); err != nil {
-		t.Fatalf("Require present fields: %v", err)
+	if requireErr := template.Require("User", "Enabled", "Items", "User"); requireErr != nil {
+		t.Fatalf("Require present fields: %v", requireErr)
 	}
 	err = template.Require("Zed", "Name", "Name")
 	if !errors.Is(err, ErrInvalidTemplate) || !strings.Contains(err.Error(), "Name, Zed") {

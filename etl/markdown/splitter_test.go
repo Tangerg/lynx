@@ -181,8 +181,8 @@ func TestTransformPreservesLineageAndAssignsIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc.ID = "source"
-	if err := doc.Metadata.Set("tenant", "one"); err != nil {
-		t.Fatal(err)
+	if setErr := doc.Metadata.Set("tenant", "one"); setErr != nil {
+		t.Fatal(setErr)
 	}
 
 	chunks, err := splitter.Split(t.Context(), []*document.Document{doc})

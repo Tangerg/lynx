@@ -75,8 +75,8 @@ func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 // successful write are surfaced (joined with any earlier error) so
 // callers can detect partial flushes that fail at close time.
 func (t *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (err error) {
-	if err := ctx.Err(); err != nil {
-		return err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
 	file, err := os.OpenFile(t.path, t.openFlags(), 0o666)
 	if err != nil {

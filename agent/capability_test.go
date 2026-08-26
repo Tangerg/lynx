@@ -35,8 +35,8 @@ func TestEngineEnforcesDispatcherEffectCapabilities(t *testing.T) {
 	if failure, ok := denied.Termination().Failure(); !ok || failure.Code() != "engine.capability.denied" {
 		t.Fatalf("denied failure = %#v", failure)
 	}
-	if err := deniedEngine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := deniedEngine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 
 	capabilities, _ := NewCapabilitySet(required)

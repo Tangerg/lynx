@@ -17,8 +17,8 @@ func TestMediaGolden(t *testing.T) {
 	}
 	inline.ID = "image-1"
 	inline.Name = "pixel.png"
-	if err := inline.Metadata.Set("width", 1); err != nil {
-		t.Fatal(err)
+	if setErr := inline.Metadata.Set("width", 1); setErr != nil {
+		t.Fatal(setErr)
 	}
 	uri, err := media.NewURI("application/pdf", "https://example.com/manual.pdf")
 	if err != nil {

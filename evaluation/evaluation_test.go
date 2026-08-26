@@ -124,8 +124,8 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 		{Output: "answer"},
 		{Output: "answer", Context: []string{"  "}},
 	} {
-		if _, err := groundedness.Evaluate(t.Context(), sample); !errors.Is(err, evaluation.ErrInvalidSample) {
-			t.Fatalf("Groundedness Evaluate(%#v) error = %v", sample, err)
+		if _, evaluateErr := groundedness.Evaluate(t.Context(), sample); !errors.Is(evaluateErr, evaluation.ErrInvalidSample) {
+			t.Fatalf("Groundedness Evaluate(%#v) error = %v", sample, evaluateErr)
 		}
 	}
 	relevance, err := evaluation.NewAnswerRelevanceEvaluator(evaluation.ModelConfig{Model: model})
@@ -251,8 +251,8 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := composite.Evaluate(t.Context(), evaluation.TextSample{}); !errors.Is(err, childErr) {
-		t.Fatalf("child error = %v", err)
+	if _, evaluateErr := composite.Evaluate(t.Context(), evaluation.TextSample{}); !errors.Is(evaluateErr, childErr) {
+		t.Fatalf("child error = %v", evaluateErr)
 	}
 
 	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
@@ -261,13 +261,13 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := composite.Evaluate(t.Context(), evaluation.TextSample{}); !errors.Is(err, evaluation.ErrInvalidReport) {
-		t.Fatalf("invalid child result error = %v", err)
+	if _, evaluateErr := composite.Evaluate(t.Context(), evaluation.TextSample{}); !errors.Is(evaluateErr, evaluation.ErrInvalidReport) {
+		t.Fatalf("invalid child result error = %v", evaluateErr)
 	}
 
 	childMetadata := metadata.Map{}
-	if err := childMetadata.Set("value", 1); err != nil {
-		t.Fatal(err)
+	if setErr := childMetadata.Set("value", 1); setErr != nil {
+		t.Fatal(setErr)
 	}
 	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 		return evaluation.Report{Passed: true, Score: 1, Metadata: childMetadata}, nil

@@ -151,9 +151,9 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 		return agent.Deployment{}, nil, err
 	}
 	parsePlan, err := workflow.Transform("parse_plan", func(output interaction.Output) ([]workerTask, error) {
-		plan, err := decodeModelJSON[workPlan](output)
-		if err != nil {
-			return nil, err
+		plan, decodeModelJSONErr := decodeModelJSON[workPlan](output)
+		if decodeModelJSONErr != nil {
+			return nil, decodeModelJSONErr
 		}
 		if len(plan.Tasks) == 0 {
 			return nil, errors.New("decomposer returned no tasks")

@@ -53,15 +53,15 @@ func TestOutputFormatFallbackInstruction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := text.FallbackInstruction(); err != nil || got != "" {
-		t.Fatalf("text = (%q, %v)", got, err)
+	if got, fallbackInstructionErr := text.FallbackInstruction(); fallbackInstructionErr != nil || got != "" {
+		t.Fatalf("text = (%q, %v)", got, fallbackInstructionErr)
 	}
 	jsonFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := jsonFormat.FallbackInstruction(); err != nil || !strings.Contains(got, "only one valid JSON object") {
-		t.Fatalf("json = (%q, %v)", got, err)
+	if got, fallbackInstructionErr := jsonFormat.FallbackInstruction(); fallbackInstructionErr != nil || !strings.Contains(got, "only one valid JSON object") {
+		t.Fatalf("json = (%q, %v)", got, fallbackInstructionErr)
 	}
 	schema, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{ "type": "object" }`))
 	if err != nil {

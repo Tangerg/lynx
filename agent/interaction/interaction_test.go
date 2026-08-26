@@ -27,8 +27,8 @@ func TestManagedInteractionCompletesFromModelResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Errorf("Close: %v", closeErr)
 		}
 	})
 
@@ -81,8 +81,8 @@ func TestManagedInteractionExecutesToolLoopInModelOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Errorf("Close: %v", closeErr)
 		}
 	})
 	input, err := agent.EncodeInput(interaction.Input{
@@ -239,8 +239,8 @@ func TestDirectResultToolCompletesWithoutAnotherModelCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := engine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if result.Status() != agent.StatusCompleted || model.Calls() != 1 {
 		t.Fatalf("status = %s, model calls = %d", result.Status(), model.Calls())

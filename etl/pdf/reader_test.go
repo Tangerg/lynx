@@ -61,8 +61,8 @@ func TestReadWholeExtractsRealPDFAndOwnsMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := metadata.Set("custom", "mutated"); err != nil {
-		t.Fatalf("mutate input metadata: %v", err)
+	if setErr := metadata.Set("custom", "mutated"); setErr != nil {
+		t.Fatalf("mutate input metadata: %v", setErr)
 	}
 
 	docs, err := reader.Read(t.Context())

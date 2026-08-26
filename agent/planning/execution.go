@@ -96,8 +96,8 @@ func (e *execution) acceptObservation(
 	}
 	e.state.WorldState = *envelope.Observation.WorldState
 	if e.state.ActionConfirmationPending {
-		if err := e.confirmAction(); err != nil {
-			return agent.Transition{}, err
+		if confirmActionErr := e.confirmAction(); confirmActionErr != nil {
+			return agent.Transition{}, confirmActionErr
 		}
 	}
 	if e.definition.goal.SatisfiedBy(e.state.WorldState) {
@@ -152,9 +152,9 @@ func (e *execution) startAction(
 	}
 	switch binding.target {
 	case bindingTargetDispatcher:
-		effect, err := newActionEffect(input, binding, e.state.WorldState)
-		if err != nil {
-			return agent.Transition{}, err
+		effect, newActionEffectErr := newActionEffect(input, binding, e.state.WorldState)
+		if newActionEffectErr != nil {
+			return agent.Transition{}, newActionEffectErr
 		}
 		e.state.PlanningPasses++
 		e.state.CurrentActionName = binding.action.name

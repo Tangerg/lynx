@@ -33,8 +33,8 @@ func (e *execution) Step(_ context.Context, signals []agent.Signal) (agent.Trans
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		if err := e.addSteer(steer); err != nil {
-			return agent.Transition{}, err
+		if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+			return agent.Transition{}, addSteerErr
 		}
 		appliedSteerSignalIDs, err := e.applyPendingSteer()
 		if err != nil {
@@ -113,8 +113,8 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	if envelope.ModelResult.HostError != "" {
 		e.state.PendingSteer = nil
@@ -179,8 +179,8 @@ func (e *execution) acceptTools(signals []agent.Signal) (agent.Transition, error
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	if envelope.ToolResult.HostError != "" {
 		e.state.PendingSteer = nil
@@ -197,13 +197,13 @@ func (e *execution) acceptTools(signals []agent.Signal) (agent.Transition, error
 	}
 	results := envelope.ToolResult.Results
 	if checkpoint := envelope.ToolResult.Checkpoint; checkpoint != nil {
-		if err := checkpoint.validate(calls); err != nil {
-			return agent.Transition{}, err
+		if validateErr := checkpoint.validate(calls); validateErr != nil {
+			return agent.Transition{}, validateErr
 		}
 		return e.requestInputWait(consumedSignals, checkpoint)
 	}
-	if err := validateToolResults(calls, results); err != nil {
-		return agent.Transition{}, err
+	if validateToolResultsErr := validateToolResults(calls, results); validateToolResultsErr != nil {
+		return agent.Transition{}, validateToolResultsErr
 	}
 	advertisedToolNames, err := mergeAdvertisedToolNames(
 		e.state.AdvertisedToolNames,
@@ -232,8 +232,8 @@ func (e *execution) requestInputWait(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := checkpoint.validate(calls); err != nil {
-		return agent.Transition{}, err
+	if validateErr := checkpoint.validate(calls); validateErr != nil {
+		return agent.Transition{}, validateErr
 	}
 	waitOpened := checkpoint.InputRequest
 	payload, err := encodeProtocol(signalEnvelope{
@@ -264,8 +264,8 @@ func (e *execution) acceptWaitID(signals []agent.Signal) (agent.Transition, erro
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if err := e.addSteer(steer); err != nil {
-		return agent.Transition{}, err
+	if addSteerErr := e.addSteer(steer); addSteerErr != nil {
+		return agent.Transition{}, addSteerErr
 	}
 	var waitID agent.WaitID
 	var ok bool

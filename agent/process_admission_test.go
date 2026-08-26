@@ -230,8 +230,8 @@ func TestRestoreDoesNotReadmitPreviouslyAdmittedProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := first.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := first.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	var admissionCalls atomic.Uint32
 	var outcomeCalls atomic.Uint32

@@ -182,8 +182,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := composite.Call(t.Context(), `{}`); err != nil || got != `{"ok":true}` {
-			t.Fatalf("composite Call = %q, %v", got, err)
+		if got, callErr := composite.Call(t.Context(), `{}`); callErr != nil || got != `{"ok":true}` {
+			t.Fatalf("composite Call = %q, %v", got, callErr)
 		}
 
 		raw, err := tool.NewFunc(tool.FuncConfig{Name: "raw"}, func(context.Context, struct{}) (json.RawMessage, error) {
