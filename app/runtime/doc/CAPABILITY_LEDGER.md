@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P181 已完成。
+> 状态：当前能力快照；P182 已完成。
 >
 > 基线日期：2026-08-26。
 
@@ -13,7 +13,7 @@
 
 - Runtime 是 Lyra 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol`、`runtime/embedded` 和窄部署交接包 `runtime/localruntime` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、Agent Framework Baseline 20。
+- 当前合同为 Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、Agent Framework Baseline 25。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
 - Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v23 只接受当前显式 `plan` shape。
 - Desktop 只加载编译进同一 bundle 的内置插件；Wails Bootstrap 只返回本地 Runtime 连接，不扫描 `~/.lyra/plugins`，前端不执行用户目录 JavaScript、不发布 `window.__LYRA__`，也没有外部 manifest、Host API version、permission whitelist、origin 双态或 lazy-activation placeholder。图片、粘贴和 `@file` 附件仍由 Composer 自己拥有。
@@ -51,6 +51,7 @@
 - P179 删除 Sandbox working tree 的内存 tar 往返：source/destination `os.Root` 直接以 64 KiB chunk 复制，继续拥有 100k entries、128 MiB/file、512 MiB aggregate、identity/growth/cancellation 与 symlink confinement。
 - P180 让 Model Shell 的 foreground/background 共用完整进程 owner：Unix process group 在 stop/timeout/natural leader exit/Host close 后清理并 join，terminal Outcome 保留 cleanup diagnostic。
 - P181 让 Runtime Agent ACL 与 metadata 测试直接消费 `Input`、`Output`、`metadata.Map` 的 Go 1.27 generic methods，并把独立 module graph 钉到同一批已发布 owner-method 版本；workspace 与 `GOWORK=off` 不再编译两套 API 事实。
+- P182 让 Runtime 的模型完成消费统一读取唯一 `chat.Response.Output`，并跟随 Agent Baseline 25 的 Interaction state/protocol v8/v7；独立 module graph 与外部 binding 不再保留旧 `Result` 编译真相。
 
 ## 2. 架构与所有权
 
@@ -208,7 +209,7 @@
 - Runtime Protocol 当前版本 `2026-08-24`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
 - Artifact 当前版本 23；旧版本在写入前确定性拒绝，不猜测缺失事实。
 - SQLite 当前 epoch 82；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
-- Agent Framework 当前 Baseline 20；Runtime 不依赖 private state 或迁移前 module path。
+- Agent Framework 当前 Baseline 25；Runtime 不依赖 private state 或迁移前 module path。
 - 所有生成合同必须 diff-free；consumer 缺口记录在 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md)，服务端不为消费者恢复旧字段。
 
 ## 8. 结构清理结论
@@ -369,6 +370,8 @@ P180 完成模型 Shell process-tree 生命周期闭环。失败优先反例 `ea
 
 P180 封板通过 Shell/Tool 定向 test+race、kill/successful-parent descendant 回归、Unix/Windows/Linux cross-build、Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、根 workspace Runtime+Desktop tests，以及 Runtime tidy/generate 零漂移。本批没有 Desktop/Frontend/Wails/contract source delta，未机械重跑其生产包矩阵。未启动 agent-browser，cross-build artifacts 与所有 descendant/验证进程均已回收，`app/desktop` 与 `app/cli` 零修改。
 
+P182 完成 Core 模态 `Output` 词汇在 Runtime 的消费闭环。Agentexec、maintenance、utility model、bootstrap 与 LLM fixtures 只读取 `chat.Response.Output`；Interaction state/protocol 采用 Agent Baseline 25 的 v8/v7，旧 `Result` field/tag 不双读、不转换。Runtime 独立 module 钉住同批发布的 Root/Core、Agent、Model 与 OTel 版本，workspace/standalone full test/vet/build、tidy 与外部公共 binding 编译观察同一合同；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop/Wails/CLI 均不改变。
+
 P181 收敛 Runtime typed ACL 与发布依赖图。当前工作区曾因四处已删除的 Agent free decode 无法编译，而 standalone 仍因旧依赖全绿；升级 Root/Core、Agent 与三份 Model module 后，ACL 直接调用 `Input.Decode` / `Output.Decode`，metadata 测试直接调用 `Map.Decode`，没有兼容函数、第二 codec 或 wire 转换。Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built 固定 Staticcheck、根 Runtime+Desktop tests、外部消费者编译、tidy 与 generator 零漂移全绿；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop/Wails/Agent Framework/CLI 均不改变。
 
 P160 进一步证明可组合代码发现也必须有 consumer-owned resource envelope：LSP 不借用通用 file-read 参数，而在同步边界独立守住完整 document 上限与取消语义。
@@ -411,7 +414,7 @@ Runtime standalone 与 Desktop 全量 test/vet/build、Wails v3 production packa
 
 ## 10. 当前结论
 
-P181 在既有 P0–P180 结论上消除 Runtime workspace 与 standalone module graph 的 typed API 分叉，使 Agent/Core rich-model owner 在 ACL 与发布消费者中保持一致。当前完成范围因此为 P0–P181。
+P182 在既有 P0–P181 结论上把 Runtime 模型完成消费统一到 Core `Output`，并消除 standalone module graph 对旧 `Result` API 的依赖。当前完成范围因此为 P0–P182。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

@@ -19,7 +19,7 @@ func newReplyStub(reply string) *replyStub {
 
 func (m *replyStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
-	return chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
+	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
 func (m *replyStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

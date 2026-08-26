@@ -180,8 +180,8 @@ func (meter *interactionAccounting) accountModelCall(
 			invocation.ModelCallSequence(), total.Calls,
 		)
 	}
-	result := response.Result
-	if result == nil || result.Message == nil {
+	modelOutput := response.Output
+	if modelOutput == nil || modelOutput.Message == nil {
 		return runs.ModelCallCompleted{}, errors.New("agentexec: account model call without an assistant message")
 	}
 	var usage corechat.Usage
@@ -189,7 +189,7 @@ func (meter *interactionAccounting) accountModelCall(
 		usage = response.Metadata.Usage
 	}
 	return runs.ModelCallCompleted{
-		CallID: callID, Message: result.Message.Clone(), TokenUsage: total.TokenUsage,
+		CallID: callID, Message: modelOutput.Message.Clone(), TokenUsage: total.TokenUsage,
 		ByModel: slices.Clone(models), CostUSD: total.CostUSD, Steps: total.Calls,
 		ContextTokens: usage.InputTokens,
 	}, nil

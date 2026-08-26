@@ -229,8 +229,8 @@ func (model *observedInteractionModel) complete(
 	callID string,
 	response *corechat.Response,
 ) error {
-	result := response.Result
-	if result == nil || result.Message == nil {
+	modelOutput := response.Output
+	if modelOutput == nil || modelOutput.Message == nil {
 		return errors.New("agentexec: completed model call has no assistant message")
 	}
 	// Agent owns Delta validation, ordering, buffering, and listener observation. Wait on its
@@ -253,7 +253,7 @@ func (model *observedInteractionModel) complete(
 	if !invocation.Relation().IsRoot() {
 		model.session.committedReplies.record(invocation.Relation().ProcessID(), fact.Message)
 	}
-	return model.session.registerDelegateCalls(invocation, result.Message)
+	return model.session.registerDelegateCalls(invocation, modelOutput.Message)
 }
 
 type observedInteractionTool struct {

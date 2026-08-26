@@ -413,10 +413,10 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 		return
 	}
 	response := parsed.Response()
-	if response.Result == nil || response.Result.Message == nil {
+	if response.Output == nil || response.Output.Message == nil {
 		return
 	}
-	for _, part := range response.Result.Message.Parts {
+	for _, part := range response.Output.Message.Parts {
 		var payload runs.ExecutionFact
 		switch part.Kind {
 		case corechat.PartText:
@@ -687,12 +687,12 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 		if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil {
 			return fmt.Errorf("unsupported Interaction completion source %q", output.Source)
 		}
-		result := output.ModelResponse.Result
-		if result == nil || result.Message == nil {
+		modelOutput := output.ModelResponse.Output
+		if modelOutput == nil || modelOutput.Message == nil {
 			return errors.New("agentexec: Interaction output has no assistant message")
 		}
 		if !session.lifetime.send(runs.ExecutorEvent{
-			Member: member, Payload: runs.AssistantMessageCompleted{Message: result.Message.Clone()},
+			Member: member, Payload: runs.AssistantMessageCompleted{Message: modelOutput.Message.Clone()},
 		}) {
 			return nil
 		}

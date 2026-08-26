@@ -374,7 +374,7 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 			Name:      "ask_user",
 			Arguments: `{"questions":[{"question":"Continue the lifecycle check?"}]}`,
 		}))
-		return chat.NewResponse(&chat.Result{
+		return chat.NewResponse(&chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}, nil)
 	default:
@@ -382,7 +382,7 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 		select {
 		case <-m.releaseResumedCall:
 			message := chat.NewAssistantMessage(chat.NewTextPart("settled before cancellation"))
-			return chat.NewResponse(&chat.Result{Message: &message}, nil)
+			return chat.NewResponse(&chat.Output{Message: &message}, nil)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}

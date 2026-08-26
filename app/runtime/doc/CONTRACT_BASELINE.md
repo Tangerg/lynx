@@ -183,11 +183,11 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent Framework 消费 Baseline
 
-Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 20 canonical module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换，P25 完成真实 pseudo-version 发布与 standalone 消费：
+Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 25 canonical module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换，P25 完成真实 pseudo-version 发布与 standalone 消费；Core 六个模型模态的产物词汇现统一为 `Output`，其中 Interaction 消费唯一 `chat.Response.Output`：
 
 - root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
 - Process Snapshot v6、TreeSnapshot v4；
-- Interaction state/protocol v6/v4；
+- Interaction state/protocol v8/v7；
 - context-aware ProcessAdmitter、conclusive ProcessStartOutcome、提交式 `RequestCancellation`、带 exact applied-steer Signal identity 的 ModelInvocation、ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；
 - Agent Framework Event 是 Framework 已发生事实，Delta 是 best-effort 临时输出；
 - Strategy payload 和 TreeSnapshot private state 对 Runtime 不透明。

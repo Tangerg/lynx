@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P181 已完成；下一阶段待独立准入。
+> 状态：P0–P182 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-26，P181 已完成。
+> 最近基线：2026-08-26，P182 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P182 已准入并完成：Core 六个模型模态把产物统一为 `Output`，Runtime 只迁移 `chat.Response.Output` consumer、测试和独立 module requirements；Interaction owner wire 随 Agent Baseline 25 升为 state/protocol v8/v7。旧 `Result` API、JSON tag 和兼容读取均不保留；Runtime Protocol、Artifact、SQLite、公共 Go API、Desktop、Wails 与 `app/cli` 不改变。
+- P182 的发布依赖按 Root/Core、Agent/Model、Runtime 顺序钉住真实 pseudo-version，workspace 与 `GOWORK=off` 因而消费同一 API/wire 事实；完整 test、vet、build、tidy、owner 文档与外部公共 binding 编译共同封板。
 - P181 已准入，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 不修改、不暂存。当前工作区 `go test ./...` 无法编译 Runtime：Agent Framework 已把 typed decode 归还 Go 1.27 generic methods `Input.Decode` / `Output.Decode`，Core 已把 metadata decode 归还 `metadata.Map.Decode`，Runtime ACL 与测试仍调用已删除的过程式函数。与此同时 `GOWORK=off` 因钉住旧 module graph 全绿，证明同一源码存在 workspace/standalone 两种编译真相。
 - P181 的唯一 owner 是 Agent `Input` / `Output` 与 Core `metadata.Map`；Runtime 只消费其已验证值，不复制 codec、schema、兼容 free function 或第二表示。允许的 breaking surface 仅为 Runtime internal adapter/test 与独立 module requirements；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop、Wails、Agent Framework 和 `app/cli` 均不改变。
 - P181 已完成：四处 Agent decode 与 metadata 测试消费已归还各自 generic method，Runtime 独立 module 同步钉住已发布的 Core、Agent 与三份 Model owner-method 版本；workspace/standalone test、vet、build，Go 1.27-built 固定 Staticcheck、full race、root Runtime+Desktop tests、tidy、外部消费者编译与 generate 零漂移全绿。仅观察到既有 macOS deployment-target linker warning；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop、Wails、Agent Framework 与 `app/cli` 零修改。

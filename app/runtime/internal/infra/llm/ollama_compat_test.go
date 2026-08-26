@@ -109,8 +109,8 @@ func TestOllamaCompatibleEmbeddingUsesV1Protocol(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(response.Results) != 1 || len(response.Results[0].Embedding) != 2 {
-		t.Fatalf("embedding results = %#v", response.Results)
+	if len(response.Outputs) != 1 || len(response.Outputs[0].Embedding) != 2 {
+		t.Fatalf("embedding results = %#v", response.Outputs)
 	}
 	if response.Metadata == nil || response.Metadata.Model != "nomic-embed-text" {
 		t.Fatalf("embedding metadata = %#v", response.Metadata)

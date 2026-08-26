@@ -1164,12 +1164,12 @@ func (model streamingObservationModel) Stream(context.Context, *chat.Request) it
 		defer close(model.streamed)
 		for index := range model.chunks {
 			message := chat.NewAssistantMessage(chat.NewTextPart("x"))
-			response := &chat.Response{Result: &chat.Result{Message: &message}}
+			response := &chat.Response{Output: &chat.Output{Message: &message}}
 			if index == model.chunks-1 {
 				response.Metadata = &chat.ResponseMetadata{
 					Model: "test-model", Usage: chat.Usage{InputTokens: 5, OutputTokens: 2},
 				}
-				response.Result.FinishReason = chat.FinishReasonStop
+				response.Output.FinishReason = chat.FinishReasonStop
 			}
 			if !yield(response, nil) {
 				return
@@ -1303,7 +1303,7 @@ func runInteractionHarnessWithCommit(
 func interactionToolResponse(call chat.ToolCall, inputTokens, outputTokens int64) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(call))
 	return &chat.Response{
-		Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonToolCalls},
+		Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls},
 		Metadata: &chat.ResponseMetadata{
 			Model: "test-model", Usage: chat.Usage{InputTokens: inputTokens, OutputTokens: outputTokens},
 		},
@@ -1317,7 +1317,7 @@ func interactionToolBatchResponse(calls []chat.ToolCall, inputTokens, outputToke
 	}
 	message := chat.NewAssistantMessage(parts...)
 	return &chat.Response{
-		Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonToolCalls},
+		Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls},
 		Metadata: &chat.ResponseMetadata{
 			Model: "test-model", Usage: chat.Usage{InputTokens: inputTokens, OutputTokens: outputTokens},
 		},

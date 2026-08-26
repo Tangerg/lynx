@@ -396,5 +396,5 @@ func assertOneRootMember(t *testing.T, events []runs.ExecutorEvent) {
 
 func interactionTextResponse(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Result: &chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}}
+	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}
 }

@@ -649,7 +649,7 @@ func (m *textStubModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 	m.calls++
 	m.requests = append(m.requests, request)
 	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
-	return chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
+	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
 func (m *textStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

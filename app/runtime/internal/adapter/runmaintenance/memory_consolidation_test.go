@@ -42,7 +42,7 @@ func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 		return nil, reply.err
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart(reply.text))
-	return chat.NewResponse(&chat.Result{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
+	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
 func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*MemoryConsolidator, *sqlite.AgentMemoryStore, *scriptedModel) {
