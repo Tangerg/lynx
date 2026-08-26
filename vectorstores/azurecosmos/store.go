@@ -39,8 +39,8 @@ const (
 	DistanceEuclidean  DistanceFunction = "euclidean"
 )
 
-func (function DistanceFunction) score(raw float64) vectorstore.Score {
-	switch function {
+func (d DistanceFunction) score(raw float64) vectorstore.Score {
+	switch d {
 	case DistanceEuclidean:
 		return vectorstore.ScoreFromDistance(raw)
 	case DistanceDotProduct:
@@ -84,46 +84,46 @@ type StoreConfig struct {
 	DistanceFunction DistanceFunction
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Container == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Container == nil {
 		return errors.New("azurecosmos: Container is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("azurecosmos: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("azurecosmos: DocumentBatcher is required")
 	}
-	switch c.DistanceFunction {
+	switch s.DistanceFunction {
 	case DistanceCosine, DistanceDotProduct, DistanceEuclidean:
 	default:
-		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", c.DistanceFunction)
+		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", s.DistanceFunction)
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.IDField).validate("IDField"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.IDField).validate("IDField"); err != nil {
 		return err
 	}
-	if err := identifier(c.ContentField).validate("ContentField"); err != nil {
+	if err := identifier(s.ContentField).validate("ContentField"); err != nil {
 		return err
 	}
-	if err := identifier(c.MetadataField).validate("MetadataField"); err != nil {
+	if err := identifier(s.MetadataField).validate("MetadataField"); err != nil {
 		return err
 	}
-	return identifier(c.EmbeddingField).validate("EmbeddingField")
+	return identifier(s.EmbeddingField).validate("EmbeddingField")
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.PartitionKeyPath = cmp.Or(c.PartitionKeyPath, DefaultPartitionKey)
-	c.DistanceFunction = cmp.Or(c.DistanceFunction, DistanceCosine)
+func (s *StoreConfig) applyDefaults() {
+	s.IDField = cmp.Or(s.IDField, DefaultIDField)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.MetadataField = cmp.Or(s.MetadataField, DefaultMetadataField)
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	s.PartitionKeyPath = cmp.Or(s.PartitionKeyPath, DefaultPartitionKey)
+	s.DistanceFunction = cmp.Or(s.DistanceFunction, DistanceCosine)
 }
 
 var (

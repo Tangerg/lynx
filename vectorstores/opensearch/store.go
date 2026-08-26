@@ -54,8 +54,8 @@ const (
 	SpaceTypeLInf SpaceType = "linf"
 )
 
-func (space SpaceType) score(raw float64) vectorstore.Score {
-	if space != SpaceTypeIP {
+func (s SpaceType) score(raw float64) vectorstore.Score {
+	if s != SpaceTypeIP {
 		// OpenSearch already maps cosine and distance spaces to [0,1].
 		return vectorstore.ScoreFromValue(raw)
 	}
@@ -148,54 +148,54 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return errors.New("opensearch: Client is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("opensearch: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("opensearch: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("opensearch: Dimensions must be >= 0")
 	}
-	switch c.SpaceType {
+	switch s.SpaceType {
 	case SpaceTypeCosine, SpaceTypeL2, SpaceTypeIP, SpaceTypeL1, SpaceTypeLInf:
 	default:
-		return fmt.Errorf("opensearch: unsupported SpaceType %q", c.SpaceType)
+		return fmt.Errorf("opensearch: unsupported SpaceType %q", s.SpaceType)
 	}
-	switch c.Engine {
+	switch s.Engine {
 	case EngineLucene, EngineNMSLib, EngineFaiss:
 	default:
-		return fmt.Errorf("opensearch: unsupported Engine %q", c.Engine)
+		return fmt.Errorf("opensearch: unsupported Engine %q", s.Engine)
 	}
-	switch c.MethodName {
+	switch s.MethodName {
 	case "hnsw":
 	case "ivf":
-		if c.Engine != EngineFaiss {
-			return fmt.Errorf("opensearch: method %q requires the Faiss engine", c.MethodName)
+		if s.Engine != EngineFaiss {
+			return fmt.Errorf("opensearch: method %q requires the Faiss engine", s.MethodName)
 		}
 	default:
-		return fmt.Errorf("opensearch: unsupported MethodName %q", c.MethodName)
+		return fmt.Errorf("opensearch: unsupported MethodName %q", s.MethodName)
 	}
-	if c.Engine == EngineLucene && (c.SpaceType == SpaceTypeL1 || c.SpaceType == SpaceTypeLInf) {
-		return fmt.Errorf("opensearch: Lucene does not support SpaceType %q", c.SpaceType)
+	if s.Engine == EngineLucene && (s.SpaceType == SpaceTypeL1 || s.SpaceType == SpaceTypeLInf) {
+		return fmt.Errorf("opensearch: Lucene does not support SpaceType %q", s.SpaceType)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
-	c.SpaceType = cmp.Or(c.SpaceType, DefaultSpaceType)
-	c.Engine = cmp.Or(c.Engine, DefaultEngine)
-	c.MethodName = cmp.Or(c.MethodName, DefaultMethodName)
+func (s *StoreConfig) applyDefaults() {
+	s.IndexName = cmp.Or(s.IndexName, DefaultIndexName)
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.MetadataField = cmp.Or(s.MetadataField, DefaultMetadataField)
+	s.SpaceType = cmp.Or(s.SpaceType, DefaultSpaceType)
+	s.Engine = cmp.Or(s.Engine, DefaultEngine)
+	s.MethodName = cmp.Or(s.MethodName, DefaultMethodName)
 }
 
 var (

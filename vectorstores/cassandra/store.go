@@ -110,46 +110,46 @@ type StoreConfig struct {
 	KeyspaceReplication string
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Session == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Session == nil {
 		return errors.New("cassandra: Session is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("cassandra: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("cassandra: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("cassandra: Dimensions must be >= 0")
 	}
-	switch c.Similarity {
+	switch s.Similarity {
 	case SimilarityCosine, SimilarityDotProduct, SimilarityEuclidean:
 	default:
-		return fmt.Errorf("cassandra: unsupported Similarity %q", c.Similarity)
+		return fmt.Errorf("cassandra: unsupported Similarity %q", s.Similarity)
 	}
 
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.KeyspaceName).validate("KeyspaceName"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.KeyspaceName).validate("KeyspaceName"); err != nil {
 		return err
 	}
-	if err := identifier(c.TableName).validate("TableName"); err != nil {
+	if err := identifier(s.TableName).validate("TableName"); err != nil {
 		return err
 	}
-	if err := identifier(c.IDColumn).validate("IDColumn"); err != nil {
+	if err := identifier(s.IDColumn).validate("IDColumn"); err != nil {
 		return err
 	}
-	if err := identifier(c.ContentColumn).validate("ContentColumn"); err != nil {
+	if err := identifier(s.ContentColumn).validate("ContentColumn"); err != nil {
 		return err
 	}
-	if err := identifier(c.EmbeddingColumn).validate("EmbeddingColumn"); err != nil {
+	if err := identifier(s.EmbeddingColumn).validate("EmbeddingColumn"); err != nil {
 		return err
 	}
-	for _, m := range c.MetadataColumns {
+	for _, m := range s.MetadataColumns {
 		if m.Name == "" {
 			return errors.New("cassandra: MetadataColumn.Name must not be empty")
 		}
@@ -171,15 +171,15 @@ var (
 )
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	if c.KeyspaceReplication == "" {
-		c.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+func (s *StoreConfig) applyDefaults() {
+	s.KeyspaceName = cmp.Or(s.KeyspaceName, DefaultKeyspaceName)
+	s.TableName = cmp.Or(s.TableName, DefaultTableName)
+	s.IDColumn = cmp.Or(s.IDColumn, DefaultIDColumn)
+	s.ContentColumn = cmp.Or(s.ContentColumn, DefaultContentColumn)
+	s.EmbeddingColumn = cmp.Or(s.EmbeddingColumn, DefaultEmbeddingColumn)
+	s.Similarity = cmp.Or(s.Similarity, DefaultSimilarity)
+	if s.KeyspaceReplication == "" {
+		s.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
 	}
 }
 

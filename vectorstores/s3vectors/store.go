@@ -60,8 +60,8 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-func (metric DistanceMetric) score(distance float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceEuclidean:
 		return vectorstore.ScoreFromDistance(distance)
 	case DistanceCosine:
@@ -71,34 +71,34 @@ func (metric DistanceMetric) score(distance float64) vectorstore.Score {
 	}
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return errors.New("s3vectors: Client is required")
 	}
-	if c.VectorBucketName == "" {
+	if s.VectorBucketName == "" {
 		return errors.New("s3vectors: VectorBucketName is required")
 	}
-	if c.IndexName == "" {
+	if s.IndexName == "" {
 		return errors.New("s3vectors: IndexName is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("s3vectors: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceEuclidean:
 	default:
-		return fmt.Errorf("s3vectors: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("s3vectors: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
+func (s *StoreConfig) applyDefaults() {
+	s.DistanceMetric = cmp.Or(s.DistanceMetric, DistanceCosine)
 }
 
 var (

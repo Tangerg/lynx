@@ -34,8 +34,8 @@ const (
 
 // score converts a Chroma distance value into a similarity score in which
 // higher values indicate greater similarity.
-func (metric DistanceMetric) score(distance float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceCosine:
 		return vectorstore.ScoreFromCosineDistance(distance)
 	case DistanceL2:
@@ -78,33 +78,33 @@ type StoreConfig struct {
 	DocumentBatcher vectorstore.Batcher
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return ErrMissingClient
 	}
-	if c.CollectionName == "" {
+	if s.CollectionName == "" {
 		return ErrMissingCollectionName
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceL2, DistanceIP:
 	default:
-		return fmt.Errorf("chroma: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("chroma: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields. DistanceMetric defaults to
 // [DistanceCosine].
-func (c *StoreConfig) applyDefaults() {
-	if c.DistanceMetric == "" {
-		c.DistanceMetric = DistanceCosine
+func (s *StoreConfig) applyDefaults() {
+	if s.DistanceMetric == "" {
+		s.DistanceMetric = DistanceCosine
 	}
 }
 

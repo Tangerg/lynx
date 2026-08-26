@@ -57,9 +57,9 @@ const (
 	DistanceIP DistanceMetric = "IP"
 )
 
-// Valid reports whether metric is supported by the Redis vector index.
-func (metric DistanceMetric) Valid() bool {
-	switch metric {
+// Valid reports whether d is supported by the Redis vector index.
+func (d DistanceMetric) Valid() bool {
+	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
 		return true
 	default:
@@ -68,10 +68,10 @@ func (metric DistanceMetric) Valid() bool {
 }
 
 // String returns the RediSearch metric token.
-func (metric DistanceMetric) String() string { return string(metric) }
+func (d DistanceMetric) String() string { return string(d) }
 
-func (metric DistanceMetric) score(distance float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceL2:
 		return vectorstore.ScoreFromDistance(distance)
 	case DistanceIP:
@@ -98,13 +98,13 @@ const (
 	AlgorithmFlat IndexAlgorithm = "FLAT"
 )
 
-// Valid reports whether algorithm is supported by the Redis vector index.
-func (algorithm IndexAlgorithm) Valid() bool {
-	return algorithm == AlgorithmHNSW || algorithm == AlgorithmFlat
+// Valid reports whether i is supported by the Redis vector index.
+func (i IndexAlgorithm) Valid() bool {
+	return i == AlgorithmHNSW || i == AlgorithmFlat
 }
 
 // String returns the RediSearch algorithm token.
-func (algorithm IndexAlgorithm) String() string { return string(algorithm) }
+func (i IndexAlgorithm) String() string { return string(i) }
 
 // MetadataFieldType names the RediSearch schema field types the store
 // understands. Callers declare these up-front so the filter visitor
@@ -126,8 +126,8 @@ const (
 // Valid reports whether the value names a schema type supported by this
 // store. The zero value is invalid so metadata fields cannot silently become
 // TAG fields.
-func (fieldType MetadataFieldType) Valid() bool {
-	switch fieldType {
+func (m MetadataFieldType) Valid() bool {
+	switch m {
 	case FieldTag, FieldText, FieldNumeric:
 		return true
 	default:
@@ -136,10 +136,10 @@ func (fieldType MetadataFieldType) Valid() bool {
 }
 
 // String returns the RediSearch schema field token.
-func (fieldType MetadataFieldType) String() string { return string(fieldType) }
+func (m MetadataFieldType) String() string { return string(m) }
 
-func (fieldType MetadataFieldType) searchFieldType() (goredis.SearchFieldType, bool) {
-	switch fieldType {
+func (m MetadataFieldType) searchFieldType() (goredis.SearchFieldType, bool) {
+	switch m {
 	case FieldNumeric:
 		return goredis.SearchFieldTypeNumeric, true
 	case FieldText:
@@ -166,12 +166,12 @@ type MetadataField struct {
 }
 
 // Validate verifies one complete metadata schema declaration.
-func (field MetadataField) Validate() error {
-	if field.Name == "" || strings.TrimSpace(field.Name) != field.Name {
+func (m MetadataField) Validate() error {
+	if m.Name == "" || strings.TrimSpace(m.Name) != m.Name {
 		return errors.New("name is required and must not have surrounding whitespace")
 	}
-	if !field.Type.Valid() {
-		return fmt.Errorf("type %q is unsupported", field.Type)
+	if !m.Type.Valid() {
+		return fmt.Errorf("type %q is unsupported", m.Type)
 	}
 	return nil
 }
@@ -237,32 +237,32 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return errors.New("redis: Client is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("redis: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("redis: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("redis: Dimensions must be >= 0")
 	}
-	if !c.DistanceMetric.Valid() {
-		return fmt.Errorf("redis: unsupported DistanceMetric %q", c.DistanceMetric)
+	if !s.DistanceMetric.Valid() {
+		return fmt.Errorf("redis: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
-	if !c.IndexAlgorithm.Valid() {
-		return fmt.Errorf("redis: unsupported IndexAlgorithm %q", c.IndexAlgorithm)
+	if !s.IndexAlgorithm.Valid() {
+		return fmt.Errorf("redis: unsupported IndexAlgorithm %q", s.IndexAlgorithm)
 	}
-	if c.IndexAlgorithm == AlgorithmHNSW &&
-		(c.HNSWM <= 0 || c.HNSWEFConstruct <= 0 || c.HNSWEFRuntime <= 0) {
+	if s.IndexAlgorithm == AlgorithmHNSW &&
+		(s.HNSWM <= 0 || s.HNSWEFConstruct <= 0 || s.HNSWEFRuntime <= 0) {
 		return errors.New("redis: HNSW parameters must all be > 0")
 	}
-	fieldNames := make(map[string]struct{}, len(c.MetadataFields))
-	for index, field := range c.MetadataFields {
+	fieldNames := make(map[string]struct{}, len(s.MetadataFields))
+	for index, field := range s.MetadataFields {
 		if err := field.Validate(); err != nil {
 			return fmt.Errorf("redis: MetadataFields[%d]: %w", index, err)
 		}
@@ -275,22 +275,22 @@ func (c StoreConfig) Validate() error {
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
-	c.KeyPrefix = cmp.Or(c.KeyPrefix, DefaultKeyPrefix)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
-	c.IndexAlgorithm = cmp.Or(c.IndexAlgorithm, DefaultIndexAlgorithm)
-	if c.IndexAlgorithm == AlgorithmHNSW {
-		if c.HNSWM == 0 {
-			c.HNSWM = DefaultHNSWM
+func (s *StoreConfig) applyDefaults() {
+	s.IndexName = cmp.Or(s.IndexName, DefaultIndexName)
+	s.KeyPrefix = cmp.Or(s.KeyPrefix, DefaultKeyPrefix)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	s.DistanceMetric = cmp.Or(s.DistanceMetric, DefaultDistanceMetric)
+	s.IndexAlgorithm = cmp.Or(s.IndexAlgorithm, DefaultIndexAlgorithm)
+	if s.IndexAlgorithm == AlgorithmHNSW {
+		if s.HNSWM == 0 {
+			s.HNSWM = DefaultHNSWM
 		}
-		if c.HNSWEFConstruct == 0 {
-			c.HNSWEFConstruct = DefaultHNSWEFConstruct
+		if s.HNSWEFConstruct == 0 {
+			s.HNSWEFConstruct = DefaultHNSWEFConstruct
 		}
-		if c.HNSWEFRuntime == 0 {
-			c.HNSWEFRuntime = DefaultHNSWEFRuntime
+		if s.HNSWEFRuntime == 0 {
+			s.HNSWEFRuntime = DefaultHNSWEFRuntime
 		}
 	}
 }

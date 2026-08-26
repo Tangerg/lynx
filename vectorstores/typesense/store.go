@@ -58,29 +58,29 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return errors.New("typesense: Client is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("typesense: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("typesense: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("typesense: Dimensions must be >= 0")
 	}
-	if !collectionNamePattern.MatchString(c.CollectionName) {
-		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", c.CollectionName)
+	if !collectionNamePattern.MatchString(s.CollectionName) {
+		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", s.CollectionName)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
+func (s *StoreConfig) applyDefaults() {
+	s.CollectionName = cmp.Or(s.CollectionName, DefaultCollectionName)
 }
 
 var (

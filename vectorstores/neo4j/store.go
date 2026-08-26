@@ -97,50 +97,50 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Driver == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Driver == nil {
 		return errors.New("neo4j: Driver is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("neo4j: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("neo4j: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("neo4j: Dimensions must be >= 0")
 	}
-	switch c.Similarity {
+	switch s.Similarity {
 	case SimilarityCosine, SimilarityEuclidean:
 	default:
-		return fmt.Errorf("neo4j: unsupported Similarity %q", c.Similarity)
+		return fmt.Errorf("neo4j: unsupported Similarity %q", s.Similarity)
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.Label).validate("Label"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.Label).validate("Label"); err != nil {
 		return err
 	}
-	if err := identifier(c.EmbeddingProperty).validate("EmbeddingProperty"); err != nil {
+	if err := identifier(s.EmbeddingProperty).validate("EmbeddingProperty"); err != nil {
 		return err
 	}
-	if err := identifier(c.IDProperty).validate("IDProperty"); err != nil {
+	if err := identifier(s.IDProperty).validate("IDProperty"); err != nil {
 		return err
 	}
-	return identifier(c.TextProperty).validate("TextProperty")
+	return identifier(s.TextProperty).validate("TextProperty")
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.Label = cmp.Or(c.Label, DefaultLabel)
-	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
-	c.EmbeddingProperty = cmp.Or(c.EmbeddingProperty, DefaultEmbeddingProperty)
-	c.IDProperty = cmp.Or(c.IDProperty, DefaultIDProperty)
-	c.TextProperty = cmp.Or(c.TextProperty, DefaultTextProperty)
-	c.MetadataPrefix = cmp.Or(c.MetadataPrefix, DefaultMetadataPrefix)
-	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
+func (s *StoreConfig) applyDefaults() {
+	s.Label = cmp.Or(s.Label, DefaultLabel)
+	s.IndexName = cmp.Or(s.IndexName, DefaultIndexName)
+	s.EmbeddingProperty = cmp.Or(s.EmbeddingProperty, DefaultEmbeddingProperty)
+	s.IDProperty = cmp.Or(s.IDProperty, DefaultIDProperty)
+	s.TextProperty = cmp.Or(s.TextProperty, DefaultTextProperty)
+	s.MetadataPrefix = cmp.Or(s.MetadataPrefix, DefaultMetadataPrefix)
+	s.Similarity = cmp.Or(s.Similarity, SimilarityCosine)
 }
 
 var (

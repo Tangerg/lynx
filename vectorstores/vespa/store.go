@@ -89,65 +89,65 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Endpoint == "" {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Endpoint == "" {
 		return errors.New("vespa: Endpoint is required")
 	}
-	if c.SchemaName == "" {
+	if s.SchemaName == "" {
 		return errors.New("vespa: SchemaName is required")
 	}
-	if c.RankingProfile == "" {
+	if s.RankingProfile == "" {
 		return errors.New("vespa: RankingProfile is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("vespa: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.SchemaName).validate("SchemaName"); err != nil {
 		return err
 	}
-	if err := identifier(c.Namespace).validate("Namespace"); err != nil {
+	if err := identifier(s.Namespace).validate("Namespace"); err != nil {
 		return err
 	}
-	if err := identifier(c.EmbeddingField).validate("EmbeddingField"); err != nil {
+	if err := identifier(s.EmbeddingField).validate("EmbeddingField"); err != nil {
 		return err
 	}
-	if err := identifier(c.ContentField).validate("ContentField"); err != nil {
+	if err := identifier(s.ContentField).validate("ContentField"); err != nil {
 		return err
 	}
-	if err := identifier(c.IDField).validate("IDField"); err != nil {
+	if err := identifier(s.IDField).validate("IDField"); err != nil {
 		return err
 	}
-	if err := identifier(c.QueryTensorName).validate("QueryTensorName"); err != nil {
+	if err := identifier(s.QueryTensorName).validate("QueryTensorName"); err != nil {
 		return err
 	}
-	if err := identifier(c.RankingProfile).validate("RankingProfile"); err != nil {
+	if err := identifier(s.RankingProfile).validate("RankingProfile"); err != nil {
 		return err
 	}
-	if c.ContentCluster == "" {
+	if s.ContentCluster == "" {
 		return nil
 	}
-	return identifier(c.ContentCluster).validate("ContentCluster")
+	return identifier(s.ContentCluster).validate("ContentCluster")
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	if c.Namespace == "" {
-		c.Namespace = c.SchemaName
+func (s *StoreConfig) applyDefaults() {
+	if s.Namespace == "" {
+		s.Namespace = s.SchemaName
 	}
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	c.QueryTensorName = cmp.Or(c.QueryTensorName, DefaultQueryTensorName)
-	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.IDField = cmp.Or(s.IDField, DefaultIDField)
+	s.QueryTensorName = cmp.Or(s.QueryTensorName, DefaultQueryTensorName)
+	if s.HTTPClient == nil {
+		s.HTTPClient = http.DefaultClient
 	}
 }
 

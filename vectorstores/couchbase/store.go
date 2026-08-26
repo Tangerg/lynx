@@ -102,56 +102,56 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Cluster == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Cluster == nil {
 		return errors.New("couchbase: Cluster is required")
 	}
-	if c.BucketName == "" {
+	if s.BucketName == "" {
 		return errors.New("couchbase: BucketName is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("couchbase: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("couchbase: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("couchbase: Dimensions must be >= 0")
 	}
-	switch c.Similarity {
+	switch s.Similarity {
 	case SimilarityCosine, SimilarityL2Norm, SimilarityDotProduct:
 	default:
-		return fmt.Errorf("couchbase: unsupported Similarity %q", c.Similarity)
+		return fmt.Errorf("couchbase: unsupported Similarity %q", s.Similarity)
 	}
-	switch c.IndexOptimization {
+	switch s.IndexOptimization {
 	case OptimizeRecall, OptimizeLatency, OptimizeMemory:
 	default:
-		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", c.IndexOptimization)
+		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", s.IndexOptimization)
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.BucketName).validate("BucketName"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.BucketName).validate("BucketName"); err != nil {
 		return err
 	}
-	if err := identifier(c.ScopeName).validate("ScopeName"); err != nil {
+	if err := identifier(s.ScopeName).validate("ScopeName"); err != nil {
 		return err
 	}
-	if err := identifier(c.CollectionName).validate("CollectionName"); err != nil {
+	if err := identifier(s.CollectionName).validate("CollectionName"); err != nil {
 		return err
 	}
-	return identifier(c.VectorIndexName).validate("VectorIndexName")
+	return identifier(s.VectorIndexName).validate("VectorIndexName")
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.ScopeName = cmp.Or(c.ScopeName, DefaultScopeName)
-	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
-	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultIndexName)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
+func (s *StoreConfig) applyDefaults() {
+	s.ScopeName = cmp.Or(s.ScopeName, DefaultScopeName)
+	s.CollectionName = cmp.Or(s.CollectionName, DefaultCollectionName)
+	s.VectorIndexName = cmp.Or(s.VectorIndexName, DefaultIndexName)
+	s.Similarity = cmp.Or(s.Similarity, DefaultSimilarity)
+	s.IndexOptimization = cmp.Or(s.IndexOptimization, DefaultIndexOptimize)
 }
 
 var (

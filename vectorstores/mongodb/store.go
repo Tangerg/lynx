@@ -104,38 +104,38 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Collection == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("mongodb: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("mongodb: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("mongodb: Dimensions must be >= 0")
 	}
-	switch c.Similarity {
+	switch s.Similarity {
 	case SimilarityCosine, SimilarityEuclidean, SimilarityDotProduct:
 	default:
-		return fmt.Errorf("mongodb: unsupported Similarity %q", c.Similarity)
+		return fmt.Errorf("mongodb: unsupported Similarity %q", s.Similarity)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultVectorIndexName)
-	c.EmbeddingPath = cmp.Or(c.EmbeddingPath, DefaultEmbeddingPath)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
-	if c.NumCandidates <= 0 {
-		c.NumCandidates = DefaultNumCandidates
+func (s *StoreConfig) applyDefaults() {
+	s.VectorIndexName = cmp.Or(s.VectorIndexName, DefaultVectorIndexName)
+	s.EmbeddingPath = cmp.Or(s.EmbeddingPath, DefaultEmbeddingPath)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.MetadataField = cmp.Or(s.MetadataField, DefaultMetadataField)
+	if s.NumCandidates <= 0 {
+		s.NumCandidates = DefaultNumCandidates
 	}
-	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
+	s.Similarity = cmp.Or(s.Similarity, SimilarityCosine)
 }
 
 var (

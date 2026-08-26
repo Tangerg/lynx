@@ -33,8 +33,8 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
-func (metric DistanceMetric) qdrant() (qdrant.Distance, error) {
-	switch metric {
+func (d DistanceMetric) qdrant() (qdrant.Distance, error) {
+	switch d {
 	case DistanceCosine:
 		return qdrant.Distance_Cosine, nil
 	case DistanceDot:
@@ -44,12 +44,12 @@ func (metric DistanceMetric) qdrant() (qdrant.Distance, error) {
 	case DistanceManhattan:
 		return qdrant.Distance_Manhattan, nil
 	default:
-		return qdrant.Distance_UnknownDistance, fmt.Errorf("%w, got %q", ErrInvalidDistanceMetric, metric)
+		return qdrant.Distance_UnknownDistance, fmt.Errorf("%w, got %q", ErrInvalidDistanceMetric, d)
 	}
 }
 
-func (metric DistanceMetric) score(raw float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(raw float64) vectorstore.Score {
+	switch d {
 	case DistanceDot:
 		return vectorstore.ScoreFromInnerProduct(raw)
 	case DistanceEuclid, DistanceManhattan:
@@ -64,13 +64,13 @@ func (metric DistanceMetric) score(raw float64) vectorstore.Score {
 // rawScoreThreshold converts Lynx's normalized minimum score back into the
 // collection metric. Qdrant interprets thresholds according to metric
 // direction, so Euclidean and Manhattan correctly use a maximum distance.
-func (metric DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
+func (d DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
 	value := minScore.Float64()
 	if value <= vectorstore.MinSimilarityScore {
 		return 0, false
 	}
 
-	switch metric {
+	switch d {
 	case DistanceDot:
 		if value >= vectorstore.MaxSimilarityScore {
 			return stdmath.MaxFloat32, true
@@ -122,20 +122,20 @@ type StoreConfig struct {
 	DocumentBatcher vectorstore.Batcher
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	if s.Client == nil {
 		return ErrMissingClient
 	}
-	if c.CollectionName == "" {
+	if s.CollectionName == "" {
 		return ErrMissingCollectionName
 	}
-	if _, err := c.DistanceMetric.qdrant(); err != nil {
+	if _, err := s.DistanceMetric.qdrant(); err != nil {
 		return err
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
 	return nil

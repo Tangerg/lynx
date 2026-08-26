@@ -45,8 +45,8 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
-func (metric DistanceMetric) score(distance float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceCosine:
 		return vectorstore.ScoreFromCosineDistance(distance)
 	case DistanceDot:
@@ -88,32 +88,32 @@ type StoreConfig struct {
 	DistanceMetric DistanceMetric
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return ErrMissingClient
 	}
-	if c.ClassName == "" {
+	if s.ClassName == "" {
 		return ErrMissingClassName
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceDot, DistanceL2Squared, DistanceHamming, DistanceManhattan:
 	default:
-		return fmt.Errorf("weaviate: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("weaviate: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	if c.DistanceMetric == "" {
-		c.DistanceMetric = DistanceCosine
+func (s *StoreConfig) applyDefaults() {
+	if s.DistanceMetric == "" {
+		s.DistanceMetric = DistanceCosine
 	}
 }
 

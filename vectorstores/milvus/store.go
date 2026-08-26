@@ -60,32 +60,32 @@ type StoreConfig struct {
 	MetricType entity.MetricType
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return ErrMissingClient
 	}
-	if c.CollectionName == "" {
+	if s.CollectionName == "" {
 		return ErrMissingCollectionName
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	switch c.MetricType {
+	switch s.MetricType {
 	case entity.COSINE, entity.L2, entity.IP:
 	default:
-		return fmt.Errorf("milvus: unsupported MetricType %q for a float-vector collection", c.MetricType)
+		return fmt.Errorf("milvus: unsupported MetricType %q for a float-vector collection", s.MetricType)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields. MetricType defaults to [entity.COSINE].
-func (c *StoreConfig) applyDefaults() {
-	if c.MetricType == "" {
-		c.MetricType = entity.COSINE
+func (s *StoreConfig) applyDefaults() {
+	if s.MetricType == "" {
+		s.MetricType = entity.COSINE
 	}
 }
 

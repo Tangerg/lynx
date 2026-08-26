@@ -63,55 +63,55 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Pool == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Pool == nil {
 		return errors.New("pgvector: Pool is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("pgvector: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("pgvector: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("pgvector: Dimensions must be >= 0")
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceL2, DistanceIP:
 	default:
-		return fmt.Errorf("pgvector: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("pgvector: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
-	switch c.IndexType {
+	switch s.IndexType {
 	case IndexHNSW, IndexIVFFlat, IndexNone:
 	default:
-		return fmt.Errorf("pgvector: unsupported IndexType %q", c.IndexType)
+		return fmt.Errorf("pgvector: unsupported IndexType %q", s.IndexType)
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if err := identifier(s.SchemaName).validate("SchemaName"); err != nil {
 		return err
 	}
-	if err := identifier(c.TableName).validate("TableName"); err != nil {
+	if err := identifier(s.TableName).validate("TableName"); err != nil {
 		return err
 	}
-	if err := identifier(c.IndexName).validate("IndexName"); err != nil {
+	if err := identifier(s.IndexName).validate("IndexName"); err != nil {
 		return err
 	}
-	return identifier(c.MetadataColumn).validate("MetadataColumn")
+	return identifier(s.MetadataColumn).validate("MetadataColumn")
 }
 
-func (c *StoreConfig) applyDefaults() {
-	c.SchemaName = cmp.Or(c.SchemaName, DefaultSchemaName)
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	if c.IndexName == "" {
-		c.IndexName = c.TableName + DefaultIndexSuffix
+func (s *StoreConfig) applyDefaults() {
+	s.SchemaName = cmp.Or(s.SchemaName, DefaultSchemaName)
+	s.TableName = cmp.Or(s.TableName, DefaultTableName)
+	s.MetadataColumn = cmp.Or(s.MetadataColumn, DefaultMetadataColumn)
+	if s.IndexName == "" {
+		s.IndexName = s.TableName + DefaultIndexSuffix
 	}
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
-	c.IndexType = cmp.Or(c.IndexType, IndexHNSW)
+	s.DistanceMetric = cmp.Or(s.DistanceMetric, DistanceCosine)
+	s.IndexType = cmp.Or(s.IndexType, IndexHNSW)
 }
 
 var (
@@ -197,8 +197,8 @@ func initialize(ctx context.Context, config StoreConfig) error {
 	return nil
 }
 
-func (m DistanceMetric) indexOpClass() string {
-	switch m {
+func (d DistanceMetric) indexOpClass() string {
+	switch d {
 	case DistanceL2:
 		return "vector_l2_ops"
 	case DistanceIP:

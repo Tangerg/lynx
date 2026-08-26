@@ -30,8 +30,8 @@ const (
 	SimilarityEuclidean SimilarityMetric = "euclidean"
 )
 
-func (metric SimilarityMetric) score(raw float64) vectorstore.Score {
-	switch metric {
+func (s SimilarityMetric) score(raw float64) vectorstore.Score {
+	switch s {
 	case SimilarityCosine:
 		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
 		// then apply Lynx's [-1,1] to [0,1] normalization.
@@ -110,42 +110,42 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Endpoint == "" {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Endpoint == "" {
 		return errors.New("azureaisearch: Endpoint is required")
 	}
-	if c.APIKey == "" {
+	if s.APIKey == "" {
 		return errors.New("azureaisearch: APIKey is required")
 	}
-	if c.IndexName == "" {
+	if s.IndexName == "" {
 		return errors.New("azureaisearch: IndexName is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("azureaisearch: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("azureaisearch: DocumentBatcher is required")
 	}
-	if c.SimilarityMetric == "" {
+	if s.SimilarityMetric == "" {
 		return errors.New("azureaisearch: SimilarityMetric is required")
 	}
-	switch c.SimilarityMetric {
+	switch s.SimilarityMetric {
 	case SimilarityCosine, SimilarityDot, SimilarityEuclidean:
 	default:
-		return fmt.Errorf("azureaisearch: unsupported SimilarityMetric %q", c.SimilarityMetric)
+		return fmt.Errorf("azureaisearch: unsupported SimilarityMetric %q", s.SimilarityMetric)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.APIVersion = cmp.Or(c.APIVersion, DefaultAPIVersion)
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
+func (s *StoreConfig) applyDefaults() {
+	s.APIVersion = cmp.Or(s.APIVersion, DefaultAPIVersion)
+	s.IDField = cmp.Or(s.IDField, DefaultIDField)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	if s.HTTPClient == nil {
+		s.HTTPClient = http.DefaultClient
 	}
 }
 

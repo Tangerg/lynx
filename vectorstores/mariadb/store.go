@@ -41,8 +41,8 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-func (metric DistanceMetric) score(distance float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(distance float64) vectorstore.Score {
+	switch d {
 	case DistanceEuclidean:
 		return vectorstore.ScoreFromDistance(distance)
 	case DistanceCosine:
@@ -95,57 +95,57 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.DB == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.DB == nil {
 		return errors.New("mariadb: DB is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("mariadb: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("mariadb: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("mariadb: Dimensions must be >= 0")
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceEuclidean:
 	default:
-		return fmt.Errorf("mariadb: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("mariadb: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
-	return c.validateIdentifiers()
+	return s.validateIdentifiers()
 }
 
-func (c StoreConfig) validateIdentifiers() error {
-	if c.SchemaName != "" {
-		if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+func (s StoreConfig) validateIdentifiers() error {
+	if s.SchemaName != "" {
+		if err := identifier(s.SchemaName).validate("SchemaName"); err != nil {
 			return err
 		}
 	}
-	if err := identifier(c.TableName).validate("TableName"); err != nil {
+	if err := identifier(s.TableName).validate("TableName"); err != nil {
 		return err
 	}
-	if err := identifier(c.IDColumn).validate("IDColumn"); err != nil {
+	if err := identifier(s.IDColumn).validate("IDColumn"); err != nil {
 		return err
 	}
-	if err := identifier(c.ContentColumn).validate("ContentColumn"); err != nil {
+	if err := identifier(s.ContentColumn).validate("ContentColumn"); err != nil {
 		return err
 	}
-	if err := identifier(c.MetadataColumn).validate("MetadataColumn"); err != nil {
+	if err := identifier(s.MetadataColumn).validate("MetadataColumn"); err != nil {
 		return err
 	}
-	return identifier(c.EmbeddingColumn).validate("EmbeddingColumn")
+	return identifier(s.EmbeddingColumn).validate("EmbeddingColumn")
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
+func (s *StoreConfig) applyDefaults() {
+	s.TableName = cmp.Or(s.TableName, DefaultTableName)
+	s.IDColumn = cmp.Or(s.IDColumn, DefaultIDColumn)
+	s.ContentColumn = cmp.Or(s.ContentColumn, DefaultContentColumn)
+	s.MetadataColumn = cmp.Or(s.MetadataColumn, DefaultMetadataColumn)
+	s.EmbeddingColumn = cmp.Or(s.EmbeddingColumn, DefaultEmbeddingColumn)
+	s.DistanceMetric = cmp.Or(s.DistanceMetric, DefaultDistanceMetric)
 }
 
 var (

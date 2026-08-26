@@ -40,17 +40,17 @@ type StoreConfig struct {
 	ImplicitFilterConfiguration *types.ImplicitFilterConfiguration
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	if s.Client == nil {
 		return errors.New("bedrockkb: Client is required")
 	}
-	if c.KnowledgeBaseID == "" {
+	if s.KnowledgeBaseID == "" {
 		return errors.New("bedrockkb: KnowledgeBaseID is required")
 	}
-	switch c.OverrideSearchType {
+	switch s.OverrideSearchType {
 	case "", types.SearchTypeHybrid, types.SearchTypeSemantic:
 	default:
-		return fmt.Errorf("bedrockkb: unsupported OverrideSearchType %q", c.OverrideSearchType)
+		return fmt.Errorf("bedrockkb: unsupported OverrideSearchType %q", s.OverrideSearchType)
 	}
 	return nil
 }

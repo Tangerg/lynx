@@ -34,8 +34,8 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-func (metric DistanceMetric) score(raw float64) vectorstore.Score {
-	switch metric {
+func (d DistanceMetric) score(raw float64) vectorstore.Score {
+	switch d {
 	case DistanceCosine:
 		return vectorstore.ScoreFromCosineSimilarity(raw)
 	case DistanceDot:
@@ -75,26 +75,26 @@ type StoreConfig struct {
 	DistanceMetric DistanceMetric
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	if s.Client == nil {
 		return ErrMissingClient
 	}
-	if c.IndexHost == "" {
+	if s.IndexHost == "" {
 		return ErrMissingIndexHost
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return ErrMissingEmbeddingModel
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	if c.DistanceMetric == "" {
+	if s.DistanceMetric == "" {
 		return ErrMissingDistanceMetric
 	}
-	switch c.DistanceMetric {
+	switch s.DistanceMetric {
 	case DistanceCosine, DistanceDot, DistanceEuclidean:
 	default:
-		return fmt.Errorf("pinecone: unsupported DistanceMetric %q", c.DistanceMetric)
+		return fmt.Errorf("pinecone: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil
 }

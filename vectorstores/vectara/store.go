@@ -57,28 +57,28 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.APIKey == "" {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.APIKey == "" {
 		return errors.New("vectara: APIKey is required")
 	}
-	if c.CorpusKey == "" {
+	if s.CorpusKey == "" {
 		return errors.New("vectara: CorpusKey is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("vectara: DocumentBatcher is required")
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.Endpoint = cmp.Or(c.Endpoint, DefaultEndpoint)
-	if c.MetadataPrefix == "" {
-		c.MetadataPrefix = "doc"
+func (s *StoreConfig) applyDefaults() {
+	s.Endpoint = cmp.Or(s.Endpoint, DefaultEndpoint)
+	if s.MetadataPrefix == "" {
+		s.MetadataPrefix = "doc"
 	}
-	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
+	if s.HTTPClient == nil {
+		s.HTTPClient = http.DefaultClient
 	}
 }
 

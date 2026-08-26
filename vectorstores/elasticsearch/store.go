@@ -92,39 +92,39 @@ type StoreConfig struct {
 	NumCandidatesMultiplier float64
 }
 
-func (c StoreConfig) Validate() error {
-	c.applyDefaults()
-	if c.Client == nil {
+func (s StoreConfig) Validate() error {
+	s.applyDefaults()
+	if s.Client == nil {
 		return errors.New("elasticsearch: Client is required")
 	}
-	if c.EmbeddingModel == nil {
+	if s.EmbeddingModel == nil {
 		return errors.New("elasticsearch: EmbeddingModel is required")
 	}
-	if c.DocumentBatcher == nil {
+	if s.DocumentBatcher == nil {
 		return errors.New("elasticsearch: DocumentBatcher is required")
 	}
-	if c.Dimensions < 0 {
+	if s.Dimensions < 0 {
 		return errors.New("elasticsearch: Dimensions must be >= 0")
 	}
-	switch c.Similarity {
+	switch s.Similarity {
 	case SimilarityCosine, SimilarityL2, SimilarityDotProduct:
 	default:
-		return fmt.Errorf("elasticsearch: unsupported Similarity %q", c.Similarity)
+		return fmt.Errorf("elasticsearch: unsupported Similarity %q", s.Similarity)
 	}
 	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
-func (c *StoreConfig) applyDefaults() {
-	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	if c.MetadataField == "" {
-		c.MetadataField = DefaultMetadataField
+func (s *StoreConfig) applyDefaults() {
+	s.IndexName = cmp.Or(s.IndexName, DefaultIndexName)
+	s.EmbeddingField = cmp.Or(s.EmbeddingField, DefaultEmbeddingField)
+	s.ContentField = cmp.Or(s.ContentField, DefaultContentField)
+	if s.MetadataField == "" {
+		s.MetadataField = DefaultMetadataField
 	}
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	if c.NumCandidatesMultiplier <= 0 {
-		c.NumCandidatesMultiplier = defaultNumCandidatesMul
+	s.Similarity = cmp.Or(s.Similarity, DefaultSimilarity)
+	if s.NumCandidatesMultiplier <= 0 {
+		s.NumCandidatesMultiplier = defaultNumCandidatesMul
 	}
 }
 

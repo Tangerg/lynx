@@ -40,20 +40,20 @@ type sequenceGenerator struct {
 	last int64
 }
 
-func (g *sequenceGenerator) Reserve(count int) int64 {
-	return g.reserveAt(time.Now().UnixNano(), count)
+func (s *sequenceGenerator) Reserve(count int) int64 {
+	return s.reserveAt(time.Now().UnixNano(), count)
 }
 
-func (g *sequenceGenerator) reserveAt(candidate int64, count int) int64 {
+func (s *sequenceGenerator) reserveAt(candidate int64, count int) int64 {
 	if count <= 0 {
 		panic("cassandra: sequence count must be positive")
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	first := candidate
-	if first <= g.last {
-		first = g.last + 1
+	if first <= s.last {
+		first = s.last + 1
 	}
-	g.last = first + int64(count) - 1
+	s.last = first + int64(count) - 1
 	return first
 }
