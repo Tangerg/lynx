@@ -22,7 +22,7 @@ require (
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx/core v0.0.0 // indirect
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b // indirect
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22 // indirect
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 // indirect

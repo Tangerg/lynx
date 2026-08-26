@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/models/protocol/openai
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/openai/openai-go/v3 v3.49.0
 )
 

@@ -3,15 +3,15 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/Tangerg/lynx/a2a v0.0.0-20260825133344-d508117a2e44
 	github.com/Tangerg/lynx/agent v0.0.0-20260826030651-a44943bd78f3
-	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
+	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b
 	github.com/Tangerg/lynx/mcp v0.0.0-20260825131041-ced906387f71
 	github.com/Tangerg/lynx/models/alibaba v0.0.0
 	github.com/Tangerg/lynx/models/anthropic v0.0.0
 	github.com/Tangerg/lynx/models/azureopenai v0.0.0
-	github.com/Tangerg/lynx/models/catalog v0.0.0
+	github.com/Tangerg/lynx/models/catalog v0.0.0-20260826074033-2e35cbad116b
 	github.com/Tangerg/lynx/models/deepseek v0.0.0
 	github.com/Tangerg/lynx/models/fireworks v0.0.0
 	github.com/Tangerg/lynx/models/google v0.0.0-20260826030651-a44943bd78f3

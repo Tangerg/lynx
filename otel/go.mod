@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/otel
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/log v0.20.0
 	go.opentelemetry.io/otel/metric v1.44.0

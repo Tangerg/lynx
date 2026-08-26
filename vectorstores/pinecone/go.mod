@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/vectorstores/pinecone
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/pinecone-io/go-pinecone/v4 v4.1.4
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 )

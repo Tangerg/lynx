@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/vectorstores/weaviate
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0
+	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/go-openapi/strfmt v0.27.0
 	github.com/google/uuid v1.6.0
 	github.com/weaviate/weaviate v1.38.8

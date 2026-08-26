@@ -935,10 +935,12 @@ github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375/go.mod h1:bBPiCd
 github.com/Tangerg/lynx/core v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9 h1:MPl9AlCg41y7KSony3MEwczSRX1uGVMJb5773ZFZoWc=
 github.com/Tangerg/lynx/core v0.0.0-20260731193916-0098789d89e9/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
 github.com/Tangerg/lynx/documentpipeline v0.0.0-20260731193916-0098789d89e9/go.mod h1:Kir8CqvXH2MYJQiWabjOXUJvFiEfhsjzZ7oKq0d+fYc=
 github.com/Tangerg/lynx/mcp v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:/4Qwxrf9qRFKY7+jGUt9FUO0kFe3r5cpl9CVdKvvK0g=
 github.com/Tangerg/lynx/models v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:mvv6qvd6twLOJ1coLU2xhRgw5otJYceqN+6h7NyRJqU=
 github.com/Tangerg/lynx/models v0.0.0-20260825065905-a02034eb7570/go.mod h1:J07l44SAv9hxL3oTs52H6iBjzPeeV7+VIV3a6KB1/Vo=
+github.com/Tangerg/lynx/models/catalog v0.0.0-20260826074033-2e35cbad116b/go.mod h1:Jiu4qM1XNzb8hfXDSZoFPSO5974N3eZQ8C89OpHUzlU=
 github.com/Tangerg/lynx/models/google v0.0.0-20260825065905-a02034eb7570/go.mod h1:IXQ+4SCvtpWVWBsN3zHAcGmwQ8lC5qSXhcrFvJWVFdw=
 github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260825065905-a02034eb7570/go.mod h1:JUgR+hb2X66xXY3Ps0BistNCoZtPAL48OJ+Gb/gdXkw=
 github.com/Tangerg/lynx/otel v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:ivOThIRaMNETTtTcseizChbM6zfb9rS1YObeLKli9FY=
