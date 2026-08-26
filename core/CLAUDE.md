@@ -1,6 +1,6 @@
 # CLAUDE.md — core module
 
-> Lynx 生态的窄腰：只定义跨 provider 稳定共享的协议、最小调用 SPI 和纯组合算法。上手路径见 [`../doc/CORE_GETTING_STARTED.md`](../doc/CORE_GETTING_STARTED.md)；对 Spring AI 的逐块对照见 [`../doc/CORE_VS_SPRING_AI.md`](../doc/CORE_VS_SPRING_AI.md)。
+> Lynx 生态的窄腰：只定义跨 provider 稳定共享的协议、最小调用 SPI 和纯组合算法。
 
 ---
 

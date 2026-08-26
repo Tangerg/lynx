@@ -90,6 +90,3 @@ core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
   测试使用官方 SDK，因此该 module 的 `go.mod` 有 SDK requirement。
 - 本模块不定义 tracer、meter、registry 或 observation 自有抽象。
 - OTLP、Jaeger、Zipkin 等生产 exporter 使用官方实现，不在 Lynx 中复制。
-
-完整语义和组合根示例见
-[`doc/OBSERVABILITY.md`](../doc/OBSERVABILITY.md)。

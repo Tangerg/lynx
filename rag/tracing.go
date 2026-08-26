@@ -10,14 +10,12 @@ import (
 )
 
 // ragTracer is the package-level tracer for RAG span emission.
-// Tracer name follows the `lynx/<subsystem>` convention.
-// No-op overhead when no TracerProvider is installed — see
-// doc/OBSERVABILITY.md §5.
+// Tracer name follows the `lynx/<subsystem>` convention. It is a no-op when
+// no TracerProvider is installed.
 var ragTracer = otel.Tracer("lynx/rag")
 
-// RAG attribute keys — the GenAI semconv has no RAG-specific registry
-// today, so these live under the bare `rag.*` domain (no brand prefix)
-// per doc/OBSERVABILITY.md §3.3.
+// RAG attribute keys — the GenAI semconv has no RAG-specific registry today,
+// so these live under the bare `rag.*` domain without a brand prefix.
 const (
 	attrStage      = "rag.stage"
 	attrQueryCount = "rag.query_count"

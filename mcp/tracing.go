@@ -4,9 +4,8 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-// mcpTracer is the package-level tracer for MCP client and server
-// span emission. No-op overhead when no TracerProvider is installed —
-// see doc/OBSERVABILITY.md §5.
+// mcpTracer is the package-level tracer for MCP client and server span
+// emission. It is a no-op when no TracerProvider is installed.
 var mcpTracer = otel.Tracer("lynx/mcp")
 
 // MCP tool attribute key (GenAI semconv). Tool failures surface through
