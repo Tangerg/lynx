@@ -224,7 +224,7 @@ func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta gamma\n")
-	out, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	out, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -242,7 +242,7 @@ func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y",
 	})
 	if err == nil {
@@ -256,7 +256,7 @@ func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	out, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	out, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y", ReplaceAll: true,
 	})
 	if err != nil {
@@ -274,7 +274,7 @@ func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err == nil {
@@ -288,7 +288,7 @@ func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\r\nbeta\r\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -303,7 +303,7 @@ func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditInput{
+	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
 		Path: path, OldString: "hello", NewString: "hi",
 	})
 	if !errors.Is(err, ErrBinaryFile) {
@@ -337,7 +337,7 @@ diff --git a/gone.txt b/gone.txt
 @@ -1 +0,0 @@
 -remove me
 `
-	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestLocalExecutor_ApplyPatch_MismatchLeavesFileUntouched(t *testing.T) {
 -missing
 +MISSING
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch mismatch: want error")
 	}
@@ -394,7 +394,7 @@ func TestLocalExecutor_ApplyPatch_SecondFileMismatchLeavesFirstUntouched(t *test
 -missing
 +MISSING
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch second-file mismatch: want error")
 	}
@@ -424,7 +424,7 @@ func TestLocalExecutor_ApplyPatch_DuplicateFileRejectedLeavesFileUntouched(t *te
 +SECOND
  three
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch duplicate file section: want error")
 	}
@@ -446,7 +446,7 @@ func TestLocalExecutor_ApplyPatch_InvalidRangeRejected(t *testing.T) {
 -one
 +ONE
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch invalid range: want error")
 	}

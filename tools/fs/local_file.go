@@ -51,13 +51,13 @@ func (l *LocalExecutor) Read(_ context.Context, in ReadInput) (ReadOutput, error
 	}, nil
 }
 
-func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteOutput, error) {
+func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteResponse, error) {
 	if strings.ContainsRune(in.Content, 0) {
-		return WriteOutput{}, fmt.Errorf("fs.LocalExecutor.Write: %w", ErrBinaryFile)
+		return WriteResponse{}, fmt.Errorf("fs.LocalExecutor.Write: %w", ErrBinaryFile)
 	}
 	path, err := l.resolve(in.Path)
 	if err != nil {
-		return WriteOutput{}, err
+		return WriteResponse{}, err
 	}
 
 	unlock := l.lockPath(path)
@@ -79,31 +79,31 @@ func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteOutput, er
 
 	if in.Append {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return WriteOutput{}, err
+			return WriteResponse{}, err
 		}
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
 		if err != nil {
-			return WriteOutput{}, err
+			return WriteResponse{}, err
 		}
 		defer file.Close()
 		n, err := file.WriteString(in.Content)
 		if err != nil {
-			return WriteOutput{}, err
+			return WriteResponse{}, err
 		}
-		return WriteOutput{BytesWritten: n}, nil
+		return WriteResponse{BytesWritten: n}, nil
 	}
 
 	out := restoreFormat(in.Content, hadBOM, hadCRLF)
 	if err := atomicWriteFile(path, out, mode); err != nil {
-		return WriteOutput{}, err
+		return WriteResponse{}, err
 	}
-	return WriteOutput{BytesWritten: len(out)}, nil
+	return WriteResponse{BytesWritten: len(out)}, nil
 }
 
-func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error) {
+func (l *LocalExecutor) Edit(_ context.Context, in EditRequest) (EditResponse, error) {
 	path, err := l.resolve(in.Path)
 	if err != nil {
-		return EditOutput{}, err
+		return EditResponse{}, err
 	}
 
 	unlock := l.lockPath(path)
@@ -111,10 +111,10 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return EditOutput{}, err
+		return EditResponse{}, err
 	}
 	if looksBinary(data) {
-		return EditOutput{}, ErrBinaryFile
+		return EditResponse{}, ErrBinaryFile
 	}
 
 	content, hadBOM, hadCRLF := normalizeText(data)
@@ -124,7 +124,7 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 		ReplaceAll: in.ReplaceAll,
 	}).apply(content, in.Path)
 	if err != nil {
-		return EditOutput{}, err
+		return EditResponse{}, err
 	}
 
 	mode := os.FileMode(0o644)
@@ -134,9 +134,9 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 
 	out := restoreFormat(updated, hadBOM, hadCRLF)
 	if err := atomicWriteFile(path, out, mode); err != nil {
-		return EditOutput{}, err
+		return EditResponse{}, err
 	}
-	return EditOutput{Replacements: replacements}, nil
+	return EditResponse{Replacements: replacements}, nil
 }
 
 func (op editOperation) apply(content, path string) (string, int, error) {

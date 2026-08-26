@@ -2,10 +2,8 @@ package openrouter
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -30,14 +28,10 @@ var (
 )
 
 // OpenAIChat implements OpenRouter's OpenAI-compatible endpoint.
-type OpenAIChat struct {
-	protocol *openai.Chat
-}
+type OpenAIChat = openai.Chat
 
 // AnthropicChat implements OpenRouter's Anthropic-compatible endpoint.
-type AnthropicChat struct {
-	protocol *anthropic.Chat
-}
+type AnthropicChat = anthropic.Chat
 
 // OpenAIChatConfig configures OpenRouter's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
@@ -81,7 +75,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct OpenAI-compatible chat: %w", err)
 	}
-	return &OpenAIChat{protocol: protocol}, nil
+	return protocol, nil
 }
 
 // AnthropicChatConfig configures OpenRouter's Anthropic-compatible Core chat adapter.
@@ -117,7 +111,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct Anthropic-compatible chat: %w", err)
 	}
-	return &AnthropicChat{protocol: protocol}, nil
+	return protocol, nil
 }
 
 func providerHeaders(appURL, appTitle string) http.Header {
@@ -129,34 +123,4 @@ func providerHeaders(appURL, appTitle string) http.Header {
 		headers.Set(HeaderAppTitle, appTitle)
 	}
 	return headers
-}
-
-func (chat *OpenAIChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("openrouter: nil OpenAIChat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *OpenAIChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("openrouter: nil OpenAIChat")) }
-	}
-	return chat.protocol.Stream(ctx, request)
-}
-
-func (chat *AnthropicChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("openrouter: nil AnthropicChat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *AnthropicChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) {
-			yield(nil, errors.New("openrouter: nil AnthropicChat"))
-		}
-	}
-	return chat.protocol.Stream(ctx, request)
 }

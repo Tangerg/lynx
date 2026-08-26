@@ -2,7 +2,6 @@ package alibaba
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"net/http"
 
@@ -32,29 +31,18 @@ func (c EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
-type EmbeddingModel struct{ protocol *openai.EmbeddingModel }
+type EmbeddingModel = openai.EmbeddingModel
 
 // NewEmbeddingModel returns a DashScope-compatible embedding model.
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		Provider:       "alibaba",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		BaseURL:        cmp.Or(cfg.BaseURL, BaseURLChina),
 		HTTPClient:     cfg.HTTPClient,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &EmbeddingModel{protocol: protocol}, nil
-}
-
-func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("alibaba: nil EmbeddingModel")
-	}
-	return m.protocol.Call(ctx, req)
 }

@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"encoding/base64"
@@ -12,7 +12,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/modeltest"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestChat_CoreConformance(t *testing.T) {
@@ -21,7 +21,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			t.Helper()
 			server := newProtocolChatServer(t)
 			t.Cleanup(server.Close)
-			adapter, err := google.NewChat(google.ChatConfig{
+			adapter, err := protocol.NewChat(protocol.ChatConfig{
 				Provider:       "google",
 				APIKey:         "test-key",
 				DefaultOptions: corechat.Options{Model: "default-must-be-overridden"},
@@ -119,7 +119,7 @@ func TestChatRejectsMultipleProviderCandidates(t *testing.T) {
 		]
 	}`)
 	t.Cleanup(server.Close)
-	model, err := google.NewChat(google.ChatConfig{
+	model, err := protocol.NewChat(protocol.ChatConfig{
 		Provider: "google", APIKey: "test-key", BaseURL: server.URL,
 		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},
 	})

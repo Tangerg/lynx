@@ -231,6 +231,33 @@ func TestSelectorPathIncludesBaseIdentifier(t *testing.T) {
 	}
 }
 
+func TestBinaryOperandsExposeSemanticValues(t *testing.T) {
+	expr := filter.EQ(filter.Index("profile", "name"), "lynx")
+	selector, err := expr.Selector()
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexed, ok := selector.(*filter.IndexExpr)
+	if !ok || indexed.Left() == nil || indexed.Index() == nil {
+		t.Fatalf("selector = %#v, want populated IndexExpr", selector)
+	}
+	path, err := expr.Path()
+	if err != nil || strings.Join(path, "/") != "profile/name" {
+		t.Fatalf("Path() = %v, %v", path, err)
+	}
+	value, err := expr.Value()
+	if err != nil || value != "lynx" {
+		t.Fatalf("Value() = %#v, %v", value, err)
+	}
+
+	if _, err := (*filter.BinaryExpr)(nil).Selector(); err == nil {
+		t.Fatal("nil BinaryExpr.Selector returned nil error")
+	}
+	if _, err := filter.And(filter.EQ("a", 1), filter.EQ("b", 2)).Selector(); err == nil {
+		t.Fatal("logical BinaryExpr.Selector returned nil error")
+	}
+}
+
 func TestListLiteralValuesBools(t *testing.T) {
 	e := mustParseBinary(t, `a in (true, false, true)`)
 	list, _ := e.List()

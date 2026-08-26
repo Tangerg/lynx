@@ -88,6 +88,38 @@ func TestWorkspaceCoversEveryProductModule(t *testing.T) {
 	}
 }
 
+func TestCoreCIGatesTargetTheCoreModule(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(workflow)
+	if strings.Contains(text, "matrix.module == '.'") {
+		t.Error("CI targets the retired root module; Core-only gates must select matrix.module == 'core'")
+	}
+	for _, gate := range []string{
+		"Core API and wire compatibility guards",
+		"Core documentation and examples release gate",
+		"Core coverage budget",
+	} {
+		gateIndex := strings.Index(text, "- name: "+gate)
+		if gateIndex < 0 {
+			t.Errorf("CI is missing %q", gate)
+			continue
+		}
+		nextStep := strings.Index(text[gateIndex+1:], "\n      - name:")
+		block := text[gateIndex:]
+		if nextStep >= 0 {
+			block = text[gateIndex : gateIndex+1+nextStep]
+		}
+		if !strings.Contains(block, "if: matrix.module == 'core'") {
+			t.Errorf("CI gate %q does not select the Core module", gate)
+		}
+	}
+}
+
 func TestProductModulesStayOutOfInternalDirectories(t *testing.T) {
 	t.Parallel()
 	for _, module := range discoverModules(t, repositoryRoot(t)) {
@@ -233,6 +265,54 @@ func TestNamespaceRootsStayPackageFree(t *testing.T) {
 				t.Errorf("namespace root %s must not contain Go package file %s", relative, entry.Name())
 			}
 		}
+	}
+}
+
+func TestPackageNamesDescribeTheirDirectories(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if entry.IsDir() {
+			if isExcludedAppDir(relative) || shouldSkipRepositoryDir(relative, entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(string(data), "//go:build ignore\n") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, data, parser.PackageClauseOnly)
+		if err != nil {
+			return err
+		}
+		directory := filepath.ToSlash(filepath.Dir(relative))
+		if file.Name.Name == "main" && containsPathSegment(directory, "examples") {
+			return nil
+		}
+		want := filepath.Base(filepath.Dir(path))
+		if file.Name.Name != want {
+			t.Errorf("%s declares package %s; directory responsibility requires package %s", relative, file.Name.Name, want)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

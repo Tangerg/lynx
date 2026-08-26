@@ -82,19 +82,21 @@ jobs:
         run: make check-standalone
 
       - name: Core API and wire compatibility guards
-        if: matrix.module == '.'
+        if: matrix.module == 'core'
+        working-directory: core
         run: >-
-          go test -count=1 ./core/internal/arch
+          go test -count=1 ./internal/arch
           -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden|TestWireDTOFieldsExcludeArbitraryRuntimeValues)$'
 
       - name: Core documentation and examples release gate
-        if: matrix.module == '.'
+        if: matrix.module == 'core'
+        working-directory: core
         run: >-
-          go test -count=1 ./core/...
+          go test -count=1 ./...
           -run '^(Example|TestPublicPackagesHaveDocsAndRunnableExamples)$'
 
       - name: Core coverage budget
-        if: matrix.module == '.'
+        if: matrix.module == 'core'
         run: scripts/check-core-coverage.sh
 
       - name: golangci-lint

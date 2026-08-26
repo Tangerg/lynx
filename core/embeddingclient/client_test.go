@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/embeddingclient"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type pointerModel struct{}

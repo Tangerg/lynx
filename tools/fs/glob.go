@@ -70,5 +70,5 @@ func (t *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, err
 	if err != nil {
 		return GlobResponse{}, fmt.Errorf("fs.glob: %w", err)
 	}
-	return GlobResponse(res), nil
+	return res, nil
 }

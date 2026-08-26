@@ -14,13 +14,13 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/core/transcription"
-	googleprotocol "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const (
 	Provider       = "Google"
-	DefaultBaseURL = googleprotocol.DefaultBaseURL
+	DefaultBaseURL = protocol.DefaultBaseURL
 	BaseURLOpenAI  = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 	RequestExtensionKey  = "google/request"
@@ -39,21 +39,21 @@ const (
 	OpenAIResponseExtensionKey    = "google/openai_response"
 	OpenAIStreamChunkExtensionKey = "google/openai_stream_chunk"
 
-	ModelGemini36Flash      = googleprotocol.ModelGemini36Flash
-	ModelGemini35Flash      = googleprotocol.ModelGemini35Flash
-	ModelGemini35FlashLite  = googleprotocol.ModelGemini35FlashLite
-	ModelGemini31ProPreview = googleprotocol.ModelGemini31ProPreview
+	ModelGemini36Flash      = protocol.ModelGemini36Flash
+	ModelGemini35Flash      = protocol.ModelGemini35Flash
+	ModelGemini35FlashLite  = protocol.ModelGemini35FlashLite
+	ModelGemini31ProPreview = protocol.ModelGemini31ProPreview
 
-	ModelGemini25FlashPreviewTTS = googleprotocol.ModelGemini25FlashPreviewTTS
-	ModelGemini25ProPreviewTTS   = googleprotocol.ModelGemini25ProPreviewTTS
-	ModelGemini31FlashTTSPreview = googleprotocol.ModelGemini31FlashTTSPreview
+	ModelGemini25FlashPreviewTTS = protocol.ModelGemini25FlashPreviewTTS
+	ModelGemini25ProPreviewTTS   = protocol.ModelGemini25ProPreviewTTS
+	ModelGemini31FlashTTSPreview = protocol.ModelGemini31FlashTTSPreview
 
-	ModelGemini25FlashImage     = googleprotocol.ModelGemini25FlashImage
-	ModelGemini3ProImage        = googleprotocol.ModelGemini3ProImage
-	ModelGemini31FlashImage     = googleprotocol.ModelGemini31FlashImage
-	ModelGemini31FlashLiteImage = googleprotocol.ModelGemini31FlashLiteImage
+	ModelGemini25FlashImage     = protocol.ModelGemini25FlashImage
+	ModelGemini3ProImage        = protocol.ModelGemini3ProImage
+	ModelGemini31FlashImage     = protocol.ModelGemini31FlashImage
+	ModelGemini31FlashLiteImage = protocol.ModelGemini31FlashLiteImage
 
-	ModelGeminiEmbedding2 = googleprotocol.ModelGeminiEmbedding2
+	ModelGeminiEmbedding2 = protocol.ModelGeminiEmbedding2
 )
 
 type ChatConfig struct {
@@ -65,17 +65,17 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
-func (c ChatConfig) protocol() googleprotocol.ChatConfig {
-	return googleprotocol.ChatConfig{
+func (c ChatConfig) protocol() protocol.ChatConfig {
+	return protocol.ChatConfig{
 		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
 		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
-type Chat struct{ protocol *googleprotocol.Chat }
+type Chat struct{ protocol *protocol.Chat }
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	model, err := googleprotocol.NewChat(config.protocol())
+	model, err := protocol.NewChat(config.protocol())
 	if err != nil {
 		return nil, err
 	}
@@ -113,34 +113,17 @@ func (config OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-type OpenAIChat struct{ protocol *openaiprotocol.Chat }
+// OpenAIChat is Google's OpenAI-compatible protocol model.
+type OpenAIChat = openaiprotocol.Chat
 
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	model, err := openaiprotocol.NewCompatibleChat(
+	return openaiprotocol.NewCompatibleChat(
 		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: "google", TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
-	if err != nil {
-		return nil, fmt.Errorf("google: construct OpenAI-compatible chat: %w", err)
-	}
-	return &OpenAIChat{protocol: model}, nil
-}
-
-func (c *OpenAIChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	if c == nil || c.protocol == nil {
-		return nil, errors.New("google: nil OpenAIChat")
-	}
-	return c.protocol.Call(ctx, req)
-}
-
-func (c *OpenAIChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("google: nil OpenAIChat")) }
-	}
-	return c.protocol.Stream(ctx, req)
 }
 
 type EmbeddingModelConfig struct {
@@ -152,19 +135,19 @@ type EmbeddingModelConfig struct {
 
 func (c EmbeddingModelConfig) Validate() error { return c.protocol().Validate() }
 
-func (c EmbeddingModelConfig) protocol() googleprotocol.EmbeddingModelConfig {
-	return googleprotocol.EmbeddingModelConfig{
+func (c EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
+	return protocol.EmbeddingModelConfig{
 		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
 		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
 type EmbeddingModel struct {
-	protocol *googleprotocol.EmbeddingModel
+	protocol *protocol.EmbeddingModel
 }
 
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
-	model, err := googleprotocol.NewEmbeddingModel(config.protocol())
+	model, err := protocol.NewEmbeddingModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
@@ -187,17 +170,17 @@ type AudioTTSModelConfig struct {
 
 func (c AudioTTSModelConfig) Validate() error { return c.protocol().Validate() }
 
-func (c AudioTTSModelConfig) protocol() googleprotocol.AudioTTSModelConfig {
-	return googleprotocol.AudioTTSModelConfig{
+func (c AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
+	return protocol.AudioTTSModelConfig{
 		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
 		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
-type AudioTTSModel struct{ protocol *googleprotocol.AudioTTSModel }
+type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
-	model, err := googleprotocol.NewAudioTTSModel(config.protocol())
+	model, err := protocol.NewAudioTTSModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
@@ -230,19 +213,19 @@ type AudioTranscriptionModelConfig struct {
 
 func (c AudioTranscriptionModelConfig) Validate() error { return c.protocol().Validate() }
 
-func (c AudioTranscriptionModelConfig) protocol() googleprotocol.AudioTranscriptionModelConfig {
-	return googleprotocol.AudioTranscriptionModelConfig{
+func (c AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
+	return protocol.AudioTranscriptionModelConfig{
 		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
 		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
 type AudioTranscriptionModel struct {
-	protocol *googleprotocol.AudioTranscriptionModel
+	protocol *protocol.AudioTranscriptionModel
 }
 
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	model, err := googleprotocol.NewAudioTranscriptionModel(config.protocol())
+	model, err := protocol.NewAudioTranscriptionModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +248,8 @@ type ImageModelConfig struct {
 
 func (c ImageModelConfig) Validate() error { return c.protocol().Validate() }
 
-func (c ImageModelConfig) protocol() googleprotocol.ImageModelConfig {
-	return googleprotocol.ImageModelConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
+func (c ImageModelConfig) protocol() protocol.ImageModelConfig {
+	return protocol.ImageModelConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type ImageGenerationOptions struct {
@@ -294,10 +277,10 @@ type ImageSafetySetting struct {
 	Method    string `json:"method,omitempty"`
 }
 
-type ImageModel struct{ protocol *googleprotocol.ImageModel }
+type ImageModel struct{ protocol *protocol.ImageModel }
 
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
-	model, err := googleprotocol.NewImageModel(config.protocol())
+	model, err := protocol.NewImageModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
@@ -320,16 +303,16 @@ type TextEstimatorConfig struct {
 
 func (c TextEstimatorConfig) Validate() error { return c.protocol().Validate() }
 
-func (c TextEstimatorConfig) protocol() googleprotocol.TextEstimatorConfig {
-	return googleprotocol.TextEstimatorConfig{
+func (c TextEstimatorConfig) protocol() protocol.TextEstimatorConfig {
+	return protocol.TextEstimatorConfig{
 		APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
-type TextEstimator struct{ protocol *googleprotocol.TextEstimator }
+type TextEstimator struct{ protocol *protocol.TextEstimator }
 
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
-	estimator, err := googleprotocol.NewTextEstimator(config.protocol())
+	estimator, err := protocol.NewTextEstimator(config.protocol())
 	if err != nil {
 		return nil, err
 	}

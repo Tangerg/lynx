@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +20,74 @@ var retiredProviderSymbols = map[string]struct{}{
 	"Request":      {},
 	"Response":     {},
 	"SearchNative": {},
+}
+
+// TestSharedProtocolsArePromotedWithoutDelegatingWrappers keeps exact wire
+// compatibility honest. A provider that uses the shared OpenAI or Anthropic
+// implementation owns its Config and constructor, but promotes the resulting
+// model type directly. A single-field wrapper adds no semantic boundary and
+// merely duplicates Call/Stream methods. Provider-private internal protocols
+// are deliberately outside this rule because their wrappers enforce Go's
+// internal visibility boundary.
+func TestSharedProtocolsArePromotedWithoutDelegatingWrappers(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(repositoryRoot(t), "models")
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			relative, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			for _, segment := range strings.Split(filepath.ToSlash(relative), "/") {
+				if segment == "internal" || segment == "protocol" {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		protocols := sharedProtocolImportAliases(file)
+		if len(protocols) == 0 {
+			return nil
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec, ok := specification.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				structure, ok := typeSpec.Type.(*ast.StructType)
+				if !ok || len(structure.Fields.List) != 1 {
+					continue
+				}
+				field := structure.Fields.List[0]
+				if len(field.Names) != 1 || field.Names[0].Name != "protocol" || !pointsToImportedSelector(field.Type, protocols) {
+					continue
+				}
+				t.Errorf("%s:%d %s is a behaviorless shared-protocol wrapper; promote the protocol model with a type alias", filepath.ToSlash(path), fset.Position(typeSpec.Pos()).Line, typeSpec.Name.Name)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestModelProvidersOwnTheirPublicSurface prevents provider facades from
@@ -264,6 +333,39 @@ func importAliases(file *ast.File, wantPath string) map[string]struct{} {
 		aliases[name] = struct{}{}
 	}
 	return aliases
+}
+
+func sharedProtocolImportAliases(file *ast.File) map[string]struct{} {
+	aliases := make(map[string]struct{})
+	for _, imported := range file.Imports {
+		path, err := strconv.Unquote(imported.Path.Value)
+		if err != nil || (path != "github.com/Tangerg/lynx/models/protocol/openai" && path != "github.com/Tangerg/lynx/models/protocol/anthropic") {
+			continue
+		}
+		name := filepath.Base(path)
+		if imported.Name != nil {
+			name = imported.Name.Name
+		}
+		aliases[name] = struct{}{}
+	}
+	return aliases
+}
+
+func pointsToImportedSelector(expression ast.Expr, aliases map[string]struct{}) bool {
+	pointer, ok := expression.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	selector, ok := pointer.X.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	qualifier, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	_, imported := aliases[qualifier.Name]
+	return imported
 }
 
 func rejectRetiredProviderSymbol(t *testing.T, fset *token.FileSet, path string, name *ast.Ident, retired map[string]struct{}) {

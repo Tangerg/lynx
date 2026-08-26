@@ -111,26 +111,25 @@ chat: var ErrInvalidRequest = errors.New("chat: invalid request")
 chat: var ErrInvalidResponse = errors.New("chat: invalid response")
 chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
 chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
-chatclient/safeguard: const ( ScopeInput Scope = 1 << iota ScopeOutput ScopeBoth = ScopeInput | ScopeOutput )
+chatclient/safeguard: const ( ScopeInput Scope = "input" ScopeOutput Scope = "output" ScopeBoth Scope = "both" )
 chatclient/safeguard: func (e *UnsafeError) Error() string
 chatclient/safeguard: func (e *UnsafeError) Unwrap() error
 chatclient/safeguard: func (f MatcherFunc) Match(ctx context.Context, text string) (Match, error)
 chatclient/safeguard: func (m *Middleware) Call(next chat.Model) chat.Model
 chatclient/safeguard: func (m *Middleware) Stream(next chat.Streamer) chat.Streamer
 chatclient/safeguard: func (m *SubstringMatcher) Match(ctx context.Context, text string) (Match, error)
-chatclient/safeguard: func (s Scope) String() string
 chatclient/safeguard: func (s Scope) Valid() bool
 chatclient/safeguard: func New(matcher Matcher, config Config) (*Middleware, error)
-chatclient/safeguard: func NewSubstringMatcher(terms []string, options SubstringOptions) (*SubstringMatcher, error)
+chatclient/safeguard: func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatcher, error)
 chatclient/safeguard: type Block struct { Scope Scope Term string }
 chatclient/safeguard: type Config struct { Scope Scope OnBlock func(context.Context, Block) }
 chatclient/safeguard: type Match struct { Term string Found bool }
 chatclient/safeguard: type Matcher interface { Match(ctx context.Context, text string) (Match, error) }
 chatclient/safeguard: type MatcherFunc func(ctx context.Context, text string) (Match, error)
 chatclient/safeguard: type Middleware struct { matcher Matcher config Config }
-chatclient/safeguard: type Scope uint8
-chatclient/safeguard: type SubstringMatcher struct { terms []substringTerm options SubstringOptions }
-chatclient/safeguard: type SubstringOptions struct { CaseSensitive bool HideMatch bool }
+chatclient/safeguard: type Scope string
+chatclient/safeguard: type SubstringConfig struct { CaseSensitive bool HideMatch bool }
+chatclient/safeguard: type SubstringMatcher struct { terms []substringTerm config SubstringConfig }
 chatclient/safeguard: type UnsafeError struct { Block Block }
 chatclient/safeguard: var ( ErrUnsafeContent = errors.New("safeguard: unsafe content") ErrInvalidConfig = errors.New("safeguard: invalid config") ErrNilStream = errors.New("safeguard: nil stream sequence") )
 chatclient: func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error)

@@ -82,5 +82,5 @@ func (t *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse,
 	if err != nil {
 		return WriteResponse{}, fmt.Errorf("fs.write: %w", err)
 	}
-	return WriteResponse(res), nil
+	return res, nil
 }

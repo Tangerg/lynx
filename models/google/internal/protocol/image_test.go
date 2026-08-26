@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"encoding/base64"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/modeltest"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
@@ -32,18 +32,18 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions(google.ModelGemini31FlashImage)
+	opts, err := image.NewOptions(protocol.ModelGemini31FlashImage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	opts.OutputFormat = "image/jpeg"
-	if err := opts.SetExtension(google.ImageRequestExtensionKey, google.ImageGenerationOptions{
+	if err := opts.SetExtension(protocol.ImageRequestExtensionKey, protocol.ImageGenerationOptions{
 		AspectRatio: "16:9",
 		ImageSize:   "2K",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	model, err := google.NewImageModel(google.ImageModelConfig{
+	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
 		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
@@ -66,7 +66,7 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	if got := out.Metadata.Created; got != time.Date(2026, 7, 31, 10, 20, 30, 0, time.UTC).Unix() {
 		t.Fatalf("Created = %d", got)
 	}
-	if _, ok, err := out.Metadata.Extra.Decode[map[string]any](google.ImageResponseExtensionKey); err != nil || !ok {
+	if _, ok, err := out.Metadata.Extra.Decode[map[string]any](protocol.ImageResponseExtensionKey); err != nil || !ok {
 		t.Fatalf("native response extension: exists=%t err=%v", ok, err)
 	}
 
@@ -78,8 +78,8 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 }
 
 func TestImageModelRejectsUnsupportedImagenOnlyOptions(t *testing.T) {
-	opts, _ := image.NewOptions(google.ModelGemini31FlashImage)
-	model, err := google.NewImageModel(google.ImageModelConfig{
+	opts, _ := image.NewOptions(protocol.ModelGemini31FlashImage)
+	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
 		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        "https://example.com",

@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
@@ -22,11 +22,11 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions(google.ModelGemini36Flash)
+	opts, err := transcription.NewOptions(protocol.ModelGemini36Flash)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
+	m, err := protocol.NewAudioTranscriptionModel(protocol.AudioTranscriptionModelConfig{
 		Provider:       "google",
 		APIKey:         "test-key",
 		DefaultOptions: opts,

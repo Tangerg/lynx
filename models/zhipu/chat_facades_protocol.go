@@ -2,10 +2,8 @@ package zhipu
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -30,14 +28,10 @@ var (
 )
 
 // OpenAIChat implements Zhipu's OpenAI-compatible endpoint.
-type OpenAIChat struct {
-	protocol *openai.Chat
-}
+type OpenAIChat = openai.Chat
 
 // AnthropicChat implements Zhipu's Anthropic-compatible endpoint.
-type AnthropicChat struct {
-	protocol *anthropic.Chat
-}
+type AnthropicChat = anthropic.Chat
 
 // OpenAIChatConfig configures Zhipu's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
@@ -66,7 +60,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("zhipu: construct OpenAI-compatible chat: %w", err)
 	}
-	return &OpenAIChat{protocol: protocol}, nil
+	return protocol, nil
 }
 
 // AnthropicChatConfig configures Zhipu's Anthropic-compatible Core chat adapter.
@@ -96,33 +90,5 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("zhipu: construct Anthropic-compatible chat: %w", err)
 	}
-	return &AnthropicChat{protocol: protocol}, nil
-}
-
-func (chat *OpenAIChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("zhipu: nil OpenAIChat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *OpenAIChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("zhipu: nil OpenAIChat")) }
-	}
-	return chat.protocol.Stream(ctx, request)
-}
-
-func (chat *AnthropicChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("zhipu: nil AnthropicChat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *AnthropicChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("zhipu: nil AnthropicChat")) }
-	}
-	return chat.protocol.Stream(ctx, request)
+	return protocol, nil
 }

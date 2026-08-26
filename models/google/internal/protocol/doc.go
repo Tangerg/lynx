@@ -1,4 +1,4 @@
-// Package google implements the Google Gen AI wire protocol reused by Gemini
+// Package protocol implements the Google Gen AI wire protocol reused by Gemini
 // and Vertex AI provider endpoints inside the models module.
 //
 // Constructors:
@@ -23,4 +23,4 @@
 //
 // genai supports two backends: Generative Language (api key) and
 // Vertex AI has its own facade package and construction config.
-package google
+package protocol

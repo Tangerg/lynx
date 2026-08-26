@@ -7,23 +7,23 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chatclient/safeguard"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/chatclient/safeguard"
 )
 
 func TestScopeContract(t *testing.T) {
-	for scope, name := range map[safeguard.Scope]string{
-		safeguard.ScopeInput:  "input",
-		safeguard.ScopeOutput: "output",
-		safeguard.ScopeBoth:   "input+output",
+	for _, scope := range []safeguard.Scope{
+		safeguard.ScopeInput,
+		safeguard.ScopeOutput,
+		safeguard.ScopeBoth,
 	} {
-		if !scope.Valid() || scope.String() != name {
-			t.Fatalf("scope %d = valid %v, string %q", scope, scope.Valid(), scope.String())
+		if !scope.Valid() {
+			t.Fatalf("scope %q is invalid", scope)
 		}
 	}
-	invalid := safeguard.Scope(8)
-	if invalid.Valid() || invalid.String() != "Scope(8)" {
-		t.Fatalf("invalid scope = valid %v, string %q", invalid.Valid(), invalid.String())
+	invalid := safeguard.Scope("unknown")
+	if invalid.Valid() {
+		t.Fatalf("invalid scope %q reported valid", invalid)
 	}
 }
 
@@ -34,17 +34,17 @@ func TestNewRejectsInvalidConfiguration(t *testing.T) {
 	matcher := safeguard.MatcherFunc(func(context.Context, string) (safeguard.Match, error) {
 		return safeguard.Match{}, nil
 	})
-	if _, err := safeguard.New(matcher, safeguard.Config{Scope: 8}); !errors.Is(err, safeguard.ErrInvalidConfig) {
+	if _, err := safeguard.New(matcher, safeguard.Config{Scope: "unknown"}); !errors.Is(err, safeguard.ErrInvalidConfig) {
 		t.Fatalf("invalid scope error = %v", err)
 	}
-	if _, err := safeguard.NewSubstringMatcher([]string{"", "  "}, safeguard.SubstringOptions{}); !errors.Is(err, safeguard.ErrInvalidConfig) {
+	if _, err := safeguard.NewSubstringMatcher([]string{"", "  "}, safeguard.SubstringConfig{}); !errors.Is(err, safeguard.ErrInvalidConfig) {
 		t.Fatalf("empty terms error = %v", err)
 	}
 }
 
 func TestSubstringMatcherSnapshotsTermsAndSupportsDisclosurePolicy(t *testing.T) {
 	terms := []string{" SECRET ", "secret", "other"}
-	matcher, err := safeguard.NewSubstringMatcher(terms, safeguard.SubstringOptions{})
+	matcher, err := safeguard.NewSubstringMatcher(terms, safeguard.SubstringConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,14 +57,14 @@ func TestSubstringMatcherSnapshotsTermsAndSupportsDisclosurePolicy(t *testing.T)
 		t.Fatalf("clean match = %#v, %v", match, err)
 	}
 
-	sensitive, err := safeguard.NewSubstringMatcher([]string{"SECRET"}, safeguard.SubstringOptions{CaseSensitive: true})
+	sensitive, err := safeguard.NewSubstringMatcher([]string{"SECRET"}, safeguard.SubstringConfig{CaseSensitive: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if match, _ := sensitive.Match(t.Context(), "secret"); match.Found {
 		t.Fatal("case-sensitive matcher accepted lowercase text")
 	}
-	hidden, err := safeguard.NewSubstringMatcher([]string{"secret"}, safeguard.SubstringOptions{HideMatch: true})
+	hidden, err := safeguard.NewSubstringMatcher([]string{"secret"}, safeguard.SubstringConfig{HideMatch: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestUnsafeErrorNilReceiver(t *testing.T) {
 
 func mustSubstring(t *testing.T, terms ...string) *safeguard.SubstringMatcher {
 	t.Helper()
-	matcher, err := safeguard.NewSubstringMatcher(terms, safeguard.SubstringOptions{})
+	matcher, err := safeguard.NewSubstringMatcher(terms, safeguard.SubstringConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}

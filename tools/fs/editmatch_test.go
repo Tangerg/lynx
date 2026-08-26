@@ -12,7 +12,7 @@ func editFuzz(t *testing.T, content, old, new string, replaceAll bool) (string, 
 	t.Helper()
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "f.go", content)
-	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditInput{
+	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: old, NewString: new, ReplaceAll: replaceAll,
 	})
 	got, _ := os.ReadFile(path)

@@ -66,7 +66,7 @@ func (t remoteTool) MCPToolIdentity() (sourceName, remoteName string) {
 // ConcurrencyKey structurally satisfies schedulers that support conflict-aware
 // parallel calls without coupling this protocol adapter to a particular agent
 // runtime. Unknown remote tools remain exclusive unless the caller supplied a
-// policy through [ToolOptions.Concurrency].
+// policy through [ToolsConfig.Concurrency].
 func (t remoteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	if t.concurrency == nil {
 		return "", false

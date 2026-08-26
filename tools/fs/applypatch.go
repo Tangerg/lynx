@@ -9,7 +9,9 @@ import (
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
-// ApplyPatchRequest is the LLM-facing argument shape for the apply_patch tool.
+// ApplyPatchRequest applies a standard unified diff. The local executor
+// supports create, modify, delete and move (headers naming two different
+// paths), which makes a coordinated refactor one call.
 type ApplyPatchRequest struct {
 	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Standard unified diff. Supports create, modify, delete, and move operations."`
 }
@@ -22,10 +24,13 @@ type ApplyPatchResponse struct {
 
 // PatchFileResponse reports one patched file.
 type PatchFileResponse struct {
-	Path      string `json:"path"`
-	Hunks     int    `json:"hunks"`
-	Created   bool   `json:"created,omitempty"`
-	Deleted   bool   `json:"deleted,omitempty"`
+	// Path is where the file ended up.
+	Path    string `json:"path"`
+	Hunks   int    `json:"hunks"`
+	Created bool   `json:"created,omitempty"`
+	Deleted bool   `json:"deleted,omitempty"`
+	// MovedFrom is the path the file left, set only for a move. Path alone would
+	// say a file exists somewhere new without saying which one stopped existing.
 	MovedFrom string `json:"moved_from,omitempty"`
 }
 
@@ -73,13 +78,9 @@ func (t *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, er
 }
 
 func (t *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (ApplyPatchResponse, error) {
-	res, err := t.executor.ApplyPatch(ctx, ApplyPatchInput(req))
+	res, err := t.executor.ApplyPatch(ctx, req)
 	if err != nil {
 		return ApplyPatchResponse{}, fmt.Errorf("fs.apply_patch: %w", err)
 	}
-	files := make([]PatchFileResponse, len(res.Files))
-	for i, file := range res.Files {
-		files[i] = PatchFileResponse(file)
-	}
-	return ApplyPatchResponse{Files: files, Hunks: res.Hunks}, nil
+	return res, nil
 }

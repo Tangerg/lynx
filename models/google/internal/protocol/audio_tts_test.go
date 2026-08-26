@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"encoding/base64"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
@@ -24,11 +24,11 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions(google.ModelGemini31FlashTTSPreview)
+	opts, err := tts.NewOptions(protocol.ModelGemini31FlashTTSPreview)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewAudioTTSModel(google.AudioTTSModelConfig{
+	m, err := protocol.NewAudioTTSModel(protocol.AudioTTSModelConfig{
 		Provider:       "google",
 		APIKey:         "test-key",
 		DefaultOptions: opts,

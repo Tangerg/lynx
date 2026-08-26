@@ -47,7 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -68,7 +68,7 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	// which must NOT be classified as *ToolCallError.
 	ctx := t.Context()
 	cs, cleanup := startServerWithFailing(t, ctx)
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	cleanup() // close immediately
@@ -84,7 +84,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
 	require.NoError(t, err)
 
 	callable := tools[0]
@@ -117,7 +117,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolOptions{
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolsConfig{
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
 	require.NoError(t, err)

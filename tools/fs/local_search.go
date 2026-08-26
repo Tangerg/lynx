@@ -32,9 +32,9 @@ const (
 // Unsupported (yet): patterns with ** in the middle ("cmd/*/main.go"),
 // multiple **, brace expansion. The LLM-facing tool doc lists the
 // supported shapes.
-func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobOutput, error) {
+func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobResponse, error) {
 	if in.Pattern == "" {
-		return GlobOutput{}, ErrEmptyPattern
+		return GlobResponse{}, ErrEmptyPattern
 	}
 	root := l.rootDir(in.Root)
 	maxResults := in.MaxResults
@@ -45,7 +45,7 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobOutput, err
 	anchor, args := globPatternToFindArgs(in.Pattern, root, in.IgnoreCase)
 	out, err := exec.CommandContext(ctx, "find", append([]string{anchor}, args...)...).Output()
 	if err != nil {
-		return GlobOutput{}, fmt.Errorf("fs.LocalExecutor.Glob: %w", err)
+		return GlobResponse{}, fmt.Errorf("fs.LocalExecutor.Glob: %w", err)
 	}
 
 	paths := splitLines(out)
@@ -62,7 +62,7 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobOutput, err
 		paths = paths[:maxResults]
 		truncated = true
 	}
-	return GlobOutput{Paths: paths, Truncated: truncated}, nil
+	return GlobResponse{Paths: paths, Truncated: truncated}, nil
 }
 
 // globPatternToFindArgs translates a doublestar glob into find(1)
@@ -95,16 +95,16 @@ func globPatternToFindArgs(pattern, root string, ignoreCase bool) (anchor string
 	return anchor, args
 }
 
-func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (GrepOutput, error) {
+func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (GrepResponse, error) {
 	if in.Pattern == "" {
-		return GrepOutput{}, ErrEmptyPattern
+		return GrepResponse{}, ErrEmptyPattern
 	}
 	mode := in.OutputMode
 	if mode == "" {
 		mode = GrepOutputContent
 	}
 	if mode != GrepOutputContent && mode != GrepOutputFilesWithMatches && mode != GrepOutputCount {
-		return GrepOutput{}, fmt.Errorf("fs.LocalExecutor.Grep: invalid output_mode %q", in.OutputMode)
+		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep: invalid output_mode %q", in.OutputMode)
 	}
 	maxResults := in.MaxResults
 	if maxResults <= 0 {
@@ -126,7 +126,7 @@ func (l *LocalExecutor) ripgrep() string {
 	return l.rgPath
 }
 
-func (l *LocalExecutor) grepWithRipgrep(ctx context.Context, in GrepInput, mode GrepOutputMode, maxResults int) (GrepOutput, error) {
+func (l *LocalExecutor) grepWithRipgrep(ctx context.Context, in GrepInput, mode GrepOutputMode, maxResults int) (GrepResponse, error) {
 	root := l.rootDir(in.Root)
 	args := []string{"--no-heading", "--color=never"}
 
@@ -161,12 +161,12 @@ func (l *LocalExecutor) grepWithRipgrep(ctx context.Context, in GrepInput, mode 
 
 	out, err := runGrep(ctx, l.ripgrep(), args)
 	if err != nil {
-		return GrepOutput{}, fmt.Errorf("fs.LocalExecutor.Grep(rg): %w", err)
+		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep(rg): %w", err)
 	}
 	return shapeGrepOutput(mode, out, maxResults), nil
 }
 
-func (l *LocalExecutor) grepWithGNU(ctx context.Context, in GrepInput, mode GrepOutputMode, maxResults int) (GrepOutput, error) {
+func (l *LocalExecutor) grepWithGNU(ctx context.Context, in GrepInput, mode GrepOutputMode, maxResults int) (GrepResponse, error) {
 	root := l.rootDir(in.Root)
 	args := []string{"-rE"}
 
@@ -196,7 +196,7 @@ func (l *LocalExecutor) grepWithGNU(ctx context.Context, in GrepInput, mode Grep
 
 	out, err := runGrep(ctx, "grep", args)
 	if err != nil {
-		return GrepOutput{}, fmt.Errorf("fs.LocalExecutor.Grep: %w", err)
+		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep: %w", err)
 	}
 	return shapeGrepOutput(mode, out, maxResults), nil
 }
@@ -214,7 +214,7 @@ func runGrep(ctx context.Context, bin string, args []string) ([]byte, error) {
 	return out, err
 }
 
-func shapeGrepOutput(mode GrepOutputMode, out []byte, maxResults int) GrepOutput {
+func shapeGrepOutput(mode GrepOutputMode, out []byte, maxResults int) GrepResponse {
 	switch mode {
 	case GrepOutputFilesWithMatches:
 		files := splitLines(out)
@@ -223,7 +223,7 @@ func shapeGrepOutput(mode GrepOutputMode, out []byte, maxResults int) GrepOutput
 			files = files[:maxResults]
 			truncated = true
 		}
-		return GrepOutput{Files: files, Truncated: truncated}
+		return GrepResponse{Files: files, Truncated: truncated}
 	case GrepOutputCount:
 		counts := parseGrepCounts(out)
 		truncated := false
@@ -231,7 +231,7 @@ func shapeGrepOutput(mode GrepOutputMode, out []byte, maxResults int) GrepOutput
 			counts = counts[:maxResults]
 			truncated = true
 		}
-		return GrepOutput{Counts: counts, Truncated: truncated}
+		return GrepResponse{Counts: counts, Truncated: truncated}
 	default:
 		matches := parseGrepLines(out)
 		truncated := false
@@ -239,7 +239,7 @@ func shapeGrepOutput(mode GrepOutputMode, out []byte, maxResults int) GrepOutput
 			matches = matches[:maxResults]
 			truncated = true
 		}
-		return GrepOutput{Matches: matches, Truncated: truncated}
+		return GrepResponse{Matches: matches, Truncated: truncated}
 	}
 }
 

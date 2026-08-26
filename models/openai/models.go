@@ -1,9 +1,6 @@
 package openai
 
 import (
-	"context"
-	"errors"
-	"iter"
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -51,52 +48,18 @@ func (c ChatConfig) protocol() openaiprotocol.ChatConfig {
 	}
 }
 
-type Chat struct{ protocol *openaiprotocol.Chat }
+// Chat is the OpenAI Chat Completions protocol model.
+type Chat = openaiprotocol.Chat
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	model, err := openaiprotocol.NewChat(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &Chat{protocol: model}, nil
+	return openaiprotocol.NewChat(config.protocol())
 }
 
-func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	if c == nil || c.protocol == nil {
-		return nil, errors.New("openai: nil Chat")
-	}
-	return c.protocol.Call(ctx, req)
-}
-
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("openai: nil Chat")) }
-	}
-	return c.protocol.Stream(ctx, req)
-}
-
-type ResponsesChat struct{ protocol *openaiprotocol.ResponsesChat }
+// ResponsesChat is the OpenAI Responses API model.
+type ResponsesChat = openaiprotocol.ResponsesChat
 
 func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
-	model, err := openaiprotocol.NewResponsesChat(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &ResponsesChat{protocol: model}, nil
-}
-
-func (c *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	if c == nil || c.protocol == nil {
-		return nil, errors.New("openai: nil ResponsesChat")
-	}
-	return c.protocol.Call(ctx, req)
-}
-
-func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("openai: nil ResponsesChat")) }
-	}
-	return c.protocol.Stream(ctx, req)
+	return openaiprotocol.NewResponsesChat(config.protocol())
 }
 
 type EmbeddingModelConfig struct {
@@ -112,23 +75,11 @@ func (c EmbeddingModelConfig) protocol() openaiprotocol.EmbeddingModelConfig {
 	return openaiprotocol.EmbeddingModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type EmbeddingModel struct {
-	protocol *openaiprotocol.EmbeddingModel
-}
+// EmbeddingModel is the OpenAI-compatible embedding protocol model.
+type EmbeddingModel = openaiprotocol.EmbeddingModel
 
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
-	model, err := openaiprotocol.NewEmbeddingModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &EmbeddingModel{protocol: model}, nil
-}
-
-func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil EmbeddingModel")
-	}
-	return m.protocol.Call(ctx, req)
+	return openaiprotocol.NewEmbeddingModel(config.protocol())
 }
 
 type AudioTranscriptionModelConfig struct {
@@ -144,23 +95,11 @@ func (c AudioTranscriptionModelConfig) protocol() openaiprotocol.AudioTranscript
 	return openaiprotocol.AudioTranscriptionModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type AudioTranscriptionModel struct {
-	protocol *openaiprotocol.AudioTranscriptionModel
-}
+// AudioTranscriptionModel is the OpenAI-compatible transcription protocol model.
+type AudioTranscriptionModel = openaiprotocol.AudioTranscriptionModel
 
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	model, err := openaiprotocol.NewAudioTranscriptionModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &AudioTranscriptionModel{protocol: model}, nil
-}
-
-func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil AudioTranscriptionModel")
-	}
-	return m.protocol.Call(ctx, req)
+	return openaiprotocol.NewAudioTranscriptionModel(config.protocol())
 }
 
 type AudioTranslationModelConfig struct {
@@ -176,23 +115,11 @@ func (c AudioTranslationModelConfig) protocol() openaiprotocol.AudioTranslationM
 	return openaiprotocol.AudioTranslationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type AudioTranslationModel struct {
-	protocol *openaiprotocol.AudioTranslationModel
-}
+// AudioTranslationModel is the OpenAI-compatible translation protocol model.
+type AudioTranslationModel = openaiprotocol.AudioTranslationModel
 
 func NewAudioTranslationModel(config AudioTranslationModelConfig) (*AudioTranslationModel, error) {
-	model, err := openaiprotocol.NewAudioTranslationModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &AudioTranslationModel{protocol: model}, nil
-}
-
-func (m *AudioTranslationModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil AudioTranslationModel")
-	}
-	return m.protocol.Call(ctx, req)
+	return openaiprotocol.NewAudioTranslationModel(config.protocol())
 }
 
 type AudioTTSModelConfig struct {
@@ -208,31 +135,11 @@ func (c AudioTTSModelConfig) protocol() openaiprotocol.AudioTTSModelConfig {
 	return openaiprotocol.AudioTTSModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type AudioTTSModel struct{ protocol *openaiprotocol.AudioTTSModel }
+// AudioTTSModel is the OpenAI-compatible speech protocol model.
+type AudioTTSModel = openaiprotocol.AudioTTSModel
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
-	model, err := openaiprotocol.NewAudioTTSModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &AudioTTSModel{protocol: model}, nil
-}
-
-func (m *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil AudioTTSModel")
-	}
-	return m.protocol.Call(ctx, req)
-}
-
-func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
-	if m == nil || m.protocol == nil {
-		return func(yield func(*tts.Response, error) bool) { yield(nil, errors.New("openai: nil AudioTTSModel")) }
-	}
-	if err := req.Validate(); err != nil {
-		return func(yield func(*tts.Response, error) bool) { yield(nil, err) }
-	}
-	return m.protocol.Stream(ctx, req)
+	return openaiprotocol.NewAudioTTSModel(config.protocol())
 }
 
 type ImageModelConfig struct {
@@ -248,21 +155,11 @@ func (c ImageModelConfig) protocol() openaiprotocol.ImageModelConfig {
 	return openaiprotocol.ImageModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type ImageModel struct{ protocol *openaiprotocol.ImageModel }
+// ImageModel is the OpenAI-compatible image protocol model.
+type ImageModel = openaiprotocol.ImageModel
 
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
-	model, err := openaiprotocol.NewImageModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &ImageModel{protocol: model}, nil
-}
-
-func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil ImageModel")
-	}
-	return m.protocol.Call(ctx, req)
+	return openaiprotocol.NewImageModel(config.protocol())
 }
 
 type ModerationModelConfig struct {
@@ -278,21 +175,9 @@ func (c ModerationModelConfig) protocol() openaiprotocol.ModerationModelConfig {
 	return openaiprotocol.ModerationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type ModerationModel struct {
-	protocol *openaiprotocol.ModerationModel
-}
+// ModerationModel is the OpenAI-compatible moderation protocol model.
+type ModerationModel = openaiprotocol.ModerationModel
 
 func NewModerationModel(config ModerationModelConfig) (*ModerationModel, error) {
-	model, err := openaiprotocol.NewModerationModel(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &ModerationModel{protocol: model}, nil
-}
-
-func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("openai: nil ModerationModel")
-	}
-	return m.protocol.Call(ctx, req)
+	return openaiprotocol.NewModerationModel(config.protocol())
 }

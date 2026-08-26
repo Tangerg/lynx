@@ -31,7 +31,7 @@ func WithMeta(ctx context.Context, meta sdkmcp.Meta) context.Context {
 // MetaFromContext returns a shallow copy of metadata stored by [WithMeta], or
 // nil. Its signature matches [MetaFunc] so it can be assigned directly:
 //
-//	opts := mcp.ToolOptions{MetaFunc: mcp.MetaFromContext}
+//	config := mcp.ToolsConfig{MetaFunc: mcp.MetaFromContext}
 func MetaFromContext(ctx context.Context) sdkmcp.Meta {
 	meta, _ := ctx.Value(metaContextKey{}).(sdkmcp.Meta)
 	return maps.Clone(meta)

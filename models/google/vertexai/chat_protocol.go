@@ -10,7 +10,7 @@ import (
 	"google.golang.org/genai"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 // ChatConfig configures a Core chat adapter backed by Vertex AI.
@@ -40,7 +40,7 @@ var (
 	_ corechat.Streamer = (*Chat)(nil)
 )
 
-type Chat struct{ protocol *google.Chat }
+type Chat struct{ protocol *protocol.Chat }
 
 // NewChat constructs a Core chat adapter backed by Vertex AI and Application
 // Default Credentials.
@@ -48,7 +48,7 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := google.NewChat(google.ChatConfig{
+	adapter, err := protocol.NewChat(protocol.ChatConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
@@ -60,7 +60,7 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{protocol: protocol}, nil
+	return &Chat{protocol: adapter}, nil
 }
 
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {

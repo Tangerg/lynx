@@ -9,7 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	tts "github.com/Tangerg/lynx/core/speech"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 type AudioTTSModelConfig struct {
@@ -41,14 +41,14 @@ var (
 	_ tts.Streamer = (*AudioTTSModel)(nil)
 )
 
-type AudioTTSModel struct{ protocol *google.AudioTTSModel }
+type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
 
 // NewAudioTTSModel returns a Vertex AI speech model.
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := google.NewAudioTTSModel(google.AudioTTSModelConfig{
+	adapter, err := protocol.NewAudioTTSModel(protocol.AudioTTSModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
@@ -60,7 +60,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AudioTTSModel{protocol: protocol}, nil
+	return &AudioTTSModel{protocol: adapter}, nil
 }
 
 func (m *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {

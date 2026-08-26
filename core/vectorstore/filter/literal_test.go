@@ -129,4 +129,20 @@ func TestExactNumberConversions(t *testing.T) {
 			t.Fatalf("Float32(1.5) = %v, %v", actual, err)
 		}
 	})
+
+	t.Run("integer classification and native int", func(t *testing.T) {
+		integer := filter.NewLiteral(42)
+		if exact, err := integer.IsInteger(); err != nil || !exact {
+			t.Fatalf("IsInteger(42) = %t, %v", exact, err)
+		}
+		if actual, err := integer.Int(); err != nil || actual != 42 {
+			t.Fatalf("Int(42) = %d, %v", actual, err)
+		}
+		if exact, err := filter.NewLiteral(1.5).IsInteger(); err != nil || exact {
+			t.Fatalf("IsInteger(1.5) = %t, %v", exact, err)
+		}
+		if _, err := filter.NewLiteral(uint64(math.MaxUint64)).Int(); err == nil {
+			t.Fatal("Int accepted an overflowing uint64")
+		}
+	})
 }

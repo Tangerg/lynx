@@ -2,10 +2,8 @@ package anthropic
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -35,28 +33,11 @@ func (c ChatConfig) protocol() anthropicprotocol.ChatConfig {
 	return anthropicprotocol.ChatConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type Chat struct{ protocol *anthropicprotocol.Chat }
+// Chat is the Anthropic Messages protocol model.
+type Chat = anthropicprotocol.Chat
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	model, err := anthropicprotocol.NewChat(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &Chat{protocol: model}, nil
-}
-
-func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	if c == nil || c.protocol == nil {
-		return nil, errors.New("anthropic: nil Chat")
-	}
-	return c.protocol.Call(ctx, req)
-}
-
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("anthropic: nil Chat")) }
-	}
-	return c.protocol.Stream(ctx, req)
+	return anthropicprotocol.NewChat(config.protocol())
 }
 
 type OpenAIChatConfig struct {
@@ -76,34 +57,17 @@ func (config OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-type OpenAIChat struct{ protocol *openaiprotocol.Chat }
+// OpenAIChat is Anthropic's OpenAI-compatible protocol model.
+type OpenAIChat = openaiprotocol.Chat
 
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	model, err := openaiprotocol.NewCompatibleChat(
+	return openaiprotocol.NewCompatibleChat(
 		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: "anthropic", TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: construct OpenAI-compatible chat: %w", err)
-	}
-	return &OpenAIChat{protocol: model}, nil
-}
-
-func (c *OpenAIChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	if c == nil || c.protocol == nil {
-		return nil, errors.New("anthropic: nil OpenAIChat")
-	}
-	return c.protocol.Call(ctx, req)
-}
-
-func (c *OpenAIChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("anthropic: nil OpenAIChat")) }
-	}
-	return c.protocol.Stream(ctx, req)
 }
 
 type TextEstimatorConfig struct {
@@ -119,21 +83,9 @@ func (c TextEstimatorConfig) protocol() anthropicprotocol.TextEstimatorConfig {
 	return anthropicprotocol.TextEstimatorConfig{APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
-type TextEstimator struct {
-	protocol *anthropicprotocol.TextEstimator
-}
+// TextEstimator is Anthropic's token-counting estimator.
+type TextEstimator = anthropicprotocol.TextEstimator
 
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
-	estimator, err := anthropicprotocol.NewTextEstimator(config.protocol())
-	if err != nil {
-		return nil, err
-	}
-	return &TextEstimator{protocol: estimator}, nil
-}
-
-func (e *TextEstimator) EstimateText(ctx context.Context, value string) (int, error) {
-	if e == nil || e.protocol == nil {
-		return 0, errors.New("anthropic: nil TextEstimator")
-	}
-	return e.protocol.EstimateText(ctx, value)
+	return anthropicprotocol.NewTextEstimator(config.protocol())
 }

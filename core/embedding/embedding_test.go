@@ -1,12 +1,34 @@
 package embedding_test
 
 import (
+	"context"
 	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
 )
+
+func TestModelFuncAdaptsCall(t *testing.T) {
+	request, err := embedding.NewRequest([]string{"lynx"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	model := embedding.ModelFunc(func(_ context.Context, actual *embedding.Request) (*embedding.Response, error) {
+		called = true
+		if actual != request {
+			t.Fatal("ModelFunc received a different request")
+		}
+		return nil, nil
+	})
+	if _, err := model.Call(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("ModelFunc did not invoke the adapted function")
+	}
+}
 
 func TestOptionsAndRequest(t *testing.T) {
 	if _, err := embedding.NewOptions(""); err == nil {

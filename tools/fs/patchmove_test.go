@@ -24,7 +24,7 @@ func TestApplyPatch_MoveCarriesContentAndRemovesTheOrigin(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "alpha\nbeta\n")
 	to := filepath.Join(dir, "new.txt")
 
-	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchInput{
+	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
 		Patch: movePatch(t, from, to, "@@ -1,2 +1,2 @@\n alpha\n-beta\n+BETA\n"),
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestApplyPatch_PureRenameNeedsNoHunk(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "unchanged\n")
 	to := filepath.Join(dir, "renamed.txt")
 
-	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchInput{
+	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
 		Patch: movePatch(t, from, to, ""),
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestApplyPatch_MoveRefusesToOverwriteItsDestination(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "moving\n")
 	occupied := writeTemp(t, dir, "taken.txt", "do not lose me\n")
 
-	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchInput{
+	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
 		Patch: movePatch(t, from, occupied, ""),
 	})
 	if err == nil {
@@ -122,7 +122,7 @@ func TestApplyPatch_RefusesTwoPatchesTouchingOneEndpoint(t *testing.T) {
 	target := writeTemp(t, dir, "target.txt", "one\n")
 	moving := writeTemp(t, dir, "moving.txt", "two\n")
 
-	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchInput{
+	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
 		Patch: "--- a/" + target + "\n+++ b/" + target + "\n@@ -1 +1 @@\n-one\n+ONE\n" +
 			movePatch(t, moving, target, ""),
 	})

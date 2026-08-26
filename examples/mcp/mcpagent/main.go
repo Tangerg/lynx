@@ -12,10 +12,10 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/tool"
+	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief.
@@ -51,7 +51,7 @@ func main() {
 	defer cliSession.Close()
 
 	loadTools := func(ctx context.Context) ([]tool.Tool, error) {
-		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolOptions{
+		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolsConfig{
 			MetaFunc: lynxmcp.MetaFromContext,
 		})
 	}

@@ -1,4 +1,4 @@
-package google
+package protocol
 
 const DefaultBaseURL = "https://generativelanguage.googleapis.com"
 

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/transcription"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -38,7 +38,7 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 type AudioTranscriptionModel struct {
-	protocol *google.AudioTranscriptionModel
+	protocol *protocol.AudioTranscriptionModel
 }
 
 // NewAudioTranscriptionModel returns a Vertex AI transcription model.
@@ -46,7 +46,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
+	adapter, err := protocol.NewAudioTranscriptionModel(protocol.AudioTranscriptionModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
@@ -58,7 +58,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err != nil {
 		return nil, err
 	}
-	return &AudioTranscriptionModel{protocol: protocol}, nil
+	return &AudioTranscriptionModel{protocol: adapter}, nil
 }
 
 func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {

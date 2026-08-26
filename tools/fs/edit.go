@@ -9,7 +9,9 @@ import (
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
-// EditRequest is the LLM-facing argument shape for the edit tool.
+// EditRequest drives Read → exact-string replace → Write atomically in the
+// executor. Match policy (exact today, fuzzy in future) remains an executor
+// concern.
 type EditRequest struct {
 	Path       string `json:"path" jsonschema:"minLength=1" jsonschema_description:"File path, absolute or relative to the workspace root."`
 	OldString  string `json:"old_string" jsonschema:"required" jsonschema_description:"Exact text to find, copied verbatim from the file (the read tool returns raw text — there is no line-number prefix to strip). Keep it to the few unique lines needed; fails when the match is not unique unless replace_all=true."`
@@ -84,9 +86,9 @@ func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
 }
 
 func (t *EditTool) edit(ctx context.Context, req EditRequest) (EditResponse, error) {
-	res, err := t.executor.Edit(ctx, EditInput(req))
+	res, err := t.executor.Edit(ctx, req)
 	if err != nil {
 		return EditResponse{}, fmt.Errorf("fs.edit: %w", err)
 	}
-	return EditResponse(res), nil
+	return res, nil
 }

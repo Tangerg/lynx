@@ -8,7 +8,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 type EmbeddingModelConfig struct {
@@ -37,14 +37,14 @@ func (c EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
-type EmbeddingModel struct{ protocol *google.EmbeddingModel }
+type EmbeddingModel struct{ protocol *protocol.EmbeddingModel }
 
 // NewEmbeddingModel returns a Vertex AI embedding model.
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
+	adapter, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
@@ -56,7 +56,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &EmbeddingModel{protocol: protocol}, nil
+	return &EmbeddingModel{protocol: adapter}, nil
 }
 
 func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

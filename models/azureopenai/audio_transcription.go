@@ -1,7 +1,6 @@
 package azureopenai
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -31,9 +30,7 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
-type AudioTranscriptionModel struct {
-	protocol *openai.AudioTranscriptionModel
-}
+type AudioTranscriptionModel = openai.AudioTranscriptionModel
 
 // NewAudioTranscriptionModel returns an Azure OpenAI transcription model.
 func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
@@ -44,22 +41,11 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
+	return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		BaseURL:        baseURL,
 		HTTPClient:     cfg.HTTPClient,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &AudioTranscriptionModel{protocol: protocol}, nil
-}
-
-func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("azureopenai: nil AudioTranscriptionModel")
-	}
-	return m.protocol.Call(ctx, req)
 }

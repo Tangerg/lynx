@@ -106,7 +106,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 | **accept interfaces, return structs** | 入参最大兼容、返回值最大信息量；接口是边界、struct 是实现。 |
 | **make zero values useful** | 少构造函数、少出错；导出字段 struct 零值可用。 |
 | **`iter.Seq` / `iter.Seq2` 优于 channel** | 拉模型、ctx 可在循环前检查、无 goroutine 泄漏。 |
-| **藏协议 / 传输细节，业务看不到 wire 形态** | 业务逻辑不该感知 JSON-RPC 等传输；envelope I/O 与业务解耦。 |
+| **藏协议 / 传输细节，业务看不到 wire 形态** | 业务逻辑不该感知 JSON-RPC、SDK DTO 等传输形态；envelope I/O 与业务解耦。完全相同且只暴露 Core 契约的共享 Model 可由 façade 用 type alias 提升，不能为隐藏类型身份复制一层空转发。 |
 | **最小接口** | "the bigger the interface, the weaker the abstraction"；低层接口更易实现、更易替换。 |
 | **错误分层** | 协议错误带 code、工具 / 业务错误进 result 不进 Go error。 |
 | **核无状态，差异作参数** | 同一核服务多连接 / 多会话，per-session 靠工厂 / 参数注入，不为每会话造实例。 |

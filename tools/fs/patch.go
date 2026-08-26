@@ -163,24 +163,24 @@ func patchPaths(patch string) ([]string, error) {
 	return parsed.paths(), nil
 }
 
-func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (ApplyPatchOutput, error) {
+func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (ApplyPatchResponse, error) {
 	parsed, err := parseUnifiedPatch(in.Patch)
 	if err != nil {
-		return ApplyPatchOutput{}, err
+		return ApplyPatchResponse{}, err
 	}
 	if path := parsed.duplicatePath(); path != "" {
-		return ApplyPatchOutput{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
+		return ApplyPatchResponse{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
 	}
 
 	resolved := make([]patchTarget, len(parsed.files))
 	var locks []string
 	for i, file := range parsed.files {
 		if err := file.validate(); err != nil {
-			return ApplyPatchOutput{}, err
+			return ApplyPatchResponse{}, err
 		}
 		target, err := l.resolveTarget(file)
 		if err != nil {
-			return ApplyPatchOutput{}, err
+			return ApplyPatchResponse{}, err
 		}
 		resolved[i] = target
 		locks = append(locks, target.locks()...)
@@ -198,15 +198,15 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (Apply
 	for i, file := range parsed.files {
 		next, err := l.preparePatch(file, resolved[i])
 		if err != nil {
-			return ApplyPatchOutput{}, err
+			return ApplyPatchResponse{}, err
 		}
 		prepared[i] = next
 	}
 
-	var out ApplyPatchOutput
+	var out ApplyPatchResponse
 	for _, file := range prepared {
 		if err := file.commit(); err != nil {
-			return ApplyPatchOutput{}, err
+			return ApplyPatchResponse{}, err
 		}
 		out.Files = append(out.Files, file.result)
 		out.Hunks += file.result.Hunks
@@ -268,7 +268,7 @@ type preparedPatch struct {
 	source string
 	data   []byte
 	mode   os.FileMode
-	result PatchFileOutput
+	result PatchFileResponse
 }
 
 // commit writes before it removes, so a failure between the two leaves the
@@ -329,11 +329,11 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 		}
 		return preparedPatch{
 			source: target.from,
-			result: PatchFileOutput{Path: file.path(), Hunks: len(file.hunks), Deleted: true},
+			result: PatchFileResponse{Path: file.path(), Hunks: len(file.hunks), Deleted: true},
 		}, nil
 	}
 
-	result := PatchFileOutput{
+	result := PatchFileResponse{
 		Path:    file.path(),
 		Hunks:   len(file.hunks),
 		Created: file.created(),

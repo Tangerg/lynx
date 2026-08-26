@@ -1,7 +1,6 @@
 package azureopenai
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -31,7 +30,7 @@ func (c ImageModelConfig) Validate() error {
 
 var _ image.Model = (*ImageModel)(nil)
 
-type ImageModel struct{ protocol *openai.ImageModel }
+type ImageModel = openai.ImageModel
 
 // NewImageModel returns an Azure OpenAI image model.
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -42,22 +41,11 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewImageModel(openai.ImageModelConfig{
+	return openai.NewImageModel(openai.ImageModelConfig{
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		BaseURL:        baseURL,
 		HTTPClient:     cfg.HTTPClient,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &ImageModel{protocol: protocol}, nil
-}
-
-func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("azureopenai: nil ImageModel")
-	}
-	return m.protocol.Call(ctx, req)
 }

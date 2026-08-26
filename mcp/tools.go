@@ -38,8 +38,8 @@ type ConcurrencyFunc func(
 	arguments string,
 ) (key string, concurrent bool)
 
-// ToolOptions configures [Tools].
-type ToolOptions struct {
+// ToolsConfig configures [Tools].
+type ToolsConfig struct {
 	// Naming maps each remote tool identity to its public name. Nil
 	// uses the package default, "<sourceName>_<toolName>" sanitized to the
 	// function-name charset accepted by model providers. The function must be
@@ -62,9 +62,9 @@ type ToolOptions struct {
 // publicName returns the configured public name or a provider-safe default.
 // MCP itself permits names that model providers reject, while calls still need
 // to route by the unchanged raw MCP name.
-func (o ToolOptions) publicName(sourceName, toolName string) string {
-	if o.Naming != nil {
-		return o.Naming(sourceName, toolName)
+func (c ToolsConfig) publicName(sourceName, toolName string) string {
+	if c.Naming != nil {
+		return c.Naming(sourceName, toolName)
 	}
 	if sourceName == "" {
 		return sanitizeToolName(toolName)
@@ -90,7 +90,7 @@ func sanitizeToolName(name string) string {
 }
 
 // Tools lists remote MCP tools from sources and wraps them as lynx tools.
-func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolcontract.Tool, error) {
+func Tools(ctx context.Context, sources []ToolSource, config ToolsConfig) ([]toolcontract.Tool, error) {
 	var all []toolcontract.Tool
 	seen := make(map[string]struct{})
 	for i, src := range sources {
@@ -106,7 +106,7 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 				return nil, fmt.Errorf("mcp: snapshot tool from source %q: %w", src.Name, err)
 			}
 
-			name := opts.publicName(src.Name, snapshot.name())
+			name := config.publicName(src.Name, snapshot.name())
 			if name == "" {
 				return nil, fmt.Errorf("mcp: source %q tool %q has an empty public name", src.Name, snapshot.name())
 			}
@@ -115,8 +115,8 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 				source:      src,
 				descriptor:  snapshot,
 				publicName:  name,
-				metaFunc:    opts.MetaFunc,
-				concurrency: opts.Concurrency,
+				metaFunc:    config.MetaFunc,
+				concurrency: config.Concurrency,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("mcp: wrap tool %q from source %q: %w", snapshot.name(), src.Name, err)

@@ -97,5 +97,5 @@ func (t *GrepTool) grep(ctx context.Context, req GrepRequest) (GrepResponse, err
 	if err != nil {
 		return GrepResponse{}, fmt.Errorf("fs.grep: %w", err)
 	}
-	return GrepResponse(res), nil
+	return res, nil
 }

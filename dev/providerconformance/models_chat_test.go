@@ -27,35 +27,35 @@ type configValidator interface {
 	Validate() error
 }
 
+func assertConstructor[Config, Model any](func(Config) (*Model, error)) {}
+
 func TestTargetChatProviderConstructorsCompile(t *testing.T) {
 	t.Parallel()
 
-	var (
-		_ func(alibaba.OpenAIChatConfig) (*alibaba.OpenAIChat, error)             = alibaba.NewOpenAIChat
-		_ func(anthropic.ChatConfig) (*anthropic.Chat, error)                     = anthropic.NewChat
-		_ func(anthropic.OpenAIChatConfig) (*anthropic.OpenAIChat, error)         = anthropic.NewOpenAIChat
-		_ func(azureopenai.ChatConfig) (*azureopenai.Chat, error)                 = azureopenai.NewChat
-		_ func(deepseek.OpenAIChatConfig) (*deepseek.OpenAIChat, error)           = deepseek.NewOpenAIChat
-		_ func(fireworks.OpenAIChatConfig) (*fireworks.OpenAIChat, error)         = fireworks.NewOpenAIChat
-		_ func(groq.OpenAIChatConfig) (*groq.OpenAIChat, error)                   = groq.NewOpenAIChat
-		_ func(huggingface.OpenAIChatConfig) (*huggingface.OpenAIChat, error)     = huggingface.NewOpenAIChat
-		_ func(minimax.OpenAIChatConfig) (*minimax.OpenAIChat, error)             = minimax.NewOpenAIChat
-		_ func(minimax.AnthropicChatConfig) (*minimax.AnthropicChat, error)       = minimax.NewAnthropicChat
-		_ func(mistral.ChatConfig) (*mistral.Chat, error)                         = mistral.NewChat
-		_ func(moonshot.OpenAIChatConfig) (*moonshot.OpenAIChat, error)           = moonshot.NewOpenAIChat
-		_ func(moonshot.AnthropicChatConfig) (*moonshot.AnthropicChat, error)     = moonshot.NewAnthropicChat
-		_ func(openai.ChatConfig) (*openai.Chat, error)                           = openai.NewChat
-		_ func(openai.ChatConfig) (*openai.ResponsesChat, error)                  = openai.NewResponsesChat
-		_ func(openrouter.OpenAIChatConfig) (*openrouter.OpenAIChat, error)       = openrouter.NewOpenAIChat
-		_ func(openrouter.AnthropicChatConfig) (*openrouter.AnthropicChat, error) = openrouter.NewAnthropicChat
-		_ func(perplexity.OpenAIChatConfig) (*perplexity.OpenAIChat, error)       = perplexity.NewOpenAIChat
-		_ func(together.OpenAIChatConfig) (*together.OpenAIChat, error)           = together.NewOpenAIChat
-		_ func(xai.OpenAIChatConfig) (*xai.OpenAIChat, error)                     = xai.NewOpenAIChat
-		_ func(xiaomi.OpenAIChatConfig) (*xiaomi.OpenAIChat, error)               = xiaomi.NewOpenAIChat
-		_ func(xiaomi.AnthropicChatConfig) (*xiaomi.AnthropicChat, error)         = xiaomi.NewAnthropicChat
-		_ func(zhipu.OpenAIChatConfig) (*zhipu.OpenAIChat, error)                 = zhipu.NewOpenAIChat
-		_ func(zhipu.AnthropicChatConfig) (*zhipu.AnthropicChat, error)           = zhipu.NewAnthropicChat
-	)
+	assertConstructor[alibaba.OpenAIChatConfig, alibaba.OpenAIChat](alibaba.NewOpenAIChat)
+	assertConstructor[anthropic.ChatConfig, anthropic.Chat](anthropic.NewChat)
+	assertConstructor[anthropic.OpenAIChatConfig, anthropic.OpenAIChat](anthropic.NewOpenAIChat)
+	assertConstructor[azureopenai.ChatConfig, azureopenai.Chat](azureopenai.NewChat)
+	assertConstructor[deepseek.OpenAIChatConfig, deepseek.OpenAIChat](deepseek.NewOpenAIChat)
+	assertConstructor[fireworks.OpenAIChatConfig, fireworks.OpenAIChat](fireworks.NewOpenAIChat)
+	assertConstructor[groq.OpenAIChatConfig, groq.OpenAIChat](groq.NewOpenAIChat)
+	assertConstructor[huggingface.OpenAIChatConfig, huggingface.OpenAIChat](huggingface.NewOpenAIChat)
+	assertConstructor[minimax.OpenAIChatConfig, minimax.OpenAIChat](minimax.NewOpenAIChat)
+	assertConstructor[minimax.AnthropicChatConfig, minimax.AnthropicChat](minimax.NewAnthropicChat)
+	assertConstructor[mistral.ChatConfig, mistral.Chat](mistral.NewChat)
+	assertConstructor[moonshot.OpenAIChatConfig, moonshot.OpenAIChat](moonshot.NewOpenAIChat)
+	assertConstructor[moonshot.AnthropicChatConfig, moonshot.AnthropicChat](moonshot.NewAnthropicChat)
+	assertConstructor[openai.ChatConfig, openai.Chat](openai.NewChat)
+	assertConstructor[openai.ChatConfig, openai.ResponsesChat](openai.NewResponsesChat)
+	assertConstructor[openrouter.OpenAIChatConfig, openrouter.OpenAIChat](openrouter.NewOpenAIChat)
+	assertConstructor[openrouter.AnthropicChatConfig, openrouter.AnthropicChat](openrouter.NewAnthropicChat)
+	assertConstructor[perplexity.OpenAIChatConfig, perplexity.OpenAIChat](perplexity.NewOpenAIChat)
+	assertConstructor[together.OpenAIChatConfig, together.OpenAIChat](together.NewOpenAIChat)
+	assertConstructor[xai.OpenAIChatConfig, xai.OpenAIChat](xai.NewOpenAIChat)
+	assertConstructor[xiaomi.OpenAIChatConfig, xiaomi.OpenAIChat](xiaomi.NewOpenAIChat)
+	assertConstructor[xiaomi.AnthropicChatConfig, xiaomi.AnthropicChat](xiaomi.NewAnthropicChat)
+	assertConstructor[zhipu.OpenAIChatConfig, zhipu.OpenAIChat](zhipu.NewOpenAIChat)
+	assertConstructor[zhipu.AnthropicChatConfig, zhipu.AnthropicChat](zhipu.NewAnthropicChat)
 }
 
 func TestTargetChatProviderConfigsValidate(t *testing.T) {

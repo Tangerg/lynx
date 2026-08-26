@@ -8,7 +8,7 @@ import (
 )
 
 func Example() {
-	matcher, err := safeguard.NewSubstringMatcher([]string{"secret"}, safeguard.SubstringOptions{})
+	matcher, err := safeguard.NewSubstringMatcher([]string{"secret"}, safeguard.SubstringConfig{})
 	if err != nil {
 		panic(err)
 	}

@@ -13,7 +13,7 @@ import (
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
 func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]toolcontract.Tool, error) {
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolOptions{
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolsConfig{
 		Naming: func(server, toolName string) string {
 			return mcpserver.ToolName(server, toolName)
 		},

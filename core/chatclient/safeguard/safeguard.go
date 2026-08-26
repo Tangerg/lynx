@@ -19,35 +19,26 @@ var (
 )
 
 // Scope selects which side of a model exchange is screened.
-type Scope uint8
+type Scope string
 
 const (
-	ScopeInput Scope = 1 << iota
-	ScopeOutput
-	ScopeBoth = ScopeInput | ScopeOutput
+	ScopeInput  Scope = "input"
+	ScopeOutput Scope = "output"
+	ScopeBoth   Scope = "both"
 )
 
 // Valid reports whether scope selects one or both known directions.
 func (s Scope) Valid() bool {
-	return s != 0 && s&^ScopeBoth == 0
-}
-
-// String returns a stable diagnostic name.
-func (s Scope) String() string {
 	switch s {
-	case ScopeInput:
-		return "input"
-	case ScopeOutput:
-		return "output"
-	case ScopeBoth:
-		return "input+output"
+	case ScopeInput, ScopeOutput, ScopeBoth:
+		return true
 	default:
-		return fmt.Sprintf("Scope(%d)", s)
+		return false
 	}
 }
 
 func (s Scope) inspects(direction Scope) bool {
-	return s&direction != 0
+	return s == ScopeBoth || s == direction
 }
 
 // Match is a Matcher's decision for one text projection. Term should be empty
@@ -117,11 +108,11 @@ func New(matcher Matcher, config Config) (*Middleware, error) {
 	if matcher == nil {
 		return nil, fmt.Errorf("%w: nil matcher", ErrInvalidConfig)
 	}
-	if config.Scope == 0 {
+	if config.Scope == "" {
 		config.Scope = ScopeBoth
 	}
 	if !config.Scope.Valid() {
-		return nil, fmt.Errorf("%w: unknown scope %d", ErrInvalidConfig, config.Scope)
+		return nil, fmt.Errorf("%w: unknown scope %q", ErrInvalidConfig, config.Scope)
 	}
 	return &Middleware{matcher: matcher, config: config}, nil
 }

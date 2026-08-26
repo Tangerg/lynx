@@ -77,7 +77,7 @@ defer session.Close()
 
 tools, err := lynxmcp.Tools(ctx,
     []lynxmcp.ToolSource{{Name: "local", Session: session}},
-    lynxmcp.ToolOptions{MetaFunc: lynxmcp.MetaFromContext},
+    lynxmcp.ToolsConfig{MetaFunc: lynxmcp.MetaFromContext},
 )
 if err != nil {
     return err

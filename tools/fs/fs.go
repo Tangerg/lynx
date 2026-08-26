@@ -5,16 +5,17 @@ import (
 	"context"
 )
 
-// Executor is the SPI every backend implements. Each method follows the
-// (ctx, Input) (Output, error) shape so a remote adapter can auto-generate
-// transport code.
+// Executor is the SPI every backend implements. Tool request/response types
+// are reused when their backend semantics are identical; backend-specific
+// input/output types remain explicit where line offsets, byte limits, append
+// policy, or search roots differ.
 type Executor interface {
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
-	Write(ctx context.Context, in WriteInput) (WriteOutput, error)
-	Edit(ctx context.Context, in EditInput) (EditOutput, error)
-	ApplyPatch(ctx context.Context, in ApplyPatchInput) (ApplyPatchOutput, error)
-	Glob(ctx context.Context, in GlobInput) (GlobOutput, error)
-	Grep(ctx context.Context, in GrepInput) (GrepOutput, error)
+	Write(ctx context.Context, in WriteInput) (WriteResponse, error)
+	Edit(ctx context.Context, request EditRequest) (EditResponse, error)
+	ApplyPatch(ctx context.Context, request ApplyPatchRequest) (ApplyPatchResponse, error)
+	Glob(ctx context.Context, in GlobInput) (GlobResponse, error)
+	Grep(ctx context.Context, in GrepInput) (GrepResponse, error)
 }
 
 // ---------------------------------------------------------------- Read
@@ -46,25 +47,7 @@ type WriteInput struct {
 	Append  bool
 }
 
-type WriteOutput struct {
-	BytesWritten int
-}
-
 // ---------------------------------------------------------------- Edit
-
-// EditInput drives Read → exact-string replace → Write atomically in
-// the executor. Match policy (exact today, fuzzy in future) is an
-// executor concern.
-type EditInput struct {
-	Path       string
-	OldString  string
-	NewString  string
-	ReplaceAll bool
-}
-
-type EditOutput struct {
-	Replacements int
-}
 
 // editOperation is one exact-string replacement applied by the local executor.
 type editOperation struct {
@@ -74,30 +57,6 @@ type editOperation struct {
 }
 
 // ---------------------------------------------------------------- ApplyPatch
-
-// ApplyPatchInput applies a standard unified diff. The local executor supports
-// create, modify, delete and move (headers naming two different paths), which is
-// what makes a coordinated refactor one call instead of a write followed by a
-// delete the caller has to keep consistent.
-type ApplyPatchInput struct {
-	Patch string
-}
-
-type ApplyPatchOutput struct {
-	Files []PatchFileOutput
-	Hunks int
-}
-
-type PatchFileOutput struct {
-	// Path is where the file ended up.
-	Path    string
-	Hunks   int
-	Created bool
-	Deleted bool
-	// MovedFrom is the path the file left, set only for a move. Path alone would
-	// say a file exists somewhere new without saying which one stopped existing.
-	MovedFrom string
-}
 
 // ---------------------------------------------------------------- Glob
 
@@ -110,22 +69,17 @@ type GlobInput struct {
 	MaxResults int // 0 = no limit
 }
 
-type GlobOutput struct {
-	Paths     []string
-	Truncated bool // hit MaxResults
-}
-
 // ---------------------------------------------------------------- Grep
 
-// GrepOutputMode controls what GrepOutput populates.
+// GrepOutputMode controls what GrepResponse populates.
 type GrepOutputMode string
 
 const (
-	// GrepOutputContent (default) populates [GrepOutput.Matches].
+	// GrepOutputContent (default) populates [GrepResponse.Matches].
 	GrepOutputContent GrepOutputMode = "content"
-	// GrepOutputFilesWithMatches populates [GrepOutput.Files].
+	// GrepOutputFilesWithMatches populates [GrepResponse.Files].
 	GrepOutputFilesWithMatches GrepOutputMode = "files_with_matches"
-	// GrepOutputCount populates [GrepOutput.Counts].
+	// GrepOutputCount populates [GrepResponse.Counts].
 	GrepOutputCount GrepOutputMode = "count"
 )
 
@@ -143,7 +97,7 @@ type GrepInput struct {
 	BeforeContext int
 	AfterContext  int
 
-	// OutputMode picks the shape of GrepOutput. "" = content.
+	// OutputMode picks the shape of GrepResponse. "" = content.
 	OutputMode GrepOutputMode
 
 	MaxResults int
@@ -151,15 +105,6 @@ type GrepInput struct {
 
 func (in GrepInput) contextLines() (before, after int) {
 	return cmp.Or(in.BeforeContext, in.Context), cmp.Or(in.AfterContext, in.Context)
-}
-
-// GrepOutput is a sum-type: exactly one of Matches / Files / Counts
-// is populated based on the request's OutputMode.
-type GrepOutput struct {
-	Matches   []GrepMatch     `json:"matches,omitempty"`
-	Files     []string        `json:"files,omitempty"`
-	Counts    []GrepFileCount `json:"counts,omitempty"`
-	Truncated bool            `json:"truncated,omitempty"`
 }
 
 type GrepMatch struct {

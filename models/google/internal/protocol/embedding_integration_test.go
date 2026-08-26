@@ -1,6 +1,6 @@
 //go:build integration
 
-package google_test
+package protocol_test
 
 import (
 	"testing"
@@ -17,13 +17,13 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			t.Helper()
 			modelID, _ := modeltest.LookupEnv("LYNX_TEST_GOOGLE_EMBEDDING_MODEL")
 			if modelID == "" {
-				modelID = google.ModelGeminiEmbedding2
+				modelID = protocol.ModelGeminiEmbedding2
 			}
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
+			m, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
 				Provider:       "google",
 				APIKey:         key,
 				DefaultOptions: opts,

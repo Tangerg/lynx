@@ -1,7 +1,6 @@
 package azureopenai
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -31,7 +30,7 @@ func (c EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
-type EmbeddingModel struct{ protocol *openai.EmbeddingModel }
+type EmbeddingModel = openai.EmbeddingModel
 
 // NewEmbeddingModel returns an Azure OpenAI embedding model. Model is the
 // Azure deployment id.
@@ -43,22 +42,11 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		BaseURL:        baseURL,
 		HTTPClient:     cfg.HTTPClient,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &EmbeddingModel{protocol: protocol}, nil
-}
-
-func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	if m == nil || m.protocol == nil {
-		return nil, errors.New("azureopenai: nil EmbeddingModel")
-	}
-	return m.protocol.Call(ctx, req)
 }

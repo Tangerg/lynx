@@ -58,10 +58,11 @@ func TestProviderDependenciesAreOneWay(t *testing.T) {
 	}
 }
 
-// TestProviderAPIsHideProtocolImplementations locks the public boundary: a
-// provider may compose a protocol internally, but constructor signatures and
-// exported configuration cannot expose internal protocol types.
-func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
+// TestProviderAPIsHideProtocolDetails locks the public boundary: constructors,
+// configuration, and data structures cannot expose protocol DTOs. An exact
+// shared OpenAI/Anthropic model implementation may be promoted by type alias;
+// provider-private internal implementations may not.
+func TestProviderAPIsHideProtocolDetails(t *testing.T) {
 	t.Parallel()
 
 	root := modelsRoot(t)
@@ -79,9 +80,16 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 			t.Fatal(err)
 		}
 		protocolAliases := make(map[string]struct{})
+		sharedProtocolAliases := make(map[string]struct{})
 		for _, imported := range file.Imports {
 			pathValue, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || (!strings.HasPrefix(pathValue, modelsImportPrefix+"internal/protocol/") && !strings.HasPrefix(pathValue, modelsImportPrefix+"protocol/")) {
+			if err != nil || !strings.HasPrefix(pathValue, modelsImportPrefix) {
+				continue
+			}
+			relativeImport := strings.TrimPrefix(pathValue, modelsImportPrefix)
+			shared := strings.HasPrefix(relativeImport, "protocol/")
+			private := strings.Contains("/"+relativeImport+"/", "/internal/protocol/")
+			if !shared && !private {
 				continue
 			}
 			name := filepath.Base(pathValue)
@@ -89,6 +97,9 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 				name = imported.Name.Name
 			}
 			protocolAliases[name] = struct{}{}
+			if shared {
+				sharedProtocolAliases[name] = struct{}{}
+			}
 		}
 		if len(protocolAliases) == 0 {
 			continue
@@ -103,6 +114,9 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 				for _, specification := range value.Specs {
 					typeSpec, ok := specification.(*ast.TypeSpec)
 					if !ok || !typeSpec.Name.IsExported() {
+						continue
+					}
+					if typeSpec.Assign.IsValid() && isImportedSelector(typeSpec.Type, sharedProtocolAliases) {
 						continue
 					}
 					switch exportedType := typeSpec.Type.(type) {
@@ -121,6 +135,19 @@ func TestProviderAPIsHideProtocolImplementations(t *testing.T) {
 	}
 }
 
+func isImportedSelector(expression ast.Expr, aliases map[string]struct{}) bool {
+	selector, ok := expression.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	qualifier, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	_, imported := aliases[qualifier.Name]
+	return imported
+}
+
 func rejectProtocolSelectors(t *testing.T, fset *token.FileSet, filename string, node ast.Node, aliases map[string]struct{}) {
 	t.Helper()
 	ast.Inspect(node, func(node ast.Node) bool {
@@ -133,7 +160,7 @@ func rejectProtocolSelectors(t *testing.T, fset *token.FileSet, filename string,
 			return true
 		}
 		if _, protocol := aliases[qualifier.Name]; protocol {
-			t.Errorf("%s:%d exported API leaks internal protocol type %s.%s", filepath.Base(filename), fset.Position(selector.Pos()).Line, qualifier.Name, selector.Sel.Name)
+			t.Errorf("%s:%d exported API leaks protocol implementation type %s.%s", filepath.Base(filename), fset.Position(selector.Pos()).Line, qualifier.Name, selector.Sel.Name)
 		}
 		return true
 	})

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	skillsrc "github.com/Tangerg/lynx/skills"
 	toolcontract "github.com/Tangerg/lynx/core/tool"
+	skillsrc "github.com/Tangerg/lynx/skills"
 )
 
 type LoadSkillRequest struct {

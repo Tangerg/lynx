@@ -1,10 +1,8 @@
 package azureopenai
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -23,9 +21,7 @@ var (
 )
 
 // Chat implements Azure OpenAI's Chat Completions protocol.
-type Chat struct {
-	protocol *openai.Chat
-}
+type Chat = openai.Chat
 
 // ChatConfig configures the Core chat adapter for Azure OpenAI.
 type ChatConfig struct {
@@ -61,19 +57,5 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}
-	return &Chat{protocol: protocol}, nil
-}
-
-func (chat *Chat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("azureopenai: nil Chat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("azureopenai: nil Chat")) }
-	}
-	return chat.protocol.Stream(ctx, request)
+	return protocol, nil
 }

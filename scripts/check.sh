@@ -6,7 +6,7 @@
 #   scripts/check.sh                       # run everything
 #   scripts/check.sh build vet test        # subset
 #   FAST=1 scripts/check.sh                # skip govulncheck (slowest)
-#   MODULE=. scripts/check.sh              # root workspace module only
+#   MODULE=core scripts/check.sh           # Core module only
 #   MODULE=models/google scripts/check.sh  # nested workspace module only
 #   MODULE=app/runtime scripts/check.sh race
 #

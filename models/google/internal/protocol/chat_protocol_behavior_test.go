@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/modeltest"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {
@@ -40,9 +40,9 @@ func TestChat_BehaviorConformance(t *testing.T) {
 	}.Run(t)
 }
 
-func newGoogleBehaviorChat(t *testing.T, baseURL string) *google.Chat {
+func newGoogleBehaviorChat(t *testing.T, baseURL string) *protocol.Chat {
 	t.Helper()
-	adapter, err := google.NewChat(google.ChatConfig{
+	adapter, err := protocol.NewChat(protocol.ChatConfig{
 		Provider:       "google",
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},

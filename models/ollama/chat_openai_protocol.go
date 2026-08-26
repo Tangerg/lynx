@@ -2,10 +2,7 @@ package ollama
 
 import (
 	"cmp"
-	"context"
-	"errors"
 	"fmt"
-	"iter"
 	"net/http"
 	"strings"
 
@@ -25,9 +22,7 @@ var (
 )
 
 // OpenAIChat implements Ollama's OpenAI-compatible endpoint.
-type OpenAIChat struct {
-	protocol *openai.Chat
-}
+type OpenAIChat = openai.Chat
 
 // OpenAIChatConfig configures Ollama's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
@@ -57,21 +52,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ollama: construct OpenAI-compatible chat: %w", err)
 	}
-	return &OpenAIChat{protocol: protocol}, nil
-}
-
-func (chat *OpenAIChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
-	if chat == nil || chat.protocol == nil {
-		return nil, errors.New("ollama: nil OpenAIChat")
-	}
-	return chat.protocol.Call(ctx, request)
-}
-
-func (chat *OpenAIChat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	if chat == nil || chat.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("ollama: nil OpenAIChat")) }
-	}
-	return chat.protocol.Stream(ctx, request)
+	return protocol, nil
 }
 
 func resolveOpenAIBaseURL(base string) string {

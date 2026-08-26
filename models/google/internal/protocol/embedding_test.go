@@ -1,4 +1,4 @@
-package google_test
+package protocol_test
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/modeltest"
-	google "github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/lynx/models/google/internal/protocol"
 )
 
 // genai embed response: { embeddings: [{ values: [...] }, ...] }
@@ -21,11 +21,11 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, googleEmbedJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := embedding.NewOptions(google.ModelGeminiEmbedding2)
+	opts, err := embedding.NewOptions(protocol.ModelGeminiEmbedding2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
+	m, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
 		Provider:       "google",
 		APIKey:         "test-key",
 		DefaultOptions: opts,
