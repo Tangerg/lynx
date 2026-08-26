@@ -14,8 +14,8 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3 h1:m5E5Mf8ve1IUPJRw+DH1wuhL6fbq3sy/AcTh9mSUWPE=
-github.com/Tangerg/lynx v0.0.0-20260825155700-a02c3cf3a7d3/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b h1:jlbUWIip7PT/wb51TtKPYrQf1L7TqYni2WFprQOCOQo=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
 github.com/amikos-tech/chroma-go v0.4.1 h1:WIcFTSjRgnVTYKWhgZYKaEUOjK6+BpGfVQRqdMIAfrw=
 github.com/amikos-tech/chroma-go v0.4.1/go.mod h1:q2kwMTUpWUP7ME3d7RjmVQlmBcJx9BKrrH7UhT91DRY=
 github.com/amikos-tech/chroma-go-local v0.3.5 h1:F/vk7Nc6eC8tVFaj9O5XAkfBYGGQj5At6ccrlNxbzvU=

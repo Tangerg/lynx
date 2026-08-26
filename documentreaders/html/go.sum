@@ -1,7 +1,7 @@
 github.com/PuerkitoBio/goquery v1.12.0 h1:pAcL4g3WRXekcB9AU/y1mbKez2dbY2AajVhtkO8RIBo=
 github.com/PuerkitoBio/goquery v1.12.0/go.mod h1:802ej+gV2y7bbIhOIoPY5sT183ZW0YFofScC4q/hIpQ=
-github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef h1:Ml4MatoQ8GpbTmCwtXS9tHIu2SRnGsq3PsRH3UZCbcM=
-github.com/Tangerg/lynx v0.0.0-20260825203159-c290c1e465ef/go.mod h1:H43NT1CLlj+IXbv1DZTQwIrhBHz1yJTMLSSlOX5zmIk=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b h1:jlbUWIip7PT/wb51TtKPYrQf1L7TqYni2WFprQOCOQo=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
 github.com/andybalholm/cascadia v1.3.4 h1:vM2lgh0Vru9Vwyfm4cQqWP2HHMW0u0+2PAW7Q38Qufg=
 github.com/andybalholm/cascadia v1.3.4/go.mod h1:BLRmbRjpEtNKieZOCCvYj4RqN+KRA41GBe/5O+G93kM=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=

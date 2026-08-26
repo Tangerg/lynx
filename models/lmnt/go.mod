@@ -6,3 +6,5 @@ require (
 	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/go-resty/resty/v2 v2.17.2
 )
+
+require golang.org/x/net v0.43.0 // indirect

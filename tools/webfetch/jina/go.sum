@@ -1,0 +1,10 @@
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b h1:jlbUWIip7PT/wb51TtKPYrQf1L7TqYni2WFprQOCOQo=
+github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
+github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec h1:iqC+LhgZ87A76o1NmAIIselyw2hYLfEjshHmUXQ4ng4=
+github.com/Tangerg/lynx/tools v0.0.0-20260826074258-420034c45aec/go.mod h1:dXDv6CKom85H9474viazfmSayfm5xrcOdbXDzO455+Y=
+github.com/go-resty/resty/v2 v2.17.2 h1:FQW5oHYcIlkCNrMD2lloGScxcHJ0gkjshV3qcQAyHQk=
+github.com/go-resty/resty/v2 v2.17.2/go.mod h1:kCKZ3wWmwJaNc7S29BRtUhJwy7iqmn+2mLtQrOyQlVA=
+golang.org/x/net v0.43.0 h1:lat02VYK2j4aLzMzecihNvTlJNQUq316m2Mr9rnM6YE=
+golang.org/x/net v0.43.0/go.mod h1:vhO1fvI4dGsIjh73sWfUVjj3N7CA9WkKJNQm2svM6Jg=
+golang.org/x/time v0.12.0 h1:ScB/8o8olJvc+CQPWrK3fPZNfh7qgwCrY0zJmoEQLSE=
+golang.org/x/time v0.12.0/go.mod h1:CDIdPxbZBQxdj6cxyCIdrNogrJKMJ7pr37NYpMcMDSg=

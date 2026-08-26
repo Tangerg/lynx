@@ -1,3 +1,5 @@
+github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b h1:qUKHw4dg8iO+ydq0jV7cvOLXuXYkQuzgi75P0bCq5No=
+github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b/go.mod h1:7mlaAXsxlZ0n0byQN3v4ieQhFCIJP7EX52tDGU4NFko=
 github.com/adrg/xdg v0.5.3 h1:xRnxJXne7+oWDatRhR1JLnvuccuIeCoBu2rtuLqQB78=
 github.com/adrg/xdg v0.5.3/go.mod h1:nlTsY+NNiCBGCK2tpm09vRqfVzrc2fLmXGpBLF0zlTQ=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
