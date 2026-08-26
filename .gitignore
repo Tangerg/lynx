@@ -1,5 +1,6 @@
 .idea
 .vscode
+.opencode/
 .DS_Store
 
 # Claude permission decisions are machine-local and accumulate absolute paths.
