@@ -14,8 +14,8 @@ github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad1
 github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b/go.mod h1:7mlaAXsxlZ0n0byQN3v4ieQhFCIJP7EX52tDGU4NFko=
 github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2 h1:G7htJvDGmKg9UlkWqaPfXIfxqOGpsQDmojGIqSPgIss=
 github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
-github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec h1:CzwZhv9btIBmzzXLKC8CTGJoNt6+7yI130URr3DE/J0=
-github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec/go.mod h1:M2z/ZFkKNU5elXQPwyYPolGamyrFf4Df9cOBiPXr/+U=
+github.com/Tangerg/lynx/mcp v0.0.0-20260826093112-a7fb68e17abc h1:qV8MQrCQR0v12domRpBzjXfgmxWhyqhupboQkuXdTXE=
+github.com/Tangerg/lynx/mcp v0.0.0-20260826093112-a7fb68e17abc/go.mod h1:M2z/ZFkKNU5elXQPwyYPolGamyrFf4Df9cOBiPXr/+U=
 github.com/Tangerg/lynx/models/alibaba v0.0.0-20260826074620-641b4fc16dbb h1:Aq9P4GCy+CWkGo+QKtc5jU//L84ffNkWEIZfG453bxc=
 github.com/Tangerg/lynx/models/alibaba v0.0.0-20260826074620-641b4fc16dbb/go.mod h1:aTXf6753j3u0k8J9MbXD3cwukrshxOpBF/DdiMk8two=
 github.com/Tangerg/lynx/models/anthropic v0.0.0-20260826074620-641b4fc16dbb h1:Aci1zLa72Pij+g8O7Ip0fvljHIam2dEu7kZ50kORejc=

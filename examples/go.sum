@@ -4,8 +4,8 @@ github.com/Tangerg/lynx/agent v0.0.0-20260826074258-420034c45aec h1:W2RJQMzhkgNc
 github.com/Tangerg/lynx/agent v0.0.0-20260826074258-420034c45aec/go.mod h1:DR6cOIeT2INy8i5h0hwDOvpYKyFv4NKdR10FD3YrxUY=
 github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b h1:jlbUWIip7PT/wb51TtKPYrQf1L7TqYni2WFprQOCOQo=
 github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
-github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec h1:CzwZhv9btIBmzzXLKC8CTGJoNt6+7yI130URr3DE/J0=
-github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec/go.mod h1:M2z/ZFkKNU5elXQPwyYPolGamyrFf4Df9cOBiPXr/+U=
+github.com/Tangerg/lynx/mcp v0.0.0-20260826093112-a7fb68e17abc h1:qV8MQrCQR0v12domRpBzjXfgmxWhyqhupboQkuXdTXE=
+github.com/Tangerg/lynx/mcp v0.0.0-20260826093112-a7fb68e17abc/go.mod h1:M2z/ZFkKNU5elXQPwyYPolGamyrFf4Df9cOBiPXr/+U=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

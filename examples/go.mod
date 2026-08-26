@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
-	github.com/Tangerg/lynx/mcp v0.0.0-20260826074258-420034c45aec
+	github.com/Tangerg/lynx/mcp v0.0.0-20260826093112-a7fb68e17abc
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
