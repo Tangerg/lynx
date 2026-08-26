@@ -15,6 +15,8 @@ var errCanceled = errors.New("mock: run canceled")
 const (
 	defaultPageSize = 20
 	maxPageSize     = 100
+	defaultProvider = "mock"
+	defaultModel    = "balanced"
 )
 
 type FaultKind string
@@ -117,7 +119,7 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 		return nil, err
 	}
 	models := []agent.Model{
-		{ID: "balanced", Provider: "mock", DisplayName: "Mock Balanced", ContextWindow: 200_000, MaxOutputTokens: 32_000, Capabilities: &agent.ModelCapabilities{Reasoning: true, ReasoningLevels: []string{"low", "medium", "high"}, ReasoningDefaultLevel: "medium", Multimodal: true, InputModalities: []agent.ModelModality{agent.ModelModalityText, agent.ModelModalityImage}, OutputModalities: []agent.ModelModality{agent.ModelModalityText}, ToolUse: true, StructuredOutput: true}},
+		{ID: defaultModel, Provider: defaultProvider, DisplayName: "Mock Balanced", ContextWindow: 200_000, MaxOutputTokens: 32_000, Capabilities: &agent.ModelCapabilities{Reasoning: true, ReasoningLevels: []string{"low", "medium", "high"}, ReasoningDefaultLevel: "medium", Multimodal: true, InputModalities: []agent.ModelModality{agent.ModelModalityText, agent.ModelModalityImage}, OutputModalities: []agent.ModelModality{agent.ModelModalityText}, ToolUse: true, StructuredOutput: true}},
 		{ID: "fast", Provider: "mock", DisplayName: "Mock Fast", ContextWindow: 128_000, MaxOutputTokens: 16_000, Capabilities: &agent.ModelCapabilities{InputModalities: []agent.ModelModality{agent.ModelModalityText}, OutputModalities: []agent.ModelModality{agent.ModelModalityText}, ToolUse: true}},
 		{ID: "deep", Provider: "synthetic", DisplayName: "Synthetic Deep", ContextWindow: 400_000, MaxOutputTokens: 64_000, Capabilities: &agent.ModelCapabilities{Reasoning: true, ReasoningLevels: []string{"medium", "high", "max"}, ReasoningDefaultLevel: "high", InputModalities: []agent.ModelModality{agent.ModelModalityText}, OutputModalities: []agent.ModelModality{agent.ModelModalityText}, ToolUse: true}},
 	}

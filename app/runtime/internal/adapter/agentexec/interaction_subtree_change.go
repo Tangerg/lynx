@@ -58,10 +58,8 @@ func (change *interactionWaitingSubtreeChange) Apply(
 	if change == nil || change.session == nil || change.prepared == nil {
 		return errors.New("agentexec: invalid waiting Interaction subtree change")
 	}
-	switch disposition {
-	case runs.WaitingSubtreeStaysWaiting, runs.WaitingSubtreeResumesRunning:
-	default:
-		return fmt.Errorf("agentexec: invalid waiting subtree disposition %d", disposition)
+	if !disposition.Valid() {
+		return fmt.Errorf("agentexec: invalid waiting subtree disposition %q", disposition)
 	}
 	change.mu.Lock()
 	defer change.mu.Unlock()

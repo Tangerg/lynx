@@ -77,7 +77,7 @@ func bootstrapPending(
 	runID, sessionID, memberID, itemID string,
 	runCreatedAt, itemOccurredAt, barrierCreatedAt time.Time,
 ) runsapp.Pending {
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	return runsapp.Pending{
 		RootRunID:  runID,
 		SessionID:  sessionID,

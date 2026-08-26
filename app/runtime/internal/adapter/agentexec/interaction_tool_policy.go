@@ -143,21 +143,33 @@ func (authorizer *ToolAuthorizer) ResolveToolApproval(
 }
 
 func validateToolAuthorizationRequest(request ToolAuthorizationRequest) error {
-	for name, value := range map[string]string{
-		"SessionID": request.SessionID,
-		"CWD":       request.CWD,
-		"CallID":    request.CallID,
-		"ToolName":  request.ToolName,
-	} {
-		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
-			return fmt.Errorf("agentexec: Tool authorization %s is required without surrounding whitespace", name)
-		}
+	if err := validateToolAuthorizationText("SessionID", request.SessionID); err != nil {
+		return err
+	}
+	if err := validateToolAuthorizationText("CWD", request.CWD); err != nil {
+		return err
+	}
+	if err := validateToolAuthorizationText("CallID", request.CallID); err != nil {
+		return err
+	}
+	if err := validateToolAuthorizationText("ToolName", request.ToolName); err != nil {
+		return err
 	}
 	if !request.SafetyClass.Valid() {
 		return fmt.Errorf("agentexec: Tool authorization has invalid safety class %q", request.SafetyClass)
 	}
+	if !request.FileMutation.Valid() {
+		return fmt.Errorf("agentexec: Tool authorization has invalid file mutation scope %q", request.FileMutation)
+	}
 	if request.Arguments.Canonical() == "" {
 		return errors.New("agentexec: Tool authorization arguments are required")
+	}
+	return nil
+}
+
+func validateToolAuthorizationText(name, value string) error {
+	if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
+		return fmt.Errorf("agentexec: Tool authorization %s is required without surrounding whitespace", name)
 	}
 	return nil
 }
@@ -224,7 +236,7 @@ func approvalDenialMessage(denial approval.Denial, toolName string) string {
 
 func approvalPromptReason(cause approval.PromptCause) string {
 	switch cause {
-	case approval.PromptCauseRead:
+	case approval.PromptCauseNonMutating:
 		return "Reads data without changing the workspace."
 	case approval.PromptCauseWorkspaceWrite:
 		return "Modifies files in the workspace."

@@ -40,7 +40,7 @@ func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {
 		profile: changefeedProfile(changefeed.FilesChanged),
 	}
 	runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-		runtimeprofile.FeatureFileWatch: {Enabled: true, Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureFileWatch: {Enabled: true},
 	}
 	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
 		Topics:  []changefeed.Topic{changefeed.FilesChanged},
@@ -139,7 +139,7 @@ func TestChangefeedAdapterRejectsEventsOutsideTheSubscription(t *testing.T) {
 			}
 			if len(test.subscription.Watches) != 0 {
 				runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-					runtimeprofile.FeatureFileWatch: {Enabled: true, Stability: runtimeprofile.Stable},
+					runtimeprofile.FeatureFileWatch: {Enabled: true},
 				}
 			}
 			stream, err := runtime.Subscribe(t.Context(), test.subscription)
@@ -270,18 +270,18 @@ func TestChangefeedAdapterRejectsAnIncompleteRuntimeStream(t *testing.T) {
 	requireRuntimeContractViolation(t, err)
 }
 
-func TestChangefeedAdapterPreservesTheStateProjectionIdentity(t *testing.T) {
+func TestChangefeedAdapterProjectsPlanInvalidation(t *testing.T) {
 	t.Parallel()
 	stub := &changeBindingStub{events: func(yield func(protocol.RuntimeEvent, error) bool) {
 		yield(protocol.RuntimeEvent{
-			Type: protocol.RuntimeStateChanged, Sequence: 1,
-			SessionIDs: []string{"ses_1"}, Key: protocol.StatePlan,
+			Type: protocol.RuntimePlanChanged, Sequence: 1,
+			SessionIDs: []string{"ses_1"},
 		}, nil)
 	}}
 	runtime := &Runtime{
-		changes: stub, profile: changefeedProfile(changefeed.StateChanged),
+		changes: stub, profile: changefeedProfile(changefeed.PlanChanged),
 	}
-	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.StateChanged}})
+	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.PlanChanged}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,12 +289,12 @@ func TestChangefeedAdapterPreservesTheStateProjectionIdentity(t *testing.T) {
 		if eventErr != nil {
 			t.Fatal(eventErr)
 		}
-		if event.StateKey != changefeed.StatePlan {
-			t.Fatalf("state key = %q, want %q", event.StateKey, changefeed.StatePlan)
+		if len(event.SessionIDs) != 1 || event.SessionIDs[0] != "ses_1" {
+			t.Fatalf("plan invalidation sessions = %v", event.SessionIDs)
 		}
 		return
 	}
-	t.Fatal("state change stream yielded no event")
+	t.Fatal("plan change stream yielded no event")
 }
 
 func changefeedProfile(topics ...changefeed.Topic) runtimeprofile.Profile {

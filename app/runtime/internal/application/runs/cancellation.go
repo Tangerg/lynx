@@ -595,7 +595,7 @@ func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCo
 			cmd.RunID, refreshed.ActiveSegmentID(),
 		)
 	default:
-		return CancelResult{}, fmt.Errorf("runs: run %q has unknown state %d", cmd.RunID, refreshed.State())
+		return CancelResult{}, fmt.Errorf("runs: run %q has unknown state %q", cmd.RunID, refreshed.State())
 	}
 }
 

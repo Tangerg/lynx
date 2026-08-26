@@ -54,7 +54,7 @@ func TestMaterialSnapshotRejectsContradictoryPendingProjection(t *testing.T) {
 					ID: current.ID(), SessionID: current.SessionID(), RunID: current.RunID(),
 					Kind: transcript.QuestionItem, OccurredAt: current.OccurredAt(),
 					Question: &transcript.Question{
-						Fields: []transcript.QuestionField{{Prompt: "Different?"}},
+						Fields: []transcript.QuestionField{{Prompt: "Different?", Kind: transcript.QuestionText}},
 					},
 				})
 			},
@@ -159,7 +159,7 @@ func validMaterialSnapshot() MaterialSnapshot {
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
 	question := &transcript.Question{
-		Fields: []transcript.QuestionField{{Prompt: "Continue?"}},
+		Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}},
 	}
 	return MaterialSnapshot{
 		Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/workspace")}),

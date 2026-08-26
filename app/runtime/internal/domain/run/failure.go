@@ -8,43 +8,39 @@ import (
 // FailureKind classifies a Run failure without depending on provider
 // error text. Integrations translate concrete failures at their boundary;
 // durable Run records retain this stable vocabulary.
-type FailureKind uint8
+type FailureKind string
 
 const (
-	FailureInternal FailureKind = iota
-	FailureLost
-	FailureAgentStuck
-	FailureRateLimited
-	FailureInvalidCredentials
-	FailureTimeout
-	FailureProviderUnavailable
-	FailureProviderRejected
+	FailureInternal            FailureKind = "internal"
+	FailureLost                FailureKind = "lost"
+	FailureAgentStuck          FailureKind = "agent_stuck"
+	FailureRateLimited         FailureKind = "rate_limited"
+	FailureInvalidCredentials  FailureKind = "invalid_credentials"
+	FailureTimeout             FailureKind = "timeout"
+	FailureProviderUnavailable FailureKind = "provider_unavailable"
+	FailureProviderRejected    FailureKind = "provider_rejected"
 )
+
+// Valid reports whether k is part of the durable provider-neutral taxonomy.
+func (k FailureKind) Valid() bool {
+	switch k {
+	case FailureInternal, FailureLost, FailureAgentStuck, FailureRateLimited,
+		FailureInvalidCredentials, FailureTimeout, FailureProviderUnavailable,
+		FailureProviderRejected:
+		return true
+	default:
+		return false
+	}
+}
 
 // String names the kind for diagnostics — parity with the package's other
 // enums (State / Outcome), so a FailureError without an error chain reports a
 // legible name instead of a raw integer.
 func (k FailureKind) String() string {
-	switch k {
-	case FailureInternal:
-		return "internal"
-	case FailureLost:
-		return "lost"
-	case FailureAgentStuck:
-		return "agent_stuck"
-	case FailureRateLimited:
-		return "rate_limited"
-	case FailureInvalidCredentials:
-		return "invalid_credentials"
-	case FailureTimeout:
-		return "timeout"
-	case FailureProviderUnavailable:
-		return "provider_unavailable"
-	case FailureProviderRejected:
-		return "provider_rejected"
-	default:
-		return fmt.Sprintf("kind(%d)", uint8(k))
+	if !k.Valid() {
+		return "unknown"
 	}
+	return string(k)
 }
 
 // Failure is the durable, provider-neutral explanation for a failed Run.
@@ -58,8 +54,8 @@ type Failure struct {
 // Validate reports whether the failure carries a known kind and a meaningful
 // retry delay only for retryable classifications.
 func (failure Failure) Validate() error {
-	if failure.Kind > FailureProviderRejected {
-		return fmt.Errorf("run: unknown failure kind %d", failure.Kind)
+	if !failure.Kind.Valid() {
+		return fmt.Errorf("run: unknown failure kind %q", failure.Kind)
 	}
 	if failure.RetryAfter < 0 {
 		return fmt.Errorf("run: failure retry delay must not be negative")

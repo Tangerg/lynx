@@ -6,9 +6,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	GoalsStart  Name = "goals.start"
+	GoalsUpdate Name = "goals.update"
+	GoalsClear  Name = "goals.clear"
+	GoalsGet    Name = "goals.get"
+	GoalsStop   Name = "goals.stop"
+	GoalsResume Name = "goals.resume"
+)
+
 func registerGoals(registry *Registry) {
-	Command(registry, MethodMeta{
-		Name: "goals.start", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.Command(MethodMeta{
+		Name: GoalsStart, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
 		StartGoal(context.Context, protocol.StartGoalRequest) (*protocol.Goal, error)
@@ -16,8 +25,8 @@ func registerGoals(registry *Registry) {
 		return service.StartGoal(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "goals.update", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.Command(MethodMeta{
+		Name: GoalsUpdate, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
 		UpdateGoal(context.Context, protocol.UpdateGoalRequest) (*protocol.Goal, error)
@@ -25,8 +34,8 @@ func registerGoals(registry *Registry) {
 		return service.UpdateGoal(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name: "goals.clear", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.CommandAck(MethodMeta{
+		Name: GoalsClear, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
 		ClearGoal(context.Context, protocol.GoalRequest) error
@@ -34,8 +43,8 @@ func registerGoals(registry *Registry) {
 		return service.ClearGoal(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "goals.get", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.Query(MethodMeta{
+		Name: GoalsGet, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		// A session with no goal is not an error, so the published result admits null.
 		ResultNullable: true, CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
@@ -44,8 +53,8 @@ func registerGoals(registry *Registry) {
 		return service.GetGoal(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "goals.stop", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.Command(MethodMeta{
+		Name: GoalsStop, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
 		StopGoal(context.Context, protocol.GoalRequest) (*protocol.Goal, error)
@@ -53,8 +62,8 @@ func registerGoals(registry *Registry) {
 		return service.StopGoal(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "goals.resume", Errors: []string{protocol.ErrSessionNotFound.Error()},
+	registry.Command(MethodMeta{
+		Name: GoalsResume, Errors: []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 	}, func(service interface {
 		ResumeGoal(context.Context, protocol.GoalRequest) (*protocol.Goal, error)

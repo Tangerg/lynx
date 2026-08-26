@@ -69,20 +69,10 @@ func Stage(
 	return pending, nil
 }
 
-// Outcome distinguishes an accepted command, a definitive refusal, and a
-// command whose acknowledgement must remain in the durable journal.
-type Outcome uint8
-
-const (
-	Unknown Outcome = iota
-	Rejected
-	Confirmed
-)
-
 // Result binds settlement to the exact durable command.
 type Result struct {
 	Pending workbench.PendingSteer
-	Outcome Outcome
+	Outcome mutation.Outcome
 }
 
 // Deliver settles a freshly staged command. Its first attempt does not depend
@@ -115,14 +105,14 @@ func Deliver(
 		return struct{}{}, runtime.SteerRun(ctx, pending.Command)
 	})
 	if err == nil {
-		result.Outcome = Confirmed
+		result.Outcome = mutation.Confirmed
 		return result, nil
 	}
 	if mutation.OutcomeUnknown(err) {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		return result, fmt.Errorf("steer command outcome is unknown: %w", err)
 	}
-	result.Outcome = Rejected
+	result.Outcome = mutation.Rejected
 	return result, err
 }
 
@@ -148,13 +138,13 @@ func Recover(
 		}
 		result, err := Deliver(ctx, runtime, pending, window, backoff)
 		switch result.Outcome {
-		case Confirmed:
+		case mutation.Confirmed:
 			if acknowledgeErr := authoring.AcknowledgePendingSteer(
 				pending.SessionID, pending.Command.CommandID,
 			); acknowledgeErr != nil {
 				return errors.Join(err, acknowledgeErr)
 			}
-		case Rejected:
+		case mutation.Rejected:
 			draft, _, draftErr := authoring.Draft(pending.SessionID)
 			if draftErr != nil {
 				return errors.Join(err, draftErr)
@@ -164,7 +154,7 @@ func Recover(
 			); rejectErr != nil {
 				return errors.Join(err, rejectErr)
 			}
-		case Unknown:
+		case mutation.Unknown:
 			return err
 		default:
 			return errors.New("steer settlement returned an invalid outcome")

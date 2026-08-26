@@ -19,10 +19,11 @@ type Provider struct {
 
 // Clone returns a caller-owned copy of the provider and all nested models.
 func (p Provider) Clone() Provider {
-	p.Models = make([]Model, len(p.Models))
-	for index := range p.Models {
-		p.Models[index] = p.Models[index].Clone()
+	models := make([]Model, len(p.Models))
+	for index, model := range p.Models {
+		models[index] = model.Clone()
 	}
+	p.Models = models
 	return p
 }
 

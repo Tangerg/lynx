@@ -215,16 +215,12 @@ func TestCompletionFailureRetriesWithoutRepeatingCommand(t *testing.T) {
 	options := Options{IdempotencyKey: "cancel-once"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
 	for attempt := range 2 {
-		response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-			t.Context(), endpoint, "runs.cancel", request, options,
-		)
+		response, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 		if err != nil || response.Run.ID != "run_1" {
 			t.Fatalf("replay %d = (%+v, %v)", attempt, response, err)
 		}
@@ -243,9 +239,7 @@ func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
 	options := Options{IdempotencyKey: "flush-on-shutdown"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
@@ -256,9 +250,7 @@ func TestAwaitShutdownFlushesKnownCompletionBeforeStoreClosure(t *testing.T) {
 
 	reopenedService := &countingCancelService{}
 	reopened := mustNewEndpoint(t, reopenedService, Config{IdempotencyStore: backing})
-	response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), reopened, "runs.cancel", request, options,
-	)
+	response, err := reopened.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if err != nil || response.Run.ID != "run_1" {
 		t.Fatalf("replay after graceful shutdown = (%+v, %v)", response, err)
 	}
@@ -279,9 +271,7 @@ func TestAwaitShutdownKeepsFailedPendingCompletionForRetry(t *testing.T) {
 	options := Options{IdempotencyKey: "retry-shutdown-flush"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
@@ -295,9 +285,7 @@ func TestAwaitShutdownKeepsFailedPendingCompletionForRetry(t *testing.T) {
 
 	reopenedService := &countingCancelService{}
 	reopened := mustNewEndpoint(t, reopenedService, Config{IdempotencyStore: backing})
-	if _, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), reopened, "runs.cancel", request, options,
-	); err != nil {
+	if _, err := reopened.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options); err != nil {
 		t.Fatalf("replay after retried shutdown flush: %v", err)
 	}
 	if calls := reopenedService.calls.Load(); calls != 0 {
@@ -314,9 +302,7 @@ func TestAwaitShutdownFlushHonorsOwnerCancellation(t *testing.T) {
 	options := Options{IdempotencyKey: "cancel-shutdown-flush"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
@@ -351,9 +337,7 @@ func TestLostCompletionClaimIsReacquiredWithoutRepeatingCommand(t *testing.T) {
 	options := Options{IdempotencyKey: "recover-lost-claim"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
@@ -364,9 +348,7 @@ func TestLostCompletionClaimIsReacquiredWithoutRepeatingCommand(t *testing.T) {
 		callersDone.Add(1)
 		go func() {
 			defer callersDone.Done()
-			response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-				t.Context(), endpoint, "runs.cancel", request, options,
-			)
+			response, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 			if err != nil {
 				errCh <- err
 				return
@@ -408,15 +390,11 @@ func TestPendingCompletionReplaysDurableFirstResult(t *testing.T) {
 	options := Options{IdempotencyKey: "durable-first-result"}
 	request := protocol.CancelRunRequest{RunID: "run_1"}
 
-	_, err = Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	_, err = endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if !errors.Is(err, protocol.ErrIdempotencyInProgress) {
 		t.Fatalf("first call error = %v, want idempotency_in_progress", err)
 	}
-	response, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", request, options,
-	)
+	response, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", request, options)
 	if err != nil {
 		t.Fatalf("replay durable first result: %v", err)
 	}
@@ -434,12 +412,8 @@ func TestPendingCompletionRejectsKeyReuse(t *testing.T) {
 	endpoint := mustNewEndpoint(t, &countingCancelService{}, Config{IdempotencyStore: store})
 	options := Options{IdempotencyKey: "bound-key"}
 
-	_, _ = Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"}, options,
-	)
-	_, err := Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](
-		t.Context(), endpoint, "runs.cancel", protocol.CancelRunRequest{RunID: "run_2"}, options,
-	)
+	_, _ = endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"}, options)
+	_, err := endpoint.Call[protocol.CancelRunRequest, *protocol.CancelRunResponse](t.Context(), "runs.cancel", protocol.CancelRunRequest{RunID: "run_2"}, options)
 	if !errors.Is(err, protocol.ErrIdempotencyConflict) {
 		t.Fatalf("key reuse error = %v, want idempotency_conflict", err)
 	}

@@ -50,6 +50,9 @@ func MustRestore(input Input) transcript.Item {
 	if input.OccurredAt.IsZero() {
 		input.OccurredAt = time.Unix(1, 0).UTC()
 	}
+	if input.Kind == "" {
+		input.Kind = transcript.UserMessage
+	}
 	switch input.Kind {
 	case transcript.UserMessage, transcript.AgentMessage:
 		input.Status = transcript.ItemCompleted

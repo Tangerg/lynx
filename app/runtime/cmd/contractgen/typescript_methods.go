@@ -79,7 +79,7 @@ func (e *methodsEmitter) methodPolicy(metas []operation.MethodMeta) {
 	e.line("")
 	e.line("export const WIRE_METHOD_POLICY = {")
 	for _, meta := range metas {
-		e.line("  %s: {", strconv.Quote(meta.Name))
+		e.line("  %s: {", strconv.Quote(meta.Name.String()))
 		e.line("    operation: %s,", strconv.Quote(meta.Operation.String()))
 		e.line("    response: %s,", strconv.Quote(meta.Kind.String()))
 		e.line("    idempotency: %s,", strconv.Quote(meta.Idempotency.String()))
@@ -157,7 +157,7 @@ func (e *methodsEmitter) policy(metas []operation.MethodMeta) {
 		if len(meta.CapabilityRules) == 0 {
 			continue
 		}
-		e.line("  %s: [", strconv.Quote(meta.Name))
+		e.line("  %s: [", strconv.Quote(meta.Name.String()))
 		for _, rule := range meta.CapabilityRules {
 			e.line("    { %s },", renderRule(rule))
 		}
@@ -230,7 +230,7 @@ func (e *methodsEmitter) names(metas []operation.MethodMeta) {
 	e.line("// Every method the runtime routes, in registration order.")
 	e.line("const METHOD_NAMES = [")
 	for _, meta := range metas {
-		e.line("  %s,", strconv.Quote(meta.Name))
+		e.line("  %s,", strconv.Quote(meta.Name.String()))
 	}
 	e.line("] as const;")
 	e.line("")
@@ -244,7 +244,7 @@ func (e *methodsEmitter) streamingNames(metas []operation.MethodMeta) {
 	e.line("export const WIRE_STREAMING_METHOD_NAMES = [")
 	for _, meta := range metas {
 		if meta.Event != nil {
-			e.line("  %s,", strconv.Quote(meta.Name))
+			e.line("  %s,", strconv.Quote(meta.Name.String()))
 		}
 	}
 	e.line("] as const;")
@@ -264,7 +264,7 @@ func (e *methodsEmitter) valueMethodNames(metas []operation.MethodMeta) {
 	e.line("const VALUE_METHOD_NAMES = [")
 	for _, meta := range metas {
 		if meta.Result != nil {
-			e.line("  %s,", strconv.Quote(meta.Name))
+			e.line("  %s,", strconv.Quote(meta.Name.String()))
 		}
 	}
 	e.line("] as const;")
@@ -299,7 +299,7 @@ func (e *methodsEmitter) shapes(metas []operation.MethodMeta) string {
 			}
 			members = append(members, "result: "+result)
 		}
-		fmt.Fprintf(&out, "  %s: { %s };\n", strconv.Quote(meta.Name), strings.Join(members, "; "))
+		fmt.Fprintf(&out, "  %s: { %s };\n", strconv.Quote(meta.Name.String()), strings.Join(members, "; "))
 	}
 	fmt.Fprintln(&out, "}")
 	fmt.Fprintln(&out, "")

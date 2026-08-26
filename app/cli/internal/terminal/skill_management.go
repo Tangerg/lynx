@@ -158,7 +158,7 @@ func (a *app) changeSkillLifecycle(
 		return errors.New("a skill name is required")
 	}
 	a.status.note(status + " " + name)
-	started := runAdmissionMutation(a, skillOperation, false,
+	started := a.runAdmissionMutation(skillOperation, false,
 		func(ctx context.Context) (string, error) {
 			if err := change(ctx, name); err != nil {
 				return "", err
@@ -201,7 +201,7 @@ func (a *app) PrepareSkillProposalDecision(identity string, approve bool) error 
 	}
 	workspace := a.session.Workspace.Path
 	a.status.note("loading skill proposal " + identity)
-	started := runOperation(a, skillOperation, false,
+	started := a.runOperation(skillOperation, false,
 		func(ctx context.Context) (skillProposalDecision, error) {
 			proposals, err := a.skills.Proposals(ctx, workspace)
 			if err != nil {
@@ -264,7 +264,7 @@ func (a *app) decideSkillProposal(reference skills.ProposalReference, approve bo
 		decide = a.skills.Approve
 	}
 	a.status.note(verb + " skill proposal " + reference.Name)
-	started := runAdmissionMutation(a, skillOperation, false,
+	started := a.runAdmissionMutation(skillOperation, false,
 		func(ctx context.Context) (skills.ProposalReference, error) {
 			if err := decide(ctx, reference); err != nil {
 				return skills.ProposalReference{}, err

@@ -1,7 +1,6 @@
 package runtimeembedded
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -56,14 +55,12 @@ func (projection runEventProjection) project() (projectedRunEvent, error) {
 		return projection.itemDelta()
 	case protocol.StreamItemCompleted:
 		return projection.itemCompleted()
-	case protocol.StreamStateSnapshot:
-		return projection.stateSnapshot()
+	case protocol.StreamPlanUpdated:
+		return projection.planUpdated()
 	case protocol.StreamSegmentFinished:
 		return projection.segmentFinished()
 	case protocol.StreamSegmentProgress:
 		return projection.segmentProgress()
-	case protocol.StreamCustom:
-		return projection.custom()
 	default:
 		return projectedRunEvent{}, fmt.Errorf("event %s has unsupported authoritative type %q", projection.source.EventID, projection.source.Event.Type)
 	}
@@ -88,14 +85,6 @@ func (projection runEventProjection) segmentProgress() (projectedRunEvent, error
 		progress.Usage = &usage
 	}
 	return includeRunEvent(progress), nil
-}
-
-func (projection runEventProjection) custom() (projectedRunEvent, error) {
-	payload, err := json.Marshal(projection.source.Event.Payload)
-	if err != nil {
-		return projectedRunEvent{}, fmt.Errorf("event %s: encode custom payload: %w", projection.source.EventID, err)
-	}
-	return includeRunEvent(agent.CustomEvent{Name: projection.source.Event.Name, PayloadJSON: payload}), nil
 }
 
 func (projection runEventProjection) segmentStarted() (projectedRunEvent, error) {
@@ -145,8 +134,8 @@ func (projection runEventProjection) itemDelta() (projectedRunEvent, error) {
 	}
 }
 
-func (projection runEventProjection) stateSnapshot() (projectedRunEvent, error) {
-	items, revision, err := projectPlan(projection.source.Event.State)
+func (projection runEventProjection) planUpdated() (projectedRunEvent, error) {
+	items, revision, err := projectPlan(projection.source.Event.Plan)
 	if err != nil {
 		return projectedRunEvent{}, fmt.Errorf("event %s: %w", projection.source.EventID, err)
 	}

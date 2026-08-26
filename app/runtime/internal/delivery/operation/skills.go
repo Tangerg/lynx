@@ -6,9 +6,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	SkillsDiscoveredList   Name = "skills.discovered.list"
+	SkillsLibraryList      Name = "skills.library.list"
+	SkillsLibraryArchive   Name = "skills.library.archive"
+	SkillsLibraryRestore   Name = "skills.library.restore"
+	SkillsProposalsList    Name = "skills.proposals.list"
+	SkillsProposalsApprove Name = "skills.proposals.approve"
+	SkillsProposalsReject  Name = "skills.proposals.reject"
+)
+
 func registerSkills(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name:            "skills.discovered.list",
+	registry.Query(MethodMeta{
+		Name:            SkillsDiscoveredList,
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
@@ -17,8 +27,8 @@ func registerSkills(registry *Registry) {
 		return service.ListDiscoveredSkills(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name:            "skills.library.list",
+	registry.Query(MethodMeta{
+		Name:            SkillsLibraryList,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ListManagedSkills(context.Context) (*protocol.Page[protocol.ManagedSkill], error)
@@ -26,8 +36,8 @@ func registerSkills(registry *Registry) {
 		return service.ListManagedSkills(ctx)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name:            "skills.library.archive",
+	registry.CommandAck(MethodMeta{
+		Name:            SkillsLibraryArchive,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ArchiveSkill(context.Context, protocol.SkillNameRequest) error
@@ -35,8 +45,8 @@ func registerSkills(registry *Registry) {
 		return service.ArchiveSkill(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name:            "skills.library.restore",
+	registry.CommandAck(MethodMeta{
+		Name:            SkillsLibraryRestore,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		RestoreSkill(context.Context, protocol.SkillNameRequest) error
@@ -44,8 +54,8 @@ func registerSkills(registry *Registry) {
 		return service.RestoreSkill(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name:            "skills.proposals.list",
+	registry.Query(MethodMeta{
+		Name:            SkillsProposalsList,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ListSkillProposals(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error)
@@ -53,8 +63,8 @@ func registerSkills(registry *Registry) {
 		return service.ListSkillProposals(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name:            "skills.proposals.approve",
+	registry.CommandAck(MethodMeta{
+		Name:            SkillsProposalsApprove,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		ApproveSkillProposal(context.Context, protocol.SkillProposalRef) error
@@ -62,8 +72,8 @@ func registerSkills(registry *Registry) {
 		return service.ApproveSkillProposal(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name:            "skills.proposals.reject",
+	registry.CommandAck(MethodMeta{
+		Name:            SkillsProposalsReject,
 		CapabilityRules: requires(protocol.FeatureSkills),
 	}, func(service interface {
 		RejectSkillProposal(context.Context, protocol.SkillProposalRef) error

@@ -936,7 +936,7 @@ func TestRestartSettlesAcceptedSteerWithoutReturningItsAttachments(t *testing.T)
 
 func steerReplayTestProfile(workspace string) runtimeprofile.Profile {
 	return runtimeprofile.Profile{
-		Protocol: runtimeprofile.Protocol{Current: "2.0", MinSupported: "2.0"},
+		Protocol: runtimeprofile.Protocol{Version: "2.0"},
 		Server: runtimeprofile.Server{
 			Name: "steer-test", Version: "1.0.0", DefaultWorkspace: workspace, Home: workspace,
 		},

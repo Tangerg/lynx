@@ -45,15 +45,20 @@ type CommandResult struct {
 }
 
 // CommandVerdict is the closed control vocabulary returned by a hook command.
-type CommandVerdict uint8
+type CommandVerdict string
 
 const (
-	// CommandAllow is the zero-value verdict: a hook may inject or rewrite while
+	// CommandAllow lets a hook inject or rewrite while
 	// allowing the operation to continue.
-	CommandAllow CommandVerdict = iota
-	CommandDeny
-	CommandAsk
+	CommandAllow CommandVerdict = "allow"
+	CommandDeny  CommandVerdict = "deny"
+	CommandAsk   CommandVerdict = "ask"
 )
+
+// Valid reports whether verdict is one supported hook command decision.
+func (verdict CommandVerdict) Valid() bool {
+	return verdict == CommandAllow || verdict == CommandDeny || verdict == CommandAsk
+}
 
 // CommandDecision is the typed control information returned by a hook command.
 // Its process encoding belongs to the command runner, never this domain.
@@ -145,7 +150,12 @@ func (r *Runner) runOne(ctx context.Context, h domain.Hook, in domain.Input, dec
 
 	switch {
 	case result.Err == nil:
-		// Exit 0: success. Apply any stdout-JSON decision (default allow).
+		// Exit 0 must carry a complete decoded decision. Treat a missing or
+		// future verdict as a broken hook instead of silently granting it.
+		if !out.Verdict.Valid() {
+			r.fail(ctx, h.Source, errors.New("hook returned an invalid command verdict"))
+			return
+		}
 		block := out.Verdict == CommandDeny
 		ask := out.Verdict == CommandAsk
 		reason := out.Reason

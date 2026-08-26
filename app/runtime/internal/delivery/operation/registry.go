@@ -14,8 +14,8 @@ import (
 // Registry is the single catalog of Runtime operations. It owns both the
 // machine-readable method facts and the binding-neutral typed invocation.
 type Registry struct {
-	byName map[string]*Method
-	names  []string
+	byName map[Name]*Method
+	names  []Name
 }
 
 // Method combines immutable contract metadata with one type-erased invocation
@@ -33,7 +33,7 @@ type rawResult struct {
 }
 
 func newRegistry() *Registry {
-	return &Registry{byName: make(map[string]*Method)}
+	return &Registry{byName: make(map[Name]*Method)}
 }
 
 func (r *Registry) add(meta MethodMeta, invoke func(any, context.Context, any) rawResult) {
@@ -47,13 +47,13 @@ func (r *Registry) add(meta MethodMeta, invoke func(any, context.Context, any) r
 	r.names = append(r.names, meta.Name)
 }
 
-func (r *Registry) lookup(name string) (*Method, bool) {
+func (r *Registry) lookup(name Name) (*Method, bool) {
 	method, ok := r.byName[name]
 	return method, ok
 }
 
 // Lookup returns an immutable snapshot of one method's metadata.
-func (r *Registry) Lookup(name string) (MethodMeta, bool) {
+func (r *Registry) Lookup(name Name) (MethodMeta, bool) {
 	method, ok := r.lookup(name)
 	if !ok {
 		return MethodMeta{}, false
@@ -91,36 +91,38 @@ func (r *Registry) StreamMethods() []string {
 	var out []string
 	for _, name := range r.names {
 		if r.byName[name].Meta.Kind == KindStream {
-			out = append(out, name)
+			out = append(out, name.String())
 		}
 	}
 	return out
 }
 
-func Query[Capability, Params, Response any](
-	registry *Registry,
+// Query registers one unary read operation and derives its complete method
+// semantics from the typed handler.
+func (r *Registry) Query[Capability, Params, Response any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Response, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationQuery
 	meta.Idempotency = IdempotencyNone
-	registerUnary(registry, meta, call)
+	meta.ReplayCursor = ReplayCursorNone
+	r.registerUnary(meta, call)
 }
 
-func Command[Capability, Params, Response any](
-	registry *Registry,
+// Command registers one unary mutation with response replay semantics.
+func (r *Registry) Command[Capability, Params, Response any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Response, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
-	registerUnary(registry, meta, call)
+	meta.ReplayCursor = ReplayCursorNone
+	r.registerUnary(meta, call)
 }
 
-func registerUnary[Capability, Params, Response any](
-	registry *Registry,
+func (r *Registry) registerUnary[Capability, Params, Response any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Response, error),
 ) {
@@ -131,7 +133,7 @@ func registerUnary[Capability, Params, Response any](
 		panic(fmt.Sprintf("operation: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
+	r.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}
@@ -145,16 +147,18 @@ func registerUnary[Capability, Params, Response any](
 	})
 }
 
-func CommandAck[Capability, Params any](
-	registry *Registry,
+// CommandAck registers one unary mutation whose success carries no data.
+func (r *Registry) CommandAck[Capability, Params any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) error,
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
+	meta.ReplayCursor = ReplayCursorNone
+	meta.Pagination = PaginationNone
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
+	r.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}
@@ -167,39 +171,39 @@ func CommandAck[Capability, Params any](
 	})
 }
 
-func Subscription[Capability, Params, Ack, Event any](
-	registry *Registry,
+// Subscription registers one live stream that starts from current state.
+func (r *Registry) Subscription[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
-	registerSubscription(registry, meta, call)
+	meta.ReplayCursor = ReplayCursorNone
+	r.registerSubscription(meta, call)
 }
 
-func registerSubscription[Capability, Params, Ack, Event any](
-	registry *Registry,
+func (r *Registry) registerSubscription[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.Kind = KindStream
 	meta.Operation = OperationSubscription
 	meta.Idempotency = IdempotencyNone
-	registerStream(registry, meta, call)
+	r.registerStream(meta, call)
 }
 
 // RunSubscription registers a stream that may replay retained Run events from
 // an opaque cursor. Runtime-wide invalidation subscriptions use Subscription:
 // reconnecting those streams deliberately resyncs instead of replaying history.
-func RunSubscription[Capability, Params, Ack, Event any](
-	registry *Registry,
+func (r *Registry) RunSubscription[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.ReplayCursor = ReplayCursorRun
-	registerSubscription(registry, meta, call)
+	r.registerSubscription(meta, call)
 }
 
-func RunStreamCommand[Capability, Params, Ack, Event any](
-	registry *Registry,
+// RunStreamCommand registers one replay-protected Run mutation and its event
+// stream as a single operation.
+func (r *Registry) RunStreamCommand[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
@@ -207,18 +211,18 @@ func RunStreamCommand[Capability, Params, Ack, Event any](
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayRunStream
 	meta.ReplayCursor = ReplayCursorRun
-	registerStream(registry, meta, call)
+	r.registerStream(meta, call)
 }
 
-func registerStream[Capability, Params, Ack, Event any](
-	registry *Registry,
+func (r *Registry) registerStream[Capability, Params, Ack, Event any](
 	meta MethodMeta,
 	call func(Capability, context.Context, Params) (Ack, iter.Seq[Event], error),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
+	meta.Pagination = PaginationNone
+	r.add(meta, func(target any, ctx context.Context, parameters any) rawResult {
 		typed, ok := parameters.(Params)
 		if !ok {
 			return rawResult{err: fmt.Errorf("operation: %s received parameters of type %T, want %s", meta.Name, parameters, meta.Params)}

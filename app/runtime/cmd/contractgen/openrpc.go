@@ -115,7 +115,7 @@ func newOpenRPC(registry *operation.Registry, shapes *dispatch.Shapes, set *sche
 func openrpcMethodFor(meta operation.MethodMeta, set *schemaSet, codes map[string]int) openrpcMethod {
 	requestFrame := set.walk(meta.Params)
 	method := openrpcMethod{
-		Name:           meta.Name,
+		Name:           meta.Name.String(),
 		ParamStructure: "by-name",
 		Params:         []openrpcParam{},
 		Kind:           meta.Kind.String(),
@@ -152,7 +152,7 @@ func openrpcMethodFor(meta operation.MethodMeta, set *schemaSet, codes map[strin
 	for _, problem := range meta.ProblemTypes() {
 		code, ok := codes[problem]
 		if !ok {
-			panic("contractgen: " + meta.Name + " declares problem type " + problem + ", which the error registry has no code for")
+			panic("contractgen: " + meta.Name.String() + " declares problem type " + problem + ", which the error registry has no code for")
 		}
 		method.Errors = append(method.Errors, openrpcError{Code: code, Message: problem})
 	}

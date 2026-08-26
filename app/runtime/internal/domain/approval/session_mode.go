@@ -13,12 +13,12 @@ type SessionMode struct {
 func (s SessionMode) Validate() error {
 	if s.Mode == ModePlan {
 		if !s.RestoreMode.ValidDefault() {
-			return fmt.Errorf("%w: Plan mode has invalid restore mode %d", ErrInvalidSessionMode, s.RestoreMode)
+			return fmt.Errorf("%w: Plan mode has invalid restore mode %q", ErrInvalidSessionMode, s.RestoreMode)
 		}
 		return nil
 	}
 	if !s.Mode.ValidDefault() {
-		return fmt.Errorf("%w: invalid mode %d", ErrInvalidSessionMode, s.Mode)
+		return fmt.Errorf("%w: invalid mode %q", ErrInvalidSessionMode, s.Mode)
 	}
 	return nil
 }

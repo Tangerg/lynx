@@ -1023,7 +1023,7 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 }
 
 func TestReducerResumeReusesInterruptedItems(t *testing.T) {
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	approvalAt := time.Unix(1, 0).UTC()
 	questionAt := time.Unix(2, 0).UTC()
 	reviewed := transcript.ToolInvocation{
@@ -1260,8 +1260,8 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 		event ExecutionFact
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
-		{name: "invalid terminal outcome", event: SegmentEnded{Reason: run.Outcome(255)}},
-		{name: "malformed interrupt", event: SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}},
+		{name: "invalid terminal outcome", event: SegmentEnded{Reason: run.Outcome("invalid")}},
+		{name: "malformed interrupt", event: SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind("invalid")}}}},
 	}
 
 	for _, test := range tests {
@@ -1555,7 +1555,7 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 		{name: "terminal has no commit", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}}}}},
 		{name: "terminal lifecycle is inconsistent", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}, Commit: invalidTerminalCommit}}}},
 		{name: "commit state is unknown", batch: reductionBatch{events: []reduction{{
-			Event: ItemCompleted{}, Commit: &EventCommit{SegmentID: "segment_1", State: StateChange(255)},
+			Event: ItemCompleted{}, Commit: &EventCommit{SegmentID: "segment_1", State: StateChange("invalid")},
 		}}}},
 		{name: "park has no terminal event", batch: reductionBatch{
 			events: []reduction{{Event: ItemStarted{}}}, parkCommit: parkCommit(),

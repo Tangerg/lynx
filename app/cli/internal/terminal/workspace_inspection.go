@@ -226,7 +226,7 @@ func (a *app) ReadWorkspaceFile(argument string) error {
 
 func (a *app) runWorkspaceQuery(status string, query func(context.Context) (readerDocument, error), mode workspaceReaderMode) {
 	a.status.note(status)
-	runOperation(a, readerDocumentOperation, true, query, func(document readerDocument, err error) {
+	a.runOperation(readerDocumentOperation, true, query, func(document readerDocument, err error) {
 		if err != nil {
 			a.message("workspace: " + err.Error())
 			return
@@ -597,7 +597,7 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	}
 	candidates := []changefeed.Topic{changefeed.SessionsChanged, changefeed.RunsChanged}
 	if monitor.resources.plan {
-		candidates = append(candidates, changefeed.StateChanged)
+		candidates = append(candidates, changefeed.PlanChanged)
 	}
 	candidates = append(candidates, changefeed.InterruptsChanged)
 	if monitor.resources.goals {

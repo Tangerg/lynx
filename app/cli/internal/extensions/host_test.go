@@ -16,7 +16,7 @@ func TestCapabilityProtectedPointDefaultsRestrictedPluginsToDeny(t *testing.T) {
 	point := NewCapabilityKeyedPoint("test.command", Capability("commands"), func(value format) string { return value.ID })
 	registry := new(Registry)
 	denied := manifest("test.denied", func(scope *Scope) error {
-		_, err := Contribute(scope, point, format{ID: "hello"}, Contribution{})
+		_, err := scope.Contribute(point, format{ID: "hello"}, Contribution{})
 		return err
 	})
 	if _, err := Load(registry, denied); err == nil {
@@ -24,7 +24,7 @@ func TestCapabilityProtectedPointDefaultsRestrictedPluginsToDeny(t *testing.T) {
 	}
 
 	allowed := manifest("test.allowed", func(scope *Scope) error {
-		_, err := Contribute(scope, point, format{ID: "hello"}, Contribution{})
+		_, err := scope.Contribute(point, format{ID: "hello"}, Contribution{})
 		return err
 	})
 	allowed.Capabilities = []Capability{"commands"}
@@ -33,7 +33,7 @@ func TestCapabilityProtectedPointDefaultsRestrictedPluginsToDeny(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer loaded.Dispose()
-	if values := Values(registry, point); len(values) != 1 || values[0].ID != "hello" {
+	if values := registry.Values(point); len(values) != 1 || values[0].ID != "hello" {
 		t.Fatalf("values = %+v", values)
 	}
 }
@@ -143,7 +143,7 @@ func TestHostOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 		"unload:test.dependent", "unload:test.base",
 		"load:test.base", "load:test.dependent",
 	})
-	if values := Values(registry, point); len(values) != 3 {
+	if values := registry.Values(point); len(values) != 3 {
 		t.Fatalf("reload left %d contributions, want 3", len(values))
 	}
 }
@@ -173,7 +173,7 @@ func lifecyclePlugin(point Point[string], lifecycle *[]string, id string, requir
 		}); err != nil {
 			return err
 		}
-		_, err := Contribute(scope, point, id, Contribution{})
+		_, err := scope.Contribute(point, id, Contribution{})
 		return err
 	})
 	item.Requires = requires
@@ -273,7 +273,7 @@ func TestHostUnloadSurfacesCleanupFailureAfterReleasingContributions(t *testing.
 		t.Fatal(err)
 	}
 	plugin := manifest("test.cleanup-host", func(scope *Scope) error {
-		if _, err := Contribute(scope, point, "owned", Contribution{}); err != nil {
+		if _, err := scope.Contribute(point, "owned", Contribution{}); err != nil {
 			return err
 		}
 		return scope.OnDispose(func() error { return want })
@@ -284,7 +284,7 @@ func TestHostUnloadSurfacesCleanupFailureAfterReleasingContributions(t *testing.
 	if err := host.Unload(plugin.ID); !errors.Is(err, want) {
 		t.Fatalf("Unload error = %v", err)
 	}
-	if values := Values(registry, point); len(values) != 0 {
+	if values := registry.Values(point); len(values) != 0 {
 		t.Fatalf("failed cleanup leaked contributions: %v", values)
 	}
 	requireFailedPluginInfo(t, host, plugin.ID)

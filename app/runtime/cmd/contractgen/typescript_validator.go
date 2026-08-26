@@ -145,7 +145,7 @@ func (e *checkEmitter) methodResults(registry *operation.Registry) string {
 				check = e.call("nullable", check)
 			}
 		}
-		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name), indent(check))
+		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name.String()), indent(check))
 	}
 	out.WriteString("};\n")
 	out.WriteString(`

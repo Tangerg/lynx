@@ -383,7 +383,7 @@ func TestConversationReconcilesAttachThenReadOverlap(t *testing.T) {
 
 func attachedReconciliationSnapshot() SessionSnapshot {
 	return SessionSnapshot{
-		Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: testWorkspace("/tmp/demo")},
+		Session: Session{ID: "ses_1", Status: SessionRunning, Provider: testSessionProvider, Model: testSessionModel, Workspace: testWorkspace("/tmp/demo")},
 		Transcript: []Block{
 			{ID: "same", RunID: "run_old", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "old"},
 			{ID: "same", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "current"},

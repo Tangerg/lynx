@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/oolong/core/text"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -163,7 +162,7 @@ func (a *app) openApproval(approval agent.Approval) {
 	if strings.TrimSpace(call.Diff) == "" {
 		call.Diff = approval.Diff
 	}
-	presentation, err := selectToolPresentation(extensions.Values(a.registry, ToolPresenters), call)
+	presentation, err := selectToolPresentation(a.registry.Values(ToolPresenters), call)
 	if err != nil {
 		presentation = ToolPresentation{
 			Label:    toolLabel(call),
@@ -491,8 +490,7 @@ func (a *app) reconcileExpiredResume(command agent.ResumeRun) {
 	a.status.note("resume replay expired · checking runtime state")
 	a.syncAnimation()
 	sessionID := a.session.ID
-	started := runSessionSettlement(
-		a, resumeRecoveryOperation, false,
+	started := a.runSessionSettlement(resumeRecoveryOperation, false,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			return a.readInvalidatedSession(ctx, sessionID)
 		},

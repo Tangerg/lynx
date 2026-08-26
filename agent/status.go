@@ -10,87 +10,67 @@ var ErrInvalidStatus = errors.New("agent: invalid status")
 
 // Status is the complete common lifecycle state of a Process. Strategy-specific
 // conditions such as a Planning no-plan result do not add common statuses.
-type Status uint8
+type Status string
 
 const (
 	// StatusInvalid is the invalid zero value.
-	StatusInvalid Status = iota
+	StatusInvalid Status = ""
 	// StatusNotStarted identifies a Process before execution begins.
-	StatusNotStarted
+	StatusNotStarted Status = "not_started"
 	// StatusRunning identifies a Process eligible to advance.
-	StatusRunning
+	StatusRunning Status = "running"
 	// StatusWaiting identifies a Process awaiting a WaitID-addressed Signal.
-	StatusWaiting
+	StatusWaiting Status = "waiting"
 	// StatusPaused identifies an explicitly suspended Process.
-	StatusPaused
+	StatusPaused Status = "paused"
 	// StatusCompleted identifies successful semantic completion.
-	StatusCompleted
+	StatusCompleted Status = "completed"
 	// StatusFailed identifies terminal execution failure.
-	StatusFailed
+	StatusFailed Status = "failed"
 	// StatusCanceled identifies cooperative cancellation.
-	StatusCanceled
+	StatusCanceled Status = "canceled"
 	// StatusTimedOut identifies deadline termination.
-	StatusTimedOut
+	StatusTimedOut Status = "timed_out"
 	// StatusKilled identifies an explicit Engine kill.
-	StatusKilled
+	StatusKilled Status = "killed"
 )
 
 // String returns the stable lifecycle-state name.
 func (status Status) String() string {
-	switch status {
-	case StatusNotStarted:
-		return "not_started"
-	case StatusRunning:
-		return "running"
-	case StatusWaiting:
-		return "waiting"
-	case StatusPaused:
-		return "paused"
-	case StatusCompleted:
-		return "completed"
-	case StatusFailed:
-		return "failed"
-	case StatusCanceled:
-		return "canceled"
-	case StatusTimedOut:
-		return "timed_out"
-	case StatusKilled:
-		return "killed"
-	default:
+	if !status.Valid() {
 		return "invalid"
 	}
+	return string(status)
 }
 
 func parseStatus(value string) (Status, error) {
-	switch value {
-	case "not_started":
-		return StatusNotStarted, nil
-	case "running":
-		return StatusRunning, nil
-	case "waiting":
-		return StatusWaiting, nil
-	case "paused":
-		return StatusPaused, nil
-	case "completed":
-		return StatusCompleted, nil
-	case "failed":
-		return StatusFailed, nil
-	case "canceled":
-		return StatusCanceled, nil
-	case "timed_out":
-		return StatusTimedOut, nil
-	case "killed":
-		return StatusKilled, nil
-	default:
+	status := Status(value)
+	if !status.Valid() {
 		return StatusInvalid, fmt.Errorf("%w: unknown value %q", ErrInvalidStatus, value)
 	}
+	return status, nil
 }
 
 // Valid reports whether status is a defined lifecycle value.
-func (status Status) Valid() bool { return status >= StatusNotStarted && status <= StatusKilled }
+func (status Status) Valid() bool {
+	switch status {
+	case StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused,
+		StatusCompleted, StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled:
+		return true
+	default:
+		return false
+	}
+}
 
 // Terminal reports whether the Process may never transition again.
-func (status Status) Terminal() bool { return status >= StatusCompleted && status <= StatusKilled }
+func (status Status) Terminal() bool {
+	switch status {
+	case StatusCompleted, StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled:
+		return true
+	default:
+		return false
+	}
+}
 
 func (status Status) canTransitionTo(next Status) bool {
 	switch status {
@@ -112,7 +92,7 @@ func (status Status) MarshalText() ([]byte, error) {
 	if !status.Valid() {
 		return nil, ErrInvalidStatus
 	}
-	return []byte(status.String()), nil
+	return []byte(status), nil
 }
 
 // UnmarshalText replaces status with a parsed lifecycle state.

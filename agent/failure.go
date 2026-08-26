@@ -18,50 +18,37 @@ var ErrInvalidFailure = errors.New("agent: invalid failure")
 
 // FailureKind is the stable framework-level classification of a failed
 // Process. It deliberately does not imply retryability or business semantics.
-type FailureKind uint8
+type FailureKind string
 
 const (
 	// FailureKindInvalid is the invalid zero value.
-	FailureKindInvalid FailureKind = iota
+	FailureKindInvalid FailureKind = ""
 	// FailureKindExecution identifies an ordinary Strategy execution failure.
-	FailureKindExecution
+	FailureKindExecution FailureKind = "execution"
 	// FailureKindContract identifies a violated Framework or Strategy contract.
-	FailureKindContract
+	FailureKindContract FailureKind = "contract"
 	// FailureKindExternal identifies failed external infrastructure.
-	FailureKindExternal
+	FailureKindExternal FailureKind = "external"
 	// FailureKindPanic identifies a recovered panic at an execution boundary.
-	FailureKindPanic
+	FailureKindPanic FailureKind = "panic"
 )
 
-// String returns the stable failure-kind name.
-func (kind FailureKind) String() string {
+// Valid reports whether kind is a framework failure classification.
+func (kind FailureKind) Valid() bool {
 	switch kind {
-	case FailureKindExecution:
-		return "execution"
-	case FailureKindContract:
-		return "contract"
-	case FailureKindExternal:
-		return "external"
-	case FailureKindPanic:
-		return "panic"
+	case FailureKindExecution, FailureKindContract, FailureKindExternal, FailureKindPanic:
+		return true
 	default:
-		return "invalid"
+		return false
 	}
 }
 
-func parseFailureKind(value string) (FailureKind, error) {
-	switch value {
-	case "execution":
-		return FailureKindExecution, nil
-	case "contract":
-		return FailureKindContract, nil
-	case "external":
-		return FailureKindExternal, nil
-	case "panic":
-		return FailureKindPanic, nil
-	default:
-		return FailureKindInvalid, fmt.Errorf("%w: unknown kind %q", ErrInvalidFailure, value)
+// String returns the stable failure-kind name.
+func (kind FailureKind) String() string {
+	if !kind.Valid() {
+		return "invalid"
 	}
+	return string(kind)
 }
 
 // Failure is an immutable, snapshot-safe classification and explanation. Code
@@ -75,7 +62,7 @@ type Failure struct {
 
 // NewFailure validates a stable failed-execution fact.
 func NewFailure(kind FailureKind, code, message string) (Failure, error) {
-	if kind < FailureKindExecution || kind > FailureKindPanic {
+	if !kind.Valid() {
 		return Failure{}, fmt.Errorf("%w: kind is required", ErrInvalidFailure)
 	}
 	if !validQualifiedName(code) || len(code) > maxFailureCodeBytes {
@@ -98,7 +85,7 @@ func (f Failure) Message() string { return f.message }
 
 // Valid reports whether the Failure was constructed successfully.
 func (f Failure) Valid() bool {
-	return f.kind >= FailureKindExecution && f.kind <= FailureKindPanic &&
+	return f.kind.Valid() &&
 		validQualifiedName(f.code) && f.message != ""
 }
 
@@ -107,7 +94,7 @@ func (f Failure) MarshalJSON() ([]byte, error) {
 	if !f.Valid() {
 		return nil, ErrInvalidFailure
 	}
-	return json.Marshal(failureWire{Kind: f.kind.String(), Code: f.code, Message: f.message})
+	return json.Marshal(failureWire{Kind: f.kind, Code: f.code, Message: f.message})
 }
 
 // UnmarshalJSON replaces f with a strictly decoded Failure.
@@ -124,11 +111,7 @@ func (f *Failure) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidFailure, err)
 	}
-	kind, err := parseFailureKind(wire.Kind)
-	if err != nil {
-		return err
-	}
-	value, err := NewFailure(kind, wire.Code, wire.Message)
+	value, err := NewFailure(wire.Kind, wire.Code, wire.Message)
 	if err != nil {
 		return err
 	}
@@ -137,7 +120,7 @@ func (f *Failure) UnmarshalJSON(data []byte) error {
 }
 
 type failureWire struct {
-	Kind    string `json:"kind"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Kind    FailureKind `json:"kind"`
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
 }

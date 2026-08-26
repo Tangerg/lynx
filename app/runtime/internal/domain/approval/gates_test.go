@@ -45,13 +45,13 @@ func TestGateFor_Matrix(t *testing.T) {
 		{"", ModeYolo, GatePass},
 
 		// Unknown modes fail closed for side-effecting and unknown classes.
-		{tool.SafetyClassSafe, Mode(99), GatePass},
-		{tool.SafetyClassExec, Mode(99), GatePrompt},
-		{"", Mode(99), GatePrompt},
+		{tool.SafetyClassSafe, Mode("invalid"), GatePass},
+		{tool.SafetyClassExec, Mode("invalid"), GatePrompt},
+		{"", Mode("invalid"), GatePrompt},
 	}
 	for _, c := range cases {
 		if got := GateFor(c.cls, c.mode); got != c.want {
-			t.Errorf("GateFor(%v, %v) = %d, want %d", c.cls, c.mode, got, c.want)
+			t.Errorf("GateFor(%v, %v) = %q, want %q", c.cls, c.mode, got, c.want)
 		}
 	}
 }

@@ -88,12 +88,20 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("cockroachdb: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
-	return validateIdentifiers("cockroachdb", map[string]string{
-		"SchemaName":     c.SchemaName,
-		"TableName":      c.TableName,
-		"IndexName":      c.IndexName,
-		"MetadataColumn": c.MetadataColumn,
-	})
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+		return err
+	}
+	if err := identifier(c.TableName).validate("TableName"); err != nil {
+		return err
+	}
+	if err := identifier(c.IndexName).validate("IndexName"); err != nil {
+		return err
+	}
+	return identifier(c.MetadataColumn).validate("MetadataColumn")
 }
 
 var (

@@ -421,7 +421,7 @@ func drainRootBoundary(events iter.Seq[runs.Event], rootRunID string) *run.Run {
 func outcomeOf(run *run.Run) (run.Outcome, error) {
 	outcome, terminal := run.Outcome()
 	if !terminal {
-		return 0, errTerminalOutcomeMissing
+		return "", errTerminalOutcomeMissing
 	}
 	return outcome, nil
 }

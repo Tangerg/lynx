@@ -275,7 +275,7 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_running", SessionID: root.SessionID(), RunID: child.ID(),
 		Kind: transcript.QuestionItem, OccurredAt: createdAt,
-		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 	})
 	store := &recoveryStoreStub{
 		runs: []rundomain.Run{root, child},
@@ -1000,7 +1000,7 @@ func coherentRecoveryPark(t *testing.T) (rundomain.Run, Pending, transcript.Item
 	if err != nil {
 		t.Fatalf("model selection: %v", err)
 	}
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	interrupt := transcript.Interrupt{
 		ItemID: "item_question", ItemOccurredAt: createdAt,
 		RunID: "run_root", Kind: interruptdomain.Question, Question: question,

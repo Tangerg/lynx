@@ -36,6 +36,25 @@ func TestAcknowledgementUncertainIncludesMutationTimeouts(t *testing.T) {
 	}
 }
 
+func TestOutcomeHasOneSharedStableIdentity(t *testing.T) {
+	tests := []struct {
+		outcome Outcome
+		want    string
+	}{
+		{outcome: Unknown, want: "unknown"},
+		{outcome: Rejected, want: "rejected"},
+		{outcome: Confirmed, want: "confirmed"},
+	}
+	for _, test := range tests {
+		if !test.outcome.Valid() || test.outcome.String() != test.want {
+			t.Fatalf("outcome = %q, valid = %t; want %q", test.outcome, test.outcome.Valid(), test.want)
+		}
+	}
+	if Outcome("").Valid() {
+		t.Fatal("zero Outcome is valid")
+	}
+}
+
 func TestConfirmStopsAtARuntimeStoreMismatch(t *testing.T) {
 	attempts := 0
 	_, err := Confirm(t.Context(), retry.Backoff{}, func(context.Context) (struct{}, error) {

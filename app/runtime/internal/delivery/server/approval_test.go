@@ -74,7 +74,7 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 			t.Errorf("round-trip %v → %q → %v (ok=%v)", m, wire, back, ok)
 		}
 	}
-	if _, ok := presentApprovalMode(approval.Mode(255)); ok {
+	if _, ok := presentApprovalMode(approval.Mode("invalid")); ok {
 		t.Error("unknown domain approval mode must be rejected")
 	}
 	if _, ok := approvalModeFromWire(protocol.ApprovalMode("bogus")); ok {
@@ -107,7 +107,7 @@ func TestApprovalModeHandlersMapToWire(t *testing.T) {
 }
 
 func TestGetApprovalModeRejectsUnknownDomainValue(t *testing.T) {
-	s := serverWithApprovals(&approvalPolicyFake{mode: approval.Mode(255)}, nil)
+	s := serverWithApprovals(&approvalPolicyFake{mode: approval.Mode("invalid")}, nil)
 	if _, err := s.GetApprovalMode(t.Context()); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("GetApprovalMode error = %v, want ErrInvalidMode", err)
 	}

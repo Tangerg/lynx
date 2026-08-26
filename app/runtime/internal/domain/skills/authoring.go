@@ -206,12 +206,17 @@ var dangerousSkillPattern = []*regexp.Regexp{
 }
 
 // ProposalSafetyIssue classifies built-in proposal safety checks.
-type ProposalSafetyIssue uint8
+type ProposalSafetyIssue string
 
 const (
-	ProposalSafe ProposalSafetyIssue = iota
-	ProposalDangerousInstruction
+	ProposalSafe                 ProposalSafetyIssue = "safe"
+	ProposalDangerousInstruction ProposalSafetyIssue = "dangerousInstruction"
 )
+
+// Valid reports whether issue is a supported proposal safety classification.
+func (issue ProposalSafetyIssue) Valid() bool {
+	return issue == ProposalSafe || issue == ProposalDangerousInstruction
+}
 
 // SafetyIssue reports whether proposal content contains a known destructive instruction.
 func (p Proposal) SafetyIssue() ProposalSafetyIssue {

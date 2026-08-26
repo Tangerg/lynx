@@ -55,20 +55,10 @@ func (window ReplayWindow) sameStore(guard workbench.ReplayGuard) bool {
 		guard.Namespace == strings.TrimSpace(window.Namespace)
 }
 
-// Outcome distinguishes an authoritative confirmation from a definitive
-// refusal and an outcome which must remain durable for later recovery.
-type Outcome uint8
-
-const (
-	Unknown Outcome = iota
-	Rejected
-	Confirmed
-)
-
 // Result binds settlement to the exact durable runtime command.
 type Result struct {
 	Request agent.DeleteSession
-	Outcome Outcome
+	Outcome mutation.Outcome
 }
 
 // Execute stages or resumes one deletion intent, then converges its runtime
@@ -88,7 +78,7 @@ func Execute(
 	sessionID = strings.TrimSpace(sessionID)
 	pending, exists := authoring.PendingSessionDeletion(sessionID)
 	if exists && pending.Phase == workbench.SessionDeletionConfirmed {
-		return Result{Request: pending.Request(), Outcome: Confirmed}, nil
+		return Result{Request: pending.Request(), Outcome: mutation.Confirmed}, nil
 	}
 	request := pending.Request()
 	if !exists {
@@ -127,7 +117,7 @@ func Settle(
 	replay workbench.ReplayGuard,
 	window ReplayWindow,
 	backoff retry.Backoff,
-) (Outcome, error) {
+) (mutation.Outcome, error) {
 	_, err := mutation.ConfirmAdmitted(ctx, backoff, func() error {
 		if !replaySafe(replay, window) {
 			return mutation.ErrReplayGuaranteeUnavailable
@@ -137,31 +127,31 @@ func Settle(
 		return struct{}{}, runtime.DeleteSession(ctx, request)
 	})
 	if err == nil || errors.Is(err, agent.ErrSessionNotFound) {
-		return Confirmed, nil
+		return mutation.Confirmed, nil
 	}
 	if errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
 		outcome, resolveErr := resolveExpired(ctx, runtime, request.SessionID, replay, window)
-		if outcome != Unknown {
+		if outcome != mutation.Unknown {
 			return outcome, resolveErr
 		}
-		return Unknown, errors.Join(
+		return mutation.Unknown, errors.Join(
 			fmt.Errorf("delete session outcome is unknown: %w", err), resolveErr,
 		)
 	}
 	if mutation.OutcomeUnknown(err) {
-		return Unknown, fmt.Errorf("delete session outcome is unknown: %w", err)
+		return mutation.Unknown, fmt.Errorf("delete session outcome is unknown: %w", err)
 	}
 	_, readErr := runtime.GetSession(ctx, request.SessionID)
 	if errors.Is(readErr, agent.ErrSessionNotFound) {
-		return Confirmed, nil
+		return mutation.Confirmed, nil
 	}
 	if readErr != nil {
-		return Unknown, errors.Join(
+		return mutation.Unknown, errors.Join(
 			fmt.Errorf("delete session: %w", err),
 			fmt.Errorf("read deletion outcome: %w", readErr),
 		)
 	}
-	return Rejected, err
+	return mutation.Rejected, err
 }
 
 // Confirm upgrades a prepared command to a durable tombstone and retires all
@@ -199,15 +189,15 @@ func Recover(
 			outcome, err := resolveExpired(ctx, runtime, pending.SessionID, pending.Replay, window)
 			result.Outcome = outcome
 			switch outcome {
-			case Confirmed:
+			case mutation.Confirmed:
 				if confirmErr := Confirm(authoring, result); confirmErr != nil {
 					return confirmErr
 				}
-			case Rejected:
+			case mutation.Rejected:
 				if rejectErr := Reject(authoring, result); rejectErr != nil {
 					return rejectErr
 				}
-			case Unknown:
+			case mutation.Unknown:
 				return fmt.Errorf("recover session deletion %s: %w", pending.SessionID, err)
 			}
 			continue
@@ -215,15 +205,15 @@ func Recover(
 		outcome, err := Settle(ctx, runtime, result.Request, pending.Replay, window, backoff)
 		result.Outcome = outcome
 		switch outcome {
-		case Confirmed:
+		case mutation.Confirmed:
 			if confirmErr := Confirm(authoring, result); confirmErr != nil {
 				return confirmErr
 			}
-		case Rejected:
+		case mutation.Rejected:
 			if rejectErr := Reject(authoring, result); rejectErr != nil {
 				return errors.Join(err, rejectErr)
 			}
-		case Unknown:
+		case mutation.Unknown:
 			return err
 		}
 	}
@@ -236,18 +226,18 @@ func resolveExpired(
 	sessionID string,
 	replay workbench.ReplayGuard,
 	window ReplayWindow,
-) (Outcome, error) {
+) (mutation.Outcome, error) {
 	if !window.sameStore(replay) {
-		return Unknown, errors.New("session deletion belongs to another runtime")
+		return mutation.Unknown, errors.New("session deletion belongs to another runtime")
 	}
 	_, err := runtime.GetSession(ctx, sessionID)
 	if errors.Is(err, agent.ErrSessionNotFound) {
-		return Confirmed, nil
+		return mutation.Confirmed, nil
 	}
 	if err != nil {
-		return Unknown, fmt.Errorf("read deletion outcome: %w", err)
+		return mutation.Unknown, fmt.Errorf("read deletion outcome: %w", err)
 	}
-	return Rejected, nil
+	return mutation.Rejected, nil
 }
 
 func replaySafe(guard workbench.ReplayGuard, window ReplayWindow) bool {

@@ -390,7 +390,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID(),
 		Kind:       transcript.QuestionItem,
 		OccurredAt: parkedAt,
-		Question:   &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+		Question:   &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 	})); err != nil {
 		t.Fatalf("open interrupt item: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		[]transcript.Interrupt{{
 			ItemID:   "item_question",
 			Kind:     interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 		}},
 		parkedAt,
 	)); err != nil {

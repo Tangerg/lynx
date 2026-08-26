@@ -206,7 +206,7 @@ func (a *app) SetModelRole(kind modelconfig.RoleKind, argument string) error {
 		return err
 	}
 	a.status.note("updating " + string(kind) + " model role")
-	started := runAdmissionMutation(a, modelConfigOperation, false,
+	started := a.runAdmissionMutation(modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Role, error) { return a.modelConfig.SetRole(ctx, role) },
 		func(updated modelconfig.Role, err error) {
 			if err != nil {
@@ -291,7 +291,7 @@ func (a *app) TestConfiguredProvider(providerID string) error {
 		return errors.New("usage: /provider-test <provider>")
 	}
 	a.status.note("testing provider " + providerID)
-	started := runApplicationOperation(a, modelConfigOperation, false,
+	started := a.runApplicationOperation(modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.TestResult, error) {
 			return a.modelConfig.TestProvider(ctx, providerID)
 		},
@@ -323,7 +323,7 @@ func (a *app) ConfigureProvider(providerID string) error {
 	}
 	presentation := a.sessionContext
 	a.status.note("loading provider " + providerID)
-	started := runApplicationOperation(a, modelConfigOperation, false,
+	started := a.runApplicationOperation(modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Provider, error) {
 			providers, err := a.modelConfig.Providers(ctx)
 			if err != nil {
@@ -458,7 +458,7 @@ func valueChange(mode, value string) *modelconfig.ValueChange {
 
 func (a *app) updateProvider(update modelconfig.UpdateProvider) {
 	a.status.note("updating provider " + update.Provider)
-	started := runAdmissionMutation(a, modelConfigOperation, false,
+	started := a.runAdmissionMutation(modelConfigOperation, false,
 		func(ctx context.Context) (modelconfig.Provider, error) {
 			return a.modelConfig.UpdateProvider(ctx, update)
 		},
@@ -552,6 +552,50 @@ func (a *app) StartGoal(objective string) error {
 	})
 }
 
+func (a *app) UpdateGoal(objective string) error {
+	if a.goals == nil {
+		return errors.New("this runtime composition has no goal service")
+	}
+	update := goal.Update{SessionID: a.session.ID, Objective: strings.TrimSpace(objective)}
+	if err := update.Validate(); err != nil {
+		return err
+	}
+	return a.changeGoal("updating session goal", func(ctx context.Context) (goal.Goal, error) {
+		return a.goals.UpdateGoal(ctx, update)
+	})
+}
+
+func (a *app) ClearGoal() error {
+	if a.goals == nil {
+		return errors.New("this runtime composition has no goal service")
+	}
+	presentation := a.sessionContext
+	sessionID := a.session.ID
+	label := "clearing session goal"
+	a.status.note(label)
+	started := a.runAdmissionMutation(goalOperation, false,
+		func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, a.goals.ClearGoal(ctx, sessionID)
+		},
+		func(_ struct{}, err error) {
+			if err != nil {
+				a.message(label + " failed: " + err.Error())
+				return
+			}
+			if a.sessionContext == presentation {
+				a.setRuntimeReader(runtimeReaderGoal)
+				a.workspaceReader = workspaceReaderNone
+				a.openReaderDocument(goalDocument(goal.Goal{}, false))
+			}
+			a.status.note("goal · cleared")
+		},
+	)
+	if !started {
+		return errors.New("another goal operation is running")
+	}
+	return nil
+}
+
 func (a *app) StopGoal() error {
 	if a.goals == nil {
 		return errors.New("this runtime composition has no goal service")
@@ -586,7 +630,7 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 		}
 		return change(ctx)
 	}
-	started := runAdmissionMutation(a, goalOperation, false, work, func(current goal.Goal, err error) {
+	started := a.runAdmissionMutation(goalOperation, false, work, func(current goal.Goal, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
 			return
@@ -614,7 +658,7 @@ func (a *app) runRuntimeReaderQuery(
 
 func (a *app) executeRuntimeReaderQuery(query runtimeReaderQuery) {
 	a.status.note(query.status)
-	runOperation(a, readerDocumentOperation, true, query.read, func(document readerDocument, err error) {
+	a.runOperation(readerDocumentOperation, true, query.read, func(document readerDocument, err error) {
 		if err != nil {
 			a.message(query.status + " failed: " + err.Error())
 			return

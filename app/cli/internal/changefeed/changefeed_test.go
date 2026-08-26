@@ -11,7 +11,7 @@ func TestTopicsReturnsAnOwnedCompleteInventory(t *testing.T) {
 	t.Parallel()
 	want := []Topic{
 		FilesChanged, SkillsChanged, MCPChanged, SchedulesChanged,
-		SessionsChanged, RunsChanged, StateChanged, GoalsChanged, InterruptsChanged,
+		SessionsChanged, RunsChanged, PlanChanged, GoalsChanged, InterruptsChanged,
 		KnowledgeChanged, HooksChanged, ModelsChanged, ApprovalsChanged,
 		AgentMemoryChanged,
 	}
@@ -54,7 +54,7 @@ func TestSubscriptionMakesWatchScopeExplicit(t *testing.T) {
 func TestSubscriptionLimitsPartitionWithoutLosingDeliveryScope(t *testing.T) {
 	t.Parallel()
 	requested := Subscription{
-		Topics: []Topic{FilesChanged, SessionsChanged, RunsChanged, StateChanged, InterruptsChanged},
+		Topics: []Topic{FilesChanged, SessionsChanged, RunsChanged, PlanChanged, InterruptsChanged},
 		Watches: []Watch{
 			{ID: "first", Workspace: "/first"},
 			{ID: "second", Workspace: "/second"},
@@ -67,7 +67,7 @@ func TestSubscriptionLimitsPartitionWithoutLosingDeliveryScope(t *testing.T) {
 	}
 	want := []Subscription{
 		{Topics: []Topic{FilesChanged, SessionsChanged}, Watches: requested.Watches[:2]},
-		{Topics: []Topic{RunsChanged, StateChanged}},
+		{Topics: []Topic{RunsChanged, PlanChanged}},
 		{Topics: []Topic{InterruptsChanged}},
 		{Topics: []Topic{FilesChanged}, Watches: requested.Watches[2:]},
 	}
@@ -364,14 +364,10 @@ func TestSubscriptionRejectsEventsOutsideItsDeclaredScope(t *testing.T) {
 	}
 }
 
-func TestStateChangeRequiresTheProjectionThisClientOwns(t *testing.T) {
+func TestPlanChangeIsAFirstClassInvalidation(t *testing.T) {
 	t.Parallel()
-	event := Event{Type: EventType(StateChanged), Sequence: 1, StateKey: StatePlan}
+	event := Event{Type: EventType(PlanChanged), Sequence: 1}
 	if err := event.Validate(); err != nil {
 		t.Fatal(err)
-	}
-	event.StateKey = "vendor-state"
-	if err := event.Validate(); err == nil {
-		t.Fatal("unsupported state projection was accepted")
 	}
 }

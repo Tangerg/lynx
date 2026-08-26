@@ -1135,7 +1135,7 @@ func validateReductionEvents(reductions []reduction) (terminalAt int, err error)
 					return -1, fmt.Errorf("%w: terminal commit at reduction[%d] has no terminal event", errReducerInvariant, i)
 				}
 			default:
-				return -1, fmt.Errorf("%w: reduction[%d] has unknown state change %d", errReducerInvariant, i, reduced.Commit.State)
+				return -1, fmt.Errorf("%w: reduction[%d] has unknown state change %q", errReducerInvariant, i, reduced.Commit.State)
 			}
 		}
 	}

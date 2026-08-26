@@ -62,7 +62,7 @@ func singleRunPending(
 	runCreatedAt, barrierCreatedAt time.Time,
 ) runs.Pending {
 	t.Helper()
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	return runs.Pending{
 		RootRunID:  runID,
 		SessionID:  sessionID,
@@ -224,7 +224,7 @@ func TestCommitEventRejectsUnknownStateChange(t *testing.T) {
 		Tx:    new(fakeTx).run,
 	})
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
-		RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1", CommitID: "event_commit_1", State: runs.StateChange(255),
+		RunID: "run_1", SessionID: "ses_1", SegmentID: "segment_1", CommitID: "event_commit_1", State: runs.StateChange("invalid"),
 		Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1"})),
 	})
 	if err == nil {

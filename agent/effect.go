@@ -13,38 +13,28 @@ var ErrInvalidEffect = errors.New("agent: invalid effect")
 // EffectTarget identifies which of the two execution boundaries owns an Effect.
 // Framework Effects are interpreted by the Engine; Dispatcher Effects remain
 // opaque to the Engine and are interpreted by the Deployment-bound dispatcher.
-type EffectTarget uint8
+type EffectTarget string
 
 const (
 	// EffectTargetInvalid is the invalid zero value.
-	EffectTargetInvalid EffectTarget = iota
+	EffectTargetInvalid EffectTarget = ""
 	// EffectTargetFramework identifies an Engine-interpreted Effect.
-	EffectTargetFramework
+	EffectTargetFramework EffectTarget = "framework"
 	// EffectTargetDispatcher identifies a Strategy dispatcher Effect.
-	EffectTargetDispatcher
+	EffectTargetDispatcher EffectTarget = "dispatcher"
 )
+
+// Valid reports whether target identifies an Effect owner.
+func (target EffectTarget) Valid() bool {
+	return target == EffectTargetFramework || target == EffectTargetDispatcher
+}
 
 // String returns the stable Effect target name.
 func (target EffectTarget) String() string {
-	switch target {
-	case EffectTargetFramework:
-		return "framework"
-	case EffectTargetDispatcher:
-		return "dispatcher"
-	default:
+	if !target.Valid() {
 		return "invalid"
 	}
-}
-
-func parseEffectTarget(value string) (EffectTarget, error) {
-	switch value {
-	case "framework":
-		return EffectTargetFramework, nil
-	case "dispatcher":
-		return EffectTargetDispatcher, nil
-	default:
-		return EffectTargetInvalid, fmt.Errorf("%w: unknown target %q", ErrInvalidEffect, value)
-	}
+	return string(target)
 }
 
 // Effect is an immutable request for an operation outside Execution.Step.
@@ -98,7 +88,7 @@ func newEffectWithCapabilities(
 	payload json.RawMessage,
 	requirements CapabilitySet,
 ) (Effect, error) {
-	if target != EffectTargetFramework && target != EffectTargetDispatcher {
+	if !target.Valid() {
 		return Effect{}, fmt.Errorf("%w: invalid target", ErrInvalidEffect)
 	}
 	if !requirements.Valid() || target == EffectTargetFramework && len(requirements.values) != 0 {
@@ -128,7 +118,7 @@ func (e Effect) RequiredCapabilities() CapabilitySet { return e.requirements }
 
 // Valid reports whether the Effect was created through a validated boundary.
 func (e Effect) Valid() bool {
-	return (e.target == EffectTargetFramework || e.target == EffectTargetDispatcher) &&
+	return e.target.Valid() &&
 		len(e.payload) > 0 && e.requirements.Valid() &&
 		(e.target != EffectTargetFramework || len(e.requirements.values) == 0)
 }
@@ -144,7 +134,7 @@ func (e Effect) MarshalJSON() ([]byte, error) {
 		return nil, ErrInvalidEffect
 	}
 	return json.Marshal(effectWire{
-		Target: e.target.String(), Payload: e.payload,
+		Target: e.target, Payload: e.payload,
 		RequiredCapabilities: e.requirements.Values(),
 	})
 }
@@ -163,15 +153,11 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidEffect, err)
 	}
-	target, err := parseEffectTarget(wire.Target)
-	if err != nil {
-		return err
-	}
 	requirements, err := NewCapabilitySet(wire.RequiredCapabilities...)
 	if err != nil {
 		return fmt.Errorf("%w: required capabilities: %w", ErrInvalidEffect, err)
 	}
-	value, err := newEffectWithCapabilities(target, wire.Payload, requirements)
+	value, err := newEffectWithCapabilities(wire.Target, wire.Payload, requirements)
 	if err != nil {
 		return err
 	}
@@ -180,7 +166,7 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 }
 
 type effectWire struct {
-	Target               string          `json:"target"`
+	Target               EffectTarget    `json:"target"`
 	Payload              json.RawMessage `json:"payload"`
 	RequiredCapabilities []Capability    `json:"required_capabilities,omitempty"`
 }

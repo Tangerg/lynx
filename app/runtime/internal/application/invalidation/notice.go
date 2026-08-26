@@ -13,40 +13,55 @@ package invalidation
 
 // Resource is what moved. It is a closed set projected exhaustively at the
 // publication boundary.
-type Resource uint8
+type Resource string
 
 const (
 	// Resync means a different Runtime process committed to the shared durable
 	// store. The observer cannot recover the original use-case scope from
 	// SQLite's commit counter, so every subscribed read model must be re-read.
-	Resync Resource = iota + 1
+	Resync Resource = "resync"
 	// Sessions — a session was created, renamed, deleted, or its lifecycle moved.
-	Sessions
+	Sessions Resource = "sessions"
 	// Runs — a run's lifecycle position changed (started, parked, resumed, ended).
-	Runs
+	Runs Resource = "runs"
 	// Interrupts — a waiting set opened, was answered, or was dropped.
-	Interrupts
+	Interrupts Resource = "interrupts"
 	// Goals — a session's autonomous goal changed.
-	Goals
+	Goals Resource = "goals"
 	// PlanState — the session-scoped Plan projection was committed.
-	PlanState
+	PlanState Resource = "plan"
 	// Schedules — an editable scheduled run was created, updated, or deleted.
-	Schedules
+	Schedules Resource = "schedules"
 	// Knowledge — a human-authored knowledge document was conditionally replaced.
-	Knowledge
+	Knowledge Resource = "knowledge"
 	// Hooks — a project's lifecycle-hook trust decision changed.
-	Hooks
+	Hooks Resource = "hooks"
 	// Skills — the managed Skill library or proposal collection changed.
-	Skills
+	Skills Resource = "skills"
 	// MCP — an MCP server's durable configuration or live projection changed.
-	MCP
+	MCP Resource = "mcp"
 	// Models — provider configuration or a utility/embedding model role changed.
-	Models
+	Models Resource = "models"
 	// Approvals — the default approval mode or remembered approval rules changed.
-	Approvals
+	Approvals Resource = "approvals"
 	// AgentMemory — the agent-memory review collection changed.
-	AgentMemory
+	AgentMemory Resource = "agentMemory"
 )
+
+// Valid reports whether resource belongs to the invalidation vocabulary.
+func (resource Resource) Valid() bool {
+	return resource == Resync || resource == Sessions || resource == Runs || resource == Interrupts ||
+		resource == Goals || resource == PlanState || resource == Schedules || resource == Knowledge ||
+		resource == Hooks || resource == Skills || resource == MCP || resource == Models ||
+		resource == Approvals || resource == AgentMemory
+}
+
+func (resource Resource) String() string {
+	if !resource.Valid() {
+		return "invalid"
+	}
+	return string(resource)
+}
 
 // Notice is one committed change: the resource, and the members of it a reader can
 // narrow to. Empty ID sets mean "every member of this resource may be stale",

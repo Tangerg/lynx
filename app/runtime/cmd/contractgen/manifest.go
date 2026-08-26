@@ -236,7 +236,7 @@ func methods(registry *operation.Registry) []methodEntry {
 	out := make([]methodEntry, 0, len(metas))
 	for _, meta := range metas {
 		out = append(out, methodEntry{
-			Name:         meta.Name,
+			Name:         meta.Name.String(),
 			Kind:         meta.Kind.String(),
 			Operation:    meta.Operation.String(),
 			Idempotency:  meta.Idempotency.String(),
@@ -244,7 +244,7 @@ func methods(registry *operation.Registry) []methodEntry {
 			Pagination:   meta.Pagination.String(),
 			Errors:       meta.ProblemTypes(),
 			Features:     meta.Features(),
-			Materializes: slices.Clone(meta.Materializes),
+			Materializes: methodNames(meta.Materializes),
 		})
 	}
 	return out
@@ -277,7 +277,7 @@ func capabilities(registry *operation.Registry) []capabilityEntry {
 		for _, rule := range meta.CapabilityRules {
 			rows = append(rows, capabilityRow{When: conditions(rule.When), Requires: rule.Requires})
 		}
-		out = append(out, capabilityEntry{Method: meta.Name, Rules: rows})
+		out = append(out, capabilityEntry{Method: meta.Name.String(), Rules: rows})
 	}
 	return out
 }
@@ -421,7 +421,7 @@ func errorTypes(registry *operation.Registry, codes map[string]int) []errorEntry
 	byType := make(map[string][]string, len(codes))
 	for _, meta := range registry.Metas() {
 		for _, problem := range meta.ProblemTypes() {
-			byType[problem] = append(byType[problem], meta.Name)
+			byType[problem] = append(byType[problem], meta.Name.String())
 		}
 	}
 	out := make([]errorEntry, 0, len(codes))
@@ -439,6 +439,17 @@ func errorTypes(registry *operation.Registry, codes map[string]int) []errorEntry
 		})
 	}
 	slices.SortFunc(out, func(a, b errorEntry) int { return cmp.Compare(a.Type, b.Type) })
+	return out
+}
+
+func methodNames(names []operation.Name) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]string, len(names))
+	for index, name := range names {
+		out[index] = name.String()
+	}
 	return out
 }
 

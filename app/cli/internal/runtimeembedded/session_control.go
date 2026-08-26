@@ -200,11 +200,10 @@ func validateImportedSession(archived protocol.ArtifactSession, resolvedWorkspac
 	if result.Workspace != resolvedWorkspace {
 		problems = append(problems, fmt.Errorf("runtime returned workspace %+v, want resolved workspace %+v", result.Workspace, resolvedWorkspace))
 	}
-	// An empty archived model means the target Runtime's default. The live
-	// Session projection resolves that default, so only an explicit archived
-	// selection has an exact acknowledgement value.
-	if archived.Model != "" && result.Model != archived.Model {
-		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", result.Model, archived.Model))
+	archivedModel := agent.ModelRef{Provider: archived.Provider, Model: archived.Model}
+	resultModel := agent.ModelRef{Provider: result.Provider, Model: result.Model}
+	if resultModel != archivedModel {
+		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", resultModel, archivedModel))
 	}
 	if result.Favorite != archived.Favorite {
 		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, archived.Favorite))

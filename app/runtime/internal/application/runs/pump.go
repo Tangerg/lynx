@@ -211,7 +211,7 @@ func (p *segmentPump) handleChildRunStartOutcome(
 		_ = request.complete(err)
 		return true
 	}
-	if managed.outcome.valid() {
+	if managed.outcome.Valid() {
 		if managed.outcome != request.Outcome {
 			err := fmt.Errorf("runs: child member %q repeated a contradictory start outcome", event.Member.MemberID)
 			_ = request.complete(err)
@@ -542,7 +542,7 @@ func (p *segmentPump) fail(err error) {
 func (p *segmentPump) finish() {
 	p.failPendingToolCommits(errors.New("runs: execution ended before concurrent Tool results formed a durable prefix"))
 	for memberID, managed := range p.childStarts {
-		if !managed.outcome.valid() {
+		if !managed.outcome.Valid() {
 			p.abortPreparedChildStart(managed.prepared)
 		}
 		delete(p.childStarts, memberID)

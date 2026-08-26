@@ -116,12 +116,20 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("neo4j: unsupported Similarity %q", c.Similarity)
 	}
-	return validateIdentifiers("neo4j", map[string]string{
-		"Label":             c.Label,
-		"EmbeddingProperty": c.EmbeddingProperty,
-		"IDProperty":        c.IDProperty,
-		"TextProperty":      c.TextProperty,
-	})
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.Label).validate("Label"); err != nil {
+		return err
+	}
+	if err := identifier(c.EmbeddingProperty).validate("EmbeddingProperty"); err != nil {
+		return err
+	}
+	if err := identifier(c.IDProperty).validate("IDProperty"); err != nil {
+		return err
+	}
+	return identifier(c.TextProperty).validate("TextProperty")
 }
 
 // applyDefaults fills zero fields with documented defaults.

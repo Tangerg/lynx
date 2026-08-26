@@ -14,46 +14,44 @@ var errInvalidTermination = errors.New("agent: invalid termination")
 
 // deadlineOwner identifies the lifecycle boundary whose reached deadline is
 // recorded by the Engine.
-type deadlineOwner uint8
+type deadlineOwner string
 
 const (
-	deadlineOwnerInvalid deadlineOwner = iota
-	deadlineOwnerProcess
-	deadlineOwnerParent
-	deadlineOwnerHost
+	deadlineOwnerInvalid deadlineOwner = ""
+	deadlineOwnerProcess deadlineOwner = "process"
+	deadlineOwnerParent  deadlineOwner = "parent"
+	deadlineOwnerHost    deadlineOwner = "host"
 )
 
+func (owner deadlineOwner) valid() bool {
+	return owner == deadlineOwnerProcess || owner == deadlineOwnerParent || owner == deadlineOwnerHost
+}
+
 func (owner deadlineOwner) String() string {
-	switch owner {
-	case deadlineOwnerProcess:
-		return "process"
-	case deadlineOwnerParent:
-		return "parent"
-	case deadlineOwnerHost:
-		return "host"
-	default:
+	if !owner.valid() {
 		return "invalid"
 	}
+	return string(owner)
 }
 
 // cancellationOwner identifies a non-deadline cancellation source.
-type cancellationOwner uint8
+type cancellationOwner string
 
 const (
-	cancellationOwnerInvalid cancellationOwner = iota
-	cancellationOwnerParent
-	cancellationOwnerHost
+	cancellationOwnerInvalid cancellationOwner = ""
+	cancellationOwnerParent  cancellationOwner = "parent"
+	cancellationOwnerHost    cancellationOwner = "host"
 )
 
+func (owner cancellationOwner) valid() bool {
+	return owner == cancellationOwnerParent || owner == cancellationOwnerHost
+}
+
 func (owner cancellationOwner) String() string {
-	switch owner {
-	case cancellationOwnerParent:
-		return "parent"
-	case cancellationOwnerHost:
-		return "host"
-	default:
+	if !owner.valid() {
 		return "invalid"
 	}
+	return string(owner)
 }
 
 // killIntent records an explicit Engine kill request.
@@ -77,7 +75,7 @@ type deadlineIntent struct {
 }
 
 func newDeadlineIntent(owner deadlineOwner, reason string) (deadlineIntent, error) {
-	if owner < deadlineOwnerProcess || owner > deadlineOwnerHost {
+	if !owner.valid() {
 		return deadlineIntent{}, fmt.Errorf("%w: invalid deadline owner", errInvalidTermination)
 	}
 	if err := validateTerminationReason(reason); err != nil {
@@ -87,7 +85,7 @@ func newDeadlineIntent(owner deadlineOwner, reason string) (deadlineIntent, erro
 }
 
 func (intent deadlineIntent) valid() bool {
-	return intent.owner >= deadlineOwnerProcess && intent.owner <= deadlineOwnerHost && intent.reason != ""
+	return intent.owner.valid() && intent.reason != ""
 }
 
 // cancellationIntent records a non-deadline cancellation from a parent Process
@@ -98,7 +96,7 @@ type cancellationIntent struct {
 }
 
 func newCancellationIntent(owner cancellationOwner, reason string) (cancellationIntent, error) {
-	if owner < cancellationOwnerParent || owner > cancellationOwnerHost {
+	if !owner.valid() {
 		return cancellationIntent{}, fmt.Errorf("%w: invalid cancellation owner", errInvalidTermination)
 	}
 	if err := validateTerminationReason(reason); err != nil {
@@ -108,7 +106,7 @@ func newCancellationIntent(owner cancellationOwner, reason string) (cancellation
 }
 
 func (intent cancellationIntent) valid() bool {
-	return intent.owner >= cancellationOwnerParent && intent.owner <= cancellationOwnerHost && intent.reason != ""
+	return intent.owner.valid() && intent.reason != ""
 }
 
 // stepOutcomeKind describes the valid terminal result of a Step. A zero outcome
@@ -153,92 +151,56 @@ type terminationFacts struct {
 }
 
 // TerminationCause is the stable reason category of a terminal Process.
-type TerminationCause uint8
+type TerminationCause string
 
 const (
 	// TerminationCauseInvalid is the invalid zero value.
-	TerminationCauseInvalid TerminationCause = iota
+	TerminationCauseInvalid TerminationCause = ""
 	// TerminationCauseCompletion identifies successful semantic completion.
-	TerminationCauseCompletion
+	TerminationCauseCompletion TerminationCause = "completion"
 	// TerminationCauseEngineKill identifies an explicit Engine kill.
-	TerminationCauseEngineKill
+	TerminationCauseEngineKill TerminationCause = "engine_kill"
 	// TerminationCauseProcessDeadline identifies the Process's own deadline.
-	TerminationCauseProcessDeadline
+	TerminationCauseProcessDeadline TerminationCause = "process_deadline"
 	// TerminationCauseParentDeadline identifies deadline propagation from a parent.
-	TerminationCauseParentDeadline
+	TerminationCauseParentDeadline TerminationCause = "parent_deadline"
 	// TerminationCauseHostDeadline identifies expiry of the Host context.
-	TerminationCauseHostDeadline
+	TerminationCauseHostDeadline TerminationCause = "host_deadline"
 	// TerminationCauseParentCancellation identifies cancellation by a parent Process.
-	TerminationCauseParentCancellation
+	TerminationCauseParentCancellation TerminationCause = "parent_cancellation"
 	// TerminationCauseHostCancellation identifies cancellation by the Host context.
-	TerminationCauseHostCancellation
+	TerminationCauseHostCancellation TerminationCause = "host_cancellation"
 	// TerminationCauseExecutionFailure identifies an ordinary Strategy failure.
-	TerminationCauseExecutionFailure
+	TerminationCauseExecutionFailure TerminationCause = "execution_failure"
 	// TerminationCauseContractFailure identifies a contract violation.
-	TerminationCauseContractFailure
+	TerminationCauseContractFailure TerminationCause = "contract_failure"
 	// TerminationCauseExternalFailure identifies failed external infrastructure.
-	TerminationCauseExternalFailure
+	TerminationCauseExternalFailure TerminationCause = "external_failure"
 	// TerminationCausePanic identifies a recovered execution-boundary panic.
-	TerminationCausePanic
+	TerminationCausePanic TerminationCause = "panic"
 )
 
-// String returns the stable termination-cause name.
-func (cause TerminationCause) String() string {
+// Valid reports whether cause is a terminal Process category.
+func (cause TerminationCause) Valid() bool {
 	switch cause {
-	case TerminationCauseCompletion:
-		return "completion"
-	case TerminationCauseEngineKill:
-		return "engine_kill"
-	case TerminationCauseProcessDeadline:
-		return "process_deadline"
-	case TerminationCauseParentDeadline:
-		return "parent_deadline"
-	case TerminationCauseHostDeadline:
-		return "host_deadline"
-	case TerminationCauseParentCancellation:
-		return "parent_cancellation"
-	case TerminationCauseHostCancellation:
-		return "host_cancellation"
-	case TerminationCauseExecutionFailure:
-		return "execution_failure"
-	case TerminationCauseContractFailure:
-		return "contract_failure"
-	case TerminationCauseExternalFailure:
-		return "external_failure"
-	case TerminationCausePanic:
-		return "panic"
+	case TerminationCauseCompletion, TerminationCauseEngineKill,
+		TerminationCauseProcessDeadline, TerminationCauseParentDeadline,
+		TerminationCauseHostDeadline, TerminationCauseParentCancellation,
+		TerminationCauseHostCancellation, TerminationCauseExecutionFailure,
+		TerminationCauseContractFailure, TerminationCauseExternalFailure,
+		TerminationCausePanic:
+		return true
 	default:
-		return "invalid"
+		return false
 	}
 }
 
-func parseTerminationCause(value string) (TerminationCause, error) {
-	switch value {
-	case "completion":
-		return TerminationCauseCompletion, nil
-	case "engine_kill":
-		return TerminationCauseEngineKill, nil
-	case "process_deadline":
-		return TerminationCauseProcessDeadline, nil
-	case "parent_deadline":
-		return TerminationCauseParentDeadline, nil
-	case "host_deadline":
-		return TerminationCauseHostDeadline, nil
-	case "parent_cancellation":
-		return TerminationCauseParentCancellation, nil
-	case "host_cancellation":
-		return TerminationCauseHostCancellation, nil
-	case "execution_failure":
-		return TerminationCauseExecutionFailure, nil
-	case "contract_failure":
-		return TerminationCauseContractFailure, nil
-	case "external_failure":
-		return TerminationCauseExternalFailure, nil
-	case "panic":
-		return TerminationCausePanic, nil
-	default:
-		return TerminationCauseInvalid, fmt.Errorf("%w: unknown cause %q", errInvalidTermination, value)
+// String returns the stable termination-cause name.
+func (cause TerminationCause) String() string {
+	if !cause.Valid() {
+		return "invalid"
 	}
+	return string(cause)
 }
 
 // Termination is the immutable result of applying the terminal priority matrix.
@@ -329,7 +291,7 @@ func (termination Termination) Failure() (Failure, bool) {
 
 // Valid reports whether the resolved status, cause, and optional Failure agree.
 func (termination Termination) Valid() bool {
-	if !termination.status.Terminal() || termination.cause == TerminationCauseInvalid {
+	if !termination.status.Terminal() || !termination.cause.Valid() {
 		return false
 	}
 	switch termination.status {
@@ -362,8 +324,8 @@ func (termination Termination) MarshalJSON() ([]byte, error) {
 		return nil, errInvalidTermination
 	}
 	wire := terminationWire{
-		Status: termination.status.String(),
-		Cause:  termination.cause.String(),
+		Status: termination.status,
+		Cause:  termination.cause,
 		Reason: termination.reason,
 	}
 	if termination.failure.Valid() {
@@ -386,15 +348,7 @@ func (termination *Termination) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidTermination, err)
 	}
-	status, err := parseStatus(wire.Status)
-	if err != nil {
-		return err
-	}
-	cause, err := parseTerminationCause(wire.Cause)
-	if err != nil {
-		return err
-	}
-	value := Termination{status: status, cause: cause, reason: wire.Reason}
+	value := Termination{status: wire.Status, cause: wire.Cause, reason: wire.Reason}
 	if wire.Failure != nil {
 		value.failure = *wire.Failure
 	}
@@ -406,8 +360,8 @@ func (termination *Termination) UnmarshalJSON(data []byte) error {
 }
 
 type terminationWire struct {
-	Status  string   `json:"status"`
-	Cause   string   `json:"cause"`
-	Reason  string   `json:"reason,omitempty"`
-	Failure *Failure `json:"failure,omitempty"`
+	Status  Status           `json:"status"`
+	Cause   TerminationCause `json:"cause"`
+	Reason  string           `json:"reason,omitempty"`
+	Failure *Failure         `json:"failure,omitempty"`
 }

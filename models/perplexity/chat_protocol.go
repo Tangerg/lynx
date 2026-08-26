@@ -54,6 +54,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient},
 		openai.Dialect{
 			Provider:                   "perplexity",
+			TokenLimitField:            openai.TokenLimitMaxTokens,
 			PrepareRequest:             prepareRequest,
 			DisableRawRequestExtension: true,
 		},

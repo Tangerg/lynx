@@ -6,6 +6,7 @@ package builtin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -237,6 +238,9 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	if err != nil {
 		return "", err
 	}
+	if !result.Valid() {
+		return "", fmt.Errorf("goal tool received invalid report result %q", result)
+	}
 	switch result {
 	case goals.ReportApplied:
 		if args.Outcome == "completed" {
@@ -254,7 +258,7 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	case goals.ReportInvalidOutcome:
 		return "Invalid Goal outcome; use completed or blocked.", nil
 	default:
-		return "No active Goal exists for this session; no outcome was reported.", nil
+		return "", errors.New("goal tool report result has no presentation")
 	}
 }
 

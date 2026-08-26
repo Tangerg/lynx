@@ -65,7 +65,8 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result
 		r.handleNotification(ctx, request)
 		return Result{}
 	}
-	meta, found := operation.Contract().Lookup(request.Method)
+	name := operation.Name(request.Method)
+	meta, found := operation.Contract().Lookup(name)
 	if !found {
 		return responseError(request.ID, errorToRPC(
 			operation.NewFailure(protocol.ErrMethodNotFound, fmt.Sprintf("unknown method %q", request.Method)),
@@ -75,7 +76,7 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result
 	if decodeError != nil {
 		return responseError(request.ID, errorToRPC(decodeError))
 	}
-	return adaptResult(request.ID, r.endpoint.Invoke(ctx, request.Method, parameters, options))
+	return adaptResult(request.ID, r.endpoint.Invoke(ctx, name, parameters, options))
 }
 
 func decodeParameters(raw []byte, parameterType reflect.Type) (any, *operation.Failure) {

@@ -84,7 +84,7 @@ func TestSessionModeValidation(t *testing.T) {
 		{name: "Plan restores balanced", state: approval.SessionMode{Mode: approval.ModePlan, RestoreMode: approval.ModeBalanced}, valid: true},
 		{name: "explicit yolo", state: approval.SessionMode{Mode: approval.ModeYolo}, valid: true},
 		{name: "Plan cannot restore Plan", state: approval.SessionMode{Mode: approval.ModePlan, RestoreMode: approval.ModePlan}},
-		{name: "unknown mode", state: approval.SessionMode{Mode: approval.Mode(255)}},
+		{name: "unknown mode", state: approval.SessionMode{Mode: approval.Mode("invalid")}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

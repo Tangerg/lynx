@@ -5,6 +5,8 @@ import (
 	"io"
 	"slices"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 )
 
 // ErrAuthoredWatchUnavailable reports that externally-authored workspace
@@ -13,13 +15,27 @@ var ErrAuthoredWatchUnavailable = errors.New("workspace: authored resource watch
 
 // AuthoredResource is the closed set of file-backed product resources whose
 // query projections can be changed by another process.
-type AuthoredResource uint8
+type AuthoredResource string
 
 const (
-	AuthoredKnowledge AuthoredResource = iota + 1
-	AuthoredHooks
-	AuthoredSkills
+	AuthoredKnowledge AuthoredResource = AuthoredResource(invalidation.Knowledge)
+	AuthoredHooks     AuthoredResource = AuthoredResource(invalidation.Hooks)
+	AuthoredSkills    AuthoredResource = AuthoredResource(invalidation.Skills)
 )
+
+// Valid reports whether resource is one externally authored product source.
+func (resource AuthoredResource) Valid() bool {
+	return resource == AuthoredKnowledge || resource == AuthoredHooks || resource == AuthoredSkills
+}
+
+// InvalidationResource maps resource to the same application-owned change
+// vocabulary. Invalid resources map to the invalid zero value.
+func (resource AuthoredResource) InvalidationResource() invalidation.Resource {
+	if !resource.Valid() {
+		return ""
+	}
+	return invalidation.Resource(resource)
+}
 
 // AuthoredScope is one canonical workspace identity and its project root.
 // Filesystem layout stays outside Application; these are the semantic roots

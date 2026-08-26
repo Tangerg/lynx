@@ -21,6 +21,11 @@ const (
 	SearchModeSEC      SearchMode = "sec"
 )
 
+// Valid reports whether m names a supported Sonar search mode.
+func (m SearchMode) Valid() bool {
+	return m == SearchModeWeb || m == SearchModeAcademic || m == SearchModeSEC
+}
+
 type SearchRecency string
 
 const (
@@ -31,6 +36,12 @@ const (
 	SearchRecencyYear  SearchRecency = "year"
 )
 
+// Valid reports whether r names a supported search recency window.
+func (r SearchRecency) Valid() bool {
+	return r == SearchRecencyHour || r == SearchRecencyDay || r == SearchRecencyWeek ||
+		r == SearchRecencyMonth || r == SearchRecencyYear
+}
+
 type SearchContextSize string
 
 const (
@@ -38,6 +49,11 @@ const (
 	SearchContextMedium SearchContextSize = "medium"
 	SearchContextHigh   SearchContextSize = "high"
 )
+
+// Valid reports whether s names a supported search context size.
+func (s SearchContextSize) Valid() bool {
+	return s == SearchContextLow || s == SearchContextMedium || s == SearchContextHigh
+}
 
 type SearchType string
 
@@ -47,6 +63,11 @@ const (
 	SearchTypePro  SearchType = "pro"
 )
 
+// Valid reports whether t names a supported Pro Search routing mode.
+func (t SearchType) Valid() bool {
+	return t == SearchTypeFast || t == SearchTypeAuto || t == SearchTypePro
+}
+
 type ReasoningEffort string
 
 const (
@@ -55,6 +76,51 @@ const (
 	ReasoningEffortMedium  ReasoningEffort = "medium"
 	ReasoningEffortHigh    ReasoningEffort = "high"
 )
+
+// Valid reports whether e names a supported reasoning effort.
+func (e ReasoningEffort) Valid() bool {
+	return e == ReasoningEffortMinimal || e == ReasoningEffortLow ||
+		e == ReasoningEffortMedium || e == ReasoningEffortHigh
+}
+
+// SearchDate is a Sonar search boundary encoded as MM/DD/YYYY.
+type SearchDate string
+
+// Valid reports whether d is a concrete valid Sonar search date.
+func (d SearchDate) Valid() bool {
+	if d == "" {
+		return false
+	}
+	_, err := time.Parse(searchDateLayout, string(d))
+	return err == nil
+}
+
+func (d SearchDate) validate(field string) error {
+	if d == "" || d.Valid() {
+		return nil
+	}
+	_, err := time.Parse(searchDateLayout, string(d))
+	return fmt.Errorf("%s must use MM/DD/YYYY: %w", field, err)
+}
+
+// ImageFormat names one image format accepted by Sonar image filtering.
+type ImageFormat string
+
+const (
+	ImageFormatGIF  ImageFormat = "gif"
+	ImageFormatJPG  ImageFormat = "jpg"
+	ImageFormatJPEG ImageFormat = "jpeg"
+	ImageFormatPNG  ImageFormat = "png"
+	ImageFormatWebP ImageFormat = "webp"
+)
+
+// Valid reports whether f names a supported image format.
+func (f ImageFormat) Valid() bool {
+	return f == ImageFormatGIF || f == ImageFormatJPG || f == ImageFormatJPEG ||
+		f == ImageFormatPNG || f == ImageFormatWebP
+}
+
+const searchDateLayout = "1/2/2006"
 
 // UserLocation biases Sonar search toward one geographic location.
 type UserLocation struct {
@@ -84,11 +150,11 @@ type RequestOptions struct {
 	SearchDomainFilter      []string          `json:"search_domain_filter,omitempty"`
 	SearchLanguageFilter    []string          `json:"search_language_filter,omitempty"`
 	SearchRecencyFilter     SearchRecency     `json:"search_recency_filter,omitempty"`
-	SearchAfterDateFilter   string            `json:"search_after_date_filter,omitempty"`
-	SearchBeforeDateFilter  string            `json:"search_before_date_filter,omitempty"`
-	LastUpdatedBeforeFilter string            `json:"last_updated_before_filter,omitempty"`
-	LastUpdatedAfterFilter  string            `json:"last_updated_after_filter,omitempty"`
-	ImageFormatFilter       []string          `json:"image_format_filter,omitempty"`
+	SearchAfterDateFilter   SearchDate        `json:"search_after_date_filter,omitempty"`
+	SearchBeforeDateFilter  SearchDate        `json:"search_before_date_filter,omitempty"`
+	LastUpdatedBeforeFilter SearchDate        `json:"last_updated_before_filter,omitempty"`
+	LastUpdatedAfterFilter  SearchDate        `json:"last_updated_after_filter,omitempty"`
+	ImageFormatFilter       []ImageFormat     `json:"image_format_filter,omitempty"`
 	ImageDomainFilter       []string          `json:"image_domain_filter,omitempty"`
 	ReasoningEffort         ReasoningEffort   `json:"reasoning_effort,omitempty"`
 	LanguagePreference      string            `json:"language_preference,omitempty"`
@@ -164,13 +230,13 @@ func validateCoreOptions(options corechat.Options) error {
 }
 
 func (options RequestOptions) ValidateFor(model string, stream bool) error {
-	if err := validateEnum("search_mode", string(options.SearchMode), "web", "academic", "sec"); err != nil {
+	if err := validateEnum("search_mode", options.SearchMode); err != nil {
 		return err
 	}
-	if err := validateEnum("search_recency_filter", string(options.SearchRecencyFilter), "hour", "day", "week", "month", "year"); err != nil {
+	if err := validateEnum("search_recency_filter", options.SearchRecencyFilter); err != nil {
 		return err
 	}
-	if err := validateEnum("reasoning_effort", string(options.ReasoningEffort), "minimal", "low", "medium", "high"); err != nil {
+	if err := validateEnum("reasoning_effort", options.ReasoningEffort); err != nil {
 		return err
 	}
 	if options.EnableSearchClassifier != nil && options.DisableSearch != nil && *options.EnableSearchClassifier && *options.DisableSearch {
@@ -193,17 +259,8 @@ func (options RequestOptions) ValidateFor(model string, stream bool) error {
 	if options.LanguagePreference != "" && !isLanguageCode(options.LanguagePreference) {
 		return errors.New("language_preference must be a lowercase ISO 639-1 code")
 	}
-	for name, value := range map[string]string{
-		"search_after_date_filter":   options.SearchAfterDateFilter,
-		"search_before_date_filter":  options.SearchBeforeDateFilter,
-		"last_updated_before_filter": options.LastUpdatedBeforeFilter,
-		"last_updated_after_filter":  options.LastUpdatedAfterFilter,
-	} {
-		if value != "" {
-			if _, err := time.Parse("1/2/2006", value); err != nil {
-				return fmt.Errorf("%s must use MM/DD/YYYY: %w", name, err)
-			}
-		}
+	if err := options.validateDates(); err != nil {
+		return err
 	}
 	if options.SearchMode == SearchModeAcademic && options.hasDateFilter() {
 		return errors.New("date filters are not supported with academic search mode")
@@ -212,9 +269,7 @@ func (options RequestOptions) ValidateFor(model string, stream bool) error {
 		return errors.New("image_format_filter must contain at most 10 formats")
 	}
 	for index, format := range options.ImageFormatFilter {
-		switch format {
-		case "gif", "jpg", "jpeg", "png", "webp":
-		default:
+		if !format.Valid() {
 			return fmt.Errorf("image_format_filter[%d] has unsupported format %q", index, format)
 		}
 	}
@@ -230,10 +285,10 @@ func (options RequestOptions) ValidateFor(model string, stream bool) error {
 }
 
 func (options WebSearchOptions) ValidateFor(model string, stream bool) error {
-	if err := validateEnum("search_context_size", string(options.SearchContextSize), "low", "medium", "high"); err != nil {
+	if err := validateEnum("search_context_size", options.SearchContextSize); err != nil {
 		return err
 	}
-	if err := validateEnum("search_type", string(options.SearchType), "fast", "auto", "pro"); err != nil {
+	if err := validateEnum("search_type", options.SearchType); err != nil {
 		return err
 	}
 	if options.SearchType != "" && model != "" && model != ModelSonarPro {
@@ -271,16 +326,32 @@ func (location UserLocation) Validate() error {
 	return nil
 }
 
-func validateEnum(name, value string, allowed ...string) error {
+type validRequestEnum interface {
+	~string
+	Valid() bool
+}
+
+func validateEnum[Enum validRequestEnum](name string, value Enum) error {
 	if value == "" {
 		return nil
 	}
-	for _, candidate := range allowed {
-		if value == candidate {
-			return nil
-		}
+	if value.Valid() {
+		return nil
 	}
 	return fmt.Errorf("%s has unsupported value %q", name, value)
+}
+
+func (options RequestOptions) validateDates() error {
+	if err := options.SearchAfterDateFilter.validate("search_after_date_filter"); err != nil {
+		return err
+	}
+	if err := options.SearchBeforeDateFilter.validate("search_before_date_filter"); err != nil {
+		return err
+	}
+	if err := options.LastUpdatedBeforeFilter.validate("last_updated_before_filter"); err != nil {
+		return err
+	}
+	return options.LastUpdatedAfterFilter.validate("last_updated_after_filter")
 }
 
 func validateDomains(name string, domains []string, limit int) error {

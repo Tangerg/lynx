@@ -36,7 +36,7 @@ func (loop *processLoop) publishEffectStarted(
 	effectID EffectID,
 	target EffectTarget,
 ) time.Time {
-	payload, _ := json.Marshal(effectStartedEventPayload{EffectTarget: target.String()})
+	payload, _ := json.Marshal(effectStartedEventPayload{EffectTarget: target})
 	loop.publishEvent(ctx, EventEffectStarted, EventPhaseAttempt, step, effectID, payload)
 	return time.Now()
 }
@@ -49,7 +49,7 @@ func (loop *processLoop) publishSettlementEvent(
 	startedAt time.Time,
 ) {
 	payload, err := json.Marshal(effectFinishedEventPayload{
-		EffectTarget: target.String(), SettlementStatus: status.String(),
+		EffectTarget: target, SettlementStatus: status,
 		DurationMS: time.Since(startedAt).Milliseconds(),
 	})
 	if err != nil {

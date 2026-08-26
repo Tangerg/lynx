@@ -60,6 +60,14 @@ func requireGoalMutationLifecycle(t *testing.T, runtime *Runtime, sessionID stri
 	if err := start.ValidateResult(started); err != nil {
 		t.Fatalf("started goal: %v", err)
 	}
+	update := goal.Update{SessionID: sessionID, Objective: "verify revised embedded goal lifecycle"}
+	updated, err := runtime.UpdateGoal(t.Context(), update)
+	if err != nil {
+		t.Fatalf("UpdateGoal: %v", err)
+	}
+	if err := update.ValidateResult(updated); err != nil {
+		t.Fatalf("updated goal: %v", err)
+	}
 	stopped, err := runtime.StopGoal(t.Context(), sessionID)
 	if err != nil {
 		t.Fatalf("StopGoal: %v", err)
@@ -76,6 +84,12 @@ func requireGoalMutationLifecycle(t *testing.T, runtime *Runtime, sessionID stri
 	}
 	if _, err := runtime.StopGoal(t.Context(), sessionID); err != nil {
 		t.Fatalf("final StopGoal: %v", err)
+	}
+	if err := runtime.ClearGoal(t.Context(), sessionID); err != nil {
+		t.Fatalf("ClearGoal: %v", err)
+	}
+	if _, exists, err := runtime.GetGoal(t.Context(), sessionID); err != nil || exists {
+		t.Fatalf("goal after clear = (exists=%t, err=%v)", exists, err)
 	}
 }
 
@@ -407,7 +421,8 @@ func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) age
 
 func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Session, workspace string) agent.Session {
 	t.Helper()
-	title, model, favorite := "renamed adapter session", "integration-model", true
+	title, favorite := "renamed adapter session", true
+	model := agent.ModelRef{Provider: created.Provider, Model: "integration-model"}
 	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
 		SessionID: created.ID, Title: &title, Workspace: &workspace, Model: &model,
 		Favorite: &favorite, ExpectedRevision: created.Revision,
@@ -419,7 +434,7 @@ func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Sessio
 	if canonicalErr != nil {
 		t.Fatal(canonicalErr)
 	}
-	if updated.Title != title || updated.Workspace.Path != canonicalWorkspace || updated.Model != model ||
+	if updated.Title != title || updated.Workspace.Path != canonicalWorkspace || updated.Provider != model.Provider || updated.Model != model.Model ||
 		!updated.Favorite || updated.Revision <= created.Revision {
 		t.Fatalf("updated = %+v", updated)
 	}

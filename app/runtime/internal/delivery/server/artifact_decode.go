@@ -204,7 +204,7 @@ func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType
 	case protocol.ArtifactOutcomeLost:
 		return run.OutcomeLost, nil
 	default:
-		return 0, invalidArtifact(path, "unknown value %q", value)
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
 }
 
@@ -357,27 +357,16 @@ func portableItemStatus(path string, value protocol.ItemStatus) (transcript.Item
 	case protocol.ItemStatusIncomplete:
 		return transcript.ItemIncomplete, nil
 	default:
-		return 0, invalidArtifact(path, "unknown value %q", value)
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
 }
 
 func portableItemKind(path string, value protocol.ItemType) (transcript.ItemKind, error) {
-	switch value {
-	case protocol.ItemTypeUserMessage:
-		return transcript.UserMessage, nil
-	case protocol.ItemTypeAgentMessage:
-		return transcript.AgentMessage, nil
-	case protocol.ItemTypeReasoning:
-		return transcript.Reasoning, nil
-	case protocol.ItemTypeQuestion:
-		return transcript.QuestionItem, nil
-	case protocol.ItemTypeToolCall:
-		return transcript.ToolCall, nil
-	case protocol.ItemTypeCompaction:
-		return transcript.Compaction, nil
-	default:
-		return 0, invalidArtifact(path, "unknown value %q", value)
+	kind := transcript.ItemKind(value)
+	if !kind.Valid() {
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
+	return kind, nil
 }
 
 func portableContentFromArtifact(path string, artifact protocol.ArtifactContentBlock) (transcript.ContentBlock, error) {
@@ -419,7 +408,7 @@ func portableQuestionFieldKind(path string, value protocol.QuestionFieldType) (t
 	case protocol.QuestionFieldChoice:
 		return transcript.QuestionChoice, nil
 	default:
-		return 0, invalidArtifact(path, "unknown value %q", value)
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
 }
 
@@ -489,7 +478,7 @@ func portableRunFailureKind(path string, value protocol.ArtifactProblemType) (ru
 	case protocol.ArtifactProblemProviderRejected:
 		return run.FailureProviderRejected, nil
 	default:
-		return 0, invalidArtifact(path, "unknown value %q", value)
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
 }
 

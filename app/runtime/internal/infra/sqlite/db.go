@@ -63,7 +63,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 82
+const schemaEpoch = 83
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -416,8 +416,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// session through the database FK lifecycle.
 		`CREATE TABLE IF NOT EXISTS session_permission_modes (
 			session_id   TEXT    PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-			mode         INTEGER NOT NULL,
-			restore_mode INTEGER NOT NULL
+			mode         TEXT NOT NULL,
+			restore_mode TEXT NOT NULL
 		)`,
 		// One row per terminal Run: the session's Plan as it stood when that Run
 		// ended. session_plans is a latest-value projection with no history, so without

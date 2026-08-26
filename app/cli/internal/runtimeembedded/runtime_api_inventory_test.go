@@ -127,18 +127,12 @@ func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
 	if preference := meta.ClientCapabilities.Features[protocol.FeatureSubagents]; !preference.Enabled {
 		t.Fatal("request metadata does not negotiate the supported subagent stream profile")
 	}
-	if _, requested := meta.ClientCapabilities.Features[protocol.FeatureClientTools]; requested {
-		t.Fatal("request metadata negotiates client tools without a governed client-side executor")
-	}
 	wantInterrupts := supportedInterruptTypes()
 	if !slices.Equal(meta.ClientCapabilities.InterruptTypes, wantInterrupts) {
 		t.Fatalf("negotiated interrupts = %v, projection supports %v", meta.ClientCapabilities.InterruptTypes, wantInterrupts)
 	}
 	if len(meta.ClientCapabilities.ExcludedEphemeralEvents) != 0 {
 		t.Fatalf("client unexpectedly suppresses runtime events: %v", meta.ClientCapabilities.ExcludedEphemeralEvents)
-	}
-	if slices.Contains(meta.ClientCapabilities.InterruptTypes, protocol.InterruptToolResult) {
-		t.Fatal("request metadata accepts tool-result interrupts without a governed client-side executor")
 	}
 	for _, eventType := range requiredRunEventTypes() {
 		if !slices.Contains(recognizedRunEventTypes(), eventType) {
@@ -165,20 +159,6 @@ func TestDiscoveryRejectsUnprojectedStreamAndChangeCapabilities(t *testing.T) {
 				discovery.Capabilities.RuntimeTopics = append(discovery.Capabilities.RuntimeTopics, "indexes.changed")
 			},
 		},
-		{
-			name: "plan snapshot without feature",
-			mutate: func(discovery *protocol.DiscoverResponse) {
-				feature := discovery.Capabilities.Features[protocol.FeaturePlan]
-				feature.Enabled = false
-				discovery.Capabilities.Features[protocol.FeaturePlan] = feature
-			},
-		},
-		{
-			name: "plan feature without snapshot",
-			mutate: func(discovery *protocol.DiscoverResponse) {
-				discovery.Capabilities.StateSnapshots = nil
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -198,7 +178,6 @@ func TestDiscoveryAcceptsRuntimeWithoutOptionalPlanCapability(t *testing.T) {
 	feature := discovery.Capabilities.Features[protocol.FeaturePlan]
 	feature.Enabled = false
 	discovery.Capabilities.Features[protocol.FeaturePlan] = feature
-	discovery.Capabilities.StateSnapshots = nil
 	if err := validateDiscovery(discovery); err != nil {
 		t.Fatalf("validateDiscovery rejected a runtime without optional plan support: %v", err)
 	}
@@ -206,7 +185,7 @@ func TestDiscoveryAcceptsRuntimeWithoutOptionalPlanCapability(t *testing.T) {
 
 func compatibleDiscovery() *protocol.DiscoverResponse {
 	return &protocol.DiscoverResponse{
-		Protocol: protocol.SupportedProtocolRange(),
+		ProtocolVersion: protocol.ProtocolVersion,
 		ServerInfo: protocol.ServerInfo{
 			Name: "lyra-runtime", Version: "test",
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/workspace"}, Home: "/home/test",
@@ -215,12 +194,8 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 			RunEvents:        recognizedRunEventTypes(),
 			RuntimeTopics:    protocol.RuntimeTopics(),
 			StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe"},
-			StateSnapshots: []protocol.StateSnapshotCapability{{
-				Key: protocol.StatePlan, RecoveryMethod: "plan.get",
-				Scope: protocol.StateScopeSession, Writer: protocol.StateWriterRootRun,
-			}},
 			Features: map[string]protocol.FeatureCapability{
-				protocol.FeaturePlan: {Enabled: true, Stability: protocol.StabilityStable},
+				protocol.FeaturePlan: {Enabled: true},
 			},
 			Limits: protocol.RuntimeLimits{
 				MaxConcurrentRuns: 4,
@@ -280,9 +255,6 @@ func runtimeFeatureConsumptionByName() map[string]runtimeFeatureConsumption {
 	runtimeExecuted := func(area, entry string) runtimeFeatureConsumption {
 		return runtimeFeatureConsumption{Area: area, Mode: featureExecutedByRuntime, Entry: entry}
 	}
-	declined := func(area, entry string) runtimeFeatureConsumption {
-		return runtimeFeatureConsumption{Area: area, Mode: featureDeclinedByClient, Entry: entry}
-	}
 	return map[string]runtimeFeatureConsumption{
 		protocol.FeatureReasoning:     projected("run projection", "reasoning items, token usage, and model catalog"),
 		protocol.FeatureMultimodal:    gated("composer", "image attachment submission"),
@@ -301,7 +273,6 @@ func runtimeFeatureConsumptionByName() map[string]runtimeFeatureConsumption {
 		protocol.FeatureSessionExport: gated("transcript and sessions", "session import and export surfaces"),
 		protocol.FeatureRelocate:      gated("sessions", "workspace relocation surface"),
 		protocol.FeatureSubagents:     negotiated("run protocol", "child-run lineage, suspension, and subtree projection"),
-		protocol.FeatureClientTools:   declined("run protocol", "no client tool executor or client-owned tool governance boundary"),
 	}
 }
 
@@ -375,9 +346,11 @@ func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
 		"ListApprovalRules":             command("approvals", "approvals ls/completion and TUI /rules"),
 		"SetApprovalMode":               command("approvals", "TUI /approval"),
 		"GetGoal":                       command("goals", "TUI /goal"),
+		"ClearGoal":                     command("goals", "TUI /goal-clear"),
 		"ResumeGoal":                    command("goals", "TUI /goal-resume"),
 		"StartGoal":                     command("goals", "TUI /goal-start"),
 		"StopGoal":                      command("goals", "TUI /goal-stop"),
+		"UpdateGoal":                    command("goals", "TUI /goal-update"),
 		"ApproveSkillProposal":          command("skills", "TUI /skill-approve"),
 		"ArchiveSkill":                  command("skills", "TUI /skill-archive"),
 		"ListDiscoveredSkills":          command("skills", "TUI /skills"),

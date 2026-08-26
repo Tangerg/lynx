@@ -129,7 +129,7 @@ func (r *reducer) applyUsage(reported SegmentUsage) error {
 
 func (r *reducer) finishedRun(outcome run.Outcome, failure *run.Failure, detail string) (SegmentFinished, error) {
 	if _, ok := run.Running.Terminate(outcome); !ok {
-		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
+		return SegmentFinished{}, fmt.Errorf("outcome %q does not terminate a running run", outcome)
 	}
 	current, err := r.runRecord(run.Running)
 	if err != nil {

@@ -27,7 +27,7 @@ func (a *app) RecordFeedback(argument string) error {
 		return err
 	}
 	a.status.note("recording feedback")
-	if !runApplicationOperation(a, feedbackOperation, false,
+	if !a.runApplicationOperation(feedbackOperation, false,
 		func(ctx context.Context) (feedback.Signal, error) { return signal, a.feedback.Record(ctx, signal) },
 		func(recorded feedback.Signal, err error) {
 			if err != nil {

@@ -119,7 +119,7 @@ func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 		{
 			name: "compatible",
 			construct: func(config lynxopenai.ChatConfig) (*lynxopenai.Chat, error) {
-				return lynxopenai.NewCompatibleChat(config, lynxopenai.Dialect{Provider: "test"})
+				return lynxopenai.NewCompatibleChat(config, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
 			},
 			wantField: "max_tokens",
 		},
@@ -167,5 +167,15 @@ func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 				t.Fatalf("unexpected %s in request: %#v", otherField, body)
 			}
 		})
+	}
+}
+
+func TestDialectRequiresAnExplicitTokenLimitField(t *testing.T) {
+	dialect := lynxopenai.Dialect{Provider: "test"}
+	if err := dialect.Validate(); err == nil {
+		t.Fatal("Dialect.Validate accepted an implicit token limit field")
+	}
+	if lynxopenai.TokenLimitField("").Valid() {
+		t.Fatal("zero TokenLimitField is valid")
 	}
 }

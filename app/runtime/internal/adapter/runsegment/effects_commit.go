@@ -625,7 +625,7 @@ func (e *Effects) applyModelInvocations(ctx context.Context, commit runs.EventCo
 				invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
 			)
 		default:
-			err = fmt.Errorf("unsupported state %d", invocation.State)
+			err = fmt.Errorf("unsupported state %q", invocation.State)
 		}
 		if err != nil {
 			return fmt.Errorf("runsegment: record model invocation %q: %w", invocation.CallID, err)
@@ -659,7 +659,7 @@ func (e *Effects) applyToolInvocations(ctx context.Context, commit runs.EventCom
 				invocation.StartedAt, invocation.FinishedAt,
 			)
 		default:
-			err = fmt.Errorf("unsupported state %d", invocation.State)
+			err = fmt.Errorf("unsupported state %q", invocation.State)
 		}
 		if err != nil {
 			return fmt.Errorf("runsegment: record Tool invocation %q: %w", invocation.CallID, err)
@@ -756,7 +756,7 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 		}
 		return e.runState.TerminalizeEvent(ctx, run, commit.SegmentID, commit.CommitID)
 	default:
-		return fmt.Errorf("runsegment: unknown run state change %d", commit.State)
+		return fmt.Errorf("runsegment: unknown run state change %q", commit.State)
 	}
 }
 

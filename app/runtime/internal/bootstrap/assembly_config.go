@@ -187,9 +187,9 @@ type Config struct {
 	// not the OS user home used by global hook configuration.
 	KnowledgeDirectory string
 
-	// ApprovalMode sets the initial runtime approval stance. The zero value is
-	// [approval.ModeSafe]; [ComposeConfig] explicitly selects the product default
-	// [approval.ModeBalanced]. Unknown modes fail assembly.
+	// ApprovalMode sets the initial runtime approval stance. It must be explicit;
+	// [ComposeConfig] selects the product default [approval.ModeBalanced]. The
+	// empty or an unknown mode fails assembly.
 	ApprovalMode approval.Mode
 
 	// ApprovalRuleStore persists fine-grained "remember this decision" rules

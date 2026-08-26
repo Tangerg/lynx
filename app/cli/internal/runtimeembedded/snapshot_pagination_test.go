@@ -50,6 +50,7 @@ func (stub *snapshotBindingStub) GetSessionSnapshot(
 func snapshotSession(revision uint64) *protocol.Session {
 	return &protocol.Session{
 		ID: "ses_1", Status: protocol.SessionStatusIdle, Revision: revision,
+		Provider: testSessionProvider, Model: testSessionModel,
 		Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 	}
 }
@@ -58,8 +59,7 @@ func snapshotProfile(features ...runtimeprofile.FeatureName) runtimeprofile.Prof
 	profile := runtimeprofile.Profile{Features: make(map[runtimeprofile.FeatureName]runtimeprofile.Feature)}
 	for _, feature := range features {
 		profile.Features[feature] = runtimeprofile.Feature{
-			Enabled: true, Stability: runtimeprofile.Stable,
-			ClientOptIn:     feature == runtimeprofile.FeatureSubagents,
+			Enabled: true, ClientOptIn: feature == runtimeprofile.FeatureSubagents,
 			ClientRequested: feature == runtimeprofile.FeatureSubagents,
 		}
 	}
@@ -95,20 +95,20 @@ func TestSessionMaterialSnapshotEnforcesThePublishedPlanShape(t *testing.T) {
 	tests := []struct {
 		name    string
 		profile runtimeprofile.Profile
-		state   *protocol.StateSnapshot
+		plan    *protocol.Plan
 		wantErr bool
 	}{
 		{name: "disabled and absent", profile: snapshotProfile()},
-		{name: "disabled but present", profile: snapshotProfile(), state: &protocol.StateSnapshot{}, wantErr: true},
+		{name: "disabled but present", profile: snapshotProfile(), plan: &protocol.Plan{}, wantErr: true},
 		{
 			name: "enabled and present", profile: snapshotProfile(runtimeprofile.FeaturePlan),
-			state: &protocol.StateSnapshot{Type: protocol.StatePlan, SessionID: "ses_1"},
+			plan: &protocol.Plan{SessionID: "ses_1"},
 		},
 		{name: "enabled but absent", profile: snapshotProfile(runtimeprofile.FeaturePlan), wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stub := &snapshotBindingStub{snapshot: &protocol.SessionSnapshot{State: test.state}}
+			stub := &snapshotBindingStub{snapshot: &protocol.SessionSnapshot{Plan: test.plan}}
 			runtime := &Runtime{snapshot: stub, profile: test.profile, meta: requestMeta("test")}
 			_, err := runtime.readMaterialSnapshot(t.Context(), "ses_1")
 			if (err != nil) != test.wantErr {

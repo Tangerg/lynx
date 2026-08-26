@@ -6,9 +6,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	HooksList     Name = "hooks.list"
+	HooksSetTrust Name = "hooks.setTrust"
+)
+
 func registerHooks(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name:   "hooks.list",
+	registry.Query(MethodMeta{
+		Name:   HooksList,
 		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ListHooks(context.Context, protocol.ListHooksRequest) (*protocol.HooksListResult, error)
@@ -16,8 +21,8 @@ func registerHooks(registry *Registry) {
 		return service.ListHooks(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name: "hooks.setTrust",
+	registry.CommandAck(MethodMeta{
+		Name: HooksSetTrust,
 	}, func(service interface {
 		SetHookTrust(context.Context, protocol.SetHookTrustRequest) error
 	}, ctx context.Context, request protocol.SetHookTrustRequest) error {

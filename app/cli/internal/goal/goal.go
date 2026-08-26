@@ -138,6 +138,46 @@ type Start struct {
 	Budget    Budget
 }
 
+// Update revises the objective of the current Goal without replacing its
+// lifecycle, model selection, budget, or accumulated usage.
+type Update struct {
+	SessionID string
+	Objective string
+}
+
+func (update Update) Validate() error {
+	if strings.TrimSpace(update.SessionID) == "" {
+		return errors.New("update goal: session id is empty")
+	}
+	if strings.TrimSpace(update.Objective) == "" {
+		return errors.New("update goal: objective is empty")
+	}
+	if update.SessionID != strings.TrimSpace(update.SessionID) || update.Objective != strings.TrimSpace(update.Objective) {
+		return errors.New("update goal: values must not have surrounding whitespace")
+	}
+	return nil
+}
+
+func (update Update) ValidateResult(result Goal) error {
+	if err := update.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.SessionID != update.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %q, want %q", result.SessionID, update.SessionID))
+	}
+	if result.Objective != update.Objective {
+		problems = append(problems, fmt.Errorf("runtime returned objective %q, want %q", result.Objective, update.Objective))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("update goal: %w", err)
+	}
+	return nil
+}
+
 func (start Start) Validate() error {
 	if strings.TrimSpace(start.SessionID) == "" {
 		return errors.New("start goal: session id is empty")
@@ -197,6 +237,8 @@ func (start Start) ValidateResult(result Goal) error {
 type Service interface {
 	GetGoal(context.Context, string) (Goal, bool, error)
 	StartGoal(context.Context, Start) (Goal, error)
+	UpdateGoal(context.Context, Update) (Goal, error)
+	ClearGoal(context.Context, string) error
 	StopGoal(context.Context, string) (Goal, error)
 	ResumeGoal(context.Context, string) (Goal, error)
 }

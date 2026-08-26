@@ -64,25 +64,25 @@ func TestEndpointRejectsMissingMethodCapability(t *testing.T) {
 func TestEndpointRejectsMethodIncompatibleMetadataBeforeCapabilityAdmission(t *testing.T) {
 	tests := []struct {
 		name       string
-		method     string
+		method     Name
 		parameters any
 		options    Options
 	}{
 		{
 			name:       "query idempotency key",
-			method:     "runtime.discover",
+			method:     RuntimeDiscover,
 			parameters: struct{}{},
 			options:    Options{IdempotencyKey: "query-key"},
 		},
 		{
 			name:       "namespace without key",
-			method:     "runtime.discover",
+			method:     RuntimeDiscover,
 			parameters: struct{}{},
 			options:    Options{IdempotencyNamespace: "idp_store"},
 		},
 		{
 			name:   "runtime subscription run cursor",
-			method: "runtime.subscribe",
+			method: RuntimeSubscribe,
 			parameters: protocol.RuntimeSubscribeRequest{
 				Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
 			},
@@ -90,7 +90,7 @@ func TestEndpointRejectsMethodIncompatibleMetadataBeforeCapabilityAdmission(t *t
 		},
 		{
 			name:       "run command cursor without replay key",
-			method:     "runs.start",
+			method:     RunsStart,
 			parameters: protocol.StartRunRequest{},
 			options:    Options{AfterEventID: "evt_cursor"},
 		},

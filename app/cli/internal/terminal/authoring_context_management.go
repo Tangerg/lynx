@@ -89,7 +89,7 @@ func (a *app) PrepareRecipe(argument string) error {
 	}
 	workspace := a.session.Workspace.Path
 	a.status.note("loading recipe")
-	if !runOperation(a, authoringContextOperation, false,
+	if !a.runOperation(authoringContextOperation, false,
 		func(ctx context.Context) (expandedRecipe, error) {
 			recipes, err := a.authoringContext.Recipes(ctx, workspace)
 			if err != nil {

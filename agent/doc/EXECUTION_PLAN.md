@@ -90,6 +90,7 @@ go test ./...
 | P20 Core Chat 单 Result 协议迁移 | 完成 | 2/2 | 删除多候选假抽象，并显式升级 Interaction owner wire |
 | P21 Go 1.27 typed-edge ownership | 完成 | 2/2 | 用方法泛型删除无消费者包装，让 schema/value owner 持有编解码 |
 | P22 Core 模态 Output 词汇迁移 | 完成 | 2/2 | 让 Interaction 跟随 Core 六模态统一输出词汇，并显式升级 owner wire |
+| P23 稳定文本枚举值对象化 | 完成 | 2/2 | 删除数字序号、重复映射和观察魔法字符串，让领域类型拥有词汇与校验 |
 
 ---
 
@@ -282,6 +283,15 @@ go test ./...
 - [x] P22-01 将 Interaction、examples 与 Runtime consumer 从 Core Chat `Response.Result` 迁移到 `Response.Output`，保持单输出不变量并删除旧词汇。
 - [x] P22-02 将嵌入 Core Chat Response 的 Interaction ExecutionState/protocol 升级到 v8/v7，冻结 Baseline 25并完成 prior-version、owner wire 与跨模块消费者门禁。
 
+### P23：稳定文本枚举值对象化
+
+- [x] P23-01 将具有公开或 wire 稳定文本身份的 Kernel enum 改为 named string value object，删除 ordinal range、重复 parse switch 和裸 wire string。
+- [x] P23-02 以 typed `StepStatus` 收敛 observation/OTel 的跨包魔法字符串，冻结 Baseline 26 并保持 JSON 与 schema version 不变。
+
+### P24：Planning Truth 文本值对象化
+
+- [x] P24-01 将无数值运算语义、已有稳定 JSON 词汇的 `Truth` 改为自校验 named string value object；空零值无效，冻结 Baseline 27，保持 Planning wire 与行为不变。
+
 ---
 
 ## 6. 最终完成定义
@@ -327,6 +337,8 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-26 | P24（Baseline 27） | Planning `Truth` 直接以 `unknown/false/true` 作为唯一身份并拥有验证与严格 JSON codec；删除 ordinal 身份，空零值不再静默等于 Unknown | Planning public digest 显式升级；JSON、state/protocol digest、schema version、搜索与恢复语义不变，standalone 门禁在本批收口 |
+| 2026-08-26 | P23（Baseline 26） | Kernel 稳定文本 enum 由 `uint8 + String/parse switch + wire string` 收敛为 named string value object；聚合通过领域 `Valid` 校验，状态规则显式列举，不再依赖序号。Event payload 与 OTel adapter 共享 typed `StepStatus`，删除 `"succeeded"`/`"failed"` 裸字符串；内部 FSM、三值逻辑、位掩码不机械迁移 | JSON 字段和值、schema version 与行为保持不变；root public、Kernel wire 与 observation wire digest 显式升级，standalone build/vet/test/race 在本批完成前统一验收 |
 | 2026-08-26 | P22（Baseline 25） | Core 六个模型模态将响应内产物从 Result/Results 统一为 Output/Outputs，Interaction 同步使用单 `Response.Output`；因 state、settlement 与 Delta 嵌入 Core Chat wire，ExecutionState/protocol 升级为 v8/v7且不双读旧版本 | Core API/wire baseline、Interaction owner wire、provider、Runtime 与 workspace 消费者在本批统一迁移和验收；Agent 公共 API、Kernel、其他 Strategy 与共同 snapshot/observation wire不变 |
 | 2026-08-26 | P21（Baseline 24） | Go 1.27 方法泛型让 Descriptor/Input/Output/Artifact 直接拥有 typed-edge 编解码；删除零生产消费者的 Typed 泛型包装和三个自由解码入口。Workflow Map/Fork 的泛型 codec 与根 wire 的 normalize/decode/EOF 算法收回各自 codec owner；Tool batch worker 的 Add/Done 生命周期收敛为 WaitGroup.Go；既有 ExecutionObserver 的参数与 ToolSettlement 字段完成公开合同审计。Kernel 与 Strategy runtime 仍保持 erased 窄腰，没有新增 service/builder/registry 或兼容层 | standalone compile gate 已证明全部 package 使用新方法 API；完整 build/vet/test/race、examples、digest 与 tidy-diff 在本批提交前统一验收。Go 1.27 下四组 wire 摘要因标准库 raw JSON 类型名呈现变化而重新冻结，JSON 字段、版本与语义不变 |
 | 2026-08-25 | P20（Baseline 23） | Core Chat 从从未被调用能力支持的复数 Choice 模型收敛为唯一 `Response.Result`；Interaction 直接消费单 Result，删除多候选 ToolCall 分支。因 Strategy state、model settlement 与 stream Delta 嵌入 Core Chat wire，ExecutionState/protocol 显式升级为 v7/v6且不双读旧版本；Agent 公共 API、Kernel、Planning、Workflow 与共同 snapshot/observation wire不变 | Core、models、root consumer 全量测试通过；Agent Interaction 定向协议、恢复与行为测试通过。干净 HEAD 对照证明当前 Agent GoDoc 及 Kernel/Observation/Planning/Workflow hash failures 是本批前已存在的独立基线漂移，本批没有更新或掩盖这些无关合同 |
@@ -428,4 +440,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P21 已完成，Baseline 24 冻结 Go 1.27 typed-edge ownership：Kernel/Strategy runtime 保持 erased，Descriptor/Input/Output/Artifact 直接拥有方法泛型行为，无消费者的 Typed wrapper 已删除。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P24 已完成，Baseline 27 把 Planning `Truth` 与 Kernel 稳定文本枚举统一为领域值对象：公共/wire 词汇由领域类型直接拥有，JSON 与执行语义保持不变；纯进程内 FSM、位掩码和计数没有被机械字符串化。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

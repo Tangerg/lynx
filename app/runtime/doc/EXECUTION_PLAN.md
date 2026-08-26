@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P182 已完成；下一阶段待独立准入。
+> 状态：P0–P184 已完成；下一阶段待独立准入。
 >
-> 最近基线：2026-08-26，P182 已完成。
+> 最近基线：2026-08-26，P184 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P182 已准入并完成：Core 六个模型模态把产物统一为 `Output`，Runtime 只迁移 `chat.Response.Output` consumer、测试和独立 module requirements；Interaction owner wire 随 Agent Baseline 25 升为 state/protocol v8/v7。旧 `Result` API、JSON tag 和兼容读取均不保留；Runtime Protocol、Artifact、SQLite、公共 Go API、Desktop、Wails 与 `app/cli` 不改变。
+- P184 已准入并完成：Go 1.27 方法泛型把 operation 注册与 typed invocation 分别收回 `Registry` / `Endpoint`，删除无 owner 的自由泛型入口；86 个 wire method identity 收敛为就近声明的 `operation.Name`，注册、materialization 与 embedded binding 不再重复字符串。Hook allow 与 Tool mutation scope 在边界显式建模，无效零值 fail closed；固定字段校验按 owner 显式执行，不使用 map 参数袋。公共 Protocol、Artifact、SQLite、Desktop binding 与 Agent Framework execution contract不变。
+- P183 已准入并完成：稳定配置/持久化/wire/telemetry 枚举改为自校验命名字符串值对象，删除 SQLite、checkpoint 与 delivery 中重复的 ordinal/text codec；零值不再承担默认业务语义。位图、协议数值码和纯内部 FSM 判别值保持数值建模。`session_permission_modes` 改为 TEXT，SQLite epoch 一次性升至 83，不迁移、不双读；公共 Protocol shape、Artifact、Desktop binding 与 Agent Framework execution contract 不变。
+- P182 已准入并完成：Core 六个模型模态把产物统一为 `Output`，Runtime 只迁移 `chat.Response.Output` consumer、测试和独立 module requirements；Interaction owner wire 随 Agent Baseline 26 升为 state/protocol v8/v7。旧 `Result` API、JSON tag 和兼容读取均不保留；Runtime Protocol、Artifact、SQLite、公共 Go API、Desktop、Wails 与 `app/cli` 不改变。
 - P182 的发布依赖按 Root/Core、Agent/Model、Runtime 顺序钉住真实 pseudo-version，workspace 与 `GOWORK=off` 因而消费同一 API/wire 事实；完整 test、vet、build、tidy、owner 文档与外部公共 binding 编译共同封板。
 - P181 已准入，修改范围仅为 `app/runtime`；`app/desktop` 与 `app/cli` 不修改、不暂存。当前工作区 `go test ./...` 无法编译 Runtime：Agent Framework 已把 typed decode 归还 Go 1.27 generic methods `Input.Decode` / `Output.Decode`，Core 已把 metadata decode 归还 `metadata.Map.Decode`，Runtime ACL 与测试仍调用已删除的过程式函数。与此同时 `GOWORK=off` 因钉住旧 module graph 全绿，证明同一源码存在 workspace/standalone 两种编译真相。
 - P181 的唯一 owner 是 Agent `Input` / `Output` 与 Core `metadata.Map`；Runtime 只消费其已验证值，不复制 codec、schema、兼容 free function 或第二表示。允许的 breaking surface 仅为 Runtime internal adapter/test 与独立 module requirements；Protocol、Artifact、SQLite、公共 Runtime Go API、Desktop、Wails、Agent Framework 和 `app/cli` 均不改变。
@@ -489,10 +491,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P179     | Sandbox working tree 去 archive 中间表示                                                     | direct `os.Root` copy；64 KiB heap chunk，100k/128 MiB/512 MiB complete-source envelope                                                       |
 | P180     | Model Shell foreground/background process-tree owner 闭环                                    | Unix process group；stop/timeout/natural exit/Host close 全路径 cleanup + join + diagnostic                                                  |
 | P181     | Runtime typed ACL 与独立 module graph 收敛                                                   | `Input` / `Output` / `metadata.Map` generic methods；workspace/standalone 共用同一已发布依赖事实                                               |
+| P182     | Core 模型产物统一为 `Output`                                                                 | Runtime consumer 与独立 module requirements 原子迁移；Agent state/protocol baseline 同步升级                                                   |
+| P183     | Runtime 稳定枚举值对象与持久化表示收敛                                                       | named string values；删除 ordinal/text codec；显式零值语义；SQLite permission mode TEXT、epoch 83                                               |
+| P184     | Operation 泛型行为、协议身份与边界零值收敛                                                    | `Registry` / `Endpoint` generic methods；`operation.Name` 单一身份；Hook/Tool invalid zero fail closed                                          |
 
 ## 5. 当前里程碑结论
 
-P113–P181 共同建立了以下不可回退的心智模型：
+P113–P184 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -545,7 +550,7 @@ P113–P181 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。当前合同为 Artifact v23、SQLite epoch 82、Protocol `2026-08-24`；Wails v3 动态绑定保持。`app/cli` 不在本批范围且零修改；cross-build artifacts 与临时检查器均已回收，未启动 agent-browser，所有验证进程均已 join。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-24`；Wails v3 动态绑定保持。cross-build artifacts 与临时检查器均已回收，未启动 agent-browser，所有验证进程均已 join。
 
 ## 6. 新阶段准入
 

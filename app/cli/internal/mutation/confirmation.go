@@ -14,6 +14,28 @@ import (
 // longer be proven replayable by the runtime that originally owned it.
 var ErrReplayGuaranteeUnavailable = errors.New("mutation replay guarantee is unavailable")
 
+// Outcome is the authoritative settlement state shared by every durable CLI
+// mutation. The zero value is invalid so an uninitialized result cannot be
+// mistaken for a deliberately preserved unknown outcome.
+type Outcome string
+
+const (
+	Unknown   Outcome = "unknown"
+	Rejected  Outcome = "rejected"
+	Confirmed Outcome = "confirmed"
+)
+
+func (outcome Outcome) Valid() bool {
+	switch outcome {
+	case Unknown, Rejected, Confirmed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (outcome Outcome) String() string { return string(outcome) }
+
 // Admission runs immediately before each real mutation attempt. Durable
 // callers use it to enforce the runtime replay guarantee at the actual I/O
 // boundary rather than only when a recovery workflow begins.

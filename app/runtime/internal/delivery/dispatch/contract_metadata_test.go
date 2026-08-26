@@ -15,15 +15,15 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 	valueSpec := FieldConstraintSpec{
 		GoType: reflect.TypeFor[protocol.GetRunRequest](),
 		Constraints: []FieldConstraint{{
-			Field: "runId", Kind: ConstraintKind(255),
+			Field: "runId", Kind: ConstraintKind("invalid"),
 		}},
 	}
 	err := valueSpec.validate()
-	if err == nil || !strings.Contains(err.Error(), "ConstraintKind(255)") ||
+	if err == nil || !strings.Contains(err.Error(), `ConstraintKind("invalid")`) ||
 		!strings.Contains(err.Error(), "GetRunRequest.runId") {
 		t.Fatalf("value constraint error = %v, want shape, field and illegal kind", err)
 	}
-	if got := ConstraintKind(255).String(); got == ConstraintNonEmpty.String() {
+	if got := ConstraintKind("invalid").String(); got == ConstraintNonEmpty.String() {
 		t.Fatalf("unknown constraint kind masquerades as %q", got)
 	}
 
@@ -92,7 +92,7 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 		GoType: reflect.TypeFor[protocol.ProblemData](),
 		Rules: []PresenceRule{{
 			When: []operation.FieldCondition{{
-				Field: "type", Operator: operation.ConditionOperator(255),
+				Field: "type", Operator: operation.ConditionOperator("invalid"),
 			}},
 			Required: []string{"detail"},
 		}},
@@ -100,7 +100,7 @@ func TestShapeMetadataRejectsUnknownValues(t *testing.T) {
 	err = objectSpec.validate()
 	if err == nil || !strings.Contains(err.Error(), "ProblemData") ||
 		!strings.Contains(err.Error(), "type") ||
-		!strings.Contains(err.Error(), "ConditionOperator(255)") {
+		!strings.Contains(err.Error(), `ConditionOperator("invalid")`) {
 		t.Fatalf("object constraint error = %v, want shape, field and illegal operator", err)
 	}
 

@@ -8,27 +8,28 @@ import (
 // ReplayPolicy states whether a Dispatcher can prove that repeating an Effect
 // with the same EffectID is the same logical external operation. It does not
 // claim transactionality or allow replay under a different identity.
-type ReplayPolicy uint8
+type ReplayPolicy string
 
 const (
 	// ReplayPolicyInvalid is the invalid zero value.
-	ReplayPolicyInvalid ReplayPolicy = iota
+	ReplayPolicyInvalid ReplayPolicy = ""
 	// ReplayPolicyNever forbids automatic replay after an unknown settlement.
-	ReplayPolicyNever
+	ReplayPolicyNever ReplayPolicy = "never"
 	// ReplayPolicySameIdentity permits replay only with the original EffectID.
-	ReplayPolicySameIdentity
+	ReplayPolicySameIdentity ReplayPolicy = "same_identity"
 )
+
+// Valid reports whether policy declares a supported replay contract.
+func (policy ReplayPolicy) Valid() bool {
+	return policy == ReplayPolicyNever || policy == ReplayPolicySameIdentity
+}
 
 // String returns the stable replay-policy name.
 func (policy ReplayPolicy) String() string {
-	switch policy {
-	case ReplayPolicyNever:
-		return "never"
-	case ReplayPolicySameIdentity:
-		return "same_identity"
-	default:
+	if !policy.Valid() {
 		return "invalid"
 	}
+	return string(policy)
 }
 
 // EffectRequest is the immutable dispatch context prepared by the Engine.

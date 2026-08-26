@@ -54,7 +54,7 @@ func TestRunCatalogMapsQueriesAndProjectsPages(t *testing.T) {
 		runCatalog: stub, meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
 			runtimeprofile.FeatureSubagents: {
-				Enabled: true, Stability: runtimeprofile.Stable, ClientOptIn: true, ClientRequested: true,
+				Enabled: true, ClientOptIn: true, ClientRequested: true,
 			},
 		}},
 	}

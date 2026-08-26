@@ -7,29 +7,30 @@ import (
 
 // ProcessStartOutcomeStatus identifies the conclusive result of one accepted
 // Process admission. The zero value is invalid.
-type ProcessStartOutcomeStatus uint8
+type ProcessStartOutcomeStatus string
 
 const (
 	// ProcessStartOutcomeStatusInvalid is the invalid zero value.
-	ProcessStartOutcomeStatusInvalid ProcessStartOutcomeStatus = iota
+	ProcessStartOutcomeStatusInvalid ProcessStartOutcomeStatus = ""
 	// ProcessStartOutcomeStatusStarted means the prospective Process completed
 	// initialization and is ready for Engine publication.
-	ProcessStartOutcomeStatusStarted
+	ProcessStartOutcomeStatusStarted ProcessStartOutcomeStatus = "started"
 	// ProcessStartOutcomeStatusAborted means initialization failed and no
 	// Process will be published for the accepted admission.
-	ProcessStartOutcomeStatusAborted
+	ProcessStartOutcomeStatusAborted ProcessStartOutcomeStatus = "aborted"
 )
+
+// Valid reports whether status conclusively settles Process initialization.
+func (status ProcessStartOutcomeStatus) Valid() bool {
+	return status == ProcessStartOutcomeStatusStarted || status == ProcessStartOutcomeStatusAborted
+}
 
 // String returns the stable Process-start outcome status name.
 func (status ProcessStartOutcomeStatus) String() string {
-	switch status {
-	case ProcessStartOutcomeStatusStarted:
-		return "started"
-	case ProcessStartOutcomeStatusAborted:
-		return "aborted"
-	default:
+	if !status.Valid() {
 		return "invalid"
 	}
+	return string(status)
 }
 
 // ProcessStartOutcome is the immutable conclusive Framework result for one

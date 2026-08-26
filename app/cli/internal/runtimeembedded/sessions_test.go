@@ -27,6 +27,11 @@ func testProtocolWorkspace(path, projectRoot string, availability protocol.Works
 	}
 }
 
+const (
+	testSessionProvider = "mock"
+	testSessionModel    = "balanced"
+)
+
 func (stub sessionCatalogStub) ListSessions(_ context.Context, query protocol.PageQuery, _ embedded.CallOptions) (*protocol.Page[protocol.Session], error) {
 	return stub.pages[query.Cursor], nil
 }
@@ -56,6 +61,7 @@ func TestCreateAndForkSessionRejectAcknowledgementDrift(t *testing.T) {
 	t.Parallel()
 	base := protocol.Session{
 		ID: "ses_new", Title: "Requested", Status: protocol.SessionStatusIdle,
+		Provider: testSessionProvider, Model: testSessionModel,
 		Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		Revision:  1,
 	}
@@ -131,15 +137,17 @@ func TestCreateAndForkSessionRejectAcknowledgementDrift(t *testing.T) {
 }
 
 func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
-	workspace, model, title, favorite := "/workspace/new", "deep", "Renamed", true
+	workspace, title, favorite := "/workspace/new", "Renamed", true
+	model := agent.ModelRef{Provider: "deepseek", Model: "deep"}
 	stub := sessionCatalogStub{update: func(request protocol.UpdateSessionRequest) (*protocol.Session, error) {
 		if request.SessionID != "ses_1" || request.ExpectedRevision != 7 || request.Title == nil || *request.Title != title ||
-			request.Workspace == nil || request.Workspace.Path != workspace || request.Model == nil || *request.Model != model ||
+			request.Workspace == nil || request.Workspace.Path != workspace || request.Provider == nil || *request.Provider != model.Provider ||
+			request.Model == nil || *request.Model != model.Model ||
 			request.Favorite == nil || *request.Favorite != favorite {
 			t.Fatalf("update request = %+v", request)
 		}
 		return &protocol.Session{
-			ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Model: model,
+			ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Provider: model.Provider, Model: model.Model,
 			Workspace: testProtocolWorkspace(request.Workspace.Path, "/workspace", protocol.WorkspaceAvailable),
 			Favorite:  favorite, Revision: 8,
 		}, nil
@@ -153,7 +161,7 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 		}},
 		meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureRelocate: {Enabled: true},
 		}},
 	}
 	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
@@ -164,7 +172,7 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 		t.Fatal(err)
 	}
 	if updated.Workspace.Path != workspace || updated.Workspace.ProjectRoot != "/workspace" || !updated.Workspace.IsAvailable() ||
-		updated.Model != model || !updated.Favorite || updated.Revision != 8 {
+		updated.Provider != model.Provider || updated.Model != model.Model || !updated.Favorite || updated.Revision != 8 {
 		t.Fatalf("updated session = %+v", updated)
 	}
 }
@@ -189,13 +197,14 @@ func TestUpdateSessionRejectsWorkspaceWithoutRelocateCapability(t *testing.T) {
 
 func TestUpdateSessionRejectsAcknowledgementsThatDidNotApplyTheMutation(t *testing.T) {
 	t.Parallel()
-	workspace, model, title, favorite := "/workspace/new", "deep", "Renamed", true
+	workspace, title, favorite := "/workspace/new", "Renamed", true
+	model := agent.ModelRef{Provider: "deepseek", Model: "deep"}
 	request := agent.UpdateSession{
 		SessionID: "ses_1", Title: &title, Workspace: &workspace, Model: &model,
 		Favorite: &favorite, ExpectedRevision: 7,
 	}
 	valid := protocol.Session{
-		ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Model: model,
+		ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Provider: model.Provider, Model: model.Model,
 		Workspace: testProtocolWorkspace(workspace, "/workspace", protocol.WorkspaceAvailable),
 		Favorite:  favorite, Revision: 8,
 	}
@@ -225,7 +234,7 @@ func TestUpdateSessionRejectsAcknowledgementsThatDidNotApplyTheMutation(t *testi
 				}},
 				meta: requestMeta("test"),
 				profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-					runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+					runtimeprofile.FeatureRelocate: {Enabled: true},
 				}},
 			}
 			_, err := runtime.UpdateSession(t.Context(), request)
@@ -245,6 +254,7 @@ func TestSessionMutationsUseResolvedWorkspaceIdentity(t *testing.T) {
 	}}
 	result := protocol.Session{
 		ID: "ses_1", Title: "Requested", Status: protocol.SessionStatusIdle,
+		Provider: testSessionProvider, Model: testSessionModel,
 		Workspace: testProtocolWorkspace(canonical, canonical, protocol.WorkspaceAvailable),
 		Revision:  1,
 	}
@@ -268,7 +278,7 @@ func TestSessionMutationsUseResolvedWorkspaceIdentity(t *testing.T) {
 	runtime := &Runtime{
 		sessionCatalog: catalog, workspaces: resolved, meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureRelocate: {Enabled: true},
 		}},
 	}
 	if _, err := runtime.CreateSession(t.Context(), agent.CreateSession{
@@ -289,6 +299,7 @@ func TestProjectSessionPreservesResolvedWorkspaceIdentity(t *testing.T) {
 
 	projected, err := projectSession(protocol.Session{
 		ID: "ses_1", Status: protocol.SessionStatusIdle,
+		Provider: testSessionProvider, Model: testSessionModel,
 		Workspace: testProtocolWorkspace("/repo/work", "/repo", protocol.WorkspaceMissing),
 	})
 	if err != nil {
@@ -316,7 +327,7 @@ func TestProjectSessionRejectsIncompleteWorkspaceIdentity(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := projectSession(protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Workspace: test.workspace})
+			_, err := projectSession(protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Provider: testSessionProvider, Model: testSessionModel, Workspace: test.workspace})
 			if err == nil {
 				t.Fatalf("projectSession accepted %+v", test.workspace)
 			}
@@ -378,6 +389,7 @@ func TestSessionCatalogRejectsAStalledCursorAndMutationIdentity(t *testing.T) {
 		update: func(protocol.UpdateSessionRequest) (*protocol.Session, error) {
 			return &protocol.Session{
 				ID: "ses_other", Status: protocol.SessionStatusIdle,
+				Provider: testSessionProvider, Model: testSessionModel,
 				Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 			}, nil
 		},

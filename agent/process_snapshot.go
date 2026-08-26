@@ -166,12 +166,12 @@ type preparedStepWire struct {
 }
 
 type pendingControlWire struct {
-	KillReason         string `json:"kill_reason,omitempty"`
-	DeadlineOwner      string `json:"deadline_owner,omitempty"`
-	DeadlineReason     string `json:"deadline_reason,omitempty"`
-	CancellationOwner  string `json:"cancellation_owner,omitempty"`
-	CancellationReason string `json:"cancellation_reason,omitempty"`
-	PauseReason        string `json:"pause_reason,omitempty"`
+	KillReason         string            `json:"kill_reason,omitempty"`
+	DeadlineOwner      deadlineOwner     `json:"deadline_owner,omitempty"`
+	DeadlineReason     string            `json:"deadline_reason,omitempty"`
+	CancellationOwner  cancellationOwner `json:"cancellation_owner,omitempty"`
+	CancellationReason string            `json:"cancellation_reason,omitempty"`
+	PauseReason        string            `json:"pause_reason,omitempty"`
 }
 
 type processSnapshotWire struct {
@@ -421,11 +421,7 @@ func validatePendingControlWire(control pendingControlWire) error {
 		return errInvalidTermination
 	}
 	if control.DeadlineOwner != "" {
-		owner, err := parseDeadlineOwner(control.DeadlineOwner)
-		if err != nil {
-			return err
-		}
-		if _, err := newDeadlineIntent(owner, control.DeadlineReason); err != nil {
+		if _, err := newDeadlineIntent(control.DeadlineOwner, control.DeadlineReason); err != nil {
 			return err
 		}
 	}
@@ -433,11 +429,7 @@ func validatePendingControlWire(control pendingControlWire) error {
 		return errInvalidTermination
 	}
 	if control.CancellationOwner != "" {
-		owner, err := parseCancellationOwner(control.CancellationOwner)
-		if err != nil {
-			return err
-		}
-		if _, err := newCancellationIntent(owner, control.CancellationReason); err != nil {
+		if _, err := newCancellationIntent(control.CancellationOwner, control.CancellationReason); err != nil {
 			return err
 		}
 	}
@@ -450,30 +442,6 @@ func validatePendingControlWire(control pendingControlWire) error {
 }
 
 func emptyPendingControl(control pendingControlWire) bool { return control == pendingControlWire{} }
-
-func parseDeadlineOwner(value string) (deadlineOwner, error) {
-	switch value {
-	case "process":
-		return deadlineOwnerProcess, nil
-	case "parent":
-		return deadlineOwnerParent, nil
-	case "host":
-		return deadlineOwnerHost, nil
-	default:
-		return deadlineOwnerInvalid, fmt.Errorf("%w: unknown deadline owner %q", errInvalidTermination, value)
-	}
-}
-
-func parseCancellationOwner(value string) (cancellationOwner, error) {
-	switch value {
-	case "parent":
-		return cancellationOwnerParent, nil
-	case "host":
-		return cancellationOwnerHost, nil
-	default:
-		return cancellationOwnerInvalid, fmt.Errorf("%w: unknown cancellation owner %q", errInvalidTermination, value)
-	}
-}
 
 func executionStateDigest(state ExecutionState) (Digest, error) {
 	data, err := json.Marshal(state)

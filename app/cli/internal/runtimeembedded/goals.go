@@ -14,8 +14,46 @@ import (
 type goalBinding interface {
 	GetGoal(context.Context, protocol.GoalRequest, embedded.CallOptions) (*protocol.Goal, error)
 	StartGoal(context.Context, protocol.StartGoalRequest, embedded.CommandOptions) (*protocol.Goal, error)
+	UpdateGoal(context.Context, protocol.UpdateGoalRequest, embedded.CommandOptions) (*protocol.Goal, error)
+	ClearGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) error
 	StopGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error)
 	ResumeGoal(context.Context, protocol.GoalRequest, embedded.CommandOptions) (*protocol.Goal, error)
+}
+
+func (r *Runtime) UpdateGoal(ctx context.Context, update goal.Update) (goal.Goal, error) {
+	if err := update.Validate(); err != nil {
+		return goal.Goal{}, err
+	}
+	options, err := r.commandOptions()
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	result, err := r.goals.UpdateGoal(ctx, protocol.UpdateGoalRequest{
+		SessionID: update.SessionID,
+		Objective: update.Objective,
+	}, options)
+	projected, err := projectGoalResult("update goal", update.SessionID, result, err)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if err := update.ValidateResult(projected); err != nil {
+		return goal.Goal{}, runtimeContractViolation("update goal returned an invalid acknowledgement: %v", err)
+	}
+	return projected, nil
+}
+
+func (r *Runtime) ClearGoal(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return errors.New("clear goal: session id is empty")
+	}
+	options, err := r.commandOptions()
+	if err != nil {
+		return err
+	}
+	if err := r.goals.ClearGoal(ctx, protocol.GoalRequest{SessionID: sessionID}, options); err != nil {
+		return classifyError(err)
+	}
+	return nil
 }
 
 var _ goal.Service = (*Runtime)(nil)

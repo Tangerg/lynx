@@ -114,14 +114,18 @@ type RunProgress struct {
 	Activity      string
 }
 
-type ItemDeltaKind uint8
+type ItemDeltaKind string
 
 const (
-	ContentDelta ItemDeltaKind = iota
-	ReasoningDeltaKind
-	ToolArgumentsDelta
-	ToolOutputDelta
+	ContentDelta       ItemDeltaKind = "content"
+	ReasoningDeltaKind ItemDeltaKind = "reasoning"
+	ToolArgumentsDelta ItemDeltaKind = "toolArguments"
+	ToolOutputDelta    ItemDeltaKind = "toolOutput"
 )
+
+func (kind ItemDeltaKind) Valid() bool {
+	return kind == ContentDelta || kind == ReasoningDeltaKind || kind == ToolArgumentsDelta || kind == ToolOutputDelta
+}
 
 type ItemDelta struct {
 	Kind               ItemDeltaKind
@@ -135,7 +139,7 @@ func newTransientItemStart(identity transcript.ItemIdentity, kind transcript.Ite
 		return ItemStart{}, err
 	}
 	if kind != transcript.AgentMessage && kind != transcript.Reasoning {
-		return ItemStart{}, fmt.Errorf("runs: Item start kind %d is not a transient stream", kind)
+		return ItemStart{}, fmt.Errorf("runs: Item start kind %q is not a transient stream", kind)
 	}
 	return ItemStart{
 		SessionID: identity.SessionID, RunID: identity.RunID, ItemID: identity.ItemID,
@@ -167,7 +171,7 @@ func (start ItemStart) validate() error {
 		return err
 	}
 	if start.Kind != transcript.AgentMessage && start.Kind != transcript.Reasoning && start.Kind != transcript.ToolCall {
-		return fmt.Errorf("runs: unsupported Item start kind %d", start.Kind)
+		return fmt.Errorf("runs: unsupported Item start kind %q", start.Kind)
 	}
 	if start.Kind != transcript.ToolCall {
 		if start.ToolInvocation != nil || start.SafetyClass != "" || start.durable != nil {

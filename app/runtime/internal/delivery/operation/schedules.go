@@ -6,25 +6,33 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	SchedulesList   Name = "schedules.list"
+	SchedulesCreate Name = "schedules.create"
+	SchedulesUpdate Name = "schedules.update"
+	SchedulesDelete Name = "schedules.delete"
+	SchedulesRunNow Name = "schedules.runNow"
+)
+
 func registerSchedules(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name: "schedules.list", CapabilityRules: requires(protocol.FeatureSchedules),
+	registry.Query(MethodMeta{
+		Name: SchedulesList, CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		ListSchedules(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Schedule], error)
 	}, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
 		return service.ListSchedules(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "schedules.create", CapabilityRules: requires(protocol.FeatureSchedules),
+	registry.Command(MethodMeta{
+		Name: SchedulesCreate, CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		CreateSchedule(context.Context, protocol.CreateScheduleRequest) (*protocol.Schedule, error)
 	}, ctx context.Context, request protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
 		return service.CreateSchedule(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "schedules.update", Errors: []string{protocol.ErrRevisionConflict.Error()},
+	registry.Command(MethodMeta{
+		Name: SchedulesUpdate, Errors: []string{protocol.ErrRevisionConflict.Error()},
 		CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		UpdateSchedule(context.Context, protocol.UpdateScheduleRequest) (*protocol.Schedule, error)
@@ -32,16 +40,16 @@ func registerSchedules(registry *Registry) {
 		return service.UpdateSchedule(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name: "schedules.delete", CapabilityRules: requires(protocol.FeatureSchedules),
+	registry.CommandAck(MethodMeta{
+		Name: SchedulesDelete, CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		DeleteSchedule(context.Context, protocol.DeleteScheduleRequest) error
 	}, ctx context.Context, request protocol.DeleteScheduleRequest) error {
 		return service.DeleteSchedule(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "schedules.runNow", CapabilityRules: requires(protocol.FeatureSchedules),
+	registry.Command(MethodMeta{
+		Name: SchedulesRunNow, CapabilityRules: requires(protocol.FeatureSchedules),
 	}, func(service interface {
 		RunScheduleNow(context.Context, protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error)
 	}, ctx context.Context, request protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {

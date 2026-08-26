@@ -587,7 +587,7 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunFinished, runID)
 	case rundomain.StatusRunning:
 	default:
-		return liveSegment{}, fmt.Errorf("runs: run %q has unknown status %d", runID, status)
+		return liveSegment{}, fmt.Errorf("runs: run %q has unknown status %q", runID, status)
 	}
 	if run.ActiveSegmentID() != segmentID {
 		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID())

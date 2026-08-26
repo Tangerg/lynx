@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionrollback"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
@@ -32,7 +33,7 @@ func (a *app) prepareSessionImport(path string) error {
 	}
 	workspace := a.session.Workspace.Path
 	a.message("reading session artifact")
-	started := runOperation(a, sessionOutputOperation, false,
+	started := a.runOperation(sessionOutputOperation, false,
 		func(context.Context) (sessionImport, error) {
 			artifact, err := a.artifacts.Load(workspace, path)
 			return sessionImport{path: path, artifact: artifact}, err
@@ -57,7 +58,7 @@ func (a *app) prepareSessionImport(path string) error {
 }
 
 func (a *app) importSession(artifact sessiontransfer.Document) {
-	runSessionChange(a, "importing session",
+	a.runSessionChange("importing session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			imported, err := a.transfers.ImportSession(ctx, sessiontransfer.ImportRequest{Artifact: artifact})
 			if err != nil {
@@ -86,7 +87,7 @@ func (a *app) prepareSessionRollback(argument string) error {
 		}
 	}
 	a.message("previewing rollback")
-	started := runOperation(a, sessionOutputOperation, false,
+	started := a.runOperation(sessionOutputOperation, false,
 		func(ctx context.Context) (rollbackPreview, error) {
 			snapshot, err := a.runtime.GetSession(ctx, request.SessionID)
 			if err != nil {
@@ -151,7 +152,7 @@ type rollbackSettlement struct {
 }
 
 func (a *app) rollbackSession(preview rollbackPreview) {
-	runSessionChange(a, "rolling back session",
+	a.runSessionChange("rolling back session",
 		func(ctx context.Context) (rollbackSettlement, error) {
 			result, err := sessionrollback.Execute(
 				ctx, a.runtime, a.workbench, preview.settlement,
@@ -171,17 +172,17 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 func (a *app) applyRollbackSettlement(settlement rollbackSettlement) error {
 	result := settlement.result
 	switch result.Outcome {
-	case sessionrollback.Rejected:
+	case mutation.Rejected:
 		if err := sessionrollback.Reject(a.workbench, result); err != nil {
 			a.message("rollback session failed; local intent cleanup failed: " + errors.Join(settlement.err, err).Error())
 			return nil
 		}
 		a.message("rollback session failed: " + settlement.err.Error())
 		return nil
-	case sessionrollback.Unknown:
+	case mutation.Unknown:
 		a.message("rollback outcome is unknown; it will be reconciled on restart: " + settlement.err.Error())
 		return nil
-	case sessionrollback.Confirmed:
+	case mutation.Confirmed:
 	default:
 		return errors.New("rollback settlement returned an invalid outcome")
 	}

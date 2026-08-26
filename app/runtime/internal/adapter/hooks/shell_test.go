@@ -25,6 +25,20 @@ func TestShell_CommandReceivesStdin(t *testing.T) {
 	}
 }
 
+func TestShell_EmptyOutputIsExplicitAllow(t *testing.T) {
+	got := Shell{}.RunHookCommand(context.Background(), apphooks.CommandRequest{
+		Command: `:`,
+		Input:   domainhooks.Input{Event: domainhooks.UserPromptSubmit},
+		Timeout: time.Second,
+	})
+	if got.Err != nil {
+		t.Fatal(got.Err)
+	}
+	if got.Decision.Verdict != apphooks.CommandAllow {
+		t.Fatalf("verdict = %q, want %q", got.Decision.Verdict, apphooks.CommandAllow)
+	}
+}
+
 func TestSubagentHookWireUsesApplicationRunIdentity(t *testing.T) {
 	encoded, err := json.Marshal(hookInputWireFrom(domainhooks.Input{
 		Event: domainhooks.SubagentStart,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -376,6 +377,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	return Config{
 		Provider:             "anthropic",
 		Model:                "claude-test",
+		ApprovalMode:         approval.ModeSafe,
 		UserHome:             t.TempDir(),
 		KnowledgeDirectory:   t.TempDir(),
 		DefaultWorkspacePath: t.TempDir(),
@@ -410,7 +412,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	)
 	createdAt := time.Date(2026, 7, 16, 1, 0, 0, 0, time.UTC)
 	parkedAt := createdAt.Add(time.Second)
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	value := sessionfixture.MustRestore(session.Snapshot{
 		ID: sessionID, Workspace: sessionfixture.MustWorkspace(t.TempDir()), StartedAt: createdAt, UpdatedAt: createdAt,
 	})

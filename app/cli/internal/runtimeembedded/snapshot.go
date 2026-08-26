@@ -25,7 +25,7 @@ type coldRead struct {
 	session    protocol.Session
 	runs       []protocol.RunRef
 	items      []protocol.Item
-	plan       *protocol.StateSnapshot
+	plan       *protocol.Plan
 	interrupts []protocol.PendingInterruptSet
 }
 
@@ -81,14 +81,14 @@ func (r *Runtime) readMaterialSnapshot(ctx context.Context, sessionID string) (c
 		return coldRead{}, runtimeContractViolation("get session snapshot returned nil")
 	}
 	planEnabled := r.profile.Supports(runtimeprofile.FeaturePlan)
-	if planEnabled && snapshot.State == nil {
-		return coldRead{}, runtimeContractViolation("get session snapshot omitted state while the plan feature is enabled")
+	if planEnabled && snapshot.Plan == nil {
+		return coldRead{}, runtimeContractViolation("get session snapshot omitted plan while the plan feature is enabled")
 	}
-	if !planEnabled && snapshot.State != nil {
-		return coldRead{}, runtimeContractViolation("get session snapshot returned state while the plan feature is disabled")
+	if !planEnabled && snapshot.Plan != nil {
+		return coldRead{}, runtimeContractViolation("get session snapshot returned plan while the plan feature is disabled")
 	}
 	return coldRead{
-		runs: snapshot.Runs, items: snapshot.Items, plan: snapshot.State, interrupts: snapshot.Interrupts,
+		runs: snapshot.Runs, items: snapshot.Items, plan: snapshot.Plan, interrupts: snapshot.Interrupts,
 	}, nil
 }
 

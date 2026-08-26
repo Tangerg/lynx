@@ -94,7 +94,7 @@ func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	_, _ = presentMCPServer(mcpapp.Server{
 		Name:       "broken",
 		Connection: mcpapp.Connection{Transport: mcpserver.TransportStdio, Command: "broken"},
-		State:      mcpapp.ServerState{Type: mcpapp.ServerStateType(255)},
+		State:      mcpapp.ServerState{Type: mcpapp.ServerStateType("invalid")},
 	})
 }
 

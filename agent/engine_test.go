@@ -909,13 +909,13 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 		case EventStepFinished:
 			var payload stepFinishedEventPayload
 			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
-				payload.DurationMS < 0 || payload.StepStatus != "succeeded" {
+				payload.DurationMS < 0 || payload.StepStatus != StepStatusSucceeded {
 				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
 			}
 		case EventEffectFinished:
 			var payload effectFinishedEventPayload
 			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
-				payload.DurationMS < 0 || payload.SettlementStatus != "succeeded" ||
+				payload.DurationMS < 0 || payload.SettlementStatus != SettlementStatusSucceeded ||
 				payload.EffectTarget != "dispatcher" {
 				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
 			}

@@ -92,13 +92,12 @@ func TestUsageAndModelRoleCommandsProjectRuntimeConfiguration(t *testing.T) {
 
 func TestRuntimeStatusConsumesTheNegotiatedDiscoveryProfile(t *testing.T) {
 	profile := runtimeprofile.Profile{
-		Protocol:  runtimeprofile.Protocol{Current: "2.0", MinSupported: "2.0"},
+		Protocol:  runtimeprofile.Protocol{Version: "2.0"},
 		Server:    runtimeprofile.Server{Name: "lyra-runtime", Version: "1.2.3", DefaultWorkspace: "/workspace", Home: "/home/test"},
 		RunEvents: []string{"segment.started"}, RuntimeTopics: []string{"files.changed"},
-		StateSnapshots:   []runtimeprofile.Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
 		StreamingMethods: []string{"runs.start"},
 		Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureMCP: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureMCP: {Enabled: true},
 		},
 		Limits: runtimeprofile.Limits{
 			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600, IdempotencyNamespace: "idp_test",
@@ -114,7 +113,7 @@ func TestRuntimeStatusConsumesTheNegotiatedDiscoveryProfile(t *testing.T) {
 	for _, want := range []string{
 		"lyra-runtime 1.2.3", "protocol: 2.0", "default workspace: /workspace", "available features: mcp",
 		"run concurrency: 4 runs", "run replay: 1024 events / 1 MiB", "command replay retention: 10m",
-		"runtime subscriptions: 16 topics / 32 watches", "1 run events / 1 topics / 1 snapshots / 1 streaming methods",
+		"runtime subscriptions: 16 topics / 32 watches", "1 run events / 1 topics / 1 streaming methods",
 	} {
 		host.Shows(t, want)
 	}
@@ -390,6 +389,28 @@ func (service *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (
 	return current, nil
 }
 
+func (service *goalServiceStub) UpdateGoal(_ context.Context, update goal.Update) (goal.Goal, error) {
+	service.writes.Add(1)
+	if err := update.Validate(); err != nil {
+		return goal.Goal{}, err
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if service.current == nil {
+		return goal.Goal{}, errors.New("no goal")
+	}
+	service.current.Objective = update.Objective
+	return *service.current, nil
+}
+
+func (service *goalServiceStub) ClearGoal(context.Context, string) error {
+	service.writes.Add(1)
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	service.current = nil
+	return nil
+}
+
 func (service *goalServiceStub) StopGoal(context.Context, string) (goal.Goal, error) {
 	service.writes.Add(1)
 	service.mu.Lock()
@@ -443,6 +464,11 @@ func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
 	host.Shows(t, "active")
 	host.Press(input.Esc)
 	host.Shows(t, "Ask lyra")
+	host.Type("/goal-update ship the release")
+	host.Press(input.Enter)
+	host.Shows(t, "ship the release")
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
 	host.Type("/goal-stop")
 	host.Press(input.Enter)
 	host.Shows(t, "stoppedByUser")
@@ -491,6 +517,9 @@ func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
 	if err != nil || !exists || settling.Status != goal.Completing {
 		t.Fatalf("goal after rejected settlement command = (%+v, %t, %v)", settling, exists, err)
 	}
+	host.Type("/goal-clear")
+	host.Press(input.Enter)
+	host.Shows(t, "No autonomous goal")
 	stop()
 }
 

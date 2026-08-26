@@ -87,12 +87,20 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("pgvector: unsupported IndexType %q", c.IndexType)
 	}
-	return validateIdentifiers("pgvector", map[string]string{
-		"SchemaName":     c.SchemaName,
-		"TableName":      c.TableName,
-		"IndexName":      c.IndexName,
-		"MetadataColumn": c.MetadataColumn,
-	})
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+		return err
+	}
+	if err := identifier(c.TableName).validate("TableName"); err != nil {
+		return err
+	}
+	if err := identifier(c.IndexName).validate("IndexName"); err != nil {
+		return err
+	}
+	return identifier(c.MetadataColumn).validate("MetadataColumn")
 }
 
 func (c *StoreConfig) applyDefaults() {

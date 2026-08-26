@@ -30,10 +30,10 @@ func NewRuntimePolicy(
 	invalidations invalidation.Publish,
 ) (*RuntimePolicy, error) {
 	if !mode.ValidDefault() {
-		return nil, fmt.Errorf("%w: %d", approval.ErrInvalidMode, mode)
+		return nil, fmt.Errorf("%w: %q", approval.ErrInvalidMode, mode)
 	}
 	p := &RuntimePolicy{store: store, modeStore: modeStore, invalidations: invalidations}
-	p.mode.Store(int32(mode))
+	p.mode.Store(&defaultModeState{mode: mode})
 	return p, nil
 }
 
@@ -50,30 +50,37 @@ type ModeStore interface {
 // The default mode is atomic; Plan-mode transitions are serialized because
 // they are rare state changes whose read/replace pair must be one process fact.
 type RuntimePolicy struct {
-	mode          atomic.Int32
+	mode          atomic.Pointer[defaultModeState]
 	modeMu        sync.Mutex
 	modeStore     ModeStore
 	store         RuleStore
 	invalidations invalidation.Publish
 }
 
+// defaultModeState gives the atomically replaced default one immutable typed
+// identity; it avoids translating the domain value through an implementation
+// integer that could disagree with its durable and wire name.
+type defaultModeState struct {
+	mode approval.Mode
+}
+
 // DefaultMode returns the runtime fallback used by sessions without an explicit
 // mode row.
 func (p *RuntimePolicy) DefaultMode(_ context.Context) (approval.Mode, error) {
-	mode := approval.Mode(p.mode.Load())
-	if !mode.ValidDefault() {
-		return 0, fmt.Errorf("%w: stored value %d", approval.ErrInvalidMode, mode)
+	state := p.mode.Load()
+	if state == nil || !state.mode.ValidDefault() {
+		return "", fmt.Errorf("%w: invalid stored default", approval.ErrInvalidMode)
 	}
-	return mode, nil
+	return state.mode, nil
 }
 
 // SetDefaultMode changes the runtime fallback. Plan mode is session-only and is
 // therefore rejected here.
 func (p *RuntimePolicy) SetDefaultMode(_ context.Context, mode approval.Mode) error {
 	if !mode.ValidDefault() {
-		return fmt.Errorf("%w: %d", approval.ErrInvalidMode, mode)
+		return fmt.Errorf("%w: %q", approval.ErrInvalidMode, mode)
 	}
-	p.mode.Store(int32(mode))
+	p.mode.Store(&defaultModeState{mode: mode})
 	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
 	return nil
 }
@@ -83,20 +90,20 @@ func (p *RuntimePolicy) SetDefaultMode(_ context.Context, mode approval.Mode) er
 func (p *RuntimePolicy) Mode(ctx context.Context, sessionID string) (approval.Mode, error) {
 	fallback, err := p.DefaultMode(ctx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	if sessionID == "" || p.modeStore == nil {
 		return fallback, nil
 	}
 	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	if !found {
 		return fallback, nil
 	}
 	if err := state.Validate(); err != nil {
-		return 0, err
+		return "", err
 	}
 	return state.Mode, nil
 }
@@ -131,28 +138,28 @@ func (p *RuntimePolicy) EnterPlanMode(ctx context.Context, sessionID string) (ch
 // changed=false when the session is not in Plan mode.
 func (p *RuntimePolicy) ExitPlanMode(ctx context.Context, sessionID string) (restored approval.Mode, changed bool, err error) {
 	if sessionID == "" {
-		return 0, false, fmt.Errorf("%w: session id is required", approval.ErrInvalidSessionMode)
+		return "", false, fmt.Errorf("%w: session id is required", approval.ErrInvalidSessionMode)
 	}
 	if p.modeStore == nil {
-		return 0, false, ErrModeStoreUnavailable
+		return "", false, ErrModeStoreUnavailable
 	}
 	p.modeMu.Lock()
 	defer p.modeMu.Unlock()
 
 	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
-		return 0, false, err
+		return "", false, err
 	}
 	if !found || state.Mode != approval.ModePlan {
 		mode, modeErr := p.Mode(ctx, sessionID)
 		return mode, false, modeErr
 	}
 	if err := state.Validate(); err != nil {
-		return 0, false, err
+		return "", false, err
 	}
 	restored = state.RestoreMode
 	if err := p.modeStore.PutMode(ctx, sessionID, approval.SessionMode{Mode: restored}); err != nil {
-		return 0, false, err
+		return "", false, err
 	}
 	return restored, true, nil
 }

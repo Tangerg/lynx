@@ -462,18 +462,11 @@ func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeS
 			workingDirectories,
 			authoredResources,
 			func(resource workspaceapp.AuthoredResource) {
-				notice := invalidation.Notice{}
-				switch resource {
-				case workspaceapp.AuthoredKnowledge:
-					notice.Resource = invalidation.Knowledge
-				case workspaceapp.AuthoredHooks:
-					notice.Resource = invalidation.Hooks
-				case workspaceapp.AuthoredSkills:
-					notice.Resource = invalidation.Skills
-				default:
+				invalidationResource := resource.InvalidationResource()
+				if !invalidationResource.Valid() {
 					return
 				}
-				if event, ok := runtimeEventFor(notice); ok {
+				if event, ok := runtimeEventFor(invalidation.Notice{Resource: invalidationResource}); ok {
 					s.workspaceHub.publishTo(subscription, event)
 				}
 			},

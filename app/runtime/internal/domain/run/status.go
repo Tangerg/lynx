@@ -8,16 +8,16 @@ package run
 // Reads filter on this domain value and durable records are keyed by it. Keeping
 // one projection prevents observers and persistence from inventing independent
 // spellings for the same three positions.
-type Status uint8
+type Status string
 
 const (
 	// StatusRunning — a segment is executing.
-	StatusRunning Status = iota
+	StatusRunning Status = "running"
 	// StatusWaiting — no segment is executing and the Run holds open interrupts,
 	// so it is resumable and has no outcome.
-	StatusWaiting
+	StatusWaiting Status = "waiting"
 	// StatusFinished — no segment, no open interrupt, and a terminal outcome.
-	StatusFinished
+	StatusFinished Status = "finished"
 )
 
 // Status projects s onto an observer's three positions. It is the ONLY such
@@ -50,14 +50,8 @@ func (s Status) Valid() bool {
 }
 
 func (s Status) String() string {
-	switch s {
-	case StatusRunning:
-		return "running"
-	case StatusWaiting:
-		return "waiting"
-	case StatusFinished:
-		return "finished"
-	default:
+	if !s.Valid() {
 		return "unknown"
 	}
+	return string(s)
 }

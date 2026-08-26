@@ -22,7 +22,9 @@ func buildOllamaChatModel(spec ClientSpec, opts chat.Options) (chat.Model, error
 		APIKey:         ollamaAPIKey(spec.APIKey),
 		DefaultOptions: opts,
 		BaseURL:        ollamaOpenAIBaseURL(spec.BaseURL),
-	}, openaiprotocol.Dialect{Provider: ollamaProtocolProvider})
+	}, openaiprotocol.Dialect{
+		Provider: ollamaProtocolProvider, TokenLimitField: openaiprotocol.TokenLimitMaxTokens,
+	})
 }
 
 // buildOllamaEmbeddingModel uses /v1/embeddings for the same reason as chat:

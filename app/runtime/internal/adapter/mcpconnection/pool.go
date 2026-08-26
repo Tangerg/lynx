@@ -178,7 +178,7 @@ func transportFromDomain(transport mcpserver.Transport) (mcp.Transport, error) {
 	case mcpserver.TransportStdio:
 		return mcp.TransportStdio, nil
 	default:
-		return 0, fmt.Errorf("unknown domain transport %q", transport)
+		return "", fmt.Errorf("unknown domain transport %q", transport)
 	}
 }
 

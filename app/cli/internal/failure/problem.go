@@ -26,12 +26,11 @@ const (
 	RequirementFeature       RequirementKind = "feature"
 	RequirementInterruptType RequirementKind = "interruptType"
 	RequirementRuntimeTopic  RequirementKind = "runtimeTopic"
-	RequirementStateSnapshot RequirementKind = "stateSnapshot"
 )
 
 func (kind RequirementKind) valid() bool {
 	switch kind {
-	case RequirementFeature, RequirementInterruptType, RequirementRuntimeTopic, RequirementStateSnapshot:
+	case RequirementFeature, RequirementInterruptType, RequirementRuntimeTopic:
 		return true
 	default:
 		return false

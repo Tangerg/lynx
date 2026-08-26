@@ -16,13 +16,13 @@ package interrupt
 //
 // Executor implementations must preserve this exact union; they may not
 // infer a kind by inspecting arbitrary prompt fields.
-type Kind uint8
+type Kind string
 
 const (
 	// Approval — a gated tool call awaits approve / deny.
-	Approval Kind = iota + 1
+	Approval Kind = "approval"
 	// Question — the agent asked the human a typed question.
-	Question
+	Question Kind = "question"
 )
 
 // Valid reports whether k is a kind the system can persist and surface.
@@ -37,23 +37,16 @@ func (k Kind) Valid() bool {
 // it was written as, and a second hand-written table downstream would be free to
 // disagree with this one.
 func ParseKind(s string) (Kind, bool) {
-	switch s {
-	case "approval":
-		return Approval, true
-	case "question":
-		return Question, true
-	default:
-		return 0, false
+	kind := Kind(s)
+	if !kind.Valid() {
+		return "", false
 	}
+	return kind, true
 }
 
 func (k Kind) String() string {
-	switch k {
-	case Approval:
-		return "approval"
-	case Question:
-		return "question"
-	default:
+	if !k.Valid() {
 		return "unknown"
 	}
+	return string(k)
 }

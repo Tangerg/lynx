@@ -65,7 +65,7 @@ func TestFileRollbackStopsRetryingWhenReplayExpires(t *testing.T) {
 		runtime.reject = nil
 	}
 	result, err := Settle(t.Context(), runtime, pending, window, retry.Backoff{})
-	if result.Outcome != Unknown || !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
+	if result.Outcome != mutation.Unknown || !errors.Is(err, mutation.ErrReplayGuaranteeUnavailable) {
 		t.Fatalf("settlement = outcome %v, error %v", result.Outcome, err)
 	}
 	if runtime.calls != 1 {

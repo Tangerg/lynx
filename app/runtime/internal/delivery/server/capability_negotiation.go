@@ -135,7 +135,7 @@ func interruptKindFromWire(kind protocol.InterruptType) (interrupt.Kind, bool) {
 	case protocol.InterruptQuestion:
 		return interrupt.Question, true
 	default:
-		return 0, false
+		return "", false
 	}
 }
 

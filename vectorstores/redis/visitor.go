@@ -179,7 +179,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString(")")
 
 	default:
-		return fmt.Errorf("redis: unsupported field type %d for '%s'", kind, field)
+		return fmt.Errorf("redis: unsupported field type %q for '%s'", kind, field)
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 	if kind != FieldText {
-		return fmt.Errorf("redis: LIKE only supports TEXT fields, got %d for '%s'",
+		return fmt.Errorf("redis: LIKE only supports TEXT fields, got %q for '%s'",
 			kind, field)
 	}
 
@@ -274,7 +274,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString(")")
 
 	default:
-		return fmt.Errorf("redis: IN is not supported on field type %d for '%s'",
+		return fmt.Errorf("redis: IN is not supported on field type %q for '%s'",
 			kind, field)
 	}
 	return nil
@@ -286,6 +286,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // syntax.
 func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, error) {
 	var field string
+	var fieldType MetadataFieldType
 	switch node := expr.(type) {
 	case *filter.Ident:
 		field = node.Name()
@@ -295,16 +296,16 @@ func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, 
 		// be declared as dotted field names.
 		parts, err := flattenIndexExpr(node)
 		if err != nil {
-			return "", 0, err
+			return "", fieldType, err
 		}
 		field = strings.Join(parts, ".")
 	default:
-		return "", 0, fmt.Errorf("redis: unsupported left operand %T", node)
+		return "", fieldType, fmt.Errorf("redis: unsupported left operand %T", node)
 	}
 
 	kind, ok := v.fields[field]
 	if !ok {
-		return "", 0, fmt.Errorf("redis: filter references undeclared metadata field %q", field)
+		return "", fieldType, fmt.Errorf("redis: filter references undeclared metadata field %q", field)
 	}
 	return field, kind, nil
 }

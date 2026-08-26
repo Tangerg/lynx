@@ -130,7 +130,7 @@ func projectSession(value protocol.Session) (agent.Session, error) {
 	}
 	status := agent.SessionStatus(value.Status)
 	projected := agent.Session{
-		ID: value.ID, Title: value.Title, Status: status, Model: value.Model,
+		ID: value.ID, Title: value.Title, Status: status, Provider: value.Provider, Model: value.Model,
 		Workspace: projectedWorkspace, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		Favorite: value.Favorite, Revision: value.Revision,
 	}
@@ -194,7 +194,11 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 	}
 	request := protocol.UpdateSessionRequest{
 		SessionID: input.SessionID, ExpectedRevision: input.ExpectedRevision,
-		Title: input.Title, Model: input.Model, Favorite: input.Favorite,
+		Title: input.Title, Favorite: input.Favorite,
+	}
+	if input.Model != nil {
+		request.Provider = &input.Model.Provider
+		request.Model = &input.Model.Model
 	}
 	if validated.Workspace != nil {
 		request.Workspace = &protocol.WorkspaceRef{Path: *validated.Workspace}

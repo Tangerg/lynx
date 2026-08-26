@@ -17,7 +17,7 @@ func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeRes
 	}
 	mode, ok := presentApprovalMode(m)
 	if !ok {
-		return nil, fmt.Errorf("server: %w: %d", approval.ErrInvalidMode, m)
+		return nil, fmt.Errorf("server: %w: %q", approval.ErrInvalidMode, m)
 	}
 	return &protocol.ApprovalModeResult{Mode: mode}, nil
 }
@@ -151,5 +151,5 @@ func approvalModeFromWire(m protocol.ApprovalMode) (approval.Mode, bool) {
 	case protocol.ApprovalModeYolo:
 		return approval.ModeYolo, true
 	}
-	return 0, false
+	return "", false
 }

@@ -86,8 +86,8 @@ func (row runAccountingRow) values() (rundomain.Metrics, rundomain.Limits, error
 // stored under their canonical names rather than ordinals, so inserting a kind
 // into the enum cannot silently re-label stored rows.
 type runCapabilitiesRow struct {
-	ChildRuns      bool     `json:"childRuns,omitempty"`
-	InterruptKinds []string `json:"interruptKinds,omitempty"`
+	ChildRuns      bool             `json:"childRuns,omitempty"`
+	InterruptKinds []interrupt.Kind `json:"interruptKinds,omitempty"`
 }
 
 // encodeRunCapabilities returns the empty string for no optional capabilities,
@@ -100,9 +100,7 @@ func encodeRunCapabilities(capabilities rundomain.Capabilities) (string, error) 
 		return "", nil
 	}
 	row := runCapabilitiesRow{ChildRuns: capabilities.ChildRuns}
-	for _, kind := range capabilities.InterruptKinds {
-		row.InterruptKinds = append(row.InterruptKinds, kind.String())
-	}
+	row.InterruptKinds = append(row.InterruptKinds, capabilities.InterruptKinds...)
 	encoded, err := json.Marshal(row)
 	if err != nil {
 		return "", fmt.Errorf("encode run capabilities: %w", err)
@@ -127,12 +125,11 @@ func decodeRunCapabilities(encoded string) (rundomain.Capabilities, error) {
 		return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
 	capabilities := rundomain.Capabilities{ChildRuns: row.ChildRuns}
-	for _, name := range row.InterruptKinds {
-		kind, ok := interrupt.ParseKind(name)
-		if !ok {
+	for _, kind := range row.InterruptKinds {
+		if !kind.Valid() {
 			// A stored kind this build cannot raise would let the Run park on
 			// something nothing answers. Refusing the row is the honest outcome.
-			return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
+			return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", kind)
 		}
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 	}
@@ -143,10 +140,10 @@ func decodeRunCapabilities(encoded string) (rundomain.Capabilities, error) {
 }
 
 type runProblemRow struct {
-	Kind              int    `json:"kind"`
-	Detail            string `json:"detail,omitempty"`
-	DocURL            string `json:"docUrl,omitempty"`
-	RetryAfterSeconds int    `json:"retryAfterSeconds,omitzero"`
+	Kind              rundomain.FailureKind `json:"kind"`
+	Detail            string                `json:"detail,omitempty"`
+	DocURL            string                `json:"docUrl,omitempty"`
+	RetryAfterSeconds int                   `json:"retryAfterSeconds,omitzero"`
 }
 
 // metricsValues are one Run's accumulated consumption, encoded and ready to bind
@@ -222,7 +219,7 @@ func encodeRunFailure(failure *rundomain.Failure) (string, error) {
 		return "", fmt.Errorf("encode run failure: %w", err)
 	}
 	encoded, err := json.Marshal(runProblemRow{
-		Kind:              int(failure.Kind),
+		Kind:              failure.Kind,
 		Detail:            failure.Detail,
 		DocURL:            failure.DocURL,
 		RetryAfterSeconds: int(failure.RetryAfter / time.Second),
@@ -432,37 +429,13 @@ func decodeRunFailure(encoded string) (*rundomain.Failure, error) {
 	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
 		return nil, err
 	}
-	kind, err := decodeRunFailureKind(row.Kind)
-	if err != nil {
-		return nil, err
+	if !row.Kind.Valid() {
+		return nil, fmt.Errorf("unknown run failure kind %q", row.Kind)
 	}
 	return &rundomain.Failure{
-		Kind:       kind,
+		Kind:       row.Kind,
 		Detail:     row.Detail,
 		DocURL:     row.DocURL,
 		RetryAfter: time.Duration(row.RetryAfterSeconds) * time.Second,
 	}, nil
-}
-
-func decodeRunFailureKind(kind int) (rundomain.FailureKind, error) {
-	switch kind {
-	case int(rundomain.FailureInternal):
-		return rundomain.FailureInternal, nil
-	case int(rundomain.FailureLost):
-		return rundomain.FailureLost, nil
-	case int(rundomain.FailureAgentStuck):
-		return rundomain.FailureAgentStuck, nil
-	case int(rundomain.FailureRateLimited):
-		return rundomain.FailureRateLimited, nil
-	case int(rundomain.FailureInvalidCredentials):
-		return rundomain.FailureInvalidCredentials, nil
-	case int(rundomain.FailureTimeout):
-		return rundomain.FailureTimeout, nil
-	case int(rundomain.FailureProviderUnavailable):
-		return rundomain.FailureProviderUnavailable, nil
-	case int(rundomain.FailureProviderRejected):
-		return rundomain.FailureProviderRejected, nil
-	default:
-		return 0, fmt.Errorf("unknown run failure kind %d", kind)
-	}
 }

@@ -26,7 +26,7 @@ func TestRuntimeInfoWritesCompleteHumanAndMachineProfiles(t *testing.T) {
 			check: func(t *testing.T, output string) {
 				for _, want := range []string{
 					"lyra-runtime 1.2.3", "protocol", "/workspace", "segment.started", "files.changed",
-					"state plan", "feature mcp", "client opt-in requested", "available", "1024 events", "600 seconds", "32 watches",
+					"feature mcp", "client opt-in requested", "available", "1024 events", "600 seconds", "32 watches",
 				} {
 					if !strings.Contains(output, want) {
 						t.Fatalf("runtime info omitted %q:\n%s", want, output)
@@ -70,15 +70,13 @@ func TestRuntimeInfoWritesCompleteHumanAndMachineProfiles(t *testing.T) {
 
 func commandRuntimeProfile() runtimeprofile.Profile {
 	return runtimeprofile.Profile{
-		Protocol:  runtimeprofile.Protocol{Current: "2.0", MinSupported: "2.0"},
+		Protocol:  runtimeprofile.Protocol{Version: "2.0"},
 		Server:    runtimeprofile.Server{Name: "lyra-runtime", Version: "1.2.3", DefaultWorkspace: "/workspace", Home: "/home/test"},
 		RunEvents: []string{"segment.started"}, RuntimeTopics: []string{"files.changed"},
-		StateSnapshots:   []runtimeprofile.Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
 		StreamingMethods: []string{"runs.start"},
 		Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
 			"mcp": {
-				Enabled: true, Stability: runtimeprofile.Experimental,
-				ClientOptIn: true, ClientRequested: true, RequiredByRunProtocol: true,
+				Enabled: true, ClientOptIn: true, ClientRequested: true, RequiredByRunProtocol: true,
 			},
 		},
 		Limits: runtimeprofile.Limits{

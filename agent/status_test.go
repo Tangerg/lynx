@@ -74,31 +74,24 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !got.Valid() || got.Status() != test.want || got.Cause() != test.cause {
-				t.Fatalf("ResolveTermination() = status %s cause %d valid %t", got.Status(), got.Cause(), got.Valid())
+				t.Fatalf("ResolveTermination() = status %s cause %s valid %t", got.Status(), got.Cause(), got.Valid())
 			}
 		})
 	}
 }
 
 func TestStatusStrictJSONRoundTrip(t *testing.T) {
-	wireNames := map[Status]string{
-		StatusNotStarted: "not_started",
-		StatusRunning:    "running",
-		StatusWaiting:    "waiting",
-		StatusPaused:     "paused",
-		StatusCompleted:  "completed",
-		StatusFailed:     "failed",
-		StatusCanceled:   "canceled",
-		StatusTimedOut:   "timed_out",
-		StatusKilled:     "killed",
+	statuses := []Status{
+		StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused,
+		StatusCompleted, StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled,
 	}
-	for status := StatusNotStarted; status <= StatusKilled; status++ {
+	for _, status := range statuses {
 		data, err := json.Marshal(status)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, want := string(data), `"`+wireNames[status]+`"`; got != want {
-			t.Fatalf("Status %d JSON = %s, want %s", status, got, want)
+		if got, want := string(data), `"`+string(status)+`"`; got != want {
+			t.Fatalf("Status %q JSON = %s, want %s", status, got, want)
 		}
 		var decoded Status
 		if err := json.Unmarshal(data, &decoded); err != nil {

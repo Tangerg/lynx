@@ -616,7 +616,7 @@ func waitTestSessionGoal(t *testing.T, store *memStore, cond func(goal.Goal, boo
 
 func TestDriverCompletesAndClears(t *testing.T) {
 	store := newMemStore()
-	d := newDriver(t, store, scriptedRun{setStatus: goal.StatusComplete})
+	d := newDriver(t, store, scriptedRun{setStatus: goal.StatusComplete, outcome: run.OutcomeCompleted})
 	if _, err := d.Start(context.Background(), "s1", "do it", testGoalModelSelection(), goal.Budget{}, run.Capabilities{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -691,7 +691,7 @@ func TestDriverWaitsForCurrentSessionRunBeforeFirstGoalRun(t *testing.T) {
 	waiting := make(chan struct{}, 1)
 	runUseCases := &fakeRuns{
 		t: t, store: store,
-		script:        []scriptedRun{{setStatus: goal.StatusComplete}},
+		script:        []scriptedRun{{setStatus: goal.StatusComplete, outcome: run.OutcomeCompleted}},
 		idleWaitStart: waiting,
 		idleRelease:   release,
 	}
@@ -1329,7 +1329,7 @@ func TestDriverContinuesAfterTerminalAccounting(t *testing.T) {
 	started := make(chan struct{}, 1)
 	fake := &fakeRuns{t: t, store: store, script: []scriptedRun{
 		{outcome: run.OutcomeCompleted},
-		{setStatus: goal.StatusComplete},
+		{setStatus: goal.StatusComplete, outcome: run.OutcomeCompleted},
 	}, hold: hold, started: started}
 	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), nil, testPrompt)
 	cleanupDriver(t, d)

@@ -112,7 +112,7 @@ func TestRunsListRejectsDescendantsBeforeCallingAnUnnegotiatedRuntime(t *testing
 	t.Parallel()
 	profile := commandRuntimeProfile()
 	profile.Features[runtimeprofile.FeatureSubagents] = runtimeprofile.Feature{
-		Stability: runtimeprofile.Stable, ClientOptIn: true,
+		ClientOptIn: true,
 	}
 	runtime := &recordingRunCatalog{Runtime: instantRuntime()}
 	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {
@@ -293,7 +293,7 @@ func TestRunIDCompletionFallsBackToRootsWithoutSubagents(t *testing.T) {
 	t.Parallel()
 	profile := commandRuntimeProfile()
 	profile.Features[runtimeprofile.FeatureSubagents] = runtimeprofile.Feature{
-		Stability: runtimeprofile.Stable, ClientOptIn: true,
+		ClientOptIn: true,
 	}
 	runtime := &recordingRunCatalog{Runtime: instantRuntime()}
 	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {

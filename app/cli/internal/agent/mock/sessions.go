@@ -126,6 +126,7 @@ func (r *Runtime) CreateSession(ctx context.Context, in agent.CreateSession) (ag
 	now := r.now()
 	session := agent.Session{
 		ID: fmt.Sprintf("ses_mock_%d", r.next), Title: title, Status: agent.SessionIdle,
+		Provider: defaultProvider, Model: defaultModel,
 		Workspace: availableWorkspace(workspace), CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
 	r.sessions[session.ID] = &sessionState{meta: session}
@@ -159,7 +160,8 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 		state.meta.Workspace = availableWorkspace(strings.TrimSpace(*in.Workspace))
 	}
 	if in.Model != nil {
-		state.meta.Model = strings.TrimSpace(*in.Model)
+		state.meta.Provider = in.Model.Provider
+		state.meta.Model = in.Model.Model
 	}
 	if in.Favorite != nil {
 		state.meta.Favorite = *in.Favorite
@@ -194,7 +196,7 @@ func (r *Runtime) ForkSession(ctx context.Context, in agent.ForkSession) (agent.
 		title = source.meta.Title + " (fork)"
 	}
 	now := r.now()
-	meta := agent.Session{ID: id, Title: title, Status: agent.SessionIdle, Model: source.meta.Model, Workspace: source.meta.Workspace, CreatedAt: now, UpdatedAt: now, Revision: 1}
+	meta := agent.Session{ID: id, Title: title, Status: agent.SessionIdle, Provider: source.meta.Provider, Model: source.meta.Model, Workspace: source.meta.Workspace, CreatedAt: now, UpdatedAt: now, Revision: 1}
 	state := &sessionState{meta: meta, plan: slices.Clone(boundary.plan)}
 	if len(boundary.plan) != 0 {
 		state.planRevision = 1

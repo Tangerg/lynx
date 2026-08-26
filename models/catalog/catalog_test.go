@@ -35,7 +35,7 @@ func TestLookup(t *testing.T) {
 
 func TestProvider(t *testing.T) {
 	p, ok := catalog.Default.Provider("anthropic")
-	if !ok || p.ID != "anthropic" || len(p.Models) == 0 {
+	if !ok || p.ID != "anthropic" || len(p.Models) == 0 || p.Models[0].ID == "" {
 		t.Fatalf("Provider(anthropic) = %+v, %v", p, ok)
 	}
 	if _, ok := catalog.Default.Provider("does-not-exist"); ok {

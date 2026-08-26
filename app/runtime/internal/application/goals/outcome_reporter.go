@@ -17,16 +17,22 @@ type ReportCommand struct {
 }
 
 // ReportResult identifies the recoverable outcome of one report.
-type ReportResult int
+type ReportResult string
 
 const (
-	ReportApplied ReportResult = iota
-	ReportNoActiveGoal
-	ReportSuperseded
-	ReportConflict
-	ReportReasonRequired
-	ReportInvalidOutcome
+	ReportApplied        ReportResult = "applied"
+	ReportNoActiveGoal   ReportResult = "noActiveGoal"
+	ReportSuperseded     ReportResult = "superseded"
+	ReportConflict       ReportResult = "conflict"
+	ReportReasonRequired ReportResult = "reasonRequired"
+	ReportInvalidOutcome ReportResult = "invalidOutcome"
 )
+
+// Valid reports whether result belongs to the complete report outcome set.
+func (result ReportResult) Valid() bool {
+	return result == ReportApplied || result == ReportNoActiveGoal || result == ReportSuperseded ||
+		result == ReportConflict || result == ReportReasonRequired || result == ReportInvalidOutcome
+}
 
 // OutcomeReporter owns terminal outcome validation and compare-and-swap.
 type OutcomeReporter struct {
@@ -50,7 +56,7 @@ func (r *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (Report
 	}
 	g, ok, err := r.goals.Get(ctx, cmd.SessionID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	if !ok || g.Status != goal.StatusActive {
 		return ReportNoActiveGoal, nil
@@ -72,7 +78,7 @@ func (r *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (Report
 	}
 	_, applied, err := r.goals.Save(ctx, g, expected)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	if !applied {
 		return ReportConflict, nil

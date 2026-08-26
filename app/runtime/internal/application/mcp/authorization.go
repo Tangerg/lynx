@@ -18,14 +18,28 @@ const (
 // flow. A terminal attempt remains readable for the retention published by
 // [Coordinator.AuthorizationAttemptRetention] so clients can recover after a
 // transient transport interruption.
-type AuthorizationAttemptStatus uint8
+type AuthorizationAttemptStatus string
 
 const (
-	AuthorizationAttemptPending AuthorizationAttemptStatus = iota + 1
-	AuthorizationAttemptSucceeded
-	AuthorizationAttemptFailed
-	AuthorizationAttemptCanceled
+	AuthorizationAttemptPending   AuthorizationAttemptStatus = "pending"
+	AuthorizationAttemptSucceeded AuthorizationAttemptStatus = "succeeded"
+	AuthorizationAttemptFailed    AuthorizationAttemptStatus = "failed"
+	AuthorizationAttemptCanceled  AuthorizationAttemptStatus = "canceled"
 )
+
+// Valid reports whether status belongs to the authorization-attempt lifecycle.
+func (status AuthorizationAttemptStatus) Valid() bool {
+	return status == AuthorizationAttemptPending || status == AuthorizationAttemptSucceeded ||
+		status == AuthorizationAttemptFailed || status == AuthorizationAttemptCanceled
+}
+
+// String returns the stable authorization-attempt status name.
+func (status AuthorizationAttemptStatus) String() string {
+	if !status.Valid() {
+		return "unknown"
+	}
+	return string(status)
+}
 
 // AuthorizationAttempt is the application read model for one interactive
 // OAuth flow. Failure details remain in telemetry; callers receive only the
@@ -144,8 +158,8 @@ func (s *authorizationAttemptStore) get(id string) (AuthorizationAttempt, bool) 
 }
 
 func (s *authorizationAttemptStore) settle(id string, status AuthorizationAttemptStatus) {
-	if status == AuthorizationAttemptPending {
-		panic("mcp: cannot settle an MCP authorization attempt as pending")
+	if !status.Valid() || status == AuthorizationAttemptPending {
+		panic("mcp: invalid terminal MCP authorization attempt status")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

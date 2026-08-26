@@ -6,16 +6,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	ToolsList   Name = "tools.list"
+	ToolsInvoke Name = "tools.invoke"
+)
+
 func registerTools(registry *Registry) {
-	Query(registry, MethodMeta{Name: "tools.list"},
+	registry.Query(MethodMeta{Name: ToolsList},
 		func(service interface {
 			ListTools(context.Context) (*protocol.Page[protocol.ToolSpec], error)
 		}, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ToolSpec], error) {
 			return service.ListTools(ctx)
 		})
 
-	Command(registry, MethodMeta{
-		Name: "tools.invoke",
+	registry.Command(MethodMeta{
+		Name: ToolsInvoke,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),

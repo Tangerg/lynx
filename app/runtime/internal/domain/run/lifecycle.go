@@ -17,22 +17,26 @@ package run
 // A Run reaches exactly one terminal state. Root admission ("one non-terminal
 // root Run per Session") keys on [State.IsTerminal]; descendants share their
 // root tree's admission.
-type State uint8
+type State string
 
 const (
 	// Running — a segment is actively executing.
-	Running State = iota
+	Running State = "running"
 	// Waiting — parked on a HITL interrupt, awaiting Resume or Cancel. NOT
 	// terminal: the run is resumable, its durable interrupt record committed.
-	Waiting
+	Waiting State = "waiting"
 	// Completed — the model finished normally.
-	Completed
+	Completed State = "completed"
 	// Failed — the Run stopped without completing. The exact reason remains in
 	// its Outcome: TimedOut, Failed, MaxBudget, MaxSteps, or Lost.
-	Failed
+	Failed State = "failed"
 	// Canceled — the caller canceled the run, or its context was canceled.
-	Canceled
+	Canceled State = "canceled"
 )
+
+func (s State) Valid() bool {
+	return s == Running || s == Waiting || s == Completed || s == Failed || s == Canceled
+}
 
 // IsTerminal reports whether s is an end state (Completed, Failed, or Canceled)
 // — no further transition is legal, and the run no longer holds a Session's
@@ -91,20 +95,10 @@ func (s State) RecoverLost() (State, bool) {
 }
 
 func (s State) String() string {
-	switch s {
-	case Running:
-		return "running"
-	case Waiting:
-		return "waiting"
-	case Completed:
-		return "completed"
-	case Failed:
-		return "failed"
-	case Canceled:
-		return "canceled"
-	default:
+	if !s.Valid() {
 		return "unknown"
 	}
+	return string(s)
 }
 
 // Outcome is why a Run reached a terminal state. Persistence and presentation
@@ -113,31 +107,31 @@ func (s State) String() string {
 // An interrupt is deliberately NOT an Outcome: parking is the [Waiting]
 // state, not a terminal reason. A run that ends while parked ends via
 // [OutcomeCanceled].
-type Outcome uint8
+type Outcome string
 
 const (
 	// OutcomeCompleted — the model returned a stop-marker normally. → Completed.
-	OutcomeCompleted Outcome = iota
+	OutcomeCompleted Outcome = "completed"
 	// OutcomeCanceled — the caller canceled, or the context was canceled. →
 	// Canceled.
-	OutcomeCanceled
+	OutcomeCanceled Outcome = "canceled"
 	// OutcomeTimedOut — the Run exceeded its governing deadline. This is not a
 	// generic failure: callers may apply a distinct retry and alerting policy. →
 	// Failed.
-	OutcomeTimedOut
+	OutcomeTimedOut Outcome = "timedOut"
 	// OutcomeFailed — the run aborted on an error. → Failed.
-	OutcomeFailed
+	OutcomeFailed Outcome = "failed"
 	// OutcomeMaxBudget — the run hit its token/cost budget and stopped cleanly
 	// after the current round (the partial reply already streamed). → Failed.
-	OutcomeMaxBudget
+	OutcomeMaxBudget Outcome = "maxBudget"
 	// OutcomeMaxSteps — the run hit its delegation-tree model-call cap and
 	// stopped cleanly. Distinct from OutcomeMaxBudget because the exhausted
 	// allowance is a different terminal fact. → Failed.
-	OutcomeMaxSteps
+	OutcomeMaxSteps Outcome = "maxSteps"
 	// OutcomeLost — recovery proved that no live executor or valid checkpoint
 	// can continue the Run. It is produced by recovery, never by an executor. →
 	// Failed.
-	OutcomeLost
+	OutcomeLost Outcome = "lost"
 )
 
 // terminalState maps a terminal outcome to the [State] it produces: normal
@@ -155,7 +149,13 @@ func (o Outcome) terminalState() State {
 }
 
 func (o Outcome) valid() bool {
-	return o <= OutcomeLost
+	switch o {
+	case OutcomeCompleted, OutcomeCanceled, OutcomeTimedOut, OutcomeFailed,
+		OutcomeMaxBudget, OutcomeMaxSteps, OutcomeLost:
+		return true
+	default:
+		return false
+	}
 }
 
 // ParseOutcome maps an outcome's [Outcome.String] form back to the value,
@@ -164,43 +164,16 @@ func (o Outcome) valid() bool {
 // terminal reason it was written as, and a second hand-written table somewhere
 // downstream would be free to disagree with this one.
 func ParseOutcome(s string) (Outcome, bool) {
-	switch s {
-	case "completed":
-		return OutcomeCompleted, true
-	case "canceled":
-		return OutcomeCanceled, true
-	case "timedOut":
-		return OutcomeTimedOut, true
-	case "failed":
-		return OutcomeFailed, true
-	case "maxBudget":
-		return OutcomeMaxBudget, true
-	case "maxSteps":
-		return OutcomeMaxSteps, true
-	case "lost":
-		return OutcomeLost, true
-	default:
-		return 0, false
+	outcome := Outcome(s)
+	if !outcome.valid() {
+		return "", false
 	}
+	return outcome, true
 }
 
 func (o Outcome) String() string {
-	switch o {
-	case OutcomeCompleted:
-		return "completed"
-	case OutcomeCanceled:
-		return "canceled"
-	case OutcomeTimedOut:
-		return "timedOut"
-	case OutcomeFailed:
-		return "failed"
-	case OutcomeMaxBudget:
-		return "maxBudget"
-	case OutcomeMaxSteps:
-		return "maxSteps"
-	case OutcomeLost:
-		return "lost"
-	default:
+	if !o.valid() {
 		return "unknown"
 	}
+	return string(o)
 }

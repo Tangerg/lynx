@@ -86,7 +86,7 @@ func validatePendingInterruptItems(
 			}
 		default:
 			return nil, fmt.Errorf(
-				"runs: validate parked Run tree %q: interrupt Item %q has unknown kind %d",
+				"runs: validate parked Run tree %q: interrupt Item %q has unknown kind %q",
 				rootRunID,
 				request.ItemID,
 				request.Kind,

@@ -138,7 +138,7 @@ type interruptPayload struct {
 	ItemID         string           `json:"itemId"`
 	ItemOccurredAt int64            `json:"itemOccurredAt"`
 	RunID          string           `json:"runId"`
-	Kind           string           `json:"kind"`
+	Kind           interrupt.Kind   `json:"kind"`
 	Approval       *approvalPayload `json:"approval,omitempty"`
 	Question       *questionPayload `json:"question,omitempty"`
 }
@@ -732,7 +732,7 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 	for index, value := range values {
 		row := interruptPayload{
 			ItemID: value.ItemID, ItemOccurredAt: value.ItemOccurredAt.UnixNano(),
-			RunID: value.RunID, Kind: value.Kind.String(),
+			RunID: value.RunID, Kind: value.Kind,
 		}
 		switch value.Kind {
 		case interrupt.Approval:
@@ -754,7 +754,7 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 			}
 			row.Question = &question
 		default:
-			return nil, fmt.Errorf("interrupt[%d] has unknown kind %d", index, value.Kind)
+			return nil, fmt.Errorf("interrupt[%d] has unknown kind %q", index, value.Kind)
 		}
 		rows[index] = row
 	}
@@ -764,15 +764,14 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, error) {
 	values := make([]transcript.Interrupt, len(rows))
 	for index, row := range rows {
-		kind, ok := interrupt.ParseKind(row.Kind)
-		if !ok {
+		if !row.Kind.Valid() {
 			return nil, fmt.Errorf("interrupt[%d] has unknown kind %q", index, row.Kind)
 		}
 		value := transcript.Interrupt{
 			ItemID: row.ItemID, ItemOccurredAt: time.Unix(0, row.ItemOccurredAt).UTC(),
-			RunID: row.RunID, Kind: kind,
+			RunID: row.RunID, Kind: row.Kind,
 		}
-		switch kind {
+		switch row.Kind {
 		case interrupt.Approval:
 			if row.Approval == nil || row.Question != nil {
 				return nil, fmt.Errorf("interrupt[%d] approval payload is invalid", index)

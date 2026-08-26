@@ -101,7 +101,7 @@ func TestClaimSessionMutationAllowsOpenInterrupt(t *testing.T) {
 func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 	createdAt := finishedAt.Add(-time.Minute)
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	selection := runfixture.Selection()
 	var applied TerminalPlan
 	stores := coordinatorStores{
@@ -175,7 +175,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 func TestApplyRunCancelSettlesQuestionToolAndClosesModelContext(t *testing.T) {
 	finishedAt := time.Date(2026, 8, 11, 2, 3, 4, 0, time.UTC)
 	createdAt := finishedAt.Add(-time.Minute)
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Favorite color?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Favorite color?", Kind: transcript.QuestionText}}}
 	selection := runfixture.Selection()
 	var applied TerminalPlan
 	stores := coordinatorStores{
@@ -351,7 +351,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	createdAt := time.Date(2026, 7, 17, 2, 0, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue child?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue child?", Kind: transcript.QuestionText}}}
 	childLineage := run.Lineage{
 		SpawnedByItemID: "item_spawn", ParentRunID: "run_root", RootRunID: "run_root",
 	}
@@ -449,7 +449,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 // corrupt hand-off cannot be consumed or converted into a terminal history.
 func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing.T) {
 	createdAt := time.Date(2026, 7, 18, 2, 0, 0, 0, time.UTC)
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	pendingInterrupt := transcript.Interrupt{
 		ItemID: "item_question", ItemOccurredAt: createdAt, RunID: "run_root",
 		Kind: interrupt.Question, Question: question,

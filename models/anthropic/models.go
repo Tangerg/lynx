@@ -84,7 +84,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	}
 	model, err := openaiprotocol.NewCompatibleChat(
 		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
-		openaiprotocol.Dialect{Provider: "anthropic"},
+		openaiprotocol.Dialect{Provider: "anthropic", TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: construct OpenAI-compatible chat: %w", err)

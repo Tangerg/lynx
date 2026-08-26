@@ -707,3 +707,17 @@
 - 背景：`infra/exec` 明确接受只 kill shell leader、forked grandchildren 可能残留；`CommandContext.Cancel`、`Kill` 与 `KillAll` 都只调用 direct `Process.Kill`。失败优先反例 `ea8a280b9` 让真实 `/bin/sh` 派生 `sleep`，证明 `stop_shell` 已返回且 leader Wait 完成后后代仍存活。foreground cancellation 还会在 Done 前从 ledger 删除，最终 cleanup 即使发生也失去可 join owner。
 - 决策：Unix Shell 在 Start 前进入独立 process group，`CommandContext.Cancel`、`Kill`、timeout 与 `KillAll` 都调用同一个 group stop；Wait goroutine在 leader 任意退出后再次清理整组，并把 fallible diagnostic 写入 terminal Outcome。若成功 leader 仅因 descendant pipe 触发 `exec.ErrWaitDelay`，使用 `ProcessState` 保留真实 exit code。foreground cancellation 必须等待 Done/cleanup 后再 Remove；background shell 继续留在 ledger 直到显式读取/停止或 Host shutdown。
 - 后果：显式 stop、timeout、自然 parent exit、canceled foreground 与 Host close 都不再遗留未登记后代；真实 subprocess 测试覆盖 kill 和 successful leader 两条路径。Windows/other 保持平台当前可拥有的 direct-process kill；不新增 daemon mode、process supervisor、第二 shell API、compatibility signature 或配置开关。Internal `Shell.Outcome` breaking 增加 cleanup error，consumer 直接观察，不修改 model-facing JSON shape。
+
+## ADR-RT-100：稳定领域枚举以命名文本作为唯一身份
+
+- 状态：已接受并实施，P183 完成；允许 Runtime internal Domain、Application、Delivery、SQLite 与 checkpoint wire breaking change，公共 Protocol shape、Artifact、Desktop binding 与 Agent Framework execution contract 不变。
+- 背景：Runtime 同时存在三种同一概念的表示：领域 `uint8/int` ordinal、SQLite/JSON 数字或数字字符串、codec 中的手写 switch 文本。它们让值对象退化成数据袋，由过程式 mapper 在各层重复拥有合法集合；新增成员时任一映射遗漏都可能静默改变持久化语义。`approval.Mode` 还借原子整数保存字符串策略，多个 operation policy 借零值表达 `none`，使构造意图依赖位置和枚举顺序。
+- 决策：凡是已经具有稳定配置、持久化、wire 或 telemetry 文本身份的值，直接建模为命名 `string` 类型，由值自身提供 `Valid`/`String` 与领域校验；SQLite/JSON 使用同一值，不再维护 encode/decode switch、影子 wire enum 或 ordinal translation。零值统一无效，构造方显式选择业务常量。位图、外部协议规定的 numeric code、以及不越过进程边界的 reducer/FSM 判别值继续使用数值类型，不建立伪文本合同。禁止通用 enum registry、reflection、`map[string]any` 参数袋、alias 或兼容双读。
+- 后果：Run/Interrupt/Tool/Transcript/Approval/MCP/operation catalog/invocation journal 的合法集合和文本只有一个 owner；`session_permission_modes` 改为 TEXT，所有旧 ordinal material 与新值不兼容，SQLite epoch 从 82 一次性升至 83。调用者必须显式构造策略，非法持久化值在领域边界 fail closed；没有迁移器、legacy parser、默认数字语义或第二套 schema。
+
+## ADR-RT-101：泛型操作行为归还 Registry 与 Endpoint
+
+- 状态：已接受并实施，P184 完成；允许 Runtime internal Delivery API breaking change，公共 Protocol、Artifact、SQLite、Desktop binding 与 Agent Framework execution contract 不变。
+- 背景：operation catalog 已由 `Registry` 独占注册状态和方法元数据，却仍通过 `Query(registry, ...)`、`Command(registry, ...)` 等自由泛型函数修改它；typed invocation 同样通过 `Call(endpoint, ...)` 绕开 receiver。这是“对象持有状态、过程函数持有行为”的贫血模型，也让架构守卫只能识别无 owner 的函数名。86 个协议操作名还分别以裸字符串出现在注册和 embedded binding，形成两份需要人工同步的身份。Hook command 的成功结果允许空 `CommandVerdict` 被 Application 默认为 allow，文件变更范围的无效零值也可能弱化 bypass-immunity。
+- 决策：利用 Go 1.27 方法泛型，把六类注册行为及 typed unary/stream invocation 分别收回 `Registry` 和 `Endpoint`；private register 流程也保持同一 receiver，不新增 builder、service 或 façade。操作身份建模为自校验 `operation.Name`，常量就近声明在对应领域注册文件；注册、materialization 与 embedded binding 共同引用它，只有 JSON-RPC transport 边界把外部字符串显式转换为 `Name`。Hook adapter 必须把空 stdout 显式解码为 `CommandAllow`，Application 拒绝其他无效 verdict；Tool authorization 要求有效 `FileMutationScope`，未知范围保守提升为需要确认。验证字段按确定顺序显式调用，不使用 `map[string]string` 参数袋。
+- 后果：86 个 operation 的类型推导、元数据填充、协议身份、注册和调用都从唯一 owner 出发；AST 守卫直接审计 receiver method 与已声明的 `Name` 常量。外部 JSON method text、idempotency、stream、SQLite 与生成合同不变，没有自由函数转发、重复 wire literal 或兼容入口。

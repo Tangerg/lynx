@@ -147,21 +147,11 @@ func (preview Preview) journal(
 	return pending
 }
 
-// Outcome distinguishes confirmation, definitive refusal, and a command whose
-// acknowledgement must remain durable for later recovery.
-type Outcome uint8
-
-const (
-	Unknown Outcome = iota
-	Rejected
-	Confirmed
-)
-
 // Result binds settlement to the exact durable command and authoritative
 // session projection.
 type Result struct {
 	Pending  workbench.PendingSessionRollback
-	Outcome  Outcome
+	Outcome  mutation.Outcome
 	Snapshot agent.SessionSnapshot
 }
 
@@ -213,19 +203,19 @@ func Settle(
 	}
 	snapshot, err := runtime.GetSession(ctx, pending.SessionID)
 	if err != nil {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		return result, fmt.Errorf("read rollback outcome: %w", err)
 	}
 	if err := validateApplied(pending, snapshot); err == nil {
-		result.Outcome, result.Snapshot = Confirmed, snapshot
+		result.Outcome, result.Snapshot = mutation.Confirmed, snapshot
 		return result, nil
 	}
 	if err := validateBefore(pending, snapshot); err != nil {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		return result, fmt.Errorf("authoritative session matches neither side of the pending rollback: %w", err)
 	}
 	if pending.Scope != agent.RestoreHistory && !replaySafe(pending, window) {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		return result, errors.New("file rollback replay guarantee expired or belongs to another runtime")
 	}
 
@@ -247,12 +237,12 @@ func Settle(
 		})
 	}
 	if errors.Is(rollbackErr, agent.ErrCommandStoreMismatch) {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		return result, fmt.Errorf("rollback session outcome is unknown: %w", rollbackErr)
 	}
 	after, readErr := runtime.GetSession(ctx, pending.SessionID)
 	if readErr != nil {
-		result.Outcome = Unknown
+		result.Outcome = mutation.Unknown
 		var commandErr error
 		if rollbackErr != nil {
 			commandErr = fmt.Errorf("rollback session: %w", rollbackErr)
@@ -262,23 +252,23 @@ func Settle(
 	result.Snapshot = after
 	if rollbackErr == nil {
 		if err := validateAcknowledged(pending, rollbackResult, after); err != nil {
-			result.Outcome = Unknown
+			result.Outcome = mutation.Unknown
 			return result, err
 		}
-		result.Outcome = Confirmed
+		result.Outcome = mutation.Confirmed
 		return result, nil
 	}
 	if err := validateApplied(pending, after); err == nil {
-		result.Outcome = Confirmed
+		result.Outcome = mutation.Confirmed
 		return result, rollbackErr
 	}
 	if pending.Scope == agent.RestoreHistory && !mutation.OutcomeUnknown(rollbackErr) {
 		if err := validateBefore(pending, after); err == nil {
-			result.Outcome = Rejected
+			result.Outcome = mutation.Rejected
 			return result, rollbackErr
 		}
 	}
-	result.Outcome = Unknown
+	result.Outcome = mutation.Unknown
 	return result, errors.Join(
 		fmt.Errorf("rollback session: %w", rollbackErr),
 		errors.New("authoritative session does not prove whether the rollback committed"),
@@ -390,15 +380,15 @@ func Recover(
 		}
 		result, err := Settle(ctx, runtime, pending, window, backoff)
 		switch result.Outcome {
-		case Confirmed:
+		case mutation.Confirmed:
 			if confirmErr := Confirm(authoring, result); confirmErr != nil {
 				return errors.Join(err, confirmErr)
 			}
-		case Rejected:
+		case mutation.Rejected:
 			if rejectErr := Reject(authoring, result); rejectErr != nil {
 				return errors.Join(err, rejectErr)
 			}
-		case Unknown:
+		case mutation.Unknown:
 			if errors.Is(err, agent.ErrSessionNotFound) {
 				if retireErr := authoring.RetireSessionState(pending.SessionID); retireErr != nil {
 					return errors.Join(err, retireErr)

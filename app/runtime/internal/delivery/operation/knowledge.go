@@ -6,9 +6,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	KnowledgeList   Name = "knowledge.list"
+	KnowledgeGet    Name = "knowledge.get"
+	KnowledgeUpdate Name = "knowledge.update"
+)
+
 func registerKnowledge(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name: "knowledge.list", Errors: []string{
+	registry.Query(MethodMeta{
+		Name: KnowledgeList, Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge),
@@ -18,8 +24,8 @@ func registerKnowledge(registry *Registry) {
 		return service.ListKnowledge(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "knowledge.get", Errors: []string{
+	registry.Query(MethodMeta{
+		Name: KnowledgeGet, Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge),
@@ -29,8 +35,8 @@ func registerKnowledge(registry *Registry) {
 		return service.GetKnowledge(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "knowledge.update", Errors: []string{
+	registry.Command(MethodMeta{
+		Name: KnowledgeUpdate, Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
 			protocol.ErrRevisionConflict.Error(),
 		},

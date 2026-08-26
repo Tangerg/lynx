@@ -22,6 +22,7 @@ type Session struct {
 	ID        string
 	Title     string
 	Status    SessionStatus
+	Provider  string
 	Model     string
 	Workspace workspace.Workspace
 	CreatedAt time.Time
@@ -33,7 +34,7 @@ type Session struct {
 // Equal reports whether two session projections carry the same durable state.
 func (s Session) Equal(other Session) bool {
 	return s.ID == other.ID && s.Title == other.Title && s.Status == other.Status &&
-		s.Model == other.Model && s.Workspace == other.Workspace &&
+		s.Provider == other.Provider && s.Model == other.Model && s.Workspace == other.Workspace &&
 		s.CreatedAt.Equal(other.CreatedAt) && s.UpdatedAt.Equal(other.UpdatedAt) &&
 		s.Favorite == other.Favorite && s.Revision == other.Revision
 }
@@ -49,11 +50,55 @@ func (s Session) Validate() error {
 	if s.Status != SessionRunning && s.Status != SessionWaiting && s.Status != SessionIdle {
 		problems = append(problems, fmt.Errorf("status %q is invalid", s.Status))
 	}
+	if err := (ModelRef{Provider: s.Provider, Model: s.Model}).Validate(); err != nil {
+		problems = append(problems, err)
+	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("session: %w", err)
 	}
 	return nil
 }
+
+// ModelRef is one complete provider/model identity. Provider and model always
+// move together so callers cannot create a session update that the Runtime has
+// to guess how to complete.
+type ModelRef struct {
+	Provider string
+	Model    string
+}
+
+const modelRefSeparator = "/"
+
+func NewModelRef(provider, model string) (ModelRef, error) {
+	ref := ModelRef{Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model)}
+	if err := ref.Validate(); err != nil {
+		return ModelRef{}, err
+	}
+	return ref, nil
+}
+
+func ParseModelRef(value string) (ModelRef, error) {
+	provider, model, found := strings.Cut(strings.TrimSpace(value), modelRefSeparator)
+	if !found {
+		return ModelRef{}, fmt.Errorf("model identity must use provider%smodel form", modelRefSeparator)
+	}
+	return NewModelRef(provider, model)
+}
+
+func (ref ModelRef) Validate() error {
+	if strings.TrimSpace(ref.Provider) == "" || strings.TrimSpace(ref.Model) == "" {
+		return errors.New("model identity requires provider and model")
+	}
+	if ref.Provider != strings.TrimSpace(ref.Provider) || ref.Model != strings.TrimSpace(ref.Model) {
+		return errors.New("model identity must not have surrounding whitespace")
+	}
+	if strings.Contains(ref.Provider, modelRefSeparator) {
+		return fmt.Errorf("model identity provider must not contain %q", modelRefSeparator)
+	}
+	return nil
+}
+
+func (ref ModelRef) String() string { return ref.Provider + modelRefSeparator + ref.Model }
 
 type SessionQuery struct {
 	Cursor    string
@@ -450,7 +495,7 @@ type UpdateSession struct {
 	SessionID        string
 	Title            *string
 	Workspace        *string
-	Model            *string
+	Model            *ModelRef
 	Favorite         *bool
 	ExpectedRevision uint64
 }
@@ -467,6 +512,11 @@ func (update UpdateSession) Validate() error {
 	}
 	if update.Workspace != nil && strings.TrimSpace(*update.Workspace) == "" {
 		return errors.New("session update: workspace is empty")
+	}
+	if update.Model != nil {
+		if err := update.Model.Validate(); err != nil {
+			return fmt.Errorf("session update: %w", err)
+		}
 	}
 	return nil
 }
@@ -494,8 +544,8 @@ func (update UpdateSession) ValidateResult(result Session) error {
 	if update.Workspace != nil && result.Workspace.Path != strings.TrimSpace(*update.Workspace) {
 		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, strings.TrimSpace(*update.Workspace)))
 	}
-	if update.Model != nil && result.Model != strings.TrimSpace(*update.Model) {
-		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", result.Model, strings.TrimSpace(*update.Model)))
+	if update.Model != nil && (result.Provider != update.Model.Provider || result.Model != update.Model.Model) {
+		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", (ModelRef{Provider: result.Provider, Model: result.Model}).String(), update.Model.String()))
 	}
 	if update.Favorite != nil && result.Favorite != *update.Favorite {
 		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, *update.Favorite))

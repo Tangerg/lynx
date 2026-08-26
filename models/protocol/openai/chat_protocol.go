@@ -81,8 +81,8 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if err := validateProvider(dialect.Provider); err != nil {
-		return nil, fmt.Errorf("openai: dialect.Provider: %w", err)
+	if err := dialect.Validate(); err != nil {
+		return nil, fmt.Errorf("openai: dialect: %w", err)
 	}
 	api, err := newAPI(apiConfig{
 		APIKey:     config.APIKey,

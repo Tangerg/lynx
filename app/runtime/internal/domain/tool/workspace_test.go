@@ -10,6 +10,7 @@ func TestBypassImmunityFor_FileMutationScope(t *testing.T) {
 	}{
 		{name: "outside", scope: FileMutationOutsideWorkspace, want: true},
 		{name: "unknown", scope: FileMutationUnknown, want: true},
+		{name: "invalid", scope: FileMutationScope("future"), want: true},
 		{name: "inside", scope: FileMutationWithinWorkspace},
 		{name: "none", scope: FileMutationNone},
 	}

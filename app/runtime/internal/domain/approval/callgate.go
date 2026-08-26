@@ -48,29 +48,41 @@ type Denial struct {
 }
 
 // DenialCause is the policy source of a refusal.
-type DenialCause uint8
+type DenialCause string
 
 const (
-	DenialNone DenialCause = iota
-	DenialHook
-	DenialPlanMode
-	DenialRememberedRule
+	DenialNone           DenialCause = ""
+	DenialHook           DenialCause = "hook"
+	DenialPlanMode       DenialCause = "planMode"
+	DenialRememberedRule DenialCause = "rememberedRule"
 )
+
+// Valid reports whether cause belongs to the denial taxonomy.
+func (cause DenialCause) Valid() bool {
+	return cause == DenialNone || cause == DenialHook || cause == DenialPlanMode || cause == DenialRememberedRule
+}
 
 // PromptCause is the policy fact an approval surface explains to a user.
-type PromptCause uint8
+type PromptCause string
 
 const (
-	PromptCauseNone PromptCause = iota
-	PromptCauseRead
-	PromptCauseWorkspaceWrite
-	PromptCauseWorkspaceCommand
-	PromptCauseNetworkAccess
-	PromptCauseUnknownSafety
-	PromptCauseOutsideWorkspace
-	PromptCauseUnknownMutation
-	PromptCauseCatastrophicCommand
+	PromptCauseNone                PromptCause = ""
+	PromptCauseNonMutating         PromptCause = "nonMutating"
+	PromptCauseWorkspaceWrite      PromptCause = "workspaceWrite"
+	PromptCauseWorkspaceCommand    PromptCause = "workspaceCommand"
+	PromptCauseNetworkAccess       PromptCause = "networkAccess"
+	PromptCauseUnknownSafety       PromptCause = "unknownSafety"
+	PromptCauseOutsideWorkspace    PromptCause = "outsideWorkspace"
+	PromptCauseUnknownMutation     PromptCause = "unknownMutation"
+	PromptCauseCatastrophicCommand PromptCause = "catastrophicCommand"
 )
+
+// Valid reports whether cause belongs to the approval prompt taxonomy.
+func (cause PromptCause) Valid() bool {
+	return cause == PromptCauseNone || cause == PromptCauseNonMutating || cause == PromptCauseWorkspaceWrite ||
+		cause == PromptCauseWorkspaceCommand || cause == PromptCauseNetworkAccess || cause == PromptCauseUnknownSafety ||
+		cause == PromptCauseOutsideWorkspace || cause == PromptCauseUnknownMutation || cause == PromptCauseCatastrophicCommand
+}
 
 // Plan applies hook and approval-mode policy to one tool call. It does not
 // read remembered rules and it does not trigger HITL; callers only do those
@@ -153,7 +165,7 @@ func DecisionOf(approved bool) Decision {
 func promptCauseForSafetyClass(class tool.SafetyClass) PromptCause {
 	switch class {
 	case tool.SafetyClassSafe:
-		return PromptCauseRead
+		return PromptCauseNonMutating
 	case tool.SafetyClassWrite:
 		return PromptCauseWorkspaceWrite
 	case tool.SafetyClassExec:

@@ -121,7 +121,7 @@ func (a *app) PrepareDeleteSchedule(identity string) error {
 func (a *app) RunScheduleNow(identity string) error {
 	return a.loadSchedule(identity, "loading schedule to run", func(scheduled schedule.Schedule) {
 		a.status.note("running schedule " + scheduled.ID)
-		started := runApplicationOperation(a, scheduleOperation, false,
+		started := a.runApplicationOperation(scheduleOperation, false,
 			func(ctx context.Context) (schedule.RunHandle, error) { return a.schedules.RunNow(ctx, scheduled.ID) },
 			func(handle schedule.RunHandle, err error) {
 				if err != nil {
@@ -146,7 +146,7 @@ func (a *app) loadSchedule(identity, label string, apply func(schedule.Schedule)
 		return errors.New("a schedule id, unique prefix, or unique title is required")
 	}
 	a.status.note(label)
-	started := runOperation(a, scheduleOperation, false,
+	started := a.runOperation(scheduleOperation, false,
 		func(ctx context.Context) (schedule.Schedule, error) {
 			schedules, err := a.schedules.Schedules(ctx)
 			if err != nil {
@@ -193,7 +193,7 @@ func resolveSchedule(schedules []schedule.Schedule, identity string) (schedule.S
 func (a *app) createSchedule(candidate schedule.Candidate) {
 	presentation := a.sessionContext
 	a.status.note("creating schedule")
-	started := runApplicationOperation(a, scheduleOperation, false,
+	started := a.runApplicationOperation(scheduleOperation, false,
 		func(ctx context.Context) (schedule.Schedule, error) { return a.schedules.Create(ctx, candidate) },
 		func(created schedule.Schedule, err error) {
 			if err != nil {
@@ -211,7 +211,7 @@ func (a *app) createSchedule(candidate schedule.Candidate) {
 func (a *app) updateSchedule(patch schedule.Patch, label string) {
 	presentation := a.sessionContext
 	a.status.note(label)
-	started := runApplicationOperation(a, scheduleOperation, false,
+	started := a.runApplicationOperation(scheduleOperation, false,
 		func(ctx context.Context) (schedule.Schedule, error) { return a.schedules.Update(ctx, patch) },
 		func(updated schedule.Schedule, err error) {
 			if err != nil {
@@ -229,7 +229,7 @@ func (a *app) updateSchedule(patch schedule.Patch, label string) {
 func (a *app) deleteSchedule(id string) {
 	presentation := a.sessionContext
 	a.status.note("deleting schedule " + id)
-	started := runApplicationOperation(a, scheduleOperation, false,
+	started := a.runApplicationOperation(scheduleOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.schedules.Delete(ctx, id) },
 		func(deleted string, err error) {
 			if err != nil {

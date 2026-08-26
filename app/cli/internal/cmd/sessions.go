@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
@@ -61,7 +62,11 @@ func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
 				update.Workspace = &resolved
 			}
 			if cmd.Flags().Changed("model") {
-				update.Model = &model
+				ref, err := agent.ParseModelRef(model)
+				if err != nil {
+					return err
+				}
+				update.Model = &ref
 			}
 			if cmd.Flags().Changed("favorite") {
 				update.Favorite = &favorite
@@ -86,7 +91,7 @@ func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&title, "title", "", "Replace the session title")
 	cmd.Flags().StringVar(&workspace, "workspace", "", "Relocate the session to this workspace")
-	cmd.Flags().StringVar(&model, "model", "", "Set the session model (empty selects the runtime default)")
+	cmd.Flags().StringVar(&model, "model", "", "Set the session model in provider/model form")
 	cmd.Flags().BoolVar(&favorite, "favorite", false, "Set whether the session is a favorite")
 	cmd.Flags().Uint64Var(&revision, "revision", 0, "Revision previously read from sessions ls/show")
 	_ = cmd.MarkFlagRequired("revision")
@@ -287,16 +292,19 @@ func newSessionsDeleteCommand(provider runtimeProvider, stateDirectory string) *
 				retry.Backoff{Base: 50 * time.Millisecond, Maximum: time.Second},
 			)
 			switch result.Outcome {
-			case sessiondeletion.Rejected:
+			case mutation.Rejected:
 				if rejectErr := sessiondeletion.Reject(authoring, result); rejectErr != nil {
 					return errors.Join(err, rejectErr)
 				}
 				return err
-			case sessiondeletion.Unknown:
+			case mutation.Unknown:
 				if result.Request.CommandID == "" {
 					return err
 				}
 				return fmt.Errorf("delete session outcome is unknown; retry the same command to reconcile it: %w", err)
+			case mutation.Confirmed:
+			default:
+				return errors.New("delete session returned an invalid settlement outcome")
 			}
 			if err := sessiondeletion.Confirm(authoring, result); err != nil {
 				return fmt.Errorf("retire deleted session state: %w", err)

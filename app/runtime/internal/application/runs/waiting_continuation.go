@@ -79,12 +79,11 @@ func waitingContinuationFromPending(
 // Validate verifies one surviving product member without interpreting executor
 // topology or checkpoint payload.
 func (member WaitingMember) Validate() error {
-	for name, value := range map[string]string{
-		"Run ID": member.RunID, "member ID": member.MemberID,
-	} {
-		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
-			return fmt.Errorf("runs: waiting member %s is required without surrounding whitespace", name)
-		}
+	if err := validateRequiredIdentity("Run ID", member.RunID); err != nil {
+		return fmt.Errorf("runs: waiting member: %w", err)
+	}
+	if err := validateRequiredIdentity("member ID", member.MemberID); err != nil {
+		return fmt.Errorf("runs: waiting member: %w", err)
 	}
 	if member.ParentRunID != strings.TrimSpace(member.ParentRunID) || member.ParentRunID == member.RunID ||
 		member.SpawnedByItemID != strings.TrimSpace(member.SpawnedByItemID) {
@@ -122,14 +121,14 @@ func (continuation WaitingContinuation) Validate() error {
 }
 
 func validateWaitingContinuationEnvelope(continuation WaitingContinuation) error {
-	for name, value := range map[string]string{
-		"Session ID":  continuation.SessionID,
-		"executor ID": continuation.ExecutorID,
-		"root Run ID": continuation.RootRunID,
-	} {
-		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
-			return fmt.Errorf("runs: waiting continuation %s is required without surrounding whitespace", name)
-		}
+	if err := validateRequiredIdentity("Session ID", continuation.SessionID); err != nil {
+		return fmt.Errorf("runs: waiting continuation: %w", err)
+	}
+	if err := validateRequiredIdentity("executor ID", continuation.ExecutorID); err != nil {
+		return fmt.Errorf("runs: waiting continuation: %w", err)
+	}
+	if err := validateRequiredIdentity("root Run ID", continuation.RootRunID); err != nil {
+		return fmt.Errorf("runs: waiting continuation: %w", err)
 	}
 	if len(continuation.Members) == 0 {
 		return errors.New("runs: waiting continuation has no surviving members")

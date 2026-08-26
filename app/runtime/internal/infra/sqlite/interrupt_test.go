@@ -41,7 +41,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose", Kind: transcript.QuestionText}}},
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_question",
@@ -179,7 +179,7 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_question", MemberID: "member_root", RequestID: "request_root",
@@ -214,7 +214,7 @@ func TestInterruptStoreDeleteResumeClaimMatchesOnlyTheOwnedResumingRow(t *testin
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(),
 			RunID: "run_claimed", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_question", MemberID: "member_root", RequestID: "request_root",
@@ -282,7 +282,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_child", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_child", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_child",
@@ -355,7 +355,7 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_root", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_question", MemberID: "member_root", RequestID: "request_root",
@@ -409,7 +409,7 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 			},
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_" + runID, ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: runID,
-				Kind: interrupt.Question, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
+				Kind: interrupt.Question, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?", Kind: transcript.QuestionText}}},
 			}},
 			Bindings: []runs.InterruptBinding{{
 				InterruptItemID: "item_" + runID,

@@ -119,7 +119,7 @@ func artifactOutcomeType(outcome run.Outcome) (protocol.ArtifactOutcomeType, err
 	case run.OutcomeLost:
 		return protocol.ArtifactOutcomeLost, nil
 	default:
-		return "", fmt.Errorf("unknown value %d", outcome)
+		return "", fmt.Errorf("unknown value %q", outcome)
 	}
 }
 
@@ -200,7 +200,7 @@ func artifactRunFailureType(kind run.FailureKind) (protocol.ArtifactProblemType,
 	case run.FailureProviderRejected:
 		return protocol.ArtifactProblemProviderRejected, nil
 	default:
-		return "", fmt.Errorf("unknown value %d", kind)
+		return "", fmt.Errorf("unknown value %q", kind)
 	}
 }
 
@@ -221,7 +221,7 @@ func artifactToolFailureFromDomain(failure *tool.Failure) (*protocol.ArtifactPro
 	case tool.FailureCanceled:
 		kind = protocol.ArtifactProblemToolCanceled
 	default:
-		return nil, fmt.Errorf("unknown value %d", failure.Kind)
+		return nil, fmt.Errorf("unknown value %q", failure.Kind)
 	}
 	return &protocol.ArtifactProblem{
 		Type: kind, Detail: failure.Detail, DocURL: failure.DocURL,
@@ -300,27 +300,15 @@ func artifactItemStatus(status transcript.ItemStatus) (protocol.ItemStatus, erro
 	case transcript.ItemIncomplete:
 		return protocol.ItemStatusIncomplete, nil
 	default:
-		return "", fmt.Errorf("unknown value %d", status)
+		return "", fmt.Errorf("unknown value %q", status)
 	}
 }
 
 func artifactItemType(kind transcript.ItemKind) (protocol.ItemType, error) {
-	switch kind {
-	case transcript.UserMessage:
-		return protocol.ItemTypeUserMessage, nil
-	case transcript.AgentMessage:
-		return protocol.ItemTypeAgentMessage, nil
-	case transcript.Reasoning:
-		return protocol.ItemTypeReasoning, nil
-	case transcript.QuestionItem:
-		return protocol.ItemTypeQuestion, nil
-	case transcript.ToolCall:
-		return protocol.ItemTypeToolCall, nil
-	case transcript.Compaction:
-		return protocol.ItemTypeCompaction, nil
-	default:
-		return "", fmt.Errorf("unknown value %d", kind)
+	if !kind.Valid() {
+		return "", fmt.Errorf("unknown value %q", kind)
 	}
+	return protocol.ItemType(kind), nil
 }
 
 func artifactQuestionFromDomain(question transcript.Question) (*protocol.ArtifactQuestion, error) {
@@ -340,7 +328,7 @@ func artifactQuestionFromDomain(question transcript.Question) (*protocol.Artifac
 		case transcript.QuestionChoice:
 			fieldType = protocol.QuestionFieldChoice
 		default:
-			return nil, fmt.Errorf("field %d has unknown type %d", index, field.Kind)
+			return nil, fmt.Errorf("field %d has unknown type %q", index, field.Kind)
 		}
 		fields[index] = protocol.ArtifactQuestionField{
 			Prompt: field.Prompt, Header: field.Header, Type: fieldType,

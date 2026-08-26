@@ -110,7 +110,7 @@ func (a *app) EditKnowledge(argument string) error {
 		return err
 	}
 	a.status.note("loading " + string(target.Scope) + " LYRA.md to edit")
-	if !runOperation(a, knowledgeOperation, false,
+	if !a.runOperation(knowledgeOperation, false,
 		func(ctx context.Context) (knowledge.Entry, error) { return a.knowledge.Document(ctx, target) },
 		func(entry knowledge.Entry, err error) {
 			if err != nil {
@@ -148,7 +148,7 @@ func (a *app) saveKnowledge(current *knowledge.Entry, target knowledge.Target, c
 		return err
 	}
 	a.status.note("saving " + string(target.Scope) + " LYRA.md")
-	if !runAdmissionMutation(a, knowledgeOperation, false,
+	if !a.runAdmissionMutation(knowledgeOperation, false,
 		func(ctx context.Context) (knowledge.Entry, error) { return a.knowledge.Save(ctx, update) },
 		func(saved knowledge.Entry, err error) {
 			if err != nil {

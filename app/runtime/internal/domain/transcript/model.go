@@ -18,69 +18,59 @@ import (
 // one Session for their entire lifetime; persistence must never re-parent them.
 var ErrIdentityConflict = errors.New("transcript: identity conflict")
 
-type ItemStatus uint8
+type ItemStatus string
 
 const (
-	ItemRunning ItemStatus = iota
-	ItemCompleted
-	ItemIncomplete
+	ItemRunning    ItemStatus = "running"
+	ItemCompleted  ItemStatus = "completed"
+	ItemIncomplete ItemStatus = "incomplete"
 )
 
-func (status ItemStatus) String() string {
-	switch status {
-	case ItemRunning:
-		return "running"
-	case ItemCompleted:
-		return "completed"
-	case ItemIncomplete:
-		return "incomplete"
-	default:
-		return "unknown"
-	}
+// Valid reports whether status belongs to the durable Item lifecycle vocabulary.
+func (status ItemStatus) Valid() bool {
+	return status == ItemRunning || status == ItemCompleted || status == ItemIncomplete
 }
 
-type ItemKind uint8
-
-const (
-	// ItemKind values name the closed semantic variants of a transcript item.
-	// Durable codecs choose and validate their own discriminants.
-	UserMessage  ItemKind = 0
-	AgentMessage ItemKind = 1
-	Reasoning    ItemKind = 2
-	QuestionItem ItemKind = 4
-	ToolCall     ItemKind = 5
-	Compaction   ItemKind = 6
-)
-
-func (kind ItemKind) String() string {
-	switch kind {
-	case UserMessage:
-		return "userMessage"
-	case AgentMessage:
-		return "agentMessage"
-	case Reasoning:
-		return "reasoning"
-	case QuestionItem:
-		return "question"
-	case ToolCall:
-		return "toolCall"
-	case Compaction:
-		return "compaction"
-	default:
+func (status ItemStatus) String() string {
+	if !status.Valid() {
 		return "unknown"
 	}
+	return string(status)
+}
+
+type ItemKind string
+
+const (
+	UserMessage  ItemKind = "userMessage"
+	AgentMessage ItemKind = "agentMessage"
+	Reasoning    ItemKind = "reasoning"
+	QuestionItem ItemKind = "question"
+	ToolCall     ItemKind = "toolCall"
+	Compaction   ItemKind = "compaction"
+)
+
+func (kind ItemKind) Valid() bool {
+	return kind == UserMessage || kind == AgentMessage || kind == Reasoning ||
+		kind == QuestionItem || kind == ToolCall || kind == Compaction
+}
+
+func (kind ItemKind) String() string {
+	if !kind.Valid() {
+		return "unknown"
+	}
+	return string(kind)
 }
 
 // MessagePhase names the semantic role of one AgentMessage in a model turn.
 // Commentary is progress or a preamble before more work; FinalAnswer is the
 // terminal response a completed Run leaves with the user. The phase is authored
 // at the model-call boundary and survives every transcript representation.
-type MessagePhase uint8
+type MessagePhase string
 
 const (
-	MessagePhaseNone MessagePhase = iota
-	MessageCommentary
-	MessageFinalAnswer
+	MessagePhaseNone   MessagePhase = ""
+	MessageCommentary  MessagePhase = "commentary"
+	MessageFinalAnswer MessagePhase = "finalAnswer"
 )
 
 // Valid reports whether phase is one of the two authored AgentMessage roles.
@@ -89,14 +79,10 @@ func (phase MessagePhase) Valid() bool {
 }
 
 func (phase MessagePhase) String() string {
-	switch phase {
-	case MessageCommentary:
-		return "commentary"
-	case MessageFinalAnswer:
-		return "finalAnswer"
-	default:
+	if !phase.Valid() {
 		return "unknown"
 	}
+	return string(phase)
 }
 
 // SequencedItem pairs a history Item with its position in the session's durable
@@ -144,12 +130,23 @@ func (o SequenceOrder) Validate() error {
 
 func (o SequenceOrder) String() string { return string(o) }
 
-type ContentKind uint8
+type ContentKind string
 
 const (
-	TextContent ContentKind = iota
-	ImageContent
+	TextContent  ContentKind = "text"
+	ImageContent ContentKind = "image"
 )
+
+// Valid reports whether kind names a supported content representation.
+func (kind ContentKind) Valid() bool { return kind == TextContent || kind == ImageContent }
+
+// String returns the stable content representation name.
+func (kind ContentKind) String() string {
+	if !kind.Valid() {
+		return "unknown"
+	}
+	return string(kind)
+}
 
 type ContentBlock struct {
 	Kind      ContentKind
@@ -190,12 +187,23 @@ type QuestionField struct {
 	AllowCustom bool
 }
 
-type QuestionFieldKind uint8
+type QuestionFieldKind string
 
 const (
-	QuestionText QuestionFieldKind = iota
-	QuestionChoice
+	QuestionText   QuestionFieldKind = "text"
+	QuestionChoice QuestionFieldKind = "choice"
 )
+
+// Valid reports whether kind names a supported question field shape.
+func (kind QuestionFieldKind) Valid() bool { return kind == QuestionText || kind == QuestionChoice }
+
+// String returns the stable question field shape name.
+func (kind QuestionFieldKind) String() string {
+	if !kind.Valid() {
+		return "unknown"
+	}
+	return string(kind)
+}
 
 type QuestionOption struct {
 	Label       string
@@ -275,7 +283,7 @@ func (block ContentBlock) Validate() error {
 			return errors.New("image content cannot carry text")
 		}
 	default:
-		return fmt.Errorf("unknown content kind %d", block.Kind)
+		return fmt.Errorf("unknown content kind %q", block.Kind)
 	}
 	return nil
 }
@@ -302,7 +310,7 @@ func (question Question) Validate() error {
 				return fmt.Errorf("choice question field %d requires at least two options", index)
 			}
 		default:
-			return fmt.Errorf("question field %d has unknown kind %d", index, field.Kind)
+			return fmt.Errorf("question field %d has unknown kind %q", index, field.Kind)
 		}
 		seenOptions := make(map[string]struct{}, len(field.Options))
 		for optionIndex, option := range field.Options {
@@ -386,6 +394,6 @@ func validateQuestionAnswer(field QuestionField, values []string) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("unknown question field kind %d", field.Kind)
+		return fmt.Errorf("unknown question field kind %q", field.Kind)
 	}
 }

@@ -15,56 +15,40 @@ const maxPauseReasonBytes = 4096
 var ErrInvalidTransition = errors.New("agent: invalid transition")
 
 // TransitionKind is the lifecycle intent produced by one bounded Step.
-type TransitionKind uint8
+type TransitionKind string
 
 const (
 	// TransitionKindInvalid is the invalid zero value.
-	TransitionKindInvalid TransitionKind = iota
+	TransitionKindInvalid TransitionKind = ""
 	// TransitionKindContinue advances to another runnable Step.
-	TransitionKindContinue
+	TransitionKindContinue TransitionKind = "continue"
 	// TransitionKindWait enters an Engine-minted wait.
-	TransitionKindWait
+	TransitionKindWait TransitionKind = "wait"
 	// TransitionKindPause enters an explicit scheduling pause.
-	TransitionKindPause
+	TransitionKindPause TransitionKind = "pause"
 	// TransitionKindComplete commits a validated semantic Output.
-	TransitionKindComplete
+	TransitionKindComplete TransitionKind = "complete"
 	// TransitionKindFail commits a classified failure.
-	TransitionKindFail
+	TransitionKindFail TransitionKind = "fail"
 )
 
-// String returns the stable Transition kind name.
-func (kind TransitionKind) String() string {
+// Valid reports whether kind is a supported lifecycle intent.
+func (kind TransitionKind) Valid() bool {
 	switch kind {
-	case TransitionKindContinue:
-		return "continue"
-	case TransitionKindWait:
-		return "wait"
-	case TransitionKindPause:
-		return "pause"
-	case TransitionKindComplete:
-		return "complete"
-	case TransitionKindFail:
-		return "fail"
+	case TransitionKindContinue, TransitionKindWait, TransitionKindPause,
+		TransitionKindComplete, TransitionKindFail:
+		return true
 	default:
-		return "invalid"
+		return false
 	}
 }
 
-func parseTransitionKind(value string) (TransitionKind, error) {
-	switch value {
-	case "continue":
-		return TransitionKindContinue, nil
-	case "wait":
-		return TransitionKindWait, nil
-	case "pause":
-		return TransitionKindPause, nil
-	case "complete":
-		return TransitionKindComplete, nil
-	case "fail":
-		return TransitionKindFail, nil
-	default:
-		return TransitionKindInvalid, fmt.Errorf("%w: unknown kind %q", ErrInvalidTransition, value)
+// String returns the stable Transition kind name.
+func (kind TransitionKind) String() string {
+	if !kind.Valid() {
+		return "invalid"
 	}
+	return string(kind)
 }
 
 // Transition is an immutable candidate lifecycle intent. The Engine validates
@@ -195,7 +179,7 @@ func (t Transition) MarshalJSON() ([]byte, error) {
 	if !t.Valid() {
 		return nil, ErrInvalidTransition
 	}
-	wire := transitionWire{Kind: t.kind.String(), ConsumedSignals: t.consumedSignals}
+	wire := transitionWire{Kind: t.kind, ConsumedSignals: t.consumedSignals}
 	switch t.kind {
 	case TransitionKindContinue:
 		wire.Effects = t.effects
@@ -225,11 +209,7 @@ func (t *Transition) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidTransition, err)
 	}
-	kind, err := parseTransitionKind(wire.Kind)
-	if err != nil {
-		return err
-	}
-	value, err := transitionFromWire(kind, wire)
+	value, err := transitionFromWire(wire.Kind, wire)
 	if err != nil {
 		return err
 	}
@@ -274,7 +254,7 @@ func transitionFromWire(kind TransitionKind, wire transitionWire) (Transition, e
 }
 
 type transitionWire struct {
-	Kind            string          `json:"kind"`
+	Kind            TransitionKind  `json:"kind"`
 	ConsumedSignals uint32          `json:"consumed_signals"`
 	Effects         []Effect        `json:"effects,omitempty"`
 	WaitID          *WaitID         `json:"wait_id,omitempty"`

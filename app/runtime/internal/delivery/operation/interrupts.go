@@ -6,6 +6,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const InterruptsList Name = "interrupts.list"
+
 func registerInterrupts(registry *Registry) {
 	// interrupts.list is its own root because a waiting set belongs to a run TREE,
 	// not to one run: it was runs.listOpenInterrupts, which read as "one run's
@@ -13,8 +15,8 @@ func registerInterrupts(registry *Registry) {
 	//
 	// run_not_root is declared because the filter can name a child, and that is a
 	// different answer from "nothing is waiting".
-	Query(registry, MethodMeta{
-		Name: "interrupts.list",
+	registry.Query(MethodMeta{
+		Name: InterruptsList,
 		Errors: []string{
 			protocol.ErrRunNotRoot.Error(),
 			protocol.ErrCapabilityNotNeg.Error(),

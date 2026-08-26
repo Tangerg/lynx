@@ -367,17 +367,6 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 		t.Fatal("projected content index aliases the runtime event")
 	}
 
-	customEvent, include, err := project("custom", protocol.StreamEvent{
-		Type: protocol.StreamCustom, Name: "vendor.trace", Payload: map[string]any{"span": "abc", "sampled": true},
-	})
-	if err != nil || !include {
-		t.Fatalf("custom = (include %v, error %v)", include, err)
-	}
-	custom, ok := customEvent.Event.(agent.CustomEvent)
-	if !ok || custom.Name != "vendor.trace" || !json.Valid(custom.PayloadJSON) || !bytes.Contains(custom.PayloadJSON, []byte(`"span":"abc"`)) {
-		t.Fatalf("projected custom event = %#v", customEvent.Event)
-	}
-
 	streamError := errors.New("broken stream")
 	stream := projectEventStream(func(yield func(protocol.RunEvent, error) bool) {
 		yield(protocol.RunEvent{}, streamError)
@@ -426,15 +415,15 @@ func TestProjectEventConsumesAuthoritativeItemAndStateFrames(t *testing.T) {
 			},
 		},
 		{
-			name: "state snapshot",
-			event: protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: &protocol.StateSnapshot{
-				Type: protocol.StatePlan, SessionID: "session_1", Revision: 2, UpdatedAt: at,
-				Plan: []protocol.PlanSnapshot{{ID: "step_1", Description: "verify", Status: protocol.PlanStatusInProgress}},
+			name: "plan updated",
+			event: protocol.StreamEvent{Type: protocol.StreamPlanUpdated, Plan: &protocol.Plan{
+				SessionID: "session_1", Revision: 2, UpdatedAt: at,
+				Steps: []protocol.PlanStep{{ID: "step_1", Description: "verify", Status: protocol.PlanStatusInProgress}},
 			}},
 			assert: func(t *testing.T, event agent.RunEvent) {
 				plan, ok := event.Event.(agent.PlanChanged)
 				if !ok || plan.Revision != 2 || len(plan.Items) != 1 || plan.Items[0].Title != "verify" || plan.Items[0].Status != agent.PlanActive {
-					t.Fatalf("state.snapshot = %#v", event.Event)
+					t.Fatalf("plan.updated = %#v", event.Event)
 				}
 			},
 		},
@@ -549,6 +538,7 @@ func TestProjectSnapshotKeepsPendingApprovalIdenticalToToolItem(t *testing.T) {
 	snapshot, err := projectSnapshot(coldRead{
 		session: protocol.Session{
 			ID: "ses_1", Status: protocol.SessionStatusWaiting,
+			Provider: testSessionProvider, Model: testSessionModel,
 			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		},
 		runs: []protocol.RunRef{{
@@ -562,7 +552,7 @@ func TestProjectSnapshotKeepsPendingApprovalIdenticalToToolItem(t *testing.T) {
 			ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusRunning,
 			Type: protocol.ItemTypeToolCall, Tool: tool,
 		}},
-		plan: &protocol.StateSnapshot{Type: protocol.StatePlan, SessionID: "ses_1", Plan: []protocol.PlanSnapshot{}},
+		plan: &protocol.Plan{SessionID: "ses_1", Steps: []protocol.PlanStep{}},
 		interrupts: []protocol.PendingInterruptSet{{
 			RootRunID: "run_1", SessionID: "ses_1",
 			Interrupts: []protocol.Interrupt{{

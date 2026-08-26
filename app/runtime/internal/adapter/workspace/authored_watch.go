@@ -36,10 +36,11 @@ var _ workspaceapp.AuthoredResourceWatcher = AuthoredWatcher{}
 // Skills root disables only global Skill observation; project Skills remain
 // observable from request scopes.
 func NewAuthoredWatcher(knowledgeHome, hooksHome, skillsHome string) (AuthoredWatcher, error) {
-	for name, path := range map[string]string{"knowledge home": knowledgeHome, "hooks home": hooksHome} {
-		if path == "" || !filepath.IsAbs(path) {
-			return AuthoredWatcher{}, fmt.Errorf("workspace authored watcher: %s must be absolute", name)
-		}
+	if knowledgeHome == "" || !filepath.IsAbs(knowledgeHome) {
+		return AuthoredWatcher{}, errors.New("workspace authored watcher: knowledge home must be absolute")
+	}
+	if hooksHome == "" || !filepath.IsAbs(hooksHome) {
+		return AuthoredWatcher{}, errors.New("workspace authored watcher: hooks home must be absolute")
 	}
 	if skillsHome != "" && !filepath.IsAbs(skillsHome) {
 		return AuthoredWatcher{}, errors.New("workspace authored watcher: skills home must be absolute when set")

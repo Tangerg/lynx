@@ -197,7 +197,7 @@ type hookDecisionWire struct {
 func hookDecisionFromWire(stdout []byte) (apphooks.CommandDecision, error) {
 	trimmed := bytes.TrimSpace(stdout)
 	if len(trimmed) == 0 {
-		return apphooks.CommandDecision{}, nil
+		return apphooks.CommandDecision{Verdict: apphooks.CommandAllow}, nil
 	}
 	if !utf8.Valid(stdout) {
 		return apphooks.CommandDecision{}, errors.New("hooks: command decision is not valid UTF-8")
@@ -236,16 +236,14 @@ func requireHookDecisionEOF(decoder *json.Decoder) error {
 }
 
 func hookVerdictFromWire(verdict string) (apphooks.CommandVerdict, error) {
-	switch verdict {
-	case "", "allow":
+	if verdict == "" {
 		return apphooks.CommandAllow, nil
-	case "deny":
-		return apphooks.CommandDeny, nil
-	case "ask":
-		return apphooks.CommandAsk, nil
-	default:
-		return apphooks.CommandAllow, fmt.Errorf("hooks: unsupported command decision %q", verdict)
 	}
+	decision := apphooks.CommandVerdict(verdict)
+	if !decision.Valid() {
+		return "", fmt.Errorf("hooks: unsupported command decision %q", verdict)
+	}
+	return decision, nil
 }
 
 type hookOutputBuffer struct {

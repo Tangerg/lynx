@@ -26,6 +26,7 @@ type sessionFrame struct {
 	ID        string         `json:"id"`
 	Title     string         `json:"title"`
 	Status    string         `json:"status"`
+	Provider  string         `json:"provider"`
 	Model     string         `json:"model,omitempty"`
 	Workspace workspaceFrame `json:"workspace"`
 	CreatedAt time.Time      `json:"createdAt,omitzero"`
@@ -131,7 +132,7 @@ func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error
 
 func encodeSession(session agent.Session) sessionFrame {
 	return sessionFrame{
-		ID: session.ID, Title: session.Title, Status: string(session.Status), Model: session.Model,
+		ID: session.ID, Title: session.Title, Status: string(session.Status), Provider: session.Provider, Model: session.Model,
 		Workspace: workspaceFrame{
 			Path: session.Workspace.Path, ProjectRoot: session.Workspace.ProjectRoot,
 			Availability: string(session.Workspace.Availability),

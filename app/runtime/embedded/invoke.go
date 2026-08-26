@@ -7,43 +7,40 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 )
 
-func invoke[Request, Response any](
+func (r *Runtime) invoke[Request, Response any](
 	ctx context.Context,
-	runtime *Runtime,
-	name string,
+	name operation.Name,
 	request Request,
 	options operation.Options,
 ) (Response, error) {
 	var zero Response
-	endpoint, err := runtime.endpoint()
+	endpoint, err := r.endpoint()
 	if err != nil {
 		return zero, err
 	}
-	return operation.Call[Request, Response](ctx, endpoint, name, request, options)
+	return endpoint.Call[Request, Response](ctx, name, request, options)
 }
 
-func invokeAck[Request any](
+func (r *Runtime) invokeAck[Request any](
 	ctx context.Context,
-	runtime *Runtime,
-	name string,
+	name operation.Name,
 	request Request,
 	options operation.Options,
 ) error {
-	_, err := invoke[Request, struct{}](ctx, runtime, name, request, options)
+	_, err := r.invoke[Request, struct{}](ctx, name, request, options)
 	return err
 }
 
-func invokeStream[Request, Ack, Event any](
+func (r *Runtime) invokeStream[Request, Ack, Event any](
 	ctx context.Context,
-	runtime *Runtime,
-	name string,
+	name operation.Name,
 	request Request,
 	options operation.Options,
 ) (Ack, iter.Seq2[Event, error], error) {
 	var zero Ack
-	endpoint, err := runtime.endpoint()
+	endpoint, err := r.endpoint()
 	if err != nil {
 		return zero, nil, err
 	}
-	return operation.CallStream[Request, Ack, Event](ctx, endpoint, name, request, options)
+	return endpoint.CallStream[Request, Ack, Event](ctx, name, request, options)
 }

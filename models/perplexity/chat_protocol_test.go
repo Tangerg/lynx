@@ -61,10 +61,10 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 		DisableSearch:         &disableSearch,
 		SearchDomainFilter:    []string{"example.com"},
 		SearchLanguageFilter:  []string{"en"},
-		ImageFormatFilter:     []string{"png"},
+		ImageFormatFilter:     []perplexity.ImageFormat{perplexity.ImageFormatPNG},
 		ImageDomainFilter:     []string{"images.example.com"},
 		LanguagePreference:    "en",
-		SearchAfterDateFilter: "01/01/2026",
+		SearchAfterDateFilter: perplexity.SearchDate("01/01/2026"),
 		WebSearchOptions:      &perplexity.WebSearchOptions{SearchContextSize: perplexity.SearchContextHigh, SearchType: perplexity.SearchTypeFast},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)

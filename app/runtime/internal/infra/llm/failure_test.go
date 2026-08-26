@@ -75,7 +75,7 @@ func TestFailureKindForHTTPStatus(t *testing.T) {
 	}
 	for _, test := range cases {
 		if got := failureKindForHTTPStatus(test.status); got != test.want {
-			t.Errorf("status %d = %d, want %d", test.status, got, test.want)
+			t.Errorf("status %d = %q, want %q", test.status, got, test.want)
 		}
 	}
 }

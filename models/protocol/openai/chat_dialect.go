@@ -94,25 +94,46 @@ type Dialect struct {
 	response responseDialect
 }
 
+// Validate verifies the protocol choices owned by this dialect. Keeping this
+// invariant on Dialect prevents constructors and request mapping from growing
+// parallel defaulting rules.
+func (dialect Dialect) Validate() error {
+	if err := validateProvider(dialect.Provider); err != nil {
+		return fmt.Errorf("Provider: %w", err)
+	}
+	if !dialect.TokenLimitField.Valid() {
+		return fmt.Errorf("TokenLimitField %q is invalid", dialect.TokenLimitField)
+	}
+	return nil
+}
+
 // TokenLimitField identifies the provider's wire field for Core's neutral
 // Options.MaxTokens value. OpenAI-compatible APIs are not uniform here:
 // legacy-compatible providers accept max_tokens while newer protocols use
 // max_completion_tokens.
-type TokenLimitField uint8
+type TokenLimitField string
 
 const (
-	// TokenLimitMaxTokens selects the legacy-compatible max_tokens field. It is
-	// the zero value because most compatibility endpoints still require it.
-	TokenLimitMaxTokens TokenLimitField = iota
+	// TokenLimitMaxTokens selects the legacy-compatible max_tokens field.
+	TokenLimitMaxTokens TokenLimitField = "max_tokens"
 	// TokenLimitMaxCompletionTokens selects max_completion_tokens.
-	TokenLimitMaxCompletionTokens
+	TokenLimitMaxCompletionTokens TokenLimitField = "max_completion_tokens"
 )
+
+// Valid reports whether the field names a supported Chat Completions token
+// limit property. The zero value is deliberately invalid: each dialect must
+// state its wire contract explicitly.
+func (field TokenLimitField) Valid() bool {
+	return field == TokenLimitMaxTokens || field == TokenLimitMaxCompletionTokens
+}
+
+func (field TokenLimitField) String() string { return string(field) }
 
 // ReasoningContentDialect maps the common reasoning_content extension while
 // treating it as output-only state.
 func ReasoningContentDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField}
-	return Dialect{Provider: provider, response: codec}
+	return Dialect{Provider: provider, TokenLimitField: TokenLimitMaxTokens, response: codec}
 }
 
 // ReasoningContentReplayDialect maps reasoning_content and sends it back on
@@ -120,27 +141,27 @@ func ReasoningContentDialect(provider string) Dialect {
 // treats historical reasoning as replayable conversation state.
 func ReasoningContentReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField, replay: reasoningReplayAlways}
-	return Dialect{Provider: provider, request: codec, response: codec}
+	return Dialect{Provider: provider, TokenLimitField: TokenLimitMaxTokens, request: codec, response: codec}
 }
 
 // ReasoningContentToolReplayDialect maps reasoning_content and sends it back
 // only on assistant messages containing tool calls.
 func ReasoningContentToolReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField, replay: reasoningReplayWithToolCalls}
-	return Dialect{Provider: provider, request: codec, response: codec}
+	return Dialect{Provider: provider, TokenLimitField: TokenLimitMaxTokens, request: codec, response: codec}
 }
 
 // ReasoningDialect maps the reasoning extension as output-only state.
 func ReasoningDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningField}
-	return Dialect{Provider: provider, response: codec}
+	return Dialect{Provider: provider, TokenLimitField: TokenLimitMaxTokens, response: codec}
 }
 
 // ReasoningReplayDialect maps the reasoning extension and sends it back on
 // every assistant message.
 func ReasoningReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningField, replay: reasoningReplayAlways}
-	return Dialect{Provider: provider, request: codec, response: codec}
+	return Dialect{Provider: provider, TokenLimitField: TokenLimitMaxTokens, request: codec, response: codec}
 }
 
 type reasoningReplay uint8

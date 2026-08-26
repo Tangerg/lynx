@@ -675,7 +675,7 @@ func TestSessionUpdateRejectsWorkspaceBeforeCallingAnUnnegotiatedRuntime(t *test
 		t.Fatal(err)
 	}
 	profile := commandRuntimeProfile()
-	profile.Features[runtimeprofile.FeatureRelocate] = runtimeprofile.Feature{Stability: runtimeprofile.Stable}
+	profile.Features[runtimeprofile.FeatureRelocate] = runtimeprofile.Feature{}
 	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {
 		return backend.Services{Agent: base, RuntimeProfile: new(profile.Clone())}, nil
 	}}
@@ -707,7 +707,7 @@ func requireSessionUpdate(t *testing.T, runtime agent.Runtime, id string) {
 	workspace := t.TempDir()
 	out, _, err := executeCommand(t, runtime, "", "sessions", "update", id,
 		"--revision", strconv.FormatUint(snapshot.Session.Revision, 10),
-		"--workspace", workspace, "--model", "deep", "--favorite=true",
+		"--workspace", workspace, "--model", "mock/deep", "--favorite=true",
 	)
 	if err != nil {
 		t.Fatalf("sessions update: %v", err)

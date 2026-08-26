@@ -86,8 +86,7 @@ func (a RecoveryAction) Valid() bool {
 }
 
 // CapabilityRequirementType names which vocabulary a missing capability belongs to
-// (§9.2). Four registries can be short: features, interrupt types, runtime topics and
-// state-snapshot keys.
+// (§9.2). Three registries can be short: features, interrupt types, and runtime topics.
 type CapabilityRequirementType string
 
 const (

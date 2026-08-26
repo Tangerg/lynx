@@ -7,12 +7,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	RunsStart     Name = "runs.start"
+	RunsResume    Name = "runs.resume"
+	RunsSubscribe Name = "runs.subscribe"
+	RunsCancel    Name = "runs.cancel"
+	RunsSteer     Name = "runs.steer"
+	RunsGet       Name = "runs.get"
+	RunsList      Name = "runs.list"
+)
+
 func registerRuns(registry *Registry) {
 	// runs.start and runs.resume open a run. A same-key retry must land back on
 	// THAT run — replaying the cached ack alone would give the client a runId with
 	// no stream behind it (TRANSPORT §6.2).
-	RunStreamCommand(registry, MethodMeta{
-		Name: "runs.start",
+	registry.RunStreamCommand(MethodMeta{
+		Name: RunsStart,
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrSessionBusy.Error(),
@@ -26,8 +36,8 @@ func registerRuns(registry *Registry) {
 		return service.StartRun(ctx, request)
 	})
 
-	RunStreamCommand(registry, MethodMeta{
-		Name: "runs.resume",
+	registry.RunStreamCommand(MethodMeta{
+		Name: RunsResume,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrInterruptNotOpen.Error(),
@@ -46,8 +56,8 @@ func registerRuns(registry *Registry) {
 	// cannot be served. Each is declared because each sends the client somewhere
 	// different — rootRunId, interrupt.list, items.list, runs.get, or a cursorless
 	// reattach — and one collapsed run_not_found would send it nowhere.
-	RunSubscription(registry, MethodMeta{
-		Name: "runs.subscribe",
+	registry.RunSubscription(MethodMeta{
+		Name: RunsSubscribe,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrRunNotRoot.Error(),
@@ -64,8 +74,8 @@ func registerRuns(registry *Registry) {
 		return service.SubscribeRun(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "runs.cancel",
+	registry.Command(MethodMeta{
+		Name: RunsCancel,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrRunFinished.Error(),
@@ -83,8 +93,8 @@ func registerRuns(registry *Registry) {
 	// that has parked, finished or moved to another segment says so, and the client
 	// asks the user again rather than delivering an instruction to work they never
 	// saw.
-	CommandAck(registry, MethodMeta{
-		Name: "runs.steer",
+	registry.CommandAck(MethodMeta{
+		Name: RunsSteer,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrRunNotRoot.Error(),
@@ -100,8 +110,8 @@ func registerRuns(registry *Registry) {
 
 	// runs.get answers "what is this run" for a runId a client already holds — from
 	// an event, a page, or a link — without it having to know the session first.
-	Query(registry, MethodMeta{
-		Name: "runs.get",
+	registry.Query(MethodMeta{
+		Name: RunsGet,
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrCapabilityNotNeg.Error(),
@@ -117,8 +127,8 @@ func registerRuns(registry *Registry) {
 	// `includeDescendants: false` as "not asking", so an explicit false and an
 	// absent field behave alike — while an explicit true is refused rather than
 	// read as false, which would hand back a page that looks complete and is not.
-	Query(registry, MethodMeta{
-		Name: "runs.list",
+	registry.Query(MethodMeta{
+		Name: RunsList,
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},

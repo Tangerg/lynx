@@ -28,7 +28,7 @@ func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
 	runtime := &Runtime{
 		loadAttachment: loadAttachmentFile,
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureMultimodal: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureMultimodal: {Enabled: true},
 		}},
 	}
 	blocks, err := runtime.projectInput(t.Context(), agent.Message{

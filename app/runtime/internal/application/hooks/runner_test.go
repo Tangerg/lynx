@@ -49,7 +49,7 @@ func TestRunner_DeclarativeInject(t *testing.T) {
 }
 
 func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{InjectContext: "saw-event"}}}}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandAllow, InjectContext: "saw-event"}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []hookdomain.Hook{{
 		Event:   hookdomain.UserPromptSubmit,
@@ -65,7 +65,7 @@ func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
 }
 
 func TestRunnerProjectsBoundedMaterialForCommandHooks(t *testing.T) {
-	cmds := &commandStub{}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandAllow}}}}
 	r := NewRunner(cmds, nil)
 	r.Run(ctxBG(), []hookdomain.Hook{{
 		Event: hookdomain.UserPromptSubmit, Command: "hook",
@@ -143,7 +143,7 @@ func TestRunner_AskEscalates(t *testing.T) {
 }
 
 func TestRunner_RewriteArguments(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{RewriteArguments: `{"path":"safe"}`}}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandAllow, RewriteArguments: `{"path":"safe"}`}}}}, nil)
 	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "write"}})
 	if dec.RewriteArguments != `{"path":"safe"}` {
@@ -171,6 +171,23 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 	}
 	if len(errs) != 1 || !strings.Contains(errs[0], "boom") {
 		t.Fatalf("onError = %v, want one error mentioning boom", errs)
+	}
+}
+
+func TestRunner_InvalidVerdictIsObservableAndIgnored(t *testing.T) {
+	var got error
+	r := NewRunner(
+		&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: "future"}}}},
+		func(_ context.Context, _ string, err error) { got = err },
+	)
+	decision := r.Run(ctxBG(), []hookdomain.Hook{{
+		Event: hookdomain.PreToolUse, Command: "hook",
+	}}, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
+	if decision.Block || decision.Ask || decision.InjectContext != "" || decision.RewriteArguments != "" {
+		t.Fatalf("invalid verdict changed decision: %+v", decision)
+	}
+	if got == nil || !strings.Contains(got.Error(), "invalid command verdict") {
+		t.Fatalf("onError = %v, want invalid verdict error", got)
 	}
 }
 

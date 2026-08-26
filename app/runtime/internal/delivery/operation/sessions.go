@@ -6,16 +6,29 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	SessionsList     Name = "sessions.list"
+	SessionsGet      Name = "sessions.get"
+	SessionsSnapshot Name = "sessions.snapshot"
+	SessionsCreate   Name = "sessions.create"
+	SessionsUpdate   Name = "sessions.update"
+	SessionsDelete   Name = "sessions.delete"
+	SessionsFork     Name = "sessions.fork"
+	SessionsRollback Name = "sessions.rollback"
+	SessionsExport   Name = "sessions.export"
+	SessionsImport   Name = "sessions.import"
+)
+
 func registerSessions(registry *Registry) {
-	Query(registry, MethodMeta{Name: "sessions.list"},
+	registry.Query(MethodMeta{Name: SessionsList},
 		func(service interface {
 			ListSessions(context.Context, protocol.PageQuery) (*protocol.Page[protocol.Session], error)
 		}, ctx context.Context, request protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
 			return service.ListSessions(ctx, request)
 		})
 
-	Query(registry, MethodMeta{
-		Name:   "sessions.get",
+	registry.Query(MethodMeta{
+		Name:   SessionsGet,
 		Errors: []string{protocol.ErrSessionNotFound.Error()},
 	}, func(service interface {
 		GetSession(context.Context, string) (*protocol.Session, error)
@@ -23,10 +36,10 @@ func registerSessions(registry *Registry) {
 		return service.GetSession(ctx, request.SessionID)
 	})
 
-	Query(registry, MethodMeta{
-		Name:         "sessions.snapshot",
+	registry.Query(MethodMeta{
+		Name:         SessionsSnapshot,
 		Errors:       []string{protocol.ErrSessionNotFound.Error()},
-		Materializes: []string{"items.list", "runs.list", "interrupts.list", "plan.get", "goals.get"},
+		Materializes: []Name{ItemsList, RunsList, InterruptsList, PlanGet, GoalsGet},
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},
@@ -37,8 +50,8 @@ func registerSessions(registry *Registry) {
 		return service.GetSessionSnapshot(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name:   "sessions.create",
+	registry.Command(MethodMeta{
+		Name:   SessionsCreate,
 		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		CreateSession(context.Context, protocol.CreateSessionRequest) (*protocol.Session, error)
@@ -49,8 +62,8 @@ func registerSessions(registry *Registry) {
 	// Setting workspace is a relocate, which is its own capability (API.md §9) — hence a
 	// conditional rule: the rest of sessions.update stays available when relocate
 	// is off, instead of the whole method disappearing.
-	Command(registry, MethodMeta{
-		Name: "sessions.update",
+	registry.Command(MethodMeta{
+		Name: SessionsUpdate,
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRevisionConflict.Error(),
@@ -66,8 +79,8 @@ func registerSessions(registry *Registry) {
 		return service.UpdateSession(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name:   "sessions.delete",
+	registry.CommandAck(MethodMeta{
+		Name:   SessionsDelete,
 		Errors: []string{protocol.ErrSessionNotFound.Error()},
 	}, func(service interface {
 		DeleteSession(context.Context, string) error
@@ -75,8 +88,8 @@ func registerSessions(registry *Registry) {
 		return service.DeleteSession(ctx, request.SessionID)
 	})
 
-	Command(registry, MethodMeta{
-		Name: "sessions.fork",
+	registry.Command(MethodMeta{
+		Name: SessionsFork,
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRunNotFound.Error(),
@@ -91,8 +104,8 @@ func registerSessions(registry *Registry) {
 	// which needs features.checkpoints; the default history rollback needs nothing
 	// (AUX_API §4.1). Two rules rather than one because the contract states the
 	// requirement per value, and a generated schema reads them as two if/then.
-	Command(registry, MethodMeta{
-		Name: "sessions.rollback",
+	registry.Command(MethodMeta{
+		Name: SessionsRollback,
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
 			protocol.ErrRunNotFound.Error(),
@@ -115,8 +128,8 @@ func registerSessions(registry *Registry) {
 		return service.RollbackSession(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name:            "sessions.export",
+	registry.Query(MethodMeta{
+		Name:            SessionsExport,
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 	}, func(service interface {
@@ -125,8 +138,8 @@ func registerSessions(registry *Registry) {
 		return service.ExportSession(ctx, request)
 	})
 
-	Command(registry, MethodMeta{
-		Name:            "sessions.import",
+	registry.Command(MethodMeta{
+		Name:            SessionsImport,
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 	}, func(service interface {
 		ImportSession(context.Context, protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error)

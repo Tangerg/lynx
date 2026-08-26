@@ -58,19 +58,16 @@ func writeRuntimeProfile(output io.Writer, profile runtimeprofile.Profile) error
 	writer := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
 	rows := [][2]string{
 		{"runtime", profile.Server.Name + " " + profile.Server.Version},
-		{"protocol", profile.Protocol.Current + " (minimum " + profile.Protocol.MinSupported + ")"},
+		{"protocol", profile.Protocol.Version},
 		{"default workspace", profile.Server.DefaultWorkspace},
 		{"home", profile.Server.Home},
 		{"run events", strings.Join(profile.RunEvents, ", ")},
 		{"runtime topics", strings.Join(profile.RuntimeTopics, ", ")},
 		{"streaming methods", strings.Join(profile.StreamingMethods, ", ")},
 	}
-	for _, snapshot := range profile.StateSnapshots {
-		rows = append(rows, [2]string{"state " + snapshot.Key, strings.Join([]string{snapshot.RecoveryMethod, snapshot.Scope, snapshot.Writer}, " · ")})
-	}
 	for _, name := range slices.Sorted(maps.Keys(profile.Features)) {
 		feature := profile.Features[name]
-		flags := []string{string(feature.Stability)}
+		var flags []string
 		if feature.Enabled {
 			flags = append(flags, "enabled")
 		} else {

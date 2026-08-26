@@ -563,7 +563,7 @@ func TestDeleteForSessionFreesSlot(t *testing.T) {
 }
 
 func TestRunRestoreRejectsUnknownOutcome(t *testing.T) {
-	outcome := run.Outcome(255)
+	outcome := run.Outcome("invalid")
 	if _, err := run.Restore(run.Snapshot{
 		ID: "run_1", SessionID: "ses_1", State: run.Failed, Outcome: &outcome,
 		CreatedAt: runCreatedAt, FinishedAt: time.Unix(9, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
@@ -648,7 +648,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	if scoped, err := store.PageRuns(ctx, "ses_B", nil, false, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID() != "run_parked" {
 		t.Fatalf("ses_B scoped = %+v (err %v), want the parked run", scoped, err)
 	}
-	if _, err := store.PageRuns(ctx, "", []run.Status{run.Status(9)}, false, 0, "", 0); err == nil {
+	if _, err := store.PageRuns(ctx, "", []run.Status{run.Status("invalid")}, false, 0, "", 0); err == nil {
 		t.Fatal("page runs accepted an unknown status instead of refusing to widen the page")
 	}
 }

@@ -50,7 +50,7 @@ func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
 	runtime := &Runtime{
 		workspaces: stub, meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureGit: {Enabled: true},
 		}},
 	}
 
@@ -112,7 +112,7 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 	runtime := &Runtime{
 		workspaces: stub, meta: requestMeta("test"),
 		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-			runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+			runtimeprofile.FeatureGit: {Enabled: true},
 		}},
 	}
 
@@ -224,7 +224,7 @@ func TestWorkspaceUnpageableListsRejectContinuation(t *testing.T) {
 			runtime := &Runtime{workspaces: test.stub, meta: requestMeta("test")}
 			if test.name == "changes" {
 				runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-					runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+					runtimeprofile.FeatureGit: {Enabled: true},
 				}
 			}
 			err := test.call(t.Context(), runtime)

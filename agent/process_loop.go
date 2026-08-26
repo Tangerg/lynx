@@ -506,7 +506,7 @@ func (loop *processLoop) resolveEffect(command processCommand) {
 
 func (loop *processLoop) finish(ctx context.Context) {
 	payload, _ := json.Marshal(processFinishedEventPayload{
-		ProcessStatus: loop.status.String(), TerminationCause: loop.termination.Cause().String(),
+		ProcessStatus: loop.status, TerminationCause: loop.termination.Cause(),
 	})
 	loop.publishEvent(ctx, EventProcessFinished, EventPhaseCommitted, 0, EffectID{}, payload)
 	snapshot, err := loop.capture()

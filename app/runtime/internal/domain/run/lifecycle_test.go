@@ -84,7 +84,7 @@ func TestTerminate(t *testing.T) {
 }
 
 func TestTerminateRejectsUnknownOutcome(t *testing.T) {
-	if got, ok := Running.Terminate(Outcome(255)); ok || got != Running {
+	if got, ok := Running.Terminate(Outcome("invalid")); ok || got != Running {
 		t.Fatalf("Running.Terminate(unknown) = (%s, %v), want (running, false)", got, ok)
 	}
 }
@@ -177,7 +177,7 @@ func TestStringsAreDistinct(t *testing.T) {
 	seen := map[string]bool{}
 	for _, s := range allStates {
 		if s.String() == "unknown" {
-			t.Errorf("state %d stringifies as unknown", s)
+			t.Errorf("state %q stringifies as unknown", s)
 		}
 		if seen[s.String()] {
 			t.Errorf("duplicate state label %q", s.String())
@@ -187,7 +187,7 @@ func TestStringsAreDistinct(t *testing.T) {
 	seen = map[string]bool{}
 	for _, o := range allOutcomes {
 		if o.String() == "unknown" {
-			t.Errorf("outcome %d stringifies as unknown", o)
+			t.Errorf("outcome %q stringifies as unknown", o)
 		}
 		if seen[o.String()] {
 			t.Errorf("duplicate outcome label %q", o.String())

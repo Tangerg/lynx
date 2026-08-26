@@ -429,7 +429,7 @@ func (run Run) State() State                       { return run.state }
 func (run Run) ActiveSegmentID() string            { return run.activeSegmentID }
 func (run Run) Outcome() (Outcome, bool) {
 	if run.outcome == nil {
-		return 0, false
+		return "", false
 	}
 	return *run.outcome, true
 }

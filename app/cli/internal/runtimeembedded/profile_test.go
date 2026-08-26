@@ -31,8 +31,7 @@ func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
 	discovery := compatibleDiscovery()
 	discovery.Capabilities.Features = map[string]protocol.FeatureCapability{
 		protocol.FeatureMCP: {
-			Enabled: true, Stability: protocol.StabilityExperimental,
-			ClientOptIn: true, RequiredByRunProtocol: true,
+			Enabled: true, ClientOptIn: true, RequiredByRunProtocol: true,
 		},
 	}
 	profile, err := projectRuntimeProfile(discovery, &protocol.ClientCapabilities{Features: map[string]protocol.FeaturePreference{
@@ -42,15 +41,14 @@ func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	if profile.Server.Name != "lyra-runtime" || profile.Server.DefaultWorkspace != "/workspace" ||
-		profile.Protocol.Current != string(protocol.ProtocolVersion) ||
+		profile.Protocol.Version != protocol.ProtocolVersion ||
 		len(profile.RunEvents) != len(discovery.Capabilities.RunEvents) ||
 		len(profile.RuntimeTopics) != len(discovery.Capabilities.RuntimeTopics) ||
-		len(profile.StateSnapshots) != len(discovery.Capabilities.StateSnapshots) ||
 		len(profile.StreamingMethods) != len(discovery.Capabilities.StreamingMethods) {
 		t.Fatalf("runtime profile = %+v", profile)
 	}
 	feature := profile.Features[runtimeprofile.FeatureMCP]
-	if !feature.Enabled || feature.Stability != runtimeprofile.Experimental || !feature.ClientOptIn ||
+	if !feature.Enabled || !feature.ClientOptIn ||
 		!feature.ClientRequested || !feature.RequiredByRunProtocol || !feature.Available() {
 		t.Fatalf("MCP profile = %+v", feature)
 	}

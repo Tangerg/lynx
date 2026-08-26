@@ -129,12 +129,20 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", c.IndexOptimization)
 	}
-	return validateIdentifiersWithDash("couchbase", map[string]string{
-		"BucketName":      c.BucketName,
-		"ScopeName":       c.ScopeName,
-		"CollectionName":  c.CollectionName,
-		"VectorIndexName": c.VectorIndexName,
-	})
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.BucketName).validate("BucketName"); err != nil {
+		return err
+	}
+	if err := identifier(c.ScopeName).validate("ScopeName"); err != nil {
+		return err
+	}
+	if err := identifier(c.CollectionName).validate("CollectionName"); err != nil {
+		return err
+	}
+	return identifier(c.VectorIndexName).validate("VectorIndexName")
 }
 
 // applyDefaults fills zero fields with documented defaults.

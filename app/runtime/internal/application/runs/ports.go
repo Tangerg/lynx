@@ -144,14 +144,19 @@ type WaitingSubtreeCancellationPreparer interface {
 // prepared waiting-tree transaction commits. A surviving external boundary
 // keeps the executor parked; removing the final boundary immediately opens the
 // already-committed continuation Segment.
-type WaitingSubtreeDisposition uint8
+type WaitingSubtreeDisposition string
 
 const (
 	// WaitingSubtreeStaysWaiting keeps the surviving external boundaries parked.
-	WaitingSubtreeStaysWaiting WaitingSubtreeDisposition = iota + 1
+	WaitingSubtreeStaysWaiting WaitingSubtreeDisposition = "waiting"
 	// WaitingSubtreeResumesRunning resumes the paused surviving executor members.
-	WaitingSubtreeResumesRunning
+	WaitingSubtreeResumesRunning WaitingSubtreeDisposition = "running"
 )
+
+// Valid reports whether disposition is one supported post-commit action.
+func (disposition WaitingSubtreeDisposition) Valid() bool {
+	return disposition == WaitingSubtreeStaysWaiting || disposition == WaitingSubtreeResumesRunning
+}
 
 // WaitingSubtreeChange is the one-shot executor capability attached to a
 // prepared cancellation. Apply installs the committed tree disposition after

@@ -443,7 +443,7 @@ func (e *fakeEffects) CommitStartedChildRun(
 	if e.childStarts[memberID] != reservation {
 		return errors.New("fake started child has no reservation")
 	}
-	if outcome := e.childOutcomes[memberID]; outcome.valid() {
+	if outcome := e.childOutcomes[memberID]; outcome.Valid() {
 		if outcome != ChildRunStarted {
 			return errors.New("fake child start outcome conflict")
 		}
@@ -465,7 +465,7 @@ func (e *fakeEffects) AbortChildRunStart(
 	if e.childStarts[memberID] != reservation {
 		return errors.New("fake aborted child has no reservation")
 	}
-	if outcome := e.childOutcomes[memberID]; outcome.valid() {
+	if outcome := e.childOutcomes[memberID]; outcome.Valid() {
 		if outcome != ChildRunStartAborted {
 			return errors.New("fake child start outcome conflict")
 		}
@@ -1282,7 +1282,7 @@ func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *tes
 }
 
 func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
-	executor := &fakeExecutor{events: []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind("invalid")}}}}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 
@@ -1309,7 +1309,7 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 		event ExecutionFact
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
-		{name: "invalid terminal outcome", event: SegmentEnded{Reason: run.Outcome(255)}},
+		{name: "invalid terminal outcome", event: SegmentEnded{Reason: run.Outcome("invalid")}},
 	}
 
 	for _, test := range tests {
@@ -2581,7 +2581,7 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 
 func TestCoordinatorCommitsSyntheticTerminalBeforeRelease(t *testing.T) {
 	executor := &fakeExecutor{
-		events:         []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}},
+		events:         []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind("invalid")}}}},
 		releaseStarted: make(chan struct{}),
 		allowRelease:   make(chan struct{}),
 	}

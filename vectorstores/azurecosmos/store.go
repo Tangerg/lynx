@@ -100,12 +100,20 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", c.DistanceFunction)
 	}
-	return validateIdentifiers("azurecosmos", map[string]string{
-		"IDField":        c.IDField,
-		"ContentField":   c.ContentField,
-		"MetadataField":  c.MetadataField,
-		"EmbeddingField": c.EmbeddingField,
-	})
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.IDField).validate("IDField"); err != nil {
+		return err
+	}
+	if err := identifier(c.ContentField).validate("ContentField"); err != nil {
+		return err
+	}
+	if err := identifier(c.MetadataField).validate("MetadataField"); err != nil {
+		return err
+	}
+	return identifier(c.EmbeddingField).validate("EmbeddingField")
 }
 
 // applyDefaults fills zero fields with documented defaults.

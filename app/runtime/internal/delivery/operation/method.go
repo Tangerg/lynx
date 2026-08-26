@@ -11,26 +11,40 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+// Name is the binding-neutral identity of one Runtime operation. Concrete
+// names are declared beside their domain registration so every binding uses
+// the same protocol identity instead of repeating wire strings.
+type Name string
+
+// Valid reports whether n is a dot-separated operation identity with at least
+// one domain segment and one action segment.
+func (n Name) Valid() bool {
+	segments := strings.Split(string(n), ".")
+	return len(segments) >= 2 && !slices.Contains(segments, "")
+}
+
+// String returns the operation's wire identity.
+func (n Name) String() string { return string(n) }
+
 // MethodKind separates the two result shapes an operation can have: one value,
 // or a value followed by this call's own event stream (TRANSPORT §6.4).
 // It is set by the registration factory, never declared by hand — the factory is
 // the only thing that knows which pipeline it built.
-type MethodKind uint8
+type MethodKind string
 
 const (
-	KindUnary MethodKind = iota
-	KindStream
+	KindUnary  MethodKind = "unary"
+	KindStream MethodKind = "stream"
 )
 
+// Valid reports whether k names one supported delivery shape.
+func (k MethodKind) Valid() bool { return k == KindUnary || k == KindStream }
+
 func (k MethodKind) String() string {
-	switch k {
-	case KindUnary:
-		return "unary"
-	case KindStream:
-		return "stream"
-	default:
-		return fmt.Sprintf("MethodKind(%d)", k)
+	if !k.Valid() {
+		return fmt.Sprintf("MethodKind(%q)", string(k))
 	}
+	return string(k)
 }
 
 // OperationKind describes what a call means independently of how its response is
@@ -41,51 +55,56 @@ func (k MethodKind) String() string {
 // Registration factories set this value together with the only valid
 // idempotency policy for the operation. A new command therefore cannot compile
 // into the registry while silently opting out of replay protection.
-type OperationKind uint8
+type OperationKind string
 
 const (
-	operationUnspecified OperationKind = iota
-	OperationQuery
-	OperationCommand
-	OperationSubscription
+	operationUnspecified  OperationKind = ""
+	OperationQuery        OperationKind = "query"
+	OperationCommand      OperationKind = "command"
+	OperationSubscription OperationKind = "subscription"
 )
 
+// Valid reports whether k names one supported operation semantic.
+func (k OperationKind) Valid() bool {
+	return k == OperationQuery || k == OperationCommand || k == OperationSubscription
+}
+
 func (k OperationKind) String() string {
-	switch k {
-	case operationUnspecified:
+	if k == operationUnspecified {
 		return "unspecified"
-	case OperationQuery:
-		return "query"
-	case OperationCommand:
-		return "command"
-	case OperationSubscription:
-		return "subscription"
-	default:
-		return fmt.Sprintf("OperationKind(%d)", k)
 	}
+	if !k.Valid() {
+		return fmt.Sprintf("OperationKind(%q)", string(k))
+	}
+	return string(k)
 }
 
 // IdempotencyPolicy says what an `Idempotency-Key` retry of this method must do
 // (TRANSPORT §6.2 / §10). It replaces a hand-kept list of replay-protected
 // method names: a method declares its own retry semantics where it is
 // registered, so adding a mutation cannot silently skip replay protection.
-type IdempotencyPolicy uint8
+type IdempotencyPolicy string
 
 const (
 	// IdempotencyNone keeps no replay record. Reads, and mutations whose repeat
 	// is indistinguishable from the first call, need none.
-	IdempotencyNone IdempotencyPolicy = iota
+	IdempotencyNone IdempotencyPolicy = "none"
 
 	// IdempotencyReplayResponse caches the first response and returns it verbatim
 	// to a same-key retry, so the business handler runs exactly once.
-	IdempotencyReplayResponse
+	IdempotencyReplayResponse IdempotencyPolicy = "replayResponse"
 
 	// IdempotencyReplayRunStream caches the response AND re-attaches the retry to
 	// the run it already opened, instead of starting a second one. Only a method
 	// that opens a run needs this: replaying the cached ack alone would hand the
 	// client a runId with no stream behind it.
-	IdempotencyReplayRunStream
+	IdempotencyReplayRunStream IdempotencyPolicy = "replayRunStream"
 )
+
+// Valid reports whether p is one supported retry contract.
+func (p IdempotencyPolicy) Valid() bool {
+	return p == IdempotencyNone || p == IdempotencyReplayResponse || p == IdempotencyReplayRunStream
+}
 
 // Replays reports whether this policy keeps a replay record at all. Unknown
 // values never acquire replay semantics by accident; registry validation rejects
@@ -98,12 +117,15 @@ func (p IdempotencyPolicy) Replays() bool {
 // event cursor carried by bindings as AfterEventID / Last-Event-Id. Keeping
 // this beside the method's idempotency policy lets admission and generated
 // clients reject cursor metadata that no handler can honor.
-type ReplayCursorPolicy uint8
+type ReplayCursorPolicy string
 
 const (
-	ReplayCursorNone ReplayCursorPolicy = iota
-	ReplayCursorRun
+	ReplayCursorNone ReplayCursorPolicy = "none"
+	ReplayCursorRun  ReplayCursorPolicy = "run"
 )
+
+// Valid reports whether p is one supported replay-cursor contract.
+func (p ReplayCursorPolicy) Valid() bool { return p == ReplayCursorNone || p == ReplayCursorRun }
 
 // PaginationKind describes whether one unary response is a cursor page. It is
 // derived from the registered Params and Result wire shapes by the registration
@@ -113,23 +135,29 @@ const (
 // and required data plus optional nextCursor result fields. Keeping the fact on
 // MethodMeta lets artifacts and bindings read the same answer the operation
 // registry validated, without putting binding-only mechanics on the wire.
-type PaginationKind uint8
+type PaginationKind string
 
 const (
-	PaginationNone PaginationKind = iota
-	PaginationCursor
+	PaginationNone   PaginationKind = "none"
+	PaginationCursor PaginationKind = "cursor"
 )
 
+// Valid reports whether p names one supported unary pagination shape.
+func (p PaginationKind) Valid() bool { return p == PaginationNone || p == PaginationCursor }
+
 // ConditionOperator is how a [FieldCondition] tests one request field.
-type ConditionOperator uint8
+type ConditionOperator string
 
 const (
 	// OperatorPresent matches when the field is present and not its zero value —
 	// an absent optional field and an explicit empty one are the same request.
-	OperatorPresent ConditionOperator = iota
+	OperatorPresent ConditionOperator = "present"
 	// OperatorEquals matches when the field's JSON value equals Value.
-	OperatorEquals
+	OperatorEquals ConditionOperator = "equals"
 )
+
+// Valid reports whether o names one supported field comparison.
+func (o ConditionOperator) Valid() bool { return o == OperatorPresent || o == OperatorEquals }
 
 // FieldCondition tests one field of the request frame. Field is a dotted path
 // into the same frame; it never reaches outside the request (contract §11.2), so
@@ -160,7 +188,7 @@ type CapabilityRule struct {
 // features it needs. Registration is the single place this is stated.
 type MethodMeta struct {
 	// Name is the binding-neutral operation name, dotted <domain>.<verb>.
-	Name string
+	Name Name
 
 	// Kind is filled in by the registration factory.
 	Kind MethodKind
@@ -197,7 +225,7 @@ type MethodMeta struct {
 	// clients still call those methods for standalone browsing. The metadata lets
 	// consumer gates distinguish a deliberately server-composed product read from
 	// an orphaned backend capability without forcing redundant network calls.
-	Materializes []string
+	Materializes []Name
 
 	// Params, Result and Event are the Go types of the method's wire frames, filled
 	// in by the registration factory from its own type parameters — the one place
@@ -271,8 +299,7 @@ func (m MethodMeta) validateIdentity() error {
 	if m.Name == "" {
 		return errors.New("method name is required")
 	}
-	segments := strings.Split(m.Name, ".")
-	if len(segments) < 2 || slices.Contains(segments, "") {
+	if !m.Name.Valid() {
 		return fmt.Errorf(
 			"method name %q is invalid; expected dot-separated non-empty segments",
 			m.Name,
@@ -430,7 +457,7 @@ func (m MethodMeta) validateCapabilityRules() error {
 					m.Name, ruleIndex, condition.Field, condition.Operator,
 				)
 			}
-			if err := ValidateFieldCondition(m.Name, m.Params, condition); err != nil {
+			if err := ValidateFieldCondition(m.Name.String(), m.Params, condition); err != nil {
 				return err
 			}
 		}
@@ -460,49 +487,31 @@ func (m MethodMeta) validateCapabilityRules() error {
 }
 
 func (p IdempotencyPolicy) String() string {
-	switch p {
-	case IdempotencyNone:
-		return "none"
-	case IdempotencyReplayResponse:
-		return "replayResponse"
-	case IdempotencyReplayRunStream:
-		return "replayRunStream"
-	default:
-		return fmt.Sprintf("IdempotencyPolicy(%d)", p)
+	if !p.Valid() {
+		return fmt.Sprintf("IdempotencyPolicy(%q)", string(p))
 	}
+	return string(p)
 }
 
 func (p ReplayCursorPolicy) String() string {
-	switch p {
-	case ReplayCursorNone:
-		return "none"
-	case ReplayCursorRun:
-		return "run"
-	default:
-		return fmt.Sprintf("ReplayCursorPolicy(%d)", p)
+	if !p.Valid() {
+		return fmt.Sprintf("ReplayCursorPolicy(%q)", string(p))
 	}
+	return string(p)
 }
 
 func (p PaginationKind) String() string {
-	switch p {
-	case PaginationNone:
-		return "none"
-	case PaginationCursor:
-		return "cursor"
-	default:
-		return fmt.Sprintf("PaginationKind(%d)", p)
+	if !p.Valid() {
+		return fmt.Sprintf("PaginationKind(%q)", string(p))
 	}
+	return string(p)
 }
 
 func (o ConditionOperator) String() string {
-	switch o {
-	case OperatorPresent:
-		return "present"
-	case OperatorEquals:
-		return "equals"
-	default:
-		return fmt.Sprintf("ConditionOperator(%d)", o)
+	if !o.Valid() {
+		return fmt.Sprintf("ConditionOperator(%q)", string(o))
 	}
+	return string(o)
 }
 
 // ValidateFieldCondition checks a field-local condition against its declared

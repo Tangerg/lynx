@@ -101,7 +101,7 @@ func (a *app) showLocalWorkspaceChoices() error {
 
 func (a *app) loadWorkspaceChoices() {
 	a.status.note("loading runtime workspaces")
-	runOperation(a, workspaceQueryOperation, true,
+	a.runOperation(workspaceQueryOperation, true,
 		func(ctx context.Context) ([]workspaceChoice, error) {
 			known, err := a.workspaces.List(ctx)
 			if err != nil {
@@ -167,7 +167,7 @@ func (a *app) resolveAndStartWorkspace(requested string) {
 		return
 	}
 	a.status.note("resolving workspace")
-	runOperation(a, workspaceQueryOperation, true,
+	a.runOperation(workspaceQueryOperation, true,
 		func(ctx context.Context) (workspace.Workspace, error) {
 			return a.workspaces.Resolve(ctx, workspace.ResolveRequest{Path: path})
 		},
@@ -207,7 +207,7 @@ func (a *app) RelocateSession(requested string) error {
 		return nil
 	}
 	a.status.note("resolving workspace")
-	runOperation(a, workspaceQueryOperation, true,
+	a.runOperation(workspaceQueryOperation, true,
 		func(ctx context.Context) (workspace.Workspace, error) {
 			return a.workspaces.Resolve(ctx, workspace.ResolveRequest{Path: path})
 		},
@@ -232,7 +232,7 @@ func (a *app) relocateSession(path string) {
 		return
 	}
 	sessionID := a.session.ID
-	runSessionChange(a, "relocating session",
+	a.runSessionChange("relocating session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			latest, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
@@ -253,7 +253,7 @@ func (a *app) relocateSession(path string) {
 // Callers resolving new user input go through createSessionInWorkspace; /new
 // reuses the runtime-authoritative workspace of the current session directly.
 func (a *app) startSessionInWorkspace(workspace string) {
-	runSessionChange(a, "creating session in "+workspace,
+	a.runSessionChange("creating session in "+workspace,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			created, err := a.runtime.CreateSession(ctx, agent.CreateSession{Workspace: workspace})
 			return agent.SessionSnapshot{Session: created}, err
@@ -267,7 +267,7 @@ func (a *app) startSessionInWorkspace(workspace string) {
 // queued follow-ups remain session-scoped and are retired after installation.
 func (a *app) replaceDeletedSessionInWorkspace(workspace string) {
 	retiredSessionID := a.session.ID
-	runSessionChangeWithDraftDisposition(a, "creating replacement session in "+workspace, retireSourceDraft,
+	a.runSessionChangeWithDraftDisposition("creating replacement session in "+workspace, retireSourceDraft,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			created, err := a.runtime.CreateSession(ctx, agent.CreateSession{Workspace: workspace})
 			return agent.SessionSnapshot{Session: created}, err

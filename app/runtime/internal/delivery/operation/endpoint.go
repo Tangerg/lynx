@@ -91,7 +91,7 @@ func (e *Endpoint) AwaitShutdown(ctx context.Context) error {
 
 // Invoke validates and executes the named operation through the catalog's
 // capability, idempotency and safe-problem policies.
-func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, options Options) Result {
+func (e *Endpoint) Invoke(ctx context.Context, name Name, parameters any, options Options) Result {
 	ctx, release, admitted := e.invocations.Attach(ctx)
 	if !admitted {
 		return failed(ProjectError(context.Canceled))
@@ -232,15 +232,14 @@ func validateOptions(method MethodMeta, options Options) *Failure {
 func failed(failure *Failure) Result { return Result{Failure: failure} }
 
 // Call restores the typed result declared by a unary catalog entry.
-func Call[Params, Response any](
+func (e *Endpoint) Call[Params, Response any](
 	ctx context.Context,
-	endpoint *Endpoint,
-	name string,
+	name Name,
 	parameters Params,
 	options Options,
 ) (Response, error) {
 	var zero Response
-	result := endpoint.Invoke(ctx, name, parameters, options)
+	result := e.Invoke(ctx, name, parameters, options)
 	if result.Failure != nil {
 		return zero, result.Failure
 	}
@@ -253,15 +252,14 @@ func Call[Params, Response any](
 
 // CallStream restores the typed acknowledgement and event sequence declared by
 // a streaming catalog entry.
-func CallStream[Params, Ack, Event any](
+func (e *Endpoint) CallStream[Params, Ack, Event any](
 	ctx context.Context,
-	endpoint *Endpoint,
-	name string,
+	name Name,
 	parameters Params,
 	options Options,
 ) (Ack, iter.Seq2[Event, error], error) {
 	var zero Ack
-	result := endpoint.Invoke(ctx, name, parameters, options)
+	result := e.Invoke(ctx, name, parameters, options)
 	if result.Failure != nil {
 		return zero, nil, result.Failure
 	}

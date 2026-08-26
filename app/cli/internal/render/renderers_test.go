@@ -614,7 +614,7 @@ func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
 
 func reconciliationSnapshot() agent.SessionSnapshot {
 	return agent.SessionSnapshot{
-		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Workspace: workspace.Workspace{
+		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Provider: "mock", Model: "balanced", Workspace: workspace.Workspace{
 			Path: "/tmp/demo", ProjectRoot: "/tmp/demo", Availability: workspace.Available,
 		}},
 		Transcript: []agent.Block{

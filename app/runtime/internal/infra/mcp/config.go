@@ -22,14 +22,26 @@ import (
 // Transport is the wire mode of an MCP server connection. The zero value is
 // invalid so a misconfigured runtime entry fails validation instead of silently
 // defaulting.
-type Transport int
+type Transport string
 
 const (
 	// TransportHTTP is Streamable HTTP. [ServerConfig.Endpoint] is the URL.
-	TransportHTTP Transport = iota + 1
+	TransportHTTP Transport = "http"
 	// TransportStdio is a local subprocess over stdin/stdout.
-	TransportStdio
+	TransportStdio Transport = "stdio"
 )
+
+// Valid reports whether transport names one supported MCP connection mode.
+func (transport Transport) Valid() bool {
+	return transport == TransportHTTP || transport == TransportStdio
+}
+
+func (transport Transport) String() string {
+	if !transport.Valid() {
+		return "invalid"
+	}
+	return string(transport)
+}
 
 // ServerConfig declaratively describes one runtime MCP server connection. This
 // is application configuration, not part of the reusable mcp package: the
@@ -111,7 +123,7 @@ func (c ServerConfig) Validate() error {
 			return fmt.Errorf("mcp server %q: OAuth applies to HTTP transport only", c.Name)
 		}
 	default:
-		return fmt.Errorf("mcp server %q: unknown transport %d", c.Name, c.Transport)
+		return fmt.Errorf("mcp server %q: unknown transport %q", c.Name, c.Transport)
 	}
 	return nil
 }
@@ -173,7 +185,7 @@ func dial(
 			command = cmd
 			return client.Connect(sessionCtx, &sdkmcp.CommandTransport{Command: cmd}, nil)
 		default:
-			return nil, fmt.Errorf("mcp: unknown transport %d", cfg.Transport)
+			return nil, fmt.Errorf("mcp: unknown transport %q", cfg.Transport)
 		}
 	}
 	session, cancelLifetime, err := connectSession(ctx, lifetime, cfg.Timeout, connect)

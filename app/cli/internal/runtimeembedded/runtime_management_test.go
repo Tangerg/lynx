@@ -280,9 +280,33 @@ type goalBindingStub struct {
 	t            *testing.T
 	current      *protocol.Goal
 	startResult  *protocol.Goal
+	updateResult *protocol.Goal
 	stopResult   *protocol.Goal
 	resumeResult *protocol.Goal
 	last         string
+}
+
+func (stub *goalBindingStub) UpdateGoal(_ context.Context, request protocol.UpdateGoalRequest, options embedded.CommandOptions) (*protocol.Goal, error) {
+	if request.SessionID != "ses_1" || request.Objective == "" || options.IdempotencyKey == "" {
+		stub.t.Fatalf("update goal request = %+v, options = %+v", request, options)
+	}
+	stub.last = "update"
+	if stub.updateResult != nil {
+		return stub.updateResult, nil
+	}
+	updated := *stub.current
+	updated.Objective = request.Objective
+	stub.current = &updated
+	return stub.current, nil
+}
+
+func (stub *goalBindingStub) ClearGoal(_ context.Context, request protocol.GoalRequest, options embedded.CommandOptions) error {
+	if request.SessionID == "" || options.IdempotencyKey == "" {
+		stub.t.Fatalf("clear goal request = %+v, options = %+v", request, options)
+	}
+	stub.last = "clear"
+	stub.current = nil
+	return nil
 }
 
 func (stub *goalBindingStub) GetGoal(context.Context, protocol.GoalRequest, embedded.CallOptions) (*protocol.Goal, error) {
@@ -342,6 +366,10 @@ func TestGoalAdapterProjectsTheCompleteLifecycle(t *testing.T) {
 	if err != nil || started.Status != goal.Active || stub.last != "start" {
 		t.Fatalf("StartGoal = (%+v, %v), last %q", started, err, stub.last)
 	}
+	updated, err := runtime.UpdateGoal(t.Context(), goal.Update{SessionID: "ses_1", Objective: "ship"})
+	if err != nil || updated.Objective != "ship" || stub.last != "update" {
+		t.Fatalf("UpdateGoal = (%+v, %v), last %q", updated, err, stub.last)
+	}
 	stopped, err := runtime.StopGoal(t.Context(), "ses_1")
 	if err != nil || stopped.Status != goal.Paused || stopped.Reason == nil || stub.last != "stop" {
 		t.Fatalf("StopGoal = (%+v, %v), last %q", stopped, err, stub.last)
@@ -356,6 +384,9 @@ func TestGoalAdapterProjectsTheCompleteLifecycle(t *testing.T) {
 	observed, exists, err := runtime.GetGoal(t.Context(), "ses_1")
 	if err != nil || !exists || observed.Status != goal.Completing || observed.Reason != nil {
 		t.Fatalf("completing GetGoal = (%+v, %t, %v)", observed, exists, err)
+	}
+	if err := runtime.ClearGoal(t.Context(), "ses_1"); err != nil || stub.last != "clear" {
+		t.Fatalf("ClearGoal = %v, last %q", err, stub.last)
 	}
 }
 
@@ -397,6 +428,18 @@ func TestGoalAdapterRejectsMutationAcknowledgementDrift(t *testing.T) {
 			stub: &goalBindingStub{stopResult: activeProtocolGoal()},
 			invoke: func(runtime *Runtime) error {
 				_, err := runtime.StopGoal(t.Context(), "ses_1")
+				return err
+			},
+		},
+		{
+			name: "update objective",
+			stub: &goalBindingStub{current: activeProtocolGoal(), updateResult: func() *protocol.Goal {
+				result := *activeProtocolGoal()
+				result.Objective = "ignored"
+				return &result
+			}()},
+			invoke: func(runtime *Runtime) error {
+				_, err := runtime.UpdateGoal(t.Context(), goal.Update{SessionID: "ses_1", Objective: "ship"})
 				return err
 			},
 		},

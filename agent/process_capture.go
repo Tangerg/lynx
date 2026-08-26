@@ -145,11 +145,11 @@ func (control pendingControl) wire() pendingControlWire {
 		wire.KillReason = control.kill.reason
 	}
 	if control.deadline.valid() {
-		wire.DeadlineOwner = control.deadline.owner.String()
+		wire.DeadlineOwner = control.deadline.owner
 		wire.DeadlineReason = control.deadline.reason
 	}
 	if control.cancellation.valid() {
-		wire.CancellationOwner = control.cancellation.owner.String()
+		wire.CancellationOwner = control.cancellation.owner
 		wire.CancellationReason = control.cancellation.reason
 	}
 	return wire
@@ -164,12 +164,10 @@ func pendingControlFromWire(wire pendingControlWire) (pendingControl, error) {
 		control.kill, _ = newKillIntent(wire.KillReason)
 	}
 	if wire.DeadlineOwner != "" {
-		owner, _ := parseDeadlineOwner(wire.DeadlineOwner)
-		control.deadline, _ = newDeadlineIntent(owner, wire.DeadlineReason)
+		control.deadline, _ = newDeadlineIntent(wire.DeadlineOwner, wire.DeadlineReason)
 	}
 	if wire.CancellationOwner != "" {
-		owner, _ := parseCancellationOwner(wire.CancellationOwner)
-		control.cancellation, _ = newCancellationIntent(owner, wire.CancellationReason)
+		control.cancellation, _ = newCancellationIntent(wire.CancellationOwner, wire.CancellationReason)
 	}
 	return control, nil
 }

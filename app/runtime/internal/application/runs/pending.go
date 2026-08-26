@@ -497,7 +497,7 @@ func validateInterrupt(request transcript.Interrupt) error {
 			return errors.New("open question interrupt already carries an accepted answer")
 		}
 	default:
-		return fmt.Errorf("unknown interrupt kind %d", request.Kind)
+		return fmt.Errorf("unknown interrupt kind %q", request.Kind)
 	}
 	return nil
 }

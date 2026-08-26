@@ -57,6 +57,19 @@ const (
 	DistanceIP DistanceMetric = "IP"
 )
 
+// Valid reports whether metric is supported by the Redis vector index.
+func (metric DistanceMetric) Valid() bool {
+	switch metric {
+	case DistanceCosine, DistanceL2, DistanceIP:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the RediSearch metric token.
+func (metric DistanceMetric) String() string { return string(metric) }
+
 func (metric DistanceMetric) score(distance float64) vectorstore.Score {
 	switch metric {
 	case DistanceL2:
@@ -85,33 +98,56 @@ const (
 	AlgorithmFlat IndexAlgorithm = "FLAT"
 )
 
+// Valid reports whether algorithm is supported by the Redis vector index.
+func (algorithm IndexAlgorithm) Valid() bool {
+	return algorithm == AlgorithmHNSW || algorithm == AlgorithmFlat
+}
+
+// String returns the RediSearch algorithm token.
+func (algorithm IndexAlgorithm) String() string { return string(algorithm) }
+
 // MetadataFieldType names the RediSearch schema field types the store
 // understands. Callers declare these up-front so the filter visitor
 // can validate field names and pick the right query syntax.
-type MetadataFieldType int
+type MetadataFieldType string
 
 const (
 	// FieldTag — RediSearch TAG field. Exact-match on categorical
 	// data; supports IN / != via "|" join and "-" prefix.
-	FieldTag MetadataFieldType = iota + 1
+	FieldTag MetadataFieldType = "TAG"
 
 	// FieldText — full-text indexed field.
-	FieldText
+	FieldText MetadataFieldType = "TEXT"
 
 	// FieldNumeric — numeric range field.
-	FieldNumeric
+	FieldNumeric MetadataFieldType = "NUMERIC"
 )
 
-func (fieldType MetadataFieldType) searchFieldType() goredis.SearchFieldType {
+// Valid reports whether the value names a schema type supported by this
+// store. The zero value is invalid so metadata fields cannot silently become
+// TAG fields.
+func (fieldType MetadataFieldType) Valid() bool {
+	switch fieldType {
+	case FieldTag, FieldText, FieldNumeric:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the RediSearch schema field token.
+func (fieldType MetadataFieldType) String() string { return string(fieldType) }
+
+func (fieldType MetadataFieldType) searchFieldType() (goredis.SearchFieldType, bool) {
 	switch fieldType {
 	case FieldNumeric:
-		return goredis.SearchFieldTypeNumeric
+		return goredis.SearchFieldTypeNumeric, true
 	case FieldText:
-		return goredis.SearchFieldTypeText
+		return goredis.SearchFieldTypeText, true
 	case FieldTag:
-		fallthrough
+		return goredis.SearchFieldTypeTag, true
 	default:
-		return goredis.SearchFieldTypeTag
+		return 0, false
 	}
 }
 
@@ -127,6 +163,17 @@ type MetadataField struct {
 
 	// Sortable, when true, marks the field SORTABLE in the schema.
 	Sortable bool
+}
+
+// Validate verifies one complete metadata schema declaration.
+func (field MetadataField) Validate() error {
+	if field.Name == "" || strings.TrimSpace(field.Name) != field.Name {
+		return errors.New("name is required and must not have surrounding whitespace")
+	}
+	if !field.Type.Valid() {
+		return fmt.Errorf("type %q is unsupported", field.Type)
+	}
+	return nil
 }
 
 // StoreConfig contains configuration options for the Redis vector
@@ -204,26 +251,25 @@ func (c StoreConfig) Validate() error {
 	if c.Dimensions < 0 {
 		return errors.New("redis: Dimensions must be >= 0")
 	}
-	switch c.DistanceMetric {
-	case DistanceCosine, DistanceL2, DistanceIP:
-	default:
+	if !c.DistanceMetric.Valid() {
 		return fmt.Errorf("redis: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
-	switch c.IndexAlgorithm {
-	case AlgorithmHNSW, AlgorithmFlat:
-	default:
+	if !c.IndexAlgorithm.Valid() {
 		return fmt.Errorf("redis: unsupported IndexAlgorithm %q", c.IndexAlgorithm)
 	}
 	if c.IndexAlgorithm == AlgorithmHNSW &&
 		(c.HNSWM <= 0 || c.HNSWEFConstruct <= 0 || c.HNSWEFRuntime <= 0) {
 		return errors.New("redis: HNSW parameters must all be > 0")
 	}
-	for _, field := range c.MetadataFields {
-		switch field.Type {
-		case FieldTag, FieldText, FieldNumeric:
-		default:
-			return fmt.Errorf("redis: metadata field %q has unsupported Type %d", field.Name, field.Type)
+	fieldNames := make(map[string]struct{}, len(c.MetadataFields))
+	for index, field := range c.MetadataFields {
+		if err := field.Validate(); err != nil {
+			return fmt.Errorf("redis: MetadataFields[%d]: %w", index, err)
 		}
+		if _, duplicate := fieldNames[field.Name]; duplicate {
+			return fmt.Errorf("redis: MetadataFields contains duplicate field %q", field.Name)
+		}
+		fieldNames[field.Name] = struct{}{}
 	}
 	return nil
 }
@@ -349,7 +395,10 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		}
 	}
 
-	schema := s.buildSchema()
+	schema, err := s.buildSchema()
+	if err != nil {
+		return err
+	}
 	opts := &goredis.FTCreateOptions{
 		OnHash: true,
 		Prefix: []any{s.keyPrefix},
@@ -360,7 +409,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	return nil
 }
 
-func (s *Store) buildSchema() []*goredis.FieldSchema {
+func (s *Store) buildSchema() ([]*goredis.FieldSchema, error) {
 	schema := []*goredis.FieldSchema{
 		{
 			FieldName: s.contentField,
@@ -375,14 +424,18 @@ func (s *Store) buildSchema() []*goredis.FieldSchema {
 	}
 
 	for _, f := range s.metadataFields {
+		fieldType, ok := f.Type.searchFieldType()
+		if !ok {
+			return nil, fmt.Errorf("redis: metadata field %q has unsupported Type %q", f.Name, f.Type)
+		}
 		fs := &goredis.FieldSchema{
 			FieldName: f.Name,
-			FieldType: f.Type.searchFieldType(),
+			FieldType: fieldType,
 			Sortable:  f.Sortable,
 		}
 		schema = append(schema, fs)
 	}
-	return schema
+	return schema, nil
 }
 
 func (s *Store) vectorArgs() *goredis.FTVectorArgs {

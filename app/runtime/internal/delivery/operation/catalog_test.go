@@ -14,7 +14,7 @@ func TestContractIsTheOnlyMethodTable(t *testing.T) {
 	if len(metas) == 0 {
 		t.Fatal("the contract registered no methods")
 	}
-	seen := make(map[string]bool, len(metas))
+	seen := make(map[Name]bool, len(metas))
 	for _, meta := range metas {
 		if seen[meta.Name] {
 			t.Errorf("method %q is registered twice", meta.Name)
@@ -83,7 +83,7 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"runs.start", "runs.resume"} {
+	for _, name := range []Name{RunsStart, RunsResume} {
 		method, _ := Contract().Lookup(name)
 		if method.Idempotency != IdempotencyReplayRunStream {
 			t.Errorf("%s must replay by re-attaching to its run, got %v", name, method.Idempotency)
@@ -94,13 +94,13 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 func TestRunReplayCursorPolicyNamesOnlyReplayableRunStreams(t *testing.T) {
 	t.Parallel()
 
-	var got []string
+	var got []Name
 	for _, meta := range Contract().Metas() {
 		if meta.ReplayCursor == ReplayCursorRun {
 			got = append(got, meta.Name)
 		}
 	}
-	want := []string{"runs.resume", "runs.start", "runs.subscribe"}
+	want := []Name{RunsResume, RunsStart, RunsSubscribe}
 	slices.Sort(got)
 	if !slices.Equal(got, want) {
 		t.Fatalf("run replay cursor methods = %v, want %v", got, want)
@@ -110,7 +110,7 @@ func TestRunReplayCursorPolicyNamesOnlyReplayableRunStreams(t *testing.T) {
 func TestGoalManagementCommandsArePublished(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"goals.update", "goals.clear"} {
+	for _, name := range []Name{GoalsUpdate, GoalsClear} {
 		method, ok := Contract().Lookup(name)
 		if !ok {
 			t.Errorf("%s is not registered", name)

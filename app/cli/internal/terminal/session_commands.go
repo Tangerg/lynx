@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
@@ -40,7 +41,7 @@ func (a *app) loadMoreSessions() {
 
 func (a *app) loadSessionPage(cursor string, appendPage bool) {
 	a.message("loading sessions")
-	runOperation(a, pickerCatalogOperation, true,
+	a.runOperation(pickerCatalogOperation, true,
 		func(ctx context.Context) (agent.SessionPage, error) {
 			page, err := a.runtime.ListSessions(ctx, agent.SessionQuery{Limit: 20, Cursor: cursor})
 			if err != nil {
@@ -156,7 +157,7 @@ func (a *app) openSessionDelete(session agent.Session) {
 }
 
 func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session) agent.UpdateSession) {
-	started := runApplicationOperation(a, sessionCenterOperation, false,
+	started := a.runApplicationOperation(sessionCenterOperation, false,
 		func(ctx context.Context) (agent.Session, error) {
 			latest, err := a.runtime.GetSession(ctx, id)
 			if err != nil {
@@ -182,7 +183,7 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 }
 
 func (a *app) deleteSessionFromCenter(id string) {
-	started := runApplicationOperation(a, sessionCenterOperation, false,
+	started := a.runApplicationOperation(sessionCenterOperation, false,
 		func(ctx context.Context) (sessiondeletion.Result, error) {
 			return sessiondeletion.Execute(
 				ctx, a.runtime, a.workbench, id, deletionReplayWindow(a.runtimeProfile), runtimeRecoveryBackoff,
@@ -190,19 +191,23 @@ func (a *app) deleteSessionFromCenter(id string) {
 		},
 		func(result sessiondeletion.Result, err error) {
 			switch result.Outcome {
-			case sessiondeletion.Rejected:
+			case mutation.Rejected:
 				if rejectErr := sessiondeletion.Reject(a.workbench, result); rejectErr != nil {
 					a.message("delete session failed; local intent cleanup failed: " + errors.Join(err, rejectErr).Error())
 					return
 				}
 				a.message("delete session failed: " + err.Error())
 				return
-			case sessiondeletion.Unknown:
+			case mutation.Unknown:
 				if result.Request.CommandID == "" {
 					a.message("delete session failed: " + err.Error())
 					return
 				}
 				a.message("delete session outcome is unknown; it will be reconciled on restart: " + err.Error())
+				return
+			case mutation.Confirmed:
+			default:
+				a.message("delete session returned an invalid settlement outcome")
 				return
 			}
 			if err := sessiondeletion.Confirm(a.workbench, result); err != nil {
@@ -236,7 +241,7 @@ func (a *app) RenameSession(title string) {
 		return
 	}
 	sessionID := a.session.ID
-	runSessionChange(a, "renaming session",
+	a.runSessionChange("renaming session",
 		func(ctx context.Context) (agent.Session, error) {
 			latest, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
@@ -256,7 +261,7 @@ func (a *app) RenameSession(title string) {
 
 func (a *app) ForkSession(title string) {
 	source := a.session.ID
-	runSessionChange(a, "forking session",
+	a.runSessionChange("forking session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{SessionID: source, Title: strings.TrimSpace(title)})
 			if err != nil {
@@ -271,7 +276,7 @@ func (a *app) ForkSession(title string) {
 func (a *app) forkSessionFromRun(runID string) {
 	source := a.session.ID
 	short := shortIdentity(runID)
-	runSessionChange(a, "forking session from "+short,
+	a.runSessionChange("forking session from "+short,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{
 				SessionID: source, FromRunID: runID, Title: "Fork from " + short,
@@ -290,18 +295,17 @@ func (a *app) switchSession(id string) {
 		a.message("already in " + displayTitle(a.session))
 		return
 	}
-	runSessionChange(a, "loading session",
+	a.runSessionChange("loading session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) { return a.runtime.GetSession(ctx, id) },
 		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
 }
 
-func runSessionChange[T any](a *app, label string, work func(context.Context) (T, error), apply func(T) error) {
-	runSessionChangeWithDraftDisposition(a, label, preserveSourceDraft, work, apply)
+func (a *app) runSessionChange[T any](label string, work func(context.Context) (T, error), apply func(T) error) {
+	a.runSessionChangeWithDraftDisposition(label, preserveSourceDraft, work, apply)
 }
 
-func runSessionChangeWithDraftDisposition[T any](
-	a *app,
+func (a *app) runSessionChangeWithDraftDisposition[T any](
 	label string,
 	disposition sourceDraftDisposition,
 	work func(context.Context) (T, error),
@@ -342,7 +346,7 @@ func runSessionChangeWithDraftDisposition[T any](
 		disposition:     disposition,
 	}
 	a.message(label)
-	if !runOperation(a, sessionChangeOperation, false, work, func(result T, err error) {
+	if !a.runOperation(sessionChangeOperation, false, work, func(result T, err error) {
 		defer a.settleSessionChange()
 		if err != nil {
 			a.message(label + " failed: " + err.Error())

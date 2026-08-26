@@ -44,38 +44,28 @@ var ErrInvalidEvent = errors.New("agent: invalid event")
 
 // EventPhase distinguishes an attempted external operation from a fact that the
 // Engine has committed into authoritative Process state.
-type EventPhase uint8
+type EventPhase string
 
 const (
 	// EventPhaseInvalid is the invalid zero value.
-	EventPhaseInvalid EventPhase = iota
+	EventPhaseInvalid EventPhase = ""
 	// EventPhaseAttempt identifies work observed before authoritative commit.
-	EventPhaseAttempt
+	EventPhaseAttempt EventPhase = "attempt"
 	// EventPhaseCommitted identifies a fact published after authoritative commit.
-	EventPhaseCommitted
+	EventPhaseCommitted EventPhase = "committed"
 )
+
+// Valid reports whether phase is a supported observation boundary.
+func (phase EventPhase) Valid() bool {
+	return phase == EventPhaseAttempt || phase == EventPhaseCommitted
+}
 
 // String returns the stable Event phase name.
 func (phase EventPhase) String() string {
-	switch phase {
-	case EventPhaseAttempt:
-		return "attempt"
-	case EventPhaseCommitted:
-		return "committed"
-	default:
+	if !phase.Valid() {
 		return "invalid"
 	}
-}
-
-func parseEventPhase(value string) (EventPhase, error) {
-	switch value {
-	case "attempt":
-		return EventPhaseAttempt, nil
-	case "committed":
-		return EventPhaseCommitted, nil
-	default:
-		return EventPhaseInvalid, fmt.Errorf("%w: unknown phase %q", ErrInvalidEvent, value)
-	}
+	return string(phase)
 }
 
 // Event is an immutable, ordered fact published by the Framework. Observers may
@@ -121,7 +111,7 @@ func newEvent(
 	if !validQualifiedName(name) {
 		return Event{}, fmt.Errorf("%w: name must be a lowercase qualified name", ErrInvalidEvent)
 	}
-	if phase != EventPhaseAttempt && phase != EventPhaseCommitted {
+	if !phase.Valid() {
 		return Event{}, fmt.Errorf("%w: phase is required", ErrInvalidEvent)
 	}
 	if occurredAt.IsZero() {
@@ -183,7 +173,7 @@ func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 func (e Event) Valid() bool {
 	return e.processSequence > 0 && e.processID.Valid() && e.deploymentRef.Valid() &&
 		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
-		(e.phase == EventPhaseAttempt || e.phase == EventPhaseCommitted) &&
+		e.phase.Valid() &&
 		!e.occurredAt.IsZero() && len(e.payload) > 0
 }
 
@@ -199,7 +189,7 @@ func (e Event) MarshalJSON() ([]byte, error) {
 		Relation:        e.relation.wire(),
 		StepSequence:    e.stepSequence,
 		Name:            e.name,
-		Phase:           e.phase.String(),
+		Phase:           e.phase,
 		OccurredAt:      e.occurredAt,
 		Payload:         e.payload,
 	}
@@ -223,10 +213,6 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidEvent, err)
 	}
-	phase, err := parseEventPhase(wire.Phase)
-	if err != nil {
-		return err
-	}
 	var effectID EffectID
 	if wire.EffectID != nil {
 		effectID = *wire.EffectID
@@ -237,7 +223,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	}
 	value, err := newEvent(
 		wire.ProcessSequence, wire.ProcessID, wire.DeploymentRef, relation, wire.StepSequence,
-		effectID, wire.Name, phase, wire.OccurredAt, wire.Payload,
+		effectID, wire.Name, wire.Phase, wire.OccurredAt, wire.Payload,
 	)
 	if err != nil {
 		return err
@@ -254,7 +240,7 @@ type eventWire struct {
 	StepSequence    uint64              `json:"step_sequence,omitempty"`
 	EffectID        *EffectID           `json:"effect_id,omitempty"`
 	Name            string              `json:"name"`
-	Phase           string              `json:"phase"`
+	Phase           EventPhase          `json:"phase"`
 	OccurredAt      time.Time           `json:"occurred_at"`
 	Payload         json.RawMessage     `json:"payload"`
 }

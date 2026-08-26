@@ -6,9 +6,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const (
+	WorkspacesResolve    Name = "workspaces.resolve"
+	WorkspacesList       Name = "workspaces.list"
+	WorkspaceChangesList Name = "workspace.changes.list"
+	WorkspaceDiffGet     Name = "workspace.diff.get"
+	WorkspaceFilesHead   Name = "workspace.files.head"
+	WorkspaceFilesSearch Name = "workspace.files.search"
+	WorkspaceFilesList   Name = "workspace.files.list"
+	WorkspaceFilesRead   Name = "workspace.files.read"
+)
+
 func registerWorkspace(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name:   "workspaces.resolve",
+	registry.Query(MethodMeta{
+		Name:   WorkspacesResolve,
 		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error)
@@ -16,7 +27,7 @@ func registerWorkspace(registry *Registry) {
 		return service.ResolveWorkspace(ctx, request)
 	})
 
-	Query(registry, MethodMeta{Name: "workspaces.list"},
+	registry.Query(MethodMeta{Name: WorkspacesList},
 		func(service interface {
 			ListWorkspaces(context.Context) (*protocol.Page[protocol.WorkspaceSummary], error)
 		}, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
@@ -25,8 +36,8 @@ func registerWorkspace(registry *Registry) {
 
 	// Git reads require the advertised capability. Once negotiated, a path that is
 	// not a repository is the distinct vcs_unavailable domain answer.
-	Query(registry, MethodMeta{
-		Name: "workspace.changes.list",
+	registry.Query(MethodMeta{
+		Name: WorkspaceChangesList,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrVcsUnavailable.Error(),
@@ -38,8 +49,8 @@ func registerWorkspace(registry *Registry) {
 		return service.ListWorkspaceFileChanges(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "workspace.diff.get",
+	registry.Query(MethodMeta{
+		Name: WorkspaceDiffGet,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrVcsUnavailable.Error(),
@@ -52,8 +63,8 @@ func registerWorkspace(registry *Registry) {
 		return service.GetWorkspaceDiff(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "workspace.files.head",
+	registry.Query(MethodMeta{
+		Name: WorkspaceFilesHead,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
@@ -64,8 +75,8 @@ func registerWorkspace(registry *Registry) {
 		return service.GetWorkspaceFileHead(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "workspace.files.search",
+	registry.Query(MethodMeta{
+		Name: WorkspaceFilesSearch,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
@@ -76,8 +87,8 @@ func registerWorkspace(registry *Registry) {
 		return service.GrepWorkspace(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "workspace.files.list",
+	registry.Query(MethodMeta{
+		Name: WorkspaceFilesList,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),
@@ -88,8 +99,8 @@ func registerWorkspace(registry *Registry) {
 		return service.ListWorkspaceFiles(ctx, request)
 	})
 
-	Query(registry, MethodMeta{
-		Name: "workspace.files.read",
+	registry.Query(MethodMeta{
+		Name: WorkspaceFilesRead,
 		Errors: []string{
 			protocol.ErrWorkspaceUnavailable.Error(),
 			protocol.ErrPathOutsideRoot.Error(),

@@ -757,8 +757,7 @@ func TestEmbeddedBinaryOpensAnIsolatedRuntimeAndReleasesItsLease(t *testing.T) {
 	profileOutput := runTestBinary(t, binary, environment, "runtime", "info", "--json")
 	var profile struct {
 		Protocol struct {
-			Current      string `json:"current"`
-			MinSupported string `json:"minSupported"`
+			Version string `json:"version"`
 		} `json:"protocol"`
 		Server struct {
 			Name string `json:"name"`
@@ -768,8 +767,7 @@ func TestEmbeddedBinaryOpensAnIsolatedRuntimeAndReleasesItsLease(t *testing.T) {
 	if err := json.Unmarshal(profileOutput, &profile); err != nil {
 		t.Fatalf("decode embedded runtime profile: %v\n%s", err, profileOutput)
 	}
-	if profile.Protocol.Current == "" || profile.Protocol.Current != profile.Protocol.MinSupported ||
-		profile.Server.Name == "" || len(profile.RuntimeTopics) == 0 {
+	if profile.Protocol.Version == "" || profile.Server.Name == "" || len(profile.RuntimeTopics) == 0 {
 		t.Fatalf("incomplete embedded runtime profile: %+v", profile)
 	}
 	if info, err := os.Stat(filepath.Join(lyraHome, "runtime", "lyra.db")); err != nil || !info.Mode().IsRegular() {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	steeringoutbox "github.com/Tangerg/lynx/app/cli/internal/steering"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -60,7 +61,7 @@ func (a *app) steerRun(instruction string) error {
 	a.reportWorkbenchIssue(workbenchSteerOutbox, nil)
 	a.restoreComposer(agent.Message{})
 	a.draftState.Reset(a.session.ID, agent.Message{})
-	started := runSessionSettlement(a, steerRunOperation, false,
+	started := a.runSessionSettlement(steerRunOperation, false,
 		func(ctx context.Context) (steeringoutbox.Result, error) {
 			return steeringoutbox.Deliver(
 				ctx, a.runtime, pending, steeringReplayWindow(a.runtimeProfile), runtimeRecoveryBackoff,
@@ -85,13 +86,13 @@ func (a *app) steerRun(instruction string) error {
 
 func (a *app) settleSteer(result steeringoutbox.Result, deliveryErr error, runID string) {
 	switch result.Outcome {
-	case steeringoutbox.Confirmed:
+	case mutation.Confirmed:
 		if err := a.acknowledgeSteer(result.Pending); err != nil {
 			a.message("steer accepted; local settlement pending: " + err.Error())
 			return
 		}
 		a.message("steer accepted for " + shortIdentity(runID))
-	case steeringoutbox.Rejected:
+	case mutation.Rejected:
 		recovered, err := a.rejectSteer(result.Pending)
 		if err != nil {
 			a.restoreComposer(workbenchMergeSteerAttachments(a, result.Pending.Command.Message.Attachments))
@@ -101,7 +102,7 @@ func (a *app) settleSteer(result steeringoutbox.Result, deliveryErr error, runID
 		a.restoreComposer(recovered)
 		a.draftState.Reset(a.session.ID, recovered)
 		a.message("steer run failed: " + deliveryErr.Error())
-	case steeringoutbox.Unknown:
+	case mutation.Unknown:
 		a.message("steer outcome is unknown; it will be reconciled on restart: " + deliveryErr.Error())
 	default:
 		a.message("steer settlement returned an invalid outcome")

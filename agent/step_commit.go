@@ -18,9 +18,9 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 	stepStartedAt := time.Now()
 	signals := loop.mailbox.pending()
 	transition, err := stepExecution(ctx, loop.execution, signals)
-	stepStatus := "succeeded"
+	stepStatus := StepStatusSucceeded
 	if err != nil {
-		stepStatus = "failed"
+		stepStatus = StepStatusFailed
 	}
 	stepPayload, _ := json.Marshal(stepFinishedEventPayload{
 		StepStatus: stepStatus, DurationMS: time.Since(stepStartedAt).Milliseconds(),
@@ -366,7 +366,7 @@ func (finalization *preparedStepFinalization) commit(ctx context.Context) error 
 		loop.pendingControl = pendingControl{}
 	}
 	loop.updateView()
-	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status.String()})
+	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status})
 	loop.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, loop.committedSteps, EffectID{}, payload)
 	for _, waitID := range finalization.consumedChildWaits {
 		loop.engine.unregisterChildWait(waitID)

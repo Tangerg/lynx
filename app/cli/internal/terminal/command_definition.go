@@ -53,17 +53,17 @@ type localCommand struct {
 // deliberately richer than the presenter's Takes flag: optional input must be
 // discoverable without being mistaken for required input, and argument-free
 // commands must reject accidental trailing text.
-type ArgumentMode uint8
+type ArgumentMode string
 
 const (
-	NoArguments ArgumentMode = iota
-	OptionalArguments
-	RequiredArguments
+	NoArguments       ArgumentMode = ""
+	OptionalArguments ArgumentMode = "optional"
+	RequiredArguments ArgumentMode = "required"
 )
 
 func (mode ArgumentMode) Validate() error {
-	if mode > RequiredArguments {
-		return fmt.Errorf("slash command argument mode %d is invalid", mode)
+	if mode != NoArguments && mode != OptionalArguments && mode != RequiredArguments {
+		return fmt.Errorf("slash command argument mode %q is invalid", mode)
 	}
 	return nil
 }

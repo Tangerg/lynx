@@ -24,7 +24,7 @@ func TestCustomRuntimeEventsUseNamedTerminalPresenters(t *testing.T) {
 		ID: "test.custom-events", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []extensions.Capability{CustomEventPresenters.Capability()},
 		Setup: func(scope *extensions.Scope) error {
-			_, err := extensions.Contribute(scope, CustomEventPresenters, CustomEventPresenter{
+			_, err := scope.Contribute(CustomEventPresenters, CustomEventPresenter{
 				Name: "vendor.trace",
 				Present: func(presentation BlockPresentation, event agent.CustomEvent) []headless.Block {
 					return []headless.Block{&kit.Message{Theme: presentation.Theme, Speaker: "trace", Body: string(event.PayloadJSON)}}

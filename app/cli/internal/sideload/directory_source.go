@@ -260,7 +260,7 @@ func compilePluginMetadata(declared pluginManifest) (extensions.Plugin, error) {
 func contributeCommands(commands []terminal.SlashCommand) func(*extensions.Scope) error {
 	return func(scope *extensions.Scope) error {
 		for i, command := range commands {
-			if _, err := extensions.Contribute(scope, terminal.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
+			if _, err := scope.Contribute(terminal.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
 				return err
 			}
 		}
@@ -375,16 +375,15 @@ func compileCommand(
 }
 
 func commandArgumentMode(name, declared string) (terminal.ArgumentMode, error) {
-	switch strings.TrimSpace(declared) {
-	case "", "none":
+	value := strings.TrimSpace(declared)
+	if value == "" || value == "none" {
 		return terminal.NoArguments, nil
-	case "optional":
-		return terminal.OptionalArguments, nil
-	case "required":
-		return terminal.RequiredArguments, nil
-	default:
-		return terminal.NoArguments, fmt.Errorf("command %q has invalid arguments mode %q", name, declared)
 	}
+	mode := terminal.ArgumentMode(value)
+	if err := mode.Validate(); err != nil {
+		return "", fmt.Errorf("command %q has invalid arguments mode %q: %w", name, declared, err)
+	}
+	return mode, nil
 }
 
 func validCommandSpelling(value string) bool {

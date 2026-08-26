@@ -305,7 +305,7 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 		prepared.disposition != WaitingSubtreeStaysWaiting ||
 		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = applies:%d disposition:%d discards:%d",
+			"prepared settlement = applies:%d disposition:%q discards:%d",
 			prepared.applied,
 			prepared.disposition,
 			prepared.discarded,
@@ -472,7 +472,7 @@ func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *tes
 	if prepared.applied != 1 ||
 		prepared.disposition != WaitingSubtreeStaysWaiting {
 		t.Fatalf(
-			"restored prepared settlement = applies:%d disposition:%d",
+			"restored prepared settlement = applies:%d disposition:%q",
 			prepared.applied,
 			prepared.disposition,
 		)
@@ -534,7 +534,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		prepared.continued != 1 ||
 		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = applies:%d disposition:%d continues:%d discards:%d",
+			"prepared settlement = applies:%d disposition:%q continues:%d discards:%d",
 			prepared.applied,
 			prepared.disposition,
 			prepared.continued,
@@ -615,7 +615,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 		prepared.continued != 1 ||
 		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = applies:%d disposition:%d continues:%d discards:%d, want 1/%d/1/0",
+			"prepared settlement = applies:%d disposition:%q continues:%d discards:%d, want 1/%q/1/0",
 			prepared.applied,
 			prepared.disposition,
 			prepared.continued,

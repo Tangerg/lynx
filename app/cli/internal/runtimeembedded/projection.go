@@ -164,15 +164,12 @@ func projectRuntimeProblem(problem *protocol.ProblemData) *failure.Problem {
 	return projected
 }
 
-func projectPlan(snapshot *protocol.StateSnapshot) ([]agent.PlanItem, uint64, error) {
-	if snapshot == nil {
+func projectPlan(plan *protocol.Plan) ([]agent.PlanItem, uint64, error) {
+	if plan == nil {
 		return nil, 0, errors.New("plan projection is nil")
 	}
-	if snapshot.Type != protocol.StatePlan {
-		return nil, 0, fmt.Errorf("unsupported state snapshot %q", snapshot.Type)
-	}
-	items := make([]agent.PlanItem, 0, len(snapshot.Plan))
-	for _, value := range snapshot.Plan {
+	items := make([]agent.PlanItem, 0, len(plan.Steps))
+	for _, value := range plan.Steps {
 		var status agent.PlanStatus
 		switch value.Status {
 		case protocol.PlanStatusPending:
@@ -186,15 +183,15 @@ func projectPlan(snapshot *protocol.StateSnapshot) ([]agent.PlanItem, uint64, er
 		}
 		items = append(items, agent.PlanItem{Title: value.Description, Status: status})
 	}
-	if snapshot.Revision == 0 && len(items) != 0 {
+	if plan.Revision == 0 && len(items) != 0 {
 		return nil, 0, errors.New("unwritten runtime plan contains items")
 	}
-	if snapshot.Revision != 0 {
-		if err := agent.ValidateEvent(agent.PlanChanged{Revision: snapshot.Revision, Items: items}); err != nil {
+	if plan.Revision != 0 {
+		if err := agent.ValidateEvent(agent.PlanChanged{Revision: plan.Revision, Items: items}); err != nil {
 			return nil, 0, err
 		}
 	}
-	return items, snapshot.Revision, nil
+	return items, plan.Revision, nil
 }
 
 func projectInteraction(value protocol.Interrupt) (agent.Interaction, error) {

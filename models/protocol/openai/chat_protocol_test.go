@@ -143,7 +143,7 @@ func TestCompatibleChatRejectsMultipleProviderChoices(t *testing.T) {
 	t.Cleanup(server.Close)
 	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
 		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
-	}, lynxopenai.Dialect{Provider: "test"})
+	}, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
 	if err != nil {
 		t.Fatalf("NewCompatibleChat: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestCompatibleChatRejectsResultCountOption(t *testing.T) {
 	t.Cleanup(server.Close)
 	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
 		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
-	}, lynxopenai.Dialect{Provider: "test"})
+	}, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
 	if err != nil {
 		t.Fatalf("NewCompatibleChat: %v", err)
 	}

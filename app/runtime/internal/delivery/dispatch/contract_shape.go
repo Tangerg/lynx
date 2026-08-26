@@ -103,72 +103,64 @@ type NotificationSpec struct {
 }
 
 // ConstraintKind is a value constraint a field's JSON type does not express.
-type ConstraintKind uint8
+type ConstraintKind string
 
 const (
 	// ConstraintNonEmpty rejects the empty string. A required id whose value is ""
 	// names nothing, and every transport and generated client should refuse it in
 	// the same place rather than each handler deciding.
-	ConstraintNonEmpty ConstraintKind = iota
+	ConstraintNonEmpty ConstraintKind = "nonEmpty"
 	// ConstraintPositive rejects zero. A revision or count of zero is not a value
 	// the caller could have meant.
-	ConstraintPositive
+	ConstraintPositive ConstraintKind = "positive"
 	// ConstraintNonNegative rejects negative numeric values while preserving zero
 	// as the wire spelling of an omitted/unbounded limit.
-	ConstraintNonNegative
+	ConstraintNonNegative ConstraintKind = "nonNegative"
 	// ConstraintNonEmptyItems rejects an empty array. An optional narrowing set
 	// already uses absence for "no narrower scope", while a required set names the
 	// minimum recovery or transaction unit. An empty third spelling has no useful
 	// meaning in either direction.
-	ConstraintNonEmptyItems
+	ConstraintNonEmptyItems ConstraintKind = "nonEmptyItems"
 	// ConstraintNonEmptyProperties rejects an empty object map. Secret-map
 	// replacement uses omission to preserve and a clear variant to remove, so an
 	// empty set value would be a third, ambiguous spelling of clear.
-	ConstraintNonEmptyProperties
+	ConstraintNonEmptyProperties ConstraintKind = "nonEmptyProperties"
 	// ConstraintUniqueItems rejects a repeated element. A filter is a set, and a
 	// value listed twice means the caller believes it is asking something a set
 	// cannot express.
-	ConstraintUniqueItems
+	ConstraintUniqueItems ConstraintKind = "uniqueItems"
 	// ConstraintMinItems rejects an array shorter than FieldConstraint.Limit.
 	// Unlike ConstraintNonEmptyItems, its bound is part of the contract rather
 	// than the special distinction between omission and an explicitly empty set.
-	ConstraintMinItems
+	ConstraintMinItems ConstraintKind = "minItems"
 	// ConstraintMaxLength rejects a string containing more Unicode code points
 	// than FieldConstraint.Limit, matching JSON Schema's length semantics.
-	ConstraintMaxLength
+	ConstraintMaxLength ConstraintKind = "maxLength"
 	// ConstraintMinimum rejects a number smaller than FieldConstraint.Limit.
 	// It is inclusive, matching JSON Schema's minimum keyword.
-	ConstraintMinimum
+	ConstraintMinimum ConstraintKind = "minimum"
 	// ConstraintMaximum rejects a number greater than FieldConstraint.Limit.
 	// It is inclusive, matching JSON Schema's maximum keyword.
-	ConstraintMaximum
+	ConstraintMaximum ConstraintKind = "maximum"
 )
 
-func (k ConstraintKind) String() string {
+// Valid reports whether k names one supported field constraint.
+func (k ConstraintKind) Valid() bool {
 	switch k {
-	case ConstraintNonEmpty:
-		return "nonEmpty"
-	case ConstraintPositive:
-		return "positive"
-	case ConstraintNonNegative:
-		return "nonNegative"
-	case ConstraintNonEmptyItems:
-		return "nonEmptyItems"
-	case ConstraintNonEmptyProperties:
-		return "nonEmptyProperties"
-	case ConstraintUniqueItems:
-		return "uniqueItems"
-	case ConstraintMinItems:
-		return "minItems"
-	case ConstraintMaxLength:
-		return "maxLength"
-	case ConstraintMinimum:
-		return "minimum"
-	case ConstraintMaximum:
-		return "maximum"
+	case ConstraintNonEmpty, ConstraintPositive, ConstraintNonNegative,
+		ConstraintNonEmptyItems, ConstraintNonEmptyProperties, ConstraintUniqueItems,
+		ConstraintMinItems, ConstraintMaxLength, ConstraintMinimum, ConstraintMaximum:
+		return true
 	default:
-		return fmt.Sprintf("ConstraintKind(%d)", k)
+		return false
 	}
+}
+
+func (k ConstraintKind) String() string {
+	if !k.Valid() {
+		return fmt.Sprintf("ConstraintKind(%q)", string(k))
+	}
+	return string(k)
 }
 
 // FieldConstraint is one field's value constraint. Field is a dotted JSON path.

@@ -130,23 +130,37 @@ func (c StoreConfig) Validate() error {
 		return fmt.Errorf("cassandra: unsupported Similarity %q", c.Similarity)
 	}
 
-	checks := map[string]string{
-		"KeyspaceName":    c.KeyspaceName,
-		"TableName":       c.TableName,
-		"IDColumn":        c.IDColumn,
-		"ContentColumn":   c.ContentColumn,
-		"EmbeddingColumn": c.EmbeddingColumn,
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.KeyspaceName).validate("KeyspaceName"); err != nil {
+		return err
+	}
+	if err := identifier(c.TableName).validate("TableName"); err != nil {
+		return err
+	}
+	if err := identifier(c.IDColumn).validate("IDColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.ContentColumn).validate("ContentColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.EmbeddingColumn).validate("EmbeddingColumn"); err != nil {
+		return err
 	}
 	for _, m := range c.MetadataColumns {
 		if m.Name == "" {
 			return errors.New("cassandra: MetadataColumn.Name must not be empty")
 		}
-		checks["MetadataColumn."+m.Name] = m.Name
+		if err := identifier(m.Name).validate("MetadataColumn.Name"); err != nil {
+			return err
+		}
 		if m.CQLType == "" {
 			return fmt.Errorf("cassandra: MetadataColumn %q must have a CQLType", m.Name)
 		}
 	}
-	return validateIdentifiers("cassandra", checks)
+	return nil
 }
 
 var (

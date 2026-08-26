@@ -56,18 +56,18 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		want   []string
 	}{
 		{name: "method name", mutate: func(meta *MethodMeta) { meta.Name = "runs" }, want: []string{`"runs"`, "dot-separated non-empty segments"}},
-		{name: "method kind", mutate: func(meta *MethodMeta) { meta.Kind = MethodKind(255) }, want: []string{"runs.list", "MethodKind(255)"}},
-		{name: "operation kind", mutate: func(meta *MethodMeta) { meta.Operation = OperationKind(255) }, want: []string{"runs.list", "OperationKind(255)"}},
-		{name: "idempotency policy", mutate: func(meta *MethodMeta) { meta.Idempotency = IdempotencyPolicy(255) }, want: []string{"runs.list", "IdempotencyPolicy(255)"}},
-		{name: "replay cursor policy", mutate: func(meta *MethodMeta) { meta.ReplayCursor = ReplayCursorPolicy(255) }, want: []string{"runs.list", "ReplayCursorPolicy(255)"}},
+		{name: "method kind", mutate: func(meta *MethodMeta) { meta.Kind = MethodKind("invalid") }, want: []string{"runs.list", `MethodKind("invalid")`}},
+		{name: "operation kind", mutate: func(meta *MethodMeta) { meta.Operation = OperationKind("invalid") }, want: []string{"runs.list", `OperationKind("invalid")`}},
+		{name: "idempotency policy", mutate: func(meta *MethodMeta) { meta.Idempotency = IdempotencyPolicy("invalid") }, want: []string{"runs.list", `IdempotencyPolicy("invalid")`}},
+		{name: "replay cursor policy", mutate: func(meta *MethodMeta) { meta.ReplayCursor = ReplayCursorPolicy("invalid") }, want: []string{"runs.list", `ReplayCursorPolicy("invalid")`}},
 		{name: "query run replay cursor", mutate: func(meta *MethodMeta) { meta.ReplayCursor = ReplayCursorRun }, want: []string{"runs.list", "only a streaming method"}},
-		{name: "pagination kind", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationKind(255) }, want: []string{"runs.list", "PaginationKind(255)"}},
+		{name: "pagination kind", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationKind("invalid") }, want: []string{"runs.list", `PaginationKind("invalid")`}},
 		{name: "pagination disagrees with shapes", mutate: func(meta *MethodMeta) { meta.Pagination = PaginationNone }, want: []string{"runs.list", "shapes derive cursor"}},
-		{name: "condition operator", mutate: func(meta *MethodMeta) { meta.CapabilityRules[0].When[0].Operator = ConditionOperator(255) }, want: []string{"runs.list", "includeDescendants", "ConditionOperator(255)"}},
-		{name: "materializes itself", mutate: func(meta *MethodMeta) { meta.Materializes = []string{meta.Name} }, want: []string{"runs.list", "cannot materialize itself"}},
-		{name: "repeated materialized query", mutate: func(meta *MethodMeta) { meta.Materializes = []string{"items.list", "items.list"} }, want: []string{"runs.list", "items.list", "declared twice"}},
+		{name: "condition operator", mutate: func(meta *MethodMeta) { meta.CapabilityRules[0].When[0].Operator = ConditionOperator("invalid") }, want: []string{"runs.list", "includeDescendants", `ConditionOperator("invalid")`}},
+		{name: "materializes itself", mutate: func(meta *MethodMeta) { meta.Materializes = []Name{meta.Name} }, want: []string{"runs.list", "cannot materialize itself"}},
+		{name: "repeated materialized query", mutate: func(meta *MethodMeta) { meta.Materializes = []Name{ItemsList, ItemsList} }, want: []string{"runs.list", "items.list", "declared twice"}},
 		{name: "command materialization", mutate: func(meta *MethodMeta) {
-			meta.Materializes = []string{"items.list"}
+			meta.Materializes = []Name{ItemsList}
 			meta.Operation = OperationCommand
 		}, want: []string{"runs.list", "only a query"}},
 	}
@@ -87,22 +87,22 @@ func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testin
 		})
 	}
 
-	if got := MethodKind(255).String(); got == KindUnary.String() || got == KindStream.String() {
+	if got := MethodKind("invalid").String(); got == KindUnary.String() || got == KindStream.String() {
 		t.Fatalf("unknown method kind masquerades as %q", got)
 	}
-	if got := OperationKind(255).String(); got == OperationQuery.String() {
+	if got := OperationKind("invalid").String(); got == OperationQuery.String() {
 		t.Fatalf("unknown operation kind masquerades as %q", got)
 	}
-	if got := IdempotencyPolicy(255).String(); got == IdempotencyNone.String() {
+	if got := IdempotencyPolicy("invalid").String(); got == IdempotencyNone.String() {
 		t.Fatalf("unknown idempotency policy masquerades as %q", got)
 	}
-	if got := ReplayCursorPolicy(255).String(); got == ReplayCursorNone.String() {
+	if got := ReplayCursorPolicy("invalid").String(); got == ReplayCursorNone.String() {
 		t.Fatalf("unknown replay cursor policy masquerades as %q", got)
 	}
-	if got := PaginationKind(255).String(); got == PaginationNone.String() {
+	if got := PaginationKind("invalid").String(); got == PaginationNone.String() {
 		t.Fatalf("unknown pagination kind masquerades as %q", got)
 	}
-	if got := ConditionOperator(255).String(); got == OperatorPresent.String() {
+	if got := ConditionOperator("invalid").String(); got == OperatorPresent.String() {
 		t.Fatalf("unknown condition operator masquerades as %q", got)
 	}
 }
@@ -123,8 +123,8 @@ func TestRunReplayCursorRequiresRunEventFrames(t *testing.T) {
 func TestPaginationIsDerivedFromWireShapes(t *testing.T) {
 	t.Parallel()
 
-	wantCursor := []string{"interrupts.list", "items.list", "runs.list", "schedules.list", "sessions.list", "workspace.files.list"}
-	var gotCursor []string
+	wantCursor := []Name{InterruptsList, ItemsList, RunsList, SchedulesList, SessionsList, WorkspaceFilesList}
+	var gotCursor []Name
 	for _, method := range Contract().Metas() {
 		if method.Pagination == PaginationCursor {
 			gotCursor = append(gotCursor, method.Name)
@@ -135,7 +135,7 @@ func TestPaginationIsDerivedFromWireShapes(t *testing.T) {
 		t.Fatalf("cursor-paginated methods = %v, want %v", gotCursor, wantCursor)
 	}
 
-	for _, name := range []string{"models.list", "providers.list", "runs.get", "tools.list", "workspaces.list"} {
+	for _, name := range []Name{ModelsList, ProvidersList, RunsGet, ToolsList, WorkspacesList} {
 		method, ok := Contract().Lookup(name)
 		if !ok {
 			t.Fatalf("%s is not registered", name)

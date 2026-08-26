@@ -69,6 +69,6 @@ func encodeContent(block transcript.ContentBlock) (encodedContent, error) {
 			data: base64.StdEncoding.EncodeToString(block.Bytes),
 		}, nil
 	default:
-		return encodedContent{}, fmt.Errorf("unknown content kind %d", block.Kind)
+		return encodedContent{}, fmt.Errorf("unknown content kind %q", block.Kind)
 	}
 }

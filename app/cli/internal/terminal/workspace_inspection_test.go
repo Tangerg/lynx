@@ -478,7 +478,7 @@ func TestWorkspaceMonitorObservesStateOnlyWithPlanProjection(t *testing.T) {
 
 	source := &runtimeChangeSourceStub{supported: []changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
-		changefeed.StateChanged, changefeed.InterruptsChanged,
+		changefeed.PlanChanged, changefeed.InterruptsChanged,
 	}}
 	monitor := runtimeChangeMonitor{source: source}
 	withoutPlan := []changefeed.Topic{
@@ -490,7 +490,7 @@ func TestWorkspaceMonitorObservesStateOnlyWithPlanProjection(t *testing.T) {
 	monitor.resources.plan = true
 	withPlan := []changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
-		changefeed.StateChanged, changefeed.InterruptsChanged,
+		changefeed.PlanChanged, changefeed.InterruptsChanged,
 	}
 	if topics := monitor.supportedTopics(); !slices.Equal(topics, withPlan) {
 		t.Fatalf("topics with plan = %v, want %v", topics, withPlan)
@@ -538,12 +538,12 @@ func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
 	t.Parallel()
 
 	features := map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-		runtimeprofile.FeaturePlan:      {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureGoals:     {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureSkills:    {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureMCP:       {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureSchedules: {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureKnowledge: {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeaturePlan:      {},
+		runtimeprofile.FeatureGoals:     {},
+		runtimeprofile.FeatureSkills:    {},
+		runtimeprofile.FeatureMCP:       {},
+		runtimeprofile.FeatureSchedules: {},
+		runtimeprofile.FeatureKnowledge: {},
 	}
 	profile := runtimeprofile.Profile{Features: features}
 	application := &app{

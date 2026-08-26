@@ -130,22 +130,37 @@ func (session storedOAuthSession) validate() error {
 	if session.Version != oauthSessionVersion {
 		return fmt.Errorf("mcp oauth: unsupported session version %d", session.Version)
 	}
-	if session.Config.ClientID == "" {
+	if err := session.Config.validate(); err != nil {
+		return err
+	}
+	return session.Token.validate()
+}
+
+func (config storedOAuthConfig) validate() error {
+	if config.ClientID == "" {
 		return errors.New("mcp oauth: stored client id is empty")
 	}
-	for field, raw := range map[string]string{
-		"authorization URL": session.Config.AuthURL,
-		"token URL":         session.Config.TokenURL,
-		"redirect URL":      session.Config.RedirectURL,
-	} {
-		parsed, err := url.Parse(raw)
-		if err != nil || parsed.Scheme == "" || parsed.Host == "" ||
-			(parsed.Scheme != "http" && parsed.Scheme != "https") {
-			return fmt.Errorf("mcp oauth: stored %s is not an absolute HTTP(S) URL", field)
-		}
+	if err := validateStoredOAuthURL("authorization URL", config.AuthURL); err != nil {
+		return err
 	}
-	if session.Token.AccessToken == "" {
+	if err := validateStoredOAuthURL("token URL", config.TokenURL); err != nil {
+		return err
+	}
+	return validateStoredOAuthURL("redirect URL", config.RedirectURL)
+}
+
+func (token storedOAuthToken) validate() error {
+	if token.AccessToken == "" {
 		return errors.New("mcp oauth: stored access token is empty")
+	}
+	return nil
+}
+
+func validateStoredOAuthURL(field, raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("mcp oauth: stored %s is not an absolute HTTP(S) URL", field)
 	}
 	return nil
 }

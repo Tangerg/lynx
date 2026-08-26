@@ -110,22 +110,10 @@ func presentItemStatus(status transcript.ItemStatus) protocol.ItemStatus {
 }
 
 func presentItemKind(kind transcript.ItemKind) protocol.ItemType {
-	switch kind {
-	case transcript.UserMessage:
-		return protocol.ItemTypeUserMessage
-	case transcript.AgentMessage:
-		return protocol.ItemTypeAgentMessage
-	case transcript.Reasoning:
-		return protocol.ItemTypeReasoning
-	case transcript.QuestionItem:
-		return protocol.ItemTypeQuestion
-	case transcript.ToolCall:
-		return protocol.ItemTypeToolCall
-	case transcript.Compaction:
-		return protocol.ItemTypeCompaction
-	default:
+	if !kind.Valid() {
 		panic("server: unknown transcript item kind")
 	}
+	return protocol.ItemType(kind)
 }
 
 func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
@@ -187,21 +175,11 @@ func presentTool(tool transcript.ToolInvocation) protocol.ToolInvocation {
 }
 
 func presentDelta(delta runs.ItemDelta) protocol.ItemDelta {
-	var kind protocol.ItemDeltaType
-	switch delta.Kind {
-	case runs.ContentDelta:
-		kind = protocol.DeltaContent
-	case runs.ReasoningDeltaKind:
-		kind = protocol.DeltaReasoning
-	case runs.ToolArgumentsDelta:
-		kind = protocol.DeltaToolArguments
-	case runs.ToolOutputDelta:
-		kind = protocol.DeltaToolOutput
-	default:
+	if !delta.Kind.Valid() {
 		panic("server: unknown item delta kind")
 	}
 	return protocol.ItemDelta{
-		Type: kind, Index: delta.Index, Text: delta.Text,
+		Type: protocol.ItemDeltaType(delta.Kind), Index: delta.Index, Text: delta.Text,
 		ArgumentsTextDelta: delta.ArgumentsTextDelta,
 	}
 }

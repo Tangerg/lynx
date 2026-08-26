@@ -20,6 +20,7 @@ import (
 func TestPublicMethodsCoverExactOperationContract(t *testing.T) {
 	_, source, _, _ := runtime.Caller(0)
 	directory := filepath.Dir(source)
+	operationNames := declaredOperationNames(t, filepath.Join(directory, "..", "internal", "delivery", "operation"))
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		t.Fatalf("read embedded package: %v", err)
@@ -37,26 +38,31 @@ func TestPublicMethodsCoverExactOperationContract(t *testing.T) {
 		}
 		for _, declaration := range file.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
-			if !ok || function.Recv == nil || receiverName(function.Recv) != "Runtime" || function.Name.Name == "Close" {
+			if !ok || function.Recv == nil || receiverName(function.Recv) != "Runtime" || !function.Name.IsExported() {
 				continue
 			}
 			ast.Inspect(function.Body, func(node ast.Node) bool {
 				call, ok := node.(*ast.CallExpr)
-				if !ok || len(call.Args) < 3 {
+				if !ok || len(call.Args) < 2 {
 					return true
 				}
 				name := calledName(call.Fun)
 				if name != "invoke" && name != "invokeAck" && name != "invokeStream" {
 					return true
 				}
-				literal, ok := call.Args[2].(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
-					t.Errorf("%s must call the operation with a string literal", function.Name.Name)
+				selector, ok := call.Args[1].(*ast.SelectorExpr)
+				if !ok {
+					t.Errorf("%s must call the operation through its operation.Name constant", function.Name.Name)
 					return false
 				}
-				operationName, err := strconv.Unquote(literal.Value)
-				if err != nil {
-					t.Errorf("%s operation name: %v", function.Name.Name, err)
+				owner, ownerOK := selector.X.(*ast.Ident)
+				if !ownerOK || owner.Name != "operation" {
+					t.Errorf("%s must call the operation through its operation.Name constant", function.Name.Name)
+					return false
+				}
+				operationName, declared := operationNames[selector.Sel.Name]
+				if !declared {
+					t.Errorf("%s references unknown operation name constant %s", function.Name.Name, selector.Sel.Name)
 					return false
 				}
 				if previous := bindings[operationName]; previous != "" {
@@ -72,7 +78,7 @@ func TestPublicMethodsCoverExactOperationContract(t *testing.T) {
 	errorType := reflect.TypeFor[error]()
 	contextType := reflect.TypeFor[context.Context]()
 	for _, meta := range operation.Contract().Metas() {
-		methodName := bindings[meta.Name]
+		methodName := bindings[meta.Name.String()]
 		if methodName == "" {
 			t.Errorf("operation %q has no public embedded method", meta.Name)
 			continue
@@ -173,6 +179,48 @@ func receiverName(fields *ast.FieldList) string {
 	return identifier.Name
 }
 
+func declaredOperationNames(t *testing.T, directory string) map[string]string {
+	t.Helper()
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatalf("read operation package: %v", err)
+	}
+	names := make(map[string]string)
+	files := token.NewFileSet()
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(files, filepath.Join(directory, entry.Name()), nil, 0)
+		if err != nil {
+			t.Fatalf("parse operation source %s: %v", entry.Name(), err)
+		}
+		for _, declaration := range file.Decls {
+			group, ok := declaration.(*ast.GenDecl)
+			if !ok || group.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range group.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				typeName, typed := value.Type.(*ast.Ident)
+				if !ok || !typed || typeName.Name != "Name" || len(value.Names) != 1 || len(value.Values) != 1 {
+					continue
+				}
+				literal, ok := value.Values[0].(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					continue
+				}
+				wireName, err := strconv.Unquote(literal.Value)
+				if err != nil {
+					t.Fatalf("parse operation constant %s: %v", value.Names[0].Name, err)
+				}
+				names[value.Names[0].Name] = wireName
+			}
+		}
+	}
+	return names
+}
+
 func calledName(expression ast.Expr) string {
 	switch value := expression.(type) {
 	case *ast.Ident:
@@ -181,6 +229,8 @@ func calledName(expression ast.Expr) string {
 		return calledName(value.X)
 	case *ast.IndexListExpr:
 		return calledName(value.X)
+	case *ast.SelectorExpr:
+		return value.Sel.Name
 	default:
 		return ""
 	}

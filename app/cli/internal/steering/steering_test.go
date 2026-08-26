@@ -89,7 +89,7 @@ func TestDeliverPreservesACommandRejectedByAnotherRuntimeStore(t *testing.T) {
 	runtime := &steerRuntimeStub{err: agent.ErrCommandStoreMismatch}
 	window.Now = func() time.Time { return pending.StagedAt.Add(time.Minute) }
 	result, err := Deliver(t.Context(), runtime, pending, window, retry.Backoff{})
-	if !errors.Is(err, agent.ErrCommandStoreMismatch) || result.Outcome != Unknown {
+	if !errors.Is(err, agent.ErrCommandStoreMismatch) || result.Outcome != mutation.Unknown {
 		t.Fatalf("store mismatch settlement = outcome %v, error %v", result.Outcome, err)
 	}
 	if len(runtime.requests) != 1 {

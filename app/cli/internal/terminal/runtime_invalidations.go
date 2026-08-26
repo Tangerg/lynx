@@ -195,7 +195,7 @@ func invalidatesSessionCatalog(event changefeed.Event) bool {
 func resyncAffectsSession(topics []changefeed.Topic) bool {
 	return slices.ContainsFunc(topics, func(topic changefeed.Topic) bool {
 		return topic == changefeed.SessionsChanged || topic == changefeed.RunsChanged ||
-			topic == changefeed.StateChanged || topic == changefeed.InterruptsChanged
+			topic == changefeed.PlanChanged || topic == changefeed.InterruptsChanged
 	})
 }
 
@@ -206,9 +206,8 @@ func invalidationAffectsSession(event changefeed.Event, sessionID, runID string)
 	switch changefeed.Topic(event.Type) {
 	case changefeed.SessionsChanged:
 		return len(event.SessionIDs) == 0 || containsString(event.SessionIDs, sessionID)
-	case changefeed.StateChanged:
-		return event.StateKey == changefeed.StatePlan &&
-			(len(event.SessionIDs) == 0 || containsString(event.SessionIDs, sessionID))
+	case changefeed.PlanChanged:
+		return len(event.SessionIDs) == 0 || containsString(event.SessionIDs, sessionID)
 	case changefeed.RunsChanged, changefeed.InterruptsChanged:
 		if len(event.SessionIDs) != 0 {
 			return containsString(event.SessionIDs, sessionID)
@@ -222,7 +221,7 @@ func invalidationAffectsSession(event changefeed.Event, sessionID, runID string)
 func (a *app) refreshInvalidatedSession(settleAfter bool) {
 	sessionID := a.session.ID
 	a.sessionInvalidated = false
-	started := runOperation(a, sessionInvalidationOperation, false,
+	started := a.runOperation(sessionInvalidationOperation, false,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			return a.readInvalidatedSession(ctx, sessionID)
 		},

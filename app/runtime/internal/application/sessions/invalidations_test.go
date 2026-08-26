@@ -46,7 +46,7 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	}
 	for _, notice := range invalidations.notices {
 		if !slices.Equal(notice.SessionIDs, []string{"ses_1"}) {
-			t.Fatalf("notice %d session ids = %v, want [ses_1]", notice.Resource, notice.SessionIDs)
+			t.Fatalf("notice %q session ids = %v, want [ses_1]", notice.Resource, notice.SessionIDs)
 		}
 	}
 }

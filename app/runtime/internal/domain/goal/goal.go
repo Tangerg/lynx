@@ -81,14 +81,19 @@ type Version struct {
 }
 
 // BudgetLimit identifies the cross-Run cap that stopped a goal.
-type BudgetLimit uint8
+type BudgetLimit string
 
 const (
-	BudgetLimitNone BudgetLimit = iota
-	BudgetLimitRuns
-	BudgetLimitCost
-	BudgetLimitSteps
+	BudgetLimitNone  BudgetLimit = ""
+	BudgetLimitRuns  BudgetLimit = "runs"
+	BudgetLimitCost  BudgetLimit = "cost"
+	BudgetLimitSteps BudgetLimit = "steps"
 )
+
+// Valid reports whether limit identifies a supported budget axis or no limit.
+func (limit BudgetLimit) Valid() bool {
+	return limit == BudgetLimitNone || limit == BudgetLimitRuns || limit == BudgetLimitCost || limit == BudgetLimitSteps
+}
 
 // Exceeded reports the first budget limit u has reached, or (BudgetLimitNone,
 // false) when the goal is still within budget. Checked after each Run commits
@@ -330,7 +335,7 @@ func (record RunRecord) Validate() error {
 		}
 	}
 	if _, ok := run.ParseOutcome(record.Outcome.String()); !ok {
-		return fmt.Errorf("goal: Run has unknown outcome %d", record.Outcome)
+		return fmt.Errorf("goal: Run has unknown outcome %q", record.Outcome)
 	}
 	if record.CostUSD < 0 || math.IsNaN(record.CostUSD) || math.IsInf(record.CostUSD, 0) {
 		return errors.New("goal: Run cost must be a finite non-negative number")

@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
-
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
 type registeredCommand struct {
@@ -129,7 +127,7 @@ func (a *app) registerCommands() {
 			a.message(err.Error())
 		}
 	}
-	for _, contributed := range extensions.OwnedValues(a.registry, SlashCommands) {
+	for _, contributed := range a.registry.OwnedValues(SlashCommands) {
 		command := contributed.Value
 		pluginID := contributed.PluginID
 		if err := command.validate(); err != nil {

@@ -111,17 +111,28 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("clickhouse: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
-	checks := map[string]string{
-		"TableName":       c.TableName,
-		"IDColumn":        c.IDColumn,
-		"ContentColumn":   c.ContentColumn,
-		"MetadataColumn":  c.MetadataColumn,
-		"EmbeddingColumn": c.EmbeddingColumn,
-	}
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
 	if c.DatabaseName != "" {
-		checks["DatabaseName"] = c.DatabaseName
+		if err := identifier(c.DatabaseName).validate("DatabaseName"); err != nil {
+			return err
+		}
 	}
-	return validateIdentifiers("clickhouse", checks)
+	if err := identifier(c.TableName).validate("TableName"); err != nil {
+		return err
+	}
+	if err := identifier(c.IDColumn).validate("IDColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.ContentColumn).validate("ContentColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.MetadataColumn).validate("MetadataColumn"); err != nil {
+		return err
+	}
+	return identifier(c.EmbeddingColumn).validate("EmbeddingColumn")
 }
 
 // applyDefaults fills zero fields with documented defaults.

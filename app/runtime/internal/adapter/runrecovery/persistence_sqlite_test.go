@@ -92,7 +92,7 @@ func testRecoveryMarksClaimedResumeLost(t *testing.T, openingCommitted bool) {
 	request := transcript.Interrupt{
 		ItemID: "item_claim", ItemOccurredAt: createdAt.Add(time.Second),
 		RunID: "run_claim", Kind: interrupt.Question,
-		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 	}
 	waiting := runfixture.MustRestore(run.Snapshot{ID: "run_claim", SessionID: "session_claim", State: run.Waiting,
 		Capabilities: capabilities,
@@ -377,7 +377,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_running", SessionID: "session", RunID: "run_lost",
 		Kind: transcript.QuestionItem, OccurredAt: createdAt,
-		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 	})
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {
 		t.Fatalf("AppendItem: %v", err)
@@ -573,7 +573,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
-	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	pendingInterrupt := transcript.Interrupt{
 		ItemID: "item_missing", ItemOccurredAt: createdAt.Add(time.Second),
 		RunID: "run_partial", Kind: interrupt.Question, Question: question,

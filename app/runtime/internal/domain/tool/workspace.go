@@ -10,25 +10,37 @@ import (
 // relative to the active workspace. It is derived from the concrete tool's
 // mutation-reporting capability after hook argument rewrites and symlink
 // resolution; policy never guesses paths from a tool name or JSON key.
-type FileMutationScope uint8
+type FileMutationScope string
 
 const (
-	FileMutationNone FileMutationScope = iota
-	FileMutationWithinWorkspace
-	FileMutationOutsideWorkspace
-	FileMutationUnknown
+	FileMutationNone             FileMutationScope = "none"
+	FileMutationWithinWorkspace  FileMutationScope = "withinWorkspace"
+	FileMutationOutsideWorkspace FileMutationScope = "outsideWorkspace"
+	FileMutationUnknown          FileMutationScope = "unknown"
 )
+
+// Valid reports whether scope is one supported filesystem mutation relation.
+func (scope FileMutationScope) Valid() bool {
+	return scope == FileMutationNone || scope == FileMutationWithinWorkspace ||
+		scope == FileMutationOutsideWorkspace || scope == FileMutationUnknown
+}
 
 // BypassImmunity identifies a call that must still be confirmed under an
 // auto-approve mode. It carries policy identity without presentation text.
-type BypassImmunity uint8
+type BypassImmunity string
 
 const (
-	BypassAllowed BypassImmunity = iota
-	BypassImmuneOutsideWorkspace
-	BypassImmuneUnknownMutation
-	BypassImmuneCatastrophicCommand
+	BypassAllowed                   BypassImmunity = "allowed"
+	BypassImmuneOutsideWorkspace    BypassImmunity = "outsideWorkspace"
+	BypassImmuneUnknownMutation     BypassImmunity = "unknownMutation"
+	BypassImmuneCatastrophicCommand BypassImmunity = "catastrophicCommand"
 )
+
+// Valid reports whether immunity is one supported auto-approval exception.
+func (immunity BypassImmunity) Valid() bool {
+	return immunity == BypassAllowed || immunity == BypassImmuneOutsideWorkspace ||
+		immunity == BypassImmuneUnknownMutation || immunity == BypassImmuneCatastrophicCommand
+}
 
 // BypassImmunityFor reports whether a tool call is dangerous enough to confirm
 // with a human EVEN under an auto-approve mode (Yolo, or Balanced for
@@ -46,9 +58,12 @@ const (
 //     device). Tight by design so an ordinary command never trips it.
 func BypassImmunityFor(mutation FileMutationScope, shellCommand string) BypassImmunity {
 	switch mutation {
+	case FileMutationNone, FileMutationWithinWorkspace:
 	case FileMutationOutsideWorkspace:
 		return BypassImmuneOutsideWorkspace
 	case FileMutationUnknown:
+		return BypassImmuneUnknownMutation
+	default:
 		return BypassImmuneUnknownMutation
 	}
 	if CatastrophicCommand(shellCommand) {

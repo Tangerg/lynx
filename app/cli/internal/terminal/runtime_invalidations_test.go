@@ -655,7 +655,7 @@ func (stub *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
 	}
 	return slices.Contains([]changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
-		changefeed.StateChanged, changefeed.InterruptsChanged,
+		changefeed.PlanChanged, changefeed.InterruptsChanged,
 	}, topic)
 }
 
@@ -808,7 +808,7 @@ func TestRuntimeChangeMonitorPartitionsTopicsAtTheNegotiatedLimit(t *testing.T) 
 	supported := []changefeed.Topic{
 		changefeed.SessionsChanged,
 		changefeed.RunsChanged,
-		changefeed.StateChanged,
+		changefeed.PlanChanged,
 		changefeed.InterruptsChanged,
 		changefeed.SkillsChanged,
 	}
@@ -879,7 +879,7 @@ func TestRuntimeChangeMonitorResyncsOnlyThePartitionWithASequenceGap(t *testing.
 	source := &partitionedRuntimeChangeSourceStub{
 		supported: []changefeed.Topic{
 			changefeed.SessionsChanged, changefeed.RunsChanged,
-			changefeed.StateChanged, changefeed.InterruptsChanged,
+			changefeed.PlanChanged, changefeed.InterruptsChanged,
 		},
 		registrations: make(chan runtimeSubscriptionRegistration, 2),
 	}
@@ -925,7 +925,7 @@ func TestRuntimeChangeMonitorAssignsTheWorkspaceWatchToOnePartition(t *testing.T
 	source := &partitionedRuntimeChangeSourceStub{
 		supported: []changefeed.Topic{
 			changefeed.FilesChanged, changefeed.SessionsChanged,
-			changefeed.RunsChanged, changefeed.StateChanged, changefeed.InterruptsChanged,
+			changefeed.RunsChanged, changefeed.PlanChanged, changefeed.InterruptsChanged,
 		},
 		registrations: make(chan runtimeSubscriptionRegistration, 5),
 	}
@@ -1355,7 +1355,7 @@ func TestExternalWorkspaceChangeRebindsTheRuntimeWatch(t *testing.T) {
 		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 4),
 		supported: []changefeed.Topic{
 			changefeed.FilesChanged, changefeed.SessionsChanged, changefeed.RunsChanged,
-			changefeed.StateChanged, changefeed.InterruptsChanged,
+			changefeed.PlanChanged, changefeed.InterruptsChanged,
 		},
 	}
 	host, stop := runUIWithRuntimeChangeServices(t, backend, service, source, "ses_demo_1")
@@ -1445,7 +1445,7 @@ func TestRuntimeInvalidationsRefetchTheCurrentAuthoritativeSession(t *testing.T)
 	}
 	wantTopics := []changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
-		changefeed.StateChanged, changefeed.InterruptsChanged,
+		changefeed.PlanChanged, changefeed.InterruptsChanged,
 	}
 	if !slices.Equal(subscription.Topics, wantTopics) || len(subscription.Watches) != 0 {
 		t.Fatalf("subscription = %+v", subscription)
@@ -1478,16 +1478,13 @@ func TestRuntimeInvalidationsRefetchTheCurrentAuthoritativeSession(t *testing.T)
 	}
 
 	for index, topic := range []changefeed.Topic{
-		changefeed.RunsChanged, changefeed.StateChanged, changefeed.InterruptsChanged,
+		changefeed.RunsChanged, changefeed.PlanChanged, changefeed.InterruptsChanged,
 	} {
 		baseline = backend.reads.Load()
 		drainSignals(backend.readSignal)
 		event := changefeed.Event{
 			Type: changefeed.EventType(topic), Sequence: uint64(index + 2),
 			SessionIDs: []string{"ses_demo_1"},
-		}
-		if topic == changefeed.StateChanged {
-			event.StateKey = changefeed.StatePlan
 		}
 		source.events <- event
 		awaitSignal(t, source.applied, string(topic)+" delivery")
@@ -1851,7 +1848,7 @@ func TestRuntimeChangeMonitorTurnsASequenceGapIntoFullResync(t *testing.T) {
 	if len(resyncs) != 2 || !slices.Equal(resyncs[0], resyncs[1]) ||
 		!slices.Equal(resyncs[0], []changefeed.Topic{
 			changefeed.SessionsChanged, changefeed.RunsChanged,
-			changefeed.StateChanged, changefeed.InterruptsChanged,
+			changefeed.PlanChanged, changefeed.InterruptsChanged,
 		}) {
 		t.Fatalf("resyncs = %+v", resyncs)
 	}
@@ -2007,8 +2004,7 @@ func TestRuntimeInvalidationScope(t *testing.T) {
 	}{
 		{name: "foreign session", event: changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), SessionIDs: []string{"other"}}},
 		{name: "current session", event: changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), SessionIDs: []string{"session"}}, want: true},
-		{name: "plan state", event: changefeed.Event{Type: changefeed.EventType(changefeed.StateChanged), StateKey: changefeed.StatePlan}, want: true},
-		{name: "unsupported state", event: changefeed.Event{Type: changefeed.EventType(changefeed.StateChanged), StateKey: "vendor-state"}},
+		{name: "plan", event: changefeed.Event{Type: changefeed.EventType(changefeed.PlanChanged)}, want: true},
 		{name: "foreign run", event: changefeed.Event{Type: changefeed.EventType(changefeed.RunsChanged), RunIDs: []string{"other"}}},
 		{name: "current run", event: changefeed.Event{Type: changefeed.EventType(changefeed.InterruptsChanged), RunIDs: []string{"run"}}, want: true},
 		{name: "files", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged)}},

@@ -24,7 +24,7 @@ func TestRunCapabilitiesHasOneDurableRepresentation(t *testing.T) {
 			InterruptKinds: []interrupt.Kind{interrupt.Question, interrupt.Approval},
 		},
 		"unknown": {
-			InterruptKinds: []interrupt.Kind{interrupt.Kind(255)},
+			InterruptKinds: []interrupt.Kind{interrupt.Kind("invalid")},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

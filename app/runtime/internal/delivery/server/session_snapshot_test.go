@@ -40,7 +40,7 @@ func TestGetSessionSnapshotProjectsOneLiveMaterialRead(t *testing.T) {
 	})); err != nil {
 		t.Fatalf("suspend waiting Run: %v", err)
 	}
-	question := transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	question := transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}}
 	if err := rt.hist.AppendItem(t.Context(), itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_question", RunID: "run_waiting", SessionID: "ses_1",
 		Kind: transcript.QuestionItem, OccurredAt: createdAt, Question: &question,
@@ -135,7 +135,7 @@ func TestGetSessionSnapshotKeepsCapabilityAndExistenceRefusals(t *testing.T) {
 		ID: "interrupt_run_waiting", RunID: "run_waiting", SessionID: "ses_1",
 		Kind: transcript.QuestionItem, OccurredAt: createdAt,
 		Question: &transcript.Question{
-			Fields: []transcript.QuestionField{{Prompt: "Continue?"}},
+			Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}},
 		},
 	})); err != nil {
 		t.Fatalf("append question Item: %v", err)

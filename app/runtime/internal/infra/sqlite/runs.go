@@ -1075,7 +1075,7 @@ func stateColumns(statuses []rundomain.Status) ([]any, error) {
 	out := make([]any, 0, len(statuses))
 	for _, status := range statuses {
 		if !status.Valid() {
-			return nil, fmt.Errorf("unknown run status %d", status)
+			return nil, fmt.Errorf("unknown run status %q", status)
 		}
 		out = append(out, stateColumn(status))
 	}

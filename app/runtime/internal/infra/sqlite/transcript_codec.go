@@ -15,28 +15,28 @@ import (
 )
 
 type transcriptItemPayload struct {
-	Status                 string                 `json:"status"`
-	FinishedAt             int64                  `json:"finishedAt,omitempty"`
-	ExecutionDurationNanos *int64                 `json:"executionDurationNanos,omitempty"`
-	Kind                   string                 `json:"kind"`
-	Phase                  string                 `json:"phase,omitempty"`
-	Content                []contentPayload       `json:"content,omitempty"`
-	Text                   string                 `json:"text,omitempty"`
-	Redacted               bool                   `json:"redacted,omitempty"`
-	Question               *questionPayload       `json:"question,omitempty"`
-	Tool                   *toolInvocationPayload `json:"tool,omitempty"`
-	SafetyClass            string                 `json:"safetyClass,omitempty"`
-	ApprovalDecision       string                 `json:"approvalDecision,omitempty"`
-	Failure                *toolFailurePayload    `json:"failure,omitempty"`
-	Summary                string                 `json:"summary,omitempty"`
-	DroppedMessages        int                    `json:"droppedMessages,omitempty"`
+	Status                 transcript.ItemStatus   `json:"status"`
+	FinishedAt             int64                   `json:"finishedAt,omitempty"`
+	ExecutionDurationNanos *int64                  `json:"executionDurationNanos,omitempty"`
+	Kind                   transcript.ItemKind     `json:"kind"`
+	Phase                  transcript.MessagePhase `json:"phase,omitempty"`
+	Content                []contentPayload        `json:"content,omitempty"`
+	Text                   string                  `json:"text,omitempty"`
+	Redacted               bool                    `json:"redacted,omitempty"`
+	Question               *questionPayload        `json:"question,omitempty"`
+	Tool                   *toolInvocationPayload  `json:"tool,omitempty"`
+	SafetyClass            tool.SafetyClass        `json:"safetyClass,omitempty"`
+	ApprovalDecision       approval.Decision       `json:"approvalDecision,omitempty"`
+	Failure                *toolFailurePayload     `json:"failure,omitempty"`
+	Summary                string                  `json:"summary,omitempty"`
+	DroppedMessages        int                     `json:"droppedMessages,omitempty"`
 }
 
 type contentPayload struct {
-	Kind      string `json:"kind"`
-	Text      string `json:"text,omitempty"`
-	MediaType string `json:"mediaType,omitempty"`
-	Data      string `json:"data,omitempty"`
+	Kind      transcript.ContentKind `json:"kind"`
+	Text      string                 `json:"text,omitempty"`
+	MediaType string                 `json:"mediaType,omitempty"`
+	Data      string                 `json:"data,omitempty"`
 }
 
 type questionPayload struct {
@@ -45,12 +45,12 @@ type questionPayload struct {
 }
 
 type questionFieldPayload struct {
-	Prompt      string                  `json:"prompt"`
-	Header      string                  `json:"header,omitempty"`
-	Kind        string                  `json:"kind"`
-	Options     []questionOptionPayload `json:"options,omitempty"`
-	Multiple    bool                    `json:"multiple,omitempty"`
-	AllowCustom bool                    `json:"allowCustom,omitempty"`
+	Prompt      string                       `json:"prompt"`
+	Header      string                       `json:"header,omitempty"`
+	Kind        transcript.QuestionFieldKind `json:"kind"`
+	Options     []questionOptionPayload      `json:"options,omitempty"`
+	Multiple    bool                         `json:"multiple,omitempty"`
+	AllowCustom bool                         `json:"allowCustom,omitempty"`
 }
 
 type questionOptionPayload struct {
@@ -66,29 +66,28 @@ type toolInvocationPayload struct {
 }
 
 type toolFailurePayload struct {
-	Kind              string `json:"kind"`
-	Scope             string `json:"scope"`
-	Detail            string `json:"detail,omitempty"`
-	DocURL            string `json:"docUrl,omitempty"`
-	RetryAfterSeconds int    `json:"retryAfterSeconds,omitempty"`
+	Kind              tool.FailureKind `json:"kind"`
+	Scope             string           `json:"scope"`
+	Detail            string           `json:"detail,omitempty"`
+	DocURL            string           `json:"docUrl,omitempty"`
+	RetryAfterSeconds int              `json:"retryAfterSeconds,omitempty"`
 }
 
+const toolFailureScope = "tool"
+
 func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
-	status, err := encodeItemStatus(item.Status())
-	if err != nil {
-		return nil, err
+	if !item.Status().Valid() {
+		return nil, fmt.Errorf("unknown item status %q", item.Status())
 	}
-	kind, err := encodeItemKind(item.Kind())
-	if err != nil {
-		return nil, err
+	if !item.Kind().Valid() {
+		return nil, fmt.Errorf("unknown item kind %q", item.Kind())
 	}
-	phase, err := encodeMessagePhase(item.MessagePhase())
-	if err != nil {
-		return nil, err
+	if phase := item.MessagePhase(); phase != transcript.MessagePhaseNone && !phase.Valid() {
+		return nil, fmt.Errorf("unknown message phase %q", phase)
 	}
 	payload := transcriptItemPayload{
-		Status: status, Kind: kind, Phase: phase, Text: item.Text(), Redacted: item.Redacted(),
-		SafetyClass: string(item.SafetyClass()), ApprovalDecision: string(item.ApprovalDecision()),
+		Status: item.Status(), Kind: item.Kind(), Phase: item.MessagePhase(), Text: item.Text(), Redacted: item.Redacted(),
+		SafetyClass: item.SafetyClass(), ApprovalDecision: item.ApprovalDecision(),
 		Summary:         item.Summary(),
 		DroppedMessages: item.DroppedMessages(),
 	}
@@ -144,22 +143,19 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 		}
 		return transcript.ItemSnapshot{}, err
 	}
-	status, err := decodeItemStatus(payload.Status)
-	if err != nil {
-		return transcript.ItemSnapshot{}, err
+	if !payload.Status.Valid() {
+		return transcript.ItemSnapshot{}, fmt.Errorf("unknown item status %q", payload.Status)
 	}
-	kind, err := decodeItemKind(payload.Kind)
-	if err != nil {
-		return transcript.ItemSnapshot{}, err
+	if !payload.Kind.Valid() {
+		return transcript.ItemSnapshot{}, fmt.Errorf("unknown item kind %q", payload.Kind)
 	}
-	phase, err := decodeMessagePhase(payload.Phase)
-	if err != nil {
-		return transcript.ItemSnapshot{}, err
+	if payload.Phase != transcript.MessagePhaseNone && !payload.Phase.Valid() {
+		return transcript.ItemSnapshot{}, fmt.Errorf("unknown message phase %q", payload.Phase)
 	}
 	snapshot := transcript.ItemSnapshot{
-		Status: status, Kind: kind, MessagePhase: phase, Text: payload.Text, Redacted: payload.Redacted,
-		SafetyClass:      tool.SafetyClass(payload.SafetyClass),
-		ApprovalDecision: approval.Decision(payload.ApprovalDecision), Summary: payload.Summary,
+		Status: payload.Status, Kind: payload.Kind, MessagePhase: payload.Phase, Text: payload.Text, Redacted: payload.Redacted,
+		SafetyClass:      payload.SafetyClass,
+		ApprovalDecision: payload.ApprovalDecision, Summary: payload.Summary,
 		DroppedMessages: payload.DroppedMessages,
 	}
 	if payload.FinishedAt != 0 {
@@ -203,115 +199,25 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 	return snapshot, nil
 }
 
-func encodeMessagePhase(phase transcript.MessagePhase) (string, error) {
-	switch phase {
-	case transcript.MessagePhaseNone:
-		return "", nil
-	case transcript.MessageCommentary:
-		return "commentary", nil
-	case transcript.MessageFinalAnswer:
-		return "finalAnswer", nil
-	default:
-		return "", fmt.Errorf("unknown message phase %d", phase)
-	}
-}
-
-func decodeMessagePhase(phase string) (transcript.MessagePhase, error) {
-	switch phase {
-	case "":
-		return transcript.MessagePhaseNone, nil
-	case "commentary":
-		return transcript.MessageCommentary, nil
-	case "finalAnswer":
-		return transcript.MessageFinalAnswer, nil
-	default:
-		return transcript.MessagePhaseNone, fmt.Errorf("unknown message phase %q", phase)
-	}
-}
-
-func encodeItemStatus(status transcript.ItemStatus) (string, error) {
-	switch status {
-	case transcript.ItemRunning:
-		return "running", nil
-	case transcript.ItemCompleted:
-		return "completed", nil
-	case transcript.ItemIncomplete:
-		return "incomplete", nil
-	default:
-		return "", fmt.Errorf("unknown item status %d", status)
-	}
-}
-
-func decodeItemStatus(status string) (transcript.ItemStatus, error) {
-	switch status {
-	case "running":
-		return transcript.ItemRunning, nil
-	case "completed":
-		return transcript.ItemCompleted, nil
-	case "incomplete":
-		return transcript.ItemIncomplete, nil
-	default:
-		return 0, fmt.Errorf("unknown item status %q", status)
-	}
-}
-
-func encodeItemKind(kind transcript.ItemKind) (string, error) {
-	switch kind {
-	case transcript.UserMessage:
-		return "user_message", nil
-	case transcript.AgentMessage:
-		return "agent_message", nil
-	case transcript.Reasoning:
-		return "reasoning", nil
-	case transcript.QuestionItem:
-		return "question", nil
-	case transcript.ToolCall:
-		return "tool_call", nil
-	case transcript.Compaction:
-		return "compaction", nil
-	default:
-		return "", fmt.Errorf("unknown item kind %d", kind)
-	}
-}
-
-func decodeItemKind(kind string) (transcript.ItemKind, error) {
-	switch kind {
-	case "user_message":
-		return transcript.UserMessage, nil
-	case "agent_message":
-		return transcript.AgentMessage, nil
-	case "reasoning":
-		return transcript.Reasoning, nil
-	case "question":
-		return transcript.QuestionItem, nil
-	case "tool_call":
-		return transcript.ToolCall, nil
-	case "compaction":
-		return transcript.Compaction, nil
-	default:
-		return 0, fmt.Errorf("unknown item kind %q", kind)
-	}
-}
-
 func encodeContentPayload(block transcript.ContentBlock) (contentPayload, error) {
 	switch block.Kind {
 	case transcript.TextContent:
-		return contentPayload{Kind: "text", Text: block.Text}, nil
+		return contentPayload{Kind: block.Kind, Text: block.Text}, nil
 	case transcript.ImageContent:
 		return contentPayload{
-			Kind: "image", MediaType: block.MediaType,
+			Kind: block.Kind, MediaType: block.MediaType,
 			Data: base64.StdEncoding.EncodeToString(block.Bytes),
 		}, nil
 	default:
-		return contentPayload{}, fmt.Errorf("unknown content kind %d", block.Kind)
+		return contentPayload{}, fmt.Errorf("unknown content kind %q", block.Kind)
 	}
 }
 
 func decodeContentPayload(payload contentPayload) (transcript.ContentBlock, error) {
 	switch payload.Kind {
-	case "text":
+	case transcript.TextContent:
 		return transcript.ContentBlock{Kind: transcript.TextContent, Text: payload.Text}, nil
-	case "image":
+	case transcript.ImageContent:
 		data, err := base64.StdEncoding.DecodeString(payload.Data)
 		if err != nil {
 			return transcript.ContentBlock{}, fmt.Errorf("decode image data: %w", err)
@@ -330,17 +236,11 @@ func encodeQuestionPayload(question transcript.Question) (questionPayload, error
 		Answers: cloneStringMatrix(question.Answers),
 	}
 	for index, field := range question.Fields {
-		var kind string
-		switch field.Kind {
-		case transcript.QuestionText:
-			kind = "text"
-		case transcript.QuestionChoice:
-			kind = "choice"
-		default:
-			return questionPayload{}, fmt.Errorf("question field %d has unknown kind %d", index, field.Kind)
+		if !field.Kind.Valid() {
+			return questionPayload{}, fmt.Errorf("question field %d has unknown kind %q", index, field.Kind)
 		}
 		encodedField := questionFieldPayload{
-			Prompt: field.Prompt, Header: field.Header, Kind: kind,
+			Prompt: field.Prompt, Header: field.Header, Kind: field.Kind,
 			Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 		if len(field.Options) > 0 {
@@ -362,17 +262,11 @@ func decodeQuestionPayload(payload questionPayload) (transcript.Question, error)
 		Answers: cloneStringMatrix(payload.Answers),
 	}
 	for index, field := range payload.Fields {
-		var kind transcript.QuestionFieldKind
-		switch field.Kind {
-		case "text":
-			kind = transcript.QuestionText
-		case "choice":
-			kind = transcript.QuestionChoice
-		default:
+		if !field.Kind.Valid() {
 			return transcript.Question{}, fmt.Errorf("question field %d has unknown kind %q", index, field.Kind)
 		}
 		decoded := transcript.QuestionField{
-			Prompt: field.Prompt, Header: field.Header, Kind: kind,
+			Prompt: field.Prompt, Header: field.Header, Kind: field.Kind,
 			Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 		if len(field.Options) > 0 {
@@ -426,60 +320,24 @@ func decodeToolInvocationPayload(payload toolInvocationPayload) (transcript.Tool
 }
 
 func encodeToolFailurePayload(failure tool.Failure) (toolFailurePayload, error) {
-	kind, err := encodeToolFailureKind(failure.Kind)
-	if err != nil {
-		return toolFailurePayload{}, err
+	if !failure.Kind.Valid() {
+		return toolFailurePayload{}, fmt.Errorf("unknown Tool failure kind %q", failure.Kind)
 	}
 	return toolFailurePayload{
-		Kind: kind, Scope: "tool", Detail: failure.Detail, DocURL: failure.DocURL,
+		Kind: failure.Kind, Scope: toolFailureScope, Detail: failure.Detail, DocURL: failure.DocURL,
 		RetryAfterSeconds: int(failure.RetryAfter / time.Second),
 	}, nil
 }
 
 func decodeToolFailurePayload(payload toolFailurePayload) (tool.Failure, error) {
-	kind, err := decodeToolFailureKind(payload.Kind)
-	if err != nil {
-		return tool.Failure{}, err
+	if !payload.Kind.Valid() {
+		return tool.Failure{}, fmt.Errorf("unknown Tool failure kind %q", payload.Kind)
 	}
-	if payload.Scope != "tool" {
+	if payload.Scope != toolFailureScope {
 		return tool.Failure{}, fmt.Errorf("unknown Tool failure scope %q", payload.Scope)
 	}
 	return tool.Failure{
-		Kind: kind, Detail: payload.Detail, DocURL: payload.DocURL,
+		Kind: payload.Kind, Detail: payload.Detail, DocURL: payload.DocURL,
 		RetryAfter: time.Duration(payload.RetryAfterSeconds) * time.Second,
 	}, nil
-}
-
-func encodeToolFailureKind(kind tool.FailureKind) (string, error) {
-	switch kind {
-	case tool.FailureInternal:
-		return "internal", nil
-	case tool.FailureDenied:
-		return "denied_by_user", nil
-	case tool.FailureExecution:
-		return "tool_failed", nil
-	case tool.FailureChildRunCanceled:
-		return "child_run_canceled", nil
-	case tool.FailureCanceled:
-		return "tool_canceled", nil
-	default:
-		return "", fmt.Errorf("unknown Tool failure kind %d", kind)
-	}
-}
-
-func decodeToolFailureKind(kind string) (tool.FailureKind, error) {
-	switch kind {
-	case "internal":
-		return tool.FailureInternal, nil
-	case "denied_by_user":
-		return tool.FailureDenied, nil
-	case "tool_failed":
-		return tool.FailureExecution, nil
-	case "child_run_canceled":
-		return tool.FailureChildRunCanceled, nil
-	case "tool_canceled":
-		return tool.FailureCanceled, nil
-	default:
-		return 0, fmt.Errorf("unknown Tool failure kind %q", kind)
-	}
 }

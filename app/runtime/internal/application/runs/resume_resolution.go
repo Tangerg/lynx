@@ -51,7 +51,7 @@ func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]Inte
 		case interrupt.Question:
 			itemResolution, err = resolveQuestionResponse(request, response)
 		default:
-			err = fmt.Errorf("unknown open interrupt kind %d", request.Kind)
+			err = fmt.Errorf("unknown open interrupt kind %q", request.Kind)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%w: item %q: %w", ErrInvalidInterruptResponse, response.ItemID, err)
@@ -157,7 +157,7 @@ func validateQuestionAnswer(field transcript.QuestionField, values []string) err
 	case transcript.QuestionChoice:
 		return validateChoiceAnswer(field, values)
 	default:
-		return fmt.Errorf("unknown question field kind %d", field.Kind)
+		return fmt.Errorf("unknown question field kind %q", field.Kind)
 	}
 }
 

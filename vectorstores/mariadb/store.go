@@ -114,17 +114,28 @@ func (c StoreConfig) Validate() error {
 	default:
 		return fmt.Errorf("mariadb: unsupported DistanceMetric %q", c.DistanceMetric)
 	}
-	checks := map[string]string{
-		"TableName":       c.TableName,
-		"IDColumn":        c.IDColumn,
-		"ContentColumn":   c.ContentColumn,
-		"MetadataColumn":  c.MetadataColumn,
-		"EmbeddingColumn": c.EmbeddingColumn,
-	}
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
 	if c.SchemaName != "" {
-		checks["SchemaName"] = c.SchemaName
+		if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
+			return err
+		}
 	}
-	return validateIdentifiers("mariadb", checks)
+	if err := identifier(c.TableName).validate("TableName"); err != nil {
+		return err
+	}
+	if err := identifier(c.IDColumn).validate("IDColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.ContentColumn).validate("ContentColumn"); err != nil {
+		return err
+	}
+	if err := identifier(c.MetadataColumn).validate("MetadataColumn"); err != nil {
+		return err
+	}
+	return identifier(c.EmbeddingColumn).validate("EmbeddingColumn")
 }
 
 // applyDefaults fills zero fields with documented defaults.

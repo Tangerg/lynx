@@ -65,7 +65,7 @@ func EncodeResolution(resolution interrupt.Resolution) (json.RawMessage, error) 
 	}
 	encoded, err := json.Marshal(ResolutionPayload{
 		Approved: resolution.Approved, Arguments: resolution.Arguments, Answers: resolution.Answers,
-		Reason: resolution.Reason, RememberScope: rememberScopeWireFrom(resolution.RememberScope),
+		Reason: resolution.Reason, RememberScope: resolution.RememberScope,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec interaction input codec: encode resolution: %w", err)
@@ -220,19 +220,19 @@ func validateJSONArrayElements(value any, elementType reflect.Type, path string)
 }
 
 type interruptWire struct {
-	Kind     interruptKindWire   `json:"kind"`
+	Kind     interrupt.Kind      `json:"kind"`
 	Approval *approvalPromptWire `json:"approval,omitempty"`
 	Question *questionPromptWire `json:"question,omitempty"`
 }
 
 type approvalPromptWire struct {
-	CallID       string          `json:"callId,omitempty"`
-	ToolName     string          `json:"toolName"`
-	Arguments    string          `json:"arguments"`
-	SafetyClass  safetyClassWire `json:"safetyClass"`
-	Risk         riskLevelWire   `json:"risk,omitempty"`
-	Reason       string          `json:"reason,omitempty"`
-	Rememberable bool            `json:"rememberable,omitempty"`
+	CallID       string           `json:"callId,omitempty"`
+	ToolName     string           `json:"toolName"`
+	Arguments    string           `json:"arguments"`
+	SafetyClass  tool.SafetyClass `json:"safetyClass"`
+	Risk         tool.RiskLevel   `json:"risk,omitempty"`
+	Reason       string           `json:"reason,omitempty"`
+	Rememberable bool             `json:"rememberable,omitempty"`
 }
 
 type questionPromptWire struct {
@@ -256,11 +256,11 @@ type questionOptionWire struct {
 }
 
 func promptWireFrom(interrupt runs.Interrupt) interruptWire {
-	result := interruptWire{Kind: interruptKindWireFrom(interrupt.Kind)}
+	result := interruptWire{Kind: interrupt.Kind}
 	if prompt := interrupt.Approval; prompt != nil {
 		result.Approval = &approvalPromptWire{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: safetyClassWireFrom(prompt.SafetyClass), Risk: riskLevelWireFrom(prompt.Risk), Reason: prompt.Reason, Rememberable: prompt.Rememberable,
+			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := interrupt.Question; prompt != nil {
@@ -273,23 +273,20 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 }
 
 func (wire interruptWire) interrupt() (runs.Interrupt, error) {
-	kind, err := wire.Kind.interruptKind()
-	if err != nil {
-		return runs.Interrupt{}, err
+	if !wire.Kind.Valid() {
+		return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown interrupt kind %q", wire.Kind)
 	}
-	result := runs.Interrupt{Kind: kind}
+	result := runs.Interrupt{Kind: wire.Kind}
 	if prompt := wire.Approval; prompt != nil {
-		safety, err := prompt.SafetyClass.safetyClass()
-		if err != nil {
-			return runs.Interrupt{}, err
+		if !prompt.SafetyClass.Valid() {
+			return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown safety class %q", prompt.SafetyClass)
 		}
-		risk, err := prompt.Risk.riskLevel()
-		if err != nil {
-			return runs.Interrupt{}, err
+		if prompt.Risk != "" && !prompt.Risk.Valid() {
+			return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: unknown risk level %q", prompt.Risk)
 		}
 		result.Approval = &runs.ApprovalPrompt{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: safety, Risk: risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
+			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := wire.Question; prompt != nil {
@@ -357,18 +354,17 @@ func questionOptionsFrom(options []questionOptionWire) []runs.QuestionOptionSpec
 // continuation codec. Callers should use [EncodeResolution] and
 // [DecodeResolution].
 type ResolutionPayload struct {
-	Approved      bool              `json:"approved"`
-	Arguments     string            `json:"arguments,omitempty"`
-	Answers       [][]string        `json:"answers,omitempty"`
-	Reason        string            `json:"reason,omitempty"`
-	RememberScope rememberScopeWire `json:"remember_scope,omitempty"`
+	Approved      bool           `json:"approved"`
+	Arguments     string         `json:"arguments,omitempty"`
+	Answers       [][]string     `json:"answers,omitempty"`
+	Reason        string         `json:"reason,omitempty"`
+	RememberScope approval.Scope `json:"remember_scope,omitempty"`
 }
 
 // Resolution converts the validated technical payload to its Domain value.
 func (wire ResolutionPayload) Resolution() (interrupt.Resolution, error) {
-	rememberScope, err := wire.RememberScope.scope()
-	if err != nil {
-		return interrupt.Resolution{}, err
+	if wire.RememberScope != "" && !wire.RememberScope.Valid() {
+		return interrupt.Resolution{}, fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", wire.RememberScope)
 	}
 	answers := wire.Answers
 	if len(answers) == 0 {
@@ -376,129 +372,6 @@ func (wire ResolutionPayload) Resolution() (interrupt.Resolution, error) {
 	}
 	return interrupt.Resolution{
 		Approved: wire.Approved, Arguments: wire.Arguments, Answers: answers,
-		Reason: wire.Reason, RememberScope: rememberScope,
+		Reason: wire.Reason, RememberScope: wire.RememberScope,
 	}, nil
-}
-
-type interruptKindWire string
-
-func interruptKindWireFrom(kind interrupt.Kind) interruptKindWire {
-	switch kind {
-	case interrupt.Approval:
-		return "approval"
-	case interrupt.Question:
-		return "question"
-	default:
-		// Not encodable. Emitting the kind's own name keeps the failure loud: the
-		// decoder refuses it, so a snapshot can never restore as a kind the
-		// runtime would then treat as an approval.
-		return interruptKindWire(kind.String())
-	}
-}
-
-func (wire interruptKindWire) interruptKind() (interrupt.Kind, error) {
-	switch wire {
-	case "approval":
-		return interrupt.Approval, nil
-	case "question":
-		return interrupt.Question, nil
-	default:
-		return 0, fmt.Errorf("agentexec interaction input codec: unknown interrupt kind %q", wire)
-	}
-}
-
-type safetyClassWire string
-
-func safetyClassWireFrom(class tool.SafetyClass) safetyClassWire {
-	switch class {
-	case tool.SafetyClassSafe:
-		return "safe"
-	case tool.SafetyClassWrite:
-		return "write"
-	case tool.SafetyClassExec:
-		return "exec"
-	case tool.SafetyClassNetwork:
-		return "network"
-	default:
-		return safetyClassWire(class)
-	}
-}
-
-func (wire safetyClassWire) safetyClass() (tool.SafetyClass, error) {
-	switch wire {
-	case "safe":
-		return tool.SafetyClassSafe, nil
-	case "write":
-		return tool.SafetyClassWrite, nil
-	case "exec":
-		return tool.SafetyClassExec, nil
-	case "network":
-		return tool.SafetyClassNetwork, nil
-	default:
-		return "", fmt.Errorf("agentexec interaction input codec: unknown safety class %q", wire)
-	}
-}
-
-type riskLevelWire string
-
-func riskLevelWireFrom(risk tool.RiskLevel) riskLevelWire {
-	switch risk {
-	case "":
-		return ""
-	case tool.RiskLow:
-		return "low"
-	case tool.RiskMedium:
-		return "medium"
-	case tool.RiskHigh:
-		return "high"
-	default:
-		return riskLevelWire(risk)
-	}
-}
-
-func (wire riskLevelWire) riskLevel() (tool.RiskLevel, error) {
-	switch wire {
-	case "":
-		return "", nil
-	case "low":
-		return tool.RiskLow, nil
-	case "medium":
-		return tool.RiskMedium, nil
-	case "high":
-		return tool.RiskHigh, nil
-	default:
-		return "", fmt.Errorf("agentexec interaction input codec: unknown risk level %q", wire)
-	}
-}
-
-type rememberScopeWire string
-
-func rememberScopeWireFrom(scope approval.Scope) rememberScopeWire {
-	switch scope {
-	case "":
-		return ""
-	case approval.ScopeSession:
-		return "session"
-	case approval.ScopeProject:
-		return "project"
-	case approval.ScopeGlobal:
-		return "global"
-	default:
-		return rememberScopeWire(scope)
-	}
-}
-
-func (wire rememberScopeWire) scope() (approval.Scope, error) {
-	switch wire {
-	case "":
-		return "", nil
-	case "session":
-		return approval.ScopeSession, nil
-	case "project":
-		return approval.ScopeProject, nil
-	case "global":
-		return approval.ScopeGlobal, nil
-	default:
-		return "", fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", wire)
-	}
 }

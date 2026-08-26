@@ -11,8 +11,7 @@ import (
 )
 
 type Protocol struct {
-	Current      string `json:"current"`
-	MinSupported string `json:"minSupported"`
+	Version string `json:"version"`
 }
 
 type Server struct {
@@ -21,13 +20,6 @@ type Server struct {
 	DefaultWorkspace string `json:"defaultWorkspace"`
 	Home             string `json:"home"`
 }
-
-type Stability string
-
-const (
-	Stable       Stability = "stable"
-	Experimental Stability = "experimental"
-)
 
 // FeatureName is the runtime capability vocabulary the CLI currently knows how
 // to consume. Discovery may still carry newer names; FeatureName remains a
@@ -52,7 +44,6 @@ const (
 	FeatureSessionExport FeatureName = "sessionExport"
 	FeatureRelocate      FeatureName = "relocate"
 	FeatureSubagents     FeatureName = "subagents"
-	FeatureClientTools   FeatureName = "clientTools"
 )
 
 // KnownFeatures returns the runtime feature vocabulary understood by this CLI.
@@ -63,29 +54,21 @@ func KnownFeatures() []FeatureName {
 		FeatureGoals, FeatureAgentMemory, FeatureKnowledge, FeatureSkills,
 		FeatureMCP, FeatureSchedules, FeatureGit,
 		FeatureCheckpoints, FeatureFileWatch, FeatureLSP, FeatureSessionExport,
-		FeatureRelocate, FeatureSubagents, FeatureClientTools,
+		FeatureRelocate, FeatureSubagents,
 	}
 }
 
 type Feature struct {
-	Enabled               bool      `json:"enabled"`
-	Stability             Stability `json:"stability"`
-	ClientOptIn           bool      `json:"clientOptIn"`
-	ClientRequested       bool      `json:"clientRequested"`
-	RequiredByRunProtocol bool      `json:"requiredByRunProtocol"`
+	Enabled               bool `json:"enabled"`
+	ClientOptIn           bool `json:"clientOptIn"`
+	ClientRequested       bool `json:"clientRequested"`
+	RequiredByRunProtocol bool `json:"requiredByRunProtocol"`
 }
 
 // Available reports whether the server and this client agreed to use the
 // feature. Server support alone is insufficient for opt-in capabilities.
 func (feature Feature) Available() bool {
 	return feature.Enabled && (!feature.ClientOptIn || feature.ClientRequested)
-}
-
-type Snapshot struct {
-	Key            string `json:"key"`
-	RecoveryMethod string `json:"recoveryMethod"`
-	Scope          string `json:"scope"`
-	Writer         string `json:"writer"`
 }
 
 type ReplayLimits struct {
@@ -115,7 +98,6 @@ type Profile struct {
 	Server           Server                  `json:"server"`
 	RunEvents        []string                `json:"runEvents"`
 	RuntimeTopics    []string                `json:"runtimeTopics"`
-	StateSnapshots   []Snapshot              `json:"stateSnapshots"`
 	StreamingMethods []string                `json:"streamingMethods"`
 	Features         map[FeatureName]Feature `json:"features"`
 	Limits           Limits                  `json:"limits"`
@@ -124,7 +106,6 @@ type Profile struct {
 func (profile Profile) Clone() Profile {
 	profile.RunEvents = slices.Clone(profile.RunEvents)
 	profile.RuntimeTopics = slices.Clone(profile.RuntimeTopics)
-	profile.StateSnapshots = slices.Clone(profile.StateSnapshots)
 	profile.StreamingMethods = slices.Clone(profile.StreamingMethods)
 	profile.Features = maps.Clone(profile.Features)
 	return profile
@@ -137,8 +118,8 @@ func (profile Profile) Available() bool {
 
 func (profile Profile) Validate() error {
 	var problems []error
-	if strings.TrimSpace(profile.Protocol.Current) == "" || strings.TrimSpace(profile.Protocol.MinSupported) == "" {
-		problems = append(problems, errors.New("protocol range is incomplete"))
+	if strings.TrimSpace(profile.Protocol.Version) == "" {
+		problems = append(problems, errors.New("protocol version is empty"))
 	}
 	if strings.TrimSpace(profile.Server.Name) == "" || strings.TrimSpace(profile.Server.Version) == "" {
 		problems = append(problems, errors.New("server identity is incomplete"))
@@ -154,23 +135,9 @@ func (profile Profile) Validate() error {
 			problems = append(problems, err)
 		}
 	}
-	seenSnapshots := make(map[string]struct{}, len(profile.StateSnapshots))
-	for index, snapshot := range profile.StateSnapshots {
-		if strings.TrimSpace(snapshot.Key) == "" || strings.TrimSpace(snapshot.RecoveryMethod) == "" ||
-			strings.TrimSpace(snapshot.Scope) == "" || strings.TrimSpace(snapshot.Writer) == "" {
-			problems = append(problems, fmt.Errorf("state snapshot %d is incomplete", index+1))
-		}
-		if _, duplicate := seenSnapshots[snapshot.Key]; duplicate {
-			problems = append(problems, fmt.Errorf("state snapshots repeat %q", snapshot.Key))
-		}
-		seenSnapshots[snapshot.Key] = struct{}{}
-	}
-	for name, feature := range profile.Features {
+	for name := range profile.Features {
 		if strings.TrimSpace(string(name)) == "" {
 			problems = append(problems, errors.New("feature name is empty"))
-		}
-		if feature.Stability != Stable && feature.Stability != Experimental {
-			problems = append(problems, fmt.Errorf("feature %q has invalid stability %q", name, feature.Stability))
 		}
 	}
 	if err := profile.Limits.validate(); err != nil {

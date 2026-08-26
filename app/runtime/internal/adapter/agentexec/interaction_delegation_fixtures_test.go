@@ -289,7 +289,7 @@ func (projection *delegateProjection) CommitStartedChildRun(
 	if projection.reservations[memberID] != reservation {
 		return errors.New("started child has no reservation")
 	}
-	if prior := projection.outcomes[memberID]; prior != 0 {
+	if prior := projection.outcomes[memberID]; prior.Valid() {
 		if prior != runs.ChildRunStarted {
 			return errors.New("child outcome conflict")
 		}
@@ -311,7 +311,7 @@ func (projection *delegateProjection) AbortChildRunStart(
 	if projection.reservations[memberID] != reservation {
 		return errors.New("aborted child has no reservation")
 	}
-	if prior := projection.outcomes[memberID]; prior != 0 && prior != runs.ChildRunStartAborted {
+	if prior := projection.outcomes[memberID]; prior.Valid() && prior != runs.ChildRunStartAborted {
 		return errors.New("child outcome conflict")
 	}
 	projection.outcomes[memberID] = runs.ChildRunStartAborted

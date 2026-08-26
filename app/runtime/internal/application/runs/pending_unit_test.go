@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -137,7 +138,7 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 			mutate: func(p *Pending) {
 				p.Continuations[0].CommittedTools = []CommittedTool{{
 					ItemID: "item_committed", CallID: "call_grandchild",
-					Name: "shell", Arguments: `{}`,
+					Name: "shell", Arguments: `{}`, Failure: tool.Failure{Kind: tool.FailureInternal},
 				}}
 			},
 			want: "approval Tool call \"call_grandchild\" is already committed",

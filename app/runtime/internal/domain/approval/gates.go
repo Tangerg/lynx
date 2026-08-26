@@ -5,16 +5,21 @@ import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 // GateAction is the three-way outcome of the per-call permission gate: run it,
 // ask the user, or refuse outright. Replacing the older bool ("needs approval?")
 // lets ModePlan express "deny without prompting" — a stance a bool can't capture.
-type GateAction int
+type GateAction string
 
 const (
 	// GatePass runs the tool without prompting.
-	GatePass GateAction = iota
+	GatePass GateAction = "pass"
 	// GatePrompt registers an approval request and waits for a human decision.
-	GatePrompt
+	GatePrompt GateAction = "prompt"
 	// GateDeny refuses outright with no prompt (ModePlan's read-only stance).
-	GateDeny
+	GateDeny GateAction = "deny"
 )
+
+// Valid reports whether action belongs to the approval gate vocabulary.
+func (action GateAction) Valid() bool {
+	return action == GatePass || action == GatePrompt || action == GateDeny
+}
 
 // GateFor encodes the (tool-class, mode) → gate action. The rules mirror the
 // strictness gradient documented on [Mode]:

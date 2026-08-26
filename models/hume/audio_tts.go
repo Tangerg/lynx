@@ -12,6 +12,23 @@ import (
 	tts "github.com/Tangerg/lynx/core/speech"
 )
 
+const (
+	metadataAudioFormat      = "hume/audio_format"
+	metadataChunkIndex       = "hume/chunk_index"
+	metadataDurationSeconds  = "hume/duration_seconds"
+	metadataEncodingFormat   = "hume/encoding_format"
+	metadataGenerationID     = "hume/generation_id"
+	metadataIsLastChunk      = "hume/is_last_chunk"
+	metadataRequestID        = "hume/request_id"
+	metadataResponse         = "hume/response"
+	metadataSampleRate       = "hume/sample_rate"
+	metadataSnippetID        = "hume/snippet_id"
+	metadataStreamAudioEvent = "hume/stream_audio_event"
+	metadataText             = "hume/text"
+	metadataTranscribedText  = "hume/transcribed_text"
+	metadataUtteranceIndex   = "hume/utterance_index"
+)
+
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
@@ -131,16 +148,16 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	outputMetadata := &tts.OutputMetadata{}
 	if len(apiResp.Generations) > 0 {
 		g := apiResp.Generations[0]
-		if err := outputMetadata.Set("hume/encoding_format", g.Encoding.Format); err != nil {
+		if err := outputMetadata.Set(metadataEncodingFormat, g.Encoding.Format); err != nil {
 			return nil, err
 		}
-		if err := outputMetadata.Set("hume/sample_rate", g.Encoding.SampleRate); err != nil {
+		if err := outputMetadata.Set(metadataSampleRate, g.Encoding.SampleRate); err != nil {
 			return nil, err
 		}
-		if err := outputMetadata.Set("hume/duration_seconds", g.Duration); err != nil {
+		if err := outputMetadata.Set(metadataDurationSeconds, g.Duration); err != nil {
 			return nil, err
 		}
-		if err := outputMetadata.Set("hume/generation_id", g.ID); err != nil {
+		if err := outputMetadata.Set(metadataGenerationID, g.ID); err != nil {
 			return nil, err
 		}
 	}
@@ -150,11 +167,11 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	}
 	meta := &tts.ResponseMetadata{Model: model}
 	if apiResp.RequestID != "" {
-		if err := meta.Set("hume/request_id", apiResp.RequestID); err != nil {
+		if err := meta.Set(metadataRequestID, apiResp.RequestID); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set("hume/response", apiResp); err != nil {
+	if err := meta.Set(metadataResponse, apiResp); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(output, meta)
@@ -200,7 +217,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 				yield(nil, fmt.Errorf("hume: unexpected streamed event type %q", event.Type))
 				return
 			}
-			response, err := buildStreamResponse(&event, request.Version)
+			response, err := event.response(request.Version)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -212,26 +229,38 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	}
 }
 
-func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, error) {
+func (event *ttsStreamEvent) response(model string) (*tts.Response, error) {
 	audio, err := event.DecodeAudio()
 	if err != nil {
 		return nil, err
 	}
 	outputMetadata := &tts.OutputMetadata{}
-	for key, value := range map[string]any{
-		"hume/audio_format":       event.AudioFormat,
-		"hume/chunk_index":        event.ChunkIndex,
-		"hume/generation_id":      event.GenerationID,
-		"hume/is_last_chunk":      event.IsLastChunk,
-		"hume/snippet_id":         event.SnippetID,
-		"hume/text":               event.Text,
-		"hume/transcribed_text":   event.TranscribedText,
-		"hume/utterance_index":    event.UtteranceIndex,
-		"hume/stream_audio_event": event,
-	} {
-		if err := outputMetadata.Set(key, value); err != nil {
-			return nil, err
-		}
+	if err := outputMetadata.Set(metadataAudioFormat, event.AudioFormat); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataChunkIndex, event.ChunkIndex); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataGenerationID, event.GenerationID); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataIsLastChunk, event.IsLastChunk); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataSnippetID, event.SnippetID); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataText, event.Text); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataTranscribedText, event.TranscribedText); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataUtteranceIndex, event.UtteranceIndex); err != nil {
+		return nil, err
+	}
+	if err := outputMetadata.Set(metadataStreamAudioEvent, event); err != nil {
+		return nil, err
 	}
 	output, err := tts.NewOutput(audio, outputMetadata)
 	if err != nil {
@@ -239,7 +268,7 @@ func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, er
 	}
 	responseMetadata := &tts.ResponseMetadata{Model: model}
 	if event.RequestID != "" {
-		if err := responseMetadata.Set("hume/request_id", event.RequestID); err != nil {
+		if err := responseMetadata.Set(metadataRequestID, event.RequestID); err != nil {
 			return nil, err
 		}
 	}

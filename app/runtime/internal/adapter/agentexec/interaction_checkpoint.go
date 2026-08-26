@@ -156,7 +156,7 @@ func encodeInteractionPendingSteers(
 					Data: base64.StdEncoding.EncodeToString(block.Bytes),
 				}
 			default:
-				return nil, fmt.Errorf("pending steer %s content %d has unknown kind %d", signalID, index, block.Kind)
+				return nil, fmt.Errorf("pending steer %s content %d has unknown kind %q", signalID, index, block.Kind)
 			}
 		}
 		values = append(values, interactionPendingSteerWire{SignalID: signalID.String(), Content: content})

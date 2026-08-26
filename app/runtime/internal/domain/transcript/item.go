@@ -332,7 +332,7 @@ func (item Item) Validate() error {
 			return errors.New("transcript: message must be complete with content")
 		}
 		if !item.messagePhase.Valid() {
-			return fmt.Errorf("transcript: unknown AgentMessage phase %d", item.messagePhase)
+			return fmt.Errorf("transcript: unknown AgentMessage phase %q", item.messagePhase)
 		}
 	case Reasoning:
 		if item.status != ItemCompleted || item.text == "" {
@@ -354,7 +354,7 @@ func (item Item) Validate() error {
 			return errors.New("transcript: compaction must be complete")
 		}
 	default:
-		return fmt.Errorf("transcript: unknown Item kind %d", item.kind)
+		return fmt.Errorf("transcript: unknown Item kind %q", item.kind)
 	}
 	return item.rejectDisallowedPayload()
 }
@@ -386,7 +386,7 @@ func (item Item) validateToolCall() error {
 			return errors.New("transcript: incomplete ToolCall has no finish time")
 		}
 	default:
-		return fmt.Errorf("transcript: unknown Item status %d", item.status)
+		return fmt.Errorf("transcript: unknown Item status %q", item.status)
 	}
 	if !item.finishedAt.IsZero() && item.finishedAt.Before(item.identity.OccurredAt) {
 		return errors.New("transcript: ToolCall finish time precedes its occurrence")

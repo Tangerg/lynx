@@ -180,7 +180,7 @@ func (a *app) loadAgentMemoryItem(argument, label string, apply func(agentmemory
 		return err
 	}
 	a.status.note(label)
-	started := runOperation(a, agentMemoryOperation, false,
+	started := a.runOperation(agentMemoryOperation, false,
 		func(ctx context.Context) (agentmemory.Item, error) {
 			items, err := a.agentMemory.Items(ctx, target)
 			if err != nil {
@@ -264,7 +264,7 @@ func parseAgentMemoryIdentity(argument, workspace string) (agentmemory.Target, s
 func (a *app) addAgentMemory(target agentmemory.Target, content string, complete func(error) bool) error {
 	presentation := a.sessionContext
 	a.status.note("adding agent memory")
-	if !runAdmissionMutation(a, agentMemoryOperation, false,
+	if !a.runAdmissionMutation(agentMemoryOperation, false,
 		func(ctx context.Context) (agentmemory.Item, error) { return a.agentMemory.Add(ctx, target, content) },
 		func(item agentmemory.Item, err error) {
 			if err != nil {
@@ -292,7 +292,7 @@ func (a *app) addAgentMemory(target agentmemory.Target, content string, complete
 func (a *app) updateAgentMemory(target agentmemory.Target, patch agentmemory.Patch, label string, complete func(error) bool) error {
 	presentation := a.sessionContext
 	a.status.note(label)
-	if !runAdmissionMutation(a, agentMemoryOperation, false,
+	if !a.runAdmissionMutation(agentMemoryOperation, false,
 		func(ctx context.Context) (agentmemory.Item, error) { return a.agentMemory.Update(ctx, patch) },
 		func(item agentmemory.Item, err error) {
 			if err != nil {
@@ -321,7 +321,7 @@ func (a *app) reviewAgentMemory(target agentmemory.Target, id string, decision a
 	presentation := a.sessionContext
 	label := string(decision) + " agent memory " + id
 	a.status.note(label)
-	if !runAdmissionMutation(a, agentMemoryOperation, false,
+	if !a.runAdmissionMutation(agentMemoryOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.agentMemory.Review(ctx, id, decision) },
 		func(reviewed string, err error) {
 			if err != nil {
@@ -345,7 +345,7 @@ func (a *app) reviewAgentMemory(target agentmemory.Target, id string, decision a
 func (a *app) deleteAgentMemory(target agentmemory.Target, id string) {
 	presentation := a.sessionContext
 	a.status.note("deleting agent memory " + id)
-	if !runAdmissionMutation(a, agentMemoryOperation, false,
+	if !a.runAdmissionMutation(agentMemoryOperation, false,
 		func(ctx context.Context) (string, error) { return id, a.agentMemory.Delete(ctx, id) },
 		func(deleted string, err error) {
 			if err != nil {

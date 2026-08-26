@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -119,7 +120,7 @@ func TestExecuteConfirmsAnExpiredDeletionProvenByTheOwningRuntime(t *testing.T) 
 	result, err := Execute(t.Context(), runtime, store, request.SessionID, ReplayWindow{
 		Namespace: "runtime-a", Retention: time.Hour,
 	}, retry.Backoff{})
-	if err != nil || result.Outcome != Confirmed || result.Request != request {
+	if err != nil || result.Outcome != mutation.Confirmed || result.Request != request {
 		t.Fatalf("settlement = %+v, %v", result, err)
 	}
 	if runtime.deletes != 0 || runtime.reads != 1 {
@@ -144,7 +145,7 @@ func TestExecuteRejectsAnExpiredDeletionWhenTheSessionStillExists(t *testing.T) 
 	result, err := Execute(t.Context(), runtime, store, request.SessionID, ReplayWindow{
 		Namespace: "runtime-a", Retention: time.Hour,
 	}, retry.Backoff{})
-	if err != nil || result.Outcome != Rejected || result.Request != request {
+	if err != nil || result.Outcome != mutation.Rejected || result.Request != request {
 		t.Fatalf("settlement = %+v, %v", result, err)
 	}
 	if runtime.deletes != 0 || runtime.reads != 1 {
@@ -162,7 +163,7 @@ func TestSettlePreservesDeletionRejectedByAnotherRuntimeStore(t *testing.T) {
 	outcome, err := Settle(t.Context(), runtime, request, workbench.ReplayGuard{
 		Namespace: "runtime-a", Until: deadline,
 	}, window, retry.Backoff{})
-	if outcome != Unknown || !errors.Is(err, agent.ErrCommandStoreMismatch) {
+	if outcome != mutation.Unknown || !errors.Is(err, agent.ErrCommandStoreMismatch) {
 		t.Fatalf("store mismatch settlement = outcome %v, error %v", outcome, err)
 	}
 	if runtime.reads != 0 {

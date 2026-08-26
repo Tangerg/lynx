@@ -11,6 +11,24 @@ import (
 	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
+const (
+	characterCostHeader   = "character-cost"
+	contentTypeHeader     = "Content-Type"
+	requestIDHeader       = "request-id"
+	traceIDHeader         = "x-trace-id"
+	metadataCharacterCost = "elevenlabs/character_cost"
+	metadataMIMEType      = "elevenlabs/mime_type"
+	metadataRequestID     = "elevenlabs/request_id"
+	metadataTraceID       = "elevenlabs/trace_id"
+)
+
+type speechResponseMetadata struct {
+	ContentType   string `json:"content_type"`
+	CharacterCost string `json:"character_cost"`
+	RequestID     string `json:"request_id"`
+	TraceID       string `json:"trace_id"`
+}
+
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
@@ -109,8 +127,14 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 		return nil, errors.New("elevenlabs: speech response contained no audio")
 	}
 	outputMetadata := &tts.OutputMetadata{}
-	if ct := hdr.Get("Content-Type"); ct != "" {
-		if err := outputMetadata.Set("elevenlabs/mime_type", ct); err != nil {
+	details := speechResponseMetadata{
+		ContentType:   hdr.Get(contentTypeHeader),
+		CharacterCost: hdr.Get(characterCostHeader),
+		RequestID:     hdr.Get(requestIDHeader),
+		TraceID:       hdr.Get(traceIDHeader),
+	}
+	if details.ContentType != "" {
+		if err := outputMetadata.Set(metadataMIMEType, details.ContentType); err != nil {
 			return nil, err
 		}
 	}
@@ -121,23 +145,22 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	}
 
 	responseMetadata := &tts.ResponseMetadata{}
-	for key, value := range map[string]string{
-		"elevenlabs/character_cost": hdr.Get("character-cost"),
-		"elevenlabs/request_id":     hdr.Get("request-id"),
-		"elevenlabs/trace_id":       hdr.Get("x-trace-id"),
-	} {
-		if value != "" {
-			if err := responseMetadata.Set(key, value); err != nil {
-				return nil, err
-			}
+	if details.CharacterCost != "" {
+		if err := responseMetadata.Set(metadataCharacterCost, details.CharacterCost); err != nil {
+			return nil, err
 		}
 	}
-	if err := responseMetadata.Set(SpeechResponseExtensionKey, map[string]any{
-		"content_type":   hdr.Get("Content-Type"),
-		"character_cost": hdr.Get("character-cost"),
-		"request_id":     hdr.Get("request-id"),
-		"trace_id":       hdr.Get("x-trace-id"),
-	}); err != nil {
+	if details.RequestID != "" {
+		if err := responseMetadata.Set(metadataRequestID, details.RequestID); err != nil {
+			return nil, err
+		}
+	}
+	if details.TraceID != "" {
+		if err := responseMetadata.Set(metadataTraceID, details.TraceID); err != nil {
+			return nil, err
+		}
+	}
+	if err := responseMetadata.Set(SpeechResponseExtensionKey, details); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(output, responseMetadata)

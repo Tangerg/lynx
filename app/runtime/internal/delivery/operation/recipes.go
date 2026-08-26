@@ -6,9 +6,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const RecipesList Name = "recipes.list"
+
 func registerRecipes(registry *Registry) {
-	Query(registry, MethodMeta{
-		Name:   "recipes.list",
+	registry.Query(MethodMeta{
+		Name:   RecipesList,
 		Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 	}, func(service interface {
 		ListRecipes(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error)

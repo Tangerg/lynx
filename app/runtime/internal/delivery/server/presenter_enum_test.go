@@ -13,18 +13,18 @@ import (
 )
 
 func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
-	mustPanic(t, func() { presentItemStatus(transcript.ItemStatus(99)) })
-	mustPanic(t, func() { presentItemKind(transcript.ItemKind(99)) })
-	mustPanic(t, func() { presentContent(transcript.ContentBlock{Kind: transcript.ContentKind(99)}) })
+	mustPanic(t, func() { presentItemStatus(transcript.ItemStatus("invalid")) })
+	mustPanic(t, func() { presentItemKind(transcript.ItemKind("unknown")) })
+	mustPanic(t, func() { presentContent(transcript.ContentBlock{Kind: transcript.ContentKind("invalid")}) })
 	mustPanic(t, func() {
-		presentQuestion(transcript.Question{Fields: []transcript.QuestionField{{Kind: transcript.QuestionFieldKind(99)}}})
+		presentQuestion(transcript.Question{Fields: []transcript.QuestionField{{Kind: transcript.QuestionFieldKind("invalid")}}})
 	})
-	mustPanic(t, func() { presentDelta(runs.ItemDelta{Kind: runs.ItemDeltaKind(99)}) })
-	mustPanic(t, func() { presentRun(runfixture.MustRestore(run.Snapshot{State: run.State(99)})) })
+	mustPanic(t, func() { presentDelta(runs.ItemDelta{Kind: runs.ItemDeltaKind("invalid")}) })
+	mustPanic(t, func() { presentRun(runfixture.MustRestore(run.Snapshot{State: run.State("invalid")})) })
 	mustPanic(t, func() { presentOutcome(runfixture.MustRestore(run.Snapshot{State: run.Running})) })
-	mustPanic(t, func() { presentRunFailure(&run.Failure{Kind: run.FailureKind(99)}) })
-	mustPanic(t, func() { presentToolFailure(&tool.Failure{Kind: tool.FailureKind(99)}) })
-	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: interrupt.Kind(99)}}) })
+	mustPanic(t, func() { presentRunFailure(&run.Failure{Kind: run.FailureKind("invalid")}) })
+	mustPanic(t, func() { presentToolFailure(&tool.Failure{Kind: tool.FailureKind("invalid")}) })
+	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: interrupt.Kind("invalid")}}) })
 }
 
 func TestRunOutcomeProjectionIsExhaustive(t *testing.T) {

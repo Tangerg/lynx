@@ -63,14 +63,16 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 
 func (a *app) selectSessionModel(model agent.Model) {
 	sessionID := a.session.ID
-	runSessionChange(a, "selecting model",
+	a.runSessionChange("selecting model",
 		func(ctx context.Context) (agent.Session, error) {
 			latest, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
 				return agent.Session{}, err
 			}
 			return session.Update(ctx, a.runtime, agent.UpdateSession{
-				SessionID: sessionID, Model: &model.ID, ExpectedRevision: latest.Session.Revision,
+				SessionID:        sessionID,
+				Model:            &agent.ModelRef{Provider: model.Provider, Model: model.ID},
+				ExpectedRevision: latest.Session.Revision,
 			})
 		},
 		func(updated agent.Session) error {
@@ -92,7 +94,7 @@ func (a *app) ChooseModel() {
 }
 
 func (a *app) loadModelPicker(reset bool) {
-	runOperation(a, pickerCatalogOperation, true,
+	a.runOperation(pickerCatalogOperation, true,
 		func(ctx context.Context) ([]agent.Model, error) { return a.runtime.ListModels(ctx) },
 		func(models []agent.Model, err error) {
 			if err != nil {
@@ -124,7 +126,7 @@ func (a *app) ChooseApprovalMode() {
 }
 
 func (a *app) setApprovalMode(mode agent.ApprovalMode) {
-	runAdmissionMutation(a, approvalModeOperation, true,
+	a.runAdmissionMutation(approvalModeOperation, true,
 		func(ctx context.Context) (agent.ApprovalMode, error) { return a.runtime.SetApprovalMode(ctx, mode) },
 		func(applied agent.ApprovalMode, err error) {
 			if err != nil {
@@ -137,7 +139,7 @@ func (a *app) setApprovalMode(mode agent.ApprovalMode) {
 }
 
 func (a *app) ShowRuntimeStatus() {
-	runOperation(a, pickerCatalogOperation, true,
+	a.runOperation(pickerCatalogOperation, true,
 		func(ctx context.Context) (agent.ApprovalMode, error) { return a.runtime.GetApprovalMode(ctx) },
 		func(mode agent.ApprovalMode, err error) {
 			if err != nil {
@@ -167,7 +169,7 @@ func runtimeStatusText(profile *runtimeprofile.Profile, options agent.RunOptions
 	limits := profile.Limits
 	profileLines := []string{
 		fmt.Sprintf("runtime: %s %s", profile.Server.Name, profile.Server.Version),
-		fmt.Sprintf("protocol: %s (minimum %s)", profile.Protocol.Current, profile.Protocol.MinSupported),
+		"protocol: " + profile.Protocol.Version,
 		"default workspace: " + profile.Server.DefaultWorkspace,
 		"home: " + profile.Server.Home,
 		"available features: " + strings.Join(features, ", "),
@@ -176,7 +178,7 @@ func runtimeStatusText(profile *runtimeprofile.Profile, options agent.RunOptions
 		"command replay retention: " + formatRuntimeSeconds(limits.IdempotencyRetentionSeconds),
 		"MCP authorization retention: " + formatRuntimeSeconds(limits.MCPAuthorizationRetentionSeconds),
 		fmt.Sprintf("runtime subscriptions: %d topics / %d watches", limits.RuntimeSubscription.MaxTopics, limits.RuntimeSubscription.MaxWatches),
-		fmt.Sprintf("surface: %d run events / %d topics / %d snapshots / %d streaming methods", len(profile.RunEvents), len(profile.RuntimeTopics), len(profile.StateSnapshots), len(profile.StreamingMethods)),
+		fmt.Sprintf("surface: %d run events / %d topics / %d streaming methods", len(profile.RunEvents), len(profile.RuntimeTopics), len(profile.StreamingMethods)),
 	}
 	return strings.Join(slices.Concat(profileLines, lines), "\n")
 }
@@ -253,7 +255,7 @@ func (a *app) PrepareDeleteApprovalRule(identity string) error {
 	}
 	sessionID := a.session.ID
 	a.status.note("loading approval rule to forget")
-	if !runOperation(a, approvalRuleOperation, false,
+	if !a.runOperation(approvalRuleOperation, false,
 		func(ctx context.Context) (agent.ApprovalRule, error) {
 			rules, err := a.runtime.ListApprovalRules(ctx, sessionID)
 			if err != nil {
@@ -315,7 +317,7 @@ type approvalRuleDeletionResult struct {
 
 func (a *app) deleteApprovalRule(sessionID, id string) {
 	a.status.note("forgetting approval rule " + id)
-	if !runAdmissionMutation(a, approvalRuleOperation, false,
+	if !a.runAdmissionMutation(approvalRuleOperation, false,
 		func(ctx context.Context) (approvalRuleDeletionResult, error) {
 			if err := a.runtime.DeleteApprovalRule(ctx, id); err != nil {
 				return approvalRuleDeletionResult{}, err

@@ -57,7 +57,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: baseURL, HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "azureopenai"})
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: baseURL, HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "azureopenai", TokenLimitField: openai.TokenLimitMaxTokens})
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}

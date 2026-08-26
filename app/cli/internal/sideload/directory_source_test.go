@@ -127,7 +127,7 @@ func TestSideloadedPluginMustDeclareCommandsCapability(t *testing.T) {
 	if len(results) != 1 || results[0].Phase != extensions.PluginFailed || !strings.Contains(results[0].Err.Error(), "terminal.commands") {
 		t.Fatalf("activation = %+v", results)
 	}
-	if commands := extensions.Values(registry, terminal.SlashCommands); len(commands) != 0 {
+	if commands := registry.Values(terminal.SlashCommands); len(commands) != 0 {
 		t.Fatalf("denied plugin registered commands: %+v", commands)
 	}
 }
@@ -183,7 +183,7 @@ func loadFixtureCommands(t *testing.T, root string) ([]terminal.SlashCommand, fu
 		_ = extensionHost.Close()
 		t.Fatalf("activation = %+v, %v", results, err)
 	}
-	return extensions.Values(registry, terminal.SlashCommands), func() { _ = extensionHost.Close() }
+	return registry.Values(terminal.SlashCommands), func() { _ = extensionHost.Close() }
 }
 
 func TestExecutableCommandHonorsCancellation(t *testing.T) {

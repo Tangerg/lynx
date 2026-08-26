@@ -2,23 +2,16 @@ package couchbase
 
 import (
 	"fmt"
-	"maps"
 	"regexp"
-	"slices"
 )
 
 var identifierPatternWithDash = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
-func validateIdentifiersWithDash(provider string, fields map[string]string) error {
-	return validateIdentifierFields(identifierPatternWithDash, provider, fields)
-}
+type identifier string
 
-func validateIdentifierFields(pattern *regexp.Regexp, provider string, fields map[string]string) error {
-	for _, name := range slices.Sorted(maps.Keys(fields)) {
-		value := fields[name]
-		if !pattern.MatchString(value) {
-			return fmt.Errorf("%s: %s=%q must match %s", provider, name, value, pattern)
-		}
+func (i identifier) validate(field string) error {
+	if !identifierPatternWithDash.MatchString(string(i)) {
+		return fmt.Errorf("couchbase: %s=%q must match %s", field, i, identifierPatternWithDash)
 	}
 	return nil
 }

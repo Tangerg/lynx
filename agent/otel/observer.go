@@ -248,19 +248,19 @@ func (observer *Observer) finishProcess(ctx context.Context, event agent.Event) 
 	}
 	observer.mu.Unlock()
 	attributes := append(deploymentMetricAttributes(event),
-		attribute.String("agent.process.status", payload.ProcessStatus),
-		attribute.String("agent.process.cause", payload.TerminationCause),
+		attribute.String("agent.process.status", payload.ProcessStatus.String()),
+		attribute.String("agent.process.cause", payload.TerminationCause.String()),
 	)
 	observer.processExits.Add(ctx, 1, metric.WithAttributes(attributes...))
 	if !found {
 		return
 	}
 	record.span.SetAttributes(
-		attribute.String("agent.process.status", payload.ProcessStatus),
-		attribute.String("agent.process.cause", payload.TerminationCause),
+		attribute.String("agent.process.status", payload.ProcessStatus.String()),
+		attribute.String("agent.process.cause", payload.TerminationCause.String()),
 	)
 	if processStatusIsError(payload.ProcessStatus) {
-		record.span.SetStatus(codes.Error, payload.TerminationCause)
+		record.span.SetStatus(codes.Error, payload.TerminationCause.String())
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 }
@@ -308,14 +308,14 @@ func (observer *Observer) finishStep(ctx context.Context, event agent.Event) {
 		return
 	}
 	payload := decodePayload(event)
-	record.span.SetAttributes(attribute.String("agent.step.status", payload.StepStatus))
-	if payload.StepStatus == "failed" {
+	record.span.SetAttributes(attribute.String("agent.step.status", payload.StepStatus.String()))
+	if payload.StepStatus == agent.StepStatusFailed {
 		record.span.SetStatus(codes.Error, "Execution Step failed")
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 	observer.stepDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
-		metric.WithAttributes(attribute.String("agent.step.status", payload.StepStatus)),
+		metric.WithAttributes(attribute.String("agent.step.status", payload.StepStatus.String())),
 	)
 }
 
@@ -340,7 +340,7 @@ func (observer *Observer) startEffect(event agent.Event) {
 		trace.WithTimestamp(event.OccurredAt()),
 		trace.WithAttributes(
 			attribute.String("agent.effect.id", effectID.String()),
-			attribute.String("agent.effect.target", payload.EffectTarget),
+			attribute.String("agent.effect.target", payload.EffectTarget.String()),
 		),
 	)
 	observer.effects[effectID] = spanRecord{
@@ -365,18 +365,18 @@ func (observer *Observer) finishEffect(ctx context.Context, event agent.Event) {
 	}
 	payload := decodePayload(event)
 	record.span.SetAttributes(
-		attribute.String("agent.effect.target", payload.EffectTarget),
-		attribute.String("agent.effect.status", payload.SettlementStatus),
+		attribute.String("agent.effect.target", payload.EffectTarget.String()),
+		attribute.String("agent.effect.status", payload.SettlementStatus.String()),
 	)
-	if payload.SettlementStatus != "succeeded" {
-		record.span.SetStatus(codes.Error, "Effect attempt "+payload.SettlementStatus)
+	if payload.SettlementStatus != agent.SettlementStatusSucceeded {
+		record.span.SetStatus(codes.Error, "Effect attempt "+payload.SettlementStatus.String())
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 	observer.effectDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
 		metric.WithAttributes(
-			attribute.String("agent.effect.target", payload.EffectTarget),
-			attribute.String("agent.effect.status", payload.SettlementStatus),
+			attribute.String("agent.effect.target", payload.EffectTarget.String()),
+			attribute.String("agent.effect.status", payload.SettlementStatus.String()),
 		),
 	)
 }
@@ -412,12 +412,12 @@ func (observer *Observer) addProcessEvent(event agent.Event) {
 }
 
 type eventPayload struct {
-	ProcessStatus     string `json:"process_status"`
-	TerminationCause  string `json:"termination_cause"`
-	StepStatus        string `json:"step_status"`
-	EffectTarget      string `json:"effect_target"`
-	SettlementStatus  string `json:"settlement_status"`
-	DroppedDeltaCount uint64 `json:"dropped_delta_count"`
+	ProcessStatus     agent.Status           `json:"process_status"`
+	TerminationCause  agent.TerminationCause `json:"termination_cause"`
+	StepStatus        agent.StepStatus       `json:"step_status"`
+	EffectTarget      agent.EffectTarget     `json:"effect_target"`
+	SettlementStatus  agent.SettlementStatus `json:"settlement_status"`
+	DroppedDeltaCount uint64                 `json:"dropped_delta_count"`
 }
 
 func uint64Attribute(name string, value uint64) attribute.KeyValue {
@@ -469,9 +469,9 @@ func elapsedMilliseconds(startedAt, finishedAt time.Time) float64 {
 	return float64(finishedAt.Sub(startedAt)) / float64(time.Millisecond)
 }
 
-func processStatusIsError(status string) bool {
+func processStatusIsError(status agent.Status) bool {
 	switch status {
-	case "failed", "timed_out", "killed":
+	case agent.StatusFailed, agent.StatusTimedOut, agent.StatusKilled:
 		return true
 	default:
 		return false

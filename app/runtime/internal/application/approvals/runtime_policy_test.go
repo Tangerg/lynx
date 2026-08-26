@@ -42,14 +42,14 @@ func TestNilRuleStore(t *testing.T) {
 }
 
 func TestPolicyRejectsInvalidDefaultMode(t *testing.T) {
-	if _, err := NewRuntimePolicy(approval.Mode(255), nil, nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
+	if _, err := NewRuntimePolicy(approval.Mode("invalid"), nil, nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("New invalid mode error = %v, want ErrInvalidMode", err)
 	}
 	if _, err := NewRuntimePolicy(approval.ModePlan, nil, nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("New Plan default error = %v, want ErrInvalidMode", err)
 	}
 	policy := mustStorelessRuntimePolicy(t, approval.ModeSafe)
-	if err := policy.SetDefaultMode(t.Context(), approval.Mode(255)); !errors.Is(err, approval.ErrInvalidMode) {
+	if err := policy.SetDefaultMode(t.Context(), approval.Mode("invalid")); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("SetDefaultMode error = %v, want ErrInvalidMode", err)
 	}
 	if got, err := policy.Mode(t.Context(), ""); err != nil || got != approval.ModeSafe {

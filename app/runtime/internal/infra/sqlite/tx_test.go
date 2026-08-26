@@ -81,7 +81,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 			[]transcript.Interrupt{{
 				ItemID:   "item_1",
 				Kind:     interrupt.Question,
-				Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+				Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?", Kind: transcript.QuestionText}}},
 			}},
 			time.Unix(2, 0).UTC(),
 		)

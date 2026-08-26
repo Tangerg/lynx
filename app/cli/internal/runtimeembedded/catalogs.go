@@ -53,11 +53,15 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range values {
+		for index, value := range values {
 			if value.Provider != provider.ID {
 				return nil, runtimeContractViolation("models for provider %q returned model %q from %q", provider.ID, value.ID, value.Provider)
 			}
-			models = append(models, projectModel(value))
+			projected := projectModel(value)
+			if err := projected.Validate(); err != nil {
+				return nil, runtimeContractViolation("models for provider %q returned invalid item %d: %v", provider.ID, index+1, err)
+			}
+			models = append(models, projected)
 		}
 	}
 	if err := agent.ValidateModels(models); err != nil {

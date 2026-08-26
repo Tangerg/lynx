@@ -56,7 +56,10 @@ func ReasoningDetailsDialect(config ReasoningDetailsConfig) (Dialect, error) {
 		return Dialect{}, err
 	}
 	codec := reasoningDetailsCodec{config: config}
-	return Dialect{Provider: config.Provider, request: codec, response: codec}, nil
+	return Dialect{
+		Provider: config.Provider, TokenLimitField: TokenLimitMaxTokens,
+		request: codec, response: codec,
+	}, nil
 }
 
 type reasoningDetailsCodec struct {

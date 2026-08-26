@@ -56,15 +56,8 @@ func (record ExecutorCheckpointRecord) validate() error {
 	if strings.TrimSpace(record.BuildID) == "" || record.BuildID != strings.TrimSpace(record.BuildID) {
 		return fmt.Errorf("%w: invalid build ID", ErrInvalidExecutorCheckpointRecord)
 	}
-	for name, value := range map[string]string{
-		"session ID":          record.Scope.SessionID,
-		"working dir":         record.Scope.CWD,
-		"workspace dir":       record.Scope.WorkspaceCWD,
-		"goal incarnation ID": record.Scope.GoalIncarnationID,
-	} {
-		if value != strings.TrimSpace(value) || (name == "session ID" && value == "") {
-			return fmt.Errorf("%w: invalid %s", ErrInvalidExecutorCheckpointRecord, name)
-		}
+	if err := record.Scope.validate(); err != nil {
+		return err
 	}
 	if err := record.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("%w: model selection: %w", ErrInvalidExecutorCheckpointRecord, err)
@@ -77,6 +70,22 @@ func (record ExecutorCheckpointRecord) validate() error {
 	}
 	if err := record.Usage.Validate(); err != nil {
 		return fmt.Errorf("%w: usage: %w", ErrInvalidExecutorCheckpointRecord, err)
+	}
+	return nil
+}
+
+func (record ExecutorScopeRecord) validate() error {
+	if record.SessionID == "" || record.SessionID != strings.TrimSpace(record.SessionID) {
+		return fmt.Errorf("%w: invalid session ID", ErrInvalidExecutorCheckpointRecord)
+	}
+	if record.CWD != strings.TrimSpace(record.CWD) {
+		return fmt.Errorf("%w: invalid working dir", ErrInvalidExecutorCheckpointRecord)
+	}
+	if record.WorkspaceCWD != strings.TrimSpace(record.WorkspaceCWD) {
+		return fmt.Errorf("%w: invalid workspace dir", ErrInvalidExecutorCheckpointRecord)
+	}
+	if record.GoalIncarnationID != strings.TrimSpace(record.GoalIncarnationID) {
+		return fmt.Errorf("%w: invalid goal incarnation ID", ErrInvalidExecutorCheckpointRecord)
 	}
 	return nil
 }

@@ -665,3 +665,18 @@
 - 决策：Interaction ExecutionState、model settlement 与 stream Delta 都嵌入 Core Chat Response wire，因此 state/protocol 从 v7/v6 直接升级到 v8/v7并拒绝旧版本。Agent 公共 identifier、Kernel、Planning、Workflow、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不改变；Runtime 只迁移消费字段，不复制 Core 响应模型。
 - 原因：统一应发生在跨模态的稳定词汇和层级，而不是用 chat 局部术语覆盖全部模态。`Response` 是调用信封，`Output` 是其中的模型产物，二者边界明确且对流式/非流式都成立。
 - 后果：形成 Baseline 25；Interaction owner wire 显式更新，其余公共与恢复合同保持原 owner 和版本。
+
+## ADR-A2-080：稳定文本身份由领域字符串值对象直接拥有
+
+- 状态：已接受并实施；形成 Baseline 26。
+- 证据：Kernel 多组枚举以 `uint8 + String switch + parse switch + wire string` 四份表示维护同一稳定词汇；状态终结性和合法性还依赖常量顺序范围。Event payload 与 OTel adapter 继续传递 `"succeeded"`、`"failed"` 等裸字符串，编译器无法证明其属于哪个领域。新增枚举值时必须同步数字顺序、两个映射和多个字符串比较，属于重复真相与魔法字符串。
+- 决策：凡是已经作为 JSON、观测属性或公共合同拥有稳定文本身份的枚举，统一改为 named string type，由值对象通过 `Valid`、`String` 及必要的 codec 直接拥有不变量。wire 字段使用领域类型，构造器/聚合验证直接调用该类型，不再经过 package 级 parse 映射；终结性等业务规则使用显式成员集合，绝不依赖字典序或声明顺序。invalid zero value 仍为 `""`，面向诊断的 `String` 仍返回 `"invalid"`。
+- 决策：Framework Event payload 新增 `StepStatus` 作为公开观察词汇，使根与 OTel adapter 共享一个 typed fact；不建立通用 Enum、反射 registry、map 驱动校验或 compatibility shim。纯内部 FSM、Planning 三值逻辑、位掩码和计数没有稳定文本身份，继续使用与其运算语义相符的表示。
+- 后果：根公共 API/GoDoc、Kernel wire shape 与 observation wire shape 形成 Baseline 26，但 JSON 字段和值、Process Snapshot v6、TreeSnapshot v4、schema version、状态迁移和恢复语义不变。删除重复 parse switch、ordinal range 和跨包状态魔法字符串，领域 owner 成为唯一词汇真相源。
+
+## ADR-A2-081：Planning Truth 直接拥有三值文本身份
+
+- 状态：已接受并实施；形成 Baseline 27。
+- 证据：`Truth` 虽参与三值逻辑，但没有算术、位运算或顺序语义；它公开编码为 `"unknown"`、`"false"`、`"true"`，原 `uint8` 只迫使值对象维护第二份 ordinal 身份和手写字符串映射。零值曾与 Unknown 重合，也让未初始化值静默取得业务含义。
+- 决策：`Truth` 改为 named string value object，三个常量直接等于其既有 JSON 词汇，并由 receiver 的 `Valid`、`String`、`MarshalJSON`、`UnmarshalJSON` 共同拥有合法性。空字符串无效；不保留数字别名、兼容解析或通用枚举抽象。Planner 的三值组合规则继续显式比较 `Unknown`、`False`、`True`，不把文本顺序当作逻辑顺序。
+- 后果：Planning public API/GoDoc 形成 Baseline 27；既有 JSON 值、Planning state/protocol digest、schema version、搜索与恢复语义均不变。纯进程内 FSM 判别值、位掩码和计数仍使用数值表示。

@@ -702,13 +702,13 @@ func (c *transcriptView) apply(runID string, event agent.Event, registry *extens
 }
 
 func (c *transcriptView) appendCustom(runID string, event agent.CustomEvent, registry *extensions.Registry) error {
-	for _, presenter := range extensions.Values(registry, CustomEventPresenters) {
+	for _, presenter := range registry.Values(CustomEventPresenters) {
 		if presenter.Name != event.Name {
 			continue
 		}
 		rendered, err := presentCustomSafely(presenter, BlockPresentation{
 			Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-			Tools: extensions.Values(registry, ToolPresenters), Speaker: "runtime", Image: c.presentImage,
+			Tools: registry.Values(ToolPresenters), Speaker: "runtime", Image: c.presentImage,
 		}, event)
 		if err != nil {
 			return err
@@ -1075,11 +1075,11 @@ func (c *transcriptView) finishToolGroupIfReady(group *trackedToolGroup) {
 func (c *transcriptView) SealToolGroups() { c.sealToolGroup() }
 
 func (c *transcriptView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
-	for _, presenter := range extensions.Values(registry, BlockPresenters) {
+	for _, presenter := range registry.Values(BlockPresenters) {
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, BlockPresentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-				Tools: extensions.Values(registry, ToolPresenters), Speaker: c.speakerFor(block), Image: c.presentImage,
+				Tools: registry.Values(ToolPresenters), Speaker: c.speakerFor(block), Image: c.presentImage,
 			}, block)
 		}
 	}

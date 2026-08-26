@@ -16,7 +16,7 @@ type sessionOutputResult struct {
 
 func (a *app) copyLastAssistant() error {
 	sessionID := a.session.ID
-	started := runOperation(a, sessionOutputOperation, false,
+	started := a.runOperation(sessionOutputOperation, false,
 		func(ctx context.Context) (sessionOutputResult, error) {
 			snapshot, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
@@ -57,7 +57,7 @@ func (a *app) exportSession(argument string) error {
 	}
 	sessionID, workspace := a.session.ID, a.session.Workspace.Path
 	title := a.session.Title
-	started := runApplicationOperation(a, sessionOutputOperation, false,
+	started := a.runApplicationOperation(sessionOutputOperation, false,
 		func(ctx context.Context) (sessionOutputResult, error) {
 			document, err := a.transfers.ExportSession(ctx, sessiontransfer.ExportRequest{SessionID: sessionID, Format: format})
 			if err != nil {

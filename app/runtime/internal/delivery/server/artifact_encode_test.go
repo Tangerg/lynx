@@ -15,14 +15,14 @@ func TestArtifactFromPortableRejectsUnknownRunEnums(t *testing.T) {
 		{
 			name: "outcome",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
-				ID: "run_1", Outcome: run.Outcome(99),
+				ID: "run_1", Outcome: run.Outcome("invalid"),
 			}}},
 		},
 		{
 			name: "run failure",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
 				ID: "run_1", Outcome: run.OutcomeFailed,
-				Failure: &run.Failure{Kind: run.FailureKind(99)},
+				Failure: &run.Failure{Kind: run.FailureKind("invalid")},
 			}}},
 		},
 	}

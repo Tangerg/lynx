@@ -16,16 +16,13 @@ func projectRuntimeProfile(
 		return runtimeprofile.Profile{}, fmt.Errorf("project runtime profile: discovery is nil")
 	}
 	profile := runtimeprofile.Profile{
-		Protocol: runtimeprofile.Protocol{
-			Current: string(discovery.Protocol.Current), MinSupported: string(discovery.Protocol.MinSupported),
-		},
+		Protocol: runtimeprofile.Protocol{Version: discovery.ProtocolVersion},
 		Server: runtimeprofile.Server{
 			Name: discovery.ServerInfo.Name, Version: discovery.ServerInfo.Version,
 			DefaultWorkspace: discovery.ServerInfo.DefaultWorkspace.Path, Home: discovery.ServerInfo.Home,
 		},
 		RunEvents:        make([]string, 0, len(discovery.Capabilities.RunEvents)),
 		RuntimeTopics:    make([]string, 0, len(discovery.Capabilities.RuntimeTopics)),
-		StateSnapshots:   make([]runtimeprofile.Snapshot, 0, len(discovery.Capabilities.StateSnapshots)),
 		StreamingMethods: append([]string(nil), discovery.Capabilities.StreamingMethods...),
 		Features:         make(map[runtimeprofile.FeatureName]runtimeprofile.Feature, len(discovery.Capabilities.Features)),
 		Limits: runtimeprofile.Limits{
@@ -50,16 +47,10 @@ func projectRuntimeProfile(
 	for _, topic := range discovery.Capabilities.RuntimeTopics {
 		profile.RuntimeTopics = append(profile.RuntimeTopics, string(topic))
 	}
-	for _, snapshot := range discovery.Capabilities.StateSnapshots {
-		profile.StateSnapshots = append(profile.StateSnapshots, runtimeprofile.Snapshot{
-			Key: string(snapshot.Key), RecoveryMethod: snapshot.RecoveryMethod,
-			Scope: string(snapshot.Scope), Writer: string(snapshot.Writer),
-		})
-	}
 	for name, feature := range discovery.Capabilities.Features {
 		requested := client != nil && client.Features[name].Enabled
 		profile.Features[runtimeprofile.FeatureName(name)] = runtimeprofile.Feature{
-			Enabled: feature.Enabled, Stability: runtimeprofile.Stability(feature.Stability),
+			Enabled:     feature.Enabled,
 			ClientOptIn: feature.ClientOptIn, ClientRequested: requested,
 			RequiredByRunProtocol: feature.RequiredByRunProtocol,
 		}

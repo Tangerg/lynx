@@ -28,7 +28,7 @@ type sessionBindingStub struct {
 func sessionControlProfile(features ...runtimeprofile.FeatureName) runtimeprofile.Profile {
 	profile := runtimeprofile.Profile{Features: make(map[runtimeprofile.FeatureName]runtimeprofile.Feature, len(features))}
 	for _, feature := range features {
-		profile.Features[feature] = runtimeprofile.Feature{Enabled: true, Stability: runtimeprofile.Stable}
+		profile.Features[feature] = runtimeprofile.Feature{Enabled: true}
 	}
 	return profile
 }
@@ -57,7 +57,7 @@ func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 			t.Fatalf("rollback options = %+v", options)
 		}
 		return &protocol.RollbackSessionResponse{
-			Session: &protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable)},
+			Session: &protocol.Session{ID: "ses_1", Status: protocol.SessionStatusIdle, Provider: testSessionProvider, Model: testSessionModel, Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable)},
 			DroppedRuns: []protocol.DroppedRun{{
 				Run: protocol.RunSummary{ID: "run_2", SessionID: "ses_1", Status: protocol.RunStatusFinished},
 				UserInput: []protocol.ContentBlock{
@@ -93,13 +93,14 @@ func TestSessionControlRejectsCrossSessionResponses(t *testing.T) {
 		rollback: func(context.Context, protocol.RollbackSessionRequest, embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
 			return &protocol.RollbackSessionResponse{Session: &protocol.Session{
 				ID: "ses_other", Status: protocol.SessionStatusIdle,
+				Provider: testSessionProvider, Model: testSessionModel,
 				Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 			}}, nil
 		},
 		export: func(context.Context, protocol.ExportSessionRequest, embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
 			return &protocol.ExportSessionResponse{Format: protocol.ExportFormatJSON, Artifact: &protocol.SessionArtifact{
 				Version: protocol.SessionArtifactVersion,
-				Session: protocol.ArtifactSession{ID: "ses_other", Workspace: protocol.WorkspaceRef{Path: "/workspace"}},
+				Session: protocol.ArtifactSession{ID: "ses_other", Workspace: protocol.WorkspaceRef{Path: "/workspace"}, Provider: testSessionProvider, Model: testSessionModel},
 			}}, nil
 		},
 	}
@@ -122,7 +123,7 @@ func TestSessionTransferPreservesRuntimeNativeFormats(t *testing.T) {
 		case protocol.ExportFormatJSON:
 			return &protocol.ExportSessionResponse{Format: request.Format, Artifact: &protocol.SessionArtifact{
 				Version: protocol.SessionArtifactVersion,
-				Session: protocol.ArtifactSession{ID: "ses_1", Title: "Session", Workspace: protocol.WorkspaceRef{Path: "/workspace"}},
+				Session: protocol.ArtifactSession{ID: "ses_1", Title: "Session", Workspace: protocol.WorkspaceRef{Path: "/workspace"}, Provider: testSessionProvider, Model: testSessionModel},
 			}}, nil
 		default:
 			return nil, errors.New("unexpected format")
@@ -151,7 +152,7 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		}
 		return &protocol.ImportSessionResponse{Session: &protocol.Session{
 			ID: request.Artifact.Session.ID, Title: request.Artifact.Session.Title,
-			Status: protocol.SessionStatusIdle, Model: "target-default",
+			Status: protocol.SessionStatusIdle, Provider: request.Artifact.Session.Provider, Model: request.Artifact.Session.Model,
 			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 			CreatedAt: request.Artifact.Session.CreatedAt, UpdatedAt: request.Artifact.Session.UpdatedAt.Add(time.Second),
 			Favorite: request.Artifact.Session.Favorite,
@@ -165,7 +166,7 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		meta:    requestMeta("test"),
 		profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
 	}
-	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace/alias"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
+	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace/alias"},"provider":"mock","model":"balanced","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
 	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +194,7 @@ func TestSessionImportRejectsAcknowledgementDrift(t *testing.T) {
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
 			ID: "ses_1", Title: "Imported", Workspace: protocol.WorkspaceRef{Path: "/workspace"},
-			Model: "deep", CreatedAt: createdAt, UpdatedAt: updatedAt, Favorite: true,
+			Provider: "deepseek", Model: "deep", CreatedAt: createdAt, UpdatedAt: updatedAt, Favorite: true,
 		},
 	}
 	body, err := json.Marshal(artifact)
@@ -207,7 +208,7 @@ func TestSessionImportRejectsAcknowledgementDrift(t *testing.T) {
 	resolvedWorkspace := workspace.Workspace{Path: "/workspace", ProjectRoot: "/workspace", Availability: workspace.Available}
 	valid := protocol.Session{
 		ID: artifact.Session.ID, Title: artifact.Session.Title, Status: protocol.SessionStatusIdle,
-		Model:     artifact.Session.Model,
+		Provider: artifact.Session.Provider, Model: artifact.Session.Model,
 		Workspace: testProtocolWorkspace(artifact.Session.Workspace.Path, artifact.Session.Workspace.Path, protocol.WorkspaceAvailable),
 		CreatedAt: artifact.Session.CreatedAt, UpdatedAt: artifact.Session.UpdatedAt.Add(time.Second),
 		Favorite: artifact.Session.Favorite, Revision: 1,
@@ -277,7 +278,7 @@ func TestSessionControlRejectsConditionalOperationsBeforeCallingBinding(t *testi
 	}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
 		t.Fatalf("export error = %v, want ErrIncompatibleRuntime", err)
 	}
-	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","workspace":{"path":"/workspace"}},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
+	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","workspace":{"path":"/workspace"},"provider":"mock","model":"balanced"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
 	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
 	if err != nil {
 		t.Fatal(err)

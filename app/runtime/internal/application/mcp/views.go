@@ -10,12 +10,23 @@ import (
 
 // SecretChangeKind is the application's exact secret-mutation vocabulary.
 // Persistence never has to infer intent from an empty string.
-type SecretChangeKind uint8
+type SecretChangeKind string
 
 const (
-	SecretSet SecretChangeKind = iota + 1
-	SecretClear
+	SecretSet   SecretChangeKind = "set"
+	SecretClear SecretChangeKind = "clear"
 )
+
+// Valid reports whether kind names one exact secret mutation.
+func (kind SecretChangeKind) Valid() bool { return kind == SecretSet || kind == SecretClear }
+
+// String returns the stable secret-mutation name.
+func (kind SecretChangeKind) String() string {
+	if !kind.Valid() {
+		return "unknown"
+	}
+	return string(kind)
+}
 
 // AuthorizationChange is a write-only bearer-token mutation.
 type AuthorizationChange struct {
@@ -109,16 +120,35 @@ type ServerState struct {
 	ToolCount *int
 }
 
-type ServerStateType uint8
+type ServerStateType string
 
 const (
-	ServerDisabled ServerStateType = iota + 1
-	ServerDisconnected
-	ServerConnecting
-	ServerConnected
-	ServerFailed
-	ServerNeedsAuth
+	ServerDisabled     ServerStateType = "disabled"
+	ServerDisconnected ServerStateType = "disconnected"
+	ServerConnecting   ServerStateType = "connecting"
+	ServerConnected    ServerStateType = "connected"
+	ServerFailed       ServerStateType = "failed"
+	ServerNeedsAuth    ServerStateType = "needsAuth"
 )
+
+// Valid reports whether state belongs to the complete MCP server lifecycle.
+func (state ServerStateType) Valid() bool {
+	switch state {
+	case ServerDisabled, ServerDisconnected, ServerConnecting, ServerConnected,
+		ServerFailed, ServerNeedsAuth:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the stable server-state name.
+func (state ServerStateType) String() string {
+	if !state.Valid() {
+		return "unknown"
+	}
+	return string(state)
+}
 
 // ServerStatus is the application status notification read model. Known is
 // false after a removed server's final invalidation.

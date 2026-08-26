@@ -195,7 +195,7 @@ func runOpeningIdentity(value any) (runID, segmentID string, ok bool) {
 	return "", "", false
 }
 
-func operationFingerprint(name string, parameters any) (string, error) {
+func operationFingerprint(name Name, parameters any) (string, error) {
 	encoded, err := json.Marshal(parameters)
 	if err != nil {
 		return "", err

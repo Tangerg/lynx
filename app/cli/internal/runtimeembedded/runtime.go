@@ -40,8 +40,7 @@ func recognizedRunEventTypes() []protocol.StreamEventType {
 		protocol.StreamItemStarted,
 		protocol.StreamItemDelta,
 		protocol.StreamItemCompleted,
-		protocol.StreamStateSnapshot,
-		protocol.StreamCustom,
+		protocol.StreamPlanUpdated,
 	}
 }
 
@@ -52,7 +51,7 @@ func requiredRunEventTypes() []protocol.StreamEventType {
 		protocol.StreamItemStarted,
 		protocol.StreamItemDelta,
 		protocol.StreamItemCompleted,
-		protocol.StreamStateSnapshot,
+		protocol.StreamPlanUpdated,
 	}
 }
 
@@ -267,13 +266,11 @@ func validateDiscovery(discovery *protocol.DiscoverResponse) error {
 	if discovery == nil {
 		return fmt.Errorf("%w: discovery response is nil", agent.ErrIncompatibleRuntime)
 	}
-	if discovery.Protocol.Current != protocol.ProtocolVersion ||
-		discovery.Protocol.MinSupported != protocol.ProtocolVersion {
+	if discovery.ProtocolVersion != protocol.ProtocolVersion {
 		return fmt.Errorf(
-			"%w: runtime serves %s..%s, CLI requires %s",
+			"%w: runtime serves %s, CLI requires %s",
 			agent.ErrIncompatibleRuntime,
-			discovery.Protocol.MinSupported,
-			discovery.Protocol.Current,
+			discovery.ProtocolVersion,
 			protocol.ProtocolVersion,
 		)
 	}
@@ -299,21 +296,6 @@ func validateDiscovery(discovery *protocol.DiscoverResponse) error {
 		if !slices.Contains(changefeed.Topics(), changefeed.Topic(topic)) {
 			return fmt.Errorf("%w: runtime advertises unsupported change topic %q", agent.ErrIncompatibleRuntime, topic)
 		}
-	}
-	planSnapshot := slices.ContainsFunc(discovery.Capabilities.StateSnapshots, func(capability protocol.StateSnapshotCapability) bool {
-		return capability.Key == protocol.StatePlan &&
-			capability.RecoveryMethod == "plan.get" &&
-			capability.Scope == protocol.StateScopeSession &&
-			capability.Writer == protocol.StateWriterRootRun
-	})
-	planEnabled := discovery.Capabilities.Features[protocol.FeaturePlan].Enabled
-	if planEnabled != planSnapshot {
-		return fmt.Errorf(
-			"%w: runtime plan feature enabled=%t but canonical plan snapshot advertised=%t",
-			agent.ErrIncompatibleRuntime,
-			planEnabled,
-			planSnapshot,
-		)
 	}
 	return nil
 }

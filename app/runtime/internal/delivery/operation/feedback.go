@@ -6,8 +6,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
+const FeedbackCreate Name = "feedback.create"
+
 func registerFeedback(registry *Registry) {
-	CommandAck(registry, MethodMeta{Name: "feedback.create"},
+	registry.CommandAck(MethodMeta{Name: FeedbackCreate},
 		func(service interface {
 			CreateFeedback(context.Context, protocol.FeedbackRequest) error
 		}, ctx context.Context, request protocol.FeedbackRequest) error {

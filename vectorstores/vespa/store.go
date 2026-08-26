@@ -106,21 +106,35 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
 	}
-	if err := validateIdentifiersWithDash("vespa", map[string]string{
-		"SchemaName":      c.SchemaName,
-		"Namespace":       c.Namespace,
-		"EmbeddingField":  c.EmbeddingField,
-		"ContentField":    c.ContentField,
-		"IDField":         c.IDField,
-		"QueryTensorName": c.QueryTensorName,
-		"RankingProfile":  c.RankingProfile,
-	}); err != nil {
+	return c.validateIdentifiers()
+}
+
+func (c StoreConfig) validateIdentifiers() error {
+	if err := identifier(c.SchemaName).validate("SchemaName"); err != nil {
 		return err
 	}
-	if c.ContentCluster != "" && !identifierPatternWithDash.MatchString(c.ContentCluster) {
-		return fmt.Errorf("vespa: ContentCluster=%q must be a safe identifier", c.ContentCluster)
+	if err := identifier(c.Namespace).validate("Namespace"); err != nil {
+		return err
 	}
-	return nil
+	if err := identifier(c.EmbeddingField).validate("EmbeddingField"); err != nil {
+		return err
+	}
+	if err := identifier(c.ContentField).validate("ContentField"); err != nil {
+		return err
+	}
+	if err := identifier(c.IDField).validate("IDField"); err != nil {
+		return err
+	}
+	if err := identifier(c.QueryTensorName).validate("QueryTensorName"); err != nil {
+		return err
+	}
+	if err := identifier(c.RankingProfile).validate("RankingProfile"); err != nil {
+		return err
+	}
+	if c.ContentCluster == "" {
+		return nil
+	}
+	return identifier(c.ContentCluster).validate("ContentCluster")
 }
 
 // applyDefaults fills zero fields with documented defaults.

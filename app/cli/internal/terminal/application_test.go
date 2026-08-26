@@ -2338,7 +2338,7 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	var loads atomic.Int32
 	plugin := extensions.Plugin{ID: "test.greeting", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Capabilities: []extensions.Capability{SlashCommands.Capability()}, Setup: func(scope *extensions.Scope) error {
 		loads.Add(1)
-		_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+		_, err := scope.Contribute(SlashCommands, SlashCommand{
 			Descriptor: CommandDescriptor{Name: "hello", Title: "run a contributed command"},
 			Execute: func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{Message: fmt.Sprintf("hello from plugin load %d", loads.Load())}, nil
@@ -2385,7 +2385,7 @@ func TestAPluginSourceCanAddACommand(t *testing.T) {
 		ID: "test.source", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
-			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+			_, err := scope.Contribute(SlashCommands, SlashCommand{
 				Descriptor: CommandDescriptor{Name: "source-command", Title: "run a source command"},
 				Execute: func(context.Context, CommandRequest) (CommandResult, error) {
 					return CommandResult{Message: "plugin source command complete"}, nil
@@ -2414,7 +2414,7 @@ func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
 		ID: "test.async", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
-			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+			_, err := scope.Contribute(SlashCommands, SlashCommand{
 				Descriptor: CommandDescriptor{Name: "slow", Title: "complete asynchronously"},
 				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 					select {
@@ -2458,7 +2458,7 @@ func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
 		ID: "test.cancel", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
-			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+			_, err := scope.Contribute(SlashCommands, SlashCommand{
 				Descriptor: CommandDescriptor{Name: "wait", Title: "wait until unloaded"},
 				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 					<-ctx.Done()
@@ -2495,7 +2495,7 @@ func TestUnloadingAPluginLeavesIndependentCommandsRunning(t *testing.T) {
 			ID: id, Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 			Capabilities: []extensions.Capability{SlashCommands.Capability()},
 			Setup: func(scope *extensions.Scope) error {
-				_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+				_, err := scope.Contribute(SlashCommands, SlashCommand{
 					Descriptor: CommandDescriptor{Name: name, Title: "wait for completion"},
 					Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 						select {
@@ -2544,7 +2544,7 @@ func TestPluginCommandCannotShadowABuiltin(t *testing.T) {
 		ID: "test.shadow", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
-			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+			_, err := scope.Contribute(SlashCommands, SlashCommand{
 				Descriptor: CommandDescriptor{Name: "help", Title: "shadow help"},
 				Execute: func(context.Context, CommandRequest) (CommandResult, error) {
 					return CommandResult{Message: "shadowed builtin"}, nil

@@ -46,6 +46,9 @@ func MustRestore(snapshot run.Snapshot) run.Run {
 	if snapshot.CreatedAt.IsZero() {
 		snapshot.CreatedAt = time.Unix(1, 0).UTC()
 	}
+	if snapshot.State == "" {
+		snapshot.State = run.Running
+	}
 	if snapshot.Outcome != nil && snapshot.State == run.Running {
 		if terminal, ok := run.Running.Terminate(*snapshot.Outcome); ok {
 			snapshot.State = terminal

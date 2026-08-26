@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -26,16 +25,8 @@ type ChildRunStartReservation struct {
 // Validate proves that the reservation binds one child executor identity to
 // one future product child without copying executor topology into the Run.
 func (reservation ChildRunStartReservation) Validate() error {
-	for name, value := range map[string]string{
-		"session ID":       reservation.SessionID,
-		"executor ID":      reservation.ExecutorID,
-		"segment ID":       reservation.SegmentID,
-		"spawning Item ID": reservation.SpawnedByItemID,
-		"root Run ID":      reservation.RootRunID,
-	} {
-		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
-			return fmt.Errorf("runs: child Run start reservation %s is required without surrounding whitespace", name)
-		}
+	if err := reservation.validateIdentity(); err != nil {
+		return err
 	}
 	if err := reservation.Member.Validate(); err != nil {
 		return fmt.Errorf("runs: child Run start reservation member: %w", err)
@@ -55,6 +46,25 @@ func (reservation ChildRunStartReservation) Validate() error {
 	}
 	if reservation.StartedAt.IsZero() {
 		return errors.New("runs: child Run start reservation has no executor start time")
+	}
+	return nil
+}
+
+func (reservation ChildRunStartReservation) validateIdentity() error {
+	if err := validateRequiredIdentity("session ID", reservation.SessionID); err != nil {
+		return fmt.Errorf("runs: child Run start reservation: %w", err)
+	}
+	if err := validateRequiredIdentity("executor ID", reservation.ExecutorID); err != nil {
+		return fmt.Errorf("runs: child Run start reservation: %w", err)
+	}
+	if err := validateRequiredIdentity("segment ID", reservation.SegmentID); err != nil {
+		return fmt.Errorf("runs: child Run start reservation: %w", err)
+	}
+	if err := validateRequiredIdentity("spawning Item ID", reservation.SpawnedByItemID); err != nil {
+		return fmt.Errorf("runs: child Run start reservation: %w", err)
+	}
+	if err := validateRequiredIdentity("root Run ID", reservation.RootRunID); err != nil {
+		return fmt.Errorf("runs: child Run start reservation: %w", err)
 	}
 	return nil
 }
@@ -136,16 +146,25 @@ func (receipt ChildRunReservationReceipt) Await(
 
 // ChildRunStartOutcome identifies the conclusive executor initialization
 // result applied to one durable reservation. The zero value is invalid.
-type ChildRunStartOutcome uint8
+type ChildRunStartOutcome string
 
 const (
-	childRunStartOutcomeInvalid ChildRunStartOutcome = iota
-	ChildRunStarted
-	ChildRunStartAborted
+	childRunStartOutcomeInvalid ChildRunStartOutcome = ""
+	ChildRunStarted             ChildRunStartOutcome = "started"
+	ChildRunStartAborted        ChildRunStartOutcome = "aborted"
 )
 
-func (outcome ChildRunStartOutcome) valid() bool {
+// Valid reports whether outcome is one conclusive child initialization fact.
+func (outcome ChildRunStartOutcome) Valid() bool {
 	return outcome == ChildRunStarted || outcome == ChildRunStartAborted
+}
+
+// String returns the durable child-start conclusion name.
+func (outcome ChildRunStartOutcome) String() string {
+	if !outcome.Valid() {
+		return "invalid"
+	}
+	return string(outcome)
 }
 
 // ChildRunStartOutcomeRequest asks the Run pump to consume the exact
@@ -181,7 +200,7 @@ func (request ChildRunStartOutcomeRequest) validate() error {
 	if err := request.Binding.Validate(); err != nil {
 		return err
 	}
-	if !request.Outcome.valid() {
+	if !request.Outcome.Valid() {
 		return errors.New("runs: child Run start outcome is invalid")
 	}
 	return nil

@@ -20,7 +20,7 @@ func TestCommandDescriptorValidatesItsIdentityNamespace(t *testing.T) {
 		{name: "missing name", descriptor: CommandDescriptor{Title: "inspect workspace"}, want: "has no name"},
 		{name: "invalid name", descriptor: CommandDescriptor{Name: "in spect", Title: "inspect workspace"}, want: "invalid name"},
 		{name: "missing title", descriptor: CommandDescriptor{Name: "inspect"}, want: "has no title"},
-		{name: "invalid arguments", descriptor: CommandDescriptor{Name: "inspect", Title: "inspect workspace", Arguments: ArgumentMode(99)}, want: "argument mode"},
+		{name: "invalid arguments", descriptor: CommandDescriptor{Name: "inspect", Title: "inspect workspace", Arguments: ArgumentMode("invalid")}, want: "argument mode"},
 		{name: "invalid alias", descriptor: CommandDescriptor{Name: "inspect", Title: "inspect workspace", Aliases: []string{"bad alias"}}, want: "invalid alias"},
 		{name: "duplicate alias", descriptor: CommandDescriptor{Name: "inspect", Title: "inspect workspace", Aliases: []string{"look", "look"}}, want: "repeats name or alias"},
 		{name: "alias repeats name", descriptor: CommandDescriptor{Name: "inspect", Title: "inspect workspace", Aliases: []string{"inspect"}}, want: "repeats name or alias"},
@@ -53,7 +53,7 @@ func TestArgumentModeValidatesInvocations(t *testing.T) {
 		{name: "optional populated", mode: OptionalArguments, argument: "value"},
 		{name: "required empty", mode: RequiredArguments, want: "needs an argument"},
 		{name: "required populated", mode: RequiredArguments, argument: "value"},
-		{name: "invalid", mode: ArgumentMode(99), want: "invalid argument contract"},
+		{name: "invalid", mode: ArgumentMode("invalid"), want: "invalid argument contract"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -93,9 +93,9 @@ func TestBuiltinCommandsHonorNegotiatedFineGrainedCapabilities(t *testing.T) {
 	t.Parallel()
 
 	profile := runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-		runtimeprofile.FeatureGit:           {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureRelocate:      {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureSessionExport: {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureGit:           {},
+		runtimeprofile.FeatureRelocate:      {},
+		runtimeprofile.FeatureSessionExport: {},
 	}}
 	application := &app{
 		runtimeProfile: &profile,
@@ -125,12 +125,12 @@ func TestRuntimeFeatureServicesRequireBothPortAndPublishedCapability(t *testing.
 	t.Parallel()
 
 	features := map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-		runtimeprofile.FeatureGoals:       {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureSkills:      {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureMCP:         {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureSchedules:   {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureAgentMemory: {Stability: runtimeprofile.Stable},
-		runtimeprofile.FeatureKnowledge:   {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureGoals:       {},
+		runtimeprofile.FeatureSkills:      {},
+		runtimeprofile.FeatureMCP:         {},
+		runtimeprofile.FeatureSchedules:   {},
+		runtimeprofile.FeatureAgentMemory: {},
+		runtimeprofile.FeatureKnowledge:   {},
 	}
 	profile := runtimeprofile.Profile{Features: features}
 	application := &app{
@@ -174,7 +174,7 @@ func TestMessageCapabilitiesRejectImagesOnlyWhenMultimodalWasNotNegotiated(t *te
 	t.Parallel()
 
 	application := &app{runtimeProfile: &runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
-		runtimeprofile.FeatureMultimodal: {Enabled: false, Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureMultimodal: {Enabled: false},
 	}}}
 	text := agent.Message{Attachments: []agent.Attachment{{Kind: agent.AttachmentText}}}
 	if err := application.validateMessageCapabilities(text); err != nil {
@@ -223,7 +223,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export", "feedback"},
 		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "relocate", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
-		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "models", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "rule-delete", "steer", "goal", "goal-start", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
+		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "models", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "rule-delete", "steer", "goal", "goal-start", "goal-update", "goal-clear", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
 		commandCategoryAutomation:  {"schedules", "schedule-create", "schedule-edit", "schedule-enable", "schedule-disable", "schedule-run", "schedule-delete"},
 		commandCategoryContext:     {"agent-docs", "recipes", "recipe", "memory", "memory-add", "memory-edit", "memory-pin", "memory-unpin", "memory-approve", "memory-reject", "memory-delete", "knowledge", "knowledge-read", "knowledge-edit", "skills", "skill-library", "skill-proposals", "skill-archive", "skill-restore", "skill-approve", "skill-reject"},
 		commandCategoryConnections: {"mcp", "mcp-tools", "mcp-create", "mcp-edit", "mcp-probe", "mcp-delete", "mcp-reconnect", "mcp-auth"},
@@ -236,7 +236,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		"stash": true, "stash-apply": true, "editor": true,
 		"workspaces": true, "changes": true, "diff": true, "preview": true, "grep": true, "browse": true, "read": true,
 		"usage": true, "roles": true, "utility": true, "embedding": true, "providers": true, "provider-test": true, "provider-config": true,
-		"steer": true, "goal": true, "goal-start": true, "goal-stop": true, "goal-resume": true,
+		"steer": true, "goal": true, "goal-start": true, "goal-update": true, "goal-clear": true, "goal-stop": true, "goal-resume": true,
 		"skills": true, "skill-library": true, "skill-proposals": true, "skill-archive": true, "skill-restore": true, "skill-approve": true, "skill-reject": true,
 		"memory": true, "memory-add": true, "memory-edit": true, "memory-pin": true, "memory-unpin": true, "memory-approve": true, "memory-reject": true, "memory-delete": true,
 		"knowledge": true, "knowledge-read": true, "knowledge-edit": true,

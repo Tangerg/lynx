@@ -1300,26 +1300,27 @@ func TestDeliveryServerMatchesRegisteredOperationCapabilities(t *testing.T) {
 			if !ok {
 				return true
 			}
-			factory, ok := call.Fun.(*ast.Ident)
+			selector, ok := call.Fun.(*ast.SelectorExpr)
 			if !ok {
 				return true
 			}
-			if _, registered := factories[factory.Name]; !registered {
+			factory := selector.Sel.Name
+			if _, registered := factories[factory]; !registered {
 				return true
 			}
 			registrationCount++
 			if len(call.Args) == 0 {
-				t.Errorf("%s registration has no typed handler", factory.Name)
+				t.Errorf("%s registration has no typed handler", factory)
 				return true
 			}
 			literal, ok := call.Args[len(call.Args)-1].(*ast.FuncLit)
 			if !ok || len(literal.Type.Params.List) == 0 {
-				t.Errorf("%s registration must end in a typed handler closure", factory.Name)
+				t.Errorf("%s registration must end in a typed handler closure", factory)
 				return true
 			}
 			capability, ok := literal.Type.Params.List[0].Type.(*ast.InterfaceType)
 			if !ok || len(capability.Methods.List) != 1 || len(capability.Methods.List[0].Names) != 1 {
-				t.Errorf("%s registration handler must declare exactly one method capability", factory.Name)
+				t.Errorf("%s registration handler must declare exactly one method capability", factory)
 				return true
 			}
 			handlers[capability.Methods.List[0].Names[0].Name]++

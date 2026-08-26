@@ -147,7 +147,7 @@ func (a *app) ShowTimeline() {
 	}
 	sessionID := a.session.ID
 	a.message("loading timeline")
-	runOperation(a, pickerCatalogOperation, true,
+	a.runOperation(pickerCatalogOperation, true,
 		func(ctx context.Context) (agent.SessionSnapshot, error) { return a.runtime.GetSession(ctx, sessionID) },
 		func(snapshot agent.SessionSnapshot, err error) {
 			if err != nil {

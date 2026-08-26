@@ -34,24 +34,23 @@ var (
 //	ModeBalanced  auto-allow write/network; prompt only on exec
 //	ModeYolo      auto-allow everything
 //
-// The const VALUES are not in strictness order — ModePlan is appended
-// (value 3) so the existing zero value (ModeSafe) is unchanged. Order
-// code against the named constants, never the ints.
-type Mode int32
+// The values describe policy identity, not strictness order. Code must compare
+// named constants and use the behavior methods below rather than ordering modes.
+type Mode string
 
 const (
 	// ModeSafe — every Exec/Write/Network tool prompts.
-	ModeSafe Mode = iota
+	ModeSafe Mode = "safe"
 	// ModeBalanced — Write/Network auto-allow; Exec prompts.
-	ModeBalanced
+	ModeBalanced Mode = "balanced"
 	// ModeYolo — auto-allow everything (use at your own risk).
-	ModeYolo
+	ModeYolo Mode = "yolo"
 	// ModePlan — the session-scoped read-only planning stance: every write / exec /
 	// network tool is denied outright (no prompt) so the agent can only
 	// investigate and draft a plan; the model sees the refusal as a tool
 	// error and adapts. The Plan-exit boundary presents the plan for
 	// approval and restores the session's exact entry permission mode.
-	ModePlan
+	ModePlan Mode = "plan"
 )
 
 func (m Mode) Valid() bool {
@@ -61,6 +60,14 @@ func (m Mode) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// String returns the stable permission-mode name.
+func (m Mode) String() string {
+	if !m.Valid() {
+		return "unknown"
+	}
+	return string(m)
 }
 
 // ValidDefault reports whether m may be configured as the runtime fallback.

@@ -253,27 +253,48 @@ func (r SessionReplacement) Validate(sessionID string) error {
 	return nil
 }
 
-type StateChange uint8
+type StateChange string
 
 const (
-	StateUnchanged StateChange = iota
-	StateSuspend
-	StateTerminalize
+	// StateUnchanged is the meaningful zero value: the commit advances other
+	// durable Run facts without moving the lifecycle state.
+	StateUnchanged   StateChange = ""
+	StateSuspend     StateChange = "suspend"
+	StateTerminalize StateChange = "terminalize"
 )
+
+// Valid reports whether change is one supported lifecycle mutation.
+func (change StateChange) Valid() bool {
+	return change == StateUnchanged || change == StateSuspend || change == StateTerminalize
+}
 
 // ModelInvocationState records the durable application observation of one
 // provider call. It is deliberately smaller than a model response: semantic
 // output belongs to Transcript Items and accounting belongs to RunProgressCommit.
 // This record exists to distinguish an invocation that never crossed the
 // provider boundary from one whose final projection became indeterminate.
-type ModelInvocationState uint8
+type ModelInvocationState string
 
 const (
-	ModelInvocationStarted ModelInvocationState = iota + 1
-	ModelInvocationCompleted
-	ModelInvocationFailed
-	ModelInvocationUnknown
+	ModelInvocationStarted   ModelInvocationState = "started"
+	ModelInvocationCompleted ModelInvocationState = "completed"
+	ModelInvocationFailed    ModelInvocationState = "failed"
+	ModelInvocationUnknown   ModelInvocationState = "unknown"
 )
+
+// Valid reports whether state belongs to the durable model-invocation journal.
+func (state ModelInvocationState) Valid() bool {
+	return state == ModelInvocationStarted || state == ModelInvocationCompleted ||
+		state == ModelInvocationFailed || state == ModelInvocationUnknown
+}
+
+// String returns the durable model-invocation state name.
+func (state ModelInvocationState) String() string {
+	if !state.Valid() {
+		return "invalid"
+	}
+	return string(state)
+}
 
 // ModelInvocationCommit is one monotonic transition in the durable invocation
 // journal. StartedAt is repeated on terminal transitions so persistence can
@@ -291,13 +312,26 @@ type ModelInvocationCommit struct {
 // started, reached a definite result, or was closed without one at a Run
 // boundary. Final Tool content still has exactly one owner: the Transcript Item
 // committed beside the terminal transition.
-type ToolInvocationState uint8
+type ToolInvocationState string
 
 const (
-	ToolInvocationStarted ToolInvocationState = iota + 1
-	ToolInvocationCompleted
-	ToolInvocationIncomplete
+	ToolInvocationStarted    ToolInvocationState = "started"
+	ToolInvocationCompleted  ToolInvocationState = "completed"
+	ToolInvocationIncomplete ToolInvocationState = "incomplete"
 )
+
+// Valid reports whether state belongs to the durable Tool-invocation journal.
+func (state ToolInvocationState) Valid() bool {
+	return state == ToolInvocationStarted || state == ToolInvocationCompleted || state == ToolInvocationIncomplete
+}
+
+// String returns the durable Tool-invocation state name.
+func (state ToolInvocationState) String() string {
+	if !state.Valid() {
+		return "invalid"
+	}
+	return string(state)
+}
 
 // ToolInvocationCommit is the durable pre-call/terminal attempt transition for
 // one canonical Tool Item. ItemID connects the operational start boundary to
@@ -341,7 +375,7 @@ func (commit ToolInvocationCommit) validate() error {
 			return errors.New("runs: Tool invocation finish time precedes start time")
 		}
 	default:
-		return fmt.Errorf("runs: Tool invocation has unknown state %d", commit.State)
+		return fmt.Errorf("runs: Tool invocation has unknown state %q", commit.State)
 	}
 	return nil
 }
@@ -369,7 +403,7 @@ func (commit ModelInvocationCommit) validate() error {
 			return errors.New("runs: model invocation finish time precedes start time")
 		}
 	default:
-		return fmt.Errorf("runs: model invocation has unknown state %d", commit.State)
+		return fmt.Errorf("runs: model invocation has unknown state %q", commit.State)
 	}
 	return nil
 }
@@ -598,7 +632,7 @@ func (c EventCommit) validateLifecycle() error {
 			return errors.New("runs: terminal event commit has no matching terminal outcome")
 		}
 	default:
-		return fmt.Errorf("runs: event commit has unknown state change %d", c.State)
+		return fmt.Errorf("runs: event commit has unknown state change %q", c.State)
 	}
 
 	if c.Run.ID() != c.RunID || c.Run.SessionID() != c.SessionID {

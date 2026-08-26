@@ -15,13 +15,18 @@ var (
 
 type EventAcceptance struct{ Applied bool }
 
-type ConversationPhase uint8
+type ConversationPhase string
 
 const (
-	ConversationIdle ConversationPhase = iota
-	ConversationRunning
-	ConversationWaiting
+	ConversationIdle    ConversationPhase = "idle"
+	ConversationRunning ConversationPhase = "running"
+	ConversationWaiting ConversationPhase = "waiting"
 )
+
+// Valid reports whether phase belongs to the live conversation lifecycle.
+func (phase ConversationPhase) Valid() bool {
+	return phase == ConversationIdle || phase == ConversationRunning || phase == ConversationWaiting
+}
 
 // Conversation is the terminal-facing aggregate. Durable history is restored
 // from Items; live state is folded from one exact segment stream at a time.
@@ -49,6 +54,7 @@ type Conversation struct {
 
 func NewConversation() *Conversation {
 	return &Conversation{
+		phase:       ConversationIdle,
 		seen:        make(map[string]RunEvent),
 		runs:        make(map[string]Run),
 		index:       make(map[string]int),

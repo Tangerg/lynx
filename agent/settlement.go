@@ -12,44 +12,35 @@ var ErrInvalidSettlement = errors.New("agent: invalid effect settlement")
 
 // SettlementStatus records whether an Effect definitely succeeded, definitely
 // failed, or has an unknown external result. Unknown never implies safe retry.
-type SettlementStatus uint8
+type SettlementStatus string
 
 const (
 	// SettlementStatusInvalid is the invalid zero value.
-	SettlementStatusInvalid SettlementStatus = iota
+	SettlementStatusInvalid SettlementStatus = ""
 	// SettlementStatusSucceeded records a definite successful outcome.
-	SettlementStatusSucceeded
+	SettlementStatusSucceeded SettlementStatus = "succeeded"
 	// SettlementStatusFailed records a definite failed outcome.
-	SettlementStatusFailed
+	SettlementStatusFailed SettlementStatus = "failed"
 	// SettlementStatusUnknown records an externally indeterminate outcome.
-	SettlementStatusUnknown
+	SettlementStatusUnknown SettlementStatus = "unknown"
 )
 
-// String returns the stable settlement-status name.
-func (status SettlementStatus) String() string {
+// Valid reports whether status is a definite or indeterminate settlement fact.
+func (status SettlementStatus) Valid() bool {
 	switch status {
-	case SettlementStatusSucceeded:
-		return "succeeded"
-	case SettlementStatusFailed:
-		return "failed"
-	case SettlementStatusUnknown:
-		return "unknown"
+	case SettlementStatusSucceeded, SettlementStatusFailed, SettlementStatusUnknown:
+		return true
 	default:
-		return "invalid"
+		return false
 	}
 }
 
-func parseSettlementStatus(value string) (SettlementStatus, error) {
-	switch value {
-	case "succeeded":
-		return SettlementStatusSucceeded, nil
-	case "failed":
-		return SettlementStatusFailed, nil
-	case "unknown":
-		return SettlementStatusUnknown, nil
-	default:
-		return SettlementStatusInvalid, fmt.Errorf("%w: unknown status %q", ErrInvalidSettlement, value)
+// String returns the stable settlement-status name.
+func (status SettlementStatus) String() string {
+	if !status.Valid() {
+		return "invalid"
 	}
+	return string(status)
 }
 
 // Settlement is the immutable final fact for one EffectID. Payload is owned by
@@ -66,7 +57,7 @@ func NewSettlement(effectID EffectID, status SettlementStatus, payload json.RawM
 	if !effectID.Valid() {
 		return Settlement{}, fmt.Errorf("%w: effect ID: %w", ErrInvalidSettlement, ErrInvalidIdentity)
 	}
-	if status < SettlementStatusSucceeded || status > SettlementStatusUnknown {
+	if !status.Valid() {
 		return Settlement{}, fmt.Errorf("%w: status is required", ErrInvalidSettlement)
 	}
 	normalized, err := wireJSON.normalize(payload, maxWireBytes)
@@ -87,8 +78,7 @@ func (s Settlement) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
 // Valid reports whether the Settlement has a complete immutable envelope.
 func (s Settlement) Valid() bool {
-	return s.effectID.Valid() && s.status >= SettlementStatusSucceeded &&
-		s.status <= SettlementStatusUnknown && len(s.payload) > 0
+	return s.effectID.Valid() && s.status.Valid() && len(s.payload) > 0
 }
 
 // MarshalJSON returns the validated immutable Effect settlement.
@@ -96,7 +86,7 @@ func (s Settlement) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSettlement
 	}
-	return json.Marshal(settlementWire{EffectID: s.effectID, Status: s.status.String(), Payload: s.payload})
+	return json.Marshal(settlementWire{EffectID: s.effectID, Status: s.status, Payload: s.payload})
 }
 
 // UnmarshalJSON replaces s with a strictly decoded Settlement.
@@ -113,11 +103,7 @@ func (s *Settlement) UnmarshalJSON(data []byte) error {
 	if err := wireJSON.requireEOF(decoder); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidSettlement, err)
 	}
-	status, err := parseSettlementStatus(wire.Status)
-	if err != nil {
-		return err
-	}
-	value, err := NewSettlement(wire.EffectID, status, wire.Payload)
+	value, err := NewSettlement(wire.EffectID, wire.Status, wire.Payload)
 	if err != nil {
 		return err
 	}
@@ -126,7 +112,7 @@ func (s *Settlement) UnmarshalJSON(data []byte) error {
 }
 
 type settlementWire struct {
-	EffectID EffectID        `json:"effect_id"`
-	Status   string          `json:"status"`
-	Payload  json.RawMessage `json:"payload"`
+	EffectID EffectID         `json:"effect_id"`
+	Status   SettlementStatus `json:"status"`
+	Payload  json.RawMessage  `json:"payload"`
 }
