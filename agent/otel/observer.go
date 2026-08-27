@@ -16,8 +16,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	agent "github.com/Tangerg/lynx/agent"
 	"github.com/samber/lo"
+
+	agent "github.com/Tangerg/lynx/agent"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/agent/otel"

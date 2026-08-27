@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
 	"github.com/samber/lo"
+
+	agent "github.com/Tangerg/lynx/agent"
 )
 
 // DispatcherConfig binds side-effect-free observation and the exact set of

@@ -44,8 +44,8 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 	if err != nil {
 		return TreeSnapshot{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
 	}
-	if err := validateTreeSnapshot(wire); err != nil {
-		return TreeSnapshot{}, err
+	if validateErr := validateTreeSnapshot(wire); validateErr != nil {
+		return TreeSnapshot{}, validateErr
 	}
 	normalizeTreeSnapshot(&wire)
 	normalized, err := json.Marshal(wire)

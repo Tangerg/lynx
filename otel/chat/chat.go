@@ -17,8 +17,9 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.41.0/genaiconv"
 	"go.opentelemetry.io/otel/trace"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/samber/lo"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/chat"

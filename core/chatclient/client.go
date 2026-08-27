@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 var (

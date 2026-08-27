@@ -8,11 +8,12 @@ import (
 	"math"
 	"slices"
 
+	"github.com/samber/lo"
+
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/tool"
-	"github.com/samber/lo"
 )
 
 // DispatcherConfig binds external capabilities for one Deployment.

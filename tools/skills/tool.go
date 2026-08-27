@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
+
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 	skillsrc "github.com/Tangerg/lynx/skills"
-	"github.com/samber/lo"
 )
 
 type LoadSkillRequest struct {

@@ -7,9 +7,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
-	"github.com/samber/lo"
 )
 
 const (

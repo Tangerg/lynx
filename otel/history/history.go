@@ -13,9 +13,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chat"
 	corehistory "github.com/Tangerg/lynx/core/history"
-	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/history"

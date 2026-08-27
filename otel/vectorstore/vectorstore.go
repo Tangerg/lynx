@@ -13,9 +13,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/samber/lo"
+
 	corevectorstore "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/vectorstore"

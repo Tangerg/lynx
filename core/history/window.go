@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/samber/lo"
 )
 
 var (

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/samber/lo"
 )
 
 const modelReportSchema = `{

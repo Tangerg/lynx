@@ -8,8 +8,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/document"
 )
 
 // Reader reads the entire contents of an [io.Reader] and packages

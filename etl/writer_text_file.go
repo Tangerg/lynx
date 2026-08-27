@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/document"
 )
 
 // TextFileWriterConfig configures plain-text output for [TextFileWriter].

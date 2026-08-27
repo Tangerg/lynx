@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	agent "github.com/Tangerg/lynx/agent"
 	"github.com/samber/lo"
+
+	agent "github.com/Tangerg/lynx/agent"
 )
 
 const (

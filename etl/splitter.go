@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/samber/lo"
 )
 
 // Chunk-lineage metadata keys stamped by [Splitter] on every emitted chunk.

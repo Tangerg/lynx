@@ -4,8 +4,9 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // Config describes construction-time Client behavior. Request-specific

@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
-	"github.com/samber/lo"
 )
 
 // TokenCountBatcherConfig configures token estimation and the per-batch

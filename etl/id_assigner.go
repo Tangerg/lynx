@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/document"
 )
 
 // IDAssignerConfig configures document ID assignment.
