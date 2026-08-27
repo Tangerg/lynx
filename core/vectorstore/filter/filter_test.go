@@ -76,8 +76,7 @@ func TestParse_RejectsNonPredicateRoots(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected syntax error")
 			}
-			var syntaxError *filter.SyntaxError
-			if !errors.As(err, &syntaxError) {
+			if _, ok := errors.AsType[*filter.SyntaxError](err); !ok {
 				t.Fatalf("error = %T, want *filter.SyntaxError", err)
 			}
 		})

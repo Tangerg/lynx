@@ -15,9 +15,9 @@ func TestDeploymentCandidateContainsOnlyDiscoveryContracts(t *testing.T) {
 		typeOf.Field(1).Type != reflect.TypeFor[agent.Descriptor]() {
 		t.Fatalf("DeploymentCandidate fields changed: %v", typeOf)
 	}
-	for index := range typeOf.NumField() {
-		if typeOf.Field(index).IsExported() {
-			t.Fatalf("DeploymentCandidate exposes mutable field %s", typeOf.Field(index).Name)
+	for field := range typeOf.Fields() {
+		if field.IsExported() {
+			t.Fatalf("DeploymentCandidate exposes mutable field %s", field.Name)
 		}
 	}
 }

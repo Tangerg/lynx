@@ -90,8 +90,8 @@ func receiverName(expression ast.Expr) string {
 
 func reflectedMethods(typ reflect.Type) []string {
 	methods := make([]string, 0, typ.NumMethod())
-	for i := range typ.NumMethod() {
-		methods = append(methods, typ.Method(i).Name)
+	for method := range typ.Methods() {
+		methods = append(methods, method.Name)
 	}
 	slices.Sort(methods)
 	return methods

@@ -188,7 +188,7 @@ func TestEngineSupportsBoundedSameDefinitionRecursion(t *testing.T) {
 		t.Fatal(err)
 	}
 	rootID := process.ID()
-	for depth := uint32(0); depth < 3; depth++ {
+	for depth := range uint32(3) {
 		result, err := process.Await(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -845,8 +845,8 @@ func (c *childTestExecution) startFanoutChildren() (Transition, error) {
 func (c *childTestExecution) startSingleChild() (Transition, error) {
 	childMode := "leaf"
 	recursiveDepth := 0
-	if strings.HasPrefix(c.state.Mode, "recurse:") {
-		depth, err := strconv.Atoi(strings.TrimPrefix(c.state.Mode, "recurse:"))
+	if encodedDepth, ok := strings.CutPrefix(c.state.Mode, "recurse:"); ok {
+		depth, err := strconv.Atoi(encodedDepth)
 		if err != nil || depth <= 0 {
 			return Transition{}, errors.New("invalid recursive child depth")
 		}

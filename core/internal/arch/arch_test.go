@@ -365,9 +365,9 @@ func TestFilterPublicFacadeKeepsFrontendInternalsPrivate(t *testing.T) {
 		reflect.TypeFor[filter.BinaryExpr](),
 		reflect.TypeFor[filter.IndexExpr](),
 	} {
-		for i := range typ.NumField() {
-			if containsInternalType(typ.Field(i).Type) {
-				t.Errorf("public filter node %v field %s exposes internal type %v", typ, typ.Field(i).Name, typ.Field(i).Type)
+		for field := range typ.Fields() {
+			if containsInternalType(field.Type) {
+				t.Errorf("public filter node %v field %s exposes internal type %v", typ, field.Name, field.Type)
 			}
 		}
 	}

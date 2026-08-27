@@ -68,13 +68,13 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index := len(initialChildren) - 1; index >= 0; index-- {
-		child, found := restoredEngine.Process(initialChildren[index])
+	for _, childID := range slices.Backward(initialChildren) {
+		child, found := restoredEngine.Process(childID)
 		if !found {
-			t.Fatalf("restored child %s was not registered", initialChildren[index])
+			t.Fatalf("restored child %s was not registered", childID)
 		}
 		if child.Status() != agent.StatusPaused {
-			t.Fatalf("restored child %s status = %s", initialChildren[index], child.Status())
+			t.Fatalf("restored child %s status = %s", childID, child.Status())
 		}
 		if resumeErr := child.Resume(context.Background()); resumeErr != nil {
 			t.Fatal(resumeErr)

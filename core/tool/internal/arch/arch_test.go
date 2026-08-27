@@ -37,8 +37,8 @@ func TestToolContractStaysMinimal(t *testing.T) {
 func TestFuncStaysAnImmutableValueAdapter(t *testing.T) {
 	typeOf := reflect.TypeFor[tool.Func[struct{}, string]]()
 	methods := make([]string, 0, typeOf.NumMethod())
-	for index := range typeOf.NumMethod() {
-		methods = append(methods, typeOf.Method(index).Name)
+	for method := range typeOf.Methods() {
+		methods = append(methods, method.Name)
 	}
 	slices.Sort(methods)
 	if !slices.Equal(methods, []string{"Call", "Definition"}) {

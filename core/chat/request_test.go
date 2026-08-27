@@ -235,8 +235,7 @@ func TestRequestProtocolFieldsContainNoInterfaces(t *testing.T) {
 		reflect.TypeFor[chat.Options](),
 		reflect.TypeFor[chat.ToolDefinition](),
 	} {
-		for i := range typ.NumField() {
-			field := typ.Field(i)
+		for field := range typ.Fields() {
 			if field.Type.Kind() == reflect.Interface {
 				t.Errorf("%s.%s is an interface field", typ, field.Name)
 			}

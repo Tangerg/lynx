@@ -128,14 +128,12 @@ func TestTemplateSupportsConcurrentPerRenderData(t *testing.T) {
 	errorsFound := make(chan error, count)
 	var wait sync.WaitGroup
 	for i := range count {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			value := string(rune('A' + i%26))
 			var renderErr error
 			results[i], renderErr = template.Render(map[string]string{"Value": value})
 			errorsFound <- renderErr
-		}()
+		})
 	}
 	wait.Wait()
 	close(errorsFound)

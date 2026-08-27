@@ -35,8 +35,7 @@ func workflowWireShape() string {
 	fmt.Fprintf(&shape, "execution_state=%d\n", executionStateSchemaVersion)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
+		for field := range wireType.Fields() {
 			fmt.Fprintf(&shape, "  %s %s json=%q\n", field.Name, field.Type.String(), field.Tag.Get("json"))
 		}
 	}
@@ -45,8 +44,8 @@ func workflowWireShape() string {
 
 func workflowWireTypes() []reflect.Type {
 	return []reflect.Type{
-		reflect.TypeOf(executionState{}),
-		reflect.TypeOf(fanoutChildState{}),
+		reflect.TypeFor[executionState](),
+		reflect.TypeFor[fanoutChildState](),
 	}
 }
 

@@ -28,7 +28,7 @@ func TestRepositoryUsesOnlyCanonicalScopeIdentity(t *testing.T) {
 		{name: "ly" + "nx", word: regexp.MustCompile(`(?i)\b` + "ly" + "nx" + `\b`), scanApp: true},
 		{name: "agent" + "2", word: regexp.MustCompile(`(?i)\b` + "agent" + "2" + `\b`)},
 	}
-	for _, relative := range strings.Split(string(output), "\x00") {
+	for relative := range strings.SplitSeq(string(output), "\x00") {
 		if relative == "" {
 			continue
 		}

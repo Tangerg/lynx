@@ -27,11 +27,12 @@ func FuzzParse(f *testing.F) {
 		if expr == nil {
 			t.Fatal("Parse succeeded with a nil expression")
 		}
-		if err := expr.Validate(); err != nil {
-			t.Fatalf("Parse returned an invalid expression: %v", err)
+		if validationErr := expr.Validate(); validationErr != nil {
+			t.Fatalf("Parse returned an invalid expression: %v", validationErr)
 		}
-		if !expr.Equal(expr) {
-			t.Fatal("parsed expression is not equal to itself")
+		equivalent, err := filter.Parse(expr.String())
+		if err != nil || !expr.Equal(equivalent) {
+			t.Fatalf("canonical expression did not round-trip: %v", err)
 		}
 	})
 }

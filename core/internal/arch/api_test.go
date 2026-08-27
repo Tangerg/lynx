@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -164,7 +165,7 @@ func apiDelta(want, got string) string {
 	}
 	sort.Strings(removed)
 	sort.Strings(added)
-	changes := append(removed, added...)
+	changes := append(slices.Clone(removed), added...)
 	const limit = 80
 	if len(changes) > limit {
 		changes = append(changes[:limit], fmt.Sprintf("... %d additional changed lines", len(changes)-limit))
@@ -174,7 +175,7 @@ func apiDelta(want, got string) string {
 
 func lineCounts(value string) map[string]int {
 	counts := make(map[string]int)
-	for _, line := range strings.Split(strings.TrimSpace(value), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(value), "\n") {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}

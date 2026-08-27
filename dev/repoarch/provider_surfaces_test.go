@@ -42,7 +42,7 @@ func TestSharedProtocolsArePromotedWithoutDelegatingWrappers(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			for _, segment := range strings.Split(filepath.ToSlash(relative), "/") {
+			for segment := range strings.SplitSeq(filepath.ToSlash(relative), "/") {
 				if segment == "internal" || segment == "protocol" {
 					return filepath.SkipDir
 				}

@@ -32,7 +32,7 @@ func TestProviderDependenciesAreOneWay(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		source := strings.Split(filepath.ToSlash(relative), "/")[0]
+		source, _, _ := strings.Cut(filepath.ToSlash(relative), "/")
 		file, err := parser.ParseFile(fset, filename, nil, parser.ImportsOnly)
 		if err != nil {
 			return err
@@ -43,7 +43,7 @@ func TestProviderDependenciesAreOneWay(t *testing.T) {
 				continue
 			}
 			target := strings.TrimPrefix(pathValue, modelsImportPrefix)
-			targetRoot := strings.Split(target, "/")[0]
+			targetRoot, _, _ := strings.Cut(target, "/")
 			switch {
 			case source == "internal" && targetRoot != "internal" && targetRoot != "protocol":
 				t.Errorf("%s:%d internal implementation must not depend on public provider %q", filepath.ToSlash(relative), fset.Position(imported.Pos()).Line, targetRoot)

@@ -12,7 +12,7 @@ import (
 )
 
 func TestActiveDelegateChildContainsOnlyStrategyAttribution(t *testing.T) {
-	typeOf := reflect.TypeOf(ActiveDelegateChild{})
+	typeOf := reflect.TypeFor[ActiveDelegateChild]()
 	want := []struct {
 		name   string
 		typeOf reflect.Type

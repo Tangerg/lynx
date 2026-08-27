@@ -38,8 +38,7 @@ func planningWireShape() string {
 	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
+		for field := range wireType.Fields() {
 			fmt.Fprintf(&shape, "  %s %s json=%q\n", field.Name, field.Type.String(), field.Tag.Get("json"))
 		}
 	}
@@ -48,15 +47,15 @@ func planningWireShape() string {
 
 func planningWireTypes() []reflect.Type {
 	return []reflect.Type{
-		reflect.TypeOf(actionCall{}),
-		reflect.TypeOf(actionResultWire{}),
-		reflect.TypeOf(conditionWire{}),
-		reflect.TypeOf(effectEnvelope{}),
-		reflect.TypeOf(executionState{}),
-		reflect.TypeOf(observationResult{}),
-		reflect.TypeOf(planWire{}),
-		reflect.TypeOf(signalEnvelope{}),
-		reflect.TypeOf(worldStateWire{}),
+		reflect.TypeFor[actionCall](),
+		reflect.TypeFor[actionResultWire](),
+		reflect.TypeFor[conditionWire](),
+		reflect.TypeFor[effectEnvelope](),
+		reflect.TypeFor[executionState](),
+		reflect.TypeFor[observationResult](),
+		reflect.TypeFor[planWire](),
+		reflect.TypeFor[signalEnvelope](),
+		reflect.TypeFor[worldStateWire](),
 	}
 }
 

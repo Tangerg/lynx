@@ -100,8 +100,7 @@ func interactionWireShape() string {
 	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
+		for field := range wireType.Fields() {
 			fmt.Fprintf(&shape, "  %s %s json=%q\n", field.Name, field.Type.String(), field.Tag.Get("json"))
 		}
 	}
@@ -110,21 +109,21 @@ func interactionWireShape() string {
 
 func interactionWireTypes() []reflect.Type {
 	return []reflect.Type{
-		reflect.TypeOf(artifactRecord{}),
-		reflect.TypeOf(delegateInvocationState{}),
-		reflect.TypeOf(delegateSegmentState{}),
-		reflect.TypeOf(effectEnvelope{}),
-		reflect.TypeOf(executionState{}),
-		reflect.TypeOf(inputRequestWire{}),
-		reflect.TypeOf(modelCall{}),
-		reflect.TypeOf(modelCallResult{}),
-		reflect.TypeOf(modelResponseDeltaWire{}),
-		reflect.TypeOf(signalEnvelope{}),
-		reflect.TypeOf(steerBatch{}),
-		reflect.TypeOf(steerInput{}),
-		reflect.TypeOf(toolBatchCall{}),
-		reflect.TypeOf(toolBatchResult{}),
-		reflect.TypeOf(toolCheckpoint{}),
+		reflect.TypeFor[artifactRecord](),
+		reflect.TypeFor[delegateInvocationState](),
+		reflect.TypeFor[delegateSegmentState](),
+		reflect.TypeFor[effectEnvelope](),
+		reflect.TypeFor[executionState](),
+		reflect.TypeFor[inputRequestWire](),
+		reflect.TypeFor[modelCall](),
+		reflect.TypeFor[modelCallResult](),
+		reflect.TypeFor[modelResponseDeltaWire](),
+		reflect.TypeFor[signalEnvelope](),
+		reflect.TypeFor[steerBatch](),
+		reflect.TypeFor[steerInput](),
+		reflect.TypeFor[toolBatchCall](),
+		reflect.TypeFor[toolBatchResult](),
+		reflect.TypeFor[toolCheckpoint](),
 	}
 }
 

@@ -120,8 +120,7 @@ func assertExportedFunctionParametersNamed(t *testing.T, path string, declaratio
 func assertExportedInterfaceContracts(t *testing.T, path string, declaration *ast.GenDecl) {
 	t.Helper()
 	for _, specification := range declaration.Specs {
-		switch specification := specification.(type) {
-		case *ast.TypeSpec:
+		if specification, ok := specification.(*ast.TypeSpec); ok {
 			if !specification.Name.IsExported() {
 				continue
 			}
@@ -357,8 +356,7 @@ func observationWireShape() string {
 	var shape strings.Builder
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
+		for field := range wireType.Fields() {
 			fmt.Fprintf(
 				&shape, "  %s %s json=%q\n",
 				field.Name, field.Type.String(), field.Tag.Get("json"),
@@ -370,15 +368,15 @@ func observationWireShape() string {
 
 func observationWireTypes() []reflect.Type {
 	return []reflect.Type{
-		reflect.TypeOf(deltaDroppedEventPayload{}),
-		reflect.TypeOf(deltaWire{}),
-		reflect.TypeOf(effectFinishedEventPayload{}),
-		reflect.TypeOf(effectStartedEventPayload{}),
-		reflect.TypeOf(eventWire{}),
-		reflect.TypeOf(processFinishedEventPayload{}),
-		reflect.TypeOf(signalAcceptedEventPayload{}),
-		reflect.TypeOf(stepCommittedEventPayload{}),
-		reflect.TypeOf(stepFinishedEventPayload{}),
+		reflect.TypeFor[deltaDroppedEventPayload](),
+		reflect.TypeFor[deltaWire](),
+		reflect.TypeFor[effectFinishedEventPayload](),
+		reflect.TypeFor[effectStartedEventPayload](),
+		reflect.TypeFor[eventWire](),
+		reflect.TypeFor[processFinishedEventPayload](),
+		reflect.TypeFor[signalAcceptedEventPayload](),
+		reflect.TypeFor[stepCommittedEventPayload](),
+		reflect.TypeFor[stepFinishedEventPayload](),
 	}
 }
 
@@ -395,8 +393,7 @@ func snapshotWireShape() string {
 	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
+		for field := range wireType.Fields() {
 			fmt.Fprintf(
 				&shape, "  %s %s json=%q\n",
 				field.Name, field.Type.String(), field.Tag.Get("json"),
@@ -408,40 +405,40 @@ func snapshotWireShape() string {
 
 func snapshotWireTypes() []reflect.Type {
 	return []reflect.Type{
-		reflect.TypeOf(descriptorContractWire{}),
-		reflect.TypeOf(descriptorWire{}),
-		reflect.TypeOf(processSnapshotWire{}),
-		reflect.TypeOf(processRelationWire{}),
-		reflect.TypeOf(preparedStepWire{}),
-		reflect.TypeOf(preparedEffectWire{}),
-		reflect.TypeOf(pendingControlWire{}),
-		reflect.TypeOf(mailboxWire{}),
-		reflect.TypeOf(signalRecordWire{}),
-		reflect.TypeOf(waitRecordWire{}),
-		reflect.TypeOf(treeSnapshotWire{}),
-		reflect.TypeOf(childWaitSnapshotWire{}),
-		reflect.TypeOf(executionStateWire{}),
-		reflect.TypeOf(transitionWire{}),
-		reflect.TypeOf(effectWire{}),
-		reflect.TypeOf(settlementWire{}),
-		reflect.TypeOf(signalWire{}),
-		reflect.TypeOf(deploymentIdentityWire{}),
-		reflect.TypeOf(deploymentRefWire{}),
-		reflect.TypeOf(terminationWire{}),
-		reflect.TypeOf(failureWire{}),
-		reflect.TypeOf(childWaitConditionWire{}),
-		reflect.TypeOf(childWaitSpecWire{}),
-		reflect.TypeOf(childOutcomeWire{}),
-		reflect.TypeOf(childWaitEffectWire{}),
-		reflect.TypeOf(childWaitOpenedWire{}),
-		reflect.TypeOf(childrenCompletedWire{}),
-		reflect.TypeOf(childStartEffectWire{}),
-		reflect.TypeOf(childStartResultWire{}),
-		reflect.TypeOf(waitRequestWire{}),
-		reflect.TypeOf(resultWire{}),
-		reflect.TypeOf(Budget{}),
-		reflect.TypeOf(Limits{}),
-		reflect.TypeOf(TreeLimits{}),
-		reflect.TypeOf(Usage{}),
+		reflect.TypeFor[descriptorContractWire](),
+		reflect.TypeFor[descriptorWire](),
+		reflect.TypeFor[processSnapshotWire](),
+		reflect.TypeFor[processRelationWire](),
+		reflect.TypeFor[preparedStepWire](),
+		reflect.TypeFor[preparedEffectWire](),
+		reflect.TypeFor[pendingControlWire](),
+		reflect.TypeFor[mailboxWire](),
+		reflect.TypeFor[signalRecordWire](),
+		reflect.TypeFor[waitRecordWire](),
+		reflect.TypeFor[treeSnapshotWire](),
+		reflect.TypeFor[childWaitSnapshotWire](),
+		reflect.TypeFor[executionStateWire](),
+		reflect.TypeFor[transitionWire](),
+		reflect.TypeFor[effectWire](),
+		reflect.TypeFor[settlementWire](),
+		reflect.TypeFor[signalWire](),
+		reflect.TypeFor[deploymentIdentityWire](),
+		reflect.TypeFor[deploymentRefWire](),
+		reflect.TypeFor[terminationWire](),
+		reflect.TypeFor[failureWire](),
+		reflect.TypeFor[childWaitConditionWire](),
+		reflect.TypeFor[childWaitSpecWire](),
+		reflect.TypeFor[childOutcomeWire](),
+		reflect.TypeFor[childWaitEffectWire](),
+		reflect.TypeFor[childWaitOpenedWire](),
+		reflect.TypeFor[childrenCompletedWire](),
+		reflect.TypeFor[childStartEffectWire](),
+		reflect.TypeFor[childStartResultWire](),
+		reflect.TypeFor[waitRequestWire](),
+		reflect.TypeFor[resultWire](),
+		reflect.TypeFor[Budget](),
+		reflect.TypeFor[Limits](),
+		reflect.TypeFor[TreeLimits](),
+		reflect.TypeFor[Usage](),
 	}
 }

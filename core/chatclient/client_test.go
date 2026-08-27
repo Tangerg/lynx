@@ -243,12 +243,12 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	model := callAndStream{
-		callOnly: callOnly{call: func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
+		call: func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
 			return nil, ctx.Err()
-		}},
-		streamOnly: streamOnly{stream: func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+		},
+		stream: func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 			return errorSequence(ctx.Err())
-		}},
+		},
 	}
 	client, err := New(model, Config{})
 	if err != nil {
@@ -374,8 +374,8 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 	released := make(chan struct{})
 	var seenText string
 	model := callAndStream{
-		callOnly: callOnly{call: successfulCall},
-		streamOnly: streamOnly{stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+		call: successfulCall,
+		stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 			return func(yield func(*chat.Response, error) bool) {
 				defer close(released)
 				seenText = request.Messages[0].Text()
@@ -384,7 +384,7 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 				}
 				yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "second"}}, nil)
 			}
-		}},
+		},
 	}
 	client, err := New(model, Config{})
 	if err != nil {
@@ -418,11 +418,11 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 func TestConfiguredStreamerOverridesModelCapability(t *testing.T) {
 	modelStreamCalled := false
 	model := callAndStream{
-		callOnly: callOnly{call: successfulCall},
-		streamOnly: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		call: successfulCall,
+		stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			modelStreamCalled = true
 			return oneResponse("model")
-		}},
+		},
 	}
 	explicit := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return oneResponse("explicit")
@@ -546,12 +546,10 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 	var wait sync.WaitGroup
 	errorsFound := make(chan error, goroutines)
 	for range goroutines {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			_, callErr := client.Call(context.Background(), textRequest("hello"))
 			errorsFound <- callErr
-		}()
+		})
 	}
 	wait.Wait()
 	close(errorsFound)

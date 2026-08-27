@@ -253,7 +253,8 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if ident.Start() != start || ident.End() != end || !ident.Equal(&Ident{name: "field"}) || ident.Equal(NewLiteral("field")) {
 		t.Fatal("identifier methods are inconsistent")
 	}
-	if (*Ident)(nil).Start() != (Position{}) || (*Ident)(nil).End() != (Position{}) || (*Ident)(nil).Equal((*Ident)(nil)) {
+	var nilIdent, otherNilIdent *Ident
+	if nilIdent.Start() != (Position{}) || nilIdent.End() != (Position{}) || nilIdent.Equal(otherNilIdent) {
 		t.Fatal("nil identifier methods are inconsistent")
 	}
 
@@ -261,7 +262,8 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if literal.Start() != start || literal.End() != end || !literal.Equal(NewLiteral("value")) || literal.Equal(NewLiteral("other")) {
 		t.Fatal("literal methods are inconsistent")
 	}
-	if (*Literal)(nil).Start() != (Position{}) || (*Literal)(nil).End() != (Position{}) || (*Literal)(nil).Equal((*Literal)(nil)) {
+	var nilLiteral, otherNilLiteral *Literal
+	if nilLiteral.Start() != (Position{}) || nilLiteral.End() != (Position{}) || nilLiteral.Equal(otherNilLiteral) {
 		t.Fatal("nil literal methods are inconsistent")
 	}
 
@@ -272,7 +274,8 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if list.Equal(&ListLiteral{}) || list.Equal(&ListLiteral{values: []*Literal{NewLiteral("other")}}) || list.Equal(literal) {
 		t.Fatal("list equality accepted a mismatch")
 	}
-	if (*ListLiteral)(nil).Start() != (Position{}) || (*ListLiteral)(nil).End() != (Position{}) || (*ListLiteral)(nil).Equal((*ListLiteral)(nil)) {
+	var nilList, otherNilList *ListLiteral
+	if nilList.Start() != (Position{}) || nilList.End() != (Position{}) || nilList.Equal(otherNilList) {
 		t.Fatal("nil list methods are inconsistent")
 	}
 

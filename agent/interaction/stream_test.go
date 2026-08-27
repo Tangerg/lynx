@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -297,10 +298,5 @@ func (e *eventRecorder) OnEvent(_ context.Context, event agent.Event) {
 func (e *eventRecorder) Contains(name string) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, candidate := range e.names {
-		if candidate == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e.names, name)
 }

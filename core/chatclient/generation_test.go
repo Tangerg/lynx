@@ -14,11 +14,11 @@ func TestGenerationCallAndStreamUseOneTypedOutput(t *testing.T) {
 	want := recipe{Name: "tea", Steps: []string{"boil", "steep"}}
 	var callFormat, streamFormat *chat.OutputFormat
 	model := callAndStream{
-		callOnly: callOnly{call: func(_ context.Context, request *chat.Request) (*chat.Response, error) {
+		call: func(_ context.Context, request *chat.Request) (*chat.Response, error) {
 			callFormat = request.Options.OutputFormat.Clone()
 			return responseWithText(t, `{"name":"tea","steps":["boil","steep"]}`), nil
-		}},
-		streamOnly: streamOnly{stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+		},
+		stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 			streamFormat = request.Options.OutputFormat.Clone()
 			return func(yield func(*chat.Response, error) bool) {
 				for _, chunk := range []string{"```json\n{\"name\":\"tea\",", "\"steps\":[\"boil\",\"steep\"]}\n```"} {
@@ -27,7 +27,7 @@ func TestGenerationCallAndStreamUseOneTypedOutput(t *testing.T) {
 					}
 				}
 			}
-		}},
+		},
 	}
 	client, err := New(model, Config{})
 	if err != nil {

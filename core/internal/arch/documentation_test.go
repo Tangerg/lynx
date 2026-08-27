@@ -23,7 +23,6 @@ func TestPublicPackagesHaveDocsAndRunnableExamples(t *testing.T) {
 	sort.Strings(packages)
 
 	for _, packagePath := range packages {
-		packagePath := packagePath
 		t.Run(packagePath, func(t *testing.T) {
 			t.Parallel()
 			assertPackageDocumentation(t, filepath.Join(root, filepath.FromSlash(packagePath)))

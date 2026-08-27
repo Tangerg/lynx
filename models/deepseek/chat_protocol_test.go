@@ -259,7 +259,7 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 	}{
 		{name: "unknown thinking mode", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: "sometimes"}}, want: "thinking.type has unsupported value"},
 		{name: "effort without thinking", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled}, ReasoningEffort: deepseek.ReasoningEffortHigh}, want: "reasoning_effort requires thinking.type=enabled"},
-		{name: "ignored temperature", core: corechat.Options{Temperature: float64Pointer(0.5)}, want: "temperature has no effect"},
+		{name: "ignored temperature", core: corechat.Options{Temperature: new(0.5)}, want: "temperature has no effect"},
 		{name: "top logprobs without logprobs", options: deepseek.RequestOptions{TopLogProbs: &topLogProbs}, want: "top_logprobs requires logprobs=true"},
 		{name: "usage on non-streaming call", options: deepseek.RequestOptions{IncludeUsage: &trueValue}, want: "include_usage is valid only for streaming"},
 		{name: "invalid user id", options: deepseek.RequestOptions{UserID: "private@example.com"}, want: "user_id may contain only"},
@@ -285,14 +285,12 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 func TestNewOpenAIChatRejectsIgnoredDefaultSampling(t *testing.T) {
 	_, err := deepseek.NewOpenAIChat(deepseek.OpenAIChatConfig{
 		APIKey:         "test-key",
-		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash, Temperature: float64Pointer(0.5)},
+		DefaultOptions: corechat.Options{Model: deepseek.ModelV4Flash, Temperature: new(0.5)},
 	})
 	if err == nil || !strings.Contains(err.Error(), "temperature has no effect") {
 		t.Fatalf("NewOpenAIChat error = %v; want ignored temperature error", err)
 	}
 }
-
-func float64Pointer(value float64) *float64 { return &value }
 
 func findAssistantMessage(t *testing.T, messages []map[string]any) map[string]any {
 	t.Helper()

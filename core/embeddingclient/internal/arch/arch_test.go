@@ -12,8 +12,8 @@ import (
 func TestClientSurfaceStaysVectorFocused(t *testing.T) {
 	typeOfClient := reflect.TypeFor[embeddingclient.Client]()
 	methods := make([]string, 0, typeOfClient.NumMethod())
-	for i := range typeOfClient.NumMethod() {
-		methods = append(methods, typeOfClient.Method(i).Name)
+	for method := range typeOfClient.Methods() {
+		methods = append(methods, method.Name)
 	}
 	slices.Sort(methods)
 	if !slices.Equal(methods, []string{"Dimensions", "EmbedDocuments", "EmbedText", "EmbedTexts"}) {
