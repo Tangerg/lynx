@@ -24,10 +24,10 @@ const instrumentationName = "github.com/Tangerg/lynx/otel/vectorstore"
 // ErrInvalidConfig reports a missing database-system identity.
 var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
 
-// Config identifies the database observed by vector-store
+// MiddlewareConfig identifies the database observed by vector-store
 // instrumentation. System is the OpenTelemetry db.system.name value.
 // Collection and Namespace identify the provider-native storage target.
-type Config struct {
+type MiddlewareConfig struct {
 	System         string
 	Collection     string
 	Namespace      string
@@ -36,7 +36,7 @@ type Config struct {
 
 // Validate verifies the database-system identity required by vector-store
 // instrumentation.
-func (c Config) Validate() error {
+func (c MiddlewareConfig) Validate() error {
 	if strings.TrimSpace(c.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
@@ -52,9 +52,9 @@ type Middleware struct {
 	tracer     trace.Tracer
 }
 
-// New constructs vector-store instrumentation. It belongs at the
+// NewMiddleware constructs vector-store instrumentation. It belongs at the
 // composition root; providers remain unaware of OpenTelemetry.
-func New(config Config) (Middleware, error) {
+func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err
 	}

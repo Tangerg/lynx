@@ -24,16 +24,16 @@ const instrumentationName = "github.com/Tangerg/lynx/otel/history"
 // ErrInvalidConfig reports a missing database-system identity.
 var ErrInvalidConfig = errors.New("otel/history: invalid config")
 
-// Config identifies the storage system observed by history
+// MiddlewareConfig identifies the storage system observed by history
 // instrumentation.
-type Config struct {
+type MiddlewareConfig struct {
 	System         string
 	TracerProvider trace.TracerProvider
 }
 
 // Validate verifies the database-system identity required by history
 // instrumentation.
-func (c Config) Validate() error {
+func (c MiddlewareConfig) Validate() error {
 	if strings.TrimSpace(c.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
@@ -47,8 +47,8 @@ type Middleware struct {
 	tracer trace.Tracer
 }
 
-// New constructs history instrumentation for a composition root.
-func New(config Config) (Middleware, error) {
+// NewMiddleware constructs history instrumentation for a composition root.
+func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err
 	}

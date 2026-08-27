@@ -33,7 +33,7 @@ func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *tracetest.S
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	middleware, err := vectorotel.New(vectorotel.Config{
+	middleware, err := vectorotel.NewMiddleware(vectorotel.MiddlewareConfig{
 		System:         "  Qdrant  ",
 		Collection:     "knowledge",
 		Namespace:      "tenant",
@@ -45,12 +45,12 @@ func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *tracetest.S
 	return middleware, recorder
 }
 
-func TestNewRequiresSystem(t *testing.T) {
-	if _, err := vectorotel.New(vectorotel.Config{}); !errors.Is(err, vectorotel.ErrInvalidConfig) {
+func TestNewMiddlewareRequiresSystem(t *testing.T) {
+	if _, err := vectorotel.NewMiddleware(vectorotel.MiddlewareConfig{}); !errors.Is(err, vectorotel.ErrInvalidConfig) {
 		t.Fatalf("NewVectorStore() error = %v, want ErrInvalidVectorStoreConfig", err)
 	}
 	var provider *sdktrace.TracerProvider
-	if _, err := vectorotel.New(vectorotel.Config{System: "qdrant", TracerProvider: provider}); err != nil {
+	if _, err := vectorotel.NewMiddleware(vectorotel.MiddlewareConfig{System: "qdrant", TracerProvider: provider}); err != nil {
 		t.Fatalf("typed nil tracer provider must use global default: %v", err)
 	}
 }

@@ -31,18 +31,18 @@ var (
 	ErrNilStream = errors.New("otel/chat: nil stream sequence")
 )
 
-// Config identifies the remote GenAI provider and optionally supplies
+// MiddlewareConfig identifies the remote GenAI provider and optionally supplies
 // providers scoped to this middleware. Provider is normalized to lowercase so
 // span and metric dimensions remain stable. The global OpenTelemetry providers
 // are used when TracerProvider or MeterProvider is nil.
-type Config struct {
+type MiddlewareConfig struct {
 	Provider       string
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
 }
 
 // Validate verifies the provider identity required by chat instrumentation.
-func (c Config) Validate() error {
+func (c MiddlewareConfig) Validate() error {
 	if strings.TrimSpace(c.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
@@ -59,9 +59,9 @@ type Middleware struct {
 	tokens   genaiconv.ClientTokenUsage
 }
 
-// New constructs chat instrumentation. Provider is required at the
+// NewMiddleware constructs chat instrumentation. Provider is required at the
 // composition root instead of being added to the Core Model contract.
-func New(config Config) (Middleware, error) {
+func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err
 	}

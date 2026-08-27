@@ -44,7 +44,7 @@ func newHistoryMiddleware(t *testing.T) (historyotel.Middleware, *tracetest.Span
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	middleware, err := historyotel.New(historyotel.Config{
+	middleware, err := historyotel.NewMiddleware(historyotel.MiddlewareConfig{
 		System:         "  PostgreSQL  ",
 		TracerProvider: provider,
 	})
@@ -54,8 +54,8 @@ func newHistoryMiddleware(t *testing.T) (historyotel.Middleware, *tracetest.Span
 	return middleware, recorder
 }
 
-func TestNewRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
-	if _, err := historyotel.New(historyotel.Config{}); !errors.Is(err, historyotel.ErrInvalidConfig) {
+func TestNewMiddlewareRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
+	if _, err := historyotel.NewMiddleware(historyotel.MiddlewareConfig{}); !errors.Is(err, historyotel.ErrInvalidConfig) {
 		t.Fatalf("NewHistory() error = %v", err)
 	}
 	middleware, _ := newHistoryMiddleware(t)

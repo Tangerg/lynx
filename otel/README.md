@@ -15,7 +15,7 @@ import (
 	otelchat "github.com/Tangerg/lynx/otel/chat"
 )
 
-instrumentation, err := otelchat.New(otelchat.Config{
+instrumentation, err := otelchat.NewMiddleware(otelchat.MiddlewareConfig{
 	Provider: "openai",
 })
 if err != nil {
@@ -39,7 +39,7 @@ observedStream := chat.WrapStream(providerStreamer, instrumentation.Stream)
   event，不转换成业务错误。
 - 调用方提前停止迭代时同步结束 span，并依靠底层 Streamer 同步释放资源。
 
-`chat.Config.TracerProvider` 和 `MeterProvider` 可用于显式注入；为 nil 时在
+`chat.MiddlewareConfig.TracerProvider` 和 `MeterProvider` 可用于显式注入；为 nil 时在
 构造阶段取得官方全局 provider。没有安装 SDK provider 时，官方 provider
 为 noop，但 wrapper 自身仍会执行计时、属性读取和流式聚合。
 

@@ -35,7 +35,7 @@ func newRig(t *testing.T, provider string) (otelchat.Middleware, *telemetryRig) 
 		_ = traces.Shutdown(context.Background())
 		_ = meters.Shutdown(context.Background())
 	})
-	middleware, err := otelchat.New(otelchat.Config{
+	middleware, err := otelchat.NewMiddleware(otelchat.MiddlewareConfig{
 		Provider:       provider,
 		TracerProvider: traces,
 		MeterProvider:  meters,
@@ -79,9 +79,9 @@ func response(text string, finish chat.FinishReason, input, output int64) *chat.
 	}
 }
 
-func TestNewValidatesAndNormalizesProvider(t *testing.T) {
-	if _, err := otelchat.New(otelchat.Config{}); !errors.Is(err, otelchat.ErrInvalidConfig) {
-		t.Fatalf("NewChat error = %v, want ErrInvalidChatConfig", err)
+func TestNewMiddlewareValidatesAndNormalizesProvider(t *testing.T) {
+	if _, err := otelchat.NewMiddleware(otelchat.MiddlewareConfig{}); !errors.Is(err, otelchat.ErrInvalidConfig) {
+		t.Fatalf("NewMiddleware error = %v, want ErrInvalidConfig", err)
 	}
 
 	middleware, rig := newRig(t, "  OpenAI  ")
@@ -98,7 +98,7 @@ func TestNewValidatesAndNormalizesProvider(t *testing.T) {
 
 	var traces *sdktrace.TracerProvider
 	var meters *sdkmetric.MeterProvider
-	if _, err := otelchat.New(otelchat.Config{
+	if _, err := otelchat.NewMiddleware(otelchat.MiddlewareConfig{
 		Provider: "openai", TracerProvider: traces, MeterProvider: meters,
 	}); err != nil {
 		t.Fatalf("typed nil providers must use global defaults: %v", err)
