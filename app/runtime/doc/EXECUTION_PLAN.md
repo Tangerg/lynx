@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P187 已完成；P188 已准入。
+> 状态：P0–P188 已完成；P189 已准入。
 >
-> 最近基线：2026-08-28，P187 已完成。
+> 最近基线：2026-08-28，P188 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,10 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P188 已准入：以 `/Users/tangerg/Desktop/study/codex-server` 的真实服务端纵切为参考，对 ScopeApp Runtime 的 process/session/run/thread、stream/replay、approval/question、goal/plan、compaction、long-running recovery 与 resource lifecycle 建立逐能力事实矩阵。只吸收已由产品消费者证明且能落入现有领域 owner 的能力；ScopeApp Protocol 继续是唯一前后端合同，不复制 Codex wire、DTO、daemon facade、兼容层或平行状态机。第一批必须先从真实缺失/失败反例确定唯一 owner，再做一个完整纵切。
+- P189 已准入：继续以 `/Users/tangerg/Desktop/study/codex-server` 的真实服务端纵切为参考，下一批审计 active Goal/Plan 在压缩、重启、长时间运行与恢复期间的同值关系。必须先形成能证明 durable winner 的失败反例；不复制 Codex wire、DTO、daemon facade、兼容层或平行状态机。
+- P188 已准入并完成：真实长 Run 反例证明旧 compaction 只在 Run terminal 后运行，同一 Interaction 的多轮模型→Tool 可在 maintenance 获得执行机会前越过模型窗口。Agent Framework 新增中性的调用前 `ModelContextReducer`，成功 settlement 把 effective messages 安装回 Strategy WorkingContext；Runtime adapter 则拥有模型窗口、protected tail、summary、lifecycle veto 与 durable/transient 策略。
+- P188 的 durable root compaction 在主模型调用前读取并语义核对 SQLite history，先完成 summary/trim，再以既有 `RewriteForCompaction` CAS 事务同时替换 conversation 与重基 Run watermarks；失败、漂移、超出 protected/fixed context 或 PreCompact veto 都在主模型零调用时 fail closed。真实 Runtime/SQLite E2E 在一个 Run 内完成 12 轮 `get_goal` Tool loop、第 13 次调用前压缩、继续完成，并证明下一 fresh Run 仍从 summary 继续；完整 43 条 Runtime↔HTTP↔TypeScript E2E 继续覆盖 Goal/Plan、HITL、restart 与 SIGKILL recovery。Agent canonical release 前移到 `agent/v0.2.0`、Baseline 33、Interaction state/protocol v8/v8；Runtime Protocol、Artifact、SQLite shape 与 Desktop binding不变。
+- P188 的套件级恢复红例进一步关闭两处双真相：Tool 完成事实分别持有 Agent owner生成的 exact model result 与 Runtime client presentation，Conversation 不再从展示 JSON 反推；fresh opening transaction 持久化与 executor 实际接收的 composed User message，hook context只进入 provider Conversation，原始用户输入仍独立投影到 Transcript。审批恢复允许相邻 Tool message分组差异，但 role、part payload、ToolCall/ToolResult identity与内容仍严格同值。
 - P187 已准入并完成：app 产品身份已一次性切换为暂定 canonical brand `scopeapp` / `ScopeApp`。Runtime executable、Desktop bundle/window、durable home、config/env、knowledge filename、telemetry、协议元数据、OpenRPC 扩展、生成 TypeScript package/client、Frontend 文案/主题/storage/plugin identity 与测试 fixture 均已迁移；旧名称、alias、fallback、双读双写和 compatibility shim 均不存在。共享 `localruntime.DataDirectory` 值对象唯一拥有 `~/.scopeapp`、`scopeapp.db` 与 `local-token` 的跨进程布局，Runtime/Desktop 不再各自拼路径。
 - P187 将 breaking protocol identity 精确前移到 `2026-08-28` 并冻结 Runtime Protocol Baseline 2；Artifact v23 与 SQLite epoch 83 shape 不变。受版本控制的全仓品牌审计（冻结 `app/cli` 与参考 `study` 除外）、Runtime workspace/standalone test/vet/build/full race、Frontend 313 files/1952 tests 与完整静态/bundle 门禁、43 条真实 Runtime↔HTTP↔TypeScript E2E、Desktop test/vet/build、contract generate 零漂移及 Wails v3 production package/strict codesign 全绿。`app/cli` 零 diff；本地含密钥配置未读取、未改写。
 - P186 已准入并完成：仓库 89 个 Go module 中 4 个 `app/**` module 明确排除，余下 85 个 module 依据内部依赖 DAG 按 4/59/21/1 四层发布 canonical `<module-dir>/v0.0.1` 注解标签。每层先将上游依赖钉到已发布 `v0.0.1`，再完成 standalone race/test、vet、build、`gorelease` 与 `govulncheck`，提交推送后才创建不可变标签；远端最终精确存在 85 个非 app `v0.0.1`，无聚合 tag、兼容 tag、替代 module path 或第二版本来源。
@@ -502,10 +505,13 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P183     | Runtime 稳定枚举值对象与持久化表示收敛                                                       | named string values；删除 ordinal/text codec；显式零值语义；SQLite permission mode TEXT、epoch 83                                               |
 | P184     | Operation 泛型行为、协议身份与边界零值收敛                                                    | `Registry` / `Endpoint` generic methods；`operation.Name` 单一身份；Hook/Tool invalid zero fail closed                                          |
 | P185     | App 依赖图整体升级与退役 API 根修                                                              | Agent Schema owner、TS7 Project/Snapshot、React lifecycle ownership、Wails beta.14；无兼容 shim                                                  |
+| P186     | 非 app module 首次 canonical 发布                                                            | 85 个 module 按 DAG 发布 `v0.0.1`；Runtime 只消费正式标签                                                                                       |
+| P187     | ScopeApp 产品身份无兼容切换                                                                   | `scopeapp` / `ScopeApp`、durable layout 与 Protocol Baseline 2 单一身份                                                                         |
+| P188     | 单个长 Run 的模型调用前上下文生命周期闭环                                                     | Agent effective-context 状态同步；Runtime protected-tail 规划、SQLite CAS rewrite、PreCompact 与真实跨 Run E2E                                  |
 
 ## 5. 当前里程碑结论
 
-P113–P185 共同建立了以下不可回退的心智模型：
+P113–P188 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -571,4 +577,4 @@ P113–P185 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P181 已完成，下一阶段必须先形成新的真实产品反例与独立授权。开始下一阶段时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P188 已完成，P189 从 Goal/Plan 与长运行恢复的真实同值反例开始。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

@@ -316,7 +316,10 @@ func (o *observedInteractionTool) Call(ctx context.Context, rawArguments string)
 		if denialReason == "" {
 			denialReason = "tool call denied by policy"
 		}
-		end := o.finishedFact(callID, arguments, denialReason, nil, nil, errors.New(denialReason))
+		modelResult, _ := invocation.ModelResult(denialReason, nil)
+		end := o.finishedFact(
+			callID, arguments, denialReason, &modelResult, nil, nil, errors.New(denialReason),
+		)
 		end.Failure = &tool.Failure{
 			Kind: tool.FailureDenied,
 		}
@@ -360,10 +363,16 @@ func (o *observedInteractionTool) Call(ctx context.Context, rawArguments string)
 		return "", callErr
 	}
 	modelOutput, offload := o.offload(ctx, call.Name, output, callErr)
+	modelResult, modelResultPresent := invocation.ModelResult(modelOutput, callErr)
+	var exactModelResult *corechat.ToolResult
+	if modelResultPresent {
+		exactModelResult = &modelResult
+	}
 	end := o.finishedFact(
 		callID,
 		arguments,
 		modelOutput,
+		exactModelResult,
 		offload,
 		normalizeMutationPaths(mutatedPaths),
 		callErr,
@@ -631,11 +640,17 @@ func (o *observedInteractionTool) finishedFact(
 	callID string,
 	arguments tool.Arguments,
 	output string,
+	modelResult *corechat.ToolResult,
 	offload *toolresult.Ref,
 	mutatedPaths []string,
 	callErr error,
 ) runs.ToolCallFinished {
 	var result *tool.Result
+	var exactModelResult *corechat.ToolResult
+	if modelResult != nil {
+		value := *modelResult
+		exactModelResult = &value
+	}
 	outputText := ""
 	if output != "" {
 		parsed, err := tool.ParseResult([]byte(output))
@@ -648,7 +663,7 @@ func (o *observedInteractionTool) finishedFact(
 		result = &parsed
 	}
 	finished := runs.ToolCallFinished{
-		CallID: callID, Arguments: arguments.Canonical(), Result: result,
+		CallID: callID, Arguments: arguments.Canonical(), ModelResult: exactModelResult, Result: result,
 		Offload: offload, OutputText: outputText, MutatedPaths: slices.Clone(mutatedPaths),
 	}
 	if callErr != nil {

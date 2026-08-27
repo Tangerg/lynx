@@ -187,8 +187,8 @@ type Item struct {
 	// approval boundary. Auto-approved calls carry no decision.
 	ApprovalDecision ApprovalDecision `json:"approvalDecision,omitempty"`
 	Error            *ProblemData     `json:"error,omitempty"` // tool-level failure (API.md §4.3)
-	// Summary / DroppedMessages describe a compaction Item — the post-Run
-	// auto-compaction boundary. DroppedMessages is the net history reduction
+	// Summary / DroppedMessages describe a compaction Item at a safe model-call
+	// or Run boundary. DroppedMessages is the net history reduction
 	// (messages before − after); Summary is an optional human note (currently
 	// left empty — the summary text is folded into the rewritten history).
 	Summary         string `json:"summary,omitempty"`         // compaction

@@ -70,6 +70,9 @@ type reducerConfig struct {
 	ModelSelection    modelref.Selection
 	CreatedAt         time.Time
 	UserInput         []transcript.ContentBlock
+	// ConversationInput is the exact composed model message for a fresh root.
+	// nil is reserved for continuation input, which has no composition layer.
+	ConversationInput *corechat.Message
 	// ModelOnlyInput suppresses only the opening userMessage Item. The same input
 	// still enters the durable provider conversation in open(), so hiding Runtime
 	// control material from the narrative cannot starve the model of instructions.
@@ -180,6 +183,10 @@ func newReducer(cfg reducerConfig) *reducer {
 	// journal after admission. Own the slice before it becomes persisted/live
 	// state so a caller reusing its command buffer cannot rewrite emitted facts.
 	cfg.UserInput = slices.Clone(cfg.UserInput)
+	if cfg.ConversationInput != nil {
+		message := cfg.ConversationInput.Clone()
+		cfg.ConversationInput = &message
+	}
 	var resume *resumeBinding
 	if cfg.Continuation != nil {
 		resume = resumeBindingFrom(*cfg.Continuation, cfg.RunID)
@@ -202,6 +209,10 @@ func (r *reducer) clone() *reducer {
 	}
 	cloned := *r
 	cloned.cfg.UserInput = slices.Clone(r.cfg.UserInput)
+	if r.cfg.ConversationInput != nil {
+		message := r.cfg.ConversationInput.Clone()
+		cloned.cfg.ConversationInput = &message
+	}
 	cloned.userInput = transcript.CloneContent(r.userInput)
 	cloned.modelCalls = maps.Clone(r.modelCalls)
 	cloned.toolCallIDs = maps.Clone(r.toolCallIDs)
@@ -217,6 +228,10 @@ func (r *reducer) clone() *reducer {
 		if current.end != nil {
 			end := *current.end
 			end.MutatedPaths = slices.Clone(current.end.MutatedPaths)
+			if current.end.ModelResult != nil {
+				modelResult := *current.end.ModelResult
+				end.ModelResult = &modelResult
+			}
 			if current.end.Result != nil {
 				result := *current.end.Result
 				end.Result = &result
@@ -308,9 +323,17 @@ func (r *reducer) open() (reductionBatch, error) {
 		return reductionBatch{}, err
 	}
 	if r.cfg.Lineage.IsRoot() && len(r.cfg.UserInput) != 0 {
-		message, err := MaterializeUserMessage(r.cfg.UserInput)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: opening conversation message: %w", errReducerInvariant, err)
+		var message corechat.Message
+		if r.cfg.ConversationInput != nil {
+			message = r.cfg.ConversationInput.Clone()
+		} else {
+			message, err = MaterializeUserMessage(r.cfg.UserInput)
+			if err != nil {
+				return reductionBatch{}, fmt.Errorf("%w: opening conversation message: %w", errReducerInvariant, err)
+			}
+		}
+		if message.Role != corechat.RoleUser || message.Validate() != nil {
+			return reductionBatch{}, fmt.Errorf("%w: opening conversation input is not a valid User message", errReducerInvariant)
 		}
 		if err := r.attachConversationMessages(&batch, []corechat.Message{message}); err != nil {
 			return reductionBatch{}, err

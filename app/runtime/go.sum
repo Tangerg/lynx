@@ -15,8 +15,8 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/scope/a2a v0.0.1 h1:hfl4NUL7kNPtAgxr0pEcF2iNVKLn5n+G315cNyQwu1I=
 github.com/Tangerg/scope/a2a v0.0.1/go.mod h1:l+jxCO8pNr9MHplpR6viuu2uGDxZzbns/LTAF6boA6U=
-github.com/Tangerg/scope/agent v0.0.1 h1:xGo6BVsJ8UFDLpL40cYGfIDdmwV1SlcgOeoyhOJT+jE=
-github.com/Tangerg/scope/agent v0.0.1/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
+github.com/Tangerg/scope/agent v0.2.0 h1:ou2uGp6Pf+C8ELhx5iI78zJU7zd4jqIcEYyg6oUjdPw=
+github.com/Tangerg/scope/agent v0.2.0/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29 h1:DtrNYCn7gYbm8t2ZDofa2sBGALj3qgC10JH7vVnBfV4=
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
 github.com/Tangerg/scope/core v0.0.1 h1:fs347LjoXriZ6gKpfY/AJAt7L21mrxXbB1Be2DOi6Yk=

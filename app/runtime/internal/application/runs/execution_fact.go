@@ -192,8 +192,11 @@ type ToolCallStarted struct {
 
 type ToolCallFinished struct {
 	executionFactBase
-	CallID       string
-	Arguments    string
+	CallID    string
+	Arguments string
+	// ModelResult is the exact provider-neutral value returned to Interaction.
+	// Result remains the independently presented client transcript value.
+	ModelResult  *corechat.ToolResult
 	Result       *tool.Result
 	Offload      *toolresult.Ref
 	OutputText   string

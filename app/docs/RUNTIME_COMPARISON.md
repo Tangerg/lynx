@@ -3,7 +3,7 @@
 > **对比对象**:`app/runtime`(ScopeApp Runtime,本仓后端)对 6 个主流编码 agent 的**后端/引擎能力**:
 > **codex**(OpenAI,Rust)· **Claude Code**(Anthropic,TS)· **opencode**(sst,TS)· **Kimi Code**(Moonshot,TS)· **crush**(charmbracelet,**Go**)· **plandex**(**Go**)。
 >
-> **方法**:源码级核实(非文档/记忆)。各 peer 的能力均经其桌面源码(`~/Desktop/<name>`)第一手核对,带 file 证据;Claude Code 闭源,经反编译 TS 快照 + npm 发行版核实。基线 **2026-06-19**,**codex + Claude Code 于 2026-06-23 重核刷新(见 §0.5)**。排除库/框架(langchain/spring-ai/eino/adk-go/trpc-agent-go 等)。
+> **方法**:源码级核实(非文档/记忆)。peer 基线来自 2026-06 的桌面源码复核；ScopeApp 一侧已在 **2026-08-28 / P188** 重新核对当前生产代码。peer 未在本轮整体重扫，因此比较结论区分“当前 ScopeApp 事实”和“历史 peer 事实”，不把旧矩阵冒充同步时点。
 > **桌面前端形态**(GUI/插件/原生体验)的对比见 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md);本篇只谈 runtime/引擎。
 > **方法论**:对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 与 [`../../CLAUDE.md`](../../CLAUDE.md) 的"库优于框架 / 薄核 / YAGNI / 不抄框架味"立场裁决"该不该学",而非见特性就抄。
 
@@ -11,23 +11,23 @@
 
 ## 0. TL;DR
 
-**格局**:这 6 个 peer **全部是 ReAct/loop 或 staged-state-machine** 架构;`app/runtime` 是其中**唯一 planner-driven(GOAP/HTN)**的引擎。在"agent loop 健壮性、并行工具、上下文/持久化、多 provider、可观测性、代码智能"几条主线上,`app/runtime` 已处于第一梯队(与 codex / Claude Code 同档,普遍领先 opencode/kimi/crush/plandex)。
+**格局**:这 6 个 peer **全部以 ReAct/loop 或 staged-state-machine 为主**。ScopeApp 当前默认执行路径也是 managed Interaction 模型/Tool 状态机；独立 Agent Framework 另外提供 Planning/GOAP 与 Workflow Strategy，但它们不是默认 Runtime loop。ScopeApp 在 agent loop 健壮性、上下文/持久化、多 provider、可观测性和代码智能几条主线上处于第一梯队。
 
 **真正的能力差(2026-06-23 刷新后)只剩 ~1.5 处,且都不是框架味:**
-1. **OS 级命令沙箱** —— codex(Seatbelt/Landlock+seccomp/Win Restricted-Token)、Claude Code(sandbox-runtime)有;`app/runtime` 与 opencode/kimi/crush 一样**没有**,shell 直接在工作区跑。**这是唯一的硬 gap**。
-2. ~~**细粒度权限规则 + hooks 系统**~~ —— **已基本补齐(06-20/06-21)**:落地了 `Rule{scope,tool,subject,decision}`+sqlite 审批规则 + 用户级子进程 hooks(6/7 seam)+ cron 调度。**残留只是"广度"差**(claude code 的规则 DSL 含显式 `ask`+企业 MDM、hook 18+ 事件含 PreCompact;我方 6/7、缺 PreCompact)——见 §0.5。
+1. **跨平台 OS 沙箱广度** —— ScopeApp 已有 macOS Seatbelt、隔离 working copy、read-only/hidden roots 与 fail-closed assembly；当前真实差距是 codex/Claude Code 还覆盖 Linux/Windows，而 ScopeApp 非 Darwin 暂无 backend。
+2. **权限/hooks 广度** —— 核心规则、审批、子进程 hooks 与 cron 已具备；P188 已把 PreCompact 接到真正的模型调用前 compaction boundary。残留主要是企业策略源、更多 hook event 与跨平台 sandbox。
 
 其余 peer 独有项(codex 的 Guardian/code_mode/Realtime、plandex 的 per-plan git、多前端全家桶、V4A apply_patch)要么是值得借鉴的"思想"、要么是框架味/已被 scopeapp 等价能力覆盖的 by-design skip。详见 §0.5 + §10。
 
 ---
 
-## 0.5 2026-06-23 刷新 —— 差距从"2 处"收窄到"1.5 处"
+## 0.5 2026-06-23 历史刷新
 
-> 上次基线 06-19。期间我方落地 3 项,直接改写下方多处结论;codex / Claude Code 也以当前源码(`~/Desktop/{codex,claude_code}`)重核。**本节为最新口径,与下文旧结论冲突处以本节为准。**
+> 本节保留 2026-06 的 peer 核对证据。ScopeApp 的当前结论以 §0、§1 和 2026-08-28/P188 就地修订为准。
 
 **① 自上次基线后我方已补(原 gap #2 大半关闭):**
 - **细粒度持久审批规则**:`Rule{scope(session/project/global), tool, subject-glob, decision(allow/deny)}` + sqlite,`approval.listRules/forgetRule`。从"单一 Mode stance"升级为 **4 模式(plan/safe/balanced/yolo)+ 声明式规则表**。
-- **用户级 hooks**:子进程契约(exit-code / stdin-JSON,**无内嵌 VM**),配置级联(`~/.scopeapp` + 受信项目),**6/7 seam** 已接(PreToolUse deny/rewrite/ask + UserPromptSubmit/SessionStart 注入 + Post/Stop/Notification 观测;**PreCompact 暂缺**)。
+- **用户级 hooks**:子进程契约(exit-code / stdin-JSON,**无内嵌 VM**),配置级联(`~/.scopeapp` + 受信项目)；P188 后 PreCompact 已接到真实模型调用前压缩边界。
 - **定时调度**:cron 触发的无人值守 headless 运行(`schedules.*` + worker)——原 §10"cron 归外层"的 by-design skip 已被真实需求推翻并落地。
 
 **② codex 当前重核 —— 领先项仍集中在沙箱,其余多为实验 / 非编码核心:**
@@ -45,11 +45,11 @@
 - LSP 现也是 config-driven(`lsp.servers`),与我方同档(非旧说的 plugin-only);仍无 scopeapp 的多 provider 广度(Anthropic-only,Bedrock/Vertex 仅网关)。
 
 **④ NET 当前差距(对 codex / Claude Code):**
-1. **OS 命令沙箱 —— 唯一硬 gap**(两家均生产级;我方 shell 仍裸跑 cwd,仅靠 approval+hooks PreToolUse 做**非 OS 层**门控)。
-2. **权限/hooks 的"广度"(minor)**:核心已补,残留为 claude code 的规则 DSL(显式 ask + MDM)与 hook 事件数(18+ vs 6/7,缺 PreCompact)更宽。
+1. **OS 命令沙箱的跨平台广度**：ScopeApp 现有 macOS Seatbelt；codex / Claude Code 还覆盖 Linux/Windows。
+2. **权限/hooks 的广度**：PreCompact 已补；剩余差异是企业策略源和更多事件类型。
 3. **几个 situational/minor**:子 agent **worktree 隔离**(并行写隔离)、**ToolSearch 工具延迟加载**(MCP 池大时)、**暴露为 MCP server**(`mcp serve`,A2A 已覆盖大半)、**Guardian 式 LLM 自动审批**(可选,需谨慎防过度信任)。
 
-> 一句话:**唯一的硬差距是 OS 沙箱**;原"权限规则+hooks"差距已补到核心齐备、只差广度;我方在 LSP / ~40 provider / planner / A2A / 资源键并行上对这两家仍领先。下方 §1 矩阵与 §6/§10 的旧结论按本节修正(已就地标注)。
+> 当前一句话：macOS 沙箱、规则与调用前 PreCompact 已具备；下一安全差距是 Linux/Windows backend，而非“完全没有沙箱”。
 
 ---
 
@@ -60,16 +60,16 @@
 | 维度 | codex | Claude Code | opencode | Kimi | crush | plandex | **app/runtime** |
 |---|---|---|---|---|---|---|---|
 | **架构形态** | CLI/TUI + app-server(JSON-RPC) | CLI/TUI + SDK + MCP-server | ★daemon + 多 client(HTTP/SSE) | TUI + ACP + RPC | TUI + 可选 client/server(socket REST) | daemon(REST/SSE)+PG | client-server,ScopeApp Protocol(JSON-RPC,HTTP+SSE/inproc)+独立 GUI |
-| **agent loop** | streaming 状态机 | streaming | streaming ReAct(max25) | stateless(loop-detect) | streaming(loop-detect) | staged 状态机(auto-continue) | ★**planner(GOAP/HTN)** + max50 + LoopDetection |
+| **agent loop** | streaming 状态机 | streaming | streaming ReAct(max25) | stateless(loop-detect) | streaming(loop-detect) | staged 状态机(auto-continue) | managed Interaction 状态机；可组合 Planning/GOAP、Workflow Strategy |
 | **并行工具** | ✅RwLock 读写 | ✅cap10 | ✅fiber | ✅资源调度 | ✅opt-in | ❌ | ★✅**ConcurrencyKey 资源键**(避假冲突) |
 | **工具错误恢复** | ✅fold 回模型 | ✅is_error | ✅catch 回模型 | ✅in-band | ✅文本错误 | 🟡validate-fix | ✅framework default(默认开) |
 | **编辑安全** | V4A apply_patch | ✅read-before+stale(mtime) | ✅read-before+byte-stale | 🟡prompt-only | ✅read-before+stale | lazy-edit+builder | ✅read-before+stale(editguard) |
-| **OS 沙箱** | ★✅Seatbelt/Landlock/Win | ★✅sandbox-runtime | ❌ | ❌ | ❌ | 🟡cgroup best-effort | ❌ **(真 gap)** |
+| **OS 沙箱** | ★✅Seatbelt/Landlock/Win | ★✅sandbox-runtime | ❌ | ❌ | ❌ | 🟡cgroup best-effort | 🟡macOS Seatbelt + isolated copy；Linux/Windows backend 暂缺 |
 | **代码智能 LSP** | ❌ | 🟡LSP(config/plugin,9op) | ❌(V2 未移植) | ❌ | ✅LSP(powernap) | 🟡tree-sitter map(无 LSP) | ★✅**LSP(单 lsp 工具/8 操作 + lsp_diagnostics,config-driven server 表)** |
 | **HITL/权限** | 多级 + ★Guardian(LLM 审批) | ★5 模式+allow/deny/ask(含 MDM) | rule DSL + question | policy chain + rule DSL + hooks | allowlist+safe-bypass+hooks | 5 级 autonomy(batch) | ✅R 模型 park/resume + 4 模式 + 规则表(scope/tool/subject,06-20) |
-| **hooks 系统** | ✅(pre/post/compact/stop) | ★✅18+ 事件(可 block/rewrite) | ✅plugin hooks | ✅lifecycle hooks | ✅PreToolUse | ❌ | ✅子进程契约,6/7 seam(缺 PreCompact,06-21) |
+| **hooks 系统** | ✅(pre/post/compact/stop) | ★✅18+ 事件(可 block/rewrite) | ✅plugin hooks | ✅lifecycle hooks | ✅PreToolUse | ❌ | ✅子进程契约；P188 已接模型调用前 PreCompact |
 | **多 agent/subagent** | ✅成熟(2 代协议,CSV fan-out) | ★✅深(subagent+teams/swarm) | 🟡弱(mention,无并行) | ✅swarm(128 并行,resumable) | 🟡并行但单类型(TODO) | 🟡model roles(无自主) | ✅**planner+并行(4 档 spawn)+workflow+Supervisor+A2A** |
-| **上下文压缩+记忆** | ✅compact+memory pipeline+AGENTS.md | ✅93%+CLAUDE.md+session memory | ✅compact+★Context Epoch+AGENTS.md | ✅compact+memory file | ✅summarize+多 memory 文件 | ★smart sliding window | ✅token 压缩+SCOPEAPP.md+提取+AGENTS.md+todo |
+| **上下文压缩+记忆** | ✅turn 内 compact+memory pipeline+AGENTS.md | ✅93%+CLAUDE.md+session memory | ✅compact+★Context Epoch+AGENTS.md | ✅compact+memory file | ✅summarize+多 memory 文件 | ★smart sliding window | ✅P188 调用前压缩+SQLite CAS rewrite+Strategy state同步+SCOPEAPP.md/提取 |
 | **持久化/resume** | ✅rollout(SQLite FTS,fork) | ✅JSONL+resume+file rewind | ✅sqlite+resume(checkpoint TODO) | ✅jsonl replay+fork+export | ✅sqlite+resume(无 checkpoint) | ★PG+per-plan git(branch/rewind) | ✅SQLite+resume+影子 git checkpoint+fork+export |
 | **MCP** | client(OAuth)+server | ★client(多 transport,OAuth/XAA)+server | client(OAuth) | client(OAuth) | client(header auth) | ❌ | client(+auth);**无 server 暴露**;+ ★**A2A 跨 runtime** |
 | **多 provider** | 🟡4(OpenAI-centric) | 🟡Anthropic-only(Bedrock/Vertex 网关) | ✅10(models.dev) | ✅6 | ✅catwalk(数十) | ✅12+(LiteLLM) | ★✅**~40(显式配对)** |
@@ -95,9 +95,9 @@
 
 ---
 
-## 3. Agent loop & 工具 —— `app/runtime` 第一梯队,且唯一 planner-driven
+## 3. Agent loop & 工具 —— 默认 Interaction，Planning/Workflow 是可组合 Strategy
 
-**loop 形态**:6 个 peer 里 5 个是 streaming ReAct/loop(codex 状态机、Claude Code/opencode/kimi/crush 循环),plandex 是 staged 状态机(planning→implementation,LLM-judge 决定 auto-continue)。**只有 `app/runtime` 是 planner-driven**(底层 agent 库的 GOAP/HTN/reactive,每 tick 看世界状态+goal 出 plan)。这是 scopeapp 最独特的引擎选择(与 embabel 的对比已详述其领先)。
+**loop 形态**:6 个 peer 里 5 个是 streaming ReAct/loop(codex 状态机、Claude Code/opencode/kimi/crush 循环),plandex 是 staged 状态机。ScopeApp 的生产默认同样是 managed Interaction 模型/Tool 状态机；Agent Framework 的 Planning/GOAP 与 Workflow 是可选择、可组合的第二和第三种 Strategy，不应被写成默认 planner-driven Runtime。这个边界避免把“库具备的策略”误报成“产品每个 Run 都采用的循环”。
 
 **并行工具**:这是分水岭。
 - ❌ plandex 根本不并行(staged 单流)。
@@ -122,9 +122,9 @@
 
 ---
 
-## 5. 命令执行 & 沙箱 —— **`app/runtime` 最实在的真 gap**
+## 5. 命令执行 & 沙箱 —— macOS 已闭环，跨平台 backend 待补
 
-这是 `app/runtime` 唯一明确落后头部的维度:
+ScopeApp 已不再裸跑所有 shell；当前差异是平台覆盖范围：
 
 | | 沙箱 | 后台命令 |
 |---|---|---|
@@ -134,9 +134,9 @@
 | Kimi | ❌(经 Kaos 抽象,支持 SSH 远程但无 OS 隔离) | ✅BackgroundManager |
 | crush | ❌in-process shell 直跑工作区 | ✅auto-background(60s)+job_output/kill |
 | plandex | 🟡best-effort Linux cgroup/进程组(其余 OS no-op) | ✅daemon 后台任务 |
-| **app/runtime** | ❌**shell 直接在 Session.cwd 跑,无 OS 隔离** | ✅block+timeout(无 PTY) |
+| **app/runtime** | 🟡opt-in macOS Seatbelt + hidden/read-only roots + isolated copy；其他平台 fail closed/无 backend | ✅process-group owned foreground/background + timeout/stop/join |
 
-**裁决:OS 沙箱是真 gap,值得学,且与项目哲学不冲突**(安全是核心关注,不是框架仪式)。codex/Claude Code 的做法是统一抽象 —— macOS Seatbelt(`sandbox-exec`)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略。scopeapp 已有 `infra/exec` 执行层,加一层 OS 沙箱包装是干净的下沉。**注意:多数 peer(opencode/kimi/crush)也没有,所以这是"追平头部"而非"补齐及格线"——优先级看 scopeapp 是否要支持高自主/无人值守运行。**
+**裁决：当前 owner 与 fail-closed 方向正确。** 后续不是重建抽象，而是在现有 platform file边界补 Linux Landlock/seccomp 与 Windows restricted-token backend，并复用同一 writable/read-only/hidden contract。
 
 ---
 
@@ -154,7 +154,7 @@
 
 **裁决:原"两条值得学"已落地(06-20/06-21),只剩广度残留——**
 1. ~~细粒度权限规则~~ **已做**:`Rule{scope(session/project/global), tool, subject-glob, decision}` + sqlite,且保持 approval **单一 Service**(未拆 Console/Gate)。残留:claude code 有**显式 `ask` 规则 + 企业 MDM 源**,我方暂只 allow/deny(ask 由 Mode 兜底)。
-2. ~~用户可配 hooks~~ **已做**:用户级子进程 hooks(`~/.scopeapp` + 受信项目,exit-code/stdin-JSON,可 block/rewrite/注入),6/7 seam。残留:claude code 18+ 事件更宽,**PreCompact 暂缺**(可补)。
+2. ~~用户可配 hooks~~ **已做**:用户级子进程 hooks(`~/.scopeapp` + 受信项目,exit-code/stdin-JSON,可 block/rewrite/注入)；P188 已补真正调用前 PreCompact。残留是事件与策略源广度。
 - crush 的"**安全只读命令免审批**"(`safeCommands` 白名单)仍是低成本小改进,可作为规则表的内置默认借鉴。
 
 ---
@@ -163,7 +163,7 @@
 
 **多 agent**:`app/runtime`(planner + 并行 subagent + 4 档 spawn 梯度 + workflow over sub-agent + Supervisor + **A2A 跨 runtime**)与 **Kimi(128 并行 swarm)、codex(2 代协议 + CSV fan-out)同属最强档**,远超 opencode(mention 无并行)、crush(单类型 TODO)、plandex(model roles 非自主)。**A2A 跨 runtime 协议是 scopeapp 独有**(无 peer 有跨进程 agent 协议)。
 
-**上下文管理**:都做 auto-compaction + 项目记忆文件(AGENTS.md/CLAUDE.md/SCOPEAPP.md 几乎人人有)。亮点各异:opencode 的 **Context Epoch**(不可变 baseline,缓存前缀稳定)最严谨;plandex 的 **tree-sitter project map + per-subtask 滑动窗口**是其大上下文招牌;`app/runtime` 有 token 触发压缩 + SCOPEAPP.md 提取 + model-facing todo,扎实但不算独特。**可借鉴:opencode 的 Context Epoch"缓存稳定 baseline"思路**(对降低 token 成本有真实价值)——但这是优化,非 gap。
+**上下文管理**:都做 auto-compaction + 项目记忆文件。P188 后 ScopeApp 不再只在 Run 结束后压缩：每次主模型调用前按本次 exact model window 预算，保留 instructions、Tool/options 固定开销和未提交输入，summary/trim 完整成功后再以 SQLite CAS transaction重写 durable history与 Run watermarks，并把 effective messages写回 Agent Strategy state。Tool 的 exact model result与客户端展示分别投影，fresh opening持久化 hook composer实际交给模型的完整 User message；恢复只规范化语义等价的相邻 Tool grouping而不放松 payload核对。这样单个长 Run、Tool loop、Goal/HITL、下一 fresh Run和恢复都从同一前缀继续；provider-only request patch、presentation反推或 history/WorkingContext双真相源均不存在。
 
 **持久化/resume**:`app/runtime`(SQLite + durable cross-restart resume + **影子 git 文件 checkpoint/rollback** + fork + export/import)是头部水平。checkpoint 维度:plandex 的 **per-plan git repo(branch + rewind + 版本控制整个 plan)**最强、Claude Code 的 **/rewind file-history** 与 scopeapp 的 gated whole-repo 影子 git 同思路;crush/kimi/opencode 在 checkpoint 上更弱(crush 无、opencode TODO)。**scopeapp 在此领先多数 peer。**
 
@@ -180,7 +180,7 @@
 ## 9. 双向独有清单
 
 **`app/runtime` 独有 / 罕见(peer 全无或仅 1-2 个有):**
-- **planner-driven(GOAP/HTN)**引擎 —— 全部 peer 是 ReAct/staged。
+- **同一 Kernel 下可替换的 Interaction、Planning/GOAP 与 Workflow Strategy** —— 默认产品路径不冒充 planner-driven。
 - **A2A 跨 runtime 协议**(client+server) —— 无 peer 有。
 - **ConcurrencyKey 资源键并行** —— 仅 Kimi 有近似的资源调度。
 - **config-driven LSP server 表 + 6 操作** —— crush/Claude Code 有 LSP 但形态更受限。
@@ -188,8 +188,8 @@
 - **协议优先 + 独立富 GUI** —— opencode 形态最近,但 scopeapp 协议层更薄更纯。
 
 **peer 独有 / 领先(`app/runtime` 没有,2026-06-23 口径):**
-- **OS 沙箱**(codex/Claude Code)—— **唯一硬 gap**。
-- **权限/hooks 的广度**:claude code 规则 DSL 含**显式 `ask` + 企业 MDM**、hooks **18+ 事件(含 PreCompact)**;我方核心已补(规则表 + 6/7 seam),差在广度(见 §0.5)。
+- **Linux/Windows 沙箱 backend**(codex/Claude Code)—— ScopeApp 当前只有 macOS Seatbelt。
+- **权限/hooks 的广度**:claude code 规则 DSL 含**显式 `ask` + 企业 MDM**和更多事件；ScopeApp 已有规则、子进程 hooks 与 PreCompact，差在广度。
 - **子 agent worktree 隔离 / ToolSearch 工具延迟加载**(Claude Code)、**Guardian LLM 自动审批**(codex)—— situational / 新颖思想。
 - **code_mode / Realtime WebRTC**(codex 实验)、**CSV fan-out / 128-swarm**(codex/kimi)、**per-plan git**(plandex)、**Context Epoch**(opencode)、**session 全文搜索**(codex SQLite FTS)、**暴露为 MCP server**(codex/Claude Code `mcp serve`)。
 
@@ -201,8 +201,8 @@
 
 | 优先级 | 学什么 | 来源 | 怎么落地(scopeapp 方式) | 为什么值得 |
 |---|---|---|---|---|
-| **高** | **OS 命令沙箱**(唯一硬 gap) | codex / Claude Code | 在 `infra/exec` 下加一层 OS 沙箱包装:macOS `sandbox-exec`(Seatbelt)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略;沙箱拒绝时经 approval 升级 | shell 裸跑工作区,**已有 scheduler 做无人值守**,高自主运行有真实风险。安全是核心关注非框架仪式 |
-| **低** | **补 hooks 广度(PreCompact 等)+ 规则的显式 `ask`** | Claude Code | 给 hooks 加 PreCompact seam;规则 `decision` 加 `ask`(现由 Mode 兜底) | 核心已齐,把广度补到 claude code 档,增量小 |
+| **高** | **补齐 Linux/Windows OS 沙箱 backend** | codex / Claude Code | 保留当前 macOS Seatbelt/isolated-copy owner，在 Linux/Windows 以平台文件实现同一 fail-closed contract | macOS 已不是 gap；跨平台 shipping 前必须让同一配置不降级裸跑 |
+| **低** | **补 hooks/策略源广度** | Claude Code | PreCompact 已完成；后续只按真实消费者补企业策略源或新 event | 核心已齐，不为追数量机械扩表 |
 | **低** | **子 agent worktree 隔离** + **ToolSearch 工具延迟加载** | Claude Code | 并行子 agent 各自 git worktree(避免并行写冲突,现靠 ConcurrencyKey+checkpoint 缓解);MCP 工具池大时按需加载工具 | situational:前者利于并行写安全,后者在 MCP 工具多时省 prompt |
 | **低** | **Guardian 式 LLM 自动审批** + **scopeapp-as-MCP-server** | codex | 可选 LLM reviewer 在 on-request 审批自动裁决(fail-closed+断路器);把 scopeapp 暴露成 MCP 工具 | Guardian 减少无人值守打断(谨慎防过度信任);MCP-server 让 scopeapp 被别 agent 复用(A2A 已覆盖大半) |
 
@@ -219,7 +219,7 @@
 
 ## 一句话定档
 
-**(2026-06-23 刷新)`app/runtime` 在 agent loop 健壮性、并行工具(资源键)、代码智能(LSP)、多 agent(planner+A2A)、多 provider(~40)、可观测性(OTel 三驾马车)上已是第一梯队,且是全场唯一 planner-driven 引擎。原两处能力差已收窄到 ~1.5 处:唯一硬 gap 是 OS 命令沙箱(值得追平 codex/Claude Code,尤其已落地 scheduler 做无人值守);原"细粒度权限规则 + 用户 hooks"已落地核心(规则表 + 子进程 hooks + 调度),只差 claude code 的广度(显式 ask / 企业 MDM / PreCompact / 18+ 事件)。其余 peer 独有项多为框架味或已被等价覆盖,继续巩固"协议优先 + 薄核 + planner-driven"的差异化,不追 framework 全家桶。**
+**截至 2026-08-28 / P188，ScopeApp 的生产默认是 managed Interaction，Planning/GOAP 与 Workflow 是同一 Kernel 上的可组合 Strategy；不再误报为“唯一 planner-driven Runtime”。macOS Seatbelt、权限规则、hooks（含真正调用前 PreCompact）和 durable mid-Run compaction均已落地。当前明确差距主要是 Linux/Windows sandbox backend与少数企业级策略源；继续巩固协议优先、薄核、exact durable identity和长运行稳定性，不追 framework 全家桶。**
 
 ---
 

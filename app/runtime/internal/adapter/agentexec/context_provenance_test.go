@@ -133,6 +133,32 @@ func TestWorkingContextAttributesHookAndRecalledMemoryInPlace(t *testing.T) {
 	}
 }
 
+func TestInteractionInstructionContextStopsBeforeDurableSummary(t *testing.T) {
+	prompt, err := (promptComposition{sections: []promptSection{{
+		text: "runtime instructions",
+		sources: contextSources{
+			contextSourceBasePrompt.source(""),
+		},
+	}}}).systemMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := corechat.NewSystemMessage("[Earlier conversation summary]\ncompleted work")
+	messages := []corechat.Message{
+		prompt,
+		summary,
+		corechat.NewUserMessage(corechat.NewTextPart("continue")),
+	}
+
+	instructions, err := interactionInstructionContext(messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(instructions) != 1 || instructions[0].Text() != "runtime instructions" {
+		t.Fatalf("instructions = %#v, want only provenance-owned prompt", instructions)
+	}
+}
+
 func decodeContextProvenance(t *testing.T, values metadata.Map) contextProvenance {
 	t.Helper()
 	provenance, found, err := values.Decode[contextProvenance](contextProvenanceMetadataKey)

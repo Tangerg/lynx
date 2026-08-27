@@ -74,7 +74,7 @@ type Settings struct {
 	BaseURL string
 
 	// UtilityModel optionally names a cheaper / faster model for the
-	// Run-boundary maintenance work — compaction summaries, fact extraction,
+	// Model-call and Run-boundary maintenance work — compaction summaries, fact extraction,
 	// title generation — on the SAME provider (key + BaseURL) as Model. Empty
 	// runs that work on the main Model. The point: a session can code with a
 	// strong model (e.g. an Opus-class Model) while its background

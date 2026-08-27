@@ -887,6 +887,8 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
 	spec.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "question"}}
+	conversationInput := corechat.NewUserMessage(corechat.NewTextPart("question"))
+	spec.ConversationInput = &conversationInput
 
 	stream, err := coordinator.openSegment(context.Background(), spec)
 	if err != nil {

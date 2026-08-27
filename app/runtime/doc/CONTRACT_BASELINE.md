@@ -33,6 +33,8 @@ P186 为仓库内 85 个非 `app/**` Go module 建立首个 canonical `v0.0.1`�
 
 P187 将产品身份一次性切换为 `scopeapp` / `ScopeApp`：协议元数据、OpenRPC 扩展键、生成 TypeScript package 与公共客户端名称不再发布旧品牌。Runtime 只接受 `SCOPEAPP_*` 环境变量，默认 durability 只位于 `~/.scopeapp`，知识文件只名为 `SCOPEAPP.md`；旧环境变量、目录、文件名、别名与兼容 reader 均不存在。共享 `localruntime.DataDirectory` 是 Runtime/Desktop 对 database 与 local-token 布局的唯一部署值对象。该 breaking cutover 将 Protocol 精确前移到 `2026-08-28`；Artifact v23 与 SQLite epoch 83 的数据 shape 不变。
 
+P188 不改变 Runtime Protocol Baseline 2、Artifact v23、SQLite epoch 83 或 public Go/Desktop binding shape。它把内部模型上下文压缩从 terminal Run maintenance 扩展到每次主模型调用前：durable root rewrite 继续使用同一 SQLite transaction/CAS owner，transient Delegate 只更新 Agent recovery state；compaction Item仍使用既有 Protocol shape。Runtime 独立 module消费 canonical `agent/v0.2.0`、Agent Baseline 33 与 Interaction state/protocol v8/v8，不双读 v7 settlement。Agent 的 `ToolInvocation.ModelResult` 是普通 Tool model-visible result 的唯一映射 owner；Runtime 不从 client presentation 反推 provider Conversation。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
@@ -192,11 +194,11 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent Framework 消费 Baseline
 
-Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 31 canonical module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换，P25 完成真实 pseudo-version 发布与 standalone 消费；Core 六个模型模态的产物词汇现统一为 `Output`，其中 Interaction 消费唯一 `chat.Response.Output`。P185 的 Runtime delegation schema 直接消费 `agent.SchemaFor`，不再引用已删除的 Tool contract schema owner：
+Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 33 canonical `agent/v0.2.0` module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换；Core 六个模型模态的产物词汇现统一为 `Output`，其中 Interaction 消费唯一 `chat.Response.Output`。P188 进一步消费调用前 `ModelContextReducer` 与普通 Tool 的 exact `ToolInvocation.ModelResult`；durable store、transaction、模型窗口、产品事件和 client presentation 仍由 Runtime owner持有：
 
 - root Kernel、Agenttest、Interaction、Planning、Planning/GOAP、Workflow、Platform 七个 public package 已冻结；OpenTelemetry adapter 由集成层 `otel/agent` 拥有；
 - Process Snapshot v6、TreeSnapshot v4；
-- Interaction state/protocol v8/v7；
+- Interaction state/protocol v8/v8；
 - context-aware ProcessAdmitter、conclusive ProcessStartOutcome、提交式 `RequestCancellation`、带 exact applied-steer Signal identity 的 ModelInvocation、ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；
 - Agent Framework Event 是 Framework 已发生事实，Delta 是 best-effort 临时输出；
 - Strategy payload 和 TreeSnapshot private state 对 Runtime 不透明。

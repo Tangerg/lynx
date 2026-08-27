@@ -209,7 +209,7 @@ func buildExecutionComposition(
 	if err != nil {
 		return executionComposition{}, fmt.Errorf("runtime: Tool authorizer: %w", err)
 	}
-	runMaintenance := buildRunMaintenance(
+	runMaintenance, modelContextCompactor := buildRunMaintenance(
 		cfg,
 		conversation,
 		toolRuntime.tools.Shells,
@@ -239,10 +239,11 @@ func buildExecutionComposition(
 		MCPToolAutoApproved: func(server, toolName string) bool {
 			return policy.mcp.policy.ToolAutoApproved(mcpserver.ToolRef{Server: server, Tool: toolName})
 		},
-		Maintenance:    runMaintenance,
-		LifecycleHooks: workingContexts,
-		Pricing:        cfg.Pricing,
-		Provider:       cfg.Provider,
+		Maintenance:           runMaintenance,
+		ModelContextCompactor: modelContextCompactor,
+		LifecycleHooks:        workingContexts,
+		Pricing:               cfg.Pricing,
+		Provider:              cfg.Provider,
 	}
 	if toolRuntime.tools.Resolver != nil {
 		interactionConfig.ToolResolver = toolRuntime.tools.Resolver

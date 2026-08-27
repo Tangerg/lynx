@@ -189,10 +189,25 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 }
 
 func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compactionPlan {
+	return c.planCompactionWithProtectedTail(messages, maxTokens, 0)
+}
+
+func (c *Compactor) planCompactionWithProtectedTail(
+	messages []chat.Message,
+	maxTokens int,
+	protectedTail int,
+) compactionPlan {
 	if !c.shouldCompact(messages, maxTokens) || len(messages) == 0 {
 		return compactionPlan{}
 	}
-	cutoff := c.summaryCutoff(messages)
+	if protectedTail < 0 || protectedTail > len(messages) {
+		return compactionPlan{}
+	}
+	foldableLimit := len(messages) - protectedTail
+	if foldableLimit == 0 || c.shouldCompact(messages[foldableLimit:], maxTokens) {
+		return compactionPlan{}
+	}
+	cutoff := c.summaryCutoffWithProtectedTail(messages, protectedTail)
 	if cutoff == 0 {
 		return compactionPlan{}
 	}
@@ -206,7 +221,7 @@ func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compa
 	// Widen the deterministic rung first; only summarize the complete, finished
 	// history when cheap trimming still cannot make it executable.
 	if c.shouldCompact(trimmed[cutoff:], maxTokens) {
-		cutoff = len(messages)
+		cutoff = foldableLimit
 		trimmed, changed = trimForBudgetBefore(messages, cutoff)
 		if changed && !c.shouldCompact(trimmed, maxTokens) {
 			return compactionPlan{action: trimCompaction, messagesBefore: len(messages), trimmed: trimmed}
@@ -221,26 +236,32 @@ func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compa
 	}
 }
 
-// summaryCutoff returns a complete-turn boundary near the configured recent
-// window. The preferred boundary is the first User message at or after the
-// naive cutoff. If the cutoff landed inside the final turn, there is no later
-// User message; retain that whole turn by moving back to its opening User
-// message. When one oversized turn is the entire history, summarize the whole
-// completed history rather than leaving an over-budget context permanently
-// uncompacted.
-func (c *Compactor) summaryCutoff(messages []chat.Message) int {
+// summaryCutoffWithProtectedTail returns a complete-turn boundary near the
+// configured recent window without folding the caller-owned exact suffix. The
+// preferred boundary is the first User message at or after the naive cutoff.
+// If the cutoff landed inside the final foldable turn, it moves back to that
+// turn's opening User message.
+func (c *Compactor) summaryCutoffWithProtectedTail(
+	messages []chat.Message,
+	protectedTail int,
+) int {
+	if protectedTail < 0 || protectedTail > len(messages) {
+		return 0
+	}
+	foldable := messages[:len(messages)-protectedTail]
 	desired := max(0, len(messages)-c.keepRecent)
+	desired = min(desired, len(foldable))
 	hasOpeningUser := false
-	for index := desired; index < len(messages); index++ {
-		if messages[index].Role == chat.RoleUser {
+	for index := desired; index < len(foldable); index++ {
+		if foldable[index].Role == chat.RoleUser {
 			if index > 0 {
 				return index
 			}
 			hasOpeningUser = true
 		}
 	}
-	for index := min(desired-1, len(messages)-1); index >= 0; index-- {
-		if messages[index].Role == chat.RoleUser {
+	for index := min(desired-1, len(foldable)-1); index >= 0; index-- {
+		if foldable[index].Role == chat.RoleUser {
 			if index > 0 {
 				return index
 			}
@@ -249,7 +270,7 @@ func (c *Compactor) summaryCutoff(messages []chat.Message) int {
 		}
 	}
 	if hasOpeningUser {
-		return len(messages)
+		return len(foldable)
 	}
 	return 0
 }

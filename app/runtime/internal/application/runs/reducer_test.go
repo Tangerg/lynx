@@ -538,6 +538,11 @@ func testReductions(batch reductionBatch) []reduction {
 func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	config := testReducerConfig()
 	config.UserInput = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
+	composed := corechat.NewUserMessage(
+		corechat.NewTextPart("hook context"),
+		corechat.NewTextPart("hello"),
+	)
+	config.ConversationInput = &composed
 	reducer := newReducer(config)
 
 	opening := mustOpen(t, reducer)
@@ -557,7 +562,9 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 		t.Fatal("completed user item has no canonical durable fact")
 	}
 	conversation := opening[1].Commit.ConversationMessages
-	if len(conversation) != 1 || conversation[0].Role != corechat.RoleUser || conversation[0].Text() != "hello" {
+	if len(conversation) != 1 || conversation[0].Role != corechat.RoleUser ||
+		len(conversation[0].Parts) != 2 || conversation[0].Parts[0].Text != "hook context" ||
+		conversation[0].Parts[1].Text != "hello" {
 		t.Fatalf("opening conversation projection = %#v", conversation)
 	}
 	if again := mustOpen(t, reducer); len(again) != 1 {
@@ -707,6 +714,46 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	failure, failed := denied.Failure()
 	if denied.Status() != transcript.ItemIncomplete || !failed || failure.Kind != tool.FailureDenied {
 		t.Fatalf("denied item = %+v", denied)
+	}
+}
+
+func TestReducerSeparatesModelAndPresentedToolResults(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	call := corechat.ToolCall{
+		ID: "provider_shell", Name: "shell",
+		Arguments: `{"command":"printf hello","description":"Print hello"}`,
+	}
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	mustReduce(t, reducer, ModelCallCompleted{
+		CallID:  "model_call_1",
+		Message: corechat.NewAssistantMessage(corechat.NewToolCallPart(call)),
+		Steps:   1,
+	})
+	mustReduce(t, reducer, ToolCallStarted{
+		CallID: "runtime_shell", SourceCallID: call.ID,
+		ModelCallSequence: 1, ToolCallIndex: 0,
+		ToolName: call.Name, Arguments: call.Arguments,
+	})
+	exact := corechat.ToolResult{
+		ID: call.ID, Name: call.Name,
+		Result: `{"stdout":"hello","stderr":"","exit_code":0}`,
+	}
+	reduced := mustReduce(t, reducer, ToolCallFinished{
+		CallID:      "runtime_shell",
+		ModelResult: &exact,
+		Result: testToolResult(t, map[string]any{
+			"output": "hello", "exitCode": 0,
+		}),
+	})
+	messages := committedConversationMessages(reduced)
+	if len(messages) != 1 || len(messages[0].Parts) != 1 ||
+		messages[0].Parts[0].ToolResult == nil || *messages[0].Parts[0].ToolResult != exact {
+		t.Fatalf("model conversation result = %#v, want %#v", messages, exact)
+	}
+	completed := completedItem(t, reduced)
+	invocation, present := completed.ToolInvocation()
+	if !present || invocation.Result == nil || invocation.Result.Canonical() != `{"exitCode":0,"output":"hello"}` {
+		t.Fatalf("presented transcript result = %#v", invocation.Result)
 	}
 }
 

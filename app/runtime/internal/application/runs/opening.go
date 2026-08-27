@@ -118,6 +118,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	segmentID := c.newSegmentID()
 	createdAt := c.publications.nowUTC()
 	modelOnlyInput := cmd.GoalIncarnationID != ""
+	conversationInput := draft.WorkingContext[len(draft.WorkingContext)-1].Clone()
 	var sessionReplacement *SessionReplacement
 	if initialSession == nil && requestedSelection.Configured() {
 		next, changed, applyErr := sess.Apply(session.Patch{Selection: &requestedSelection}, createdAt)
@@ -147,6 +148,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		CreatedAt:          createdAt,
 		OpeningUserText:    openingUserText,
 		Input:              cmd.Input,
+		ConversationInput:  &conversationInput,
 		ModelOnlyInput:     modelOnlyInput,
 		Limits:             cmd.Limits,
 		Capabilities:       cmd.Capabilities,

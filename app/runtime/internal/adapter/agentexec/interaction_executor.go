@@ -85,6 +85,7 @@ type InteractionExecutorConfig struct {
 	ToolHooks                 InteractionToolHooks
 	MCPToolAutoApproved       func(server, tool string) bool
 	Maintenance               RunMaintenance
+	ModelContextCompactor     ModelContextCompactor
 	LifecycleHooks            InteractionLifecycleHooks
 	ToolResultStore           toolResultOffloader
 	ToolResultThreshold       int
@@ -137,6 +138,7 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 		{name: "Tool authorizer", value: config.ToolAuthorizer},
 		{name: "Tool hooks", value: config.ToolHooks},
 		{name: "Run maintenance", value: config.Maintenance},
+		{name: "model-context compactor", value: config.ModelContextCompactor},
 		{name: "lifecycle hooks", value: config.LifecycleHooks},
 		{name: "Tool-result store", value: config.ToolResultStore},
 	} {
@@ -337,6 +339,7 @@ func (i *InteractionExecutor) interactionConfiguration(
 		ToolResultThreshold    int                       `json:"toolResultThreshold"`
 		ToolResultReaderName   string                    `json:"toolResultReaderName,omitempty"`
 		InteractiveApproval    bool                      `json:"interactiveApproval"`
+		ContextCompaction      bool                      `json:"contextCompaction"`
 		VisibleTools           []corechat.ToolDefinition `json:"visibleTools,omitempty"`
 		DeferredTools          []corechat.ToolDefinition `json:"deferredTools,omitempty"`
 		Group                  domaintool.Group          `json:"group"`
@@ -352,6 +355,7 @@ func (i *InteractionExecutor) interactionConfiguration(
 		ToolResultThreshold:    i.config.ToolResultThreshold,
 		ToolResultReaderName:   i.config.ToolResultReaderName,
 		InteractiveApproval:    i.config.ToolAuthorizer != nil,
+		ContextCompaction:      i.config.ModelContextCompactor != nil,
 		VisibleTools:           toolDefinitions(manifest.Visible), DeferredTools: toolDefinitions(manifest.Deferred),
 		Group: group, Depth: depth, Delegate: delegate.String(), DelegateBudget: delegateBudget,
 		Instructions: cloneChatMessages(instructions),

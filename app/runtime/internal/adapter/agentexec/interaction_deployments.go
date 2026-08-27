@@ -158,10 +158,20 @@ func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deploy
 		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction definition at depth %d: %w", depth, err)
 	}
 	visible, deferred := wrapInteractionTools(manifest, i.session, i.executor.config, i.start)
+	var contextReducer interaction.ModelContextReducer
+	if i.executor.config.ModelContextCompactor != nil {
+		contextReducer = newInteractionModelContextReducer(
+			i.executor.config.ModelContextCompactor,
+			i.session,
+			i.start,
+			i.instructions,
+		)
+	}
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
 		Client: i.client, Tools: visible, DeferredTools: deferred,
 		MaxConcurrentToolCalls: i.executor.config.MaxConcurrentToolCalls,
 		StreamModelResponses:   i.executor.config.StreamModelResponses,
+		ModelContextReducer:    contextReducer,
 	})
 	if err != nil {
 		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction dispatcher at depth %d: %w", depth, err)
@@ -267,6 +277,18 @@ func interactionInstructionContext(messages []corechat.Message) ([]corechat.Mess
 		}
 		if err := messages[index].Validate(); err != nil {
 			return nil, fmt.Errorf("agentexec: invalid Interaction instruction[%d]: %w", index, err)
+		}
+		provenance, found, err := messages[index].Metadata.Decode[contextProvenance](
+			contextProvenanceMetadataKey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("agentexec: decode Interaction instruction[%d] provenance: %w", index, err)
+		}
+		if !found {
+			break
+		}
+		if err := provenance.validate(); err != nil {
+			return nil, fmt.Errorf("agentexec: Interaction instruction[%d] provenance: %w", index, err)
 		}
 		instructions = append(instructions, messages[index].Clone())
 	}

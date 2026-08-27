@@ -64,7 +64,7 @@ const (
 	// SubagentStop fires when a delegated sub-agent Run reaches a terminal
 	// state.
 	SubagentStop Event = "SubagentStop"
-	// PreCompact fires before Run-boundary compaction — a hook may inject
+	// PreCompact fires before model-call or Run-boundary compaction — a hook may inject
 	// guidance or veto the compaction.
 	PreCompact Event = "PreCompact"
 	// Stop fires at Run end (any terminal) — observe-only (notify / chain).

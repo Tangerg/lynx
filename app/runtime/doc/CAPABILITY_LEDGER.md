@@ -1,6 +1,6 @@
 # ScopeApp Runtime 能力台账
 
-> 状态：当前能力快照；P186 已完成。
+> 状态：当前能力快照；P188 已完成。
 >
 > 基线日期：2026-08-28。
 
@@ -13,7 +13,7 @@
 
 - Runtime 是 ScopeApp 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol`、`runtime/embedded` 和窄部署交接包 `runtime/localruntime` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-24`、Artifact v23、SQLite epoch 83、Agent Framework Baseline 31。
+- 当前合同为 Protocol `2026-08-28`、Artifact v23、SQLite epoch 83、Agent Framework Baseline 33（canonical `agent/v0.2.0`）。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
 - Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v23 只接受当前显式 `plan` shape。
 - Desktop 只加载编译进同一 bundle 的内置插件；Wails Bootstrap 只返回本地 Runtime 连接，不扫描 `~/.scopeapp/plugins`，前端不执行用户目录 JavaScript、不发布 `window.__SCOPEAPP__`，也没有外部 manifest、Host API version、permission whitelist、origin 双态或 lazy-activation placeholder。图片、粘贴和 `@file` 附件仍由 Composer 自己拥有。
@@ -56,6 +56,8 @@
 - P184 让 operation 注册/调用行为归还 `Registry` / `Endpoint`，让 `operation.Name` 成为 86 个方法的单一 wire identity，并使 Hook verdict 与 Tool mutation scope 的无效零值 fail closed。
 - P185 让 App 的当前依赖图重新只有一套可编译事实：Agent schema 由 Baseline 31 `SchemaFor` 提供，TypeScript 7 AST 守卫使用 Project/Snapshot，React UI state 由真实 presentation/lifecycle owner 持有，Wails 前后端统一到 beta.14；没有退役 API shim、无消费者端口或测试专用兼容面。
 - P186 让 85 个非 app Go module 首次拥有可消费的 canonical `v0.0.1`：内部 DAG 按 4/59/21/1 四层发布，上层只引用已存在的正式标签；Runtime 随后把全部非 app Scope 依赖从伪版本收敛到该唯一发布事实。4 个 app module 与冻结 TUI 均未发布。
+- P187 让产品 code/display identity 只保留 `scopeapp` / `ScopeApp`，并由 `localruntime.DataDirectory` 唯一拥有 durability layout；旧品牌、环境变量、路径、alias 与 fallback 均不存在。
+- P188 让 compaction 从 Run 后置 maintenance 扩展为每次主模型调用前的安全边界：Agent effective messages 回写 Strategy state，Runtime 以 protected tail、模型窗口和 SQLite CAS rewrite 保证单个长 Run 也不会从旧前缀重新生长；普通 Tool 的 exact model result与 client presentation分属明确 owner，fresh opening持久化 exact composed User message，恢复核对只规范化语义等价的相邻 Tool grouping。
 
 ## 2. 架构与所有权
 
@@ -210,10 +212,10 @@
 
 ## 7. 公共合同
 
-- Runtime Protocol 当前版本 `2026-08-24`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
+- Runtime Protocol 当前版本 `2026-08-28`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
 - Artifact 当前版本 23；旧版本在写入前确定性拒绝，不猜测缺失事实。
 - SQLite 当前 epoch 83；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
-- Agent Framework 当前 Baseline 31；Runtime 不依赖 private state 或迁移前 module path。
+- Agent Framework 当前 Baseline 33 / `agent/v0.2.0`；Runtime 不依赖 private state 或迁移前 module path。
 - 所有生成合同必须 diff-free；consumer 缺口记录在 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md)，服务端不为消费者恢复旧字段。
 
 ## 8. 结构清理结论
@@ -427,6 +429,8 @@ P185 把依赖升级暴露的失败归还真实 owner：Runtime delegation schem
 P186 完成非 app module 首发与 App Runtime 消费闭环。89 个 workspace module 中 4 个 `app/**` module 明确留在产品开发线，其余 85 个 module 依据内部依赖 DAG 分为 4/59/21/1 四层；每层先消费已发布上游 `v0.0.1`，再经 standalone race/test、vet、build、API release check 与可达漏洞扫描后提交、推送并创建 canonical `<module-dir>/v0.0.1` 注解标签。远端 85/85 标签及其 peeled commit 均已验证，`app/runtime` 的非 app Scope 依赖只消费正式 `v0.0.1`。Runtime workspace/standalone test/vet/build、standalone full race、43 条真实 HTTP E2E 与 Wails v3 production build 全绿；公共 Protocol、Artifact、SQLite 与 operation/event shape 不变，`app/cli` 未修改、未暂存、未发布，当前完成范围为 P0–P186。
 
 P187 完成产品身份的无兼容切换。Canonical code/display identity 现在分别是 `scopeapp` / `ScopeApp`；Runtime command、Desktop bundle/window、`SCOPEAPP_*` 环境变量、`~/.scopeapp` durability、`SCOPEAPP.md` knowledge、telemetry、Frontend plugin/storage/theme、协议元数据、`x-scopeapp-*` 扩展、`@scopeapp/runtime-contract` 与 `ScopeAppClient` 共同服从该身份。共享 `localruntime.DataDirectory` 值对象唯一拥有 database/token 部署布局，旧名称、环境变量、目录、文件、alias、fallback、双读与兼容 shim 均未保留。Protocol 精确前移到 `2026-08-28` / Baseline 2；Artifact v23 与 SQLite epoch 83 shape 不变。全仓受控品牌审计、Runtime workspace/standalone full test/vet/build/race、Frontend 313 files/1952 tests 和完整静态/bundle 门禁、43 条真实 HTTP E2E、Desktop test/vet/build、contract generate 零漂移与 Wails v3 production package/strict codesign 全绿；冻结的 `app/cli` 零 diff，当前完成范围为 P0–P187。
+
+P188 完成单个长 Run 的模型上下文生命周期闭环。旧 post-Run maintenance 无法在同一 Interaction 的模型→Tool 循环内介入；现在 Agent `ModelContextReducer` 在主模型前返回完整 effective messages，并由 protocol v8 settlement 回写 WorkingContext。Runtime 的 `ModelContextCompaction` 值对象明确区分 durable root 与 transient Delegate，冻结 instructions/tools/options、protected tail、model selection 与 lifecycle veto；Compactor 依据真实 catalog window扣除固定开销，先 materialize summary/trim，再以既有 transaction CAS 重写 durable conversation 和 Run watermarks。drift、protected input 过大、summary 不收敛、hook veto 与 store failure均在主模型零调用时失败，不留下半压缩状态。普通 Tool 的 `ModelResult` 由 Agent Baseline 33唯一映射，Runtime transcript presentation不再污染模型历史；fresh opening把 hook composer实际交给模型的完整 User message纳入同一 durable write-set，恢复时只把相邻 Tool message分组视为语义等价，所有 payload仍 strict。真实 Bootstrap/SQLite E2E 完成 12 轮 Tool loop、第 13 次主调用前 summary、同 Run 继续终止及下一 fresh Run 继续；完整 43 条 HTTP E2E覆盖 Goal/Plan、审批/HITL、restart与SIGKILL恢复。Runtime Protocol、Artifact v23、SQLite epoch 83 与 Desktop binding shape不变，当前完成范围为 P0–P188。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `SCOPEAPP.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

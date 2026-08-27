@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Tangerg/scope/a2a v0.0.1
-	github.com/Tangerg/scope/agent v0.0.1
+	github.com/Tangerg/scope/agent v0.2.0
 	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29
 	github.com/Tangerg/scope/core v0.0.1
 	github.com/Tangerg/scope/mcp v0.0.1

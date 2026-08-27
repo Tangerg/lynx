@@ -22,10 +22,7 @@ func buildRunMaintenance(
 	skillMaintenance *workspace.SkillMaintenance,
 	memoryCuration *agentmemory.Curation,
 	resolveUtility func(context.Context) *chatclient.Client,
-) agentexec.RunMaintenance {
-	if cfg.Maintenance != nil {
-		return cfg.Maintenance
-	}
+) (agentexec.RunMaintenance, agentexec.ModelContextCompactor) {
 	window := 0
 	if info, ok := catalog.Default.Lookup(cfg.Provider, cfg.Model); ok {
 		window = int(info.Limits.ContextWindow)
@@ -36,6 +33,9 @@ func buildRunMaintenance(
 		runmaintenance.NewLiveStateSnapshotter(shells, cfg.PlanStore),
 		runmaintenance.CompactionConfig{ContextWindow: window},
 	)
+	if cfg.Maintenance != nil {
+		return cfg.Maintenance, compactor
+	}
 	var consolidator *runmaintenance.MemoryConsolidator
 	if memoryCuration.Available() {
 		consolidator = runmaintenance.NewMemoryConsolidator(conversationServices.store, memoryCuration, resolveUtility, runmaintenance.MemoryCurationConfig{})
@@ -52,5 +52,5 @@ func buildRunMaintenance(
 		)
 		skillArchiver = runmaintenance.NewIdleSkillArchiver(skillMaintenance, runmaintenance.SkillArchiveConfig{})
 	}
-	return runmaintenance.NewPipeline(compactor, consolidator, skillMiner, skillArchiver)
+	return runmaintenance.NewPipeline(compactor, consolidator, skillMiner, skillArchiver), compactor
 }

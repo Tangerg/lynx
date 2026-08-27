@@ -65,6 +65,14 @@ type contextProvenance struct {
 	Sources       []contextSource `json:"sources"`
 }
 
+func (c contextProvenance) validate() error {
+	if c.SchemaVersion != contextProvenanceSchemaVersion || len(c.Sources) == 0 {
+		return fmt.Errorf("agentexec: invalid context provenance schema or empty source set")
+	}
+	_, err := contextSources(c.Sources).provenance()
+	return err
+}
+
 type contextSources []contextSource
 
 func (c contextSources) provenance() (contextProvenance, error) {

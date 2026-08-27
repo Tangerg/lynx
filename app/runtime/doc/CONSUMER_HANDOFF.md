@@ -7,12 +7,12 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-24, during the P153 Codebase removal cutover.
+> Desktop generated consumer: 2026-08-28, during the P187 ScopeApp identity cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
-- Protocol version: exactly `2026-08-24`; there is no compatibility range.
+- Protocol version: exactly `2026-08-28`; there is no compatibility range.
 - Session artifact version: `23`; every other version is rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
@@ -146,7 +146,7 @@ P143 makes Session selection an exact durable identity. Desktop's
 `AgentSessionSummary` now projects both `provider` and `model`; Composer restore
 and Context usage resolve the catalog by the pair, including duplicate model-id
 fixtures. The generated package, handwritten adapter, smoke/wire fixtures, and
-strict validators move together to Protocol `2026-08-24` and Artifact v23. No
+strict validators move together to Protocol `2026-08-28` and Artifact v23. No
 second selection store or compatibility decoder was added.
 
 - `app/runtime/contract/typescript/` generated bindings, validators, canonical
@@ -199,7 +199,7 @@ this list is not evidence that an out-of-tree consumer is compatible.
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-24"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-28"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
 4. imports/exports Session artifact v23 with its required exact provider/model pair and explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;

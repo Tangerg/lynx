@@ -411,6 +411,16 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommi
 		failure := *e.Failure
 		cloned.Failure = &failure
 	}
+	if e.ModelResult != nil {
+		if err := e.ModelResult.Validate(); err != nil {
+			return nil, nil, nil, fmt.Errorf("tool call %q has invalid model result: %w", e.CallID, err)
+		}
+		if e.ModelResult.ID != ref.sourceCallID || e.ModelResult.Name != ref.name {
+			return nil, nil, nil, fmt.Errorf("tool call %q model result differs from its source call", e.CallID)
+		}
+		modelResult := *e.ModelResult
+		cloned.ModelResult = &modelResult
+	}
 	cloned.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
 	if finishedAt.Before(ref.attemptStartedAt) {
@@ -456,6 +466,9 @@ func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, []corec
 }
 
 func conversationToolResult(ref *openTool, finished ToolCallFinished) corechat.ToolResult {
+	if finished.ModelResult != nil {
+		return *finished.ModelResult
+	}
 	result := ""
 	if finished.Result != nil {
 		if text, ok := finished.Result.String(); ok {

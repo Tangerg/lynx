@@ -64,7 +64,9 @@ func TestInteractionExecutorProjectsAuthoritativeModelToolLifecycleAndAccounting
 	finishes := payloadsOf[runs.ToolCallFinished](events)
 	if len(starts) != 1 || len(finishes) != 1 || starts[0].SourceCallID != "provider_call" ||
 		starts[0].Activity != "Echoing value" || starts[0].SafetyClass != domaintool.SafetyClassSafe ||
-		finishes[0].Result == nil || finishes[0].Failure != nil {
+		finishes[0].Result == nil || finishes[0].ModelResult == nil ||
+		finishes[0].ModelResult.ID != "provider_call" || finishes[0].ModelResult.Name != "echo" ||
+		finishes[0].ModelResult.Result != "hello" || finishes[0].Failure != nil {
 		t.Fatalf("Tool lifecycle = starts %#v; finishes %#v", starts, finishes)
 	}
 	if hooks.before != 1 || hooks.after != 1 {

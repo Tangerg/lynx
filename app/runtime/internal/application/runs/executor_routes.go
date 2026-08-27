@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // executorRoute is the pump-local binding from one immutable executor member
@@ -49,11 +50,16 @@ func (c *Coordinator) openingRoutes(
 	if spec.Continuation != nil {
 		return c.resumedExecutorRoutes(spec, cancelReason)
 	}
+	if len(spec.Input) > 0 && (spec.ConversationInput == nil ||
+		spec.ConversationInput.Role != corechat.RoleUser || spec.ConversationInput.Validate() != nil) {
+		return nil, errors.New("runs: fresh root requires its exact composed conversation input")
+	}
 	rootReducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
 		CWD: spec.CWD, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
 		GoalIncarnationID: spec.GoalIncarnationID,
-		CreatedAt:         spec.CreatedAt, UserInput: spec.Input, ModelOnlyInput: spec.ModelOnlyInput,
+		CreatedAt:         spec.CreatedAt, UserInput: spec.Input,
+		ConversationInput: spec.ConversationInput, ModelOnlyInput: spec.ModelOnlyInput,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		Capabilities: spec.effectiveCapabilities(),
 		Now:          c.publications.nowUTC, CancelReason: cancellationReason(cancelReason, spec.RunID),

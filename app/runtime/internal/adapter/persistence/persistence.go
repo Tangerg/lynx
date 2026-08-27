@@ -110,9 +110,9 @@ func (b *Bundle) StartExternalChangeObserver(ctx context.Context, notify func())
 // Open wires the persistence backends. The returned bundle owns the shared
 // SQLite handle and must be closed when the runtime process stops.
 func Open(ctx context.Context, config Config) (*Bundle, error) {
-	dataDirectory, err := localruntime.DataDirectoryAt(config.DataDirectory)
-	if err != nil {
-		return nil, fmt.Errorf("persistence: data directory: %w", err)
+	dataDirectory, directoryErr := localruntime.DataDirectoryAt(config.DataDirectory)
+	if directoryErr != nil {
+		return nil, fmt.Errorf("persistence: data directory: %w", directoryErr)
 	}
 	config.DataDirectory = dataDirectory.Path()
 	if config.DefaultWorkspacePath == "" {
@@ -121,11 +121,11 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if !filepath.IsAbs(config.DefaultWorkspacePath) {
 		return nil, errors.New("persistence: default workspace path must be absolute")
 	}
-	if err := os.MkdirAll(config.DataDirectory, 0o700); err != nil {
-		return nil, fmt.Errorf("persistence: create data directory %q: %w", config.DataDirectory, err)
+	if mkdirErr := os.MkdirAll(config.DataDirectory, 0o700); mkdirErr != nil {
+		return nil, fmt.Errorf("persistence: create data directory %q: %w", config.DataDirectory, mkdirErr)
 	}
-	if err := os.Chmod(config.DataDirectory, 0o700); err != nil {
-		return nil, fmt.Errorf("persistence: protect data directory %q: %w", config.DataDirectory, err)
+	if chmodErr := os.Chmod(config.DataDirectory, 0o700); chmodErr != nil {
+		return nil, fmt.Errorf("persistence: protect data directory %q: %w", config.DataDirectory, chmodErr)
 	}
 	db, err := sqlitestore.Open(ctx, dataDirectory.DatabasePath())
 	if err != nil {

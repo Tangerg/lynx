@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // segmentSpec is the prepared input to the package's segment supervisor.
@@ -28,6 +29,9 @@ type segmentSpec struct {
 	CreatedAt          time.Time
 	OpeningUserText    string
 	Input              []transcript.ContentBlock
+	// ConversationInput is the exact composed User message admitted to the
+	// executor. Input remains the independently projected transcript content.
+	ConversationInput *corechat.Message
 	// ModelOnlyInput keeps an application-authored control message in the
 	// provider conversation without publishing it as a user-visible transcript
 	// Item. Only a fresh autonomous Goal root may set it; resumed input remains

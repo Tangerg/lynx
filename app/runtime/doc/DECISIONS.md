@@ -721,3 +721,19 @@
 - 背景：operation catalog 已由 `Registry` 独占注册状态和方法元数据，却仍通过 `Query(registry, ...)`、`Command(registry, ...)` 等自由泛型函数修改它；typed invocation 同样通过 `Call(endpoint, ...)` 绕开 receiver。这是“对象持有状态、过程函数持有行为”的贫血模型，也让架构守卫只能识别无 owner 的函数名。86 个协议操作名还分别以裸字符串出现在注册和 embedded binding，形成两份需要人工同步的身份。Hook command 的成功结果允许空 `CommandVerdict` 被 Application 默认为 allow，文件变更范围的无效零值也可能弱化 bypass-immunity。
 - 决策：利用 Go 1.27 方法泛型，把六类注册行为及 typed unary/stream invocation 分别收回 `Registry` 和 `Endpoint`；private register 流程也保持同一 receiver，不新增 builder、service 或 façade。操作身份建模为自校验 `operation.Name`，常量就近声明在对应领域注册文件；注册、materialization 与 embedded binding 共同引用它，只有 JSON-RPC transport 边界把外部字符串显式转换为 `Name`。Hook adapter 必须把空 stdout 显式解码为 `CommandAllow`，Application 拒绝其他无效 verdict；Tool authorization 要求有效 `FileMutationScope`，未知范围保守提升为需要确认。验证字段按确定顺序显式调用，不使用 `map[string]string` 参数袋。
 - 后果：86 个 operation 的类型推导、元数据填充、协议身份、注册和调用都从唯一 owner 出发；AST 守卫直接审计 receiver method 与已声明的 `Name` 常量。外部 JSON method text、idempotency、stream、SQLite 与生成合同不变，没有自由函数转发、重复 wire literal 或兼容入口。
+
+## ADR-RT-102：上下文压缩必须在主模型调用前拥有可提交边界
+
+- 状态：已接受并实施，P188 完成；允许 Agent Interaction public SPI/private protocol 与 Runtime internal adapter breaking change，公共 Runtime Protocol、Artifact、SQLite shape、Desktop binding 与 CLI不变。
+- 背景：一个 Runtime Run 可在同一 Agent Interaction 内连续执行多轮模型→Tool。旧 `CompactIfNeeded` 只在 Run terminal 后执行，因而在第 2…N 次模型调用前没有调度机会；单个 Run 可以先越过模型窗口。只临时改 provider request也不成立，因为 Strategy WorkingContext、checkpoint 和下一轮 Tool/steer仍会从完整旧前缀继续。
+- 决策：Agent 只新增中性 `ModelContextReducer`，成功 settlement必须携带 actual messages 并由 Execution 安装回 WorkingContext。Runtime 定义充血 `ModelContextCompaction` / result 值对象，冻结 durable/transient、Session、exact model selection、instructions、candidate、Tool manifest、options、protected tail 与 PreCompact veto；具体 Compactor 从 catalog解析本次模型窗口、扣除固定/未提交后缀开销，并复用现有 trim/summary ladder。
+- 决策：durable root 在主模型前读取并语义核对 store snapshot，summary/trim 完整 materialize 和验证后，才调用既有 `RewriteForCompaction` 事务以 expected count/cutoff 同时重写 conversation 与 Run watermarks。trailing 未提交 steer作为 fixed suffix重接；首轮当前 User input与 delegated initial task保持 verbatim。drift、protected/fixed context过大、required compaction被 hook veto、summary仍超预算或事务失败都确定终止，主模型零调用。transient Delegate不写 store，只返回新的 Strategy state。
+- 后果：单个长 Run、下一 fresh Run 与恢复都从同一 effective context继续，不存在 provider-only旁路或 history/Strategy双真相源。Agent 发布 `v0.1.0`/Baseline 32/protocol v8；Runtime Protocol、Artifact v23、SQLite epoch 83 和 Desktop binding无需升级。
+
+## ADR-RT-103：模型历史与产品展示必须分别持有 exact 投影
+
+- 状态：已接受并实施，P188 完成；Agent 发布 `v0.2.0` / Baseline 33，Runtime public Protocol、Artifact、SQLite、Desktop binding 与 CLI不变。
+- 背景：Runtime 的 Tool presenter 会把执行结果改写成适合客户端的结构；若 reducer 再从该结构反推 model-visible `ToolResult`，审批拒绝、shell 输出与恢复后的历史就可能和 Interaction 实际收到的结果不同。fresh opening 也曾只持久化原始用户 block，而 WorkingContext composer 已把 lifecycle hook context合入同一 User message；完整 Goal→HITL 套件因而在首次调用前发现 provider candidate与 durable history分叉。
+- 决策：Agent `ToolInvocation.ModelResult` 唯一拥有普通 Tool output/cause到 exact provider-neutral `ToolResult` 的映射，Dispatcher与 Runtime adapter共用该行为。Runtime `ToolCallFinished` 分别携带 model result与 client presentation；reducer逐一校验 exact call ID/name，并只把前者提交到 Conversation、后者提交到 Transcript。fresh root的 opening spec携带 executor实际接收的 composed User message，同一 transaction把它写入 Conversation；原始 input只负责用户可见 Transcript投影，model-only Goal仍不创建伪 user Item。
+- 决策：durable reconciliation忽略投影 metadata，并把连续 Tool-role messages规范成同一 ordered parts序列，以容纳 approval/HITL recovery导致的等价分组；role、part kind/text/signature/media、ToolCall和ToolResult payload继续逐字段严格同值。任何其他漂移 fail closed且主模型零调用。
+- 后果：模型输入、Strategy recovery和SQLite durable history观察同一事实，UI展示可以独立演进而不污染模型；hook context、Goal控制输入、审批恢复与相邻并发 Tool结果均有明确唯一 owner。43 条真实 Runtime↔HTTP↔TypeScript E2E覆盖 Goal/Plan、HITL、restart与SIGKILL recovery，临时兼容读取、展示反推和双写均不存在。
