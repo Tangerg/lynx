@@ -47,6 +47,6 @@ func dialStatus(err error) mcpserver.ConnectionState {
 // plain wrapped error, so our transport records the status before that type
 // information is lost.
 func isAuthError(err error) bool {
-	var failure *dialError
-	return errors.As(err, &failure) && failure.kind == dialErrorNeedsAuth
+	failure, ok := errors.AsType[*dialError](err)
+	return ok && failure.kind == dialErrorNeedsAuth
 }

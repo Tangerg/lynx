@@ -58,8 +58,7 @@ func classifyModelError(err error) error {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return err
 	}
-	var classified *run.FailureError
-	if errors.As(err, &classified) {
+	if _, ok := errors.AsType[*run.FailureError](err); ok {
 		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
@@ -72,8 +71,7 @@ func classifyModelError(err error) error {
 			Err:        err,
 		}
 	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](err); ok {
 		kind := run.FailureProviderUnavailable
 		if netErr.Timeout() {
 			kind = run.FailureTimeout
@@ -84,14 +82,16 @@ func classifyModelError(err error) error {
 }
 
 func providerHTTPError(err error) (int, http.Header, bool) {
-	var responseError interface {
+	type httpError interface {
+		error
 		HTTPStatus() int
 		HTTPHeader() http.Header
 	}
-	if !errors.As(err, &responseError) {
+	matched, ok := errors.AsType[httpError](err)
+	if !ok {
 		return 0, nil, false
 	}
-	return responseError.HTTPStatus(), responseError.HTTPHeader(), true
+	return matched.HTTPStatus(), matched.HTTPHeader(), true
 }
 
 func failureKindForHTTPStatus(status int) run.FailureKind {

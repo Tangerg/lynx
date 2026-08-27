@@ -537,8 +537,7 @@ func (d *Dispatcher) callTool(
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return chat.ToolResult{}, nil, nil, err
 		}
-		var inputRequired *ToolInputRequiredError
-		if errors.As(err, &inputRequired) {
+		if inputRequired, ok := errors.AsType[*ToolInputRequiredError](err); ok {
 			request, valid := inputRequired.inputRequest()
 			if !valid {
 				return chat.ToolResult{}, nil, nil, ErrInvalidToolInputRequest

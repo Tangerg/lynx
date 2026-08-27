@@ -72,8 +72,7 @@ func (e *execution) advance(signals []agent.Signal) (agent.Transition, error) {
 	case stageKindSwitch:
 		selected, err := stage.switcher.selectCase(e.state.CurrentValue)
 		if err != nil {
-			var unknown unknownSwitchCaseError
-			if errors.As(err, &unknown) {
+			if _, ok := errors.AsType[unknownSwitchCaseError](err); ok {
 				return e.failContract(
 					0, "workflow.switch.case_unknown",
 					"Switch Stage "+stage.id+" selected an undeclared case",
@@ -92,8 +91,7 @@ func (e *execution) advance(signals []agent.Signal) (agent.Transition, error) {
 	case stageKindMap:
 		count, err := stage.fanoutCount(e.state.CurrentValue)
 		if err != nil {
-			var exceeded mapItemLimitExceededError
-			if errors.As(err, &exceeded) {
+			if _, ok := errors.AsType[mapItemLimitExceededError](err); ok {
 				return e.failContract(
 					0, "workflow.map.item_limit_exceeded",
 					"Map Stage "+stage.id+" input exceeds its configured item limit",

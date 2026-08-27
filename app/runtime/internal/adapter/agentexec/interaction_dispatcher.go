@@ -352,8 +352,7 @@ func (o *observedInteractionTool) Call(ctx context.Context, rawArguments string)
 		// classify the whole Effect as unknown.
 		callErr = errInteractionRunCanceled
 	}
-	var inputRequired *interaction.ToolInputRequiredError
-	if errors.As(callErr, &inputRequired) {
+	if _, ok := errors.AsType[*interaction.ToolInputRequiredError](callErr); ok {
 		// Tool input is an Interaction control boundary, not a failed external
 		// call. The started fact remains open so the Run barrier can carry it as
 		// a drained Tool; the restored invocation will commit the sole final fact

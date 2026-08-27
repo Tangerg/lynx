@@ -15,6 +15,7 @@ import (
 )
 
 type problemCarrier interface {
+	error
 	Failure() *Problem
 }
 
@@ -74,8 +75,8 @@ func FromError(err error) (*Problem, bool) {
 	if err == nil {
 		return nil, false
 	}
-	var carrier problemCarrier
-	if !errors.As(err, &carrier) {
+	carrier, ok := errors.AsType[problemCarrier](err)
+	if !ok {
 		return nil, false
 	}
 	problem := carrier.Failure()

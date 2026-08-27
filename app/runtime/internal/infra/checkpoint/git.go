@@ -59,8 +59,11 @@ func (g *gitCommandError) Error() string {
 func (g *gitCommandError) ExitCode() int { return g.exitCode }
 
 func gitExitCode(err error) int {
-	var exited interface{ ExitCode() int }
-	if errors.As(err, &exited) {
+	type exitCoder interface {
+		error
+		ExitCode() int
+	}
+	if exited, ok := errors.AsType[exitCoder](err); ok {
 		return exited.ExitCode()
 	}
 	return -1

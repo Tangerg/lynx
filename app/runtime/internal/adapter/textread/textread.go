@@ -29,8 +29,7 @@ func (l *lineError) Unwrap() error { return l.cause }
 // LineNumber returns the one-based line attached to a scan failure, or zero
 // when the failure is not line-specific.
 func LineNumber(err error) int {
-	var target *lineError
-	if errors.As(err, &target) {
+	if target, ok := errors.AsType[*lineError](err); ok {
 		return target.number
 	}
 	return 0

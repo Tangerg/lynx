@@ -22,15 +22,16 @@ func (*api) wrapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var responseErr interface {
+	type httpError interface {
+		error
 		HTTPStatus() int
 		HTTPHeader() http.Header
 	}
-	if errors.As(err, &responseErr) {
+	if _, ok := errors.AsType[httpError](err); ok {
 		return err
 	}
-	var apiErr *genai.APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*genai.APIError](err)
+	if !ok {
 		return err
 	}
 	return &responseError{err: err, status: apiErr.Code}

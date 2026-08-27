@@ -24,8 +24,7 @@ func failureFromError(kind FailureKind, code string, err error) (Failure, error)
 }
 
 func failureKindForError(err error) FailureKind {
-	var panicError executionPanicError
-	if errors.As(err, &panicError) {
+	if _, ok := errors.AsType[executionPanicError](err); ok {
 		return FailureKindPanic
 	}
 	return FailureKindExecution

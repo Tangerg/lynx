@@ -254,8 +254,8 @@ func (i *invalidatingTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func oauthCredentialRejected(err error) bool {
-	var retrieveErr *oauth2.RetrieveError
-	if !errors.As(err, &retrieveErr) {
+	retrieveErr, ok := errors.AsType[*oauth2.RetrieveError](err)
+	if !ok {
 		return false
 	}
 	switch retrieveErr.ErrorCode {

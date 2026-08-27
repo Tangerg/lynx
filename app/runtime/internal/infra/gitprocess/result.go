@@ -72,8 +72,7 @@ func Run(ctx context.Context, overrides []string, args ...string) (Result, error
 	if waitErr == nil {
 		return result, nil
 	}
-	var exit *exec.ExitError
-	if errors.As(waitErr, &exit) {
+	if exit, ok := errors.AsType[*exec.ExitError](waitErr); ok {
 		result.ExitCode = exit.ExitCode()
 		return result, nil
 	}
