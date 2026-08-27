@@ -11,7 +11,13 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
-const RequestExtensionKey = "perplexity/request"
+const (
+	RequestExtensionKey          = "perplexity/request"
+	maximumSearchDomains         = 20
+	maximumImageDomains          = 10
+	maximumSearchLanguageFilters = 10
+	maximumImageFormatFilters    = 10
+)
 
 type SearchMode string
 
@@ -235,14 +241,14 @@ func (r RequestOptions) ValidateFor(model string, stream bool) error {
 	if r.EnableSearchClassifier != nil && r.DisableSearch != nil && *r.EnableSearchClassifier && *r.DisableSearch {
 		return errors.New("enable_search_classifier and disable_search cannot both be true")
 	}
-	if err := validateDomains("search_domain_filter", r.SearchDomainFilter, 20); err != nil {
+	if err := validateDomains("search_domain_filter", r.SearchDomainFilter, maximumSearchDomains); err != nil {
 		return err
 	}
-	if err := validateDomains("image_domain_filter", r.ImageDomainFilter, 10); err != nil {
+	if err := validateDomains("image_domain_filter", r.ImageDomainFilter, maximumImageDomains); err != nil {
 		return err
 	}
-	if len(r.SearchLanguageFilter) > 10 {
-		return errors.New("search_language_filter must contain at most 10 language codes")
+	if len(r.SearchLanguageFilter) > maximumSearchLanguageFilters {
+		return fmt.Errorf("search_language_filter must contain at most %d language codes", maximumSearchLanguageFilters)
 	}
 	for index, language := range r.SearchLanguageFilter {
 		if !isLanguageCode(language) {
@@ -258,8 +264,8 @@ func (r RequestOptions) ValidateFor(model string, stream bool) error {
 	if r.SearchMode == SearchModeAcademic && r.hasDateFilter() {
 		return errors.New("date filters are not supported with academic search mode")
 	}
-	if len(r.ImageFormatFilter) > 10 {
-		return errors.New("image_format_filter must contain at most 10 formats")
+	if len(r.ImageFormatFilter) > maximumImageFormatFilters {
+		return fmt.Errorf("image_format_filter must contain at most %d formats", maximumImageFormatFilters)
 	}
 	for index, format := range r.ImageFormatFilter {
 		if !format.Valid() {

@@ -106,7 +106,7 @@ func (i ImageInputSchema) Validate() error {
 }
 
 func (i ImageInputSchema) validateOptions(options image.Options) error {
-	unsupported := make([]string, 0, 5)
+	var unsupported []string
 	if options.Height != nil && i.HeightKey == "" {
 		unsupported = append(unsupported, "height")
 	}
@@ -274,8 +274,8 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		if setErr := outputMetadata.Set("replicate/output_url", outputURL); setErr != nil {
 			return nil, setErr
 		}
-		if final.Metrics.PredictTime > 0 {
-			if setErr := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); setErr != nil {
+		if milliseconds, present := final.predictTimeMilliseconds(); present {
+			if setErr := outputMetadata.Set("replicate/predict_time_ms", milliseconds); setErr != nil {
 				return nil, setErr
 			}
 		}

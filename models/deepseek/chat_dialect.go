@@ -9,6 +9,13 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+const (
+	maximumStopSequences = 16
+	maximumTools         = 128
+	maximumTopLogProbs   = 20
+	maximumUserIDLength  = 512
+)
+
 const RequestExtensionKey = "deepseek/request"
 
 var userIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -177,19 +184,19 @@ func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corecha
 	if thinkingEnabled && generation.TopP != nil {
 		return errors.New("options.top_p has no effect while DeepSeek thinking is enabled")
 	}
-	if len(generation.Stop) > 16 {
-		return errors.New("options.stop must contain at most 16 sequences for DeepSeek")
+	if len(generation.Stop) > maximumStopSequences {
+		return fmt.Errorf("options.stop must contain at most %d sequences for DeepSeek", maximumStopSequences)
 	}
-	if len(tools) > 128 {
-		return errors.New("tools must contain at most 128 functions for DeepSeek")
+	if len(tools) > maximumTools {
+		return fmt.Errorf("tools must contain at most %d functions for DeepSeek", maximumTools)
 	}
 
 	if err := r.ToolChoice.ValidateFor(tools); err != nil {
 		return fmt.Errorf("tool_choice: %w", err)
 	}
 	if r.TopLogProbs != nil {
-		if *r.TopLogProbs < 0 || *r.TopLogProbs > 20 {
-			return errors.New("top_logprobs must be between 0 and 20")
+		if *r.TopLogProbs < 0 || *r.TopLogProbs > maximumTopLogProbs {
+			return fmt.Errorf("top_logprobs must be between 0 and %d", maximumTopLogProbs)
 		}
 		if r.LogProbs == nil || !*r.LogProbs {
 			return errors.New("top_logprobs requires logprobs=true")
@@ -199,8 +206,8 @@ func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corecha
 		return errors.New("include_usage is valid only for streaming requests")
 	}
 	if r.UserID != "" {
-		if len(r.UserID) > 512 {
-			return errors.New("user_id must contain at most 512 characters")
+		if len(r.UserID) > maximumUserIDLength {
+			return fmt.Errorf("user_id must contain at most %d characters", maximumUserIDLength)
 		}
 		if !userIDPattern.MatchString(r.UserID) {
 			return errors.New("user_id may contain only ASCII letters, digits, hyphens, and underscores")

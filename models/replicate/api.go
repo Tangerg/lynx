@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -128,6 +129,13 @@ type predictionResponse struct {
 		PredictTime float64 `json:"predict_time,omitempty"`
 		TotalTime   float64 `json:"total_time,omitempty"`
 	} `json:"metrics"`
+}
+
+func (p predictionResponse) predictTimeMilliseconds() (int64, bool) {
+	if p.Metrics.PredictTime <= 0 {
+		return 0, false
+	}
+	return int64(p.Metrics.PredictTime * float64(time.Second/time.Millisecond)), true
 }
 
 // createPrediction submits a generation job. model accepts either

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/transcription"
 )
 
+const maximumKeyterms = 1000
+
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
@@ -146,8 +148,8 @@ func validateTranscriptionRequest(req *transcriptionRequest) error {
 	if req.FileFormat != "" && req.FileFormat != "other" && req.FileFormat != "pcm_s16le_16" {
 		return fmt.Errorf("elevenlabs: file_format must be other or pcm_s16le_16, got %q", req.FileFormat)
 	}
-	if len(req.Keyterms) > 1000 {
-		return fmt.Errorf("elevenlabs: keyterms must contain at most 1000 entries, got %d", len(req.Keyterms))
+	if len(req.Keyterms) > maximumKeyterms {
+		return fmt.Errorf("elevenlabs: keyterms must contain at most %d entries, got %d", maximumKeyterms, len(req.Keyterms))
 	}
 	if req.ModelID == ModelScribeV1 && len(req.Keyterms) > 0 {
 		return errors.New("elevenlabs: keyterms are only supported by scribe_v2")

@@ -57,7 +57,7 @@ func mapCompletionOutput(params *openaisdk.ChatCompletionNewParams, choice opena
 }
 
 func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage, provider string, dialect responseDialect) (*corechat.Message, error) {
-	parts := make([]corechat.Part, 0, 3+len(message.ToolCalls))
+	var parts []corechat.Part
 	if message.Content != "" {
 		parts = append(parts, corechat.NewTextPart(message.Content))
 	}

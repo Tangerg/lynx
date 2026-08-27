@@ -90,7 +90,7 @@ func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corech
 		}
 	}
 
-	parts := make([]corechat.Part, 0, 2+len(response.Message.ToolCalls))
+	var parts []corechat.Part
 	if response.Message.Thinking != "" {
 		parts = append(parts, corechat.NewReasoningPart(response.Message.Thinking, nil))
 	}

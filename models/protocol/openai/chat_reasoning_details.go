@@ -78,7 +78,7 @@ func (r reasoningDetailsCodec) PrepareRequest(source *corechat.Request, target *
 			if err != nil {
 				return fmt.Errorf("messages[%d]: %w", messageIndex, err)
 			}
-			extraFields := make(map[string]any, 2)
+			extraFields := make(map[string]any)
 			if len(details) > 0 {
 				extraFields[r.config.DetailsField] = details
 			}
@@ -244,7 +244,7 @@ func (r reasoningDetailsCodec) decodeFrames(signature []byte) ([]json.RawMessage
 }
 
 func coalesceReasoningDetailFrames(frames []json.RawMessage) ([]json.RawMessage, error) {
-	if len(frames) < 2 {
+	if len(frames) <= 1 {
 		return frames, nil
 	}
 	result := make([]json.RawMessage, 0, len(frames))

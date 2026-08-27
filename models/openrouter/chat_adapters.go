@@ -111,7 +111,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 }
 
 func providerHeaders(appURL, appTitle string) http.Header {
-	headers := make(http.Header, 2)
+	headers := make(http.Header)
 	if appURL != "" {
 		headers.Set(HeaderReferer, appURL)
 	}

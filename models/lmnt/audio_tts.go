@@ -10,6 +10,8 @@ import (
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
+const maximumTextLength = 5000
+
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
@@ -172,8 +174,8 @@ func validateSynthesizeRequest(req *synthesizeRequest) error {
 	if req.Voice == "" {
 		return errors.New("lmnt: speech voice is required")
 	}
-	if len(req.Text) > 5000 {
-		return fmt.Errorf("lmnt: speech text exceeds the 5000-character limit: %d", len(req.Text))
+	if len(req.Text) > maximumTextLength {
+		return fmt.Errorf("lmnt: speech text exceeds the %d-character limit: %d", maximumTextLength, len(req.Text))
 	}
 	if req.Format != "" {
 		switch req.Format {

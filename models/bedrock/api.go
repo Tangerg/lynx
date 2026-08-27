@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
-// Credentials configures explicit AWS credentials. Leave it nil to use the
-// standard AWS credential chain (environment, shared config, IRSA, or IAM).
+// Credentials bypasses the ambient AWS credential chain when a caller needs
+// an explicit identity, such as a tenant-scoped integration.
 type Credentials struct {
 	AccessKeyID     string
 	SecretAccessKey string
@@ -48,7 +48,7 @@ func newAPI(ctx context.Context, config apiConfig) (*api, error) {
 		return nil, err
 	}
 
-	loadOptions := make([]func(*awsconfig.LoadOptions) error, 0, 3)
+	var loadOptions []func(*awsconfig.LoadOptions) error
 	if config.Region != "" {
 		loadOptions = append(loadOptions, awsconfig.WithRegion(config.Region))
 	}
@@ -75,8 +75,6 @@ func newAPI(ctx context.Context, config apiConfig) (*api, error) {
 	return &api{client: client}, nil
 }
 
-// Converse runs the unified inference API across every Bedrock-hosted
-// model family (Claude / Llama / Titan / Mistral / Cohere / DeepSeek).
 func (a *api) converse(ctx context.Context, params *bedrockruntime.ConverseInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
@@ -84,9 +82,6 @@ func (a *api) converse(ctx context.Context, params *bedrockruntime.ConverseInput
 	return a.client.Converse(ctx, params, opts...)
 }
 
-// ConverseStream is the streaming variant. The event channel is on the
-// returned EventStream — callers iterate via stream.Events() then
-// stream.Close().
 func (a *api) converseStream(ctx context.Context, params *bedrockruntime.ConverseStreamInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseStreamOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
@@ -94,10 +89,6 @@ func (a *api) converseStream(ctx context.Context, params *bedrockruntime.Convers
 	return a.client.ConverseStream(ctx, params, opts...)
 }
 
-// InvokeModel is the raw per-model endpoint. Bedrock embeddings (Titan
-// Embed v2, Cohere Embed v3, ...) only go through this — each family
-// expects its own JSON body shape, so the scope [EmbeddingModel] below
-// branches by model family.
 func (a *api) invokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")

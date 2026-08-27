@@ -87,7 +87,7 @@ func (a *api) generate(ctx context.Context, path string, req *generateRequest) (
 }
 
 func buildFormFields(req *generateRequest) map[string]string {
-	out := make(map[string]string, 8)
+	out := make(map[string]string)
 	put := func(k, v string) {
 		if v != "" {
 			out[k] = v

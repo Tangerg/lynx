@@ -13,6 +13,8 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const maximumErrorResponseBytes = 1 << 20
+
 // API is the authenticated transport for Mistral's native endpoints.
 type apiConfig struct {
 	APIKey     string
@@ -68,18 +70,11 @@ func newAPI(config apiConfig) (*api, error) {
 	return &api{http: client}, nil
 }
 
-// ModerationRequest mirrors POST /moderations. Mistral's moderation API
-// takes a free-form `input` (string or array of strings) plus a model
-// id ("mistral-moderation-2603" is current).
 type moderationRequest struct {
 	Model string   `json:"model"`
 	Input []string `json:"input"`
 }
 
-// ModerationResponse mirrors the response. Mistral's category set is
-// custom (sexual, hate_and_discrimination, violence_and_threats,
-// dangerous_and_criminal_content, selfharm, health, financial, law,
-// pii) — different from OpenAI's, hence the dedicated endpoint.
 type moderationResponse struct {
 	ID      string `json:"id"`
 	Model   string `json:"model"`
@@ -146,7 +141,7 @@ func (a *api) chatCompletionStream(ctx context.Context, request *chatCompletionR
 		return body, nil
 	}
 	defer body.Close()
-	payload, readErr := io.ReadAll(io.LimitReader(body, 1<<20))
+	payload, readErr := io.ReadAll(io.LimitReader(body, maximumErrorResponseBytes))
 	if readErr != nil {
 		return nil, fmt.Errorf("mistral: read chat completion stream error: %w", readErr)
 	}

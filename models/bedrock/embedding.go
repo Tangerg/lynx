@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,7 +22,12 @@ const (
 	EmbeddingRequestExtensionKey = "bedrock/embedding_request"
 	// EmbeddingResponseExtensionKey preserves the provider's JSON response body.
 	// Titan batching stores one body per input; Cohere stores its single batch body.
-	EmbeddingResponseExtensionKey = "bedrock/embedding_response"
+	EmbeddingResponseExtensionKey       = "bedrock/embedding_response"
+	maximumCohereBatchTexts             = 96
+	embeddingDimension256         int64 = 256
+	embeddingDimension512         int64 = 512
+	embeddingDimension1024        int64 = 1024
+	embeddingDimension1536        int64 = 1536
 )
 
 // EmbeddingRequestOptions carries official family-specific InvokeModel fields
@@ -203,7 +209,13 @@ func (e *EmbeddingModel) embedTitan(
 		}
 	}
 	if family == embeddingFamilyTitanV2 {
-		if err := validateDimensions("Amazon Titan Text Embeddings V2", dimensions, 256, 512, 1024); err != nil {
+		if err := validateDimensions(
+			"Amazon Titan Text Embeddings V2",
+			dimensions,
+			embeddingDimension256,
+			embeddingDimension512,
+			embeddingDimension1024,
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -263,8 +275,8 @@ func (e *EmbeddingModel) embedCohere(
 	dimensions *int64,
 	native *EmbeddingRequestOptions,
 ) (*embeddingBatch, error) {
-	if len(texts) > 96 {
-		return nil, fmt.Errorf("bedrock: Cohere Embed accepts at most 96 texts per request; got %d", len(texts))
+	if len(texts) > maximumCohereBatchTexts {
+		return nil, fmt.Errorf("bedrock: Cohere Embed accepts at most %d texts per request; got %d", maximumCohereBatchTexts, len(texts))
 	}
 	if err := validateCohereInputType(native.InputType); err != nil {
 		return nil, err
@@ -279,7 +291,14 @@ func (e *EmbeddingModel) embedCohere(
 		return nil, errors.New("bedrock: embedding: dimensions are unsupported by Cohere Embed V3")
 	}
 	if family == embeddingFamilyCohereV4 {
-		if err := validateDimensions("Cohere Embed V4", dimensions, 256, 512, 1024, 1536); err != nil {
+		if err := validateDimensions(
+			"Cohere Embed V4",
+			dimensions,
+			embeddingDimension256,
+			embeddingDimension512,
+			embeddingDimension1024,
+			embeddingDimension1536,
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -352,10 +371,8 @@ func validateDimensions(model string, dimensions *int64, allowed ...int64) error
 	if dimensions == nil {
 		return nil
 	}
-	for _, value := range allowed {
-		if *dimensions == value {
-			return nil
-		}
+	if slices.Contains(allowed, *dimensions) {
+		return nil
 	}
 	return fmt.Errorf("bedrock: embedding: dimensions %d are unsupported by %s; allowed values are %v", *dimensions, model, allowed)
 }

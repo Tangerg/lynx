@@ -77,7 +77,7 @@ func (s SpeechInputSchema) Validate() error {
 }
 
 func (s SpeechInputSchema) validateOptions(options tts.Options) error {
-	unsupported := make([]string, 0, 3)
+	var unsupported []string
 	if options.OutputFormat != "" {
 		unsupported = append(unsupported, "output_format")
 	}
@@ -213,8 +213,8 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 			return nil, setErr
 		}
 	}
-	if final.Metrics.PredictTime > 0 {
-		if setErr := outputMetadata.Set("replicate/predict_time_ms", int64(final.Metrics.PredictTime*1000)); setErr != nil {
+	if milliseconds, present := final.predictTimeMilliseconds(); present {
+		if setErr := outputMetadata.Set("replicate/predict_time_ms", milliseconds); setErr != nil {
 			return nil, setErr
 		}
 	}

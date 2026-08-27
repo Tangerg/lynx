@@ -66,7 +66,7 @@ func (o *openAIStreamState) mapChunkOutput(choice openaisdk.ChatCompletionChunkC
 		return nil, false, fmt.Errorf("choice index is %d, want 0", choice.Index)
 	}
 	mapped := &corechat.Output{FinishReason: normalizeFinishReason(choice.FinishReason)}
-	parts := make([]corechat.Part, 0, 2+len(choice.Delta.ToolCalls))
+	var parts []corechat.Part
 	if choice.Delta.Content != "" {
 		parts = append(parts, corechat.NewTextPart(choice.Delta.Content))
 	}

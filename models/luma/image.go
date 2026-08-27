@@ -136,7 +136,7 @@ func (i *ImageModel) Call(ctx context.Context, request *image.Request) (*image.R
 }
 
 func rejectUnsupportedOptions(options image.Options) error {
-	unsupported := make([]string, 0, 4)
+	var unsupported []string
 	if options.Height != nil {
 		unsupported = append(unsupported, "height")
 	}
