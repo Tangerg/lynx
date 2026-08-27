@@ -66,7 +66,7 @@ func (t *Template) Require(names ...string) error {
 		}
 	}
 
-	missing := make([]string, 0)
+	var missing []string
 	for _, name := range names {
 		if strings.TrimSpace(name) == "" {
 			return fmt.Errorf("%w: required field name is empty", ErrInvalidTemplate)

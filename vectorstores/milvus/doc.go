@@ -1,5 +1,5 @@
-// Package milvus wraps Milvus / Zilliz Cloud as a
-// the vectorstore capability interfaces. Documents are stored as rows in a Milvus
+// Package milvus exposes Milvus / Zilliz Cloud
+// through the Core vector-store capability interfaces. Documents are stored as rows in a Milvus
 // collection (`{id, content, embedding, <metadata columns>}`);
 // retrieval runs Milvus's ANN search.
 //

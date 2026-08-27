@@ -144,7 +144,7 @@ func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.Genera
 }
 
 func mapProtocolMessages(provider string, messages []corechat.Message) (*genai.Content, []*genai.Content, error) {
-	systemParts := make([]*genai.Part, 0)
+	var systemParts []*genai.Part
 	contents := make([]*genai.Content, 0, len(messages))
 	for i := range messages {
 		message := messages[i]

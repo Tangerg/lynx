@@ -24,10 +24,9 @@ type Skill struct {
 	Instructions string
 }
 
-// Parse constructs and validates a skill from a complete SKILL.md document.
-// The document must open with a "---" line, contain YAML frontmatter, and
-// close the block with another "---" line. Everything after the closing
-// fence is the skill's Markdown instructions.
+// Parse requires exact YAML fences so arbitrary Markdown cannot silently enter
+// the skill discovery path as a partially populated manifest. The body after
+// the closing fence remains untouched Markdown instruction content.
 func Parse(content []byte) (*Skill, error) {
 	normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
 	normalized = bytes.TrimPrefix(normalized, []byte("\ufeff"))

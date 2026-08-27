@@ -233,10 +233,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-// Delete removes documents matching the filter via Vectara's
-// document-level delete endpoint. Vectara has no bulk filter-delete,
-// so matching ids are enumerated first, then deleted one-by-one.
-
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter

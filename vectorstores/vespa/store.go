@@ -315,13 +315,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-// Delete removes documents matching the filter expression via the
-// `selection` parameter on the Document API.
-//
-// Vespa selection expressions live under their own mini language;
-// rather than translate the AST a second way, the approach routes
-// through a YQL search to enumerate ids, then deletes them.
-
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter

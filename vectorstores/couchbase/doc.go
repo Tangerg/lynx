@@ -1,5 +1,5 @@
-// Package couchbase wraps Couchbase Search Service vectors as a
-// the vectorstore capability interfaces. Documents are upserted as JSON
+// Package couchbase exposes Couchbase Search Service vectors
+// through the Core vector-store capability interfaces. Documents are upserted as JSON
 // (`{id, content, metadata, embedding}`); queries use SQL++ (N1QL)
 // with an embedded `SEARCH(...)` k-NN clause that targets a
 // Couchbase FTS index.

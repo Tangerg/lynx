@@ -1,5 +1,5 @@
-// Package oracle wraps Oracle 23ai's native VECTOR column type as a
-// the vectorstore capability interfaces. Documents live in a regular Oracle table
+// Package oracle exposes Oracle 23ai's native VECTOR column type
+// through the Core vector-store capability interfaces. Documents live in a regular Oracle table
 // (id / content / metadata JSON / embedding VECTOR) reached through
 // `database/sql` + the sijms/go-ora driver.
 //

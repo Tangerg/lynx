@@ -164,7 +164,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 	if apiResp == nil {
 		return nil, errors.New("vertexai: image: nil GenerateContent response")
 	}
-	outputs := make([]*image.Output, 0)
+	var outputs []*image.Output
 	for candidateIndex, candidate := range apiResp.Candidates {
 		if candidate == nil || candidate.Content == nil {
 			continue

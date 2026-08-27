@@ -366,7 +366,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 	if apiResp == nil {
 		return nil, errors.New("google: image: nil Interactions response")
 	}
-	outputs := make([]*image.Output, 0)
+	var outputs []*image.Output
 	for stepIndex, rawStep := range apiResp.Steps {
 		var step imageInteractionStep
 		if err := json.Unmarshal(rawStep, &step); err != nil {

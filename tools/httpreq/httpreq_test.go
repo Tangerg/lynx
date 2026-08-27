@@ -141,8 +141,10 @@ func TestDo_HostAllowlist(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	srvURL := srv.URL
-	host := strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://")
-	hostOnly := strings.Split(host, ":")[0]
+	hostOnly, _, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	client, err := NewClient(ClientConfig{AllowedHosts: []string{hostOnly}})
 	if err != nil {
@@ -261,7 +263,10 @@ func TestDo_MethodAllowlist(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	hostOnly, _, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	client, err := NewClient(ClientConfig{AllowedHosts: []string{hostOnly}})
 	if err != nil {
@@ -318,7 +323,10 @@ func TestDo_ResponseTruncation(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	hostOnly, _, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	client, err := NewClient(ClientConfig{
 		AllowedHosts:     []string{hostOnly},
@@ -361,7 +369,10 @@ func TestDo_DefaultHeadersAndQuery(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	hostOnly, _, err := net.SplitHostPort(srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
 	client, err := NewClient(ClientConfig{
 		AllowedHosts:   []string{hostOnly},
 		DefaultHeaders: map[string]string{"Authorization": "Bearer secret"},

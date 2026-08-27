@@ -64,11 +64,8 @@ func NewRetrievalTool(config RetrievalToolConfig) (RetrievalTool, error) {
 	return RetrievalTool{function: function}, nil
 }
 
-// Definition returns an independent model-visible tool definition.
 func (r RetrievalTool) Definition() chat.ToolDefinition { return r.function.Definition() }
 
-// Call validates arguments, retrieves candidates, and returns their JSON
-// representation.
 func (r RetrievalTool) Call(ctx context.Context, arguments string) (string, error) {
 	return r.function.Call(ctx, arguments)
 }

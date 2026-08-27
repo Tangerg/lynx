@@ -128,9 +128,9 @@ func TestMergeRejectsInvalidSourceModels(t *testing.T) {
 	})
 
 	t.Run("name mismatch", func(t *testing.T) {
-		source := modelSource{skill: &Skill{
-			Frontmatter: Frontmatter{Name: "another", Description: "valid description"},
-		}}
+		skill := &Skill{}
+		skill.Frontmatter = Frontmatter{Name: "another", Description: "valid description"}
+		source := modelSource{skill: skill}
 		_, err := Merge(source).Load(t.Context(), "broken")
 		if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrNameMismatch) {
 			t.Fatalf("Load error = %v, want invalid mismatched skill", err)

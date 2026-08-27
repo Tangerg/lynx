@@ -258,7 +258,6 @@ func (middleware *Middleware) stream(ctx context.Context, request *chat.Request,
 	}
 }
 
-// Call returns a chat middleware view over this retrieval policy.
 func (middleware *Middleware) Call(next chat.Model) chat.Model {
 	if lo.IsNil(next) {
 		return nil
@@ -268,7 +267,6 @@ func (middleware *Middleware) Call(next chat.Model) chat.Model {
 	})
 }
 
-// Stream returns a streaming middleware view over the same retrieval policy.
 func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	if lo.IsNil(next) {
 		return nil

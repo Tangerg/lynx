@@ -274,23 +274,23 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 func TestOptionsResolveUsesEveryExplicitOverride(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
-		FrequencyPenalty: pointer(0.1),
-		MaxTokens:        pointer(int64(1)),
-		PresencePenalty:  pointer(0.2),
+		FrequencyPenalty: new(0.1),
+		MaxTokens:        new(int64(1)),
+		PresencePenalty:  new(0.2),
 		Stop:             []string{"default"},
-		Temperature:      pointer(0.3),
-		TopK:             pointer(int64(2)),
-		TopP:             pointer(0.4),
+		Temperature:      new(0.3),
+		TopK:             new(int64(2)),
+		TopP:             new(0.4),
 	}
 	overrides := chat.Options{
 		Model:            "override",
-		FrequencyPenalty: pointer(1.1),
-		MaxTokens:        pointer(int64(10)),
-		PresencePenalty:  pointer(1.2),
+		FrequencyPenalty: new(1.1),
+		MaxTokens:        new(int64(10)),
+		PresencePenalty:  new(1.2),
 		Stop:             []string{"override"},
-		Temperature:      pointer(1.3),
-		TopK:             pointer(int64(20)),
-		TopP:             pointer(0.9),
+		Temperature:      new(1.3),
+		TopK:             new(int64(20)),
+		TopP:             new(0.9),
 	}
 
 	resolved, err := defaults.Resolve(overrides)
@@ -317,13 +317,13 @@ func TestOptionsResolveUsesEveryExplicitOverride(t *testing.T) {
 func TestOptionsResolveKeepsDefaultsForUnspecifiedFields(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
-		FrequencyPenalty: pointer(0.1),
-		MaxTokens:        pointer(int64(1)),
-		PresencePenalty:  pointer(0.2),
+		FrequencyPenalty: new(0.1),
+		MaxTokens:        new(int64(1)),
+		PresencePenalty:  new(0.2),
 		Stop:             []string{"default"},
-		Temperature:      pointer(0.3),
-		TopK:             pointer(int64(2)),
-		TopP:             pointer(0.4),
+		Temperature:      new(0.3),
+		TopK:             new(int64(2)),
+		TopP:             new(0.4),
 	}
 	resolved, err := defaults.Resolve(chat.Options{})
 	if err != nil {
@@ -536,7 +536,7 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 			calls.Add(1)
 			return &chat.Response{}, nil
 		}},
-		Config{Defaults: chat.Options{Temperature: pointer(0.4)}},
+		Config{Defaults: chat.Options{Temperature: new(0.4)}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -603,8 +603,4 @@ func textRequest(text string) *chat.Request {
 		panic(err)
 	}
 	return request
-}
-
-func pointer[T any](value T) *T {
-	return &value
 }

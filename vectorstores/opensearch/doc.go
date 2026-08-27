@@ -1,5 +1,5 @@
-// Package opensearch wraps the official opensearch-go v4 client as
-// a the vectorstore capability interfaces. Documents are indexed JSON objects with a
+// Package opensearch exposes the official opensearch-go v4 client
+// through the Core vector-store capability interfaces. Documents are indexed JSON objects with a
 // `knn_vector` field for the embedding and a nested `object` field
 // for metadata.
 //

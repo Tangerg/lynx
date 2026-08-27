@@ -66,7 +66,6 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	return &Chat{api: api, defaults: config.DefaultOptions.Clone(), provider: config.Provider}, nil
 }
 
-// Call performs one non-streaming GenerateContent request.
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	modelName, contents, config, err := c.buildProtocolRequest(req)
 	if err != nil {

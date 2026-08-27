@@ -1,5 +1,5 @@
-// Package cassandra wraps Apache Cassandra 5.0+ vector support as a
-// the vectorstore capability interfaces. Documents live in a regular CQL table with
+// Package cassandra exposes Apache Cassandra 5.0+ vector support
+// through the Core vector-store capability interfaces. Documents live in a regular CQL table with
 // a `vector<float, N>` column; metadata keys must be declared as
 // typed columns (Cassandra has no JSON-path operator), each indexed
 // via a Storage Attached Index (SAI).

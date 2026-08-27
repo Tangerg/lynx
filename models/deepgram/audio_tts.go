@@ -150,8 +150,6 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	return a.buildResponse(audio, hdr)
 }
 
-// Stream exposes the chunked response body from Deepgram's official REST
-// /speak endpoint as it arrives.
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
 		if err := req.Validate(); err != nil {

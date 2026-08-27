@@ -1,5 +1,5 @@
-// Package azureaisearch wraps Azure AI Search's vector capabilities
-// as a the vectorstore capability interfaces over the REST API (Azure doesn't ship a
+// Package azureaisearch exposes Azure AI Search's vector capabilities
+// through the Core vector-store capability interfaces over the REST API (Azure doesn't ship a
 // typed Go SDK for the Search service yet).
 //
 // Requirements: an Azure AI Search service (Basic tier or higher),

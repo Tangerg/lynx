@@ -194,11 +194,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	return &vectorstore.SearchResponse{Results: out}, nil
 }
 
-// Delete removes every record whose metadata matches the filter
-// expression. The number of records actually removed is not reported
-// by the [vectorstore.FilterDeleter] contract; call [Store.Len] before and
-// after if you need the delta.
-
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter

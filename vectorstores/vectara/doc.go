@@ -1,5 +1,5 @@
-// Package vectara wraps Vectara's managed RAG service as a
-// the vectorstore capability interfaces. Vectara handles embedding, chunking, and
+// Package vectara exposes Vectara's managed RAG service
+// through the Core vector-store capability interfaces. Vectara handles embedding, chunking, and
 // retrieval internally — the store sends raw text to the v2 API and
 // does NOT need an [embedding.Model]. This is unlike every other
 // scope vector store.

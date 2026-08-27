@@ -442,7 +442,7 @@ func (e *Engine) treeControllers(rootID ProcessID) ([]*processController, error)
 	if root == nil || !root.relation.IsRoot() || root.relation.RootID() != rootID {
 		return nil, ErrInvalidProcessRelation
 	}
-	controllers := make([]*processController, 0)
+	var controllers []*processController
 	for _, controller := range e.processes {
 		if controller.relation.RootID() == rootID {
 			controllers = append(controllers, controller)

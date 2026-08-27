@@ -1,5 +1,5 @@
-// Package typesense wraps Typesense's vector search as a
-// the vectorstore capability interfaces. Documents are regular Typesense documents in
+// Package typesense exposes Typesense's vector search
+// through the Core vector-store capability interfaces. Documents are regular Typesense documents in
 // a collection with id / content / metadata (nested object) / embedding
 // (float[]) fields, reached through the official typesense-go v3
 // client.

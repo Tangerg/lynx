@@ -1,4 +1,4 @@
-// Package qdrant wraps Qdrant as a the vectorstore capability interfaces. Documents
+// Package qdrant exposes Qdrant through the Core vector-store capability interfaces. Documents
 // are stored as points in a Qdrant collection (`{id, vector,
 // payload}`); retrieval runs the collection's vector search.
 //

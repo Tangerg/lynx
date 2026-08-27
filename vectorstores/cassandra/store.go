@@ -517,12 +517,6 @@ func (s *Store) searchResultFromScan(destinations []any, minScore vectorstore.Sc
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-// Delete removes rows matching the filter expression.
-//
-// Cassandra doesn't allow filter-based DELETE without a primary-key
-// equality clause; the SAI path supports it only via secondary
-// indexes. To stay portable, matching primary keys are looked up first,
-// then issue per-row DELETEs.
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter

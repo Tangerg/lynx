@@ -29,7 +29,6 @@ func (c ContentFormat) Validate() error {
 	}
 }
 
-// Resolve applies the default format.
 func (c ContentFormat) Resolve() ContentFormat {
 	if c == "" {
 		return FormatMarkdown

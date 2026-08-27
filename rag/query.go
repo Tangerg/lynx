@@ -134,7 +134,7 @@ func (q Query) WithValue[T any](key ValueKey[T], value T) (Query, error) {
 	}
 	clone := Query{text: q.text, values: maps.Clone(q.values)}
 	if clone.values == nil {
-		clone.values = make(map[*valueKeyIdentity]any, 1)
+		clone.values = make(map[*valueKeyIdentity]any)
 	}
 	clone.values[key.identity] = value
 	return clone, nil

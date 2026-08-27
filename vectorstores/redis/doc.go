@@ -1,5 +1,5 @@
-// Package redis wraps Redis Stack's RediSearch module as a
-// the vectorstore capability interfaces. Documents are stored as Redis HASHes keyed at
+// Package redis exposes Redis Stack's RediSearch module
+// through the Core vector-store capability interfaces. Documents are stored as Redis HASHes keyed at
 // `<KeyPrefix><id>`; an FT.CREATE-defined index registers the
 // vector field plus any pre-declared metadata fields.
 //

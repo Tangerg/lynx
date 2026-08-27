@@ -431,11 +431,9 @@ func toolBatchResponse(calls ...chat.ToolCall) *chat.Response {
 		parts[index] = chat.NewToolCallPart(call)
 	}
 	return &chat.Response{Output: &chat.Output{
-		Message: pointerMessage(chat.NewAssistantMessage(parts...)), FinishReason: chat.FinishReasonToolCalls,
+		Message: new(chat.NewAssistantMessage(parts...)), FinishReason: chat.FinishReasonToolCalls,
 	}}
 }
-
-func pointerMessage(message chat.Message) *chat.Message { return &message }
 
 func waitForUnknownEffects(t *testing.T, process *agent.Process) []agent.EffectID {
 	t.Helper()

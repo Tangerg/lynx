@@ -474,7 +474,6 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (*vectorstore.SearchResult, err
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-// Delete removes nodes matching the filter expression.
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter

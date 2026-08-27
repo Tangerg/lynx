@@ -91,7 +91,6 @@ func NewChat(ctx context.Context, config ChatConfig) (*Chat, error) {
 	return &Chat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
-// Call performs one Bedrock Converse request.
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	input, model, err := c.buildConverseInput(req)
 	if err != nil {
