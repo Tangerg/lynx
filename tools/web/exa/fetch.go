@@ -53,10 +53,12 @@ func (c *Client) fetch(ctx context.Context, req *fetchRequest) (*fetchResponse, 
 }
 
 func (c *Client) Fetch(ctx context.Context, req *web.FetchRequest) (*web.FetchResponse, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, fmt.Errorf("exa: %w", err)
 	}
-	format := req.Format.Resolve()
+	req = prepared
+	format := req.Format
 	raw, err := c.fetch(ctx, &fetchRequest{
 		URLs: []string{req.URL},
 		Text: fetchTextOptions{IncludeHTMLTags: format == web.FormatHTML},

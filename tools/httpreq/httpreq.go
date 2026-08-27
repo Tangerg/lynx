@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -184,15 +185,32 @@ type Request struct {
 	TimeoutMS int               `json:"timeout_ms,omitempty" jsonschema:"minimum=1,maximum=120000" jsonschema_description:"Per-call timeout in milliseconds, from 1 to 120000. Omit to use the configured default."`
 }
 
+// Prepare returns an independently owned, normalized request after validating
+// it. The receiver and its header/query maps remain untouched.
+func (r *Request) Prepare() (*Request, error) {
+	if r == nil {
+		return nil, ErrMissingRequest
+	}
+	prepared := *r
+	prepared.URL = strings.TrimSpace(r.URL)
+	prepared.Method = r.Method.Resolve()
+	prepared.Headers = maps.Clone(r.Headers)
+	prepared.Query = maps.Clone(r.Query)
+	if err := prepared.Validate(); err != nil {
+		return nil, err
+	}
+	return &prepared, nil
+}
+
 func (r *Request) Validate() error {
 	if r == nil {
 		return ErrMissingRequest
 	}
-	r.URL = strings.TrimSpace(r.URL)
-	if r.URL == "" {
+	trimmedURL := strings.TrimSpace(r.URL)
+	if trimmedURL == "" {
 		return ErrEmptyURL
 	}
-	u, err := url.Parse(r.URL)
+	u, err := url.Parse(trimmedURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return ErrInvalidURL
 	}
@@ -219,9 +237,11 @@ type Response struct {
 // configured allowlists; the response body is capped at
 // [Config.MaxResponseBytes].
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, err
 	}
+	req = prepared
 
 	method := req.Method.Resolve()
 	if _, ok := c.allowedMethods[method]; !ok {

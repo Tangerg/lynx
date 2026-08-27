@@ -48,6 +48,20 @@ type FetchRequest struct {
 	Format ContentFormat `json:"format,omitempty" jsonschema:"enum=markdown,enum=html,enum=text" jsonschema_description:"Content format: markdown (default and best for readable structure), html, or text."`
 }
 
+// Prepare returns a normalized and validated request without mutating f.
+func (f *FetchRequest) Prepare() (*FetchRequest, error) {
+	if f == nil {
+		return nil, ErrMissingFetchRequest
+	}
+	prepared := *f
+	prepared.URL = strings.TrimSpace(f.URL)
+	prepared.Format = f.Format.Resolve()
+	if err := prepared.Validate(); err != nil {
+		return nil, err
+	}
+	return &prepared, nil
+}
+
 // Validate checks that the request carries enough to act on. Returns
 // one of the sentinel errors in errors.go so callers can match with
 // errors.Is.
@@ -55,11 +69,11 @@ func (f *FetchRequest) Validate() error {
 	if f == nil {
 		return ErrMissingFetchRequest
 	}
-	f.URL = strings.TrimSpace(f.URL)
-	if f.URL == "" {
+	trimmedURL := strings.TrimSpace(f.URL)
+	if trimmedURL == "" {
 		return ErrEmptyURL
 	}
-	parsed, err := url.Parse(f.URL)
+	parsed, err := url.Parse(trimmedURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return ErrInvalidURL
 	}

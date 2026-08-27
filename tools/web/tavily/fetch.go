@@ -55,10 +55,12 @@ func (c *Client) fetch(ctx context.Context, req *fetchRequest) (*fetchResponse, 
 }
 
 func (c *Client) Fetch(ctx context.Context, req *web.FetchRequest) (*web.FetchResponse, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, fmt.Errorf("tavily: %w", err)
 	}
-	format := req.Format.Resolve()
+	req = prepared
+	format := req.Format
 	if format == web.FormatHTML {
 		format = web.FormatMarkdown
 	}

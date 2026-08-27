@@ -131,3 +131,20 @@ func TestFetchContentFormat(t *testing.T) {
 		t.Fatalf("ContentFormat(json).Validate() error = %v, want ErrInvalidFormat", err)
 	}
 }
+
+func TestFetchRequestPrepareReturnsNormalizedCopy(t *testing.T) {
+	original := &FetchRequest{URL: "  https://example.com/page  "}
+	if err := original.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := original.Prepare()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.URL != "https://example.com/page" || prepared.Format != FormatMarkdown {
+		t.Fatalf("prepared request = %#v", prepared)
+	}
+	if original.URL != "  https://example.com/page  " || original.Format != "" {
+		t.Fatalf("Prepare mutated its input: %#v", original)
+	}
+}

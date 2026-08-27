@@ -68,11 +68,12 @@ func (f *FetchTool) Call(ctx context.Context, arguments string) (string, error) 
 }
 
 func (f *FetchTool) fetch(ctx context.Context, req FetchRequest) (*FetchResponse, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, fmt.Errorf("web: fetch: %w", err)
 	}
 
-	res, err := f.fetcher.Fetch(ctx, &req)
+	res, err := f.fetcher.Fetch(ctx, prepared)
 	if err != nil {
 		return nil, fmt.Errorf("web: fetch: %w", err)
 	}

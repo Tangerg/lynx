@@ -98,9 +98,11 @@ func (c *Client) search(ctx context.Context, req *searchRequest) (*searchRespons
 }
 
 func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, fmt.Errorf("tavily: %w", err)
 	}
+	req = prepared
 	raw, err := c.search(ctx, buildSearchRequest(req))
 	if err != nil {
 		return nil, err

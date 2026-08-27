@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -51,6 +52,22 @@ type SearchRequest struct {
 	Recency Recency `json:"recency,omitempty" jsonschema:"enum=hour,enum=day,enum=week,enum=month,enum=year" jsonschema_description:"Optional time window: hour, day, week, month, or year."`
 }
 
+// Prepare returns an independently owned, normalized request after validating
+// it. The receiver is never mutated.
+func (s *SearchRequest) Prepare() (*SearchRequest, error) {
+	if s == nil {
+		return nil, ErrMissingSearchRequest
+	}
+	prepared := *s
+	prepared.Query = strings.TrimSpace(s.Query)
+	prepared.AllowedDomains = slices.Clone(s.AllowedDomains)
+	prepared.BlockedDomains = slices.Clone(s.BlockedDomains)
+	if err := prepared.Validate(); err != nil {
+		return nil, err
+	}
+	return &prepared, nil
+}
+
 // Validate checks the cross-cutting invariants the tool and every
 // provider enforce: non-nil, non-empty query, and domain allow/block
 // mutual exclusion. Returns one of the sentinel errors in errors.go
@@ -59,8 +76,7 @@ func (s *SearchRequest) Validate() error {
 	if s == nil {
 		return ErrMissingSearchRequest
 	}
-	s.Query = strings.TrimSpace(s.Query)
-	if s.Query == "" {
+	if strings.TrimSpace(s.Query) == "" {
 		return ErrEmptyQuery
 	}
 	if s.MaxResults < 0 || s.MaxResults > 20 {

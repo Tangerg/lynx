@@ -91,6 +91,32 @@ func TestMethod(t *testing.T) {
 	}
 }
 
+func TestRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
+	original := &Request{
+		URL:     "  https://example.com/path  ",
+		Method:  " post ",
+		Headers: map[string]string{"X-Test": "original"},
+		Query:   map[string]string{"q": "lynx"},
+	}
+	if err := original.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := original.Prepare()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared.Headers["X-Test"] = "changed"
+	prepared.Query["q"] = "changed"
+
+	if prepared.URL != "https://example.com/path" || prepared.Method != MethodPOST {
+		t.Fatalf("prepared request = %#v", prepared)
+	}
+	if original.URL != "  https://example.com/path  " || original.Method != " post " ||
+		original.Headers["X-Test"] != "original" || original.Query["q"] != "lynx" {
+		t.Fatalf("Prepare mutated its input: %#v", original)
+	}
+}
+
 func TestDo_HostAllowlist(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))

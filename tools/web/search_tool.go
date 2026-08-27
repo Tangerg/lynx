@@ -69,11 +69,12 @@ func (s *SearchTool) Call(ctx context.Context, arguments string) (string, error)
 }
 
 func (s *SearchTool) search(ctx context.Context, req SearchRequest) (*SearchResponse, error) {
-	if err := req.Validate(); err != nil {
+	prepared, err := req.Prepare()
+	if err != nil {
 		return nil, fmt.Errorf("web: search: %w", err)
 	}
 
-	res, err := s.searcher.Search(ctx, &req)
+	res, err := s.searcher.Search(ctx, prepared)
 	if err != nil {
 		return nil, fmt.Errorf("web: search: %w", err)
 	}

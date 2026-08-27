@@ -172,6 +172,28 @@ func TestSearchRequest_QueryWithSiteOperators(t *testing.T) {
 	}
 }
 
+func TestSearchRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
+	original := &SearchRequest{
+		Query:          "  lynx  ",
+		AllowedDomains: []string{"example.com"},
+	}
+	if err := original.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := original.Prepare()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared.AllowedDomains[0] = "changed.example"
+
+	if prepared.Query != "lynx" {
+		t.Fatalf("prepared query = %q, want lynx", prepared.Query)
+	}
+	if original.Query != "  lynx  " || original.AllowedDomains[0] != "example.com" {
+		t.Fatalf("Prepare mutated its input: %#v", original)
+	}
+}
+
 func TestSearchRecency_Validate(t *testing.T) {
 	if err := RecencyWeek.Validate(); err != nil {
 		t.Fatalf("RecencyWeek.Validate() error = %v", err)
