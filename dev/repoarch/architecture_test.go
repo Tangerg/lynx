@@ -241,6 +241,7 @@ func TestVectorAndHistoryStoreProvidersAreIndependentAndConformant(t *testing.T)
 	}
 	for _, provider := range discoverHistoryStoreProviders(t, root) {
 		assertProviderBoundary(t, provider)
+		assertHistoryConformance(t, provider)
 		assertDependencyIsland(t, provider, modules)
 	}
 }
@@ -616,6 +617,16 @@ func assertNoProviderSiblingImport(t *testing.T, provider providerPackage, path,
 
 func assertVectorConformance(t *testing.T, provider providerPackage) {
 	t.Helper()
+	assertConformanceCall(t, provider, "core/vectorstore/storetest")
+}
+
+func assertHistoryConformance(t *testing.T, provider providerPackage) {
+	t.Helper()
+	assertConformanceCall(t, provider, "core/history/storetest")
+}
+
+func assertConformanceCall(t *testing.T, provider providerPackage, suite string) {
+	t.Helper()
 	path := filepath.Join(provider.dir, "conformance_test.go")
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
@@ -623,10 +634,11 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 		return
 	}
 
+	wantImport := repositoryModulePrefix + "/" + suite
 	aliases := make(map[string]struct{})
 	for _, spec := range file.Imports {
 		importPath, err := strconv.Unquote(spec.Path.Value)
-		if err != nil || importPath != repositoryModulePrefix+"/core/vectorstore/storetest" {
+		if err != nil || importPath != wantImport {
 			continue
 		}
 		alias := "storetest"
@@ -652,7 +664,7 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 		return !found
 	})
 	if !found {
-		t.Errorf("%s must call core/vectorstore/storetest.Run", provider.importPath)
+		t.Errorf("%s must call %s.Run", provider.importPath, suite)
 	}
 }
 
