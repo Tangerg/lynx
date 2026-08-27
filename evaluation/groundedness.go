@@ -2,8 +2,6 @@ package evaluation
 
 import (
 	"context"
-	"fmt"
-	"strings"
 )
 
 const groundednessPrompt = `Evaluate how well the output is supported by the provided context.
@@ -30,7 +28,6 @@ func NewGroundednessEvaluator(config ModelConfig) (*GroundednessEvaluator, error
 		config,
 		MetricGroundedness,
 		groundednessPrompt,
-		validateGroundednessSample,
 		"Output",
 		"Context",
 	)
@@ -42,15 +39,8 @@ func NewGroundednessEvaluator(config ModelConfig) (*GroundednessEvaluator, error
 
 // Evaluate scores sample for factual support.
 func (g *GroundednessEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
-	return g.evaluator.Evaluate(ctx, sample)
-}
-
-func validateGroundednessSample(sample TextSample) error {
-	if strings.TrimSpace(sample.Output) == "" {
-		return fmt.Errorf("%w: output is required", ErrInvalidSample)
+	if err := sample.validateGroundedness(); err != nil {
+		return Report{}, err
 	}
-	if sample.ContextText() == "" {
-		return fmt.Errorf("%w: context is required", ErrInvalidSample)
-	}
-	return nil
+	return g.evaluator.evaluate(ctx, sample)
 }

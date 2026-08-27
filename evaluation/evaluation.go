@@ -22,6 +22,16 @@ var (
 // DefaultThreshold is used when [ModelConfig.Threshold] is nil.
 const DefaultThreshold Score = 0.5
 
+func resolveThreshold(configured *Score) (Score, error) {
+	if configured == nil {
+		return DefaultThreshold, nil
+	}
+	if err := configured.Validate(); err != nil {
+		return 0, err
+	}
+	return *configured, nil
+}
+
 // Metric identifies the quality dimension measured by a [Report]. String
 // values keep reports stable and readable across process boundaries.
 type Metric string
@@ -119,6 +129,26 @@ func (t TextSample) ContextText() string {
 		}
 	}
 	return strings.Join(texts, "\n")
+}
+
+func (t TextSample) validateAnswerRelevance() error {
+	if strings.TrimSpace(t.Input) == "" {
+		return fmt.Errorf("%w: input is required", ErrInvalidSample)
+	}
+	if strings.TrimSpace(t.Output) == "" {
+		return fmt.Errorf("%w: output is required", ErrInvalidSample)
+	}
+	return nil
+}
+
+func (t TextSample) validateGroundedness() error {
+	if strings.TrimSpace(t.Output) == "" {
+		return fmt.Errorf("%w: output is required", ErrInvalidSample)
+	}
+	if t.ContextText() == "" {
+		return fmt.Errorf("%w: context is required", ErrInvalidSample)
+	}
+	return nil
 }
 
 // Report is one normalized evaluation verdict. Details contains the owned

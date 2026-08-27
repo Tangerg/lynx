@@ -14,6 +14,30 @@ type Composite[T any] struct {
 	evaluators []Evaluator[T]
 }
 
+type reports []Report
+
+func (r reports) aggregate() (Report, error) {
+	if len(r) == 0 {
+		return Report{}, fmt.Errorf("%w: no reports to merge", ErrInvalidReport)
+	}
+	if len(r) == 1 {
+		return r[0].Clone(), nil
+	}
+
+	merged := Report{Metric: MetricComposite, Passed: true, Details: r}
+	feedback := make([]string, 0, len(r))
+	for _, report := range r {
+		merged.Passed = merged.Passed && report.Passed
+		merged.Score += report.Score
+		if report.Feedback != "" {
+			feedback = append(feedback, report.Feedback)
+		}
+	}
+	merged.Score /= Score(len(r))
+	merged.Feedback = strings.Join(feedback, "\n\n")
+	return merged, nil
+}
+
 // NewComposite snapshots evaluators. At least one non-nil evaluator is
 // required.
 func NewComposite[T any](evaluators ...Evaluator[T]) (*Composite[T], error) {
@@ -33,7 +57,7 @@ func NewComposite[T any](evaluators ...Evaluator[T]) (*Composite[T], error) {
 // Evaluate stops on the first child error or invalid child report. Error
 // wrapping preserves errors.Is identities.
 func (c *Composite[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	reports := make([]Report, 0, len(c.evaluators))
+	result := make(reports, 0, len(c.evaluators))
 	for i, evaluator := range c.evaluators {
 		if err := ctx.Err(); err != nil {
 			return Report{}, err
@@ -45,29 +69,7 @@ func (c *Composite[T]) Evaluate(ctx context.Context, subject T) (Report, error) 
 		if err := report.Validate(); err != nil {
 			return Report{}, fmt.Errorf("evaluation: evaluator %d: %w", i, err)
 		}
-		reports = append(reports, report.Clone())
+		result = append(result, report.Clone())
 	}
-	return c.merge(reports)
-}
-
-func (*Composite[T]) merge(reports []Report) (Report, error) {
-	if len(reports) == 0 {
-		return Report{}, fmt.Errorf("%w: no reports to merge", ErrInvalidReport)
-	}
-	if len(reports) == 1 {
-		return reports[0].Clone(), nil
-	}
-
-	merged := Report{Metric: MetricComposite, Passed: true, Details: reports}
-	feedback := make([]string, 0, len(reports))
-	for _, report := range reports {
-		merged.Passed = merged.Passed && report.Passed
-		merged.Score += report.Score
-		if report.Feedback != "" {
-			feedback = append(feedback, report.Feedback)
-		}
-	}
-	merged.Score /= Score(len(reports))
-	merged.Feedback = strings.Join(feedback, "\n\n")
-	return merged, nil
+	return result.aggregate()
 }

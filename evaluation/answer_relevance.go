@@ -2,8 +2,6 @@ package evaluation
 
 import (
 	"context"
-	"fmt"
-	"strings"
 )
 
 const answerRelevancePrompt = `Evaluate how directly and completely the output addresses the input.
@@ -30,7 +28,6 @@ func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator,
 		config,
 		MetricAnswerRelevance,
 		answerRelevancePrompt,
-		validateAnswerRelevanceSample,
 		"Input",
 		"Output",
 	)
@@ -42,15 +39,8 @@ func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator,
 
 // Evaluate scores sample for answer relevance.
 func (a *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
-	return a.evaluator.Evaluate(ctx, sample)
-}
-
-func validateAnswerRelevanceSample(sample TextSample) error {
-	if strings.TrimSpace(sample.Input) == "" {
-		return fmt.Errorf("%w: input is required", ErrInvalidSample)
+	if err := sample.validateAnswerRelevance(); err != nil {
+		return Report{}, err
 	}
-	if strings.TrimSpace(sample.Output) == "" {
-		return fmt.Errorf("%w: output is required", ErrInvalidSample)
-	}
-	return nil
+	return a.evaluator.evaluate(ctx, sample)
 }
