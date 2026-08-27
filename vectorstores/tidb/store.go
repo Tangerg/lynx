@@ -38,6 +38,19 @@ const (
 	DistanceNegativeIP DistanceMetric = "NEGATIVE_INNER_PRODUCT"
 )
 
+// Valid reports whether d is supported by TiDB vector functions.
+func (d DistanceMetric) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceL2, DistanceNegativeIP:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the TiDB distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) function() string {
 	switch d {
 	case DistanceL2:
@@ -100,9 +113,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("tidb: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceL2, DistanceNegativeIP:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("tidb: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return s.validateIdentifiers()

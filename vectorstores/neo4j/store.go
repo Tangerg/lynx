@@ -42,6 +42,14 @@ const (
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
 
+// Valid reports whether s is supported by Neo4j vector indexes.
+func (s SimilarityFunction) Valid() bool {
+	return s == SimilarityCosine || s == SimilarityEuclidean
+}
+
+// String returns the Neo4j similarity token.
+func (s SimilarityFunction) String() string { return string(s) }
+
 // StoreConfig contains configuration options for the Neo4j vector
 // store.
 type StoreConfig struct {
@@ -111,9 +119,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("neo4j: Dimensions must be >= 0")
 	}
-	switch s.Similarity {
-	case SimilarityCosine, SimilarityEuclidean:
-	default:
+	if !s.Similarity.Valid() {
 		return fmt.Errorf("neo4j: unsupported Similarity %q", s.Similarity)
 	}
 	return s.validateIdentifiers()

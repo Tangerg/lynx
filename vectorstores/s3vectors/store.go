@@ -60,6 +60,14 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
+// Valid reports whether d is supported by S3 Vectors.
+func (d DistanceMetric) Valid() bool {
+	return d == DistanceCosine || d == DistanceEuclidean
+}
+
+// String returns the S3 Vectors distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) score(distance float64) vectorstore.Score {
 	switch d {
 	case DistanceEuclidean:
@@ -88,9 +96,7 @@ func (s StoreConfig) Validate() error {
 	if s.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceEuclidean:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("s3vectors: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil

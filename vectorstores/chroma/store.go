@@ -32,6 +32,19 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
+// Valid reports whether d is supported by Chroma HNSW indexes.
+func (d DistanceMetric) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceL2, DistanceIP:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Chroma distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 // score converts a Chroma distance value into a similarity score in which
 // higher values indicate greater similarity.
 func (d DistanceMetric) score(distance float64) vectorstore.Score {
@@ -92,9 +105,7 @@ func (s StoreConfig) Validate() error {
 	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceL2, DistanceIP:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("chroma: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return nil

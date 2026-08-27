@@ -34,6 +34,19 @@ const (
 	DistanceIP     DistanceMetric = "ip"
 )
 
+// Valid reports whether d is supported by CockroachDB vector indexes.
+func (d DistanceMetric) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceL2, DistanceIP:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the CockroachDB distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) indexOpClass() string {
 	switch d {
 	case DistanceL2:
@@ -83,9 +96,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("cockroachdb: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceL2, DistanceIP:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("cockroachdb: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return s.validateIdentifiers()

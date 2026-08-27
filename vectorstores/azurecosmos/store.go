@@ -39,6 +39,19 @@ const (
 	DistanceEuclidean  DistanceFunction = "euclidean"
 )
 
+// Valid reports whether d is supported by Cosmos DB VectorDistance.
+func (d DistanceFunction) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceDotProduct, DistanceEuclidean:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Cosmos DB distance-function token.
+func (d DistanceFunction) String() string { return string(d) }
+
 func (d DistanceFunction) score(raw float64) vectorstore.Score {
 	switch d {
 	case DistanceEuclidean:
@@ -95,9 +108,7 @@ func (s StoreConfig) Validate() error {
 	if s.DocumentBatcher == nil {
 		return errors.New("azurecosmos: DocumentBatcher is required")
 	}
-	switch s.DistanceFunction {
-	case DistanceCosine, DistanceDotProduct, DistanceEuclidean:
-	default:
+	if !s.DistanceFunction.Valid() {
 		return fmt.Errorf("azurecosmos: unsupported DistanceFunction %q", s.DistanceFunction)
 	}
 	return s.validateIdentifiers()

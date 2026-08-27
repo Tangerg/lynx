@@ -39,6 +39,19 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
+// Valid reports whether d is supported by pgvector.
+func (d DistanceMetric) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceL2, DistanceIP:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the pgvector distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 // IndexType selects the ANN index created during schema initialization.
 type IndexType string
 
@@ -47,6 +60,19 @@ const (
 	IndexIVFFlat IndexType = "ivfflat"
 	IndexNone    IndexType = "none"
 )
+
+// Valid reports whether i is supported by pgvector schema initialization.
+func (i IndexType) Valid() bool {
+	switch i {
+	case IndexHNSW, IndexIVFFlat, IndexNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the pgvector index token.
+func (i IndexType) String() string { return string(i) }
 
 // StoreConfig configures a pgvector-backed store.
 type StoreConfig struct {
@@ -77,14 +103,10 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("pgvector: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceL2, DistanceIP:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("pgvector: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
-	switch s.IndexType {
-	case IndexHNSW, IndexIVFFlat, IndexNone:
-	default:
+	if !s.IndexType.Valid() {
 		return fmt.Errorf("pgvector: unsupported IndexType %q", s.IndexType)
 	}
 	return s.validateIdentifiers()

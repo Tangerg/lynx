@@ -43,6 +43,14 @@ const (
 	DistanceL2 DistanceMetric = "l2"
 )
 
+// Valid reports whether d is supported by ClickHouse vector functions.
+func (d DistanceMetric) Valid() bool {
+	return d == DistanceCosine || d == DistanceL2
+}
+
+// String returns the ClickHouse distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) function() string {
 	switch d {
 	case DistanceL2:
@@ -106,9 +114,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("clickhouse: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceL2:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("clickhouse: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return s.validateIdentifiers()

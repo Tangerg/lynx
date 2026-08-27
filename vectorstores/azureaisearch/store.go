@@ -30,6 +30,19 @@ const (
 	SimilarityEuclidean SimilarityMetric = "euclidean"
 )
 
+// Valid reports whether s is supported by Azure AI Search vector indexes.
+func (s SimilarityMetric) Valid() bool {
+	switch s {
+	case SimilarityCosine, SimilarityDot, SimilarityEuclidean:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Azure AI Search similarity token.
+func (s SimilarityMetric) String() string { return string(s) }
+
 func (s SimilarityMetric) score(raw float64) vectorstore.Score {
 	switch s {
 	case SimilarityCosine:
@@ -130,9 +143,7 @@ func (s StoreConfig) Validate() error {
 	if s.SimilarityMetric == "" {
 		return errors.New("azureaisearch: SimilarityMetric is required")
 	}
-	switch s.SimilarityMetric {
-	case SimilarityCosine, SimilarityDot, SimilarityEuclidean:
-	default:
+	if !s.SimilarityMetric.Valid() {
 		return fmt.Errorf("azureaisearch: unsupported SimilarityMetric %q", s.SimilarityMetric)
 	}
 	return nil

@@ -48,6 +48,19 @@ const (
 	SimilarityDotProduct Similarity = "dot_product"
 )
 
+// Valid reports whether s is supported by Couchbase Search.
+func (s Similarity) Valid() bool {
+	switch s {
+	case SimilarityCosine, SimilarityL2Norm, SimilarityDotProduct:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Couchbase similarity token.
+func (s Similarity) String() string { return string(s) }
+
 // IndexOptimization picks the tradeoff for Couchbase's vector index:
 // recall (default), latency, or memory.
 type IndexOptimization string
@@ -57,6 +70,19 @@ const (
 	OptimizeLatency IndexOptimization = "latency"
 	OptimizeMemory  IndexOptimization = "memory"
 )
+
+// Valid reports whether i is supported by Couchbase Search.
+func (i IndexOptimization) Valid() bool {
+	switch i {
+	case OptimizeRecall, OptimizeLatency, OptimizeMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Couchbase index-optimization token.
+func (i IndexOptimization) String() string { return string(i) }
 
 // StoreConfig contains configuration options for the Couchbase Search
 // vector store.
@@ -119,14 +145,10 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("couchbase: Dimensions must be >= 0")
 	}
-	switch s.Similarity {
-	case SimilarityCosine, SimilarityL2Norm, SimilarityDotProduct:
-	default:
+	if !s.Similarity.Valid() {
 		return fmt.Errorf("couchbase: unsupported Similarity %q", s.Similarity)
 	}
-	switch s.IndexOptimization {
-	case OptimizeRecall, OptimizeLatency, OptimizeMemory:
-	default:
+	if !s.IndexOptimization.Valid() {
 		return fmt.Errorf("couchbase: unsupported IndexOptimization %q", s.IndexOptimization)
 	}
 	return s.validateIdentifiers()

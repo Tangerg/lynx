@@ -54,6 +54,19 @@ const (
 	SpaceTypeLInf SpaceType = "linf"
 )
 
+// Valid reports whether s is supported by OpenSearch vector indexes.
+func (s SpaceType) Valid() bool {
+	switch s {
+	case SpaceTypeCosine, SpaceTypeL2, SpaceTypeIP, SpaceTypeL1, SpaceTypeLInf:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the OpenSearch space token.
+func (s SpaceType) String() string { return string(s) }
+
 func (s SpaceType) score(raw float64) vectorstore.Score {
 	if s != SpaceTypeIP {
 		// OpenSearch already maps cosine and distance spaces to [0,1].
@@ -93,6 +106,19 @@ const (
 	// EngineFaiss — Meta's FAISS library.
 	EngineFaiss Engine = "faiss"
 )
+
+// Valid reports whether e is supported by OpenSearch vector indexes.
+func (e Engine) Valid() bool {
+	switch e {
+	case EngineLucene, EngineNMSLib, EngineFaiss:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the OpenSearch engine token.
+func (e Engine) String() string { return string(e) }
 
 // StoreConfig contains configuration options for the OpenSearch vector
 // store.
@@ -162,14 +188,10 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("opensearch: Dimensions must be >= 0")
 	}
-	switch s.SpaceType {
-	case SpaceTypeCosine, SpaceTypeL2, SpaceTypeIP, SpaceTypeL1, SpaceTypeLInf:
-	default:
+	if !s.SpaceType.Valid() {
 		return fmt.Errorf("opensearch: unsupported SpaceType %q", s.SpaceType)
 	}
-	switch s.Engine {
-	case EngineLucene, EngineNMSLib, EngineFaiss:
-	default:
+	if !s.Engine.Valid() {
 		return fmt.Errorf("opensearch: unsupported Engine %q", s.Engine)
 	}
 	switch s.MethodName {

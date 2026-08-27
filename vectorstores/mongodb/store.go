@@ -46,6 +46,19 @@ const (
 	SimilarityDotProduct Similarity = "dotProduct"
 )
 
+// Valid reports whether s is supported by MongoDB Atlas Vector Search.
+func (s Similarity) Valid() bool {
+	switch s {
+	case SimilarityCosine, SimilarityEuclidean, SimilarityDotProduct:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the MongoDB similarity token.
+func (s Similarity) String() string { return string(s) }
+
 // StoreConfig contains configuration options for the MongoDB Atlas
 // Vector Search store.
 type StoreConfig struct {
@@ -118,9 +131,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("mongodb: Dimensions must be >= 0")
 	}
-	switch s.Similarity {
-	case SimilarityCosine, SimilarityEuclidean, SimilarityDotProduct:
-	default:
+	if !s.Similarity.Valid() {
 		return fmt.Errorf("mongodb: unsupported Similarity %q", s.Similarity)
 	}
 	return nil

@@ -43,6 +43,19 @@ const (
 	SimilarityDotProduct SimilarityFunction = "dot_product"
 )
 
+// Valid reports whether s is supported by Elasticsearch dense vectors.
+func (s SimilarityFunction) Valid() bool {
+	switch s {
+	case SimilarityCosine, SimilarityL2, SimilarityDotProduct:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Elasticsearch similarity token.
+func (s SimilarityFunction) String() string { return string(s) }
+
 // StoreConfig contains configuration options for the Elasticsearch
 // vector store.
 type StoreConfig struct {
@@ -106,9 +119,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("elasticsearch: Dimensions must be >= 0")
 	}
-	switch s.Similarity {
-	case SimilarityCosine, SimilarityL2, SimilarityDotProduct:
-	default:
+	if !s.Similarity.Valid() {
 		return fmt.Errorf("elasticsearch: unsupported Similarity %q", s.Similarity)
 	}
 	return nil

@@ -47,6 +47,19 @@ const (
 	DistanceDot DistanceMetric = "DOT"
 )
 
+// Valid reports whether d is supported by Oracle VECTOR_DISTANCE.
+func (d DistanceMetric) Valid() bool {
+	switch d {
+	case DistanceCosine, DistanceEuclidean, DistanceDot:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Oracle distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) score(distance float64) vectorstore.Score {
 	switch d {
 	case DistanceEuclidean:
@@ -119,9 +132,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("oracle: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceEuclidean, DistanceDot:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("oracle: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return s.validateIdentifiers()

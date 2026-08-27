@@ -46,6 +46,19 @@ const (
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
 
+// Valid reports whether s is supported by Cassandra vector indexes.
+func (s SimilarityFunction) Valid() bool {
+	switch s {
+	case SimilarityCosine, SimilarityDotProduct, SimilarityEuclidean:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the Cassandra similarity token.
+func (s SimilarityFunction) String() string { return string(s) }
+
 // MetadataColumn declares a custom metadata column that the store
 // indexes for filtering. Cassandra has no JSON-path operator, so each
 // filterable metadata key must be a typed column on the table.
@@ -124,9 +137,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("cassandra: Dimensions must be >= 0")
 	}
-	switch s.Similarity {
-	case SimilarityCosine, SimilarityDotProduct, SimilarityEuclidean:
-	default:
+	if !s.Similarity.Valid() {
 		return fmt.Errorf("cassandra: unsupported Similarity %q", s.Similarity)
 	}
 

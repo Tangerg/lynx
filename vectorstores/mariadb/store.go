@@ -41,6 +41,14 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
+// Valid reports whether d is supported by MariaDB vector functions.
+func (d DistanceMetric) Valid() bool {
+	return d == DistanceCosine || d == DistanceEuclidean
+}
+
+// String returns the MariaDB distance token.
+func (d DistanceMetric) String() string { return string(d) }
+
 func (d DistanceMetric) score(distance float64) vectorstore.Score {
 	switch d {
 	case DistanceEuclidean:
@@ -109,9 +117,7 @@ func (s StoreConfig) Validate() error {
 	if s.Dimensions < 0 {
 		return errors.New("mariadb: Dimensions must be >= 0")
 	}
-	switch s.DistanceMetric {
-	case DistanceCosine, DistanceEuclidean:
-	default:
+	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("mariadb: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
 	return s.validateIdentifiers()
