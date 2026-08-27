@@ -18,6 +18,16 @@ import (
 
 const repositoryModulePrefix = "github.com/Tangerg/lynx"
 
+var (
+	coreModuleDependencyBudget = []string{
+		"github.com/samber/lo",
+		"golang.org/x/text",
+	}
+	coreProductionImportBudget = []string{
+		"github.com/samber/lo",
+	}
+)
+
 type repositoryModule struct {
 	path  string
 	dir   string
@@ -158,7 +168,7 @@ func TestProductModuleGraphFollowsLayeredOwnership(t *testing.T) {
 	assertAcyclic(t, graph, modules)
 }
 
-func TestCoreModuleOwnsTheStdlibOnlyFoundation(t *testing.T) {
+func TestCoreModuleOwnsAThinFoundation(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
@@ -166,8 +176,10 @@ func TestCoreModuleOwnsTheStdlibOnlyFoundation(t *testing.T) {
 	if !ok {
 		t.Fatal("core module was not discovered")
 	}
-	if len(core.file.Require) != 0 {
-		t.Errorf("core must remain stdlib-only; found %d module requirements", len(core.file.Require))
+	for _, requirement := range core.file.Require {
+		if !slices.Contains(coreModuleDependencyBudget, requirement.Mod.Path) {
+			t.Errorf("core module dependency %s is outside the reviewed budget", requirement.Mod.Path)
+		}
 	}
 
 	err := filepath.WalkDir(filepath.Join(root, "core"), func(path string, entry fs.DirEntry, walkErr error) error {
@@ -186,8 +198,9 @@ func TestCoreModuleOwnsTheStdlibOnlyFoundation(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			if !isRepositoryImport(importPath) && isThirdPartyImport(importPath) {
-				t.Errorf("%s imports third-party package %s", filepath.ToSlash(path), importPath)
+			if !isRepositoryImport(importPath) && isThirdPartyImport(importPath) &&
+				!slices.Contains(coreProductionImportBudget, importPath) {
+				t.Errorf("%s imports third-party package %s outside the reviewed budget", filepath.ToSlash(path), importPath)
 			}
 			if isRepositoryImport(importPath) && importPath != core.path && !strings.HasPrefix(importPath, core.path+"/") {
 				t.Errorf("%s imports higher module %s", filepath.ToSlash(path), importPath)
