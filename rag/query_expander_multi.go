@@ -3,15 +3,16 @@ package rag
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
 )
 
-// multiExpanderDefaultTemplate asks the LLM for N alternative phrasings
-// of the user's query, one per line, no commentary. {{.Number}} and
-// {{.Query}} are filled at expansion time.
+// multiExpanderDefaultTemplate asks the LLM for N alternative phrasings.
+// {{.Number}} and {{.Query}} are filled at expansion time; the native output
+// contract carries the response shape.
 const multiExpanderDefaultTemplate = `You are an expert at information retrieval and search optimization.
 Your task is to generate {{.Number}} different versions of the given query.
 
@@ -19,16 +20,26 @@ Each variant must cover different perspectives or aspects of the topic,
 while maintaining the core intent of the original query. The goal is to
 expand the search space and improve the chances of finding relevant information.
 
-Do not explain your choices or add any other text.
-Provide the query variants separated by newlines.
+Return exactly {{.Number}} distinct variants. Do not repeat the original query.
 
-Original query: {{.Query}}
+Original query: {{.Query}}`
 
-Query variants:`
+const multiQueryOutputSchema = `{
+  "type": "object",
+  "properties": {
+    "queries": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    }
+  },
+  "required": ["queries"],
+  "additionalProperties": false
+}`
 
-// defaultMultiQueryCount is the variant count used when
+// DefaultMultiQueryCount is the variant count used when
 // [MultiQueryExpanderConfig.NumberOfQueries] is unset.
-const defaultMultiQueryCount = 3
+const DefaultMultiQueryCount = 3
 
 // MultiQueryExpanderConfig configures [NewMultiQueryExpander].
 type MultiQueryExpanderConfig struct {
@@ -40,7 +51,7 @@ type MultiQueryExpanderConfig struct {
 	IncludeOriginal bool
 
 	// NumberOfQueries is the variant count requested from the model.
-	// Defaults to [defaultMultiQueryCount]. Must be ≥ 0.
+	// Defaults to [DefaultMultiQueryCount]. Must be ≥ 0.
 	NumberOfQueries int
 
 	// PromptTemplate is the LLM prompt. Defaults to
@@ -53,7 +64,7 @@ var _ Expander = (*MultiQueryExpander)(nil)
 
 // MultiQueryExpander asks a model for alternate query phrasings.
 type MultiQueryExpander struct {
-	prompt          modelPrompt
+	prompt          structuredModelPrompt[multiQueryOutput]
 	includeOriginal bool
 	numberOfQueries int
 }
@@ -63,6 +74,10 @@ type multiQueryPromptVariables struct {
 	Query  string
 }
 
+type multiQueryOutput struct {
+	Queries []string `json:"queries"`
+}
+
 // NewMultiQueryExpander returns an expander that asks an LLM for alternate
 // query phrasings.
 func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
@@ -70,10 +85,15 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 		return nil, errors.New("rag: number of expanded queries must not be negative")
 	}
 	if cfg.NumberOfQueries == 0 {
-		cfg.NumberOfQueries = defaultMultiQueryCount
+		cfg.NumberOfQueries = DefaultMultiQueryCount
 	}
-	prompt, err := newModelPrompt(
+	format, err := chatclient.JSONSchema[multiQueryOutput]("rag_multi_query", []byte(multiQueryOutputSchema))
+	if err != nil {
+		return nil, err
+	}
+	prompt, err := newStructuredModelPrompt(
 		cfg.Model,
+		format,
 		cfg.PromptTemplate,
 		multiExpanderDefaultTemplate,
 		promptVariableNumber,
@@ -90,15 +110,15 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 	}, nil
 }
 
-// Expand asks the LLM for variants and parses them into one [*Query]
-// per non-empty line. Empty model output is reported as
-// [ErrEmptyModelOutput] instead of silently turning expansion into identity.
+// Expand asks the LLM for distinct variants and turns them into [*Query]
+// values. Empty, duplicate, and original-query entries do not consume the
+// configured result limit. No usable variant returns [ErrEmptyExpansion].
 func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
 
-	expanded, err := m.prompt.call(ctx, multiQueryPromptVariables{
+	output, err := m.prompt.call(ctx, multiQueryPromptVariables{
 		Number: m.numberOfQueries,
 		Query:  query.Text(),
 	})
@@ -106,32 +126,43 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return nil, err
 	}
 
-	queries := make([]*Query, 0, m.numberOfQueries+1)
-	if m.includeOriginal {
-		queries = append(queries, query)
-	}
-	limit := m.numberOfQueries
-	if m.includeOriginal {
-		limit++
-	}
-
-	for line := range strings.SplitSeq(expanded, "\n") {
-		if len(queries) >= limit {
+	variants := make([]*Query, 0, m.numberOfQueries)
+	seen := map[string]struct{}{query.Text(): {}}
+	for _, value := range output.Queries {
+		if len(variants) >= m.numberOfQueries {
 			break
 		}
-		text := strings.TrimSpace(line)
+		text := strings.TrimSpace(value)
 		if text == "" {
 			continue
 		}
+		if _, duplicate := seen[text]; duplicate {
+			continue
+		}
+		seen[text] = struct{}{}
 		clone, err := query.WithText(text)
 		if err != nil {
 			return nil, err
 		}
-		queries = append(queries, clone)
+		variants = append(variants, clone)
 	}
 
-	if len(queries) == 0 {
+	if len(variants) == 0 {
 		return nil, ErrEmptyExpansion
 	}
+	if len(variants) != m.numberOfQueries {
+		return nil, fmt.Errorf(
+			"%w: model produced %d distinct variants, want %d",
+			ErrInvalidExpansion,
+			len(variants),
+			m.numberOfQueries,
+		)
+	}
+	if !m.includeOriginal {
+		return variants, nil
+	}
+	queries := make([]*Query, 0, len(variants)+1)
+	queries = append(queries, query)
+	queries = append(queries, variants...)
 	return queries, nil
 }

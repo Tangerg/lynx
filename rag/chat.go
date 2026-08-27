@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	promptVariableContext = "Context"
-	promptVariableHistory = "History"
-	promptVariableNumber  = "Number"
-	promptVariableQuery   = "Query"
-	promptVariableTarget  = "Target"
+	promptVariableContext    = "Context"
+	promptVariableCandidates = "Candidates"
+	promptVariableHistory    = "History"
+	promptVariableNumber     = "Number"
+	promptVariableQuery      = "Query"
+	promptVariableTarget     = "Target"
 )
 
 // ErrEmptyModelOutput reports a successful model call that produced no usable
@@ -24,6 +25,11 @@ var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 
 type modelPrompt struct {
 	generation chatclient.Generation[string]
+	template   *chatclient.Template
+}
+
+type structuredModelPrompt[T any] struct {
+	generation chatclient.Generation[T]
 	template   *chatclient.Template
 }
 
@@ -42,6 +48,24 @@ func newModelPrompt(
 		return modelPrompt{}, err
 	}
 	return modelPrompt{generation: client.Output(chatclient.Text()), template: template}, nil
+}
+
+func newStructuredModelPrompt[T any](
+	model chat.Model,
+	format chatclient.OutputFormat[T],
+	template *chatclient.Template,
+	fallback string,
+	required ...string,
+) (structuredModelPrompt[T], error) {
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		return structuredModelPrompt[T]{}, err
+	}
+	template, err = resolvePromptTemplate(template, fallback, required...)
+	if err != nil {
+		return structuredModelPrompt[T]{}, err
+	}
+	return structuredModelPrompt[T]{generation: client.Output(format), template: template}, nil
 }
 
 func resolvePromptTemplate(current *chatclient.Template, fallback string, required ...string) (*chatclient.Template, error) {
@@ -72,4 +96,13 @@ func (m modelPrompt) call(ctx context.Context, data any) (string, error) {
 		return "", ErrEmptyModelOutput
 	}
 	return text, nil
+}
+
+func (m structuredModelPrompt[T]) call(ctx context.Context, data any) (T, error) {
+	var zero T
+	message, err := m.template.UserMessage(data)
+	if err != nil {
+		return zero, err
+	}
+	return m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 }

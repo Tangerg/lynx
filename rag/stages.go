@@ -20,6 +20,9 @@ var (
 	ErrNilRefiner = errors.New("rag: refiner must not be nil")
 	// ErrEmptyExpansion reports an expander that returned no queries.
 	ErrEmptyExpansion = errors.New("rag: expander returned no queries")
+	// ErrInvalidExpansion reports a concrete expander that could not satisfy
+	// its declared expansion contract.
+	ErrInvalidExpansion = errors.New("rag: invalid query expansion")
 )
 
 // Candidate relates a document to the retrieval operation that produced it.

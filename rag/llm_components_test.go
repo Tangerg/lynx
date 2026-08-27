@@ -17,8 +17,10 @@ var routeKey = rag.MustValueKey[string]("route")
 // fakeChatModel is the target core/chat mock used by every LLM-backed
 // component test.
 type fakeChatModel struct {
-	reply string
-	err   error
+	reply   string
+	err     error
+	request *chat.Request
+	calls   int
 
 	// captured holds the last rendered prompt so tests can assert that
 	// per-call variables (Number, Target, Query, ...) reached the LLM.
@@ -30,6 +32,8 @@ func newFakeChatModel(_ *testing.T, reply string) *fakeChatModel {
 }
 
 func (f *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	f.calls++
+	f.request = req
 	if len(req.Messages) != 0 {
 		f.captured = req.Messages[len(req.Messages)-1].Text()
 	}
@@ -43,6 +47,8 @@ func (f *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Respon
 	}
 	return chat.NewResponse(result, nil)
 }
+
+func (f *fakeChatModel) lastRequest() *chat.Request { return f.request }
 
 // --- ContextualAugmenter -------------------------------------------
 
@@ -149,6 +155,13 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 			})
 			return err
 		},
+		"model reranker": func() error {
+			_, err := rag.NewModelReranker(rag.ModelRerankerConfig{
+				Model:          model,
+				PromptTemplate: prompt,
+			})
+			return err
+		},
 		"compression transformer": func() error {
 			_, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{
 				Model:          model,
@@ -182,8 +195,8 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 
 // --- MultiQueryExpander --------------------------------------------
 
-func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
-	model := newFakeChatModel(t, " variant 1 \n\nvariant 2\nvariant 3")
+func TestMultiQueryExpanderUsesStructuredDistinctVariants(t *testing.T) {
+	model := newFakeChatModel(t, `{"queries":[" variant 1 ","variant 1","hi","variant 2","variant 3"]}`)
 	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
 		Model:           model,
 		NumberOfQueries: 3,
@@ -210,10 +223,13 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	if v, _, _ := got[0].Value(routeKey); v != "docs" {
 		t.Fatalf("variant metadata was not preserved: route=%v", v)
 	}
+	if format := model.lastRequest().Options.OutputFormat; format == nil || format.Type != chat.OutputFormatJSONSchema {
+		t.Fatalf("output format = %#v, want JSON Schema", format)
+	}
 }
 
 func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
-	model := newFakeChatModel(t, "v1\nv2")
+	model := newFakeChatModel(t, `{"queries":["v1","v2"]}`)
 	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
 		Model:           model,
 		NumberOfQueries: 2,
@@ -221,19 +237,36 @@ func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 	})
 
 	q, _ := rag.NewQuery("orig")
-	got, _ := exp.Expand(t.Context(), q)
+	got, err := exp.Expand(t.Context(), q)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(got) != 3 || got[0].Text() != "orig" {
 		t.Fatalf("IncludeOriginal=true should prepend original; got %d entries, first=%q", len(got), got[0].Text())
 	}
 }
 
 func TestMultiQueryExpanderRejectsEmptyModelOutput(t *testing.T) {
-	model := newFakeChatModel(t, "")
+	model := newFakeChatModel(t, `{"queries":[]}`)
 	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{Model: model})
 
 	q, _ := rag.NewQuery("orig")
-	if _, err := exp.Expand(t.Context(), q); !errors.Is(err, rag.ErrEmptyModelOutput) {
-		t.Fatalf("Expand error = %v, want ErrEmptyModelOutput", err)
+	if _, err := exp.Expand(t.Context(), q); !errors.Is(err, rag.ErrEmptyExpansion) {
+		t.Fatalf("Expand error = %v, want ErrEmptyExpansion", err)
+	}
+}
+
+func TestMultiQueryExpanderRejectsIncompleteDistinctOutput(t *testing.T) {
+	model := newFakeChatModel(t, `{"queries":["variant","variant"]}`)
+	expander, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
+		Model: model, NumberOfQueries: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := expander.Expand(t.Context(), mustQuery(t, "original")); !errors.Is(err, rag.ErrInvalidExpansion) {
+		t.Fatalf("incomplete expansion error = %v", err)
 	}
 }
 

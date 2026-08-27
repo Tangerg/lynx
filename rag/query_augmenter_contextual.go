@@ -5,23 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/samber/lo"
 )
-
-// DocumentFormatter renders one retrieved document for contextual RAG.
-type DocumentFormatter interface {
-	Format(*document.Document) (string, error)
-}
-
-// DocumentFormatterFunc adapts a function to [DocumentFormatter].
-type DocumentFormatterFunc func(*document.Document) (string, error)
-
-func (d DocumentFormatterFunc) Format(doc *document.Document) (string, error) { return d(doc) }
-
-type textDocumentFormatter struct{}
-
-func (textDocumentFormatter) Format(doc *document.Document) (string, error) { return doc.Text, nil }
 
 // contextualDefaultTemplate is the default RAG augmentation prompt: it
 // drops the retrieved docs into a Context block, asks the LLM to
