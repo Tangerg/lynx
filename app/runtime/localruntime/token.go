@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	rawTokenBytes     = 32
-	encodedTokenBytes = 43
+	rawTokenBytes         = 32
+	encodedTokenBytes     = 43
+	tokenCandidatePattern = ".local-token-*"
 )
 
 // ErrInvalidToken identifies durable token material that cannot be trusted as
@@ -69,7 +70,7 @@ func OpenToken(path string) (*Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	temporary, err := os.CreateTemp(parent, ".local-token-*")
+	temporary, err := os.CreateTemp(parent, tokenCandidatePattern)
 	if err != nil {
 		return nil, fmt.Errorf("local Runtime token: create candidate: %w", err)
 	}
