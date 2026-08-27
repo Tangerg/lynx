@@ -17,34 +17,34 @@ import (
 var testMetric = evaluation.MustMetric("test")
 
 func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
-	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("nil model error = %v", err)
 	}
 	model := &fakeModel{reply: `{"score":0.5}`}
 	negative := evaluation.Score(-0.1)
-	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model, Threshold: &negative}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model, Threshold: &negative}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("negative threshold error = %v", err)
 	}
 	large := evaluation.Score(1.1)
-	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model, Threshold: &large}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model, Threshold: &large}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("large threshold error = %v", err)
 	}
 	missing, err := chatclient.ParseTemplate("{{.Missing}}")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model, PromptTemplate: missing}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model, PromptTemplate: missing}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("unknown field error = %v", err)
 	}
 	var typedNilModel *fakeModel
-	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: typedNilModel}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: typedNilModel}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("typed nil model error = %v", err)
 	}
 }
 
 func TestGroundednessEvaluatorBuildsStructuredRequestAndDecodesResult(t *testing.T) {
 	model := &fakeModel{reply: `{"score":0.95,"feedback":"Fully supported."}`}
-	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestAnswerRelevanceEvaluatorSupportsCustomPromptAndThreshold(t *testing.T) 
 		t.Fatal(err)
 	}
 	threshold := evaluation.Score(0.8)
-	evaluator, err := evaluation.NewAnswerRelevanceEvaluator(evaluation.ModelConfig{
+	evaluator, err := evaluation.NewAnswerRelevanceEvaluator(evaluation.ModelEvaluatorConfig{
 		Model: model, Threshold: &threshold, PromptTemplate: prompt,
 	})
 	if err != nil {
@@ -102,7 +102,7 @@ func TestAnswerRelevanceEvaluatorSupportsCustomPromptAndThreshold(t *testing.T) 
 func TestModelEvaluatorSupportsExplicitZeroThreshold(t *testing.T) {
 	model := &fakeModel{reply: `{"score":0}`}
 	threshold := evaluation.Score(0)
-	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model, Threshold: &threshold})
+	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model, Threshold: &threshold})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestModelEvaluatorSupportsExplicitZeroThreshold(t *testing.T) {
 
 func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 	model := &fakeModel{reply: `{"score":0.5}`}
-	groundedness, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+	groundedness, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 			t.Fatalf("Groundedness Evaluate(%#v) error = %v", sample, evaluateErr)
 		}
 	}
-	relevance, err := evaluation.NewAnswerRelevanceEvaluator(evaluation.ModelConfig{Model: model})
+	relevance, err := evaluation.NewAnswerRelevanceEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 func TestModelEvaluatorPreservesCancellationAndModelErrors(t *testing.T) {
 	modelErr := errors.New("model failed")
 	model := &fakeModel{err: modelErr}
-	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestModelEvaluatorPreservesCancellationAndModelErrors(t *testing.T) {
 
 func TestModelEvaluatorRejectsNilResponse(t *testing.T) {
 	model := &fakeModel{nilResponse: true}
-	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestModelEvaluatorRejectsNilResponse(t *testing.T) {
 func TestModelEvaluatorRejectsInvalidStructuredResults(t *testing.T) {
 	for _, reply := range []string{"YES", "5 out of 10", "", `{"score":"0.5"}`} {
 		model := &fakeModel{reply: reply}
-		evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+		evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,7 +190,7 @@ func TestModelEvaluatorRejectsInvalidStructuredResults(t *testing.T) {
 		}
 	}
 	model := &fakeModel{reply: `{"score":2}`}
-	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{Model: model})
+	evaluator, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestCompositeMergesValidatedReportsWithoutFlattenedMetadata(t *testing.T) {
 			return evaluation.Report{Metric: testMetric, Passed: false, Score: 0.5, Feedback: "weak"}, nil
 		}),
 	}
-	composite, err := evaluation.NewComposite(evaluators...)
+	composite, err := evaluation.NewCompositeEvaluator(evaluators...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,19 +235,19 @@ func TestCompositeMergesValidatedReportsWithoutFlattenedMetadata(t *testing.T) {
 }
 
 func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing.T) {
-	if _, err := evaluation.NewComposite[evaluation.TextSample](); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewCompositeEvaluator[evaluation.TextSample](); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("empty composite error = %v", err)
 	}
-	if _, err := evaluation.NewComposite[evaluation.TextSample](nil); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewCompositeEvaluator[evaluation.TextSample](nil); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("nil evaluator error = %v", err)
 	}
 	var typedNilEvaluator evaluation.EvaluatorFunc[evaluation.TextSample]
-	if _, err := evaluation.NewComposite[evaluation.TextSample](typedNilEvaluator); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewCompositeEvaluator[evaluation.TextSample](typedNilEvaluator); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("typed nil evaluator error = %v", err)
 	}
 
 	childErr := errors.New("child failed")
-	composite, err := evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
+	composite, err := evaluation.NewCompositeEvaluator(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 		return evaluation.Report{}, childErr
 	}))
 	if err != nil {
@@ -257,7 +257,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 		t.Fatalf("child error = %v", evaluateErr)
 	}
 
-	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
+	composite, err = evaluation.NewCompositeEvaluator(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 		return evaluation.Report{Metric: testMetric, Score: evaluation.Score(math.NaN())}, nil
 	}))
 	if err != nil {
@@ -271,7 +271,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 	if setErr := childMetadata.Set("value", 1); setErr != nil {
 		t.Fatal(setErr)
 	}
-	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
+	composite, err = evaluation.NewCompositeEvaluator(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 		return evaluation.Report{Metric: testMetric, Passed: true, Score: 1, Metadata: childMetadata}, nil
 	}))
 	if err != nil {
@@ -290,7 +290,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 func TestCompositePreservesContextCancellationBetweenChildren(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	secondCalled := false
-	composite, err := evaluation.NewComposite(
+	composite, err := evaluation.NewCompositeEvaluator(
 		evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 			cancel()
 			return evaluation.Report{Metric: testMetric, Passed: true, Score: 1}, nil

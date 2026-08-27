@@ -22,8 +22,7 @@ type GroundednessEvaluator struct {
 	evaluator *modelEvaluator
 }
 
-// NewGroundednessEvaluator constructs a groundedness evaluator.
-func NewGroundednessEvaluator(config ModelConfig) (*GroundednessEvaluator, error) {
+func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluator, error) {
 	evaluator, err := newModelEvaluator(
 		config,
 		MetricGroundedness,
@@ -37,10 +36,9 @@ func NewGroundednessEvaluator(config ModelConfig) (*GroundednessEvaluator, error
 	return &GroundednessEvaluator{evaluator: evaluator}, nil
 }
 
-// Evaluate scores sample for factual support.
-func (g *GroundednessEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
+func (evaluator *GroundednessEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
 	if err := sample.validateGroundedness(); err != nil {
 		return Report{}, err
 	}
-	return g.evaluator.evaluate(ctx, sample)
+	return evaluator.evaluator.evaluate(ctx, sample)
 }

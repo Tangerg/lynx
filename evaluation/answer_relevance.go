@@ -22,8 +22,7 @@ type AnswerRelevanceEvaluator struct {
 	evaluator *modelEvaluator
 }
 
-// NewAnswerRelevanceEvaluator constructs an answer-relevance evaluator.
-func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator, error) {
+func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceEvaluator, error) {
 	evaluator, err := newModelEvaluator(
 		config,
 		MetricAnswerRelevance,
@@ -37,10 +36,9 @@ func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator,
 	return &AnswerRelevanceEvaluator{evaluator: evaluator}, nil
 }
 
-// Evaluate scores sample for answer relevance.
-func (a *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
+func (evaluator *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample TextSample) (Report, error) {
 	if err := sample.validateAnswerRelevance(); err != nil {
 		return Report{}, err
 	}
-	return a.evaluator.evaluate(ctx, sample)
+	return evaluator.evaluator.evaluate(ctx, sample)
 }

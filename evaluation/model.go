@@ -14,37 +14,37 @@ import (
 
 const modelReportOutputName = "evaluation_report"
 
-// ModelConfig configures a model-backed evaluator. PromptTemplate is rendered
-// over .Input, .Output, and .Context. A nil Threshold selects
-// [DefaultThreshold]; a non-nil value must be in [0, 1].
-type ModelConfig struct {
+// ModelEvaluatorConfig configures a model-backed evaluator. PromptTemplate is
+// rendered over .Input, .Output, and .Context. A nil Threshold selects
+// [DefaultThreshold].
+type ModelEvaluatorConfig struct {
 	Model          chat.Model
 	PromptTemplate *chatclient.Template
 	Threshold      *Score
 }
 
-func (c ModelConfig) threshold() (Score, error) {
-	threshold, err := resolveThreshold(c.Threshold)
+func (config ModelEvaluatorConfig) threshold() (Score, error) {
+	threshold, err := config.Threshold.valueOr(DefaultThreshold)
 	if err != nil {
-		return 0, fmt.Errorf("%w: threshold: %w", ErrInvalidConfig, err)
+		return 0, fmt.Errorf("%w: threshold: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	return threshold, nil
 }
 
-func (c ModelConfig) prompt(fallback string, required ...string) (*chatclient.Template, error) {
-	prompt := c.PromptTemplate
+func (config ModelEvaluatorConfig) prompt(fallback string, required ...string) (*chatclient.Template, error) {
+	prompt := config.PromptTemplate
 	if prompt == nil {
 		var err error
 		prompt, err = chatclient.ParseTemplate(fallback)
 		if err != nil {
-			return nil, fmt.Errorf("%w: default prompt: %w", ErrInvalidConfig, err)
+			return nil, fmt.Errorf("%w: default prompt: %w", ErrInvalidEvaluatorConfig, err)
 		}
 	}
 	if err := prompt.Require(required...); err != nil {
-		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	if _, err := prompt.Render(promptVariables{}); err != nil {
-		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: prompt: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	return prompt, nil
 }
@@ -60,12 +60,12 @@ type modelReport struct {
 	Feedback string `json:"feedback,omitzero"`
 }
 
-func (m modelReport) report(metric Metric, threshold Score) (Report, error) {
+func (output modelReport) report(metric Metric, threshold Score) (Report, error) {
 	report := Report{
 		Metric:   metric,
-		Passed:   m.Score.Passes(threshold),
-		Score:    m.Score,
-		Feedback: strings.TrimSpace(m.Feedback),
+		Passed:   output.Score.Passes(threshold),
+		Score:    output.Score,
+		Feedback: strings.TrimSpace(output.Feedback),
 	}
 	if err := report.Validate(); err != nil {
 		return Report{}, fmt.Errorf("evaluation: model report: %w", err)
@@ -81,13 +81,13 @@ type modelEvaluator struct {
 }
 
 func newModelEvaluator(
-	config ModelConfig,
+	config ModelEvaluatorConfig,
 	metric Metric,
 	defaultPrompt string,
 	required ...string,
 ) (*modelEvaluator, error) {
 	if lo.IsNil(config.Model) {
-		return nil, fmt.Errorf("%w: nil model", ErrInvalidConfig)
+		return nil, fmt.Errorf("%w: model is nil", ErrInvalidEvaluatorConfig)
 	}
 	threshold, err := config.threshold()
 	if err != nil {
@@ -99,11 +99,11 @@ func newModelEvaluator(
 	}
 	client, err := chatclient.New(config.Model, chatclient.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("%w: model: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: model: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	format, err := chatclient.JSONSchema[modelReport](modelReportOutputName)
 	if err != nil {
-		return nil, fmt.Errorf("%w: output format: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: output format: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	return &modelEvaluator{
 		generation: client.Output(format),
@@ -113,23 +113,23 @@ func newModelEvaluator(
 	}, nil
 }
 
-func (m *modelEvaluator) evaluate(ctx context.Context, sample TextSample) (Report, error) {
+func (evaluator *modelEvaluator) evaluate(ctx context.Context, sample TextSample) (Report, error) {
 	if err := ctx.Err(); err != nil {
 		return Report{}, err
 	}
 
-	message, err := m.prompt.UserMessage(promptVariables{
+	message, err := evaluator.prompt.UserMessage(promptVariables{
 		Input: sample.Input, Output: sample.Output, Context: sample.ContextText(),
 	})
 	if err != nil {
 		return Report{}, fmt.Errorf("evaluation: render prompt: %w", err)
 	}
-	output, err := m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	output, err := evaluator.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
 		if errors.Is(err, chatclient.ErrInvalidOutput) {
 			return Report{}, fmt.Errorf("%w: model output: %w", ErrInvalidReport, err)
 		}
 		return Report{}, fmt.Errorf("evaluation: generate report: %w", err)
 	}
-	return output.report(m.metric, m.threshold)
+	return output.report(evaluator.metric, evaluator.threshold)
 }

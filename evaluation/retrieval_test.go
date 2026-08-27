@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-func TestRetrievalEvaluatorCalculatesRankingMetricsAtK(t *testing.T) {
+func TestRetrievalEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 	sample, err := evaluation.NewRetrievalSample(
 		[]string{"a", "b", "c", "d"},
 		[]string{"b", "d", "e"},
@@ -22,11 +22,11 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtK(t *testing.T) {
 		metric evaluation.RetrievalMetric
 		want   float64
 	}{
-		{metric: evaluation.RetrievalPrecision, want: 0.5},
-		{metric: evaluation.RetrievalRecall, want: 2.0 / 3.0},
-		{metric: evaluation.RetrievalReciprocalRank, want: 0.5},
+		{metric: evaluation.RetrievalMetricPrecision, want: 0.5},
+		{metric: evaluation.RetrievalMetricRecall, want: 2.0 / 3.0},
+		{metric: evaluation.RetrievalMetricReciprocalRank, want: 0.5},
 		{
-			metric: evaluation.RetrievalNDCG,
+			metric: evaluation.RetrievalMetricNDCG,
 			want: (1/math.Log2(3) + 1/math.Log2(5)) /
 				(1 + 1/math.Log2(3) + 1/math.Log2(4)),
 		},
@@ -35,8 +35,8 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtK(t *testing.T) {
 	for _, test := range tests {
 		t.Run(string(test.metric), func(t *testing.T) {
 			threshold := evaluation.Score(0.6)
-			evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{
-				Metric: test.metric, K: 4, Threshold: &threshold,
+			evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
+				Metric: test.metric, Cutoff: 4, Threshold: &threshold,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -59,9 +59,9 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtK(t *testing.T) {
 }
 
 func TestRetrievalPrecisionUsesConfiguredCutoff(t *testing.T) {
-	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{
-		Metric: evaluation.RetrievalPrecision,
-		K:      4,
+	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
+		Metric: evaluation.RetrievalMetricPrecision,
+		Cutoff: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -107,21 +107,21 @@ func TestRetrievalSampleOwnsAndValidatesRankings(t *testing.T) {
 }
 
 func TestRetrievalEvaluatorValidatesConfigAndCancellation(t *testing.T) {
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{K: 1}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{Cutoff: 1}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("missing metric error = %v", err)
 	}
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{Metric: evaluation.RetrievalRecall}); !errors.Is(err, evaluation.ErrInvalidConfig) {
-		t.Fatalf("invalid K error = %v", err)
+	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{Metric: evaluation.RetrievalMetricRecall}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
+		t.Fatalf("invalid cutoff error = %v", err)
 	}
 	invalidThreshold := evaluation.Score(2)
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{
-		Metric: evaluation.RetrievalRecall, K: 1, Threshold: &invalidThreshold,
-	}); !errors.Is(err, evaluation.ErrInvalidConfig) {
+	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
+		Metric: evaluation.RetrievalMetricRecall, Cutoff: 1, Threshold: &invalidThreshold,
+	}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("invalid threshold error = %v", err)
 	}
 
-	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalConfig{
-		Metric: evaluation.RetrievalRecall, K: 1,
+	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
+		Metric: evaluation.RetrievalMetricRecall, Cutoff: 1,
 	})
 	if err != nil {
 		t.Fatal(err)

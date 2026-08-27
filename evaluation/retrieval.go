@@ -8,29 +8,29 @@ import (
 	"strings"
 )
 
-// RetrievalMetric identifies a ranking-quality calculation. Each metric is
-// evaluated at the configured cutoff K.
+// RetrievalMetric identifies a ranking-quality calculation evaluated at a
+// configured cutoff.
 type RetrievalMetric string
 
 const (
-	RetrievalPrecision      RetrievalMetric = "precision"
-	RetrievalRecall         RetrievalMetric = "recall"
-	RetrievalReciprocalRank RetrievalMetric = "reciprocal_rank"
-	RetrievalNDCG           RetrievalMetric = "ndcg"
+	RetrievalMetricPrecision      RetrievalMetric = "precision"
+	RetrievalMetricRecall         RetrievalMetric = "recall"
+	RetrievalMetricReciprocalRank RetrievalMetric = "reciprocal_rank"
+	RetrievalMetricNDCG           RetrievalMetric = "ndcg"
 )
 
 // Validate reports whether the metric is supported.
-func (m RetrievalMetric) Validate() error {
-	switch m {
-	case RetrievalPrecision, RetrievalRecall, RetrievalReciprocalRank, RetrievalNDCG:
+func (metric RetrievalMetric) Validate() error {
+	switch metric {
+	case RetrievalMetricPrecision, RetrievalMetricRecall, RetrievalMetricReciprocalRank, RetrievalMetricNDCG:
 		return nil
 	default:
-		return fmt.Errorf("unsupported retrieval metric %q", m)
+		return fmt.Errorf("%w: unsupported retrieval metric %q", ErrInvalidMetric, metric)
 	}
 }
 
-func (m RetrievalMetric) reportMetric(k int) (Metric, error) {
-	return NewMetric(fmt.Sprintf("retrieval/%s@%d", m, k))
+func (metric RetrievalMetric) reportMetric(cutoff int) (Metric, error) {
+	return NewMetric(fmt.Sprintf("retrieval/%s@%d", metric, cutoff))
 }
 
 // RetrievalSample is an observed ranking and its complete binary relevance
@@ -54,28 +54,30 @@ func NewRetrievalSample(retrieved, relevant []string) (RetrievalSample, error) {
 }
 
 // Clone returns an independent copy of the sample.
-func (r RetrievalSample) Clone() RetrievalSample {
-	r.Retrieved = slices.Clone(r.Retrieved)
-	r.Relevant = slices.Clone(r.Relevant)
-	return r
+func (sample RetrievalSample) Clone() RetrievalSample {
+	sample.Retrieved = slices.Clone(sample.Retrieved)
+	sample.Relevant = slices.Clone(sample.Relevant)
+	return sample
 }
 
 // Validate checks the ranking identities and relevance judgment. Duplicate
 // identities are rejected because ranking metrics assume one position per
 // item and should expose duplicate retrieval bugs instead of hiding them.
-func (r RetrievalSample) Validate() error {
-	if len(r.Relevant) == 0 {
+func (sample RetrievalSample) Validate() error {
+	if len(sample.Relevant) == 0 {
 		return fmt.Errorf("%w: at least one relevant identity is required", ErrInvalidSample)
 	}
-	if err := validateRetrievalIDs("retrieved", r.Retrieved); err != nil {
+	if err := identityList(sample.Retrieved).validate("retrieved"); err != nil {
 		return err
 	}
-	return validateRetrievalIDs("relevant", r.Relevant)
+	return identityList(sample.Relevant).validate("relevant")
 }
 
-func validateRetrievalIDs(label string, ids []string) error {
-	seen := make(map[string]struct{}, len(ids))
-	for index, id := range ids {
+type identityList []string
+
+func (identities identityList) validate(label string) error {
+	seen := make(map[string]struct{}, len(identities))
+	for index, id := range identities {
 		if id == "" || id != strings.TrimSpace(id) {
 			return fmt.Errorf("%w: %s[%d] must be non-empty without surrounding whitespace", ErrInvalidSample, label, index)
 		}
@@ -87,28 +89,28 @@ func validateRetrievalIDs(label string, ids []string) error {
 	return nil
 }
 
-// RetrievalConfig configures a deterministic retrieval evaluator. K is a
-// required positive cutoff. A nil Threshold selects [DefaultThreshold].
-type RetrievalConfig struct {
+// RetrievalEvaluatorConfig configures a deterministic retrieval evaluator.
+// Cutoff is required and positive; a nil Threshold selects [DefaultThreshold].
+type RetrievalEvaluatorConfig struct {
 	Metric    RetrievalMetric
-	K         int
+	Cutoff    int
 	Threshold *Score
 }
 
-func (c RetrievalConfig) validate() error {
-	if err := c.Metric.Validate(); err != nil {
-		return fmt.Errorf("%w: metric: %w", ErrInvalidConfig, err)
+func (config RetrievalEvaluatorConfig) validate() error {
+	if err := config.Metric.Validate(); err != nil {
+		return fmt.Errorf("%w: metric: %w", ErrInvalidEvaluatorConfig, err)
 	}
-	if c.K <= 0 {
-		return fmt.Errorf("%w: K must be positive", ErrInvalidConfig)
+	if config.Cutoff <= 0 {
+		return fmt.Errorf("%w: cutoff must be positive", ErrInvalidEvaluatorConfig)
 	}
 	return nil
 }
 
-func (c RetrievalConfig) threshold() (Score, error) {
-	threshold, err := resolveThreshold(c.Threshold)
+func (config RetrievalEvaluatorConfig) threshold() (Score, error) {
+	threshold, err := config.Threshold.valueOr(DefaultThreshold)
 	if err != nil {
-		return 0, fmt.Errorf("%w: threshold: %w", ErrInvalidConfig, err)
+		return 0, fmt.Errorf("%w: threshold: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	return threshold, nil
 }
@@ -123,53 +125,53 @@ func newRelevanceSet(identities []string) relevanceSet {
 	return relevant
 }
 
-func (r relevanceSet) count(ranking []string) int {
+func (relevant relevanceSet) count(ranking []string) int {
 	count := 0
 	for _, identity := range ranking {
-		if _, found := r[identity]; found {
+		if _, found := relevant[identity]; found {
 			count++
 		}
 	}
 	return count
 }
 
-func (r relevanceSet) precisionAt(ranking []string, k int) float64 {
-	return float64(r.count(ranking)) / float64(k)
+func (relevant relevanceSet) precisionAt(ranking []string, cutoff int) float64 {
+	return float64(relevant.count(ranking)) / float64(cutoff)
 }
 
-func (r relevanceSet) reciprocalRank(ranking []string) float64 {
+func (relevant relevanceSet) reciprocalRank(ranking []string) float64 {
 	for index, identity := range ranking {
-		if _, found := r[identity]; found {
+		if _, found := relevant[identity]; found {
 			return 1 / float64(index+1)
 		}
 	}
 	return 0
 }
 
-func (r relevanceSet) ndcgAt(ranking []string, k int) float64 {
+func (relevant relevanceSet) ndcgAt(ranking []string, cutoff int) float64 {
 	dcg := 0.0
 	for index, identity := range ranking {
-		if _, found := r[identity]; found {
+		if _, found := relevant[identity]; found {
 			dcg += 1 / math.Log2(float64(index+2))
 		}
 	}
 	idcg := 0.0
-	for index := range min(k, len(r)) {
+	for index := range min(cutoff, len(relevant)) {
 		idcg += 1 / math.Log2(float64(index+2))
 	}
 	return dcg / idcg
 }
 
-func (m RetrievalMetric) score(ranking []string, relevant relevanceSet, k int) float64 {
-	switch m {
-	case RetrievalPrecision:
-		return relevant.precisionAt(ranking, k)
-	case RetrievalRecall:
+func (metric RetrievalMetric) score(ranking []string, relevant relevanceSet, cutoff int) float64 {
+	switch metric {
+	case RetrievalMetricPrecision:
+		return relevant.precisionAt(ranking, cutoff)
+	case RetrievalMetricRecall:
 		return float64(relevant.count(ranking)) / float64(len(relevant))
-	case RetrievalReciprocalRank:
+	case RetrievalMetricReciprocalRank:
 		return relevant.reciprocalRank(ranking)
-	case RetrievalNDCG:
-		return relevant.ndcgAt(ranking, k)
+	case RetrievalMetricNDCG:
+		return relevant.ndcgAt(ranking, cutoff)
 	default:
 		return 0
 	}
@@ -178,13 +180,12 @@ func (m RetrievalMetric) score(ranking []string, relevant relevanceSet, k int) f
 // RetrievalEvaluator measures one standard ranking metric at a fixed cutoff.
 type RetrievalEvaluator struct {
 	metric       RetrievalMetric
-	k            int
+	cutoff       int
 	threshold    Score
 	reportMetric Metric
 }
 
-// NewRetrievalEvaluator constructs a deterministic ranking evaluator.
-func NewRetrievalEvaluator(config RetrievalConfig) (*RetrievalEvaluator, error) {
+func NewRetrievalEvaluator(config RetrievalEvaluatorConfig) (*RetrievalEvaluator, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -192,20 +193,19 @@ func NewRetrievalEvaluator(config RetrievalConfig) (*RetrievalEvaluator, error) 
 	if err != nil {
 		return nil, err
 	}
-	reportMetric, err := config.Metric.reportMetric(config.K)
+	reportMetric, err := config.Metric.reportMetric(config.Cutoff)
 	if err != nil {
-		return nil, fmt.Errorf("%w: report metric: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: report metric: %w", ErrInvalidEvaluatorConfig, err)
 	}
 	return &RetrievalEvaluator{
 		metric:       config.Metric,
-		k:            config.K,
+		cutoff:       config.Cutoff,
 		threshold:    threshold,
 		reportMetric: reportMetric,
 	}, nil
 }
 
-// Evaluate calculates the configured ranking score without a model call.
-func (r *RetrievalEvaluator) Evaluate(ctx context.Context, sample RetrievalSample) (Report, error) {
+func (evaluator *RetrievalEvaluator) Evaluate(ctx context.Context, sample RetrievalSample) (Report, error) {
 	if err := ctx.Err(); err != nil {
 		return Report{}, err
 	}
@@ -214,14 +214,14 @@ func (r *RetrievalEvaluator) Evaluate(ctx context.Context, sample RetrievalSampl
 	}
 
 	relevant := newRelevanceSet(sample.Relevant)
-	ranking := sample.Retrieved[:min(r.k, len(sample.Retrieved))]
+	ranking := sample.Retrieved[:min(evaluator.cutoff, len(sample.Retrieved))]
 
-	value := r.metric.score(ranking, relevant, r.k)
+	value := evaluator.metric.score(ranking, relevant, evaluator.cutoff)
 	score, err := NewScore(value)
 	if err != nil {
-		return Report{}, fmt.Errorf("evaluation: calculate %s: %w", r.reportMetric, err)
+		return Report{}, fmt.Errorf("evaluation: calculate %s: %w", evaluator.reportMetric, err)
 	}
-	report := Report{Metric: r.reportMetric, Passed: score.Passes(r.threshold), Score: score}
+	report := Report{Metric: evaluator.reportMetric, Passed: score.Passes(evaluator.threshold), Score: score}
 	if err := report.Validate(); err != nil {
 		return Report{}, err
 	}
