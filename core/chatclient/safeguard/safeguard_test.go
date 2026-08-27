@@ -28,18 +28,28 @@ func TestScopeContract(t *testing.T) {
 }
 
 func TestNewRejectsInvalidConfiguration(t *testing.T) {
-	if _, err := safeguard.New(nil, safeguard.Config{}); !errors.Is(err, safeguard.ErrInvalidConfig) {
+	if _, err := safeguard.NewMiddleware(nil, safeguard.MiddlewareConfig{}); !errors.Is(err, safeguard.ErrInvalidMiddlewareConfig) {
 		t.Fatalf("nil matcher error = %v", err)
+	}
+	var matcherPointer *typedNilMatcher
+	if _, err := safeguard.NewMiddleware(matcherPointer, safeguard.MiddlewareConfig{}); !errors.Is(err, safeguard.ErrInvalidMiddlewareConfig) {
+		t.Fatalf("typed nil matcher error = %v", err)
 	}
 	matcher := safeguard.MatcherFunc(func(context.Context, string) (safeguard.Match, error) {
 		return safeguard.Match{}, nil
 	})
-	if _, err := safeguard.New(matcher, safeguard.Config{Scope: "unknown"}); !errors.Is(err, safeguard.ErrInvalidConfig) {
+	if _, err := safeguard.NewMiddleware(matcher, safeguard.MiddlewareConfig{Scope: "unknown"}); !errors.Is(err, safeguard.ErrInvalidMiddlewareConfig) {
 		t.Fatalf("invalid scope error = %v", err)
 	}
-	if _, err := safeguard.NewSubstringMatcher([]string{"", "  "}, safeguard.SubstringConfig{}); !errors.Is(err, safeguard.ErrInvalidConfig) {
+	if _, err := safeguard.NewSubstringMatcher([]string{"", "  "}, safeguard.SubstringConfig{}); !errors.Is(err, safeguard.ErrInvalidSubstringConfig) {
 		t.Fatalf("empty terms error = %v", err)
 	}
+}
+
+type typedNilMatcher struct{}
+
+func (*typedNilMatcher) Match(context.Context, string) (safeguard.Match, error) {
+	return safeguard.Match{}, nil
 }
 
 func TestSubstringMatcherSnapshotsTermsAndSupportsDisclosurePolicy(t *testing.T) {
@@ -82,7 +92,7 @@ func TestSubstringMatcherSnapshotsTermsAndSupportsDisclosurePolicy(t *testing.T)
 func TestCallBlocksInputBeforeModelAndReportsBlock(t *testing.T) {
 	matcher := mustSubstring(t, "secret")
 	var blocks []safeguard.Block
-	middleware := mustMiddleware(t, matcher, safeguard.Config{
+	middleware := mustMiddleware(t, matcher, safeguard.MiddlewareConfig{
 		Scope: safeguard.ScopeInput,
 		OnBlock: func(_ context.Context, block safeguard.Block) {
 			blocks = append(blocks, block)
@@ -111,7 +121,7 @@ func TestCallBlocksInputBeforeModelAndReportsBlock(t *testing.T) {
 }
 
 func TestCallScansOutputResultBeforeDisclosure(t *testing.T) {
-	middleware := mustMiddleware(t, mustSubstring(t, "blocked"), safeguard.Config{Scope: safeguard.ScopeOutput})
+	middleware := mustMiddleware(t, mustSubstring(t, "blocked"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeOutput})
 	modelResponse := response("result is blocked")
 	got, err := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return modelResponse, nil
@@ -123,7 +133,7 @@ func TestCallScansOutputResultBeforeDisclosure(t *testing.T) {
 
 func TestCallHonorsScopeAndPreservesModelAndMatcherErrors(t *testing.T) {
 	request := mustRequest(t, chat.NewUserMessage(chat.NewTextPart("secret input")))
-	outputOnly := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{Scope: safeguard.ScopeOutput})
+	outputOnly := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeOutput})
 	if got, err := outputOnly.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return response("clean"), nil
 	})).Call(t.Context(), request); err != nil || got.Text() != "clean" {
@@ -143,7 +153,7 @@ func TestCallHonorsScopeAndPreservesModelAndMatcherErrors(t *testing.T) {
 	failing := safeguard.MatcherFunc(func(context.Context, string) (safeguard.Match, error) {
 		return safeguard.Match{}, matchErr
 	})
-	middleware := mustMiddleware(t, failing, safeguard.Config{Scope: safeguard.ScopeOutput})
+	middleware := mustMiddleware(t, failing, safeguard.MiddlewareConfig{Scope: safeguard.ScopeOutput})
 	got, err = middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return response("answer"), nil
 	})).Call(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello"))))
@@ -153,7 +163,7 @@ func TestCallHonorsScopeAndPreservesModelAndMatcherErrors(t *testing.T) {
 }
 
 func TestCallInputIgnoresPriorAssistantAndToolMessages(t *testing.T) {
-	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{Scope: safeguard.ScopeInput})
+	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeInput})
 	request := mustRequest(t,
 		chat.NewAssistantMessage(chat.NewTextPart("secret")),
 		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "lookup", Result: "secret"}),
@@ -167,7 +177,7 @@ func TestCallInputIgnoresPriorAssistantAndToolMessages(t *testing.T) {
 }
 
 func TestStreamDetectsMatchesSplitAcrossChunksBeforeYieldingTrigger(t *testing.T) {
-	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{Scope: safeguard.ScopeOutput})
+	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeOutput})
 	closed := false
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
@@ -193,7 +203,7 @@ func TestStreamDetectsMatchesSplitAcrossChunksBeforeYieldingTrigger(t *testing.T
 }
 
 func TestStreamRejectsUnsafeInputWithoutStartingProvider(t *testing.T) {
-	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{})
+	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 	started := false
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		started = true
@@ -210,7 +220,7 @@ func TestStreamRejectsUnsafeInputWithoutStartingProvider(t *testing.T) {
 
 func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 	t.Run("early stop", func(t *testing.T) {
-		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{})
+		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 		closed := false
 		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			return func(yield func(*chat.Response, error) bool) {
@@ -231,7 +241,7 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 
 	t.Run("provider error", func(t *testing.T) {
 		providerErr := errors.New("provider failed")
-		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{})
+		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			return func(yield func(*chat.Response, error) bool) { yield(nil, providerErr) }
 		})
@@ -246,7 +256,7 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 }
 
 func TestStreamReportsNilSequenceAndMalformedChunk(t *testing.T) {
-	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.Config{})
+	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 	request := mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello")))
 	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
 	var gotErr error
@@ -287,9 +297,9 @@ func mustSubstring(t *testing.T, terms ...string) *safeguard.SubstringMatcher {
 	return matcher
 }
 
-func mustMiddleware(t *testing.T, matcher safeguard.Matcher, config safeguard.Config) *safeguard.Middleware {
+func mustMiddleware(t *testing.T, matcher safeguard.Matcher, config safeguard.MiddlewareConfig) *safeguard.Middleware {
 	t.Helper()
-	middleware, err := safeguard.New(matcher, config)
+	middleware, err := safeguard.NewMiddleware(matcher, config)
 	if err != nil {
 		t.Fatal(err)
 	}

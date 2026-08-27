@@ -46,7 +46,7 @@ func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatc
 		cleaned = append(cleaned, substringTerm{display: display, match: match})
 	}
 	if len(cleaned) == 0 {
-		return nil, fmt.Errorf("%w: at least one non-empty substring is required", ErrInvalidConfig)
+		return nil, fmt.Errorf("%w: at least one non-empty substring is required", ErrInvalidSubstringConfig)
 	}
 	return &SubstringMatcher{terms: cleaned, config: config}, nil
 }
