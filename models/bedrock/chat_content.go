@@ -18,7 +18,7 @@ import (
 
 var bedrockDocumentNamePattern = regexp.MustCompile(`^[[:alnum:]()\[\]-]+(?: [[:alnum:]()\[\]-]+)*$`)
 
-func toDocument(value any) document.Interface {
+func toBedrockDocument(value any) document.Interface {
 	if value == nil {
 		return nil
 	}

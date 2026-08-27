@@ -78,7 +78,7 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 				&types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: types.ReasoningTextBlock{Text: aws.String("think"), Signature: aws.String("sig")}}},
 				&types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: []byte("opaque")}},
 				&types.ContentBlockMemberText{Value: "answer"},
-				&types.ContentBlockMemberToolUse{Value: types.ToolUseBlock{ToolUseId: aws.String("call-1"), Name: aws.String("weather"), Input: toDocument(map[string]any{"city": "Paris"})}},
+				&types.ContentBlockMemberToolUse{Value: types.ToolUseBlock{ToolUseId: aws.String("call-1"), Name: aws.String("weather"), Input: toBedrockDocument(map[string]any{"city": "Paris"})}},
 			},
 		}},
 		StopReason: types.StopReasonToolUse,

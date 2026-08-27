@@ -21,7 +21,7 @@ func (c *Chat) buildConverseInput(req *corechat.Request) (*bedrockruntime.Conver
 	}
 	return &bedrockruntime.ConverseInput{
 		ModelId:                           aws.String(prepared.model),
-		AdditionalModelRequestFields:      toDocument(prepared.native.AdditionalModelRequestFields),
+		AdditionalModelRequestFields:      toBedrockDocument(prepared.native.AdditionalModelRequestFields),
 		AdditionalModelResponseFieldPaths: slices.Clone(prepared.native.AdditionalModelResponseFieldPaths),
 		GuardrailConfig:                   mapGuardrailOptions(prepared.native.Guardrail),
 		InferenceConfig:                   prepared.inference,
@@ -42,7 +42,7 @@ func (c *Chat) buildConverseStreamInput(req *corechat.Request) (*bedrockruntime.
 	}
 	return &bedrockruntime.ConverseStreamInput{
 		ModelId:                           aws.String(prepared.model),
-		AdditionalModelRequestFields:      toDocument(prepared.native.AdditionalModelRequestFields),
+		AdditionalModelRequestFields:      toBedrockDocument(prepared.native.AdditionalModelRequestFields),
 		AdditionalModelResponseFieldPaths: slices.Clone(prepared.native.AdditionalModelResponseFieldPaths),
 		GuardrailConfig:                   mapStreamGuardrailOptions(prepared.native.StreamGuardrail),
 		InferenceConfig:                   prepared.inference,
@@ -274,7 +274,7 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 		return &types.ContentBlockMemberToolUse{Value: types.ToolUseBlock{
 			ToolUseId: aws.String(part.ToolCall.ID),
 			Name:      aws.String(part.ToolCall.Name),
-			Input:     toDocument(arguments),
+			Input:     toBedrockDocument(arguments),
 		}}, true, nil
 	case corechat.PartToolResult:
 		status := types.ToolResultStatusSuccess
@@ -306,7 +306,7 @@ func mapProtocolTools(definitions []corechat.ToolDefinition) (*types.ToolConfigu
 		tools = append(tools, &types.ToolMemberToolSpec{Value: types.ToolSpecification{
 			Name:        aws.String(definitions[index].Name),
 			Description: aws.String(definitions[index].Description),
-			InputSchema: &types.ToolInputSchemaMemberJson{Value: toDocument(schema)},
+			InputSchema: &types.ToolInputSchemaMemberJson{Value: toBedrockDocument(schema)},
 		}})
 	}
 	return &types.ToolConfiguration{Tools: tools}, nil
