@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/vectorstores/weaviate
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/go-openapi/strfmt v0.27.0
 	github.com/google/uuid v1.6.0
 	github.com/weaviate/weaviate v1.38.8
@@ -40,6 +40,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

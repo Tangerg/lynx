@@ -14,6 +14,8 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 h1:EkhwoO51+M1Xda1ln1fCA3881bFRum1sPywUM3fAdcM=
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:YYAldUf78wfZ3ejSAHYmHh4wZoz44P4IUyFLMTg68G0=
 github.com/amikos-tech/chroma-go v0.4.1 h1:WIcFTSjRgnVTYKWhgZYKaEUOjK6+BpGfVQRqdMIAfrw=
 github.com/amikos-tech/chroma-go v0.4.1/go.mod h1:q2kwMTUpWUP7ME3d7RjmVQlmBcJx9BKrrH7UhT91DRY=
 github.com/amikos-tech/chroma-go-local v0.3.5 h1:F/vk7Nc6eC8tVFaj9O5XAkfBYGGQj5At6ccrlNxbzvU=
@@ -156,6 +158,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 h1:o4JXh1EVt9k/+g42oCprj/FisM4qX9L3sZB3upGN2ZU=
 github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/shirou/gopsutil/v4 v4.25.12 h1:e7PvW/0RmJ8p8vPGJH4jvNkOyLmbkXgXW4m6ZPic6CY=
 github.com/shirou/gopsutil/v4 v4.25.12/go.mod h1:EivAfP5x2EhLp2ovdpKSozecVXn1TmuG7SMzs/Wh4PU=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

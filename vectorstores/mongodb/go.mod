@@ -3,12 +3,13 @@ module github.com/Tangerg/scope/vectorstores/mongodb
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 )
 
 require (
 	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

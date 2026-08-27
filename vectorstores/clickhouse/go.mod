@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
-	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
 )
 
 require (
@@ -16,10 +16,12 @@ require (
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/paulmach/orb v0.13.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 )

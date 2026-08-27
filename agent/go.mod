@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/Tangerg/scope/core v0.0.0-20260827081725-79f2213e2f91
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/samber/lo v1.53.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0

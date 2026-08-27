@@ -38,9 +38,11 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 | `contract/manifest.json` | `f2264bd241ea2bdd19f72061f290e21ce41319b1b8ff4b4a1c033beb55af1441` |
 | `contract/openrpc.json` | `94af81a7fcb8cdc3c3ce8d16624110fb71df44e070a75c830b33e3ffd7f0105d` |
 | `contract/schema.json` | `c7e4004c928d2bf73d606e1b67ba87b5a407ac296c8d279726a0337c974fe428` |
-| `contract/go-api.json` | `744ab3c0753bba2dbb3e0e7a01082d32e1edc197c05b6681641d0634d234eff6` |
+| `contract/go-api.json` | `9701b198772e5c63d73ecb4a174a091c276cee2e37b77d2a303ae37848d76c00` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
+
+仓库身份迁移只让公共 Go surface 的 canonical package path 变为 `github.com/Tangerg/scope/app/runtime/...`，因此 `go-api.json` digest 显式重新冻结；声明集合、签名、Protocol、Artifact、SQLite 与运行时语义均未变化，也不保留旧 module path。
 
 人读语义 owner：
 

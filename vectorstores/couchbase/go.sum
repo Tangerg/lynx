@@ -1,3 +1,5 @@
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 h1:EkhwoO51+M1Xda1ln1fCA3881bFRum1sPywUM3fAdcM=
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:YYAldUf78wfZ3ejSAHYmHh4wZoz44P4IUyFLMTg68G0=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/couchbase/gocb/v2 v2.12.4 h1:46tegk0WLcZdUQMi4hLa1B9m4WyuMRNhslhaqKkNslM=

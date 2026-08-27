@@ -3,12 +3,12 @@ module github.com/Tangerg/scope/app/cli
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/app/runtime v0.0.0-20260826084142-3bd0b1c0942e
 	github.com/Tangerg/oolong/components v0.12.0
 	github.com/Tangerg/oolong/core v0.12.0
 	github.com/Tangerg/oolong/highlight v0.12.0
 	github.com/Tangerg/oolong/markdown v0.12.0
 	github.com/Tangerg/oolong/ptytest v0.12.0
+	github.com/Tangerg/scope/app/runtime v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/mattn/go-shellwords v1.0.14
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/fileflow v0.1.0
@@ -21,38 +21,43 @@ require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/scope/a2a v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/scope/agent v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/scope/core v0.0.0-20260826083855-adf089f2e7f2 // indirect
-	github.com/Tangerg/scope/mcp v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/scope/models/alibaba v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/anthropic v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/azureopenai v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/catalog v0.0.0-20260826074033-2e35cbad116b // indirect
-	github.com/Tangerg/scope/models/deepseek v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/fireworks v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/google v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/groq v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/huggingface v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/minimax v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/mistral v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/moonshot v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/openai v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/openrouter v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/perplexity v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/protocol/anthropic v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/scope/models/protocol/openai v0.0.0-20260826074258-420034c45aec // indirect
-	github.com/Tangerg/scope/models/together v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/xai v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/xiaomi v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/models/zhipu v0.0.0-20260826074620-641b4fc16dbb // indirect
-	github.com/Tangerg/scope/skills v0.0.0-20260826074033-2e35cbad116b // indirect
-	github.com/Tangerg/scope/tools v0.0.0-20260826083855-adf089f2e7f2 // indirect
+	github.com/Tangerg/scope/a2a v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/agent v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/mcp v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/alibaba v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/anthropic v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/azureopenai v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/catalog v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/deepseek v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/fireworks v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/google v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/groq v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/huggingface v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/minimax v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/mistral v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/moonshot v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/openai v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/openrouter v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/perplexity v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/protocol/anthropic v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/protocol/openai v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/together v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/xai v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/xiaomi v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/models/zhipu v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/skills v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/scope/tools v0.0.0-20260827095509-4bdfa7205bb9 // indirect
+	github.com/Tangerg/sse v0.0.6 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
+	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/bluekeyes/go-gitdiff v0.9.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
@@ -84,9 +89,11 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/samber/lo v1.53.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/silaswei-io/jsonrepair-go v1.1.2 // indirect
 	github.com/sourcegraph/jsonrpc2 v0.2.2 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
@@ -119,6 +126,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260729162451-8efbd57d26e0 // indirect
 	google.golang.org/grpc v1.83.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/app/desktop
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/wailsapp/wails/v3 v3.0.0-beta.4
 )
 

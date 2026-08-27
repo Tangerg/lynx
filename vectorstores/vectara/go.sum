@@ -1,3 +1,5 @@
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 h1:EkhwoO51+M1Xda1ln1fCA3881bFRum1sPywUM3fAdcM=
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:YYAldUf78wfZ3ejSAHYmHh4wZoz44P4IUyFLMTg68G0=
 github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
 github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 golang.org/x/text v0.22.0 h1:bofq7m3/HAFvbF51jz3Q9wLg3jkvSPuiZu/pD1XwgtM=

@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/vectorstores/pinecone
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/pinecone-io/go-pinecone/v4 v4.1.4
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 )
@@ -14,6 +14,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/oapi-codegen/runtime v1.6.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect

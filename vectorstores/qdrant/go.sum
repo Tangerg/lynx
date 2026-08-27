@@ -1,3 +1,5 @@
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 h1:EkhwoO51+M1Xda1ln1fCA3881bFRum1sPywUM3fAdcM=
+github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:YYAldUf78wfZ3ejSAHYmHh4wZoz44P4IUyFLMTg68G0=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
@@ -12,6 +14,8 @@ github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/qdrant/go-client v1.18.3 h1:jWVjf+O2nlqHyLDo4UF8zUjPokGk7r9+GY1jS+jq49Y=
 github.com/qdrant/go-client v1.18.3/go.mod h1:BdfsUDNhN7GsClHQ6r2gkqwspWlN4h24DXaRaYfVJJ8=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/otel v1.44.0 h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU=
