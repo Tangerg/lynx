@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/Tangerg/scope/agent v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
-	github.com/Tangerg/scope/mcp v0.0.0-20260827095509-4bdfa7205bb9
+	github.com/Tangerg/scope/mcp v0.0.0-20260827102808-eabb0443ffa8
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 

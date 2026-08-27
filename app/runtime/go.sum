@@ -16,8 +16,8 @@ github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827095509-4bdfa720
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
 github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9 h1:EkhwoO51+M1Xda1ln1fCA3881bFRum1sPywUM3fAdcM=
 github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:YYAldUf78wfZ3ejSAHYmHh4wZoz44P4IUyFLMTg68G0=
-github.com/Tangerg/scope/mcp v0.0.0-20260827095509-4bdfa7205bb9 h1:fWbCwfJpf1ikfXNvukVBgnowBvBW/f+9pYcd4QAralA=
-github.com/Tangerg/scope/mcp v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:ZE7cueCREwk0t7obFTjSHHoMtAD9a4GLYK3bhF6dRqQ=
+github.com/Tangerg/scope/mcp v0.0.0-20260827102808-eabb0443ffa8 h1:w8rrbJasv2q97/q22++61SvQJf4OMbQwu3lpxJtM4U4=
+github.com/Tangerg/scope/mcp v0.0.0-20260827102808-eabb0443ffa8/go.mod h1:sfYRbe2CVXBKVtMaaS0YicIkkzh3cde0Tx/0/zyg+CQ=
 github.com/Tangerg/scope/models/alibaba v0.0.0-20260827095509-4bdfa7205bb9 h1:Exfh3aApHfMAqQFxsWZp9Fb3Y/jJ2onL2zdyTSEgUPU=
 github.com/Tangerg/scope/models/alibaba v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:KiolwhYSKFx7JLo4sqTtDCME2ZYpfA0m09ZaTtZ/qyM=
 github.com/Tangerg/scope/models/anthropic v0.0.0-20260827095509-4bdfa7205bb9 h1:m35hGQizekDowBP+X4shThiRU90Dl8tALsiiioEc2hc=
