@@ -142,7 +142,7 @@ func TestMergeRejectsInvalidSourceModels(t *testing.T) {
 // empty rather than failing — the case behind a project/global skills dir that
 // the user hasn't created.
 func TestListMissingDir(t *testing.T) {
-	got, err := Dir("/no/such/skills/dir").List(context.Background())
+	got, err := NewDirectoryRepository("/no/such/skills/dir").List(context.Background())
 	if err != nil {
 		t.Fatalf("List of a missing dir should not error, got %v", err)
 	}

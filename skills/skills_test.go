@@ -101,7 +101,7 @@ func newTestFS() ResourceSource {
 }
 
 func mustNewFS(fsys fs.FS) *Repository {
-	repository, err := NewFS(fsys)
+	repository, err := NewRepository(fsys)
 	if err != nil {
 		panic(err)
 	}
@@ -444,7 +444,7 @@ func TestDirRejectsResourceSymlinkEscapingRoot(t *testing.T) {
 		t.Skipf("create symlink: %v", err)
 	}
 
-	if _, err := ReadResource(t.Context(), Dir(root), "safe-skill", "references/secret.txt"); err == nil {
+	if _, err := ReadResource(t.Context(), NewDirectoryRepository(root), "safe-skill", "references/secret.txt"); err == nil {
 		t.Fatal("ReadResource followed a symlink outside the source root")
 	}
 }
@@ -474,7 +474,7 @@ func TestDirRejectsResourceSymlinkEscapingSkill(t *testing.T) {
 		t.Skipf("create symlink: %v", err)
 	}
 
-	if _, err := ReadResource(t.Context(), Dir(root), "safe-skill", "references/secret.txt"); err == nil {
+	if _, err := ReadResource(t.Context(), NewDirectoryRepository(root), "safe-skill", "references/secret.txt"); err == nil {
 		t.Fatal("ReadResource followed a symlink into a sibling skill")
 	}
 }
@@ -490,9 +490,9 @@ func TestNewFSRejectsNilFilesystemWithoutPanicking(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repository, err := NewFS(test.filesystem)
+			repository, err := NewRepository(test.filesystem)
 			if repository != nil || !errors.Is(err, ErrNilFilesystem) {
-				t.Fatalf("NewFS = (%v, %v), want (nil, ErrNilFilesystem)", repository, err)
+				t.Fatalf("NewRepository = (%v, %v), want (nil, ErrNilFilesystem)", repository, err)
 			}
 		})
 	}

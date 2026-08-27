@@ -46,7 +46,7 @@ func buildRunMaintenance(
 		skillMiner = runmaintenance.NewSkillProposalMiner(
 			conversationServices.store,
 			skills,
-			skillspec.Dir(cfg.SkillsUserDir),
+			skillspec.NewDirectoryRepository(cfg.SkillsUserDir),
 			resolveUtility,
 			runmaintenance.SkillMiningConfig{},
 		)

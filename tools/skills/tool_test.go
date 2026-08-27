@@ -27,7 +27,7 @@ func (*panicSource) OpenResource(context.Context, string, string) (fs.File, erro
 }
 
 func newToolFS() skillsrc.ResourceSource {
-	repository, err := skillsrc.NewFS(fstest.MapFS{
+	repository, err := skillsrc.NewRepository(fstest.MapFS{
 		"pdf-processing/SKILL.md":                {Data: []byte("---\nname: pdf-processing\ndescription: Handle PDFs.\n---\n# PDF\nDo the thing. See references/REFERENCE.md.")},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("detailed reference")},
 		"data-analysis/SKILL.md":                 {Data: []byte("---\nname: data-analysis\ndescription: Analyze data.\n---\nanalysis body")},

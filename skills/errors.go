@@ -10,7 +10,7 @@ var (
 	ErrInvalidSkill = errors.New("skills: invalid skill")
 	// ErrNilSkill means a caller attempted to validate an absent skill model.
 	ErrNilSkill = errors.New("skills: skill must not be nil")
-	// ErrNilFilesystem means NewFS received a nil or typed-nil filesystem.
+	// ErrNilFilesystem means a Repository has no usable backing filesystem.
 	ErrNilFilesystem = errors.New("skills: filesystem must not be nil")
 	// ErrNilSource means a resource read received a nil or typed-nil source.
 	ErrNilSource = errors.New("skills: source must not be nil")

@@ -25,22 +25,21 @@ type Repository struct {
 var _ Source = (*Repository)(nil)
 var _ ResourceSource = (*Repository)(nil)
 
-// NewFS constructs a repository over fsys.
-//
-// NewFS trusts the confinement semantics of fsys. Use [Dir] for an operating
-// system directory that must reject symbolic links escaping its root.
-func NewFS(fsys fs.FS) (*Repository, error) {
+// NewRepository trusts the confinement semantics of fsys. Use
+// [NewDirectoryRepository] when symbolic links must remain beneath an
+// operating-system directory root.
+func NewRepository(fsys fs.FS) (*Repository, error) {
 	if lo.IsNil(fsys) {
 		return nil, ErrNilFilesystem
 	}
 	return &Repository{fsys: fsys}, nil
 }
 
-// Dir constructs a repository backed by the directory rooted at root.
+// NewDirectoryRepository constructs a repository backed by root.
 // Skill metadata opens are confined to root; resource opens are additionally
 // confined to the selected skill directory, including symbolic-link
 // resolution.
-func Dir(root string) *Repository {
+func NewDirectoryRepository(root string) *Repository {
 	return &Repository{fsys: rootedFS(root)}
 }
 
@@ -146,7 +145,7 @@ func (r *Repository) load(ctx context.Context, name string) (*Skill, error) {
 
 // OpenResource opens a file bundled under a skill. The resource path is
 // resolved relative to the skill directory. Lexical traversal is rejected;
-// repositories returned by [Dir] also reject symlink escapes.
+// repositories returned by [NewDirectoryRepository] also reject symlink escapes.
 func (r *Repository) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
 	if err := r.validate(); err != nil {
 		return nil, err

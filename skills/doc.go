@@ -4,8 +4,8 @@
 // under references/, assets/, and scripts/.
 //
 // It exposes [Source] for List/Load and [ResourceSource] for bundled files
-// read on demand. [NewFS] wraps any fs.FS; [Dir] is the convenience
-// constructor over a real directory.
+// read on demand. [NewRepository] wraps any fs.FS;
+// [NewDirectoryRepository] confines a real directory.
 //
 // The package is deliberately minimal: it parses, validates, and serves skill
 // content. It does NOT execute scripts — an agent runs those with its own
