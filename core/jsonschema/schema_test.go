@@ -17,6 +17,14 @@ type wireFixture struct {
 	Signature []byte                     `json:"signature"`
 }
 
+type richFixture struct{ value int }
+
+type richFixtureModel struct {
+	Value int `json:"value" jsonschema:"minimum=1"`
+}
+
+func (richFixture) JSONSchemaModel() any { return richFixtureModel{} }
+
 func TestForMatchesEncodingJSONAndOwnsDocument(t *testing.T) {
 	schema, err := jsonschema.For[wireFixture]()
 	if err != nil {
@@ -70,6 +78,19 @@ func TestForQualifiesSameNamedTypesFromDifferentPackages(t *testing.T) {
 		if _, exists := document.Definitions[name]; !exists {
 			t.Fatalf("ref %q has no matching definition", ref)
 		}
+	}
+}
+
+func TestForUsesRichValueSchemaModel(t *testing.T) {
+	schema, err := jsonschema.For[richFixture]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.Validate([]byte(`{"value":1}`)); err != nil {
+		t.Fatalf("Validate(valid modeled value) error = %v; schema = %s", err, schema.JSON())
+	}
+	if err := schema.Validate([]byte(`{"value":0}`)); err == nil {
+		t.Fatal("Validate(value below modeled minimum) succeeded")
 	}
 }
 

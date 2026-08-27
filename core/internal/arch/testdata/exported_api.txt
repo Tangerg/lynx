@@ -288,6 +288,7 @@ jsonschema: func (s Schema) Valid() bool
 jsonschema: func (s Schema) Validate(raw []byte) error
 jsonschema: func For[T any]() (Schema, error)
 jsonschema: func Parse(raw []byte) (Schema, error)
+jsonschema: type Modeler interface { JSONSchemaModel() any }
 jsonschema: type Schema struct { raw json.RawMessage compiled *validation.Schema }
 jsonschema: var ErrInvalid = errors.New("jsonschema: invalid schema")
 media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )

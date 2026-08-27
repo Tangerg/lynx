@@ -25,6 +25,13 @@ const (
 // ErrInvalid reports a malformed, unsupported, or unresolved JSON Schema.
 var ErrInvalid = errors.New("jsonschema: invalid schema")
 
+// Modeler is implemented by rich values whose encoding/json representation is
+// described by a separate typed model. Implementations must return the same
+// non-nil model type on every call.
+type Modeler interface {
+	JSONSchemaModel() any
+}
+
 // Schema is an immutable, compiled JSON Schema. Its zero value is invalid and
 // successfully constructed values are safe for concurrent validation.
 type Schema struct {
@@ -101,13 +108,33 @@ func reflectType(typeOf reflect.Type) (definition *reflection.Schema, err error)
 }
 
 func reflectWireType(typeOf reflect.Type) *reflection.Schema {
-	if typeOf != reflect.TypeFor[[]byte]() {
+	if typeOf == reflect.TypeFor[[]byte]() {
+		return &reflection.Schema{OneOf: []*reflection.Schema{
+			{Type: "null"},
+			{Type: "string", ContentEncoding: "base64"},
+		}}
+	}
+	modelType, modeled := schemaModelType(typeOf)
+	if !modeled {
 		return nil
 	}
-	return &reflection.Schema{OneOf: []*reflection.Schema{
-		{Type: "null"},
-		{Type: "string", ContentEncoding: "base64"},
-	}}
+	definition, err := reflectType(modelType)
+	if err != nil {
+		panic(err)
+	}
+	return definition
+}
+
+func schemaModelType(typeOf reflect.Type) (reflect.Type, bool) {
+	modeler, modeled := reflect.New(typeOf).Interface().(Modeler)
+	if !modeled {
+		return nil, false
+	}
+	model := modeler.JSONSchemaModel()
+	if model == nil {
+		panic(fmt.Sprintf("%v.JSONSchemaModel returned nil", typeOf))
+	}
+	return reflect.TypeOf(model), true
 }
 
 func qualifiedTypeName(typeOf reflect.Type) string {
