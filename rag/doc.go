@@ -40,8 +40,9 @@
 // before ranking and capping, so duplicate hits cannot consume result slots.
 // Use [Dedup] separately only when unique documents are needed without score
 // ordering or a result cap. Score-based refiners assume all retrievers use a
-// comparable score scale; callers combining unlike ranking systems should
-// supply a custom [Refiner] with an explicit fusion policy.
+// comparable score scale. Use [ReciprocalRankFusion] before TopK when combining
+// unlike ranking systems so fusion depends on result order instead of raw
+// scores.
 //
 // # Per-query retriever routing
 //

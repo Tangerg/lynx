@@ -172,6 +172,24 @@ func parallelCollect[Item, Out any](
 	itemLabel string,
 	fn func(context.Context, int, Item) ([]Out, error),
 ) ([]Out, error) {
+	results, err := parallelResults(ctx, op, items, itemLabel, fn)
+	if err != nil {
+		return nil, err
+	}
+	var out []Out
+	for _, block := range results {
+		out = append(out, block...)
+	}
+	return out, nil
+}
+
+func parallelResults[Item, Out any](
+	ctx context.Context,
+	op string,
+	items []Item,
+	itemLabel string,
+	fn func(context.Context, int, Item) (Out, error),
+) ([]Out, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -180,7 +198,7 @@ func parallelCollect[Item, Out any](
 	// union stays in input order regardless of completion order — Dedup's
 	// identity order and equal-score selection, plus TopK's tie-break, depend on
 	// it.
-	results := make([][]Out, len(items))
+	results := make([]Out, len(items))
 	failures := make([]error, len(items))
 
 	var wg sync.WaitGroup
@@ -207,9 +225,5 @@ func parallelCollect[Item, Out any](
 		return nil, fmt.Errorf("%s: %w", op, errors.Join(errs...))
 	}
 
-	var out []Out
-	for _, block := range results {
-		out = append(out, block...)
-	}
-	return out, nil
+	return results, nil
 }
