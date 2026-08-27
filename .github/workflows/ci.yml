@@ -17,6 +17,8 @@ jobs:
       modules: ${{ steps.modules.outputs.modules }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v7
         with:
@@ -29,10 +31,19 @@ jobs:
           GOWORK: "off"
         run: go test -count=1 ./...
 
-      - name: Discover workspace modules
+      - name: Discover modules to check
         id: modules
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          modules=$(scripts/workspace-modules.sh | jq -Rsc 'split("\n") | map(select(length > 0))')
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            selected=$(scripts/affected-modules.sh "$BASE_SHA" "$HEAD_SHA")
+          else
+            selected=$(scripts/workspace-modules.sh)
+          fi
+          modules=$(printf '%s\n' "$selected" | jq -Rsc 'split("\n") | map(select(length > 0))')
           echo "modules=$modules" >> "$GITHUB_OUTPUT"
 
   check:

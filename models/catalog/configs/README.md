@@ -7,7 +7,7 @@ change). Generated from [models.dev](https://models.dev) — see *Source*.
 
 ## Schema
 
-Each model entry is a `chat.ModelInfo`:
+Each model entry is a `catalog.Model`:
 
 ```json
 {

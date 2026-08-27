@@ -6,7 +6,7 @@ import (
 
 // mcpTracer is the package-level tracer for MCP client and server span
 // emission. It is a no-op when no TracerProvider is installed.
-var mcpTracer = otel.Tracer("lynx/mcp")
+var mcpTracer = otel.Tracer("github.com/Tangerg/lynx/mcp")
 
 // MCP tool attribute key (GenAI semconv). Tool failures surface through
 // the span status (Error) + RecordError, not a separate bool attribute.
