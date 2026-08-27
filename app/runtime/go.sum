@@ -62,8 +62,8 @@ github.com/Tangerg/scope/models/zhipu v0.0.0-20260827095509-4bdfa7205bb9 h1:qYgN
 github.com/Tangerg/scope/models/zhipu v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:Y/zrlcZ+xaRrsHUDvqVGag1GJi7NYyen7hfyqdagTgE=
 github.com/Tangerg/scope/otel v0.0.0-20260827095509-4bdfa7205bb9 h1:rC8dtJSKbPuOuCXfRJYq+G6aPMXx0RAi7+OFI1nuCbc=
 github.com/Tangerg/scope/otel v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:6aZCACJMokH6+TC8d935H1a9KXSOqvHNIn8HAodWpKk=
-github.com/Tangerg/scope/skills v0.0.0-20260827095509-4bdfa7205bb9 h1:98ANHIwIry5Gjq+7oLjzWkeNrUURkg4rCoPOixFy7Mo=
-github.com/Tangerg/scope/skills v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:dnhY0rJ4HtzZytS/WaMzw7CVYx0NQHjBz9Ch4mek2TE=
+github.com/Tangerg/scope/skills v0.0.0-20260827103324-c3faa09cadc9 h1:NRe2HKMclnEEg4/Dq7T/jSRQhrXWoMCwvFB2PgEl0wQ=
+github.com/Tangerg/scope/skills v0.0.0-20260827103324-c3faa09cadc9/go.mod h1:dnhY0rJ4HtzZytS/WaMzw7CVYx0NQHjBz9Ch4mek2TE=
 github.com/Tangerg/scope/tools v0.0.0-20260827095509-4bdfa7205bb9 h1:BhtDajAUQGfqw6LxAXQoI0GvFVgh+Zjukwu6plI1ZLU=
 github.com/Tangerg/scope/tools v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:EPyvR1nWExCHpFYWgbYORhIQJ8QfyiYIlwZ+uwqorPo=
 github.com/Tangerg/sse v0.0.6 h1:8/Sf/fI6uNQzFms7VKYt02fs9p/cmOJKJl1lYdljC6I=
