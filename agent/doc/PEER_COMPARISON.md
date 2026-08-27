@@ -3,7 +3,7 @@
 > 状态：外部证据快照，不是架构、决策或进度记录
 > 建立日期：2026-08-08
 > 对比对象：`embabel-agent` @ `e2d7b987c`（2026-08-06）、`Koog` @ `164f57a71`（2026-06-30）
-> 本地基线：`agent2` Baseline 9（P10 进行中），仓库 @ `6714ef84f`
+> 本地基线：`Scope Agent` Baseline 9（P10 进行中），仓库 @ `6714ef84f`
 
 本文只记录同类框架的可核实事实、与本模块的差异，以及由此暴露的能力缺口。它不定义目标架构、不修订已接受决策、不追踪阶段进度。
 
@@ -27,15 +27,15 @@
 |---|---|---|
 | embabel | 给定目标与动作，由系统规划达成路径 | 活的 JVM 对象，显式拒绝序列化 |
 | Koog | 用类型安全的图描述 LLM 工作流，并可回滚重放 | 协程 + 图游标，checkpoint 可序列化 |
-| agent2 | 任意执行策略共享同一套可暂停、可快照、可治理的生命周期 | 状态机，snapshot 是一等公民 |
+| Scope Agent | 任意执行策略共享同一套可暂停、可快照、可治理的生命周期 | 状态机，snapshot 是一等公民 |
 
-三者不在同一条轴上竞争。embabel 的差异化在**自动规划**，Koog 的差异化在**上手成本与工程完成度**，agent2 的差异化在**恢复语义与治理边界**。
+三者不在同一条轴上竞争。embabel 的差异化在**自动规划**，Koog 的差异化在**上手成本与工程完成度**，Scope Agent 的差异化在**恢复语义与治理边界**。
 
 复杂度—收益轴的相对位置：
 
 ```
 「好上手」 <──────────────────────────────────> 「好托管」
-   Koog             embabel                   agent2
+   Koog             embabel                   Scope Agent
  一行起步         注解 + GOAP 自动规划        显式内核 + 可恢复树
  1.0.0 稳定       有线上产品                  未接生产流量
 ```
@@ -44,7 +44,7 @@
 
 ## 2. 事实底座（快照）
 
-| | embabel-agent | Koog | agent2 |
+| | embabel-agent | Koog | Scope Agent |
 |---|---|---|---|
 | 出品方 | Embabel Pty Ltd（Spring 创建者） | JetBrains | 本仓库 |
 | 语言与运行时 | Kotlin + Java，Spring Boot | Kotlin Multiplatform：JVM / JS / WasmJS / Android / iOS | Go |
@@ -59,7 +59,7 @@
 
 ## 3. 维度对比总表
 
-| 维度 | embabel | Koog | agent2 |
+| 维度 | embabel | Koog | Scope Agent |
 |---|---|---|---|
 | 中心抽象 | GOAP 规划是内核字段 | 有向图 + 类型化边 | Definition/Execution 窄腰，策略平权 |
 | 执行循环 | 阻塞 `tick()`，副作用同栈 | 协程 node 循环，副作用在 node 内 | `Step` 纯归约 + Effect 外置，prepare/finalize |
@@ -88,7 +88,7 @@
 
 **Koog**：没有中心规划器。图拓扑由作者写死，`agents-planner` 是可选模块。
 
-**agent2**：GOAP 被隔离进 `planning/`，共同 Process 明确不拥有 Goal / WorldState / Plan。这是与 embabel 最根本的分岔：它使 Interaction（ReAct）不必伪装成 Action 序列，代价是失去 embabel 那种"给能力和目标、系统自己找路"的自动性。
+**Scope Agent**：GOAP 被隔离进 `planning/`，共同 Process 明确不拥有 Goal / WorldState / Plan。这是与 embabel 最根本的分岔：它使 Interaction（ReAct）不必伪装成 Action 序列，代价是失去 embabel 那种"给能力和目标、系统自己找路"的自动性。
 
 ### 4.2 执行循环
 
@@ -108,13 +108,13 @@ while (true) {
 
 Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / model / params，或以 `freshHistory` 只继承 system 消息。
 
-**agent2** 把状态推进与外部效果彻底分离：Step 只产生候选状态、Transition 与 Effect 意图，禁止读 clock / random / 全局状态；Engine 先原子记录 prepared step，再调度 Effect，最后原子 finalize。
+**Scope Agent** 把状态推进与外部效果彻底分离：Step 只产生候选状态、Transition 与 Effect 意图，禁止读 clock / random / 全局状态；Engine 先原子记录 prepared step，再调度 Effect，最后原子 finalize。
 
 差异后果：
 
-- Koog 的拓扑显式、可绘制，这是它相对 agent2 最直观的优势；agent2 只有 `workflow` 的 Stage 序列具备同等显式度，Interaction 与 Planning 的控制流藏在 phase 状态机内。
+- Koog 的拓扑显式、可绘制，这是它相对 Scope Agent 最直观的优势；Scope Agent 只有 `workflow` 的 Stage 序列具备同等显式度，Interaction 与 Planning 的控制流藏在 phase 状态机内。
 - Koog 的 node 允许任意 I/O，因此不具备纯归约保证，无法重放、无法对 Step 做 fuzz，恢复粒度只能到 node。
-- "卡住"在 Koog 是抛异常，在 embabel 是 `STUCK` 状态码，在 agent2 是 Planning 的 Output 值。
+- "卡住"在 Koog 是抛异常，在 embabel 是 `STUCK` 状态码，在 Scope Agent 是 Planning 的 Output 值。
 
 ### 4.3 状态所有权
 
@@ -122,9 +122,9 @@ Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / mod
 
 **Koog** 的 `AIAgentContext` 由 LLM 上下文（prompt / messages / model / tools）与类型安全 key-value `storage` 组成。比 Blackboard 干净，但 storage 仍是袋子，且被 feature 用作跨切面通信通道。
 
-**agent2** 的 Kernel 只见信封 `ExecutionState{Kind, SchemaVersion, Payload}`，对 Payload 无导入权也无解释权；Blackboard 在裁决台账中被整体移除。
+**Scope Agent** 的 Kernel 只见信封 `ExecutionState{Kind, SchemaVersion, Payload}`，对 Payload 无导入权也无解释权；Blackboard 在裁决台账中被整体移除。
 
-代价必须承认：embabel 里两个 Action 通过黑板隐式通信极其顺手，agent2 强制显式 Input/Output schema 后顺手程度显著下降，换来的是可验证性与可恢复性。
+代价必须承认：embabel 里两个 Action 通过黑板隐式通信极其顺手，Scope Agent 强制显式 Input/Output schema 后顺手程度显著下降，换来的是可验证性与可恢复性。
 
 ### 4.4 持久化与恢复
 
@@ -139,11 +139,11 @@ Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / mod
 - 恢复：拦截"策略开始"回滚到最近 checkpoint，再强制执行点跳到目标节点。
 - 存储 provider：内存 / 文件 / JDBC；version 成链；提供旧格式迁移序列化器。
 
-**agent2**：Snapshot v6 / TreeSnapshot v4，捕获点只有 last-stable 与 prepared-step 两个原子边界；prepared snapshot 完整包含候选状态、拟消费 Signal 范围、EffectID、冻结 payload 与已有 settlement。
+**Scope Agent**：Snapshot v6 / TreeSnapshot v4，捕获点只有 last-stable 与 prepared-step 两个原子边界；prepared snapshot 完整包含候选状态、拟消费 Signal 范围、EffectID、冻结 payload 与已有 settlement。
 
 关键差异在边界位置：
 
-| | Koog | agent2 |
+| | Koog | Scope Agent |
 |---|---|---|
 | 捕获点 | 节点完成后 | last-stable 与 Effect dispatch **之前** |
 | 崩在模型/工具调用中间 | 回到上一节点，整节点重跑（含已发生副作用） | 沿原 EffectID 与冻结 payload 继续，只按 dispatcher replay contract 重投 |
@@ -152,7 +152,7 @@ Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / mod
 | 恢复单位 | 单个 run | 单 root 或完整 TreeSnapshot；成树后禁止只恢复父级或把 child 当新 root |
 | 序列化失败 | 运行期（缺类型令牌时抛出） | 构造/捕获期显式失败 |
 
-概括：**Koog 是 at-least-once 加补偿，agent2 是"要么证明可重放，要么停下来让人裁决"。** 两条路都成立，Koog 对用户更友好，agent2 对正确性更诚实。
+概括：**Koog 是 at-least-once 加补偿，Scope Agent 是"要么证明可重放，要么停下来让人裁决"。** 两条路都成立，Koog 对用户更友好，Scope Agent 对正确性更诚实。
 
 ### 4.5 Planner
 
@@ -160,13 +160,13 @@ Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / mod
 
 三处实质差异：
 
-1. **执行 vs 声明**：Koog 的 `executeStep` 直接执行 Action 副作用；agent2 的 Step 只声明 Effect。
-2. **重观测确认**：Koog 判完成只查目标条件，不验证 Action 的预测效果是否成真；embabel 也只设置"已运行"条件。`planning` 强制在每个 Action 后重新观察，预测未兑现即记为 unconfirmed 并把该 Action 加入排除集。**这一点 agent2 严于两个对手**，且正是 GOAP 在动态环境下的核心正确性来源。
+1. **执行 vs 声明**：Koog 的 `executeStep` 直接执行 Action 副作用；Scope Agent 的 Step 只声明 Effect。
+2. **重观测确认**：Koog 判完成只查目标条件，不验证 Action 的预测效果是否成真；embabel 也只设置"已运行"条件。`planning` 强制在每个 Action 后重新观察，预测未兑现即记为 unconfirmed 并把该 Action 加入排除集。**这一点 Scope Agent 严于两个对手**，且正是 GOAP 在动态环境下的核心正确性来源。
 3. **条件表示**：Koog 的目标与前置条件是闭包，因而计划只能序列化成 Action 名列表、状态靠类型令牌序列化；`planning` 的 Condition / Truth / WorldState 是规范化值对象，可 JSON、可 fuzz，成本函数 panic 也被收敛成确定错误。
 
 ### 4.6 子 Agent 与组合
 
-| | embabel | Koog | agent2 |
+| | embabel | Koog | Scope Agent |
 |---|---|---|---|
 | 本质 | Tool 触发同步嵌套 run | Tool 触发同步嵌套 run | Framework Effect 启动真 child Process |
 | 身份 | 父名与子 id 字符串拼接 | 父 id 加调用序号字符串拼接 | ProcessID / RootProcessID / ParentProcessID / ChildKey |
@@ -177,13 +177,13 @@ Subgraph 本身也是 node，可递归嵌套，并可在层内覆盖 tools / mod
 | 树恢复 | 无 | **无**：checkpoint 按 run 组织，父 checkpoint 不含子 agent 状态 | TreeSnapshot 全树原子 restore |
 | 取消 | 递归遍历仓库下发 | 协程 scope 级联 | 控制意图 + 终态矩阵 + 禁孤儿 + 明确的 Await 线性化点 |
 
-Koog 在此有一处实质缺口：父 checkpoint 不覆盖子 agent，从父 checkpoint 恢复会让子 agent 的全部工作重来。这与 agent2「一旦成树，恢复单位必须是完整 TreeSnapshot」正面冲突，且证据倾向 agent2 的取舍正确。
+Koog 在此有一处实质缺口：父 checkpoint 不覆盖子 agent，从父 checkpoint 恢复会让子 agent 的全部工作重来。这与 Scope Agent「一旦成树，恢复单位必须是完整 TreeSnapshot」正面冲突，且证据倾向 Scope Agent 的取舍正确。
 
 ### 4.7 限制、预算与治理
 
 Koog 的全部执行闸门是一个默认 50 的最大迭代数；tokenizer 是统计而非闸门；没有成本、墙钟、递归深度、fan-out、活跃子进程数限制，也没有部署目录、版本路由或启动准入。embabel 至少有 USD 预算与早停策略族。
 
-agent2 拥有 Limits、TreeLimits（深度 / 子数 / 活跃子数 / 树内总进程数）、Budget 划拨、CapabilitySet 衰减、ProcessAdmitter，以及 Platform 的 `(name, SemVer)` 槽位治理与 exact binding 历史。
+Scope Agent 拥有 Limits、TreeLimits（深度 / 子数 / 活跃子数 / 树内总进程数）、Budget 划拨、CapabilitySet 衰减、ProcessAdmitter，以及 Platform 的 `(name, SemVer)` 槽位治理与 exact binding 历史。
 
 这一维 Koog 最弱，原因是它假设 agent 在作者自己的进程内运行，不承担多租户治理。
 
@@ -191,9 +191,9 @@ agent2 拥有 Limits、TreeLimits（深度 / 子数 / 活跃子数 / 树内总�
 
 embabel 把 Awaitable 放进黑板并以回调改写进程状态；Koog 提供的是普通同步工具与确认回调。二者都没有"进程停在某个可寻址的等待目标上、回答被路由回来"的语义——Koog 的 checkpoint 能让执行事后从某点重来，但那不是等待。
 
-agent2 的 WaitID 由 Engine 铸造，Execution 不能自行生成外部等待身份；同一 SignalID 重复提交只消费一次，过期与错目标输入确定失败，Waiting 状态可快照可恢复。
+Scope Agent 的 WaitID 由 Engine 铸造，Execution 不能自行生成外部等待身份；同一 SignalID 重复提交只消费一次，过期与错目标输入确定失败，Waiting 状态可快照可恢复。
 
-**这是 agent2 相对两个对手都领先、且对产品级审批与澄清场景属于刚需的一维。**
+**这是 Scope Agent 相对两个对手都领先、且对产品级审批与澄清场景属于刚需的一维。**
 
 ### 4.9 扩展点哲学
 
@@ -201,49 +201,49 @@ agent2 的 WaitID 由 Engine 铸造，Execution 不能自行生成外部等待�
 
 Koog 的 feature pipeline 提供大量拦截点（策略、节点、子图、模型调用、工具调用、计划创建、步骤执行……），而且**拦截器可以改变执行**：`Persistence` 正是在"策略开始"拦截点回滚并强制执行点，通过往共享上下文塞标记来劫持控制流，节点循环里以"发现被塞入的数据即中断"响应。
 
-agent2 明确站在对面：观察接口无错误返回，"返回值既不会改变事实，也不应制造可否决执行的误解"；横切点按真实消费位置拆成三个语义不同的小接口（启动准入 / 观察 / 预调度持久握手），拒绝合并成 Policy/Guard/Middleware 近义层。
+Scope Agent 明确站在对面：观察接口无错误返回，"返回值既不会改变事实，也不应制造可否决执行的误解"；横切点按真实消费位置拆成三个语义不同的小接口（启动准入 / 观察 / 预调度持久握手），拒绝合并成 Policy/Guard/Middleware 近义层。
 
-评价：Koog 的模型功能更强——checkpoint/rollback 能作为可插拔 feature 存在正以此为前提；代价是没人知道当前控制流被几个 feature 改过，共享上下文的魔法 key 是隐式耦合。agent2 的模型可推理性更强但更死板：若将来需要回滚，只能做进 Kernel。当前证据不支持改变立场——`WaitingSubtreeCancellationPlan` 那种"先纯计算、再同一栅栏内原子 apply"已经给出了更干净的等价物。
+评价：Koog 的模型功能更强——checkpoint/rollback 能作为可插拔 feature 存在正以此为前提；代价是没人知道当前控制流被几个 feature 改过，共享上下文的魔法 key 是隐式耦合。Scope Agent 的模型可推理性更强但更死板：若将来需要回滚，只能做进 Kernel。当前证据不支持改变立场——`WaitingSubtreeCancellationPlan` 那种"先纯计算、再同一栅栏内原子 apply"已经给出了更干净的等价物。
 
 ### 4.10 可观测性
 
 embabel 把 Micrometer 观测直接埋进抽象进程基类，并散落带 emoji 的日志。Koog 把观测做成 feature，内置 OpenTelemetry 及 Langfuse、W&B Weave exporter，另有 trace feature 与远程调试器服务端（可外接调试器实时接收事件流）。
 
-agent2 的 Kernel 由 architecture gate 禁止任何 OTel import，事实集合固定为 Process / Signal / Step / Effect / Delta 五类，每个 Event 自足携带 ProcessID、exact DeploymentRef、ProcessRelation、Step/Effect identity 与 attempt/committed 相位；`otel` 是只消费 Event 的独立 adapter。Delta 与 Event 严格分离，且完成 Output 必须独立导出、不得由 Delta 拼接。
+Scope Agent 的 Kernel 由 architecture gate 禁止任何 OTel import，事实集合固定为 Process / Signal / Step / Effect / Delta 五类，每个 Event 自足携带 ProcessID、exact DeploymentRef、ProcessRelation、Step/Effect identity 与 attempt/committed 相位；`otel` 是只消费 Event 的独立 adapter。Delta 与 Event 严格分离，且完成 Output 必须独立导出、不得由 Delta 拼接。
 
 ### 4.11 类型系统与 schema
 
-embabel 的类型是字符串：绑定按类型简单名匹配，Action 的输入 schema 靠反射从 IoBinding 反推。Koog 用类型令牌加 kotlinx.serialization，节点与边在编译期检查类型衔接，是三者中静态检查最强的。agent2 以 JSON Schema 作为权威结构合同并进入 Deployment digest，泛型只留在类型擦除边缘的 adapter。
+embabel 的类型是字符串：绑定按类型简单名匹配，Action 的输入 schema 靠反射从 IoBinding 反推。Koog 用类型令牌加 kotlinx.serialization，节点与边在编译期检查类型衔接，是三者中静态检查最强的。Scope Agent 以 JSON Schema 作为权威结构合同并进入 Deployment digest，泛型只留在类型擦除边缘的 adapter。
 
 ### 4.12 重试与副作用
 
-embabel 每个 Action 带 QoS 重试模板，重试前把效果条件清回假。Koog 内建重试与工具回滚注册表。agent2 默认执行一次，不重复实现 provider SDK 已有的重试，只在明确幂等或有补偿语义时配置；Engine 为 Effect 提供稳定身份，但不据此宣称外部业务副作用具备事务或幂等语义。
+embabel 每个 Action 带 QoS 重试模板，重试前把效果条件清回假。Koog 内建重试与工具回滚注册表。Scope Agent 默认执行一次，不重复实现 provider SDK 已有的重试，只在明确幂等或有补偿语义时配置；Engine 为 Effect 提供稳定身份，但不据此宣称外部业务副作用具备事务或幂等语义。
 
 这是有意取舍：两个对手的用户默认能免费获得瞬时失败自愈，本模块的使用者必须自己想清楚。
 
 ### 4.13 装配与发现
 
-embabel 依赖 Spring DI 与 classpath 扫描，注解元数据读取器承担建模。Koog 用显式 builder 与类型安全 DSL，无扫描。agent2 零全局容器、零扫描、零注解，Catalog 是不可变内存快照，活跃槽位键为名称加语义版本，同槽位不同 digest 必须显式替换，历史 binding 只增不误删且只用于精确恢复。
+embabel 依赖 Spring DI 与 classpath 扫描，注解元数据读取器承担建模。Koog 用显式 builder 与类型安全 DSL，无扫描。Scope Agent 零全局容器、零扫描、零注解，Catalog 是不可变内存快照，活跃槽位键为名称加语义版本，同槽位不同 digest 必须显式替换，历史 binding 只增不误删且只用于精确恢复。
 
 ### 4.14 作者体验
 
-这是 agent2 明显落后的一维。
+这是 Scope Agent 明显落后的一维。
 
 - embabel：三个注解、两个函数即成一个可规划 Agent，前置条件与效果由参数与返回类型推导；另有 Kotlin DSL、builder 与 YAML 四套作者入口。
 - Koog：最简形态是构造 agent 后直接 `run`，复杂了再写图 DSL；且提供**给用户的**测试工具包（mock 模型应答的 DSL）。
-- agent2：需要 Descriptor（含输入输出 schema）、Definition、Dispatcher、Deployment、EngineConfig（Limits / TreeLimits / Capabilities / resolver / admitter / listeners）。
+- Scope Agent：需要 Descriptor（含输入输出 schema）、Definition、Dispatcher、Deployment、EngineConfig（Limits / TreeLimits / Capabilities / resolver / admitter / listeners）。
 
 Koog 证明了"好上手"与"能恢复"并不互斥：它把 checkpoint 做成可选 feature，不装的用户完全无感。本模块把恢复做成内核骨架，正确性上限更高，但代价是每个使用者都要支付内核复杂度税，无论是否需要恢复。
 
 ### 4.15 工程验收与兼容承诺
 
-agent2 在此维度是压倒性的：七个 package 的完整文档输出做 SHA-256 冻结，五份 wire digest 独立冻结并带覆盖守卫，全图 architecture test 锁定 package 集合与允许边，加上 fuzz、race 与八个不共享测试 helper 的独立消费者示例。两个对手都没有等价机制。
+Scope Agent 在此维度是压倒性的：七个 package 的完整文档输出做 SHA-256 冻结，五份 wire digest 独立冻结并带覆盖守卫，全图 architecture test 锁定 package 集合与允许边，加上 fuzz、race 与八个不共享测试 helper 的独立消费者示例。两个对手都没有等价机制。
 
-反向事实同样重要：Koog 已是 1.0.0 且对 checkpoint 旧格式做双读迁移，embabel 有线上产品；**agent2 尚未承载生产流量**（P10 进行中，Host 仍运行原框架实现）。当前所有正确性证据来自自有测试与示例。
+反向事实同样重要：Koog 已是 1.0.0 且对 checkpoint 旧格式做双读迁移，embabel 有线上产品；**Scope Agent 尚未承载生产流量**（P10 进行中，Host 仍运行原框架实现）。当前所有正确性证据来自自有测试与示例。
 
 ### 4.16 生态广度
 
-embabel 与 Koog 都把 RAG、MCP、A2A、记忆、聊天历史、可观测导出器做进各自发行版。agent2 的对应能力全部是仓内平级 sibling module，Framework 不认识它们——这是本模块刻意的边界，不构成缺口。
+embabel 与 Koog 都把 RAG、MCP、A2A、记忆、聊天历史、可观测导出器做进各自发行版。Scope Agent 的对应能力全部是仓内平级 sibling module，Framework 不认识它们——这是本模块刻意的边界，不构成缺口。
 
 ---
 
@@ -297,7 +297,7 @@ embabel 与 Koog 都把 RAG、MCP、A2A、记忆、聊天历史、可观测导�
 | 6 | **无动态目标选择** | embabel `Autonomy`（目标排序 + 置信阈值 + 剪枝） | 需先证明选择、版本与权限合同 | `ARCHITECTURE.md` §8 已为此留门；应给出"证明后做"或"永久拒绝"的明确裁决，不再悬置 |
 | 7 | **无只读 / dry-run 语义** | embabel `Action.readOnly` | 评估 CapabilitySet 是否已足够表达 | 可能无需新增概念 |
 
-最高优先级仍不在上表：**P10 第一纵切上真实流量**。本文所有对比都建立在 agent2 未经生产验证的前提上，该前提不消除，缺口排序随时可能失效。
+最高优先级仍不在上表：**P10 第一纵切上真实流量**。本文所有对比都建立在 Scope Agent 未经生产验证的前提上，该前提不消除，缺口排序随时可能失效。
 
 ---
 
@@ -324,7 +324,7 @@ embabel 与 Koog 都把 RAG、MCP、A2A、记忆、聊天历史、可观测导�
 - 组合与工具：`core/agent/AIAgentTool.kt`、`agents/agents-ext/src/commonMain/.../tool/`
 - 内建策略：`core/../ext/agent/AIAgentStrategies.kt`
 
-**agent2** @ `6714ef84f`（Baseline 9）
+**Scope Agent** @ `6714ef84f`（Baseline 9）
 
 - 内核：`engine.go`、`process_loop.go`、`transition.go`、`effect.go`、`step_commit.go`、`mailbox.go`
 - 恢复：`process_snapshot.go`、`tree_snapshot.go`、`waiting_subtree_*.go`

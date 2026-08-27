@@ -82,8 +82,6 @@ func TestProductionPackageDependencyGraph(t *testing.T) {
 func assertExternalPackageBoundary(t *testing.T, packagePath string, sourcePath string, importPath string) {
 	t.Helper()
 	switch {
-	case isPackageOrChild(importPath, "github.com/Tangerg/scope/agent2"):
-		t.Errorf("%s imports the retired temporary agent module %q", sourcePath, importPath)
 	case isPackageOrChild(importPath, "github.com/Tangerg/scope/app"):
 		t.Errorf("%s imports Host application package %q", sourcePath, importPath)
 	case isPackageOrChild(importPath, "github.com/Tangerg/flow"):

@@ -19,22 +19,34 @@ func TestRepositoryUsesOnlyCanonicalScopeIdentity(t *testing.T) {
 		t.Fatalf("list tracked repository files: %v", err)
 	}
 
-	retiredBrand := "ly" + "nx"
-	retiredWord := regexp.MustCompile(`(?i)\b` + retiredBrand + `\b`)
+	type retiredIdentity struct {
+		name    string
+		word    *regexp.Regexp
+		scanApp bool
+	}
+	retiredIdentities := []retiredIdentity{
+		{name: "ly" + "nx", word: regexp.MustCompile(`(?i)\b` + "ly" + "nx" + `\b`), scanApp: true},
+		{name: "agent" + "2", word: regexp.MustCompile(`(?i)\b` + "agent" + "2" + `\b`)},
+	}
 	for _, relative := range strings.Split(string(output), "\x00") {
 		if relative == "" {
 			continue
-		}
-		if strings.Contains(strings.ToLower(filepath.ToSlash(relative)), retiredBrand) {
-			t.Errorf("tracked path %q uses the retired repository identity", relative)
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
 		if err != nil {
 			t.Errorf("read tracked file %q: %v", relative, err)
 			continue
 		}
-		if utf8.Valid(data) && retiredWord.Match(data) {
-			t.Errorf("tracked file %q uses the retired repository identity", relative)
+		for _, identity := range retiredIdentities {
+			if !identity.scanApp && (relative == "app" || strings.HasPrefix(relative, "app/")) {
+				continue
+			}
+			if strings.Contains(strings.ToLower(filepath.ToSlash(relative)), identity.name) {
+				t.Errorf("tracked path %q uses retired repository identity %q", relative, identity.name)
+			}
+			if utf8.Valid(data) && identity.word.Match(data) {
+				t.Errorf("tracked file %q uses retired repository identity %q", relative, identity.name)
+			}
 		}
 	}
 }
