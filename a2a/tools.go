@@ -10,10 +10,11 @@ import (
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
-// Tools resolves every endpoint and wraps each remote agent as a chat tool.
+// OpenTools resolves every endpoint, opens its client, and wraps each remote
+// agent as a chat tool.
 // The returned close function releases all opened agent clients. It is always
 // non-nil and safe to call once startup succeeds.
-func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, func() error, error) {
+func OpenTools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, func() error, error) {
 	var clients []*a2aclient.Client
 	var tools []toolcontract.Tool
 	seen := make(map[string]struct{}, len(endpoints))

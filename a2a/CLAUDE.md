@@ -13,7 +13,7 @@
 ## 架构心智
 
 - **薄适配,不重写协议状态**:JSON-RPC envelope、SSE、AgentCard schema 一律用官方 SDK,不自造。
-- **远端 agent 只以 `[]tool.Tool` 暴露**:批量 resolve 是一个普通函数,生命周期由它返回的 close 函数表达 —— 不公开 SDK client、不做 Provider / cache / Registry。
+- **远端 agent 只以 `[]tool.Tool` 暴露**:`OpenTools` 批量打开 client 并 resolve agent，生命周期由它返回的 close 函数表达 —— 不公开 SDK client、不做 Provider / cache / Registry。
 - **A2A tool 的输入统一为一个 message 字段**:A2A 是消息协议,不是 typed function call。
 - **内容投影 text-first**:把 A2A 内容投影成 lynx 的文本优先语义。
 - **executor 事件序列必须合法**:提交 → 工作中 → 产出增量 → 完成 / 失败 / 取消;空增量跳过(SDK 会拒空产出)。
