@@ -53,13 +53,13 @@ type Store struct {
 	sequence   sequenceGenerator
 }
 
-// New builds a [Store] from cfg. ctx bounds optional index initialization.
-func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config. ctx bounds optional index initialization.
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	s := &Store{collection: cfg.Collection}
-	if cfg.InitializeSchema {
+	s := &Store{collection: config.Collection}
+	if config.InitializeSchema {
 		if err := s.initIndex(ctx); err != nil {
 			return nil, fmt.Errorf("mongodb: initialize schema: %w", err)
 		}

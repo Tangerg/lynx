@@ -35,20 +35,20 @@ type Client struct {
 var _ web.Searcher = (*Client)(nil)
 
 // NewClient returns a Brave-backed client.
-func NewClient(cfg Config) (*Client, error) {
-	if cfg.APIKey == "" {
+func NewClient(config Config) (*Client, error) {
+	if config.APIKey == "" {
 		return nil, errors.New("brave: APIKey is required")
 	}
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = baseURL
+	if config.BaseURL == "" {
+		config.BaseURL = baseURL
 	}
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{}
+	if config.HTTPClient == nil {
+		config.HTTPClient = &http.Client{}
 	}
 	return &Client{
-		http: resty.NewWithClient(cfg.HTTPClient).
-			SetBaseURL(cfg.BaseURL).
-			SetHeader("X-Subscription-Token", cfg.APIKey).
+		http: resty.NewWithClient(config.HTTPClient).
+			SetBaseURL(config.BaseURL).
+			SetHeader("X-Subscription-Token", config.APIKey).
 			SetHeader("Accept", "application/json"),
 	}, nil
 }

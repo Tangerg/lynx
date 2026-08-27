@@ -72,20 +72,20 @@ type Store struct {
 	createCQL string
 }
 
-// New builds a [Store] from cfg. ctx bounds optional table initialization.
-func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config. ctx bounds optional table initialization.
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if cfg.Keyspace == "" {
-		cfg.Keyspace = DefaultKeyspace
+	if config.Keyspace == "" {
+		config.Keyspace = DefaultKeyspace
 	}
-	if cfg.TableName == "" {
-		cfg.TableName = DefaultTableName
+	if config.TableName == "" {
+		config.TableName = DefaultTableName
 	}
-	qualified := cfg.Keyspace + "." + cfg.TableName
+	qualified := config.Keyspace + "." + config.TableName
 	s := &Store{
-		session: cfg.Session,
+		session: config.Session,
 		writeCQL: fmt.Sprintf(
 			"INSERT INTO %s (conversation_id, seq, message) VALUES (?, ?, ?)",
 			qualified,
@@ -104,7 +104,7 @@ func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 		) WITH CLUSTERING ORDER BY (seq ASC)`, qualified),
 	}
 
-	if cfg.InitializeSchema {
+	if config.InitializeSchema {
 		if err := s.session.Query(s.createCQL).WithContext(ctx).Exec(); err != nil {
 			return nil, fmt.Errorf("cassandra: create table: %w", err)
 		}

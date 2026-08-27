@@ -123,13 +123,13 @@ type contextualEvidence struct {
 
 // NewContextualAugmenter returns an augmenter that folds retrieved
 // documents into the query text as a context block.
-func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
-	budget, err := newContextBudget(cfg.MaxContextTokens, cfg.TokenEstimator)
+func NewContextualAugmenter(config ContextualAugmenterConfig) (*ContextualAugmenter, error) {
+	budget, err := newContextBudget(config.MaxContextTokens, config.TokenEstimator)
 	if err != nil {
 		return nil, err
 	}
 	promptTemplate, err := resolvePromptTemplate(
-		cfg.PromptTemplate,
+		config.PromptTemplate,
 		contextualDefaultTemplate,
 		promptVariableContext,
 		promptVariableQuery,
@@ -138,13 +138,13 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 		return nil, err
 	}
 	emptyContextPromptTemplate, err := resolvePromptTemplate(
-		cfg.EmptyContextPromptTemplate,
+		config.EmptyContextPromptTemplate,
 		contextualEmptyContextTemplate,
 	)
 	if err != nil {
 		return nil, err
 	}
-	formatter := cfg.Formatter
+	formatter := config.Formatter
 	if lo.IsNil(formatter) {
 		formatter = textDocumentFormatter{}
 	}
@@ -152,7 +152,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 	return &ContextualAugmenter{
 		promptTemplate:             promptTemplate,
 		emptyContextPromptTemplate: emptyContextPromptTemplate,
-		allowEmptyContext:          cfg.AllowEmptyContext,
+		allowEmptyContext:          config.AllowEmptyContext,
 		formatter:                  formatter,
 		budget:                     budget,
 	}, nil

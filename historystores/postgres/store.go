@@ -102,18 +102,18 @@ type Store struct {
 	createSQL []string
 }
 
-// New builds a [Store] from cfg. ctx bounds optional schema initialization.
-func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config. ctx bounds optional schema initialization.
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	cfg.SchemaName = cmp.Or(cfg.SchemaName, DefaultSchemaName)
-	cfg.TableName = cmp.Or(cfg.TableName, DefaultTableName)
-	cfg.IndexName = cmp.Or(cfg.IndexName, cfg.TableName+DefaultIndexNameSuffix)
+	config.SchemaName = cmp.Or(config.SchemaName, DefaultSchemaName)
+	config.TableName = cmp.Or(config.TableName, DefaultTableName)
+	config.IndexName = cmp.Or(config.IndexName, config.TableName+DefaultIndexNameSuffix)
 
-	qualified := cfg.SchemaName + "." + cfg.TableName
+	qualified := config.SchemaName + "." + config.TableName
 	s := &Store{
-		pool: cfg.Pool,
+		pool: config.Pool,
 		readSQL: fmt.Sprintf(
 			"SELECT message FROM %s WHERE conversation_id = $1 ORDER BY seq",
 			qualified,
@@ -131,7 +131,7 @@ func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 			qualified,
 		),
 		createSQL: []string{
-			fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, cfg.SchemaName),
+			fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, config.SchemaName),
 			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 				seq             BIGSERIAL    PRIMARY KEY,
 				conversation_id TEXT         NOT NULL,
@@ -140,12 +140,12 @@ func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 			)`, qualified),
 			fmt.Sprintf(
 				`CREATE INDEX IF NOT EXISTS %s ON %s (conversation_id, seq)`,
-				cfg.IndexName, qualified,
+				config.IndexName, qualified,
 			),
 		},
 	}
 
-	if cfg.InitializeSchema {
+	if config.InitializeSchema {
 		if err := s.initSchema(ctx); err != nil {
 			return nil, fmt.Errorf("postgres: initialize schema: %w", err)
 		}

@@ -67,13 +67,13 @@ type Store struct {
 	records map[string]record
 }
 
-// NewStore constructs an in-memory vector store from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.applyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewStore constructs an in-memory vector store from config.
+func NewStore(config StoreConfig) (*Store, error) {
+	config.applyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	embeddingClient, err := embeddingclient.New(cfg.EmbeddingModel)
+	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if errors.Is(err, embeddingclient.ErrNilModel) {
 		return nil, ErrMissingEmbeddingModel
 	}
@@ -82,7 +82,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	}
 	return &Store{
 		embeddingClient: embeddingClient,
-		similarity:      cfg.Similarity,
+		similarity:      config.Similarity,
 		records:         map[string]record{},
 	}, nil
 }

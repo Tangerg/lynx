@@ -43,12 +43,12 @@ type Store struct {
 	sequence  sequenceGenerator
 }
 
-// New builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config.
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return &Store{container: cfg.Container}, nil
+	return &Store{container: config.Container}, nil
 }
 
 // document is the wire shape stored in Cosmos. The struct tags match

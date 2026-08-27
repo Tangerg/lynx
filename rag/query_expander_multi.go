@@ -120,8 +120,8 @@ func (m multiQueryOutput) queries(source Query, count int, includeOriginal bool)
 
 // NewMultiQueryExpander returns an expander that asks an LLM for alternate
 // query phrasings.
-func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
-	cfg, err := cfg.normalized()
+func NewMultiQueryExpander(config MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
+	config, err := config.normalized()
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +130,9 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 		return nil, err
 	}
 	prompt, err := newModelPrompt(
-		cfg.Model,
+		config.Model,
 		format,
-		cfg.PromptTemplate,
+		config.PromptTemplate,
 		multiExpanderDefaultTemplate,
 		promptVariableNumber,
 		promptVariableQuery,
@@ -143,8 +143,8 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 
 	return &MultiQueryExpander{
 		prompt:          prompt,
-		includeOriginal: cfg.IncludeOriginal,
-		numberOfQueries: cfg.NumberOfQueries,
+		includeOriginal: config.IncludeOriginal,
+		numberOfQueries: config.NumberOfQueries,
 	}, nil
 }
 

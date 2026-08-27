@@ -619,7 +619,7 @@ vectorstore/inmemory: func (s StoreConfig) Validate() error
 vectorstore/inmemory: func CosineSimilarity(a, b []float64) vectorstore.Score
 vectorstore/inmemory: func DotProductSimilarity(a, b []float64) vectorstore.Score
 vectorstore/inmemory: func EuclideanSimilarity(a, b []float64) vectorstore.Score
-vectorstore/inmemory: func NewStore(cfg StoreConfig) (*Store, error)
+vectorstore/inmemory: func NewStore(config StoreConfig) (*Store, error)
 vectorstore/inmemory: type Similarity func(a, b []float64) vectorstore.Score
 vectorstore/inmemory: type Store struct { embeddingClient embeddingclient.Client similarity Similarity mu sync.RWMutex records map[string]record }
 vectorstore/inmemory: type StoreConfig struct { EmbeddingModel embedding.Model Similarity Similarity }

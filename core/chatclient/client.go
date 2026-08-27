@@ -45,22 +45,22 @@ func New(model chat.Model, config Config) (*Client, error) {
 		return nil, ErrNilModel
 	}
 
-	cfg, err := config.snapshot()
+	config, err := config.snapshot()
 	if err != nil {
 		return nil, err
 	}
 
-	streamer := cfg.Streamer
+	streamer := config.Streamer
 	if streamer == nil {
 		streamer, _ = model.(chat.Streamer)
 	}
 
-	model = chat.Wrap(model, cfg.CallMiddleware...)
+	model = chat.Wrap(model, config.CallMiddleware...)
 	if lo.IsNil(model) {
 		return nil, errors.New("chatclient: call middleware returned a nil model")
 	}
 	if streamer != nil {
-		streamer = chat.WrapStream(streamer, cfg.StreamMiddleware...)
+		streamer = chat.WrapStream(streamer, config.StreamMiddleware...)
 		if lo.IsNil(streamer) {
 			return nil, errors.New("chatclient: stream middleware returned a nil streamer")
 		}
@@ -69,7 +69,7 @@ func New(model chat.Model, config Config) (*Client, error) {
 	return &Client{
 		model:    model,
 		streamer: streamer,
-		defaults: cfg.Defaults,
+		defaults: config.Defaults,
 	}, nil
 }
 

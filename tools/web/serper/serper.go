@@ -30,20 +30,20 @@ type Client struct {
 var _ web.Searcher = (*Client)(nil)
 
 // NewClient returns a Serper-backed client.
-func NewClient(cfg Config) (*Client, error) {
-	if cfg.APIKey == "" {
+func NewClient(config Config) (*Client, error) {
+	if config.APIKey == "" {
 		return nil, errors.New("serper: APIKey is required")
 	}
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = baseURL
+	if config.BaseURL == "" {
+		config.BaseURL = baseURL
 	}
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{}
+	if config.HTTPClient == nil {
+		config.HTTPClient = &http.Client{}
 	}
 	return &Client{
-		http: resty.NewWithClient(cfg.HTTPClient).
-			SetBaseURL(cfg.BaseURL).
-			SetHeader("X-API-KEY", cfg.APIKey).
+		http: resty.NewWithClient(config.HTTPClient).
+			SetBaseURL(config.BaseURL).
+			SetHeader("X-API-KEY", config.APIKey).
 			SetHeader("Content-Type", "application/json"),
 	}, nil
 }

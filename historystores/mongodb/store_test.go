@@ -8,11 +8,11 @@ import (
 )
 
 func TestNewStoreRequiresCollection(t *testing.T) {
-	cfg := mongodb.StoreConfig{}
-	if err := cfg.Validate(); err == nil {
+	config := mongodb.StoreConfig{}
+	if err := config.Validate(); err == nil {
 		t.Fatal("StoreConfig.Validate should reject a nil Collection")
 	}
-	_, err := mongodb.NewStore(t.Context(), cfg)
+	_, err := mongodb.NewStore(t.Context(), config)
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}

@@ -35,27 +35,27 @@ type ServerConfig struct {
 // a larger mux.
 //
 // The transport is JSON-RPC over HTTP.
-func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
-	exec, err := newExecutor(cfg.Agent)
+func NewHTTPHandler(config ServerConfig) (http.Handler, error) {
+	exec, err := newExecutor(config.Agent)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Card == nil {
+	if config.Card == nil {
 		return nil, ErrNilCard
 	}
-	cardHandler, err := newStaticAgentCardHandler(cfg.Card)
+	cardHandler, err := newStaticAgentCardHandler(config.Card)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.RPCPattern == "" {
-		cfg.RPCPattern = DefaultRPCPattern
+	if config.RPCPattern == "" {
+		config.RPCPattern = DefaultRPCPattern
 	}
 
 	requestHandler := a2asrv.NewHandler(exec)
 
 	mux := http.NewServeMux()
 	mux.Handle(a2asrv.WellKnownAgentCardPath, cardHandler)
-	if err := registerRPCHandler(mux, cfg.RPCPattern, a2asrv.NewJSONRPCHandler(requestHandler)); err != nil {
+	if err := registerRPCHandler(mux, config.RPCPattern, a2asrv.NewJSONRPCHandler(requestHandler)); err != nil {
 		return nil, err
 	}
 	return mux, nil

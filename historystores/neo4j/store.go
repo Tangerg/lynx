@@ -68,23 +68,23 @@ type Store struct {
 	sequence sequenceGenerator
 }
 
-// New builds a [Store] from cfg. ctx bounds optional index initialization.
-func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config. ctx bounds optional index initialization.
+func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if cfg.Database == "" {
-		cfg.Database = DefaultDatabase
+	if config.Database == "" {
+		config.Database = DefaultDatabase
 	}
-	if cfg.Label == "" {
-		cfg.Label = DefaultLabel
+	if config.Label == "" {
+		config.Label = DefaultLabel
 	}
 	s := &Store{
-		driver:   cfg.Driver,
-		database: cfg.Database,
-		label:    cfg.Label,
+		driver:   config.Driver,
+		database: config.Database,
+		label:    config.Label,
 	}
-	if cfg.InitializeSchema {
+	if config.InitializeSchema {
 		if err := s.initIndex(ctx); err != nil {
 			return nil, fmt.Errorf("neo4j: initialize schema: %w", err)
 		}

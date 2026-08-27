@@ -65,18 +65,18 @@ type Store struct {
 	ttl       time.Duration
 }
 
-// New builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
+// New builds a [Store] from config.
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if cfg.KeyPrefix == "" {
-		cfg.KeyPrefix = DefaultKeyPrefix
+	if config.KeyPrefix == "" {
+		config.KeyPrefix = DefaultKeyPrefix
 	}
 	return &Store{
-		client:    cfg.Client,
-		keyPrefix: cfg.KeyPrefix,
-		ttl:       cfg.TTL,
+		client:    config.Client,
+		keyPrefix: config.KeyPrefix,
+		ttl:       config.TTL,
 	}, nil
 }
 

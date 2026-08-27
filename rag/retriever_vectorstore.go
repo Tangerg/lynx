@@ -71,17 +71,17 @@ type VectorStoreRetriever struct {
 // configured filters via [VectorStoreRetrieverConfig.FilterFunc], top-K
 // capping, and
 // similarity thresholds.
-func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	cfg, err := cfg.normalized()
+func NewVectorStoreRetriever(config VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
+	config, err := config.normalized()
 	if err != nil {
 		return nil, err
 	}
 
 	return &VectorStoreRetriever{
-		vectorStore: cfg.VectorStore,
-		topK:        cfg.TopK,
-		minScore:    cfg.MinScore,
-		filterFunc:  cfg.FilterFunc,
+		vectorStore: config.VectorStore,
+		topK:        config.TopK,
+		minScore:    config.MinScore,
+		filterFunc:  config.FilterFunc,
 	}, nil
 }
 

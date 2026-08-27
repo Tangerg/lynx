@@ -246,11 +246,11 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // session opens a session bound to the configured database, if any.
 func (s *Store) session(ctx context.Context, accessMode neo4j.AccessMode) neo4j.SessionWithContext {
-	cfg := neo4j.SessionConfig{AccessMode: accessMode}
+	config := neo4j.SessionConfig{AccessMode: accessMode}
 	if s.database != "" {
-		cfg.DatabaseName = s.database
+		config.DatabaseName = s.database
 	}
-	return s.driver.NewSession(ctx, cfg)
+	return s.driver.NewSession(ctx, config)
 }
 
 // write runs work inside a managed write transaction.

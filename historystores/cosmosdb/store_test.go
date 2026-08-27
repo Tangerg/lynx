@@ -8,11 +8,11 @@ import (
 )
 
 func TestNewStoreRequiresContainer(t *testing.T) {
-	cfg := cosmosdb.StoreConfig{}
-	if err := cfg.Validate(); err == nil {
+	config := cosmosdb.StoreConfig{}
+	if err := config.Validate(); err == nil {
 		t.Fatal("StoreConfig.Validate should reject a nil Container")
 	}
-	_, err := cosmosdb.NewStore(cfg)
+	_, err := cosmosdb.NewStore(config)
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}

@@ -62,13 +62,13 @@ type translationPromptVariables struct {
 
 // NewTranslationTransformer returns a transformer that translates queries
 // into the target language expected by downstream retrieval.
-func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
-	if err := cfg.validate(); err != nil {
+func NewTranslationTransformer(config TranslationTransformerConfig) (*TranslationTransformer, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 	prompt, err := newTextModelPrompt(
-		cfg.Model,
-		cfg.PromptTemplate,
+		config.Model,
+		config.PromptTemplate,
 		translationDefaultTemplate,
 		promptVariableTarget,
 		promptVariableQuery,
@@ -79,7 +79,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTr
 
 	return &TranslationTransformer{
 		prompt:         prompt,
-		targetLanguage: cfg.TargetLanguage,
+		targetLanguage: config.TargetLanguage,
 	}, nil
 }
 

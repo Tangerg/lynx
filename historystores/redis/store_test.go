@@ -15,11 +15,11 @@ func stubClient() goredis.UniversalClient {
 }
 
 func TestNewStoreRequiresClient(t *testing.T) {
-	cfg := redis.StoreConfig{}
-	if err := cfg.Validate(); err == nil {
+	config := redis.StoreConfig{}
+	if err := config.Validate(); err == nil {
 		t.Fatal("StoreConfig.Validate should reject a nil Client")
 	}
-	_, err := redis.NewStore(cfg)
+	_, err := redis.NewStore(config)
 	if err == nil {
 		t.Fatal("expected error when Client is nil")
 	}

@@ -132,7 +132,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.KnowledgeBaseVectorSearchConfiguration, error) {
 	topK := int32(req.Options.TopK)
-	cfg := &types.KnowledgeBaseVectorSearchConfiguration{
+	config := &types.KnowledgeBaseVectorSearchConfiguration{
 		NumberOfResults:             &topK,
 		OverrideSearchType:          s.overrideSearchType,
 		RerankingConfiguration:      s.rerankingConfiguration,
@@ -144,9 +144,9 @@ func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.Knowl
 		if err := req.Options.Filter.Accept(visitor); err != nil {
 			return nil, fmt.Errorf("bedrockkb.Store.Search: compile metadata filter: %w", err)
 		}
-		cfg.Filter = visitor.Result()
+		config.Filter = visitor.Result()
 	}
-	return cfg, nil
+	return config, nil
 }
 
 // toMatch converts a Bedrock retrieval result into a Scope match.

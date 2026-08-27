@@ -30,30 +30,30 @@ func TestNewHTTPHandlerRequiresAgentAndCard(t *testing.T) {
 	card := &sdka2a.AgentCard{Name: "test"}
 	var nilAgent *echoAgent
 	tests := []struct {
-		name string
-		cfg  a2a.ServerConfig
-		want error
+		name   string
+		config a2a.ServerConfig
+		want   error
 	}{
 		{
-			name: "agent",
-			cfg:  a2a.ServerConfig{Card: card},
-			want: a2a.ErrNilAgent,
+			name:   "agent",
+			config: a2a.ServerConfig{Card: card},
+			want:   a2a.ErrNilAgent,
 		},
 		{
-			name: "typed nil agent",
-			cfg:  a2a.ServerConfig{Agent: nilAgent, Card: card},
-			want: a2a.ErrNilAgent,
+			name:   "typed nil agent",
+			config: a2a.ServerConfig{Agent: nilAgent, Card: card},
+			want:   a2a.ErrNilAgent,
 		},
 		{
-			name: "card",
-			cfg:  a2a.ServerConfig{Agent: echoAgent{}},
-			want: a2a.ErrNilCard,
+			name:   "card",
+			config: a2a.ServerConfig{Agent: echoAgent{}},
+			want:   a2a.ErrNilCard,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := a2a.NewHTTPHandler(test.cfg); !errors.Is(err, test.want) {
+			if _, err := a2a.NewHTTPHandler(test.config); !errors.Is(err, test.want) {
 				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
 			}
 		})
@@ -62,13 +62,13 @@ func TestNewHTTPHandlerRequiresAgentAndCard(t *testing.T) {
 
 func TestNewHTTPHandlerRejectsInvalidCardAndPattern(t *testing.T) {
 	tests := []struct {
-		name string
-		cfg  a2a.ServerConfig
-		want error
+		name   string
+		config a2a.ServerConfig
+		want   error
 	}{
 		{
 			name: "card cannot be encoded",
-			cfg: a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{
+			config: a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{
 				Name: "invalid",
 				Signatures: []sdka2a.AgentCardSignature{{
 					Header: map[string]any{"unsupported": func() {}},
@@ -77,13 +77,13 @@ func TestNewHTTPHandlerRejectsInvalidCardAndPattern(t *testing.T) {
 			want: a2a.ErrInvalidCard,
 		},
 		{
-			name: "malformed RPC pattern",
-			cfg:  a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{Name: "test"}, RPCPattern: "/{"},
-			want: a2a.ErrInvalidRPCPattern,
+			name:   "malformed RPC pattern",
+			config: a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{Name: "test"}, RPCPattern: "/{"},
+			want:   a2a.ErrInvalidRPCPattern,
 		},
 		{
 			name: "RPC pattern conflicts with card endpoint",
-			cfg: a2a.ServerConfig{
+			config: a2a.ServerConfig{
 				Agent: echoAgent{}, Card: &sdka2a.AgentCard{Name: "test"},
 				RPCPattern: a2asrv.WellKnownAgentCardPath,
 			},
@@ -93,7 +93,7 @@ func TestNewHTTPHandlerRejectsInvalidCardAndPattern(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := a2a.NewHTTPHandler(test.cfg); !errors.Is(err, test.want) {
+			if _, err := a2a.NewHTTPHandler(test.config); !errors.Is(err, test.want) {
 				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
 			}
 		})

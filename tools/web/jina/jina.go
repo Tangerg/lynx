@@ -41,28 +41,28 @@ type Client struct {
 var _ web.Searcher = (*Client)(nil)
 
 // NewClient returns a Jina-backed search and page-fetching client.
-func NewClient(cfg Config) (*Client, error) {
-	if cfg.APIKey == "" {
+func NewClient(config Config) (*Client, error) {
+	if config.APIKey == "" {
 		return nil, errors.New("jina: APIKey is required")
 	}
-	if cfg.SearchBaseURL == "" {
-		cfg.SearchBaseURL = searchBaseURL
+	if config.SearchBaseURL == "" {
+		config.SearchBaseURL = searchBaseURL
 	}
-	if cfg.FetchBaseURL == "" {
-		cfg.FetchBaseURL = fetchBaseURL
+	if config.FetchBaseURL == "" {
+		config.FetchBaseURL = fetchBaseURL
 	}
-	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{}
+	if config.HTTPClient == nil {
+		config.HTTPClient = &http.Client{}
 	}
 	return &Client{
-		searchHTTP: resty.NewWithClient(cfg.HTTPClient).
-			SetBaseURL(cfg.SearchBaseURL).
-			SetAuthToken(cfg.APIKey).
+		searchHTTP: resty.NewWithClient(config.HTTPClient).
+			SetBaseURL(config.SearchBaseURL).
+			SetAuthToken(config.APIKey).
 			SetHeader("Accept", "application/json").
 			SetHeader("X-Respond-With", "no-content"),
-		fetchHTTP: resty.NewWithClient(cfg.HTTPClient).
-			SetBaseURL(cfg.FetchBaseURL).
-			SetAuthToken(cfg.APIKey).
+		fetchHTTP: resty.NewWithClient(config.HTTPClient).
+			SetBaseURL(config.FetchBaseURL).
+			SetAuthToken(config.APIKey).
 			SetHeader("Content-Type", "application/json").
 			SetHeader("Accept", "application/json"),
 	}, nil

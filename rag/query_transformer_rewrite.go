@@ -66,14 +66,14 @@ type rewritePromptVariables struct {
 
 // NewRewriteTransformer returns a transformer that tightens a verbose or
 // ambiguous user query for a configured search target.
-func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
-	cfg, err := cfg.normalized()
+func NewRewriteTransformer(config RewriteTransformerConfig) (*RewriteTransformer, error) {
+	config, err := config.normalized()
 	if err != nil {
 		return nil, err
 	}
 	prompt, err := newTextModelPrompt(
-		cfg.Model,
-		cfg.PromptTemplate,
+		config.Model,
+		config.PromptTemplate,
 		rewriteDefaultTemplate,
 		promptVariableTarget,
 		promptVariableQuery,
@@ -84,7 +84,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, e
 
 	return &RewriteTransformer{
 		prompt:             prompt,
-		targetSearchSystem: cfg.TargetSearchSystem,
+		targetSearchSystem: config.TargetSearchSystem,
 	}, nil
 }
 
