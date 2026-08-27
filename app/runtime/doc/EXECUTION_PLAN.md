@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P185 已完成；P186 已准入。
+> 状态：P0–P186 已完成；P187 已准入。
 >
-> 最近基线：2026-08-28，P185 已完成。
+> 最近基线：2026-08-28，P186 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P186 已准入：发布仓库内全部非 `app/**` Go module 的首个 `v0.0.1`，先证明 module/tag 集合、内部依赖 DAG、standalone build 与远端零冲突，再原子推送 canonical multi-module tags。`app/runtime`、`app/desktop`、明确冻结的 `app/cli` 均不发布；不创造聚合发行版、兼容 tag、替代 module path 或第二版本来源。
+- P187 已准入：把 app 产品身份从 Lyra 一次性迁移为暂定 canonical brand `scopeapp`。Runtime executable/package command、Desktop product/bundle/window identity、durable home/config/env vocabulary、Frontend 用户可见文案、主题与测试 fixture 必须由同一品牌 owner 生成或引用；旧名称、别名、fallback、双读双写和兼容 shim 直接删除。`app/cli` 作为冻结 TUI 不修改、不暂存；其历史名称不反向定义新的 app 品牌。
+- P186 已准入并完成：仓库 89 个 Go module 中 4 个 `app/**` module 明确排除，余下 85 个 module 依据内部依赖 DAG 按 4/59/21/1 四层发布 canonical `<module-dir>/v0.0.1` 注解标签。每层先将上游依赖钉到已发布 `v0.0.1`，再完成 standalone race/test、vet、build、`gorelease` 与 `govulncheck`，提交推送后才创建不可变标签；远端最终精确存在 85 个非 app `v0.0.1`，无聚合 tag、兼容 tag、替代 module path 或第二版本来源。
+- P186 收口让 `app/runtime` 的 28 个非 app Scope 依赖统一消费正式 `v0.0.1`；唯一 app 内部依赖 `app/runtime/localruntime` 保持独立部署交接版本。Runtime workspace/standalone test/vet/build、standalone full race、43 条真实 Go Runtime↔HTTP↔TypeScript E2E 与 Wails v3 production build 全绿；`app/cli` 未修改、未暂存、未发布。
 - P185 已准入并完成：依赖升级的真实红例来自 Runtime HTTP E2E、TypeScript 7 守卫与 React lint，而非版本号本身。OpenTelemetry log API 前移使旧 `otelslog` 无法编译，Agent Baseline 31 已删除 `toolcontract.Schema` owner，TypeScript 7 根入口已删除旧 compiler namespace，TanStack Query 删除实验性 result promise，React 19 lint 暴露多处 render/effect 状态所有权泄漏。Runtime 直接消费 `agent.SchemaFor`，AST 守卫改用 TypeScript Project/Snapshot owner，Frontend 删除退役测试实现细节并把 transcript cache、drag listener、settings selection、async markdown/diagram state 收回各自生命周期 owner；不留 suppress/compat shim。
 - P185 的允许范围为 `app/runtime`、`app/desktop`、Desktop Frontend 与 workspace sums；`app/cli` 未修改。公共 Protocol、Artifact、SQLite、公共 Runtime Go API 与前后端 operation/event shape 不变。Runtime/Frontend/Desktop 的有效构建图已追到当前最新，未消费的传递 module metadata 不以虚假 indirect pin 强行覆盖。
 - P184 已准入并完成：Go 1.27 方法泛型把 operation 注册与 typed invocation 分别收回 `Registry` / `Endpoint`，删除无 owner 的自由泛型入口；86 个 wire method identity 收敛为就近声明的 `operation.Name`，注册、materialization 与 embedded binding 不再重复字符串。Hook allow 与 Tool mutation scope 在边界显式建模，无效零值 fail closed；固定字段校验按 owner 显式执行，不使用 map 参数袋。公共 Protocol、Artifact、SQLite、Desktop binding 与 Agent Framework execution contract不变。

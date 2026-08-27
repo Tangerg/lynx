@@ -1,6 +1,6 @@
 # Lyra Runtime 能力台账
 
-> 状态：当前能力快照；P185 已完成。
+> 状态：当前能力快照；P186 已完成。
 >
 > 基线日期：2026-08-28。
 
@@ -55,6 +55,7 @@
 - P183 让 Runtime 稳定配置、持久化、wire 与 telemetry 枚举直接拥有命名文本值和合法性，删除 ordinal/text 双表示；permission mode 持久化改为 TEXT，SQLite epoch 83 只接受当前 shape。
 - P184 让 operation 注册/调用行为归还 `Registry` / `Endpoint`，让 `operation.Name` 成为 86 个方法的单一 wire identity，并使 Hook verdict 与 Tool mutation scope 的无效零值 fail closed。
 - P185 让 App 的当前依赖图重新只有一套可编译事实：Agent schema 由 Baseline 31 `SchemaFor` 提供，TypeScript 7 AST 守卫使用 Project/Snapshot，React UI state 由真实 presentation/lifecycle owner 持有，Wails 前后端统一到 beta.14；没有退役 API shim、无消费者端口或测试专用兼容面。
+- P186 让 85 个非 app Go module 首次拥有可消费的 canonical `v0.0.1`：内部 DAG 按 4/59/21/1 四层发布，上层只引用已存在的正式标签；Runtime 随后把全部非 app Scope 依赖从伪版本收敛到该唯一发布事实。4 个 app module 与冻结 TUI 均未发布。
 
 ## 2. 架构与所有权
 
@@ -422,6 +423,8 @@ P183 在既有 P0–P182 结论上，把具有配置、持久化、wire 或 tele
 P184 把 operation catalog 的泛型注册行为归还 `Registry`，把 typed unary/stream 调用归还 `Endpoint`；86 个方法不再由自由函数接收 owner 参数，其 wire identity 由各领域注册文件就近声明的 `operation.Name` 唯一拥有，embedded binding 与 materialization 不再复制字符串。Hook adapter 将空 stdout 显式建模为 allow，Application 拒绝未知 verdict；Tool authorization 显式要求有效 mutation scope，未知/未初始化范围保守确认。公共 wire、Artifact 与 SQLite shape 不变，当前完成范围为 P0–P184。
 
 P185 把依赖升级暴露的失败归还真实 owner：Runtime delegation schema 直接消费 Agent Baseline 31 `SchemaFor`；TypeScript 7 守卫用 native Project/Snapshot 与当前 AST/type checker；React 19 correctness gate 促使 transcript cache、drag listener、settings target、copy feedback、Markdown/Shiki/Mermaid 异步 material 和倒计时分别回到单一对象或组件生命周期。TanStack Query 已删除的实验性 promise 只从测试实现中移除，真实取消、retirement 与迟到结果行为仍由产品断言覆盖。公共 Protocol、Artifact、SQLite 与 operation/event shape 不变，当前完成范围为 P0–P185。
+
+P186 完成非 app module 首发与 App Runtime 消费闭环。89 个 workspace module 中 4 个 `app/**` module 明确留在产品开发线，其余 85 个 module 依据内部依赖 DAG 分为 4/59/21/1 四层；每层先消费已发布上游 `v0.0.1`，再经 standalone race/test、vet、build、API release check 与可达漏洞扫描后提交、推送并创建 canonical `<module-dir>/v0.0.1` 注解标签。远端 85/85 标签及其 peeled commit 均已验证，`app/runtime` 的非 app Scope 依赖只消费正式 `v0.0.1`。Runtime workspace/standalone test/vet/build、standalone full race、43 条真实 HTTP E2E 与 Wails v3 production build 全绿；公共 Protocol、Artifact、SQLite 与 operation/event shape 不变，`app/cli` 未修改、未暂存、未发布，当前完成范围为 P0–P186。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `LYRA.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

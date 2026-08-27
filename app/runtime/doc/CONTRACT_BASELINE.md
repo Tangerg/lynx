@@ -29,6 +29,8 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 当前 Runtime 与 Desktop module 统一使用 Go `1.27.0`。重构代码使用该版本已经提供的标准库和测试能力，不引入为旧 Go 版本服务的兼容写法；两个 app module 的 `go` directive 与 Desktop 隔离 workspace 必须保持一致。
 
+P186 为仓库内 85 个非 `app/**` Go module 建立首个 canonical `v0.0.1`，标签名称精确为 `<module-dir>/v0.0.1`；上层 module 只引用已发布的下层正式版本。4 个 app module 不属于该发布集合，`app/runtime` 只把非 app Scope 依赖切换为 `v0.0.1`，内部 `localruntime` 部署交接仍由 app 自身版本拥有。该发布事实不改变 Runtime Protocol、公共 Go surface、Artifact、SQLite、Agent Framework contract 或 Desktop generated binding。
+
 ## 2. Runtime Protocol Baseline 1
 
 机器真相源位于 [`../contract`](../contract)：
