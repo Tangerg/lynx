@@ -48,8 +48,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.Write([]byte(`{"id":"pred-1","status":"` + status + `","output":` + output + `}`))
 		}},
 		modeltest.Route{Method: "GET", Contains: "/img-", Handle: func(w http.ResponseWriter, r *http.Request) {
-			if authorization := r.Header.Get("Authorization"); authorization != "" {
-				t.Errorf("output download leaked Authorization = %q", authorization)
+			if authorization := r.Header.Get("Authorization"); authorization != "Bearer test-key" {
+				t.Errorf("output download Authorization = %q", authorization)
 			}
 			w.Header().Set("Content-Type", "image/png")
 			_, _ = w.Write([]byte("PNG"))

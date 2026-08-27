@@ -41,7 +41,7 @@ func (c *Client) fetch(ctx context.Context, request *fetchRequest) (*fetchRespon
 		SetBody(request).
 		SetHeader("X-Retain-Images", "none")
 	if request.ReturnFormat != "" {
-		httpRequest.SetHeader("X-Return-Format", request.ReturnFormat)
+		httpRequest.SetHeader(respondWithHeader, request.ReturnFormat)
 	}
 
 	var raw fetchResponse

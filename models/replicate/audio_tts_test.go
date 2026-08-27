@@ -45,8 +45,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 			w.Write([]byte(`{"id":"pred-tts","status":"` + status + `","output":` + output + `}`))
 		}},
 		modeltest.Route{Method: "GET", Contains: "/audio.bin", Handle: func(w http.ResponseWriter, r *http.Request) {
-			if authorization := r.Header.Get("Authorization"); authorization != "" {
-				t.Errorf("output download leaked Authorization = %q", authorization)
+			if authorization := r.Header.Get("Authorization"); authorization != "Bearer test-key" {
+				t.Errorf("output download Authorization = %q", authorization)
 			}
 			w.Header().Set("Content-Type", "audio/mpeg")
 			w.Write([]byte("FAKE-MP3"))

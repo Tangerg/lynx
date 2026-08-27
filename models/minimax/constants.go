@@ -6,25 +6,22 @@ const (
 
 // OpenAI-compatible endpoints.
 const (
-	// BaseURLIntl is the international OpenAI-compat endpoint
-	// (USD billing).
-	BaseURLIntl = "https://api.minimaxi.com/v1"
+	// BaseURLIntl is the international OpenAI-compat endpoint.
+	BaseURLIntl = "https://api.minimax.io/v1"
 
-	// BaseURLChina is the domestic OpenAI-compat endpoint (RMB billing).
-	BaseURLChina = "https://api.minimax.io/v1"
+	// BaseURLChina is the China OpenAI-compat endpoint.
+	BaseURLChina = "https://api.minimaxi.com/v1"
 )
 
 // Anthropic-compatible endpoints. The anthropic-sdk-go client appends
 // "v1/messages" to the supplied BaseURL so the full request URL ends
-// at, e.g., https://api.minimaxi.com/anthropic/v1/messages.
+// at, e.g., https://api.minimax.io/anthropic/v1/messages.
 const (
-	// BaseURLIntlAnthropic is the international Anthropic-compat
-	// endpoint (USD billing).
-	BaseURLIntlAnthropic = "https://api.minimaxi.com/anthropic"
+	// BaseURLIntlAnthropic is the international Anthropic-compat endpoint.
+	BaseURLIntlAnthropic = "https://api.minimax.io/anthropic"
 
-	// BaseURLChinaAnthropic is the domestic Anthropic-compat endpoint
-	// (RMB billing).
-	BaseURLChinaAnthropic = "https://api.minimax.io/anthropic"
+	// BaseURLChinaAnthropic is the China Anthropic-compat endpoint.
+	BaseURLChinaAnthropic = "https://api.minimaxi.com/anthropic"
 )
 
 // Current Chat model ids. See

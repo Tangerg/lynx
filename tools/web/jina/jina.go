@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -23,13 +22,13 @@ const (
 	queryParameterCount   = "count"
 	queryParameterPage    = "page"
 	queryParameterSite    = "site"
-	queryParameterNoCache = "noCache"
 	defaultSearchResults  = 10
 	maximumSnippetRunes   = 300
 	snippetEllipsis       = "..."
 	mediaTypeJSON         = "application/json"
 	respondWithHeader     = "X-Respond-With"
 	respondWithoutContent = "no-content"
+	noCacheHeader         = "X-No-Cache"
 )
 
 type Config struct {
@@ -109,9 +108,13 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 	}
 	endpoint := "/" + url.PathEscape(request.Query)
 	params := request.params()
+	httpRequest := c.searchHTTP.R().SetContext(ctx).SetQueryParamsFromValues(params)
+	if request.NoCache {
+		httpRequest.SetHeader(noCacheHeader, strconv.FormatBool(request.NoCache))
+	}
 
 	var raw searchResponse
-	response, err := c.searchHTTP.R().SetContext(ctx).SetQueryParams(params).SetResult(&raw).Get(endpoint)
+	response, err := httpRequest.SetResult(&raw).Get(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("jina: execute search request: %w", err)
 	}
@@ -121,19 +124,16 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 	return &raw, nil
 }
 
-func (request *searchRequest) params() map[string]string {
-	parameters := make(map[string]string)
+func (request *searchRequest) params() url.Values {
+	parameters := make(url.Values)
 	if request.Count > 0 {
-		parameters[queryParameterCount] = strconv.Itoa(request.Count)
+		parameters.Set(queryParameterCount, strconv.Itoa(request.Count))
 	}
 	if request.Page > 0 {
-		parameters[queryParameterPage] = strconv.Itoa(request.Page)
+		parameters.Set(queryParameterPage, strconv.Itoa(request.Page))
 	}
-	if len(request.Site) > 0 {
-		parameters[queryParameterSite] = strings.Join(request.Site, ",")
-	}
-	if request.NoCache {
-		parameters[queryParameterNoCache] = strconv.FormatBool(request.NoCache)
+	for _, site := range request.Site {
+		parameters.Add(queryParameterSite, site)
 	}
 	return parameters
 }

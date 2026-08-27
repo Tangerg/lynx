@@ -51,6 +51,7 @@ func newAPI(config apiConfig) (*api, error) {
 	client.SetBaseURL(baseURL).
 		SetAuthToken(config.APIKey).
 		SetHeader("Content-Type", "application/json")
+	download.SetAuthToken(config.APIKey)
 	return &api{http: client, download: download, baseHost: parsedBaseURL.Hostname()}, nil
 }
 
@@ -185,10 +186,6 @@ func (a *api) createPrediction(ctx context.Context, modelID string, req *predict
 	return &out, nil
 }
 
-// downloadOutput fetches a provider-issued prediction file without forwarding
-// the API bearer token. Replicate output-file URLs are independently
-// authorized and ephemeral; sending the account token to a delivery host is
-// both unnecessary and unsafe.
 func (a *api) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {

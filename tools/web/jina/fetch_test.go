@@ -20,8 +20,11 @@ func TestFetch(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
 			t.Errorf("Authorization = %q", got)
 		}
-		if got := r.Header.Get("X-Return-Format"); got != "text" {
-			t.Errorf("X-Return-Format = %q", got)
+		if got := r.Header.Get("X-Respond-With"); got != "text" {
+			t.Errorf("X-Respond-With = %q", got)
+		}
+		if got := r.Header.Get("X-Return-Format"); got != "" {
+			t.Errorf("legacy X-Return-Format = %q", got)
 		}
 		if got := r.Header.Get("X-Retain-Images"); got != "none" {
 			t.Errorf("X-Retain-Images = %q", got)

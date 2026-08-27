@@ -36,6 +36,10 @@ const (
 
 	// DefaultQueryTensorName names the rank-profile query tensor.
 	DefaultQueryTensorName = "q"
+
+	// Staying within Vespa's default maxHits avoids requiring a query-profile
+	// override merely to enumerate documents for deletion.
+	deletePageSize = 400
 )
 
 // StoreConfig contains configuration options for the Vespa vector
@@ -56,10 +60,6 @@ type StoreConfig struct {
 	// the Vespa document-id grammar but commonly defaults to the
 	// schema name.
 	Namespace string
-
-	// ContentCluster names the content cluster targeted by visit
-	// API delete-by-filter calls. Required for delete to work.
-	ContentCluster string
 
 	// EmbeddingField / ContentField / IDField name the well-known
 	// schema fields the store writes to. Optional defaults apply.
@@ -131,10 +131,7 @@ func (s StoreConfig) validateIdentifiers() error {
 	if err := identifier(s.RankingProfile).validate("RankingProfile"); err != nil {
 		return err
 	}
-	if s.ContentCluster == "" {
-		return nil
-	}
-	return identifier(s.ContentCluster).validate("ContentCluster")
+	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
@@ -162,7 +159,6 @@ type Store struct {
 	endpoint        string
 	schemaName      string
 	namespace       string
-	contentCluster  string
 	embeddingField  string
 	contentField    string
 	idField         string
@@ -186,7 +182,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		endpoint:        strings.TrimRight(config.Endpoint, "/"),
 		schemaName:      config.SchemaName,
 		namespace:       config.Namespace,
-		contentCluster:  config.ContentCluster,
 		embeddingField:  config.EmbeddingField,
 		contentField:    config.ContentField,
 		idField:         config.IDField,
@@ -198,8 +193,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Index embeds documents and PUTs them through the Vespa Document
-// API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
+// Index embeds documents and writes them through the Vespa Document API.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
 	if validateErr := request.Validate(); validateErr != nil {
 		return fmt.Errorf("vespa.Store.Index: %w", validateErr)
@@ -331,15 +325,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return errors.New("vespa: refusing to delete on empty filter")
 	}
 
-	const pageSize = 500
-	offset := 0
 	for {
 		yql := fmt.Sprintf("select %s from %s where %s",
 			s.idField, s.schemaName, filterFragment)
 		body := map[string]any{
-			"yql":    yql,
-			"hits":   pageSize,
-			"offset": offset,
+			"yql":  yql,
+			"hits": deletePageSize,
 		}
 		raw, err := s.sendJSON(ctx, http.MethodPost, "/search/", body)
 		if err != nil {
@@ -361,7 +352,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		for _, hit := range parsed.Root.Children {
 			id, _ := hit.Fields[s.idField].(string)
 			if id == "" {
-				continue
+				return fmt.Errorf("vespa: enumerate ids: search hit is missing string field %q", s.idField)
 			}
 			path := fmt.Sprintf("/document/v1/%s/%s/docid/%s",
 				url.PathEscape(s.namespace), url.PathEscape(s.schemaName), url.PathEscape(id))
@@ -369,10 +360,6 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 				return fmt.Errorf("vespa: delete %s: %w", id, err)
 			}
 		}
-		if len(parsed.Root.Children) < pageSize {
-			return nil
-		}
-		offset += len(parsed.Root.Children)
 	}
 }
 
