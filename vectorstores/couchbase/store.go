@@ -49,7 +49,6 @@ const (
 	SimilarityDotProduct Similarity = "dot_product"
 )
 
-// Valid reports whether s is supported by Couchbase Search.
 func (s Similarity) Valid() bool {
 	switch s {
 	case SimilarityCosine, SimilarityL2Norm, SimilarityDotProduct:
@@ -59,7 +58,6 @@ func (s Similarity) Valid() bool {
 	}
 }
 
-// String returns the Couchbase similarity token.
 func (s Similarity) String() string { return string(s) }
 
 // IndexOptimization picks the tradeoff for Couchbase's vector index:
@@ -72,7 +70,6 @@ const (
 	OptimizeMemory  IndexOptimization = "memory"
 )
 
-// Valid reports whether i is supported by Couchbase Search.
 func (i IndexOptimization) Valid() bool {
 	switch i {
 	case OptimizeRecall, OptimizeLatency, OptimizeMemory:
@@ -82,7 +79,6 @@ func (i IndexOptimization) Valid() bool {
 	}
 }
 
-// String returns the Couchbase index-optimization token.
 func (i IndexOptimization) String() string { return string(i) }
 
 // StoreConfig contains configuration options for the Couchbase Search

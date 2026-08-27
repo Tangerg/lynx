@@ -14,7 +14,6 @@ type PlannedAction struct {
 	name string
 }
 
-// NewPlannedAction constructs a stable reference to a named Action.
 func NewPlannedAction(name string) (PlannedAction, error) {
 	if !validName(name) {
 		return PlannedAction{}, fmt.Errorf("%w: invalid Action name %q", ErrInvalidPlan, name)
@@ -25,10 +24,8 @@ func NewPlannedAction(name string) (PlannedAction, error) {
 // Name returns the referenced Action identity.
 func (p PlannedAction) Name() string { return p.name }
 
-// Valid reports whether the reference contains a valid Action identity.
 func (p PlannedAction) Valid() bool { return validName(p.name) }
 
-// MarshalJSON returns the validated Action reference.
 func (p PlannedAction) MarshalJSON() ([]byte, error) {
 	if !p.Valid() {
 		return nil, ErrInvalidPlan
@@ -36,7 +33,6 @@ func (p PlannedAction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.name)
 }
 
-// UnmarshalJSON replaces p with a strictly decoded Action reference.
 func (p *PlannedAction) UnmarshalJSON(data []byte) error {
 	if p == nil {
 		return fmt.Errorf("%w: nil PlannedAction receiver", ErrInvalidPlan)
@@ -61,7 +57,6 @@ type Plan struct {
 	totalCost float64
 }
 
-// NewPlan validates and freezes a Planner result.
 func NewPlan(actions []PlannedAction, totalCost float64) (Plan, error) {
 	if math.IsNaN(totalCost) || math.IsInf(totalCost, 0) || totalCost < 0 {
 		return Plan{}, fmt.Errorf("%w: invalid total cost %v", ErrInvalidPlan, totalCost)
@@ -84,7 +79,6 @@ func (p Plan) Actions() []PlannedAction { return slices.Clone(p.actions) }
 // TotalCost returns the predicted sum of Action edge costs.
 func (p Plan) TotalCost() float64 { return p.totalCost }
 
-// Valid reports whether every reference and the total cost are valid.
 func (p Plan) Valid() bool {
 	if math.IsNaN(p.totalCost) || math.IsInf(p.totalCost, 0) || p.totalCost < 0 ||
 		len(p.actions) == 0 && p.totalCost != 0 {
@@ -98,7 +92,6 @@ func (p Plan) Valid() bool {
 	return true
 }
 
-// MarshalJSON returns the validated ordered Planner result.
 func (p Plan) MarshalJSON() ([]byte, error) {
 	if !p.Valid() {
 		return nil, ErrInvalidPlan
@@ -110,7 +103,6 @@ func (p Plan) MarshalJSON() ([]byte, error) {
 	return json.Marshal(planWire{Actions: actions, TotalCost: p.totalCost})
 }
 
-// UnmarshalJSON replaces p with a strictly decoded Planner result.
 func (p *Plan) UnmarshalJSON(data []byte) error {
 	if p == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidPlan)

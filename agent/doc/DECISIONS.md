@@ -689,3 +689,11 @@
 - 决策：自定义 JSON wire 仍由领域值自己拥有。Core 暴露最小 `jsonschema.Modeler`，实现者通过 `JSONSchemaModel() any` 返回 typed wire model；Planning `Condition` 与 `WorldState` 使用这一中立合同，不返回魔法 map、不 import 第三方 schema 类型，也不把 private 字段改回贫血 DTO。Planning Output schema 直接从最终 Output 类型派生，删除手写 raw schema。
 - 决策：本次不改变 Descriptor、Deployment、Input/Output、Framework/Strategy protocol 或 snapshot wire。派生 schema 内容和由其参与计算的 contract digest 是有意 breaking correction；不保留旧 schema、兼容 validator、双派生或 provider/Runtime 特判。
 - 后果：Root GoDoc 与 Planning public method digest 形成 Baseline 28；全部 owner wire digest 与 schema version保持不变。后续 Agent、RAG、evaluation 和 Tool structured output 必须复用同一 Core owner，不能重新引入模块私有 schema 编译器或手写类型镜像。
+
+## ADR-A2-083：公共注释门禁只强制真实语义合同
+
+- 状态：已接受并实施；形成 Baseline 31。
+- 证据：旧 AST 门禁要求每个导出声明、字段和 callable 都有 GoDoc，直接催生了 `ErrNilModel reports...`、`Clone returns...`、`Validate validates...`、`NewX constructs...` 等与名称和代码完全同义的文本。此类注释需要随代码机械维护，却会稀释接口的所有权、并发、顺序、失败原子性和恢复语义；完整 `go doc -all` digest 本身已经能够发现公开文本漂移，无需再以覆盖率奖励噪声。
+- 决策：AST 门禁只强制关键导出接口及其每个具名方法拥有详细契约，并继续强制公开 callable 使用语义参数名。关键数据结构和算法只在需要说明不变量、owner、生命周期、并发、顺序、精度或协议映射时写注释；sentinel error、constructor、codec、clone、validate、简单 accessor、普通字段和 DTO 不因导出而自动获得注释。已有真正承载语义的 GoDoc 仍由完整 digest 冻结。
+- 决策：注释必须解释代码无法自证的边界或原因，不建立注释覆盖率、模板化句式、lint 豁免 map 或第二套文档清单。删除复述型注释不改变 identifier、签名、wire、schema version 或运行行为；若未来某个普通声明获得真实契约，直接在 owner 附近写清并显式更新 digest。
+- 后果：七个 Agent 公共 package 的 GoDoc digest 形成 Baseline 31，全部 Framework/Strategy wire digest 保持不变。门禁从“每处都有文字”转为“关键合同不可缺失”，后续 sentinel error 与自解释方法不会因工具压力重新长出无信息注释。

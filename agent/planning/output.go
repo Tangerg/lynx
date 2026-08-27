@@ -19,7 +19,6 @@ const (
 	OutcomeStuck Outcome = "stuck"
 )
 
-// Valid reports whether o is one supported Planning completion reason.
 func (o Outcome) Valid() bool {
 	return o == OutcomeAchieved || o == OutcomeUnreachable || o == OutcomeStuck
 }
@@ -38,7 +37,6 @@ const (
 	AttemptUnconfirmed AttemptStatus = "unconfirmed"
 )
 
-// Valid reports whether a is one supported Action attempt result.
 func (a AttemptStatus) Valid() bool {
 	return a == AttemptSucceeded || a == AttemptFailed || a == AttemptUnconfirmed
 }
@@ -54,7 +52,6 @@ type Attempt struct {
 	Diagnostic string `json:"diagnostic,omitempty" jsonschema:"minLength=1,maxLength=4096"`
 }
 
-// Validate verifies the Action identity, status, and bounded diagnostic.
 func (a Attempt) Validate() error {
 	if !validName(a.ActionName) || !a.Status.Valid() {
 		return errors.New("planning: invalid Action attempt identity or status")
@@ -85,7 +82,6 @@ type Output struct {
 	PlanningPasses uint32 `json:"planning_passes" jsonschema:"maximum=4294967295"`
 }
 
-// Validate verifies that Output is internally consistent with its outcome.
 func (o Output) Validate() error {
 	if !o.Outcome.Valid() || !o.WorldState.Valid() {
 		return errors.New("planning: invalid output outcome or WorldState")

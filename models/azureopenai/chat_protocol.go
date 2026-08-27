@@ -23,7 +23,6 @@ var (
 // Chat implements Azure OpenAI's Chat Completions protocol.
 type Chat = openai.Chat
 
-// ChatConfig configures the Core chat adapter for Azure OpenAI.
 type ChatConfig struct {
 	APIKey         string
 	BaseURL        string
@@ -44,7 +43,6 @@ func (c ChatConfig) Validate() error {
 	return nil
 }
 
-// NewChat constructs a Core chat adapter for Azure OpenAI's v1 endpoint.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

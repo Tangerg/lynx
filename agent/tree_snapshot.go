@@ -16,10 +16,7 @@ const (
 )
 
 var (
-	// ErrInvalidTreeSnapshot reports malformed or inconsistent tree state.
-	ErrInvalidTreeSnapshot = errors.New("agent: invalid process tree snapshot")
-	// ErrTreeSnapshotRequired reports an operation that would omit related
-	// Processes from an existing tree.
+	ErrInvalidTreeSnapshot  = errors.New("agent: invalid process tree snapshot")
 	ErrTreeSnapshotRequired = errors.New("agent: process belongs to a tree; use a tree snapshot")
 )
 
@@ -81,12 +78,10 @@ func (t TreeSnapshot) ProcessSnapshots() []Snapshot {
 	return slices.Clone(t.processes)
 }
 
-// Valid reports whether the complete tree passed the strict wire boundary.
 func (t TreeSnapshot) Valid() bool {
 	return len(t.data) > 0 && t.rootID.Valid() && len(t.processes) > 0
 }
 
-// MarshalJSON returns the validated portable Process tree snapshot.
 func (t TreeSnapshot) MarshalJSON() ([]byte, error) {
 	if !t.Valid() {
 		return nil, ErrInvalidTreeSnapshot
@@ -94,7 +89,6 @@ func (t TreeSnapshot) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(t.data), nil
 }
 
-// UnmarshalJSON replaces t with a strictly decoded tree snapshot.
 func (t *TreeSnapshot) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTreeSnapshot)

@@ -12,10 +12,8 @@ import (
 )
 
 var (
-	// ErrInvalidCatalog reports an invalid or duplicate Deployment binding.
 	ErrInvalidCatalog = errors.New("platform: invalid deployment catalog")
 
-	// ErrDeploymentNotFound reports that an exact DeploymentRef is absent.
 	ErrDeploymentNotFound = errors.New("platform: deployment not found")
 )
 
@@ -28,9 +26,6 @@ type Catalog struct {
 	ordered     []agent.Deployment
 }
 
-// NewCatalog validates and snapshots deployments. Multiple Deployments may
-// share a Definition name or semantic version when their exact references
-// differ; a duplicate exact DeploymentRef is rejected instead of overwritten.
 func NewCatalog(deployments ...agent.Deployment) (Catalog, error) {
 	if len(deployments) == 0 {
 		return Catalog{}, nil

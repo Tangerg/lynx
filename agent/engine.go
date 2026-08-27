@@ -13,19 +13,11 @@ import (
 )
 
 var (
-	// ErrInvalidEngineConfig reports incomplete execution infrastructure or
-	// contradictory limits.
-	ErrInvalidEngineConfig = errors.New("agent: invalid engine configuration")
-	// ErrEngineClosed reports an operation attempted after Engine closure.
-	ErrEngineClosed = errors.New("agent: engine is closed")
-	// ErrEngineQuiescenceUnavailable reports an operation that cannot obtain a consistent
-	// Engine-wide quiescent boundary.
+	ErrInvalidEngineConfig         = errors.New("agent: invalid engine configuration")
+	ErrEngineClosed                = errors.New("agent: engine is closed")
 	ErrEngineQuiescenceUnavailable = errors.New("agent: engine cannot become quiescent")
-	// ErrEngineHasActiveProcesses reports closure attempted before every
-	// Process reaches a terminal state.
-	ErrEngineHasActiveProcesses = errors.New("agent: engine has active processes")
-	// ErrProcessAlreadyExists reports a duplicate Process identity registration.
-	ErrProcessAlreadyExists = errors.New("agent: process identity already exists")
+	ErrEngineHasActiveProcesses    = errors.New("agent: engine has active processes")
+	ErrProcessAlreadyExists        = errors.New("agent: process identity already exists")
 )
 
 // PreparedStepAcknowledger is the optional durability boundary immediately
@@ -33,6 +25,11 @@ var (
 // Snapshot reached the caller's chosen durable boundary; it does not grant the
 // Framework ownership of the caller's persistence or atomicity semantics.
 type PreparedStepAcknowledger interface {
+	// AcknowledgePreparedStep synchronously accepts the exact prepared Snapshot
+	// before any declared external Effect is dispatched. Returning nil opens the
+	// dispatch boundary; returning an error leaves the Effect undispatched. The
+	// implementation must honor ctx, be bounded and concurrency-safe, and must
+	// not re-enter the represented Process.
 	AcknowledgePreparedStep(ctx context.Context, snapshot Snapshot) error
 }
 
@@ -123,7 +120,6 @@ func (e *Engine) FlushDeltas(ctx context.Context) error {
 	return e.observation.flushDeltas(ctx)
 }
 
-// NewEngine validates execution infrastructure and returns an empty Engine.
 func NewEngine(config EngineConfig) (*Engine, error) {
 	if config.DeltaBufferCapacity < 0 {
 		return nil, fmt.Errorf("%w: DeltaBufferCapacity must not be negative", ErrInvalidEngineConfig)

@@ -8,13 +8,15 @@ import "context"
 // means the search proved no plan within its algorithm's complete search space;
 // resource exhaustion must be returned as an error instead.
 type Planner interface {
+	// Plan searches one immutable Problem without mutating it or performing I/O.
+	// found=false with nil error is reserved for an exhausted complete search;
+	// cancellation, resource limits, invalid costs, and internal failure return
+	// errors. Equivalent Problems must produce an equivalent ordered Plan.
 	Plan(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 }
 
-// PlannerFunc adapts a function to Planner.
 type PlannerFunc func(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 
-// Plan calls p with problem.
 func (p PlannerFunc) Plan(
 	ctx context.Context,
 	problem Problem,

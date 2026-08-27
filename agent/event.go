@@ -39,7 +39,6 @@ const (
 	EventDeltaDropped = "agent.delta.dropped"
 )
 
-// ErrInvalidEvent reports a malformed Framework observation fact.
 var ErrInvalidEvent = errors.New("agent: invalid event")
 
 // EventPhase distinguishes an attempted external operation from a fact that the
@@ -55,12 +54,10 @@ const (
 	EventPhaseCommitted EventPhase = "committed"
 )
 
-// Valid reports whether e is a supported observation boundary.
 func (e EventPhase) Valid() bool {
 	return e == EventPhaseAttempt || e == EventPhaseCommitted
 }
 
-// String returns the stable Event phase name.
 func (e EventPhase) String() string {
 	if !e.Valid() {
 		return "invalid"
@@ -169,7 +166,6 @@ func (e Event) OccurredAt() time.Time { return e.occurredAt }
 // Payload returns an independently owned descriptive payload.
 func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
-// Valid reports whether the Event has a complete immutable envelope.
 func (e Event) Valid() bool {
 	return e.processSequence > 0 && e.processID.Valid() && e.deploymentRef.Valid() &&
 		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
@@ -177,7 +173,6 @@ func (e Event) Valid() bool {
 		!e.occurredAt.IsZero() && len(e.payload) > 0
 }
 
-// MarshalJSON returns the validated self-attributing Event fact.
 func (e Event) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidEvent
@@ -199,7 +194,6 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-// UnmarshalJSON replaces e with a strictly decoded Event.
 func (e *Event) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEvent)

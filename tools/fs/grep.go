@@ -43,14 +43,11 @@ type GrepResponse struct {
 
 var _ toolcontract.Tool = (*GrepTool)(nil)
 
-// GrepTool is the thin LLM-facing adapter for [Executor.Grep].
 type GrepTool struct {
 	executor Executor
 	typed    toolcontract.Func[GrepRequest, GrepResponse]
 }
 
-// NewGrepTool builds a [GrepTool] backed by executor. Passing nil
-// wires up an unconfined [LocalExecutor] (workspace root "").
 func NewGrepTool(executor Executor) *GrepTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")

@@ -18,7 +18,6 @@ func (p Pricing) IsZero() bool { return p == Pricing{} }
 // reprices the complete call rather than only the tokens above that threshold.
 type PricingSchedule []Pricing
 
-// Clone returns a caller-owned copy of the complete rate card.
 func (p PricingSchedule) Clone() PricingSchedule {
 	return slices.Clone(p)
 }

@@ -35,8 +35,6 @@ type LogExporter struct {
 	shutdown atomic.Bool
 }
 
-// NewLogExporter returns a log exporter writing to logger; a nil logger
-// defaults to stdslog.Default().
 func NewLogExporter(logger *stdslog.Logger) *LogExporter {
 	if logger == nil {
 		logger = stdslog.Default()

@@ -10,21 +10,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// ErrInvalidRankConstant reports an invalid reciprocal-rank denominator
-// constant.
 var ErrInvalidRankConstant = errors.New("rag: reciprocal-rank constant must not be negative")
 
 // DefaultReciprocalRankConstant is the conventional RRF smoothing constant.
 const DefaultReciprocalRankConstant = 60
 
-// ReciprocalRankFusionConfig configures [ReciprocalRankFusion]. RankConstant
-// is the constant added to each one-based rank. Zero uses
+// RankConstant is added to each one-based rank before reciprocal weighting.
+// Zero uses
 // [DefaultReciprocalRankConstant].
 type ReciprocalRankFusionConfig struct {
 	RankConstant int
 }
 
-// Validate checks whether the fusion configuration is usable.
 func (c ReciprocalRankFusionConfig) Validate() error {
 	_, err := c.normalized()
 	return err

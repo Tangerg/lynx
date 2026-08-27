@@ -43,7 +43,6 @@ const (
 	SimilarityDotProduct SimilarityFunction = "dot_product"
 )
 
-// Valid reports whether s is supported by Elasticsearch dense vectors.
 func (s SimilarityFunction) Valid() bool {
 	switch s {
 	case SimilarityCosine, SimilarityL2, SimilarityDotProduct:
@@ -53,7 +52,6 @@ func (s SimilarityFunction) Valid() bool {
 	}
 }
 
-// String returns the Elasticsearch similarity token.
 func (s SimilarityFunction) String() string { return string(s) }
 
 // StoreConfig contains configuration options for the Elasticsearch

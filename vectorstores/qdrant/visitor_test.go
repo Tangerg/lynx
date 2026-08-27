@@ -41,7 +41,6 @@ func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 	return v.Result()
 }
 
-// isNullKey returns the key of an IsNull condition, or "" if cond is not one.
 func isNullKey(cond *qdrantclient.Condition) string {
 	in, ok := cond.GetConditionOneOf().(*qdrantclient.Condition_IsNull)
 	if !ok || in.IsNull == nil {

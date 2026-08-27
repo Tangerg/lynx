@@ -30,7 +30,6 @@ const (
 	DistanceIP     DistanceMetric = "ip"
 )
 
-// Valid reports whether d is supported by the pgwire execution engine.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
@@ -40,7 +39,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the pgvector-compatible distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 // Config contains only shared execution dependencies. Schema policy belongs to
@@ -74,8 +72,6 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-// New constructs an execution engine after the provider has validated config
-// and provisioned any requested schema.
 func New(config Config) (*Store, error) {
 	if !config.DistanceMetric.Valid() {
 		return nil, fmt.Errorf("%s: unsupported distance metric %q", config.Provider, config.DistanceMetric)

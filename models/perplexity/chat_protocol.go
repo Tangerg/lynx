@@ -23,7 +23,6 @@ var (
 // OpenAIChat implements Perplexity's OpenAI-compatible endpoint.
 type OpenAIChat = openai.Chat
 
-// OpenAIChatConfig configures Perplexity's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -41,7 +40,6 @@ func (o OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-// NewOpenAIChat constructs a Core chat adapter for Perplexity.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

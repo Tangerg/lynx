@@ -39,7 +39,6 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
-// Valid reports whether d is supported by pgvector.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
@@ -49,7 +48,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the pgvector distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 // IndexType selects the ANN index created during schema initialization.
@@ -61,7 +59,6 @@ const (
 	IndexNone    IndexType = "none"
 )
 
-// Valid reports whether i is supported by pgvector schema initialization.
 func (i IndexType) Valid() bool {
 	switch i {
 	case IndexHNSW, IndexIVFFlat, IndexNone:
@@ -71,10 +68,8 @@ func (i IndexType) Valid() bool {
 	}
 }
 
-// String returns the pgvector index token.
 func (i IndexType) String() string { return string(i) }
 
-// StoreConfig configures a pgvector-backed store.
 type StoreConfig struct {
 	Pool             *pgxpool.Pool
 	SchemaName       string

@@ -18,7 +18,6 @@ type Input struct {
 	Options chat.Options `json:"options,omitzero"`
 }
 
-// Validate verifies the provider-neutral model request represented by Input.
 func (i Input) Validate() error {
 	request := &chat.Request{Messages: i.Messages, Options: i.Options}
 	if err := request.Validate(); err != nil {

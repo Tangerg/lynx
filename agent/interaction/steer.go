@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
-// ErrInvalidSteer reports an empty or non-user steering message set.
 var ErrInvalidSteer = errors.New("interaction: invalid steer")
 
 type steerBatch struct {
@@ -63,13 +62,6 @@ func validateSteerSignalIDs(ids []agent.SignalID) error {
 	return nil
 }
 
-// NewSteerSignal constructs one deduplicated, model-visible steering input.
-// The Signal never interrupts an in-flight operation. When accepted during a
-// model call, Tool segment, or Delegate start phase, its earliest visible
-// boundary is the next model request after that entire ToolCall batch settles.
-// A Process already Waiting for Tool input or child completion rejects
-// unaddressed steering. Worst-case accepted-steer latency is therefore the
-// remaining duration of the active operation plus Engine Step scheduling time.
 func NewSteerSignal(id agent.SignalID, messages ...chat.Message) (agent.SignalRequest, error) {
 	if err := validateSteeringMessages(messages); err != nil {
 		return agent.SignalRequest{}, err

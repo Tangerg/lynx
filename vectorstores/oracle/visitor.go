@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into an Oracle WHERE
 // fragment that reaches into the JSON `metadata` column. Numeric and
 // boolean comparisons use Oracle's typed json_value extractors so the
@@ -21,8 +23,6 @@ import (
 //	published == true          →  json_value(metadata, '$.published') = 'true'
 //	tag IN ("a", "b")          →  json_value(metadata, '$.tag') IN (:1, :2)
 //	NOT (a == "x")             →  NOT (json_value(metadata, '$.a') = :1)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

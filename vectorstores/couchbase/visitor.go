@@ -10,6 +10,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a SQL++ (N1QL)
 // predicate fragment usable in `WHERE` clauses of queries and
 // DELETE statements.
@@ -25,8 +27,6 @@ import (
 // Values are JSON-encoded — strings get double-quoted with embedded
 // quotes escaped per JSON rules, which is also valid in SQL++ string
 // literals.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

@@ -8,8 +8,6 @@ import (
 
 const childProtocolSchemaVersion uint16 = 2
 
-// ErrInvalidChildStart reports a malformed child Process start request or
-// result.
 var ErrInvalidChildStart = errors.New("agent: invalid child process start")
 
 // DeploymentResolver performs one bounded, deterministic, context-free lookup
@@ -19,6 +17,10 @@ var ErrInvalidChildStart = errors.New("agent: invalid child process start")
 // any Process. Routing and caller-specific selection happen before an exact
 // DeploymentRef reaches this contract.
 type DeploymentResolver interface {
+	// Resolve returns the immutable binding for exactly reference. It must not
+	// fall back by name or version, perform routing or remote discovery, or retain
+	// caller state. Missing and mismatched bindings are errors; concurrent calls
+	// must be safe.
 	Resolve(reference DeploymentRef) (Deployment, error)
 }
 
@@ -37,8 +39,6 @@ type ChildSpec struct {
 	Capabilities CapabilitySet `json:"capabilities"`
 }
 
-// Valid reports whether the child intent contains stable identity, exact
-// deployment identity, and portable input.
 func (c ChildSpec) Valid() bool {
 	return c.Key.Valid() && c.DeploymentRef.Valid() && c.Input.Valid() &&
 		c.Budget.Valid() && c.Capabilities.Valid()
@@ -88,7 +88,6 @@ func (c ChildStartResult) Failure() (Failure, bool) {
 	return c.failure, c.failure.Valid() && !c.processID.Valid()
 }
 
-// Valid reports whether c contains exactly one success or failure.
 func (c ChildStartResult) Valid() bool {
 	return c.key.Valid() && c.deploymentRef.Valid() &&
 		(c.processID.Valid() != c.failure.Valid())

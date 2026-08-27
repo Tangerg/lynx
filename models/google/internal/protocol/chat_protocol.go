@@ -12,7 +12,6 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-// ChatConfig configures the provider-neutral Core chat adapter.
 type ChatConfig struct {
 	Provider       string
 	APIKey         string
@@ -24,7 +23,6 @@ type ChatConfig struct {
 	HTTPClient     *http.Client
 }
 
-// Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
 	if err := validateProvider(c.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
@@ -50,7 +48,6 @@ type Chat struct {
 	provider string
 }
 
-// NewChat constructs a Core chat adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -24,7 +24,6 @@ type Goal struct {
 	conditions  []Condition
 }
 
-// NewGoal validates config and constructs an immutable goal.
 func NewGoal(config GoalConfig) (Goal, error) {
 	if !validName(config.Name) {
 		return Goal{}, fmt.Errorf("%w: invalid name %q", ErrInvalidGoal, config.Name)
@@ -56,7 +55,6 @@ func (g Goal) SatisfiedBy(state WorldState) bool {
 	return g.Valid() && state.Valid() && state.Satisfies(g.conditions...)
 }
 
-// Valid reports whether the Goal satisfies its construction invariants.
 func (g Goal) Valid() bool {
 	return validName(g.name) && validDescription(g.description) && len(g.conditions) > 0 &&
 		canonicalConditionSlice(g.conditions)

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into Azure AI Search OData
 // `$filter` syntax. Metadata is treated as flat top-level fields on
 // the indexed document — Azure AI Search doesn't support nested
@@ -21,8 +23,6 @@ import (
 //	year >= 2020               →  year ge 2020
 //	category IN ("a", "b")     →  search.in(category, 'a,b', ',')
 //	NOT (year >= 2020)         →  not (year ge 2020)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err error
 	sql strings.Builder

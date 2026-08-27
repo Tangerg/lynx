@@ -7,7 +7,6 @@ import (
 	"fmt"
 )
 
-// ErrInvalidEffect reports a malformed or contradictory Effect intent.
 var ErrInvalidEffect = errors.New("agent: invalid effect")
 
 // EffectTarget identifies which of the two execution boundaries owns an Effect.
@@ -24,12 +23,10 @@ const (
 	EffectTargetDispatcher EffectTarget = "dispatcher"
 )
 
-// Valid reports whether e identifies an Effect owner.
 func (e EffectTarget) Valid() bool {
 	return e == EffectTargetFramework || e == EffectTargetDispatcher
 }
 
-// String returns the stable Effect target name.
 func (e EffectTarget) String() string {
 	if !e.Valid() {
 		return "invalid"
@@ -46,8 +43,6 @@ type Effect struct {
 	requirements CapabilitySet
 }
 
-// NewDispatcherEffect creates a Strategy-owned Effect. The Engine may copy,
-// order, identify, and route payload, but must not inspect it.
 func NewDispatcherEffect(payload json.RawMessage, required ...Capability) (Effect, error) {
 	requirements, err := NewCapabilitySet(required...)
 	if err != nil {
@@ -116,7 +111,6 @@ func (e Effect) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 // possess before this Dispatcher Effect may be prepared.
 func (e Effect) RequiredCapabilities() CapabilitySet { return e.requirements }
 
-// Valid reports whether the Effect was created through a validated boundary.
 func (e Effect) Valid() bool {
 	return e.target.Valid() &&
 		len(e.payload) > 0 && e.requirements.Valid() &&
@@ -128,7 +122,6 @@ func (e Effect) clone() Effect {
 	return Effect{target: e.target, payload: bytes.Clone(e.payload), requirements: requirements}
 }
 
-// MarshalJSON returns the validated immutable Effect intent.
 func (e Effect) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidEffect
@@ -139,7 +132,6 @@ func (e Effect) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON replaces e with a strictly decoded Effect.
 func (e *Effect) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEffect)

@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// ErrInvalidDigest reports a non-canonical SHA-256 content identity.
 var ErrInvalidDigest = errors.New("agent: invalid digest")
 
 // Digest is a canonical SHA-256 content identity. Its zero value is invalid.
@@ -38,10 +37,8 @@ func digestBytes(data []byte) Digest {
 	return Digest{value: "sha256:" + hex.EncodeToString(sum[:])}
 }
 
-// String returns the canonical wire representation.
 func (d Digest) String() string { return d.value }
 
-// Valid reports whether the Digest has a canonical SHA-256 representation.
 func (d Digest) Valid() bool {
 	_, err := ParseDigest(d.value)
 	return err == nil

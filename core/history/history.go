@@ -10,10 +10,7 @@ import (
 )
 
 var (
-	// ErrNilStore reports a helper called without a history store.
-	ErrNilStore = errors.New("history: nil store")
-	// ErrReplacementUnsupported reports a Store without the optional atomic
-	// replacement capability.
+	ErrNilStore               = errors.New("history: nil store")
 	ErrReplacementUnsupported = errors.New("history: replacement unsupported")
 )
 
@@ -21,6 +18,9 @@ var (
 // return a non-nil empty slice for an unknown conversation and transfer
 // ownership of returned protocol values to the caller.
 type Reader interface {
+	// Read returns a detached snapshot in stored order. Unknown conversations
+	// yield a non-nil empty slice; implementations honor ctx and never expose
+	// mutable backing storage.
 	Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error)
 }
 
@@ -30,6 +30,9 @@ type Reader interface {
 // The relative order of concurrent calls and writes issued through distinct
 // Store instances is implementation-defined.
 type Writer interface {
+	// Write validates and snapshots the full argument batch before appending it
+	// in argument order. A returned error must not conceal a partially accepted
+	// prefix unless the concrete store documents an external atomicity limit.
 	Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
 }
 
@@ -42,6 +45,8 @@ type ReadWriter interface {
 
 // Clearer removes every message for one conversation.
 type Clearer interface {
+	// Clear removes the complete conversation and is idempotent when it is
+	// already absent. Implementations must honor ctx.
 	Clear(ctx context.Context, conversationID ConversationID) error
 }
 
@@ -56,17 +61,25 @@ type Store interface {
 // return a non-nil empty slice when no conversations exist. Concurrent
 // mutations may affect the result.
 type Lister interface {
+	// Conversations returns detached, unique identifiers in lexical order. An
+	// empty store yields a non-nil empty slice; concurrent writes may appear or
+	// not according to the backend's snapshot boundary.
 	Conversations(ctx context.Context) ([]ConversationID, error)
 }
 
 // Replacer atomically sets a conversation's messages to exactly messages.
 type Replacer interface {
+	// Replace atomically swaps one conversation for the validated message batch.
+	// An empty batch leaves the conversation present but empty; ctx bounds the
+	// backend operation.
 	Replace(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error
 }
 
 // Counter reports a conversation's stored message count without requiring
 // callers to materialize its messages.
 type Counter interface {
+	// Count returns the number of messages visible at one backend read boundary
+	// without materializing them. Unknown conversations return zero.
 	Count(ctx context.Context, conversationID ConversationID) (int, error)
 }
 

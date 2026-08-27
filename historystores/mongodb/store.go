@@ -23,7 +23,6 @@ const (
 	fieldCreatedAt      = "created_at"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Collection] is required.
 type StoreConfig struct {
 	// Collection is the live MongoDB collection. Required. The store
 	// does not take ownership of the underlying client.
@@ -34,7 +33,6 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-// Validate reports whether c can be used to construct a [Store].
 func (c StoreConfig) Validate() error {
 	if c.Collection == nil {
 		return errors.New("mongodb: collection is required")
@@ -47,13 +45,15 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a MongoDB-backed [history.Store]. Construct via [NewStore].
+// Store persists messages as independently addressable MongoDB documents
+// through a caller-owned collection. A local monotonic sequence and ObjectID
+// provide deterministic read order; ordering across separate Store values
+// remains unspecified.
 type Store struct {
 	collection *mongo.Collection
 	sequence   sequenceGenerator
 }
 
-// New builds a [Store] from config. ctx bounds optional index initialization.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

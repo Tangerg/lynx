@@ -9,7 +9,6 @@ import (
 // Score is a provider-neutral similarity value in [0, 1].
 type Score float64
 
-// Float64 returns the score as a primitive provider value.
 func (s Score) Float64() float64 { return float64(s) }
 
 func (s Score) Validate() error {

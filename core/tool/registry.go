@@ -14,9 +14,7 @@ import (
 )
 
 var (
-	// ErrDuplicateTool reports an attempt to register a name more than once.
-	ErrDuplicateTool = errors.New("tool: duplicate tool")
-	// ErrInvalidRegistry reports an operation on a nil Registry receiver.
+	ErrDuplicateTool   = errors.New("tool: duplicate tool")
 	ErrInvalidRegistry = errors.New("tool: invalid registry")
 )
 

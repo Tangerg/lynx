@@ -8,7 +8,11 @@ import "context"
 // Defaults, identity, observability, batching, and dimension discovery are
 // independent concerns.
 type Model interface {
-	Call(context.Context, *Request) (*Response, error)
+	// Call performs one embedding request after validating the complete batch.
+	// It must not retain or mutate request, returns outputs in input order, and
+	// transfers ownership of the response to the caller. Context cancellation
+	// remains identifiable through errors.Is.
+	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
 type ModelFunc func(context.Context, *Request) (*Response, error)

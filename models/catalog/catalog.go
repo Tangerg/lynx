@@ -17,7 +17,6 @@ type Provider struct {
 	Models []Model `json:"models"`
 }
 
-// Clone returns a caller-owned copy of the provider and all nested models.
 func (p Provider) Clone() Provider {
 	models := make([]Model, len(p.Models))
 	for index, model := range p.Models {

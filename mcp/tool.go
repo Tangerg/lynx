@@ -74,9 +74,8 @@ func (r remoteTool) ConcurrencyKey(arguments string) (key string, concurrent boo
 	return r.concurrencyPolicy(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), arguments)
 }
 
-// Call implements [tool.Tool]. IsError=true on the remote
-// result is mapped to [*ToolCallError] so a tool failure is not
-// silently fed back to the model as a successful result.
+// A remote IsError result becomes [*ToolCallError] so callers can distinguish
+// tool failure from successful model-facing text.
 //
 // One `mcp.tool.call <name>` span per call (kind=Client), carrying
 // `gen_ai.tool.name`; a failed call records the error and sets the span

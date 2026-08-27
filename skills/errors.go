@@ -3,45 +3,23 @@ package skills
 import "errors"
 
 var (
-	// ErrInvalidSkill means a SKILL.md exists but its document or metadata does
-	// not satisfy the Agent Skills format. Load errors in this category also
-	// retain their specific cause (for example [ErrNoFrontmatter] or
-	// [ErrDescriptionEmpty]) for errors.Is checks.
-	ErrInvalidSkill = errors.New("skills: invalid skill")
-	// ErrNilSkill means a caller attempted to validate an absent skill model.
-	ErrNilSkill = errors.New("skills: skill must not be nil")
-	// ErrNilFilesystem means a Repository has no usable backing filesystem.
-	ErrNilFilesystem = errors.New("skills: filesystem must not be nil")
-	// ErrNilSource means a resource read received a nil or typed-nil source.
-	ErrNilSource = errors.New("skills: source must not be nil")
-	// ErrNilResourceFile means a ResourceSource violated its contract by
-	// returning a nil file and nil error.
+	ErrInvalidSkill    = errors.New("skills: invalid skill")
+	ErrNilSkill        = errors.New("skills: skill must not be nil")
+	ErrNilFilesystem   = errors.New("skills: filesystem must not be nil")
+	ErrNilSource       = errors.New("skills: source must not be nil")
 	ErrNilResourceFile = errors.New("skills: resource source returned a nil file without an error")
 
-	// ErrNoFrontmatter means a SKILL.md did not open and close a YAML
-	// frontmatter block with "---" fence lines.
 	ErrNoFrontmatter = errors.New("skills: SKILL.md must open with a YAML frontmatter block delimited by ---")
 
-	// ErrNameEmpty means the frontmatter name field was blank.
-	ErrNameEmpty = errors.New("skills: name must not be empty")
-	// ErrNameTooLong means the name exceeded 64 characters.
-	ErrNameTooLong = errors.New("skills: name exceeds 64 characters")
-	// ErrNameInvalid means the name violated the spec's character rule.
-	ErrNameInvalid = errors.New("skills: name must be lowercase alphanumerics joined by single hyphens (no leading, trailing, or consecutive hyphens)")
-	// ErrNameMismatch means the frontmatter name did not match the skill's
-	// directory name, which the spec requires.
+	ErrNameEmpty    = errors.New("skills: name must not be empty")
+	ErrNameTooLong  = errors.New("skills: name exceeds 64 characters")
+	ErrNameInvalid  = errors.New("skills: name must be lowercase alphanumerics joined by single hyphens (no leading, trailing, or consecutive hyphens)")
 	ErrNameMismatch = errors.New("skills: frontmatter name must match the skill directory name")
 
-	// ErrDescriptionEmpty means the frontmatter description field was blank.
-	ErrDescriptionEmpty = errors.New("skills: description must not be empty")
-	// ErrDescriptionTooLong means the description exceeded 1024 characters.
+	ErrDescriptionEmpty   = errors.New("skills: description must not be empty")
 	ErrDescriptionTooLong = errors.New("skills: description exceeds 1024 characters")
 
-	// ErrCompatibilityTooLong means the compatibility field exceeded 500
-	// characters.
 	ErrCompatibilityTooLong = errors.New("skills: compatibility exceeds 500 characters")
 
-	// ErrResourcePath means a requested lexical resource path escaped its
-	// skill directory or was otherwise not a valid relative path.
 	ErrResourcePath = errors.New("skills: resource path escapes the skill directory")
 )

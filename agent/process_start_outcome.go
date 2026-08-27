@@ -20,12 +20,10 @@ const (
 	ProcessStartOutcomeStatusAborted ProcessStartOutcomeStatus = "aborted"
 )
 
-// Valid reports whether p conclusively settles Process initialization.
 func (p ProcessStartOutcomeStatus) Valid() bool {
 	return p == ProcessStartOutcomeStatusStarted || p == ProcessStartOutcomeStatusAborted
 }
 
-// String returns the stable Process-start outcome status name.
 func (p ProcessStartOutcomeStatus) String() string {
 	if !p.Valid() {
 		return "invalid"
@@ -53,8 +51,6 @@ func (p ProcessStartOutcome) Failure() (Failure, bool) {
 	return p.failure, p.status == ProcessStartOutcomeStatusAborted
 }
 
-// Valid reports whether the outcome conclusively matches one accepted
-// admission. Only the Engine constructs outcome values.
 func (p ProcessStartOutcome) Valid() bool {
 	if !p.admission.Valid() {
 		return false
@@ -80,17 +76,19 @@ func (p ProcessStartOutcome) Valid() bool {
 // Framework owns no persistence, transaction, charging, or product semantics
 // behind this neutral lifecycle handshake.
 type ProcessStartOutcomeAcknowledger interface {
+	// AcknowledgeProcessStartOutcome synchronously closes one previously accepted
+	// admission as started or aborted. Returning an error for started prevents
+	// Process publication; an aborted Process is never published regardless of
+	// acknowledgment outcome. Implementations must be bounded, concurrency-safe,
+	// idempotent by admission identity, and must not re-enter Engine or Process.
 	AcknowledgeProcessStartOutcome(ctx context.Context, outcome ProcessStartOutcome) error
 }
 
-// ProcessStartOutcomeAcknowledgerFunc adapts a function to
-// ProcessStartOutcomeAcknowledger.
 type ProcessStartOutcomeAcknowledgerFunc func(
 	ctx context.Context,
 	outcome ProcessStartOutcome,
 ) error
 
-// AcknowledgeProcessStartOutcome invokes p.
 func (p ProcessStartOutcomeAcknowledgerFunc) AcknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome ProcessStartOutcome,

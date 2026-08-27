@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a ClickHouse WHERE
 // fragment. Metadata is stored as a `Map(String, String)` column;
 // metadata keys are addressed with the map-subscript syntax
@@ -19,8 +21,6 @@ import (
 //	year >= 2020                →  toFloat64OrZero(metadata['year']) >= ?
 //	tag IN ("a", "b")           →  metadata['tag'] IN (?, ?)
 //	NOT (author == "Alice")     →  NOT (metadata['author'] = ?)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

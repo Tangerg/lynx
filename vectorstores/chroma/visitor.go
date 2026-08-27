@@ -10,35 +10,18 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor transforms AST filter expressions into Chroma WhereClause conditions.
-// It traverses semantic filter expressions and converts them to the provider query shape
-// into Chroma's native filter format.
-//
-// Supported operations:
-//   - Logical: AND, OR
-//   - Equality: ==, !=
-//   - Ordering: <, <=, >, >=
-//   - Membership: IN
-//
-// Unsupported operations (return errors):
-//   - NOT (Chroma has no standalone logical NOT)
-//   - LIKE (Chroma does not support pattern matching on metadata fields)
-//
-// Field path conventions:
-//   - Simple identifiers are used as-is: "author" → "author"
-//   - Indexed expressions retain their complete dotted path.
-//   - Nested indexed expressions join all segments with dots: profile["a"]["b"] → "profile.a.b"
-//
-// Numeric handling:
-//   - Integral literals must fit int for Chroma's typed API
-//   - Fractional values must fit float32
 var _ filter.Visitor = (*Visitor)(nil)
 
+// Visitor compiles Scope filter expressions into Chroma WhereClause values. A
+// value is reusable: Visit replaces the previous result. Chroma exposes no
+// standalone NOT or metadata LIKE operation, represents nested selectors as
+// flat dotted keys, and accepts numbers only through int or float32 APIs;
+// compilation rejects every unsupported or lossy mapping.
 type Visitor struct {
-	err               error          // last error encountered during conversion
-	result            v2.WhereClause // the Chroma filter clause being built
-	currentFieldKey   string         // temporary storage for field key extraction
-	currentFieldValue any            // temporary storage for field value extraction
+	err               error
+	result            v2.WhereClause
+	currentFieldKey   string
+	currentFieldValue any
 }
 
 type chromaNumber struct {
@@ -67,7 +50,6 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-// visit dispatches to the appropriate handler based on the expression type.
 func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("chroma: cannot process nil expression")
@@ -94,7 +76,6 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
@@ -110,8 +91,6 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 		expr.Start().String())
 }
 
-// visitComparisonExpr splits equality vs ordering since chroma emits
-// distinct Where map shapes for the two families.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
@@ -119,28 +98,22 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return v.visitOrderingExpr(expr)
 }
 
-// visitLikeExpr — Chroma metadata filters do not support LIKE.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return fmt.Errorf("chroma: LIKE operator is not supported on metadata fields (at %s)",
 		expr.Start().String())
 }
 
-// visitUnaryExpr handles unary operators. Chroma does not expose a
-// standalone logical NOT, so even the only valid unary kind (NOT)
-// is rejected with a guidance message.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return expr.Dispatch(func(*filter.UnaryExpr) error {
 		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
 
-// visitIdent stores the identifier name as the current field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Name()
 	return nil
 }
 
-// visitLiteral converts a literal node to a Go value and stores it.
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
@@ -150,7 +123,6 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	return nil
 }
 
-// visitListLiteral converts a list of literals to a []any slice and stores it.
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	values := make([]any, 0, list.Len())
 	for i, lit := range list.Literals() {
@@ -164,9 +136,6 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	return nil
 }
 
-// visitIndexExpr builds a field key from an indexed expression and stores it.
-// profile["author"]      → "profile.author"
-// profile["a"]["b"]      → "profile.a.b"
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
@@ -176,9 +145,6 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	return nil
 }
 
-// visitLogicalExpr handles AND and OR operators.
-// Each operand is processed in isolation and the results are combined with
-// v2.And or v2.Or respectively.
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	leftClause, err := v.buildNestedClause(expr.Left())
 	if err != nil {
@@ -204,8 +170,6 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitEqualityExpr handles == and != operators.
-// The appropriate Chroma Eq*/NotEq* function is chosen based on the value type.
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -229,8 +193,6 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// buildEqualityClause creates an Eq or NotEq WhereClause for the given typed value.
-// Integral values use Chroma's int API; fractional values use its float32 API.
 func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter.Operator) (v2.WhereClause, error) {
 	isEq := op == filter.OpEqual
 
@@ -264,9 +226,6 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter
 	}
 }
 
-// visitOrderingExpr handles <, <=, >, >= operators.
-// Whole-number values use the int variants of the Chroma comparison functions;
-// fractional values use the float32 variants.
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -321,12 +280,6 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitInExpr handles the IN operator for membership testing.
-// The element type of the list determines which In* function is used:
-//   - string list → v2.InString
-//   - whole-number float64 list → v2.InInt
-//   - fractional float64 list → v2.InFloat (float32 values)
-//   - bool list → v2.InBool
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -412,9 +365,6 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// buildNestedClause processes an expression with an isolated Visitor and returns
-// the resulting WhereClause. This prevents condition state from leaking across
-// different branches of a logical expression.
 func (v *Visitor) buildNestedClause(expr filter.Expr) (v2.WhereClause, error) {
 	switch node := expr.(type) {
 	case *filter.BinaryExpr, *filter.UnaryExpr:
@@ -428,8 +378,6 @@ func (v *Visitor) buildNestedClause(expr filter.Expr) (v2.WhereClause, error) {
 	}
 }
 
-// extractFieldKey extracts and returns the field key from expr while preserving
-// the caller's currentFieldKey state.
 func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	saved := v.currentFieldKey
 	v.currentFieldKey = ""
@@ -448,8 +396,6 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	return extracted, nil
 }
 
-// extractFieldValue extracts and returns the value from expr while preserving
-// the caller's currentFieldValue state.
 func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	saved := v.currentFieldValue
 	v.currentFieldValue = nil
@@ -468,14 +414,6 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	return extracted, nil
 }
 
-// buildIndexedFieldKey constructs a complete dot-separated field key from an
-// IndexExpr. Chroma's flat metadata key space represents nested selectors by
-// joining every segment, including the base identifier.
-//
-// Examples:
-//
-//	profile["author"]   → "profile.author"
-//	profile["a"]["b"]   → "profile.a.b"
 func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var pathParts []string
 
@@ -499,7 +437,6 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	}
 }
 
-// literalToValue converts an AST literal to its Go equivalent.
 func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()

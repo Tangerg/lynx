@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a TiDB WHERE
 // fragment. TiDB stores metadata as JSON and the visitor reaches
 // into it with JSON_VALUE + per-type casts so numeric / boolean
@@ -18,8 +20,6 @@ import (
 //	author == "Alice"        →  JSON_VALUE(metadata, '$.author') = ?
 //	year >= 2020             →  CAST(JSON_VALUE(metadata, '$.year') AS DOUBLE) >= ?
 //	tag IN ("a", "b")        →  JSON_VALUE(metadata, '$.tag') IN (?, ?)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

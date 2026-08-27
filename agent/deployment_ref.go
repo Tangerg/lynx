@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-// ErrInvalidDeploymentRef reports a malformed exact Deployment identity.
 var ErrInvalidDeploymentRef = errors.New("agent: invalid deployment reference")
 
 const invalidDeploymentRefText = "<invalid-deployment-ref>"
@@ -23,10 +22,6 @@ type DeploymentRef struct {
 	digest               Digest
 }
 
-// NewDeploymentRef binds a validated Descriptor contract to exact code and
-// frozen configuration identities. The caller that assembles a Deployment is
-// responsible for hashing all behavior-affecting implementation and dispatcher
-// configuration into the two supplied digests.
 func NewDeploymentRef(descriptor Descriptor, implementationDigest, configurationDigest Digest) (DeploymentRef, error) {
 	if !descriptor.Valid() {
 		return DeploymentRef{}, fmt.Errorf("%w: %w", ErrInvalidDeploymentRef, ErrInvalidDescriptor)
@@ -71,8 +66,6 @@ func (d DeploymentRef) ConfigurationDigest() Digest { return d.configurationDige
 // Digest returns the complete Deployment value identity.
 func (d DeploymentRef) Digest() Digest { return d.digest }
 
-// String returns a compact diagnostic form containing the stable name,
-// semantic version, and complete Deployment digest. It is not a wire encoding.
 func (d DeploymentRef) String() string {
 	if !d.Valid() {
 		return invalidDeploymentRefText
@@ -80,7 +73,6 @@ func (d DeploymentRef) String() string {
 	return d.name + "@" + d.version + "+" + d.digest.String()
 }
 
-// Valid reports whether all identity components and their derived digest agree.
 func (d DeploymentRef) Valid() bool {
 	if !validQualifiedName(d.name) || !validSemanticVersion(d.version) ||
 		!d.contractDigest.Valid() || !d.implementationDigest.Valid() ||
@@ -91,7 +83,6 @@ func (d DeploymentRef) Valid() bool {
 	return err == nil && want == d.digest
 }
 
-// MarshalJSON returns the validated exact Deployment identity.
 func (d DeploymentRef) MarshalJSON() ([]byte, error) {
 	if !d.Valid() {
 		return nil, ErrInvalidDeploymentRef
@@ -102,7 +93,6 @@ func (d DeploymentRef) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON replaces d with a strictly decoded exact identity.
 func (d *DeploymentRef) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDeploymentRef)

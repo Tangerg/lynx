@@ -29,15 +29,11 @@ type Response struct {
 
 var _ toolcontract.Tool = (*Tool)(nil)
 
-// Tool runs a shell command via the supplied [Executor].
 type Tool struct {
 	executor Executor
 	typed    toolcontract.Func[Request, Response]
 }
 
-// NewTool builds a [Tool] backed by executor. Passing nil wires up
-// a default [LocalExecutor] so callers who just want "run on this
-// host" don't have to construct one explicitly.
 func NewTool(executor Executor) *Tool {
 	if executor == nil {
 		executor = NewLocalExecutor()

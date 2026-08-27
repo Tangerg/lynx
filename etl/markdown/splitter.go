@@ -24,9 +24,6 @@ const (
 	defaultMaxChunks         = 10_000
 )
 
-// ErrSemanticUnitTooLarge reports that a table row, list item, code line, or
-// other indivisible Markdown unit cannot fit within the configured token
-// budget. The splitter fails instead of silently damaging Markdown structure.
 var ErrSemanticUnitTooLarge = errors.New("markdown splitter: semantic unit exceeds token limit")
 
 // SplitterConfig configures structure-aware Markdown chunking. Zero limits use
@@ -50,7 +47,6 @@ type Splitter struct {
 	base              *etl.Splitter
 }
 
-// NewSplitter constructs a structure-aware Markdown splitter.
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	if lo.IsNil(config.Tokenizer) {
 		return nil, errors.New("markdown splitter: tokenizer is required")

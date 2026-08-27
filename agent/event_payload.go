@@ -1,24 +1,16 @@
 package agent
 
-// These private wire values are the authoritative payload contracts for
-// Framework-owned Events. Strategy-owned Event payloads remain opaque.
-
-// StepStatus records whether one Execution Step returned normally.
 type StepStatus string
 
 const (
-	// StepStatusSucceeded records a normal Step return.
 	StepStatusSucceeded StepStatus = "succeeded"
-	// StepStatusFailed records a Step error or panic.
-	StepStatusFailed StepStatus = "failed"
+	StepStatusFailed    StepStatus = "failed"
 )
 
-// Valid reports whether s is a supported Step outcome.
 func (s StepStatus) Valid() bool {
 	return s == StepStatusSucceeded || s == StepStatusFailed
 }
 
-// String returns the stable Step outcome name.
 func (s StepStatus) String() string {
 	if !s.Valid() {
 		return "invalid"

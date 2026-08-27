@@ -15,7 +15,6 @@ const (
 	OpenAIStreamChunkExtensionKey = "deepseek/openai_stream_chunk"
 )
 
-// OpenAIChatConfig configures DeepSeek's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -44,7 +43,6 @@ var (
 // OpenAIChat implements DeepSeek's OpenAI-compatible chat protocol.
 type OpenAIChat = openai.Chat
 
-// NewOpenAIChat constructs a Core chat adapter for DeepSeek.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

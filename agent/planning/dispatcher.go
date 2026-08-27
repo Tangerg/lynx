@@ -34,9 +34,6 @@ type Dispatcher struct {
 	executors  map[string]boundExecutor
 }
 
-// NewDispatcher validates and freezes the exact external capabilities required
-// by definition. Missing, extra, typed-nil, or child-Action executors are
-// rejected before Deployment assembly.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
 	if !definition.valid() || lo.IsNil(config.Observer) {
 		return nil, ErrInvalidDispatcherConfig

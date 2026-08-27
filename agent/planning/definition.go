@@ -58,7 +58,6 @@ type Definition struct {
 	maxActionAttempts uint32
 }
 
-// NewDefinition validates config and constructs a managed Planning Definition.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if !config.InputSchema.Valid() || !config.Goal.Valid() || lo.IsNil(config.Planner) || config.MaxActionAttempts == 0 {
 		return nil, ErrInvalidDefinitionConfig

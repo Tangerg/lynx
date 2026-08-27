@@ -28,14 +28,11 @@ type ReadResponse struct {
 
 var _ toolcontract.Tool = (*ReadTool)(nil)
 
-// ReadTool is the thin LLM-facing adapter for [Executor.Read].
 type ReadTool struct {
 	executor Executor
 	typed    toolcontract.Func[ReadRequest, ReadResponse]
 }
 
-// NewReadTool builds a [ReadTool] backed by executor. Passing nil
-// wires up an unconfined [LocalExecutor] (workspace root "").
 func NewReadTool(executor Executor) *ReadTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")

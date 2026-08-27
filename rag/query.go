@@ -11,15 +11,10 @@ import (
 )
 
 var (
-	// ErrInvalidQuery reports invalid retrieval query text.
-	ErrInvalidQuery = errors.New("rag: invalid query")
-	// ErrNilRetriever reports a missing retrieval capability.
-	ErrNilRetriever = errors.New("rag: retriever must not be nil")
-	// ErrInvalidQueryValueKey reports an empty, whitespace-padded, zero-value,
-	// or untyped query value key.
+	ErrInvalidQuery         = errors.New("rag: invalid query")
+	ErrNilRetriever         = errors.New("rag: retriever must not be nil")
 	ErrInvalidQueryValueKey = errors.New("rag: invalid query value key")
-	// ErrNilQueryValue reports an ambiguous nil query value.
-	ErrNilQueryValue = errors.New("rag: query value must not be nil")
+	ErrNilQueryValue        = errors.New("rag: query value must not be nil")
 )
 
 var queryAnyType = reflect.TypeFor[any]()
@@ -87,7 +82,6 @@ type Query struct {
 	values map[*valueKeyIdentity]any
 }
 
-// NewQuery constructs a query and rejects blank text.
 func NewQuery(text string) (Query, error) {
 	query := Query{text: text}
 	if err := query.Validate(); err != nil {
@@ -96,7 +90,6 @@ func NewQuery(text string) (Query, error) {
 	return query, nil
 }
 
-// Validate reports whether the query contains usable retrieval text.
 func (q Query) Validate() error {
 	if strings.TrimSpace(q.text) == "" {
 		return fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)

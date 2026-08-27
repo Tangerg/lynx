@@ -21,7 +21,6 @@ const (
 	SearchModeSEC      SearchMode = "sec"
 )
 
-// Valid reports whether s names a supported Sonar search mode.
 func (s SearchMode) Valid() bool {
 	return s == SearchModeWeb || s == SearchModeAcademic || s == SearchModeSEC
 }
@@ -36,7 +35,6 @@ const (
 	SearchRecencyYear  SearchRecency = "year"
 )
 
-// Valid reports whether s names a supported search recency window.
 func (s SearchRecency) Valid() bool {
 	return s == SearchRecencyHour || s == SearchRecencyDay || s == SearchRecencyWeek ||
 		s == SearchRecencyMonth || s == SearchRecencyYear
@@ -50,7 +48,6 @@ const (
 	SearchContextHigh   SearchContextSize = "high"
 )
 
-// Valid reports whether s names a supported search context size.
 func (s SearchContextSize) Valid() bool {
 	return s == SearchContextLow || s == SearchContextMedium || s == SearchContextHigh
 }
@@ -63,7 +60,6 @@ const (
 	SearchTypePro  SearchType = "pro"
 )
 
-// Valid reports whether s names a supported Pro Search routing mode.
 func (s SearchType) Valid() bool {
 	return s == SearchTypeFast || s == SearchTypeAuto || s == SearchTypePro
 }
@@ -77,7 +73,6 @@ const (
 	ReasoningEffortHigh    ReasoningEffort = "high"
 )
 
-// Valid reports whether r names a supported reasoning effort.
 func (r ReasoningEffort) Valid() bool {
 	return r == ReasoningEffortMinimal || r == ReasoningEffortLow ||
 		r == ReasoningEffortMedium || r == ReasoningEffortHigh
@@ -86,7 +81,6 @@ func (r ReasoningEffort) Valid() bool {
 // SearchDate is a Sonar search boundary encoded as MM/DD/YYYY.
 type SearchDate string
 
-// Valid reports whether s is a concrete valid Sonar search date.
 func (s SearchDate) Valid() bool {
 	if s == "" {
 		return false
@@ -114,7 +108,6 @@ const (
 	ImageFormatWebP ImageFormat = "webp"
 )
 
-// Valid reports whether i names a supported image format.
 func (i ImageFormat) Valid() bool {
 	return i == ImageFormatGIF || i == ImageFormatJPG || i == ImageFormatJPEG ||
 		i == ImageFormatPNG || i == ImageFormatWebP

@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 )
 
-// ErrInvalidConversationID reports a malformed or unsafe storage key.
 var ErrInvalidConversationID = errors.New("history: invalid conversation ID")
 
 // ConversationID identifies one history partition. Its zero value is invalid.

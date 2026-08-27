@@ -37,7 +37,6 @@ type LocalExecutor struct {
 	MaxOutputBytes int
 }
 
-// NewLocalExecutor returns a [LocalExecutor] with default shell.
 func NewLocalExecutor() *LocalExecutor {
 	return &LocalExecutor{Shell: "/bin/sh"}
 }
@@ -46,7 +45,6 @@ func (l *LocalExecutor) maxOutput() int {
 	return cmp.Or(l.MaxOutputBytes, defaultMaxOutputBytes)
 }
 
-// Run implements [Executor].
 func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 	if in.Cmd == "" {
 		return Output{}, ErrEmptyCommand

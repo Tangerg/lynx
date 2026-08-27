@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a CQL WHERE
 // fragment. Each metadata key must map to an actual indexed column on
 // the underlying table — Cassandra has no JSON-path operator, so
@@ -21,8 +23,6 @@ import (
 //
 // IN values are bound as a single slice parameter so callers can pass
 // `[]string{"a", "b"}` straight through.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err  error
 	sql  strings.Builder

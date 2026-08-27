@@ -14,10 +14,8 @@ import (
 )
 
 var (
-	// ErrInvalidEncoding reports a blank or unknown tiktoken vocabulary name.
 	ErrInvalidEncoding = errors.New("tiktoken: invalid encoding")
-	// ErrUninitialized reports use of a zero-value Tokenizer.
-	ErrUninitialized = errors.New("tiktoken: tokenizer is not initialized")
+	ErrUninitialized   = errors.New("tiktoken: tokenizer is not initialized")
 )
 
 // Encoding identifies a tiktoken vocabulary. Callers choose explicitly because
@@ -33,7 +31,6 @@ const (
 	R50KBase   = Encoding(tiktokenlib.MODEL_R50K_BASE)
 )
 
-// Validate reports whether the encoding names a supported vocabulary.
 func (e Encoding) Validate() error {
 	_, err := e.load()
 	return err
@@ -62,7 +59,6 @@ type Tokenizer struct {
 	encoding *tiktokenlib.Tiktoken
 }
 
-// New loads encoding and returns an error when the vocabulary is unknown.
 func New(encoding Encoding) (Tokenizer, error) {
 	native, err := encoding.load()
 	if err != nil {
@@ -71,7 +67,6 @@ func New(encoding Encoding) (Tokenizer, error) {
 	return Tokenizer{encoding: native}, nil
 }
 
-// EstimateText returns the exact token count for the configured vocabulary.
 func (t Tokenizer) EstimateText(ctx context.Context, text string) (int, error) {
 	tokens, err := t.Encode(ctx, text)
 	if err != nil {
@@ -80,7 +75,6 @@ func (t Tokenizer) EstimateText(ctx context.Context, text string) (int, error) {
 	return len(tokens), nil
 }
 
-// Encode converts text to token IDs.
 func (t Tokenizer) Encode(ctx context.Context, text string) ([]int, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -91,7 +85,6 @@ func (t Tokenizer) Encode(ctx context.Context, text string) ([]int, error) {
 	return t.encoding.Encode(text, nil, nil), nil
 }
 
-// Decode converts token IDs to text.
 func (t Tokenizer) Decode(ctx context.Context, tokens []int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

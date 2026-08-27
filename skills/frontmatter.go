@@ -46,8 +46,6 @@ func (f Frontmatter) AllowedToolList() []string {
 	return strings.Fields(f.AllowedTools)
 }
 
-// Validate reports whether the frontmatter satisfies the spec's constraints,
-// joining every violation so a caller sees them all at once.
 func (f Frontmatter) Validate() error {
 	var errs []error
 

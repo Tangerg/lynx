@@ -54,7 +54,6 @@ const (
 	SpaceTypeLInf SpaceType = "linf"
 )
 
-// Valid reports whether s is supported by OpenSearch vector indexes.
 func (s SpaceType) Valid() bool {
 	switch s {
 	case SpaceTypeCosine, SpaceTypeL2, SpaceTypeIP, SpaceTypeL1, SpaceTypeLInf:
@@ -64,7 +63,6 @@ func (s SpaceType) Valid() bool {
 	}
 }
 
-// String returns the OpenSearch space token.
 func (s SpaceType) String() string { return string(s) }
 
 func (s SpaceType) score(raw float64) vectorstore.Score {
@@ -107,7 +105,6 @@ const (
 	EngineFaiss Engine = "faiss"
 )
 
-// Valid reports whether e is supported by OpenSearch vector indexes.
 func (e Engine) Valid() bool {
 	switch e {
 	case EngineLucene, EngineNMSLib, EngineFaiss:
@@ -117,7 +114,6 @@ func (e Engine) Valid() bool {
 	}
 }
 
-// String returns the OpenSearch engine token.
 func (e Engine) String() string { return string(e) }
 
 // StoreConfig contains configuration options for the OpenSearch vector

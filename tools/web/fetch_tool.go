@@ -18,8 +18,6 @@ type FetchTool struct {
 	inner   toolcontract.Tool
 }
 
-// NewFetchTool builds a [FetchTool] backed by fetcher. It returns an error if
-// fetcher is nil.
 func NewFetchTool(fetcher Fetcher) (*FetchTool, error) {
 	if fetcher == nil {
 		return nil, ErrMissingFetcher

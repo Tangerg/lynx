@@ -8,8 +8,19 @@ import "context"
 // versioned ExecutionState. Definition methods must not depend on Host product
 // identities, storage protocols, or mutable global registration.
 type Definition interface {
+	// Descriptor returns the immutable, portable contract shared by every
+	// Execution created from this definition. Repeated and concurrent calls must
+	// return an equivalent value; runtime configuration and mutable state do not
+	// belong in the descriptor.
 	Descriptor() Descriptor
+	// Start validates input against Descriptor and creates a fresh, isolated
+	// Execution without performing external I/O. The returned Execution has not
+	// executed a Step and must not share mutable state with another Process.
 	Start(input Input) (Execution, error)
+	// Restore reconstructs one Execution from a state previously produced by
+	// Snapshot for this exact definition. It must reject unknown versions,
+	// malformed state, and state belonging to another contract; restoration must
+	// not replay external work.
 	Restore(state ExecutionState) (Execution, error)
 }
 
@@ -23,6 +34,13 @@ type Definition interface {
 // Execution. If Step or Snapshot fails, the instance is discarded and may only
 // be rebuilt from the last stable ExecutionState.
 type Execution interface {
+	// Step reduces the current private state and the supplied ordered Signal
+	// prefix into one candidate Transition. It must honor ctx for bounded CPU
+	// work, perform no I/O, consume no hidden input, and never retain signals.
+	// The Engine serializes calls for one Execution.
 	Step(ctx context.Context, signals []Signal) (Transition, error)
+	// Snapshot returns a complete, independently owned, versioned state from
+	// which Definition.Restore can reproduce the current Execution exactly. It
+	// must fail rather than omit state required for deterministic continuation.
 	Snapshot() (ExecutionState, error)
 }

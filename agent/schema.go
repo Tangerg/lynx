@@ -8,7 +8,6 @@ import (
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
-// ErrInvalidSchema reports malformed, unsupported, or unresolved JSON Schema.
 var ErrInvalidSchema = errors.New("agent: invalid schema")
 
 // Schema is an immutable, resolved JSON Schema used by Framework input and
@@ -38,10 +37,8 @@ func SchemaFor[T any]() (Schema, error) {
 // JSON returns an independently owned JSON representation.
 func (s Schema) JSON() json.RawMessage { return s.contract.JSON() }
 
-// Valid reports whether the Schema was parsed and resolved successfully.
 func (s Schema) Valid() bool { return s.contract.Valid() }
 
-// ValidateInput validates input against the schema.
 func (s Schema) ValidateInput(input Input) error {
 	if err := s.validate(input.data); err != nil {
 		return fmt.Errorf("%w: schema validation: %w", ErrInvalidInput, err)
@@ -49,7 +46,6 @@ func (s Schema) ValidateInput(input Input) error {
 	return nil
 }
 
-// ValidateOutput validates output against the schema.
 func (s Schema) ValidateOutput(output Output) error {
 	if err := s.validate(output.data); err != nil {
 		return fmt.Errorf("%w: schema validation: %w", ErrInvalidOutput, err)
@@ -66,7 +62,6 @@ func (s Schema) validate(data []byte) error {
 
 func (s Schema) clone() Schema { return s }
 
-// MarshalJSON returns the validated canonical JSON Schema document.
 func (s Schema) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSchema
@@ -74,7 +69,6 @@ func (s Schema) MarshalJSON() ([]byte, error) {
 	return s.contract.JSON(), nil
 }
 
-// UnmarshalJSON replaces s with a parsed and resolved JSON Schema.
 func (s *Schema) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSchema)

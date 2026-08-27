@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into the JSON filter
 // document S3 Vectors expects under the QueryVectors `Filter` field.
 //
@@ -18,8 +20,6 @@ import (
 //	tag IN ("a", "b")        →  {"tag":    {"$in": ["a", "b"]}}
 //	NOT (author == "Alice")  →  {"$not":   {"author": {"$eq": "Alice"}}}
 //	a == "x" AND b == "y"    →  {"$and": [{"a":{"$eq":"x"}}, {"b":{"$eq":"y"}}]}
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err    error
 	result map[string]any

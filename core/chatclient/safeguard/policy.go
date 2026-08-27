@@ -7,13 +7,10 @@ import (
 )
 
 var (
-	// ErrUnsafeContent identifies policy rejections. Use errors.As with
-	// *UnsafeError to inspect the safe-to-disclose scope and term.
 	ErrUnsafeContent           = errors.New("safeguard: unsafe content")
 	ErrInvalidMiddlewareConfig = errors.New("safeguard: invalid middleware config")
 	ErrInvalidSubstringConfig  = errors.New("safeguard: invalid substring matcher config")
-	// ErrNilStream reports a wrapped Streamer that returned a nil sequence.
-	ErrNilStream = errors.New("safeguard: nil stream sequence")
+	ErrNilStream               = errors.New("safeguard: nil stream sequence")
 )
 
 // Scope selects which side of a model exchange is screened.
@@ -48,12 +45,14 @@ type Match struct {
 // Matcher screens a text projection. Implementations may call remote policy
 // services and must preserve context cancellation errors.
 type Matcher interface {
+	// Match evaluates one provider-neutral text projection. Found=false means the
+	// text passed; a returned error means no policy decision was reached. Remote
+	// implementations must honor ctx and preserve context errors.
 	Match(ctx context.Context, text string) (Match, error)
 }
 
 type MatcherFunc func(ctx context.Context, text string) (Match, error)
 
-// Match invokes m.
 func (m MatcherFunc) Match(ctx context.Context, text string) (Match, error) {
 	return m(ctx, text)
 }
@@ -79,7 +78,6 @@ func (u *UnsafeError) Error() string {
 	return fmt.Sprintf("%s: %s matched %q", ErrUnsafeContent, u.Block.Scope, u.Block.Term)
 }
 
-// Unwrap supports errors.Is(err, ErrUnsafeContent).
 func (u *UnsafeError) Unwrap() error {
 	return ErrUnsafeContent
 }

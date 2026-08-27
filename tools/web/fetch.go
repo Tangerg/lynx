@@ -20,7 +20,6 @@ const (
 	FormatText ContentFormat = "text"
 )
 
-// Validate reports whether the format is empty or supported.
 func (c ContentFormat) Validate() error {
 	switch c {
 	case "", FormatMarkdown, FormatHTML, FormatText:
@@ -62,9 +61,6 @@ func (f *FetchRequest) Prepare() (*FetchRequest, error) {
 	return &prepared, nil
 }
 
-// Validate checks that the request carries enough to act on. Returns
-// one of the sentinel errors in errors.go so callers can match with
-// errors.Is.
 func (f *FetchRequest) Validate() error {
 	if f == nil {
 		return ErrMissingFetchRequest
@@ -87,8 +83,13 @@ type FetchResponse struct {
 	Format  ContentFormat `json:"format"`
 }
 
-// Fetcher is the SPI a page-fetching backend implements.
+// Fetcher is the provider boundary behind the model-facing page fetch tool.
+// Network authority, authentication, redirects, and provider defaults are
+// frozen in the implementation rather than supplied by model arguments.
 type Fetcher interface {
-	// Fetch retrieves and renders the page at req.URL.
-	Fetch(ctx context.Context, req *FetchRequest) (*FetchResponse, error)
+	// Fetch retrieves and renders exactly request.URL in the requested format
+	// without mutating or retaining request. Implementations must honor ctx,
+	// preserve network error causes, and transfer response ownership to the
+	// caller.
+	Fetch(ctx context.Context, request *FetchRequest) (*FetchResponse, error)
 }

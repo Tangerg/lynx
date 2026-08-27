@@ -12,8 +12,18 @@ import (
 // bounded time. A Dispatcher may invoke it concurrently for explicitly
 // concurrent Tool calls.
 type ExecutionObserver interface {
+	// OnModelResponse receives the complete provider-neutral response after the
+	// model boundary settles and before later Interaction work is observed. The
+	// response is detached and may be mutated by the observer. Panics are
+	// isolated and the callback has no control authority.
 	OnModelResponse(ctx context.Context, invocation ModelInvocation, response *chat.Response)
+	// OnToolStarted marks the actual external Tool-call boundary; it is not
+	// emitted for calls rejected before execution. Concurrently authorized Tool
+	// calls may invoke this method in parallel.
 	OnToolStarted(ctx context.Context, invocation ToolInvocation)
+	// OnToolSettled receives exactly one conclusive or unknown host-boundary
+	// outcome for a started Tool call. The ToolResult, when present, is detached;
+	// the callback cannot alter the value committed to Interaction state.
 	OnToolSettled(ctx context.Context, invocation ToolInvocation, settlement ToolSettlement)
 }
 

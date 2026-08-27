@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a Vespa YQL `where`
 // clause. The metadata fields must be declared in the Vespa schema
 // (sd file) — Vespa addresses them as flat top-level attributes.
@@ -19,8 +21,6 @@ import (
 //	year >= 2020             →  year >= 2020
 //	tag IN ("a", "b")        →  tag in ("a", "b")
 //	NOT (year >= 2020)       →  !(year >= 2020)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

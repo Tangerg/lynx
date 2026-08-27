@@ -7,12 +7,6 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ErrNoServerSession is returned by [ReportProgress] and [Elicit]
-// when the call happens outside an MCP server tool
-// invocation (the dispatcher did not stamp a session onto ctx).
-//
-// Tool authors usually ignore this error — it tells you "there is no
-// client to notify", which is harmless in non-MCP code paths.
 var ErrNoServerSession = errors.New("mcp: no active MCP server session on context")
 
 type serverCall struct {

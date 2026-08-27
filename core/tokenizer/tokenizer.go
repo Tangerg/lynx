@@ -5,17 +5,24 @@ import "context"
 // TextEstimator reports the token count a model would assign to text.
 // Implementations may use a local vocabulary or a provider API.
 type TextEstimator interface {
-	EstimateText(context.Context, string) (int, error)
+	// EstimateText returns a non-negative count under the implementation's
+	// explicitly selected vocabulary or provider model. Remote implementations
+	// must honor cancellation and preserve context errors.
+	EstimateText(ctx context.Context, text string) (int, error)
 }
 
 // Encoder converts text into vocabulary token IDs.
 type Encoder interface {
-	Encode(context.Context, string) ([]int, error)
+	// Encode returns token IDs in vocabulary order. The caller owns the returned
+	// slice; implementations must not expose a mutable internal buffer.
+	Encode(ctx context.Context, text string) ([]int, error)
 }
 
 // Decoder converts vocabulary token IDs back into text.
 type Decoder interface {
-	Decode(context.Context, []int) (string, error)
+	// Decode rejects token IDs outside the selected vocabulary and does not
+	// retain the caller's slice. Context cancellation remains identifiable.
+	Decode(ctx context.Context, tokens []int) (string, error)
 }
 
 // Tokenizer combines the encoding capabilities required by token-aware text

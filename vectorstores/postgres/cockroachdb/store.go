@@ -34,7 +34,6 @@ const (
 	DistanceIP     DistanceMetric = "ip"
 )
 
-// Valid reports whether d is supported by CockroachDB vector indexes.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
@@ -44,7 +43,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the CockroachDB distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) indexOpClass() string {
@@ -58,7 +56,6 @@ func (d DistanceMetric) indexOpClass() string {
 	}
 }
 
-// StoreConfig configures a native CockroachDB vector store.
 type StoreConfig struct {
 	Pool             *pgxpool.Pool
 	SchemaName       string

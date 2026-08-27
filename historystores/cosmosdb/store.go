@@ -17,14 +17,12 @@ import (
 	"github.com/Tangerg/scope/core/history"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Container] is required.
 type StoreConfig struct {
 	// Container is the live Cosmos container handle. Required. The
 	// container's partition key MUST be `/conversation_id`.
 	Container *azcosmos.ContainerClient
 }
 
-// Validate reports whether c can be used to construct a [Store].
 func (c StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("cosmosdb: container is required")
@@ -37,13 +35,15 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cosmos DB-backed [history.Store]. Construct via [NewStore].
+// Store persists each conversation in one Cosmos DB partition through a
+// caller-owned container handle. A local monotonic sequence plus the document
+// ID gives deterministic read order without relying on lossy JSON numbers;
+// ordering across separate Store values remains unspecified.
 type Store struct {
 	container *azcosmos.ContainerClient
 	sequence  sequenceGenerator
 }
 
-// New builds a [Store] from config.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

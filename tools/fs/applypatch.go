@@ -16,13 +16,11 @@ type ApplyPatchRequest struct {
 	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Git-compatible unified diff. Supports create, modify, delete, and rename operations; express moves with Git rename metadata."`
 }
 
-// ApplyPatchResponse is the LLM-facing return shape.
 type ApplyPatchResponse struct {
 	Files []PatchFileResponse `json:"files"`
 	Hunks int                 `json:"hunks"`
 }
 
-// PatchFileResponse reports one patched file.
 type PatchFileResponse struct {
 	// Path is where the file ended up.
 	Path    string `json:"path"`
@@ -36,14 +34,11 @@ type PatchFileResponse struct {
 
 var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
-// ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {
 	executor Executor
 	typed    toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
-// NewApplyPatchTool builds an [ApplyPatchTool] backed by executor. Passing nil
-// wires up an unconfined [LocalExecutor] (workspace root "").
 func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")

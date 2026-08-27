@@ -24,7 +24,6 @@ Rewritten query:`
 // [RewriteTransformerConfig.TargetSearchSystem] is unset.
 const defaultRewriteTarget = "vector store"
 
-// RewriteTransformerConfig configures [NewRewriteTransformer].
 type RewriteTransformerConfig struct {
 	// Model performs the rewrite. Required.
 	Model chat.Model
@@ -64,8 +63,6 @@ type rewritePromptVariables struct {
 	Query  string
 }
 
-// NewRewriteTransformer returns a transformer that tightens a verbose or
-// ambiguous user query for a configured search target.
 func NewRewriteTransformer(config RewriteTransformerConfig) (*RewriteTransformer, error) {
 	config, err := config.normalized()
 	if err != nil {

@@ -35,7 +35,6 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-// Valid reports whether d is supported by Pinecone indexes.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceDot, DistanceEuclidean:
@@ -45,7 +44,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the Pinecone distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(raw float64) vectorstore.Score {

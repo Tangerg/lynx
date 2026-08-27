@@ -10,14 +10,12 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-// ChatConfig configures the provider-neutral Core chat adapter.
 type ChatConfig struct {
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-// Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
 	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("ollama: DefaultOptions: %w", err)
@@ -36,7 +34,6 @@ type Chat struct {
 	defaults corechat.Options
 }
 
-// NewChat constructs a Core chat adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

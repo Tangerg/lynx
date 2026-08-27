@@ -41,12 +41,10 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-// Valid reports whether d is supported by MariaDB vector functions.
 func (d DistanceMetric) Valid() bool {
 	return d == DistanceCosine || d == DistanceEuclidean
 }
 
-// String returns the MariaDB distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(distance float64) vectorstore.Score {

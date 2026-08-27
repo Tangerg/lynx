@@ -29,8 +29,6 @@ type LocalExecutor struct {
 	pathLocks   map[string]*sync.Mutex
 }
 
-// NewLocalExecutor returns a [LocalExecutor] anchored at root. Pass
-// "" for an unrestricted executor (typical for trusted local dev).
 func NewLocalExecutor(root string) *LocalExecutor {
 	return &LocalExecutor{Root: root}
 }

@@ -12,7 +12,10 @@ import (
 // pass a predicate accepted by [Predicate.Validate]; [Parse] and vector-store request
 // validation already enforce that boundary.
 type Visitor interface {
-	Visit(Predicate) error
+	// Visit consumes one complete, already validated predicate. Implementations
+	// own traversal and may stop at the first target-specific error; they must not
+	// mutate the immutable expression tree.
+	Visit(predicate Predicate) error
 }
 
 func accept(predicate Predicate, visitor Visitor) error {

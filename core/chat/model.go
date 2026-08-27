@@ -13,6 +13,10 @@ import (
 // Streaming, default configuration, and provider identity are independent
 // concerns and deliberately are not methods of Model.
 type Model interface {
+	// Call performs one complete model exchange. It must reject an invalid
+	// request before provider I/O, must not retain or mutate request, and
+	// transfers ownership of the returned response to the caller. Context
+	// cancellation remains identifiable through errors.Is.
 	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
@@ -34,6 +38,10 @@ func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error
 // error or leaving a detached goroutine behind. [ResponseAccumulator] defines
 // the provider-neutral aggregation semantics.
 type Streamer interface {
+	// Stream starts provider work lazily when the sequence is iterated. Each
+	// yielded response is an independently owned delta accepted by
+	// ResponseAccumulator. Stopping iteration releases provider resources before
+	// the iterator returns; a terminal error is yielded at most once.
 	Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 }
 

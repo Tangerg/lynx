@@ -146,8 +146,6 @@ type Tool struct {
 	typed  toolcontract.Func[Request, *Response]
 }
 
-// New returns a Tool that writes its trace lines to writer. Pass nil
-// to suppress trace output (writer = io.Discard).
 func New(writer io.Writer) *Tool {
 	if writer == nil {
 		writer = io.Discard

@@ -12,7 +12,6 @@ const (
 	maxFailureMessageBytes = 4096
 )
 
-// ErrInvalidFailure reports a malformed stable execution failure fact.
 var ErrInvalidFailure = errors.New("agent: invalid failure")
 
 // FailureKind is the stable framework-level classification of a failed
@@ -32,7 +31,6 @@ const (
 	FailureKindPanic FailureKind = "panic"
 )
 
-// Valid reports whether f is a framework failure classification.
 func (f FailureKind) Valid() bool {
 	switch f {
 	case FailureKindExecution, FailureKindContract, FailureKindExternal, FailureKindPanic:
@@ -42,7 +40,6 @@ func (f FailureKind) Valid() bool {
 	}
 }
 
-// String returns the stable failure-kind name.
 func (f FailureKind) String() string {
 	if !f.Valid() {
 		return "invalid"
@@ -59,7 +56,6 @@ type Failure struct {
 	message string
 }
 
-// NewFailure validates a stable failed-execution fact.
 func NewFailure(kind FailureKind, code, message string) (Failure, error) {
 	if !kind.Valid() {
 		return Failure{}, fmt.Errorf("%w: kind is required", ErrInvalidFailure)
@@ -82,13 +78,11 @@ func (f Failure) Code() string { return f.code }
 // Message returns the bounded diagnostic explanation.
 func (f Failure) Message() string { return f.message }
 
-// Valid reports whether the Failure was constructed successfully.
 func (f Failure) Valid() bool {
 	return f.kind.Valid() &&
 		validQualifiedName(f.code) && f.message != ""
 }
 
-// MarshalJSON returns the validated portable failure fact.
 func (f Failure) MarshalJSON() ([]byte, error) {
 	if !f.Valid() {
 		return nil, ErrInvalidFailure
@@ -96,7 +90,6 @@ func (f Failure) MarshalJSON() ([]byte, error) {
 	return json.Marshal(failureWire{Kind: f.kind, Code: f.code, Message: f.message})
 }
 
-// UnmarshalJSON replaces f with a strictly decoded Failure.
 func (f *Failure) UnmarshalJSON(data []byte) error {
 	if f == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidFailure)

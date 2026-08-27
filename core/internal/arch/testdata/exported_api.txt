@@ -190,7 +190,7 @@ embedding: func NewOptions(model string) (Options, error)
 embedding: func NewOutput(embedding []float64, metadata *OutputMetadata) (*Output, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error)
-embedding: type Model interface { Call(context.Context, *Request) (*Response, error) }
+embedding: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
 embedding: type Options struct { Model string `json:"model"` Dimensions *int64 `json:"dimensions,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 embedding: type Output struct { Embedding []float64 `json:"embedding"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
@@ -273,7 +273,7 @@ image: func NewOptions(model string) (Options, error)
 image: func NewOutput(value *media.Media, metadata *OutputMetadata) (*Output, error)
 image: func NewRequest(prompt string) (*Request, error)
 image: func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error)
-image: type Model interface { Call(context.Context, *Request) (*Response, error) }
+image: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 image: type ModelFunc func(context.Context, *Request) (*Response, error)
 image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 image: type Output struct { Media *media.Media `json:"media,omitempty"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
@@ -382,7 +382,7 @@ moderation: func NewOutput(categories Categories, metadata *OutputMetadata) (*Ou
 moderation: func NewRequest(texts []string) (*Request, error)
 moderation: func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error)
 moderation: type Categories map[string]Verdict
-moderation: type Model interface { Call(context.Context, *Request) (*Response, error) }
+moderation: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 moderation: type ModelFunc func(context.Context, *Request) (*Response, error)
 moderation: type Options struct { Model string `json:"model"` Extensions metadata.Map `json:"extensions,omitzero"` }
 moderation: type Output struct { Categories Categories `json:"categories,omitzero"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
@@ -419,7 +419,7 @@ speech: func NewOptions(model string) (Options, error)
 speech: func NewOutput(audio []byte, metadata *OutputMetadata) (*Output, error)
 speech: func NewRequest(text string) (*Request, error)
 speech: func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error)
-speech: type Model interface { Call(context.Context, *Request) (*Response, error) }
+speech: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 speech: type ModelFunc func(context.Context, *Request) (*Response, error)
 speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` OutputFormat string `json:"output_format"` Speed float64 `json:"speed"` Extensions metadata.Map `json:"extensions,omitzero"` }
 speech: type Output struct { Audio []byte `json:"audio,omitzero"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
@@ -427,12 +427,12 @@ speech: type OutputMetadata struct { Extra metadata.Map `json:"extra,omitzero"` 
 speech: type Request struct { Text string `json:"text"` Options Options `json:"options,omitzero"` }
 speech: type Response struct { Output *Output `json:"output,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
-speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
+speech: type Streamer interface { Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] }
 speech: type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 speech: var ( ErrInvalidOptions = errors.New("speech: invalid options") ErrInvalidRequest = errors.New("speech: invalid request") ErrInvalidResponse = errors.New("speech: invalid response") )
-tokenizer: type Decoder interface { Decode(context.Context, []int) (string, error) }
-tokenizer: type Encoder interface { Encode(context.Context, string) ([]int, error) }
-tokenizer: type TextEstimator interface { EstimateText(context.Context, string) (int, error) }
+tokenizer: type Decoder interface { Decode(ctx context.Context, tokens []int) (string, error) }
+tokenizer: type Encoder interface { Encode(ctx context.Context, text string) ([]int, error) }
+tokenizer: type TextEstimator interface { EstimateText(ctx context.Context, text string) (int, error) }
 tokenizer: type Tokenizer interface { Encoder Decoder }
 tool: func (f Func[In, Out]) Call(ctx context.Context, arguments string) (string, error)
 tool: func (f Func[In, Out]) Definition() chat.ToolDefinition
@@ -477,7 +477,7 @@ transcription: func NewOptions(model string) (Options, error)
 transcription: func NewOutput(text string, metadata *OutputMetadata) (*Output, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
 transcription: func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error)
-transcription: type Model interface { Call(context.Context, *Request) (*Response, error) }
+transcription: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 transcription: type ModelFunc func(context.Context, *Request) (*Response, error)
 transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Extensions metadata.Map `json:"extensions,omitzero"` }
 transcription: type Output struct { Text string `json:"text"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
@@ -607,7 +607,7 @@ vectorstore/filter: type Predicate interface { Expr fmt.Stringer Validate() erro
 vectorstore/filter: type Selector interface { Expr Path() ([]string, error) selector() }
 vectorstore/filter: type SyntaxError struct { Position Position Token string Message string }
 vectorstore/filter: type UnaryExpr struct { operator Operator right Predicate start Position end Position }
-vectorstore/filter: type Visitor interface { Visit(Predicate) error }
+vectorstore/filter: type Visitor interface { Visit(predicate Predicate) error }
 vectorstore/inmemory: const Provider = "InMemory"
 vectorstore/inmemory: func (e *evaluator) Visit(predicate filter.Predicate) error
 vectorstore/inmemory: func (s *Store) Clear()
@@ -668,7 +668,7 @@ vectorstore: func ScoreFromInnerProduct(product float64) Score
 vectorstore: func ScoreFromNegativeInnerProductDistance(distance float64) Score
 vectorstore: func ScoreFromOneMinusInnerProductDistance(distance float64) Score
 vectorstore: func ScoreFromValue(value float64) Score
-vectorstore: type Batcher interface { Batch(context.Context, []*document.Document) ([][]*document.Document, error) }
+vectorstore: type Batcher interface { Batch(ctx context.Context, documents []*document.Document) ([][]*document.Document, error) }
 vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, predicate filter.Predicate) error }
 vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
 vectorstore: type IndexRequest struct { Documents []*document.Document `json:"documents"` }

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into Vectara's
 // metadata-filter syntax. Vectara addresses document-level metadata
 // under the `doc.` prefix; the visitor honors a caller-supplied
@@ -20,8 +22,6 @@ import (
 //	year >= 2020             →  doc.year >= 2020
 //	tag IN ("a", "b")        →  doc.tag IN ('a', 'b')
 //	NOT (year >= 2020)       →  NOT (doc.year >= 2020)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

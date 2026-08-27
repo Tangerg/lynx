@@ -10,26 +10,13 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor transforms AST filter expressions into Pinecone metadata filter conditions.
-// It traverses semantic filter expressions and converts them to the provider query shape
-// into Pinecone's native metadata filter format (structpb.Struct).
-//
-// The converter maintains internal state during traversal:
-//   - condition: The filter condition map being built
-//   - currentFieldKey: Temporary storage for extracted field identifiers
-//   - currentFieldValue: Temporary storage for extracted literal values
-//   - err: The last error encountered during conversion
-//
-// Conversion strategy:
-//   - Logical operators (AND, OR) produce {"$and":[...]} / {"$or":[...]}
-//   - Equality operators produce {"field": {"$eq": value}} / {"field": {"$ne": value}}
-//   - Ordering operators produce {"field": {"$gt": value}}, etc.
-//   - IN produces {"field": {"$in": [...]}}
-//   - HAS uses scalar equality on list-valued string metadata
-//   - NOT is lowered into inverse comparison operators and De Morgan rewrites
-//   - LIKE is not supported by Pinecone metadata filters
 var _ filter.Visitor = (*Visitor)(nil)
 
+// Visitor compiles Scope filter expressions into Pinecone's metadata-filter
+// document. A value is reusable: Visit replaces the previous result. Pinecone
+// has no standalone NOT, so negation is lowered through exact inverse
+// comparisons and De Morgan rewrites; unsupported LIKE expressions and values
+// that protobuf cannot represent exactly are rejected rather than approximated.
 type Visitor struct {
 	err               error
 	condition         map[string]any
@@ -42,7 +29,7 @@ func NewVisitor() *Visitor {
 	return &Visitor{}
 }
 
-// Result returns the filter produced by the most recent successful Visit.
+// Result is nil until Visit succeeds and after any failed compilation.
 func (v *Visitor) Result() *structpb.Struct {
 	if v.err != nil {
 		return nil
@@ -50,9 +37,8 @@ func (v *Visitor) Result() *structpb.Struct {
 	return v.result
 }
 
-// Visit translates one semantic filter expression.
-// It walks the whole tree rooted at expr and returns the first error
-// encountered, or nil when the entire expression was accepted.
+// Visit replaces prior state and accepts only trees Pinecone can represent
+// without changing their meaning.
 func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.condition = nil
@@ -66,7 +52,6 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-// visit dispatches conversion to specialized methods based on expression type.
 func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("pinecone: cannot process nil expression")
@@ -93,10 +78,6 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes binary expressions to the appropriate
-// handler via [filter.BinaryExpr.Dispatch]. visitComparisonExpr
-// internally splits equality vs ordering since pinecone emits
-// different filter shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
@@ -107,8 +88,6 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	})
 }
 
-// visitHasExpr uses Pinecone's documented scalar equality behavior for
-// list-valued string metadata.
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -125,8 +104,6 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitComparisonExpr routes to equality or ordering based on the
-// operator family. Pinecone uses distinct filter shapes for each.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
@@ -134,25 +111,20 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return v.visitOrderingExpr(expr)
 }
 
-// visitLikeExpr — Pinecone metadata filters do not support LIKE.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return fmt.Errorf("pinecone: LIKE operator is not supported in Pinecone metadata filters at %s",
 		expr.Start().String())
 }
 
-// visitUnaryExpr handles unary expressions.
-// Only the NOT operator is supported.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return expr.Dispatch(v.visitNotExpr)
 }
 
-// visitIdent extracts and stores the identifier name as the current field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Name()
 	return nil
 }
 
-// visitLiteral converts an AST literal to its Go value and stores it as the current field value.
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
@@ -162,7 +134,6 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	return nil
 }
 
-// visitListLiteral converts a list of literals into a Go slice and stores it.
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	values := make([]any, 0, list.Len())
 
@@ -178,11 +149,6 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	return nil
 }
 
-// visitIndexExpr processes indexed field access and builds a dot-separated field path.
-// Example transformations:
-//   - metadata["user"]       → "metadata.user"
-//   - data["tags"][0]        → "data.tags.0"
-//   - config["db"]["host"]   → "config.db.host"
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
@@ -193,8 +159,6 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	return nil
 }
 
-// visitLogicalExpr handles logical operators (AND, OR).
-// Produces {"$and": [left, right]} or {"$or": [left, right]}.
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	left, err := v.buildNestedExpr(expr.Left())
 	if err != nil {
@@ -221,9 +185,6 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitNotExpr lowers NOT into Pinecone's supported inverse operators and De
-// Morgan rewrites. Pinecone supports only $and and $or as logical operators;
-// emitting MongoDB's $nor would produce an invalid provider request.
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	condition, err := v.buildNegatedExpr(expr.Right())
 	if err != nil {
@@ -290,10 +251,6 @@ func (v *Visitor) buildNegatedCollectionMembershipExpr(expr *filter.BinaryExpr) 
 	return map[string]any{fieldKey: map[string]any{"$ne": fieldValue}}, nil
 }
 
-// visitEqualityExpr handles equality operators (==, !=).
-// Examples:
-//   - status == "active"  → {"status": {"$eq": "active"}}
-//   - age != 18           → {"age": {"$ne": 18}}
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -320,10 +277,6 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitOrderingExpr handles ordering operators (<, <=, >, >=).
-// Examples:
-//   - age > 18     → {"age": {"$gt": 18}}
-//   - price <= 99  → {"price": {"$lte": 99}}
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -354,9 +307,6 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitInExpr handles the IN operator for membership testing.
-// The right operand must be a non-empty list literal.
-// Example: status IN ["active", "pending"] → {"status": {"$in": ["active", "pending"]}}
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	result, err := v.buildListMembershipExpr(expr, "$in")
 	if err != nil {
@@ -386,8 +336,6 @@ func (v *Visitor) buildListMembershipExpr(expr *filter.BinaryExpr, operator stri
 	return map[string]any{fieldKey: map[string]any{operator: v.currentFieldValue}}, nil
 }
 
-// buildNestedExpr converts a sub-expression to a filter map using an isolated visitor instance.
-// This ensures that nested logical expressions maintain proper scoping.
 func (v *Visitor) buildNestedExpr(expr filter.Expr) (map[string]any, error) {
 	nested := NewVisitor()
 	if err := nested.visit(expr); err != nil {
@@ -399,8 +347,6 @@ func (v *Visitor) buildNestedExpr(expr filter.Expr) (map[string]any, error) {
 	return nil, fmt.Errorf("pinecone: unsupported expression type %T for nested expression", expr)
 }
 
-// extractFieldKey extracts a field key (identifier or dot-separated path) from an expression.
-// The visitor's currentFieldKey state is preserved during extraction.
 func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	savedKey := v.currentFieldKey
 	v.currentFieldKey = ""
@@ -420,8 +366,6 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	return extracted, nil
 }
 
-// extractFieldValue extracts a value (literal or list) from an expression.
-// The visitor's currentFieldValue state is preserved during extraction.
 func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	savedValue := v.currentFieldValue
 	v.currentFieldValue = nil
@@ -441,11 +385,6 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	return extracted, nil
 }
 
-// buildIndexedFieldKey constructs a dot-separated field path from an index expression.
-// Transformation examples:
-//   - user["name"]                → "user.name"
-//   - metadata["tags"][0]         → "metadata.tags.0"
-//   - config["db"]["host"]        → "config.db.host"
 func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var parts []string
 
@@ -470,8 +409,6 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	}
 }
 
-// literalToValue converts an AST literal node to its corresponding Go value.
-// Supported conversions: string → string, number → float64, boolean → bool.
 func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()

@@ -12,17 +12,10 @@ import (
 const waitingSubtreeParentPauseReason = "child Process cancellation requires explicit continuation"
 
 var (
-	// ErrInvalidPreparedWaitingSubtreeCancellation reports a nil or internally
-	// invalid prepared cancellation capability.
 	ErrInvalidPreparedWaitingSubtreeCancellation = errors.New("agent: invalid prepared waiting subtree cancellation")
 
-	// ErrPreparedWaitingSubtreeCancellationResolved reports a second Apply or
-	// Discard call after the prepared cancellation was already resolved.
 	ErrPreparedWaitingSubtreeCancellationResolved = errors.New("agent: prepared waiting subtree cancellation is resolved")
 
-	// ErrWaitingSubtreeCancellationUnavailable reports a target that is not a
-	// non-root Waiting Process in the requested tree, or a tree state that cannot
-	// represent the cancellation without violating its existing resource bounds.
 	ErrWaitingSubtreeCancellationUnavailable = errors.New("agent: waiting subtree cancellation is unavailable")
 )
 

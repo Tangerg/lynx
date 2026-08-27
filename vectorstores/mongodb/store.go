@@ -47,7 +47,6 @@ const (
 	SimilarityDotProduct Similarity = "dotProduct"
 )
 
-// Valid reports whether s is supported by MongoDB Atlas Vector Search.
 func (s Similarity) Valid() bool {
 	switch s {
 	case SimilarityCosine, SimilarityEuclidean, SimilarityDotProduct:
@@ -57,7 +56,6 @@ func (s Similarity) Valid() bool {
 	}
 }
 
-// String returns the MongoDB similarity token.
 func (s Similarity) String() string { return string(s) }
 
 // StoreConfig contains configuration options for the MongoDB Atlas

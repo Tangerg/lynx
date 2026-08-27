@@ -7,7 +7,6 @@ import (
 	"slices"
 )
 
-// ErrInvalidRequest reports a malformed chat request.
 var ErrInvalidRequest = errors.New("chat: invalid request")
 
 // Request is the complete provider-neutral input to a chat model. It contains

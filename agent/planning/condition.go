@@ -14,8 +14,6 @@ type Condition struct {
 	truth Truth
 }
 
-// NewCondition constructs a known condition. Key must be a stable lower-case
-// qualified name and truth must be False or True.
 func NewCondition(key string, truth Truth) (Condition, error) {
 	condition := Condition{key: key, truth: truth}
 	if !condition.Valid() {
@@ -30,12 +28,10 @@ func (c Condition) Key() string { return c.key }
 // Truth returns the known truth asserted by the condition.
 func (c Condition) Truth() Truth { return c.truth }
 
-// Valid reports whether the condition has a valid key and known truth.
 func (c Condition) Valid() bool {
 	return validName(c.key) && c.truth.known()
 }
 
-// MarshalJSON returns the validated immutable condition.
 func (c Condition) MarshalJSON() ([]byte, error) {
 	if !c.Valid() {
 		return nil, ErrInvalidCondition
@@ -43,7 +39,6 @@ func (c Condition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(conditionWire{Key: c.key, Truth: c.truth})
 }
 
-// UnmarshalJSON replaces c with a strictly decoded known truth.
 func (c *Condition) UnmarshalJSON(data []byte) error {
 	if c == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidCondition)

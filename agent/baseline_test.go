@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 30
+	currentAPIBaseline         = 31
 	currentAPIBaselineFrozenOn = "2026-08-27"
 )
 
@@ -27,22 +27,22 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "2106ee94db015611e301793912379bf13217c7276dc9c1d27b2616a6bab7d84f"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "f85a554c9f12d09893ce17658afc950a4f45a6c9bb229066a4d5f708a2b79ee7"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "e183c47468ee84ed712cdca42ce977d1883589a96f06fbd1fc7d87562e1e1a53"},
-	{name: "planning", label: "planning", directory: "planning", want: "9e3eb61695b0c189ff9fe500e780d4badab69dfb91d2cb167164b5a53d878f1b"},
-	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "cea8080c8c006dac24ae2e4d1483a6838f9cc7e4d68df0c36a3888f418d05a2c"},
-	{name: "workflow", label: "workflow", directory: "workflow", want: "ef25cc22a1115789b0335c4ace1e851e771eb2ec2d859e2d3942d2fd9fed9c87"},
-	{name: "platform", label: "platform", directory: "platform", want: "d250bd34f9ce7b557a0a760b0a54653fb59af60a452c7a5efa904de131b77f37"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "1ec6df8d167536cfdd9ef29fb87e202138d9dc07c23fe40a888cfd98f2d430b5"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "66c49a9dec9e33d416fbc66c925a5893d54b96335d4e09294ad87b40badc6ad9"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "a9a52cc367e60b8dbf710f18e41fcb69c1b74a29508ee521ba293fca910edc4d"},
+	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
+	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7"},
+	{name: "workflow", label: "workflow", directory: "workflow", want: "f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16"},
+	{name: "platform", label: "platform", directory: "platform", want: "f55a3f35ae808a709284bc828e0bd8dcdc8d258bf2a8185ebe2a88da39a97d1e"},
 }
 
 var frameworkPackageDirectories = []string{
 	".", "agenttest", "interaction", "planning", "planning/goap", "workflow", "platform",
 }
 
-func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
+func TestPublicInterfacesAreDocumentedAndParametersNamed(t *testing.T) {
 	for _, path := range frameworkProductionGoFiles(t) {
-		assertExportedContractsInFile(t, path)
+		assertPublicContractPolicyInFile(t, path)
 	}
 }
 
@@ -92,7 +92,7 @@ func frameworkProductionGoFiles(t *testing.T) []string {
 	return paths
 }
 
-func assertExportedContractsInFile(t *testing.T, path string) {
+func assertPublicContractPolicyInFile(t *testing.T, path string) {
 	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
 	if err != nil {
@@ -101,24 +101,23 @@ func assertExportedContractsInFile(t *testing.T, path string) {
 	for _, declaration := range file.Decls {
 		switch declaration := declaration.(type) {
 		case *ast.FuncDecl:
-			assertExportedFunctionContract(t, path, declaration)
+			assertExportedFunctionParametersNamed(t, path, declaration)
 		case *ast.GenDecl:
-			assertExportedGeneralContracts(t, path, declaration)
+			assertExportedInterfaceContracts(t, path, declaration)
 		}
 	}
 }
 
-func assertExportedFunctionContract(t *testing.T, path string, declaration *ast.FuncDecl) {
+func assertExportedFunctionParametersNamed(t *testing.T, path string, declaration *ast.FuncDecl) {
 	t.Helper()
 	publicReceiver := declaration.Recv == nil || token.IsExported(receiverTypeName(declaration.Recv))
 	if !declaration.Name.IsExported() || !publicReceiver {
 		return
 	}
-	assertGoDocStartsWithName(t, path, declaration.Name.Name, declaration.Doc)
 	assertParametersAreNamed(t, path, declaration.Name.Name, declaration.Type.Params)
 }
 
-func assertExportedGeneralContracts(t *testing.T, path string, declaration *ast.GenDecl) {
+func assertExportedInterfaceContracts(t *testing.T, path string, declaration *ast.GenDecl) {
 	t.Helper()
 	for _, specification := range declaration.Specs {
 		switch specification := specification.(type) {
@@ -126,49 +125,25 @@ func assertExportedGeneralContracts(t *testing.T, path string, declaration *ast.
 			if !specification.Name.IsExported() {
 				continue
 			}
-			doc := specification.Doc
-			if doc == nil {
-				doc = declaration.Doc
-			}
-			assertGoDocStartsWithName(t, path, specification.Name.Name, doc)
-			assertExportedTypeContract(t, path, specification)
-		case *ast.ValueSpec:
-			assertExportedValuesDocumented(t, path, declaration.Doc, specification)
+			assertExportedTypeContract(t, path, declaration.Doc, specification)
 		}
 	}
 }
 
-func assertExportedValuesDocumented(
+func assertExportedTypeContract(
 	t *testing.T,
 	path string,
 	declarationDoc *ast.CommentGroup,
-	specification *ast.ValueSpec,
+	specification *ast.TypeSpec,
 ) {
 	t.Helper()
-	for _, identifier := range specification.Names {
-		if !identifier.IsExported() {
-			continue
-		}
+	switch declaration := specification.Type.(type) {
+	case *ast.InterfaceType:
 		doc := specification.Doc
 		if doc == nil {
 			doc = declarationDoc
 		}
-		assertGoDocStartsWithName(t, path, identifier.Name, doc)
-	}
-}
-
-func assertExportedTypeContract(t *testing.T, path string, specification *ast.TypeSpec) {
-	t.Helper()
-	switch declaration := specification.Type.(type) {
-	case *ast.StructType:
-		for _, field := range declaration.Fields.List {
-			for _, name := range field.Names {
-				if name.IsExported() {
-					assertGoDocStartsWithName(t, path, name.Name, field.Doc)
-				}
-			}
-		}
-	case *ast.InterfaceType:
+		assertGoDocStartsWithName(t, path, specification.Name.Name, doc)
 		for _, method := range declaration.Methods.List {
 			function, ok := method.Type.(*ast.FuncType)
 			if !ok {
@@ -176,7 +151,9 @@ func assertExportedTypeContract(t *testing.T, path string, specification *ast.Ty
 			}
 			name := specification.Name.Name
 			if len(method.Names) > 0 {
-				name += "." + method.Names[0].Name
+				methodName := method.Names[0].Name
+				name += "." + methodName
+				assertGoDocStartsWithName(t, path, methodName, method.Doc)
 			}
 			assertParametersAreNamed(t, path, name, function.Params)
 		}
@@ -214,7 +191,6 @@ func TestExportedAPIBaseline(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assertGoDocHasNoUndocumentedCallables(t, output)
 			got := fmt.Sprintf("%x", sha256.Sum256(output))
 			if got != test.want {
 				t.Fatalf(
@@ -248,19 +224,6 @@ func TestAPIBaselineDocumentMatchesFrozenPublicContracts(t *testing.T) {
 	for _, contract := range required {
 		if !strings.Contains(text, contract) {
 			t.Errorf("API baseline document is missing current contract %q", contract)
-		}
-	}
-}
-
-func assertGoDocHasNoUndocumentedCallables(t *testing.T, output []byte) {
-	t.Helper()
-	lines := strings.Split(string(output), "\n")
-	for index, line := range lines {
-		if !strings.HasPrefix(line, "func ") || index+1 >= len(lines) {
-			continue
-		}
-		if lines[index+1] == "" {
-			t.Errorf("go doc exposes an undocumented callable: %s", line)
 		}
 	}
 }

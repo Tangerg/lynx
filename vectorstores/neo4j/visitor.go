@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a Cypher predicate
 // string plus the matching parameter map. The output is intended to
 // follow a `WHERE` clause in the search / delete statement.
@@ -24,8 +26,6 @@ import (
 // Property paths follow convention: metadata keys are
 // stored as flat node properties named `metadata.<key>` and addressed
 // with backtick-quoted Cypher identifiers.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

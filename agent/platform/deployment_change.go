@@ -9,15 +9,10 @@ import (
 )
 
 var (
-	// ErrNilPlatform reports a nil Platform receiver.
 	ErrNilPlatform = errors.New("platform: nil platform")
 
-	// ErrDeploymentConflict reports that a name/version slot is bound to a
-	// different exact Deployment.
 	ErrDeploymentConflict = errors.New("platform: deployment conflict")
 
-	// ErrDeploymentNotActive reports that a name/version slot has no active
-	// Deployment to replace or undeploy.
 	ErrDeploymentNotActive = errors.New("platform: deployment is not active")
 )
 
@@ -31,7 +26,6 @@ type DeploymentConflictError struct {
 	Requested agent.DeploymentRef
 }
 
-// Error describes both exact bindings in the conflicting version slot.
 func (d *DeploymentConflictError) Error() string {
 	if d == nil {
 		return ErrDeploymentConflict.Error()
@@ -42,7 +36,6 @@ func (d *DeploymentConflictError) Error() string {
 	)
 }
 
-// Unwrap supports errors.Is with ErrDeploymentConflict.
 func (*DeploymentConflictError) Unwrap() error { return ErrDeploymentConflict }
 
 func newDeploymentConflict(active, requested agent.DeploymentRef) error {

@@ -22,7 +22,6 @@ const (
 	CompletionSourceDirectToolResults CompletionSource = "direct_tool_results"
 )
 
-// Valid reports whether c is a supported Interaction completion source.
 func (c CompletionSource) Valid() bool {
 	return c == CompletionSourceModelResponse || c == CompletionSourceDirectToolResults
 }
@@ -46,8 +45,6 @@ type Output struct {
 	ModelCalls uint32 `json:"model_calls"`
 }
 
-// Validate verifies that Output contains exactly the semantic result selected
-// by Source and a positive model-call count.
 func (o Output) Validate() error {
 	if !o.Source.Valid() {
 		return errors.New("interaction: output source is invalid")

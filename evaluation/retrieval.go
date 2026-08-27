@@ -19,7 +19,6 @@ const (
 	RetrievalMetricNDCG           RetrievalMetric = "ndcg"
 )
 
-// Validate reports whether the metric is supported.
 func (metric RetrievalMetric) Validate() error {
 	switch metric {
 	case RetrievalMetricPrecision, RetrievalMetricRecall, RetrievalMetricReciprocalRank, RetrievalMetricNDCG:
@@ -45,7 +44,6 @@ type RetrievalSample struct {
 	Relevant  []string `json:"relevant"`
 }
 
-// NewRetrievalSample validates and snapshots a retrieval evaluation input.
 func NewRetrievalSample(retrieved, relevant []string) (RetrievalSample, error) {
 	sample := RetrievalSample{
 		Retrieved: slices.Clone(retrieved),
@@ -57,16 +55,12 @@ func NewRetrievalSample(retrieved, relevant []string) (RetrievalSample, error) {
 	return sample, nil
 }
 
-// Clone returns an independent copy of the sample.
 func (sample RetrievalSample) Clone() RetrievalSample {
 	sample.Retrieved = slices.Clone(sample.Retrieved)
 	sample.Relevant = slices.Clone(sample.Relevant)
 	return sample
 }
 
-// Validate checks the ranking identities and relevance judgment. Duplicate
-// identities are rejected because ranking metrics assume one position per
-// item and should expose duplicate retrieval bugs instead of hiding them.
 func (sample RetrievalSample) Validate() error {
 	if len(sample.Relevant) == 0 {
 		return fmt.Errorf("%w: at least one relevant identity is required", ErrInvalidSample)

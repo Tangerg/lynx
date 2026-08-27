@@ -19,7 +19,6 @@ type Visitor struct {
 
 var _ filter.Visitor = (*Visitor)(nil)
 
-// NewVisitor creates a Weaviate filter compiler.
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }

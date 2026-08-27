@@ -7,7 +7,6 @@ import (
 
 const maxIdentityBytes = 256
 
-// ErrInvalidIdentity reports a malformed Framework identity value.
 var ErrInvalidIdentity = errors.New("agent: invalid identity")
 
 type identity struct {
@@ -70,10 +69,8 @@ func ParseProcessID(value string) (ProcessID, error) {
 	return ProcessID{id}, err
 }
 
-// String returns the stable Process identity.
 func (p ProcessID) String() string { return p.identity.String() }
 
-// Valid reports whether p contains a valid Process identity.
 func (p ProcessID) Valid() bool { return p.identity.Valid() }
 
 // MarshalText returns the validated Process identity.
@@ -102,10 +99,8 @@ func ParseSignalID(value string) (SignalID, error) {
 	return SignalID{id}, err
 }
 
-// String returns the stable Signal delivery identity.
 func (s SignalID) String() string { return s.identity.String() }
 
-// Valid reports whether s contains a valid Signal delivery identity.
 func (s SignalID) Valid() bool { return s.identity.Valid() }
 
 // MarshalText returns the validated Signal delivery identity.
@@ -134,10 +129,8 @@ func ParseWaitID(value string) (WaitID, error) {
 	return WaitID{id}, err
 }
 
-// String returns the Engine-created wait identity.
 func (w WaitID) String() string { return w.identity.String() }
 
-// Valid reports whether w contains a valid wait identity.
 func (w WaitID) Valid() bool { return w.identity.Valid() }
 
 // MarshalText returns the validated wait identity.
@@ -165,10 +158,8 @@ func ParseEffectID(value string) (EffectID, error) {
 	return EffectID{id}, err
 }
 
-// String returns the stable Effect identity.
 func (e EffectID) String() string { return e.identity.String() }
 
-// Valid reports whether e contains a valid Effect identity.
 func (e EffectID) Valid() bool { return e.identity.Valid() }
 
 // MarshalText returns the validated Effect identity.
@@ -197,10 +188,8 @@ func ParseWaitKey(value string) (WaitKey, error) {
 	return WaitKey{id}, err
 }
 
-// String returns the Execution-owned logical wait key.
 func (w WaitKey) String() string { return w.identity.String() }
 
-// Valid reports whether w contains a valid logical wait key.
 func (w WaitKey) Valid() bool { return w.identity.Valid() }
 
 // MarshalText returns the validated logical wait key.
@@ -230,10 +219,8 @@ func ParseChildKey(value string) (ChildKey, error) {
 	return ChildKey{id}, err
 }
 
-// String returns the Execution-owned logical child key.
 func (c ChildKey) String() string { return c.identity.String() }
 
-// Valid reports whether c contains a valid logical child key.
 func (c ChildKey) Valid() bool { return c.identity.Valid() }
 
 // MarshalText returns the validated logical child key.

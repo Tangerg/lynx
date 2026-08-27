@@ -38,7 +38,6 @@ const (
 	DistanceNegativeIP DistanceMetric = "NEGATIVE_INNER_PRODUCT"
 )
 
-// Valid reports whether d is supported by TiDB vector functions.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceNegativeIP:
@@ -48,7 +47,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the TiDB distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) function() string {

@@ -32,7 +32,6 @@ type ChatConfig struct {
 	Headers        http.Header
 }
 
-// Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
@@ -56,14 +55,10 @@ type Chat struct {
 	dialect  Dialect
 }
 
-// NewChat constructs OpenAI's native Chat Completions adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	return newChat(config, Dialect{Provider: "openai", TokenLimitField: TokenLimitMaxCompletionTokens})
 }
 
-// NewCompatibleChat constructs a Chat Completions adapter with one explicit
-// provider dialect. Provider packages use this seam; application code should
-// prefer the provider's own constructor.
 func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	return newChat(config, dialect)
 }

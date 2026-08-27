@@ -38,8 +38,6 @@ func (reports reportCollection) combine() (Report, error) {
 	return combined, nil
 }
 
-// NewCompositeEvaluator snapshots evaluators. At least one non-nil evaluator is
-// required.
 func NewCompositeEvaluator[T any](evaluators ...Evaluator[T]) (*CompositeEvaluator[T], error) {
 	if len(evaluators) == 0 {
 		return nil, fmt.Errorf("%w: at least one evaluator is required", ErrInvalidEvaluatorConfig)

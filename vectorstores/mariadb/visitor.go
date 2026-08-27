@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a MariaDB WHERE
 // fragment. Metadata is stored as JSON; the visitor reaches into it
 // with JSON_VALUE plus a casting helper for numeric / boolean values
@@ -23,8 +25,6 @@ import (
 //
 // Bool literals render inline because MariaDB doesn't accept a true
 // Go bool through the binary protocol for a JSON-comparison context.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

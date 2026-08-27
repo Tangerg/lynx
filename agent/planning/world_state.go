@@ -14,8 +14,6 @@ type WorldState struct {
 	conditions []Condition
 }
 
-// NewWorldState validates, sorts, and freezes known conditions. A condition key
-// may appear only once.
 func NewWorldState(conditions ...Condition) (WorldState, error) {
 	values := slices.Clone(conditions)
 	for index, condition := range values {
@@ -97,7 +95,6 @@ func (w WorldState) Key() string {
 	return key.String()
 }
 
-// Valid reports whether every condition is valid, sorted, and unique.
 func (w WorldState) Valid() bool {
 	for index, condition := range w.conditions {
 		if !condition.Valid() || index > 0 && w.conditions[index-1].key >= condition.key {
@@ -107,7 +104,6 @@ func (w WorldState) Valid() bool {
 	return true
 }
 
-// MarshalJSON returns the validated canonical world state.
 func (w WorldState) MarshalJSON() ([]byte, error) {
 	if !w.Valid() {
 		return nil, ErrInvalidWorldState
@@ -119,7 +115,6 @@ func (w WorldState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(worldStateWire{Conditions: conditions})
 }
 
-// UnmarshalJSON replaces w with a strictly decoded canonical world state.
 func (w *WorldState) UnmarshalJSON(data []byte) error {
 	if w == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidWorldState)

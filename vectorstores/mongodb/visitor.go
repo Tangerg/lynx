@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into the MongoDB query
 // document shape used by Atlas Vector Search's `filter` clause.
 //
@@ -25,8 +27,6 @@ import (
 //   - bare identifier      → <metadataPrefix>.<ident>
 //   - metadata['k']        → <metadataPrefix>.k
 //   - metadata['a']['b']   → <metadataPrefix>.a.b
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	result         map[string]any

@@ -12,13 +12,8 @@ import (
 )
 
 var (
-	// ErrNilModel reports that New was called without a synchronous model.
-	ErrNilModel = errors.New("chatclient: nil model")
-	// ErrNilClient reports an operation created without a Client.
-	ErrNilClient = errors.New("chatclient: nil client")
-	// ErrStreamingUnsupported reports that a Client has no streaming
-	// capability. Pass a model that also implements [chat.Streamer], or set
-	// [Config.Streamer] when call and stream capabilities are separate values.
+	ErrNilModel             = errors.New("chatclient: nil model")
+	ErrNilClient            = errors.New("chatclient: nil client")
 	ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported")
 )
 

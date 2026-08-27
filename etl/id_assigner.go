@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/scope/core/document"
 )
 
-// IDAssignerConfig configures document ID assignment.
 type IDAssignerConfig struct {
 	// Generator is required.
 	Generator IDGenerator

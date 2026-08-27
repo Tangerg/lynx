@@ -11,8 +11,6 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-// ErrInvalidPendingToolInput reports a Waiting Process whose opaque
-// Interaction state and Engine wait identity disagree or cannot be decoded.
 var ErrInvalidPendingToolInput = errors.New("interaction: invalid pending tool input")
 
 // PendingToolInput is the consumer-facing view of one current Tool input wait.
@@ -35,7 +33,6 @@ func (p PendingToolInput) ResponseSchema() json.RawMessage {
 	return bytes.Clone(p.responseSchema)
 }
 
-// Valid reports whether the value identifies one complete current wait.
 func (p PendingToolInput) Valid() bool {
 	return p.waitID.Valid() && len(p.prompt) > 0 && len(p.responseSchema) > 0
 }

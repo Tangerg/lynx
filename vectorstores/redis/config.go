@@ -48,7 +48,6 @@ const (
 	DistanceIP DistanceMetric = "IP"
 )
 
-// Valid reports whether d is supported by the Redis vector index.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
@@ -58,7 +57,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the RediSearch metric token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(distance float64) vectorstore.Score {
@@ -89,12 +87,10 @@ const (
 	AlgorithmFlat IndexAlgorithm = "FLAT"
 )
 
-// Valid reports whether i is supported by the Redis vector index.
 func (i IndexAlgorithm) Valid() bool {
 	return i == AlgorithmHNSW || i == AlgorithmFlat
 }
 
-// String returns the RediSearch algorithm token.
 func (i IndexAlgorithm) String() string { return string(i) }
 
 // MetadataFieldType names the RediSearch schema field types the store
@@ -114,9 +110,6 @@ const (
 	FieldNumeric MetadataFieldType = "NUMERIC"
 )
 
-// Valid reports whether the value names a schema type supported by this
-// store. The zero value is invalid so metadata fields cannot silently become
-// TAG fields.
 func (m MetadataFieldType) Valid() bool {
 	switch m {
 	case FieldTag, FieldText, FieldNumeric:
@@ -126,7 +119,6 @@ func (m MetadataFieldType) Valid() bool {
 	}
 }
 
-// String returns the RediSearch schema field token.
 func (m MetadataFieldType) String() string { return string(m) }
 
 func (m MetadataFieldType) searchFieldType() (goredis.SearchFieldType, bool) {
@@ -156,7 +148,6 @@ type MetadataField struct {
 	Sortable bool
 }
 
-// Validate verifies one complete metadata schema declaration.
 func (m MetadataField) Validate() error {
 	if m.Name == "" || strings.TrimSpace(m.Name) != m.Name {
 		return errors.New("name is required and must not have surrounding whitespace")

@@ -47,7 +47,6 @@ const (
 	DistanceDot DistanceMetric = "DOT"
 )
 
-// Valid reports whether d is supported by Oracle VECTOR_DISTANCE.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceEuclidean, DistanceDot:
@@ -57,7 +56,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the Oracle distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(distance float64) vectorstore.Score {

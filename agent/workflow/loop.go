@@ -22,7 +22,6 @@ type LoopResult[T any] struct {
 	Satisfied bool `json:"satisfied"`
 }
 
-// Valid reports whether at least one body iteration produced this result.
 func (l LoopResult[T]) Valid() bool { return l.Iterations > 0 }
 
 // LoopConfig declares one at-least-once managed body iteration.

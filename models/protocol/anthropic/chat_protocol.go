@@ -25,7 +25,6 @@ type ChatConfig struct {
 	Headers        http.Header
 }
 
-// Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
@@ -49,14 +48,10 @@ type Chat struct {
 	dialect  Dialect
 }
 
-// NewChat constructs Anthropic's native Messages adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	return newChat(config, Dialect{Provider: "anthropic", MaxTemperature: 1, RejectTopK: true, RejectTopP: true, NativeJSONSchema: true})
 }
 
-// NewCompatibleChat constructs a Messages adapter with one explicit provider
-// dialect. Provider packages use this seam; application code should prefer the
-// provider's own constructor.
 func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	return newChat(config, dialect)
 }

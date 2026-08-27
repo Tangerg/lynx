@@ -9,8 +9,6 @@ import (
 )
 
 var (
-	// ErrSignalRejected reports a duplicate, stale, misaddressed, or
-	// over-capacity Signal delivery.
 	ErrSignalRejected = errors.New("agent: signal rejected")
 	errMailboxCursor  = errors.New("agent: invalid signal cursor")
 	errWaitState      = errors.New("agent: invalid wait state")

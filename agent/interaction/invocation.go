@@ -53,7 +53,6 @@ func (m ModelInvocation) AppliedSteerSignalIDs() []agent.SignalID {
 	return slices.Clone(m.appliedSteerSignalIDs)
 }
 
-// Valid reports whether m contains one complete model-call attribution.
 func (m ModelInvocation) Valid() bool {
 	return m.relation.Valid() && m.deploymentRef.Valid() &&
 		m.effectID.Valid() && m.stepSequence > 0 &&
@@ -108,7 +107,6 @@ func (t ToolInvocation) ToolCallIndex() uint32 { return t.toolCallIndex }
 // ToolCall returns the exact model ToolCall value being executed.
 func (t ToolInvocation) ToolCall() chat.ToolCall { return t.toolCall }
 
-// Valid reports whether t contains one complete Tool-call attribution.
 func (t ToolInvocation) Valid() bool {
 	return t.relation.Valid() && t.deploymentRef.Valid() &&
 		t.effectID.Valid() && t.stepSequence > 0 &&

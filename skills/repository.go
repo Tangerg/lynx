@@ -25,9 +25,6 @@ type Repository struct {
 var _ Source = (*Repository)(nil)
 var _ ResourceSource = (*Repository)(nil)
 
-// NewRepository trusts the confinement semantics of fsys. Use
-// [NewDirectoryRepository] when symbolic links must remain beneath an
-// operating-system directory root.
 func NewRepository(fsys fs.FS) (*Repository, error) {
 	if lo.IsNil(fsys) {
 		return nil, ErrNilFilesystem
@@ -35,10 +32,6 @@ func NewRepository(fsys fs.FS) (*Repository, error) {
 	return &Repository{fsys: fsys}, nil
 }
 
-// NewDirectoryRepository constructs a repository backed by root.
-// Skill metadata opens are confined to root; resource opens are additionally
-// confined to the selected skill directory, including symbolic-link
-// resolution.
 func NewDirectoryRepository(root string) *Repository {
 	return &Repository{fsys: rootedFS(root)}
 }

@@ -24,8 +24,6 @@ var (
 // OpenAIChat implements DashScope's OpenAI-compatible endpoint.
 type OpenAIChat = openai.Chat
 
-// OpenAIChatConfig configures the Core chat adapter for DashScope's
-// OpenAI-compatible endpoint.
 type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -43,7 +41,6 @@ func (o OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-// NewOpenAIChat constructs a Core chat adapter for DashScope.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -24,7 +24,6 @@ var (
 // OpenAIChat implements Ollama's OpenAI-compatible endpoint.
 type OpenAIChat = openai.Chat
 
-// OpenAIChatConfig configures Ollama's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -39,7 +38,6 @@ func (o OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-// NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Ollama.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

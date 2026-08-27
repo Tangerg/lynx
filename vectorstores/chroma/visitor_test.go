@@ -8,11 +8,6 @@ import (
 	"github.com/Tangerg/scope/vectorstores/chroma"
 )
 
-// TestVisitor_Conformance runs the shared visitor suite. Chroma
-// metadata filters don't support a standalone logical NOT (Chroma's
-// model uses != / NIN inversions instead) and don't support LIKE
-// against metadata fields, so the corresponding success cases —
-// including nested_logical which embeds a NOT — are declared unsupported.
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t,
 		func(src string) error {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 )
 
-// ErrInvalidSettlement reports a malformed or misaddressed Effect outcome.
 var ErrInvalidSettlement = errors.New("agent: invalid effect settlement")
 
 // SettlementStatus records whether an Effect definitely succeeded, definitely
@@ -25,7 +24,6 @@ const (
 	SettlementStatusUnknown SettlementStatus = "unknown"
 )
 
-// Valid reports whether s is a definite or indeterminate settlement fact.
 func (s SettlementStatus) Valid() bool {
 	switch s {
 	case SettlementStatusSucceeded, SettlementStatusFailed, SettlementStatusUnknown:
@@ -35,7 +33,6 @@ func (s SettlementStatus) Valid() bool {
 	}
 }
 
-// String returns the stable settlement-status name.
 func (s SettlementStatus) String() string {
 	if !s.Valid() {
 		return "invalid"
@@ -52,7 +49,6 @@ type Settlement struct {
 	payload  json.RawMessage
 }
 
-// NewSettlement validates and freezes one Effect result.
 func NewSettlement(effectID EffectID, status SettlementStatus, payload json.RawMessage) (Settlement, error) {
 	if !effectID.Valid() {
 		return Settlement{}, fmt.Errorf("%w: effect ID: %w", ErrInvalidSettlement, ErrInvalidIdentity)
@@ -76,12 +72,10 @@ func (s Settlement) Status() SettlementStatus { return s.status }
 // Payload returns an independently owned owner-defined result.
 func (s Settlement) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
-// Valid reports whether the Settlement has a complete immutable envelope.
 func (s Settlement) Valid() bool {
 	return s.effectID.Valid() && s.status.Valid() && len(s.payload) > 0
 }
 
-// MarshalJSON returns the validated immutable Effect settlement.
 func (s Settlement) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSettlement
@@ -89,7 +83,6 @@ func (s Settlement) MarshalJSON() ([]byte, error) {
 	return json.Marshal(settlementWire{EffectID: s.effectID, Status: s.status, Payload: s.payload})
 }
 
-// UnmarshalJSON replaces s with a strictly decoded Settlement.
 func (s *Settlement) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSettlement)

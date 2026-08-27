@@ -14,7 +14,6 @@ const (
 	maxSnapshotBytes             = 128 << 20
 )
 
-// ErrInvalidSnapshot reports malformed or internally inconsistent Process state.
 var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
 
 // Snapshot is an immutable, portable capture of one Engine-owned Process.
@@ -102,7 +101,6 @@ func (s Snapshot) WaitID() (WaitID, bool) {
 	return s.waitID, s.status == StatusWaiting && s.waitID.Valid()
 }
 
-// Valid reports whether the snapshot passed the strict wire boundary.
 func (s Snapshot) Valid() bool {
 	return len(s.data) > 0 && s.processID.Valid() && s.deploymentRef.Valid() &&
 		s.status.Valid() && s.executionState.Valid() && s.relation.Valid() &&
@@ -121,7 +119,6 @@ func snapshotWaitID(waitID *WaitID) WaitID {
 	return *waitID
 }
 
-// MarshalJSON returns the validated portable Process snapshot.
 func (s Snapshot) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSnapshot
@@ -129,7 +126,6 @@ func (s Snapshot) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(s.data), nil
 }
 
-// UnmarshalJSON replaces s with a strictly decoded Process snapshot.
 func (s *Snapshot) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)

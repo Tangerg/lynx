@@ -43,7 +43,6 @@ type Reader struct {
 	extraMetadata   coremetadata.Map
 }
 
-// NewReader builds an HTML reader over source.
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("html reader: source must not be nil")

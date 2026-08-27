@@ -19,7 +19,6 @@ type EditRequest struct {
 	ReplaceAll bool   `json:"replace_all,omitempty" jsonschema_description:"Replace every occurrence. Default false. Use this for renaming a symbol across the file."`
 }
 
-// EditResponse is the LLM-facing return shape.
 type EditResponse struct {
 	Replacements int `json:"replacements"`
 }
@@ -34,8 +33,6 @@ type EditTool struct {
 	typed    toolcontract.Func[EditRequest, EditResponse]
 }
 
-// NewEditTool builds an [EditTool] backed by executor. Passing nil
-// wires up an unconfined [LocalExecutor] (workspace root "").
 func NewEditTool(executor Executor) *EditTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
@@ -69,7 +66,6 @@ func (e *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool
 	return req.Path, true
 }
 
-// MutationPaths reports the file targeted by this call.
 func (*EditTool) MutationPaths(arguments string) ([]string, error) {
 	var req EditRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {

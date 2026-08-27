@@ -47,7 +47,6 @@ const (
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
 
-// Valid reports whether s is supported by Cassandra vector indexes.
 func (s SimilarityFunction) Valid() bool {
 	switch s {
 	case SimilarityCosine, SimilarityDotProduct, SimilarityEuclidean:
@@ -57,7 +56,6 @@ func (s SimilarityFunction) Valid() bool {
 	}
 }
 
-// String returns the Cassandra similarity token.
 func (s SimilarityFunction) String() string { return string(s) }
 
 // MetadataColumn declares a custom metadata column that the store

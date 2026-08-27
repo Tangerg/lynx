@@ -25,7 +25,6 @@ var scanPatternEscaper = strings.NewReplacer(
 	`]`, `\]`,
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Client] is required.
 type StoreConfig struct {
 	// Client is the live go-redis client. Required. The store does
 	// not take ownership — callers Close() the client themselves.
@@ -41,8 +40,6 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-// Validate reports whether c can be used to construct a [Store]. A blank key
-// prefix is valid and is resolved to [DefaultKeyPrefix] by [NewStore].
 func (c StoreConfig) Validate() error {
 	if lo.IsNil(c.Client) {
 		return errors.New("redis: client is required")
@@ -58,14 +55,16 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Redis-backed [history.Store]. Construct via [NewStore].
+// Store persists each conversation as an ordered Redis list through a
+// caller-owned client. It never closes the client; when TTL is configured,
+// append and expiry refresh share one transaction so retention cannot lag a
+// successful write.
 type Store struct {
 	client    goredis.UniversalClient
 	keyPrefix string
 	ttl       time.Duration
 }
 
-// New builds a [Store] from config.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

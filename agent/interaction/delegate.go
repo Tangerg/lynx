@@ -43,9 +43,6 @@ type Delegate struct {
 	capabilities  agent.CapabilitySet
 }
 
-// NewDelegate validates and freezes one managed worker binding. The target
-// input schema must be a JSON object because models invoke Delegates through
-// the same ToolCall protocol as ordinary Tools.
 func NewDelegate(config DelegateConfig) (Delegate, error) {
 	if !config.Deployment.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() ||
 		config.Description == "" || strings.TrimSpace(config.Description) != config.Description ||
@@ -67,8 +64,6 @@ func NewDelegate(config DelegateConfig) (Delegate, error) {
 	}, nil
 }
 
-// Valid reports whether the Delegate contains one exact, internally
-// consistent model and child-execution contract.
 func (d Delegate) Valid() bool {
 	return d.definition.Validate() == nil && d.definition.Description != "" &&
 		strings.TrimSpace(d.definition.Description) == d.definition.Description &&

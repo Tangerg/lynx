@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// ErrInvalidResponse reports malformed provider response data.
 var ErrInvalidResponse = errors.New("chat: invalid response")
 
 // ResponseMetadata holds provider identity, usage, and response-scoped extras.
@@ -99,8 +98,6 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 
 // Response is provider output with at most one generation output. Its zero
 // value is valid so a stream can represent an empty or metadata-only chunk.
-// Clone recursively snapshots nested protocol values before accumulation or
-// middleware retains them.
 type Response struct {
 	Output   *Output           `json:"output,omitempty"`
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`

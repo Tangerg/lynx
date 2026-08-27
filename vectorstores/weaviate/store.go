@@ -45,7 +45,6 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
-// Valid reports whether d is supported by Weaviate vector indexes.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceDot, DistanceL2Squared, DistanceHamming, DistanceManhattan:
@@ -55,7 +54,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the Weaviate distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(distance float64) vectorstore.Score {

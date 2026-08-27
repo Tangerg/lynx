@@ -8,7 +8,10 @@ import "context"
 // Provider defaults and identity belong to provider construction and
 // observability.
 type Model interface {
-	Call(context.Context, *Request) (*Response, error)
+	// Call classifies one validated input batch without retaining or mutating the
+	// request. Outputs preserve input order, the returned response belongs to the
+	// caller, and context cancellation remains identifiable through errors.Is.
+	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
 type ModelFunc func(context.Context, *Request) (*Response, error)

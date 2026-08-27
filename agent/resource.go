@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-// ErrResourceLimitExceeded reports exhaustion of a Process or tree resource
-// bound.
 var ErrResourceLimitExceeded = errors.New("agent: resource limit exceeded")
 
 // Limits bounds Framework-owned execution growth. Zero-valued fields in
@@ -35,7 +33,6 @@ func DefaultLimits() Limits {
 	}
 }
 
-// Valid reports whether every growth dimension has a positive bound.
 func (l Limits) Valid() bool {
 	return l.MaxSteps > 0 && l.MaxEffects > 0 &&
 		l.MaxSignals > 0 && l.MaxPendingSignals > 0 &&
@@ -97,7 +94,6 @@ type Budget struct {
 	Signals uint64 `json:"signals"`
 }
 
-// NewBudget constructs one positive allocation.
 func NewBudget(steps, effects, signals uint64) (Budget, error) {
 	budget := Budget{Steps: steps, Effects: effects, Signals: signals}
 	if !budget.Valid() {
@@ -106,7 +102,6 @@ func NewBudget(steps, effects, signals uint64) (Budget, error) {
 	return budget, nil
 }
 
-// Valid reports whether every governed resource has a positive allocation.
 func (b Budget) Valid() bool {
 	return b.Steps > 0 && b.Effects > 0 && b.Signals > 0
 }
@@ -196,7 +191,6 @@ func DefaultTreeLimits() TreeLimits {
 	}
 }
 
-// Valid reports whether all tree growth dimensions are positive and coherent.
 func (t TreeLimits) Valid() bool {
 	return t.MaxDepth > 0 && t.MaxChildren > 0 &&
 		t.MaxActiveChildren > 0 && t.MaxActiveChildren <= t.MaxChildren &&

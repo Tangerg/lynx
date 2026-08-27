@@ -30,7 +30,6 @@ type RetrievalToolOutput struct {
 	Candidates Candidates `json:"candidates"`
 }
 
-// Validate checks every returned candidate.
 func (o RetrievalToolOutput) Validate() error { return o.Candidates.Validate() }
 
 // RetrievalTool adapts a [Retriever] to the ordinary [tool.Tool] contract. It
@@ -41,8 +40,6 @@ type RetrievalTool struct {
 
 var _ tool.Tool = RetrievalTool{}
 
-// NewRetrievalTool constructs a strictly decoded, schema-derived retrieval
-// tool without adding an agent dependency to this package.
 func NewRetrievalTool(config RetrievalToolConfig) (RetrievalTool, error) {
 	if lo.IsNil(config.Retriever) {
 		return RetrievalTool{}, ErrNilRetriever

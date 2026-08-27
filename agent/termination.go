@@ -179,7 +179,6 @@ const (
 	TerminationCausePanic TerminationCause = "panic"
 )
 
-// Valid reports whether t is a terminal Process category.
 func (t TerminationCause) Valid() bool {
 	switch t {
 	case TerminationCauseCompletion, TerminationCauseEngineKill,
@@ -194,7 +193,6 @@ func (t TerminationCause) Valid() bool {
 	}
 }
 
-// String returns the stable termination-cause name.
 func (t TerminationCause) String() string {
 	if !t.Valid() {
 		return "invalid"
@@ -288,7 +286,6 @@ func (t Termination) Failure() (Failure, bool) {
 	return t.failure, t.status == StatusFailed
 }
 
-// Valid reports whether the resolved status, cause, and optional Failure agree.
 func (t Termination) Valid() bool {
 	if !t.status.Terminal() || !t.cause.Valid() {
 		return false
@@ -317,7 +314,6 @@ func (t Termination) Valid() bool {
 	}
 }
 
-// MarshalJSON returns the validated immutable terminal fact.
 func (t Termination) MarshalJSON() ([]byte, error) {
 	if !t.Valid() {
 		return nil, errInvalidTermination
@@ -333,7 +329,6 @@ func (t Termination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-// UnmarshalJSON replaces t with a strictly decoded terminal fact.
 func (t *Termination) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", errInvalidTermination)

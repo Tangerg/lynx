@@ -25,7 +25,6 @@ const (
 	MetadataKeyChunkTotal = "chunk_total"
 )
 
-// SplitterConfig configures a generic text-to-document splitter.
 type SplitterConfig struct {
 	// SplitFunc is required and owns the text splitting policy.
 	SplitFunc func(context.Context, string) ([]string, error)

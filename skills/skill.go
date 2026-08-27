@@ -64,7 +64,6 @@ func hasExactClosingFence(consumed []byte) bool {
 	return bytes.Equal(consumed[lineStart:], []byte(frontmatterFence))
 }
 
-// Validate reports whether the skill is a valid in-memory Agent Skill.
 func (s *Skill) Validate() error {
 	if s == nil {
 		return ErrNilSkill
@@ -80,8 +79,6 @@ type Summary struct {
 	Description string
 }
 
-// Validate reports whether the summary is a valid progressive-disclosure
-// view of a skill.
 func (s Summary) Validate() error {
 	return (Frontmatter{Name: s.Name, Description: s.Description}).Validate()
 }

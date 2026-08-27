@@ -53,7 +53,6 @@ const (
 	deploymentDigestAttribute     attribute.Key = "agent.deployment.digest"
 )
 
-// ErrInvalidObserverConfig reports a typed-nil provider or unusable instrument setup.
 var ErrInvalidObserverConfig = errors.New("agent otel: invalid observer configuration")
 
 // ObserverConfig selects the official OpenTelemetry providers used by Observer.
@@ -101,8 +100,6 @@ type stepKey struct {
 	sequence  uint64
 }
 
-// NewObserver rejects typed-nil providers because only an actual nil interface
-// denotes the corresponding OpenTelemetry global provider.
 func NewObserver(config ObserverConfig) (*Observer, error) {
 	if config.TracerProvider != nil && lo.IsNil(config.TracerProvider) {
 		return nil, fmt.Errorf("%w: tracer provider is typed nil", ErrInvalidObserverConfig)
@@ -165,8 +162,6 @@ func NewObserver(config ObserverConfig) (*Observer, error) {
 	}, nil
 }
 
-// OnEvent records one valid Framework fact. Invalid events and calls after
-// Close are ignored because observation cannot affect Process correctness.
 func (o *Observer) OnEvent(ctx context.Context, event agent.Event) {
 	if o == nil || !event.Valid() {
 		return

@@ -55,9 +55,6 @@ type Definition struct {
 	completionValidator CompletionValidator
 }
 
-// NewDefinition validates config and constructs an Interaction Definition.
-// A Deployment's ConfigurationDigest must cover the ordered Delegate bindings
-// because they affect model behavior and child execution.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if config.MaxModelCalls == 0 {
 		return nil, fmt.Errorf("%w: MaxModelCalls must be positive", ErrInvalidDefinitionConfig)

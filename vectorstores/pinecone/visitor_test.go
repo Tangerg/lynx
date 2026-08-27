@@ -19,9 +19,6 @@ func compileFilter(predicate filter.Predicate) (*structpb.Struct, error) {
 	return visitor.Result(), nil
 }
 
-// TestVisitor_Conformance runs the shared visitor suite. Pinecone
-// metadata filters don't support LIKE — that conformance case is
-// declared via [storetest.Options.Unsupported].
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t,
 		func(src string) error {

@@ -42,12 +42,10 @@ const (
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
 
-// Valid reports whether s is supported by Neo4j vector indexes.
 func (s SimilarityFunction) Valid() bool {
 	return s == SimilarityCosine || s == SimilarityEuclidean
 }
 
-// String returns the Neo4j similarity token.
 func (s SimilarityFunction) String() string { return string(s) }
 
 // StoreConfig contains configuration options for the Neo4j vector

@@ -18,7 +18,10 @@ import (
 // IDGenerator produces an identifier for a document. Implementations may
 // derive identity from content or generate an unconditional random identity.
 type IDGenerator interface {
-	Generate(context.Context, *document.Document) (string, error)
+	// Generate returns a non-blank identifier for one document without mutating
+	// it. Content-addressed implementations must be deterministic; random
+	// implementations must still honor ctx and reject nil documents.
+	Generate(ctx context.Context, document *document.Document) (string, error)
 }
 
 // SHA256IDGenerator builds a content-addressable identifier from a document's
@@ -28,8 +31,6 @@ type SHA256IDGenerator struct {
 	salt []byte
 }
 
-// NewSHA256IDGenerator returns a generator with an independent snapshot of
-// salt. Salt can separate otherwise identical content-addressed streams.
 func NewSHA256IDGenerator(salt []byte) SHA256IDGenerator {
 	return SHA256IDGenerator{salt: bytes.Clone(salt)}
 }
@@ -67,10 +68,8 @@ func (s SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document)
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// UUIDGenerator returns a fresh random v4 UUID for every document.
 type UUIDGenerator struct{}
 
-// Generate returns a new UUID after validating the call boundary.
 func (UUIDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

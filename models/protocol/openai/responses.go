@@ -28,7 +28,6 @@ var (
 	_ corechat.Streamer = (*ResponsesChat)(nil)
 )
 
-// NewResponsesChat constructs a Responses-API-backed Core chat adapter.
 func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

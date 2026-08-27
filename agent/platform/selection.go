@@ -12,14 +12,10 @@ import (
 )
 
 var (
-	// ErrNilDeploymentSelector reports a nil selector implementation.
 	ErrNilDeploymentSelector = errors.New("platform: nil deployment selector")
 
-	// ErrNoDeploymentCandidates reports that the active snapshot is empty.
 	ErrNoDeploymentCandidates = errors.New("platform: no deployment candidates")
 
-	// ErrInvalidDeploymentSelection reports a selector panic or a reference
-	// that was not present in the exact candidate snapshot it received.
 	ErrInvalidDeploymentSelection = errors.New("platform: invalid deployment selection")
 )
 
@@ -46,16 +42,18 @@ func (d DeploymentCandidate) Descriptor() agent.Descriptor {
 // and must be safe for concurrent calls when shared. Request-specific routing
 // input belongs to the implementation rather than a Framework payload type.
 type DeploymentSelector interface {
+	// Select chooses exactly one DeploymentRef from the detached candidate slice
+	// supplied for this call. It may perform caller-owned I/O, must honor ctx, and
+	// must be concurrency-safe when shared. Invalid or unoffered references are
+	// rejected by Platform after the call returns.
 	Select(ctx context.Context, candidates []DeploymentCandidate) (agent.DeploymentRef, error)
 }
 
-// DeploymentSelectorFunc adapts a function to DeploymentSelector.
 type DeploymentSelectorFunc func(
 	ctx context.Context,
 	candidates []DeploymentCandidate,
 ) (agent.DeploymentRef, error)
 
-// Select invokes d.
 func (d DeploymentSelectorFunc) Select(
 	ctx context.Context,
 	candidates []DeploymentCandidate,

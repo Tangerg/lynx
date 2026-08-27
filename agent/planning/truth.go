@@ -20,12 +20,10 @@ const (
 	True Truth = "true"
 )
 
-// Valid reports whether t is one of the three supported values.
 func (t Truth) Valid() bool { return t == Unknown || t == False || t == True }
 
 func (t Truth) known() bool { return t == False || t == True }
 
-// String returns the stable lower-case truth name.
 func (t Truth) String() string {
 	if !t.Valid() {
 		return "invalid"
@@ -33,7 +31,6 @@ func (t Truth) String() string {
 	return string(t)
 }
 
-// MarshalJSON encodes t as its stable string name.
 func (t Truth) MarshalJSON() ([]byte, error) {
 	if !t.Valid() {
 		return nil, fmt.Errorf("%w: truth value %q", ErrInvalidCondition, t)
@@ -41,7 +38,6 @@ func (t Truth) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.String())
 }
 
-// UnmarshalJSON decodes one strict truth string.
 func (t *Truth) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil Truth receiver", ErrInvalidCondition)

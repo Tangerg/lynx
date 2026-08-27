@@ -21,8 +21,6 @@ const (
 	DefaultIndexNameSuffix = "_conversation_idx"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Pool] is required; the rest fall back
-// to documented defaults.
 type StoreConfig struct {
 	// Pool is the pgx connection pool. Required. The store does not
 	// take ownership — callers close the pool themselves.
@@ -47,9 +45,6 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-// Validate reports whether c can be used to construct a [Store]. Blank
-// optional identifiers are valid and are resolved to their documented
-// defaults by [NewStore].
 func (c StoreConfig) Validate() error {
 	if c.Pool == nil {
 		return errors.New("postgres: pool is required")
@@ -74,7 +69,8 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a PostgreSQL-backed [history.Store]. Construct via [NewStore].
+// Store persists canonical chat messages through a caller-owned pgx pool. It
+// never closes the pool; schema initialization is optional and idempotent.
 //
 // Schema (created when [StoreConfig.InitializeSchema] is true):
 //
@@ -102,7 +98,6 @@ type Store struct {
 	createSQL []string
 }
 
-// New builds a [Store] from config. ctx bounds optional schema initialization.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

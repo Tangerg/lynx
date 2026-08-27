@@ -30,7 +30,6 @@ const multiQueryOutputName = "rag_multi_query"
 // [MultiQueryExpanderConfig.NumberOfQueries] is unset.
 const DefaultMultiQueryCount = 3
 
-// MultiQueryExpanderConfig configures [NewMultiQueryExpander].
 type MultiQueryExpanderConfig struct {
 	// Model produces the variants. Required.
 	Model chat.Model
@@ -118,8 +117,6 @@ func (m multiQueryOutput) queries(source Query, count int, includeOriginal bool)
 	return append(queries, variants...), nil
 }
 
-// NewMultiQueryExpander returns an expander that asks an LLM for alternate
-// query phrasings.
 func NewMultiQueryExpander(config MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
 	config, err := config.normalized()
 	if err != nil {

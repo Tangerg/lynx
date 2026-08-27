@@ -36,8 +36,6 @@ func (a ActiveDelegateChild) ChildKey() agent.ChildKey { return a.childKey }
 // ProcessID returns the Engine-minted child Process identity.
 func (a ActiveDelegateChild) ProcessID() agent.ProcessID { return a.processID }
 
-// Valid reports whether a contains one complete, internally consistent
-// active Delegate attribution.
 func (a ActiveDelegateChild) Valid() bool {
 	if a.modelCallSequence == 0 || a.toolCall.Validate() != nil ||
 		!a.childKey.Valid() || !a.processID.Valid() {

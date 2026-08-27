@@ -15,8 +15,6 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
-// ErrInvalidReranking reports malformed model ranking output or candidate
-// content that cannot be presented to the model.
 var ErrInvalidReranking = errors.New("rag: invalid model reranking")
 
 const modelRerankerDefaultTemplate = `Rank every candidate by relevance to the query.
@@ -31,7 +29,6 @@ Candidates (JSON):
 
 const modelRerankerOutputName = "rag_reranking"
 
-// ModelRerankerConfig configures [NewModelReranker].
 type ModelRerankerConfig struct {
 	// Model ranks candidates. Required.
 	Model chat.Model
@@ -101,7 +98,6 @@ type modelRerankingInput struct {
 
 var _ Refiner = (*ModelReranker)(nil)
 
-// NewModelReranker constructs a model-backed candidate refiner.
 func NewModelReranker(config ModelRerankerConfig) (*ModelReranker, error) {
 	format, err := chatclient.JSONSchema[modelRerankingOutput](modelRerankerOutputName)
 	if err != nil {

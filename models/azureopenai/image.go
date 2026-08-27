@@ -32,7 +32,6 @@ var _ image.Model = (*ImageModel)(nil)
 
 type ImageModel = openai.ImageModel
 
-// NewImageModel returns an Azure OpenAI image model.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

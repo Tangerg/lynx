@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// ErrInvalidAugmentation reports empty or malformed model input produced by
-// an [Augmenter].
 var ErrInvalidAugmentation = errors.New("rag: invalid augmentation")
 
 // Augmentation is the final text handed to a generation model after retrieval.
@@ -30,7 +28,6 @@ type Citation struct {
 // retrieval candidates.
 type Citations []Citation
 
-// Validate checks each citation and enforces consecutive one-based numbering.
 func (c Citations) Validate() error {
 	for index, citation := range c {
 		if err := citation.Validate(); err != nil {
@@ -49,7 +46,6 @@ func (c Citations) Validate() error {
 	return nil
 }
 
-// NewCitation constructs and validates a citation.
 func NewCitation(number int, candidate Candidate) (Citation, error) {
 	citation := Citation{Number: number, Candidate: candidate}
 	if err := citation.Validate(); err != nil {
@@ -61,7 +57,6 @@ func NewCitation(number int, candidate Candidate) (Citation, error) {
 // Marker returns the stable prompt marker for this citation.
 func (c Citation) Marker() string { return fmt.Sprintf("[%d]", c.Number) }
 
-// Validate checks the one-based number and candidate.
 func (c Citation) Validate() error {
 	if c.Number <= 0 {
 		return fmt.Errorf("%w: citation number must be positive", ErrInvalidAugmentation)
@@ -72,7 +67,6 @@ func (c Citation) Validate() error {
 	return nil
 }
 
-// NewAugmentation constructs validated generation input.
 func NewAugmentation(text string) (Augmentation, error) {
 	augmentation := Augmentation{text: text}
 	if err := augmentation.Validate(); err != nil {
@@ -97,7 +91,6 @@ func (a Augmentation) WithCitations(citations Citations) (Augmentation, error) {
 	return a, nil
 }
 
-// Validate checks that the generation input contains meaningful text.
 func (a Augmentation) Validate() error {
 	if strings.TrimSpace(a.text) == "" {
 		return fmt.Errorf("%w: text must not be blank", ErrInvalidAugmentation)
@@ -108,13 +101,14 @@ func (a Augmentation) Validate() error {
 // Augmenter turns a retrieval query and its candidates into final generation
 // input.
 type Augmenter interface {
+	// Augment creates the complete generation input from one query and its
+	// ordered candidates. It must not mutate either input, must preserve any
+	// citation-to-candidate relationship it emits, and must honor ctx.
 	Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error)
 }
 
-// AugmenterFunc adapts a function to [Augmenter].
 type AugmenterFunc func(context.Context, Query, Candidates) (Augmentation, error)
 
-// Augment calls a(ctx, query, candidates).
 func (a AugmenterFunc) Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error) {
 	return a(ctx, query, candidates)
 }

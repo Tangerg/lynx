@@ -29,8 +29,6 @@ func Merge(sources ...ResourceSource) ResourceSource {
 	return &merged{sources: kept}
 }
 
-// merged is the [Merge] result: a Source that fans each operation across its
-// backing sources in precedence order.
 type merged struct {
 	sources []ResourceSource
 }

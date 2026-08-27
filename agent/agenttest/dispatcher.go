@@ -13,12 +13,9 @@ import (
 )
 
 var (
-	// ErrInvalidDispatchScript reports a malformed deterministic dispatch script.
 	ErrInvalidDispatchScript = errors.New("agenttest: invalid dispatch script")
-	// ErrUnexpectedDispatch reports an Effect beyond the configured script.
-	ErrUnexpectedDispatch = errors.New("agenttest: unexpected dispatch")
-	// ErrEffectMismatch reports an Effect that differs from the next expectation.
-	ErrEffectMismatch = errors.New("agenttest: effect does not match script")
+	ErrUnexpectedDispatch    = errors.New("agenttest: unexpected dispatch")
+	ErrEffectMismatch        = errors.New("agenttest: effect does not match script")
 )
 
 // DispatchStep describes one expected Dispatcher call and its deterministic
@@ -66,7 +63,6 @@ type ScriptedDispatcher struct {
 	requests []agent.EffectRequest
 }
 
-// NewScriptedDispatcher validates and freezes config.
 func NewScriptedDispatcher(config ScriptedDispatcherConfig) (*ScriptedDispatcher, error) {
 	if config.ReplayPolicy != agent.ReplayPolicyNever &&
 		config.ReplayPolicy != agent.ReplayPolicySameIdentity {

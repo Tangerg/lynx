@@ -11,14 +11,9 @@ import (
 )
 
 var (
-	// ErrInvalidMessage reports a malformed message or an invalid role/part
-	// combination.
-	ErrInvalidMessage = errors.New("chat: invalid message")
-	// ErrInvalidPart reports a malformed or ambiguous tagged part.
-	ErrInvalidPart = errors.New("chat: invalid part")
-	// ErrInvalidToolCall reports a malformed tool invocation request.
-	ErrInvalidToolCall = errors.New("chat: invalid tool call")
-	// ErrInvalidToolResult reports a malformed tool execution result.
+	ErrInvalidMessage    = errors.New("chat: invalid message")
+	ErrInvalidPart       = errors.New("chat: invalid part")
+	ErrInvalidToolCall   = errors.New("chat: invalid tool call")
 	ErrInvalidToolResult = errors.New("chat: invalid tool result")
 )
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 )
 
-// ErrInvalidExecutionState reports a malformed Strategy-owned state envelope.
 var ErrInvalidExecutionState = errors.New("agent: invalid execution state")
 
 // ExecutionState is an immutable, versioned envelope owned by one Execution
@@ -19,8 +18,6 @@ type ExecutionState struct {
 	payload       json.RawMessage
 }
 
-// NewExecutionState validates and takes an immutable snapshot of a Strategy
-// state payload. kind identifies the owning Strategy, not a global factory.
 func NewExecutionState(kind string, schemaVersion uint16, payload json.RawMessage) (ExecutionState, error) {
 	if !validQualifiedName(kind) {
 		return ExecutionState{}, fmt.Errorf("%w: kind must be a lowercase qualified name", ErrInvalidExecutionState)
@@ -44,7 +41,6 @@ func (e ExecutionState) SchemaVersion() uint16 { return e.schemaVersion }
 // Payload returns an independently owned copy of the opaque Strategy state.
 func (e ExecutionState) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
-// Valid reports whether the state was created through its validated boundary.
 func (e ExecutionState) Valid() bool {
 	return validQualifiedName(e.kind) && e.schemaVersion > 0 && len(e.payload) > 0
 }
@@ -55,7 +51,6 @@ func (e ExecutionState) clone() ExecutionState {
 	}
 }
 
-// MarshalJSON returns the validated Strategy-owned state envelope.
 func (e ExecutionState) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidExecutionState
@@ -67,7 +62,6 @@ func (e ExecutionState) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON replaces e with a strictly decoded ExecutionState.
 func (e *ExecutionState) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidExecutionState)

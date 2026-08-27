@@ -61,12 +61,10 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-// Valid reports whether d is supported by S3 Vectors.
 func (d DistanceMetric) Valid() bool {
 	return d == DistanceCosine || d == DistanceEuclidean
 }
 
-// String returns the S3 Vectors distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) score(distance float64) vectorstore.Score {

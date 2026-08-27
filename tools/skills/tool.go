@@ -24,8 +24,6 @@ type toolSet struct {
 	source skillsrc.ResourceSource
 }
 
-// NewTools builds the three progressive-disclosure tools over source. A skill
-// source has no sensible default, so nil returns [ErrNilSource].
 func NewTools(source skillsrc.ResourceSource) ([]toolcontract.Tool, error) {
 	if lo.IsNil(source) {
 		return nil, ErrNilSource

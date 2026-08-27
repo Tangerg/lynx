@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// ErrInvalidChildWait reports a malformed child wait request or Signal.
 var ErrInvalidChildWait = errors.New("agent: invalid child wait")
 
 // ChildWaitCondition identifies when a set of child Processes releases its
@@ -42,7 +41,6 @@ func ChildQuorum(count uint32) (ChildWaitCondition, error) {
 	return condition, nil
 }
 
-// Valid reports whether c is one supported completion predicate.
 func (c ChildWaitCondition) Valid() bool {
 	return c.kind == childWaitAll && c.quorum == 0 ||
 		c.kind == childWaitAny && c.quorum == 0 ||
@@ -79,8 +77,6 @@ type ChildWaitSpec struct {
 	Condition ChildWaitCondition
 }
 
-// Valid reports whether the wait has a usable key, unique child identities,
-// and a condition satisfiable by the declared child count.
 func (c ChildWaitSpec) Valid() bool {
 	if !c.Key.Valid() {
 		return false
@@ -135,7 +131,6 @@ func (c ChildWaitOpened) Spec() ChildWaitSpec {
 	return spec
 }
 
-// Valid reports whether the acknowledgement contains one complete wait.
 func (c ChildWaitOpened) Valid() bool { return c.waitID.Valid() && c.spec.Valid() }
 
 // ParseChildWaitOpened decodes the settlement Signal produced by
@@ -174,7 +169,6 @@ func (c ChildOutcome) Key() ChildKey { return c.key }
 // Result returns the child's immutable terminal result.
 func (c ChildOutcome) Result() Result { return c.result }
 
-// Valid reports whether both logical identity and terminal result are complete.
 func (c ChildOutcome) Valid() bool { return c.key.Valid() && c.result.Valid() }
 
 // ChildrenCompleted is one condition-satisfying, request-ordered child result
@@ -197,7 +191,6 @@ func (c ChildrenCompleted) Outcomes() []ChildOutcome {
 	return slices.Clone(c.outcomes)
 }
 
-// Valid reports whether the completion contains at least one ordered result.
 func (c ChildrenCompleted) Valid() bool {
 	if !c.waitID.Valid() || !c.key.Valid() || len(c.outcomes) == 0 {
 		return false

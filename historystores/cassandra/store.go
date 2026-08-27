@@ -18,7 +18,6 @@ const (
 	DefaultTableName = "chat_history"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Session] is required.
 type StoreConfig struct {
 	// Session is the live gocql session. Required. Callers own
 	// session lifetime.
@@ -39,9 +38,6 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-// Validate reports whether c can be used to construct a [Store]. Blank
-// optional identifiers are valid and are resolved to their documented
-// defaults by [NewStore].
 func (c StoreConfig) Validate() error {
 	if c.Session == nil {
 		return errors.New("cassandra: session is required")
@@ -60,7 +56,10 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cassandra-backed [history.Store]. Construct via [NewStore].
+// Store persists each conversation in one Cassandra partition through a
+// caller-owned session. It never closes that session. A Write preserves its
+// argument order with a locally monotonic TIMEUUID range; relative ordering
+// across concurrent calls or separate Store values remains unspecified.
 type Store struct {
 	session  *gocql.Session
 	sequence sequenceGenerator
@@ -72,7 +71,6 @@ type Store struct {
 	createCQL string
 }
 
-// New builds a [Store] from config. ctx bounds optional table initialization.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

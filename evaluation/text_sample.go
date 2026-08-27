@@ -16,8 +16,6 @@ type TextSample struct {
 	Context []string `json:"context,omitzero"`
 }
 
-// NewTextSample snapshots context so later caller mutation cannot change an
-// in-flight evaluation input.
 func NewTextSample(input, output string, context []string) TextSample {
 	return TextSample{Input: input, Output: output, Context: slices.Clone(context)}
 }

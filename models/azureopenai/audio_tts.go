@@ -35,7 +35,6 @@ var (
 
 type AudioTTSModel = openai.AudioTTSModel
 
-// NewAudioTTSModel returns an Azure OpenAI speech model.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -9,7 +9,6 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-// ErrInvalidEventPredicate reports a missing AwaitEvent predicate.
 var ErrInvalidEventPredicate = errors.New("agenttest: invalid event predicate")
 
 // ObservationRecorder is a concurrency-safe EventListener and DeltaListener.
@@ -21,7 +20,6 @@ type ObservationRecorder struct {
 	changed chan struct{}
 }
 
-// OnEvent records one immutable Framework event and wakes AwaitEvent callers.
 func (o *ObservationRecorder) OnEvent(_ context.Context, event agent.Event) {
 	if o == nil {
 		return
@@ -32,7 +30,6 @@ func (o *ObservationRecorder) OnEvent(_ context.Context, event agent.Event) {
 	o.notifyLocked()
 }
 
-// OnDelta records one immutable best-effort stream increment.
 func (o *ObservationRecorder) OnDelta(_ context.Context, delta agent.Delta) {
 	if o == nil {
 		return

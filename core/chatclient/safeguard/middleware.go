@@ -22,8 +22,6 @@ type Middleware struct {
 	config  MiddlewareConfig
 }
 
-// NewMiddleware rejects nil matchers because silently disabling a safeguard
-// would turn a configuration defect into a security boundary bypass.
 func NewMiddleware(matcher Matcher, config MiddlewareConfig) (*Middleware, error) {
 	if lo.IsNil(matcher) {
 		return nil, fmt.Errorf("%w: matcher is nil", ErrInvalidMiddlewareConfig)

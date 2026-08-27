@@ -20,7 +20,6 @@ type Visitor struct {
 
 var _ filter.Visitor = (*Visitor)(nil)
 
-// NewVisitor creates a Bedrock filter compiler.
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }

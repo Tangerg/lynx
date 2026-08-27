@@ -79,10 +79,9 @@ func (r remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
 	return "", true
 }
 
-// Call implements [tool.Tool]: it sends the request text to the remote agent
-// and returns its reply. One `a2a.agent.call <name>` span per call
-// (kind=Client) carrying gen_ai.agent.name; a remote failure records the
-// error and sets the span status to Error.
+// Each remote call owns a client span named `a2a.agent.call <name>` with
+// gen_ai.agent.name attribution; remote failure records the error and marks
+// the span failed rather than hiding transport state in the textual result.
 func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
 	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+r.definition.Name,
 		trace.WithSpanKind(trace.SpanKindClient),

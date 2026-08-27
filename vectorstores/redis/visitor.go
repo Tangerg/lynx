@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a RediSearch query
 // fragment. The output is meant to be wrapped in parentheses and
 // composed with a KNN vector tail by [Store].
@@ -27,8 +29,6 @@ import (
 // Field types come from [Store.fields] — keyed by metadata-field name —
 // so the same operator dispatches to TAG / NUMERIC / TEXT syntax
 // depending on the declared field kind.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err    error
 	sql    strings.Builder

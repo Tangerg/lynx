@@ -20,8 +20,6 @@ const (
 	defaultMaxChunks             = 10_000
 )
 
-// ErrChunkLimitExceeded reports that splitting would exceed the configured
-// output bound. The splitter fails instead of emitting one oversized tail.
 var ErrChunkLimitExceeded = errors.New("etl: chunk limit exceeded")
 
 // TokenSplitterConfig configures token-aware chunking. Zero sizing values use

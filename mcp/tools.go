@@ -38,8 +38,6 @@ type ToolConcurrencyPolicy func(
 	arguments string,
 ) (key string, concurrent bool)
 
-// PublicToolNameFunc maps an MCP server/tool identity to the provider-facing
-// function name. Implementations must be deterministic.
 type PublicToolNameFunc func(sourceName, remoteName string) string
 
 const maxPublicToolNameLength = 64

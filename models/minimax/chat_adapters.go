@@ -33,7 +33,6 @@ type OpenAIChat = openai.Chat
 // AnthropicChat implements MiniMax's Anthropic-compatible endpoint.
 type AnthropicChat = anthropic.Chat
 
-// OpenAIChatConfig configures MiniMax's OpenAI-compatible Core chat adapter.
 type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -51,7 +50,6 @@ func (o OpenAIChatConfig) Validate() error {
 	return nil
 }
 
-// NewOpenAIChat constructs an OpenAI-wire Core chat adapter for MiniMax.
 func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -76,7 +74,6 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	return protocol, nil
 }
 
-// AnthropicChatConfig configures MiniMax's Anthropic-compatible Core chat adapter.
 type AnthropicChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -94,7 +91,6 @@ func (a AnthropicChatConfig) Validate() error {
 	return nil
 }
 
-// NewAnthropicChat constructs an Anthropic-wire Core chat adapter for MiniMax.
 func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

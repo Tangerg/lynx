@@ -14,10 +14,6 @@ const (
 	bindingTargetChild
 )
 
-// ChildInputFunc deterministically derives one child Process input from the
-// Planning Process input and its latest WorldState. It must perform no I/O and
-// must return the same Input for the same arguments. Nil reuses the Planning
-// Process input unchanged.
 type ChildInputFunc func(processInput agent.Input, worldState WorldState) (agent.Input, error)
 
 // DispatcherBindingConfig binds a predictive Action to the Planning
@@ -55,8 +51,6 @@ type ActionBinding struct {
 	childInput ChildInputFunc
 }
 
-// NewDispatcherBinding binds an Action to a named ActionExecutor supplied to
-// NewDispatcher.
 func NewDispatcherBinding(config DispatcherBindingConfig) (ActionBinding, error) {
 	if !config.Action.Valid() {
 		return ActionBinding{}, fmt.Errorf("%w: dispatcher binding Action", ErrInvalidAction)
@@ -68,8 +62,6 @@ func NewDispatcherBinding(config DispatcherBindingConfig) (ActionBinding, error)
 	return ActionBinding{action: config.Action, target: bindingTargetDispatcher, required: required}, nil
 }
 
-// NewChildBinding binds an Action to an exact child Process specification. The
-// parent-scoped ChildKey and derived Input are supplied per attempt.
 func NewChildBinding(config ChildBindingConfig) (ActionBinding, error) {
 	if !config.Action.Valid() || !config.DeploymentRef.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() {
 		return ActionBinding{}, fmt.Errorf("%w: invalid child binding", ErrInvalidAction)
@@ -87,7 +79,6 @@ func NewChildBinding(config ChildBindingConfig) (ActionBinding, error) {
 // Action returns the immutable predictive Action owned by the binding.
 func (a ActionBinding) Action() Action { return a.action }
 
-// Valid reports whether the binding has one complete execution target.
 func (a ActionBinding) Valid() bool {
 	if !a.action.Valid() || !a.required.Valid() {
 		return false

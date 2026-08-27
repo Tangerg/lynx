@@ -7,11 +7,6 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// RequestMetaFunc produces the _meta map carried on outbound MCP tool calls.
-// It is the hook through which a caller forwards ambient identifiers from the
-// caller-side context to the remote server.
-//
-// A nil RequestMetaFunc, or one that returns an empty map, sends no _meta.
 type RequestMetaFunc func(ctx context.Context) sdkmcp.Meta
 
 type requestMetaContextKey struct{}

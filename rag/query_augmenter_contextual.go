@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/scope/core/tokenizer"
 )
 
-// ErrInvalidContextBudget reports inconsistent token-budget configuration.
 var ErrInvalidContextBudget = errors.New("rag: invalid context token budget")
 
 // contextualDefaultTemplate is the default RAG augmentation prompt: it
@@ -38,7 +37,6 @@ Answer:`
 const contextualEmptyContextTemplate = `The user query is outside your knowledge base.
 Politely inform the user that you can't answer it.`
 
-// ContextualAugmenterConfig configures [NewContextualAugmenter].
 type ContextualAugmenterConfig struct {
 	// PromptTemplate is the augmentation template. Defaults to
 	// [contextualDefaultTemplate]. Custom templates must declare
@@ -121,8 +119,6 @@ type contextualEvidence struct {
 	Content  string `json:"content"`
 }
 
-// NewContextualAugmenter returns an augmenter that folds retrieved
-// documents into the query text as a context block.
 func NewContextualAugmenter(config ContextualAugmenterConfig) (*ContextualAugmenter, error) {
 	budget, err := newContextBudget(config.MaxContextTokens, config.TokenEstimator)
 	if err != nil {

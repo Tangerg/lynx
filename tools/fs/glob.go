@@ -8,7 +8,6 @@ import (
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
-// GlobRequest is the LLM-facing argument shape for the glob tool.
 type GlobRequest struct {
 	Pattern    string `json:"pattern" jsonschema:"minLength=1" jsonschema_description:"Doublestar path pattern, such as **/*.go or src/**/*.ts."`
 	Path       string `json:"path,omitempty" jsonschema_description:"Directory to search under. Defaults to the workspace root."`
@@ -16,7 +15,6 @@ type GlobRequest struct {
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=1000" jsonschema_description:"Maximum paths to return. Defaults to 100 and cannot exceed 1000."`
 }
 
-// GlobResponse is the LLM-facing return shape.
 type GlobResponse struct {
 	Paths     []string `json:"paths"`
 	Truncated bool     `json:"truncated,omitempty"`
@@ -24,14 +22,11 @@ type GlobResponse struct {
 
 var _ toolcontract.Tool = (*GlobTool)(nil)
 
-// GlobTool is the thin LLM-facing adapter for [Executor.Glob].
 type GlobTool struct {
 	executor Executor
 	typed    toolcontract.Func[GlobRequest, GlobResponse]
 }
 
-// NewGlobTool builds a [GlobTool] backed by executor. Passing nil
-// wires up an unconfined [LocalExecutor] (workspace root "").
 func NewGlobTool(executor Executor) *GlobTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")

@@ -30,7 +30,6 @@ type SearchOptions struct {
 	Filter   filter.Predicate `json:"-"`
 }
 
-// NewSearchOptions returns the recommended provider-neutral defaults.
 func NewSearchOptions() SearchOptions {
 	return SearchOptions{TopK: DefaultTopK}
 }
@@ -81,7 +80,6 @@ type SearchRequest struct {
 	Options SearchOptions `json:"options"`
 }
 
-// NewSearchRequest creates a request with the recommended search options.
 func NewSearchRequest(query string) (*SearchRequest, error) {
 	request := &SearchRequest{Query: query, Options: NewSearchOptions()}
 	if err := request.Validate(); err != nil {

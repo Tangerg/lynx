@@ -31,11 +31,6 @@ type FuncConfig struct {
 	Description string
 }
 
-// NewFunc adapts function to a Tool. In must be a struct or a pointer to a
-// struct; use struct{} for a tool without arguments. Arguments are validated
-// against the derived schema and decoded strictly, so missing required fields,
-// constraint violations, and unknown JSON fields fail before invocation. A
-// string result is returned verbatim; every other result is encoded as JSON.
 func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (Func[In, Out], error) {
 	var zero Func[In, Out]
 	if function == nil {

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into Typesense `filter_by`
 // syntax. The metadata field is a nested object on the collection
 // schema (enabled via EnableNestedFields=true), so metadata keys are
@@ -24,8 +26,6 @@ import (
 //
 // Typesense `filter_by` doesn't have a standalone NOT operator — the
 // visitor rewrites `NOT (x op y)` into the operator's inverse.
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

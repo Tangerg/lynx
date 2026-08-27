@@ -12,14 +12,11 @@ var _ toolcontract.Tool = (*Tool)(nil)
 
 const toolName = "http_request"
 
-// Tool is the LLM-facing adapter for [Client].
 type Tool struct {
 	client *Client
 	inner  toolcontract.Tool
 }
 
-// NewTool rejects nil because HTTP authority must be explicit; unlike local
-// tools, no default network client can be safe.
 func NewTool(client *Client) (*Tool, error) {
 	if client == nil {
 		return nil, ErrNilClient

@@ -22,7 +22,6 @@ Original query: {{.Query}}
 
 Translated query:`
 
-// TranslationTransformerConfig configures [NewTranslationTransformer].
 type TranslationTransformerConfig struct {
 	// Model performs the translation. Required.
 	Model chat.Model
@@ -60,8 +59,6 @@ type translationPromptVariables struct {
 	Query  string
 }
 
-// NewTranslationTransformer returns a transformer that translates queries
-// into the target language expected by downstream retrieval.
 func NewTranslationTransformer(config TranslationTransformerConfig) (*TranslationTransformer, error) {
 	if err := config.validate(); err != nil {
 		return nil, err

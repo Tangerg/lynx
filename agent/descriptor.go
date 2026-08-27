@@ -13,7 +13,6 @@ const (
 	maxDescriptionBytes = 4096
 )
 
-// ErrInvalidDescriptor reports a malformed static Definition contract.
 var ErrInvalidDescriptor = errors.New("agent: invalid descriptor")
 
 // DescriptorConfig contains the complete static contract of a Definition.
@@ -67,7 +66,6 @@ type Descriptor struct {
 	digest       Digest
 }
 
-// NewDescriptor validates and takes an immutable snapshot of config.
 func NewDescriptor(config DescriptorConfig) (Descriptor, error) {
 	if err := config.validate(); err != nil {
 		return Descriptor{}, err
@@ -105,13 +103,11 @@ func (d Descriptor) OutputSchema() Schema { return d.outputSchema.clone() }
 // Digest returns the SHA-256 identity of the complete descriptor contract.
 func (d Descriptor) Digest() Digest { return d.digest }
 
-// Valid reports whether the Descriptor was constructed successfully.
 func (d Descriptor) Valid() bool {
 	return d.name != "" && d.version != "" &&
 		d.inputSchema.Valid() && d.outputSchema.Valid() && d.digest.Valid()
 }
 
-// ValidateInput validates an Input against the Definition contract.
 func (d Descriptor) ValidateInput(input Input) error {
 	if !d.Valid() {
 		return ErrInvalidDescriptor
@@ -119,7 +115,6 @@ func (d Descriptor) ValidateInput(input Input) error {
 	return d.inputSchema.ValidateInput(input)
 }
 
-// ValidateOutput validates an Output against the Definition contract.
 func (d Descriptor) ValidateOutput(output Output) error {
 	if !d.Valid() {
 		return ErrInvalidDescriptor
@@ -156,7 +151,6 @@ func (d Descriptor) DecodeOutput[T any](output Output) (T, error) {
 	return output.Decode[T]()
 }
 
-// MarshalJSON returns the validated static Definition contract.
 func (d Descriptor) MarshalJSON() ([]byte, error) {
 	if !d.Valid() {
 		return nil, ErrInvalidDescriptor
@@ -167,7 +161,6 @@ func (d Descriptor) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON replaces d with a strictly decoded Descriptor.
 func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDescriptor)

@@ -34,9 +34,6 @@ func slotFor(reference agent.DeploymentRef) deploymentSlot {
 	return deploymentSlot{name: reference.Name(), version: reference.Version()}
 }
 
-// New validates and atomically constructs a Platform. Deployments
-// with different semantic versions occupy independent active slots; different
-// exact references for the same name and version conflict.
 func New(deployments ...agent.Deployment) (*Platform, error) {
 	state, err := initialDeploymentState(deployments)
 	if err != nil {

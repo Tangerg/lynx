@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into Elasticsearch
 // query-string syntax (Lucene). The output is meant to be plugged
 // into a `query_string.query` clause inside the KNN filter.
@@ -27,8 +29,6 @@ import (
 //   - bare identifier      → <prefix>.<ident>
 //   - metadata['k']        → <prefix>.k
 //   - metadata['a']['b']   → <prefix>.a.b
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

@@ -5,6 +5,10 @@ package interaction
 // directly instead of making another model call. The declaration is frozen by
 // NewDispatcher; a panic or capability-resolution error rejects construction.
 type DirectResultTool interface {
+	// ReturnsDirectResult declares whether a successful invocation can terminate
+	// Interaction with the ToolResult itself. The answer is read and frozen at
+	// Dispatcher construction and therefore must not depend on mutable state or
+	// perform I/O.
 	ReturnsDirectResult() bool
 }
 
@@ -19,5 +23,10 @@ type DirectResultTool interface {
 // that assertion makes the whole Tool Effect outcome unknown; the Dispatcher
 // never re-executes siblings whose side effects may already have happened.
 type ConcurrentTool interface {
+	// ConcurrencyKey classifies one exact JSON argument document before any Tool
+	// in the batch executes. concurrent=false requires exclusive execution;
+	// concurrent=true with the same non-empty key serializes calls to that
+	// resource. The method must be deterministic, bounded, side-effect-free, and
+	// must not retain arguments.
 	ConcurrencyKey(arguments string) (key string, concurrent bool)
 }

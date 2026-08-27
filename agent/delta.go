@@ -10,7 +10,6 @@ import (
 
 const maxDeltaBytes = 1 << 20
 
-// ErrInvalidDelta reports malformed best-effort observation data.
 var ErrInvalidDelta = errors.New("agent: invalid delta")
 
 // Delta is a bounded, best-effort stream increment from one Effect attempt.
@@ -62,13 +61,11 @@ func (d Delta) EmittedAt() time.Time { return d.emittedAt }
 // Payload returns an independently owned Strategy-defined increment.
 func (d Delta) Payload() json.RawMessage { return bytes.Clone(d.payload) }
 
-// Valid reports whether the Delta has a complete immutable envelope.
 func (d Delta) Valid() bool {
 	return d.processID.Valid() && d.effectID.Valid() && d.effectSequence > 0 &&
 		!d.emittedAt.IsZero() && len(d.payload) > 0
 }
 
-// MarshalJSON returns the validated Delta wire representation.
 func (d Delta) MarshalJSON() ([]byte, error) {
 	if !d.Valid() {
 		return nil, ErrInvalidDelta
@@ -82,7 +79,6 @@ func (d Delta) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON replaces d with a strictly decoded Delta.
 func (d *Delta) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDelta)

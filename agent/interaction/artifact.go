@@ -103,7 +103,6 @@ type CompletionDecision struct {
 	Feedback string
 }
 
-// Valid reports whether the decision is internally consistent and bounded.
 func (c CompletionDecision) Valid() bool {
 	if c.Accepted {
 		return c.Feedback == ""

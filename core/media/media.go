@@ -13,11 +13,8 @@ import (
 )
 
 var (
-	// ErrNilMedia reports a nil Media receiver.
-	ErrNilMedia = errors.New("media: nil media")
-	// ErrInvalidMIME reports a missing or malformed MIME media type.
-	ErrInvalidMIME = errors.New("media: invalid MIME type")
-	// ErrInvalidSource reports a missing, ambiguous, or malformed source.
+	ErrNilMedia      = errors.New("media: nil media")
+	ErrInvalidMIME   = errors.New("media: invalid MIME type")
 	ErrInvalidSource = errors.New("media: invalid source")
 )
 

@@ -37,8 +37,6 @@ type SpanExporter struct {
 	shutdown atomic.Bool
 }
 
-// NewSpanExporter returns a new slog span exporter.
-// If logger is nil, stdslog.Default() is used.
 func NewSpanExporter(logger *stdslog.Logger) *SpanExporter {
 	if logger == nil {
 		logger = stdslog.Default()

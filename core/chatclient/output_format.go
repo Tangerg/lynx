@@ -13,11 +13,8 @@ import (
 )
 
 var (
-	// ErrInvalidOutputFormat reports an unusable output format configuration.
 	ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 
-	// ErrInvalidOutput reports a completed model response that cannot satisfy
-	// its bound output contract.
 	ErrInvalidOutput = errors.New("chatclient: invalid output")
 )
 

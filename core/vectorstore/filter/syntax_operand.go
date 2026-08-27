@@ -23,9 +23,6 @@ func newIdent(value any) (*Ident, error) {
 	}
 }
 
-// NewIdent builds an [*Ident] from either a string name or an
-// existing identifier node. Position is always zero — these are
-// hand-built nodes, not parsed ones.
 func NewIdent[T IdentifierValue](value T) *Ident {
 	ident, err := newIdent(value)
 	if err != nil {

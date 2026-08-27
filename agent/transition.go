@@ -10,7 +10,6 @@ import (
 
 const maxPauseReasonBytes = 4096
 
-// ErrInvalidTransition reports a malformed or contradictory Step intent.
 var ErrInvalidTransition = errors.New("agent: invalid transition")
 
 // TransitionKind is the lifecycle intent produced by one bounded Step.
@@ -31,7 +30,6 @@ const (
 	TransitionKindFail TransitionKind = "fail"
 )
 
-// Valid reports whether t is a supported lifecycle intent.
 func (t TransitionKind) Valid() bool {
 	switch t {
 	case TransitionKindContinue, TransitionKindWait, TransitionKindPause,
@@ -42,7 +40,6 @@ func (t TransitionKind) Valid() bool {
 	}
 }
 
-// String returns the stable Transition kind name.
 func (t TransitionKind) String() string {
 	if !t.Valid() {
 		return "invalid"
@@ -129,7 +126,6 @@ func (t Transition) Output() (Output, bool) { return t.output, t.kind == Transit
 // Failure returns the terminal failure for a Fail transition.
 func (t Transition) Failure() (Failure, bool) { return t.failure, t.kind == TransitionKindFail }
 
-// Valid reports whether exactly the fields permitted by Kind are present.
 func (t Transition) Valid() bool {
 	switch t.kind {
 	case TransitionKindContinue:
@@ -173,7 +169,6 @@ func validEffects(effects []Effect) bool {
 	return true
 }
 
-// MarshalJSON returns the validated immutable Step intent.
 func (t Transition) MarshalJSON() ([]byte, error) {
 	if !t.Valid() {
 		return nil, ErrInvalidTransition
@@ -194,7 +189,6 @@ func (t Transition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-// UnmarshalJSON replaces t with a strictly decoded Transition.
 func (t *Transition) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTransition)

@@ -9,36 +9,25 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor transforms AST filter expressions into Milvus filter expression strings.
-// It traverses semantic filter expressions and converts them to the provider query shape
-// into Milvus's native string expression format.
-//
-// The converter maintains internal state during traversal:
-//   - result: The expression string being built
-//   - currentFieldKey: Temporary storage for extracted field identifiers
-//   - currentFieldValue: Temporary storage for encoded literal values
-//   - err: The last error encountered during conversion
-//
-// Conversion strategy:
-//   - Each visit method sets result to the expression string for the current node
-//   - Nested expressions (logical operators, NOT) create isolated converters
-//   - Field extraction methods preserve state during recursive calls
 var _ filter.Visitor = (*Visitor)(nil)
 
+// Visitor compiles Scope filter expressions into Milvus's string expression
+// language. A value is reusable: Visit resets the previous result before
+// compiling the complete tree. Nested boolean branches use isolated visitors
+// so temporary field and literal state cannot leak between operands; numeric
+// literals retain their canonical text instead of passing through float64.
 type Visitor struct {
-	err               error  // Last error encountered during conversion
-	result            string // The Milvus expression string being built
-	currentFieldKey   string // Temporary storage for field paths during extraction
-	currentFieldValue string // Temporary storage for encoded values during extraction
+	err               error
+	result            string
+	currentFieldKey   string
+	currentFieldValue string
 }
 
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
 
-// Result returns the constructed Milvus filter expression string.
-// Returns an empty string if an error occurred during conversion.
-// Should only be called after Visit() completes.
+// Result is empty until Visit succeeds and after any failed compilation.
 func (v *Visitor) Result() string {
 	if v.err != nil {
 		return ""
@@ -46,9 +35,8 @@ func (v *Visitor) Result() string {
 	return v.result
 }
 
-// Visit translates one semantic filter expression.
-// It walks the whole tree rooted at expr and returns the first error
-// encountered, or nil when the entire expression was accepted.
+// Visit replaces prior state and accepts only trees Milvus can represent
+// without changing their meaning.
 func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.result = ""
@@ -58,7 +46,6 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-// visit dispatches conversion to specialized methods based on expression type.
 func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("milvus: cannot process nil expression")
@@ -85,9 +72,6 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes via [filter.BinaryExpr.Dispatch]. The
-// comparison wrapper splits equality vs ordering since milvus emits
-// distinct expression shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	return expr.Dispatch(filter.BinaryHandlers{
 		Logical:    v.visitLogicalExpr,
@@ -111,8 +95,6 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitComparisonExpr routes to equality or ordering based on the
-// operator family.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
@@ -120,24 +102,15 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return v.visitOrderingExpr(expr)
 }
 
-// visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return expr.Dispatch(v.visitNotExpr)
 }
 
-// visitIdent extracts and stores the identifier name as the current field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Name()
 	return nil
 }
 
-// visitLiteral converts an AST literal to its Milvus expression encoding and stores it.
-//
-// Encoding rules:
-//   - Strings are wrapped in double quotes with internal double quotes escaped.
-//   - Whole numbers are formatted as integers (no decimal point).
-//   - Fractional numbers use %g notation.
-//   - Booleans use Milvus syntax: True / False.
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToString(lit)
 	if err != nil {
@@ -147,8 +120,6 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	return nil
 }
 
-// visitListLiteral converts a list of literals to a Milvus list expression and stores it.
-// Example output: ["active", "pending"] or [18, 21, 25]
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	parts := make([]string, 0, list.Len())
 
@@ -164,11 +135,6 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	return nil
 }
 
-// visitIndexExpr processes indexed field access and builds a bracket-notation field path.
-// Example transformations:
-//   - metadata["user"] → metadata["user"]
-//   - data["tags"][0] → data["tags"][0]
-//   - config["db"]["host"] → config["db"]["host"]
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
@@ -179,10 +145,6 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	return nil
 }
 
-// visitLogicalExpr handles logical operators (AND, OR).
-// Each operand is converted using an isolated converter, then combined:
-//   - AND: (left) and (right)
-//   - OR:  (left) or (right)
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	left, err := v.buildNestedExpr(expr.Left())
 	if err != nil {
@@ -209,8 +171,6 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitNotExpr handles the NOT operator.
-// Example: NOT (age > 18) → not (age > 18)
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	operand, err := v.buildNestedExpr(expr.Right())
 	if err != nil {
@@ -222,10 +182,6 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-// visitEqualityExpr handles equality operators (==, !=).
-// Examples:
-//   - status == "active"
-//   - age != 18
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -252,10 +208,6 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitOrderingExpr handles ordering operators (<, <=, >, >=).
-// Examples:
-//   - age > 18
-//   - price <= 99.99
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -286,9 +238,6 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitInExpr handles the IN operator for membership testing.
-// The right operand must be a non-empty list literal.
-// Example: status in ["active", "pending"]
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -309,9 +258,6 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitLikeExpr handles the LIKE operator for pattern matching.
-// The right operand must be a string literal.
-// Example: name like "go%"
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -337,8 +283,6 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// buildNestedExpr converts a sub-expression to a string using an isolated converter.
-// This ensures that nested logical expressions maintain proper scoping.
 func (v *Visitor) buildNestedExpr(expr filter.Expr) (string, error) {
 	nested := NewVisitor()
 	if err := nested.visit(expr); err != nil {
@@ -347,7 +291,6 @@ func (v *Visitor) buildNestedExpr(expr filter.Expr) (string, error) {
 	if nested.result != "" {
 		return nested.result, nil
 	}
-	// Simple leaf expressions (ident, literal) set currentFieldKey/Value rather than result
 	if nested.currentFieldKey != "" {
 		return nested.currentFieldKey, nil
 	}
@@ -357,8 +300,6 @@ func (v *Visitor) buildNestedExpr(expr filter.Expr) (string, error) {
 	return "", fmt.Errorf("milvus: unsupported expression type %T for nested expression", expr)
 }
 
-// extractFieldKey extracts a field key (identifier or bracket path) from an expression.
-// The converter's currentFieldKey state is preserved during extraction.
 func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	savedKey := v.currentFieldKey
 	v.currentFieldKey = ""
@@ -378,8 +319,6 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	return extracted, nil
 }
 
-// extractFieldValue extracts an encoded value (literal or list) from an expression.
-// The converter's currentFieldValue state is preserved during extraction.
 func (v *Visitor) extractFieldValue(expr filter.Expr) (string, error) {
 	savedValue := v.currentFieldValue
 	v.currentFieldValue = ""
@@ -399,13 +338,6 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (string, error) {
 	return extracted, nil
 }
 
-// buildIndexedFieldKey constructs a bracket-notation field path from an index expression.
-// This method recursively processes nested index expressions to build the complete path.
-//
-// Transformation examples:
-//   - user["name"]                → user["name"]
-//   - metadata["tags"][0]         → metadata["tags"][0]
-//   - config["db"]["host"]        → config["db"]["host"]
 func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var parts []string
 
@@ -432,7 +364,6 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	}
 }
 
-// literalToString converts an AST literal to its Milvus expression string encoding.
 func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	if lit.IsString() {
 		s, err := lit.AsString()

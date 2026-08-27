@@ -5,9 +5,13 @@ import (
 	"time"
 )
 
-// Executor is the SPI backing [NewTool]. One method, predictable
-// shape.
+// Executor is the authority boundary behind the model-facing shell tool. The
+// concrete implementation owns process creation, working-directory policy,
+// environment exposure, output capture, termination, and platform semantics.
 type Executor interface {
+	// Run executes exactly one command within the executor's frozen authority.
+	// It honors ctx and Input.Timeout, returns non-zero exit status as Output
+	// rather than error, and reserves error for spawn, I/O, or collection failure.
 	Run(ctx context.Context, in Input) (Output, error)
 }
 

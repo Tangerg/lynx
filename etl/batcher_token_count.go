@@ -11,8 +11,6 @@ import (
 	"github.com/Tangerg/scope/core/tokenizer"
 )
 
-// TokenCountBatcherConfig configures token estimation and the per-batch
-// provider budget.
 type TokenCountBatcherConfig struct {
 	// Estimator is required.
 	Estimator tokenizer.TextEstimator

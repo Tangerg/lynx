@@ -7,36 +7,20 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-// Protocol and configuration sentinels. Use errors.Is to detect them.
 var (
-	// ErrNilCard is returned when a server or adapter is built without an AgentCard.
-	ErrNilCard = errors.New("a2a: agent card must not be nil")
-	// ErrInvalidCard is returned when an AgentCard cannot be represented on the
-	// protocol wire.
+	ErrNilCard     = errors.New("a2a: agent card must not be nil")
 	ErrInvalidCard = errors.New("a2a: invalid agent card")
 
-	// ErrNilAgent is returned when a server is built without an Agent.
 	ErrNilAgent = errors.New("a2a: agent must not be nil")
 
-	// ErrEmptyCardURL is returned when no card URL is supplied.
-	ErrEmptyCardURL = errors.New("a2a: card URL must not be empty")
-	// ErrInvalidCardURL is returned when CardURL is not an absolute HTTP(S) URL.
-	ErrInvalidCardURL = errors.New("a2a: invalid card URL")
-	// ErrInvalidCardTimeout is returned when CardTimeout is negative.
+	ErrEmptyCardURL       = errors.New("a2a: card URL must not be empty")
+	ErrInvalidCardURL     = errors.New("a2a: invalid card URL")
 	ErrInvalidCardTimeout = errors.New("a2a: card timeout must not be negative")
-	// ErrInvalidRPCOrigin is returned when an explicitly allowed RPC origin is
-	// not an origin-only absolute HTTP(S) URL.
-	ErrInvalidRPCOrigin = errors.New("a2a: invalid allowed RPC origin")
-	// ErrOriginNotAllowed is returned when card resolution or an advertised RPC
-	// interface leaves the endpoint's configured trust boundary.
-	ErrOriginNotAllowed = errors.New("a2a: origin not allowed")
+	ErrInvalidRPCOrigin   = errors.New("a2a: invalid allowed RPC origin")
+	ErrOriginNotAllowed   = errors.New("a2a: origin not allowed")
 
-	// ErrInvalidRPCPattern is returned when ServerConfig.RPCPattern is not a
-	// valid net/http ServeMux pattern or conflicts with the AgentCard endpoint.
 	ErrInvalidRPCPattern = errors.New("a2a: invalid RPC pattern")
 
-	// ErrInvalidResult is returned when a remote agent returns a nil or
-	// otherwise unsupported message result.
 	ErrInvalidResult = errors.New("a2a: invalid send-message result")
 )
 

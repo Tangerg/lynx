@@ -5,14 +5,9 @@ import (
 	"fmt"
 )
 
-// Sentinel errors for public input-shape validators. Callers can match these
-// with [errors.Is] to distinguish caller-side input errors from transport,
-// protocol, or remote-tool failures.
 var (
-	// ErrNilServer is returned by [Register] when server is nil.
 	ErrNilServer = errors.New("mcp: server must not be nil")
 
-	// ErrNilSession is returned when a [ToolSource] supplies a nil session.
 	ErrNilSession = errors.New("mcp: session must not be nil")
 )
 

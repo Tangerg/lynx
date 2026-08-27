@@ -20,8 +20,6 @@ const (
 	RecencyYear  Recency = "year"
 )
 
-// Validate reports whether the recency is empty or one of the supported
-// coarse windows.
 func (r Recency) Validate() error {
 	switch r {
 	case "", RecencyHour, RecencyDay, RecencyWeek, RecencyMonth, RecencyYear:
@@ -68,10 +66,6 @@ func (s *SearchRequest) Prepare() (*SearchRequest, error) {
 	return &prepared, nil
 }
 
-// Validate checks the cross-cutting invariants the tool and every
-// provider enforce: non-nil, non-empty query, and domain allow/block
-// mutual exclusion. Returns one of the sentinel errors in errors.go
-// so callers can match with errors.Is.
 func (s *SearchRequest) Validate() error {
 	if s == nil {
 		return ErrMissingSearchRequest
@@ -130,8 +124,13 @@ type SearchResponse struct {
 	Results []*SearchResult `json:"results"`
 }
 
-// Searcher is the SPI a search backend implements.
+// Searcher is the provider boundary behind the model-facing search tool. It
+// receives only the normalized provider-neutral contract; authentication,
+// endpoint selection, and provider defaults are frozen in the implementation.
 type Searcher interface {
-	// Search performs a single search and returns normalized results.
-	Search(ctx context.Context, req *SearchRequest) (*SearchResponse, error)
+	// Search performs one request without mutating or retaining it and transfers
+	// ownership of a normalized response to the caller. Implementations must
+	// honor ctx, preserve provider error causes, and reject unsupported explicit
+	// fields instead of silently ignoring them.
+	Search(ctx context.Context, request *SearchRequest) (*SearchResponse, error)
 }

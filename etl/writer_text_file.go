@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/scope/core/document"
 )
 
-// TextFileWriterConfig configures plain-text output for [TextFileWriter].
 type TextFileWriterConfig struct {
 	// Path is required. Existing files are replaced unless Append is true.
 	Path string
@@ -46,8 +45,6 @@ type TextFileWriter struct {
 	formatter       Formatter
 }
 
-// NewTextFileWriter constructs a plain-text file load target with a fixed
-// formatting and append policy.
 func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 	if config.Path == "" {
 		return nil, errors.New("etl: output path is required")

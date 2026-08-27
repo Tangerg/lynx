@@ -43,12 +43,10 @@ const (
 	DistanceL2 DistanceMetric = "l2"
 )
 
-// Valid reports whether d is supported by ClickHouse vector functions.
 func (d DistanceMetric) Valid() bool {
 	return d == DistanceCosine || d == DistanceL2
 }
 
-// String returns the ClickHouse distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) function() string {

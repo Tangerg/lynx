@@ -40,7 +40,6 @@ const (
 	DistanceEuclidean  DistanceFunction = "euclidean"
 )
 
-// Valid reports whether d is supported by Cosmos DB VectorDistance.
 func (d DistanceFunction) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceDotProduct, DistanceEuclidean:
@@ -50,7 +49,6 @@ func (d DistanceFunction) Valid() bool {
 	}
 }
 
-// String returns the Cosmos DB distance-function token.
 func (d DistanceFunction) String() string { return string(d) }
 
 func (d DistanceFunction) score(raw float64) vectorstore.Score {

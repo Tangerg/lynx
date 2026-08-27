@@ -160,8 +160,6 @@ func newListLiteral(value any) (*ListLiteral, error) {
 	return result, nil
 }
 
-// NewListLiteral builds a [*ListLiteral] from a slice of Go values or a
-// pre-built node.
 func NewListLiteral[T ListValue](value T) *ListLiteral {
 	list, err := newListLiteral(value)
 	if err != nil {

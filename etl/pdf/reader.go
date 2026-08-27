@@ -20,8 +20,6 @@ const (
 	MetadataSourceName = "pdf.source"
 )
 
-// ErrPartialRead reports that at least one PDF page could not be decoded.
-// Read may return successfully decoded documents together with this error.
 var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read")
 
 // ReaderConfig controls PDF extraction. PerPage emits one document per readable
@@ -44,10 +42,6 @@ type Reader struct {
 	extraMetadata coremetadata.Map
 }
 
-// NewReader builds a PDF reader. The underlying source must implement
-// io.ReaderAt because ledongthuc/pdf parses PDF objects via random access.
-// size is the total byte length of the PDF — pass file.Size() (from
-// os.File.Stat) or len(buf) for in-memory data.
 func NewReader(source io.ReaderAt, size int64, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("pdf reader: source must not be nil")

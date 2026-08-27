@@ -22,13 +22,15 @@ const (
 	resourceURL      = "urn:scope:json-schema"
 )
 
-// ErrInvalid reports a malformed, unsupported, or unresolved JSON Schema.
 var ErrInvalid = errors.New("jsonschema: invalid schema")
 
 // Modeler is implemented by rich values whose encoding/json representation is
 // described by a separate typed model. Implementations must return the same
 // non-nil model type on every call.
 type Modeler interface {
+	// JSONSchemaModel returns a non-nil typed value whose encoding/json wire shape
+	// exactly matches the receiver's custom encoding. The concrete model type is
+	// part of the schema contract and must remain stable across calls.
 	JSONSchemaModel() any
 }
 

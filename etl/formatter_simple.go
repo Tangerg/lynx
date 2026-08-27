@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// SimpleFormatterConfig configures a [SimpleFormatter]'s metadata policy.
 type SimpleFormatterConfig struct {
 	// ExcludedMetadata lists metadata keys omitted from rendered output.
 	ExcludedMetadata []string
@@ -41,8 +40,6 @@ type SimpleFormatter struct {
 	excludedMetadata map[string]struct{}
 }
 
-// NewSimpleFormatter builds a [SimpleFormatter]. The zero config emits every
-// metadata key.
 func NewSimpleFormatter(config SimpleFormatterConfig) SimpleFormatter {
 	return SimpleFormatter{excludedMetadata: lo.SliceToMap(config.ExcludedMetadata, func(key string) (string, struct{}) {
 		return key, struct{}{}

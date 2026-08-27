@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
-// ChatConfig configures a Core chat adapter backed by Vertex AI.
 type ChatConfig struct {
 	Project        string
 	Location       string
@@ -42,8 +41,6 @@ var (
 
 type Chat struct{ protocol *protocol.Chat }
 
-// NewChat constructs a Core chat adapter backed by Vertex AI and Application
-// Default Credentials.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

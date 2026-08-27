@@ -32,7 +32,6 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
-// Valid reports whether d is supported by Chroma HNSW indexes.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceL2, DistanceIP:
@@ -42,7 +41,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the Chroma distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 // score converts a Chroma distance value into a similarity score in which
@@ -481,8 +479,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 	return nil
 }
-
-// Info returns metadata about this store instance.
 
 // Close releases resources held by the underlying Chroma collection handle.
 func (s *Store) Close() error {

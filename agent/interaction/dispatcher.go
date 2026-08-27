@@ -67,9 +67,6 @@ type Dispatcher struct {
 	observer           ExecutionObserver
 }
 
-// NewDispatcher binds one exact Definition's Delegate manifest alongside its
-// executable Tools. All model-visible names must be unique; malformed or
-// typed-nil capabilities are rejected before any Process starts.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
 	if !definition.valid() || config.Client == nil {
 		return nil, fmt.Errorf("%w: Definition and Client are required", ErrInvalidDispatcherConfig)

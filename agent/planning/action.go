@@ -7,10 +7,6 @@ import (
 	"strings"
 )
 
-// CostFunc computes the predicted non-negative cost of applying an Action from
-// a specific WorldState. It must be deterministic, side-effect-free, and safe
-// for concurrent planning. Invalid values, returned errors, and panics reject
-// the planning pass.
 type CostFunc func(source WorldState) (float64, error)
 
 // FixedCost returns a CostFunc that always returns value. Validation occurs
@@ -50,7 +46,6 @@ type Action struct {
 	cost          CostFunc
 }
 
-// NewAction validates config and freezes one predictive Action.
 func NewAction(config ActionConfig) (Action, error) {
 	if !validName(config.Name) {
 		return Action{}, fmt.Errorf("%w: invalid name %q", ErrInvalidAction, config.Name)
@@ -135,7 +130,6 @@ func (a Action) Apply(source WorldState) (WorldState, error) {
 	return source.Apply(a.effects...)
 }
 
-// Valid reports whether the Action satisfies its construction invariants.
 func (a Action) Valid() bool {
 	return validName(a.name) && validDescription(a.description) &&
 		canonicalConditionSlice(a.preconditions) && len(a.effects) > 0 &&

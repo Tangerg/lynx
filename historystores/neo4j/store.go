@@ -23,7 +23,6 @@ const (
 	parameterRows       = "rows"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Driver] is required.
 type StoreConfig struct {
 	// Driver is the live Neo4j driver. Required. Callers own its
 	// lifetime.
@@ -42,9 +41,6 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-// Validate reports whether c can be used to construct a [Store]. Blank
-// optional values are valid and are resolved to their documented defaults by
-// [NewStore].
 func (c StoreConfig) Validate() error {
 	if lo.IsNil(c.Driver) {
 		return errors.New("neo4j: driver is required")
@@ -60,7 +56,10 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed [history.Store]. Construct via [NewStore].
+// Store persists messages as Neo4j nodes through a caller-owned driver. It
+// validates dynamic labels before query construction and uses a local monotonic
+// sequence for deterministic reads; ordering across separate Store values
+// remains unspecified.
 type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
@@ -68,7 +67,6 @@ type Store struct {
 	sequence sequenceGenerator
 }
 
-// New builds a [Store] from config. ctx bounds optional index initialization.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

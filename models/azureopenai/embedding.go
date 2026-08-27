@@ -32,8 +32,6 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel = openai.EmbeddingModel
 
-// NewEmbeddingModel returns an Azure OpenAI embedding model. Model is the
-// Azure deployment id.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

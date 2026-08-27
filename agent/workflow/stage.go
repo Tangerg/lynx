@@ -41,9 +41,6 @@ func (s stageKind) String() string {
 	}
 }
 
-// TransformFunc is a bounded, deterministic, side-effect-free value
-// transformation. It must not perform I/O, read clock or random state, mutate
-// shared state, or start goroutines.
 type TransformFunc[I, O any] func(input I) (O, error)
 
 type transformStage func(json.RawMessage) (json.RawMessage, error)
@@ -149,7 +146,6 @@ func Call(config CallConfig) (Stage, error) {
 	}, nil
 }
 
-// Valid reports whether the Stage was constructed successfully.
 func (s Stage) Valid() bool {
 	if !validStageID(s.id) || !s.inputSchema.Valid() || !s.outputSchema.Valid() {
 		return false

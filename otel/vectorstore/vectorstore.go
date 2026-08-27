@@ -21,7 +21,6 @@ import (
 
 const instrumentationName = "github.com/Tangerg/scope/otel/vectorstore"
 
-// ErrInvalidConfig reports a missing database-system identity.
 var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
 
 // MiddlewareConfig identifies the database observed by vector-store
@@ -34,8 +33,6 @@ type MiddlewareConfig struct {
 	TracerProvider trace.TracerProvider
 }
 
-// Validate verifies the database-system identity required by vector-store
-// instrumentation.
 func (c MiddlewareConfig) Validate() error {
 	if strings.TrimSpace(c.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
@@ -52,8 +49,6 @@ type Middleware struct {
 	tracer     trace.Tracer
 }
 
-// NewMiddleware constructs vector-store instrumentation. It belongs at the
-// composition root; providers remain unaware of OpenTelemetry.
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err

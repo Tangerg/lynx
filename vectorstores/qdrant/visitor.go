@@ -9,27 +9,19 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor transforms AST filter expressions into Qdrant filter conditions.
-// It traverses semantic filter expressions and converts them to the provider query shape
-// into Qdrant's native filter format.
-//
-// The converter maintains internal state during traversal:
-//   - filter: The resulting Qdrant filter being built
-//   - currentFieldValue: Temporary storage for extracted literal values
-//   - currentFieldKey: Temporary storage for extracted field identifiers
-//   - err: The last error encountered during conversion
-//
-// Conversion strategy:
-//   - Each visit method directly appends conditions to the filter
-//   - Nested expressions (logical operators, NOT) create isolated converters
-//   - Field extraction methods preserve state during recursive calls
 var _ filter.Visitor = (*Visitor)(nil)
 
+// Visitor compiles Scope filter expressions into Qdrant conditions. A value is
+// reusable: Visit replaces the previous result. Nested boolean operands compile
+// in isolated visitors because Qdrant represents AND, OR, and NOT in separate
+// condition lists; sharing temporary extraction state would change grouping.
+// Unsupported or lossy provider mappings fail instead of approximating the
+// source predicate.
 type Visitor struct {
-	err               error          // Last error encountered during conversion
-	filter            *qdrant.Filter // The Qdrant filter being constructed
-	currentFieldValue any            // Temporary storage for field values during extraction
-	currentFieldKey   string         // Temporary storage for field keys during extraction
+	err               error
+	filter            *qdrant.Filter
+	currentFieldValue any
+	currentFieldKey   string
 }
 
 func NewVisitor() *Visitor {
@@ -38,9 +30,7 @@ func NewVisitor() *Visitor {
 	}
 }
 
-// Result returns the constructed Qdrant filter.
-// Returns nil if an error occurred during conversion.
-// Should only be called after Visit() completes.
+// Result is nil until Visit succeeds and after any failed compilation.
 func (v *Visitor) Result() *qdrant.Filter {
 	if v.err != nil {
 		return nil
@@ -48,12 +38,8 @@ func (v *Visitor) Result() *qdrant.Filter {
 	return v.filter
 }
 
-// Visit translates one semantic filter expression.
-// It walks the whole tree rooted at expr and returns the first error
-// encountered, or nil when the entire expression was accepted.
-//
-// This is the main entry point for AST traversal. The actual conversion logic
-// is delegated to the visit method and its specialized handlers.
+// Visit replaces prior state and accepts only trees Qdrant can represent
+// without changing their meaning.
 func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.filter = &qdrant.Filter{}
@@ -63,16 +49,6 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-// visit dispatches conversion to specialized methods based on expression type.
-// This is the main internal routing method that handles different AST node types.
-//
-// Supported node types:
-//   - BinaryExpr: Binary operations (AND, OR, ==, !=, <, <=, >, >=, IN, LIKE)
-//   - UnaryExpr: Unary operations (NOT)
-//   - IndexExpr: Indexed field access (e.g., metadata["key"])
-//   - Ident: Simple field identifiers
-//   - Literal: Constant values
-//   - ListLiteral: Array of constant values
 func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("cannot process nil expression")
@@ -99,14 +75,6 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes binary expressions to appropriate handlers based on operator type.
-//
-// Binary operators are categorized as:
-//   - Logical operators: AND, OR (handled by visitLogicalExpr)
-//   - Equality operators: ==, != (handled by visitEqualityExpr)
-//   - Ordering operators: <, <=, >, >= (handled by visitOrderingExpr)
-//   - Membership operator: IN (handled by visitInExpr)
-//   - Pattern matching operator: LIKE (handled by visitLikeExpr)
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	if expr.Operator().IsNullOperator() {
 		return v.visitNullTestExpr(expr)
@@ -120,8 +88,6 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	})
 }
 
-// visitComparisonExpr splits equality vs ordering since qdrant emits
-// distinct condition shapes for the two families.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if expr.Operator().IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
@@ -129,11 +95,6 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return v.visitOrderingExpr(expr)
 }
 
-// visitNullTestExpr emits Qdrant's IS NULL condition (NewIsNull) on the
-// field's payload key, added to filter.Must so "field is null" matches.
-// The negated "field is not null" arrives as NOT(field IS NULL) and is
-// rendered by visitNotExpr (MustNot wrap), so no separate handling is
-// needed here.
 func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -145,24 +106,15 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return expr.Dispatch(v.visitNotExpr)
 }
 
-// visitIdent extracts and stores the identifier name as the current field key.
-// This method is typically called during field key extraction in binary expressions.
-//
-// Example: For expression "age > 18", this extracts "age" as the field key.
 func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Name()
 	return nil
 }
 
-// visitLiteral converts an AST literal into its corresponding Go value and stores it.
-// The conversion supports string, number, and boolean literals.
-//
-// This method is typically called during value extraction in binary expressions.
 func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
@@ -173,11 +125,6 @@ func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	return nil
 }
 
-// visitListLiteral converts a list of literals into a Go slice and stores it.
-// All elements in the list are converted using literalToValue.
-//
-// This method is used by the IN operator to extract the list of values
-// for membership testing.
 func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	values := make([]any, 0, list.Len())
 	for i, lit := range list.Literals() {
@@ -191,13 +138,6 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	return nil
 }
 
-// visitIndexExpr processes indexed field access expressions and builds a dot-separated field path.
-// This enables accessing nested fields using bracket notation.
-//
-// Example transformations:
-//   - metadata["user"] -> "metadata.user"
-//   - data["tags"][0] -> "data.tags.0"
-//   - config["db"]["host"] -> "config.db.host"
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
@@ -208,15 +148,6 @@ func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	return nil
 }
 
-// visitLogicalExpr handles logical operators (AND, OR).
-// Each operand is converted to a condition using an isolated converter,
-// then both conditions are added to the appropriate filter clause:
-//   - AND operator: Adds conditions to filter.Must (all conditions must match)
-//   - OR operator: Adds conditions to filter.Should (at least one condition must match)
-//
-// Example:
-//   - "age > 18 AND status == 'active'" produces: Must[age>18, status==active]
-//   - "role == 'admin' OR role == 'owner'" produces: Should[role==admin, role==owner]
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	leftCond, err := v.buildNestedCondition(expr.Left())
 	if err != nil {
@@ -238,18 +169,11 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 		v.filter.Should = append(v.filter.Should, leftCond, rightCond)
 		return nil
 	default:
-		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected logical operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
 	}
 }
 
-// visitNotExpr handles the NOT operator by wrapping the negated condition in filter.MustNot.
-// The operand is converted using an isolated converter to maintain proper scoping.
-//
-// Example:
-//   - "NOT (age > 18)" produces: MustNot[age>18]
-//   - "NOT (status == 'active' OR role == 'admin')" produces: MustNot[Filter{Should[...]}]
 func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	cond, err := v.buildNestedCondition(expr.Right())
 	if err != nil {
@@ -260,17 +184,3 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.filter.MustNot = append(v.filter.MustNot, cond)
 	return nil
 }
-
-// visitEqualityExpr handles equality operators (==, !=).
-// It supports exact matching for different data types:
-//   - Strings: Uses NewMatchKeyword for exact keyword matching
-//   - Numbers: Uses NewMatchInt for integer matching
-//   - Booleans: Uses NewMatchBool for boolean matching
-//
-// Operator semantics:
-//   - == operator: Adds match condition to filter.Must (field must equal value)
-//   - != operator: Adds match condition to filter.MustNot (field must not equal value)
-//
-// Examples:
-//   - "status == 'active'" produces: Must[status==active]
-//   - "age != 18" produces: MustNot[age==18]

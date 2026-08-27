@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// ErrProcessAdmissionRejected reports that the configured ProcessAdmitter did
-// not approve a prospective root or child Process. The Process is never
-// published or started.
 var ErrProcessAdmissionRejected = errors.New("agent: process admission rejected")
 
 // ProcessAdmission is the immutable Framework-owned information supplied to a
@@ -44,8 +41,6 @@ func (p ProcessAdmission) Capabilities() CapabilitySet { return p.capabilities }
 // Process lifecycle start.
 func (p ProcessAdmission) StartedAt() time.Time { return p.startedAt }
 
-// Valid reports whether the admission contains one coherent prospective
-// Process. Only the Engine constructs admission values.
 func (p ProcessAdmission) Valid() bool {
 	return p.relation.Valid() && p.deploymentRef.Valid() &&
 		p.descriptor.Valid() && p.budget.Valid() &&
@@ -72,13 +67,16 @@ func (p ProcessAdmission) Valid() bool {
 // ProcessStartOutcome when an acknowledger is configured. Restore repeats
 // neither admission nor its outcome for a captured Process.
 type ProcessAdmitter interface {
+	// Admit decides whether the immutable prospective Process may initialize.
+	// Returning nil accepts only the supplied identity and resources; it cannot
+	// enlarge Budget or Capabilities. Returning an error prevents initialization
+	// and publication. Implementations honor ctx, are bounded and concurrency-
+	// safe, and must tolerate the same prospective identity after recovery.
 	Admit(ctx context.Context, admission ProcessAdmission) error
 }
 
-// ProcessAdmitterFunc adapts a function to ProcessAdmitter.
 type ProcessAdmitterFunc func(ctx context.Context, admission ProcessAdmission) error
 
-// Admit invokes p.
 func (p ProcessAdmitterFunc) Admit(ctx context.Context, admission ProcessAdmission) error {
 	return p(ctx, admission)
 }

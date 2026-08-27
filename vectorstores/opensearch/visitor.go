@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into OpenSearch
 // query-string syntax (Lucene). The output plugs into the `filter`
 // clause of a `knn` query via `query_string.query`.
@@ -22,8 +24,6 @@ import (
 //	NOT (author == "Alice")    →  NOT (metadata.author:"Alice")
 //	author IS NULL             →  NOT _exists_:metadata.author
 //	author IS NOT NULL         →  NOT (NOT _exists_:metadata.author)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

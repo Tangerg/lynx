@@ -37,9 +37,6 @@ type Definition struct {
 	stages     []Stage
 }
 
-// NewDefinition validates all Stage identities and exact schema connections.
-// The caller's Deployment ConfigurationDigest must cover the ordered Stage
-// configuration and every pure function or child binding that can affect it.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if len(config.Stages) == 0 || uint64(len(config.Stages)) > math.MaxUint32 {
 		return nil, fmt.Errorf("%w: Stages must contain 1 to %d entries", ErrInvalidDefinitionConfig, uint64(math.MaxUint32))

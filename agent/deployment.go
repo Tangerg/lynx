@@ -7,7 +7,6 @@ import (
 	"github.com/samber/lo"
 )
 
-// ErrInvalidDeployment reports an incomplete or contradictory exact binding.
 var ErrInvalidDeployment = errors.New("agent: invalid deployment")
 
 // DeploymentConfig contains the complete behavior binding of one Deployment.
@@ -37,9 +36,6 @@ type Deployment struct {
 	dispatcher Dispatcher
 }
 
-// NewDeployment validates and freezes the identity of a complete execution
-// binding. Definition and Dispatcher implementations must themselves obey their
-// documented immutability and concurrency contracts.
 func NewDeployment(config DeploymentConfig) (Deployment, error) {
 	if lo.IsNil(config.Definition) {
 		return Deployment{}, fmt.Errorf("%w: definition is required", ErrInvalidDeployment)
@@ -69,8 +65,6 @@ func (d Deployment) Descriptor() Descriptor { return d.descriptor }
 // Definition returns the erased behavior definition bound to this Deployment.
 func (d Deployment) Definition() Definition { return d.definition }
 
-// Valid reports whether the binding remains complete and its Definition still
-// reports the contract frozen at construction.
 func (d Deployment) Valid() bool {
 	return d.reference.Valid() && d.descriptor.Valid() &&
 		!lo.IsNil(d.definition) && !lo.IsNil(d.dispatcher) &&

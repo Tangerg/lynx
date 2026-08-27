@@ -10,15 +10,30 @@ import (
 // input/output types remain explicit where line offsets, byte limits, append
 // policy, or search roots differ.
 type Executor interface {
+	// Read applies line and byte bounds before returning detached content. It must
+	// reject paths outside the executor's authority and honor ctx throughout I/O.
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
+	// Write performs exactly the overwrite-or-append policy in input. It must not
+	// broaden path authority, must reject invalid binary content, and must report
+	// external partial-write failure rather than claim success.
 	Write(ctx context.Context, in WriteInput) (WriteResponse, error)
+	// Edit applies the requested exact-string replacement policy atomically at
+	// the file abstraction boundary. A mismatch is an explicit error; the method
+	// never guesses a nearby edit.
 	Edit(ctx context.Context, request EditRequest) (EditResponse, error)
+	// ApplyPatch validates and applies the complete patch within the executor's
+	// path authority. It reports per-file results in patch order and must not
+	// silently accept malformed or partially interpreted input.
 	ApplyPatch(ctx context.Context, request ApplyPatchRequest) (ApplyPatchResponse, error)
+	// Glob evaluates the requested pattern beneath its authorized root and
+	// returns a bounded, stable path list. It honors ctx and never traverses
+	// outside the configured workspace.
 	Glob(ctx context.Context, in GlobInput) (GlobResponse, error)
+	// Grep executes the requested expression and output mode beneath the
+	// authorized root. Results preserve backend source order and respect every
+	// configured bound; malformed patterns are returned as errors.
 	Grep(ctx context.Context, in GrepInput) (GrepResponse, error)
 }
-
-// ---------------------------------------------------------------- Read
 
 // ReadInput is line-based. The executor handles binary detection and
 // line windowing — the tool only forwards what the LLM asked for.
@@ -37,8 +52,6 @@ type ReadOutput struct {
 	Truncated  bool
 }
 
-// ---------------------------------------------------------------- Write
-
 // WriteInput Append flips between overwrite (default) and append. The
 // executor handles NUL-byte rejection — the tool just forwards.
 type WriteInput struct {
@@ -47,21 +60,14 @@ type WriteInput struct {
 	Append  bool
 }
 
-// ---------------------------------------------------------------- Edit
-
-// editOperation is one exact-string replacement applied by the local executor.
 type editOperation struct {
 	OldString  string
 	NewString  string
 	ReplaceAll bool
 }
 
-// ---------------------------------------------------------------- ApplyPatch
-
-// ---------------------------------------------------------------- Glob
-
-// GlobInput accepts doublestar patterns (e.g., "**/*.go") so the LLM
-// can use the same syntax it learned from ripgrep / fd.
+// GlobInput uses doublestar syntax. Root is resolved by the executor so the
+// model-facing adapter cannot expand filesystem authority.
 type GlobInput struct {
 	Pattern    string
 	Root       string // "" = executor's workspace root
@@ -69,21 +75,15 @@ type GlobInput struct {
 	MaxResults int // 0 = executor default
 }
 
-// ---------------------------------------------------------------- Grep
-
 // GrepOutputMode controls what GrepResponse populates.
 type GrepOutputMode string
 
 const (
-	// GrepOutputContent (default) populates [GrepResponse.Lines].
-	GrepOutputContent GrepOutputMode = "content"
-	// GrepOutputFilesWithMatches populates [GrepResponse.Files].
+	GrepOutputContent          GrepOutputMode = "content"
 	GrepOutputFilesWithMatches GrepOutputMode = "files_with_matches"
-	// GrepOutputCount populates [GrepResponse.Counts].
-	GrepOutputCount GrepOutputMode = "count"
+	GrepOutputCount            GrepOutputMode = "count"
 )
 
-// Resolve returns the effective output mode, applying the documented default.
 func (g GrepOutputMode) Resolve() GrepOutputMode {
 	if g == "" {
 		return GrepOutputContent
@@ -91,7 +91,6 @@ func (g GrepOutputMode) Resolve() GrepOutputMode {
 	return g
 }
 
-// Valid reports whether g is empty or names one supported result projection.
 func (g GrepOutputMode) Valid() bool {
 	switch g.Resolve() {
 	case GrepOutputContent, GrepOutputFilesWithMatches, GrepOutputCount:
@@ -138,12 +137,10 @@ const (
 	GrepLineContext GrepLineKind = "context"
 )
 
-// Valid reports whether g is a supported line kind.
 func (g GrepLineKind) Valid() bool {
 	return g == GrepLineMatch || g == GrepLineContext
 }
 
-// String returns the stable serialized line kind.
 func (g GrepLineKind) String() string { return string(g) }
 
 // GrepLine is one structured ripgrep line event.

@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/scope/core/embedding"
 )
 
-// ErrNilModel reports that a Client has no usable model, including a typed nil.
 var ErrNilModel = errors.New("embeddingclient: nil model")
 
 // Client is an immutable, concurrency-safe projection of [embedding.Model] for

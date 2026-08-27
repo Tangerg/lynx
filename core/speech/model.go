@@ -10,7 +10,10 @@ import (
 // cannot represent, preserve context error identity, and return responses that
 // pass Validate.
 type Model interface {
-	Call(context.Context, *Request) (*Response, error)
+	// Call produces one complete audio response from a validated request. It
+	// must not retain or mutate request, transfers response ownership to the
+	// caller, and preserves context cancellation for errors.Is.
+	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
 type ModelFunc func(context.Context, *Request) (*Response, error)
@@ -23,7 +26,10 @@ func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error
 // the [Model] response contract. It is independent from [Model], so callers only
 // require streaming when they consume it.
 type Streamer interface {
-	Stream(context.Context, *Request) iter.Seq2[*Response, error]
+	// Stream begins synthesis lazily when iterated and yields independently owned
+	// audio chunks in provider order. Stopping iteration releases provider
+	// resources synchronously; a terminal error is yielded at most once.
+	Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 }
 
 type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]

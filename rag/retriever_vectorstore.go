@@ -17,7 +17,6 @@ var vectorStoreFilterValueKey = mustValueKey[filter.Predicate]("vector store fil
 // filter. Parse textual filter DSL with [filter.Parse] before attaching it.
 func VectorStoreFilterValueKey() ValueKey[filter.Predicate] { return vectorStoreFilterValueKey }
 
-// VectorStoreRetrieverConfig configures [NewVectorStoreRetriever].
 type VectorStoreRetrieverConfig struct {
 	// VectorStore performs the actual similarity search. Required.
 	VectorStore corevs.Searcher
@@ -65,12 +64,6 @@ type VectorStoreRetriever struct {
 	filterFunc  func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
-// NewVectorStoreRetriever returns a [VectorStoreRetriever] backed by a core
-// vector store.
-// It supports per-query metadata filters via [VectorStoreFilterValueKey],
-// configured filters via [VectorStoreRetrieverConfig.FilterFunc], top-K
-// capping, and
-// similarity thresholds.
 func NewVectorStoreRetriever(config VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
 	config, err := config.normalized()
 	if err != nil {

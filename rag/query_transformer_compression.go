@@ -24,7 +24,6 @@ Follow-up query:
 
 Standalone query:`
 
-// CompressionTransformerConfig configures [NewCompressionTransformer].
 type CompressionTransformerConfig struct {
 	// Model performs the compression. Required.
 	Model chat.Model
@@ -48,9 +47,6 @@ type compressionPromptVariables struct {
 	Query   string
 }
 
-// NewCompressionTransformer returns a transformer that collapses chat history
-// plus a follow-up question into a single self-contained query. It reads chat
-// history from the query value stored under [HistoryValueKey].
 func NewCompressionTransformer(config CompressionTransformerConfig) (*CompressionTransformer, error) {
 	prompt, err := newTextModelPrompt(
 		config.Model,

@@ -18,7 +18,6 @@ type Allowlist struct {
 	patterns []hostPattern
 }
 
-// NewAllowlist compiles exact hosts and single leading-wildcard patterns.
 func NewAllowlist(hosts []string) (Allowlist, error) {
 	patterns := make([]hostPattern, 0, len(hosts))
 	for index, host := range hosts {

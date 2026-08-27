@@ -29,12 +29,6 @@ type ServerConfig struct {
 	RPCPattern string
 }
 
-// NewHTTPHandler builds an http.Handler serving the A2A protocol for a scope
-// [Agent]: the JSON-RPC method endpoint at RPCPattern and the AgentCard at
-// [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
-// a larger mux.
-//
-// The transport is JSON-RPC over HTTP.
 func NewHTTPHandler(config ServerConfig) (http.Handler, error) {
 	exec, err := newExecutor(config.Agent)
 	if err != nil {
@@ -78,9 +72,6 @@ func registerRPCHandler(mux *http.ServeMux, pattern string, handler http.Handler
 	return nil
 }
 
-// NewJSONRPCInterface builds an AgentCard transport entry at url, which should
-// end in the server's RPCPattern. It fixes the SDK's generic AgentInterface
-// constructor to JSON-RPC.
 func NewJSONRPCInterface(url string) *sdka2a.AgentInterface {
 	return sdka2a.NewAgentInterface(url, sdka2a.TransportProtocolJSONRPC)
 }

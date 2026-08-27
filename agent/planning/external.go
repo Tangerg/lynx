@@ -37,13 +37,14 @@ type ActionRequest struct {
 // effects. A returned error is a definite observation failure and terminates
 // Planning; an Observer must not use error to report an unknown side effect.
 type Observer interface {
+	// Observe obtains one complete immutable WorldState for the original Process
+	// input. It must honor ctx and must not cause externally visible side effects,
+	// because the same EffectID may be replayed after an unknown observation.
 	Observe(ctx context.Context, request ObservationRequest) (WorldState, error)
 }
 
-// ObserverFunc adapts a function to Observer.
 type ObserverFunc func(ctx context.Context, request ObservationRequest) (WorldState, error)
 
-// Observe calls o with request.
 func (o ObserverFunc) Observe(
 	ctx context.Context,
 	request ObservationRequest,
@@ -56,13 +57,15 @@ func (o ObserverFunc) Observe(
 // unknown, so Dispatcher returns an unknown Effect settlement and never retries
 // it implicitly.
 type ActionExecutor interface {
+	// Execute attempts one selected Action against the observed WorldState. A
+	// valid ActionResult is definite; a non-nil error means the external outcome
+	// is unknown and must not be translated into an ordinary failed Action or
+	// implicitly retried under a new identity.
 	Execute(ctx context.Context, request ActionRequest) (ActionResult, error)
 }
 
-// ActionExecutorFunc adapts a function to ActionExecutor.
 type ActionExecutorFunc func(ctx context.Context, request ActionRequest) (ActionResult, error)
 
-// Execute calls a with request.
 func (a ActionExecutorFunc) Execute(
 	ctx context.Context,
 	request ActionRequest,
@@ -97,16 +100,11 @@ func (a ActionResult) Succeeded() bool { return a.valid && a.succeeded }
 // success.
 func (a ActionResult) Diagnostic() string { return a.diagnostic }
 
-// Valid reports whether a was constructed as a definite success or failure.
 func (a ActionResult) Valid() bool {
 	return a.valid && (a.succeeded && a.diagnostic == "" ||
 		!a.succeeded && validDiagnostic(a.diagnostic))
 }
 
-// NewActionSettlement constructs the definite settlement used to resolve an
-// Action Effect whose first dispatch attempt had an unknown external outcome.
-// The caller must use the original EffectID; Engine rejects identities that do
-// not currently require resolution.
 func NewActionSettlement(effectID agent.EffectID, result ActionResult) (agent.Settlement, error) {
 	if !effectID.Valid() || !result.Valid() {
 		return agent.Settlement{}, ErrInvalidProtocol

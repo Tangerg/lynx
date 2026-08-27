@@ -31,8 +31,6 @@ type MetricExporter struct {
 	shutdown atomic.Bool
 }
 
-// NewMetricExporter returns a metric exporter writing to logger; a nil
-// logger defaults to stdslog.Default().
 func NewMetricExporter(logger *stdslog.Logger) *MetricExporter {
 	if logger == nil {
 		logger = stdslog.Default()

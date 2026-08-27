@@ -12,12 +12,8 @@ import (
 )
 
 var (
-	// ErrNilMap reports a Set through a nil *Map pointer. A nil Map VALUE is
-	// fine — Set initializes it in place.
-	ErrNilMap = errors.New("metadata: nil map")
-	// ErrEmptyKey reports an empty metadata key.
-	ErrEmptyKey = errors.New("metadata: empty key")
-	// ErrInvalidValue reports a value that is not valid JSON.
+	ErrNilMap       = errors.New("metadata: nil map")
+	ErrEmptyKey     = errors.New("metadata: empty key")
 	ErrInvalidValue = errors.New("metadata: invalid JSON value")
 )
 

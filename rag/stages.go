@@ -12,18 +12,11 @@ import (
 )
 
 var (
-	// ErrInvalidCandidate reports a missing/invalid document or non-finite score.
 	ErrInvalidCandidate = errors.New("rag: invalid retrieval candidate")
-	// ErrNilTransformer reports a missing query transformation capability.
-	ErrNilTransformer = errors.New("rag: transformer must not be nil")
-	// ErrNilExpander reports a missing query expansion capability.
-	ErrNilExpander = errors.New("rag: expander must not be nil")
-	// ErrNilRefiner reports a missing candidate refinement capability.
-	ErrNilRefiner = errors.New("rag: refiner must not be nil")
-	// ErrEmptyExpansion reports an expander that returned no queries.
-	ErrEmptyExpansion = errors.New("rag: expander returned no queries")
-	// ErrInvalidExpansion reports a concrete expander that could not satisfy
-	// its declared expansion contract.
+	ErrNilTransformer   = errors.New("rag: transformer must not be nil")
+	ErrNilExpander      = errors.New("rag: expander must not be nil")
+	ErrNilRefiner       = errors.New("rag: refiner must not be nil")
+	ErrEmptyExpansion   = errors.New("rag: expander returned no queries")
 	ErrInvalidExpansion = errors.New("rag: invalid query expansion")
 )
 
@@ -38,7 +31,6 @@ type Candidate struct {
 // receiver, preserving declaration and retrieval order where scores tie.
 type Candidates []Candidate
 
-// Validate checks every candidate in order.
 func (c Candidates) Validate() error {
 	for index, candidate := range c {
 		if err := candidate.Validate(); err != nil {
@@ -82,7 +74,6 @@ func (c Candidates) ranked() Candidates {
 	return ranked
 }
 
-// Validate checks the candidate's document and score.
 func (c Candidate) Validate() error {
 	if c.Document == nil {
 		return fmt.Errorf("%w: document must not be nil", ErrInvalidCandidate)
@@ -99,14 +90,14 @@ func (c Candidate) Validate() error {
 // Transformer rewrites a query to be more retrieval-friendly — translation,
 // compression, ambiguity resolution, vocabulary normalization.
 type Transformer interface {
-	// Transform returns the rewritten query.
+	// Transform returns one valid query that preserves the caller's retrieval
+	// intent while changing its representation. It must not mutate query, must
+	// honor ctx, and transfers ownership of the returned value to the caller.
 	Transform(ctx context.Context, query Query) (Query, error)
 }
 
-// TransformerFunc adapts a function to [Transformer].
 type TransformerFunc func(context.Context, Query) (Query, error)
 
-// Transform calls t(ctx, query).
 func (t TransformerFunc) Transform(ctx context.Context, query Query) (Query, error) {
 	return t(ctx, query)
 }
@@ -114,42 +105,42 @@ func (t TransformerFunc) Transform(ctx context.Context, query Query) (Query, err
 // Expander turns one query into many — useful for poorly formed inputs
 // (alternative phrasings) or complex problems (decompose into sub-queries).
 type Expander interface {
-	// Expand returns one or more queries derived from the input.
+	// Expand returns a non-empty, ordered set of valid alternative or decomposed
+	// queries. It must not mutate query or expose reusable backing storage;
+	// ordering is semantic because downstream fusion uses it for stable ties.
 	Expand(ctx context.Context, query Query) ([]Query, error)
 }
 
-// ExpanderFunc adapts a function to [Expander].
 type ExpanderFunc func(context.Context, Query) ([]Query, error)
 
-// Expand calls e(ctx, query).
 func (e ExpanderFunc) Expand(ctx context.Context, query Query) ([]Query, error) {
 	return e(ctx, query)
 }
 
 // Retriever pulls candidate documents from a knowledge source.
 type Retriever interface {
-	// Retrieve returns documents relevant to the query.
+	// Retrieve returns independently owned, valid candidates in the source's
+	// relevance order. Scores remain query-relative; the implementation must
+	// honor ctx and must not mutate query.
 	Retrieve(ctx context.Context, query Query) (Candidates, error)
 }
 
-// RetrieverFunc adapts a function to [Retriever].
 type RetrieverFunc func(context.Context, Query) (Candidates, error)
 
-// Retrieve calls r(ctx, query).
 func (r RetrieverFunc) Retrieve(ctx context.Context, query Query) (Candidates, error) {
 	return r(ctx, query)
 }
 
 // Refiner narrows candidate documents down to what the LLM should see.
 type Refiner interface {
-	// Refine returns the trimmed/re-ranked document list.
+	// Refine returns a valid, independently owned subset or reordering of
+	// candidates for query. It must not mutate either input; a successful empty
+	// result explicitly means no evidence survived refinement.
 	Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error)
 }
 
-// RefinerFunc adapts a function to [Refiner].
 type RefinerFunc func(context.Context, Query, Candidates) (Candidates, error)
 
-// Refine calls r(ctx, query, candidates).
 func (r RefinerFunc) Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error) {
 	return r(ctx, query, candidates)
 }

@@ -12,10 +12,7 @@ import (
 )
 
 var (
-	// ErrInvalidWindow reports a non-positive message limit.
-	ErrInvalidWindow = errors.New("history: invalid message window")
-	// ErrWindowTooSmall reports that the newest complete conversation turn does
-	// not fit within the configured message limit.
+	ErrInvalidWindow  = errors.New("history: invalid message window")
 	ErrWindowTooSmall = errors.New("history: message window too small")
 )
 

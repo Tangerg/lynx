@@ -10,14 +10,9 @@ import (
 )
 
 var (
-	// ErrProcessFinished reports a control request made after terminal commit.
-	ErrProcessFinished = errors.New("agent: process has finished")
-	// ErrProcessNotRunning reports an operation requiring an active Process.
-	ErrProcessNotRunning = errors.New("agent: process is not running")
-	// ErrEffectNotPending reports resolution of an Effect without an unknown
-	// pending settlement.
-	ErrEffectNotPending = errors.New("agent: effect does not require resolution")
-	// ErrInvalidProcessControl reports a malformed Process lifecycle request.
+	ErrProcessFinished       = errors.New("agent: process has finished")
+	ErrProcessNotRunning     = errors.New("agent: process is not running")
+	ErrEffectNotPending      = errors.New("agent: effect does not require resolution")
 	ErrInvalidProcessControl = errors.New("agent: invalid process control request")
 )
 
@@ -261,7 +256,6 @@ func (r Result) Usage() Usage { return r.usage }
 // Output returns the final semantic result only for StatusCompleted.
 func (r Result) Output() (Output, bool) { return r.output, r.output.Valid() }
 
-// Valid reports whether the result contains one complete terminal outcome.
 func (r Result) Valid() bool {
 	if !r.processID.Valid() || r.startedAt.IsZero() || r.finishedAt.Before(r.startedAt) || !r.termination.Valid() {
 		return false

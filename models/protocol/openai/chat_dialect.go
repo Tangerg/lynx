@@ -94,9 +94,6 @@ type Dialect struct {
 	response responseDialect
 }
 
-// Validate verifies the protocol choices owned by this dialect. Keeping this
-// invariant on Dialect prevents constructors and request mapping from growing
-// parallel defaulting rules.
 func (d Dialect) Validate() error {
 	if err := validateProvider(d.Provider); err != nil {
 		return fmt.Errorf("provider: %w", err)
@@ -120,9 +117,6 @@ const (
 	TokenLimitMaxCompletionTokens TokenLimitField = "max_completion_tokens"
 )
 
-// Valid reports whether the field names a supported Chat Completions token
-// limit property. The zero value is deliberately invalid: each dialect must
-// state its wire contract explicitly.
 func (t TokenLimitField) Valid() bool {
 	return t == TokenLimitMaxTokens || t == TokenLimitMaxCompletionTokens
 }
@@ -309,9 +303,6 @@ func prependTextReasoning(fields map[string]respjson.Field, provider, fieldName 
 	return nil
 }
 
-// NewTextReasoningPart creates provider-scoped replay state for manually
-// constructed OpenAI-compatible assistant history. Normal callers should keep
-// the Part returned by Chat.
 func NewTextReasoningPart(provider string, field TextReasoningField, text string) (corechat.Part, error) {
 	if strings.TrimSpace(provider) == "" || strings.TrimSpace(provider) != provider {
 		return corechat.Part{}, errors.New("openai: text reasoning provider is required and must not have surrounding whitespace")

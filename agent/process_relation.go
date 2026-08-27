@@ -2,7 +2,6 @@ package agent
 
 import "errors"
 
-// ErrInvalidProcessRelation reports a malformed root or child relation.
 var ErrInvalidProcessRelation = errors.New("agent: invalid process relation")
 
 // ProcessRelation is the immutable location of one Process in an Engine-owned
@@ -60,7 +59,6 @@ func (p ProcessRelation) IsRoot() bool {
 	return p.Valid() && p.depth == 0
 }
 
-// Valid reports whether all root or child invariants hold.
 func (p ProcessRelation) Valid() bool {
 	if !p.processID.Valid() || !p.rootID.Valid() {
 		return false

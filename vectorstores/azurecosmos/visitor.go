@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+var _ filter.Visitor = (*Visitor)(nil)
+
 // Visitor transforms AST filter expressions into a Cosmos DB SQL
 // predicate fragment. Metadata keys live under c.metadata.* by default
 // (the document alias used in Search / DeleteWhere is `c`).
@@ -19,8 +21,6 @@ import (
 //	category IN ("a", "b")   →  c.metadata.category IN (@p1, @p2)
 //	NOT (a == "x")           →  NOT (c.metadata.a = @p1)
 //	a == "x" AND b == "y"    →  (c.metadata.a = @p1 AND c.metadata.b = @p2)
-var _ filter.Visitor = (*Visitor)(nil)
-
 type Visitor struct {
 	err            error
 	sql            strings.Builder

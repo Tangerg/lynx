@@ -8,8 +8,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// ErrInvalidDocument classifies malformed document values at construction,
-// validation, and wire boundaries.
 var ErrInvalidDocument = errors.New("document: invalid document")
 
 // Document is the canonical content carrier. It holds identity, content, and

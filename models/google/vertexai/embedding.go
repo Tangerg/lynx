@@ -39,7 +39,6 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct{ protocol *protocol.EmbeddingModel }
 
-// NewEmbeddingModel returns a Vertex AI embedding model.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

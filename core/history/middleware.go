@@ -11,8 +11,6 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
-// ErrNilStream reports a wrapped Streamer that violates the Streamer contract
-// by returning a nil sequence.
 var ErrNilStream = errors.New("history: middleware: nil stream sequence")
 
 // Middleware replays and persists history around synchronous and streaming

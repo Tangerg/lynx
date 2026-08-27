@@ -18,13 +18,10 @@ type PreparedStepRecorder struct {
 	snapshots []agent.Snapshot
 }
 
-// NewPreparedStepRecorder returns a recorder whose results are consumed in
-// acknowledgment order. A nil result accepts that prepared boundary.
 func NewPreparedStepRecorder(results ...error) *PreparedStepRecorder {
 	return &PreparedStepRecorder{results: slices.Clone(results)}
 }
 
-// AcknowledgePreparedStep records snapshot and returns the next scripted result.
 func (p *PreparedStepRecorder) AcknowledgePreparedStep(
 	_ context.Context,
 	snapshot agent.Snapshot,

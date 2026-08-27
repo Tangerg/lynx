@@ -16,9 +16,6 @@ const (
 	ReasoningBlockRedacted ReasoningBlockKind = protocolReasoningRedacted
 )
 
-// NewThinkingPart creates replayable Anthropic thinking state for manually
-// constructed assistant history. Normal callers should keep the Part returned
-// by Chat, which is already tagged correctly.
 func NewThinkingPart(text string, signature []byte) (corechat.Part, error) {
 	if len(signature) == 0 {
 		return corechat.Part{}, errors.New("anthropic: thinking signature is required")
@@ -30,8 +27,6 @@ func NewThinkingPart(text string, signature []byte) (corechat.Part, error) {
 	return part, nil
 }
 
-// NewRedactedThinkingPart creates replayable Anthropic redacted-thinking state
-// for manually constructed assistant history.
 func NewRedactedThinkingPart(data []byte) (corechat.Part, error) {
 	if len(data) == 0 {
 		return corechat.Part{}, errors.New("anthropic: redacted thinking data is required")

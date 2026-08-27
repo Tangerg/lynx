@@ -32,7 +32,6 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 type AudioTranscriptionModel = openai.AudioTranscriptionModel
 
-// NewAudioTranscriptionModel returns an Azure OpenAI transcription model.
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

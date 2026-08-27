@@ -49,7 +49,6 @@ type StreamGuardrailOptions struct {
 	ProcessingMode string `json:"processing_mode,omitempty"`
 }
 
-// ChatConfig configures the Bedrock Converse Core chat adapter.
 type ChatConfig struct {
 	DefaultOptions corechat.Options
 	Region         string
@@ -58,8 +57,6 @@ type ChatConfig struct {
 	Credentials    *Credentials
 }
 
-// Validate verifies construction-time configuration without loading AWS
-// credentials or performing network I/O.
 func (c ChatConfig) Validate() error {
 	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("bedrock: DefaultOptions: %w", err)
@@ -78,7 +75,6 @@ type Chat struct {
 	defaults corechat.Options
 }
 
-// NewChat constructs a Bedrock Converse Core chat adapter.
 func NewChat(ctx context.Context, config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

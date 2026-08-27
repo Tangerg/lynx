@@ -19,12 +19,10 @@ const (
 	ReplayPolicySameIdentity ReplayPolicy = "same_identity"
 )
 
-// Valid reports whether r declares a supported replay contract.
 func (r ReplayPolicy) Valid() bool {
 	return r == ReplayPolicyNever || r == ReplayPolicySameIdentity
 }
 
-// String returns the stable replay-policy name.
 func (r ReplayPolicy) String() string {
 	if !r.Valid() {
 		return "invalid"
@@ -100,6 +98,13 @@ type DeltaEmitter func(payload json.RawMessage)
 // start unowned goroutines. ReplayPolicy must be a pure, deterministic
 // declaration for the supplied immutable Effect.
 type Dispatcher interface {
+	// Dispatch performs one frozen Strategy Effect outside Execution.Step.
+	// Settlement must address request.ID; a non-nil error means the external
+	// outcome is unknown, not definitely failed. emit is valid only during this
+	// call. Implementations honor ctx and may be called concurrently.
 	Dispatch(ctx context.Context, request EffectRequest, emit DeltaEmitter) (Settlement, error)
+	// ReplayPolicy declares, without I/O or mutable side effects, whether this
+	// exact Effect can be repeated under its original EffectID after an unknown
+	// settlement. The answer must be deterministic for equivalent Effects.
 	ReplayPolicy(effect Effect) ReplayPolicy
 }

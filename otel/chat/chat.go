@@ -25,10 +25,8 @@ import (
 const instrumentationName = "github.com/Tangerg/scope/otel/chat"
 
 var (
-	// ErrInvalidConfig reports a missing or malformed provider identity.
 	ErrInvalidConfig = errors.New("otel/chat: invalid config")
-	// ErrNilStream reports a wrapped Streamer that returned a nil sequence.
-	ErrNilStream = errors.New("otel/chat: nil stream sequence")
+	ErrNilStream     = errors.New("otel/chat: nil stream sequence")
 )
 
 // MiddlewareConfig identifies the remote GenAI provider and optionally supplies
@@ -41,7 +39,6 @@ type MiddlewareConfig struct {
 	MeterProvider  metric.MeterProvider
 }
 
-// Validate verifies the provider identity required by chat instrumentation.
 func (c MiddlewareConfig) Validate() error {
 	if strings.TrimSpace(c.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
@@ -59,8 +56,6 @@ type Middleware struct {
 	tokens   genaiconv.ClientTokenUsage
 }
 
-// NewMiddleware constructs chat instrumentation. Provider is required at the
-// composition root instead of being added to the Core Model contract.
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err

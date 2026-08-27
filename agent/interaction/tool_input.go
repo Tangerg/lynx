@@ -14,12 +14,8 @@ import (
 const maxInputProtocolBytes = 1 << 20
 
 var (
-	// ErrInvalidToolInputRequest reports malformed prompt, response schema, or
-	// continuation state supplied by a Tool.
 	ErrInvalidToolInputRequest = errors.New("interaction: invalid tool input request")
-	// ErrToolInputRequired is matched by errors.Is when a Tool requests external
-	// input before it can produce a ToolResult.
-	ErrToolInputRequired = errors.New("interaction: tool input required")
+	ErrToolInputRequired       = errors.New("interaction: tool input required")
 )
 
 // ToolInputRequest is an immutable Tool request for external input. Prompt is an
@@ -32,7 +28,6 @@ type ToolInputRequest struct {
 	continuationState json.RawMessage
 }
 
-// NewToolInputRequest validates and freezes a Tool input request.
 func NewToolInputRequest(
 	prompt json.RawMessage,
 	responseSchema json.RawMessage,
@@ -71,7 +66,6 @@ func (t ToolInputRequest) ContinuationState() json.RawMessage {
 	return bytes.Clone(t.continuationState)
 }
 
-// Valid reports whether the request was constructed through NewToolInputRequest.
 func (t ToolInputRequest) Valid() bool {
 	return len(t.prompt) > 0 && len(t.responseSchema) > 0 && len(t.continuationState) > 0
 }
@@ -119,7 +113,6 @@ func RequireToolInput(
 	return &ToolInputRequiredError{request: request}
 }
 
-// Error returns the stable Tool input control-flow sentinel text.
 func (t *ToolInputRequiredError) Error() string {
 	if t == nil {
 		return ErrToolInputRequired.Error()
@@ -127,7 +120,6 @@ func (t *ToolInputRequiredError) Error() string {
 	return ErrToolInputRequired.Error()
 }
 
-// Unwrap supports errors.Is(err, ErrToolInputRequired).
 func (*ToolInputRequiredError) Unwrap() error { return ErrToolInputRequired }
 
 func (t *ToolInputRequiredError) inputRequest() (ToolInputRequest, bool) {
@@ -175,9 +167,6 @@ func ToolInputContinuationFromContext(ctx context.Context) (ToolInputContinuatio
 	}, true
 }
 
-// NewToolInputResponseSignal constructs one WaitID-addressed, deduplicated answer
-// for an Interaction input request. The active Execution validates response
-// against the Tool-supplied schema before it advances the mailbox cursor.
 func NewToolInputResponseSignal(
 	id agent.SignalID,
 	waitID agent.WaitID,

@@ -10,10 +10,12 @@ import (
 // Consumers that need different representations should use independently
 // configured formatters instead of passing consumer-specific modes per call.
 type Formatter interface {
-	Format(*document.Document) (string, error)
+	// Format renders one valid document under the receiver's frozen policy. It
+	// must not mutate or retain the document and must be deterministic so the
+	// same pipeline input produces stable downstream chunks and identities.
+	Format(document *document.Document) (string, error)
 }
 
-// FormatterFunc adapts a function to [Formatter].
 type FormatterFunc func(*document.Document) (string, error)
 
 func (f FormatterFunc) Format(doc *document.Document) (string, error) {

@@ -15,8 +15,6 @@ const (
 	ReasoningBlockRedacted ReasoningBlockKind = chatReasoningRedacted
 )
 
-// NewReasoningPart creates replayable Bedrock reasoning text. Normal callers
-// should retain the Part returned by Chat instead of constructing one.
 func NewReasoningPart(text string, signature []byte) (corechat.Part, error) {
 	if text == "" || len(signature) == 0 {
 		return corechat.Part{}, errors.New("bedrock: reasoning text and signature are required")
@@ -28,7 +26,6 @@ func NewReasoningPart(text string, signature []byte) (corechat.Part, error) {
 	return part, nil
 }
 
-// NewRedactedReasoningPart creates replayable Bedrock encrypted reasoning.
 func NewRedactedReasoningPart(content []byte) (corechat.Part, error) {
 	if len(content) == 0 {
 		return corechat.Part{}, errors.New("bedrock: redacted reasoning content is required")

@@ -33,7 +33,6 @@ const (
 	DistanceManhattan DistanceMetric = "manhattan"
 )
 
-// Valid reports whether d is supported by Qdrant collections.
 func (d DistanceMetric) Valid() bool {
 	switch d {
 	case DistanceCosine, DistanceDot, DistanceEuclid, DistanceManhattan:
@@ -43,7 +42,6 @@ func (d DistanceMetric) Valid() bool {
 	}
 }
 
-// String returns the Qdrant distance token.
 func (d DistanceMetric) String() string { return string(d) }
 
 func (d DistanceMetric) qdrant() (qdrant.Distance, error) {

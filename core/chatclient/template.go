@@ -13,8 +13,6 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
-// ErrInvalidTemplate reports an empty, malformed, or unusable prompt
-// template.
 var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 
 // Template is an immutable, parsed prompt template safe for concurrent use.

@@ -10,12 +10,8 @@ import (
 )
 
 var (
-	// ErrToolAdvertisementUnavailable reports an AdvertiseTools call made
-	// outside an active Interaction Tool invocation.
 	ErrToolAdvertisementUnavailable = errors.New("interaction: tool advertisement unavailable")
-	// ErrInvalidToolAdvertisement reports an empty, unknown, or initially
-	// advertised Tool name supplied to AdvertiseTools.
-	ErrInvalidToolAdvertisement = errors.New("interaction: invalid tool advertisement")
+	ErrInvalidToolAdvertisement     = errors.New("interaction: invalid tool advertisement")
 )
 
 type toolAdvertisementContextKey struct{}

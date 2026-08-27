@@ -13,9 +13,7 @@ import (
 )
 
 var (
-	// ErrNilChatResponse reports a model that returned no response and no error.
-	ErrNilChatResponse = errors.New("rag: chat model returned a nil response")
-	// ErrNilChatStreamSequence reports a streamer that returned no sequence.
+	ErrNilChatResponse       = errors.New("rag: chat model returned a nil response")
 	ErrNilChatStreamSequence = errors.New("rag: chat streamer returned a nil sequence")
 )
 
@@ -164,8 +162,6 @@ func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
 	return citations, found, nil
 }
 
-// NewMiddleware snapshots one shared retrieval policy so Call and Stream
-// cannot accidentally diverge in configuration.
 func NewMiddleware(config MiddlewareConfig) (*Middleware, error) {
 	config, err := config.normalized()
 	if err != nil {

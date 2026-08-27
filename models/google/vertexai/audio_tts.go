@@ -43,7 +43,6 @@ var (
 
 type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
 
-// NewAudioTTSModel returns a Vertex AI speech model.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

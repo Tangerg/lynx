@@ -59,10 +59,6 @@ func newExecutor(agent Agent) (*executor, error) {
 	return &executor{agent: agent}, nil
 }
 
-// Execute implements [a2asrv.AgentExecutor]. The first event creates the
-// task (the SDK requires a Task or Message first), then each agent chunk is
-// an artifact delta, closed by a terminal Completed status — or a Failed
-// status carrying the error message if the agent errors mid-stream.
 func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[sdka2a.Event, error] {
 	return func(yield func(sdka2a.Event, error) bool) {
 		projection := textProjection{}
@@ -122,9 +118,9 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 	}
 }
 
-// Cancel implements [a2asrv.AgentExecutor]: it marks the task canceled. The
-// in-flight Execute is stopped by the SDK via context cancellation; this
-// only records the terminal state.
+// The SDK cancels the in-flight Execute context itself; Cancel emits only the
+// terminal task state so two independent cancellation paths cannot race over
+// execution ownership.
 func (e *executor) Cancel(ctx context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[sdka2a.Event, error] {
 	return func(yield func(sdka2a.Event, error) bool) {
 		yield(sdka2a.NewStatusUpdateEvent(execCtx, sdka2a.TaskStateCanceled, nil), nil)

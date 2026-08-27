@@ -28,7 +28,6 @@ func (m Model) IsZero() bool {
 		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
 }
 
-// Clone returns a caller-owned copy of the model and all of its collections.
 func (m Model) Clone() Model {
 	m.Pricing = m.Pricing.Clone()
 	m.Reasoning.Levels = slices.Clone(m.Reasoning.Levels)

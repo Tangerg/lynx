@@ -4,10 +4,12 @@ import "context"
 
 // Evaluator evaluates one subject and returns a normalized report.
 type Evaluator[T any] interface {
-	Evaluate(context.Context, T) (Report, error)
+	// Evaluate inspects one subject without mutating it and returns a valid,
+	// normalized report for the evaluator's declared metric. Implementations
+	// must honor ctx; a non-nil error means the report must not be consumed.
+	Evaluate(ctx context.Context, subject T) (Report, error)
 }
 
-// EvaluatorFunc adapts a function to [Evaluator].
 type EvaluatorFunc[T any] func(context.Context, T) (Report, error)
 
 func (evaluate EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {

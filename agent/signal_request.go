@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// ErrInvalidSignalRequest reports malformed caller-supplied Signal input.
 var ErrInvalidSignalRequest = errors.New("agent: invalid signal request")
 
 // SignalRequest is an immutable request to deliver Strategy-owned input to a
@@ -20,8 +19,6 @@ type SignalRequest struct {
 	payload json.RawMessage
 }
 
-// NewSignalRequest validates and freezes one delivery request. Parsing a WaitID
-// does not make it valid for a Process; the Engine checks its wait mapping.
 func NewSignalRequest(id SignalID, waitID WaitID, payload json.RawMessage) (SignalRequest, error) {
 	if !id.Valid() {
 		return SignalRequest{}, fmt.Errorf("%w: signal ID: %w", ErrInvalidSignalRequest, ErrInvalidIdentity)
@@ -42,7 +39,6 @@ func (s SignalRequest) WaitID() (WaitID, bool) { return s.waitID, s.waitID.Valid
 // Payload returns an independently owned Strategy-defined value.
 func (s SignalRequest) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
-// Valid reports whether the request has a complete immutable envelope.
 func (s SignalRequest) Valid() bool { return s.id.Valid() && len(s.payload) > 0 }
 
 func (s SignalRequest) signal(receivedAt time.Time) (Signal, error) {

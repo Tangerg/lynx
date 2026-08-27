@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// ErrInvalidStatus reports an unknown common Process lifecycle state.
 var ErrInvalidStatus = errors.New("agent: invalid status")
 
 // Status is the complete common lifecycle state of a Process. Strategy-specific
@@ -35,7 +34,6 @@ const (
 	StatusKilled Status = "killed"
 )
 
-// String returns the stable lifecycle-state name.
 func (s Status) String() string {
 	if !s.Valid() {
 		return "invalid"
@@ -51,7 +49,6 @@ func parseStatus(value string) (Status, error) {
 	return status, nil
 }
 
-// Valid reports whether s is a defined lifecycle value.
 func (s Status) Valid() bool {
 	switch s {
 	case StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused,

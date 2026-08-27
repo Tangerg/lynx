@@ -15,8 +15,6 @@ type Problem struct {
 	actions []Action
 }
 
-// NewProblem validates and freezes one Planning problem. Action names must be
-// unique in the problem.
 func NewProblem(initial WorldState, goal Goal, actions ...Action) (Problem, error) {
 	if !initial.Valid() {
 		return Problem{}, fmt.Errorf("%w: initial state", ErrInvalidProblem)
@@ -57,7 +55,6 @@ func (p Problem) Action(name string) (Action, bool) {
 	return Action{}, false
 }
 
-// Valid reports whether the Problem satisfies its construction invariants.
 func (p Problem) Valid() bool {
 	if !p.initial.Valid() || !p.goal.Valid() {
 		return false

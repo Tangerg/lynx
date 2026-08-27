@@ -12,13 +12,15 @@ const defaultDeltaBuffer = 256
 // Process execution and never alter committed state. Implementations must
 // return in bounded time and must not re-enter the observed Process.
 type EventListener interface {
+	// OnEvent receives one committed or attempted Framework fact in increasing
+	// ProcessSequence for its Process. Different Processes may call the listener
+	// concurrently. The callback must be bounded, must not re-enter the observed
+	// Process, and has no veto or acknowledgment authority.
 	OnEvent(ctx context.Context, event Event)
 }
 
-// EventListenerFunc adapts a function to EventListener.
 type EventListenerFunc func(ctx context.Context, event Event)
 
-// OnEvent invokes e.
 func (e EventListenerFunc) OnEvent(ctx context.Context, event Event) {
 	e(ctx, event)
 }
@@ -26,13 +28,14 @@ func (e EventListenerFunc) OnEvent(ctx context.Context, event Event) {
 // DeltaListener observes best-effort Strategy streaming increments. Panics are
 // isolated; slow listeners may cause bounded queue drops.
 type DeltaListener interface {
+	// OnDelta receives an accepted best-effort increment in queue order. Delivery
+	// is sequential per listener but may lag Process execution; slow callbacks can
+	// cause later increments to be dropped. The callback cannot affect execution.
 	OnDelta(ctx context.Context, delta Delta)
 }
 
-// DeltaListenerFunc adapts a function to DeltaListener.
 type DeltaListenerFunc func(ctx context.Context, delta Delta)
 
-// OnDelta invokes d.
 func (d DeltaListenerFunc) OnDelta(ctx context.Context, delta Delta) {
 	d(ctx, delta)
 }

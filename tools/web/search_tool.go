@@ -18,9 +18,6 @@ type SearchTool struct {
 	inner    toolcontract.Tool
 }
 
-// NewSearchTool builds a [SearchTool] backed by searcher. It returns an error
-// when searcher is nil because there is no sensible
-// local fallback.
 func NewSearchTool(searcher Searcher) (*SearchTool, error) {
 	if searcher == nil {
 		return nil, ErrMissingSearcher

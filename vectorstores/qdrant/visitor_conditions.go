@@ -31,13 +31,10 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 
 	switch expr.Operator() {
 	case filter.OpEqual:
-		// == operator: field must equal value
 		v.filter.Must = append(v.filter.Must, matchCond)
 	case filter.OpNotEqual:
-		// != operator: field must not equal value (negation)
 		v.filter.MustNot = append(v.filter.MustNot, matchCond)
 	default:
-		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected equality operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
 	}
@@ -45,8 +42,6 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitHasExpr uses Qdrant's match condition, whose exact-match semantics
-// apply to any element when the payload field is an array.
 func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -64,17 +59,9 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// buildMatchCondition creates an appropriate Qdrant match condition based on value type.
-// The method automatically selects the correct Qdrant match function:
-//   - string -> NewMatchKeyword (exact keyword match)
-//   - int64 -> NewMatchInt
-//   - bool -> NewMatchBool (boolean match)
-//
-// Returns an error if the value type is not supported for matching.
 func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
 	switch v := fieldValue.(type) {
 	case string:
-		// String: use keyword match (exact match)
 		return qdrant.NewMatchKeyword(fieldKey, v), nil
 	case int64:
 		return qdrant.NewMatchInt(fieldKey, v), nil
@@ -86,27 +73,12 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 	case float64:
 		return nil, fmt.Errorf("qdrant match requires an integer, got %v", v)
 	case bool:
-		// Boolean: use bool match
 		return qdrant.NewMatchBool(fieldKey, v), nil
 	default:
 		return nil, fmt.Errorf("unsupported value type %T for match condition", fieldValue)
 	}
 }
 
-// visitOrderingExpr handles ordering/comparison operators (<, <=, >, >=).
-// The right operand value is converted to float64 and used to create a range condition.
-//
-// Operator mappings:
-//   - <  : Creates Range with Lt (less than)
-//   - <= : Creates Range with Lte (less than or equal)
-//   - >  : Creates Range with Gt (greater than)
-//   - >= : Creates Range with Gte (greater than or equal)
-//
-// All range conditions are added to filter.Must.
-//
-// Examples:
-//   - "age > 18" produces: Must[Range{Gt: 18}]
-//   - "price <= 99.99" produces: Must[Range{Lte: 99.99}]
 func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -143,7 +115,6 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 			Gte: &numericValue,
 		}))
 	default:
-		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected ordering operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
 	}
@@ -151,22 +122,6 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitInExpr handles the IN operator for membership testing.
-// The right operand must be a non-empty list literal containing values of the same type.
-//
-// Creates appropriate Qdrant conditions based on list element type:
-//   - String list: Uses NewMatchKeywords (matches if field equals any keyword in the list)
-//   - Number list: Uses NewMatchInts (matches if field equals any integer in the list)
-//   - Boolean list: Creates a nested Should filter with individual bool matches
-//
-// The boolean case requires special handling because the Qdrant SDK doesn't provide
-// a NewMatchBools function. A nested filter with Should conditions is used to achieve
-// OR semantics while maintaining proper isolation from other conditions.
-//
-// Examples:
-//   - "status IN ['active', 'pending']" produces: Must[MatchKeywords(status, [active, pending])]
-//   - "age IN [18, 21, 25]" produces: Must[MatchInts(age, [18, 21, 25])]
-//   - "active IN [true, false]" produces: Must[Filter{Should[active==true, active==false]}]
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -183,10 +138,8 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("qdrant: IN values: %w", err)
 	}
 
-	// Determine list type and create appropriate condition based on first element
 	switch {
 	case first.IsString():
-		// String list: use MatchKeywords (OR semantics for multiple keywords)
 		keywords := make([]string, 0, listLit.Len())
 		for _, literal := range listLit.Literals() {
 			value, err := literal.AsString()
@@ -198,7 +151,6 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
 
 	case first.IsNumber():
-		// Number list: use MatchInts (OR semantics for multiple integers)
 		integers := make([]int64, 0, listLit.Len())
 		for _, literal := range listLit.Literals() {
 			value, err := literal.Int64()
@@ -210,11 +162,8 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
 
 	case first.IsBool():
-		// Boolean list: wrap Should conditions in a nested filter
-		// This is necessary because:
-		// 1. The SDK doesn't provide NewMatchBools
-		// 2. Direct Should append would affect top-level filter semantics
-		// 3. Nested filter isolates the OR logic for this specific condition
+		// Qdrant has no boolean-list matcher; nesting Should keeps this IN
+		// expression's OR local instead of widening the enclosing filter.
 		boolConditions := make([]*qdrant.Condition, 0, listLit.Len())
 		for _, literal := range listLit.Literals() {
 			value, err := literal.AsBool()
@@ -236,10 +185,6 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// visitLikeExpr compiles the exact subset of SQL LIKE that Qdrant keyword
-// matching can represent. Qdrant full-text matching is tokenizer-dependent and
-// is not equivalent to SQL LIKE, so patterns containing SQL wildcards are
-// rejected instead of being silently widened or narrowed.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
@@ -269,28 +214,10 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-// buildNestedCondition constructs a Qdrant condition from an AST expression
-// using an isolated converter instance.
-//
-// This method is crucial for maintaining proper condition scoping in nested expressions.
-// By creating a new converter for each nested expression, the approach ensures:
-//   - Logical operators (AND/OR) maintain separate Must/Should/MustNot lists
-//   - Conditions don't leak between different parts of the expression tree
-//   - Complex nested expressions are properly isolated
-//
-// The isolated converter processes the expression and its entire subtree,
-// then the resulting filter is wrapped as a single condition.
-//
-// Examples:
-//   - Simple: "age > 18" -> Filter{Must[age>18]}
-//   - Logical: "age > 18 AND status == 'active'" -> Filter{Must[age>18, status==active]}
-//   - Nested: "(age > 18 OR age < 10) AND status == 'active'" ->
-//     Filter{Must[Filter{Should[age>18, age<10]}, status==active]}
 func (v *Visitor) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, error) {
 	switch node := expr.(type) {
 	case *filter.BinaryExpr,
 		*filter.UnaryExpr:
-		// Isolated converter maintains proper condition scoping.
 		nestedConv := NewVisitor()
 		err := nestedConv.visit(node)
 		if err != nil {
@@ -303,27 +230,12 @@ func (v *Visitor) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, err
 	}
 }
 
-// extractFieldKey extracts a field key (identifier or indexed path) from an expression.
-// This method handles both simple identifiers and complex indexed expressions.
-//
-// The converter's state (currentFieldKey) is preserved during extraction to allow
-// safe nested calls without state corruption.
-//
-// Supported expression types:
-//   - Ident: Simple field name (e.g., "age")
-//   - IndexExpr: Indexed field access (e.g., metadata["user"]["name"])
-//
-// Examples:
-//   - *filter.Ident{Value: "age"} -> "age"
-//   - metadata["user"] -> "metadata.user"
-//   - data["tags"][0] -> "data.tags.0"
 func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	savedFieldKey := v.currentFieldKey
 	v.currentFieldKey = ""
 
 	err := v.visit(expr)
 
-	// Restore state to prevent corruption in nested calls
 	extractedKey := v.currentFieldKey
 	v.currentFieldKey = savedFieldKey
 
@@ -338,27 +250,12 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	return extractedKey, nil
 }
 
-// extractFieldValue extracts a value (literal or list) from an expression.
-// This method handles both single literals and list literals.
-//
-// The converter's state (currentFieldValue) is preserved during extraction to allow
-// safe nested calls without state corruption.
-//
-// Supported expression types:
-//   - Literal: Single constant value (string, number, boolean)
-//   - ListLiteral: Array of constant values
-//
-// Examples:
-//   - *filter.Literal{Value: "active"} -> "active"
-//   - *filter.Literal{Value: 18.0} -> 18.0
-//   - *filter.ListLiteral{Values: ["a", "b"]} -> []any{"a", "b"}
 func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	savedFieldValue := v.currentFieldValue
 	v.currentFieldValue = nil
 
 	err := v.visit(expr)
 
-	// Restore state to prevent corruption in nested calls
 	extractedValue := v.currentFieldValue
 	v.currentFieldValue = savedFieldValue
 
@@ -373,25 +270,6 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	return extractedValue, nil
 }
 
-// buildIndexedFieldKey constructs a dot-separated field path from an index expression.
-// This method recursively processes nested index expressions to build the complete path.
-//
-// The conversion process:
-//  1. Extracts index values from right to left
-//  2. Supports both string and numeric indices
-//  3. Continues until reaching the base identifier
-//  4. Joins all parts with dots to form the final path
-//
-// Transformation examples:
-//   - user["name"] -> "user.name"
-//   - metadata["tags"][0] -> "metadata.tags.0"
-//   - data["user"]["profile"]["age"] -> "data.user.profile.age"
-//   - config["servers"][1]["host"] -> "config.servers.1.host"
-//
-// The method validates:
-//   - Index values must be strings or numbers
-//   - Left side must be either another IndexExpr or an Ident
-//   - Base identifier must exist
 func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var pathParts []string
 
@@ -415,15 +293,6 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	}
 }
 
-// literalToValue converts an AST literal node to its corresponding Go value.
-// This method handles the three supported literal types in the filter DSL.
-//
-// Supported conversions:
-//   - String literals -> string (with quote removal)
-//   - Number literals -> float64 (supports integers and decimals)
-//   - Boolean literals -> bool (true/false)
-//
-// Returns an error if the literal type is not supported or if conversion fails.
 func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()

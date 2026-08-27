@@ -41,7 +41,6 @@ type AudioTranscriptionModel struct {
 	protocol *protocol.AudioTranscriptionModel
 }
 
-// NewAudioTranscriptionModel returns a Vertex AI transcription model.
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

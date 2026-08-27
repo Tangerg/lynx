@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// ErrInvalidSignal reports a malformed accepted execution input.
 var ErrInvalidSignal = errors.New("agent: invalid signal")
 
 // Signal is the immutable input envelope delivered by the Engine to an
@@ -57,12 +56,10 @@ func (s Signal) ReceivedAt() time.Time { return s.receivedAt }
 // through the corresponding typed parser rather than decoded ad hoc.
 func (s Signal) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
-// Valid reports whether the Signal has a complete immutable envelope.
 func (s Signal) Valid() bool {
 	return s.id.Valid() && !s.receivedAt.IsZero() && len(s.payload) > 0
 }
 
-// MarshalJSON returns the validated immutable Signal envelope.
 func (s Signal) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSignal
@@ -78,7 +75,6 @@ func (s Signal) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-// UnmarshalJSON replaces s with a strictly decoded Signal.
 func (s *Signal) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSignal)

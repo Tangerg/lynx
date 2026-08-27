@@ -11,7 +11,6 @@ import (
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
-// ErrInvalidOutputFormat reports a malformed output-format contract.
 var ErrInvalidOutputFormat = errors.New("chat: invalid output format")
 
 // OutputFormatType identifies the representation requested for a chat result.

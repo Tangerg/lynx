@@ -2,11 +2,6 @@ package interaction
 
 import "errors"
 
-// ErrHostFailure identifies an Interaction host failure that must terminate the
-// Process instead of becoming model-visible provider or Tool output. Hosts use
-// [HostFailure] for failures in their own pre-call boundaries, such as durable
-// admission or observation, where continuing the model loop would diverge from
-// the host's authoritative state.
 var ErrHostFailure = errors.New("interaction: host failure")
 
 type hostFailureError struct {

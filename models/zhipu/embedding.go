@@ -33,7 +33,6 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel = openai.EmbeddingModel
 
-// NewEmbeddingModel returns a Zhipu-compatible embedding model.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

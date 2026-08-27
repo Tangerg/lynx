@@ -71,7 +71,6 @@ func (c ChatRequestOptions) Validate() error {
 	return nil
 }
 
-// ChatConfig configures Mistral's native Chat Completions adapter.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -101,7 +100,6 @@ type Chat struct {
 	defaults corechat.Options
 }
 
-// NewChat constructs a Mistral Chat Completions adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

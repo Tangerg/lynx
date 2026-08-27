@@ -8,7 +8,10 @@ import "context"
 // pass Validate. Provider defaults and identity belong to provider construction
 // and observability.
 type Model interface {
-	Call(context.Context, *Request) (*Response, error)
+	// Call transcribes one validated media request without retaining or mutating
+	// it. The returned provider-neutral response belongs to the caller, and
+	// context cancellation remains identifiable through errors.Is.
+	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
 type ModelFunc func(context.Context, *Request) (*Response, error)

@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// ErrInvalidCapability reports a malformed capability name or set.
 var ErrInvalidCapability = errors.New("agent: invalid capability")
 
 // Capability is one stable qualified authority name understood by a
@@ -24,10 +23,8 @@ func ParseCapability(name string) (Capability, error) {
 	return Capability{name: name}, nil
 }
 
-// String returns the stable qualified name.
 func (c Capability) String() string { return c.name }
 
-// Valid reports whether the capability has a valid qualified name.
 func (c Capability) Valid() bool { return validQualifiedName(c.name) }
 
 // MarshalText returns the validated qualified capability name.
@@ -55,7 +52,6 @@ func (c *Capability) UnmarshalText(text []byte) error {
 // is the valid empty set.
 type CapabilitySet struct{ values []Capability }
 
-// NewCapabilitySet validates, deduplicates, and freezes capabilities.
 func NewCapabilitySet(capabilities ...Capability) (CapabilitySet, error) {
 	values := slices.Clone(capabilities)
 	for _, capability := range values {
@@ -97,7 +93,6 @@ func (c CapabilitySet) Allows(requested CapabilitySet) bool {
 	return true
 }
 
-// Valid reports whether values are sorted, unique, and individually valid.
 func (c CapabilitySet) Valid() bool {
 	for index, capability := range c.values {
 		if !capability.Valid() || index > 0 && c.values[index-1].name >= capability.name {
@@ -107,7 +102,6 @@ func (c CapabilitySet) Valid() bool {
 	return true
 }
 
-// MarshalJSON returns the canonical ordered capability set.
 func (c CapabilitySet) MarshalJSON() ([]byte, error) {
 	if !c.Valid() {
 		return nil, ErrInvalidCapability
@@ -115,7 +109,6 @@ func (c CapabilitySet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.values)
 }
 
-// UnmarshalJSON replaces c with a validated canonical capability set.
 func (c *CapabilitySet) UnmarshalJSON(data []byte) error {
 	if c == nil {
 		return ErrInvalidCapability

@@ -17,7 +17,14 @@ import (
 // cancellation, and return an error matching context.Canceled or
 // context.DeadlineExceeded.
 type Source interface {
+	// List returns detached, valid summaries in the implementation's stable
+	// discovery order. Invalid skill bundles may be skipped, but repository I/O,
+	// permission, and context failures must be returned rather than disguised as
+	// an empty source.
 	List(ctx context.Context) ([]Summary, error)
+	// Load validates and returns one complete skill by exact name. The caller owns
+	// the returned value; missing skills and malformed bundles are distinct from
+	// context cancellation, which remains identifiable through errors.Is.
 	Load(ctx context.Context, name string) (*Skill, error)
 }
 
@@ -25,6 +32,9 @@ type Source interface {
 // opening a resource bundled under a skill directory.
 type ResourceSource interface {
 	Source
+	// OpenResource opens one bundled resource beneath the exact skill root. It
+	// must reject absolute paths, traversal, and symlink escape according to the
+	// source's trust boundary; the caller owns and closes the returned file.
 	OpenResource(ctx context.Context, name, resource string) (fs.File, error)
 }
 

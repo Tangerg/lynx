@@ -3,8 +3,8 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-27
-> 当前阶段：P1–P25 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象与共享 JSON Schema owner 均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 当前阶段：P1–P28 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位与语义注释门禁均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/scope/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -93,6 +93,9 @@ go test ./...
 | P23 稳定文本枚举值对象化 | 完成 | 2/2 | 删除数字序号、重复映射和观察魔法字符串，让领域类型拥有词汇与校验 |
 | P24 Planning Truth 文本值对象化 | 完成 | 1/1 | 让三值逻辑直接拥有稳定文本身份与无效零值 |
 | P25 JSON Schema 单一所有权 | 完成 | 2/2 | 复用 Core 共享 schema owner，让 rich value 以 typed model 拥有 wire 合同 |
+| P26 Scope canonical identity | 完成 | 1/1 | 全仓 module/import identity 只保留 Scope，不建立品牌兼容层 |
+| P27 OTel 集成归位 | 完成 | 1/1 | Agent 只拥有领域合同，OpenTelemetry adapter 回到集成层 |
+| P28 语义注释门禁 | 完成 | 1/1 | 删除复述型 GoDoc，只强制关键接口及其方法的真实契约 |
 
 ---
 
@@ -299,6 +302,18 @@ go test ./...
 - [x] P25-01 删除 Agent 自有 schema generator/compiler，复用 `core/jsonschema` 的反射、标准 JSON wire、定义消歧、编译与验证合同。
 - [x] P25-02 让 Planning rich values 通过 typed `JSONSchemaModel` 自己描述 wire，删除 Output raw schema 常量并冻结 Baseline 28。
 
+### P26：Scope canonical identity
+
+- [x] P26-01 将仓库身份、Go module 与 import path 一次性迁移到 Scope；删除旧品牌路径且不保留 alias、replace 或双路径。
+
+### P27：OTel 集成归位
+
+- [x] P27-01 将 Agent OpenTelemetry adapter 移到 `otel/agent`，删除 Agent 的 OTel 依赖和旧入口，冻结 Baseline 30。
+
+### P28：语义注释门禁
+
+- [x] P28-01 删除 sentinel error、constructor、codec、clone、validate、简单 accessor 与普通 DTO 上的复述型注释；关键接口及其每个方法改为详细契约，AST 门禁同步收敛并冻结 Baseline 31。
+
 ---
 
 ## 6. 最终完成定义
@@ -344,6 +359,9 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-27 | P28（Baseline 31） | 将公开注释从覆盖率目标收敛为语义合同：删除 sentinel error 与自解释声明上的复述文本，补齐关键接口及其每个具名方法的所有权、并发、顺序和失败契约；AST 门禁只强制真实接口合同与公开参数命名，完整 `go doc` digest 继续冻结公共文本 | 七个 Agent package 的 public digest 显式升级；全部 Framework/Strategy wire、schema version、公开签名和运行行为不变。非 app 全仓门禁在本批提交前统一验收 |
+| 2026-08-27 | P27（Baseline 30） | Agent OpenTelemetry adapter 迁移到 `otel/agent`，Agent module 移除 OTel 依赖；构造入口收敛为 `NewObserver(ObserverConfig)` | Agent 基线只保留七个领域 package；Framework API、wire 与运行语义不变 |
+| 2026-08-27 | P26（Baseline 29） | 仓库、module 与 import identity 统一迁移到 Scope，不保留旧品牌路径、alias 或 compatibility replace | 八个公共 digest 按 package identity 显式重冻；API 语义、wire 与运行行为不变 |
 | 2026-08-27 | P25（Baseline 28） | Agent `Schema` 收敛为 Core shared schema contract 的 Framework error boundary；删除模块私有反射器/compiler 与 Planning Output raw schema。`Condition`/`WorldState` 以 typed `JSONSchemaModel` 就近拥有自定义 wire，不暴露第三方 schema 类型或魔法 map | Root/Planning public digest 显式升级；全部 Framework/Strategy wire、schema version 与运行语义不变。Agent、RAG、evaluation standalone build/vet/test 与依赖收敛在本批统一验收 |
 | 2026-08-26 | Go 1.27 formatting hygiene | 统一 Agent examples 与 Interaction 文件的标准 import 排序；没有改变公开 API、wire、状态机、并发或 Host 边界 | 非 app module 全量 lint 为 0 issue；Agent 独立 build/vet/test/tidy-diff 全绿，定向 active-child 与根 package 非缓存重跑通过 |
 | 2026-08-26 | P24（Baseline 27） | Planning `Truth` 直接以 `unknown/false/true` 作为唯一身份并拥有验证与严格 JSON codec；删除 ordinal 身份，空零值不再静默等于 Unknown | Planning public digest 显式升级；JSON、state/protocol digest、schema version、搜索与恢复语义不变，standalone 门禁在本批收口 |
@@ -449,4 +467,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P25 已完成，Baseline 28 将跨模块 JSON Schema 反射、编译和标准 wire 语义归并到 Core 单一 owner；Agent 保留自己的错误边界，Planning rich value 仍以 typed model 就近拥有 wire 形状。全部 Framework/Strategy wire 与运行语义保持不变。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P28 已完成，Baseline 31 只强制关键接口及其方法的真实语义契约，不再以注释覆盖率奖励 sentinel error、constructor、codec、clone、validate、简单 accessor 或普通 DTO 的复述文本；完整 public digest 继续阻止未审计漂移。全部 Framework/Strategy wire 与运行语义保持不变。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
