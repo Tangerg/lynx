@@ -690,3 +690,9 @@
 - `ModelContextReducer` 是由真实 consumer 证明的一方法可选边界。它只拥有模型可见 messages 的变换，保留 request options、冻结工具清单、Effect identity 与 invocation attribution；Host 的持久化和压缩策略没有进入 Agent。
 - 三轮外部 Interaction 回归证明第二次模型调用可替换完整前缀，第三次 Tool 归并从 replacement messages 继续且旧前缀不再生长；reducer failure 回归证明主模型零调用并产生确定 host failure；typed nil 配置在装配时拒绝。
 - Runtime 集成回归证明 summary 在同一 Run 的模型调用边界发生、后续模型看到 summary、Run 正常完成、durable SQLite history 原位缩短，并且下一 Run 能继续。Interaction protocol 升级为 v8、state 保持 v8，形成 Baseline 32。
+
+## 27. P30 模型 ToolResult 单一所有权证据
+
+- 真实 HTTP approval / SIGKILL 恢复证明 Runtime transcript presenter 与模型上下文是两个独立投影：shell 的客户端结果字段不能替代 Agent 实际消费的原始 ToolResult。
+- `ToolInvocation.ModelResult` 由 exact ToolCall、可执行返回值和 cause 产生唯一模型结果。普通错误的前缀、UTF-8 安全截断与 Host/control 排除都继续由 Interaction owner 决定，Runtime 不复制常量或分支。
+- Dispatcher 与 Runtime consumer 同时使用该 rich value 行为；公开 API 形成 Baseline 33，全部 state/protocol/snapshot/observation wire 保持不变。

@@ -705,3 +705,11 @@
 - 决策：Interaction 提供唯一可选 `ModelContextReducer`，Dispatcher 在主模型调用前向它交付独立拥有的完整 request 和 `ModelInvocation`。reducer 只能返回 replacement messages，不能改 options、tools、identity 或 invocation attribution。成功 settlement 必须携带实际模型输入，Execution 在处理 response、Tool segment 或新 steer 前原子安装该 messages；reducer 失败以既有 host-failure 语义确定终止，主模型零调用。
 - 决策：Framework 不定义 history store、transaction、token estimator、summary prompt、窗口 catalog 或产品 compaction event。durable 与 transient 压缩、CAS rewrite、protected tail 和观测由 Runtime consumer 拥有。为冻结成功 settlement 的新字段，Interaction protocol 从 v7 直接升级到 v8并拒绝旧版本；ExecutionState 已为 v8且 shape 不变。
 - 后果：Interaction public/wire digest 形成 Baseline 32。后续模型调用、Tool 归并、steer attribution、snapshot 与 restore 都从同一个 effective WorkingContext 继续；Host 不能另建只影响单次调用的旁路 request 变换。
+
+## ADR-A2-085：模型 ToolResult 映射由实际 ToolInvocation 单点拥有
+
+- 状态：已接受并实施；形成 Baseline 33。
+- 证据：真实 Runtime HTTP approval 恢复中，Tool presenter 将原始 shell 结果改成客户端 transcript shape；Runtime 随后用该展示值重建模型 conversation，而 Interaction 实际回写的是原始模型 `ToolResult`。P29 的严格上下文对账因此准确发现同一次 Tool 调用存在两份语义真相。错误路径还包含 Interaction-owned 的 host/control-plane 排除、有界 UTF-8 diagnostic 和稳定错误前缀，Host 复制这些规则会继续制造魔法值与版本漂移。
+- 决策：immutable `ToolInvocation` 新增唯一 `ModelResult(output, cause)` 行为，按其 exact `ToolCall` 生成模型可见结果；普通成功与确定 Tool 错误返回 `present=true`，Host failure、context cancellation/deadline 与 Tool input control boundary 返回 `present=false`。Dispatcher 自身也改为消费该方法，因此规则不是为 Runtime 增加的旁路 helper。
+- 决策：方法不接收 presenter、store、Run、transaction 或产品 failure；Host 可把返回值作为自己的精确模型上下文事实，同时独立保存 UI presentation。Interaction state/protocol、snapshot 与 observation wire 不变，不增加兼容入口。
+- 后果：Interaction public digest 形成 Baseline 33。Tool 错误格式、2048-byte bounded diagnostic 与 control-plane 分类只有一个 owner；Runtime 不再从展示结果反推模型上下文。

@@ -2,6 +2,8 @@ package interaction
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 
 	agent "github.com/Tangerg/scope/agent"
@@ -106,6 +108,32 @@ func (t ToolInvocation) ToolCallIndex() uint32 { return t.toolCallIndex }
 
 // ToolCall returns the exact model ToolCall value being executed.
 func (t ToolInvocation) ToolCall() chat.ToolCall { return t.toolCall }
+
+// ModelResult maps the executable Tool's Go return values onto the exact
+// provider-neutral ToolResult consumed by Interaction. present=false means the
+// cause belongs to the host or control plane and must not enter model context.
+func (t ToolInvocation) ModelResult(output string, cause error) (result chat.ToolResult, present bool) {
+	if !t.Valid() {
+		return chat.ToolResult{}, false
+	}
+	call := t.toolCall
+	if cause == nil {
+		return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, true
+	}
+	if errors.Is(cause, ErrHostFailure) ||
+		errors.Is(cause, context.Canceled) ||
+		errors.Is(cause, context.DeadlineExceeded) {
+		return chat.ToolResult{}, false
+	}
+	if _, inputRequired := errors.AsType[*ToolInputRequiredError](cause); inputRequired {
+		return chat.ToolResult{}, false
+	}
+	return chat.ToolResult{
+		ID: call.ID, Name: call.Name,
+		Result:  fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(cause.Error())),
+		IsError: true,
+	}, true
+}
 
 func (t ToolInvocation) Valid() bool {
 	return t.relation.Valid() && t.deploymentRef.Valid() &&

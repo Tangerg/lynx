@@ -558,12 +558,6 @@ func (d *Dispatcher) callTool(
 	}()
 	output, err := hosted.executable.Call(ctx, call.Arguments)
 	if err != nil {
-		if errors.Is(err, ErrHostFailure) {
-			return chat.ToolResult{}, nil, nil, err
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return chat.ToolResult{}, nil, nil, err
-		}
 		if inputRequired, ok := errors.AsType[*ToolInputRequiredError](err); ok {
 			request, valid := inputRequired.inputRequest()
 			if !valid {
@@ -571,13 +565,15 @@ func (d *Dispatcher) callTool(
 			}
 			return chat.ToolResult{}, nil, &request, nil
 		}
-		return chat.ToolResult{
-			ID: call.ID, Name: call.Name,
-			Result: fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(err.Error())), IsError: true,
-		}, nil, nil, nil
 	}
-	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output},
-		advertiser.advertisedNames(), nil, nil
+	result, present := invocation.ModelResult(output, err)
+	if !present {
+		return chat.ToolResult{}, nil, nil, err
+	}
+	if err != nil {
+		return result, nil, nil, nil
+	}
+	return result, advertiser.advertisedNames(), nil, nil
 }
 
 func (d *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {

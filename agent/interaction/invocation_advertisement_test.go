@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -87,6 +88,46 @@ func TestInvocationAttributionAndDeferredToolAdvertisement(t *testing.T) {
 	}
 	if tools[0].EffectID() == tools[1].EffectID() {
 		t.Fatalf("Tool Effects share identity %s", tools[0].EffectID().String())
+	}
+	assertModelToolResultPolicy(t, tools[0])
+}
+
+func assertModelToolResultPolicy(t *testing.T, invocation interaction.ToolInvocation) {
+	t.Helper()
+	call := invocation.ToolCall()
+	success, present := invocation.ModelResult(`{"value":42}`, nil)
+	if !present || success != (chat.ToolResult{ID: call.ID, Name: call.Name, Result: `{"value":42}`}) {
+		t.Fatalf("success = %#v, present = %t", success, present)
+	}
+
+	diagnostic := strings.Repeat("x", 3_000)
+	failure, present := invocation.ModelResult("ignored", errors.New(diagnostic))
+	wantFailure := chat.ToolResult{
+		ID: call.ID, Name: call.Name,
+		Result:  "error: tool \"" + call.Name + "\" failed: " + diagnostic[:2_048],
+		IsError: true,
+	}
+	if !present || failure != wantFailure {
+		t.Fatalf("failure = %#v, present = %t", failure, present)
+	}
+
+	controlCauses := []error{
+		interaction.HostFailure(errors.New("projection unavailable")),
+		context.Canceled,
+		context.DeadlineExceeded,
+		interaction.RequireToolInput(
+			json.RawMessage(`"continue?"`),
+			json.RawMessage(`{"type":"boolean"}`),
+			json.RawMessage(`{"stage":"waiting"}`),
+		),
+	}
+	for _, cause := range controlCauses {
+		if result, present := invocation.ModelResult("ignored", cause); present || result != (chat.ToolResult{}) {
+			t.Fatalf("control cause %v produced %#v, present = %t", cause, result, present)
+		}
+	}
+	if result, present := (interaction.ToolInvocation{}).ModelResult("ignored", nil); present || result != (chat.ToolResult{}) {
+		t.Fatalf("invalid invocation produced %#v, present = %t", result, present)
 	}
 }
 
