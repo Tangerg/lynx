@@ -60,9 +60,27 @@ type createBudget struct {
 
 type getArgs struct{}
 
+type reportOutcome string
+
+const (
+	reportOutcomeCompleted reportOutcome = "completed"
+	reportOutcomeBlocked   reportOutcome = "blocked"
+)
+
+func (r reportOutcome) goalStatus() (goalstate.Status, bool) {
+	switch r {
+	case reportOutcomeCompleted:
+		return goalstate.StatusComplete, true
+	case reportOutcomeBlocked:
+		return goalstate.StatusBlocked, true
+	default:
+		return "", false
+	}
+}
+
 type reportArgs struct {
-	Outcome string  `json:"outcome" jsonschema:"required,enum=completed,enum=blocked" jsonschema_description:"completed = the whole objective is achieved and verified; blocked = progress requires the user or an external state change."`
-	Reason  *string `json:"reason,omitempty" jsonschema_description:"Concrete blocker and what must change. Required for blocked; omit for completed."`
+	Outcome reportOutcome `json:"outcome" jsonschema:"required,enum=completed,enum=blocked" jsonschema_description:"completed = the whole objective is achieved and verified; blocked = progress requires the user or an external state change."`
+	Reason  *string       `json:"reason,omitempty" jsonschema_description:"Concrete blocker and what must change. Required for blocked; omit for completed."`
 }
 
 // GoalReader is get_goal's complete consumer view.
@@ -93,16 +111,16 @@ type goalResult struct {
 // goalView deliberately excludes the Goal incarnation and persistence revision.
 // Those are ownership mechanics, not facts the model can act on.
 type goalView struct {
-	SessionID string     `json:"session_id"`
-	Objective string     `json:"objective"`
-	Status    string     `json:"status"`
-	Reason    string     `json:"reason,omitempty"`
-	Provider  string     `json:"provider,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	Budget    budgetView `json:"budget"`
-	Usage     usageView  `json:"usage"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	SessionID string           `json:"session_id"`
+	Objective string           `json:"objective"`
+	Status    goalstate.Status `json:"status"`
+	Reason    string           `json:"reason,omitempty"`
+	Provider  string           `json:"provider,omitempty"`
+	Model     string           `json:"model,omitempty"`
+	Budget    budgetView       `json:"budget"`
+	Usage     usageView        `json:"usage"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type budgetView struct {
@@ -215,10 +233,12 @@ func (o *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	if sessionID == "" {
 		return "No active session; cannot report a Goal outcome.", nil
 	}
-	outcome := goalstate.StatusComplete
+	outcome, valid := args.Outcome.goalStatus()
+	if !valid {
+		return "Invalid Goal outcome; use completed or blocked.", nil
+	}
 	reason := ""
-	if args.Outcome == "blocked" {
-		outcome = goalstate.StatusBlocked
+	if args.Outcome == reportOutcomeBlocked {
 		if args.Reason != nil {
 			reason = strings.TrimSpace(*args.Reason)
 		}
@@ -243,7 +263,7 @@ func (o *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	}
 	switch result {
 	case goals.ReportApplied:
-		if args.Outcome == "completed" {
+		if args.Outcome == reportOutcomeCompleted {
 			return "Goal outcome reported as completed. The autonomous loop will stop after this Run.", nil
 		}
 		return "Goal outcome reported as blocked. The loop will stop and surface the reason to the user.", nil
@@ -266,7 +286,7 @@ func viewOf(g goalstate.Goal) goalView {
 	return goalView{
 		SessionID: g.SessionID,
 		Objective: g.Objective,
-		Status:    string(g.Status),
+		Status:    g.Status,
 		Reason:    reasonText(g.Reason),
 		Provider:  g.ModelSelection.Provider(),
 		Model:     g.ModelSelection.Model(),
