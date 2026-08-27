@@ -16,7 +16,6 @@ const (
 	baseURL = "https://google.serper.dev"
 )
 
-// Config configures [NewClient].
 type Config struct {
 	APIKey     string
 	BaseURL    string
@@ -29,10 +28,9 @@ type Client struct {
 
 var _ web.Searcher = (*Client)(nil)
 
-// NewClient returns a Serper-backed client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
-		return nil, errors.New("serper: APIKey is required")
+		return nil, errors.New("serper: API key is required")
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = baseURL
@@ -57,10 +55,10 @@ type searchRequest struct {
 
 func (s *searchRequest) validate() error {
 	if s == nil {
-		return errors.New("serper: Request must not be nil")
+		return errors.New("serper: search request must not be nil")
 	}
 	if s.Q == "" {
-		return errors.New("serper: Q must not be empty")
+		return errors.New("serper: search query must not be empty")
 	}
 	return nil
 }
@@ -81,43 +79,43 @@ type searchResponse struct {
 	Organic          []*organicResult `json:"organic"`
 }
 
-func (c *Client) search(ctx context.Context, req *searchRequest) (*searchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) search(ctx context.Context, request *searchRequest) (*searchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw searchResponse
-	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
+	response, err := c.http.R().SetContext(ctx).SetBody(request).SetResult(&raw).Post("/search")
 	if err != nil {
-		return nil, fmt.Errorf("serper: request failed: %w", err)
+		return nil, fmt.Errorf("serper: execute search request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("serper: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("serper: search request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.SearchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("serper: %w", err)
+		return nil, fmt.Errorf("serper: prepare search request: %w", err)
 	}
-	req = prepared
-	raw, err := c.search(ctx, buildSearchRequest(req))
+	request = prepared
+	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toSearchResponse(), nil
 }
 
-func buildSearchRequest(req *web.SearchRequest) *searchRequest {
+func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
-		Q:           req.QueryWithSiteOperators(),
+		Q:           request.QueryWithSiteOperators(),
 		Autocorrect: true,
 	}
-	if req.MaxResults > 0 {
-		r.Num = req.MaxResults
+	if request.MaxResults > 0 {
+		r.Num = request.MaxResults
 	}
-	r.Tbs = recencyToTbs(req.Recency)
+	r.Tbs = recencyToTbs(request.Recency)
 	return r
 }
 

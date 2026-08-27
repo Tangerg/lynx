@@ -17,7 +17,6 @@ const (
 	baseURL = "https://api.perplexity.ai"
 )
 
-// Config configures [NewClient].
 type Config struct {
 	APIKey     string
 	BaseURL    string
@@ -30,10 +29,9 @@ type Client struct {
 
 var _ web.Searcher = (*Client)(nil)
 
-// NewClient returns a Perplexity-backed client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
-		return nil, errors.New("perplexity: APIKey is required")
+		return nil, errors.New("perplexity: API key is required")
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = baseURL
@@ -58,10 +56,10 @@ type searchRequest struct {
 
 func (s *searchRequest) validate() error {
 	if s == nil {
-		return errors.New("perplexity: Request must not be nil")
+		return errors.New("perplexity: search request must not be nil")
 	}
 	if s.Query == "" {
-		return errors.New("perplexity: Query must not be empty")
+		return errors.New("perplexity: search query must not be empty")
 	}
 	return nil
 }
@@ -77,54 +75,54 @@ type searchResponse struct {
 	Results []*searchResult `json:"results"`
 }
 
-func (c *Client) search(ctx context.Context, req *searchRequest) (*searchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) search(ctx context.Context, request *searchRequest) (*searchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw searchResponse
-	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
+	response, err := c.http.R().SetContext(ctx).SetBody(request).SetResult(&raw).Post("/search")
 	if err != nil {
-		return nil, fmt.Errorf("perplexity: request failed: %w", err)
+		return nil, fmt.Errorf("perplexity: execute search request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("perplexity: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("perplexity: search request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.SearchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("perplexity: %w", err)
+		return nil, fmt.Errorf("perplexity: prepare search request: %w", err)
 	}
-	req = prepared
-	raw, err := c.search(ctx, buildSearchRequest(req))
+	request = prepared
+	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	return raw.toSearchResponse(req.Query), nil
+	return raw.toSearchResponse(request.Query), nil
 }
 
 // maxDomainFilters is Perplexity's documented 20-entry cap on the
 // search_domain_filter field.
 const maxDomainFilters = 20
 
-func buildSearchRequest(req *web.SearchRequest) *searchRequest {
-	r := &searchRequest{Query: req.Query}
-	if req.MaxResults > 0 {
-		r.MaxResults = req.MaxResults
+func buildSearchRequest(request *web.SearchRequest) *searchRequest {
+	r := &searchRequest{Query: request.Query}
+	if request.MaxResults > 0 {
+		r.MaxResults = request.MaxResults
 	}
 	switch {
-	case len(req.AllowedDomains) > 0:
-		r.SearchDomainFilter = capDomains(req.AllowedDomains)
-	case len(req.BlockedDomains) > 0:
-		negated := capDomains(req.BlockedDomains)
+	case len(request.AllowedDomains) > 0:
+		r.SearchDomainFilter = capDomains(request.AllowedDomains)
+	case len(request.BlockedDomains) > 0:
+		negated := capDomains(request.BlockedDomains)
 		for i, d := range negated {
 			negated[i] = "-" + d
 		}
 		r.SearchDomainFilter = negated
 	}
-	r.SearchRecencyFilter = recencyToString(req.Recency)
+	r.SearchRecencyFilter = recencyToString(request.Recency)
 	return r
 }
 

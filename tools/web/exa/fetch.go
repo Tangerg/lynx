@@ -21,10 +21,10 @@ type fetchRequest struct {
 
 func (f *fetchRequest) validate() error {
 	if f == nil {
-		return errors.New("exa: Request must not be nil")
+		return errors.New("exa: fetch request must not be nil")
 	}
 	if len(f.URLs) == 0 {
-		return errors.New("exa: URLs must be non-empty")
+		return errors.New("exa: fetch URLs must not be empty")
 	}
 	return nil
 }
@@ -37,37 +37,37 @@ type fetchResponse struct {
 	Results []*fetchResult `json:"results"`
 }
 
-func (c *Client) fetch(ctx context.Context, req *fetchRequest) (*fetchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) fetch(ctx context.Context, request *fetchRequest) (*fetchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw fetchResponse
-	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/contents")
+	response, err := c.http.R().SetContext(ctx).SetBody(request).SetResult(&raw).Post("/contents")
 	if err != nil {
-		return nil, fmt.Errorf("exa: request failed: %w", err)
+		return nil, fmt.Errorf("exa: execute fetch request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("exa: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("exa: fetch request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Fetch(ctx context.Context, req *web.FetchRequest) (*web.FetchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.FetchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("exa: %w", err)
+		return nil, fmt.Errorf("exa: prepare fetch request: %w", err)
 	}
-	req = prepared
-	format := req.Format
+	request = prepared
+	format := request.Format
 	raw, err := c.fetch(ctx, &fetchRequest{
-		URLs: []string{req.URL},
+		URLs: []string{request.URL},
 		Text: fetchTextOptions{IncludeHTMLTags: format == web.FormatHTML},
 	})
 	if err != nil {
 		return nil, err
 	}
 	if len(raw.Results) == 0 {
-		return nil, fmt.Errorf("exa: empty result for %s", req.URL)
+		return nil, errors.New("exa: fetch response contains no result")
 	}
 	return &web.FetchResponse{Content: raw.Results[0].Text, Format: format}, nil
 }

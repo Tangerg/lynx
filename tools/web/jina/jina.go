@@ -25,7 +25,6 @@ const (
 	queryParameterNoCache = "noCache"
 )
 
-// Config configures [NewClient].
 type Config struct {
 	APIKey        string
 	SearchBaseURL string
@@ -40,10 +39,9 @@ type Client struct {
 
 var _ web.Searcher = (*Client)(nil)
 
-// NewClient returns a Jina-backed search and page-fetching client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
-		return nil, errors.New("jina: APIKey is required")
+		return nil, errors.New("jina: API key is required")
 	}
 	if config.SearchBaseURL == "" {
 		config.SearchBaseURL = searchBaseURL
@@ -78,10 +76,10 @@ type searchRequest struct {
 
 func (s *searchRequest) validate() error {
 	if s == nil {
-		return errors.New("jina: Request must not be nil")
+		return errors.New("jina: search request must not be nil")
 	}
 	if s.Query == "" {
-		return errors.New("jina: Query must not be empty")
+		return errors.New("jina: search query must not be empty")
 	}
 	return nil
 }
@@ -98,20 +96,20 @@ type searchResponse struct {
 	Data []*searchResult `json:"data"`
 }
 
-func (c *Client) search(ctx context.Context, req *searchRequest) (*searchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) search(ctx context.Context, request *searchRequest) (*searchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
-	endpoint := "/" + url.PathEscape(req.Query)
-	params := req.params()
+	endpoint := "/" + url.PathEscape(request.Query)
+	params := request.params()
 
 	var raw searchResponse
-	resp, err := c.searchHTTP.R().SetContext(ctx).SetQueryParams(params).SetResult(&raw).Get(endpoint)
+	response, err := c.searchHTTP.R().SetContext(ctx).SetQueryParams(params).SetResult(&raw).Get(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("jina: request failed: %w", err)
+		return nil, fmt.Errorf("jina: execute search request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("jina: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("jina: search request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
@@ -133,29 +131,29 @@ func (request *searchRequest) params() map[string]string {
 	return parameters
 }
 
-func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.SearchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("jina: %w", err)
+		return nil, fmt.Errorf("jina: prepare search request: %w", err)
 	}
-	req = prepared
-	raw, err := c.search(ctx, buildSearchRequest(req))
+	request = prepared
+	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	return raw.toSearchResponse(req.Query), nil
+	return raw.toSearchResponse(request.Query), nil
 }
 
-func buildSearchRequest(req *web.SearchRequest) *searchRequest {
+func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
-		Query: req.Query,
-		Count: cmp.Or(req.MaxResults, 10),
+		Query: request.Query,
+		Count: cmp.Or(request.MaxResults, 10),
 		Page:  1,
 	}
-	if len(req.AllowedDomains) > 0 {
-		r.Site = req.AllowedDomains
+	if len(request.AllowedDomains) > 0 {
+		r.Site = request.AllowedDomains
 	}
-	if req.Recency != "" {
+	if request.Recency != "" {
 		r.NoCache = true
 	}
 	return r

@@ -21,7 +21,6 @@ const (
 	queryParameterFreshness = "freshness"
 )
 
-// Config configures [NewClient].
 type Config struct {
 	APIKey     string
 	BaseURL    string
@@ -34,10 +33,9 @@ type Client struct {
 
 var _ web.Searcher = (*Client)(nil)
 
-// NewClient returns a Brave-backed client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
-		return nil, errors.New("brave: APIKey is required")
+		return nil, errors.New("brave: API key is required")
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = baseURL
@@ -61,10 +59,10 @@ type searchRequest struct {
 
 func (s *searchRequest) validate() error {
 	if s == nil {
-		return errors.New("brave: Request must not be nil")
+		return errors.New("brave: search request must not be nil")
 	}
 	if s.Q == "" {
-		return errors.New("brave: Q must not be empty")
+		return errors.New("brave: search query must not be empty")
 	}
 	return nil
 }
@@ -89,17 +87,17 @@ type searchResponse struct {
 	Web   *webResults `json:"web,omitempty"`
 }
 
-func (c *Client) search(ctx context.Context, req *searchRequest) (*searchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) search(ctx context.Context, request *searchRequest) (*searchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw searchResponse
-	resp, err := c.http.R().SetContext(ctx).SetQueryParams(req.params()).SetResult(&raw).Get("/web/search")
+	response, err := c.http.R().SetContext(ctx).SetQueryParams(request.params()).SetResult(&raw).Get("/web/search")
 	if err != nil {
-		return nil, fmt.Errorf("brave: request failed: %w", err)
+		return nil, fmt.Errorf("brave: execute search request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("brave: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("brave: search request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
@@ -115,25 +113,25 @@ func (request *searchRequest) params() map[string]string {
 	return parameters
 }
 
-func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.SearchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("brave: %w", err)
+		return nil, fmt.Errorf("brave: prepare search request: %w", err)
 	}
-	req = prepared
-	raw, err := c.search(ctx, buildSearchRequest(req))
+	request = prepared
+	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	return raw.toSearchResponse(req.Query), nil
+	return raw.toSearchResponse(request.Query), nil
 }
 
-func buildSearchRequest(req *web.SearchRequest) *searchRequest {
+func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
-		Q:     req.QueryWithSiteOperators(),
-		Count: cmp.Or(req.MaxResults, 10),
+		Q:     request.QueryWithSiteOperators(),
+		Count: cmp.Or(request.MaxResults, 10),
 	}
-	r.Freshness = recencyToFreshness(req.Recency)
+	r.Freshness = recencyToFreshness(request.Recency)
 	return r
 }
 

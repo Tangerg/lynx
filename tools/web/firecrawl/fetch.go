@@ -22,10 +22,10 @@ type fetchRequest struct {
 
 func (f *fetchRequest) validate() error {
 	if f == nil {
-		return errors.New("firecrawl: Request must not be nil")
+		return errors.New("firecrawl: fetch request must not be nil")
 	}
 	if f.URL == "" {
-		return errors.New("firecrawl: URL must not be empty")
+		return errors.New("firecrawl: fetch URL must not be empty")
 	}
 	return nil
 }
@@ -40,36 +40,36 @@ type fetchResponse struct {
 	Data    fetchResponseData `json:"data"`
 }
 
-func (c *Client) fetch(ctx context.Context, req *fetchRequest) (*fetchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) fetch(ctx context.Context, request *fetchRequest) (*fetchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw fetchResponse
-	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/scrape")
+	response, err := c.http.R().SetContext(ctx).SetBody(request).SetResult(&raw).Post("/scrape")
 	if err != nil {
-		return nil, fmt.Errorf("firecrawl: request failed: %w", err)
+		return nil, fmt.Errorf("firecrawl: execute fetch request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("firecrawl: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("firecrawl: fetch request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	if !raw.Success {
-		return nil, fmt.Errorf("firecrawl: scrape failed: %s", resp.String())
+		return nil, fmt.Errorf("firecrawl: fetch response reported failure: %s", response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Fetch(ctx context.Context, req *web.FetchRequest) (*web.FetchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.FetchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("firecrawl: %w", err)
+		return nil, fmt.Errorf("firecrawl: prepare fetch request: %w", err)
 	}
-	req = prepared
-	format := req.Format
+	request = prepared
+	format := request.Format
 	if format == web.FormatText {
 		format = web.FormatMarkdown
 	}
 	raw, err := c.fetch(ctx, &fetchRequest{
-		URL:             req.URL,
+		URL:             request.URL,
 		Formats:         []fetchFormat{{Type: string(format)}},
 		OnlyMainContent: true,
 	})

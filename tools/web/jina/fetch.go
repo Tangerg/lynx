@@ -17,10 +17,10 @@ type fetchRequest struct {
 
 func (f *fetchRequest) validate() error {
 	if f == nil {
-		return errors.New("jina: Request must not be nil")
+		return errors.New("jina: fetch request must not be nil")
 	}
 	if f.URL == "" {
-		return errors.New("jina: URL must not be empty")
+		return errors.New("jina: fetch URL must not be empty")
 	}
 	return nil
 }
@@ -33,36 +33,36 @@ type fetchResponse struct {
 	Data fetchResponseData `json:"data"`
 }
 
-func (c *Client) fetch(ctx context.Context, req *fetchRequest) (*fetchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) fetch(ctx context.Context, request *fetchRequest) (*fetchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	httpRequest := c.fetchHTTP.R().SetContext(ctx).
-		SetBody(req).
+		SetBody(request).
 		SetHeader("X-Retain-Images", "none")
-	if req.ReturnFormat != "" {
-		httpRequest.SetHeader("X-Return-Format", req.ReturnFormat)
+	if request.ReturnFormat != "" {
+		httpRequest.SetHeader("X-Return-Format", request.ReturnFormat)
 	}
 
 	var raw fetchResponse
-	resp, err := httpRequest.SetResult(&raw).Post("/")
+	response, err := httpRequest.SetResult(&raw).Post("/")
 	if err != nil {
-		return nil, fmt.Errorf("jina: request failed: %w", err)
+		return nil, fmt.Errorf("jina: execute fetch request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("jina: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("jina: fetch request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Fetch(ctx context.Context, req *web.FetchRequest) (*web.FetchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.FetchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("jina: %w", err)
+		return nil, fmt.Errorf("jina: prepare fetch request: %w", err)
 	}
-	req = prepared
-	format := req.Format
-	raw, err := c.fetch(ctx, &fetchRequest{URL: req.URL, ReturnFormat: string(format)})
+	request = prepared
+	format := request.Format
+	raw, err := c.fetch(ctx, &fetchRequest{URL: request.URL, ReturnFormat: string(format)})
 	if err != nil {
 		return nil, err
 	}

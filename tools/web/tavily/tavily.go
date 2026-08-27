@@ -16,24 +16,21 @@ const (
 	baseURL = "https://api.tavily.com"
 )
 
-// Config configures [NewClient].
 type Config struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// Client implements [web.Searcher] against Tavily.
 type Client struct {
 	http *resty.Client
 }
 
 var _ web.Searcher = (*Client)(nil)
 
-// NewClient returns a Tavily-backed client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
-		return nil, errors.New("tavily: APIKey is required")
+		return nil, errors.New("tavily: API key is required")
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = baseURL
@@ -62,10 +59,10 @@ type searchRequest struct {
 
 func (s *searchRequest) validate() error {
 	if s == nil {
-		return errors.New("tavily: Request must not be nil")
+		return errors.New("tavily: search request must not be nil")
 	}
 	if s.Query == "" {
-		return errors.New("tavily: Query must not be empty")
+		return errors.New("tavily: search query must not be empty")
 	}
 	return nil
 }
@@ -82,49 +79,49 @@ type searchResponse struct {
 	Results []*searchResult `json:"results"`
 }
 
-func (c *Client) search(ctx context.Context, req *searchRequest) (*searchResponse, error) {
-	if err := req.validate(); err != nil {
+func (c *Client) search(ctx context.Context, request *searchRequest) (*searchResponse, error) {
+	if err := request.validate(); err != nil {
 		return nil, err
 	}
 	var raw searchResponse
-	resp, err := c.http.R().SetContext(ctx).SetBody(req).SetResult(&raw).Post("/search")
+	response, err := c.http.R().SetContext(ctx).SetBody(request).SetResult(&raw).Post("/search")
 	if err != nil {
-		return nil, fmt.Errorf("tavily: request failed: %w", err)
+		return nil, fmt.Errorf("tavily: execute search request: %w", err)
 	}
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("tavily: API error (status %d): %s", resp.StatusCode(), resp.String())
+	if !response.IsSuccess() {
+		return nil, fmt.Errorf("tavily: search request returned HTTP %d: %s", response.StatusCode(), response.String())
 	}
 	return &raw, nil
 }
 
-func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
-	prepared, err := req.Prepare()
+func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.SearchResponse, error) {
+	prepared, err := request.Prepare()
 	if err != nil {
-		return nil, fmt.Errorf("tavily: %w", err)
+		return nil, fmt.Errorf("tavily: prepare search request: %w", err)
 	}
-	req = prepared
-	raw, err := c.search(ctx, buildSearchRequest(req))
+	request = prepared
+	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
 	}
 	return raw.toSearchResponse(), nil
 }
 
-func buildSearchRequest(req *web.SearchRequest) *searchRequest {
+func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
-		Query:          req.Query,
+		Query:          request.Query,
 		SearchDepth:    "basic",
 		Topic:          "general",
-		MaxResults:     cmp.Or(req.MaxResults, 5),
+		MaxResults:     cmp.Or(request.MaxResults, 5),
 		IncludeFavicon: true,
 	}
-	if len(req.AllowedDomains) > 0 {
-		r.IncludeDomains = req.AllowedDomains
+	if len(request.AllowedDomains) > 0 {
+		r.IncludeDomains = request.AllowedDomains
 	}
-	if len(req.BlockedDomains) > 0 {
-		r.ExcludeDomains = req.BlockedDomains
+	if len(request.BlockedDomains) > 0 {
+		r.ExcludeDomains = request.BlockedDomains
 	}
-	r.TimeRange = recencyToTimeRange(req.Recency)
+	r.TimeRange = recencyToTimeRange(request.Recency)
 	return r
 }
 
