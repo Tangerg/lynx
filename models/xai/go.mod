@@ -3,8 +3,8 @@ module github.com/Tangerg/scope/models/xai
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/protocol/openai v0.0.0-20260827161502-4639332bf150
+	github.com/Tangerg/scope/core v0.0.1
+	github.com/Tangerg/scope/models/protocol/openai v0.0.1
 )
 
 require (
