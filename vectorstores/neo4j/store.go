@@ -375,7 +375,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	)
 
 	if params == nil {
-		params = make(map[string]any, 4)
+		params = make(map[string]any)
 	}
 	params["indexName"] = s.indexName
 	params["k"] = req.Options.TopK

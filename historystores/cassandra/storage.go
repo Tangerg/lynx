@@ -13,6 +13,10 @@ import (
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Cassandra TIMEUUID timestamps advance in 100-nanosecond ticks. Reserving in
+// that unit prevents distinct message positions from collapsing to one UUID.
+const timeUUIDTick = 100 * time.Nanosecond
+
 func validIdentifier(value string) bool {
 	return identifierPattern.MatchString(value)
 }
@@ -40,20 +44,18 @@ type sequenceGenerator struct {
 	last int64
 }
 
-func (s *sequenceGenerator) Reserve(count int) int64 {
-	return s.reserveAt(time.Now().UnixNano(), count)
-}
-
-func (s *sequenceGenerator) reserveAt(candidate int64, count int) int64 {
+func (s *sequenceGenerator) reserveTimeUUIDs(count int) int64 {
 	if count <= 0 {
 		panic("cassandra: sequence count must be positive")
 	}
+	span := int64(count) * int64(timeUUIDTick)
+	candidate := time.Now().UnixNano()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	first := candidate
 	if first <= s.last {
 		first = s.last + 1
 	}
-	s.last = first + int64(count) - 1
+	s.last = first + span - 1
 	return first
 }

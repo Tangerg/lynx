@@ -130,7 +130,7 @@ func (s *Store) Write(ctx context.Context, conversationID history.ConversationID
 		return fmt.Errorf("cassandra: write: encode messages: %w", err)
 	}
 	batch := s.session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
-	sequenceBase := s.sequence.Reserve(len(encoded) * 100)
+	sequenceBase := s.sequence.reserveTimeUUIDs(len(encoded))
 	for index, raw := range encoded {
 		messageSequence := sequenceUUID(sequenceBase, index)
 		batch.Query(s.writeCQL, conversationID.String(), messageSequence, string(raw))
@@ -142,7 +142,7 @@ func (s *Store) Write(ctx context.Context, conversationID history.ConversationID
 }
 
 func sequenceUUID(base int64, index int) gocql.UUID {
-	return gocql.UUIDFromTime(time.Unix(0, base+int64(index)*100))
+	return gocql.UUIDFromTime(time.Unix(0, base+int64(index)*int64(timeUUIDTick)))
 }
 
 // Read returns every message stored under conversationID in

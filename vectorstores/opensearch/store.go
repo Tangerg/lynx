@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 
@@ -76,11 +77,12 @@ func (s SpaceType) score(raw float64) vectorstore.Score {
 	// non-positive product as 1/(1-product). Recover the product before
 	// applying Scope's unbounded inner-product normalization.
 	var product float64
-	if raw > 1 {
+	switch {
+	case raw > 1:
 		product = raw - 1
-	} else if raw > 0 {
+	case raw > 0:
 		product = 1 - 1/raw
-	} else {
+	default:
 		return vectorstore.ScoreFromValue(raw)
 	}
 	return vectorstore.ScoreFromInnerProduct(product)
@@ -302,9 +304,9 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("indices.exists: %w", err)
 	}
 	switch resp.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return true, nil
-	case 404:
+	case http.StatusNotFound:
 		return false, nil
 	default:
 		body, _ := io.ReadAll(resp.Body)

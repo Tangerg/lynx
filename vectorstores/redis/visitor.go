@@ -212,7 +212,6 @@ func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 // escaped.
 func redisWildcardPattern(pattern string) string {
 	var out strings.Builder
-	out.Grow(len(pattern) + 3)
 	out.WriteString("w'")
 	for _, char := range pattern {
 		switch char {

@@ -35,7 +35,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		NoContent:      true,
 		LimitOffset:    0,
 		Limit:          pageSize,
-		DialectVersion: 2,
+		DialectVersion: redisSearchDialectVersion,
 	}
 	for {
 		result, err := s.client.FTSearchWithArgs(ctx, s.indexName, query, opts).Result()

@@ -217,7 +217,6 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	}
 
 	var b strings.Builder
-	b.Grow(len(pattern) + 2)
 	for _, r := range pattern {
 		switch r {
 		case '%':

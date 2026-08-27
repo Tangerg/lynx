@@ -18,6 +18,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+const firstMetadataFilterBindIndex = 2
+
 const Provider = "Oracle"
 
 const (
@@ -351,7 +353,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	vecText := string(vectorJSON)
 
-	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter, 2)
+	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter, firstMetadataFilterBindIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -365,15 +367,14 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	distanceExpr := fmt.Sprintf("VECTOR_DISTANCE(%s, TO_VECTOR(:1, %d, FLOAT32), %s)",
 		s.embeddingColumn, s.dimensions, s.distanceMetric)
 
-	limitArgIdx := 2 + len(whereArgs)
+	limitArgIdx := firstMetadataFilterBindIndex + len(whereArgs)
 	stmt := fmt.Sprintf(
 		`SELECT %s, %s, %s, %s AS distance FROM %s%s ORDER BY distance FETCH FIRST :%d ROWS ONLY`,
 		s.idColumn, s.contentColumn, s.metadataColumn,
 		distanceExpr, s.fullTable, wherePart, limitArgIdx,
 	)
 
-	args := make([]any, 0, len(whereArgs)+2)
-	args = append(args, vecText)
+	args := []any{vecText}
 	args = append(args, whereArgs...)
 	args = append(args, req.Options.TopK)
 

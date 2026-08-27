@@ -5,12 +5,12 @@ import (
 	stdmath "math"
 )
 
-// float32sToBytes serializes a vector into the little-endian FLOAT32
-// blob RediSearch expects.
+const float32ByteWidth = 4
+
 func float32sToBytes(values []float32) []byte {
-	buf := make([]byte, len(values)*4)
+	buf := make([]byte, len(values)*float32ByteWidth)
 	for i, v := range values {
-		binary.LittleEndian.PutUint32(buf[i*4:], stdmath.Float32bits(v))
+		binary.LittleEndian.PutUint32(buf[i*float32ByteWidth:], stdmath.Float32bits(v))
 	}
 	return buf
 }

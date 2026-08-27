@@ -12,7 +12,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/typesense/typesense-go/v3/typesense"
 	"github.com/typesense/typesense-go/v3/typesense/api"
-	"github.com/typesense/typesense-go/v3/typesense/api/pointer"
 
 	"github.com/Tangerg/scope/core/document"
 	"github.com/Tangerg/scope/core/embedding"
@@ -150,17 +149,17 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	schema := &api.CollectionSchema{
 		Name: s.collectionName,
 		Fields: []api.Field{
-			{Name: idField, Type: "string", Optional: pointer.False()},
-			{Name: contentField, Type: "string", Optional: pointer.False()},
-			{Name: metadataField, Type: "object", Optional: pointer.True()},
+			{Name: idField, Type: "string", Optional: new(false)},
+			{Name: contentField, Type: "string", Optional: new(false)},
+			{Name: metadataField, Type: "object", Optional: new(true)},
 			{
 				Name:     embeddingField,
 				Type:     "float[]",
-				NumDim:   pointer.Int(s.dimensions),
-				Optional: pointer.False(),
+				NumDim:   new(s.dimensions),
+				Optional: new(false),
 			},
 		},
-		EnableNestedFields: pointer.True(),
+		EnableNestedFields: new(true),
 	}
 	if _, err := s.client.Collections().Create(ctx, schema); err != nil {
 		return fmt.Errorf("typesense: create collection %s: %w", s.collectionName, err)
@@ -203,7 +202,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		}
 
 		params := &api.ImportDocumentsParams{
-			Action: pointer.Any(api.Upsert),
+			Action: new(api.Upsert),
 		}
 		if _, err := s.client.Collection(s.collectionName).Documents().Import(ctx, payload, params); err != nil {
 			return fmt.Errorf("typesense: import documents: %w", err)
@@ -239,12 +238,12 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	params := &api.SearchCollectionParams{
-		Q:           pointer.String("*"),
-		VectorQuery: pointer.String(vectorQuery),
-		PerPage:     pointer.Int(req.Options.TopK),
+		Q:           new("*"),
+		VectorQuery: new(vectorQuery),
+		PerPage:     new(req.Options.TopK),
 	}
 	if filterBy != "" {
-		params.FilterBy = pointer.String(filterBy)
+		params.FilterBy = new(filterBy)
 	}
 
 	result, err := s.client.Collection(s.collectionName).Documents().Search(ctx, params)
@@ -287,7 +286,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return errors.New("typesense: refusing to delete on empty filter")
 	}
 
-	params := &api.DeleteDocumentsParams{FilterBy: pointer.String(filterBy)}
+	params := &api.DeleteDocumentsParams{FilterBy: new(filterBy)}
 	if _, err := s.client.Collection(s.collectionName).Documents().Delete(ctx, params); err != nil {
 		return fmt.Errorf("typesense: delete: %w", err)
 	}
@@ -339,7 +338,6 @@ func toMatch(hit api.SearchResultHit) (*vectorstore.SearchResult, error) {
 // "embedding:([f1,f2,...], k: N)".
 func formatVectorQuery(vec []float32, topK int) string {
 	var b strings.Builder
-	b.Grow(len(vec) * 6)
 	b.WriteString(embeddingField)
 	b.WriteString(":([")
 	for i, f := range vec {

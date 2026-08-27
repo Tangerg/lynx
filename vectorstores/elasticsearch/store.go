@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/elastic/go-elasticsearch/v8"
 
@@ -228,9 +229,9 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
-	case 200:
+	case http.StatusOK:
 		return true, nil
-	case 404:
+	case http.StatusNotFound:
 		return false, nil
 	default:
 		body, _ := io.ReadAll(resp.Body)

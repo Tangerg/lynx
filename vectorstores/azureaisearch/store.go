@@ -47,7 +47,8 @@ func (s SimilarityMetric) score(raw float64) vectorstore.Score {
 	case SimilarityCosine:
 		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
 		// then apply Scope's [-1,1] to [0,1] normalization.
-		return vectorstore.ScoreFromCosineSimilarity(2 - 1/raw)
+		cosineDistance := 1/raw - 1
+		return vectorstore.ScoreFromCosineSimilarity(1 - cosineDistance)
 	case SimilarityDot, SimilarityEuclidean:
 		// Azure documents both native vector scores as [0,1].
 		return vectorstore.ScoreFromValue(raw)
@@ -58,6 +59,9 @@ func (s SimilarityMetric) score(raw float64) vectorstore.Score {
 
 const (
 	Provider = "AzureAISearch"
+
+	// Azure AI Search rejects document batches above this service limit.
+	maximumDocumentsPerBatch = 1000
 
 	// DefaultAPIVersion targets the GA "2024-07-01" REST surface, the
 	// first stable release that exposes the typed vector-query
@@ -386,13 +390,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return nil
 	}
 
-	// Batch deletes in groups of 1000 (Azure AI Search's per-request
-	// document cap).
-	for start := 0; start < len(ids); start += 1000 {
-		end := start + 1000
-		if end > len(ids) {
-			end = len(ids)
-		}
+	for start := 0; start < len(ids); start += maximumDocumentsPerBatch {
+		end := min(start+maximumDocumentsPerBatch, len(ids))
 		actions := make([]map[string]any, 0, end-start)
 		for _, id := range ids[start:end] {
 			actions = append(actions, map[string]any{
@@ -460,8 +459,6 @@ func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-// do issues a JSON request to the Search REST surface and returns the
-// raw response body on success.
 func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, error) {
 	u := fmt.Sprintf("%s%s?api-version=%s", s.endpoint, path, url.QueryEscape(s.apiVersion))
 
@@ -492,7 +489,7 @@ func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 	return respBody, nil

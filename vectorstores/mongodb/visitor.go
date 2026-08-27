@@ -215,7 +215,6 @@ func (v *Visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error)
 	}
 
 	var b strings.Builder
-	b.Grow(len(pattern) + 2)
 	b.WriteByte('^')
 	for _, r := range pattern {
 		switch r {

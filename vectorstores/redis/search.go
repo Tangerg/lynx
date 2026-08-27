@@ -47,9 +47,10 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		filterQuery, req.Options.TopK, s.embeddingField, vectorParamName, distanceFieldName,
 	)
 
-	returnFields := make([]goredis.FTSearchReturn, 0, 3+len(s.metadataFields))
-	returnFields = append(returnFields, goredis.FTSearchReturn{FieldName: s.contentField})
-	returnFields = append(returnFields, goredis.FTSearchReturn{FieldName: distanceFieldName})
+	returnFields := []goredis.FTSearchReturn{
+		{FieldName: s.contentField},
+		{FieldName: distanceFieldName},
+	}
 	for _, f := range s.metadataFields {
 		returnFields = append(returnFields, goredis.FTSearchReturn{FieldName: f.Name})
 	}
@@ -61,7 +62,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		Return:         returnFields,
 		LimitOffset:    0,
 		Limit:          req.Options.TopK,
-		DialectVersion: 2,
+		DialectVersion: redisSearchDialectVersion,
 		SortBy: []goredis.FTSearchSortBy{
 			{FieldName: distanceFieldName, Asc: true},
 		},

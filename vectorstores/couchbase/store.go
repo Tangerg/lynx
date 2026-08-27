@@ -18,6 +18,14 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// These values define the persisted Search index topology. Keeping them stable
+// avoids silently replacing index internals during client upgrades.
+const (
+	searchIndexSegmentVersion    = 16
+	searchIndexMaximumPartitions = 1024
+	searchIndexPartitionCount    = 1
+)
+
 const Provider = "Couchbase"
 
 const (
@@ -325,7 +333,7 @@ func (s *Store) upsertSearchIndex() error {
 		},
 		"store": map[string]any{
 			"indexType":      "scorch",
-			"segmentVersion": 16,
+			"segmentVersion": searchIndexSegmentVersion,
 		},
 	}
 
@@ -336,8 +344,8 @@ func (s *Store) upsertSearchIndex() error {
 		SourceType: "gocbcore",
 		Params:     params,
 		PlanParams: map[string]any{
-			"maxPartitionsPerPIndex": 1024,
-			"indexPartitions":        1,
+			"maxPartitionsPerPIndex": searchIndexMaximumPartitions,
+			"indexPartitions":        searchIndexPartitionCount,
 		},
 		SourceParams: map[string]any{},
 	}

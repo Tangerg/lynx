@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	goredis "github.com/redis/go-redis/v9"
 
@@ -17,6 +18,9 @@ var (
 	_ vectorstore.FilterDeleter = (*Store)(nil)
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
+
+// RediSearch requires dialect 2 for the vector-query syntax used by Store.
+const redisSearchDialectVersion = 2
 
 // Store is a Redis-backed implementation of the vectorstore capability interfaces. It
 // stores documents as Redis HASHes and queries them through RediSearch
@@ -105,10 +109,8 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if err != nil {
 		return fmt.Errorf("FT._LIST: %w", err)
 	}
-	for _, name := range existing {
-		if name == s.indexName {
-			return nil
-		}
+	if slices.Contains(existing, s.indexName) {
+		return nil
 	}
 
 	schema, err := s.buildSchema()

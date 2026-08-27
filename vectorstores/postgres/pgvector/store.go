@@ -208,7 +208,8 @@ func initialize(ctx context.Context, config StoreConfig) error {
 
 	for _, statement := range statements {
 		if _, err := config.Pool.Exec(ctx, statement); err != nil {
-			return fmt.Errorf("execute %q: %w", strings.SplitN(statement, "\n", 2)[0], err)
+			firstLine, _, _ := strings.Cut(statement, "\n")
+			return fmt.Errorf("execute %q: %w", firstLine, err)
 		}
 	}
 	return nil

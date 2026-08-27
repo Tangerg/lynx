@@ -359,8 +359,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		s.fullTable, wherePart,
 	)
 
-	args := make([]any, 0, len(whereArgs)+2)
-	args = append(args, vecText)
+	args := []any{vecText}
 	args = append(args, whereArgs...)
 	args = append(args, req.Options.TopK)
 

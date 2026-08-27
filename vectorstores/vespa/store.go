@@ -462,7 +462,7 @@ func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, 
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 	return respBody, nil
