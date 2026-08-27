@@ -207,8 +207,8 @@ func TestEditTool_HappyPath(t *testing.T) {
 func TestApplyPatchTool_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\nbeta\n")
-	patch := `--- a/` + path + `
-+++ b/` + path + `
+	patch := `--- ` + path + `
++++ ` + path + `
 @@ -1,2 +1,2 @@
  alpha
 -beta

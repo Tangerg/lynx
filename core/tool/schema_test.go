@@ -70,8 +70,17 @@ func TestSchemaSupportsCollectionsAndPointers(t *testing.T) {
 	if _, err := tool.Schema[*input](); err != nil {
 		t.Fatal(err)
 	}
-	if schema, err := tool.Schema[map[string][]int](); err != nil || !strings.Contains(string(schema), `"additionalProperties":{"type":"array"`) {
-		t.Fatalf("map schema = %q, %v", schema, err)
+	encoded, err := tool.Schema[map[string][]int]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(encoded, &schema); err != nil {
+		t.Fatal(err)
+	}
+	additional := schema["additionalProperties"].(map[string]any)
+	if additional["type"] != "array" {
+		t.Fatalf("map schema = %s", encoded)
 	}
 }
 
@@ -93,36 +102,32 @@ func TestSchemaReturnsIndependentJSON(t *testing.T) {
 	}
 }
 
-func TestSchemaRejectsUnsupportedContracts(t *testing.T) {
+func TestSchemaUsesUpstreamJSONSchemaSemantics(t *testing.T) {
 	type recursive struct {
 		Next *recursive `json:"next,omitempty"`
-	}
-	type badTag struct {
-		Value string `json:"value" jsonschema:"minimum=1"`
-	}
-	type badRange struct {
-		Value int `json:"value" jsonschema:"minimum=2,maximum=1"`
 	}
 	type badPattern struct {
 		Value string `json:"value" jsonschema:"pattern=["`
 	}
-	type unsupportedJSONOption struct {
+	type stringEncoded struct {
 		Value int `json:"value,string"`
 	}
-	if _, err := tool.Schema[recursive](); err == nil {
-		t.Fatal("recursive schema succeeded")
+	recursiveSchema, err := tool.Schema[recursive]()
+	if err != nil {
+		t.Fatalf("recursive schema: %v", err)
 	}
-	if _, err := tool.Schema[badTag](); err == nil {
-		t.Fatal("constraint on the wrong type succeeded")
+	if !strings.Contains(string(recursiveSchema), `"$ref"`) || !strings.Contains(string(recursiveSchema), `"$defs"`) {
+		t.Fatalf("recursive schema does not use references: %s", recursiveSchema)
 	}
-	if _, err := tool.Schema[badRange](); err == nil {
-		t.Fatal("invalid numeric range succeeded")
-	}
-	if _, err := tool.Schema[badPattern](); err == nil {
+	if _, schemaErr := tool.Schema[badPattern](); schemaErr == nil {
 		t.Fatal("invalid pattern succeeded")
 	}
-	if _, err := tool.Schema[unsupportedJSONOption](); err == nil {
-		t.Fatal("unsupported encoding/json option succeeded")
+	encoded, err := tool.Schema[stringEncoded]()
+	if err != nil {
+		t.Fatalf("encoding/json string option: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"value":{"type":"string"}`) {
+		t.Fatalf("string-encoded field schema = %s", encoded)
 	}
 	if _, err := tool.Schema[chan int](); err == nil {
 		t.Fatal("unsupported Go type succeeded")

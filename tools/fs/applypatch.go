@@ -9,11 +9,11 @@ import (
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 )
 
-// ApplyPatchRequest applies a standard unified diff. The local executor
-// supports create, modify, delete and move (headers naming two different
-// paths), which makes a coordinated refactor one call.
+// ApplyPatchRequest applies a Git-compatible unified diff. The local executor
+// supports create, modify, delete, and Git rename patches, which makes a
+// coordinated refactor one call.
 type ApplyPatchRequest struct {
-	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Standard unified diff. Supports create, modify, delete, and move operations."`
+	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Git-compatible unified diff. Supports create, modify, delete, and rename operations; express moves with Git rename metadata."`
 }
 
 // ApplyPatchResponse is the LLM-facing return shape.
@@ -52,9 +52,9 @@ func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
 	t.typed = mustTypedTool(
 		toolcontract.FuncConfig{
 			Name: "apply_patch",
-			Description: "Apply one standard unified diff across one or more files, including create, modify, delete, and move operations. " +
+			Description: "Apply one Git-compatible unified diff across one or more files, including create, modify, delete, and rename operations. " +
 				"Read existing files before patching them. Group coordinated multi-file changes in one patch. " +
-				"The patch must match exactly, and an existing move destination is never overwritten.",
+				"Express moves with Git rename metadata. The patch must match exactly, and an existing rename destination is never overwritten.",
 		},
 		t.apply,
 	)

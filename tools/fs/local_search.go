@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // Default result caps applied when the caller leaves MaxResults at 0.
@@ -18,20 +23,6 @@ const (
 	defaultGlobMaxResults = 100
 )
 
-// Glob shells out to find for portability. We don't use bash's
-// `shopt -s globstar` because macOS still ships bash 3.2, which
-// doesn't honor it; find is universally available and supports
-// -maxdepth on both BSD and GNU variants.
-//
-// Supported pattern shapes:
-//   - "**/*.go"       → recursive from root, leaf "*.go"
-//   - "src/**/*.ts"   → recursive from root/src, leaf "*.ts"
-//   - "*.go"          → single level
-//   - "cmd/main.go"   → single level under cmd/
-//
-// Unsupported (yet): patterns with ** in the middle ("cmd/*/main.go"),
-// multiple **, brace expansion. The LLM-facing tool doc lists the
-// supported shapes.
 func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobResponse, error) {
 	if in.Pattern == "" {
 		return GlobResponse{}, ErrEmptyPattern
@@ -41,21 +32,27 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobResponse, e
 	if maxResults <= 0 {
 		maxResults = defaultGlobMaxResults
 	}
+	options := []doublestar.GlobOption{
+		doublestar.WithFilesOnly(),
+		doublestar.WithNoFollow(),
+		doublestar.WithFailOnIOErrors(),
+	}
+	if in.IgnoreCase {
+		options = append(options, doublestar.WithCaseInsensitive())
+	}
 
-	anchor, args := globPatternToFindArgs(in.Pattern, root, in.IgnoreCase)
-	out, err := exec.CommandContext(ctx, "find", append([]string{anchor}, args...)...).Output()
+	var paths []string
+	err := doublestar.GlobWalk(os.DirFS(root), filepath.ToSlash(in.Pattern), func(name string, _ fs.DirEntry) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		paths = append(paths, filepath.FromSlash(name))
+		return nil
+	}, options...)
 	if err != nil {
 		return GlobResponse{}, fmt.Errorf("fs.LocalExecutor.Glob: %w", err)
 	}
-
-	paths := splitLines(out)
-	// Return paths relative to root so the LLM sees workspace-relative
-	// strings, not absolute /private/var/folders/... clutter.
-	for i, path := range paths {
-		if relative, err := filepath.Rel(root, path); err == nil {
-			paths[i] = relative
-		}
-	}
+	slices.Sort(paths)
 
 	truncated := false
 	if len(paths) > maxResults {
@@ -63,36 +60,6 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (GlobResponse, e
 		truncated = true
 	}
 	return GlobResponse{Paths: paths, Truncated: truncated}, nil
-}
-
-// globPatternToFindArgs translates a doublestar glob into find(1)
-// arguments. See [LocalExecutor.Glob] for supported shapes.
-func globPatternToFindArgs(pattern, root string, ignoreCase bool) (anchor string, args []string) {
-	nameFlag := "-name"
-	if ignoreCase {
-		nameFlag = "-iname"
-	}
-	args = []string{"-type", "f"}
-
-	if prefix, suffix, found := strings.Cut(pattern, "**/"); found {
-		anchor = filepath.Join(root, prefix)
-		if suffix != "" {
-			args = append(args, nameFlag, suffix)
-		}
-		return anchor, args
-	}
-	if pattern == "**" {
-		return root, args
-	}
-	// No ** in pattern → single-level glob.
-	dir, leaf := filepath.Split(pattern)
-	if dir == "" {
-		anchor = root
-	} else {
-		anchor = filepath.Join(root, dir)
-	}
-	args = append(args, "-maxdepth", "1", nameFlag, leaf)
-	return anchor, args
 }
 
 func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (GrepResponse, error) {

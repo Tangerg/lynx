@@ -1,18 +1,18 @@
 package fs
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
+
+	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
-// nullPatchPath is the unified-diff sentinel for a missing file endpoint. It
-// is patch syntax, not an operating-system path to open or validate.
 const nullPatchPath = "/dev/null"
 
 type unifiedPatch struct {
@@ -49,29 +49,44 @@ func (u unifiedPatch) duplicatePath() string {
 	return ""
 }
 
+// filePatch is Lynx's execution view of an upstream parsed Git/unified diff.
+// It owns filesystem endpoints while gitdiff owns syntax and hunk semantics.
 type filePatch struct {
+	parsed  *gitdiff.File
 	oldPath string
 	newPath string
-	hunks   []patchHunk
+}
+
+func newFilePatch(parsed *gitdiff.File) filePatch {
+	file := filePatch{
+		parsed:  parsed,
+		oldPath: cleanPatchPath(parsed.OldName),
+		newPath: cleanPatchPath(parsed.NewName),
+	}
+	if parsed.IsNew || parsed.OldName == nullPatchPath {
+		file.oldPath = ""
+	}
+	if parsed.IsDelete || parsed.NewName == nullPatchPath {
+		file.newPath = ""
+	}
+	return file
 }
 
 func (f filePatch) path() string {
-	if f.newPath != "" && f.newPath != nullPatchPath {
+	if f.newPath != "" {
 		return f.newPath
 	}
 	return f.oldPath
 }
 
-func (f filePatch) created() bool { return f.oldPath == nullPatchPath }
-func (f filePatch) deleted() bool { return f.newPath == nullPatchPath }
+func (f filePatch) created() bool { return f.oldPath == "" && f.newPath != "" }
+func (f filePatch) deleted() bool { return f.oldPath != "" && f.newPath == "" }
 
 // moved reports the fourth shape: both headers name a real file and they differ,
 // so the content is read at oldPath, patched, and lands at newPath while oldPath
 // goes away. It is the one shape whose two endpoints are different files.
 func (f filePatch) moved() bool {
-	return f.oldPath != "" && f.newPath != "" &&
-		f.oldPath != nullPatchPath && f.newPath != nullPatchPath &&
-		f.oldPath != f.newPath
+	return f.oldPath != "" && f.newPath != "" && f.oldPath != f.newPath
 }
 
 // touches is every path this file patch reads, writes or removes.
@@ -82,22 +97,42 @@ func (f filePatch) touches() []string {
 	return []string{f.path()}
 }
 
-func (f filePatch) validate() error {
-	if f.oldPath == "" || f.newPath == "" {
-		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
+func (f filePatch) hunks() int {
+	if f.parsed == nil {
+		return 0
 	}
-	// A pure rename is the one patch with nothing to apply: git emits it with two
-	// headers and no hunks, and there is no content change to describe. Every other
-	// shape without a hunk says nothing at all.
-	if len(f.hunks) == 0 && !f.moved() {
+	return len(f.parsed.TextFragments)
+}
+
+func (f filePatch) validate() error {
+	if f.parsed == nil {
+		return errors.New("fs.ApplyPatch: parsed file patch is nil")
+	}
+	if f.parsed.IsBinary {
+		return fmt.Errorf("fs.ApplyPatch: %s: binary patches are not supported", f.path())
+	}
+	if f.parsed.IsCopy {
+		return fmt.Errorf("fs.ApplyPatch: %s: copy patches are not supported", f.path())
+	}
+	if f.oldPath == "" && f.newPath == "" {
+		return errors.New("fs.ApplyPatch: file patch is missing source and destination paths")
+	}
+	// A pure rename is the one patch with nothing to apply. Every other shape
+	// without a hunk says nothing at all and is rejected.
+	if f.hunks() == 0 && !f.moved() {
 		return errors.New("fs.ApplyPatch: file patch has no hunks")
 	}
-	if f.oldPath != nullPatchPath {
+	for _, fragment := range f.parsed.TextFragments {
+		if fragment.OldPosition < 0 || fragment.NewPosition < 0 {
+			return fmt.Errorf("fs.ApplyPatch: %s: hunk positions must not be negative", f.path())
+		}
+	}
+	if f.oldPath != "" {
 		if err := validatePatchPath(f.oldPath); err != nil {
 			return err
 		}
 	}
-	if f.newPath != nullPatchPath {
+	if f.newPath != "" {
 		if err := validatePatchPath(f.newPath); err != nil {
 			return err
 		}
@@ -105,54 +140,12 @@ func (f filePatch) validate() error {
 	return nil
 }
 
-func (f filePatch) apply(lines []string) ([]string, error) {
-	out := slices.Clone(lines)
-	delta := 0
-	for _, hunk := range f.hunks {
-		oldLines, newLines := hunk.splitLines()
-		idx := hunk.oldStart - 1 + delta
-		if hunk.oldStart == 0 {
-			idx = delta
-		}
-		if idx < 0 || idx+len(oldLines) > len(out) || !slices.Equal(out[idx:idx+len(oldLines)], oldLines) {
-			found := findUniqueLines(out, oldLines)
-			if found < 0 {
-				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", f.path())
-			}
-			idx = found
-		}
-		out = slices.Replace(out, idx, idx+len(oldLines), newLines...)
-		delta += len(newLines) - len(oldLines)
+func (f filePatch) apply(source []byte) ([]byte, error) {
+	var output bytes.Buffer
+	if err := gitdiff.Apply(&output, bytes.NewReader(source), f.parsed); err != nil {
+		return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match: %w", f.path(), err)
 	}
-	return out, nil
-}
-
-type patchHunk struct {
-	oldStart int
-	oldCount int
-	newStart int
-	newCount int
-	lines    []patchLine
-}
-
-func (p patchHunk) splitLines() (oldLines, newLines []string) {
-	for _, line := range p.lines {
-		switch line.kind {
-		case ' ':
-			oldLines = append(oldLines, line.text)
-			newLines = append(newLines, line.text)
-		case '-':
-			oldLines = append(oldLines, line.text)
-		case '+':
-			newLines = append(newLines, line.text)
-		}
-	}
-	return oldLines, newLines
-}
-
-type patchLine struct {
-	kind byte
-	text string
+	return output.Bytes(), nil
 }
 
 func patchPaths(patch string) ([]string, error) {
@@ -187,8 +180,8 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (App
 	}
 
 	// Both endpoints of a move are locked: it removes one file and creates
-	// another, and holding only the destination would let a concurrent write to the
-	// origin land in a file this call is about to delete.
+	// another, and holding only the destination would let a concurrent write to
+	// the origin land in a file this call is about to delete.
 	for _, path := range sortedUnique(locks) {
 		unlock := l.lockPath(path)
 		defer unlock()
@@ -241,14 +234,14 @@ func (p patchTarget) locks() []string {
 
 func (l *LocalExecutor) resolveTarget(file filePatch) (patchTarget, error) {
 	var target patchTarget
-	if file.oldPath != nullPatchPath {
+	if file.oldPath != "" {
 		from, err := l.resolve(file.oldPath)
 		if err != nil {
 			return patchTarget{}, err
 		}
 		target.from = from
 	}
-	if file.newPath != nullPatchPath {
+	if file.newPath != "" {
 		to, err := l.resolve(file.newPath)
 		if err != nil {
 			return patchTarget{}, err
@@ -287,9 +280,7 @@ func (p preparedPatch) commit() error {
 
 func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (preparedPatch, error) {
 	// A patch may not land on a file it did not open. Create says so by having no
-	// origin; a move has one, but its destination is a new file all the same — and
-	// without this check a mistaken destination would silently overwrite whatever
-	// was there, which is the one outcome a rename must never produce.
+	// origin; a move has one, but its destination is a new file all the same.
 	if file.created() || file.moved() {
 		if _, err := os.Stat(target.to); err == nil {
 			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: %s: file already exists", file.newPath)
@@ -299,7 +290,7 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 	}
 
 	mode := os.FileMode(0o644)
-	var lines []string
+	var source []byte
 	hadBOM, hadCRLF := false, false
 	if !file.created() {
 		info, err := os.Stat(target.from)
@@ -316,10 +307,10 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 		}
 		text, bom, crlf := normalizeText(data)
 		hadBOM, hadCRLF = bom, crlf
-		lines = splitTextLines(text)
+		source = []byte(text)
 	}
 
-	patched, err := file.apply(lines)
+	patched, err := file.apply(source)
 	if err != nil {
 		return preparedPatch{}, err
 	}
@@ -329,23 +320,23 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 		}
 		return preparedPatch{
 			source: target.from,
-			result: PatchFileResponse{Path: file.path(), Hunks: len(file.hunks), Deleted: true},
+			result: PatchFileResponse{Path: file.path(), Hunks: file.hunks(), Deleted: true},
 		}, nil
 	}
 
 	result := PatchFileResponse{
 		Path:    file.path(),
-		Hunks:   len(file.hunks),
+		Hunks:   file.hunks(),
 		Created: file.created(),
 	}
 	prepared := preparedPatch{
 		path: target.to,
-		data: restoreFormat(strings.Join(patched, ""), hadBOM, hadCRLF),
+		data: restoreFormat(string(patched), hadBOM, hadCRLF),
 		mode: mode,
 	}
 	if file.moved() {
 		// The origin is reported, not just the destination: "moved" without saying
-		// from where leaves the model to infer which of its files stopped existing.
+		// from where leaves the model to infer which file stopped existing.
 		prepared.source = target.from
 		result.MovedFrom = file.oldPath
 	}
@@ -353,168 +344,35 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 	return prepared, nil
 }
 
-func findUniqueLines(lines, needle []string) int {
-	if len(needle) == 0 {
-		return 0
-	}
-	found := -1
-	for i := 0; i+len(needle) <= len(lines); i++ {
-		if !slices.Equal(lines[i:i+len(needle)], needle) {
-			continue
-		}
-		if found >= 0 {
-			return -1
-		}
-		found = i
-	}
-	return found
-}
-
 func parseUnifiedPatch(patch string) (unifiedPatch, error) {
 	if strings.TrimSpace(patch) == "" {
 		return unifiedPatch{}, errors.New("fs.ApplyPatch: patch must not be empty")
 	}
-	lines := strings.Split(strings.ReplaceAll(patch, "\r\n", "\n"), "\n")
-	var parsed unifiedPatch
-	var current *filePatch
-	var hunk *patchHunk
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		switch {
-		case strings.HasPrefix(line, "diff --git "):
-			hunk = nil
-		case strings.HasPrefix(line, "--- "):
-			parsed.files = append(parsed.files, filePatch{oldPath: cleanPatchPath(strings.TrimSpace(strings.TrimPrefix(line, "--- ")))})
-			current = &parsed.files[len(parsed.files)-1]
-			hunk = nil
-		case strings.HasPrefix(line, "+++ "):
-			if current == nil {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: +++ header before --- at line %d", i+1)
-			}
-			current.newPath = cleanPatchPath(strings.TrimSpace(strings.TrimPrefix(line, "+++ ")))
-		case strings.HasPrefix(line, "@@ "):
-			if current == nil || current.newPath == "" {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: hunk before file header at line %d", i+1)
-			}
-			parsedHunk, err := parseHunkHeader(line)
-			if err != nil {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: line %d: %w", i+1, err)
-			}
-			current.hunks = append(current.hunks, parsedHunk)
-			hunk = &current.hunks[len(current.hunks)-1]
-		case strings.HasPrefix(line, `\ No newline at end of file`):
-			if hunk == nil || len(hunk.lines) == 0 {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: misplaced no-newline marker at line %d", i+1)
-			}
-			last := &hunk.lines[len(hunk.lines)-1]
-			last.text = strings.TrimSuffix(last.text, "\n")
-		default:
-			if hunk == nil {
-				continue
-			}
-			if line == "" && i == len(lines)-1 {
-				continue
-			}
-			if line == "" {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: empty patch line inside hunk at line %d", i+1)
-			}
-			kind := line[0]
-			if kind != ' ' && kind != '-' && kind != '+' {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: invalid hunk line at line %d", i+1)
-			}
-			hunk.lines = append(hunk.lines, patchLine{kind: kind, text: line[1:] + "\n"})
-		}
+	normalized := strings.ReplaceAll(patch, "\r\n", "\n")
+	files, _, err := gitdiff.Parse(strings.NewReader(normalized))
+	if err != nil {
+		return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: parse unified diff: %w", err)
 	}
-	if len(parsed.files) == 0 {
+	if len(files) == 0 {
 		return unifiedPatch{}, errors.New("fs.ApplyPatch: no file patches found")
 	}
-	for _, file := range parsed.files {
-		for _, hunk := range file.hunks {
-			oldLines, newLines := hunk.splitLines()
-			if len(oldLines) != hunk.oldCount || len(newLines) != hunk.newCount {
-				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: hunk line count mismatch in %s", file.path())
-			}
-		}
+	parsed := unifiedPatch{files: make([]filePatch, len(files))}
+	for index, file := range files {
+		parsed.files[index] = newFilePatch(file)
 	}
 	return parsed, nil
 }
 
-func parseHunkHeader(line string) (patchHunk, error) {
-	fields := strings.Fields(line)
-	if len(fields) < 3 || fields[0] != "@@" {
-		return patchHunk{}, fmt.Errorf("invalid hunk header %q", line)
-	}
-	oldStart, oldCount, err := parseRange(fields[1], '-')
-	if err != nil {
-		return patchHunk{}, err
-	}
-	newStart, newCount, err := parseRange(fields[2], '+')
-	if err != nil {
-		return patchHunk{}, err
-	}
-	return patchHunk{
-		oldStart: oldStart,
-		oldCount: oldCount,
-		newStart: newStart,
-		newCount: newCount,
-	}, nil
-}
-
-func parseRange(s string, prefix byte) (start, count int, err error) {
-	if s == "" || s[0] != prefix {
-		return 0, 0, fmt.Errorf("invalid range %q", s)
-	}
-	body := s[1:]
-	startText, countText, found := strings.Cut(body, ",")
-	start, err = strconv.Atoi(startText)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid range %q", s)
-	}
-	if start < 0 {
-		return 0, 0, fmt.Errorf("invalid range %q", s)
-	}
-	if !found {
-		return start, 1, nil
-	}
-	count, err = strconv.Atoi(countText)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid range %q", s)
-	}
-	if count < 0 {
-		return 0, 0, fmt.Errorf("invalid range %q", s)
-	}
-	return start, count, nil
-}
-
 func cleanPatchPath(path string) string {
-	if path == nullPatchPath {
-		return path
-	}
-	if before, _, ok := strings.Cut(path, "\t"); ok {
-		path = before
-	}
-	path = strings.Trim(path, "\"")
-	if path == "a" || path == "b" {
-		return path
+	if path == "" {
+		return ""
 	}
 	if rest, ok := strings.CutPrefix(path, "a/"); ok {
-		return filepath.Clean(rest)
-	}
-	if rest, ok := strings.CutPrefix(path, "b/"); ok {
-		return filepath.Clean(rest)
+		path = rest
+	} else if rest, ok := strings.CutPrefix(path, "b/"); ok {
+		path = rest
 	}
 	return filepath.Clean(path)
-}
-
-func splitTextLines(text string) []string {
-	if text == "" {
-		return nil
-	}
-	parts := strings.SplitAfter(text, "\n")
-	if parts[len(parts)-1] == "" {
-		parts = parts[:len(parts)-1]
-	}
-	return parts
 }
 
 func sortedUnique(in []string) []string {

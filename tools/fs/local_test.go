@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -450,8 +451,8 @@ func TestLocalExecutor_ApplyPatch_InvalidRangeRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("ApplyPatch invalid range: want error")
 	}
-	if !strings.Contains(err.Error(), "invalid range") {
-		t.Fatalf("err = %v, want invalid range", err)
+	if !strings.Contains(err.Error(), "must not be negative") {
+		t.Fatalf("err = %v, want negative hunk position", err)
 	}
 }
 
@@ -492,6 +493,22 @@ func TestLocalExecutor_Glob_MaxResults(t *testing.T) {
 	}
 	if !out.Truncated {
 		t.Error("Truncated = false, want true")
+	}
+}
+
+func TestLocalExecutor_Glob_UsesFullDoublestarSyntax(t *testing.T) {
+	dir := t.TempDir()
+	writeTemp(t, dir, "src/alpha/main.go", "")
+	writeTemp(t, dir, "src/beta/nested/main.go", "")
+	writeTemp(t, dir, "src/gamma/main.go", "")
+
+	out, err := NewLocalExecutor(dir).Glob(t.Context(), GlobInput{Pattern: "src/{alpha,beta}/**/main.go"})
+	if err != nil {
+		t.Fatalf("Glob: %v", err)
+	}
+	want := []string{"src/alpha/main.go", "src/beta/nested/main.go"}
+	if !slices.Equal(out.Paths, want) {
+		t.Fatalf("paths = %v, want %v", out.Paths, want)
 	}
 }
 

@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,15 +9,16 @@ import (
 	"testing"
 )
 
-// Moving a file with apply_patch. The two headers of a unified diff already name
-// two paths, so a move needs no format of its own — it was refused by a
-// validation, and what makes it safe is what that validation used to stand in
-// for: a destination is never overwritten, the origin is reported, and both
+// Moving a file with apply_patch uses Git's rename metadata. What makes it safe
+// is that a destination is never overwritten, the origin is reported, and both
 // endpoints are visible to the guards the caller wraps this tool in.
 
-func movePatch(t *testing.T, from, to, body string) string {
-	t.Helper()
-	return "--- a/" + from + "\n+++ b/" + to + "\n" + body
+func movePatch(from, to, body string) string {
+	patch := fmt.Sprintf("diff --git a/%s b/%s\nsimilarity index 100%%\nrename from %s\nrename to %s\n", from, to, from, to)
+	if body != "" {
+		patch += "--- a/" + from + "\n+++ b/" + to + "\n" + body
+	}
+	return patch
 }
 
 func TestApplyPatch_MoveCarriesContentAndRemovesTheOrigin(t *testing.T) {
@@ -24,8 +26,8 @@ func TestApplyPatch_MoveCarriesContentAndRemovesTheOrigin(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "alpha\nbeta\n")
 	to := filepath.Join(dir, "new.txt")
 
-	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
-		Patch: movePatch(t, from, to, "@@ -1,2 +1,2 @@\n alpha\n-beta\n+BETA\n"),
+	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{
+		Patch: movePatch("old.txt", "new.txt", "@@ -1,2 +1,2 @@\n alpha\n-beta\n+BETA\n"),
 	})
 	if err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
@@ -41,8 +43,8 @@ func TestApplyPatch_MoveCarriesContentAndRemovesTheOrigin(t *testing.T) {
 	if string(landed) != "alpha\nBETA\n" {
 		t.Errorf("destination = %q, want the patched content", landed)
 	}
-	if len(out.Files) != 1 || out.Files[0].MovedFrom != from || out.Files[0].Path != to {
-		t.Errorf("output = %+v, want one file moved %s → %s", out.Files, from, to)
+	if len(out.Files) != 1 || out.Files[0].MovedFrom != "old.txt" || out.Files[0].Path != "new.txt" {
+		t.Errorf("output = %+v, want one file moved old.txt → new.txt", out.Files)
 	}
 }
 
@@ -53,8 +55,8 @@ func TestApplyPatch_PureRenameNeedsNoHunk(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "unchanged\n")
 	to := filepath.Join(dir, "renamed.txt")
 
-	out, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
-		Patch: movePatch(t, from, to, ""),
+	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{
+		Patch: movePatch("old.txt", "renamed.txt", ""),
 	})
 	if err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
@@ -78,8 +80,8 @@ func TestApplyPatch_MoveRefusesToOverwriteItsDestination(t *testing.T) {
 	from := writeTemp(t, dir, "old.txt", "moving\n")
 	occupied := writeTemp(t, dir, "taken.txt", "do not lose me\n")
 
-	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
-		Patch: movePatch(t, from, occupied, ""),
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{
+		Patch: movePatch("old.txt", "taken.txt", ""),
 	})
 	if err == nil {
 		t.Fatal("expected a refusal")
@@ -100,11 +102,10 @@ func TestApplyPatch_MoveReportsBothEndpointsAsMutated(t *testing.T) {
 	// MutationPaths is what the caller's guard stack reads to lock, to refuse
 	// protected directories, and to require a prior read. A move that reported only
 	// its destination would remove a file none of those three ever saw.
-	dir := t.TempDir()
-	from := filepath.Join(dir, "old.txt")
-	to := filepath.Join(dir, "new.txt")
+	from := "old.txt"
+	to := "new.txt"
 
-	paths, err := patchPaths(movePatch(t, from, to, ""))
+	paths, err := patchPaths(movePatch(from, to, ""))
 	if err != nil {
 		t.Fatalf("patchPaths: %v", err)
 	}
@@ -119,12 +120,12 @@ func TestApplyPatch_RefusesTwoPatchesTouchingOneEndpoint(t *testing.T) {
 	// Editing a file and moving another one onto it are two edits to one path, and
 	// the result would depend on which was applied first.
 	dir := t.TempDir()
-	target := writeTemp(t, dir, "target.txt", "one\n")
-	moving := writeTemp(t, dir, "moving.txt", "two\n")
+	writeTemp(t, dir, "target.txt", "one\n")
+	writeTemp(t, dir, "moving.txt", "two\n")
 
-	_, err := NewLocalExecutor("").ApplyPatch(t.Context(), ApplyPatchRequest{
-		Patch: "--- a/" + target + "\n+++ b/" + target + "\n@@ -1 +1 @@\n-one\n+ONE\n" +
-			movePatch(t, moving, target, ""),
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{
+		Patch: "--- target.txt\n+++ target.txt\n@@ -1 +1 @@\n-one\n+ONE\n" +
+			movePatch("moving.txt", "target.txt", ""),
 	})
 	if err == nil {
 		t.Fatal("expected a refusal")

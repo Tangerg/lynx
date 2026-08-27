@@ -11,9 +11,8 @@ import (
 // LocalExecutor is the reference [Executor] running against the host
 // filesystem.
 //
-//   - Glob shells out to find (portable across BSD and GNU; bash 3.2
-//     on macOS doesn't honor globstar, so a bash-based impl wouldn't
-//     work everywhere).
+//   - Glob uses the platform-neutral doublestar matcher and never follows
+//     directory symlinks while walking.
 //   - Grep prefers ripgrep when it's on PATH; falls back to GNU grep
 //     otherwise (FileType / Multiline only work on the ripgrep path).
 //   - Write and Edit serialize per file via [LocalExecutor.lockPath]

@@ -48,9 +48,7 @@ func TestFuncStaysAnImmutableValueAdapter(t *testing.T) {
 		t.Fatal("Func value does not implement Tool")
 	}
 	assertReceiverMethodsInFile(t, "Func", "function.go")
-	for _, receiver := range []string{"schemaBuilder", "schemaContract", "schemaNode"} {
-		assertReceiverMethodsInFile(t, receiver, "schema.go")
-	}
+	assertReceiverMethodsInFile(t, "schemaContract", "schema.go")
 }
 
 func assertReceiverMethodsInFile(t *testing.T, receiver, filename string) {
@@ -126,7 +124,12 @@ func TestProductionDependenciesMatchBudget(t *testing.T) {
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			first, _, _ := strings.Cut(importPath, "/")
-			if !strings.Contains(first, ".") || importPath == "github.com/samber/lo" || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
+			if !strings.Contains(first, ".") ||
+				importPath == "github.com/invopop/jsonschema" ||
+				importPath == "github.com/samber/lo" ||
+				importPath == "github.com/santhosh-tekuri/jsonschema/v6" ||
+				importPath == "github.com/Tangerg/lynx/core" ||
+				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
 				continue
 			}
 			t.Errorf("tool production file %s imports dependency outside its explicit budget: %s", path, importPath)

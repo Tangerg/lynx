@@ -130,6 +130,19 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseNormalizesBOMAndCRLF(t *testing.T) {
+	skill, err := Parse([]byte("\ufeff---\r\nname: portable-skill\r\ndescription: Portable line endings\r\n---\r\n# Instructions\r\n\r\nUse it.\r\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if skill.Name != "portable-skill" {
+		t.Fatalf("name = %q, want portable-skill", skill.Name)
+	}
+	if skill.Instructions != "# Instructions\n\nUse it." {
+		t.Fatalf("instructions = %q", skill.Instructions)
+	}
+}
+
 func TestParseNoFrontmatter(t *testing.T) {
 	for _, content := range []string{
 		"no front matter here",

@@ -22,7 +22,9 @@ var dependencyBudgetPackageRoots = []string{
 }
 
 var allowedExternalProductionImports = map[string]struct{}{
-	"github.com/samber/lo": {},
+	"github.com/invopop/jsonschema":            {},
+	"github.com/samber/lo":                     {},
+	"github.com/santhosh-tekuri/jsonschema/v6": {},
 }
 
 func TestTargetPackagesStayWithinDependencyBudget(t *testing.T) {

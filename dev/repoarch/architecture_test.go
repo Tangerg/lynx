@@ -20,11 +20,19 @@ const repositoryModulePrefix = "github.com/Tangerg/lynx"
 
 var (
 	coreModuleDependencyBudget = []string{
+		"github.com/bahlo/generic-list-go",
+		"github.com/buger/jsonparser",
+		"github.com/invopop/jsonschema",
+		"github.com/pb33f/ordered-map/v2",
 		"github.com/samber/lo",
+		"github.com/santhosh-tekuri/jsonschema/v6",
+		"go.yaml.in/yaml/v4",
 		"golang.org/x/text",
 	}
 	coreProductionImportBudget = []string{
+		"github.com/invopop/jsonschema",
 		"github.com/samber/lo",
+		"github.com/santhosh-tekuri/jsonschema/v6",
 	}
 )
 
