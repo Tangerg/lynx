@@ -16,9 +16,9 @@ var ragTracer = otel.Tracer("github.com/Tangerg/lynx/rag")
 // RAG attribute keys — the GenAI semconv has no RAG-specific registry today,
 // so these live under the bare `rag.*` domain without a brand prefix.
 const (
-	attrStage      = "rag.stage"
-	attrQueryCount = "rag.query_count"
-	attrDocCount   = "rag.doc_count"
+	attrStage     = "rag.stage"
+	attrDocCount  = "rag.doc_count"
+	retrieveStage = "retrieve"
 )
 
 // startStageSpan opens a child span for one RAG operation. The

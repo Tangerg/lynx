@@ -20,7 +20,7 @@
 //	r, err = rag.WithExpander(r, multiQuery)
 //	top, err := rag.TopK(8)
 //	r, err = rag.WithRefiners(r, top)
-//	docs, err := r.Retrieve(ctx, q)
+//	docs, err := rag.Retrieve(ctx, r, q)
 //
 // Optional stages use identity implementations: [IdentityTransformer],
 // [IdentityExpander], [NopRetriever], [IdentityRefiner], and
@@ -63,7 +63,7 @@
 //	type routingRetriever struct {
 //	    docsR, logsR rag.Retriever
 //	}
-//	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]rag.Candidate, error) {
+//	func (r *routingRetriever) Retrieve(ctx context.Context, q rag.Query) (rag.Candidates, error) {
 //	    route, _, err := q.Value(routeKey)
 //	    if err != nil {
 //	        return nil, err

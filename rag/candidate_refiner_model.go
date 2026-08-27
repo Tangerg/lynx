@@ -48,6 +48,8 @@ const modelRerankerOutputSchema = `{
   "additionalProperties": false
 }`
 
+const modelRerankerOutputName = "rag_reranking"
+
 // ModelRerankerConfig configures [NewModelReranker].
 type ModelRerankerConfig struct {
 	// Model ranks candidates. Required.
@@ -83,6 +85,34 @@ type modelRerankingOutput struct {
 	Scores []modelCandidateScore `json:"scores"`
 }
 
+func (m modelRerankingOutput) rank(candidates Candidates) (Candidates, error) {
+	if len(m.Scores) != len(candidates) {
+		return nil, fmt.Errorf(
+			"%w: output contains %d candidate scores, want %d",
+			ErrInvalidReranking,
+			len(m.Scores),
+			len(candidates),
+		)
+	}
+
+	ranked := Candidates(slices.Clone(candidates))
+	seen := make([]bool, len(candidates))
+	for position, item := range m.Scores {
+		if item.Index < 0 || item.Index >= len(candidates) {
+			return nil, fmt.Errorf("%w: scores[%d] index %d is out of range", ErrInvalidReranking, position, item.Index)
+		}
+		if seen[item.Index] {
+			return nil, fmt.Errorf("%w: candidate index %d appears more than once", ErrInvalidReranking, item.Index)
+		}
+		if math.IsNaN(item.Score) || math.IsInf(item.Score, 0) || item.Score < 0 || item.Score > 1 {
+			return nil, fmt.Errorf("%w: scores[%d] must be between 0 and 1", ErrInvalidReranking, position)
+		}
+		seen[item.Index] = true
+		ranked[item.Index].Score = item.Score
+	}
+	return ranked.ranked(), nil
+}
+
 type modelRerankingInput struct {
 	Index   int    `json:"index"`
 	Content string `json:"content"`
@@ -92,7 +122,7 @@ var _ Refiner = (*ModelReranker)(nil)
 
 // NewModelReranker constructs a model-backed candidate refiner.
 func NewModelReranker(config ModelRerankerConfig) (*ModelReranker, error) {
-	format, err := chatclient.JSONSchema[modelRerankingOutput]("rag_reranking", []byte(modelRerankerOutputSchema))
+	format, err := chatclient.JSONSchema[modelRerankingOutput](modelRerankerOutputName, []byte(modelRerankerOutputSchema))
 	if err != nil {
 		return nil, err
 	}
@@ -152,33 +182,5 @@ func (m *ModelReranker) Refine(ctx context.Context, query Query, candidates Cand
 	if err != nil {
 		return nil, err
 	}
-	return m.applyModelScores(candidates, output)
-}
-
-func (*ModelReranker) applyModelScores(candidates Candidates, output modelRerankingOutput) (Candidates, error) {
-	if len(output.Scores) != len(candidates) {
-		return nil, fmt.Errorf(
-			"%w: output contains %d candidate scores, want %d",
-			ErrInvalidReranking,
-			len(output.Scores),
-			len(candidates),
-		)
-	}
-
-	ranked := Candidates(slices.Clone(candidates))
-	seen := make([]bool, len(candidates))
-	for position, item := range output.Scores {
-		if item.Index < 0 || item.Index >= len(candidates) {
-			return nil, fmt.Errorf("%w: scores[%d] index %d is out of range", ErrInvalidReranking, position, item.Index)
-		}
-		if seen[item.Index] {
-			return nil, fmt.Errorf("%w: candidate index %d appears more than once", ErrInvalidReranking, item.Index)
-		}
-		if math.IsNaN(item.Score) || math.IsInf(item.Score, 0) || item.Score < 0 || item.Score > 1 {
-			return nil, fmt.Errorf("%w: scores[%d] must be between 0 and 1", ErrInvalidReranking, position)
-		}
-		seen[item.Index] = true
-		ranked[item.Index].Score = item.Score
-	}
-	return ranked.ranked(), nil
+	return output.rank(candidates)
 }

@@ -2,6 +2,8 @@ package rag
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
@@ -38,6 +40,17 @@ type RewriteTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
+func (c RewriteTransformerConfig) normalized() (RewriteTransformerConfig, error) {
+	if c.TargetSearchSystem == "" {
+		c.TargetSearchSystem = defaultRewriteTarget
+		return c, nil
+	}
+	if c.TargetSearchSystem != strings.TrimSpace(c.TargetSearchSystem) {
+		return RewriteTransformerConfig{}, errors.New("rag: rewrite target must not have surrounding whitespace")
+	}
+	return c, nil
+}
+
 var _ Transformer = (*RewriteTransformer)(nil)
 
 // RewriteTransformer tightens a query for a configured search target.
@@ -54,8 +67,9 @@ type rewritePromptVariables struct {
 // NewRewriteTransformer returns a transformer that tightens a verbose or
 // ambiguous user query for a configured search target.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
-	if cfg.TargetSearchSystem == "" {
-		cfg.TargetSearchSystem = defaultRewriteTarget
+	cfg, err := cfg.normalized()
+	if err != nil {
+		return nil, err
 	}
 	prompt, err := newTextModelPrompt(
 		cfg.Model,

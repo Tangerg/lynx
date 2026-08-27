@@ -105,7 +105,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-	docs, ok, err := rag.RetrievedCandidates(response)
+	docs, ok, err := rag.CandidatesFromResponse(response)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 		chunks++
-		if _, ok, decodeErr := rag.RetrievedCandidates(response); decodeErr != nil || !ok {
+		if _, ok, decodeErr := rag.CandidatesFromResponse(response); decodeErr != nil || !ok {
 			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
 		}
 	}
@@ -257,7 +257,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	if response != partial || !errors.Is(err, wantErr) {
 		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
 	}
-	if _, found, decodeErr := rag.RetrievedCandidates(response); decodeErr != nil || !found {
+	if _, found, decodeErr := rag.CandidatesFromResponse(response); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }

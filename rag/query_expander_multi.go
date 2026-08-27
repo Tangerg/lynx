@@ -37,6 +37,8 @@ const multiQueryOutputSchema = `{
   "additionalProperties": false
 }`
 
+const multiQueryOutputName = "rag_multi_query"
+
 // DefaultMultiQueryCount is the variant count used when
 // [MultiQueryExpanderConfig.NumberOfQueries] is unset.
 const DefaultMultiQueryCount = 3
@@ -60,6 +62,16 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
+func (c MultiQueryExpanderConfig) normalized() (MultiQueryExpanderConfig, error) {
+	if c.NumberOfQueries < 0 {
+		return MultiQueryExpanderConfig{}, errors.New("rag: number of expanded queries must not be negative")
+	}
+	if c.NumberOfQueries == 0 {
+		c.NumberOfQueries = DefaultMultiQueryCount
+	}
+	return c, nil
+}
+
 var _ Expander = (*MultiQueryExpander)(nil)
 
 // MultiQueryExpander asks a model for alternate query phrasings.
@@ -78,16 +90,55 @@ type multiQueryOutput struct {
 	Queries []string `json:"queries"`
 }
 
+func (m multiQueryOutput) queries(source Query, count int, includeOriginal bool) ([]Query, error) {
+	variants := make([]Query, 0, count)
+	seen := map[string]struct{}{source.Text(): {}}
+	for _, value := range m.Queries {
+		if len(variants) >= count {
+			break
+		}
+		text := strings.TrimSpace(value)
+		if text == "" {
+			continue
+		}
+		if _, duplicate := seen[text]; duplicate {
+			continue
+		}
+		seen[text] = struct{}{}
+		query, err := source.WithText(text)
+		if err != nil {
+			return nil, err
+		}
+		variants = append(variants, query)
+	}
+
+	if len(variants) == 0 {
+		return nil, ErrEmptyExpansion
+	}
+	if len(variants) != count {
+		return nil, fmt.Errorf(
+			"%w: model produced %d distinct variants, want %d",
+			ErrInvalidExpansion,
+			len(variants),
+			count,
+		)
+	}
+	if !includeOriginal {
+		return variants, nil
+	}
+	queries := make([]Query, 0, len(variants)+1)
+	queries = append(queries, source)
+	return append(queries, variants...), nil
+}
+
 // NewMultiQueryExpander returns an expander that asks an LLM for alternate
 // query phrasings.
 func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
-	if cfg.NumberOfQueries < 0 {
-		return nil, errors.New("rag: number of expanded queries must not be negative")
+	cfg, err := cfg.normalized()
+	if err != nil {
+		return nil, err
 	}
-	if cfg.NumberOfQueries == 0 {
-		cfg.NumberOfQueries = DefaultMultiQueryCount
-	}
-	format, err := chatclient.JSONSchema[multiQueryOutput]("rag_multi_query", []byte(multiQueryOutputSchema))
+	format, err := chatclient.JSONSchema[multiQueryOutput](multiQueryOutputName, []byte(multiQueryOutputSchema))
 	if err != nil {
 		return nil, err
 	}
@@ -126,43 +177,5 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query Query) ([]Query, 
 		return nil, err
 	}
 
-	variants := make([]Query, 0, m.numberOfQueries)
-	seen := map[string]struct{}{query.Text(): {}}
-	for _, value := range output.Queries {
-		if len(variants) >= m.numberOfQueries {
-			break
-		}
-		text := strings.TrimSpace(value)
-		if text == "" {
-			continue
-		}
-		if _, duplicate := seen[text]; duplicate {
-			continue
-		}
-		seen[text] = struct{}{}
-		clone, err := query.WithText(text)
-		if err != nil {
-			return nil, err
-		}
-		variants = append(variants, clone)
-	}
-
-	if len(variants) == 0 {
-		return nil, ErrEmptyExpansion
-	}
-	if len(variants) != m.numberOfQueries {
-		return nil, fmt.Errorf(
-			"%w: model produced %d distinct variants, want %d",
-			ErrInvalidExpansion,
-			len(variants),
-			m.numberOfQueries,
-		)
-	}
-	if !m.includeOriginal {
-		return variants, nil
-	}
-	queries := make([]Query, 0, len(variants)+1)
-	queries = append(queries, query)
-	queries = append(queries, variants...)
-	return queries, nil
+	return output.queries(query, m.numberOfQueries, m.includeOriginal)
 }

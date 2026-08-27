@@ -12,23 +12,32 @@ import (
 
 // ErrInvalidRankConstant reports an invalid reciprocal-rank denominator
 // constant.
-var ErrInvalidRankConstant = errors.New("rag: reciprocal-rank constant must be positive")
+var ErrInvalidRankConstant = errors.New("rag: reciprocal-rank constant must not be negative")
 
 // DefaultReciprocalRankConstant is the conventional RRF smoothing constant.
 const DefaultReciprocalRankConstant = 60
 
 // ReciprocalRankFusionConfig configures [ReciprocalRankFusion]. RankConstant
-// is the positive constant added to each one-based rank.
+// is the constant added to each one-based rank. Zero uses
+// [DefaultReciprocalRankConstant].
 type ReciprocalRankFusionConfig struct {
 	RankConstant int
 }
 
 // Validate checks whether the fusion configuration is usable.
 func (c ReciprocalRankFusionConfig) Validate() error {
-	if c.RankConstant <= 0 {
-		return ErrInvalidRankConstant
+	_, err := c.normalized()
+	return err
+}
+
+func (c ReciprocalRankFusionConfig) normalized() (ReciprocalRankFusionConfig, error) {
+	if c.RankConstant < 0 {
+		return ReciprocalRankFusionConfig{}, ErrInvalidRankConstant
 	}
-	return nil
+	if c.RankConstant == 0 {
+		c.RankConstant = DefaultReciprocalRankConstant
+	}
+	return c, nil
 }
 
 // ReciprocalRankFusion returns a retriever that concurrently executes each
@@ -36,7 +45,8 @@ func (c ReciprocalRankFusionConfig) Validate() error {
 // fusion. Raw candidate scores are deliberately ignored because independent
 // retrievers commonly use incomparable score scales.
 func ReciprocalRankFusion(config ReciprocalRankFusionConfig, retrievers ...Retriever) (Retriever, error) {
-	if err := config.Validate(); err != nil {
+	config, err := config.normalized()
+	if err != nil {
 		return nil, err
 	}
 	if len(retrievers) == 0 {
@@ -61,7 +71,7 @@ func (r reciprocalRankFusion) Retrieve(ctx context.Context, query Query) (candid
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	ctx, span := startStageSpan(ctx, "retrieve")
+	ctx, span := startStageSpan(ctx, retrieveStage)
 	defer func() {
 		finishSpan(span, err, attribute.Int(attrDocCount, len(candidates)))
 	}()

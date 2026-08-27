@@ -38,6 +38,16 @@ type MiddlewareConfig struct {
 	Augmenter Augmenter
 }
 
+func (c MiddlewareConfig) normalized() (MiddlewareConfig, error) {
+	if lo.IsNil(c.Retriever) {
+		return MiddlewareConfig{}, ErrNilRetriever
+	}
+	if lo.IsNil(c.Augmenter) {
+		c.Augmenter = IdentityAugmenter()
+	}
+	return c, nil
+}
+
 type middleware struct {
 	retriever Retriever
 	augmenter Augmenter
@@ -107,9 +117,9 @@ func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) er
 	return response.Metadata.Set(citationsMetadataKey, p.citations)
 }
 
-// RetrievedCandidates returns the candidates attached to response by
+// CandidatesFromResponse returns the candidates attached to response by
 // [NewMiddleware]. The boolean reports whether retrieval metadata was present.
-func RetrievedCandidates(response *chat.Response) (Candidates, bool, error) {
+func CandidatesFromResponse(response *chat.Response) (Candidates, bool, error) {
 	if response == nil {
 		return nil, false, ErrNilChatResponse
 	}
@@ -152,15 +162,13 @@ func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieval and citation
-// metadata to the response. Use [RetrievedCandidates] and
+// metadata to the response. Use [CandidatesFromResponse] and
 // [CitationsFromResponse] to read
 // those typed values.
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
-	if lo.IsNil(config.Retriever) {
-		return nil, nil, ErrNilRetriever
-	}
-	if lo.IsNil(config.Augmenter) {
-		config.Augmenter = IdentityAugmenter()
+	config, err := config.normalized()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	mw := &middleware{retriever: config.Retriever, augmenter: config.Augmenter}

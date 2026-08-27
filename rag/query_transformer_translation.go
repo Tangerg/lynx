@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
@@ -36,6 +37,16 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
+func (c TranslationTransformerConfig) validate() error {
+	if strings.TrimSpace(c.TargetLanguage) == "" {
+		return errors.New("rag: translation target language is required")
+	}
+	if c.TargetLanguage != strings.TrimSpace(c.TargetLanguage) {
+		return errors.New("rag: translation target language must not have surrounding whitespace")
+	}
+	return nil
+}
+
 var _ Transformer = (*TranslationTransformer)(nil)
 
 // TranslationTransformer translates queries into a configured language.
@@ -52,8 +63,8 @@ type translationPromptVariables struct {
 // NewTranslationTransformer returns a transformer that translates queries
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
-	if cfg.TargetLanguage == "" {
-		return nil, errors.New("rag: translation target language is required")
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 	prompt, err := newTextModelPrompt(
 		cfg.Model,

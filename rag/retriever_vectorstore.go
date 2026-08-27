@@ -21,8 +21,8 @@ type VectorStoreRetrieverConfig struct {
 	// VectorStore performs the actual similarity search. Required.
 	VectorStore corevs.Searcher
 
-	// TopK caps the number of returned documents. Non-positive values
-	// fall back to [corevs.DefaultTopK].
+	// TopK caps the number of returned documents. Zero uses
+	// [corevs.DefaultTopK]; negative values are invalid.
 	TopK int
 
 	// MinScore filters out matches below this similarity threshold.
@@ -32,6 +32,26 @@ type VectorStoreRetrieverConfig struct {
 	// FilterFunc dynamically builds a metadata filter from the complete query.
 	// Optional; when [VectorStoreFilterValueKey] is set, the per-query filter wins.
 	FilterFunc func(ctx context.Context, query Query) (filter.Predicate, error)
+}
+
+func (c VectorStoreRetrieverConfig) normalized() (VectorStoreRetrieverConfig, error) {
+	if lo.IsNil(c.VectorStore) {
+		return VectorStoreRetrieverConfig{}, errors.New("rag: vector store is required")
+	}
+	if c.TopK < 0 {
+		return VectorStoreRetrieverConfig{}, errors.New("rag: vector-store top K must not be negative")
+	}
+	if c.MinScore < corevs.MinSimilarityScore || c.MinScore > corevs.MaxSimilarityScore {
+		return VectorStoreRetrieverConfig{}, fmt.Errorf(
+			"rag: vector-store minimum score must be in [%.1f, %.1f]",
+			corevs.MinSimilarityScore,
+			corevs.MaxSimilarityScore,
+		)
+	}
+	if c.TopK == 0 {
+		c.TopK = corevs.DefaultTopK
+	}
+	return c, nil
 }
 
 var _ Retriever = (*VectorStoreRetriever)(nil)
@@ -51,21 +71,9 @@ type VectorStoreRetriever struct {
 // capping, and
 // similarity thresholds.
 func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	if lo.IsNil(cfg.VectorStore) {
-		return nil, errors.New("rag: vector store is required")
-	}
-	if cfg.TopK < 0 {
-		return nil, errors.New("rag: vector-store top K must not be negative")
-	}
-	if cfg.MinScore < corevs.MinSimilarityScore || cfg.MinScore > corevs.MaxSimilarityScore {
-		return nil, fmt.Errorf(
-			"rag: vector-store minimum score must be in [%.1f, %.1f]",
-			corevs.MinSimilarityScore,
-			corevs.MaxSimilarityScore,
-		)
-	}
-	if cfg.TopK == 0 {
-		cfg.TopK = corevs.DefaultTopK
+	cfg, err := cfg.normalized()
+	if err != nil {
+		return nil, err
 	}
 
 	return &VectorStoreRetriever{

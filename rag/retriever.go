@@ -47,7 +47,7 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
-		ctx, span := startStageSpan(ctx, "retrieve")
+		ctx, span := startStageSpan(ctx, retrieveStage)
 		var err error
 		var docs Candidates
 		defer func() {

@@ -67,17 +67,35 @@ type ContextualAugmenterConfig struct {
 	TokenEstimator tokenizer.TextEstimator
 }
 
-func (c ContextualAugmenterConfig) validateTokenBudget() error {
-	if c.MaxContextTokens < 0 {
-		return fmt.Errorf("%w: MaxContextTokens must not be negative", ErrInvalidContextBudget)
+type contextBudget struct {
+	maxTokens int
+	estimator tokenizer.TextEstimator
+}
+
+func newContextBudget(maxTokens int, estimator tokenizer.TextEstimator) (contextBudget, error) {
+	if maxTokens < 0 {
+		return contextBudget{}, fmt.Errorf("%w: MaxContextTokens must not be negative", ErrInvalidContextBudget)
 	}
-	if c.MaxContextTokens > 0 && lo.IsNil(c.TokenEstimator) {
-		return fmt.Errorf("%w: TokenEstimator is required when MaxContextTokens is positive", ErrInvalidContextBudget)
+	if maxTokens > 0 && lo.IsNil(estimator) {
+		return contextBudget{}, fmt.Errorf("%w: TokenEstimator is required when MaxContextTokens is positive", ErrInvalidContextBudget)
 	}
-	if c.MaxContextTokens == 0 && !lo.IsNil(c.TokenEstimator) {
-		return fmt.Errorf("%w: TokenEstimator requires a positive MaxContextTokens", ErrInvalidContextBudget)
+	if maxTokens == 0 && !lo.IsNil(estimator) {
+		return contextBudget{}, fmt.Errorf("%w: TokenEstimator requires a positive MaxContextTokens", ErrInvalidContextBudget)
 	}
-	return nil
+	return contextBudget{maxTokens: maxTokens, estimator: estimator}, nil
+}
+
+func (c contextBudget) limited() bool { return c.maxTokens > 0 }
+
+func (c contextBudget) accepts(ctx context.Context, encoded []byte) (bool, error) {
+	if !c.limited() {
+		return true, nil
+	}
+	tokens, err := c.estimator.EstimateText(ctx, string(encoded))
+	if err != nil {
+		return false, fmt.Errorf("rag: estimate context tokens: %w", err)
+	}
+	return tokens <= c.maxTokens, nil
 }
 
 var _ Augmenter = (*ContextualAugmenter)(nil)
@@ -88,8 +106,7 @@ type ContextualAugmenter struct {
 	emptyContextPromptTemplate *chatclient.Template
 	allowEmptyContext          bool
 	formatter                  DocumentFormatter
-	maxContextTokens           int
-	tokenEstimator             tokenizer.TextEstimator
+	budget                     contextBudget
 }
 
 type contextualPromptVariables struct {
@@ -106,7 +123,8 @@ type contextualEvidence struct {
 // NewContextualAugmenter returns an augmenter that folds retrieved
 // documents into the query text as a context block.
 func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
-	if err := cfg.validateTokenBudget(); err != nil {
+	budget, err := newContextBudget(cfg.MaxContextTokens, cfg.TokenEstimator)
+	if err != nil {
 		return nil, err
 	}
 	promptTemplate, err := resolvePromptTemplate(
@@ -135,13 +153,12 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 		emptyContextPromptTemplate: emptyContextPromptTemplate,
 		allowEmptyContext:          cfg.AllowEmptyContext,
 		formatter:                  formatter,
-		maxContextTokens:           cfg.MaxContextTokens,
-		tokenEstimator:             cfg.TokenEstimator,
+		budget:                     budget,
 	}, nil
 }
 
 // Augment renders the prompt template with citation-labeled JSON evidence.
-// When documents is empty or none fit the budget, it falls back to
+// When candidates is empty or none fit the budget, it falls back to
 // [ContextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
 func (c *ContextualAugmenter) Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error) {
@@ -179,6 +196,9 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query Query, candidat
 }
 
 func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates Candidates) (string, Citations, error) {
+	if err := candidates.Validate(); err != nil {
+		return "", nil, fmt.Errorf("rag: format context: %w", err)
+	}
 	evidence := make([]contextualEvidence, 0, len(candidates))
 	citations := make(Citations, 0, len(candidates))
 	var encoded []byte
@@ -186,9 +206,6 @@ func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates Cand
 	for index, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return "", nil, err
-		}
-		if err := candidate.Validate(); err != nil {
-			return "", nil, fmt.Errorf("rag: format context candidate %d: %w", index, err)
 		}
 		content, err := c.formatter.Format(candidate.Document)
 		if err != nil {
@@ -206,16 +223,16 @@ func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates Cand
 			ID:       candidate.Document.ID,
 			Content:  content,
 		})
-		if c.maxContextTokens > 0 {
+		if c.budget.limited() {
 			encoded, err = json.Marshal(tentative)
 			if err != nil {
 				return "", nil, fmt.Errorf("rag: encode contextual evidence: %w", err)
 			}
-			tokens, err := c.tokenEstimator.EstimateText(ctx, string(encoded))
+			accepted, err := c.budget.accepts(ctx, encoded)
 			if err != nil {
-				return "", nil, fmt.Errorf("rag: estimate context tokens: %w", err)
+				return "", nil, err
 			}
-			if tokens > c.maxContextTokens {
+			if !accepted {
 				break
 			}
 		}

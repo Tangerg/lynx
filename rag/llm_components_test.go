@@ -427,12 +427,27 @@ func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	}
 }
 
+func TestRewriteTransformerRejectsPaddedTarget(t *testing.T) {
+	model := newFakeChatModel(t, "tightened")
+	if _, err := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{
+		Model:              model,
+		TargetSearchSystem: " elasticsearch ",
+	}); err == nil {
+		t.Fatal("padded target must error")
+	}
+}
+
 // --- TranslationTransformer ---------------------------------------
 
 func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{Model: model}); err == nil {
-		t.Fatal("missing TargetLanguage must error")
+	for _, target := range []string{"", "   ", " English "} {
+		if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
+			Model:          model,
+			TargetLanguage: target,
+		}); err == nil {
+			t.Fatalf("TargetLanguage %q must error", target)
+		}
 	}
 }
 
