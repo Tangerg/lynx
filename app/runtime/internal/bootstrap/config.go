@@ -91,13 +91,12 @@ func MCPServers(configuredServers []config.MCPServer) ([]mcpserversvc.Server, er
 	return servers, nil
 }
 
-func parseMCPTransport(transport string) (mcpserversvc.Transport, error) {
-	switch transport {
-	case config.MCPTransportStreamableHTTP:
-		return mcpserversvc.TransportStreamableHTTP, nil
-	case config.MCPTransportStdio:
-		return mcpserversvc.TransportStdio, nil
-	default:
+func parseMCPTransport(transport config.MCPTransport) (mcpserversvc.Transport, error) {
+	if !transport.Valid() {
 		return "", fmt.Errorf("unknown transport %q", transport)
 	}
+	if transport == config.MCPTransportStreamableHTTP {
+		return mcpserversvc.TransportStreamableHTTP, nil
+	}
+	return mcpserversvc.TransportStdio, nil
 }

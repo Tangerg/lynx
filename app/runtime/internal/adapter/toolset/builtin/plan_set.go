@@ -26,14 +26,14 @@ type setArgs struct {
 }
 
 type stepArg struct {
-	Description string `json:"description" jsonschema:"minLength=1" jsonschema_description:"Concise description of the work represented by this Step."`
-	Status      string `json:"status" jsonschema:"enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = active work; completed = fully done."`
+	Description string            `json:"description" jsonschema:"minLength=1" jsonschema_description:"Concise description of the work represented by this Step."`
+	Status      plandomain.Status `json:"status" jsonschema:"enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = active work; completed = fully done."`
 }
 
 func (s setArgs) steps() []plandomain.Step {
 	steps := make([]plandomain.Step, len(s.Steps))
 	for index, step := range s.Steps {
-		steps[index] = plandomain.Step{Description: step.Description, Status: plandomain.Status(step.Status)}
+		steps[index] = plandomain.Step{Description: step.Description, Status: step.Status}
 	}
 	return steps
 }

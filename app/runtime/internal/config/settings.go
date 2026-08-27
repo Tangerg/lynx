@@ -16,17 +16,26 @@ type Online struct {
 	HTTPAllowedHosts []string
 }
 
-// MCP transport names emitted by the config parser.
+// MCPTransport identifies the transport selected by one parsed MCP server
+// entry. Consumers explicitly map this configuration vocabulary into their
+// own connection vocabulary.
+type MCPTransport string
+
 const (
-	MCPTransportStdio          = "stdio"
-	MCPTransportStreamableHTTP = "streamableHttp"
+	MCPTransportStdio          MCPTransport = "stdio"
+	MCPTransportStreamableHTTP MCPTransport = "streamableHttp"
 )
+
+// Valid reports whether m names one supported configuration transport.
+func (m MCPTransport) Valid() bool {
+	return m == MCPTransportStdio || m == MCPTransportStreamableHTTP
+}
 
 // MCPServer is one MCP server entry parsed from LYRA_MCP_SERVERS. It is
 // the config package's source DTO; runtime maps it into its registry model.
 type MCPServer struct {
 	Name          string
-	Transport     string
+	Transport     MCPTransport
 	Endpoint      string
 	Command       string
 	Args          []string

@@ -24,17 +24,21 @@ This creates a pending proposal for review. It does not activate, publish, or
 run the Skill.`
 
 type proposalArgs struct {
-	Name         string `json:"name" jsonschema:"required,minLength=1,maxLength=64,pattern=^[a-z0-9]+(-[a-z0-9]+)*$" jsonschema_description:"Stable lowercase hyphenated Skill identifier of at most 64 characters, such as review-go-api. Describe the workflow, not the current task."`
-	Description  string `json:"description" jsonschema:"required,minLength=1,maxLength=1024" jsonschema_description:"One or two sentences stating what reusable workflow the Skill provides and when it should be used."`
-	Instructions string `json:"instructions" jsonschema:"required,minLength=1,maxLength=1048576" jsonschema_description:"Complete self-contained instructions an Agent should follow in future work. The value may not exceed 1 MiB and must exclude one-off progress, transient context, and secrets."`
-	Scope        string `json:"scope" jsonschema:"required,enum=project,enum=user" jsonschema_description:"project = available only in the current workspace; user = available across all workspaces for this user."`
+	Name         string       `json:"name" jsonschema:"required,minLength=1,maxLength=64,pattern=^[a-z0-9]+(-[a-z0-9]+)*$" jsonschema_description:"Stable lowercase hyphenated Skill identifier of at most 64 characters, such as review-go-api. Describe the workflow, not the current task."`
+	Description  string       `json:"description" jsonschema:"required,minLength=1,maxLength=1024" jsonschema_description:"One or two sentences stating what reusable workflow the Skill provides and when it should be used."`
+	Instructions string       `json:"instructions" jsonschema:"required,minLength=1,maxLength=1048576" jsonschema_description:"Complete self-contained instructions an Agent should follow in future work. The value may not exceed 1 MiB and must exclude one-off progress, transient context, and secrets."`
+	Scope        skills.Scope `json:"scope" jsonschema:"required,enum=project,enum=user" jsonschema_description:"project = available only in the current workspace; user = available across all workspaces for this user."`
 }
 
+type proposalStatus string
+
+const proposalStatusPendingReview proposalStatus = "pending_review"
+
 type proposalResult struct {
-	Status   string `json:"status"`
-	Name     string `json:"name"`
-	Revision string `json:"revision"`
-	Scope    string `json:"scope"`
+	Status   proposalStatus `json:"status"`
+	Name     string         `json:"name"`
+	Revision string         `json:"revision"`
+	Scope    skills.Scope   `json:"scope"`
 }
 
 // SkillProposalSubmitter is the only Skill-authoring operation this capability consumes.
@@ -67,12 +71,11 @@ func (p *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 	if cwd == "" {
 		return proposalResult{}, errors.New("propose_skill: no active workspace")
 	}
-	scope, err := parseScope(input.Scope)
-	if err != nil {
-		return proposalResult{}, err
+	if err := input.Scope.Validate(); err != nil {
+		return proposalResult{}, fmt.Errorf("propose_skill: scope must be project or user: %w", err)
 	}
 	proposal := skills.Proposal{
-		Scope:         scope,
+		Scope:         input.Scope,
 		Name:          strings.TrimSpace(input.Name),
 		Description:   strings.TrimSpace(input.Description),
 		Instructions:  strings.TrimSpace(input.Instructions),
@@ -87,17 +90,9 @@ func (p *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 		return proposalResult{}, fmt.Errorf("propose_skill: submit proposal: %w", err)
 	}
 	return proposalResult{
-		Status:   "pending_review",
+		Status:   proposalStatusPendingReview,
 		Name:     ref.Name,
 		Revision: ref.Revision,
-		Scope:    string(ref.Scope),
+		Scope:    ref.Scope,
 	}, nil
-}
-
-func parseScope(value string) (skills.Scope, error) {
-	scope := skills.Scope(strings.TrimSpace(value))
-	if err := scope.Validate(); err != nil {
-		return "", fmt.Errorf("propose_skill: scope must be project or user: %w", err)
-	}
-	return scope, nil
 }
