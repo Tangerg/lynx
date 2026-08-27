@@ -68,7 +68,7 @@ func (m *MessageStore) Write(ctx context.Context, conversationID string, message
 	if len(messages) == 0 {
 		return nil
 	}
-	// RunInTx so the batch is atomic standalone, and folds into a caller'm
+	// RunInTx so the batch is atomic standalone, and folds into a caller's
 	// cross-store transaction (portable restore seeds history inside one) instead
 	// of opening its own — which would deadlock under MaxOpenConns(1).
 	return RunInTx(ctx, m.db, func(ctx context.Context) error {
@@ -89,10 +89,10 @@ func (m *MessageStore) Write(ctx context.Context, conversationID string, message
 	})
 }
 
-// Replace atomically sets conversationID'm history to exactly messages — a
+// Replace atomically sets conversationID's history to exactly messages — a
 // single transaction that DELETEs the existing rows then INSERTs the new ones,
 // so a failed rewrite rolls back and leaves the prior history intact (the
-// consumer'm atomic-replacement contract). Empty messages clears the
+// consumer's atomic-replacement contract). Empty messages clears the
 // conversation.
 // Retention (truncate / compaction) uses this instead of Clear+Write, which
 // would lose the conversation if the Write failed after the Clear committed.
@@ -123,7 +123,7 @@ func (m *MessageStore) Replace(ctx context.Context, conversationID string, messa
 	})
 }
 
-// Count returns conversationID'm message count via a COUNT(*) query — the
+// Count returns conversationID's message count via a COUNT(*) query — the
 // conversation use case, so a rollback/fork watermark read
 // fork{fromRunId}) doesn't load and unmarshal the whole history just to take
 // its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read

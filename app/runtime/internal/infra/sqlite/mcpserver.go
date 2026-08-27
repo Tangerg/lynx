@@ -116,7 +116,7 @@ func (m *MCPServerStore) LoadOAuthSession(ctx context.Context, server, origin st
 	return payload, true, nil
 }
 
-// SaveOAuthSession atomically replaces one server'm origin-bound OAuth
+// SaveOAuthSession atomically replaces one server's origin-bound OAuth
 // session. The foreign key rejects credentials for an unconfigured server.
 func (m *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin string, payload []byte) error {
 	if server == "" || origin == "" || len(payload) == 0 {
@@ -134,7 +134,7 @@ func (m *MCPServerStore) SaveOAuthSession(ctx context.Context, server, origin st
 	return nil
 }
 
-// RemoveOAuthSession invalidates a server'm persisted OAuth credentials. It is
+// RemoveOAuthSession invalidates a server's persisted OAuth credentials. It is
 // idempotent so a rejected token and a concurrent server removal converge.
 func (m *MCPServerStore) RemoveOAuthSession(ctx context.Context, server string) error {
 	if _, err := conn(ctx, m.db).ExecContext(ctx,

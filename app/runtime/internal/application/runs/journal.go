@@ -449,7 +449,7 @@ func (j *journalSubscriber) abort() {
 }
 
 // events yields queued events until the subscription drains to a finish or is
-// aborted. It runs on the consumer'j goroutine; next blocks in the cond, so
+// aborted. It runs on the consumer's goroutine; next blocks in the cond, so
 // finish or abort must wake a consumer that is waiting between events.
 func (j *journalSubscriber) events() iter.Seq[Event] {
 	return func(yield func(Event) bool) {

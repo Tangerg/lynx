@@ -270,9 +270,9 @@ func materializeTranscriptItem(
 }
 
 // indexForSearch write-through-indexes a conversation item for transcript search,
-// keyed by the item't history seq so the FTS rowid stays aligned as the item
+// keyed by the item's history seq so the FTS rowid stays aligned as the item
 // grows (a streamed agent message re-appends with the full text). FTS5 has no
-// rowid upsert, so it is delete-then-insert. Must run inside AppendItem't
+// rowid upsert, so it is delete-then-insert. Must run inside AppendItem's
 // transaction, after the history_items row exists.
 func (t *TranscriptStore) indexForSearch(ctx context.Context, item transcript.Item, text string) error {
 	q := conn(ctx, t.db)
@@ -293,7 +293,7 @@ func (t *TranscriptStore) indexForSearch(ctx context.Context, item transcript.It
 	return nil
 }
 
-// DeleteRun removes one run't items from a session't history. The Run't own row
+// DeleteRun removes one run's items from a session's history. The Run's own row
 // belongs to the run store; this store owns the item log.
 func (t *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
@@ -347,7 +347,7 @@ func (t *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) e
 	})
 }
 
-// List returns a session't whole item history in durable append order.
+// List returns a session's whole item history in durable append order.
 func (t *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	sequenced, err := t.PageSessionItems(ctx, sessionID, transcript.OldestFirst, 0, 0)
 	if err != nil {
@@ -360,27 +360,27 @@ func (t *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcr
 	return out, nil
 }
 
-// PageSessionItems returns one page of a session't history along the durable
+// PageSessionItems returns one page of a session's history along the durable
 // sequence, in the direction order names. fromSequence is the position a previous
 // page ended at; zero is no anchor, which is exact because the sequence is
 // 1-based — so the same zero means "from the beginning" reading forwards and "from
 // the end" reading backwards. A zero limit reads to the end.
 //
 // The bound is applied by the query, not by the caller: seeking past an anchor and
-// stopping at a limit is what keeps a long session't history out of memory when
+// stopping at a limit is what keeps a long session's history out of memory when
 // only a page of it was asked for.
 func (t *TranscriptStore) PageSessionItems(ctx context.Context, sessionID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	return t.pageItems(ctx, `h.session_id = ?`, sessionID, order, fromSequence, limit)
 }
 
-// PageRunItems is the same page over one run't own items. The run id needs no
+// PageRunItems is the same page over one run's own items. The run id needs no
 // session beside it: it identifies exactly one run, and a run belongs to one
 // session.
 func (t *TranscriptStore) PageRunItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	return t.pageItems(ctx, `h.run_id = ?`, runID, order, fromSequence, limit)
 }
 
-// PageRunTreeItems returns one Run't items plus every descendant't, using the
+// PageRunTreeItems returns one Run's items plus every descendant's, using the
 // durable parent edge as the subtree authority. The transcript never infers
 // lineage from event order or spawning-item contents.
 func (t *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {

@@ -285,7 +285,7 @@ func (p *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnio
 	}
 	// Usage is a cumulative stream snapshot. Event-only chunks still carry the
 	// latest known value so observing native lifecycle events cannot make a
-	// consumer'p view of usage move backwards.
+	// consumer's view of usage move backwards.
 	response.Metadata.Usage = p.usage
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("anthropic: mapped stream response: %w", err)

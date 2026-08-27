@@ -33,7 +33,7 @@ func NewWorkspaceMutationStore(db *sql.DB) *WorkspaceMutationStore {
 	return &WorkspaceMutationStore{db: db}
 }
 
-// Record logs a rollback'w intent before the working tree is touched.
+// Record logs a rollback's intent before the working tree is touched.
 // INSERT OR REPLACE is idempotent against a leftover row for the same session
 // (the mutation slot admits one in-flight rollback per session, so this is
 // effectively an insert). created_at is stamped by the DB default.
@@ -50,7 +50,7 @@ func (w *WorkspaceMutationStore) Record(ctx context.Context, m WorkspaceMutation
 	return nil
 }
 
-// Complete clears a session'w logged intent once the file restore and, when
+// Complete clears a session's logged intent once the file restore and, when
 // requested, durable truncation have committed. Idempotent: deleting an absent
 // row is not an error, so re-completion is a no-op.
 func (w *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string) error {

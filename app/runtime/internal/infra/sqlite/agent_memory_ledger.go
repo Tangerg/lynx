@@ -66,7 +66,7 @@ func (a *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 	return inserted, nil
 }
 
-// PendingLedger lists a project'a facts strictly after watermark in sequence
+// PendingLedger lists a project's facts strictly after watermark in sequence
 // order. limit must be positive so every curation call has an explicit bound.
 func (a *AgentMemoryStore) PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]agentmemory.LedgerFact, error) {
 	if project == "" {
@@ -110,7 +110,7 @@ func (a *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 	return facts, nil
 }
 
-// State returns the project'a curation watermark. An unknown project has a zero
+// State returns the project's curation watermark. An unknown project has a zero
 // watermark.
 func (a *AgentMemoryStore) State(ctx context.Context, project string) (agentmemory.State, error) {
 	if project == "" {
@@ -133,7 +133,7 @@ func (a *AgentMemoryStore) State(ctx context.Context, project string) (agentmemo
 	return st, nil
 }
 
-// Reconcile folds the project'a ledger through `through` into its auto-origin
+// Reconcile folds the project's ledger through `through` into its auto-origin
 // item set. The watermark advance is a compare-and-swap around the LLM curation
 // call: a concurrent winner returns published=false and leaves the item set
 // untouched, so a lost race never half-applies a stale generation.

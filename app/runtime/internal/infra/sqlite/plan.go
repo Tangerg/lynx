@@ -125,7 +125,7 @@ func (p *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision
 	return nil
 }
 
-// CaptureBoundary freezes the session'p current Plan at one terminal Run.
+// CaptureBoundary freezes the session's current Plan at one terminal Run.
 func (p *PlanStore) CaptureBoundary(ctx context.Context, sessionID, runID string) error {
 	if _, err := conn(ctx, p.db).ExecContext(ctx,
 		`INSERT INTO plan_boundaries(run_id, steps)

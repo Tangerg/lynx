@@ -168,8 +168,8 @@ func readDocumentAt(ctx context.Context, root *os.Root, doc document) (knowledge
 	if !info.Mode().IsRegular() {
 		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: %q is not a regular file", doc.path)
 	}
-	if err := knowledge.ValidateDocumentSize(info.Size()); err != nil {
-		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: inspect %q: %w", doc.path, err)
+	if sizeErr := knowledge.ValidateDocumentSize(info.Size()); sizeErr != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: inspect %q: %w", doc.path, sizeErr)
 	}
 	data, err := io.ReadAll(io.LimitReader(
 		knowledgeContextReader{ctx: ctx, reader: file},
@@ -178,8 +178,8 @@ func readDocumentAt(ctx context.Context, root *os.Root, doc document) (knowledge
 	if err != nil {
 		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, err)
 	}
-	if err := knowledge.ValidateDocumentSize(int64(len(data))); err != nil {
-		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, err)
+	if sizeErr := knowledge.ValidateDocumentSize(int64(len(data))); sizeErr != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, sizeErr)
 	}
 	entry := knowledge.Entry{
 		Scope: doc.scope, Path: doc.path, Content: string(data), Revision: contentRevision(data),
@@ -219,8 +219,8 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 	if err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve root: %w", err)
 	}
-	if err := os.MkdirAll(rootPath, initialDirectoryMode(scope)); err != nil {
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: mkdir: %w", err)
+	if mkdirErr := os.MkdirAll(rootPath, initialDirectoryMode(scope)); mkdirErr != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: mkdir: %w", mkdirErr)
 	}
 	doc, err := s.documentFor(scope, dir)
 	if err != nil {
@@ -231,16 +231,16 @@ func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expected
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
 	}
 	defer func() { _ = root.Close() }()
-	if err := root.MkdirAll(filepath.Dir(doc.relative), initialDirectoryMode(scope)); err != nil {
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: create document directory: %w", err)
+	if mkdirErr := root.MkdirAll(filepath.Dir(doc.relative), initialDirectoryMode(scope)); mkdirErr != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: create document directory: %w", mkdirErr)
 	}
 	lease, err := advisorylock.AcquireDirectory(ctx, filepath.Dir(doc.path))
 	if err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: acquire document lease: %w", err)
 	}
 	defer func() { _ = lease.Release() }()
-	if err := s.recoverStagedFilesAt(ctx, root, doc, true); err != nil {
-		return knowledge.Entry{}, err
+	if recoveryErr := s.recoverStagedFilesAt(ctx, root, doc, true); recoveryErr != nil {
+		return knowledge.Entry{}, recoveryErr
 	}
 	current, mode, err := readDocumentAt(ctx, root, doc)
 	if err != nil {

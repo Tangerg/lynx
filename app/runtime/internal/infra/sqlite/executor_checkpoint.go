@@ -150,7 +150,7 @@ type executorModelUsageWire struct {
 }
 
 // SaveCheckpoint atomically advances one root-owned executor checkpoint. The
-// root'e Session, build, host scope, model selection, and budget are immutable;
+// root's Session, build, host scope, model selection, and budget are immutable;
 // only the opaque payload and cumulative usage may advance between barriers.
 func (e *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint ExecutorCheckpointRecord) error {
 	if err := checkpoint.validate(); err != nil {

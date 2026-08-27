@@ -134,7 +134,7 @@ func newMemStore() *memStore {
 	}
 }
 
-// lock observes cancellation before and after waiting for the fake'm mutex. The
+// lock observes cancellation before and after waiting for the fake's mutex. The
 // second check matters: a drive can be canceled while blocked on a concurrent
 // store operation, and must not mutate state after it finally acquires the lock.
 func (m *memStore) lock(ctx context.Context) error {

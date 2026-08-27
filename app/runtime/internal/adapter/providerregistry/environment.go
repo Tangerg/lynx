@@ -32,8 +32,8 @@ func WithEnvironmentKeys(inner models.ProviderRegistry, envKeys map[string]strin
 	return &environmentRegistry{inner: inner, envKeys: maps.Clone(envKeys)}
 }
 
-// resolve stamps KeySource and overlays the env key when there'e no stored one.
-// found mirrors the inner Get'e ok — but an env-only provider (no stored row)
+// resolve stamps KeySource and overlays the env key when there's no stored one.
+// found mirrors the inner Get's ok — but an env-only provider (no stored row)
 // still resolves as found, since an env key makes it usable.
 func (e *environmentRegistry) resolve(p provider.Provider, found bool, id string) (provider.Provider, bool) {
 	if found && p.APIKey != "" {

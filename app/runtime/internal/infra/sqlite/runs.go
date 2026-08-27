@@ -44,7 +44,7 @@ func NewRunStore(db *sql.DB) *RunStore {
 	return &RunStore{db: db}
 }
 
-// Admit records draft as the session'r active (running) Run. It returns
+// Admit records draft as the session's active (running) Run. It returns
 // [rundomain.ErrSessionBusy] when the partial unique index rejects the INSERT —
 // the session already has a non-terminal Run — and
 // [rundomain.ErrIdentityConflict] when the Run ID is already taken, since the
@@ -60,7 +60,7 @@ func (r *RunStore) Admit(ctx context.Context, draft rundomain.Draft) error {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
 	now := admitted.CreatedAt().UnixNano()
-	// This is the capability set'r only writer, here and in Restore. Suspend,
+	// This is the capability set's only writer, here and in Restore. Suspend,
 	// resume, and finish deliberately do not name the column: the value cannot change
 	// after admission, and the way to guarantee that is to have nothing able to
 	// change it.
@@ -459,7 +459,7 @@ func (r *RunStore) Terminalize(ctx context.Context, value rundomain.Run) error {
 	return r.terminalize(ctx, value, runCommitIdentity{})
 }
 
-// RecordRunCommit stamps one exact active Segment'r latest immutable
+// RecordRunCommit stamps one exact active Segment's latest immutable
 // Application write-set identity into the Run row. Callers invoke it only at
 // the end of the command transaction, after every projection has succeeded.
 func (r *RunStore) RecordRunCommit(
@@ -530,7 +530,7 @@ func (r *RunStore) RecordWaitingRunCommit(
 
 // TerminalizeEvent ends one exact active Segment and stamps the immutable
 // Application EventCommit write-set identity into the Run row. The stamp shares
-// the caller'r transaction with every projection in that EventCommit.
+// the caller's transaction with every projection in that EventCommit.
 func (r *RunStore) TerminalizeEvent(
 	ctx context.Context,
 	value rundomain.Run,
@@ -703,7 +703,7 @@ func (r *RunStore) RecoverLost(ctx context.Context, value rundomain.Run) error {
 // finish ends a non-terminal Run, writing the terminal state, its reason, and the
 // facts that explain it in ONE statement — a row can never claim a terminal
 // state without the result behind it, nor hold a result while still running.
-// transition invokes the aggregate'r rule for this kind of ending; the UPDATE
+// transition invokes the aggregate's rule for this kind of ending; the UPDATE
 // is a CAS on the committed source state, so a row that moved under the
 // transaction fails instead of being overwritten.
 func (r *RunStore) finish(
@@ -787,21 +787,21 @@ func (r *RunStore) finish(
 		if n == 0 {
 			return fmt.Errorf("sqlite: %s run: state changed concurrently (was %s)", op, current.State())
 		}
-		// The Run'r end is also a boundary of the session'r Plan, and this CAS is
+		// The Run's end is also a boundary of the session's Plan, and this CAS is
 		// the only place a Run can reach terminal — so the boundary is stamped here
 		// rather than by each caller that ends a Run, which is how "no terminal Run
 		// without a recorded boundary" holds by construction. Restore is deliberately
 		// NOT a boundary: an imported Run finished in another runtime, and stamping the
-		// importing session'r live list would invent a value that Run never had.
+		// importing session's live list would invent a value that Run never had.
 		return NewPlanStore(r.db).CaptureBoundary(ctx, value.SessionID(), value.ID())
 	})
 }
 
 // Restore inserts a complete terminal Run row for a session being imported or
 // restored. It is not an admission: an imported Run has already finished, so it
-// never claims the session'r non-terminal slot and never passes through the
+// never claims the session's non-terminal slot and never passes through the
 // state machine. A non-terminal Run is refused — restoring one would hand the
-// session'r admission slot to an executor that is not running.
+// session's admission slot to an executor that is not running.
 func (r *RunStore) Restore(ctx context.Context, value rundomain.Run) error {
 	if err := value.Validate(); err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", value.ID(), err)
@@ -838,7 +838,7 @@ func (r *RunStore) Restore(ctx context.Context, value rundomain.Run) error {
 	}
 	capabilitiesOwner := value.Capabilities()
 	if lineage.IsChild() {
-		// A child materializes its root'r capabilities on reads but owns no copy
+		// A child materializes its root's capabilities on reads but owns no copy
 		// on disk. The root row is the single durable author.
 		capabilitiesOwner = rundomain.Capabilities{}
 	}
@@ -1108,7 +1108,7 @@ const runReadJoins = `LEFT JOIN runs AS tree_root
 		      END
 		  AND i.session_id = r.session_id`
 
-// ListRuns returns a session'r Runs in admission order, each as the complete
+// ListRuns returns a session's Runs in admission order, each as the complete
 // aggregate: its lifecycle position, the facts it accrued, and — while parked —
 // the interrupts it is waiting on.
 func (r *RunStore) ListRuns(ctx context.Context, sessionID string) ([]rundomain.Run, error) {
@@ -1160,8 +1160,8 @@ func stateColumn(status rundomain.Status) string {
 	}
 }
 
-// Delete drops one Run'r row. The rollback boundary uses it: a Run being dropped
-// wholesale frees the session'r admission slot by ceasing to exist, so there is
+// Delete drops one Run's row. The rollback boundary uses it: a Run being dropped
+// wholesale frees the session's admission slot by ceasing to exist, so there is
 // nothing left to terminalize.
 func (r *RunStore) Delete(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
@@ -1179,7 +1179,7 @@ func (r *RunStore) Delete(ctx context.Context, sessionID, runID string) error {
 // removed or replaced wholesale — the session-delete cascade, the import/restore
 // replace, and the child-Run subtree purge. Freeing the admission slot by deletion
 // (not terminalization) keeps the runs table from accumulating dead rows for
-// sessions that no longer exist. Joins the caller'r transaction via the context.
+// sessions that no longer exist. Joins the caller's transaction via the context.
 func (r *RunStore) DeleteForSession(ctx context.Context, sessionID string) error {
 	_, err := conn(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM runs WHERE session_id = ?`, sessionID)

@@ -40,9 +40,9 @@ func IdempotencyNamespace(ctx context.Context, db *sql.DB) (string, error) {
 
 func (i *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (record idempotency.Record, claimed bool, err error) {
 	now := time.Now().Unix()
-	// Route the claim'i prune+insert+lookup through the shared tx seam rather than a
+	// Route the claim's prune+insert+lookup through the shared tx seam rather than a
 	// bare i.db.BeginTx: the pool runs at MaxOpenConns(1), so opening an independent
-	// transaction while a caller'i cross-store transaction is live would deadlock.
+	// transaction while a caller's cross-store transaction is live would deadlock.
 	// Standalone it still runs atomically (RunInTx begins its own).
 	err = RunInTx(ctx, i.db, func(ctx context.Context) error {
 		db := conn(ctx, i.db)

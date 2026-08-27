@@ -37,15 +37,15 @@ func acquireDirectory(ctx context.Context, directory string) (*Lease, error) {
 	retry := time.NewTicker(time.Millisecond)
 	defer retry.Stop()
 	for {
-		if err := context.Cause(ctx); err != nil {
+		if cause := context.Cause(ctx); cause != nil {
 			_ = file.Close()
-			return nil, err
+			return nil, cause
 		}
 		err = unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 		if err == nil {
 			return newLease(func() error {
-				if err := unix.Flock(int(file.Fd()), unix.LOCK_UN); err != nil {
-					return err
+				if unlockErr := unix.Flock(int(file.Fd()), unix.LOCK_UN); unlockErr != nil {
+					return unlockErr
 				}
 				_ = file.Close()
 				return nil

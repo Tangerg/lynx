@@ -213,21 +213,21 @@ func (s schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 			continue
 		}
 
-		jsonField, err := parseJSONField(field)
+		fieldJSON, err := parseJSONField(field)
 		if err != nil {
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
-		if jsonField.skipped {
+		if fieldJSON.skipped {
 			continue
 		}
 		fieldType := field.Type
 		for fieldType.Kind() == reflect.Pointer {
 			fieldType = fieldType.Elem()
 		}
-		if field.Anonymous && !jsonField.explicit && fieldType.Kind() == reflect.Struct {
-			embedded, err := s.buildStruct(fieldType)
-			if err != nil {
-				return schemaNode{}, err
+		if field.Anonymous && !fieldJSON.explicit && fieldType.Kind() == reflect.Struct {
+			embedded, buildErr := s.buildStruct(fieldType)
+			if buildErr != nil {
+				return schemaNode{}, buildErr
 			}
 			for embeddedName, property := range embedded.Properties {
 				if _, duplicate := node.Properties[embeddedName]; duplicate {
@@ -248,12 +248,12 @@ func (s schemaBuilder) buildStruct(typeOf reflect.Type) (schemaNode, error) {
 		if err != nil {
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
-		if _, duplicate := node.Properties[jsonField.name]; duplicate {
-			return schemaNode{}, fmt.Errorf("duplicate JSON property %q", jsonField.name)
+		if _, duplicate := node.Properties[fieldJSON.name]; duplicate {
+			return schemaNode{}, fmt.Errorf("duplicate JSON property %q", fieldJSON.name)
 		}
-		node.Properties[jsonField.name] = property
-		if !jsonField.optional || explicitlyRequired {
-			node.Required = append(node.Required, jsonField.name)
+		node.Properties[fieldJSON.name] = property
+		if !fieldJSON.optional || explicitlyRequired {
+			node.Required = append(node.Required, fieldJSON.name)
 		}
 	}
 	return node, nil

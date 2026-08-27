@@ -182,8 +182,8 @@ func prepareRequest(source *corechat.Request, target *openai.CompatibleRequest) 
 	if err != nil {
 		return err
 	}
-	if err := options.ValidateFor(target.Model(), target.Stream()); err != nil {
-		return err
+	if validationErr := options.ValidateFor(target.Model(), target.Stream()); validationErr != nil {
+		return validationErr
 	}
 	encoded, err := json.Marshal(options)
 	if err != nil {

@@ -44,7 +44,7 @@ func (t *ToolResultStore) Stage(ctx context.Context, stage toolresult.Stage) err
 // Fetch returns the full offloaded body for (sessionID, id). found is false —
 // with a nil error — when no such row exists (an unknown id is a recoverable
 // miss the caller surfaces to the model, not a failure). Scoping the read by
-// session id keeps one session from reading another't offloaded output.
+// session id keeps one session from reading another's offloaded output.
 func (t *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolresult.ID) (body string, found bool, err error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return "", false, errors.New("sqlite: fetch tool result requires a session ID")

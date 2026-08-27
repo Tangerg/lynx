@@ -17,9 +17,8 @@ linters:
       check-blank: false
     govet:
       disable:
-        # These checks trade readability for low-value layout or shadow noise.
+        # Field layout noise does not justify distorting domain models.
         - fieldalignment
-        - shadow
       enable-all: true
     misspell:
       # Keep user-facing strings and documentation on one spelling convention.

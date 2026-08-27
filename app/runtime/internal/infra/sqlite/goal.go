@@ -38,7 +38,7 @@ type goalUsed struct {
 	Steps   int     `json:"steps"`
 }
 
-// Get returns the session'g goal, or (zero, false, nil) when it has none.
+// Get returns the session's goal, or (zero, false, nil) when it has none.
 func (g *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, g.db).QueryRowContext(ctx,
 		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, capabilities, budget, used, incarnation_id, revision, created_at, updated_at
@@ -198,7 +198,7 @@ func rowsAffected(res sql.Result) (bool, error) {
 	return n == 1, nil
 }
 
-// Clear removes the session'g goal unconditionally; a missing goal is not an
+// Clear removes the session's goal unconditionally; a missing goal is not an
 // error.
 func (g *GoalStore) Clear(ctx context.Context, sessionID string) error {
 	if _, err := conn(ctx, g.db).ExecContext(ctx, `DELETE FROM goals WHERE session_id = ?`, sessionID); err != nil {
@@ -207,8 +207,8 @@ func (g *GoalStore) Clear(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// ClearIf removes the session'g goal only when its version matches expected
-// (the loop'g CAS delete), reporting whether it applied.
+// ClearIf removes the session's goal only when its version matches expected
+// (the loop's CAS delete), reporting whether it applied.
 func (g *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
 	res, err := conn(ctx, g.db).ExecContext(ctx,
 		`DELETE FROM goals WHERE session_id = ? AND incarnation_id = ? AND revision = ?`, sessionID, expected.IncarnationID, expected.Revision)

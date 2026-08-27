@@ -45,7 +45,7 @@ func decodeVec(encoded []byte) ([]float32, error) {
 	return vector, nil
 }
 
-// reconcileItems applies the domain fold ([agentmemory.Fold]) to the project'a
+// reconcileItems applies the domain fold ([agentmemory.Fold]) to the project's
 // auto-origin items: prune the stale pending proposals it flags, insert the new
 // curated facts as pending proposals. The review invariants (tombstone,
 // active-sticky, pending-default, digest identity) live in the domain; this is
@@ -91,7 +91,7 @@ func (a *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 	return nil
 }
 
-// autoItems fetches the project'a auto-origin fold set: unpinned visible items
+// autoItems fetches the project's auto-origin fold set: unpinned visible items
 // plus every retained rejected tombstone (id + content + status suffice).
 func (a *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]agentmemory.Item, error) {
 	rows, err := conn(ctx, a.db).QueryContext(ctx,
@@ -352,7 +352,7 @@ func (a *AgentMemoryStore) Get(ctx context.Context, id string) (agentmemory.Item
 	return item, true, nil
 }
 
-// Update applies the review surface'a content/pin patch atomically. Content
+// Update applies the review surface's content/pin patch atomically. Content
 // edits clear stale embeddings; either validation or persistence failure rolls
 // back every requested field, so callers never observe a half-applied update.
 func (a *AgentMemoryStore) Update(ctx context.Context, id string, content *string, pinned *bool, now time.Time) (agentmemory.Item, error) {
@@ -457,7 +457,7 @@ func (a *AgentMemoryStore) SetPinned(ctx context.Context, id string, pinned bool
 	return affectedOne(result, "pin")
 }
 
-// UpdateContent edits an item'a content, recomputes its digest, and clears the
+// UpdateContent edits an item's content, recomputes its digest, and clears the
 // now-stale embedding so a later fold re-embeds it.
 func (a *AgentMemoryStore) UpdateContent(ctx context.Context, id, content string, now time.Time) error {
 	content, err := agentmemory.NormalizeContent(content)

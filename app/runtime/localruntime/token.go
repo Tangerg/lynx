@@ -62,8 +62,8 @@ func OpenToken(path string) (*Token, error) {
 	}
 
 	parent := filepath.Dir(path)
-	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return nil, fmt.Errorf("local Runtime token: create parent: %w", err)
+	if mkdirErr := os.MkdirAll(parent, 0o700); mkdirErr != nil {
+		return nil, fmt.Errorf("local Runtime token: create parent: %w", mkdirErr)
 	}
 	value, err := newTokenValue()
 	if err != nil {
@@ -114,8 +114,8 @@ func ReadToken(path string) (*Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateTokenFile(pathInfo); err != nil {
-		return nil, err
+	if validationErr := validateTokenFile(pathInfo); validationErr != nil {
+		return nil, validationErr
 	}
 
 	file, err := os.Open(path)
@@ -130,8 +130,8 @@ func ReadToken(path string) (*Token, error) {
 	if !os.SameFile(pathInfo, openedInfo) {
 		return nil, invalidToken("path changed while opening")
 	}
-	if err := validateTokenFile(openedInfo); err != nil {
-		return nil, err
+	if validationErr := validateTokenFile(openedInfo); validationErr != nil {
+		return nil, validationErr
 	}
 
 	var encoded [encodedTokenBytes + 1]byte
