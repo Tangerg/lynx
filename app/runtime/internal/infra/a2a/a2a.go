@@ -69,14 +69,15 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []toolcontr
 			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
 		}
 	}
-	tools, closeTools, derr := scopea2a.OpenTools(ctx, endpoints...)
+	toolSet, derr := scopea2a.OpenToolSet(ctx, endpoints...)
 	if derr != nil {
 		err = fmt.Errorf("a2a: dial agents: %w", derr)
 		return nil, nil, err
 	}
+	tools := toolSet.Tools()
 
 	span.SetAttributes(attribute.Int("a2a.tool.count", len(tools)))
-	return &Connections{close: closeTools}, tools, nil
+	return &Connections{close: toolSet.Close}, tools, nil
 }
 
 // Close closes every open remote-agent client. Nil-safe; errors are joined.

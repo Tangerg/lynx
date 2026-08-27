@@ -164,20 +164,25 @@ func TestRoundTrip(t *testing.T) {
 	delegate = handler
 
 	// Client side: resolve the card and wrap the remote agent as a tool.
-	tools, closeTools, err := a2a.OpenTools(ctx, a2a.Endpoint{CardURL: ts.URL})
+	toolSet, err := a2a.OpenToolSet(ctx, a2a.Endpoint{CardURL: ts.URL})
 	if err != nil {
-		t.Fatalf("OpenTools: %v", err)
+		t.Fatalf("OpenToolSet: %v", err)
 	}
 	defer func() {
-		if closeToolsErr := closeTools(); closeToolsErr != nil {
+		if closeToolsErr := toolSet.Close(); closeToolsErr != nil {
 			t.Fatalf("close tools: %v", closeToolsErr)
 		}
 	}()
 
+	tools := toolSet.Tools()
 	if len(tools) != 1 {
-		t.Fatalf("OpenTools returned %d tools, want 1", len(tools))
+		t.Fatalf("ToolSet contains %d tools, want 1", len(tools))
 	}
 	tool := tools[0]
+	tools[0] = nil
+	if got := toolSet.Tools(); len(got) != 1 || got[0] == nil {
+		t.Fatal("mutating a ToolSet snapshot changed the owned tool view")
+	}
 
 	if got := tool.Definition().Name; got != "echo_agent" {
 		t.Errorf("tool name = %q, want %q (sanitized from card name)", got, "echo_agent")
@@ -210,5 +215,11 @@ func TestRoundTrip(t *testing.T) {
 				t.Fatal("Call succeeded for arguments outside the declared object schema")
 			}
 		})
+	}
+	if err := toolSet.Close(); err != nil {
+		t.Fatalf("close ToolSet: %v", err)
+	}
+	if err := toolSet.Close(); err != nil {
+		t.Fatalf("close ToolSet again: %v", err)
 	}
 }

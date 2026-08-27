@@ -4,48 +4,72 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
-// OpenTools resolves every endpoint, opens its client, and wraps each remote
-// agent as a chat tool.
-// The returned close function releases all opened agent clients. It is always
-// non-nil and safe to call once startup succeeds.
-func OpenTools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, func() error, error) {
-	var clients []*a2aclient.Client
-	var tools []toolcontract.Tool
+// ToolSet owns the clients behind an immutable view of remote-agent tools.
+// Tools remain usable until Close; the value must not be copied after first use.
+type ToolSet struct {
+	clients   []*a2aclient.Client
+	tools     []toolcontract.Tool
+	closeOnce sync.Once
+	closeErr  error
+}
+
+// OpenToolSet closes every client opened before a later endpoint fails, so a
+// failed construction never transfers partial lifecycle ownership to callers.
+func OpenToolSet(ctx context.Context, endpoints ...Endpoint) (*ToolSet, error) {
+	toolSet := &ToolSet{}
 	seen := make(map[string]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
 		client, card, err := dial(ctx, endpoint)
 		if err != nil {
-			return nil, nil, errors.Join(err, closeClients(clients))
+			return nil, errors.Join(err, toolSet.Close())
 		}
-		clients = append(clients, client)
+		toolSet.clients = append(toolSet.clients, client)
 
 		remote, err := newRemoteTool(remoteToolConfig{client: client, card: card, name: endpoint.Name})
 		if err != nil {
-			return nil, nil, errors.Join(err, closeClients(clients))
+			return nil, errors.Join(err, toolSet.Close())
 		}
 		name := remote.Definition().Name
 		if _, dup := seen[name]; dup {
 			err := fmt.Errorf("a2a: duplicate remote-agent tool name %q", name)
-			return nil, nil, errors.Join(err, closeClients(clients))
+			return nil, errors.Join(err, toolSet.Close())
 		}
 		seen[name] = struct{}{}
-		tools = append(tools, remote)
+		toolSet.tools = append(toolSet.tools, remote)
 	}
-	return tools, func() error { return closeClients(clients) }, nil
+	return toolSet, nil
 }
 
-func closeClients(clients []*a2aclient.Client) error {
-	var errs []error
-	for _, client := range clients {
-		if err := client.Destroy(); err != nil {
-			errs = append(errs, err)
-		}
+// Tools returns a snapshot so callers cannot mutate the set's ordered view.
+func (s *ToolSet) Tools() []toolcontract.Tool {
+	if s == nil {
+		return nil
 	}
-	return errors.Join(errs...)
+	return slices.Clone(s.tools)
+}
+
+// Close releases every remote-agent client in reverse acquisition order. It
+// is nil-safe and idempotent so multiple shutdown paths can share the owner.
+func (s *ToolSet) Close() error {
+	if s == nil {
+		return nil
+	}
+	s.closeOnce.Do(func() {
+		var errs []error
+		for index := len(s.clients) - 1; index >= 0; index-- {
+			if err := s.clients[index].Destroy(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		s.closeErr = errors.Join(errs...)
+	})
+	return s.closeErr
 }
