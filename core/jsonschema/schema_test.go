@@ -18,7 +18,7 @@ type wireFixture struct {
 	Signature []byte                     `json:"signature"`
 }
 
-type richFixture struct{ value int }
+type richFixture struct{}
 
 type richFixtureModel struct {
 	Value int `json:"value" jsonschema:"minimum=1"`
@@ -103,7 +103,7 @@ func TestForMatchesJSONFieldAndSchemaTagSemantics(t *testing.T) {
 		Operation string    `json:"operation" jsonschema:"enum=list,enum=load,minLength=4,maxLength=4,pattern=^[a-z]+$" jsonschema_description:"Operation to run."`
 		Options   []option  `json:"options,omitempty" jsonschema:"minItems=1,maxItems=4"`
 		Ignored   string    `json:"-"`
-		When      time.Time `json:"when,omitempty"`
+		When      time.Time `json:"when,omitzero"`
 		Score     float64   `json:"score,omitempty" jsonschema:"minimum=-1.5,maximum=2.5"`
 	}
 
@@ -171,8 +171,8 @@ func TestForSupportsCompositePointerAndEncodingSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 	var collectionSchema map[string]any
-	if err := json.Unmarshal(collection.JSON(), &collectionSchema); err != nil {
-		t.Fatal(err)
+	if decodeErr := json.Unmarshal(collection.JSON(), &collectionSchema); decodeErr != nil {
+		t.Fatal(decodeErr)
 	}
 	additional := collectionSchema["additionalProperties"].(map[string]any)
 	if additional["type"] != "array" {
@@ -185,7 +185,7 @@ func TestForSupportsCompositePointerAndEncodingSemantics(t *testing.T) {
 	if !strings.Contains(string(recursiveSchema.JSON()), `"$ref"`) || !strings.Contains(string(recursiveSchema.JSON()), `"$defs"`) {
 		t.Fatalf("recursive schema does not use references: %s", recursiveSchema.JSON())
 	}
-	if _, err := jsonschema.For[badPattern](); err == nil {
+	if _, schemaErr := jsonschema.For[badPattern](); schemaErr == nil {
 		t.Fatal("invalid pattern succeeded")
 	}
 	encoded, err := jsonschema.For[stringEncoded]()

@@ -7,9 +7,10 @@ import (
 	"iter"
 	"strings"
 
+	jsonrepair "github.com/silaswei-io/jsonrepair-go"
+
 	"github.com/Tangerg/scope/core/chat"
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
-	jsonrepair "github.com/silaswei-io/jsonrepair-go"
 )
 
 var (

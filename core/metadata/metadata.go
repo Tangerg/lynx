@@ -135,7 +135,7 @@ func (m *Map) Merge(source Map) error {
 	if m == nil {
 		return ErrNilMap
 	}
-	if err := (*m).Validate(); err != nil {
+	if err := m.Validate(); err != nil {
 		return fmt.Errorf("metadata: merge target: %w", err)
 	}
 	if err := source.Validate(); err != nil {

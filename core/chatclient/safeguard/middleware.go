@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/scope/core/chat"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // MiddlewareConfig controls one immutable Middleware. A zero Scope defaults

@@ -46,9 +46,6 @@ type Schema struct {
 // Structs reject additional properties by default.
 func For[T any]() (Schema, error) {
 	typeOf := reflect.TypeFor[T]()
-	if typeOf == nil {
-		return Schema{}, fmt.Errorf("%w: nil type", ErrInvalid)
-	}
 	definition, err := reflectType(typeOf)
 	if err != nil {
 		return Schema{}, fmt.Errorf("%w: derive %v: %w", ErrInvalid, typeOf, err)
@@ -73,7 +70,7 @@ func Parse(raw []byte) (Schema, error) {
 	compiler := validation.NewCompiler()
 	compiler.DefaultDraft(validation.Draft2020)
 	compiler.AssertFormat()
-	if err := compiler.AddResource(resourceURL, document); err != nil {
+	if err = compiler.AddResource(resourceURL, document); err != nil {
 		return Schema{}, fmt.Errorf("%w: add resource: %w", ErrInvalid, err)
 	}
 	compiled, err := compiler.Compile(resourceURL)
@@ -128,7 +125,7 @@ func reflectWireType(typeOf reflect.Type) *reflection.Schema {
 }
 
 func schemaModelType(typeOf reflect.Type) (reflect.Type, bool) {
-	modeler, modeled := reflect.New(typeOf).Interface().(Modeler)
+	modeler, modeled := reflect.TypeAssert[Modeler](reflect.New(typeOf))
 	if !modeled {
 		return nil, false
 	}

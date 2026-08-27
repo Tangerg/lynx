@@ -15,6 +15,15 @@ import (
 
 var ErrInvalidOptions = errors.New("chat: invalid options")
 
+const (
+	minimumPenalty     = -2.0
+	maximumPenalty     = 2.0
+	minimumTemperature = 0.0
+	maximumTemperature = 2.0
+	minimumTopP        = 0.0
+	maximumTopP        = 1.0
+)
+
 // Options contains provider-neutral per-request generation overrides. Its zero
 // value means provider defaults. Resolve overlays only explicitly populated
 // fields, merges namespaced extensions, snapshots mutable values, and leaves
@@ -124,13 +133,13 @@ func (o Options) Validate() error {
 			return fmt.Errorf("%w: output_format: %w", ErrInvalidOptions, err)
 		}
 	}
-	if err := validateFloat("frequency_penalty", o.FrequencyPenalty, -2, 2); err != nil {
+	if err := validateFloat("frequency_penalty", o.FrequencyPenalty, minimumPenalty, maximumPenalty); err != nil {
 		return err
 	}
 	if o.MaxTokens != nil && *o.MaxTokens <= 0 {
 		return fmt.Errorf("%w: max_tokens must be greater than zero", ErrInvalidOptions)
 	}
-	if err := validateFloat("presence_penalty", o.PresencePenalty, -2, 2); err != nil {
+	if err := validateFloat("presence_penalty", o.PresencePenalty, minimumPenalty, maximumPenalty); err != nil {
 		return err
 	}
 	for i, stop := range o.Stop {
@@ -138,13 +147,13 @@ func (o Options) Validate() error {
 			return fmt.Errorf("%w: stop[%d] must not be empty", ErrInvalidOptions, i)
 		}
 	}
-	if err := validateFloat("temperature", o.Temperature, 0, 2); err != nil {
+	if err := validateFloat("temperature", o.Temperature, minimumTemperature, maximumTemperature); err != nil {
 		return err
 	}
 	if o.TopK != nil && *o.TopK <= 0 {
 		return fmt.Errorf("%w: top_k must be greater than zero", ErrInvalidOptions)
 	}
-	if err := validateFloat("top_p", o.TopP, 0, 1); err != nil {
+	if err := validateFloat("top_p", o.TopP, minimumTopP, maximumTopP); err != nil {
 		return err
 	}
 	if err := extension.Validate(o.Extensions); err != nil {
