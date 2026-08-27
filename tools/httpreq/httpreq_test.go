@@ -15,7 +15,7 @@ import (
 )
 
 func TestToolUsesStrictTypedContract(t *testing.T) {
-	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,23 +48,26 @@ func TestToolUsesStrictTypedContract(t *testing.T) {
 }
 
 func TestNewClient_RequiresAllowlist(t *testing.T) {
-	if _, err := NewClient(Config{}); !errors.Is(err, ErrMissingHosts) {
-		t.Fatalf("want ErrMissingHosts, got %v", err)
+	if _, err := NewClient(ClientConfig{}); !errors.Is(err, ErrMissingAllowedHosts) {
+		t.Fatalf("want ErrMissingAllowedHosts, got %v", err)
 	}
 }
 
-func TestConfig_Validate(t *testing.T) {
+func TestClientConfigValidate(t *testing.T) {
 	tests := []struct {
 		name   string
-		config Config
+		config ClientConfig
 		want   error
 	}{
-		{name: "valid", config: Config{AllowedHosts: []string{"example.com"}}},
-		{name: "missing hosts", config: Config{}, want: ErrMissingHosts},
-		{name: "invalid host", config: Config{AllowedHosts: []string{"bad*host"}}, want: ErrInvalidConfig},
-		{name: "blank method", config: Config{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{""}}, want: ErrInvalidConfig},
-		{name: "unsupported method", config: Config{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{"CONNECT"}}, want: ErrInvalidMethod},
-		{name: "negative timeout", config: Config{AllowedHosts: []string{"example.com"}, DefaultTimeout: -time.Second}, want: ErrInvalidConfig},
+		{name: "valid", config: ClientConfig{AllowedHosts: []string{"example.com"}}},
+		{name: "missing hosts", config: ClientConfig{}, want: ErrMissingAllowedHosts},
+		{name: "invalid host", config: ClientConfig{AllowedHosts: []string{"bad*host"}}, want: ErrInvalidClientConfig},
+		{name: "host URL", config: ClientConfig{AllowedHosts: []string{"https://example.com"}}, want: ErrInvalidHostPattern},
+		{name: "host with port", config: ClientConfig{AllowedHosts: []string{"example.com:443"}}, want: ErrInvalidHostPattern},
+		{name: "wildcard IP", config: ClientConfig{AllowedHosts: []string{"*.127.0.0.1"}}, want: ErrInvalidHostPattern},
+		{name: "blank method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{""}}, want: ErrInvalidClientConfig},
+		{name: "unsupported method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{"CONNECT"}}, want: ErrInvalidMethod},
+		{name: "negative timeout", config: ClientConfig{AllowedHosts: []string{"example.com"}, DefaultTimeout: -time.Second}, want: ErrInvalidClientConfig},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -80,14 +83,26 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 func TestMethod(t *testing.T) {
-	if got := Method("").Resolve(); got != MethodGET {
-		t.Fatalf("empty Method.Resolve() = %q, want %q", got, MethodGET)
+	if got := Method("").Normalize(); got != MethodGET {
+		t.Fatalf("empty Method.Normalize() = %q, want %q", got, MethodGET)
 	}
-	if got := Method(" post ").Resolve(); got != MethodPOST {
-		t.Fatalf("Method(post).Resolve() = %q, want %q", got, MethodPOST)
+	if got := Method(" post ").Normalize(); got != MethodPOST {
+		t.Fatalf("Method(post).Normalize() = %q, want %q", got, MethodPOST)
 	}
 	if err := Method("CONNECT").Validate(); !errors.Is(err, ErrInvalidMethod) {
 		t.Fatalf("Method(CONNECT).Validate() error = %v, want ErrInvalidMethod", err)
+	}
+}
+
+func TestAllowlistNormalizesDNSAndIPHosts(t *testing.T) {
+	allowlist, err := NewAllowlist([]string{"BÜCHER.example.", "[2001:db8::1]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{"bücher.example", "xn--bcher-kva.example.", "2001:db8::1"} {
+		if !allowlist.Allows(host) {
+			t.Errorf("normalized host %q should be allowed", host)
+		}
 	}
 }
 
@@ -101,7 +116,7 @@ func TestRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 	if err := original.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := original.Prepare()
+	prepared, err := original.prepare()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,6 +134,8 @@ func TestRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 
 func TestDo_HostAllowlist(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("X-Multi", "first")
+		w.Header().Add("X-Multi", "second")
 		w.Write([]byte("ok"))
 	}))
 	t.Cleanup(srv.Close)
@@ -127,7 +144,7 @@ func TestDo_HostAllowlist(t *testing.T) {
 	host := strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://")
 	hostOnly := strings.Split(host, ":")[0]
 
-	client, err := NewClient(Config{AllowedHosts: []string{hostOnly}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{hostOnly}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,9 +156,19 @@ func TestDo_HostAllowlist(t *testing.T) {
 	if resp.Status != 200 || resp.Body != "ok" {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
+	if values := resp.Headers["X-Multi"]; len(values) != 2 || values[0] != "first" || values[1] != "second" {
+		t.Fatalf("multi-value response header = %v", values)
+	}
 
 	if _, err := client.Do(t.Context(), &Request{URL: "https://blocked.example.com/x"}); !errors.Is(err, ErrHostNotAllowed) {
 		t.Fatalf("want ErrHostNotAllowed, got %v", err)
+	}
+}
+
+func TestNilClientRejectsRequest(t *testing.T) {
+	var client *Client
+	if _, err := client.Do(t.Context(), &Request{URL: "https://example.com"}); !errors.Is(err, ErrNilClient) {
+		t.Fatalf("nil Client.Do error = %v, want ErrNilClient", err)
 	}
 }
 
@@ -156,7 +183,7 @@ func TestDo_RedirectHostAllowlist(t *testing.T) {
 		}))
 		t.Cleanup(source.Close)
 
-		client, err := NewClient(Config{AllowedHosts: []string{testURLHostname(t, source.URL)}})
+		client, err := NewClient(ClientConfig{AllowedHosts: []string{testURLHostname(t, source.URL)}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +215,7 @@ func TestDo_RedirectHostAllowlist(t *testing.T) {
 				return callerPolicyErr
 			},
 		}
-		client, err := NewClient(Config{
+		client, err := NewClient(ClientConfig{
 			AllowedHosts: []string{testURLHostname(t, source.URL)},
 			HTTPClient:   httpClient,
 		})
@@ -209,7 +236,7 @@ func TestDo_RedirectHostAllowlist(t *testing.T) {
 }
 
 func TestDo_WildcardHost(t *testing.T) {
-	client, err := NewClient(Config{AllowedHosts: []string{"*.example.com"}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{"*.example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +263,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
 
-	client, err := NewClient(Config{AllowedHosts: []string{hostOnly}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{hostOnly}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +273,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 		t.Fatalf("default methods should block POST, got %v", err)
 	}
 
-	writeClient, err := NewClient(Config{
+	writeClient, err := NewClient(ClientConfig{
 		AllowedHosts:   []string{hostOnly},
 		AllowedMethods: []Method{MethodGET, MethodPOST},
 	})
@@ -263,7 +290,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 }
 
 func TestDo_ValidatesMethodAndTimeout(t *testing.T) {
-	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,8 +300,8 @@ func TestDo_ValidatesMethodAndTimeout(t *testing.T) {
 		want    error
 	}{
 		{name: "method", request: Request{URL: "https://example.com", Method: "CONNECT"}, want: ErrInvalidMethod},
-		{name: "negative timeout", request: Request{URL: "https://example.com", TimeoutMS: -1}, want: ErrInvalidTimeout},
-		{name: "large timeout", request: Request{URL: "https://example.com", TimeoutMS: maxRequestTimeout + 1}, want: ErrInvalidTimeout},
+		{name: "negative timeout", request: Request{URL: "https://example.com", TimeoutMS: -1}, want: ErrInvalidRequestTimeout},
+		{name: "large timeout", request: Request{URL: "https://example.com", TimeoutMS: int(MaxRequestTimeout/time.Millisecond) + 1}, want: ErrInvalidRequestTimeout},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := client.Do(t.Context(), &test.request); !errors.Is(err, test.want) {
@@ -293,7 +320,7 @@ func TestDo_ResponseTruncation(t *testing.T) {
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
 
-	client, err := NewClient(Config{
+	client, err := NewClient(ClientConfig{
 		AllowedHosts:     []string{hostOnly},
 		MaxResponseBytes: 100,
 	})
@@ -314,7 +341,7 @@ func TestDo_ResponseTruncation(t *testing.T) {
 }
 
 func TestDo_InvalidURL(t *testing.T) {
-	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
+	client, err := NewClient(ClientConfig{AllowedHosts: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +362,7 @@ func TestDo_DefaultHeadersAndQuery(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
-	client, err := NewClient(Config{
+	client, err := NewClient(ClientConfig{
 		AllowedHosts:   []string{hostOnly},
 		DefaultHeaders: map[string]string{"Authorization": "Bearer secret"},
 	})

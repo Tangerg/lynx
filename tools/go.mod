@@ -9,6 +9,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/samber/lo v1.53.0
+	golang.org/x/net v0.43.0
 )
 
 require (
@@ -21,7 +22,6 @@ require (
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
-	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

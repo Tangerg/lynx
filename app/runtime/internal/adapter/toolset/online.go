@@ -63,7 +63,7 @@ func buildOnline(online OnlineConfig) ([]toolcontract.Tool, error) {
 	}
 
 	out, err = appendEnabled(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (toolcontract.Tool, error) {
-		client, clientErr := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
+		client, clientErr := httpreq.NewClient(httpreq.ClientConfig{AllowedHosts: online.HTTPAllowedHosts})
 		if clientErr != nil {
 			return nil, clientErr
 		}
