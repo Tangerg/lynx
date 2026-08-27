@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-27
-> 当前阶段：P1–P28 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位与语义注释门禁均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-28
+> 当前阶段：P1–P29 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位、语义注释门禁与模型调用前上下文缩减状态同步均已完成；Runtime 的持久化与产品策略仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/scope/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -96,6 +96,7 @@ go test ./...
 | P26 Scope canonical identity | 完成 | 1/1 | 全仓 module/import identity 只保留 Scope，不建立品牌兼容层 |
 | P27 OTel 集成归位 | 完成 | 1/1 | Agent 只拥有领域合同，OpenTelemetry adapter 回到集成层 |
 | P28 语义注释门禁 | 完成 | 1/1 | 删除复述型 GoDoc，只强制关键接口及其方法的真实契约 |
+| P29 模型调用内上下文生命周期 | 完成 | 2/2 | 让模型调用前缩减结果成为下一轮 Strategy WorkingContext，Host 策略仍留在 Runtime |
 
 ---
 
@@ -314,6 +315,11 @@ go test ./...
 
 - [x] P28-01 删除 sentinel error、constructor、codec、clone、validate、简单 accessor 与普通 DTO 上的复述型注释；关键接口及其每个方法改为详细契约，AST 门禁同步收敛并冻结 Baseline 31。
 
+### P29：模型调用内上下文生命周期
+
+- [x] P29-01 用真实 Runtime 长 Run 反例证明 post-Run compaction 无法保护同一 Interaction 内的多轮模型/Tool 循环，并冻结中性 `ModelContextReducer` 边界。
+- [x] P29-02 让成功 settlement 携带 effective messages 并回写 WorkingContext；失败在主模型零调用时确定终止，protocol 升级为 v8并冻结 Baseline 32。
+
 ---
 
 ## 6. 最终完成定义
@@ -359,6 +365,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-28 | P29（Baseline 32） | 真实 Runtime consumer 证明单个 Interaction 可在 post-Run maintenance 之前越过模型窗口。Interaction 新增可选 `ModelContextReducer`，Dispatcher 在每次主模型调用前执行；成功 settlement 携带实际 messages，Execution 将其安装为下一 WorkingContext，失败以 host failure 确定终止。Host history、transaction、token/window 和 summary policy仍留在 Runtime | 外部三轮 model→tool→model 回归证明旧前缀不重新生长；reducer failure 主模型零调用；protocol v8 prior-version/互斥/baseline 门禁与真实 Runtime 长 Run、SQLite rewrite、跨下一 Run 继续消费验证通过。完整 standalone 门禁在发布前统一验收 |
 | 2026-08-27 | P28（Baseline 31） | 将公开注释从覆盖率目标收敛为语义合同：删除 sentinel error 与自解释声明上的复述文本，补齐关键接口及其每个具名方法的所有权、并发、顺序和失败契约；AST 门禁只强制真实接口合同与公开参数命名，完整 `go doc` digest 继续冻结公共文本 | 七个 Agent package 的 public digest 显式升级；全部 Framework/Strategy wire、schema version、公开签名和运行行为不变。非 app 全仓门禁在本批提交前统一验收 |
 | 2026-08-27 | P27（Baseline 30） | Agent OpenTelemetry adapter 迁移到 `otel/agent`，Agent module 移除 OTel 依赖；构造入口收敛为 `NewObserver(ObserverConfig)` | Agent 基线只保留七个领域 package；Framework API、wire 与运行语义不变 |
 | 2026-08-27 | P26（Baseline 29） | 仓库、module 与 import identity 统一迁移到 Scope，不保留旧品牌路径、alias 或 compatibility replace | 八个公共 digest 按 package identity 显式重冻；API 语义、wire 与运行行为不变 |
@@ -467,4 +474,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P28 已完成，Baseline 31 只强制关键接口及其方法的真实语义契约，不再以注释覆盖率奖励 sentinel error、constructor、codec、clone、validate、简单 accessor 或普通 DTO 的复述文本；完整 public digest 继续阻止未审计漂移。全部 Framework/Strategy wire 与运行语义保持不变。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P29 已完成，Baseline 32 让每次模型实际看到的 messages 成为 Interaction 的下一 WorkingContext，避免长 Run 在 Tool/steer 推进后重新长出已缩减前缀。Agent 只拥有中性状态同步合同；durable history、transaction、模型窗口、summary policy 与产品 compaction event继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

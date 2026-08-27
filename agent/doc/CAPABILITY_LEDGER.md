@@ -682,3 +682,11 @@
 - `core/jsonschema` 统一拥有类型反射、Draft 2020-12 编译、RFC 7493 严格 JSON、`json.RawMessage`/`[]byte` wire 语义和跨包同名定义消歧。Agent `Schema` 只组合该值并映射 Framework sentinel，不再直接依赖两套 schema 第三方库。
 - Planning rich values 通过 `JSONSchemaModel` 返回 typed private wire model；规则仍与领域 owner 就近，且没有暴露第三方 schema 类型、魔法 map 或 public mutable field。Planning Definition 从真实 Output 类型派生 schema，删除独立 raw schema 字符串。
 - Root 与 Planning public digest 显式冻结为 Baseline 28；Framework、Interaction、Planning、Workflow、snapshot/tree 和 observation wire digest及版本均不变。RAG/evaluation 同步消费 typed `chatclient.JSONSchema[T]`，不复制 schema。
+
+## 26. P29 模型调用内上下文生命周期证据
+
+- 真实 Runtime 长 Run 在一个 Interaction 内连续执行十二轮模型→Tool；原有 post-Run maintenance 在第十三次模型调用前没有机会运行，因此无法保证单个 Run 不超过模型窗口。
+- 只在 Dispatcher 临时替换 `chat.Request.Messages` 也不成立：Execution 的 WorkingContext 仍保存完整旧前缀，下一轮 ToolResult、steer 或恢复会把已压缩内容重新带回。有效上下文必须成为 Strategy state 的下一事实。
+- `ModelContextReducer` 是由真实 consumer 证明的一方法可选边界。它只拥有模型可见 messages 的变换，保留 request options、冻结工具清单、Effect identity 与 invocation attribution；Host 的持久化和压缩策略没有进入 Agent。
+- 三轮外部 Interaction 回归证明第二次模型调用可替换完整前缀，第三次 Tool 归并从 replacement messages 继续且旧前缀不再生长；reducer failure 回归证明主模型零调用并产生确定 host failure；typed nil 配置在装配时拒绝。
+- Runtime 集成回归证明 summary 在同一 Run 的模型调用边界发生、后续模型看到 summary、Run 正常完成、durable SQLite history 原位缩短，并且下一 Run 能继续。Interaction protocol 升级为 v8、state 保持 v8，形成 Baseline 32。

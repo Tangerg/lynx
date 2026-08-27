@@ -697,3 +697,11 @@
 - 决策：AST 门禁只强制关键导出接口及其每个具名方法拥有详细契约，并继续强制公开 callable 使用语义参数名。关键数据结构和算法只在需要说明不变量、owner、生命周期、并发、顺序、精度或协议映射时写注释；sentinel error、constructor、codec、clone、validate、简单 accessor、普通字段和 DTO 不因导出而自动获得注释。已有真正承载语义的 GoDoc 仍由完整 digest 冻结。
 - 决策：注释必须解释代码无法自证的边界或原因，不建立注释覆盖率、模板化句式、lint 豁免 map 或第二套文档清单。删除复述型注释不改变 identifier、签名、wire、schema version 或运行行为；若未来某个普通声明获得真实契约，直接在 owner 附近写清并显式更新 digest。
 - 后果：七个 Agent 公共 package 的 GoDoc digest 形成 Baseline 31，全部 Framework/Strategy wire digest 保持不变。门禁从“每处都有文字”转为“关键合同不可缺失”，后续 sentinel error 与自解释方法不会因工具压力重新长出无信息注释。
+
+## ADR-A2-084：模型调用前的上下文缩减必须回写 Strategy 状态
+
+- 状态：已接受并实施；形成 Baseline 32。
+- 证据：真实 Runtime consumer 的一个 Run 可在同一 Interaction 内完成多轮模型→Tool→模型。只在 Run 终止后压缩 durable history，无法阻止该 Interaction 的 WorkingContext 在到达终态前超过模型窗口；如果 Host 只改当次 `chat.Request` 而不回写 Strategy state，下一轮 Tool result 或 steer 又会从旧 WorkingContext 重新长出被删前缀。
+- 决策：Interaction 提供唯一可选 `ModelContextReducer`，Dispatcher 在主模型调用前向它交付独立拥有的完整 request 和 `ModelInvocation`。reducer 只能返回 replacement messages，不能改 options、tools、identity 或 invocation attribution。成功 settlement 必须携带实际模型输入，Execution 在处理 response、Tool segment 或新 steer 前原子安装该 messages；reducer 失败以既有 host-failure 语义确定终止，主模型零调用。
+- 决策：Framework 不定义 history store、transaction、token estimator、summary prompt、窗口 catalog 或产品 compaction event。durable 与 transient 压缩、CAS rewrite、protected tail 和观测由 Runtime consumer 拥有。为冻结成功 settlement 的新字段，Interaction protocol 从 v7 直接升级到 v8并拒绝旧版本；ExecutionState 已为 v8且 shape 不变。
+- 后果：Interaction public/wire digest 形成 Baseline 32。后续模型调用、Tool 归并、steer attribution、snapshot 与 restore 都从同一个 effective WorkingContext 继续；Host 不能另建只影响单次调用的旁路 request 变换。

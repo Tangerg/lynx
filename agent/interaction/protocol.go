@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 7
+const protocolSchemaVersion uint16 = 8
 
 type operation string
 
@@ -62,9 +62,10 @@ type signalEnvelope struct {
 }
 
 type modelCallResult struct {
-	Response  *chat.Response `json:"response,omitempty"`
-	Error     string         `json:"error,omitempty"`
-	HostError string         `json:"host_error,omitempty"`
+	Response          *chat.Response `json:"response,omitempty"`
+	EffectiveMessages []chat.Message `json:"effective_messages,omitempty"`
+	Error             string         `json:"error,omitempty"`
+	HostError         string         `json:"host_error,omitempty"`
 }
 
 type steerInput struct {
@@ -293,6 +294,16 @@ func (s signalEnvelope) validateModelResult() error {
 		if err := result.Response.Validate(); err != nil {
 			return fmt.Errorf("interaction: model_result response: %w", err)
 		}
+		if len(result.EffectiveMessages) == 0 {
+			return errors.New("interaction: successful model_result requires effective messages")
+		}
+		for index := range result.EffectiveMessages {
+			if err := result.EffectiveMessages[index].Validate(); err != nil {
+				return fmt.Errorf("interaction: model_result effective message %d: %w", index, err)
+			}
+		}
+	} else if len(result.EffectiveMessages) != 0 {
+		return errors.New("interaction: failed model_result cannot carry effective messages")
 	}
 	return nil
 }

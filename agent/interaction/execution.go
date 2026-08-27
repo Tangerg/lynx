@@ -135,6 +135,22 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 			envelope.ModelResult.Error,
 		)
 	}
+	effective := e.state.WorkingContext.Clone()
+	effective.Messages = cloneMessages(envelope.ModelResult.EffectiveMessages)
+	if effectiveErr := effective.Validate(); effectiveErr != nil {
+		return agent.Transition{}, fmt.Errorf(
+			"%w: effective model context: %w",
+			ErrInvalidExecutionState,
+			effectiveErr,
+		)
+	}
+	if len(effective.Tools) != 0 {
+		return agent.Transition{}, fmt.Errorf(
+			"%w: effective model context retained executable Tool definitions",
+			ErrInvalidExecutionState,
+		)
+	}
+	e.state.WorkingContext = effective
 	response := envelope.ModelResult.Response.Clone()
 	calls, _, err := responseToolCalls(response)
 	if err != nil {

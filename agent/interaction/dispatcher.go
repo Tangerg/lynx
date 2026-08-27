@@ -43,6 +43,13 @@ type DispatcherConfig struct {
 	// separate from Engine Events/Deltas: those describe execution mechanics,
 	// while this boundary exposes typed model and Tool semantics.
 	Observer ExecutionObserver
+
+	// ModelContextReducer optionally replaces only the provider-neutral message
+	// context at the last safe boundary before each model call. The Dispatcher
+	// installs the effective messages back into Interaction recovery state when
+	// the call settles, so later calls and checkpoints cannot regrow a reduced
+	// context from the pre-reduction Effect payload.
+	ModelContextReducer ModelContextReducer
 }
 
 type boundTool struct {
@@ -65,6 +72,7 @@ type Dispatcher struct {
 	stream             bool
 	maxParallel        int
 	observer           ExecutionObserver
+	contextReducer     ModelContextReducer
 }
 
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
@@ -73,6 +81,9 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 	}
 	if config.MaxConcurrentToolCalls < 0 {
 		return nil, fmt.Errorf("%w: MaxConcurrentToolCalls must not be negative", ErrInvalidDispatcherConfig)
+	}
+	if config.ModelContextReducer != nil && lo.IsNil(config.ModelContextReducer) {
+		return nil, fmt.Errorf("%w: ModelContextReducer is typed nil", ErrInvalidDispatcherConfig)
 	}
 	maxParallel := max(1, config.MaxConcurrentToolCalls)
 	dispatcher := &Dispatcher{
@@ -86,6 +97,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 		stream:            config.StreamModelResponses,
 		maxParallel:       maxParallel,
 		observer:          config.Observer,
+		contextReducer:    config.ModelContextReducer,
 	}
 	for index, executable := range config.Tools {
 		if err := dispatcher.bindTool(executable, false); err != nil {
@@ -190,14 +202,30 @@ func (d *Dispatcher) dispatchModel(
 	if validateErr := modelRequest.Validate(); validateErr != nil {
 		return agent.Settlement{}, fmt.Errorf("interaction: prepare model request: %w", validateErr)
 	}
-	ctx = withModelInvocation(
-		ctx,
-		modelInvocationFromRequest(
-			request,
-			call.ModelCallSequence,
-			call.AppliedSteerSignalIDs,
-		),
+	invocation := modelInvocationFromRequest(
+		request,
+		call.ModelCallSequence,
+		call.AppliedSteerSignalIDs,
 	)
+	ctx = withModelInvocation(ctx, invocation)
+	if d.contextReducer != nil {
+		effectiveMessages, reduceErr := d.contextReducer.ReduceModelContext(
+			ctx, invocation, modelRequest.Clone(),
+		)
+		if reduceErr != nil {
+			return modelHostFailureSettlement(
+				request.ID(),
+				fmt.Errorf("interaction: reduce model context: %w", reduceErr),
+			)
+		}
+		modelRequest.Messages = cloneMessages(effectiveMessages)
+		if validateErr := modelRequest.Validate(); validateErr != nil {
+			return modelHostFailureSettlement(
+				request.ID(),
+				fmt.Errorf("interaction: reduced model context: %w", validateErr),
+			)
+		}
+	}
 	response, err := d.callModel(ctx, modelRequest, emit)
 	if err != nil {
 		if errors.Is(err, ErrHostFailure) {
@@ -211,13 +239,14 @@ func (d *Dispatcher) dispatchModel(
 	if validateErr := response.Validate(); validateErr != nil {
 		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", validateErr))
 	}
-	d.observeModel(ctx, modelInvocationFromRequest(
-		request, call.ModelCallSequence, call.AppliedSteerSignalIDs,
-	), response)
+	d.observeModel(ctx, invocation, response)
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationModelCall,
-		ModelResult:   &modelCallResult{Response: response.Clone()},
+		ModelResult: &modelCallResult{
+			Response:          response.Clone(),
+			EffectiveMessages: cloneMessages(modelRequest.Messages),
+		},
 	})
 	if err != nil {
 		return agent.Settlement{}, err

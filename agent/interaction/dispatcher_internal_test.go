@@ -19,6 +19,9 @@ func TestHostFailureSignalModesAreExclusive(t *testing.T) {
 	}
 	response := chat.Response{}
 	modelHost.ModelResult.Response = &response
+	modelHost.ModelResult.EffectiveMessages = []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("must not accompany host failure")),
+	}
 	if err := modelHost.validate(); err == nil {
 		t.Fatal("model result combined a host failure with a response")
 	}
