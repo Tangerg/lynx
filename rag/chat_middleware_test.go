@@ -15,10 +15,10 @@ import (
 // stubRetriever returns a fixed document set; used to exercise the
 // middleware without a real vector store.
 type stubRetriever struct {
-	docs []rag.Candidate
+	docs rag.Candidates
 }
 
-func (s *stubRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+func (s *stubRetriever) Retrieve(_ context.Context, _ rag.Query) (rag.Candidates, error) {
 	return s.docs, nil
 }
 
@@ -85,7 +85,7 @@ func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 
 func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
-	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
+	retriever := &stubRetriever{docs: rag.Candidates{candidate(doc)}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
 		Retriever: retriever,
@@ -115,7 +115,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
 	}
-	citations, found, err := rag.Citations(response)
+	citations, found, err := rag.CitationsFromResponse(response)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 
 func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {
 	var capturedHistory []chat.Message
-	retriever := rag.RetrieverFunc(func(_ context.Context, query *rag.Query) ([]rag.Candidate, error) {
+	retriever := rag.RetrieverFunc(func(_ context.Context, query rag.Query) (rag.Candidates, error) {
 		var err error
 		capturedHistory, _, err = query.Value(rag.HistoryValueKey())
 		return nil, err
@@ -162,7 +162,7 @@ func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {
 
 func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("streamed context", nil)
-	retriever := &countingRetriever{docs: []rag.Candidate{candidate(doc)}}
+	retriever := &countingRetriever{docs: rag.Candidates{candidate(doc)}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	_, streamMW, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever, Augmenter: aug})
 	if err != nil {
@@ -190,11 +190,11 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 }
 
 type countingRetriever struct {
-	docs []rag.Candidate
+	docs rag.Candidates
 	hits int
 }
 
-func (c *countingRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+func (c *countingRetriever) Retrieve(_ context.Context, _ rag.Query) (rag.Candidates, error) {
 	c.hits++
 	return c.docs, nil
 }
@@ -216,7 +216,7 @@ func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
 func TestMiddlewareRejectsInvalidAugmentation(t *testing.T) {
 	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
 		Retriever: &stubRetriever{},
-		Augmenter: rag.AugmenterFunc(func(context.Context, *rag.Query, []rag.Candidate) (rag.Augmentation, error) {
+		Augmenter: rag.AugmenterFunc(func(context.Context, rag.Query, rag.Candidates) (rag.Augmentation, error) {
 			return rag.Augmentation{}, nil
 		}),
 	})
@@ -241,7 +241,7 @@ func TestMiddlewareRejectsInvalidAugmentation(t *testing.T) {
 func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	callMiddleware, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
-		Retriever: &stubRetriever{docs: []rag.Candidate{candidate(doc)}},
+		Retriever: &stubRetriever{docs: rag.Candidates{candidate(doc)}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -266,13 +266,13 @@ type errorRetriever struct {
 	err error
 }
 
-func (e *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+func (e *errorRetriever) Retrieve(_ context.Context, _ rag.Query) (rag.Candidates, error) {
 	return nil, e.err
 }
 
 func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
-	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
+	retriever := &stubRetriever{docs: rag.Candidates{candidate(doc)}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever, Augmenter: aug})
 	if err != nil {

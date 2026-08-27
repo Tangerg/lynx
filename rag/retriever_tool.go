@@ -26,11 +26,11 @@ type RetrievalToolRequest struct {
 
 // RetrievalToolOutput is the model-visible retrieval result.
 type RetrievalToolOutput struct {
-	Candidates []Candidate `json:"candidates"`
+	Candidates Candidates `json:"candidates"`
 }
 
 // Validate checks every returned candidate.
-func (o RetrievalToolOutput) Validate() error { return validateCandidates(o.Candidates) }
+func (o RetrievalToolOutput) Validate() error { return o.Candidates.Validate() }
 
 // RetrievalTool adapts a [Retriever] to the ordinary [tool.Tool] contract. It
 // can be advertised immediately or placed in an agent's DeferredTools set.

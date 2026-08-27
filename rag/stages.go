@@ -1,10 +1,12 @@
 package rag
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
 )
@@ -32,6 +34,54 @@ type Candidate struct {
 	Score    float64            `json:"score"`
 }
 
+// Candidates is an ordered retrieval result. Its methods never mutate the
+// receiver, preserving declaration and retrieval order where scores tie.
+type Candidates []Candidate
+
+// Validate checks every candidate in order.
+func (c Candidates) Validate() error {
+	for index, candidate := range c {
+		if err := candidate.Validate(); err != nil {
+			return fmt.Errorf("rag: candidate %d: %w", index, err)
+		}
+	}
+	return nil
+}
+
+// uniqueBest returns the highest-scoring candidate for each known document
+// identity. Identity-free documents remain distinct.
+func (c Candidates) uniqueBest() Candidates {
+	positions := make(map[string]int, len(c))
+	unique := make(Candidates, 0, len(c))
+	for _, candidate := range c {
+		id := candidate.Document.ID
+		if id == "" {
+			unique = append(unique, candidate)
+			continue
+		}
+		position, exists := positions[id]
+		if !exists {
+			positions[id] = len(unique)
+			unique = append(unique, candidate)
+			continue
+		}
+		if candidate.Score > unique[position].Score {
+			unique[position] = candidate
+		}
+	}
+	return unique
+}
+
+// ranked returns an independent score-descending snapshot. Stable sorting
+// retains retrieval order when scores tie.
+func (c Candidates) ranked() Candidates {
+	ranked := slices.Clone(c)
+	slices.SortStableFunc(ranked, func(left, right Candidate) int {
+		return cmp.Compare(right.Score, left.Score)
+	})
+	return ranked
+}
+
 // Validate checks the candidate's document and score.
 func (c Candidate) Validate() error {
 	if c.Document == nil {
@@ -50,14 +100,14 @@ func (c Candidate) Validate() error {
 // compression, ambiguity resolution, vocabulary normalization.
 type Transformer interface {
 	// Transform returns the rewritten query.
-	Transform(ctx context.Context, query *Query) (*Query, error)
+	Transform(ctx context.Context, query Query) (Query, error)
 }
 
 // TransformerFunc adapts a function to [Transformer].
-type TransformerFunc func(context.Context, *Query) (*Query, error)
+type TransformerFunc func(context.Context, Query) (Query, error)
 
 // Transform calls t(ctx, query).
-func (t TransformerFunc) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (t TransformerFunc) Transform(ctx context.Context, query Query) (Query, error) {
 	return t(ctx, query)
 }
 
@@ -65,41 +115,41 @@ func (t TransformerFunc) Transform(ctx context.Context, query *Query) (*Query, e
 // (alternative phrasings) or complex problems (decompose into sub-queries).
 type Expander interface {
 	// Expand returns one or more queries derived from the input.
-	Expand(ctx context.Context, query *Query) ([]*Query, error)
+	Expand(ctx context.Context, query Query) ([]Query, error)
 }
 
 // ExpanderFunc adapts a function to [Expander].
-type ExpanderFunc func(context.Context, *Query) ([]*Query, error)
+type ExpanderFunc func(context.Context, Query) ([]Query, error)
 
 // Expand calls e(ctx, query).
-func (e ExpanderFunc) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+func (e ExpanderFunc) Expand(ctx context.Context, query Query) ([]Query, error) {
 	return e(ctx, query)
 }
 
 // Retriever pulls candidate documents from a knowledge source.
 type Retriever interface {
 	// Retrieve returns documents relevant to the query.
-	Retrieve(ctx context.Context, query *Query) ([]Candidate, error)
+	Retrieve(ctx context.Context, query Query) (Candidates, error)
 }
 
 // RetrieverFunc adapts a function to [Retriever].
-type RetrieverFunc func(context.Context, *Query) ([]Candidate, error)
+type RetrieverFunc func(context.Context, Query) (Candidates, error)
 
 // Retrieve calls r(ctx, query).
-func (r RetrieverFunc) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
+func (r RetrieverFunc) Retrieve(ctx context.Context, query Query) (Candidates, error) {
 	return r(ctx, query)
 }
 
 // Refiner narrows candidate documents down to what the LLM should see.
 type Refiner interface {
 	// Refine returns the trimmed/re-ranked document list.
-	Refine(ctx context.Context, query *Query, documents []Candidate) ([]Candidate, error)
+	Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error)
 }
 
 // RefinerFunc adapts a function to [Refiner].
-type RefinerFunc func(context.Context, *Query, []Candidate) ([]Candidate, error)
+type RefinerFunc func(context.Context, Query, Candidates) (Candidates, error)
 
-// Refine calls r(ctx, query, documents).
-func (r RefinerFunc) Refine(ctx context.Context, query *Query, documents []Candidate) ([]Candidate, error) {
-	return r(ctx, query, documents)
+// Refine calls r(ctx, query, candidates).
+func (r RefinerFunc) Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error) {
+	return r(ctx, query, candidates)
 }

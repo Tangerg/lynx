@@ -28,7 +28,7 @@ func TestAugmentationOwnsValidatedCitationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	augmentation, err = augmentation.WithCitations([]rag.Citation{citation})
+	augmentation, err = augmentation.WithCitations(rag.Citations{citation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestAugmentationOwnsValidatedCitationOrder(t *testing.T) {
 		t.Fatalf("invalid citation number error = %v", err)
 	}
 	citation.Number = 2
-	if _, err := augmentation.WithCitations([]rag.Citation{citation}); !errors.Is(err, rag.ErrInvalidAugmentation) {
+	if _, err := augmentation.WithCitations(rag.Citations{citation}); !errors.Is(err, rag.ErrInvalidAugmentation) {
 		t.Fatalf("non-consecutive citation error = %v", err)
 	}
 }
@@ -80,19 +80,23 @@ func TestWithValueReturnsIndependentQuery(t *testing.T) {
 	}
 }
 
-func TestQueryValueKeyRejectsUntypedAndConflictingValues(t *testing.T) {
+func TestQueryValueKeyRejectsUntypedValuesAndIsolatesSameNameKeys(t *testing.T) {
 	if _, err := rag.NewValueKey[any]("untyped"); !errors.Is(err, rag.ErrInvalidQueryValueKey) {
 		t.Fatalf("NewValueKey[any] error = %v, want ErrInvalidQueryValueKey", err)
 	}
 
 	q, _ := rag.NewQuery("hi")
 	q, _ = q.WithValue(testQueryValueKey, "v")
-	conflicting := rag.MustValueKey[int](testQueryValueKey.Name())
-	if _, err := q.WithValue(conflicting, 1); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
-		t.Fatalf("WithValue conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
+	independent := rag.MustValueKey[int](testQueryValueKey.Name())
+	q, err := q.WithValue(independent, 1)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, _, err := q.Value(conflicting); !errors.Is(err, rag.ErrQueryValueTypeMismatch) {
-		t.Fatalf("Value conflicting type error = %v, want ErrQueryValueTypeMismatch", err)
+	if value, found, err := q.Value(independent); err != nil || !found || value != 1 {
+		t.Fatalf("Value(independent key) = (%d, %v, %v)", value, found, err)
+	}
+	if value, found, err := q.Value(testQueryValueKey); err != nil || !found || value != "v" {
+		t.Fatalf("Value(original key) = (%q, %v, %v)", value, found, err)
 	}
 	nilSliceKey := rag.MustValueKey[[]string]("nil slice")
 	if _, err := q.WithValue(nilSliceKey, nil); !errors.Is(err, rag.ErrNilQueryValue) {
@@ -102,7 +106,7 @@ func TestQueryValueKeyRejectsUntypedAndConflictingValues(t *testing.T) {
 
 // fakeRetriever mocks Retriever for composition tests.
 type fakeRetriever struct {
-	docs []rag.Candidate
+	docs rag.Candidates
 	err  error
 	hits int
 	got  string
@@ -116,11 +120,9 @@ func candidate(doc *document.Document, score ...float64) rag.Candidate {
 	return rag.Candidate{Document: doc, Score: value}
 }
 
-func (f *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candidate, error) {
+func (f *fakeRetriever) Retrieve(_ context.Context, q rag.Query) (rag.Candidates, error) {
 	f.hits++
-	if q != nil {
-		f.got = q.Text()
-	}
+	f.got = q.Text()
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -128,7 +130,7 @@ func (f *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candida
 }
 
 func TestRetrieveValidatesCandidates(t *testing.T) {
-	retriever := &fakeRetriever{docs: []rag.Candidate{{}}}
+	retriever := &fakeRetriever{docs: rag.Candidates{{}}}
 	query, _ := rag.NewQuery("query")
 
 	if _, err := rag.Retrieve(t.Context(), retriever, query); !errors.Is(err, rag.ErrInvalidCandidate) {
@@ -139,8 +141,8 @@ func TestRetrieveValidatesCandidates(t *testing.T) {
 func TestWithRefinersRejectsInvalidRetrieverOutputBeforeRefining(t *testing.T) {
 	refinerCalled := false
 	refined, err := rag.WithRefiners(
-		&fakeRetriever{docs: []rag.Candidate{{}}},
-		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
+		&fakeRetriever{docs: rag.Candidates{{}}},
+		rag.RefinerFunc(func(context.Context, rag.Query, rag.Candidates) (rag.Candidates, error) {
 			refinerCalled = true
 			return nil, nil
 		}),
@@ -161,10 +163,10 @@ func TestWithRefinersRejectsInvalidOutputBeforeNextRefiner(t *testing.T) {
 	secondCalled := false
 	refined, err := rag.WithRefiners(
 		&fakeRetriever{},
-		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
-			return []rag.Candidate{{}}, nil
+		rag.RefinerFunc(func(context.Context, rag.Query, rag.Candidates) (rag.Candidates, error) {
+			return rag.Candidates{{}}, nil
 		}),
-		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
+		rag.RefinerFunc(func(context.Context, rag.Query, rag.Candidates) (rag.Candidates, error) {
 			secondCalled = true
 			return nil, nil
 		}),
@@ -187,16 +189,16 @@ type fakeTransformer struct {
 	err    error
 }
 
-func (f *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query, error) {
+func (f *fakeTransformer) Transform(_ context.Context, q rag.Query) (rag.Query, error) {
 	if f.err != nil {
-		return nil, f.err
+		return rag.Query{}, f.err
 	}
 	return q.WithText(q.Text() + f.suffix)
 }
 
 func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved-doc", nil)
-	retriever := &fakeRetriever{docs: []rag.Candidate{candidate(doc)}}
+	retriever := &fakeRetriever{docs: rag.Candidates{candidate(doc)}}
 
 	r, err := rag.WithTransformers(retriever, &fakeTransformer{suffix: "?"})
 	if err != nil {
@@ -236,8 +238,8 @@ func TestWithTransformersErrorShortCircuits(t *testing.T) {
 func TestParallelUnionsResults(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	docB, _ := document.NewDocument("b", nil)
-	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
-	r2 := &fakeRetriever{docs: []rag.Candidate{candidate(docB)}}
+	r1 := &fakeRetriever{docs: rag.Candidates{candidate(docA)}}
+	r2 := &fakeRetriever{docs: rag.Candidates{candidate(docB)}}
 
 	combined, err := rag.Parallel(r1, r2)
 	if err != nil {
@@ -254,7 +256,7 @@ func TestParallelUnionsResults(t *testing.T) {
 
 func TestParallelRejectsPartialResults(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
-	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
+	r1 := &fakeRetriever{docs: rag.Candidates{candidate(docA)}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
 	combined, err := rag.Parallel(r1, r2)
@@ -289,11 +291,11 @@ func TestParallelOwnsConfigurationAndOrdersFailuresByDeclaration(t *testing.T) {
 	firstFailure := errors.New("first failure")
 	secondFailure := errors.New("second failure")
 	secondFinished := make(chan struct{})
-	first := rag.RetrieverFunc(func(context.Context, *rag.Query) ([]rag.Candidate, error) {
+	first := rag.RetrieverFunc(func(context.Context, rag.Query) (rag.Candidates, error) {
 		<-secondFinished
 		return nil, firstFailure
 	})
-	second := rag.RetrieverFunc(func(context.Context, *rag.Query) ([]rag.Candidate, error) {
+	second := rag.RetrieverFunc(func(context.Context, rag.Query) (rag.Candidates, error) {
 		close(secondFinished)
 		return nil, secondFailure
 	})
@@ -333,7 +335,7 @@ func TestCombinatorsRejectNilCapabilitiesAtConstruction(t *testing.T) {
 func TestWithExpanderRejectsEmptyExpansion(t *testing.T) {
 	expanded, err := rag.WithExpander(
 		&fakeRetriever{},
-		rag.ExpanderFunc(func(context.Context, *rag.Query) ([]*rag.Query, error) {
+		rag.ExpanderFunc(func(context.Context, rag.Query) ([]rag.Query, error) {
 			return nil, nil
 		}),
 	)
@@ -350,10 +352,10 @@ func TestWithExpanderRejectsEmptyExpansion(t *testing.T) {
 func TestIdentityDefaults(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
 
-	if got, _ := rag.IdentityExpander().Expand(t.Context(), q); len(got) != 1 || got[0] != q {
+	if got, _ := rag.IdentityExpander().Expand(t.Context(), q); len(got) != 1 || got[0].Text() != q.Text() {
 		t.Fatal("Expand should pass through")
 	}
-	if got, _ := rag.IdentityTransformer().Transform(t.Context(), q); got != q {
+	if got, _ := rag.IdentityTransformer().Transform(t.Context(), q); got.Text() != q.Text() {
 		t.Fatal("Transform should pass through")
 	}
 	if got, _ := rag.IdentityAugmenter().Augment(t.Context(), q, nil); got.Text() != q.Text() {
@@ -367,7 +369,7 @@ func TestIdentityDefaults(t *testing.T) {
 	}
 }
 
-func mustQuery(t *testing.T, text string) *rag.Query {
+func mustQuery(t *testing.T, text string) rag.Query {
 	t.Helper()
 	q, err := rag.NewQuery(text)
 	if err != nil {

@@ -45,8 +45,8 @@ type middleware struct {
 
 type preparedChatRequest struct {
 	request    *chat.Request
-	candidates []Candidate
-	citations  []Citation
+	candidates Candidates
+	citations  Citations
 }
 
 func newPreparedChatRequest(request *chat.Request) (preparedChatRequest, error) {
@@ -109,40 +109,41 @@ func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) er
 
 // RetrievedCandidates returns the candidates attached to response by
 // [NewMiddleware]. The boolean reports whether retrieval metadata was present.
-func RetrievedCandidates(response *chat.Response) ([]Candidate, bool, error) {
+func RetrievedCandidates(response *chat.Response) (Candidates, bool, error) {
 	if response == nil {
 		return nil, false, ErrNilChatResponse
 	}
 	if response.Metadata == nil {
 		return nil, false, nil
 	}
-	candidates, found, err := response.Metadata.Extra.Decode[[]Candidate](retrievedCandidatesMetadataKey)
+	candidates, found, err := response.Metadata.Extra.Decode[Candidates](retrievedCandidatesMetadataKey)
 	if err != nil {
 		return nil, found, fmt.Errorf("rag: decode retrieved candidates: %w", err)
 	}
 	if found {
-		if err := validateCandidates(candidates); err != nil {
+		if err := candidates.Validate(); err != nil {
 			return nil, true, fmt.Errorf("rag: decode retrieved candidates: %w", err)
 		}
 	}
 	return candidates, found, nil
 }
 
-// Citations returns the ordered citation mapping produced by the configured
-// augmenter. The boolean reports whether citation metadata was present.
-func Citations(response *chat.Response) ([]Citation, bool, error) {
+// CitationsFromResponse returns the ordered citation mapping produced by the
+// configured augmenter. The boolean reports whether citation metadata was
+// present.
+func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
 	if response == nil {
 		return nil, false, ErrNilChatResponse
 	}
 	if response.Metadata == nil {
 		return nil, false, nil
 	}
-	citations, found, err := response.Metadata.Extra.Decode[[]Citation](citationsMetadataKey)
+	citations, found, err := response.Metadata.Extra.Decode[Citations](citationsMetadataKey)
 	if err != nil {
 		return nil, found, fmt.Errorf("rag: decode citations: %w", err)
 	}
 	if found {
-		if err := validateCitations(citations); err != nil {
+		if err := citations.Validate(); err != nil {
 			return nil, true, fmt.Errorf("rag: decode citations: %w", err)
 		}
 	}
@@ -151,7 +152,8 @@ func Citations(response *chat.Response) ([]Citation, bool, error) {
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieval and citation
-// metadata to the response. Use [RetrievedCandidates] and [Citations] to read
+// metadata to the response. Use [RetrievedCandidates] and
+// [CitationsFromResponse] to read
 // those typed values.
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if lo.IsNil(config.Retriever) {

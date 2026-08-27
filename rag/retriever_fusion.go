@@ -1,7 +1,6 @@
 package rag
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -50,32 +49,36 @@ func ReciprocalRankFusion(config ReciprocalRankFusionConfig, retrievers ...Retri
 		}
 	}
 
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
-		if err := query.Validate(); err != nil {
-			return nil, err
-		}
-		ctx, span := startStageSpan(ctx, "retrieve")
-		var err error
-		var candidates []Candidate
-		defer func() {
-			finishSpan(span, err, attribute.Int(attrDocCount, len(candidates)))
-		}()
-
-		rankings, err := parallelResults(ctx, "rag.ReciprocalRankFusion", owned, "retriever",
-			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
-				return Retrieve(ctx, retriever, query)
-			})
-		if err != nil {
-			return nil, err
-		}
-		candidates, err = fuseRankings(ctx, config.RankConstant, rankings)
-		return candidates, err
-	}), nil
+	return reciprocalRankFusion{rankConstant: config.RankConstant, retrievers: owned}, nil
 }
 
-func fuseRankings(ctx context.Context, rankConstant int, rankings [][]Candidate) ([]Candidate, error) {
+type reciprocalRankFusion struct {
+	rankConstant int
+	retrievers   []Retriever
+}
+
+func (r reciprocalRankFusion) Retrieve(ctx context.Context, query Query) (candidates Candidates, err error) {
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	ctx, span := startStageSpan(ctx, "retrieve")
+	defer func() {
+		finishSpan(span, err, attribute.Int(attrDocCount, len(candidates)))
+	}()
+
+	rankings, err := parallelResults(ctx, "rag.ReciprocalRankFusion", r.retrievers, "retriever",
+		func(ctx context.Context, _ int, retriever Retriever) (Candidates, error) {
+			return Retrieve(ctx, retriever, query)
+		})
+	if err != nil {
+		return nil, err
+	}
+	return r.fuse(ctx, rankings)
+}
+
+func (r reciprocalRankFusion) fuse(ctx context.Context, rankings []Candidates) (Candidates, error) {
 	positions := make(map[string]int)
-	fused := make([]Candidate, 0)
+	fused := make(Candidates, 0)
 
 	for _, ranking := range rankings {
 		if err := ctx.Err(); err != nil {
@@ -91,7 +94,7 @@ func fuseRankings(ctx context.Context, rankConstant int, rankings [][]Candidate)
 				seen[identity] = struct{}{}
 			}
 
-			contribution := 1 / float64(rankConstant+index+1)
+			contribution := 1 / float64(r.rankConstant+index+1)
 			if identity == "" {
 				candidate.Score = contribution
 				fused = append(fused, candidate)
@@ -108,8 +111,5 @@ func fuseRankings(ctx context.Context, rankConstant int, rankings [][]Candidate)
 		}
 	}
 
-	slices.SortStableFunc(fused, func(left, right Candidate) int {
-		return cmp.Compare(right.Score, left.Score)
-	})
-	return fused, nil
+	return fused.ranked(), nil
 }

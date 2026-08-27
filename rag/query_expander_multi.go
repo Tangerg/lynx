@@ -64,7 +64,7 @@ var _ Expander = (*MultiQueryExpander)(nil)
 
 // MultiQueryExpander asks a model for alternate query phrasings.
 type MultiQueryExpander struct {
-	prompt          structuredModelPrompt[multiQueryOutput]
+	prompt          modelPrompt[multiQueryOutput]
 	includeOriginal bool
 	numberOfQueries int
 }
@@ -91,7 +91,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 	if err != nil {
 		return nil, err
 	}
-	prompt, err := newStructuredModelPrompt(
+	prompt, err := newModelPrompt(
 		cfg.Model,
 		format,
 		cfg.PromptTemplate,
@@ -110,10 +110,10 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 	}, nil
 }
 
-// Expand asks the LLM for distinct variants and turns them into [*Query]
+// Expand asks the LLM for distinct variants and turns them into [Query]
 // values. Empty, duplicate, and original-query entries do not consume the
 // configured result limit. No usable variant returns [ErrEmptyExpansion].
-func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+func (m *MultiQueryExpander) Expand(ctx context.Context, query Query) ([]Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return nil, err
 	}
 
-	variants := make([]*Query, 0, m.numberOfQueries)
+	variants := make([]Query, 0, m.numberOfQueries)
 	seen := map[string]struct{}{query.Text(): {}}
 	for _, value := range output.Queries {
 		if len(variants) >= m.numberOfQueries {
@@ -161,7 +161,7 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 	if !m.includeOriginal {
 		return variants, nil
 	}
-	queries := make([]*Query, 0, len(variants)+1)
+	queries := make([]Query, 0, len(variants)+1)
 	queries = append(queries, query)
 	queries = append(queries, variants...)
 	return queries, nil

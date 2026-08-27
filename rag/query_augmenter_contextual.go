@@ -144,7 +144,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 // When documents is empty or none fit the budget, it falls back to
 // [ContextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
-func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (Augmentation, error) {
+func (c *ContextualAugmenter) Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error) {
 	if err := ctx.Err(); err != nil {
 		return Augmentation{}, err
 	}
@@ -152,11 +152,11 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documen
 		return Augmentation{}, err
 	}
 
-	if len(documents) == 0 {
+	if len(candidates) == 0 {
 		return c.handleEmptyContext(query)
 	}
 
-	encodedContext, citations, err := c.formatContext(ctx, documents)
+	encodedContext, citations, err := c.formatContext(ctx, candidates)
 	if err != nil {
 		return Augmentation{}, err
 	}
@@ -178,9 +178,9 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documen
 	return augmentation.WithCitations(citations)
 }
 
-func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates []Candidate) (string, []Citation, error) {
+func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates Candidates) (string, Citations, error) {
 	evidence := make([]contextualEvidence, 0, len(candidates))
-	citations := make([]Citation, 0, len(candidates))
+	citations := make(Citations, 0, len(candidates))
 	var encoded []byte
 
 	for index, candidate := range candidates {
@@ -236,7 +236,7 @@ func (c *ContextualAugmenter) formatContext(ctx context.Context, candidates []Ca
 // handleEmptyContext implements the no-docs branch: pass through the
 // original query (AllowEmptyContext=true) or render the empty-context
 // refusal template.
-func (c *ContextualAugmenter) handleEmptyContext(query *Query) (Augmentation, error) {
+func (c *ContextualAugmenter) handleEmptyContext(query Query) (Augmentation, error) {
 	if c.allowEmptyContext {
 		return NewAugmentation(query.Text())
 	}

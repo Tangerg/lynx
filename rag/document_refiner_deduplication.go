@@ -2,7 +2,6 @@ package rag
 
 import (
 	"context"
-	"fmt"
 )
 
 var _ Refiner = deduper{}
@@ -20,37 +19,13 @@ func Dedup() Refiner {
 
 // Refine returns the best candidate for every known document identity. Honors
 // ctx cancellation.
-func (d deduper) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
+func (d deduper) Refine(ctx context.Context, _ Query, candidates Candidates) (Candidates, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	for index, candidate := range documents {
-		if err := candidate.Validate(); err != nil {
-			return nil, fmt.Errorf("rag: deduplicate candidate %d: %w", index, err)
-		}
+	if err := candidates.Validate(); err != nil {
+		return nil, err
 	}
-	return uniqueBestCandidates(documents), nil
-}
-
-func uniqueBestCandidates(candidates []Candidate) []Candidate {
-	positions := make(map[string]int, len(candidates))
-	unique := make([]Candidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		id := candidate.Document.ID
-		if id == "" {
-			unique = append(unique, candidate)
-			continue
-		}
-		position, exists := positions[id]
-		if !exists {
-			positions[id] = len(unique)
-			unique = append(unique, candidate)
-			continue
-		}
-		if candidate.Score > unique[position].Score {
-			unique[position] = candidate
-		}
-	}
-	return unique
+	return candidates.uniqueBest(), nil
 }

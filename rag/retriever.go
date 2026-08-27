@@ -12,7 +12,7 @@ import (
 )
 
 // Retrieve validates the complete input and output boundary around r.
-func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, error) {
+func Retrieve(ctx context.Context, r Retriever, query Query) (Candidates, error) {
 	if lo.IsNil(r) {
 		return nil, ErrNilRetriever
 	}
@@ -23,19 +23,10 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := validateCandidates(candidates); err != nil {
+	if err := candidates.Validate(); err != nil {
 		return nil, err
 	}
 	return candidates, nil
-}
-
-func validateCandidates(candidates []Candidate) error {
-	for index, candidate := range candidates {
-		if err := candidate.Validate(); err != nil {
-			return fmt.Errorf("rag: candidate %d: %w", index, err)
-		}
-	}
-	return nil
 }
 
 // Parallel returns a [Retriever] that runs retrievers concurrently and unions
@@ -52,18 +43,18 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 		}
 	}
 
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
+	return RetrieverFunc(func(ctx context.Context, query Query) (Candidates, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
 		ctx, span := startStageSpan(ctx, "retrieve")
 		var err error
-		var docs []Candidate
+		var docs Candidates
 		defer func() {
 			finishSpan(span, err, attribute.Int(attrDocCount, len(docs)))
 		}()
-		docs, err = parallelCollect(ctx, "rag.Parallel", owned, "retriever",
-			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
+		docs, err = parallelCandidates(ctx, "rag.Parallel", owned, "retriever",
+			func(ctx context.Context, _ int, retriever Retriever) (Candidates, error) {
 				return Retrieve(ctx, retriever, query)
 			})
 		return docs, err
@@ -83,7 +74,7 @@ func WithTransformers(next Retriever, transformers ...Transformer) (Retriever, e
 		}
 	}
 
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
+	return RetrieverFunc(func(ctx context.Context, query Query) (Candidates, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
@@ -112,7 +103,7 @@ func WithExpander(next Retriever, expander Expander) (Retriever, error) {
 		return nil, ErrNilExpander
 	}
 
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
+	return RetrieverFunc(func(ctx context.Context, query Query) (Candidates, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
@@ -124,8 +115,8 @@ func WithExpander(next Retriever, expander Expander) (Retriever, error) {
 			return nil, ErrEmptyExpansion
 		}
 		queries = slices.Clone(queries)
-		return parallelCollect(ctx, "rag.WithExpander", queries, "query",
-			func(ctx context.Context, _ int, q *Query) ([]Candidate, error) {
+		return parallelCandidates(ctx, "rag.WithExpander", queries, "query",
+			func(ctx context.Context, _ int, q Query) (Candidates, error) {
 				return Retrieve(ctx, next, q)
 			})
 	}), nil
@@ -144,7 +135,7 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 		}
 	}
 
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
+	return RetrieverFunc(func(ctx context.Context, query Query) (Candidates, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
@@ -157,7 +148,7 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 			if err != nil {
 				return nil, fmt.Errorf("rag: refiner %d: %w", i, err)
 			}
-			if err := validateCandidates(docs); err != nil {
+			if err := docs.Validate(); err != nil {
 				return nil, fmt.Errorf("rag: refiner %d returned invalid candidates: %w", i, err)
 			}
 		}
@@ -165,18 +156,18 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 	}), nil
 }
 
-func parallelCollect[Item, Out any](
+func parallelCandidates[Item any](
 	ctx context.Context,
 	op string,
 	items []Item,
 	itemLabel string,
-	fn func(context.Context, int, Item) ([]Out, error),
-) ([]Out, error) {
+	fn func(context.Context, int, Item) (Candidates, error),
+) (Candidates, error) {
 	results, err := parallelResults(ctx, op, items, itemLabel, fn)
 	if err != nil {
 		return nil, err
 	}
-	var out []Out
+	var out Candidates
 	for _, block := range results {
 		out = append(out, block...)
 	}

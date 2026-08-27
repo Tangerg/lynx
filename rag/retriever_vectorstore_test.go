@@ -74,7 +74,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 
 	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: store,
-		FilterFunc: func(_ context.Context, _ *rag.Query) (filter.Predicate, error) {
+		FilterFunc: func(_ context.Context, _ rag.Query) (filter.Predicate, error) {
 			funcCalls++
 			return nil, nil
 		},
@@ -149,11 +149,11 @@ func TestRetrieverRejectsNilVectorStoreResponse(t *testing.T) {
 	}
 }
 
-func TestRetrieverNilQuery(t *testing.T) {
+func TestRetrieverRejectsZeroQuery(t *testing.T) {
 	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: &fakeVectorSearcher{},
 	})
-	if _, err := r.Retrieve(t.Context(), nil); err == nil {
-		t.Fatal("nil query must error")
+	if _, err := r.Retrieve(t.Context(), rag.Query{}); err == nil {
+		t.Fatal("zero query must error")
 	}
 }

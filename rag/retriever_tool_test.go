@@ -77,7 +77,7 @@ func TestRetrievalToolPreservesRetrieverErrors(t *testing.T) {
 	retrievalTool, err := rag.NewRetrievalTool(rag.RetrievalToolConfig{
 		Name:        "search",
 		Description: "Search evidence.",
-		Retriever: rag.RetrieverFunc(func(context.Context, *rag.Query) ([]rag.Candidate, error) {
+		Retriever: rag.RetrieverFunc(func(context.Context, rag.Query) (rag.Candidates, error) {
 			return nil, want
 		}),
 	})

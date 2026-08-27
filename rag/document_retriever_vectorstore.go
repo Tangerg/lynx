@@ -31,7 +31,7 @@ type VectorStoreRetrieverConfig struct {
 
 	// FilterFunc dynamically builds a metadata filter from the complete query.
 	// Optional; when [VectorStoreFilterValueKey] is set, the per-query filter wins.
-	FilterFunc func(ctx context.Context, query *Query) (filter.Predicate, error)
+	FilterFunc func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
 var _ Retriever = (*VectorStoreRetriever)(nil)
@@ -41,7 +41,7 @@ type VectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
 	minScore    corevs.Score
-	filterFunc  func(ctx context.Context, query *Query) (filter.Predicate, error)
+	filterFunc  func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
 // NewVectorStoreRetriever returns a [VectorStoreRetriever] backed by a core
@@ -77,7 +77,7 @@ func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetrie
 }
 
 // Retrieve issues a similarity search via the underlying vector store.
-func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
+func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query Query) (Candidates, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 	if err := response.ValidateFor(request); err != nil {
 		return nil, fmt.Errorf("rag: vector-store response: %w", err)
 	}
-	candidates := make([]Candidate, 0, len(response.Results))
+	candidates := make(Candidates, 0, len(response.Results))
 	for _, result := range response.Results {
 		candidates = append(candidates, Candidate{Document: result.Document, Score: result.Score.Float64()})
 	}
@@ -113,7 +113,7 @@ func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 // resolveFilter picks the filter expression to use for this call,
 // preferring the per-query [VectorStoreFilterValueKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
-func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
+func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query Query) (filter.Predicate, error) {
 	expression, exists, err := query.Value(vectorStoreFilterValueKey)
 	if err != nil {
 		return nil, fmt.Errorf("rag: read vector-store filter: %w", err)

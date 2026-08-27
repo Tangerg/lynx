@@ -42,7 +42,7 @@ var _ Transformer = (*RewriteTransformer)(nil)
 
 // RewriteTransformer tightens a query for a configured search target.
 type RewriteTransformer struct {
-	prompt             modelPrompt
+	prompt             textModelPrompt
 	targetSearchSystem string
 }
 
@@ -57,7 +57,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, e
 	if cfg.TargetSearchSystem == "" {
 		cfg.TargetSearchSystem = defaultRewriteTarget
 	}
-	prompt, err := newModelPrompt(
+	prompt, err := newTextModelPrompt(
 		cfg.Model,
 		cfg.PromptTemplate,
 		rewriteDefaultTemplate,
@@ -76,9 +76,9 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, e
 
 // Transform asks the LLM to rewrite the query and returns a clone with Text
 // replaced by the model output.
-func (r *RewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (r *RewriteTransformer) Transform(ctx context.Context, query Query) (Query, error) {
 	if err := query.Validate(); err != nil {
-		return nil, err
+		return Query{}, err
 	}
 
 	rewritten, err := r.prompt.call(ctx, rewritePromptVariables{
@@ -86,7 +86,7 @@ func (r *RewriteTransformer) Transform(ctx context.Context, query *Query) (*Quer
 		Query:  query.Text(),
 	})
 	if err != nil {
-		return nil, err
+		return Query{}, err
 	}
 
 	return query.WithText(rewritten)

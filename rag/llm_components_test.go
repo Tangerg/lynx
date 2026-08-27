@@ -127,10 +127,10 @@ func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
 	}
 }
 
-func TestContextualAugmenter_NilQuery(t *testing.T) {
+func TestContextualAugmenter_ZeroQuery(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
-	if _, err := aug.Augment(t.Context(), nil, nil); err == nil {
-		t.Fatal("nil query must error")
+	if _, err := aug.Augment(t.Context(), rag.Query{}, nil); err == nil {
+		t.Fatal("zero query must error")
 	}
 }
 

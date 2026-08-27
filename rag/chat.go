@@ -23,49 +23,46 @@ const (
 // identity operation.
 var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 
-type modelPrompt struct {
-	generation chatclient.Generation[string]
-	template   *chatclient.Template
-}
-
-type structuredModelPrompt[T any] struct {
+// modelPrompt owns the common template and typed generation boundary used by
+// every model-backed RAG component.
+type modelPrompt[T any] struct {
 	generation chatclient.Generation[T]
 	template   *chatclient.Template
 }
 
-func newModelPrompt(
-	model chat.Model,
-	template *chatclient.Template,
-	fallback string,
-	required ...string,
-) (modelPrompt, error) {
-	client, err := chatclient.New(model, chatclient.Config{})
-	if err != nil {
-		return modelPrompt{}, err
-	}
-	template, err = resolvePromptTemplate(template, fallback, required...)
-	if err != nil {
-		return modelPrompt{}, err
-	}
-	return modelPrompt{generation: client.Output(chatclient.Text()), template: template}, nil
+type textModelPrompt struct {
+	modelPrompt[string]
 }
 
-func newStructuredModelPrompt[T any](
+func newModelPrompt[T any](
 	model chat.Model,
 	format chatclient.OutputFormat[T],
 	template *chatclient.Template,
 	fallback string,
 	required ...string,
-) (structuredModelPrompt[T], error) {
+) (modelPrompt[T], error) {
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
-		return structuredModelPrompt[T]{}, err
+		return modelPrompt[T]{}, err
 	}
 	template, err = resolvePromptTemplate(template, fallback, required...)
 	if err != nil {
-		return structuredModelPrompt[T]{}, err
+		return modelPrompt[T]{}, err
 	}
-	return structuredModelPrompt[T]{generation: client.Output(format), template: template}, nil
+	return modelPrompt[T]{generation: client.Output(format), template: template}, nil
+}
+
+func newTextModelPrompt(
+	model chat.Model,
+	template *chatclient.Template,
+	fallback string,
+	required ...string,
+) (textModelPrompt, error) {
+	prompt, err := newModelPrompt(model, chatclient.Text(), template, fallback, required...)
+	if err != nil {
+		return textModelPrompt{}, err
+	}
+	return textModelPrompt{modelPrompt: prompt}, nil
 }
 
 func resolvePromptTemplate(current *chatclient.Template, fallback string, required ...string) (*chatclient.Template, error) {
@@ -82,12 +79,17 @@ func resolvePromptTemplate(current *chatclient.Template, fallback string, requir
 	return current, nil
 }
 
-func (m modelPrompt) call(ctx context.Context, data any) (string, error) {
+func (m modelPrompt[T]) call(ctx context.Context, data any) (T, error) {
+	var zero T
 	message, err := m.template.UserMessage(data)
 	if err != nil {
-		return "", err
+		return zero, err
 	}
-	text, err := m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	return m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+}
+
+func (m textModelPrompt) call(ctx context.Context, data any) (string, error) {
+	text, err := m.modelPrompt.call(ctx, data)
 	if err != nil {
 		return "", err
 	}
@@ -96,13 +98,4 @@ func (m modelPrompt) call(ctx context.Context, data any) (string, error) {
 		return "", ErrEmptyModelOutput
 	}
 	return text, nil
-}
-
-func (m structuredModelPrompt[T]) call(ctx context.Context, data any) (T, error) {
-	var zero T
-	message, err := m.template.UserMessage(data)
-	if err != nil {
-		return zero, err
-	}
-	return m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 }

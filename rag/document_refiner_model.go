@@ -1,7 +1,6 @@
 package rag
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -66,7 +65,7 @@ type ModelRerankerConfig struct {
 // and replaces provider-specific retrieval scores with normalized relevance
 // scores.
 type ModelReranker struct {
-	prompt    structuredModelPrompt[modelRerankingOutput]
+	prompt    modelPrompt[modelRerankingOutput]
 	formatter DocumentFormatter
 }
 
@@ -97,7 +96,7 @@ func NewModelReranker(config ModelRerankerConfig) (*ModelReranker, error) {
 	if err != nil {
 		return nil, err
 	}
-	prompt, err := newStructuredModelPrompt(
+	prompt, err := newModelPrompt(
 		config.Model,
 		format,
 		config.PromptTemplate,
@@ -117,14 +116,14 @@ func NewModelReranker(config ModelRerankerConfig) (*ModelReranker, error) {
 
 // Refine ranks every candidate. Empty input is returned without a model call;
 // non-empty model output must cover each input index exactly once.
-func (m *ModelReranker) Refine(ctx context.Context, query *Query, candidates []Candidate) ([]Candidate, error) {
+func (m *ModelReranker) Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	if err := validateCandidates(candidates); err != nil {
+	if err := candidates.Validate(); err != nil {
 		return nil, err
 	}
 	if len(candidates) == 0 {
@@ -156,7 +155,7 @@ func (m *ModelReranker) Refine(ctx context.Context, query *Query, candidates []C
 	return m.applyModelScores(candidates, output)
 }
 
-func (*ModelReranker) applyModelScores(candidates []Candidate, output modelRerankingOutput) ([]Candidate, error) {
+func (*ModelReranker) applyModelScores(candidates Candidates, output modelRerankingOutput) (Candidates, error) {
 	if len(output.Scores) != len(candidates) {
 		return nil, fmt.Errorf(
 			"%w: output contains %d candidate scores, want %d",
@@ -166,7 +165,7 @@ func (*ModelReranker) applyModelScores(candidates []Candidate, output modelReran
 		)
 	}
 
-	ranked := slices.Clone(candidates)
+	ranked := Candidates(slices.Clone(candidates))
 	seen := make([]bool, len(candidates))
 	for position, item := range output.Scores {
 		if item.Index < 0 || item.Index >= len(candidates) {
@@ -181,8 +180,5 @@ func (*ModelReranker) applyModelScores(candidates []Candidate, output modelReran
 		seen[item.Index] = true
 		ranked[item.Index].Score = item.Score
 	}
-	slices.SortStableFunc(ranked, func(left, right Candidate) int {
-		return cmp.Compare(right.Score, left.Score)
-	})
-	return ranked, nil
+	return ranked.ranked(), nil
 }

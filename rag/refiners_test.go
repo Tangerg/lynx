@@ -18,7 +18,7 @@ func TestDedupKeepsHighestScoreAtFirstIdentityPosition(t *testing.T) {
 	high, _ := document.NewDocument("high", nil)
 	high.ID = "1"
 
-	got, err := r.Refine(t.Context(), nil, []rag.Candidate{
+	got, err := r.Refine(t.Context(), rag.Query{}, []rag.Candidate{
 		candidate(low, 0.2),
 		candidate(b, 0.6),
 		candidate(high, 0.9),
@@ -43,7 +43,7 @@ func TestDedupEqualScoresKeepFirstCandidate(t *testing.T) {
 	second, _ := document.NewDocument("second", nil)
 	second.ID = "same"
 
-	got, err := rag.Dedup().Refine(t.Context(), nil, []rag.Candidate{
+	got, err := rag.Dedup().Refine(t.Context(), rag.Query{}, []rag.Candidate{
 		candidate(first, 0.8),
 		candidate(second, 0.8),
 	})
@@ -59,7 +59,7 @@ func TestDedupKeepsDocumentsWithoutIdentityDistinct(t *testing.T) {
 	first, _ := document.NewDocument("first", nil)
 	second, _ := document.NewDocument("second", nil)
 
-	got, err := rag.Dedup().Refine(t.Context(), nil, []rag.Candidate{
+	got, err := rag.Dedup().Refine(t.Context(), rag.Query{}, []rag.Candidate{
 		candidate(first, 0.8),
 		candidate(second, 0.9),
 	})
@@ -76,7 +76,7 @@ func TestDedupHonorsContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if _, err := r.Refine(ctx, nil, nil); err == nil {
+	if _, err := r.Refine(ctx, rag.Query{}, nil); err == nil {
 		t.Fatal("canceled ctx must error")
 	}
 }
@@ -94,7 +94,7 @@ func TestTopKSortsAndCaps(t *testing.T) {
 	b := candidate(bDoc, 0.9)
 	c := candidate(cDoc, 0.5)
 
-	got, err := r.Refine(t.Context(), nil, []rag.Candidate{a, b, c})
+	got, err := r.Refine(t.Context(), rag.Query{}, []rag.Candidate{a, b, c})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestTopKDeduplicatesBeforeApplyingLimit(t *testing.T) {
 	other, _ := document.NewDocument("other", nil)
 	other.ID = "b"
 
-	got, err := r.Refine(t.Context(), nil, []rag.Candidate{
+	got, err := r.Refine(t.Context(), rag.Query{}, []rag.Candidate{
 		candidate(low, 0.8),
 		candidate(high, 0.9),
 		candidate(other, 0.7),
@@ -155,19 +155,19 @@ func TestDedupAndTopKOrderDoesNotChangeResult(t *testing.T) {
 		candidate(third, 0.7),
 	}
 
-	deduped, err := rag.Dedup().Refine(t.Context(), nil, input)
+	deduped, err := rag.Dedup().Refine(t.Context(), rag.Query{}, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dedupThenTop, err := top.Refine(t.Context(), nil, deduped)
+	dedupThenTop, err := top.Refine(t.Context(), rag.Query{}, deduped)
 	if err != nil {
 		t.Fatal(err)
 	}
-	topped, err := top.Refine(t.Context(), nil, input)
+	topped, err := top.Refine(t.Context(), rag.Query{}, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	topThenDedup, err := rag.Dedup().Refine(t.Context(), nil, topped)
+	topThenDedup, err := rag.Dedup().Refine(t.Context(), rag.Query{}, topped)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestTopKDoesNotMutateInput(t *testing.T) {
 	b := candidate(bDoc, 0.9)
 	in := []rag.Candidate{a, b}
 
-	_, _ = r.Refine(t.Context(), nil, in)
+	_, _ = r.Refine(t.Context(), rag.Query{}, in)
 
 	if in[0].Score != 0.1 || in[1].Score != 0.9 {
 		t.Fatalf("input mutated: %v %v", in[0].Score, in[1].Score)

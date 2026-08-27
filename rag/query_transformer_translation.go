@@ -40,7 +40,7 @@ var _ Transformer = (*TranslationTransformer)(nil)
 
 // TranslationTransformer translates queries into a configured language.
 type TranslationTransformer struct {
-	prompt         modelPrompt
+	prompt         textModelPrompt
 	targetLanguage string
 }
 
@@ -55,7 +55,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTr
 	if cfg.TargetLanguage == "" {
 		return nil, errors.New("rag: translation target language is required")
 	}
-	prompt, err := newModelPrompt(
+	prompt, err := newTextModelPrompt(
 		cfg.Model,
 		cfg.PromptTemplate,
 		translationDefaultTemplate,
@@ -74,9 +74,9 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTr
 
 // Transform asks the LLM to translate the query and returns a clone with Text
 // replaced by the model output.
-func (t *TranslationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (t *TranslationTransformer) Transform(ctx context.Context, query Query) (Query, error) {
 	if err := query.Validate(); err != nil {
-		return nil, err
+		return Query{}, err
 	}
 
 	translated, err := t.prompt.call(ctx, translationPromptVariables{
@@ -84,7 +84,7 @@ func (t *TranslationTransformer) Transform(ctx context.Context, query *Query) (*
 		Query:  query.Text(),
 	})
 	if err != nil {
-		return nil, err
+		return Query{}, err
 	}
 
 	return query.WithText(translated)
