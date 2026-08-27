@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	Provider = "OpenAI"
+	Provider         = "OpenAI"
+	protocolProvider = "openai"
 
 	RequestExtensionKey     = "openai/request"
 	ResponseExtensionKey    = "openai/response"
@@ -72,7 +73,7 @@ type EmbeddingModelConfig struct {
 func (e EmbeddingModelConfig) Validate() error { return e.protocol().Validate() }
 
 func (e EmbeddingModelConfig) protocol() openaiprotocol.EmbeddingModelConfig {
-	return openaiprotocol.EmbeddingModelConfig{Provider: "openai", APIKey: e.APIKey, DefaultOptions: e.DefaultOptions, BaseURL: e.BaseURL, HTTPClient: e.HTTPClient}
+	return openaiprotocol.EmbeddingModelConfig{Provider: protocolProvider, APIKey: e.APIKey, DefaultOptions: e.DefaultOptions, BaseURL: e.BaseURL, HTTPClient: e.HTTPClient}
 }
 
 // EmbeddingModel is the OpenAI-compatible embedding protocol model.
@@ -92,7 +93,7 @@ type AudioTranscriptionModelConfig struct {
 func (a AudioTranscriptionModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTranscriptionModelConfig) protocol() openaiprotocol.AudioTranscriptionModelConfig {
-	return openaiprotocol.AudioTranscriptionModelConfig{Provider: "openai", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
+	return openaiprotocol.AudioTranscriptionModelConfig{Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
 }
 
 // AudioTranscriptionModel is the OpenAI-compatible transcription protocol model.
@@ -112,7 +113,7 @@ type AudioTranslationModelConfig struct {
 func (a AudioTranslationModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTranslationModelConfig) protocol() openaiprotocol.AudioTranslationModelConfig {
-	return openaiprotocol.AudioTranslationModelConfig{Provider: "openai", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
+	return openaiprotocol.AudioTranslationModelConfig{Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
 }
 
 // AudioTranslationModel is the OpenAI-compatible translation protocol model.
@@ -132,7 +133,7 @@ type AudioTTSModelConfig struct {
 func (a AudioTTSModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTTSModelConfig) protocol() openaiprotocol.AudioTTSModelConfig {
-	return openaiprotocol.AudioTTSModelConfig{Provider: "openai", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
+	return openaiprotocol.AudioTTSModelConfig{Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
 }
 
 // AudioTTSModel is the OpenAI-compatible speech protocol model.
@@ -152,7 +153,7 @@ type ImageModelConfig struct {
 func (i ImageModelConfig) Validate() error { return i.protocol().Validate() }
 
 func (i ImageModelConfig) protocol() openaiprotocol.ImageModelConfig {
-	return openaiprotocol.ImageModelConfig{Provider: "openai", APIKey: i.APIKey, DefaultOptions: i.DefaultOptions, BaseURL: i.BaseURL, HTTPClient: i.HTTPClient}
+	return openaiprotocol.ImageModelConfig{Provider: protocolProvider, APIKey: i.APIKey, DefaultOptions: i.DefaultOptions, BaseURL: i.BaseURL, HTTPClient: i.HTTPClient}
 }
 
 // ImageModel is the OpenAI-compatible image protocol model.
@@ -172,7 +173,7 @@ type ModerationModelConfig struct {
 func (m ModerationModelConfig) Validate() error { return m.protocol().Validate() }
 
 func (m ModerationModelConfig) protocol() openaiprotocol.ModerationModelConfig {
-	return openaiprotocol.ModerationModelConfig{Provider: "openai", APIKey: m.APIKey, DefaultOptions: m.DefaultOptions, BaseURL: m.BaseURL, HTTPClient: m.HTTPClient}
+	return openaiprotocol.ModerationModelConfig{Provider: protocolProvider, APIKey: m.APIKey, DefaultOptions: m.DefaultOptions, BaseURL: m.BaseURL, HTTPClient: m.HTTPClient}
 }
 
 // ModerationModel is the OpenAI-compatible moderation protocol model.

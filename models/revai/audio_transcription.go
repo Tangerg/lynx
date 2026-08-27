@@ -150,9 +150,9 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 			return nil, err
 		}
 		switch resp.Status {
-		case "transcribed":
+		case jobStatusTranscribed:
 			return resp, nil
-		case "failed":
+		case jobStatusFailed:
 			return nil, fmt.Errorf("revai: transcription failed: %s", resp.FailureReason)
 		}
 		select {

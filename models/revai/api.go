@@ -12,6 +12,24 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const (
+	jobsPath              = "/jobs"
+	mediaPartName         = "media"
+	optionsPartName       = "options"
+	mediaTypeJSON         = "application/json"
+	mediaTypeBinary       = "application/octet-stream"
+	mediaTypeText         = "text/plain"
+	defaultUploadFileName = "audio"
+)
+
+type jobStatus string
+
+const (
+	jobStatusInProgress  jobStatus = "in_progress"
+	jobStatusTranscribed jobStatus = "transcribed"
+	jobStatusFailed      jobStatus = "failed"
+)
+
 type apiConfig struct {
 	APIKey     string
 	BaseURL    string
@@ -42,9 +60,6 @@ func newAPI(config apiConfig) (*api, error) {
 	return &api{http: client}, nil
 }
 
-// JobOptions mirrors the JSON the multipart "options" field carries
-// when submitting a transcription job. See
-// https://docs.rev.ai/api/asynchronous/reference/.
 type jobOptions struct {
 	MediaURL             string         `json:"media_url,omitempty"`
 	SourceConfig         map[string]any `json:"source_config,omitzero"`
@@ -73,25 +88,23 @@ type jobOptions struct {
 // /jobs/{id}). Status moves through "in_progress" / "transcribed" /
 // "failed".
 type job struct {
-	ID              string  `json:"id"`
-	Status          string  `json:"status"`
-	CreatedOn       string  `json:"created_on"`
-	CompletedOn     string  `json:"completed_on"`
-	FailureReason   string  `json:"failure_detail"`
-	DurationSeconds float64 `json:"duration_seconds"`
-	Language        string  `json:"language"`
+	ID              string    `json:"id"`
+	Status          jobStatus `json:"status"`
+	CreatedOn       string    `json:"created_on"`
+	CompletedOn     string    `json:"completed_on"`
+	FailureReason   string    `json:"failure_detail"`
+	DurationSeconds float64   `json:"duration_seconds"`
+	Language        string    `json:"language"`
 }
 
-// submitURL queues a job pointing at media_url. Use Upload when the
-// caller has bytes instead.
 func (a *api) submitURL(ctx context.Context, opts jobOptions) (*job, error) {
 	var out job
 	resp, err := a.http.R().
 		SetContext(ctx).
-		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Type", mediaTypeJSON).
 		SetBody(opts).
 		SetResult(&out).
-		Post("/jobs")
+		Post(jobsPath)
 	if err != nil {
 		return nil, fmt.Errorf("revai: submit failed: %w", err)
 	}
@@ -101,8 +114,6 @@ func (a *api) submitURL(ctx context.Context, opts jobOptions) (*job, error) {
 	return &out, nil
 }
 
-// upload submits a job with the audio bytes as the multipart "media"
-// field plus the options as a JSON "options" field.
 func (a *api) upload(ctx context.Context, audio []byte, mimeType string, opts jobOptions) (*job, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("revai: upload audio must not be empty")
@@ -115,10 +126,10 @@ func (a *api) upload(ctx context.Context, audio []byte, mimeType string, opts jo
 	var out job
 	resp, err := a.http.R().
 		SetContext(ctx).
-		SetMultipartField("media", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
-		SetMultipartField("options", "", "application/json", bytes.NewReader(optsJSON)).
+		SetMultipartField(mediaPartName, defaultUploadFileName, cmp.Or(mimeType, mediaTypeBinary), bytes.NewReader(audio)).
+		SetMultipartField(optionsPartName, "", mediaTypeJSON, bytes.NewReader(optsJSON)).
 		SetResult(&out).
-		Post("/jobs")
+		Post(jobsPath)
 	if err != nil {
 		return nil, fmt.Errorf("revai: upload failed: %w", err)
 	}
@@ -130,7 +141,7 @@ func (a *api) upload(ctx context.Context, audio []byte, mimeType string, opts jo
 
 func (a *api) getJob(ctx context.Context, id string) (*job, error) {
 	var out job
-	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/jobs/" + id)
+	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get(jobsPath + "/" + id)
 	if err != nil {
 		return nil, fmt.Errorf("revai: get job failed: %w", err)
 	}
@@ -145,8 +156,8 @@ func (a *api) getJob(ctx context.Context, id string) (*job, error) {
 func (a *api) getTranscriptText(ctx context.Context, id string) (string, error) {
 	resp, err := a.http.R().
 		SetContext(ctx).
-		SetHeader("Accept", "text/plain").
-		Get("/jobs/" + id + "/transcript")
+		SetHeader("Accept", mediaTypeText).
+		Get(jobsPath + "/" + id + "/transcript")
 	if err != nil {
 		return "", fmt.Errorf("revai: transcript fetch failed: %w", err)
 	}

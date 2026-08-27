@@ -19,7 +19,25 @@ import (
 	corehistory "github.com/Tangerg/scope/core/history"
 )
 
-const instrumentationName = "github.com/Tangerg/scope/otel/history"
+const (
+	instrumentationName        = "github.com/Tangerg/scope/otel/history"
+	operationAttributeName     = "chat_history.operation.name"
+	messageCountAttribute      = "chat_history.message.count"
+	conversationCountAttribute = "chat_history.conversation.count"
+)
+
+type historyOperation string
+
+const (
+	operationRead    historyOperation = "read"
+	operationWrite   historyOperation = "write"
+	operationClear   historyOperation = "clear"
+	operationList    historyOperation = "list"
+	operationReplace historyOperation = "replace"
+	operationCount   historyOperation = "count"
+)
+
+func (o historyOperation) spanName() string { return "history." + string(o) }
 
 var ErrInvalidConfig = errors.New("otel/history: invalid config")
 
@@ -97,20 +115,20 @@ func (m Middleware) Count(next corehistory.Counter) corehistory.Counter {
 
 func (m Middleware) start(
 	ctx context.Context,
-	operation string,
+	operation historyOperation,
 	conversationID corehistory.ConversationID,
 	extra ...attribute.KeyValue,
 ) (context.Context, trace.Span) {
 	attrs := make([]attribute.KeyValue, 0, 3+len(extra))
 	attrs = append(attrs,
 		semconv.DBSystemNameKey.String(m.system),
-		attribute.String("chat_history.operation.name", operation),
+		attribute.String(operationAttributeName, string(operation)),
 	)
 	if conversationID != "" {
 		attrs = append(attrs, semconv.GenAIConversationID(conversationID.String()))
 	}
 	attrs = append(attrs, extra...)
-	return m.tracer.Start(ctx, "history."+operation,
+	return m.tracer.Start(ctx, operation.spanName(),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attrs...),
 	)
@@ -131,16 +149,16 @@ type historyStore struct {
 }
 
 func (h historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
-	ctx, span := h.middleware.start(ctx, "read", conversationID)
+	ctx, span := h.middleware.start(ctx, operationRead, conversationID)
 	messages, err := h.next.Read(ctx, conversationID)
-	span.SetAttributes(attribute.Int("chat_history.message.count", len(messages)))
+	span.SetAttributes(attribute.Int(messageCountAttribute, len(messages)))
 	finishHistorySpan(span, err)
 	return messages, err
 }
 
 func (h historyStore) Write(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	ctx, span := h.middleware.start(ctx, "write", conversationID,
-		attribute.Int("chat_history.message.count", len(messages)),
+	ctx, span := h.middleware.start(ctx, operationWrite, conversationID,
+		attribute.Int(messageCountAttribute, len(messages)),
 	)
 	err := h.next.Write(ctx, conversationID, messages...)
 	finishHistorySpan(span, err)
@@ -148,7 +166,7 @@ func (h historyStore) Write(ctx context.Context, conversationID corehistory.Conv
 }
 
 func (h historyStore) Clear(ctx context.Context, conversationID corehistory.ConversationID) error {
-	ctx, span := h.middleware.start(ctx, "clear", conversationID)
+	ctx, span := h.middleware.start(ctx, operationClear, conversationID)
 	err := h.next.Clear(ctx, conversationID)
 	finishHistorySpan(span, err)
 	return err
@@ -160,9 +178,9 @@ type historyLister struct {
 }
 
 func (h historyLister) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {
-	ctx, span := h.middleware.start(ctx, "list", "")
+	ctx, span := h.middleware.start(ctx, operationList, "")
 	ids, err := h.next.Conversations(ctx)
-	span.SetAttributes(attribute.Int("chat_history.conversation.count", len(ids)))
+	span.SetAttributes(attribute.Int(conversationCountAttribute, len(ids)))
 	finishHistorySpan(span, err)
 	return ids, err
 }
@@ -173,8 +191,8 @@ type historyReplacer struct {
 }
 
 func (h historyReplacer) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	ctx, span := h.middleware.start(ctx, "replace", conversationID,
-		attribute.Int("chat_history.message.count", len(messages)),
+	ctx, span := h.middleware.start(ctx, operationReplace, conversationID,
+		attribute.Int(messageCountAttribute, len(messages)),
 	)
 	err := h.next.Replace(ctx, conversationID, messages...)
 	finishHistorySpan(span, err)
@@ -187,9 +205,9 @@ type historyCounter struct {
 }
 
 func (h historyCounter) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
-	ctx, span := h.middleware.start(ctx, "count", conversationID)
+	ctx, span := h.middleware.start(ctx, operationCount, conversationID)
 	count, err := h.next.Count(ctx, conversationID)
-	span.SetAttributes(attribute.Int("chat_history.message.count", count))
+	span.SetAttributes(attribute.Int(messageCountAttribute, count))
 	finishHistorySpan(span, err)
 	return count, err
 }

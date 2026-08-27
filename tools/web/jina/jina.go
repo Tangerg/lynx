@@ -27,6 +27,9 @@ const (
 	defaultSearchResults  = 10
 	maximumSnippetRunes   = 300
 	snippetEllipsis       = "..."
+	mediaTypeJSON         = "application/json"
+	respondWithHeader     = "X-Respond-With"
+	respondWithoutContent = "no-content"
 )
 
 type Config struct {
@@ -60,13 +63,13 @@ func NewClient(config Config) (*Client, error) {
 		searchHTTP: resty.NewWithClient(config.HTTPClient).
 			SetBaseURL(config.SearchBaseURL).
 			SetAuthToken(config.APIKey).
-			SetHeader("Accept", "application/json").
-			SetHeader("X-Respond-With", "no-content"),
+			SetHeader("Accept", mediaTypeJSON).
+			SetHeader(respondWithHeader, respondWithoutContent),
 		fetchHTTP: resty.NewWithClient(config.HTTPClient).
 			SetBaseURL(config.FetchBaseURL).
 			SetAuthToken(config.APIKey).
-			SetHeader("Content-Type", "application/json").
-			SetHeader("Accept", "application/json"),
+			SetHeader("Content-Type", mediaTypeJSON).
+			SetHeader("Accept", mediaTypeJSON),
 	}, nil
 }
 

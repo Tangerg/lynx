@@ -74,7 +74,7 @@ func (e *execution) advance(signals []agent.Signal) (agent.Transition, error) {
 		if err != nil {
 			if _, ok := errors.AsType[unknownSwitchCaseError](err); ok {
 				return e.failContract(
-					0, "workflow.switch.case_unknown",
+					0, stage.failureCode("case_unknown"),
 					"Switch Stage "+stage.id+" selected an undeclared case",
 				)
 			}
@@ -93,7 +93,7 @@ func (e *execution) advance(signals []agent.Signal) (agent.Transition, error) {
 		if err != nil {
 			if _, ok := errors.AsType[mapItemLimitExceededError](err); ok {
 				return e.failContract(
-					0, "workflow.map.item_limit_exceeded",
+					0, stage.failureCode("item_limit_exceeded"),
 					"Map Stage "+stage.id+" input exceeds its configured item limit",
 				)
 			}
@@ -179,7 +179,7 @@ func (e *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, 
 	}
 	if failure, failed := result.Failure(); failed {
 		return e.fail(
-			1, "workflow."+stage.kind.String()+".start_failed",
+			1, stage.failureCode("start_failed"),
 			"Child Process start failed for Stage "+e.singleChildID()+": "+failure.Code(),
 			failure.Kind(),
 		)
@@ -239,22 +239,22 @@ func (e *execution) acceptChildCompletion(signals []agent.Signal) (agent.Transit
 	if result.Status() != agent.StatusCompleted {
 		if failure, failed := result.Termination().Failure(); failed {
 			return e.failExternal(
-				1, "workflow."+e.stage().kind.String()+".child_failed",
+				1, e.stage().failureCode("child_failed"),
 				"Child Process failed for Stage "+e.singleChildID()+": "+failure.Code(),
 			)
 		}
 		return e.failExternal(
 			1,
-			"workflow."+e.stage().kind.String()+".child_not_completed",
+			e.stage().failureCode("child_not_completed"),
 			"Child Process for Stage "+e.singleChildID()+" terminated with status "+result.Status().String(),
 		)
 	}
 	output, present := result.Output()
 	if !present {
-		return e.failContract(1, "workflow."+e.stage().kind.String()+".output_missing", "Completed child Process returned no Output")
+		return e.failContract(1, e.stage().failureCode("output_missing"), "Completed child Process returned no Output")
 	}
 	if err := e.singleChildOutputSchema().ValidateOutput(output); err != nil {
-		return e.failContract(1, "workflow."+e.stage().kind.String()+".output_invalid", "Child Process Output violated the Stage contract")
+		return e.failContract(1, e.stage().failureCode("output_invalid"), "Child Process Output violated the Stage contract")
 	}
 	if e.stage().kind == stageKindLoop {
 		return e.finishLoopIteration(1, output)

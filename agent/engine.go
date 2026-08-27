@@ -338,5 +338,5 @@ func newProcessID() (ProcessID, error) {
 	if _, err := rand.Read(random[:]); err != nil {
 		return ProcessID{}, fmt.Errorf("agent: generate ProcessID: %w", err)
 	}
-	return ParseProcessID("process:" + hex.EncodeToString(random[:]))
+	return ParseProcessID(processIDPrefix + hex.EncodeToString(random[:]))
 }

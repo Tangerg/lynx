@@ -173,7 +173,7 @@ func childSpecDigest(spec ChildSpec) (Digest, error) {
 
 func deriveChildProcessID(effectID EffectID) ProcessID {
 	digest := digestBytes([]byte("child\x00" + effectID.String()))
-	id, err := ParseProcessID("process:" + digest.String()[len("sha256:"):])
+	id, err := ParseProcessID(processIDPrefix + digest.hex())
 	if err != nil {
 		panic(err)
 	}

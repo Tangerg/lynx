@@ -5,7 +5,13 @@ import (
 	"fmt"
 )
 
-const maxIdentityBytes = 256
+const (
+	maxIdentityBytes = 256
+	processIDPrefix  = "process:"
+	effectIDPrefix   = "effect:"
+	waitIDPrefix     = "wait:"
+	signalIDPrefix   = "signal:"
+)
 
 var ErrInvalidIdentity = errors.New("agent: invalid identity")
 

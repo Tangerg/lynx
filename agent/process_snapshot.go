@@ -444,7 +444,7 @@ func executionStateDigest(state ExecutionState) (Digest, error) {
 
 func deriveEffectID(processID ProcessID, step uint64, index int) EffectID {
 	digest := digestBytes([]byte(fmt.Sprintf("%s\x00%d\x00%d", processID.String(), step, index)))
-	id, err := ParseEffectID("effect:" + digest.String()[len("sha256:"):])
+	id, err := ParseEffectID(effectIDPrefix + digest.hex())
 	if err != nil {
 		panic(err)
 	}
@@ -453,7 +453,7 @@ func deriveEffectID(processID ProcessID, step uint64, index int) EffectID {
 
 func deriveWaitID(effectID EffectID) WaitID {
 	digest := digestBytes([]byte("wait\x00" + effectID.String()))
-	id, err := ParseWaitID("wait:" + digest.String()[len("sha256:"):])
+	id, err := ParseWaitID(waitIDPrefix + digest.hex())
 	if err != nil {
 		panic(err)
 	}
@@ -462,7 +462,7 @@ func deriveWaitID(effectID EffectID) WaitID {
 
 func deriveSettlementSignalID(effectID EffectID) SignalID {
 	digest := digestBytes([]byte("signal\x00" + effectID.String()))
-	id, err := ParseSignalID("signal:" + digest.String()[len("sha256:"):])
+	id, err := ParseSignalID(signalIDPrefix + digest.hex())
 	if err != nil {
 		panic(err)
 	}

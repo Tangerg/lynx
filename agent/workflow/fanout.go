@@ -118,7 +118,11 @@ func (s Stage) fanoutMemberLabel(index uint32) string {
 }
 
 func (s Stage) fanoutFailureCode(suffix string) string {
-	return fmt.Sprintf("workflow.%s.%s_%s", s.kind.String(), s.fanoutMemberNoun(), suffix)
+	return s.failureCode(s.fanoutMemberNoun() + "_" + suffix)
+}
+
+func (s Stage) failureCode(suffix string) string {
+	return fmt.Sprintf("workflow.%s.%s", s.kind.String(), suffix)
 }
 
 func (s Stage) fanoutMemberNoun() string {

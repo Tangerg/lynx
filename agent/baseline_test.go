@@ -27,7 +27,7 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "1ec6df8d167536cfdd9ef29fb87e202138d9dc07c23fe40a888cfd98f2d430b5"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "976ba6bf0fa370a29b346baff846a3a3423c8cbcff242eb95108288f851616fe"},
 	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "66c49a9dec9e33d416fbc66c925a5893d54b96335d4e09294ad87b40badc6ad9"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "a9a52cc367e60b8dbf710f18e41fcb69c1b74a29508ee521ba293fca910edc4d"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},

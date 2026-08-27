@@ -10,11 +10,12 @@ import (
 	"time"
 )
 
-// defaultMaxOutputBytes caps each captured stream (stdout, stderr).
-// 30 KiB default; large enough for typical
-// command output, small enough to keep LLM context bounded even when
-// a command misbehaves.
-const defaultMaxOutputBytes = 30 * 1024
+const (
+	defaultShell          = "/bin/sh"
+	shellCommandFlag      = "-c"
+	defaultMaxOutputBytes = 30 * 1024
+	pipeCloseDelay        = time.Second
+)
 
 // LocalExecutor runs commands on the local host via the configured
 // shell. Default shell is "/bin/sh -c".
@@ -38,7 +39,7 @@ type LocalExecutor struct {
 }
 
 func NewLocalExecutor() *LocalExecutor {
-	return &LocalExecutor{Shell: "/bin/sh"}
+	return &LocalExecutor{Shell: defaultShell}
 }
 
 func (l *LocalExecutor) maxOutput() int {
@@ -57,13 +58,13 @@ func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(runCtx, cmp.Or(l.Shell, "/bin/sh"), "-c", in.Cmd)
+	cmd := exec.CommandContext(runCtx, cmp.Or(l.Shell, defaultShell), shellCommandFlag, in.Cmd)
 	cmd.Dir = l.Dir // "" leaves exec to inherit the host process cwd
 	// On a timeout/ctx kill, force-close the command's pipes shortly after so
 	// Wait returns promptly even when a child the shell spawned still holds them
 	// (otherwise Wait blocks until that child exits — the command runs its full
 	// duration despite the kill, which is exactly what slow CI runners surface).
-	cmd.WaitDelay = time.Second
+	cmd.WaitDelay = pipeCloseDelay
 
 	stdout := newBoundedBuffer(l.maxOutput())
 	stderr := newBoundedBuffer(l.maxOutput())

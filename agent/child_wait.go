@@ -411,7 +411,7 @@ func encodeChildrenCompletedAt(
 
 func deriveChildCompletionSignalID(waitID WaitID) SignalID {
 	digest := digestBytes([]byte("children-completed\x00" + waitID.String()))
-	id, err := ParseSignalID("signal:" + digest.String()[len("sha256:"):])
+	id, err := ParseSignalID(signalIDPrefix + digest.hex())
 	if err != nil {
 		panic(err)
 	}

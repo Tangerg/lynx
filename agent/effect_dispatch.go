@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const nullJSON = "null"
+
 func (p *processLoop) dispatchPrepared(ctx context.Context, hostDone *<-chan struct{}) {
 	for index := range p.prepared.wire.Effects {
 		record := &p.prepared.wire.Effects[index]
@@ -17,7 +19,7 @@ func (p *processLoop) dispatchPrepared(ctx context.Context, hostDone *<-chan str
 		if p.prepared.fromSnapshot && record.Effect.Target() == EffectTargetDispatcher {
 			policy := dispatcherReplayPolicy(p.deployment.effectDispatcher(), record.Effect)
 			if policy != ReplayPolicySameIdentity {
-				settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
+				settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON))
 				record.Settlement = &settlement
 				continue
 			}
@@ -106,7 +108,7 @@ func (p *processLoop) dispatchFrameworkEffect(ctx context.Context, record *prepa
 }
 
 func (p *processLoop) markFrameworkEffectUnknown(record *preparedEffectWire) {
-	settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
+	settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON))
 	record.Settlement = &settlement
 }
 
@@ -164,7 +166,7 @@ func (p *processLoop) dispatchStrategyEffect(
 			acceptingDeltas.Store(false)
 			settlement := outcome.settlement
 			if outcome.err != nil || !settlement.Valid() || settlement.EffectID() != record.ID {
-				settlement, _ = NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
+				settlement, _ = NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON))
 			}
 			record.Settlement = &settlement
 			if count := dropped.Load(); count > 0 {
