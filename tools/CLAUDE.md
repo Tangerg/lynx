@@ -9,7 +9,7 @@
 
 - **模块拥有具体工具，Core 拥有工具模型**：`core/tool.Registry` 管理实例集合，`tools/*` 只实现可执行能力，不再维护第二套集合抽象。
 - **具体能力各自拥有实现**：`fs`、`shell` 等保持独立子包。两层 SPI：**Tool 层**对 LLM(JSON in/out + schema + 交互)，**Executor / Provider 层**做真正执行(本地 / 远程 / 沙箱后端可换)。演示工具属于 `examples`。
-- **外部依赖按依赖预算成岛**：`web` 的中立 `Searcher` / `Fetcher` SPI、各 provider、`httpreq` 与 `skills` adapter 共享同一个 `tools` module；它们都是可装配工具，依赖轻量且发布周期一致。package 负责隔离能力，module 不重复切发布单元。
+- **外部依赖按方向与生命周期成岛**：`web` 的中立 `Searcher` / `Fetcher` SPI、各 provider、`httpreq` 与 `skills` adapter 共享同一个 `tools` module；它们都是可装配工具，依赖方向与发布周期一致。package 负责隔离能力，module 不重复切发布单元；成熟三方库不因“预算”被拒绝。
 
 ## 架构心智
 
@@ -27,7 +27,7 @@
 
 - ❌ **全局 tool registry** —— 显式注册是有意的,多 agent / 多进程各自管理 toolset。
 - ❌ **在 `tools` 复制 Tool/Registry/schema 原语** —— 这些只由 `core/tool` 拥有。
-- ❌ **为同依赖预算的 web provider 拆 module** —— `web/<provider>` 是实现 package，不是独立发布单元；只有引入明显不同的重型 SDK 或生命周期时才重新评估边界。
+- ❌ **为同依赖方向与生命周期的 web provider 拆 module** —— `web/<provider>` 是实现 package，不是独立发布单元；只有引入明显不同的重型 SDK 或生命周期时才重新评估边界。
 - ❌ **在 Tool 层做业务逻辑** —— 业务全在 Executor,Tool 只是 JSON ↔ Go + schema。
 - ❌ **给 shell 加 root 限制** —— 信任调用方,要 jail 在外层(进程上下文 / 容器)。
 - ❌ **httpreq 带默认 allowlist** —— 必须显式配置;"忘配也能跑" 是 SSRF 敞口。

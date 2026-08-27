@@ -6,7 +6,7 @@
 
 ## 定位
 
-- **模块是发布边界，package 是职责边界**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义；同一依赖预算下的 `chatclient`、`embeddingclient`、`jsonschema`、`tool`、`tokenizer`、`history` 与内存参考实现也在本 module，但仍保持独立 package，不揉成一个总框架。
+- **模块是发布边界，package 是职责边界**：Core 定义 metadata/media/document、各 modality 的 Request/Response、最小 Model 能力和高层 VectorStore 语义；依赖方向与发布周期相同的 `chatclient`、`embeddingclient`、`jsonschema`、`tool`、`tokenizer`、`history` 与内存参考实现也在本 module，但仍保持独立 package，不揉成一个总框架。
 - **生产依赖遵守架构边界**：标准库优先；标准库缺失时可引入经过评估、语义精确且维护成熟的通用库。Core 不 import sibling module、provider SDK、具体 tokenizer 词表或 OTel；架构门禁检查依赖方向与公共 API 泄露，不以精确第三方 import 白名单阻止正常复用，也不能用临时 wrapper 绕过边界。跨 provider 的公共契约测试由 `core/modeltest` 与 `core/vectorstore/storetest` 持有。
 - **依赖方向单向**：provider、能力模块、agent 与 OTel adapter 可以 import Core；Core 不反向 import 任何 sibling module。
 
