@@ -18,7 +18,6 @@ known=0
 while IFS= read -r workspace_module; do
   if [[ "$workspace_module" == "$module" ]]; then
     known=1
-    break
   fi
 done < <("$root/scripts/workspace-modules.sh")
 if [[ $known -eq 0 ]]; then

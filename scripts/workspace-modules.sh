@@ -2,6 +2,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+workspace_module_dirs=$(cd "$root" && go list -m -f '{{if .Main}}{{.Dir}}{{end}}' all)
 
 while IFS= read -r module_dir; do
   [[ -z "$module_dir" ]] && continue
@@ -17,4 +18,4 @@ while IFS= read -r module_dir; do
       exit 1
       ;;
   esac
-done < <(cd "$root" && go list -m -f '{{if .Main}}{{.Dir}}{{end}}' all)
+done <<< "$workspace_module_dirs"
