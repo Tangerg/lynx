@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
@@ -16,67 +17,81 @@ type echoInput struct {
 	Text string `json:"text" jsonschema:"required"`
 }
 
-func main() {
-	ctx := context.Background()
+const echoToolName = "echo"
 
-	// 1. Build a chat.Tool — same shape an action body would
-	// register and the same shape scopemcp.Register accepts.
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
 	echo, err := tool.NewFunc[echoInput, string](
 		tool.FuncConfig{
-			Name:        "echo",
+			Name:        echoToolName,
 			Description: "echo the input text",
 		},
 		func(_ context.Context, p echoInput) (string, error) { return p.Text, nil },
 	)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create echo tool: %w", err)
 	}
 
-	// 2. Stand up an MCP server and expose the tool.
 	server := sdkmcp.NewServer(
 		&sdkmcp.Implementation{Name: "scope-bridge", Version: "v0.1.0"},
 		nil,
 	)
 	if registerErr := scopemcp.Register(server, echo); registerErr != nil {
-		log.Fatal(registerErr)
+		return fmt.Errorf("register echo tool: %w", registerErr)
 	}
 
-	// 3. Drive the server end-to-end with a tiny in-memory client so the
-	// example works offline. In production you'd swap this for:
+	// In-memory transports keep the example executable without hiding the
+	// production boundary: a deployed server would use StdioTransport here.
 	//
 	//	server.Run(ctx, &sdkmcp.StdioTransport{})
-	//
-	// and let the MCP host (Claude Desktop, Cursor, …) spawn this binary.
-	srvT, cliT := sdkmcp.NewInMemoryTransports()
-	srvSession, err := server.Connect(ctx, srvT, nil)
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("connect MCP server: %w", err)
 	}
-	defer srvSession.Close()
+	defer func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close MCP server session: %w", closeErr))
+		}
+	}()
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "demo-host", Version: "v0.1.0"}, nil)
-	cliSession, err := cli.Connect(ctx, cliT, nil)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "demo-host", Version: "v0.1.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("connect MCP client: %w", err)
 	}
-	defer cliSession.Close()
+	defer func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close MCP client session: %w", closeErr))
+		}
+	}()
 
-	// 4. Confirm the tool is visible and callable from the host's POV.
-	for descriptor, err := range cliSession.Tools(ctx, nil) {
+	for descriptor, err := range clientSession.Tools(ctx, nil) {
 		if err != nil {
-			log.Fatal(err)
+			return fmt.Errorf("list MCP tools: %w", err)
 		}
 		fmt.Printf("[host] discovered tool: %s — %s\n", descriptor.Name, descriptor.Description)
 	}
 
-	out, err := cliSession.CallTool(ctx, &sdkmcp.CallToolParams{
-		Name:      "echo",
+	result, err := clientSession.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      echoToolName,
 		Arguments: json.RawMessage(`{"text":"hello from the host"}`),
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("call MCP tool %q: %w", echoToolName, err)
 	}
-	if text, ok := out.Content[0].(*sdkmcp.TextContent); ok {
-		fmt.Printf("[host] tool result: %s\n", text.Text)
+	if len(result.Content) != 1 {
+		return fmt.Errorf("MCP tool %q returned %d content items, want 1", echoToolName, len(result.Content))
 	}
+	text, ok := result.Content[0].(*sdkmcp.TextContent)
+	if !ok {
+		return fmt.Errorf("MCP tool %q returned content type %T, want text", echoToolName, result.Content[0])
+	}
+	fmt.Printf("[host] tool result: %s\n", text.Text)
+	return nil
 }

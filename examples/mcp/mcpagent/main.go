@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"log"
@@ -14,85 +15,110 @@ import (
 	"github.com/Tangerg/scope/agent/interaction"
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/chatclient"
-	"github.com/Tangerg/scope/core/tool"
+	"github.com/Tangerg/scope/core/jsonschema"
 	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
-// Domain types — the agent takes a Topic and produces a Brief.
-type (
-	Topic struct{ Title string }
-	Brief struct {
-		Topic   string
-		Sources []string
-	}
+type searchInput struct {
+	Query string `json:"query" jsonschema:"required"`
+}
+
+type briefOutput struct {
+	Sources []string `json:"sources"`
+}
+
+const (
+	briefingModelCallLimit    = 3
+	researchToolSource        = "research"
+	researchToolName          = "search"
+	researchQualifiedToolName = researchToolSource + "_" + researchToolName
+	researchPromptName        = "researcher_role"
+	researchTopicArgument     = "topic"
+	requestMetaKey            = "scope.example"
+	mcpAssistantRole          = sdkmcp.Role("assistant")
+	stubToolCallID            = "call_1"
 )
 
 func main() {
-	ctx := context.Background()
-
-	model := &stubModel{}
-
-	srvT, cliT := sdkmcp.NewInMemoryTransports()
-	srv := buildMCPServer()
-	srvSession, err := srv.Connect(ctx, srvT, nil)
-	if err != nil {
+	if err := run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
-	defer srvSession.Close()
+}
 
-	cli := sdkmcp.NewClient(
+func run(ctx context.Context) (err error) {
+	model := &stubModel{}
+
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	server, err := buildMCPServer()
+	if err != nil {
+		return err
+	}
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		return fmt.Errorf("connect MCP server: %w", err)
+	}
+	defer func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close MCP server session: %w", closeErr))
+		}
+	}()
+
+	mcpClient := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "scope-mcp-agent", Version: "v0.1.0"},
 		nil,
 	)
-	cliSession, err := cli.Connect(ctx, cliT, nil)
+	clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("connect MCP client: %w", err)
 	}
-	defer cliSession.Close()
+	defer func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close MCP client session: %w", closeErr))
+		}
+	}()
 
-	loadTools := func(ctx context.Context) ([]tool.Tool, error) {
-		return scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "research", Session: cliSession}}, scopemcp.ToolDiscoveryConfig{
-			RequestMeta: scopemcp.RequestMetaFromContext,
-		})
-	}
-	topic := Topic{Title: "agent frameworks in 2026"}
-	promptResult, err := cliSession.GetPrompt(ctx, &sdkmcp.GetPromptParams{
-		Name: "researcher_role", Arguments: map[string]string{"topic": topic.Title},
+	topic := "agent frameworks in 2026"
+	promptResult, err := clientSession.GetPrompt(ctx, &sdkmcp.GetPromptParams{
+		Name: researchPromptName, Arguments: map[string]string{researchTopicArgument: topic},
 	})
 	if err != nil {
-		log.Fatal(fmt.Errorf("get prompt: %w", err))
+		return fmt.Errorf("get MCP prompt %q: %w", researchPromptName, err)
 	}
 	systemMessages, err := scopemcp.PromptMessagesToChat(promptResult.Messages)
 	if err != nil {
-		log.Fatal(fmt.Errorf("convert MCP prompt messages: %w", err))
+		return fmt.Errorf("convert MCP prompt messages: %w", err)
 	}
 	var systemPrompt strings.Builder
 	for index := range systemMessages {
 		systemPrompt.WriteString(systemMessages[index].Text())
 	}
-	availableTools, err := loadTools(ctx)
+	availableTools, err := scopemcp.DiscoverTools(
+		ctx,
+		[]scopemcp.ToolSource{{Name: researchToolSource, Session: clientSession}},
+		scopemcp.ToolDiscoveryConfig{RequestMeta: scopemcp.RequestMetaFromContext},
+	)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("discover MCP tools: %w", err)
 	}
-	client, err := chatclient.New(model, chatclient.Config{})
+	chatClient, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create chat client: %w", err)
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "example.mcp_briefing",
 		Description:   "Ask the model for a topic brief using a remote MCP search tool.",
 		Version:       "1.0.0",
-		MaxModelCalls: 3,
+		MaxModelCalls: briefingModelCallLimit,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create interaction definition: %w", err)
 	}
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
-		Client: client,
+		Client: chatClient,
 		Tools:  availableTools,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create interaction dispatcher: %w", err)
 	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition:           definition,
@@ -101,72 +127,72 @@ func main() {
 		ConfigurationDigest:  agent.ComputeDigest([]byte("example-mcp-briefing-configuration")),
 	})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create agent deployment: %w", err)
 	}
 	engine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create agent engine: %w", err)
 	}
-	defer engine.Close()
+	defer func() {
+		if closeErr := engine.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close agent engine: %w", closeErr))
+		}
+	}()
 
 	outputFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("create JSON output format: %w", err)
 	}
-	prompt := fmt.Sprintf("Use research_search to gather source URLs on %q.", topic.Title)
+	prompt := fmt.Sprintf("Use %s to gather source URLs on %q.", researchQualifiedToolName, topic)
 	input, err := agent.EncodeInput(interaction.Input{Messages: []chat.Message{
 		chat.NewSystemMessage(systemPrompt.String()),
 		chat.NewUserMessage(chat.NewTextPart(prompt)),
 	}, Options: chat.Options{OutputFormat: &outputFormat}})
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("encode interaction input: %w", err)
 	}
-	ctx = scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{"scope.example": "mcp-agent"})
+	ctx = scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{requestMetaKey: "mcp-agent"})
 	result, err := engine.Run(ctx, deployment, input)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("run MCP briefing interaction: %w", err)
 	}
-	erased, ok := result.Output()
+	encodedOutput, ok := result.Output()
 	if !ok {
-		log.Fatalf("no interaction output produced; status=%s", result.Status())
+		return fmt.Errorf("MCP briefing produced no output with status %q", result.Status())
 	}
-	output, err := erased.Decode[interaction.Output]()
+	output, err := encodedOutput.Decode[interaction.Output]()
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("decode interaction output: %w", err)
 	}
 	if output.ModelResponse == nil {
-		log.Fatalf("unexpected interaction completion source %q", output.Source)
+		return fmt.Errorf("MCP briefing completed from source %q without a model response", output.Source)
 	}
-	var parsed struct {
-		Sources []string `json:"sources"`
+	var brief briefOutput
+	if err := json.Unmarshal([]byte(output.ModelResponse.Text()), &brief); err != nil {
+		return fmt.Errorf("decode model response as brief: %w", err)
 	}
-	if err := json.Unmarshal([]byte(output.ModelResponse.Text()), &parsed); err != nil {
-		log.Fatal(fmt.Errorf("decode brief: %w", err))
-	}
-	brief := Brief{Topic: topic.Title, Sources: parsed.Sources}
 
 	fmt.Println("\n--- result ---")
-	fmt.Printf("topic:   %s\n", brief.Topic)
+	fmt.Printf("topic:   %s\n", topic)
 	fmt.Printf("sources: %v\n", brief.Sources)
+	return nil
 }
 
-// ============================================================================
-// In-memory MCP server: one tool + one prompt + meta-aware logging.
-// ============================================================================
-
-func buildMCPServer() *sdkmcp.Server {
-	srv := sdkmcp.NewServer(
+func buildMCPServer() (*sdkmcp.Server, error) {
+	inputSchema, err := jsonschema.For[searchInput]()
+	if err != nil {
+		return nil, fmt.Errorf("derive search tool input schema: %w", err)
+	}
+	server := sdkmcp.NewServer(
 		&sdkmcp.Implementation{Name: "research-server", Version: "v0.1.0"},
 		nil,
 	)
 
-	// Tool — logs the _meta forwarded by the client to demonstrate
-	// request-level metadata flow.
-	srv.AddTool(
+	server.AddTool(
 		&sdkmcp.Tool{
-			Name:        "search",
+			Name:        researchToolName,
 			Description: "search the public web for sources on a topic",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+			InputSchema: inputSchema.JSON(),
 		},
 		func(_ context.Context, request *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 			fmt.Printf("[mcp-server] tool call meta=%v\n", request.Params.Meta)
@@ -178,21 +204,19 @@ func buildMCPServer() *sdkmcp.Server {
 		},
 	)
 
-	// Prompt — returns a system message templated on the {topic}
-	// argument the action passed.
-	srv.AddPrompt(
+	server.AddPrompt(
 		&sdkmcp.Prompt{
-			Name:        "researcher_role",
+			Name:        researchPromptName,
 			Description: "system prompt for a research analyst",
 			Arguments: []*sdkmcp.PromptArgument{
-				{Name: "topic", Required: true},
+				{Name: researchTopicArgument, Required: true},
 			},
 		},
 		func(_ context.Context, request *sdkmcp.GetPromptRequest) (*sdkmcp.GetPromptResult, error) {
-			topic := request.Params.Arguments["topic"]
+			topic := request.Params.Arguments[researchTopicArgument]
 			return &sdkmcp.GetPromptResult{
 				Messages: []*sdkmcp.PromptMessage{{
-					Role: "assistant",
+					Role: mcpAssistantRole,
 					Content: &sdkmcp.TextContent{
 						Text: fmt.Sprintf(
 							"You are a research analyst focused on %q. Cite sources you used.",
@@ -204,23 +228,16 @@ func buildMCPServer() *sdkmcp.Server {
 		},
 	)
 
-	return srv
+	return server, nil
 }
-
-// ============================================================================
-// Stub LLM — pretends to use the search tool, then emits JSON sources.
-// ============================================================================
 
 type stubModel struct{}
 
 func (s *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(request.Messages) {
-		// First turn — emit a tool call. The MCP-backed tool name is
-		// "research_search" because DefaultNaming prefixes the source
-		// name to the descriptor name ("research" + "_" + "search").
-		return responseWithToolCall("research_search", `{"query":"agent frameworks 2026"}`), nil
+		return responseWithToolCall(researchQualifiedToolName, `{"query":"agent frameworks 2026"}`)
 	}
-	return responseWithText(`{"sources":["https://example.com/agents-2026"]}`), nil
+	return responseWithText(`{"sources":["https://example.com/agents-2026"]}`)
 }
 
 func (s *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -229,22 +246,20 @@ func (s *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2
 }
 
 func hasToolMessage(messages []chat.Message) bool {
-	for _, msg := range messages {
-		if msg.Role == chat.RoleTool {
+	for _, message := range messages {
+		if message.Role == chat.RoleTool {
 			return true
 		}
 	}
 	return false
 }
 
-func responseWithText(text string) *chat.Response {
+func responseWithText(text string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, _ := chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
-	return response
+	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, nil)
 }
 
-func responseWithToolCall(name, args string) *chat.Response {
-	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: name, Arguments: args}))
-	response, _ := chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls}, nil)
-	return response
+func responseWithToolCall(name, arguments string) (*chat.Response, error) {
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: stubToolCallID, Name: name, Arguments: arguments}))
+	return chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonToolCalls}, nil)
 }
