@@ -142,11 +142,13 @@ func (b *BinaryExpr) Validate() error              { return validatePredicate(b)
 func (b *BinaryExpr) Accept(visitor Visitor) error { return accept(b, visitor) }
 func (b *BinaryExpr) String() string               { return formatPredicate(b) }
 
-func (b *BinaryExpr) Negated() (*BinaryExpr, error) {
+// Inverse returns an equivalent binary expression using the exact inverse
+// comparison operator. The receiver is not mutated.
+func (b *BinaryExpr) Inverse() (*BinaryExpr, error) {
 	if b == nil {
-		return nil, errors.New("filter.BinaryExpr.Negated: expression is nil")
+		return nil, errors.New("filter.BinaryExpr.Inverse: expression is nil")
 	}
-	operator, err := b.operator.Negated()
+	operator, err := b.operator.Inverse()
 	if err != nil {
 		return nil, err
 	}

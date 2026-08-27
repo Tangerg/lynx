@@ -258,7 +258,7 @@ func (v *Visitor) buildNegatedExpr(expr filter.Expr) (map[string]any, error) {
 			}
 			return map[string]any{op: []any{left, right}}, nil
 		case node.Operator().IsComparisonOperator():
-			inverted, err := node.Negated()
+			inverted, err := node.Inverse()
 			if err != nil {
 				return nil, err
 			}

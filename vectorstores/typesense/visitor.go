@@ -117,7 +117,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 }
 
 func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
-	inverted, err := expr.Negated()
+	inverted, err := expr.Inverse()
 	if err != nil {
 		return nil, fmt.Errorf("typesense: cannot invert operator '%s': %w", expr.Operator(), err)
 	}

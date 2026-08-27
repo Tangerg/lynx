@@ -92,7 +92,7 @@ func convertUnary(expr *filter.UnaryExpr) (types.RetrievalFilter, error) {
 // invertBinary returns the boolean inverse of a single comparison —
 // EQ↔NE, LT↔GE, and LE↔GT.
 func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
-	inverted, err := expr.Negated()
+	inverted, err := expr.Inverse()
 	if err != nil {
 		return nil, fmt.Errorf("bedrockkb: cannot invert operator '%s': %w", expr.Operator(), err)
 	}

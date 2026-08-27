@@ -491,10 +491,10 @@ vectorstore/filter: func (b *BinaryExpr) Accept(visitor Visitor) error
 vectorstore/filter: func (b *BinaryExpr) Dispatch(handlers BinaryHandlers) error
 vectorstore/filter: func (b *BinaryExpr) End() Position
 vectorstore/filter: func (b *BinaryExpr) Equal(other Expr) bool
+vectorstore/filter: func (b *BinaryExpr) Inverse() (*BinaryExpr, error)
 vectorstore/filter: func (b *BinaryExpr) Left() Expr
 vectorstore/filter: func (b *BinaryExpr) List() (*ListLiteral, error)
 vectorstore/filter: func (b *BinaryExpr) Literal() (*Literal, error)
-vectorstore/filter: func (b *BinaryExpr) Negated() (*BinaryExpr, error)
 vectorstore/filter: func (b *BinaryExpr) Operator() Operator
 vectorstore/filter: func (b *BinaryExpr) Path() ([]string, error)
 vectorstore/filter: func (b *BinaryExpr) Pattern() (string, error)
@@ -543,6 +543,7 @@ vectorstore/filter: func (l *Literal) NumberText() (string, error)
 vectorstore/filter: func (l *Literal) Start() Position
 vectorstore/filter: func (l *Literal) Text() string
 vectorstore/filter: func (l *Literal) Value() (any, error)
+vectorstore/filter: func (o Operator) Inverse() (Operator, error)
 vectorstore/filter: func (o Operator) Is(other Operator) bool
 vectorstore/filter: func (o Operator) IsBinaryOperator() bool
 vectorstore/filter: func (o Operator) IsComparisonOperator() bool
@@ -555,7 +556,6 @@ vectorstore/filter: func (o Operator) IsOrderingOperator() bool
 vectorstore/filter: func (o Operator) IsUnaryOperator() bool
 vectorstore/filter: func (o Operator) LogicalString() (string, error)
 vectorstore/filter: func (o Operator) Name() string
-vectorstore/filter: func (o Operator) Negated() (Operator, error)
 vectorstore/filter: func (o Operator) String() string
 vectorstore/filter: func (p Position) String() string
 vectorstore/filter: func (s *SyntaxError) Error() string

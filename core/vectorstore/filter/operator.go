@@ -86,8 +86,8 @@ func (o Operator) LogicalString() (string, error) {
 	}
 }
 
-// Negated returns the exact inverse comparison operator.
-func (o Operator) Negated() (Operator, error) {
+// Inverse returns the exact inverse comparison operator.
+func (o Operator) Inverse() (Operator, error) {
 	switch o {
 	case OpEqual:
 		return OpNotEqual, nil
@@ -102,7 +102,7 @@ func (o Operator) Negated() (Operator, error) {
 	case OpGreaterEqual:
 		return OpLess, nil
 	default:
-		return "", fmt.Errorf("filter.Operator.Negated: %s has no direct inverse", o.Name())
+		return "", fmt.Errorf("filter.Operator.Inverse: %s has no direct inverse", o.Name())
 	}
 }
 

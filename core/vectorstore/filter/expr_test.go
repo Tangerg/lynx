@@ -131,16 +131,16 @@ func TestNewLiteralCanonicalizesNegativeZero(t *testing.T) {
 	}
 }
 
-func TestNegatedComparisonIsImmutable(t *testing.T) {
+func TestComparisonInverseIsImmutable(t *testing.T) {
 	original := filter.GT("score", 10)
-	negated, err := original.Negated()
+	inverse, err := original.Inverse()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if original.Operator() != filter.OpGreater || negated.Operator() != filter.OpLessEqual {
-		t.Fatalf("operators = %s, %s", original.Operator(), negated.Operator())
+	if original.Operator() != filter.OpGreater || inverse.Operator() != filter.OpLessEqual {
+		t.Fatalf("operators = %s, %s", original.Operator(), inverse.Operator())
 	}
-	if _, err := filter.And(filter.EQ("a", 1), filter.EQ("b", 2)).Negated(); err == nil || !strings.Contains(err.Error(), "inverse") {
-		t.Fatalf("logical negation error = %v", err)
+	if _, err := filter.And(filter.EQ("a", 1), filter.EQ("b", 2)).Inverse(); err == nil || !strings.Contains(err.Error(), "inverse") {
+		t.Fatalf("logical inverse error = %v", err)
 	}
 }
