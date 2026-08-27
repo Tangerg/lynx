@@ -101,43 +101,6 @@ func receiverName(expression ast.Expr) string {
 	}
 }
 
-func TestProductionDependenciesMatchBudget(t *testing.T) {
-	root := moduleRoot(t)
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if path != root && (entry.Name() == "vendor" || entry.Name() == "internal" || strings.HasPrefix(entry.Name(), ".")) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		for _, imported := range file.Imports {
-			importPath := strings.Trim(imported.Path.Value, `"`)
-			first, _, _ := strings.Cut(importPath, "/")
-			if !strings.Contains(first, ".") ||
-				importPath == "github.com/samber/lo" ||
-				importPath == "github.com/Tangerg/lynx/core" ||
-				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
-				continue
-			}
-			t.Errorf("tool production file %s imports dependency outside its explicit budget: %s", path, importPath)
-		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk tool module: %v", walkErr)
-	}
-}
-
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

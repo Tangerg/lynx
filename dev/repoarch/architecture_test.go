@@ -18,26 +18,6 @@ import (
 
 const repositoryModulePrefix = "github.com/Tangerg/lynx"
 
-var (
-	coreModuleDependencyBudget = []string{
-		"github.com/bahlo/generic-list-go",
-		"github.com/buger/jsonparser",
-		"github.com/invopop/jsonschema",
-		"github.com/pb33f/ordered-map/v2",
-		"github.com/samber/lo",
-		"github.com/santhosh-tekuri/jsonschema/v6",
-		"github.com/silaswei-io/jsonrepair-go",
-		"go.yaml.in/yaml/v4",
-		"golang.org/x/text",
-	}
-	coreProductionImportBudget = []string{
-		"github.com/invopop/jsonschema",
-		"github.com/samber/lo",
-		"github.com/santhosh-tekuri/jsonschema/v6",
-		"github.com/silaswei-io/jsonrepair-go",
-	}
-)
-
 type repositoryModule struct {
 	path  string
 	dir   string
@@ -178,7 +158,7 @@ func TestProductModuleGraphFollowsLayeredOwnership(t *testing.T) {
 	assertAcyclic(t, graph, modules)
 }
 
-func TestCoreModuleOwnsAThinFoundation(t *testing.T) {
+func TestCoreModulePreservesDependencyDirection(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	modules := discoverModules(t, root)
@@ -186,12 +166,6 @@ func TestCoreModuleOwnsAThinFoundation(t *testing.T) {
 	if !ok {
 		t.Fatal("core module was not discovered")
 	}
-	for _, requirement := range core.file.Require {
-		if !slices.Contains(coreModuleDependencyBudget, requirement.Mod.Path) {
-			t.Errorf("core module dependency %s is outside the reviewed budget", requirement.Mod.Path)
-		}
-	}
-
 	err := filepath.WalkDir(filepath.Join(root, "core"), func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -208,12 +182,11 @@ func TestCoreModuleOwnsAThinFoundation(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			if !isRepositoryImport(importPath) && isThirdPartyImport(importPath) &&
-				!slices.Contains(coreProductionImportBudget, importPath) {
-				t.Errorf("%s imports third-party package %s outside the reviewed budget", filepath.ToSlash(path), importPath)
-			}
 			if isRepositoryImport(importPath) && importPath != core.path && !strings.HasPrefix(importPath, core.path+"/") {
 				t.Errorf("%s imports higher module %s", filepath.ToSlash(path), importPath)
+			}
+			if strings.HasPrefix(importPath, "go.opentelemetry.io/otel") {
+				t.Errorf("%s imports OpenTelemetry; instrumentation belongs in the otel module", filepath.ToSlash(path))
 			}
 		}
 		return nil

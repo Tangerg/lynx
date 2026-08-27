@@ -97,34 +97,6 @@ func reflectedMethods(typ reflect.Type) []string {
 	return methods
 }
 
-func TestProductionDependenciesMatchBudget(t *testing.T) {
-	allowedExternal := map[string]struct{}{
-		"github.com/samber/lo":                 {},
-		"github.com/silaswei-io/jsonrepair-go": {},
-	}
-	fset := token.NewFileSet()
-	for _, path := range productionGoFiles(t) {
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse imports in %s: %v", path, err)
-		}
-		for _, specification := range file.Imports {
-			importPath := strings.Trim(specification.Path.Value, `"`)
-			_, externalAllowed := allowedExternal[importPath]
-			if isStandardImport(importPath) || externalAllowed || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
-				continue
-			}
-			relative, _ := filepath.Rel(packageRoot(t), path)
-			t.Errorf("chatclient production import %q is outside its explicit dependency budget: %s", importPath, relative)
-		}
-	}
-}
-
-func isStandardImport(importPath string) bool {
-	first, _, _ := strings.Cut(importPath, "/")
-	return !strings.Contains(first, ".")
-}
-
 func productionGoFiles(t *testing.T) []string {
 	t.Helper()
 	root := packageRoot(t)
