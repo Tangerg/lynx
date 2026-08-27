@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 func TestJSONBoundaries(t *testing.T) {

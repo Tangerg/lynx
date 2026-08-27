@@ -6,9 +6,9 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/internal/extension"
-	"github.com/Tangerg/lynx/core/internal/ptr"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/internal/extension"
+	"github.com/Tangerg/scope/core/internal/ptr"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // Options holds per-request configuration for an image-generation call.

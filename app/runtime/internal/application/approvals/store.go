@@ -3,7 +3,7 @@ package approvals
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
 )
 
 // RuleStore persists approval rules. Matching and precedence live in rule.go;

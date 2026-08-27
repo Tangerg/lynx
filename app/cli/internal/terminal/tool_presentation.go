@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 type toolSectionStyle uint8

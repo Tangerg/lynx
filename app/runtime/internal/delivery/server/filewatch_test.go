@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
-	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/runsegment"
+	workspaceadapter "github.com/Tangerg/scope/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/knowledgefile"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestWorkspaceSubscribe_GitWatch verifies that a real staged index transition

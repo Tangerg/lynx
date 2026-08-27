@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/headless"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 type trackedQuestion struct {

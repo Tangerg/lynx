@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {

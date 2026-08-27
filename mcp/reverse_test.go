@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/mcp"
 )
 
 type progressTool struct{}

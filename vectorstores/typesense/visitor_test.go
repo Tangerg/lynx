@@ -3,8 +3,8 @@ package typesense_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/typesense"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/vectorstores/typesense"
 )
 
 func TestVisitorCollectionMembershipUsesExactArrayMatch(t *testing.T) {

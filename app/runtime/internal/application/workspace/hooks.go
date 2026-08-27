@@ -3,9 +3,9 @@ package workspace
 import (
 	"context"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 // HookInspector resolves lifecycle hooks and project trust for a working directory.

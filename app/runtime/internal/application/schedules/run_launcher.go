@@ -3,9 +3,9 @@ package schedules
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // RunStarter is schedule firing's narrow view of the complete Run entry point.

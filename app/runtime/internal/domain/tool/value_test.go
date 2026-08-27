@@ -55,7 +55,7 @@ func TestArgumentsAcceptEmptyAndRejectNonObjects(t *testing.T) {
 }
 
 func TestArgumentsJSONRoundTrip(t *testing.T) {
-	original, err := ParseArguments(`{"query":"lynx","limit":3}`)
+	original, err := ParseArguments(`{"query":"scope","limit":3}`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,16 +4,16 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestEvaluatorUsesCompleteMetadataPath(t *testing.T) {
-	predicate, err := filter.Parse(`profile['name'] == 'lynx'`)
+	predicate, err := filter.Parse(`profile['name'] == 'scope'`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	metadata := map[string]any{
-		"profile": map[string]any{"name": "lynx"},
+		"profile": map[string]any{"name": "scope"},
 	}
 	matched, err := matchesFilter(predicate, metadata)
 	if err != nil {
@@ -43,7 +43,7 @@ func TestEvaluatorTreatsMissingFieldsAsNonMatches(t *testing.T) {
 		source string
 	}{
 		{name: "ordering", source: `rank > 10`},
-		{name: "pattern", source: `name like 'lynx%'`},
+		{name: "pattern", source: `name like 'scope%'`},
 	}
 
 	for _, tt := range tests {

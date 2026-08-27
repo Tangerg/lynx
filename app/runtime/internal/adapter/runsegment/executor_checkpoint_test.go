@@ -3,8 +3,8 @@ package runsegment
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 func testRootExecutorCheckpoint() runs.ExecutorCheckpoint {

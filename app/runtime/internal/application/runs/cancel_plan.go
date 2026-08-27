@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // cancellationRun is one immutable member of a command-bound cancellation

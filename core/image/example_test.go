@@ -3,11 +3,11 @@ package image_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/scope/core/image"
 )
 
 func Example() {
-	request, err := image.NewRequest("A lynx walking through snow")
+	request, err := image.NewRequest("A scope walking through snow")
 	if err != nil {
 		panic(err)
 	}

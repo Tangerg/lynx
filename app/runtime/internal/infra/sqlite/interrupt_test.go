@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 func newInterruptStore(t *testing.T) *persistence.InterruptStore {

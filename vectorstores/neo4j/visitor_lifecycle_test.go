@@ -3,8 +3,8 @@ package neo4j_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/neo4j"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/neo4j"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

@@ -24,6 +24,6 @@
 // Example:
 //
 //	cosmos, _ := azcosmos.NewClient(endpoint, cred, nil)
-//	container, _ := cosmos.NewContainer("lynx", "chat_history")
+//	container, _ := cosmos.NewContainer("scope", "chat_history")
 //	store, _ := cosmosdb.NewStore(cosmosdb.StoreConfig{Container: container})
 package cosmosdb

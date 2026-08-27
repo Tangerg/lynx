@@ -10,9 +10,9 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/bootstrap"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
 )
 
 func TestConfiguredKeysBindProductActions(t *testing.T) {

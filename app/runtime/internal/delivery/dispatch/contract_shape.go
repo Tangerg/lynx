@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
 )
 
 // This file holds the shape half of the contract: which wire types are closed

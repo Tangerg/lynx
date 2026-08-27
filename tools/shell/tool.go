@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // Request is the LLM-facing argument shape. It is a strict subset of

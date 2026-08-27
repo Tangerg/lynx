@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 // BuildLSP exposes the code-intelligence analyzer as one `lsp` tool whose

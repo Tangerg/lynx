@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/lynx/core/modeltest"
+	"github.com/Tangerg/scope/core/modeltest"
 )
 
 func Example() {

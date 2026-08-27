@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 const proposalDescription = `Propose a reusable Skill for future work.

@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/chat"
-	catalog "github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/core/chat"
+	catalog "github.com/Tangerg/scope/models/catalog"
 
-	modelsapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	modelsapp "github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/llm"
 )
 
 // Capabilities implements the three model-configuration ports consumed by

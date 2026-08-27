@@ -4,7 +4,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
 )
 
 func (r *Runtime) invoke[Request, Response any](

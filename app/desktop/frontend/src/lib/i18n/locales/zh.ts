@@ -262,7 +262,7 @@ export const zh: Record<string, string> = {
   "settings.pane.mcpServers": "MCP 服务器",
   "settings.pane.hooks": "钩子",
   "settings.pane.schedules": "定时任务",
-  "settings.appearance.hero": "主题、明度、字体和动效共同定义 Lynx 的工作质感。",
+  "settings.appearance.hero": "主题、明度、字体和动效共同定义 Scope 的工作质感。",
   "context.usage.aria": "上下文用量：{{percent}}%",
   "context.usage.label": "背景信息窗口：",
   "context.usage.statusFull": "{{percent}}% 已用",

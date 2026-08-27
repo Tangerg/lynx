@@ -3,8 +3,8 @@ package qdrant_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/qdrant"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/qdrant"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

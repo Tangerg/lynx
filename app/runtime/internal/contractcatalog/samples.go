@@ -6,7 +6,7 @@ package contractcatalog
 import (
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // The canonical wire samples and the shape each one must be.

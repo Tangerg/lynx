@@ -22,7 +22,7 @@
             "mime": "image/png",
             "source": {
               "kind": "uri",
-              "uri": "https://example.com/lynx.png"
+              "uri": "https://example.com/scope.png"
             }
           }
         }
@@ -54,7 +54,7 @@
           "tool_result": {
             "id": "call-1",
             "name": "inspect_image",
-            "result": "A lynx."
+            "result": "A scope."
           }
         }
       ]

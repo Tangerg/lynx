@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/backend"
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/backend"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
 )
 
 func TestRuntimeInfoWritesCompleteHumanAndMachineProfiles(t *testing.T) {

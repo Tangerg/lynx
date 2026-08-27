@@ -3,9 +3,9 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 // KnowledgeReader is the prompt composer's read-only view of human-authored

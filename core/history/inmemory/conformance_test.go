@@ -3,7 +3,7 @@ package inmemory
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/history/storetest"
+	"github.com/Tangerg/scope/core/history/storetest"
 )
 
 func TestStoreConformance(t *testing.T) {

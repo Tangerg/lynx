@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/markdown"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 func presentUser(p BlockPresentation, block agent.Block) []headless.Block {

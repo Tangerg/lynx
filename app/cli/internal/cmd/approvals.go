@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 func newApprovalsCommand(provider runtimeProvider) *cobra.Command {

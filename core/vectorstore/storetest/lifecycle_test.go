@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

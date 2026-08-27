@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 // Index embeds documents and writes them as Redis HASHes keyed by

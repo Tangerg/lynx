@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 // Audio translation reuses the transcription.Model interface — input

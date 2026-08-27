@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	domain "github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 // CurationStore is the persistence port for automatic memory maintenance. The

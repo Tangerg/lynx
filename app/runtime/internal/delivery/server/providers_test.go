@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestModelToWire pins the application-model → wire capability mapping (models.list): the

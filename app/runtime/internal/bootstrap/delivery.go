@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/ownershiprecovery"
+	"github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/server"
+	"github.com/Tangerg/scope/app/runtime/internal/idempotency"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // hostApplication is the immutable application capsule owned by Host. Delivery

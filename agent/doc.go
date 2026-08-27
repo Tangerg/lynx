@@ -1,4 +1,4 @@
-// Package agent provides the Lynx Agent Framework execution kernel.
+// Package agent provides the Scope Agent Framework execution kernel.
 //
 // Definitions own immutable behavior and create serializable Executions;
 // Engine owns Process lifecycle, Signals, Effects, child composition, resource

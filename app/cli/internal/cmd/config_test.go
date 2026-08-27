@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
 )
 
 func TestConfigurationUsesDeepSeekProductDefaults(t *testing.T) {

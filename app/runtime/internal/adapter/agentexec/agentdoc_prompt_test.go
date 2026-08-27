@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 func TestAgentDocumentsPromptAnnotatesEachSource(t *testing.T) {

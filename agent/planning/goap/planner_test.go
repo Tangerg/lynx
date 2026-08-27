@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/planning"
-	"github.com/Tangerg/lynx/agent/planning/goap"
+	"github.com/Tangerg/scope/agent/planning"
+	"github.com/Tangerg/scope/agent/planning/goap"
 )
 
 func TestPlannerFindsCheapestMultiRoutePlan(t *testing.T) {

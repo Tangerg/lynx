@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
 )
 
 func TestOpenRPCPublishesAckNullableAndNotificationResults(t *testing.T) {

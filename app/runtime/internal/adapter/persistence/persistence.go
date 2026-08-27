@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/knowledgefile"
+	sqlitestore "github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All

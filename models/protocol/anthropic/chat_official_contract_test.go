@@ -6,7 +6,7 @@ import (
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 func TestNativeClaudeSamplingContract(t *testing.T) {

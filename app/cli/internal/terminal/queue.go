@@ -13,10 +13,10 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/text"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/promptqueue"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
 // Schema derives a strict JSON Schema Draft 2020-12 contract for T. It follows

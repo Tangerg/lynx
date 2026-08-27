@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
 )
 
 type invalidOpeningRuntime struct{ *mock.Runtime }

@@ -3,8 +3,8 @@ package mariadb_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/mariadb"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/mariadb"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

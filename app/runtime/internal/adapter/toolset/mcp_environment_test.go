@@ -10,16 +10,16 @@ import (
 	"os/exec"
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	scopemcp "github.com/Tangerg/scope/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/mcpconnection"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	domaintool "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 // runAsMCPServerEnv is the env-var sentinel that flips this test
@@ -67,7 +67,7 @@ func runStdioMCPServer() {
 	if err != nil {
 		log.Fatalf("build tool: %v", err)
 	}
-	if err := lynxmcp.Register(srv, ping); err != nil {
+	if err := scopemcp.Register(srv, ping); err != nil {
 		log.Fatalf("register tools: %v", err)
 	}
 	transport := &sdkmcp.StdioTransport{}
@@ -98,7 +98,7 @@ func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build tool: %v", err)
 	}
-	err = lynxmcp.Register(mcpServer, ping)
+	err = scopemcp.Register(mcpServer, ping)
 	if err != nil {
 		t.Fatalf("register tools: %v", err)
 	}

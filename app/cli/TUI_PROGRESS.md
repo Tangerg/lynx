@@ -5,7 +5,7 @@ It records product behavior, not implementation tasks, so refactors and breaking
 changes do not make completed evidence ambiguous.
 
 Baseline date: 2026-08-11
-Lynx baseline: `451e839fa`
+Scope baseline: `451e839fa`
 Oolong baseline: `v0.11.0`
 Current Oolong release: `v0.12.0`
 

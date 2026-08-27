@@ -1,6 +1,6 @@
 package runtimeembedded
 
-import "github.com/Tangerg/lynx/app/runtime/protocol"
+import "github.com/Tangerg/scope/app/runtime/protocol"
 
 // requireCompletePage protects adapters for list operations whose request has
 // no continuation cursor. Accepting NextCursor there would silently truncate

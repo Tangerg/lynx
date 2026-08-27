@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/itemfixture"
 )
 
 func TestPresentToolCallTiming(t *testing.T) {

@@ -6,7 +6,7 @@ package tools
 import (
 	"context"
 
-	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	toolsvc "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 // Registry is the directly invocable diagnostic-tool catalog. It is deliberately

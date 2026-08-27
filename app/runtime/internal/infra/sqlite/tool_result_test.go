@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 func newToolResultStore(t *testing.T) *sqlite.ToolResultStore {

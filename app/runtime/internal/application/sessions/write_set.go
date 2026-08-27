@@ -7,14 +7,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	planapp "github.com/Tangerg/scope/app/runtime/internal/application/plans"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // RollbackPlan is the atomic durable command for truncating a session back to a

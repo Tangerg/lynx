@@ -11,7 +11,7 @@ import (
 	sqlite3 "modernc.org/sqlite"
 	sqlite3lib "modernc.org/sqlite/lib"
 
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // Coarse admission states stored in runs.state. The partial unique index

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	"github.com/Tangerg/lynx/tools/fs"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 func guardedPatchTools(dir string, format bool) (toolcontract.Tool, toolcontract.Tool) {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
 )
 
 func TestRunLifecyclePreservesAdmissionFactsAndAdvancesMetrics(t *testing.T) {

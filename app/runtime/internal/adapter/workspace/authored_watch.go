@@ -7,11 +7,11 @@ import (
 	"slices"
 	"strings"
 
-	skillspec "github.com/Tangerg/lynx/skills"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fileobservation"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/fileobservation"
 )
 
 const (

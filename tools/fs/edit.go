@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // EditRequest drives Read → exact-string replace → Write atomically in the

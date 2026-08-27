@@ -8,8 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 )
 
 type failingTitleModel struct{ err error }

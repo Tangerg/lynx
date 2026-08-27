@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 const agentDocPromptMaxBytes = 32 * 1024

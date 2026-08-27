@@ -8,8 +8,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/tool"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/core/tool"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 type echoInput struct {
@@ -20,7 +20,7 @@ func main() {
 	ctx := context.Background()
 
 	// 1. Build a chat.Tool — same shape an action body would
-	// register and the same shape lynxmcp.Register accepts.
+	// register and the same shape scopemcp.Register accepts.
 	echo, err := tool.NewFunc[echoInput, string](
 		tool.FuncConfig{
 			Name:        "echo",
@@ -34,10 +34,10 @@ func main() {
 
 	// 2. Stand up an MCP server and expose the tool.
 	server := sdkmcp.NewServer(
-		&sdkmcp.Implementation{Name: "lynx-bridge", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "scope-bridge", Version: "v0.1.0"},
 		nil,
 	)
-	if registerErr := lynxmcp.Register(server, echo); registerErr != nil {
+	if registerErr := scopemcp.Register(server, echo); registerErr != nil {
 		log.Fatal(registerErr)
 	}
 

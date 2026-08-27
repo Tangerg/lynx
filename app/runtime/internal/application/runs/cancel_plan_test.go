@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	runfixture "github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
 )
 
 type cancellationDriftProjection struct {

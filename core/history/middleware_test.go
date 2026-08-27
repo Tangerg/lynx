@@ -8,11 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
-	"github.com/Tangerg/lynx/core/history/inmemory"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
+	"github.com/Tangerg/scope/core/history/inmemory"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestNewRejectsNilStore(t *testing.T) {

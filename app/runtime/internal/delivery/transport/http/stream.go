@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/sse"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
 )
 
 // heartbeatInterval is how often an idle streaming response emits an SSE

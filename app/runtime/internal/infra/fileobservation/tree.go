@@ -13,7 +13,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 // TreeTarget identifies one bounded directory tree and the exact filename

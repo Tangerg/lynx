@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 var errDraftPersistenceClosed = errors.New("draft persistence is closed")

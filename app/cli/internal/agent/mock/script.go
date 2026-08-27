@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 // Step is one scripted emission: wait, then send.

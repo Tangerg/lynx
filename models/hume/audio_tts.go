@@ -9,7 +9,7 @@ import (
 	"iter"
 	"net/http"
 
-	tts "github.com/Tangerg/lynx/core/speech"
+	tts "github.com/Tangerg/scope/core/speech"
 )
 
 const (

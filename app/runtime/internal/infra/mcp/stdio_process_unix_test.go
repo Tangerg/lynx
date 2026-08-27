@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	stdioProcessRoleEnv = "LYNX_MCP_STDIO_PROCESS_ROLE"
-	stdioDescendantPID  = "LYNX_MCP_STDIO_DESCENDANT_PID"
+	stdioProcessRoleEnv = "SCOPE_MCP_STDIO_PROCESS_ROLE"
+	stdioDescendantPID  = "SCOPE_MCP_STDIO_DESCENDANT_PID"
 )
 
 func TestMain(m *testing.M) {

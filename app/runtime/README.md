@@ -88,4 +88,4 @@ _ = started
 
 ## 不做（刻意）
 
-不复制 HTTP 与 embedded 业务入口 · 不复活 JSON-RPC channel 式伪 in-process transport · 不公开 Host/Store/Engine/Application concrete · 不做 stdio/gRPC binding · 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。
+不复制 HTTP 与 embedded 业务入口 · 不复活 JSON-RPC channel 式伪 in-process transport · 不公开 Host/Store/Engine/Application concrete · 不做 stdio/gRPC binding · 不做用户鉴权/多租户（协议层零 user 概念）· 不向 scope 反向贡献抽象（除非沉淀过 3+ 用例）。

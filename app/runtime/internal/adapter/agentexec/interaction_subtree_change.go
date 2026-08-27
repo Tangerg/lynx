@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 type interactionWaitingSubtreeChange struct {

@@ -13,8 +13,8 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/Tangerg/lynx/core/document"
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/document"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/ollama"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/ollama"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {

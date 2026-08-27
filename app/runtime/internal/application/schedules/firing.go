@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
 // RunNowStore is the on-demand firing persistence slice.

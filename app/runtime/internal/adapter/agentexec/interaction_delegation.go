@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"math"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	corechat "github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 const (

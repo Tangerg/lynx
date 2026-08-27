@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/minimax"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/minimax"
 )
 
 func TestOpenAIChatUsesSplitReasoningByDefault(t *testing.T) {

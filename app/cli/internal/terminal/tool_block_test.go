@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/highlight"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 func TestPluginPresenterPanicBecomesAnError(t *testing.T) {

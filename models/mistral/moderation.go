@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/scope/core/moderation"
 )
 
 type ModerationModelConfig struct {

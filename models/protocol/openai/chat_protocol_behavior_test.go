@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/modeltest"
-	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/modeltest"
+	scopeopenai "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {
@@ -41,9 +41,9 @@ func TestChat_BehaviorConformance(t *testing.T) {
 	}.Run(t)
 }
 
-func newOpenAIBehaviorChat(t *testing.T, baseURL string) *lynxopenai.Chat {
+func newOpenAIBehaviorChat(t *testing.T, baseURL string) *scopeopenai.Chat {
 	t.Helper()
-	adapter, err := lynxopenai.NewChat(lynxopenai.ChatConfig{
+	adapter, err := scopeopenai.NewChat(scopeopenai.ChatConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "gpt-5.2"},
 		BaseURL:        baseURL,

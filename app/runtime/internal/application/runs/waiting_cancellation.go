@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // Validate verifies the Application projection and one-shot executor

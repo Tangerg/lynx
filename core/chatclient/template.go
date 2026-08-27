@@ -9,8 +9,8 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 // ErrInvalidTemplate reports an empty, malformed, or unusable prompt

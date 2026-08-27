@@ -1,6 +1,6 @@
 package approval
 
-import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+import "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 
 // HookDecision is the approval-relevant part of a PreToolUse hook decision.
 type HookDecision struct {

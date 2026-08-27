@@ -1,6 +1,6 @@
 # otel
 
-`otel` 是 Lynx 的官方 OpenTelemetry integration module。它从外层为
+`otel` 是 Scope 的官方 OpenTelemetry integration module。它从外层为
 Core 协议能力增加 traces/metrics，并提供把 OTel 三类信号写到
 `log/slog` 的开发态 exporter；Core 本身不 import OTel。
 
@@ -11,8 +11,8 @@ Core 协议能力增加 traces/metrics，并提供把 OTel 三类信号写到
 
 ```go
 import (
-	"github.com/Tangerg/lynx/core/chat"
-	otelchat "github.com/Tangerg/lynx/otel/chat"
+	"github.com/Tangerg/scope/core/chat"
+	otelchat "github.com/Tangerg/scope/otel/chat"
 )
 
 instrumentation, err := otelchat.NewMiddleware(otelchat.MiddlewareConfig{
@@ -63,7 +63,7 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	otelslog "github.com/Tangerg/lynx/otel/slog"
+	otelslog "github.com/Tangerg/scope/otel/slog"
 )
 
 provider := sdktrace.NewTracerProvider(
@@ -89,4 +89,4 @@ core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
 - `otel` 目录只是命名空间，不存在根包；各领域 wrapper 只调用官方 API。同一 module 内的 `otel/slog` 和
   测试使用官方 SDK，因此该 module 的 `go.mod` 有 SDK requirement。
 - 本模块不定义 tracer、meter、registry 或 observation 自有抽象。
-- OTLP、Jaeger、Zipkin 等生产 exporter 使用官方实现，不在 Lynx 中复制。
+- OTLP、Jaeger、Zipkin 等生产 exporter 使用官方实现，不在 Scope 中复制。

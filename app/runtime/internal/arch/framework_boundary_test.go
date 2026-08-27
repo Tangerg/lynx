@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const retiredAgentModulePath = "github.com/Tangerg/lynx/agent2"
+const retiredAgentModulePath = "github.com/Tangerg/scope/agent2"
 
 // TestRetiredAgentModuleIsAbsent prevents the temporary incubation module path
 // from returning after the canonical module cutover. Runtime has one framework

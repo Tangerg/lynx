@@ -8,8 +8,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	skillsrc "github.com/Tangerg/lynx/skills"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	skillsrc "github.com/Tangerg/scope/skills"
 )
 
 type panicSource struct{}

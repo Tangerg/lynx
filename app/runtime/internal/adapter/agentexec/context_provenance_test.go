@@ -7,13 +7,13 @@ import (
 	"slices"
 	"testing"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {

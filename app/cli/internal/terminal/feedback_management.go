@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/feedback"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/feedback"
 )
 
 func (a *app) RecordFeedback(argument string) error {

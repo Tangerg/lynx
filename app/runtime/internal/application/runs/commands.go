@@ -7,12 +7,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 var (

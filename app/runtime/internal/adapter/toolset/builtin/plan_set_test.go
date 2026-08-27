@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	plandomain "github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 type stubStore struct {

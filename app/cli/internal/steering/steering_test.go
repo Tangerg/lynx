@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 type steerRuntimeStub struct {

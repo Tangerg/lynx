@@ -9,7 +9,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 
-	"github.com/Tangerg/lynx/core/transcription"
+	"github.com/Tangerg/scope/core/transcription"
 )
 
 // AudioTranslationModelConfig configures the OpenAI /audio/translations

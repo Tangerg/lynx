@@ -3,10 +3,10 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
 )
 
 // RequireToolInput is the execution ACL between Runtime Tools and Agent

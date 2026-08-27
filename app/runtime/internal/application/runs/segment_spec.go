@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // segmentSpec is the prepared input to the package's segment supervisor.

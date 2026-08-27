@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
+	"github.com/Tangerg/scope/app/runtime/internal/application/ownershiprecovery"
 )
 
 type testLease struct{ release func() }

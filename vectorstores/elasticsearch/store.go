@@ -9,15 +9,15 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 const Provider = "Elasticsearch"
 
 const (
-	DefaultIndexName        = "lynx-vector-index"
+	DefaultIndexName        = "scope-vector-index"
 	DefaultEmbeddingField   = "embedding"
 	DefaultContentField     = "content"
 	DefaultMetadataField    = "metadata"

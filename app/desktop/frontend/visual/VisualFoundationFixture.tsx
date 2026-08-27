@@ -23,7 +23,7 @@ function WorkIndexFixture() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AgentSurfaceHeader divider={false} className="pl-[78px]">
-        <span className="text-ui-md font-semibold text-fg">Lynx</span>
+        <span className="text-ui-md font-semibold text-fg">Scope</span>
         <span className="min-w-2 flex-1" />
         <IconButton icon="search" size="sm" aria-label="Search" />
         <IconButton icon="edit" size="sm" aria-label="New session" />
@@ -33,7 +33,7 @@ function WorkIndexFixture() {
           Work index
         </div>
         <AgentRow icon="folder" trailing={<span className="tabular-nums">3</span>}>
-          lynx
+          scope
         </AgentRow>
         <div className="flex flex-col gap-0.5">
           {SESSION_ROWS.map((session) => (
@@ -65,7 +65,7 @@ function ComposerFixture() {
   return (
     <AgentComposerSurface data-testid="composer" className="relative">
       <div className="min-h-20 px-[var(--density-composer-editor-start)] pt-[var(--density-composer-editor-top)] pb-[var(--density-composer-editor-bottom)] text-ui-md leading-relaxed text-fg">
-        Ask Lynx to inspect, change, or explain this workspace…
+        Ask Scope to inspect, change, or explain this workspace…
       </div>
       <div className="flex items-center gap-1 px-[var(--density-composer-footer)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]">
         <Button variant="ghost" size="xs">
@@ -86,7 +86,7 @@ function FoundationSurface({ sidebarOpen }: { sidebarOpen: boolean }) {
     <AgentContentCard label="Visual foundation" data-testid="content-card">
       <AgentSurfaceHeader windowCorner>
         <IconButton icon="panel-l" size="sm" aria-label="Toggle work index" />
-        <span className="font-mono text-ui-sm text-fg-faint">lynx</span>
+        <span className="font-mono text-ui-sm text-fg-faint">scope</span>
         <span className="text-ui-md text-fg-faint">/</span>
         <span className="truncate text-ui-md font-semibold text-fg">Visual foundation</span>
         <AgentStatusPill tone="neutral">Ready</AgentStatusPill>

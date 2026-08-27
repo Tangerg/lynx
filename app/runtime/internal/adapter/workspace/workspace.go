@@ -11,8 +11,8 @@ package workspace
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/checkpoint"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/checkpoint"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/git"
 )
 
 var (

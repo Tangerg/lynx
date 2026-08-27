@@ -7,9 +7,9 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 func TestHandledNoOpEditsCannotStarveDraftAutosave(t *testing.T) {

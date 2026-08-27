@@ -16,9 +16,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestGeneratedContractHasNoDrift is contract §11.4 gate 1: rerun the generator
@@ -84,7 +84,7 @@ func regenerateContract(t *testing.T, root string) (artifacts, typescript, valid
 	t.Helper()
 
 	artifacts, typescript, validators = t.TempDir(), t.TempDir(), t.TempDir()
-	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen",
+	cmd := exec.Command("go", "run", "github.com/Tangerg/scope/app/runtime/cmd/contractgen",
 		"-out", artifacts, "-ts", typescript, "-validators", validators)
 	cmd.Dir = root
 	if combined, err := cmd.CombinedOutput(); err != nil {

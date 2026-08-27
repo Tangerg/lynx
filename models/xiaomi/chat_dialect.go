@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 const RequestExtensionKey = "xiaomi/request"

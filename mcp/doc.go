@@ -1,9 +1,9 @@
-// Package mcp provides lynx helpers around the Model Context Protocol
+// Package mcp provides scope helpers around the Model Context Protocol
 // (https://modelcontextprotocol.io/).
 //
 // Use the official Go SDK package (github.com/modelcontextprotocol/go-sdk/mcp)
-// for protocol clients, servers, sessions, and transports. The root lynx
-// package keeps the small adapters lynx needs around those SDK primitives:
+// for protocol clients, servers, sessions, and transports. The root scope
+// package keeps the small adapters scope needs around those SDK primitives:
 // context metadata, reverse-capability helpers, tool.Tool wrapping, tool
 // registration and prompt conversion.
 //
@@ -14,7 +14,7 @@
 // import it as:
 //
 //	import (
-//	    lynxmcp "github.com/Tangerg/lynx/mcp"
+//	    scopemcp "github.com/Tangerg/scope/mcp"
 //	    sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 //	)
 //

@@ -3,7 +3,7 @@ package agentmemory
 import (
 	"context"
 
-	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	domain "github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 // SearchStore supplies the active memory corpus visible from one project

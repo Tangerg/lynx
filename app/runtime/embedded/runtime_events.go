@@ -4,8 +4,8 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // SubscribeRuntime observes Runtime-wide change topics and file watches.

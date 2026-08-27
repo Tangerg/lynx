@@ -7,7 +7,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/scope/agent/planning"
 )
 
 type searchNode struct {

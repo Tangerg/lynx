@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/fileflow"
 	"github.com/spf13/pathologize"
 
-	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/scope/app/cli/internal/sessiontransfer"
 )
 
 const maximumArtifactBytes int64 = 64 << 20

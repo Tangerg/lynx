@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/completion"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
+	"github.com/Tangerg/scope/app/runtime/internal/completion"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/teardown"
 )
 
 // Host owns the assembled application tier and its process-level close order

@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/historystores/postgres
+module github.com/Tangerg/scope/historystores/postgres
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77
+	github.com/Tangerg/scope/core v0.0.0-20260827034135-75c054d01f77
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/samber/lo v1.53.0
 )

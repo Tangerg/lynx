@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chatclient"
 )
 
 func TestClientKeepsSmallCallSurface(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/azureopenai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/azureopenai"
 )
 
 func TestChatUsesAzureOpenAIV1Protocol(t *testing.T) {

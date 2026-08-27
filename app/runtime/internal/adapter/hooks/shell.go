@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 const (

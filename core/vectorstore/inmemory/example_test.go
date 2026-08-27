@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/vectorstore/inmemory"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/vectorstore/inmemory"
 )
 
 func Example() {

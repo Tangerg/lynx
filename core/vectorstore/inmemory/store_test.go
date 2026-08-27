@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/inmemory"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/inmemory"
 )
 
 // fakeEmbeddingModel hashes each input text into a deterministic

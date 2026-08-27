@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 type dispatchAttemptContextKey struct{}

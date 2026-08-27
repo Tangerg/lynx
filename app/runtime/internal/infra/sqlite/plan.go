@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 // PlanStore persists one complete ordered Plan per session. Plans are replaced

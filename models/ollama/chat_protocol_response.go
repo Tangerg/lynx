@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 const (

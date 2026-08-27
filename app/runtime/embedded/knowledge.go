@@ -3,8 +3,8 @@ package embedded
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListKnowledge returns the effective knowledge cascade for a workspace.

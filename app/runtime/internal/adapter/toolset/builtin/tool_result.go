@@ -14,11 +14,11 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	resultoffload "github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
 )
 
 // defaultReadWindow bounds a read that names no limit, so a naive

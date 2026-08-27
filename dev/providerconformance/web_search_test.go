@@ -4,14 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
-	"github.com/Tangerg/lynx/tools/web/brave"
-	"github.com/Tangerg/lynx/tools/web/exa"
-	"github.com/Tangerg/lynx/tools/web/firecrawl"
-	"github.com/Tangerg/lynx/tools/web/jina"
-	"github.com/Tangerg/lynx/tools/web/perplexity"
-	"github.com/Tangerg/lynx/tools/web/serper"
-	"github.com/Tangerg/lynx/tools/web/tavily"
+	"github.com/Tangerg/scope/tools/web"
+	"github.com/Tangerg/scope/tools/web/brave"
+	"github.com/Tangerg/scope/tools/web/exa"
+	"github.com/Tangerg/scope/tools/web/firecrawl"
+	"github.com/Tangerg/scope/tools/web/jina"
+	"github.com/Tangerg/scope/tools/web/perplexity"
+	"github.com/Tangerg/scope/tools/web/serper"
+	"github.com/Tangerg/scope/tools/web/tavily"
 )
 
 func TestWebSearchProvidersValidateRequests(t *testing.T) {

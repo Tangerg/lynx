@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const moduleImportPath = "github.com/Tangerg/lynx/agent"
+const moduleImportPath = "github.com/Tangerg/scope/agent"
 
 var allowedPackageDependencies = map[string]map[string]struct{}{
 	".":             {},
@@ -83,9 +83,9 @@ func TestProductionPackageDependencyGraph(t *testing.T) {
 func assertExternalPackageBoundary(t *testing.T, packagePath string, sourcePath string, importPath string) {
 	t.Helper()
 	switch {
-	case isPackageOrChild(importPath, "github.com/Tangerg/lynx/agent2"):
+	case isPackageOrChild(importPath, "github.com/Tangerg/scope/agent2"):
 		t.Errorf("%s imports the retired temporary agent module %q", sourcePath, importPath)
-	case isPackageOrChild(importPath, "github.com/Tangerg/lynx/app"):
+	case isPackageOrChild(importPath, "github.com/Tangerg/scope/app"):
 		t.Errorf("%s imports Host application package %q", sourcePath, importPath)
 	case isPackageOrChild(importPath, "github.com/Tangerg/flow"):
 		t.Errorf("%s imports flow instead of keeping managed Workflow execution Framework-owned: %q", sourcePath, importPath)
@@ -103,9 +103,9 @@ func isPackageOrChild(importPath string, packagePrefix string) bool {
 }
 
 func isInteractionDependency(importPath string) bool {
-	return isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/chatclient") ||
-		isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/tool") ||
-		isPackageOrChild(importPath, "github.com/Tangerg/lynx/core/chat")
+	return isPackageOrChild(importPath, "github.com/Tangerg/scope/core/chatclient") ||
+		isPackageOrChild(importPath, "github.com/Tangerg/scope/core/tool") ||
+		isPackageOrChild(importPath, "github.com/Tangerg/scope/core/chat")
 }
 
 func excludedArchitectureDirectory(path string) bool {

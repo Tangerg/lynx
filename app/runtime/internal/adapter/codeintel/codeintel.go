@@ -12,7 +12,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/lsp"
 )
 
 // ServerSpec is code intelligence's own configuration contract. The adapter

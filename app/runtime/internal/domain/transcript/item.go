@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
 )
 
 // ItemIdentity is the immutable ownership and occurrence identity shared by

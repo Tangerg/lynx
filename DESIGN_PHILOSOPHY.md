@@ -1,6 +1,6 @@
-# DESIGN_PHILOSOPHY.md — lynx 设计哲学（的"为什么"）
+# DESIGN_PHILOSOPHY.md — scope 设计哲学（的"为什么"）
 
-> 定位：lynx 的设计文档分三层，各回答一个问题 ——
+> 定位：scope 的设计文档分三层，各回答一个问题 ——
 > - [`CLAUDE.md`](CLAUDE.md)：**速查红线**（法则 / 反向不变量 / 触发信号）—— "**能不能**这么写"；
 > - [`REFACTORING.md`](REFACTORING.md)：**重构标尺**（命名 / 注释 / 指针vs值 / nil 守卫 / 自由函数vs方法 / 卫语句 / 就近组织 / 节奏）—— 重构时"**改什么、怎么改**"；
 > - **本篇**：这些红线**背后的组织哲学** —— "**该不该**这么设计、为什么"。
@@ -48,7 +48,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ### 2.2 用户面：倾向"单一可发现门面"
 - 把常用 API 收进**一个门面包**提升可发现性，避免"按未来可能失准的结构武断分包"（类比 `net/http` / `grpc`）。
-- **lynx 的调和**：内部多包（§2.1 的分层 DAG，保留）≠ 用户面多包。常用类型从一个门面包 re-export，让常见场景 import 一个包而非五个。
+- **scope 的调和**：内部多包（§2.1 的分层 DAG，保留）≠ 用户面多包。常用类型从一个门面包 re-export，让常见场景 import 一个包而非五个。
 - **YAGNI 闸**：门面化在出现**第二个外部消费者**时才做；只有一个消费者时痛感不足，先记账。
 
 ### 2.3 一个扩展机制 优于 一堆 hook / SPI
@@ -115,7 +115,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ## 4. 生命周期视角：现在"破坏式改"，稳定后才上"永不破坏"技巧
 
-- **lynx 当前 pre-1.0**：公开 API 可调，破坏性改动**咨询后直接换**、不写 legacy 兼容（见 CLAUDE.md）。所以下列"永不破坏"技巧**现在不需要**。
+- **scope 当前 pre-1.0**：公开 API 可调，破坏性改动**咨询后直接换**、不写 legacy 兼容（见 CLAUDE.md）。所以下列"永不破坏"技巧**现在不需要**。
 - **稳定锁 API 时的现成模板**（post-stability 的 future-proof 套路）：
   - 统一 spec-method 签名 `(ctx, *XxxParams) (*XxxResult, error)`，即使 Params 暂时多余也保留 —— spec 加字段不破坏调用方；
   - `nil` 参数永远合法；
@@ -152,4 +152,4 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ## 一句话收尾
 
-**lynx 的设计不是个人趣味，是一套被 embabel（convergent）和 Go 团队 MCP SDK（authoritative）双重印证的组织原则：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化。** 设计前用 §1 试金石与 §6 清单各过一遍（回答"该不该"），重构时对 [`REFACTORING.md`](REFACTORING.md)（回答"怎么改"），就不会偏。
+**scope 的设计不是个人趣味，是一套被 embabel（convergent）和 Go 团队 MCP SDK（authoritative）双重印证的组织原则：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化。** 设计前用 §1 试金石与 §6 清单各过一遍（回答"该不该"），重构时对 [`REFACTORING.md`](REFACTORING.md)（回答"怎么改"），就不会偏。

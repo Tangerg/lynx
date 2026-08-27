@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/goal"
-	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
+	"github.com/Tangerg/scope/app/cli/internal/goal"
+	"github.com/Tangerg/scope/app/cli/internal/modelconfig"
 )
 
 type usageBindingStub struct {

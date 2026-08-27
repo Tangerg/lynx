@@ -3,7 +3,7 @@ package azurecosmos
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestLikeCompilationPreservesPatternSemantics(t *testing.T) {

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mcp"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mcp"
+	"github.com/Tangerg/scope/app/cli/internal/reconnect"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
 )
 
 const mcpAuthorizationPollInterval = 500 * time.Millisecond

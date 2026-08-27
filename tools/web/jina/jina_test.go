@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 func TestSearch(t *testing.T) {
@@ -13,7 +13,7 @@ func TestSearch(t *testing.T) {
 		t.Fatal("NewClient accepted an empty API key")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/lynx agent" {
+		if r.Method != http.MethodGet || r.URL.Path != "/scope agent" {
 			t.Errorf("request = %s %s", r.Method, r.URL.Path)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
@@ -29,7 +29,7 @@ func TestSearch(t *testing.T) {
 			t.Errorf("site = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"title":"Lynx","url":"https://example.com","description":"cat","date":"2026-08-03"}]}`))
+		_, _ = w.Write([]byte(`{"data":[{"title":"Scope","url":"https://example.com","description":"cat","date":"2026-08-03"}]}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -37,7 +37,7 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "lynx agent", MaxResults: 20, AllowedDomains: []string{"example.com"}})
+	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "scope agent", MaxResults: 20, AllowedDomains: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}

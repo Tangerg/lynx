@@ -5,14 +5,14 @@ import (
 	"iter"
 	"time"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // The ports this package consumes to run a Segment. They are defined here on the

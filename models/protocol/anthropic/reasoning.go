@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // ReasoningBlockKind identifies the official Anthropic reasoning block carried

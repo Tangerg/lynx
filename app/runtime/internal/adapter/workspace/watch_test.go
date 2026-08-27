@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 func TestGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {

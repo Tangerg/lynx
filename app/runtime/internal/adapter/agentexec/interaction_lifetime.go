@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 // interactionLifetime owns every goroutine and channel whose lifetime is the

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
 )
 
 type flagBinding struct {

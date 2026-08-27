@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	skillspec "github.com/Tangerg/lynx/skills"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
 )
 
 type recordingProbe struct{ names []string }

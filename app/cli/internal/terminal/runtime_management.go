@@ -12,11 +12,11 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
-	"github.com/Tangerg/lynx/app/cli/internal/goal"
-	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
-	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
-	"github.com/Tangerg/lynx/app/cli/internal/usage"
+	"github.com/Tangerg/scope/app/cli/internal/agentmemory"
+	"github.com/Tangerg/scope/app/cli/internal/goal"
+	"github.com/Tangerg/scope/app/cli/internal/knowledge"
+	"github.com/Tangerg/scope/app/cli/internal/modelconfig"
+	"github.com/Tangerg/scope/app/cli/internal/usage"
 )
 
 type runtimeReaderMode uint8

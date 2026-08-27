@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // Set validates key, encodes value, and stores it in target.

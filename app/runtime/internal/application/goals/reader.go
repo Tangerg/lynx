@@ -3,7 +3,7 @@ package goals
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
 )
 
 // Reader exposes current Goal state without persistence or mutation operations.

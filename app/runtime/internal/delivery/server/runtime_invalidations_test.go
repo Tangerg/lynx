@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestEveryInvalidationResourceIsPublishable: the application's resource set and the wire

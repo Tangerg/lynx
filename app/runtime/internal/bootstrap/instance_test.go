@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	runtimeserver "github.com/Tangerg/scope/app/runtime/internal/delivery/server"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func TestInstanceConfigRequiresExactAbsoluteHostPaths(t *testing.T) {

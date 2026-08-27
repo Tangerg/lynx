@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 func TestResolver_ForRechecksTrust(t *testing.T) {

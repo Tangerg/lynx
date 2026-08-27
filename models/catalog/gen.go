@@ -41,7 +41,7 @@ import (
 	"strings"
 	"time"
 
-	modelcatalog "github.com/Tangerg/lynx/models/catalog"
+	modelcatalog "github.com/Tangerg/scope/models/catalog"
 )
 
 const defaultSource = "https://models.dev/api.json"

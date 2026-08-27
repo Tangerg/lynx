@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 // DiscoverAgentDocs walks the project tree + user-level locations and returns

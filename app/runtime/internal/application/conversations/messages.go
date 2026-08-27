@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/conversation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 var errSessionIDRequired = errors.New("conversations: session ID is required")

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	hookdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	hookdomain "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 func ctxBG() context.Context { return context.Background() }

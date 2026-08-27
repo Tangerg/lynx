@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestPlanUpdateCarriesTheCompletePlan proves the first-class run event carries the

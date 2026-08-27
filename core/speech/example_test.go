@@ -3,11 +3,11 @@ package speech_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/scope/core/speech"
 )
 
 func Example() {
-	request, err := speech.NewRequest("Hello from Lynx.")
+	request, err := speech.NewRequest("Hello from Scope.")
 	if err != nil {
 		panic(err)
 	}

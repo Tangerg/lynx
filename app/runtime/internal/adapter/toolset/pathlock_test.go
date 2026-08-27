@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 func TestPathLockUsesOneCanonicalMutationIdentity(t *testing.T) {

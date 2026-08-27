@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/tool"
-	"github.com/Tangerg/lynx/rag"
+	"github.com/Tangerg/scope/core/tool"
+	"github.com/Tangerg/scope/rag"
 )
 
 func TestRetrievalToolExposesStrictSchemaAndCandidates(t *testing.T) {

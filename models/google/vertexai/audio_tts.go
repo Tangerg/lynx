@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/genai"
 
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
 type AudioTTSModelConfig struct {

@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/s3vectors"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/vectorstores/s3vectors"
 )
 
 func TestVisitorCollectionMembershipUsesScalarEquality(t *testing.T) {

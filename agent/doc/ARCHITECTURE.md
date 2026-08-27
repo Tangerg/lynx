@@ -19,7 +19,7 @@
 
 ## 1. 背景与重构边界
 
-Lynx 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condition、Blackboard、Planner 和 Process 为中心的框架。当前 `agent` 已完成绿色重写和消费者切换：共同 Process 不以 Planning 为中心，Interaction、Planning 与 Workflow 以可替换 Definition/Execution 策略共享同一个执行窄腰。
+Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condition、Blackboard、Planner 和 Process 为中心的框架。当前 `agent` 已完成绿色重写和消费者切换：共同 Process 不以 Planning 为中心，Interaction、Planning 与 Workflow 以可替换 Definition/Execution 策略共享同一个执行窄腰。
 
 绿色重写期间保留的原框架实现已经整体删除。当前仓库只有一个 `agent` module、一套公共 API 和一个 Framework 生命周期 owner；迁移目录、双轨依赖和兼容入口都不属于目标架构。
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/rag"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/rag"
 )
 
 func TestDedupKeepsHighestScoreAtFirstIdentityPosition(t *testing.T) {

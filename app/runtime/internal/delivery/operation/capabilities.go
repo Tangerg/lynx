@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func (e *Endpoint) enforceCapabilities(ctx context.Context, meta MethodMeta, parameters any) *Failure {

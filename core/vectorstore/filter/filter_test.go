@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestParse_ProducesCanonicalPredicates(t *testing.T) {

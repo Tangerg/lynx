@@ -7,12 +7,12 @@ import (
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	chromaEmbed "github.com/amikos-tech/chroma-go/pkg/embeddings"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const Provider = "Chroma"
@@ -317,7 +317,7 @@ func (s *Store) buildQueryOptions(req *vectorstore.SearchRequest, queryVector []
 	return opts, nil
 }
 
-// buildDocumentsFromResult assembles Lynx Documents from the parallel slices
+// buildDocumentsFromResult assembles Scope Documents from the parallel slices
 // returned by the QueryResult interface, applying the MinScore threshold.
 func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore vectorstore.Score) ([]*vectorstore.SearchResult, error) {
 	idGroups := result.GetIDGroups()

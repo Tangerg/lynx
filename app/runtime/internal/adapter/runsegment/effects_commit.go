@@ -8,10 +8,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 // ReserveChildRunStart durably records one invisible child identity. It does

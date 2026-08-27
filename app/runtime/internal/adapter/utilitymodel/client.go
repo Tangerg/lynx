@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 )
 
 // Resolver selects the current utility-role client for each call. Resolving at

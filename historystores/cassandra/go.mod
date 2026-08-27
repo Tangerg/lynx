@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/historystores/cassandra
+module github.com/Tangerg/scope/historystores/cassandra
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77
+	github.com/Tangerg/scope/core v0.0.0-20260827034135-75c054d01f77
 	github.com/gocql/gocql v1.7.0
 	github.com/samber/lo v1.53.0
 )

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 // Activity is the resolved durable Run activity used by Session read consumers.

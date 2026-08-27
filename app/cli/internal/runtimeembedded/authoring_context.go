@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
+	"github.com/Tangerg/scope/app/cli/internal/authoringcontext"
 )
 
 type authoringContextBinding interface {

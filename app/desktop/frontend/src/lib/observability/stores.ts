@@ -1,6 +1,6 @@
 // Local telemetry sink — the in-memory mirror of the three OTel signals,
 // rendered by the Diagnostics view. This is the frontend analogue of the
-// backend's dev slog sink (lynx otel/slog): ephemeral, for live triage.
+// backend's dev slog sink (scope otel/slog): ephemeral, for live triage.
 //
 // Storage decision (deliberate — telemetry volume is high):
 //   - In-memory Zustand ONLY. NOT localStorage (synchronous, ~5MB cap,

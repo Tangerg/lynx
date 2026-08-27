@@ -7,26 +7,26 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/text"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
-	"github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 func TestBrandBannerProjectsBuildModelAndWorkspaceResponsively(t *testing.T) {
 	session := agent.Session{Workspace: workspace.Workspace{
-		Path: "/workspace/lynx", ProjectRoot: "/workspace", Availability: workspace.Available,
+		Path: "/workspace/scope", ProjectRoot: "/workspace", Availability: workspace.Available,
 	}}
 	banner := newBrandBanner(kit.Dark(), kit.Unicode(), "1.2.3", session, settings.Default().RunOptions())
 
 	wide := drawStatic(t, banner, 96, 14)
-	for _, want := range []string{"███████╗", "Lyra CLI  v1.2.3", "deepseek/deepseek-v4-flash", "/workspace/lynx"} {
+	for _, want := range []string{"███████╗", "Lyra CLI  v1.2.3", "deepseek/deepseek-v4-flash", "/workspace/scope"} {
 		if !strings.Contains(wide, want) {
 			t.Errorf("wide brand banner does not contain %q:\n%s", want, wide)
 		}
 	}
 
 	compact := drawStatic(t, banner, brandMarkMinWidth-1, 5)
-	for _, want := range []string{"LYRA", "Lyra CLI  v1.2.3", "/workspace/lynx"} {
+	for _, want := range []string{"LYRA", "Lyra CLI  v1.2.3", "/workspace/scope"} {
 		if !strings.Contains(compact, want) {
 			t.Errorf("compact brand banner does not contain %q:\n%s", want, compact)
 		}

@@ -5,7 +5,7 @@ import (
 
 	qdrantclient "github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 func TestDocumentTextRoundTripsThroughReservedPayload(t *testing.T) {

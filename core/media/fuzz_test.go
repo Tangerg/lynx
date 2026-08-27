@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/media"
 )
 
 func FuzzMediaJSON(f *testing.F) {

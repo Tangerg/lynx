@@ -3,13 +3,13 @@ package openai
 import (
 	"net/http"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/moderation"
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/core/transcription"
-	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/moderation"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/core/transcription"
+	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 const (

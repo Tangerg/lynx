@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/media"
 )
 
 type ImageModelConfig struct {
@@ -38,7 +38,7 @@ var _ image.Model = (*ImageModel)(nil)
 //
 // Stability uses an aspect-ratio code ("1:1" / "16:9" / ...) rather
 // than per-pixel W×H sizes — Core/Ultra render at a fixed total pixel
-// budget. Lynx's Width/Height options are intentionally NOT translated
+// budget. Scope's Width/Height options are intentionally NOT translated
 // to an aspect ratio (lossy guess); set AspectRatio on the
 // extension-threaded [GenerateRequest] when control is needed.
 //

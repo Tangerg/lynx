@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/sessionfixture"
 )
 
 // TestRunInTx_AtomicAcrossStores is the guarantee sessions.import / rollback

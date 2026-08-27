@@ -3,9 +3,9 @@ package jina_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/jina"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/jina"
 )
 
 const jinaResponseJSON = `{

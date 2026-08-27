@@ -3,7 +3,7 @@ package approval
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 func TestToolCallInputPlan_HookBlockWins(t *testing.T) {

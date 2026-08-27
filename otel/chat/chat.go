@@ -19,10 +19,10 @@ import (
 
 	"github.com/samber/lo"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-const instrumentationName = "github.com/Tangerg/lynx/otel/chat"
+const instrumentationName = "github.com/Tangerg/scope/otel/chat"
 
 var (
 	// ErrInvalidConfig reports a missing or malformed provider identity.

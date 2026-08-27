@@ -3,8 +3,8 @@ package modelcatalog
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/catalog"
 )
 
 func TestPricingUsesProviderAndServedModel(t *testing.T) {

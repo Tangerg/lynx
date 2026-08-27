@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 var (

@@ -14,9 +14,9 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/gitprocess"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 // GitWatcher adapts platform filesystem notifications to the workspace

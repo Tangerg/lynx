@@ -12,18 +12,18 @@ import (
 	s3vdoc "github.com/aws/aws-sdk-go-v2/service/s3vectors/document"
 	"github.com/aws/aws-sdk-go-v2/service/s3vectors/types"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const Provider = "S3Vectors"
 
 const (
-	contentMetaKey = "lynx_content"
+	contentMetaKey = "scope_content"
 )
 
 // StoreConfig contains configuration options for the AWS S3 Vectors

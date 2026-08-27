@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // MCPServerStore persists MCP server entries in SQLite. One row per server

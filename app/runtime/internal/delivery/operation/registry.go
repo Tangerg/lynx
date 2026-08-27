@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
 )
 
 // Registry is the single catalog of Runtime operations. It owns both the

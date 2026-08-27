@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // Visitor transforms AST filter expressions into a Cypher predicate

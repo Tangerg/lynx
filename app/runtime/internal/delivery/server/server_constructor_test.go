@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
 )
 
 func TestNewReportsMissingIntegrations(t *testing.T) {

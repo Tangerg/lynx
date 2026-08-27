@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/rag"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/rag"
 )
 
 // fakeVectorSearcher captures the request the retriever issues so

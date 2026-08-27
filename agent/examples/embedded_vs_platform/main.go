@@ -14,9 +14,9 @@ import (
 	"strings"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/platform"
-	"github.com/Tangerg/lynx/agent/workflow"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/platform"
+	"github.com/Tangerg/scope/agent/workflow"
 )
 
 func main() {

@@ -3,8 +3,8 @@ package document
 import (
 	"errors"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // Document is the canonical content carrier. It holds identity, content, and

@@ -15,11 +15,11 @@ import (
 
 	"github.com/samber/lo"
 
-	corevectorstore "github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	corevectorstore "github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-const instrumentationName = "github.com/Tangerg/lynx/otel/vectorstore"
+const instrumentationName = "github.com/Tangerg/scope/otel/vectorstore"
 
 // ErrInvalidConfig reports a missing database-system identity.
 var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")

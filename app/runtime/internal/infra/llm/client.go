@@ -3,27 +3,27 @@ package llm
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	"github.com/Tangerg/lynx/models/alibaba"
-	"github.com/Tangerg/lynx/models/anthropic"
-	"github.com/Tangerg/lynx/models/azureopenai"
-	"github.com/Tangerg/lynx/models/deepseek"
-	"github.com/Tangerg/lynx/models/fireworks"
-	"github.com/Tangerg/lynx/models/google"
-	"github.com/Tangerg/lynx/models/groq"
-	"github.com/Tangerg/lynx/models/huggingface"
-	"github.com/Tangerg/lynx/models/minimax"
-	"github.com/Tangerg/lynx/models/mistral"
-	"github.com/Tangerg/lynx/models/moonshot"
-	"github.com/Tangerg/lynx/models/openai"
-	"github.com/Tangerg/lynx/models/openrouter"
-	"github.com/Tangerg/lynx/models/perplexity"
-	"github.com/Tangerg/lynx/models/together"
-	"github.com/Tangerg/lynx/models/xai"
-	"github.com/Tangerg/lynx/models/xiaomi"
-	"github.com/Tangerg/lynx/models/zhipu"
+	"github.com/Tangerg/scope/models/alibaba"
+	"github.com/Tangerg/scope/models/anthropic"
+	"github.com/Tangerg/scope/models/azureopenai"
+	"github.com/Tangerg/scope/models/deepseek"
+	"github.com/Tangerg/scope/models/fireworks"
+	"github.com/Tangerg/scope/models/google"
+	"github.com/Tangerg/scope/models/groq"
+	"github.com/Tangerg/scope/models/huggingface"
+	"github.com/Tangerg/scope/models/minimax"
+	"github.com/Tangerg/scope/models/mistral"
+	"github.com/Tangerg/scope/models/moonshot"
+	"github.com/Tangerg/scope/models/openai"
+	"github.com/Tangerg/scope/models/openrouter"
+	"github.com/Tangerg/scope/models/perplexity"
+	"github.com/Tangerg/scope/models/together"
+	"github.com/Tangerg/scope/models/xai"
+	"github.com/Tangerg/scope/models/xiaomi"
+	"github.com/Tangerg/scope/models/zhipu"
 )
 
 const (
@@ -41,7 +41,7 @@ type ClientSpec struct {
 	BaseURL  string // empty uses the adapter's default endpoint
 }
 
-// buildFunc constructs the lynx chat adapter for one (key, model, baseURL).
+// buildFunc constructs the scope chat adapter for one (key, model, baseURL).
 // One per provider — it's the only provider-specific code; everything else
 // (validate / default-model / key-env) is data in [chatProviderCatalog].
 type buildFunc func(spec ClientSpec, opts chat.Options) (chat.Model, error)

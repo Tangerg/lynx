@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/core/moderation"
-	"github.com/Tangerg/lynx/models/mistral"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/moderation"
+	"github.com/Tangerg/scope/models/mistral"
 )
 
 const mistralModerationJSON = `{

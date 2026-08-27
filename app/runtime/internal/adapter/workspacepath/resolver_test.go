@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 func mustCanonical(t *testing.T, path string) string {

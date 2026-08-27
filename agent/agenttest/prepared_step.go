@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // PreparedStepRecorder is a concurrency-safe durability-boundary fixture. Each

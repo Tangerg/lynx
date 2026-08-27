@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 type batcherFunc func(context.Context, []*document.Document) ([][]*document.Document, error)

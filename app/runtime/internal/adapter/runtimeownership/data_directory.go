@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
 )
 
 // DataDirectorySetup serializes schema installation and configuration seeding.

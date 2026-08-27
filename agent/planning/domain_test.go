@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/scope/agent/planning"
 )
 
 func TestWorldStatePreservesThreeValuedImmutableFacts(t *testing.T) {

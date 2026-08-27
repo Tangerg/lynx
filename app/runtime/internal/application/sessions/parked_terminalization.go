@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/conversation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // parkedRunTerminalization derives the atomic Application write-set that ends

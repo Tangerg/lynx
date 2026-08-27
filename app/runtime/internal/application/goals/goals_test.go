@@ -14,14 +14,14 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/application/goals"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	runfixture "github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
 )
 
 // memStore is an in-memory goals.Store.

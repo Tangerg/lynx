@@ -6,8 +6,8 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 // RetrievalToolConfig describes a model-visible retrieval capability. Name

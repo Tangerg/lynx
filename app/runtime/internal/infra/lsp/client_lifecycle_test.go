@@ -38,7 +38,7 @@ func TestCloseUnstartedPipesClosesPartialSetupAndPreservesErrors(t *testing.T) {
 
 func TestKillAndJoinProcessReapsWaiter(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestLSPProcessHelper$")
-	cmd.Env = append(os.Environ(), "LYNX_LSP_PROCESS_HELPER=1")
+	cmd.Env = append(os.Environ(), "SCOPE_LSP_PROCESS_HELPER=1")
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start helper process: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestKillAndJoinProcessReapsWaiter(t *testing.T) {
 }
 
 func TestLSPProcessHelper(_ *testing.T) {
-	if os.Getenv("LYNX_LSP_PROCESS_HELPER") != "1" {
+	if os.Getenv("SCOPE_LSP_PROCESS_HELPER") != "1" {
 		return
 	}
 	for {

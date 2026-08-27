@@ -98,7 +98,7 @@ export function rpcErrorText(err: unknown): string | undefined {
 }
 
 /** True when a call failed because the connected runtime doesn't implement the
- *  method — for example an older or custom runtime missing an optional surface. lynx
+ *  method — for example an older or custom runtime missing an optional surface. scope
  *  answers an unknown method with HTTP 404 + a -32601 envelope, so the HTTP
  *  transport surfaces it as a RpcTransportError(status 404); an in-process
  *  transport would surface the JSON-RPC -32601 directly as an RpcError. Lets a

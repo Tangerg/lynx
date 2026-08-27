@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/application/conversations"
+	planapp "github.com/Tangerg/scope/app/runtime/internal/application/plans"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	sqlitestore "github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 // SessionStores is the SQLite-backed adapter for the session lifecycle's

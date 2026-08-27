@@ -10,7 +10,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 // Reader reads the entire contents of an [io.Reader] and packages

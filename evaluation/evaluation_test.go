@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/evaluation"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/evaluation"
 )
 
 var testMetric = evaluation.MustMetric("test")

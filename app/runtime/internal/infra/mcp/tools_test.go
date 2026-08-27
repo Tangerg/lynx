@@ -10,9 +10,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 type concurrencyKeyer interface {
@@ -62,7 +62,7 @@ func TestSourceToolsEnablesOnlyAnnotatedReadOnlyConcurrency(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = clientSession.Close() })
 
-	wrapped, err := sourceTools(t.Context(), lynxmcp.ToolSource{Name: "catalog", Session: clientSession})
+	wrapped, err := sourceTools(t.Context(), scopemcp.ToolSource{Name: "catalog", Session: clientSession})
 	if err != nil {
 		t.Fatalf("sourceTools: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestRemoteToolCatalogRejectsUnboundedMaterial(t *testing.T) {
 			Description: strings.Repeat("x", mcpserver.MaxRemoteToolDescriptionBytes+1),
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		})
-		if _, err := sourceTools(t.Context(), lynxmcp.ToolSource{Name: "catalog", Session: session}); err == nil {
+		if _, err := sourceTools(t.Context(), scopemcp.ToolSource{Name: "catalog", Session: session}); err == nil {
 			t.Fatal("sourceTools accepted a description larger than 64 KiB")
 		}
 	})

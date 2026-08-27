@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/ollama"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/models/ollama"
 )
 
 const ollamaEmbedJSON = `{

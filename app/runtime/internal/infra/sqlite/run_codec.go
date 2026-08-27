@@ -9,10 +9,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // The Run row's JSON columns. Token accounting, a failure classification, and

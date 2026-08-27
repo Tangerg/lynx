@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // RollbackSession discards the runs after the kept boundary, truncating the

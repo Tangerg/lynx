@@ -3,7 +3,7 @@ package openai
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // RequestFields contains provider-owned top-level JSON fields that are not

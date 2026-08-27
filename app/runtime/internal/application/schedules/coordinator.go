@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
 // ManagementStore is the editable-schedule persistence slice owned by this

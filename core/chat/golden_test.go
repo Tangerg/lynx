@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestRequestGolden(t *testing.T) {
-	attachment, err := media.NewURI("image/png", "https://example.com/lynx.png")
+	attachment, err := media.NewURI("image/png", "https://example.com/scope.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestRequestGolden(t *testing.T) {
 		chat.NewReasoningPart("I should inspect the image.", []byte("opaque-signature")),
 		chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "inspect_image", Arguments: `{"detail":"high"}`}),
 	)
-	tool := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "inspect_image", Result: "A lynx."})
+	tool := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "inspect_image", Result: "A scope."})
 	request, err := chat.NewRequest(system, user, assistant, tool)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestRequestGolden(t *testing.T) {
 }
 
 func TestResponseGolden(t *testing.T) {
-	firstMessage := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
+	firstMessage := chat.NewAssistantMessage(chat.NewTextPart("A scope."))
 	response, err := chat.NewResponse(
 		&chat.Output{Message: &firstMessage, FinishReason: chat.FinishReasonStop, Metadata: &chat.OutputMetadata{}},
 		&chat.ResponseMetadata{ID: "response-1", Model: "provider-model"},

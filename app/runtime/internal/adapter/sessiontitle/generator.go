@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
 )
 
 // titleMaxInputRunes caps the slice of the opening user message fed to the

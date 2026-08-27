@@ -3,7 +3,7 @@ package filter_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func Example() {

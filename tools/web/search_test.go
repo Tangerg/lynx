@@ -174,7 +174,7 @@ func TestSearchRequest_QueryWithSiteOperators(t *testing.T) {
 
 func TestSearchRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 	original := &SearchRequest{
-		Query:          "  lynx  ",
+		Query:          "  scope  ",
 		AllowedDomains: []string{"example.com"},
 	}
 	if err := original.Validate(); err != nil {
@@ -186,10 +186,10 @@ func TestSearchRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 	}
 	prepared.AllowedDomains[0] = "changed.example"
 
-	if prepared.Query != "lynx" {
-		t.Fatalf("prepared query = %q, want lynx", prepared.Query)
+	if prepared.Query != "scope" {
+		t.Fatalf("prepared query = %q, want scope", prepared.Query)
 	}
-	if original.Query != "  lynx  " || original.AllowedDomains[0] != "example.com" {
+	if original.Query != "  scope  " || original.AllowedDomains[0] != "example.com" {
 		t.Fatalf("Prepare mutated its input: %#v", original)
 	}
 }

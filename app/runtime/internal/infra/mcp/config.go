@@ -17,7 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/httporigin"
+	"github.com/Tangerg/scope/app/runtime/internal/httporigin"
 )
 
 // Transport is the wire mode of an MCP server connection. The zero value is

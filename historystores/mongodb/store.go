@@ -11,8 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
 )
 
 const (

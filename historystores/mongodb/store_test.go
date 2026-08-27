@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/historystores/mongodb"
+	"github.com/Tangerg/scope/historystores/mongodb"
 )
 
 func TestNewStoreRequiresCollection(t *testing.T) {

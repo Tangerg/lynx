@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/opaquetoken"
+	"github.com/Tangerg/scope/app/runtime/internal/application/opaquetoken"
 )
 
 // ErrInvalidCursor reports a cursor that cannot continue this query: damaged,

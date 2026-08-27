@@ -547,7 +547,7 @@
 
 - 状态：已接受，P11 已实施。
 - 证据：Runtime 已在 P8 完成 Interaction、waiting/restore、Delegate child tree、termination 与 recovery 的生产纵切；workspace 搜索证明原框架实现没有剩余 consumer 或独有能力。继续并存只会制造两个模块身份、两套文档和依赖解析歧义。
-- 决策：整体删除原框架实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步所有真实 consumer、workspace metadata、文档和 architecture guards。禁止 alias module、replace compatibility、转发 package、双读 wire 或旧 package 名。
+- 决策：整体删除原框架实现，把绿色重写实现安装为唯一 `github.com/Tangerg/scope/agent` module，并同步所有真实 consumer、workspace metadata、文档和 architecture guards。禁止 alias module、replace compatibility、转发 package、双读 wire 或旧 package 名。
 - 后果：模块发布需要先形成 canonical source commit，再由 Runtime standalone dependency 引用该 commit；这个发布边界不引入第二路径。Baseline 15 重新冻结 canonical GoDoc digest，Framework API 语义和全部 wire version 不变。
 
 ## ADR-A2-066：一次性 prepared authority 必须由所有别名共享同一 resolution identity

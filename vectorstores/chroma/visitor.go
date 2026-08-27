@@ -7,7 +7,7 @@ import (
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // Visitor transforms AST filter expressions into Chroma WhereClause conditions.

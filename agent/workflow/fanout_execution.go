@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 func (e *execution) startFanoutWindow(consumedSignals uint32) (agent.Transition, error) {

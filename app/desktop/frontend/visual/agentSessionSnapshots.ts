@@ -180,7 +180,7 @@ const RUNNING_READ: Item = {
   tool: {
     name: "read",
     arguments: {
-      path: "/Users/visual/lynx/app/runtime/internal/session/atomicity_and_idempotency.go",
+      path: "/Users/visual/scope/app/runtime/internal/session/atomicity_and_idempotency.go",
     },
   },
 };
@@ -267,7 +267,7 @@ const SHELL_COMMAND: Item = {
         "    store_test.go:214: expected rollback, got commit",
         "\u001b[31m--- FAIL: TestRollbackOnFlushFailure (0.02s)\u001b[0m",
         "\u001b[33mwarning: 1 test skipped\u001b[0m",
-        "\u001b[31mFAIL\u001b[0m\tgithub.com/Tangerg/lynx/app/runtime/internal/session\t8.412s",
+        "\u001b[31mFAIL\u001b[0m\tgithub.com/Tangerg/scope/app/runtime/internal/session\t8.412s",
         "FAIL",
       ].join("\n"),
     },
@@ -322,7 +322,7 @@ const SHELL_PATCH: Item = {
     result: {
       changes: [
         {
-          path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
+          path: "/Users/visual/scope/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
           status: "modified",
         },
       ],
@@ -928,7 +928,7 @@ const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
       narrativeTool("item_n_read", "read", { path: "src/checkout/checkout.tsx" }),
       narrativeTool("item_n_read_2", "read", {
         file_path:
-          "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/ui/ToolGroup.tsx",
+          "/Users/visual/scope/app/desktop/frontend/src/plugins/builtin/chat/tools/ui/ToolGroup.tsx",
       }),
       narrativeTool("item_n_read_3", "read", { path: "src/checkout/api/pay.ts" }),
       narrativeTool("item_n_grep", "grep", { pattern: "retry|backoff", path: "src" }, "7 matches"),

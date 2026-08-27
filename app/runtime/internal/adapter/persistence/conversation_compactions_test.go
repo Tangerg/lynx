@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/application/conversations"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/sessionfixture"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 func newCompactionFixture(t *testing.T) (*sql.DB, *sqlite.MessageStore, *sqlite.RunStore, *conversations.Messages) {

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/etl/pdf"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl/pdf"
 )
 
 // Read checks ctx before opening the PDF, so a canceled context errors

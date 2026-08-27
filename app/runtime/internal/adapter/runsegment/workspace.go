@@ -3,8 +3,8 @@ package runsegment
 import (
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file

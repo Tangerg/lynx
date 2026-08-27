@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/conversation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/conversationfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 type recordingCompactions struct {

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func workspaceRefPath(ref *protocol.WorkspaceRef) string {

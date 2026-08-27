@@ -1,4 +1,4 @@
-# REFACTORING.md — lynx 重构标尺
+# REFACTORING.md — scope 重构标尺
 
 > 跨模块通用的**重构标尺 + 节奏**。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)；项目级法则见 [`CLAUDE.md`](CLAUDE.md)。本文件是"重构时**改什么、怎么改、按什么节奏**"的泛化清单，适用**所有 sub-module**。**全部抽象表述、只宏观、不绑定任何具体实现** —— 遇到对应场景时按本则判断。
 
@@ -13,6 +13,7 @@
 ## 1. 命名（名实相符）
 
 - 名字必须与其**承载的数据 / 所做的事**一致；名不副实（类型名 ≠ 内容、方法名 ≠ 行为）就改。
+- 方法名使用动作原形描述当次行为或返回事实；除非表达真正已经持久化的领域状态，不用 `Merged`、`Processed` 之类过去分词冒充操作。
 - 字段名 == 序列化 tag；不一致时**优先改名而非将就 tag**。
 - 消除 **package-name stutter**（`pkg.Pkg…`）。
 - **文件名描述内容**：泛化 / Java 味文件名（`interface.go` / `impl.go` / `util.go` / `helper.go`）→ 按内容命名。文件重命名是包内操作，不改 API。
@@ -56,6 +57,12 @@
 - **关键边界 —— 只上移"无 I/O 的"逻辑**：派生 / 不变量 / 纯状态转移收回实体；但**状态写入若是 adapter 的原子 SQL**（计数器自增、单字段 UPDATE）**保留在 adapter** —— 搬上实体会退化成 load-modify-store 的 read-modify-write 竞态，既更慢又不安全。判据："这段逻辑需要 I/O 吗？"需要→留 adapter；不需要→上实体。
 - **库 vs 应用**（同 ISP「库 vs 应用」）：应用层的领域实体倾向充血；但**别为单后端叠 DDD 层**（repository / application-service / 显式聚合根 / domain-events 框架）—— 对单团队单后端是纯仪式（YAGNI）。充血只是"把规则收回类型"，不是"往上加层"。
 
+### 5.2 单一能力出口
+
+- 先找能力的真实 owner，再决定唯一 public 入口。method 与 free function 同义、旧名与新名并存、`New` 与 builder/functional-options 并存、stream 与 once 各自实现，都是重复出口信号。
+- 流式能力优先作为底层唯一事实源；非流式只允许完整消费该流并返回聚合值，不能维护第二套解析、错误或生命周期逻辑。
+- 删除旧出口时同步迁移全部真实消费者与 examples；当前阶段不留 alias、deprecated forwarding 或兼容 shim。
+
 ## 6. 卫语句 / 圈复杂度
 
 - `if cond { 大段 }` + 尾部收尾 → `if !cond { return }` + 平铺；合并多层嵌套条件；把内聚分支抽成 helper。
@@ -79,6 +86,18 @@
 - 构造器**出错返回 nil**，不返回"半成品 + error"。
 - 重构途中发现的**真实 bug 顺手修**（独立 commit，与重构分开）。
 - 禁推测性占位（"以后接" / stub interface）、死代码立即删。
+
+### 9.1 魔法与动态数据
+
+- 有限稳定词汇使用 named string value object，并由它自己拥有合法性、parse/string/codec；只有位掩码、计数、序号和进程内状态机判别值保留数值类型。
+- 重复出现不是提取常量的唯一理由：单次出现但承载协议、版本、默认策略、时间预算或观测 attribute 的值也必须具名，因为其语义需要 owner。
+- `map[string]any` 仅属于 JSON/YAML/SDK 等真实开放世界边界；领域层、配置层和包间调用必须尽早转成命名结构体或值对象。
+
+### 9.2 三方能力替代
+
+- 替代前证明成熟度、维护活跃度、边界行为和依赖成本；替代后必须删除本地 parser/formatter/codec 及其重复测试，而不是把旧实现藏在 adapter 后。
+- 第三方类型不得无意穿透 Scope 的稳定领域 API；若它本身就是行业协议的事实类型可直接使用，否则只在 adapter 边界转换一次。
+- 不为“统一风格”包装标准库或三方库的每个函数。只有需要承载 Scope 自有策略、错误边界或生命周期时才保留窄 adapter。
 
 ## 10. 节奏与纪律（怎么推进）
 

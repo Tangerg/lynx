@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/workflow"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/workflow"
 )
 
 type switchInput struct {

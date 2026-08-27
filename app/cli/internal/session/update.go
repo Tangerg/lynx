@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 type updater interface {

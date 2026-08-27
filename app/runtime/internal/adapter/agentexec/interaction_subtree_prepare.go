@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 // PrepareWaitingSubtreeCancellation freezes one exact waiting Interaction tree

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/core/transcription"
+	"github.com/Tangerg/scope/core/transcription"
 )
 
 type AudioTranscriptionModelConfig struct {

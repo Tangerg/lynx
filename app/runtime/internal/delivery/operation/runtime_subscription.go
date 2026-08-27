@@ -4,7 +4,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 const RuntimeSubscribe Name = "runtime.subscribe"

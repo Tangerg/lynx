@@ -17,11 +17,11 @@ func withTimeout(t *testing.T, d time.Duration) (context.Context, context.Cancel
 	return context.WithTimeout(t.Context(), d)
 }
 
-const envKeyPrefix = "LYNX_TEST_"
+const envKeyPrefix = "SCOPE_TEST_"
 
-// requireKey returns the value of LYNX_TEST_<provider>_KEY or skips the
+// requireKey returns the value of SCOPE_TEST_<provider>_KEY or skips the
 // test when unset. The provider string is upper-cased; e.g.
-// requireKey(t, "openai") looks up LYNX_TEST_OPENAI_KEY.
+// requireKey(t, "openai") looks up SCOPE_TEST_OPENAI_KEY.
 //
 // Integration tests should use this as their first line — it provides a
 // uniform skip message and consistent env var naming across all vendors.

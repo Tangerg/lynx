@@ -15,11 +15,11 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/promptqueue"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 type finishObservingRuntime struct {

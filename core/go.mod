@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/core
+module github.com/Tangerg/scope/core
 
 go 1.27.0
 

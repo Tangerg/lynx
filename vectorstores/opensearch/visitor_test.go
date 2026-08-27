@@ -3,9 +3,9 @@ package opensearch_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/opensearch"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/opensearch"
 )
 
 func TestVisitor_Conformance(t *testing.T) {

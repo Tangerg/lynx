@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/planning"
-	"github.com/Tangerg/lynx/agent/planning/goap"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/planning"
+	"github.com/Tangerg/scope/agent/planning/goap"
 )
 
 func TestManagedPlanningReobservesAndReplansAfterEveryAction(t *testing.T) {

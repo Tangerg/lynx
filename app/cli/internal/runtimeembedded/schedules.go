@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/schedule"
-	"github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/schedule"
+	"github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 const schedulePageLimit = 100

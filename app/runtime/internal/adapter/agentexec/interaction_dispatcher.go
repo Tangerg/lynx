@@ -15,18 +15,18 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 const authoritativeProjectionTimeout = 15 * time.Second

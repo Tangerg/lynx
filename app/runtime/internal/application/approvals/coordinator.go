@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 // SessionLookup resolves a session so rule listing can scope rules to the

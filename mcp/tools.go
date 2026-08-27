@@ -6,7 +6,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // ToolSource binds an initialized MCP client session to a logical name used to
@@ -52,7 +52,7 @@ type ToolsConfig struct {
 
 	// Concurrency opts remote tools into a caller-owned scheduling policy. Nil
 	// keeps every MCP call exclusive because protocol descriptors do not provide
-	// a trustworthy resource-conflict contract. The lynx Agent ToolLoop still
+	// a trustworthy resource-conflict contract. The scope Agent ToolLoop still
 	// commits results in the model's original call order when this policy enables
 	// concurrent execution. [AnnotatedReadOnlyConcurrency] is the conservative
 	// ready-made policy for trusted descriptors that declare readOnlyHint=true.
@@ -89,7 +89,7 @@ func sanitizeToolName(name string) string {
 	return string(b[:min(len(b), 64)])
 }
 
-// Tools lists remote MCP tools from sources and wraps them as lynx tools.
+// Tools lists remote MCP tools from sources and wraps them as scope tools.
 func Tools(ctx context.Context, sources []ToolSource, config ToolsConfig) ([]toolcontract.Tool, error) {
 	var all []toolcontract.Tool
 	seen := make(map[string]struct{})

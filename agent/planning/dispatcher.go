@@ -7,7 +7,7 @@ import (
 
 	"github.com/samber/lo"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // DispatcherConfig binds side-effect-free observation and the exact set of

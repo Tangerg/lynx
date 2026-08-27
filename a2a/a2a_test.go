@@ -13,16 +13,16 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
-	"github.com/Tangerg/lynx/a2a"
+	"github.com/Tangerg/scope/a2a"
 )
 
-// echoAgent is a stub lynx Agent that streams a fixed reply, echoing the
+// echoAgent is a stub scope Agent that streams a fixed reply, echoing the
 // inbound text so the test can assert the message reached the server.
 type echoAgent struct{}
 
 func (echoAgent) Run(_ context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		yield("lynx received: "+input, nil)
+		yield("scope received: "+input, nil)
 	}
 }
 
@@ -192,7 +192,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if !strings.Contains(out, "lynx received: hello") {
+	if !strings.Contains(out, "scope received: hello") {
 		t.Errorf("reply = %q, want it to contain the echoed request", out)
 	}
 

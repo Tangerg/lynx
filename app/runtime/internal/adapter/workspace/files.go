@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/git"
 )
 
 // File browsing returns workspace entries for tree and completion consumers.

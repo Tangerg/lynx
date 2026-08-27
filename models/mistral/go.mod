@@ -1,10 +1,10 @@
-module github.com/Tangerg/lynx/models/mistral
+module github.com/Tangerg/scope/models/mistral
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260827081725-79f2213e2f91
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260826074258-420034c45aec
+	github.com/Tangerg/scope/core v0.0.0-20260827081725-79f2213e2f91
+	github.com/Tangerg/scope/models/protocol/openai v0.0.0-20260826074258-420034c45aec
 	github.com/Tangerg/sse v0.0.6
 	github.com/go-resty/resty/v2 v2.17.2
 )

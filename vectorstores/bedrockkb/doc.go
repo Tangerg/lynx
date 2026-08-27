@@ -1,7 +1,7 @@
 // Package bedrockkb wraps AWS Bedrock Knowledge Bases as a semantic searcher.
 // Bedrock Knowledge Base is a managed RAG
 // service — embedding, chunking, and persistence are all handled
-// behind the API; lynx only consumes the runtime Retrieve surface.
+// behind the API; scope only consumes the runtime Retrieve surface.
 //
 // Requirements: an AWS account with Bedrock Knowledge Bases enabled,
 // a provisioned knowledge base wired to a data source (S3, Confluence,

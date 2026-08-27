@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 func readAuthoredPromptFile(ctx context.Context, path string) ([]byte, error) {

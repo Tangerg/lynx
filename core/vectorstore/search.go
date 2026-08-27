@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // Similarity-score range for [SearchOptions.MinScore] and search defaults.

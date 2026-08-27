@@ -5,7 +5,7 @@ import { ComposerProjectTray, EmptyChatHeading } from "./ProjectSelector";
 const mocks = vi.hoisted(() => ({
   workIndex: {
     groups: [
-      { project: { id: "/repo/lynx", name: "lynx" }, sessions: [] },
+      { project: { id: "/repo/scope", name: "scope" }, sessions: [] },
       { project: { id: "/repo/other", name: "other" }, sessions: [] },
     ],
     recents: [],
@@ -93,10 +93,10 @@ describe("EmptyChatHeading", () => {
 
   it("makes the active Session project the exact-cwd picker", async () => {
     mocks.workIndex.activeSessionId = "session-current";
-    mocks.workIndex.activeCwd = "/repo/lynx";
+    mocks.workIndex.activeCwd = "/repo/scope";
     render(<EmptyChatHeading />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Change project: lynx" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change project: scope" }));
     fireEvent.click(await screen.findByText("other"));
 
     await waitFor(() =>

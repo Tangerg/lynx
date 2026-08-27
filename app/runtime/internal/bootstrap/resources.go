@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/teardown"
 )
 
 func terminalResources(resources []TerminalResource) []*teardown.Step {

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 type addInput struct {

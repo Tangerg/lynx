@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/terminal"
+	"github.com/Tangerg/scope/app/cli/internal/terminal"
 )
 
 const (

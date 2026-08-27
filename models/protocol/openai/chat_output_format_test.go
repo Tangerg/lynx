@@ -7,8 +7,8 @@ import (
 
 	openaisdk "github.com/openai/openai-go/v3"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestOutputFormatMapsToChatAndResponsesNativeShapes(t *testing.T) {

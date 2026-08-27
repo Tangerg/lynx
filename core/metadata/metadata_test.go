@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestSetAndDecode(t *testing.T) {
@@ -16,7 +16,7 @@ func TestSetAndDecode(t *testing.T) {
 	}
 
 	m := metadata.Map{}
-	want := value{Name: "lynx", Count: 2}
+	want := value{Name: "scope", Count: 2}
 	if err := m.Set("value", want); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestValidate(t *testing.T) {
 
 func TestJSONRoundTrip(t *testing.T) {
 	src := metadata.Map{}
-	if err := src.Set("name", "lynx"); err != nil {
+	if err := src.Set("name", "scope"); err != nil {
 		t.Fatal(err)
 	}
 	if err := src.Set("nested", map[string]any{"enabled": true}); err != nil {
@@ -254,7 +254,7 @@ func TestCloneDoesNotAliasValues(t *testing.T) {
 
 func TestValueMapBoundary(t *testing.T) {
 	source := map[string]any{
-		"name":  "lynx",
+		"name":  "scope",
 		"count": int64(2),
 		"large": int64(9007199254740993),
 		"nested": map[string]any{

@@ -10,11 +10,11 @@ import (
 	"maps"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
+	mcpapp "github.com/Tangerg/scope/app/runtime/internal/application/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/mcp"
 )
 
 // Pool owns the live MCP connections and implements the application ports that

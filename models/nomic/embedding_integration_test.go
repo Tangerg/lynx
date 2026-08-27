@@ -5,9 +5,9 @@ package nomic_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/nomic"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/nomic"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
@@ -15,7 +15,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 		Provider: "nomic",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := modeltest.LookupEnv("LYNX_TEST_NOMIC_MODEL")
+			modelID, _ := modeltest.LookupEnv("SCOPE_TEST_NOMIC_MODEL")
 			if modelID == "" {
 				modelID = nomic.ModelEmbedTextV15
 			}

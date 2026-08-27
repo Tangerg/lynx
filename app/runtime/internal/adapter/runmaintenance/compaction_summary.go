@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
 )
 
 const compactionPrompt = `You are compacting the earlier portion of a long coding-agent

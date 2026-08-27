@@ -3,7 +3,7 @@ package vectorstore
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 // Batcher partitions documents for ingestion. It must preserve every document

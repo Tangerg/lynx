@@ -6,13 +6,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/application/queries"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	runfixture "github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
 )
 
 func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {

@@ -74,7 +74,7 @@ async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
   if (route.fixture === "shell" && route.state === "populated") {
     await expect(
       page.getByRole("complementary", { name: "Work index" }).getByRole("button", {
-        name: "lynx 6",
+        name: "scope 6",
       }),
     ).toBeVisible();
   }

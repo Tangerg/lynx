@@ -11,9 +11,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
-	historyotel "github.com/Tangerg/lynx/otel/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
+	historyotel "github.com/Tangerg/scope/otel/history"
 )
 
 type historyRecorder struct {

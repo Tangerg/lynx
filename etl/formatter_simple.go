@@ -9,8 +9,8 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // SimpleFormatterConfig configures a [SimpleFormatter]'s metadata policy.

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 func TestFloat32Vector(t *testing.T) {

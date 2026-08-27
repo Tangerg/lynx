@@ -4,7 +4,7 @@ import (
 	"iter"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 type activityProjection func(tool.Arguments) string

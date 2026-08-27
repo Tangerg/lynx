@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 
-	"github.com/Tangerg/lynx/app/cli/internal/schedule"
+	"github.com/Tangerg/scope/app/cli/internal/schedule"
 )
 
 type scheduleFormMode uint8

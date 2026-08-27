@@ -5,13 +5,13 @@ import (
 	"slices"
 	"strings"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
+	corechat "github.com/Tangerg/scope/core/chat"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
 )
 
 const (
 	contextProvenanceSchemaVersion uint16 = 1
-	contextProvenanceMetadataKey          = "lynx/context_provenance"
+	contextProvenanceMetadataKey          = "scope/context_provenance"
 )
 
 type contextSourceKind string

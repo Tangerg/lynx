@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // ErrInvalidTool reports a nil tool or invalid model-visible definition.

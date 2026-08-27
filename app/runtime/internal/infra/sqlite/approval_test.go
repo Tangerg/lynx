@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 func newApprovalStore(t *testing.T) *sqlite.ApprovalRuleStore {

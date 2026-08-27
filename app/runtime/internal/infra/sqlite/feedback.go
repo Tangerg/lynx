@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/feedback"
 )
 
 // FeedbackStore persists the append-only quality ledger. The DB must have been

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embeddingclient"
+	"github.com/Tangerg/scope/core/embeddingclient"
 )
 
 func TestClientSurfaceStaysVectorFocused(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 func TestMapMistralOutputFormat(t *testing.T) {

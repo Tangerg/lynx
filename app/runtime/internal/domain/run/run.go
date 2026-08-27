@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // ErrIdentityConflict reports an attempt to reuse a durable Run identity for a

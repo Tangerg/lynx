@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chatclient/safeguard"
+	"github.com/Tangerg/scope/core/chatclient/safeguard"
 )
 
 func Example() {

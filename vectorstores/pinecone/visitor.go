@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // Visitor transforms AST filter expressions into Pinecone metadata filter conditions.

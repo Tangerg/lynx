@@ -1,4 +1,4 @@
-// Package a2a integrates the Agent-to-Agent (A2A) protocol into the lynx
+// Package a2a integrates the Agent-to-Agent (A2A) protocol into the scope
 // agent framework, wrapping the official SDK
 // github.com/a2aproject/a2a-go/v2 ([sdka2a]/[a2asrv]/[a2aclient]).
 //

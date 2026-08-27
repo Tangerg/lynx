@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 func TestStartExecutionValidateDelegatesCoreOptions(t *testing.T) {

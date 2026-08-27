@@ -3,8 +3,8 @@ package milvus_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/milvus"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/milvus"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

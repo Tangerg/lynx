@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
 )
 
 // ErrInsufficientCapabilities reports that a caller cannot follow a Run because

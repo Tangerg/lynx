@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 type mcpToolStub struct {

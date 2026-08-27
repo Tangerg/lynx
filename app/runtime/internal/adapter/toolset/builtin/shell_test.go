@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/exec"
 )
 
 // shellTool returns the named tool from a freshly-built shell tool set.

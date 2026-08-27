@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
 )
 
 // ProviderStore persists provider configuration in SQLite. One row per

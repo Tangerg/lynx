@@ -12,7 +12,7 @@ Goal mode（自主多轮驱动）· KAOS（fs/process/path OS 抽象，local+SSH
 
 ## 0.1 筛选准则
 
-沿用 lynx 四道筛子（取思想不取形态 / 不为多租户云 / 不引双机制债 / 薄核优先）+ 反向不变量（无 retry-layer；用户填 provider key、不做 LLM-provider OAuth；runtime 协议无 stdio）。详见 [`GROK.md` §0.1](GROK.md)。
+沿用 scope 四道筛子（取思想不取形态 / 不为多租户云 / 不引双机制债 / 薄核优先）+ 反向不变量（无 retry-layer；用户填 provider key、不做 LLM-provider OAuth；runtime 协议无 stdio）。详见 [`GROK.md` §0.1](GROK.md)。
 
 ---
 

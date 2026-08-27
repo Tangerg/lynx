@@ -3,7 +3,7 @@ package chatclient
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // Generation is an immutable Client with one typed output contract bound to

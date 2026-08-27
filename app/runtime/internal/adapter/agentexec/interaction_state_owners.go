@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // interactionChildProjection serializes projection of completed Delegate

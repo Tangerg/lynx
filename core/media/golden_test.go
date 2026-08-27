@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/media"
 )
 
 func TestMediaGolden(t *testing.T) {

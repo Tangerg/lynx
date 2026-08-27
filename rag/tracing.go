@@ -11,7 +11,7 @@ import (
 
 // ragTracer is the package-level tracer for RAG span emission. It is a no-op
 // when no TracerProvider is installed.
-var ragTracer = otel.Tracer("github.com/Tangerg/lynx/rag")
+var ragTracer = otel.Tracer("github.com/Tangerg/scope/rag")
 
 // RAG attribute keys — the GenAI semconv has no RAG-specific registry today,
 // so these live under the bare `rag.*` domain without a brand prefix.

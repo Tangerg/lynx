@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	toolapp "github.com/Tangerg/scope/app/runtime/internal/application/tools"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListTools surfaces every read-only diagnostic tool valid outside an agent

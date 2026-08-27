@@ -1,5 +1,5 @@
-module github.com/Tangerg/lynx/vectorstores/azureaisearch
+module github.com/Tangerg/scope/vectorstores/azureaisearch
 
 go 1.27.0
 
-require github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+require github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b

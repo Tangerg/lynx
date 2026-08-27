@@ -4,11 +4,11 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // manifest is the machine-readable projection of the Contract Registry.

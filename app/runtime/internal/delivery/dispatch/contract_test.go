@@ -6,9 +6,9 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // capabilityRuntime is a Runtime that only answers discovery — enough to drive

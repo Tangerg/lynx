@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	feedbackdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
+	feedbackdomain "github.com/Tangerg/scope/app/runtime/internal/domain/feedback"
 )
 
 // Command is the application input for recording one quality signal.

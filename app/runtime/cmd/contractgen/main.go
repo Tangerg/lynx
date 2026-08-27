@@ -20,9 +20,9 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // The two union types the manifest projects extra policy from. Kept as vars so

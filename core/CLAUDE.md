@@ -1,6 +1,6 @@
 # CLAUDE.md — core module
 
-> Lynx 生态的窄腰：只定义跨 provider 稳定共享的协议、最小调用 SPI 和纯组合算法。
+> Scope 生态的窄腰：只定义跨 provider 稳定共享的协议、最小调用 SPI 和纯组合算法。
 
 ---
 

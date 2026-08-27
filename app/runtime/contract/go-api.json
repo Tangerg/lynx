@@ -1,10 +1,10 @@
 {
   "packages": [
     {
-      "path": "github.com/Tangerg/lynx/app/runtime/embedded",
+      "path": "github.com/Tangerg/scope/app/runtime/embedded",
       "imports": [
         "context",
-        "github.com/Tangerg/lynx/app/runtime/protocol",
+        "github.com/Tangerg/scope/app/runtime/protocol",
         "iter"
       ],
       "variables": [
@@ -473,7 +473,7 @@
       ]
     },
     {
-      "path": "github.com/Tangerg/lynx/app/runtime/localruntime",
+      "path": "github.com/Tangerg/scope/app/runtime/localruntime",
       "variables": [
         {
           "name": "ErrInvalidToken",
@@ -508,7 +508,7 @@
       ]
     },
     {
-      "path": "github.com/Tangerg/lynx/app/runtime/protocol",
+      "path": "github.com/Tangerg/scope/app/runtime/protocol",
       "imports": [
         "encoding/json",
         "time"

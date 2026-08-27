@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
-func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]toolcontract.Tool, error) {
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolsConfig{
+func sourceTools(ctx context.Context, src scopemcp.ToolSource) ([]toolcontract.Tool, error) {
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{src}, scopemcp.ToolsConfig{
 		Naming: func(server, toolName string) string {
 			return mcpserver.ToolName(server, toolName)
 		},
-		Concurrency: lynxmcp.AnnotatedReadOnlyConcurrency,
+		Concurrency: scopemcp.AnnotatedReadOnlyConcurrency,
 	})
 	if err != nil {
 		return nil, err

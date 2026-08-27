@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/itemfixture"
+	"github.com/Tangerg/scope/app/runtime/protocol"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 func TestUpdateSession(t *testing.T) {

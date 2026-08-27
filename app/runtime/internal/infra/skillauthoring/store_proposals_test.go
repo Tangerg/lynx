@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/skillauthoring"
 )
 
 // installActive approves a plain (non-revising) proposal so a named skill is active.

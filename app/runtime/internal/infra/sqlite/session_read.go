@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 // List returns user-facing sessions (roots and forks), newest-updated first.

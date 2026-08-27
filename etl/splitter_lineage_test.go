@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/etl"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/etl"
 )
 
 func TestSplitter_StampsChunkLineage(t *testing.T) {

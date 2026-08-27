@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // Call is a [chat.CallMiddleware]. Input is screened before the model runs;

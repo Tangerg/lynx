@@ -16,9 +16,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 // knowledgeFileName is the on-disk file name for both scopes.

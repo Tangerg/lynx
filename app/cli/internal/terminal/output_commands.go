@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
-	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/sessiontransfer"
 )
 
 type sessionOutputResult struct {

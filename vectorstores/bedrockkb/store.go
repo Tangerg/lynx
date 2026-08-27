@@ -10,9 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 const Provider = "BedrockKnowledgeBase"
@@ -149,7 +149,7 @@ func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.Knowl
 	return cfg, nil
 }
 
-// toMatch converts a Bedrock retrieval result into a Lynx match.
+// toMatch converts a Bedrock retrieval result into a Scope match.
 func toMatch(r types.KnowledgeBaseRetrievalResult) (*vectorstore.SearchResult, error) {
 	doc := &document.Document{}
 	if r.Score == nil {

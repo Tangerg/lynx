@@ -96,7 +96,7 @@ func (a *api) converseStream(ctx context.Context, params *bedrockruntime.Convers
 
 // InvokeModel is the raw per-model endpoint. Bedrock embeddings (Titan
 // Embed v2, Cohere Embed v3, ...) only go through this — each family
-// expects its own JSON body shape, so the lynx [EmbeddingModel] below
+// expects its own JSON body shape, so the scope [EmbeddingModel] below
 // branches by model family.
 func (a *api) invokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
 	if params == nil {

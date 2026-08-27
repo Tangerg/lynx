@@ -5,12 +5,12 @@ import (
 	"errors"
 	"sync"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // server is the live state of one configured MCP server. Access is guarded by

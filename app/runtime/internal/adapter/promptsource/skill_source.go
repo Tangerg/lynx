@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"slices"
 
-	sdk "github.com/Tangerg/lynx/skills"
+	sdk "github.com/Tangerg/scope/skills"
 
-	domainskills "github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	domainskills "github.com/Tangerg/scope/app/runtime/internal/domain/skills"
 )
 
 // runtimeSkillSource is Runtime's finite admission boundary around the Agent

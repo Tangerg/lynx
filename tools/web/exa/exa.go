@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 const (

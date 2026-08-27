@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // ListNonTerminalRuns projects complete durable Run aggregates for application

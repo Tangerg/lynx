@@ -19,7 +19,7 @@ import (
 const (
 	maxDocumentBytes = 1 << 20
 	definitionPrefix = "#/$defs/"
-	resourceURL      = "urn:lynx:json-schema"
+	resourceURL      = "urn:scope:json-schema"
 )
 
 // ErrInvalid reports a malformed, unsupported, or unresolved JSON Schema.

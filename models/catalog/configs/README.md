@@ -109,6 +109,6 @@ as per-model TOML. Mapping:
   `vertexai` mirrors `google`'s Gemini lineup.
 
 To refresh or extend, re-run the models.dev transform over the providers
-lynx has a chat adapter for. Local augmentations (e.g. reasoning levels a
+scope has a chat adapter for. Local augmentations (e.g. reasoning levels a
 vendor publishes but models.dev lacks) can be merged in the same step,
 mirroring LangChain's `profile_augmentations` approach.

@@ -14,10 +14,10 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 // store. Vectara is a managed RAG service that handles embedding,
 // chunking, and retrieval internally — the store sends raw text to
 // the API and does NOT need an [embedding.Model]. This is unlike
-// every other lynx vector store.
+// every other scope vector store.
 type StoreConfig struct {
 	// Endpoint is the Vectara API endpoint. Optional: defaults to
 	// [DefaultEndpoint].

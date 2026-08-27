@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 type RoleKind string

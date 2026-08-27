@@ -23,10 +23,10 @@
               "mime": "image/png",
               "source": {
                 "kind": "bytes",
-                "bytes": "bHlueA=="
+                "bytes": "c2NvcGU="
               },
               "id": "media-1",
-              "name": "lynx.png",
+              "name": "scope.png",
               "metadata": {
                 "count": 2,
                 "label": "fixture",
@@ -121,7 +121,7 @@
         "parts": [
           {
             "kind": "text",
-            "text": "A lynx."
+            "text": "A scope."
           }
         ]
       },
@@ -149,15 +149,15 @@
   },
   "document": {
     "id": "doc-1",
-    "text": "A lynx document.",
+    "text": "A scope document.",
     "media": {
       "mime": "image/png",
       "source": {
         "kind": "bytes",
-        "bytes": "bHlueA=="
+        "bytes": "c2NvcGU="
       },
       "id": "media-1",
-      "name": "lynx.png",
+      "name": "scope.png",
       "metadata": {
         "count": 2,
         "label": "fixture",
@@ -179,7 +179,7 @@
   },
   "embedding_request": {
     "texts": [
-      "lynx",
+      "scope",
       "wild cat"
     ],
     "options": {
@@ -219,7 +219,7 @@
     }
   },
   "image_request": {
-    "prompt": "A lynx in snow",
+    "prompt": "A scope in snow",
     "options": {
       "model": "image-model",
       "negative_prompt": "text",
@@ -246,7 +246,7 @@
         },
         "metadata": {
           "extra": {
-            "revised_prompt": "A detailed lynx"
+            "revised_prompt": "A detailed scope"
           }
         }
       }
@@ -263,10 +263,10 @@
       "mime": "image/png",
       "source": {
         "kind": "bytes",
-        "bytes": "bHlueA=="
+        "bytes": "c2NvcGU="
       },
       "id": "media-1",
-      "name": "lynx.png",
+      "name": "scope.png",
       "metadata": {
         "count": 2,
         "label": "fixture",
@@ -279,7 +279,7 @@
       "mime": "audio/mpeg",
       "source": {
         "kind": "uri",
-        "uri": "https://example.com/lynx.mp3"
+        "uri": "https://example.com/scope.mp3"
       }
     },
     {
@@ -405,7 +405,7 @@
     }
   },
   "speech_request": {
-    "text": "Hello from Lynx.",
+    "text": "Hello from Scope.",
     "options": {
       "model": "speech-model",
       "voice": "alloy",
@@ -440,7 +440,7 @@
       "mime": "audio/mpeg",
       "source": {
         "kind": "uri",
-        "uri": "https://example.com/lynx.mp3"
+        "uri": "https://example.com/scope.mp3"
       }
     },
     "options": {
@@ -455,7 +455,7 @@
   },
   "transcription_response": {
     "output": {
-      "text": "A lynx.",
+      "text": "A scope.",
       "metadata": {
         "extra": {
           "duration": 1.5
@@ -474,15 +474,15 @@
     "documents": [
       {
         "id": "doc-1",
-        "text": "A lynx document.",
+        "text": "A scope document.",
         "media": {
           "mime": "image/png",
           "source": {
             "kind": "bytes",
-            "bytes": "bHlueA=="
+            "bytes": "c2NvcGU="
           },
           "id": "media-1",
-          "name": "lynx.png",
+          "name": "scope.png",
           "metadata": {
             "count": 2,
             "label": "fixture",
@@ -502,7 +502,7 @@
     ]
   },
   "vectorstore_search_request": {
-    "query": "lynx",
+    "query": "scope",
     "options": {
       "top_k": 10,
       "min_score": 0.75
@@ -513,15 +513,15 @@
       {
         "document": {
           "id": "doc-1",
-          "text": "A lynx document.",
+          "text": "A scope document.",
           "media": {
             "mime": "image/png",
             "source": {
               "kind": "bytes",
-              "bytes": "bHlueA=="
+              "bytes": "c2NvcGU="
             },
             "id": "media-1",
-            "name": "lynx.png",
+            "name": "scope.png",
             "metadata": {
               "count": 2,
               "label": "fixture",

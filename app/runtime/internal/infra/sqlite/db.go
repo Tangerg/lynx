@@ -15,7 +15,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )

@@ -28,10 +28,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // messageDispatcher is the dispatch surface this transport needs: route

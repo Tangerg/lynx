@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // fakeKnowledgeStore is a workspace knowledge store recording the coordinator's

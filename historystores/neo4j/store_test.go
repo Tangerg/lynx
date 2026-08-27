@@ -6,7 +6,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	neo4jstore "github.com/Tangerg/lynx/historystores/neo4j"
+	neo4jstore "github.com/Tangerg/scope/historystores/neo4j"
 )
 
 // stubDriver is a non-nil but never-used DriverWithContext for tests

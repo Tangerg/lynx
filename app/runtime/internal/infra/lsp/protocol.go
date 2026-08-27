@@ -168,7 +168,7 @@ type workspaceSymbolParams struct {
 	Query string `json:"query"`
 }
 
-// configurationItem is the server's request for one settings scope. Lynx has
+// configurationItem is the server's request for one settings scope. Scope has
 // no LSP-specific settings, but decoding the shape still prevents malformed
 // requests from being acknowledged as valid configuration queries.
 type configurationItem struct {

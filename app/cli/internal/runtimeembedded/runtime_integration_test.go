@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
-	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/feedback"
-	"github.com/Tangerg/lynx/app/cli/internal/goal"
-	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
-	"github.com/Tangerg/lynx/app/cli/internal/mcp"
-	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
-	"github.com/Tangerg/lynx/app/cli/internal/schedule"
-	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
-	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agentmemory"
+	"github.com/Tangerg/scope/app/cli/internal/changefeed"
+	"github.com/Tangerg/scope/app/cli/internal/feedback"
+	"github.com/Tangerg/scope/app/cli/internal/goal"
+	"github.com/Tangerg/scope/app/cli/internal/knowledge"
+	"github.com/Tangerg/scope/app/cli/internal/mcp"
+	"github.com/Tangerg/scope/app/cli/internal/modelconfig"
+	"github.com/Tangerg/scope/app/cli/internal/schedule"
+	"github.com/Tangerg/scope/app/cli/internal/sessiontransfer"
+	workspaceapi "github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {

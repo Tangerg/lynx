@@ -3,8 +3,8 @@ package vespa_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/vespa"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/vespa"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

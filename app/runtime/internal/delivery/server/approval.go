@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // GetApprovalMode returns the runtime's default tool-permission stance

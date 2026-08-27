@@ -9,7 +9,7 @@ The production path uses `app/runtime`'s public in-process `embedded` binding. T
 From this directory:
 
 ```sh
-# From the Lynx worktree, app/runtime/config/config.yaml is discovered as the
+# From the Scope worktree, app/runtime/config/config.yaml is discovered as the
 # development fallback. The CLI defaults match it: DeepSeek / deepseek-v4-flash.
 go run .
 go run . run "explain why this test is flaky"

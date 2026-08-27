@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/etl"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 )
 
 func TestFormatterFunc(t *testing.T) {

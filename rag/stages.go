@@ -8,7 +8,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 var (

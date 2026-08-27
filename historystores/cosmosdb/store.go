@@ -13,8 +13,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
 )
 
 // StoreConfig configures [NewStore]. Only [StoreConfig.Container] is required.

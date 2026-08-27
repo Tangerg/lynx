@@ -16,7 +16,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 const debounce = 100 * time.Millisecond

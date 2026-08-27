@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // toolListTarget is a connected server/session pair snapshotted under the lock

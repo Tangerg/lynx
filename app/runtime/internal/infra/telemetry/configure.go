@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	otelslog "github.com/Tangerg/lynx/otel/slog"
+	otelslog "github.com/Tangerg/scope/otel/slog"
 )
 
 // scopeName names the slog→OTel logs bridge's instrumentation scope.

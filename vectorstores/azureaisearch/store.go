@@ -13,12 +13,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // SimilarityMetric records the metric configured on the existing Azure AI
@@ -48,7 +48,7 @@ func (s SimilarityMetric) score(raw float64) vectorstore.Score {
 	switch s {
 	case SimilarityCosine:
 		// Azure emits 1/(1+cosine_distance). Recover cosine similarity,
-		// then apply Lynx's [-1,1] to [0,1] normalization.
+		// then apply Scope's [-1,1] to [0,1] normalization.
 		return vectorstore.ScoreFromCosineSimilarity(2 - 1/raw)
 	case SimilarityDot, SimilarityEuclidean:
 		// Azure documents both native vector scores as [0,1].
@@ -63,7 +63,7 @@ const (
 
 	// DefaultAPIVersion targets the GA "2024-07-01" REST surface, the
 	// first stable release that exposes the typed vector-query
-	// payload used by the Lynx store.
+	// payload used by the Scope store.
 	DefaultAPIVersion = "2024-07-01"
 
 	// DefaultContentField / DefaultEmbeddingField / DefaultIDField

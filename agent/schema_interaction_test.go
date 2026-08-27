@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestSchemaForAcceptsInteractionProviderMetadataAndReasoningSignature(t *testing.T) {

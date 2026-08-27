@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 type stateFixture struct {

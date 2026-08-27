@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/program"
 
-	"github.com/Tangerg/lynx/app/cli/internal/mcp"
+	"github.com/Tangerg/scope/app/cli/internal/mcp"
 )
 
 func TestMCPFormRejectsSubmissionFromAReplacedStepPresentation(t *testing.T) {

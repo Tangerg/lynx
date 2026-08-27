@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
 )
 
 func TestRunCapabilitiesHasOneDurableRepresentation(t *testing.T) {

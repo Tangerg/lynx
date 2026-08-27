@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
 )
 
 // The TypeScript validator is COMPILED FROM THE SCHEMA TREE, for the same reason

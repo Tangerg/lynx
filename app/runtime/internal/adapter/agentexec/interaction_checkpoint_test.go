@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 func TestInteractionPendingSteersRoundTripCanonicalContent(t *testing.T) {

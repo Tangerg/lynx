@@ -3,8 +3,8 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // validateToolCatalog rejects model-facing name collisions across live MCP

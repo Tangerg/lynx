@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ProblemDetailed is implemented by an internal service error that contributes

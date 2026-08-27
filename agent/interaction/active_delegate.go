@@ -4,8 +4,8 @@ import (
 	jsonv2 "encoding/json/v2"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/core/chat"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // ActiveDelegateChild is the immutable Interaction-owned attribution of one

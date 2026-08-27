@@ -15,11 +15,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	deliveryserver "github.com/Tangerg/scope/app/runtime/internal/delivery/server"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // TestPlanMutationHasOneOwner freezes the P16 Plan vertical: aggregate fields
@@ -370,11 +370,11 @@ func TestSharedCapabilitiesStayPure(t *testing.T) {
 	} {
 		forbidExternalImports(t, filepath.Join(root, "internal", name), []string{
 			domainPkg,
-			"github.com/Tangerg/lynx/app/runtime/internal/application",
-			"github.com/Tangerg/lynx/app/runtime/internal/adapter",
-			"github.com/Tangerg/lynx/app/runtime/internal/infra",
-			"github.com/Tangerg/lynx/app/runtime/internal/delivery",
-			"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+			"github.com/Tangerg/scope/app/runtime/internal/application",
+			"github.com/Tangerg/scope/app/runtime/internal/adapter",
+			"github.com/Tangerg/scope/app/runtime/internal/infra",
+			"github.com/Tangerg/scope/app/runtime/internal/delivery",
+			"github.com/Tangerg/scope/app/runtime/internal/bootstrap",
 		})
 	}
 }
@@ -387,10 +387,10 @@ func TestApplicationMechanismsStayApplicationOwned(t *testing.T) {
 	for _, name := range []string{"opaquetoken", "pagination", "taskgroup"} {
 		forbidExternalImports(t, filepath.Join(root, "internal", "application", name), []string{
 			domainPkg,
-			"github.com/Tangerg/lynx/app/runtime/internal/adapter",
-			"github.com/Tangerg/lynx/app/runtime/internal/infra",
-			"github.com/Tangerg/lynx/app/runtime/internal/delivery",
-			"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+			"github.com/Tangerg/scope/app/runtime/internal/adapter",
+			"github.com/Tangerg/scope/app/runtime/internal/infra",
+			"github.com/Tangerg/scope/app/runtime/internal/delivery",
+			"github.com/Tangerg/scope/app/runtime/internal/bootstrap",
 		})
 	}
 }
@@ -404,8 +404,8 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"),
 		append([]string{
-			"github.com/Tangerg/lynx/agent",
-			"github.com/Tangerg/lynx/core/chatclient",
+			"github.com/Tangerg/scope/agent",
+			"github.com/Tangerg/scope/core/chatclient",
 		}, frameworkImports...))
 }
 
@@ -456,8 +456,8 @@ func TestApplicationDoesNotInterpretExecutorContinuationState(t *testing.T) {
 func TestAgentFrameworkStaysBehindAgentexec(t *testing.T) {
 	const agentexecDir = "internal/adapter/agentexec"
 	allowedImports := map[string]struct{}{
-		"github.com/Tangerg/lynx/agent":             {},
-		"github.com/Tangerg/lynx/agent/interaction": {},
+		"github.com/Tangerg/scope/agent":             {},
+		"github.com/Tangerg/scope/agent/interaction": {},
 	}
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
@@ -481,8 +481,8 @@ func TestAgentFrameworkStaysBehindAgentexec(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath != "github.com/Tangerg/lynx/agent" &&
-				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent/") {
+			if importPath != "github.com/Tangerg/scope/agent" &&
+				!strings.HasPrefix(importPath, "github.com/Tangerg/scope/agent/") {
 				continue
 			}
 			relativePath, relErr := filepath.Rel(root, path)
@@ -515,15 +515,15 @@ func TestDomainStaysPure(t *testing.T) {
 	root := moduleRoot(t)
 	domain := filepath.Join(root, "internal", "domain")
 	forbidExternalImports(t, domain, append(
-		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent"},
+		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/scope/agent"},
 		crossRingCapabilityImports...,
 	))
 	forbidTestImports(t, domain, []string{
-		"github.com/Tangerg/lynx/app/runtime/internal/application",
-		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
-		"github.com/Tangerg/lynx/app/runtime/internal/infra",
-		"github.com/Tangerg/lynx/app/runtime/internal/delivery",
-		"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+		"github.com/Tangerg/scope/app/runtime/internal/application",
+		"github.com/Tangerg/scope/app/runtime/internal/adapter",
+		"github.com/Tangerg/scope/app/runtime/internal/infra",
+		"github.com/Tangerg/scope/app/runtime/internal/delivery",
+		"github.com/Tangerg/scope/app/runtime/internal/bootstrap",
 	})
 }
 
@@ -541,7 +541,7 @@ func TestDeliveryStaysFrameworkFree(t *testing.T) {
 // data, but it must not plan, rebuild, assert, or steer concrete Agent execution
 // handles.
 func TestDeliveryDoesNotControlAgentExecutions(t *testing.T) {
-	const agentExecPkg = "github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	const agentExecPkg = "github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
 	root := moduleRoot(t)
 	delivery := filepath.Join(root, "internal", "delivery")
 	forbidExternalImports(t, delivery, []string{agentExecPkg})
@@ -588,9 +588,9 @@ func TestAmbientRuntimePathsStayAtProcessComposition(t *testing.T) {
 func TestDeliveryDoesNotBypassWorkspaceUseCases(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), []string{
-		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace",
-		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath",
-		"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource",
+		"github.com/Tangerg/scope/app/runtime/internal/adapter/workspace",
+		"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath",
+		"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource",
 		"github.com/fsnotify/fsnotify",
 	})
 }
@@ -602,7 +602,7 @@ func TestDeliveryDoesNotBypassWorkspaceUseCases(t *testing.T) {
 func TestWorkspaceFileReadsDoNotInheritModelExecutorSemantics(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "adapter", "workspace"), []string{
-		"github.com/Tangerg/lynx/tools/fs",
+		"github.com/Tangerg/scope/tools/fs",
 	})
 }
 
@@ -619,7 +619,7 @@ func TestModelSearchUsesTheFiniteWorkspaceCorpus(t *testing.T) {
 	})
 	forbidExternalImports(t, filepath.Join(toolset, "bounded_search.go"), []string{
 		"os/exec",
-		"github.com/Tangerg/lynx/tools/fs",
+		"github.com/Tangerg/scope/tools/fs",
 	})
 }
 
@@ -658,7 +658,7 @@ func TestProductSessionsDoNotCarryAgentContinuation(t *testing.T) {
 			return err
 		}
 		for _, imp := range file.Imports {
-			if strings.HasPrefix(strings.Trim(imp.Path.Value, `"`), "github.com/Tangerg/lynx/agent/") {
+			if strings.HasPrefix(strings.Trim(imp.Path.Value, `"`), "github.com/Tangerg/scope/agent/") {
 				rel, _ := filepath.Rel(root, path)
 				t.Errorf("%s: product sessions must not import Agent runtime packages", rel)
 			}
@@ -693,7 +693,7 @@ func TestProductSessionsDoNotCarryAgentContinuation(t *testing.T) {
 func TestDeliveryDoesNotOwnModelPolicy(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "server"),
-		[]string{"github.com/Tangerg/lynx/models/catalog"})
+		[]string{"github.com/Tangerg/scope/models/catalog"})
 }
 
 // TestApplicationDoesNotDependOnConcreteAgentEngine keeps the Agent runtime
@@ -701,7 +701,7 @@ func TestDeliveryDoesNotOwnModelPolicy(t *testing.T) {
 // ports and must not regain a dependency on the concrete agentexec Engine or
 // one of its implementation subpackages.
 func TestApplicationDoesNotDependOnConcreteAgentEngine(t *testing.T) {
-	const agentExecPkg = "github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	const agentExecPkg = "github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"), []string{agentExecPkg})
 }
@@ -765,8 +765,8 @@ func TestAgentExecDelegatesManagedExecution(t *testing.T) {
 func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "adapter", "toolset"), []string{
-		"github.com/Tangerg/lynx/a2a",
-		"github.com/Tangerg/lynx/mcp",
+		"github.com/Tangerg/scope/a2a",
+		"github.com/Tangerg/scope/mcp",
 		"github.com/a2aproject/a2a-go",
 		"github.com/modelcontextprotocol/go-sdk",
 		"github.com/mark3labs/mcp-go",
@@ -942,7 +942,7 @@ func collectStructDeclarations(root string) (map[string]*ast.StructType, error) 
 func TestDeliveryHoldsNoRunLifecycleState(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "delivery", "server")
-	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"})
+	forbidExternalImports(t, dir, []string{"github.com/Tangerg/scope/app/runtime/internal/application/taskgroup"})
 
 	// taskgroup.Group is also import-forbidden above; context.CancelFunc and
 	// runs.Registry cover the rule's "cancel func" + "run registry" clauses so a
@@ -1032,8 +1032,8 @@ func TestProtocolStaysWireOnly(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "protocol"),
 		[]string{
-			"github.com/Tangerg/lynx/app/runtime/internal/domain",
-			"github.com/Tangerg/lynx/app/runtime/internal/application",
+			"github.com/Tangerg/scope/app/runtime/internal/domain",
+			"github.com/Tangerg/scope/app/runtime/internal/application",
 		})
 }
 
@@ -1224,10 +1224,10 @@ func TestDeliveryProjectionUsesOneVerb(t *testing.T) {
 func TestDeliveryServerDependsOnUseCaseBoundaries(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "server"), []string{
-		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
-		"github.com/Tangerg/lynx/app/runtime/internal/infra",
-		"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
-		"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
+		"github.com/Tangerg/scope/app/runtime/internal/adapter",
+		"github.com/Tangerg/scope/app/runtime/internal/infra",
+		"github.com/Tangerg/scope/app/runtime/internal/bootstrap",
+		"github.com/Tangerg/scope/app/runtime/internal/idempotency",
 	})
 }
 
@@ -1515,7 +1515,7 @@ func TestTranscriptItemSnapshotStaysAtTechnicalBoundaries(t *testing.T) {
 		aliases := make(map[string]struct{})
 		for _, imported := range file.Imports {
 			importPath, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || importPath != "github.com/Tangerg/lynx/app/runtime/internal/domain/transcript" {
+			if err != nil || importPath != "github.com/Tangerg/scope/app/runtime/internal/domain/transcript" {
 				continue
 			}
 			alias := "transcript"
@@ -1739,23 +1739,23 @@ func TestRunLifecycleStateStaysConcrete(t *testing.T) {
 }
 
 var crossRingCapabilityImports = []string{
-	"github.com/Tangerg/lynx/app/runtime/internal/completion",
-	"github.com/Tangerg/lynx/app/runtime/internal/httporigin",
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
+	"github.com/Tangerg/scope/app/runtime/internal/completion",
+	"github.com/Tangerg/scope/app/runtime/internal/httporigin",
+	"github.com/Tangerg/scope/app/runtime/internal/idempotency",
 }
 
 // domainPkg is the bounded-context ring. Prefix-matched.
-const domainPkg = "github.com/Tangerg/lynx/app/runtime/internal/domain"
+const domainPkg = "github.com/Tangerg/scope/app/runtime/internal/domain"
 
 // protocolPkg is the wire-type package; it must stay pure wire (no domain /
 // application import) so protocol types never leak inward (§16 rule 10).
-const protocolPkg = "github.com/Tangerg/lynx/app/runtime/protocol"
+const protocolPkg = "github.com/Tangerg/scope/app/runtime/protocol"
 
 // externalSDKs are the external agent-SDK / driver / framework libraries the
 // inner + delivery rings must never import directly (the internal infra edges are
 // covered by the ring rule). Prefix-matched.
 var externalSDKs = []string{
-	"github.com/Tangerg/lynx/agent",
+	"github.com/Tangerg/scope/agent",
 	"github.com/fsnotify/fsnotify",
 	"modernc.org/sqlite",
 	"github.com/go-git",
@@ -1777,8 +1777,8 @@ var frameworkImports = []string{
 	"github.com/go-git",
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
-	"github.com/Tangerg/lynx/core/history",
-	"github.com/Tangerg/lynx/models/catalog",
+	"github.com/Tangerg/scope/core/history",
+	"github.com/Tangerg/scope/models/catalog",
 	"gopkg.in/yaml.v3",
 }
 

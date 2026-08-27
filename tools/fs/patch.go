@@ -49,7 +49,7 @@ func (u unifiedPatch) duplicatePath() string {
 	return ""
 }
 
-// filePatch is Lynx's execution view of an upstream parsed Git/unified diff.
+// filePatch is Scope's execution view of an upstream parsed Git/unified diff.
 // It owns filesystem endpoints while gitdiff owns syntax and hunk semantics.
 type filePatch struct {
 	parsed  *gitdiff.File

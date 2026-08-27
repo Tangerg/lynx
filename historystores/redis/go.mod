@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/historystores/redis
+module github.com/Tangerg/scope/historystores/redis
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260827031301-d8b9c6ddf518
+	github.com/Tangerg/scope/core v0.0.0-20260827031301-d8b9c6ddf518
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/samber/lo v1.53.0
 )

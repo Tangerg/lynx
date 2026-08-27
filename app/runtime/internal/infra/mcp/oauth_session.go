@@ -16,7 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"golang.org/x/oauth2"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/httporigin"
+	"github.com/Tangerg/scope/app/runtime/internal/httporigin"
 )
 
 // OAuthSessionStore is the durable boundary for MCP OAuth credentials. The

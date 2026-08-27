@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/teardown"
 )
 
 func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {

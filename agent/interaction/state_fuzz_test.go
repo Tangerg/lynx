@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/core/chat"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 type fuzzDelegateInput struct {

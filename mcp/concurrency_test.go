@@ -5,7 +5,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 func TestAnnotatedReadOnlyConcurrency(t *testing.T) {
@@ -39,7 +39,7 @@ func TestAnnotatedReadOnlyConcurrency(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			key, concurrent := lynxmcp.AnnotatedReadOnlyConcurrency("source", "tool", test.annotations, `{"id":"one"}`)
+			key, concurrent := scopemcp.AnnotatedReadOnlyConcurrency("source", "tool", test.annotations, `{"id":"one"}`)
 			if key != "" || concurrent != test.concurrent {
 				t.Fatalf("AnnotatedReadOnlyConcurrency() = %q, %t, want empty key, %t", key, concurrent, test.concurrent)
 			}

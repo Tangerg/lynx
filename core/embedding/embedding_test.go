@@ -5,12 +5,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestModelFuncAdaptsCall(t *testing.T) {
-	request, err := embedding.NewRequest([]string{"lynx"})
+	request, err := embedding.NewRequest([]string{"scope"})
 	if err != nil {
 		t.Fatal(err)
 	}

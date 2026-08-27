@@ -6,9 +6,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	skillspec "github.com/Tangerg/lynx/skills"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
 )
 
 // renderProposal encodes a domain proposal into the SKILL.md storage format. The

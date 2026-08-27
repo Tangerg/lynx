@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/application/approvals"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
 // TerminalResource is a process-owned adapter whose Close call is one-shot:

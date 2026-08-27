@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/moderation"
 )
 
 func TestModelFunc(t *testing.T) {

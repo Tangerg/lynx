@@ -3,8 +3,8 @@ package bedrockkb_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/bedrockkb"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/bedrockkb"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

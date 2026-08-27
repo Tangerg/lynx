@@ -7,8 +7,8 @@ import (
 
 	"github.com/samber/lo"
 
-	corevs "github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	corevs "github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store filter")

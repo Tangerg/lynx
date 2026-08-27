@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 var _ web.Fetcher = (*Client)(nil)

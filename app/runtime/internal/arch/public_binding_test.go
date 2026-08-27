@@ -78,21 +78,21 @@ func TestPublicBindingsCompileForAnExternalModule(t *testing.T) {
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/app/runtime v0.0.0
-	github.com/Tangerg/lynx/app/runtime/localruntime v0.0.0
+	github.com/Tangerg/scope/app/runtime v0.0.0
+	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0
 )
 
-replace github.com/Tangerg/lynx/app/runtime => %s
-replace github.com/Tangerg/lynx/app/runtime/localruntime => %s
+replace github.com/Tangerg/scope/app/runtime => %s
+replace github.com/Tangerg/scope/app/runtime/localruntime => %s
 `, filepath.ToSlash(moduleRoot(t)), filepath.ToSlash(filepath.Join(moduleRoot(t), "localruntime")))
 	source := `package runtimeconsumer
 
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/localruntime"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 var _ = embedded.Open

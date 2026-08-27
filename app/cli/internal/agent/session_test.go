@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 func testWorkspace(path string) workspace.Workspace {

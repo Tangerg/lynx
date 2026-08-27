@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 // integrationEmbeddingProbe is the standard real-API embedding smoke

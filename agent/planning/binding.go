@@ -3,7 +3,7 @@ package planning
 import (
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 type bindingTarget uint8

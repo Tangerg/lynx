@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 type AudioTTSModelConfig struct {

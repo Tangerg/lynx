@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/providerregistry"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/providerregistry"
+	"github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/config"
+	mcpserversvc "github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/llm"
+	"github.com/Tangerg/scope/core/chatclient"
 )
 
 // LoadConfig loads the app config and resolves provider defaults plus env-key

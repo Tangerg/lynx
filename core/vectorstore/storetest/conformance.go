@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 // Capabilities is the exact vectorstore interface set a backend promises.

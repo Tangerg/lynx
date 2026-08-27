@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/completion"
+	"github.com/Tangerg/scope/app/runtime/internal/completion"
 )
 
 // Sequence owns terminal resource steps in creation order. Shutdown starts one

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 // Errors a [Runtime] reports by identity rather than by message, mirroring the

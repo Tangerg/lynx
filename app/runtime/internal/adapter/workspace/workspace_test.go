@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/git"
 )
 
 func TestSnapshotPreservesCancellation(t *testing.T) {

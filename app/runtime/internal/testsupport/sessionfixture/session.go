@@ -5,8 +5,8 @@ package sessionfixture
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 // MustRestore fills irrelevant lifecycle defaults, restores snapshot, and

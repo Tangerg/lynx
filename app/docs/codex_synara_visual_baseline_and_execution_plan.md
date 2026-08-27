@@ -1,9 +1,9 @@
-# Lynx Desktop × Synara 视觉基线与执行计划
+# Scope Desktop × Synara 视觉基线与执行计划
 
 > 作者：Codex
 > 状态：`W7.0–W7.5 DONE`
 > 审计日期：2026-07-31
-> Lynx 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
+> Scope 基线：`cecc0510955ad39b31e5ec7cc16ee488d75c08c3`
 > Synara 基线：`54dff37d91aabf74e85dd42bb47e1a237a02f106`
 > W7.1 实施提交：`051ea578d`
 > W7.2 实施提交：`8bb0fa7ba`
@@ -21,7 +21,7 @@
 
 1. Synara 哪些设计应当复刻；
 2. 哪些业务结构、状态管理和平台实现不得复制；
-3. Lynx 当前与目标相差什么；
+3. Scope 当前与目标相差什么；
 4. 每个差异由哪个后续原子 slice 根治；
 5. 后续如何证明“像素级、可访问、稳定、没有架构倒退”。
 
@@ -42,7 +42,7 @@ responsive、accessibility、Wails/WebView 与 visual regression closure。W7
 
 ### 1.1 一句话目标
 
-以 Synara 当前桌面界面为视觉和交互品质基准，把 Lynx 打磨成：
+以 Synara 当前桌面界面为视觉和交互品质基准，把 Scope 打磨成：
 
 ```text
 Work Index       → 用户定位工作、Session 与注意力
@@ -50,7 +50,7 @@ Agent Narrative  → 用户理解 Agent 正在做什么、为什么、做到哪�
 Context Dock     → 用户检查文件、差异、时间线和运行证据
 ```
 
-同时保持 Lynx 已经建立的 Clean Architecture、DDD 限界上下文、插件边界和
+同时保持 Scope 已经建立的 Clean Architecture、DDD 限界上下文、插件边界和
 `Session → Run → Segment → Item` 心智模型，不复制 Synara 的领域模型、协议、
 store、路由或组件组织。
 
@@ -73,7 +73,7 @@ store、路由或组件组织。
 
 ### 1.3 非目标
 
-- 不把 Synara 的 `Studio / Projects / Threads / Environment` 业务分类原样搬进 Lynx；
+- 不把 Synara 的 `Studio / Projects / Threads / Environment` 业务分类原样搬进 Scope；
 - 不复制 Synara 的 Zustand/store、query、router、WebSocket 或 Electron 边界；
 - 不为了截图相似而牺牲 Wails window chrome、可访问性或最小窗口稳定性；
 - 不把全部视觉规则塞进一个大组件或一个无限增长的全局 CSS 文件；
@@ -89,11 +89,11 @@ store、路由或组件组织。
 本轮同时使用了三类证据：
 
 1. 两个仓库在上述 commit 的源码与设计文档；
-2. Synara 隔离实例和 Lynx standalone frontend 的真实 DOM、computed style 与交互树；
+2. Synara 隔离实例和 Scope standalone frontend 的真实 DOM、computed style 与交互树；
 3. 1440×900 固定 CSS viewport 的 light / dark 实拍。
 
 Synara 使用独立临时 home、非默认端口和未登录配置启动；没有读取或改写用户现有
-Synara 数据。Lynx 使用独立 Vite 端口启动。两边截图均为 1× CSS viewport，动态通知
+Synara 数据。Scope 使用独立 Vite 端口启动。两边截图均为 1× CSS viewport，动态通知
 只作为当前状态证据，不作为后续 pixel-diff 的稳定 golden。
 
 ### 2.2 当前实拍
@@ -106,11 +106,11 @@ Synara 当前 dark：
 
 ![Synara current dark](assets/codex_w7_visual_baseline/synara-current-1440x900-dark.png)
 
-Lynx standalone 当前 light：
+Scope standalone 当前 light：
 
-![Lynx current light](assets/codex_w7_visual_baseline/lynx-current-1440x900-light.png)
+![Scope current light](assets/codex_w7_visual_baseline/scope-current-1440x900-light.png)
 
-Lynx standalone 截图只能证明 shell 首屏和 loading 行为；没有 Wails / Runtime 时，
+Scope standalone 截图只能证明 shell 首屏和 loading 行为；没有 Wails / Runtime 时，
 主 Agent 面板不会形成可验收的完整状态。因此它是审计证据，不是目标 golden。W7.1
 必须建立 deterministic visual fixture，后续不能继续依赖“本机正好有一条 Session”。
 
@@ -132,7 +132,7 @@ Synara 在 1440×900、sidebar 展开时：
 | Sidebar minimum  | `208px`                               |
 | Main width floor | `640px`                               |
 
-Lynx 当前已与参考同轴的几何：
+Scope 当前已与参考同轴的几何：
 
 - sidebar default `256px`、minimum `208px`；
 - main floor `640px`；
@@ -170,7 +170,7 @@ Lynx 当前已与参考同轴的几何：
 
 ### 3.1 页面与表面
 
-| Synara 视觉表面           | Lynx 产品表面                          | 复刻内容                                      | 不复制内容                             |
+| Synara 视觉表面           | Scope 产品表面                          | 复刻内容                                      | 不复制内容                             |
 | ------------------------- | -------------------------------------- | --------------------------------------------- | -------------------------------------- |
 | Projects / thread sidebar | Work Index                             | drawer、分组、行密度、选中/悬停、折叠、resize | Studio/Projects 领域分类、thread store |
 | Chat surface              | Agent Narrative                        | header、reading column、composer、scroll      | Synara message / provider lifecycle    |
@@ -179,7 +179,7 @@ Lynx 当前已与参考同轴的几何：
 | Diff / terminal / browser | Workspace view plugins                 | 容器几何、surface、toolbar 语言               | Electron panel implementation          |
 | Settings                  | Settings plugin contexts               | list、section、表单密度、键盘提示             | Synara settings schema                 |
 | Toast / dialogs / menus   | Base UI overlays                       | surface、edge、motion、placement              | 业务命令与副作用                       |
-| Kanban / PR / Automations | 可选 workspace / schedule capabilities | 导航层级与信息密度                            | 未进入 Lynx 产品模型的功能             |
+| Kanban / PR / Automations | 可选 workspace / schedule capabilities | 导航层级与信息密度                            | 未进入 Scope 产品模型的功能             |
 
 ### 3.2 状态归属
 
@@ -224,11 +224,11 @@ UI 只翻译下列权威事实，不补造事实：
 
 ## 4. 已冻结的视觉决策
 
-下面是 W7 的目标，不再把 Synara 当前值、Lynx 当前值和历史文档并列为三种“可选答案”。
+下面是 W7 的目标，不再把 Synara 当前值、Scope 当前值和历史文档并列为三种“可选答案”。
 
 ### V-01：参考边界
 
-复制 Synara 的视觉语言、交互节奏和信息密度；保留 Lynx 的产品语义、状态作者、插件
+复制 Synara 的视觉语言、交互节奏和信息密度；保留 Scope 的产品语义、状态作者、插件
 边界和 Wails 平台实现。视觉相似不授权跨限界上下文取数。
 
 ### V-02：Shell 与主卡片
@@ -243,7 +243,7 @@ UI 只翻译下列权威事实，不补造事实：
 - sidebar collapse 后 seam 与 shadow 同步消失；
 - drawer、gap、card edge 使用同一个 `300ms` motion token。
 
-当前 Lynx production 把 seam 写成全高直线，并在注释中宣称圆角是坏设计；同一文件的
+当前 Scope production 把 seam 写成全高直线，并在注释中宣称圆角是坏设计；同一文件的
 上层说明又宣称“rounded on the seam side”。这是明确的坏味道。以用户要求和当前 Synara
 实测为准：**W7.1/W7.2 改为 14.4px 圆角 seam，并删除方角解释，不保留开关。**
 
@@ -263,14 +263,14 @@ UI 只翻译下列权威事实，不补造事实：
 字体使用原生系统 UI stack；代码使用稳定的 mono stack。几何不随字体 preference 一起
 缩放，用户仍可在受控范围内独立调节字体和 density。
 
-Lynx 当前默认是 `11/12/13/14/15px`，code `13px`，相对参考明显偏大。后续直接替换
+Scope 当前默认是 `11/12/13/14/15px`，code `13px`，相对参考明显偏大。后续直接替换
 默认 ladder，不增加 `synara density` 之类的兼容 preset。
 
 ### V-04：Density
 
 comfortable 默认目标：
 
-| 项目            | Synara / 目标      | Lynx 当前   |
+| 项目            | Synara / 目标      | Scope 当前   |
 | --------------- | ------------------ | ----------- |
 | Sidebar row     | 28px               | 30px        |
 | Row gap         | 8px                | 8px         |
@@ -296,7 +296,7 @@ pointer-coarse 不得小于 44px；使用 pseudo hit area 或容器布局扩展�
 - focus 只增强 edge，不让整个 surface 上跳；
 - footer 使用 `6px / 8px` 目标 inset。
 
-Lynx 当前 `AgentComposerSurface` 说明“无 border、用 shadow ring 画边”，而全局 shadow
+Scope 当前 `AgentComposerSurface` 说明“无 border、用 shadow ring 画边”，而全局 shadow
 system 又说明 raised surface 应使用真实 border、shadow 只管 depth。这是第二个明确冲突。
 W7.1 必须选择单一机制：**真实 border + 单层方向性 depth shadow**，删除 shadow ring
 及其相反注释。
@@ -326,10 +326,10 @@ W7.1 必须选择单一机制：**真实 border + 单层方向性 depth shadow**
 ### V-08：Context Dock
 
 - 是 content card 内部真实列，不是盖住 Narrative 的 overlay；
-- light view 默认约 `420px`，review view 可保留 Lynx 的 `720px` 语义宽度；
+- light view 默认约 `420px`，review view 可保留 Scope 的 `720px` 语义宽度；
 - dock 不超过 row 的 50%，Narrative 保留至少 `420px`；
 - header、tab、divider 与主 chrome 共用 token；
-- Synara 的右侧面板只提供几何和交互参考，内容仍由 Lynx workspace plugins 提供；
+- Synara 的右侧面板只提供几何和交互参考，内容仍由 Scope workspace plugins 提供；
 - 每种 density 分别持久化 width，不用一个 width 同时服务 list 和 diff。
 
 ### V-09：Work Index
@@ -356,11 +356,11 @@ W7.1 必须选择单一机制：**真实 border + 单层方向性 depth shadow**
 
 ### V-11：Platform 与 accessibility
 
-以下是有意保留的 Lynx 差异：
+以下是有意保留的 Scope 差异：
 
 - Wails traffic-light gutter、window drag region 与 `--wails-draggable`；
 - Runtime endpoint / desktop bridge 边界；
-- Context Dock 的 Lynx plugin semantics；
+- Context Dock 的 Scope plugin semantics；
 - CJK locale、中文错误和 mixed-text 排版；
 - keyboard / ARIA / focus-visible / pointer-coarse 命中区；
 - reduced motion 与用户 appearance preference。
@@ -716,11 +716,11 @@ dock/settings visual fixtures
 
 | ID   | 分歧                           | 理由                                            | 状态     |
 | ---- | ------------------------------ | ----------------------------------------------- | -------- |
-| D-01 | Wails window chrome            | Lynx 平台边界，不复制 Electron API              | ACCEPTED |
-| D-02 | Work Index 信息架构            | Lynx 使用 Project / Session，不复制 Studio 分类 | ACCEPTED |
-| D-03 | Context Dock 内容              | 由 Lynx workspace plugins 与 Run evidence 驱动  | ACCEPTED |
+| D-01 | Wails window chrome            | Scope 平台边界，不复制 Electron API              | ACCEPTED |
+| D-02 | Work Index 信息架构            | Scope 使用 Project / Session，不复制 Studio 分类 | ACCEPTED |
+| D-03 | Context Dock 内容              | 由 Scope workspace plugins 与 Run evidence 驱动  | ACCEPTED |
 | D-04 | Run tree / HITL 语义           | 以 Runtime 权威模型为准，Synara 只提供视觉参考  | ACCEPTED |
-| D-05 | CJK、中文错误和 mixed text     | Lynx locale 与可读性要求                        | ACCEPTED |
+| D-05 | CJK、中文错误和 mixed text     | Scope locale 与可读性要求                        | ACCEPTED |
 | D-06 | 可访问性命中区可能大于可见控件 | 人体工程学和 pointer-coarse 要求                | ACCEPTED |
 | D-07 | Review dock 默认宽度 720px     | diff + navigator 的真实可读宽度                 | ACCEPTED |
 

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	anthropicprotocol "github.com/Tangerg/lynx/models/protocol/anthropic"
-	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	anthropicprotocol "github.com/Tangerg/scope/models/protocol/anthropic"
+	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 const (

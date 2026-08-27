@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/moderation"
-	"github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/moderation"
+	"github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func representativeWireContracts(t *testing.T) map[string]any {
@@ -25,14 +25,14 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		"label":  "fixture",
 		"nested": map[string]any{"enabled": true},
 	})
-	inlineMedia, err := media.NewBytes("image/png", []byte("lynx"))
+	inlineMedia, err := media.NewBytes("image/png", []byte("scope"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	inlineMedia.ID = "media-1"
-	inlineMedia.Name = "lynx.png"
+	inlineMedia.Name = "scope.png"
 	inlineMedia.Metadata = protocolMetadata.Clone()
-	uriMedia, err := media.NewURI("audio/mpeg", "https://example.com/lynx.mp3")
+	uriMedia, err := media.NewURI("audio/mpeg", "https://example.com/scope.mp3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 	mustSetChatExtension(t, chatRequest.Options.SetExtension("provider/request", map[string]any{"mode": "strict"}))
 
-	assistant := chat.NewAssistantMessage(chat.NewTextPart("A lynx."))
+	assistant := chat.NewAssistantMessage(chat.NewTextPart("A scope."))
 	chatResponse, err := chat.NewResponse(&chat.Output{
 		Message:      &assistant,
 		FinishReason: chat.FinishReasonStop,
@@ -108,7 +108,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 
 	doc := &document.Document{
 		ID:       "doc-1",
-		Text:     "A lynx document.",
+		Text:     "A scope document.",
 		Media:    inlineMedia,
 		Metadata: protocolMetadata.Clone(),
 	}
@@ -120,7 +120,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		t.Fatal(err)
 	}
 	embeddingRequest := &embedding.Request{
-		Texts: []string{"lynx", "wild cat"},
+		Texts: []string{"scope", "wild cat"},
 		Options: embedding.Options{
 			Model:      "embedding-model",
 			Dimensions: new(int64(3)),
@@ -143,7 +143,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 
 	imageRequest := &image.Request{
-		Prompt: "A lynx in snow",
+		Prompt: "A scope in snow",
 		Options: image.Options{
 			Model:          "image-model",
 			NegativePrompt: "text",
@@ -157,7 +157,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	imageResponse := &image.Response{
 		Outputs: []*image.Output{{
 			Media:    generatedMedia,
-			Metadata: &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed lynx"})},
+			Metadata: &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed scope"})},
 		}},
 		Metadata: &image.ResponseMetadata{
 			Created: 1700000001,
@@ -186,7 +186,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 
 	speechRequest := &speech.Request{
-		Text: "Hello from Lynx.",
+		Text: "Hello from Scope.",
 		Options: speech.Options{
 			Model:        "speech-model",
 			Voice:        "alloy",
@@ -217,7 +217,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 	transcriptionResponse := &transcription.Response{
 		Output: &transcription.Output{
-			Text:     "A lynx.",
+			Text:     "A scope.",
 			Metadata: &transcription.OutputMetadata{Extra: mustMetadata(t, map[string]any{"duration": 1.5})},
 		},
 		Metadata: &transcription.ResponseMetadata{
@@ -246,7 +246,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		"transcription_response":    transcriptionResponse,
 		"vectorstore_index_request": &vectorstore.IndexRequest{Documents: []*document.Document{doc}},
 		"vectorstore_search_request": vectorstore.SearchRequest{
-			Query: "lynx",
+			Query: "scope",
 			Options: vectorstore.SearchOptions{
 				TopK: 10, MinScore: 0.75, Filter: filter.EQ("kind", "animal"),
 			},

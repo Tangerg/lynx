@@ -3,7 +3,7 @@ package metadata_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func Example() {

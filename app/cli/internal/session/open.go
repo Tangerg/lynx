@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 type runtime interface {

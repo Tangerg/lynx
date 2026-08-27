@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // mustParseBinary parses src and asserts the result is a [*filter.BinaryExpr].
@@ -232,7 +232,7 @@ func TestSelectorPathIncludesBaseIdentifier(t *testing.T) {
 }
 
 func TestBinaryOperandsExposeSemanticValues(t *testing.T) {
-	expr := filter.EQ(filter.Index("profile", "name"), "lynx")
+	expr := filter.EQ(filter.Index("profile", "name"), "scope")
 	selector, err := expr.Selector()
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestBinaryOperandsExposeSemanticValues(t *testing.T) {
 		t.Fatalf("Path() = %v, %v", path, err)
 	}
 	value, err := expr.Value()
-	if err != nil || value != "lynx" {
+	if err != nil || value != "scope" {
 		t.Fatalf("Value() = %#v, %v", value, err)
 	}
 

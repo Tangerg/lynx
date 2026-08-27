@@ -13,7 +13,7 @@ import (
 	"slices"
 	"unicode/utf8"
 
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 // hooksRelPath is the cascade filename. Global lives at ~/.lyra/hooks.json; a

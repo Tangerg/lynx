@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	appRuns "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
-	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	appRuns "github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/itemfixture"
+	runfixture "github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/sessionfixture"
+	"github.com/Tangerg/scope/app/runtime/protocol"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // rollbackHarness wires a Server over a sqlite-backed stub: a real session

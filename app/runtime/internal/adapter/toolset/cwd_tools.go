@@ -1,9 +1,9 @@
 package toolset
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 // buildCWDTools instantiates the working-directory-bound filesystem capabilities,

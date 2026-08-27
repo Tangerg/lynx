@@ -3,7 +3,7 @@ package catalog_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/models/catalog"
 )
 
 func TestModels(t *testing.T) {

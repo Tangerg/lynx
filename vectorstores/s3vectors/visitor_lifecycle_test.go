@@ -3,8 +3,8 @@ package s3vectors_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/s3vectors"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/s3vectors"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

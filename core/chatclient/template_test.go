@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 func TestParseTemplateRejectsEmptyAndMalformedSource(t *testing.T) {

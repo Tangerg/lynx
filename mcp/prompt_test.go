@@ -5,12 +5,12 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/chat"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/core/chat"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 func TestPromptMessagesToChatPreservesContentKinds(t *testing.T) {
-	messages, err := lynxmcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{
+	messages, err := scopemcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{
 		{Role: "user", Content: &sdkmcp.TextContent{Text: "describe this"}},
 		{Role: "user", Content: &sdkmcp.ImageContent{MIMEType: "image/png", Data: []byte{1, 2, 3}}},
 		{Role: "assistant", Content: &sdkmcp.ResourceLink{URI: "https://example.com/report.pdf", Name: "report"}},
@@ -49,7 +49,7 @@ func TestPromptMessagesToChatRejectsLossyInput(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := lynxmcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{test.message}); err == nil {
+			if _, err := scopemcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{test.message}); err == nil {
 				t.Fatal("PromptMessagesToChat() error = nil")
 			}
 		})
@@ -57,7 +57,7 @@ func TestPromptMessagesToChatRejectsLossyInput(t *testing.T) {
 }
 
 func TestPromptMessagesToChatSkipsEmptyText(t *testing.T) {
-	messages, err := lynxmcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{
+	messages, err := scopemcp.PromptMessagesToChat([]*sdkmcp.PromptMessage{
 		{Role: "user", Content: &sdkmcp.TextContent{}},
 	})
 	if err != nil {

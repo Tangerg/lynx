@@ -755,7 +755,7 @@ export const ko: Record<string, string> = {
   "settings.pane.mcpServers": "MCP 서버",
   "settings.pane.hooks": "훅",
   "settings.pane.schedules": "일정",
-  "settings.appearance.hero": "테마, 대비, 타이포그래피, 모션이 Lynx의 사용감을 결정합니다.",
+  "settings.appearance.hero": "테마, 대비, 타이포그래피, 모션이 Scope의 사용감을 결정합니다.",
   "context.usage.aria": "컨텍스트 사용률: {{percent}}%",
   "context.usage.label": "컨텍스트 창:",
   "context.usage.statusFull": "{{percent}}% 사용됨",

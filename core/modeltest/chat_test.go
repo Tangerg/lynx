@@ -5,8 +5,8 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/modeltest"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/modeltest"
 )
 
 type scriptedChat struct{}

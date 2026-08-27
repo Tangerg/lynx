@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	toolapp "github.com/Tangerg/scope/app/runtime/internal/application/tools"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // toolRegistryFake is the diagnostic tool registry the tools coordinator drives.

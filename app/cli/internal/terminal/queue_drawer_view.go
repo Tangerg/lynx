@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/text"
 
-	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/scope/app/cli/internal/promptqueue"
 )
 
 func (q *queueDrawer) Place(space image.Point) layout.Placement {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // ErrInvalidResponse reports malformed provider response data.

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/runrecovery"
 )
 
 func TestRecoverReadsAFinishedRunAfterItsSegmentExpires(t *testing.T) {

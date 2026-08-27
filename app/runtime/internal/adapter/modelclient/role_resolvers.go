@@ -3,10 +3,10 @@ package modelclient
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	agentmemoryapp "github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // RoleSource is the read view a live specialized-model resolver needs. The

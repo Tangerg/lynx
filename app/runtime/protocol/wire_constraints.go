@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
 )
 
 // WireValidator is implemented by a DTO whose wire contract is stricter than its

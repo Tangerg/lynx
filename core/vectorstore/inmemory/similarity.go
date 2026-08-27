@@ -3,7 +3,7 @@ package inmemory
 import (
 	"math"
 
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 // Similarity scores two equal-length vectors; higher means more

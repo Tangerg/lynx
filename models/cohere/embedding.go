@@ -8,7 +8,7 @@ import (
 
 	cohere "github.com/cohere-ai/cohere-go/v2"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 type EmbeddingModelConfig struct {

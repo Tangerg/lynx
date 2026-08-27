@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	skillspec "github.com/Tangerg/lynx/skills"
+	skillspec "github.com/Tangerg/scope/skills"
 )
 
 var (

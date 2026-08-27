@@ -3,7 +3,7 @@ package openai_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestReasoningDetailsConfigValidate(t *testing.T) {

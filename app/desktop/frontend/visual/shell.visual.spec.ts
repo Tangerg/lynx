@@ -29,7 +29,7 @@ async function openShell(page: Page, route: ShellRoute): Promise<void> {
 async function waitForWorkIndexState(page: Page, state: VisualWorkIndexState): Promise<void> {
   const workIndex = page.getByRole("complementary", { name: "Work index" });
   if (state === "populated") {
-    await expect(workIndex.getByRole("button", { name: "lynx 6" })).toBeVisible();
+    await expect(workIndex.getByRole("button", { name: "scope 6" })).toBeVisible();
   } else if (state === "empty") {
     await expect(workIndex.getByText("No projects", { exact: true })).toBeVisible();
   } else if (state === "loading") {

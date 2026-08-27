@@ -1,10 +1,10 @@
-module github.com/Tangerg/lynx/etl/html
+module github.com/Tangerg/scope/etl/html
 
 go 1.27.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
-	github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2
+	github.com/Tangerg/scope/core v0.0.0-20260826083855-adf089f2e7f2
 	github.com/andybalholm/cascadia v1.3.4
 	github.com/samber/lo v1.53.0
 )

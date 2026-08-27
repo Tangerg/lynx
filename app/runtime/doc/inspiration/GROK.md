@@ -1,6 +1,6 @@
 # Grok Build 启发的能力吸纳 Backlog
 
-> **来源**：对 **Grok Build**（`grok`，xAI/SpaceXAI 的终端 AI coding agent，Rust，~70 个 `xai-*` crate 的 Cargo workspace；桌面克隆 `~/Desktop/grok-build`，其 `crates/codegen/xai-grok-pager/docs/user-guide/` 24 篇是可信的能力索引）的源码级对比分析。Grok Build 与 lyra 是**高度同构的两个生产 coding agent 运行时**（TUI/headless/ACP 三形态 vs lyra 的 desktop/headless）；本文档只收录"它工程化更细、而 lyra 值得搬"的点子，过 lynx 哲学筛子后落地。
+> **来源**：对 **Grok Build**（`grok`，xAI/SpaceXAI 的终端 AI coding agent，Rust，~70 个 `xai-*` crate 的 Cargo workspace；桌面克隆 `~/Desktop/grok-build`，其 `crates/codegen/xai-grok-pager/docs/user-guide/` 24 篇是可信的能力索引）的源码级对比分析。Grok Build 与 lyra 是**高度同构的两个生产 coding agent 运行时**（TUI/headless/ACP 三形态 vs lyra 的 desktop/headless）；本文档只收录"它工程化更细、而 lyra 值得搬"的点子，过 scope 哲学筛子后落地。
 >
 > **本文档职责**：给"满血上下文"实现会话提供每条吸纳项的 _为什么 / 目标 / 落点 / 计划 / 验收 / 风险 / 优先级 / 进度_，以及**刻意不吸**清单（防止未来会话重新论证）。方法与其余能力吸纳分析一致；当前架构基准以 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) 为准。跨应用合并排序与总索引见 [`README.md`](README.md)。
 >
@@ -15,7 +15,7 @@
 
 ## 0.1 筛选准则
 
-沿用 lynx 四道筛子：① **取思想、不取形态**（lyra 用 Go + `iter.Seq2` + `context.Context`，不引 Rust/tokio/`nono`/gitoxide，不抄 TUI）；② **不为多租户云**（单进程 in-house 后端、单本地用户、单 SQLite；分布式/水平扩展/多端 leader/云分发一律不吸，但单用户**安全 confinement 是要的**）；③ **不引双机制债**（lyra 刻意保持 skills/hooks/recipes/MCP/rules 分立，已删 queueStore 换 BeforeRound steer——重引须过高门槛）；④ **薄核优先**（运行时编排落 `app/runtime`，稳定 SPI 才下沉）。另守反向不变量：无 retry-layer/Transient 分类；用户填 provider key（不做 LLM-provider OAuth）；runtime 协议无 stdio transport。
+沿用 scope 四道筛子：① **取思想、不取形态**（lyra 用 Go + `iter.Seq2` + `context.Context`，不引 Rust/tokio/`nono`/gitoxide，不抄 TUI）；② **不为多租户云**（单进程 in-house 后端、单本地用户、单 SQLite；分布式/水平扩展/多端 leader/云分发一律不吸，但单用户**安全 confinement 是要的**）；③ **不引双机制债**（lyra 刻意保持 skills/hooks/recipes/MCP/rules 分立，已删 queueStore 换 BeforeRound steer——重引须过高门槛）；④ **薄核优先**（运行时编排落 `app/runtime`，稳定 SPI 才下沉）。另守反向不变量：无 retry-layer/Transient 分类；用户填 provider key（不做 LLM-provider OAuth）；runtime 协议无 stdio transport。
 
 ---
 

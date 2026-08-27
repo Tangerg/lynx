@@ -7,8 +7,8 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 var (

@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/vectorstores/postgres
+module github.com/Tangerg/scope/vectorstores/postgres
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pgvector/pgvector-go v0.4.1
 )

@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/rag
+module github.com/Tangerg/scope/rag
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260827081725-79f2213e2f91
+	github.com/Tangerg/scope/core v0.0.0-20260827081725-79f2213e2f91
 	github.com/samber/lo v1.53.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0

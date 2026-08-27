@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/oolong/components/kit"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 func (a *app) stashPrompt() error {

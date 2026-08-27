@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 // IndexRequest is one atomic indexing operation. It owns the complete

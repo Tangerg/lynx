@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListWorkspaceFiles projects a paged application workspace-file listing onto

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // WaitingSubtreeCancellationRequest carries the complete durable waiting tree

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/modeltest"
-	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/modeltest"
+	scopeopenai "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestCompatibleChat_CoreConformance(t *testing.T) {
@@ -21,13 +21,13 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			t.Helper()
 			server := newCoreChatServer(t)
 			t.Cleanup(server.Close)
-			adapter, err := lynxopenai.NewCompatibleChat(
-				lynxopenai.ChatConfig{
+			adapter, err := scopeopenai.NewCompatibleChat(
+				scopeopenai.ChatConfig{
 					APIKey:         "test-key",
 					DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
 					BaseURL:        server.URL,
 				},
-				lynxopenai.ReasoningContentDialect("test"),
+				scopeopenai.ReasoningContentDialect("test"),
 			)
 			if err != nil {
 				t.Fatalf("NewChat: %v", err)
@@ -40,7 +40,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 			if _, found := response.Metadata.Extra["test/openai_response"]; !found {
 				t.Fatal("compatible response did not preserve the provider-scoped official response")
 			}
-			if _, found := response.Metadata.Extra[lynxopenai.ResponseExtensionKey]; found {
+			if _, found := response.Metadata.Extra[scopeopenai.ResponseExtensionKey]; found {
 				t.Fatal("compatible response leaked into OpenAI's native extension namespace")
 			}
 			if response.Metadata.ID != "chatcmpl-core" || response.Metadata.Model != "gpt-5.2" {
@@ -80,7 +80,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 				if _, found := response.Metadata.Extra["test/openai_stream_chunk"]; !found {
 					t.Error("compatible stream did not preserve a provider-scoped official chunk")
 				}
-				if _, found := response.Metadata.Extra[lynxopenai.StreamChunkExtensionKey]; found {
+				if _, found := response.Metadata.Extra[scopeopenai.StreamChunkExtensionKey]; found {
 					t.Error("compatible stream leaked into OpenAI's native extension namespace")
 				}
 				finalUsage = response.Metadata.Usage
@@ -123,7 +123,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 				t.Fatalf("aggregated result = %#v", result)
 			}
 			call := result.Message.Parts[2].ToolCall
-			if result.Message.Parts[0].Text != "think " || result.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"lynx"}` {
+			if result.Message.Parts[0].Text != "think " || result.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"scope"}` {
 				t.Errorf("aggregated parts = %#v; call = %#v", result.Message.Parts, call)
 			}
 			if response.Metadata.Usage.InputTokens != 8 || response.Metadata.Usage.OutputTokens != 4 {
@@ -141,9 +141,9 @@ func TestCompatibleChatRejectsMultipleProviderChoices(t *testing.T) {
 		]
 	}`)
 	t.Cleanup(server.Close)
-	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
+	model, err := scopeopenai.NewCompatibleChat(scopeopenai.ChatConfig{
 		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
-	}, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
+	}, scopeopenai.Dialect{Provider: "test", TokenLimitField: scopeopenai.TokenLimitMaxTokens})
 	if err != nil {
 		t.Fatalf("NewCompatibleChat: %v", err)
 	}
@@ -161,9 +161,9 @@ func TestCompatibleChatRejectsResultCountOption(t *testing.T) {
 		t.Fatal("request must fail before provider I/O")
 	}))
 	t.Cleanup(server.Close)
-	model, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
+	model, err := scopeopenai.NewCompatibleChat(scopeopenai.ChatConfig{
 		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "gpt-5.2"},
-	}, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
+	}, scopeopenai.Dialect{Provider: "test", TokenLimitField: scopeopenai.TokenLimitMaxTokens})
 	if err != nil {
 		t.Fatalf("NewCompatibleChat: %v", err)
 	}
@@ -198,7 +198,7 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 	}
 	assistant := corechat.NewAssistantMessage(
 		corechat.NewTextPart("I will search."),
-		corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
+		corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"scope"}`}),
 		corechat.NewMediaPart(previousAudio),
 	)
 
@@ -282,7 +282,7 @@ func writeCoreChatStream(writer http.ResponseWriter) {
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"content":"hello "}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"content":"world"}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":"}}]}}]}`,
-		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-stream","type":"function","function":{"name":"search","arguments":"\"lynx\""}}]}}]}`,
+		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-stream","type":"function","function":{"name":"search","arguments":"\"scope\""}}]}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[],"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}`,
 	}

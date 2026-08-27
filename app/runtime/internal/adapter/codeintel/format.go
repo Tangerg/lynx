@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/lsp"
 )
 
 // toPosition converts a 1-based (line, column) — what the model reads off a

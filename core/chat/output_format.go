@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
 // ErrInvalidOutputFormat reports a malformed output-format contract.

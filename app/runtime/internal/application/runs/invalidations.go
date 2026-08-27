@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
 )
 
 // runPublications owns the post-commit publication boundary: authoritative

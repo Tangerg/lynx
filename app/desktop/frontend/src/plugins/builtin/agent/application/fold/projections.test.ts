@@ -1,5 +1,5 @@
 // Locks the per-tool display projections against the RUNTIME's actual wire
-// shapes (lynx/lyra tool implementations): the presenter projects shell to
+// shapes (scope/lyra tool implementations): the presenter projects shell to
 // {output, exitCode}, grep and glob to {hits}, apply_patch to
 // {changes:[{path,status}]}, and the name-keyed tools (lsp / the Skill family /
 // ask_user / read_shell_output / stop_shell / the searches / the fetches) label by

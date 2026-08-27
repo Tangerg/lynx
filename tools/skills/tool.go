@@ -7,8 +7,8 @@ import (
 
 	"github.com/samber/lo"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
-	skillsrc "github.com/Tangerg/lynx/skills"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+	skillsrc "github.com/Tangerg/scope/skills"
 )
 
 type LoadSkillRequest struct {

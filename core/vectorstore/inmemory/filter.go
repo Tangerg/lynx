@@ -5,7 +5,7 @@ import (
 	"math"
 	"reflect"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 type evaluator struct {

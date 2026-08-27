@@ -3,9 +3,9 @@ package dispatch
 import (
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // The value constraints of wire shapes.

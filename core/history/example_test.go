@@ -3,7 +3,7 @@ package history_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/history"
 )
 
 func Example() {

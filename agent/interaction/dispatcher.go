@@ -10,10 +10,10 @@ import (
 
 	"github.com/samber/lo"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/Tangerg/lynx/core/tool"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 // DispatcherConfig binds external capabilities for one Deployment.

@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	toolshell "github.com/Tangerg/lynx/tools/shell"
+	toolshell "github.com/Tangerg/scope/tools/shell"
 )
 
 type recordingRunner struct{}

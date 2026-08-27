@@ -14,13 +14,13 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
-	"github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/changefeed"
+	"github.com/Tangerg/scope/app/cli/internal/modelconfig"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 type runtimeChangeSourceStub struct {

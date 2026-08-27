@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	toolshell "github.com/Tangerg/lynx/tools/shell"
+	toolshell "github.com/Tangerg/scope/tools/shell"
 )
 
 func TestSeatbeltRunnerConfinesWritesAndEnvironment(t *testing.T) {

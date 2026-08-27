@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 type mutationRecorderKey struct{}

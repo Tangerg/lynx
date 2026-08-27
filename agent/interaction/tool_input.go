@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 const maxInputProtocolBytes = 1 << 20

@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
 )
 
 // ProviderRegistry is the exact credential-registry capability consumed by

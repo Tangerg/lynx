@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/Tangerg/lynx/app/cli/internal/agent"
+import "github.com/Tangerg/scope/app/cli/internal/agent"
 
 func projectRun(run *runState) agent.Run {
 	return agent.Run{

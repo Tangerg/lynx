@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 func saveTestPlan(ctx context.Context, store *sqlite.PlanStore, sessionID string, steps []plan.Step) error {

@@ -1,6 +1,6 @@
 # CLAUDE.md — otel module
 
-> Lynx 的官方 OpenTelemetry integration module：在 Core/运行时协议边界提供直接使用官方 OTel API 的 wrapper，并把 Traces / Metrics / Logs 的 dev sink 统一成 `log/slog`。不自造观测抽象。
+> Scope 的官方 OpenTelemetry integration module：在 Core/运行时协议边界提供直接使用官方 OTel API 的 wrapper，并把 Traces / Metrics / Logs 的 dev sink 统一成 `log/slog`。不自造观测抽象。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体符号 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---

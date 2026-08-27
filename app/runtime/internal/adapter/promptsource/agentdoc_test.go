@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 // writeFile is the test helper for laying out an AGENTS.md fixture. All discovery

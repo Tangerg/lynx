@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/azureopenai"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/azureopenai"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {

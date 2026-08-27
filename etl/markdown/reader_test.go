@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/etl/markdown"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl/markdown"
 )
 
 type pointerReader struct{}

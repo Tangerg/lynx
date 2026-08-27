@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/schedule"
+	"github.com/Tangerg/scope/app/cli/internal/schedule"
 )
 
 func (a *app) ShowSchedules() {

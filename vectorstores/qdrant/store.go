@@ -9,12 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const (
@@ -74,7 +74,7 @@ func (d DistanceMetric) score(raw float64) vectorstore.Score {
 	}
 }
 
-// rawScoreThreshold converts Lynx's normalized minimum score back into the
+// rawScoreThreshold converts Scope's normalized minimum score back into the
 // collection metric. Qdrant interprets thresholds according to metric
 // direction, so Euclidean and Manhattan correctly use a maximum distance.
 func (d DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
@@ -100,7 +100,7 @@ func (d DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, 
 
 const (
 	// payloadDocumentContentKey is the payload key for saving document content
-	payloadDocumentContentKey = "lynx:ai:vectorstore:qdrant:payload_document_content"
+	payloadDocumentContentKey = "scope:ai:vectorstore:qdrant:payload_document_content"
 )
 
 // StoreConfig contains configuration options for Qdrant vector store.

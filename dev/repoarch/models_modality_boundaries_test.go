@@ -12,11 +12,11 @@ import (
 )
 
 var validatedModalityImports = map[string]struct{}{
-	"github.com/Tangerg/lynx/core/embedding":     {},
-	"github.com/Tangerg/lynx/core/image":         {},
-	"github.com/Tangerg/lynx/core/moderation":    {},
-	"github.com/Tangerg/lynx/core/speech":        {},
-	"github.com/Tangerg/lynx/core/transcription": {},
+	"github.com/Tangerg/scope/core/embedding":     {},
+	"github.com/Tangerg/scope/core/image":         {},
+	"github.com/Tangerg/scope/core/moderation":    {},
+	"github.com/Tangerg/scope/core/speech":        {},
+	"github.com/Tangerg/scope/core/transcription": {},
 }
 
 // TestModalityModelBoundariesValidateRequests prevents adapters from

@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor compiles Lynx filter expressions into Bedrock retrieval filters.
+// Visitor compiles Scope filter expressions into Bedrock retrieval filters.
 // Bedrock Knowledge Bases address metadata keys directly by name; nested paths
 // are not supported, so the left operand must be a bare identifier.
 type Visitor struct {

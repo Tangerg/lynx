@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/deepgram"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/deepgram"
 )
 
 // Deepgram /listen response shape (simplified — full payload has

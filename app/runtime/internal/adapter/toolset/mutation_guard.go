@@ -8,12 +8,12 @@ import (
 	"io"
 	"os"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
-	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 // These decorators enforce the readTracker invariant at the model boundary.

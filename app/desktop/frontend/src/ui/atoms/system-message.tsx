@@ -37,7 +37,7 @@ export type SystemMessageProps = ComponentProps<"div"> &
     icon?: IconName;
     /** Drop the leading icon entirely. */
     hideIcon?: boolean;
-    /** Trailing call-to-action rendered as a lynx Button. */
+    /** Trailing call-to-action rendered as a scope Button. */
     action?: { label: string; onClick?: () => void; variant?: ButtonProps["variant"] };
     children: ReactNode;
   };

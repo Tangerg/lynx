@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
 )
 
 func TestCLIProfileFeatureVocabularyMatchesRuntimeProtocol(t *testing.T) {

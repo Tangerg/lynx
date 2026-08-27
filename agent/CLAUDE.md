@@ -1,6 +1,6 @@
 # CLAUDE.md — agent module
 
-> Lynx Agent Framework library. Project-wide rules are inherited from
+> Scope Agent Framework library. Project-wide rules are inherited from
 > [`../CLAUDE.md`](../CLAUDE.md).
 
 Before designing, implementing, reviewing, or refactoring this module, read the

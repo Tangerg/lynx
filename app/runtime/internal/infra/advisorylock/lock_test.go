@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
 )
 
 func TestDirectoryLeaseUsesPhysicalIdentityAndWaitsForRelease(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/moonshot"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/moonshot"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {

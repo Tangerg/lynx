@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/pathologize"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 const (

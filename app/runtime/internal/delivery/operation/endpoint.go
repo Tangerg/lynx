@@ -7,8 +7,8 @@ import (
 	"iter"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/idempotency"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // Options carries binding-neutral per-call metadata. Bindings translate their

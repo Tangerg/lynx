@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/etl/text"
+	"github.com/Tangerg/scope/etl/text"
 )
 
 type pointerReader struct{}

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 func TestSearch(t *testing.T) {
@@ -32,11 +32,11 @@ func TestSearch(t *testing.T) {
 			t.Errorf("decode body: %v", err)
 			return
 		}
-		if body.Query != "lynx" || body.Results != 20 || body.TimeRange != "year" || len(body.Domains) != 1 || body.Depth != "basic" || !body.HasFavicon {
+		if body.Query != "scope" || body.Results != 20 || body.TimeRange != "year" || len(body.Domains) != 1 || body.Depth != "basic" || !body.HasFavicon {
 			t.Errorf("body = %#v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"query":"lynx","results":[{"title":"Lynx","url":"https://example.com","content":"cat","favicon":"https://example.com/favicon.ico"}]}`))
+		_, _ = w.Write([]byte(`{"query":"scope","results":[{"title":"Scope","url":"https://example.com","content":"cat","favicon":"https://example.com/favicon.ico"}]}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -44,11 +44,11 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "lynx", MaxResults: 20, AllowedDomains: []string{"example.com"}, Recency: web.RecencyYear})
+	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "scope", MaxResults: 20, AllowedDomains: []string{"example.com"}, Recency: web.RecencyYear})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Query != "lynx" || len(response.Results) != 1 || response.Results[0].FaviconURL == "" {
+	if response.Query != "scope" || len(response.Results) != 1 || response.Results[0].FaviconURL == "" {
 		t.Fatalf("response = %#v", response)
 	}
 }

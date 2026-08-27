@@ -1,6 +1,6 @@
 // Package slog sinks all three OpenTelemetry signals — Traces, Metrics,
 // and Logs — into a log/slog logger, so every span, metric, and log line
-// from any Lynx module lands in one structured stream correlated by
+// from any Scope module lands in one structured stream correlated by
 // trace_id / span_id.
 //
 // Three exporters, one per signal:
@@ -21,7 +21,7 @@
 //	    stdslog "log/slog"
 //	    "go.opentelemetry.io/otel"
 //	    sdktrace "go.opentelemetry.io/otel/sdk/trace"
-//	    "github.com/Tangerg/lynx/otel/slog"
+//	    "github.com/Tangerg/scope/otel/slog"
 //	)
 //
 //	tp := sdktrace.NewTracerProvider(

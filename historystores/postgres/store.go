@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
 )
 
 // Default identifiers used when [StoreConfig] leaves them blank.

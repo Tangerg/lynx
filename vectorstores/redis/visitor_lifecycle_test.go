@@ -3,8 +3,8 @@ package redis_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/redis"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/redis"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

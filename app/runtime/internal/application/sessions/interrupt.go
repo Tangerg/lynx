@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 const turnCleanupTimeout = 5 * time.Second

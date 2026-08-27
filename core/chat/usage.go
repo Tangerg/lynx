@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/internal/ptr"
+	"github.com/Tangerg/scope/core/internal/ptr"
 )
 
 var ErrInvalidUsage = errors.New("chat: invalid usage")

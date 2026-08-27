@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestModelFunc(t *testing.T) {
@@ -41,7 +41,7 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		t.Fatal("Validate accepted nil request")
 	}
 	invalid := &image.Request{
-		Prompt:  "lynx",
+		Prompt:  "scope",
 		Options: image.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
@@ -148,7 +148,7 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 }
 
 func TestResponseMetadataAndErrors(t *testing.T) {
-	resultMetadata := &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "lynx"})}
+	resultMetadata := &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "scope"})}
 	responseMetadata := &image.ResponseMetadata{Extra: mustMetadata(t, map[string]any{"region": "local"})}
 
 	generated, _ := media.NewURI("image/png", "https://example.com/image.png")

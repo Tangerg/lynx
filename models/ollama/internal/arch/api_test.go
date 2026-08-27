@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/models/ollama"
+	"github.com/Tangerg/scope/models/ollama"
 )
 
 type configValidator interface {

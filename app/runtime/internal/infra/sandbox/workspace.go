@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	toolshell "github.com/Tangerg/lynx/tools/shell"
+	toolshell "github.com/Tangerg/scope/tools/shell"
 )
 
 var (

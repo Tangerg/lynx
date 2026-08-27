@@ -3,8 +3,8 @@ package sqlite
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 const sessionColumns = `id, title, workspace_path, parent_id, started_at, updated_at, provider, model, favorite, isolated, revision`

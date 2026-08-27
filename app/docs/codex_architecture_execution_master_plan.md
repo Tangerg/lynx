@@ -1,4 +1,4 @@
-# Lynx Agent / Runtime / Desktop 架构演进总执行台账
+# Scope Agent / Runtime / Desktop 架构演进总执行台账
 
 > 作者：Codex
 > 状态：`DONE`
@@ -75,7 +75,7 @@
 生成式 contract 约束以及 Runtime/Desktop capability opt-in。W6 又完成 Agent 泄漏复核、
 Runtime/Desktop 依赖与事实作者审计、Desktop Runtime anti-corruption boundary、全局语义
 命名清理和全门禁收口；未发现需要重做 Agent/Runtime 主模型的证据。W7.0 又冻结了
-Synara/Lynx 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
+Synara/Scope 的真实视觉基线、状态映射、目标 token、有意分歧、验收矩阵和 W7.1–W7.5
 原子边界，并完成 foundation、shell/Work Index、Agent Narrative/Composer/Run tree/
 HITL、Context Dock/Workspace/Settings 与最终 WebView/accessibility closure。W8 又以
 “抽象不泄露、不过少、不过度”为主线完成全仓复核，关闭 Desktop design-system 绕行、
@@ -107,7 +107,7 @@ Plan Stage、共享 Blackboard、RAG 大 Pipeline、test-only 公共包或 provi
 
 ### 1.1 一句话目标
 
-把 Lynx 建成一套边界清晰、协议优雅、行为完整、可恢复且可持续演进的 Agent 系统：
+把 Scope 建成一套边界清晰、协议优雅、行为完整、可恢复且可持续演进的 Agent 系统：
 
 ```text
 Agent Framework
@@ -2063,7 +2063,7 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
 ### 2026-07-31 — W7.0
 
 - 状态：`DONE`
-- 目标：用当前 Synara 与 Lynx 的源码、真实 DOM/computed style 和固定 viewport
+- 目标：用当前 Synara 与 Scope 的源码、真实 DOM/computed style 和固定 viewport
   实拍，冻结视觉目标、产品语义映射、状态 fixture、验收矩阵与后续原子执行边界。
 - 专项文档：
   - [`codex_synara_visual_baseline_and_execution_plan.md`](codex_synara_visual_baseline_and_execution_plan.md)
@@ -2078,7 +2078,7 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
     plugin application ports，不反向修改 Agent/Runtime；
   - W7.1 先建立 deterministic visual fixture，再修改 production visual foundation。
 - 当前差异：
-  - Lynx 的 sidebar/header/content max、gutter、composer radius 和 drawer motion
+  - Scope 的 sidebar/header/content max、gutter、composer radius 和 drawer motion
     已与参考同轴；
   - square seam、14px default base、30px row、8/10px composer footer、composer
     shadow ring 和无稳定 fixture 已明确为待删除坏味道，不是有意分歧。
@@ -2087,12 +2087,12 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
   - production UI、Agent/Runtime wire、Registry、schema、OpenRPC、Go/TS types、
     Artifact、Store epoch 与 capability 均未变化。
 - 验证：
-  - Synara 隔离实例和 Lynx standalone frontend 在非默认端口启动；
+  - Synara 隔离实例和 Scope standalone frontend 在非默认端口启动；
   - 1440×900 light/dark 实拍与 Synara shell computed geometry 记录完成；
   - Markdown format、link/image、Git scope 与 diff hygiene 随本 slice 验证。
 - 残余风险：
   - 截图中的动态 notification 只作当前证据，不能作为 golden；
-  - standalone Lynx 在无 Runtime 时不能形成完整 Agent panel，W7.1 必须先建立
+  - standalone Scope 在无 Runtime 时不能形成完整 Agent panel，W7.1 必须先建立
     deterministic test-only visual fixture。
 - 下一步：W7.1 visual foundation。
 
@@ -2795,7 +2795,7 @@ Peer adapters:
 ### 18.1 目标与结果
 
 - 状态：`DONE`
-- 目标：吸收 Embabel 的并发、RAG 与 PromptRunner 思想，但只保留能在 Lynx 所有权模型中
+- 目标：吸收 Embabel 的并发、RAG 与 PromptRunner 思想，但只保留能在 Scope 所有权模型中
   严密成立的部分；不把逻辑可执行性误当并发安全，不复制 parser/provider schema，也不把
   Host 原子性重新推回 Framework。
 - 兼容政策：dev 阶段直接使用正确终态；无旧 API alias、fallback decoder、双语义 filter 或

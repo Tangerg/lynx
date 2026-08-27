@@ -18,10 +18,10 @@ import (
 
 	"github.com/samber/lo"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
-const instrumentationName = "github.com/Tangerg/lynx/agent/otel"
+const instrumentationName = "github.com/Tangerg/scope/agent/otel"
 
 // ErrInvalidConfig reports a typed-nil provider or unusable instrument setup.
 var ErrInvalidConfig = errors.New("agent otel: invalid configuration")

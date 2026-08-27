@@ -9,8 +9,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // GoalStore is the SQLite persistence adapter for autonomous goals: one row per session, the

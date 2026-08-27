@@ -1,6 +1,6 @@
 // Package skills exposes three LLM-callable tools that surface Agent Skills to
 // a chat model through progressive disclosure. It is a thin adapter over
-// the skills module's [github.com/Tangerg/lynx/skills.Source] capability: the
+// the skills module's [github.com/Tangerg/scope/skills.Source] capability: the
 // base module parses, validates, and serves skill content; this package maps
 // that onto the shared `tool.Tool` contract.
 //

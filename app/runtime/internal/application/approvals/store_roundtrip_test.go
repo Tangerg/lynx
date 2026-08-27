@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/app/runtime/internal/application/approvals"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
 )
 
 // Black-box round-trips through the exported Policy API against the in-memory

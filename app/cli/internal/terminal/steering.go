@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
-	steeringoutbox "github.com/Tangerg/lynx/app/cli/internal/steering"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
+	steeringoutbox "github.com/Tangerg/scope/app/cli/internal/steering"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 func (a *app) steerRun(instruction string) error {

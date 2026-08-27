@@ -9,7 +9,7 @@
 
 - **把各家异构 SDK 收敛成 core 的统一 Model 接口**:上层只见 `chat.Model` 等契约,看不到某一家 SDK 的形状。
 - **`models` 只是命名空间**：不存在聚合 `models` module；每个 `models/<provider>` 都是可独立选择、发布和升级的叶子 module。
-- **加 provider = 复制现成结构 + 换 SDK 调用**,绝不为某一家改 lynx 协议。
+- **加 provider = 复制现成结构 + 换 SDK 调用**,绝不为某一家改 scope 协议。
 
 ## 架构心智
 

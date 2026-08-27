@@ -1,10 +1,10 @@
-module github.com/Tangerg/lynx/historystores/cosmosdb
+module github.com/Tangerg/scope/historystores/cosmosdb
 
 go 1.27.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
-	github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77
+	github.com/Tangerg/scope/core v0.0.0-20260827034135-75c054d01f77
 	github.com/samber/lo v1.53.0
 )
 

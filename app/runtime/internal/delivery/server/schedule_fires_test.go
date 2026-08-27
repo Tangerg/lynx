@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func TestScheduleInvalidationProjectsToARuntimeSignal(t *testing.T) {

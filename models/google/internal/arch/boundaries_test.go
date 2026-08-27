@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/models/google"
-	"github.com/Tangerg/lynx/models/google/vertexai"
+	"github.com/Tangerg/scope/models/google"
+	"github.com/Tangerg/scope/models/google/vertexai"
 )
 
-const modulePath = "github.com/Tangerg/lynx/models/google"
+const modulePath = "github.com/Tangerg/scope/models/google"
 
 type configValidator interface {
 	Validate() error

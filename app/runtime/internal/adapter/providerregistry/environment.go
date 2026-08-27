@@ -8,8 +8,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
 )
 
 // envKeyRegistry decorates a registry so a provider with no stored key falls

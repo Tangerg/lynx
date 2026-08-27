@@ -1,8 +1,8 @@
-# lynx/mcp — 设计与使用
+# scope/mcp — 设计与使用
 
-`lynx/mcp` 不是第二套 MCP SDK。协议客户端、服务端、session、transport
+`scope/mcp` 不是第二套 MCP SDK。协议客户端、服务端、session、transport
 全部直接使用官方 `github.com/modelcontextprotocol/go-sdk/mcp`；本模块只保留
-lynx 需要、而官方 SDK 不应该知道的薄适配。
+scope 需要、而官方 SDK 不应该知道的薄适配。
 
 这个取舍来自官方 Go SDK `design.md` 的包组织思想：
 
@@ -35,7 +35,7 @@ mcp/
 
 ```go
 import (
-    lynxmcp "github.com/Tangerg/lynx/mcp"
+    scopemcp "github.com/Tangerg/scope/mcp"
     sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 ```
@@ -48,7 +48,7 @@ import (
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `Elicit` | tool 执行中使用官方 `sdkmcp.ElicitParams` 向客户端发起 elicitation |
 | `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tool.Tool` |
-| `Register(server, tools...)` | 把 lynx `tool.Tool` 暴露到 MCP server |
+| `Register(server, tools...)` | 把 scope `tool.Tool` 暴露到 MCP server |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：
@@ -64,7 +64,7 @@ import (
 ctx := context.Background()
 
 client := sdkmcp.NewClient(&sdkmcp.Implementation{
-    Name: "lynx-app", Version: "v0.1.0",
+    Name: "scope-app", Version: "v0.1.0",
 }, nil)
 
 session, err := client.Connect(ctx, &sdkmcp.CommandTransport{
@@ -75,15 +75,15 @@ if err != nil {
 }
 defer session.Close()
 
-tools, err := lynxmcp.Tools(ctx,
-    []lynxmcp.ToolSource{{Name: "local", Session: session}},
-    lynxmcp.ToolsConfig{MetaFunc: lynxmcp.MetaFromContext},
+tools, err := scopemcp.Tools(ctx,
+    []scopemcp.ToolSource{{Name: "local", Session: session}},
+    scopemcp.ToolsConfig{MetaFunc: scopemcp.MetaFromContext},
 )
 if err != nil {
     return err
 }
 
-ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42"})
+ctx = scopemcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42"})
 out, err := tools[0].Call(ctx, `{"name":"world"}`)
 ```
 
@@ -91,10 +91,10 @@ out, err := tools[0].Call(ctx, `{"name":"world"}`)
 
 ```go
 server := sdkmcp.NewServer(&sdkmcp.Implementation{
-    Name: "lynx-bridge", Version: "v0.1.0",
+    Name: "scope-bridge", Version: "v0.1.0",
 }, nil)
 
-if err := lynxmcp.Register(server, myTools()...); err != nil {
+if err := scopemcp.Register(server, myTools()...); err != nil {
     return err
 }
 
@@ -113,9 +113,9 @@ handler := sdkmcp.NewStreamableHTTPHandler(
 ## 错误处理约定
 
 MCP tool execution failure crosses the protocol as `IsError=true`; it is not a
-JSON-RPC protocol error. `lynx/mcp` preserves that distinction:
+JSON-RPC protocol error. `scope/mcp` preserves that distinction:
 
-- 远端 `CallToolResult.IsError=true` → `*lynxmcp.ToolCallError`
+- 远端 `CallToolResult.IsError=true` → `*scopemcp.ToolCallError`
 - 传输/协议错误 → 普通 wrapped Go error
 - 本地 `tool.Tool` 返回 error → `CallToolResult{IsError:true}`
 
@@ -129,7 +129,7 @@ JSON-RPC protocol error. `lynx/mcp` preserves that distinction:
 serverT, clientT := sdkmcp.NewInMemoryTransports()
 
 server := sdkmcp.NewServer(impl, nil)
-_ = lynxmcp.Register(server, tool)
+_ = scopemcp.Register(server, tool)
 ss, _ := server.Connect(ctx, serverT, nil)
 defer ss.Close()
 
@@ -138,5 +138,5 @@ cs, _ := client.Connect(ctx, clientT, nil)
 defer cs.Close()
 ```
 
-这和官方 SDK design.md 保持一致：协议测试走 SDK transport；lynx 只测试自己的
+这和官方 SDK design.md 保持一致：协议测试走 SDK transport；scope 只测试自己的
 adapter 语义。

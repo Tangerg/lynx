@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
+	"github.com/Tangerg/scope/app/runtime/internal/application/conversations"
 )
 
 type conversationEnvironment struct {

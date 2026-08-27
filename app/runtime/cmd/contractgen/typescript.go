@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	runtimehttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // The TypeScript wire types are emitted from the SCHEMA tree, not from a second

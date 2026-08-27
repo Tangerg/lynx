@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 var errCanceled = errors.New("mock: run canceled")

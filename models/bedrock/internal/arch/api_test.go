@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/models/bedrock"
+	"github.com/Tangerg/scope/models/bedrock"
 )
 
 func TestChatConstructorCompiles(t *testing.T) {

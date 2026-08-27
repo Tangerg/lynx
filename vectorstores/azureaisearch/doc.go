@@ -5,7 +5,7 @@
 // Requirements: an Azure AI Search service (Basic tier or higher),
 // with an index pre-provisioned through ARM / Terraform / Portal /
 // REST. The store does NOT create indexes — Azure AI Search index
-// schemas are typed and declared at creation; lynx assumes the
+// schemas are typed and declared at creation; scope assumes the
 // configured ID / content / vector / metadata fields exist.
 //
 // Authentication: API key via the `api-key` header. For Managed

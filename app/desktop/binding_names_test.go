@@ -52,7 +52,7 @@ const hostPackage = "main"
 
 // The package qualifier is a LITERAL and must stay one. Deriving it from
 // `reflect.TypeOf(&DesktopHost{}).Elem().PkgPath()` looks obviously better and is wrong:
-// a test binary reports the module's import path (github.com/Tangerg/lynx/app/desktop)
+// a test binary reports the module's import path (github.com/Tangerg/scope/app/desktop)
 // while the built application reports "main", so a test that derives it disagrees with
 // the app it is checking — and the disagreement points the wrong way. Deriving it here
 // once reported the frontend as broken and would have had it "fixed" to a name the real

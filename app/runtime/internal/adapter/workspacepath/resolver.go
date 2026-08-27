@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 // ErrNotDirectory reports that a path exists but is not a directory.

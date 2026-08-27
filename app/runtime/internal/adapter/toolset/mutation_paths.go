@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 type fileMutationReporter interface {

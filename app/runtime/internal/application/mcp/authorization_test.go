@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 func TestAuthorizationAttemptReportsFailureWithoutDiscardingResult(t *testing.T) {

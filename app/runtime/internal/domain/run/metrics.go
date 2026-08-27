@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
 )
 
 // Metrics is the cumulative consumption of one Run across all of its Segments.

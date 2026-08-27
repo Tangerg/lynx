@@ -6,9 +6,9 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/pinecone"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/pinecone"
 )
 
 func compileFilter(predicate filter.Predicate) (*structpb.Struct, error) {

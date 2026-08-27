@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/jsonschema"
-	"github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/jsonschema"
+	"github.com/Tangerg/scope/core/speech"
 )
 
 type wireFixture struct {

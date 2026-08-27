@@ -3,7 +3,7 @@ package goals
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
 )
 
 // Store is the autonomous-goal use case's durable state. It is deliberately

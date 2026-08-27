@@ -1,6 +1,6 @@
 package terminal
 
-import "github.com/Tangerg/lynx/app/cli/internal/agent"
+import "github.com/Tangerg/scope/app/cli/internal/agent"
 
 type sessionContextEpoch uint64
 

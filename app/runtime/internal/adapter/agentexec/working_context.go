@@ -10,11 +10,11 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // ErrPromptRejected reports that a lifecycle hook explicitly blocked a fresh

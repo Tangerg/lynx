@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	skillspec "github.com/Tangerg/lynx/skills"
-	skillstool "github.com/Tangerg/lynx/tools/skills"
+	skillspec "github.com/Tangerg/scope/skills"
+	skillstool "github.com/Tangerg/scope/tools/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
 )
 
 // SkillUsageRecorder records that a skill was loaded, feeding the idle-lifecycle

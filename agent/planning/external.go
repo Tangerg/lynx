@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // ObservationRequest is one side-effect-free request for the current complete

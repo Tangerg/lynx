@@ -12,16 +12,16 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/tool"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/tool"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 type echoInput struct {
 	Text string `json:"text"`
 }
 
-// newEchoTool builds a minimal lynx Tool for tests.
+// newEchoTool builds a minimal scope Tool for tests.
 func newEchoTool() tool.Tool {
 	return testTool{
 		definition: corechat.ToolDefinition{
@@ -61,13 +61,13 @@ func (t testTool) Call(ctx context.Context, arguments string) (string, error) {
 	return t.call(ctx, arguments)
 }
 
-// connectPair wires an in-memory MCP server (with the supplied lynx tools
+// connectPair wires an in-memory MCP server (with the supplied scope tools
 // already registered) to a fresh client session, returning the live session
 // and a cleanup func.
 func connectPair(t *testing.T, ctx context.Context, registered ...tool.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-srv", Version: "v0.1.0"}, nil)
-	require.NoError(t, lynxmcp.Register(srv, registered...))
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "scope-srv", Version: "v0.1.0"}, nil)
+	require.NoError(t, scopemcp.Register(srv, registered...))
 	return connectServer(t, ctx, srv)
 }
 
@@ -126,7 +126,7 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		},
 		call: func(context.Context, string) (string, error) {
-			return "", errors.New("kaboom from lynx tool")
+			return "", errors.New("kaboom from scope tool")
 		},
 	}
 
@@ -140,12 +140,12 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 	require.True(t, res.IsError)
 	require.Len(t, res.Content, 1)
 	tc := res.Content[0].(*sdkmcp.TextContent)
-	assert.Contains(t, tc.Text, "kaboom from lynx tool")
+	assert.Contains(t, tc.Text, "kaboom from scope tool")
 }
 
 func TestRegister_RejectsNilArgs(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	require.ErrorIs(t, lynxmcp.Register(nil, newEchoTool()), lynxmcp.ErrNilServer)
+	require.ErrorIs(t, scopemcp.Register(nil, newEchoTool()), scopemcp.ErrNilServer)
 
 	for _, test := range []struct {
 		name string
@@ -155,7 +155,7 @@ func TestRegister_RejectsNilArgs(t *testing.T) {
 		{name: "typed nil", tool: (*badSchemaTool)(nil)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := lynxmcp.Register(srv, test.tool)
+			err := scopemcp.Register(srv, test.tool)
 			require.ErrorIs(t, err, tool.ErrInvalidTool)
 		})
 	}
@@ -165,9 +165,9 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
 	// NewTool always derives a valid schema, so an invalid one can only reach
 	// Register via a hand-rolled Tool — which is exactly what Register must reject.
-	require.Error(t, lynxmcp.Register(srv, badSchemaTool{}))
+	require.Error(t, scopemcp.Register(srv, badSchemaTool{}))
 
-	err := lynxmcp.Register(srv, missingSchemaTypeTool{})
+	err := scopemcp.Register(srv, missingSchemaTypeTool{})
 	require.ErrorContains(t, err, `input schema type must be "object"`)
 }
 
@@ -191,7 +191,7 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-			err := lynxmcp.Register(srv, testTool{definition: corechat.ToolDefinition{
+			err := scopemcp.Register(srv, testTool{definition: corechat.ToolDefinition{
 				Name:        "shape",
 				InputSchema: json.RawMessage(test.schema),
 			}})
@@ -204,10 +204,10 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	err := lynxmcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
+	err := scopemcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
 	require.ErrorIs(t, err, tool.ErrDuplicateTool)
 
-	require.NoError(t, lynxmcp.Register(srv, newConstantTool("after")))
+	require.NoError(t, scopemcp.Register(srv, newConstantTool("after")))
 	client, cleanup := connectServer(t, t.Context(), srv)
 	defer cleanup()
 	listed, err := client.ListTools(t.Context(), nil)
@@ -219,7 +219,7 @@ func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 func TestRegister_SnapshotsDefinitionOnce(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
 	tool := &definitionOnceTool{}
-	require.NoError(t, lynxmcp.Register(srv, tool))
+	require.NoError(t, scopemcp.Register(srv, tool))
 
 	client, cleanup := connectServer(t, t.Context(), srv)
 	defer cleanup()

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/conversationfixture"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	agentmemoryapp "github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 type scriptedReply struct {

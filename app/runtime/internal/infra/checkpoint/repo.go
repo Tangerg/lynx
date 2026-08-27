@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	workspacegit "github.com/Tangerg/lynx/app/runtime/internal/infra/git"
+	workspacegit "github.com/Tangerg/scope/app/runtime/internal/infra/git"
 )
 
 // commonExcludes keep a checkpoint from ballooning into dependency / build

@@ -14,7 +14,7 @@ CodeMode（自研 confined JS 解释器，工具即函数）· client/server 协
 
 ## 0.1 筛选准则
 
-沿用 lynx 四道筛子 + 反向不变量，详见 [`GROK.md` §0.1](GROK.md)。
+沿用 scope 四道筛子 + 反向不变量，详见 [`GROK.md` §0.1](GROK.md)。
 
 ---
 

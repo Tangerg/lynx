@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 func TestAdvertisedToolNamesSurviveExecutionStateRestore(t *testing.T) {

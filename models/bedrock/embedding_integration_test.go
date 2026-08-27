@@ -5,15 +5,15 @@ package bedrock_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/bedrock"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/models/bedrock"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
 	requireKey(t, "bedrock")
 	region := requireEnv(t, "AWS_REGION")
 
-	modelID, _ := lookupEnv("LYNX_TEST_BEDROCK_EMBEDDING_MODEL")
+	modelID, _ := lookupEnv("SCOPE_TEST_BEDROCK_EMBEDDING_MODEL")
 	if modelID == "" {
 		modelID = "amazon.titan-embed-text-v2:0"
 	}

@@ -16,14 +16,14 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // SessionStore is the exact persistence surface used inside an opening
@@ -273,7 +273,7 @@ var (
 	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
 )
 
-const runsegmentTracerName = "lynx/lyra/runsegment"
+const runsegmentTracerName = "scope/lyra/runsegment"
 
 // New returns the durable Run-segment effects. Every dependency needed by the
 // supported write-sets is validated here; optional product capabilities remain

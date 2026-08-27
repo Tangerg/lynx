@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const shellDescendantPIDEnv = "LYNX_EXEC_DESCENDANT_PID_FILE"
+const shellDescendantPIDEnv = "SCOPE_EXEC_DESCENDANT_PID_FILE"
 
 func TestShellKillReclaimsDescendants(t *testing.T) {
 	pidFile := t.TempDir() + "/descendant.pid"
@@ -24,7 +24,7 @@ func TestShellKillReclaimsDescendants(t *testing.T) {
 		t.Context(),
 		"",
 		"",
-		`sleep 30 & echo $! > "$LYNX_EXEC_DESCENDANT_PID_FILE"; wait`,
+		`sleep 30 & echo $! > "$SCOPE_EXEC_DESCENDANT_PID_FILE"; wait`,
 		0,
 		false,
 	)
@@ -58,7 +58,7 @@ func TestShellCompletionReclaimsDescendantsWithoutRewritingLeaderExit(t *testing
 		t.Context(),
 		"",
 		"",
-		`sleep 30 & echo $! > "$LYNX_EXEC_DESCENDANT_PID_FILE"`,
+		`sleep 30 & echo $! > "$SCOPE_EXEC_DESCENDANT_PID_FILE"`,
 		0,
 		false,
 	)

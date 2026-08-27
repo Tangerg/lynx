@@ -3,8 +3,8 @@ package vectara_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/vectara"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/vectara"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

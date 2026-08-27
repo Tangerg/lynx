@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
 )
 
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory store

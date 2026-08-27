@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/ollama"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/ollama"
 )
 
 func TestNativeChatUsesOnlyTheDocumentedLocalHTTPContract(t *testing.T) {

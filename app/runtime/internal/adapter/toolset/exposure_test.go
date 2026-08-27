@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	domaintool "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 func newTestCodeIntel(t *testing.T) *codeintel.Analyzer {

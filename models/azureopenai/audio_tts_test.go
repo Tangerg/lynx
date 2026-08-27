@@ -3,9 +3,9 @@ package azureopenai_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/modeltest"
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/azureopenai"
+	"github.com/Tangerg/scope/core/modeltest"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/azureopenai"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {

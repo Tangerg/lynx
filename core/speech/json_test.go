@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/scope/core/speech"
 )
 
 func TestJSONBoundaries(t *testing.T) {

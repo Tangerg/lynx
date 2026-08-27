@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // Platform owns atomic deployment changes, active version slots, and an exact

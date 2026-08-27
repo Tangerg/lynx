@@ -8,7 +8,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 var (

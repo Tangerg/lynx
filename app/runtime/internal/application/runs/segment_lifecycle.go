@@ -4,7 +4,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
+	"github.com/Tangerg/scope/app/runtime/internal/application/taskgroup"
 )
 
 // segmentLifecycle owns every process-local resource whose lifetime is one

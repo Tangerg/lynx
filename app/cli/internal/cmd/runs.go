@@ -10,11 +10,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
-	"github.com/Tangerg/lynx/app/cli/internal/render"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
+	"github.com/Tangerg/scope/app/cli/internal/render"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
 )
 
 func newRunsCommand(provider runtimeProvider) *cobra.Command {

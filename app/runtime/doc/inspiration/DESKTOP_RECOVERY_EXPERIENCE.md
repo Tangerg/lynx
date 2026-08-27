@@ -68,7 +68,7 @@
 
 - 统一 Run Summary、Terminal、Diff、Tool/审批卡、Goal、Plan、Session navigation 和 Dock 的信息层级、间距、反馈、空态、错误态与恢复态；
 - 覆盖多轮长对话、compaction、HITL continuation、Session 切换、Dock 折叠/恢复、Renderer replacement 与 Runtime restart；
-- Codex 作为主参考，优先复用其页面心智模型和交互反馈；视觉数值必须落入 Lynx 现有 token、组件和可访问性体系；
+- Codex 作为主参考，优先复用其页面心智模型和交互反馈；视觉数值必须落入 Scope 现有 token、组件和可访问性体系；
 - 完成真实 production Wails 验收、必要的 fresh database/restart/SIGKILL 恢复验收和异步泄露检查。
 
 ## 5. 参考实现要求
@@ -78,13 +78,13 @@
 - [`/Users/tangerg/Desktop/study/codex`](/Users/tangerg/Desktop/study/codex)：主参考，研究 loading、审批、恢复反馈、Run/Terminal/Diff、Session navigation、Dock 和长对话的页面心智模型；
 - [`/Users/tangerg/Desktop/study/zcode`](/Users/tangerg/Desktop/study/zcode) 与 [`/Users/tangerg/Desktop/study/minimax`](/Users/tangerg/Desktop/study/minimax)：仅用于补充比较，不拼接多套设计语言。
 
-像素级复刻不是复制源码。每个采纳点必须说明它在 Lynx 中由哪个组件、token 或 presentation owner 承担。
+像素级复刻不是复制源码。每个采纳点必须说明它在 Scope 中由哪个组件、token 或 presentation owner 承担。
 
 ### 5.2 后端条件参考
 
 - [`/Users/tangerg/Desktop/study/codex-server/codex-rs`](/Users/tangerg/Desktop/study/codex-server/codex-rs)：只有 UI 红例证明 Runtime 缺少权威事实或恢复语义时才研究；重点关注事件事实、恢复 cutpoint、事务和响应丢失处理；
 - 不机械照搬 Codex 的多 connection、server history、内部状态或 Rust 包结构；
-- 参考结果必须先翻译为 Lynx 的 Domain、Application、Adapter、Infra、Delivery 或 Desktop owner，再决定是否采纳。
+- 参考结果必须先翻译为 Scope 的 Domain、Application、Adapter、Infra、Delivery 或 Desktop owner，再决定是否采纳。
 
 ## 6. Goal 专项编码规范
 
@@ -144,7 +144,7 @@
 2. 流式输出、Session 切换、Dock 恢复、审批 continuation、Renderer replacement 和 Runtime restart 后没有永久 loading、旧内容复活、跨 Session 拼接或稳定控件闪烁；
 3. Run Summary、Terminal、Diff、Tool selection、Goal、Plan 和审批反馈共享一致的信息层级与恢复心智模型；
 4. 没有新增第二 read model writer、全局 generation、transport 矩阵、刷新旁路、兼容层或 timer 竞态掩盖；
-5. 参考采纳点和拒绝理由可追溯，最终实现符合 Lynx 的领域边界和单 Desktop 产品约束；
+5. 参考采纳点和拒绝理由可追溯，最终实现符合 Scope 的领域边界和单 Desktop 产品约束；
 6. 定向测试、Frontend 全门禁、Wails production build、必要的真实恢复验收和异步泄露检查全部通过；
 7. `app/cli` 与用户无关工作区改动保持原样，自动化创建的进程和会话已清理；
 8. Execution Plan、Capability Ledger 和必要 owner 文档已压缩更新，批次提交均已推送。

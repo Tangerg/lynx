@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/backend"
-	"github.com/Tangerg/lynx/app/cli/internal/cmd"
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeembedded"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/backend"
+	"github.com/Tangerg/scope/app/cli/internal/cmd"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeembedded"
 )
 
 const mockRuntimeNotice = "lyra: scripted mock runtime (explicit test/demo mode)"

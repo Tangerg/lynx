@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListHooks reports the lifecycle hooks discovered for a cwd — global

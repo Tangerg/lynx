@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
@@ -29,7 +29,7 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 		{
 			Output: &chat.Output{
 				Message: assistant(
-					chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `lynx"}`}),
+					chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `scope"}`}),
 					chat.NewTextPart("lo"),
 				),
 				FinishReason: chat.FinishReasonToolCalls,
@@ -76,7 +76,7 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 		t.Errorf("text boundaries = %#v", response.Output.Message.Parts)
 	}
 	call := response.Output.Message.Parts[2].ToolCall
-	if call == nil || call.ID != "call-1" || call.Name != "search" || call.Arguments != `{"q":"lynx"}` {
+	if call == nil || call.ID != "call-1" || call.Name != "search" || call.Arguments != `{"q":"scope"}` {
 		t.Errorf("tool call = %#v", call)
 	}
 	if response.Output.FinishReason != chat.FinishReasonToolCalls {

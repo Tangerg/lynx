@@ -14,7 +14,7 @@ import (
 // starting request's trace values (taskgroup.Attach → context.WithoutCancel), so
 // each Goal-run span nests under the root Goal trace. No-op until
 // a TracerProvider / MeterProvider is installed.
-const observeScope = "lynx/lyra/goal"
+const observeScope = "scope/lyra/goal"
 
 var driverTracer = otel.Tracer(observeScope)
 

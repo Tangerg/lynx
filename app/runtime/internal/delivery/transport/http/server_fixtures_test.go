@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	lyrahttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 const testRuntimeInstanceID = "runtime_test"

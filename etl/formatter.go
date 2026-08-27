@@ -3,7 +3,7 @@ package etl
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 // Formatter renders a document according to one frozen formatting policy.

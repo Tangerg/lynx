@@ -10,11 +10,11 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
-	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/agentmemory"
+	"github.com/Tangerg/scope/app/cli/internal/changefeed"
+	"github.com/Tangerg/scope/app/cli/internal/knowledge"
 )
 
 type agentMemoryServiceStub struct {

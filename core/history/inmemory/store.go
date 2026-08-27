@@ -6,8 +6,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
 )
 
 var (

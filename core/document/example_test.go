@@ -3,11 +3,11 @@ package document_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 func Example() {
-	doc, err := document.NewDocument("Lynx are wild cats.", nil)
+	doc, err := document.NewDocument("Scope are wild cats.", nil)
 	if err != nil {
 		panic(err)
 	}

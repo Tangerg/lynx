@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/localruntime"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
 )
 
 func TestOpenTokenCreatesDurableCanonicalCredential(t *testing.T) {

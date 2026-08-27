@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // Name is the binding-neutral identity of one Runtime operation. Concrete

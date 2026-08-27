@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/scope/agent/planning"
 )
 
 const defaultMaxExpansions uint32 = 10_000

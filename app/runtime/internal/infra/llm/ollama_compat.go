@@ -3,9 +3,9 @@ package llm
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/embedding"
-	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/embedding"
+	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 const (

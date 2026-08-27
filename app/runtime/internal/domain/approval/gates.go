@@ -1,6 +1,6 @@
 package approval
 
-import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+import "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 
 // GateAction is the three-way outcome of the per-call permission gate: run it,
 // ask the user, or refuse outright. Replacing the older bool ("needs approval?")

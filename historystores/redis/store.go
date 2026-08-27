@@ -11,8 +11,8 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/history"
 )
 
 const DefaultKeyPrefix = "chat:history:"

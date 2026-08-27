@@ -1,8 +1,8 @@
 package sessions
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // The session lifecycle's invalidations. Each is published from a post-commit

@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 func TestSearchRequestValidate(t *testing.T) {
@@ -35,7 +35,7 @@ func TestSearchRequestValidate(t *testing.T) {
 }
 
 func TestSearchResponseValidate(t *testing.T) {
-	request := vectorstore.SearchRequest{Query: "lynx", Options: vectorstore.SearchOptions{TopK: 2, MinScore: 0.5}}
+	request := vectorstore.SearchRequest{Query: "scope", Options: vectorstore.SearchOptions{TopK: 2, MinScore: 0.5}}
 	first, _ := document.NewDocument("first", nil)
 	second, _ := document.NewDocument("second", nil)
 	first.ID = "first"

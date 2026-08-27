@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 func (r *Runtime) play(run *runState, steps []Step, interrupt bool) {

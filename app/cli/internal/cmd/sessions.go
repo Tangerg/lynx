@@ -10,14 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
-	"github.com/Tangerg/lynx/app/cli/internal/render"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
-	"github.com/Tangerg/lynx/app/cli/internal/session"
-	"github.com/Tangerg/lynx/app/cli/internal/sessiondeletion"
-	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
+	"github.com/Tangerg/scope/app/cli/internal/render"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/session"
+	"github.com/Tangerg/scope/app/cli/internal/sessiondeletion"
+	"github.com/Tangerg/scope/app/cli/internal/workbench"
 )
 
 func newSessionsCommand(provider runtimeProvider, stateDirectory string) *cobra.Command {

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 type ImageModelConfig struct {

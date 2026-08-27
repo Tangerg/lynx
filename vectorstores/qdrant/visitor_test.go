@@ -5,9 +5,9 @@ import (
 
 	qdrantclient "github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/qdrant"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/qdrant"
 )
 
 func TestVisitor_Conformance(t *testing.T) {

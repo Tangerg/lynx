@@ -1,6 +1,6 @@
 # CLAUDE.md — core/tool package
 
-> Lynx 的 provider-neutral 可执行工具窄腰：拥有最小执行契约、decorator 能力发现和 typed function / schema 辅助能力。
+> Scope 的 provider-neutral 可执行工具窄腰：拥有最小执行契约、decorator 能力发现和 typed function / schema 辅助能力。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。
 
 ## 定位

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sandbox"
 )
 
 // TestLaunchSandboxConfinesWrites proves the opt-in jail is actually wired onto

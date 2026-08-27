@@ -10,8 +10,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	corechat "github.com/Tangerg/scope/core/chat"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 const echoSchema = `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`
@@ -96,7 +96,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 		require.NoError(t, err)
 		defer cs.Close()
 
-		tools, err := lynxmcp.Tools(t.Context(), []lynxmcp.ToolSource{{Name: c.source, Session: cs}}, lynxmcp.ToolsConfig{})
+		tools, err := scopemcp.Tools(t.Context(), []scopemcp.ToolSource{{Name: c.source, Session: cs}}, scopemcp.ToolsConfig{})
 		require.NoError(t, err)
 		require.Len(t, tools, 1)
 
@@ -111,7 +111,7 @@ func TestToolsDiscoversAndCallsTool(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolsConfig{})
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -135,10 +135,10 @@ func TestToolsTwoSourcesAreNamespaced(t *testing.T) {
 	cs2, _, c2 := startServerWithEcho(t, ctx)
 	defer c2()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{
 		{Name: "alpha", Session: cs1},
 		{Name: "beta", Session: cs2},
-	}, lynxmcp.ToolsConfig{})
+	}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 2)
 
@@ -153,10 +153,10 @@ func TestToolsFailsOnDuplicateNames(t *testing.T) {
 	cs2, _, c2 := startServerWithEcho(t, ctx)
 	defer c2()
 
-	_, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{
+	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{
 		{Name: "samename", Session: cs1},
 		{Name: "samename", Session: cs2},
-	}, lynxmcp.ToolsConfig{})
+	}, scopemcp.ToolsConfig{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate tool name")
 }
@@ -166,7 +166,7 @@ func TestToolsCustomNaming(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolsConfig{
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
 		Naming: func(_, toolName string) string {
 			return "mcp__" + toolName
 		},
@@ -182,7 +182,7 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 	defer cleanup()
 
 	var gotSource, gotTool, gotArguments string
-	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolsConfig{
+	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{
 		Concurrency: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, arguments string) (string, bool) {
 			gotSource = sourceName
 			gotTool = toolName
@@ -209,7 +209,7 @@ func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
 	defer cleanup()
 
 	var destructive []bool
-	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolsConfig{
+	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{
 		Concurrency: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (string, bool) {
 			destructive = append(destructive, annotations.DestructiveHint != nil && *annotations.DestructiveHint)
 			annotations.DestructiveHint = new(true)
@@ -240,7 +240,7 @@ func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolsConfig{})
+	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, wrapped, 1)
 
@@ -256,7 +256,7 @@ func TestToolsRejectsEmptyPublicName(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	_, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolsConfig{
+	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
 		Naming: func(string, string) string { return "" },
 	})
 	require.Error(t, err)
@@ -268,7 +268,7 @@ func TestToolsRejectsInvalidPublicName(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	_, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolsConfig{
+	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
 		Naming: func(string, string) string { return "invalid name" },
 	})
 	require.ErrorIs(t, err, corechat.ErrInvalidToolDefinition)
@@ -279,7 +279,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 	cs, srv, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	first, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "p", Session: cs}}, lynxmcp.ToolsConfig{})
+	first, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 
@@ -290,7 +290,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 		},
 	)
 
-	refreshed, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "p", Session: cs}}, lynxmcp.ToolsConfig{})
+	refreshed, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, refreshed, 2)
 
@@ -299,7 +299,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 }
 
 func TestToolsRejectsNilSession(t *testing.T) {
-	_, err := lynxmcp.Tools(t.Context(), []lynxmcp.ToolSource{{Name: "x"}}, lynxmcp.ToolsConfig{})
+	_, err := scopemcp.Tools(t.Context(), []scopemcp.ToolSource{{Name: "x"}}, scopemcp.ToolsConfig{})
 	require.Error(t, err)
 }
 
@@ -308,7 +308,7 @@ func TestToolsZeroOptionsUsesDefaults(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolsConfig{})
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	assert.Equal(t, "primary_echo", tools[0].Definition().Name, "default naming should join source and tool")

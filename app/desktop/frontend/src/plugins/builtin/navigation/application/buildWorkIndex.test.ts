@@ -37,30 +37,30 @@ describe("buildWorkIndex", () => {
 
   it("groups sessions under the project that owns their directory", () => {
     const content = buildWorkIndex({
-      projects: [project({ id: "/repo/lynx", name: "lynx", sessionCount: 1 })],
-      sessions: [session({ id: "a", cwd: "/repo/lynx" })],
+      projects: [project({ id: "/repo/scope", name: "scope", sessionCount: 1 })],
+      sessions: [session({ id: "a", cwd: "/repo/scope" })],
     });
 
-    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/lynx"]);
+    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/scope"]);
     expect(content?.groups[0]?.sessions.map((item) => item.id)).toEqual(["a"]);
     expect(content?.recents).toEqual([]);
   });
 
   it("keeps an empty project visible rather than dropping it", () => {
     const content = buildWorkIndex({
-      projects: [project({ id: "/repo/lynx", name: "lynx" })],
+      projects: [project({ id: "/repo/scope", name: "scope" })],
       sessions: [],
     });
 
-    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/lynx"]);
+    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/scope"]);
     expect(content?.groups[0]?.sessions).toEqual([]);
   });
 
   it("sends sessions no project claims to recents, newest first", () => {
     const content = buildWorkIndex({
-      projects: [project({ id: "/repo/lynx", name: "lynx" })],
+      projects: [project({ id: "/repo/scope", name: "scope" })],
       sessions: [
-        session({ id: "owned", cwd: "/repo/lynx", time: "2026-01-04T00:00:00.000Z" }),
+        session({ id: "owned", cwd: "/repo/scope", time: "2026-01-04T00:00:00.000Z" }),
         session({ id: "scratch", cwd: "/tmp/probe", time: "2026-01-02T00:00:00.000Z" }),
         session({ id: "loose", cwd: "/tmp/other", time: "2026-01-03T00:00:00.000Z" }),
         session({ id: "other", cwd: "/tmp/other-2", time: "2026-01-01T00:00:00.000Z" }),
@@ -73,16 +73,16 @@ describe("buildWorkIndex", () => {
 
   it("pins favorite sessions inside their project before recency sorting", () => {
     const content = buildWorkIndex({
-      projects: [project({ id: "/repo/lynx", name: "lynx" })],
+      projects: [project({ id: "/repo/scope", name: "scope" })],
       sessions: [
-        session({ id: "recent", cwd: "/repo/lynx", time: "2026-01-03T00:00:00.000Z" }),
+        session({ id: "recent", cwd: "/repo/scope", time: "2026-01-03T00:00:00.000Z" }),
         session({
           id: "favorite",
-          cwd: "/repo/lynx",
+          cwd: "/repo/scope",
           favorite: true,
           time: "2026-01-01T00:00:00.000Z",
         }),
-        session({ id: "middle", cwd: "/repo/lynx", time: "2026-01-02T00:00:00.000Z" }),
+        session({ id: "middle", cwd: "/repo/scope", time: "2026-01-02T00:00:00.000Z" }),
       ],
     });
 

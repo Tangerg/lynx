@@ -8,14 +8,14 @@ import (
 	"iter"
 	"net/http"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/media"
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
-	openaiprotocol "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/media"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/google/internal/protocol"
+	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 const (

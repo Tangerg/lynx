@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/etl"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/etl"
 )
 
 func TestTextFileWriterDefaultsToTextAndSupportsAppend(t *testing.T) {

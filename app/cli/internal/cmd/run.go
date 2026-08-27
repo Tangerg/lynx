@@ -12,12 +12,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/attachment"
-	"github.com/Tangerg/lynx/app/cli/internal/oneshot"
-	"github.com/Tangerg/lynx/app/cli/internal/render"
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
-	"github.com/Tangerg/lynx/app/cli/internal/session"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/attachment"
+	"github.com/Tangerg/scope/app/cli/internal/oneshot"
+	"github.com/Tangerg/scope/app/cli/internal/render"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/session"
 )
 
 func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {

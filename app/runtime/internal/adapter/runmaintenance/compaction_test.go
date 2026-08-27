@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/conversationfixture"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
 )
 
 // constClient adapts a fixed client to the per-call [utilitymodel.Resolver] the

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"path/filepath"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset/builtin"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/a2a"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sandbox"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that

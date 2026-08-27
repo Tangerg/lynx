@@ -3,7 +3,7 @@ package weaviate
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 func TestBuildObjectsAlwaysStoresDocumentText(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/models/catalog"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/llm"
 )
 
 func TestCatalogContainsProviderDefaults(t *testing.T) {

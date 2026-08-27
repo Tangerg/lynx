@@ -11,7 +11,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // startServerWithFailing exposes one tool that always returns IsError=true.
@@ -47,7 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -57,7 +57,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	assert.Empty(t, out)
 
 	// errors.AsType both classifies the error and exposes the structured payload.
-	tcErr, ok := errors.AsType[*lynxmcp.ToolCallError](err)
+	tcErr, ok := errors.AsType[*scopemcp.ToolCallError](err)
 	require.True(t, ok, "expected errors.AsType to extract *ToolCallError, got %v", err)
 	assert.Equal(t, "boom", tcErr.ToolName)
 	assert.Equal(t, "kaboom", tcErr.Message)
@@ -68,14 +68,14 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	// which must NOT be classified as *ToolCallError.
 	ctx := t.Context()
 	cs, cleanup := startServerWithFailing(t, ctx)
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	cleanup() // close immediately
 
 	_, callErr := tools[0].Call(ctx, "{}")
 	require.Error(t, callErr)
-	_, ok := errors.AsType[*lynxmcp.ToolCallError](callErr)
+	_, ok := errors.AsType[*scopemcp.ToolCallError](callErr)
 	assert.False(t, ok, "transport errors must not unwrap into *ToolCallError")
 }
 
@@ -84,7 +84,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolsConfig{})
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
 	require.NoError(t, err)
 
 	callable := tools[0]
@@ -117,12 +117,12 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolsConfig{
-		MetaFunc: lynxmcp.MetaFromContext,
+	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
+		MetaFunc: scopemcp.MetaFromContext,
 	})
 	require.NoError(t, err)
 
-	callCtx := lynxmcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
+	callCtx := scopemcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
 	out, err := tools[0].Call(callCtx, "{}")
 	require.NoError(t, err)
 	assert.Equal(t, "ok", out)

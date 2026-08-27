@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/skills"
+	"github.com/Tangerg/scope/app/cli/internal/skills"
 )
 
 func (a *app) ShowDiscoveredSkills() {

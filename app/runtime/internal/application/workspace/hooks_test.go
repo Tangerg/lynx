@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 func TestRuntimeInspectReturnsEmptyWhenUnconfigured(t *testing.T) {

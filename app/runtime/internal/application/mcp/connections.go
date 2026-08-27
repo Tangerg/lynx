@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // ReconnectServer re-dials a configured MCP server and hot-swaps the live tool

@@ -3,8 +3,8 @@ package goals
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
 )
 
 // WithInvalidations returns store wrapped so that every goal write that actually

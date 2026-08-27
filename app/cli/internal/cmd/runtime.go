@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/scope/app/cli/internal/runtimeprofile"
 )
 
 func newRuntimeCommand(provider runtimeProvider) *cobra.Command {

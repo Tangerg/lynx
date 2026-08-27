@@ -7,7 +7,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // OpenTools resolves every endpoint, opens its client, and wraps each remote

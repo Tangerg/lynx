@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/git"
 )
 
 // VCS adapts Git status and diff reads to the workspace application ports.

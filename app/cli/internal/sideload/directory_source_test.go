@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/terminal"
+	"github.com/Tangerg/scope/app/cli/internal/extensions"
+	"github.com/Tangerg/scope/app/cli/internal/terminal"
 )
 
 func writePlugin(t *testing.T, root, directory string, declared pluginManifest, executable string) {

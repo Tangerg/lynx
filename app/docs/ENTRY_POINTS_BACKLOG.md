@@ -4,7 +4,7 @@
 >
 > **方法**：4 个 source-grounded subagent 第一手核实——1 个自审（盘点 `app/desktop/frontend/src` 全部入口）+ 3 个竞品（**Proma**=最近同类 / **Cherry Studio**=多功能区标杆 / **LobeChat**=可发现性标杆，clone 均在 `~/Desktop/`）。竞品路径相对各自 clone 根；我方路径相对 `app/desktop/frontend/src`。基线 **2026-06-22**。
 >
-> **一句话元结论**：lynx 的真正同类是 **Proma / Codex / Claude Code（单工作区编码 agent）**，不是 Cherry/LobeChat 那种多模态 AI hub——所以差距**不在缺产品区**，而在 ① **已实现的 7+ 个 view 只有 ⌘K 一条路**（无 nav/无按钮，等于隐形）② **两个假 affordance**（死的 exec-mode chip、假的搜索入口）③ **composer 缺少后端早已支持的能力入口**（权限/计划模式、工具可见、手动 compact）。根因九成是**前端没给入口**，能力都在。
+> **一句话元结论**：scope 的真正同类是 **Proma / Codex / Claude Code（单工作区编码 agent）**，不是 Cherry/LobeChat 那种多模态 AI hub——所以差距**不在缺产品区**，而在 ① **已实现的 7+ 个 view 只有 ⌘K 一条路**（无 nav/无按钮，等于隐形）② **两个假 affordance**（死的 exec-mode chip、假的搜索入口）③ **composer 缺少后端早已支持的能力入口**（权限/计划模式、工具可见、手动 compact）。根因九成是**前端没给入口**，能力都在。
 
 ---
 
@@ -12,8 +12,8 @@
 
 把竞品按定位分两类，**避免照着错的对象补**：
 
-- **同类（编码 agent，IA 直接可比）**：**Proma**（Chat+Agent 工作台，Claude Agent SDK，workspace/skills/MCP/scheduler——几乎与 lynx 同功能集）。它的入口选择是 lynx 最好的镜子。
-- **异类（多模态 AI hub，只借 IA 机制、不借产品区）**：**Cherry Studio**（11 个功能区 + mini-app）、**LobeChat**（Discover 市场 + 多模态）。它们的 Paintings/Translate/知识库/市场是 hub 定位，**不是 lynx 目标**；但它们的命令面板/统一 + 菜单/可配置侧栏/右侧 inspector 等**可发现性机制**值得借。
+- **同类（编码 agent，IA 直接可比）**：**Proma**（Chat+Agent 工作台，Claude Agent SDK，workspace/skills/MCP/scheduler——几乎与 scope 同功能集）。它的入口选择是 scope 最好的镜子。
+- **异类（多模态 AI hub，只借 IA 机制、不借产品区）**：**Cherry Studio**（11 个功能区 + mini-app）、**LobeChat**（Discover 市场 + 多模态）。它们的 Paintings/Translate/知识库/市场是 hub 定位，**不是 scope 目标**；但它们的命令面板/统一 + 菜单/可配置侧栏/右侧 inspector 等**可发现性机制**值得借。
 
 > 判据：凡是"加一个新产品区"的，先问"这是 hub 才需要的吗"——是则不追；凡是"让已有能力浮出来 / 更好地组织入口"的，照学。
 
@@ -45,7 +45,7 @@
 - **⌘K 命令面板**（`command/command-palette/`，cmdk，模糊匹配 label+desc+group+keywords）——机制在，差的是**源**（见 T3.1），不是面板本身。
 - **Codex 式项目→会话树 + 侧栏会话过滤 + per-session 状态点**（`sidebar/projects.tsx`）。
 - **统一 tab 条**（chat tab 与 view tab 同条）+ **split-beside view**（chat | resizer | view，可拖拽、比例持久）+ **⌘1–9 切 tab** + tab 右键（关闭/关其他/左/右/全部）。
-- **tool-click 路由**（`state/toolRouting.ts`：shell/command 卡 → terminal beside；fileEdit/read 卡 → diff beside）——这是 lynx 已有、competitor 多数没有的"从工具卡进检视面"的好入口。
+- **tool-click 路由**（`state/toolRouting.ts`：shell/command 卡 → terminal beside；fileEdit/read 卡 → diff beside）——这是 scope 已有、competitor 多数没有的"从工具卡进检视面"的好入口。
 - **分组设置**（12 面板，general/models/agent/integrations/advanced）+ 首启 keyless setup 卡深链 Providers。
 - **per-message / per-session 操作**（复制 MD/Plain/Code、编辑回填、重生成、fork、pin、rename、delete）。
 - **审批能力**（全局模式 + 持久细粒度规则，`settings/approvals/`）——比多数竞品强；**但运行时入口缺**（见 T2.1）。
@@ -112,7 +112,7 @@
 - **我方**：仅 `@`文件 + `/`slash（slash-hints + recipes）；有 usage chip 但**无手动压缩/限轮入口**（压缩只在 turn 后自动跑）。
 - **改法**：mention 加 `#`(MCP)/`&`(会话引用，若后端支持)；usage chip 旁加手动 compact 触发。
 
-> reasoning/thinking 开关：Cherry/Proma/LobeChat 都在 composer 给——lynx 现靠模型默认。**低优先**，按需。
+> reasoning/thinking 开关：Cherry/Proma/LobeChat 都在 composer 给——scope 现靠模型默认。**低优先**，按需。
 
 ---
 
@@ -146,12 +146,12 @@
 
 ## 6. 明确**不追**（产品取舍 / 已决议，别重提）
 
-- **Paintings / Translate / 多模态创作区 / 知识库 hub / Discover 市场**：Cherry/LobeChat 的 "AI hub" 定位，**不是 lynx（编码 agent）目标**。别为对齐它们加产品区。（市场作为"安装能力"的统一入口思路可借——但 lynx 的 skills/recipes/mcp 量级未必需要专门市场面。）
+- **Paintings / Translate / 多模态创作区 / 知识库 hub / Discover 市场**：Cherry/LobeChat 的 "AI hub" 定位，**不是 scope（编码 agent）目标**。别为对齐它们加产品区。（市场作为"安装能力"的统一入口思路可借——但 scope 的 skills/recipes/mcp 量级未必需要专门市场面。）
 - **底部状态栏**：已删（`project_desktop_statusbar_removed`），别加回；持久遥测在 composer 页脚。
 - **react-virtual**：已否（用 content-visibility）。
 - **@codebase 的 in-composer attach**：已缓（`StartRunRequest.Context` 后端侧被丢弃）。
 - **多 tab**：保留（已决议），不退回单 tab。
-- **icon-rail-of-apps**：lynx 功能区少 + Codex 极简美学方向，**不照搬** Cherry 的多 rail；优先用"可配置侧栏 + 溢出"（T3.4）。
+- **icon-rail-of-apps**：scope 功能区少 + Codex 极简美学方向，**不照搬** Cherry 的多 rail；优先用"可配置侧栏 + 溢出"（T3.4）。
 
 ---
 

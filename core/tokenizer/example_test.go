@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/scope/core/tokenizer"
 )
 
 type wordEstimator struct{}

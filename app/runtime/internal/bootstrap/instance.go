@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runtimeownership"
-	"github.com/Tangerg/lynx/app/runtime/internal/completion"
-	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/runtimeownership"
+	"github.com/Tangerg/scope/app/runtime/internal/completion"
+	"github.com/Tangerg/scope/app/runtime/internal/config"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // InstanceConfig is the exact host snapshot required to open one complete

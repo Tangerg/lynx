@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 var errAgentMemoryProject = errors.New("sqlite: agent memory project is required")

@@ -1,9 +1,9 @@
-module github.com/Tangerg/lynx/models/bedrock
+module github.com/Tangerg/scope/models/bedrock
 
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
 	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/config v1.32.34
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33

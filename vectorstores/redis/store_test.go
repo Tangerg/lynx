@@ -3,7 +3,7 @@ package redis_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/vectorstores/redis"
+	"github.com/Tangerg/scope/vectorstores/redis"
 )
 
 func TestMetadataFieldOwnsItsSchemaContract(t *testing.T) {

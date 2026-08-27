@@ -11,9 +11,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	vectorotel "github.com/Tangerg/lynx/otel/vectorstore"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
+	vectorotel "github.com/Tangerg/scope/otel/vectorstore"
 )
 
 type indexerFunc func(context.Context, *vectorstore.IndexRequest) error

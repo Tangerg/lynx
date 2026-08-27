@@ -3,7 +3,7 @@ package moderation_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/scope/core/moderation"
 )
 
 func Example() {

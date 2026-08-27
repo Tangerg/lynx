@@ -6,10 +6,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/changefeed"
+	"github.com/Tangerg/scope/app/cli/internal/reconnect"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
 )
 
 var runtimeRecoveryBackoff = retry.Backoff{Base: 100 * time.Millisecond, Maximum: 5 * time.Second}

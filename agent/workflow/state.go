@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 type phase string

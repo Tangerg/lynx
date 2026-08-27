@@ -3,10 +3,10 @@ package runtimeembedded
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/feedback"
+	"github.com/Tangerg/scope/app/cli/internal/feedback"
 )
 
 type feedbackBinding interface {

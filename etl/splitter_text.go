@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 // TextSplitterConfig configures fixed-separator chunking. The zero Separator

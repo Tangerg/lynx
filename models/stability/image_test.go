@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/stability"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/stability"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {

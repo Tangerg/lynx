@@ -3,7 +3,7 @@ package redis
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
 )
 
 func TestStoreConformance(t *testing.T) {

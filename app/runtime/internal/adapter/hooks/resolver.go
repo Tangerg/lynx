@@ -3,7 +3,7 @@ package hooks
 import (
 	"context"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
 )
 
 // Resolver binds the hooks.json cascade to a working directory: it loads the

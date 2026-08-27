@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/azureopenai"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/azureopenai"
 )
 
 const azureImageJSON = `{"created":1700000000,"data":[{"url":"https://cdn.test/img.png"}]}`

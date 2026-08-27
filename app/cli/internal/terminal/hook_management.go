@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
+	"github.com/Tangerg/scope/app/cli/internal/hookpolicy"
 )
 
 func (a *app) ShowHooks() {

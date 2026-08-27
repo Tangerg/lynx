@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 func TestOllamaOpenAIBaseURL(t *testing.T) {

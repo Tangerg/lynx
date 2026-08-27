@@ -3,7 +3,7 @@ package toolset
 import (
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // Manifest is one Run's frozen, framework-neutral model Tool surface. Visible

@@ -19,12 +19,12 @@ import (
 
 	"github.com/Tangerg/oolong/core/term"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/backend"
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
-	"github.com/Tangerg/lynx/app/cli/internal/sideload"
-	terminalui "github.com/Tangerg/lynx/app/cli/internal/terminal"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/backend"
+	"github.com/Tangerg/scope/app/cli/internal/extensions"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/sideload"
+	terminalui "github.com/Tangerg/scope/app/cli/internal/terminal"
 )
 
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".

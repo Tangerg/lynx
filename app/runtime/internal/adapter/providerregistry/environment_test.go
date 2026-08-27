@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
 )
 
 // fakeRegistry is an in-memory provider.Registry for exercising the env decorator.

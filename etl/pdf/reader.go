@@ -10,8 +10,8 @@ import (
 	ledongthuc "github.com/ledongthuc/pdf"
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/document"
-	coremetadata "github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/document"
+	coremetadata "github.com/Tangerg/scope/core/metadata"
 )
 
 const (

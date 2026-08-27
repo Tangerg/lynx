@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // IDPrefix is the type prefix assigned when a Runtime generates a Session ID.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 func Example() {

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 var (

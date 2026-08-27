@@ -1,4 +1,4 @@
-# CLAUDE.md — lynx monorepo 项目级上下文
+# CLAUDE.md — scope monorepo 项目级上下文
 
 > Go monorepo，多个 sub-module 各自有 `go.mod`。本文件只放**跨模块共用的法则 —— 只宏观、不写具体**（具体案例、符号、文件名活在代码 / git / 各模块自己的 `CLAUDE.md` 里，会随演化变动，不进本则）。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)，落手重构的标尺见 [`REFACTORING.md`](REFACTORING.md)。
 
@@ -32,19 +32,23 @@
 
 ## 定位与导览
 
-`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`etl`、`evaluation`、`tools`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
+`scope` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`etl`、`evaluation`、`tools`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
 
 ---
 
 ## 共用强约定（违反 = 回归）
 
+- **唯一项目身份**：品牌使用 `Scope`，仓库与 Go module 使用 `github.com/Tangerg/scope`。旧品牌、旧 module path、双路径、品牌 alias 和 compatibility `replace` 都不保留。外部协议/provider 的品牌只在表达客观集成事实时出现，不能成为 Scope 自有概念的命名锚。
 - **统一 Go 版本**：所有模块 `go.mod` 同步；用当前版本的现代 stdlib（`iter.Seq2` / `slices.*` / `maps.*` / 类型化 atomic 等）。
-- **通用能力不手写**：标准库优先；标准库缺失时允许使用经过评估的成熟三方库，包括 Core。门禁约束依赖方向、公共 API 泄露与已知高风险类别，不逐项列举允许的库名；不能用本地 wrapper、复制实现或“Core 特殊”作为重复造轮子的理由。领域语义与边界策略仍由领域类型拥有。
+- **通用能力不手写**：标准库优先；标准库缺失时允许使用经过评估的成熟三方库，包括 Core。采用条件是它能净删除解析、边界条件与维护面，而不是仅把一个函数包进新依赖；不为隐藏成熟库再复制一层实现。门禁约束依赖方向、公共 API 泄露与已知高风险类别，不逐项列举允许的库名；不能用本地 wrapper、复制实现或“Core 特殊”作为重复造轮子的理由。领域语义与边界策略仍由领域类型拥有。
+- **领域行为归领域 owner**：领域实体和值对象拥有自己的不变量、合法性、派生值与纯状态转移；不能把它们散落成 service/helper 的过程式脚本。Config、请求响应 DTO、wire 与事实记录仍保持数据模型，不为“充血”硬造方法或空 service object。
+- **一个能力、一个出口**：每项能力只保留一个 canonical public representation 和一条主调用路径；不得并存 free function、method、facade、alias、builder、兼容 wrapper 等同义入口。便利 API 只有在隐藏了真实的生命周期或类型擦除边界、且仍委托唯一 owner 时才成立。
+- **禁止魔法**：稳定词汇使用有语义的 named string value object 或常量并由 owner 校验；协议数值、默认值、超时、版本与 attribute key 必须具名。匿名 `map[string]any` 只允许停在真实动态 wire / 第三方 SDK 边界，进入领域后立即转成 typed model，不能作为内部配置、领域状态或跨层参数袋。
 - **Module 与 package 各司其职**：module 只表达独立依赖集合、发布周期和版本边界；package 表达职责。相同依赖与生命周期不为形式一致拆 module，不同重型 SDK 也不硬塞进聚合 module。依赖集合用于判断边界，不是限制成熟三方库数量的预算。
 - **单复数按语义**：可导入的单一能力 package 优先使用单数或不可数领域名（`tool`、`history`、`web`）；只承载一组平级实现、且自身不形成 package 的命名空间才使用复数（`models`、`vectorstores`、`tokenizers`）。协议或行业专名按其固有名称（Agent Skills）处理，不机械改单复数。
 - **依赖接口、不依赖具体类型**：跨包消费走 interface，且**接口在消费方定义**（不在被消费方）。要拿整个 `*Engine` / `*Client` / `*Store` 时，先停下来想能不能只依赖用到的那几个方法。
 - **ISP 切碎接口**：接口只放调用方真用的方法；胖接口拆成按需组合的子接口，装配处 union、消费者各依赖自己那片。
-- **错误**：`errors.New` 优先于 `fmt.Errorf("常量")`；`fmt.Errorf` 只在真要格式化时用，包装错误一律 `%w`（才能 `errors.Is/As`）。
+- **错误**：错误文本必须让调用者脱离日志上下文仍能读懂，至少表达失败操作、对象身份或关键边界以及 cause；保持小写且不加句号。`errors.New` 优先于 `fmt.Errorf("常量")`；`fmt.Errorf` 只在真要格式化时用，包装错误一律 `%w`（才能 `errors.Is/As`）。稳定分类由 sentinel / typed error 拥有，不靠匹配字符串。
 - **没有 Java 味**：禁空白后缀类型名（`Impl` / `Service` / `Manager` / `Helper` / `Handler`）、禁泛文件名（`impl.go` 等）、禁 `GetX/SetX` getter、禁 builder 链。文件名描述内容、struct 名描述本质。
 - **现代 Go**：类型化 atomic / `sync.Map`（write-rare）优先于自家 wrapper；`slices.*` / `maps.*` 替手写 loop；`iter.Seq2` 替 channel 流。
 - **可观测性 = OTel 三驾马车，sink 到 `log/slog`（vendor-neutral）**：观测 = Traces（span）+ Metrics（instrument）+ Logs。应用、integration 和独立 `otel` module 直接使用官方 OTel API，不自造 tracer/meter 抽象；**Core 不 import OTel**，由 `otel` wrapper/decorator 在协议调用边界添加埋点。组合根在启动时一次性绑定 exporter + W3C propagator。规约：
@@ -100,7 +104,7 @@
 
 优先让代码通过**命名、结构、抽象**自解释；想写注释先问"能不能改名 / 抽函数 / 调结构让它不言自明"。注释是表达力用尽后的**最后手段**。只在以下情况写（写的是代码无法表达的信息）：
 
-1. **接口定义（godoc）**：语义、参数、返回值、error 语义 / sentinel、副作用与调用约束、并发安全 —— exported 符号的 doc comment 是公开契约；unexported 才适用"轻易不写"。
+1. **关键公开合同（godoc）**：领域关键类型、接口与非显然实现要写清不变量、所有权、生命周期、error 语义、副作用与并发约束。普通构造器、`Validate`、`MarshalJSON` 等自解释 API 不写复述名称的模板注释；若工具要求注释，应通过 package 级豁免或调整门禁表达真实规则，不能制造无信息噪声。
 2. **特殊约定**：业务规则、历史原因、兼容要求、外部系统约束（协议条款、第三方 SDK 怪癖）—— 不在代码里、只在上下文里。
 3. **特殊算法**：思路、边界条件、复杂度、非显然优化。
 4. **反直觉实现**：为什么**不能**用更常见更简单的写法（防下一个人"好心"改回去）。

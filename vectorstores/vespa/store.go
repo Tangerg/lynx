@@ -12,12 +12,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	// vector tensor.
 	DefaultEmbeddingField = "embedding"
 
-	// DefaultIDField names the field used for the Lynx document id.
+	// DefaultIDField names the field used for the Scope document id.
 	DefaultIDField = "doc_id"
 
 	// DefaultQueryTensorName names the rank-profile query tensor.

@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/failure"
 )
 
 // NDJSON renders one event per line as a JSON object, so

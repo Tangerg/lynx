@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/agenttest"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/agenttest"
 )
 
 func TestNewScriptedDispatcherRejectsContradictorySteps(t *testing.T) {

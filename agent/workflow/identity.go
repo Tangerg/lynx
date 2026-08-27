@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 func workflowChildKey(parts ...string) (agent.ChildKey, error) {

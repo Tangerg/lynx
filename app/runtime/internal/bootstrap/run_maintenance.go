@@ -3,15 +3,15 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/Tangerg/lynx/models/catalog"
-	skillspec "github.com/Tangerg/lynx/skills"
+	"github.com/Tangerg/scope/core/chatclient"
+	"github.com/Tangerg/scope/models/catalog"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runmaintenance"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/runmaintenance"
+	"github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/exec"
 )
 
 func buildRunMaintenance(

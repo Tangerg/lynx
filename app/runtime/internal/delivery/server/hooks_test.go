@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // fakeHookTrust records the workspace coordinator's trust calls (Trust/Untrust)

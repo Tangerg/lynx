@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
 )
 
 // compactionStore is the worker's narrow conversation use-case view. The

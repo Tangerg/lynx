@@ -1,6 +1,6 @@
 // Package a2a is the A2A (Agent-to-Agent) connection infra: it resolves and
 // dials configured remote agents (each becomes one delegation tool the chat
-// loop can call) and closes them at shutdown. A thin adapter over the lynx a2a
+// loop can call) and closes them at shutdown. A thin adapter over the scope a2a
 // module; pure infra, no domain knowledge.
 package a2a
 
@@ -10,18 +10,18 @@ import (
 	"slices"
 	"sync"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	lynxa2a "github.com/Tangerg/lynx/a2a"
+	scopea2a "github.com/Tangerg/scope/a2a"
 )
 
 // ClientConfig is the infrastructure adapter's transport-neutral input. Keep
-// it local instead of re-exporting lynxa2a.Endpoint so protocol-library types
+// it local instead of re-exporting scopea2a.Endpoint so protocol-library types
 // do not escape this package's boundary.
 type ClientConfig struct {
 	Name              string
@@ -29,7 +29,7 @@ type ClientConfig struct {
 	AllowedRPCOrigins []string
 }
 
-var tracer = otel.Tracer("lynx/lyra/infra/a2a")
+var tracer = otel.Tracer("scope/lyra/infra/a2a")
 
 // Connections owns the remote-agent connection cleanup for shutdown.
 type Connections struct {
@@ -43,7 +43,7 @@ type Connections struct {
 //
 // Failure semantics match the MCP path: any single agent that can't be
 // resolved or dialed fails the whole call (the operator sees it at startup
-// rather than discovering a missing capability later), and the lynx a2a module
+// rather than discovering a missing capability later), and the scope a2a module
 // closes the already-opened clients before returning the error.
 func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []toolcontract.Tool, error) {
 	if len(agents) == 0 {
@@ -61,15 +61,15 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []toolcontr
 		span.End()
 	}()
 
-	endpoints := make([]lynxa2a.Endpoint, len(agents))
+	endpoints := make([]scopea2a.Endpoint, len(agents))
 	for i, agent := range agents {
-		endpoints[i] = lynxa2a.Endpoint{
+		endpoints[i] = scopea2a.Endpoint{
 			Name:              agent.Name,
 			CardURL:           agent.CardURL,
 			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
 		}
 	}
-	tools, closeTools, derr := lynxa2a.Tools(ctx, endpoints...)
+	tools, closeTools, derr := scopea2a.OpenTools(ctx, endpoints...)
 	if derr != nil {
 		err = fmt.Errorf("a2a: dial agents: %w", derr)
 		return nil, nil, err

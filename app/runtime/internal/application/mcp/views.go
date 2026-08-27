@@ -4,8 +4,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/secrets"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/application/secrets"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // SecretChangeKind is the application's exact secret-mutation vocabulary.

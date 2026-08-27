@@ -8,9 +8,9 @@ import (
 
 	openaisdk "github.com/openai/openai-go/v3"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func newImageModel(t *testing.T, baseURL, modelID string) *openai.ImageModel {

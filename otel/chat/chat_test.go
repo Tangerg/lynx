@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/chat"
-	otelchat "github.com/Tangerg/lynx/otel/chat"
+	"github.com/Tangerg/scope/core/chat"
+	otelchat "github.com/Tangerg/scope/otel/chat"
 )
 
 type telemetryRig struct {

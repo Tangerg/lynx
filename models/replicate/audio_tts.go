@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	tts "github.com/Tangerg/lynx/core/speech"
+	tts "github.com/Tangerg/scope/core/speech"
 )
 
 type AudioTTSModelConfig struct {

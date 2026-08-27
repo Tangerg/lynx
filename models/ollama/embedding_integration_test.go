@@ -5,8 +5,8 @@ package ollama_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/ollama"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/models/ollama"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
@@ -14,11 +14,11 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 		Provider: "ollama",
 		Build: func(t *testing.T, _ string) embedding.Model {
 			t.Helper()
-			modelID, _ := lookupEnv("LYNX_TEST_OLLAMA_EMBEDDING_MODEL")
+			modelID, _ := lookupEnv("SCOPE_TEST_OLLAMA_EMBEDDING_MODEL")
 			if modelID == "" {
 				modelID = "nomic-embed-text"
 			}
-			baseURL, _ := lookupEnv("LYNX_TEST_OLLAMA_BASE_URL")
+			baseURL, _ := lookupEnv("SCOPE_TEST_OLLAMA_BASE_URL")
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
 				t.Fatal(err)

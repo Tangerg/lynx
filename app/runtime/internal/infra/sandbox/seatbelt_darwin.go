@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	toolshell "github.com/Tangerg/lynx/tools/shell"
+	toolshell "github.com/Tangerg/scope/tools/shell"
 )
 
 const sandboxExecPath = "/usr/bin/sandbox-exec"

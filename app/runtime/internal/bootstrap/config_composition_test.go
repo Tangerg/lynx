@@ -3,9 +3,9 @@ package bootstrap
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/config"
+	sqlitestore "github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
 
 func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {

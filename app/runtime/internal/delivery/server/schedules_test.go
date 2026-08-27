@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // fakeScheduleRegistry is the combined test store that records the

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // Verdict is one moderation dimension's outcome — a flagged bit plus a

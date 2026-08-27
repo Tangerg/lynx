@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/gitprocess"
 )
 
 // git runs one git command against the shadow GIT_DIR with cwd as the work tree

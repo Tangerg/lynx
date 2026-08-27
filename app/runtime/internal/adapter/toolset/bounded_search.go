@@ -11,12 +11,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	workspaceadapter "github.com/Tangerg/scope/app/runtime/internal/adapter/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 )
 
 // textProjection owns the package's fixed, text-first projection between A2A
-// protocol content and the lynx tool/agent boundaries. Its zero value is ready
+// protocol content and the scope tool/agent boundaries. Its zero value is ready
 // for use.
 type textProjection struct{}
 

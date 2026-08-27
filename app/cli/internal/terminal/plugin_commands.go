@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/kit"
 
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/scope/app/cli/internal/extensions"
 )
 
 func (a *app) ShowPlugins() {

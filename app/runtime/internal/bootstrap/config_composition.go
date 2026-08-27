@@ -4,14 +4,14 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelcatalog"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/config"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/scope/core/chatclient"
 )
 
 // ComposeConfig translates process settings and already-opened adapters into

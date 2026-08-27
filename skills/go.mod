@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/skills
+module github.com/Tangerg/scope/skills
 
 go 1.27.0
 

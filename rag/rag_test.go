@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/rag"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/rag"
 )
 
 var testQueryValueKey = rag.MustValueKey[string]("test value")

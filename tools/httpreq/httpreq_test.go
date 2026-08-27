@@ -96,7 +96,7 @@ func TestRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 		URL:     "  https://example.com/path  ",
 		Method:  " post ",
 		Headers: map[string]string{"X-Test": "original"},
-		Query:   map[string]string{"q": "lynx"},
+		Query:   map[string]string{"q": "scope"},
 	}
 	if err := original.Validate(); err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 		t.Fatalf("prepared request = %#v", prepared)
 	}
 	if original.URL != "  https://example.com/path  " || original.Method != " post " ||
-		original.Headers["X-Test"] != "original" || original.Query["q"] != "lynx" {
+		original.Headers["X-Test"] != "original" || original.Query["q"] != "scope" {
 		t.Fatalf("Prepare mutated its input: %#v", original)
 	}
 }

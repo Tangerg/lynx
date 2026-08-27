@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const modelsImportPrefix = "github.com/Tangerg/lynx/models/"
+const modelsImportPrefix = "github.com/Tangerg/scope/models/"
 
 // TestProviderDependenciesAreOneWay prevents a concrete provider from
 // importing another concrete provider. Reusable wire implementations belong

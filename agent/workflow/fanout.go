@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 func (s Stage) fanoutCount(raw json.RawMessage) (uint32, error) {

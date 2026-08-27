@@ -7,7 +7,7 @@ import (
 
 	"github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {

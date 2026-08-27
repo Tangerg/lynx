@@ -3,8 +3,8 @@ package opensearch_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/opensearch"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/opensearch"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

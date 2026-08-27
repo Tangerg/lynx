@@ -3,11 +3,11 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelclient"
+	agentmemoryapp "github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/application/models"
 )
 
 // modelEnvironment is the composition-time graph shared by interactive model

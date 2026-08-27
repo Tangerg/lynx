@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // MapConfig declares a bounded homogeneous item fan-out. The Stage input is

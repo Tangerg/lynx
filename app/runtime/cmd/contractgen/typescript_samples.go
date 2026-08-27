@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/scope/app/runtime/internal/contractcatalog"
 )
 
 // The canonical sample index, projected for the side that cannot read Go.

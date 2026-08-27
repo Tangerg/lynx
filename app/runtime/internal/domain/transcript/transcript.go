@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // --- run timeline (the rollback / fork boundary invariant) ---

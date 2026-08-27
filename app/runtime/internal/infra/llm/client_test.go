@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/deepseek"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/deepseek"
 )
 
 // TestChatProviderCatalogSatisfiesConstructionContract holds the static catalog to its contract:

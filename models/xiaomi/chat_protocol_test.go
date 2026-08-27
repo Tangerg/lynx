@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/xiaomi"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/protocol/openai"
+	"github.com/Tangerg/scope/models/xiaomi"
 )
 
 func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {

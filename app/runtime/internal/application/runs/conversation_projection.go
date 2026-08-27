@@ -3,8 +3,8 @@ package runs
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // appendToolContext advances the reducer-local model-context ledger only for a

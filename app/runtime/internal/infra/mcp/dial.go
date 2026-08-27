@@ -6,21 +6,21 @@ import (
 	"fmt"
 	"slices"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // tracer emits the MCP dial / reconnect spans the lower layers don't (per-call
 // MCP tool spans come from the mcp module itself). No-op until a provider is
 // installed.
-var tracer = otel.Tracer("lynx/lyra/infra/mcp")
+var tracer = otel.Tracer("scope/lyra/infra/mcp")
 
 // Dial connects to each configured server, lists its tools, and returns the
 // Connections handle alongside the merged model-facing tool list. The server
@@ -103,7 +103,7 @@ func Dial(
 			continue
 		}
 		c.ownSessionLocked(session, cleanupSession)
-		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
+		srcTools, terr := sourceTools(ctx, scopemcp.ToolSource{Name: srv.Name, Session: session})
 		if terr == nil {
 			terr = validateToolCatalog(c.servers, nil, srv.Name, srcTools)
 		}

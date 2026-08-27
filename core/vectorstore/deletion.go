@@ -3,7 +3,7 @@ package vectorstore
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // FilterDeleter removes documents selected by a metadata expression. It is a

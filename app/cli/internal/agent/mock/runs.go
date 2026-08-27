@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 func (r *Runtime) GetRun(ctx context.Context, runID string) (agent.Run, error) {

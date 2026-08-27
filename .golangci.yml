@@ -52,7 +52,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/Tangerg/lynx
+        - github.com/Tangerg/scope
   exclusions:
     generated: lax
     paths:

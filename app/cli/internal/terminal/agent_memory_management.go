@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/scope/app/cli/internal/agentmemory"
 )
 
 func (a *app) ShowAgentMemory(argument string) error {

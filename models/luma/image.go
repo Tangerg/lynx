@@ -13,8 +13,8 @@ import (
 
 	lumaagents "github.com/lumalabs/luma-agents-go"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/media"
 )
 
 type ImageModelConfig struct {

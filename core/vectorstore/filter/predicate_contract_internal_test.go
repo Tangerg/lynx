@@ -117,11 +117,11 @@ func TestVisitRejectsInvalidInputsBeforeDispatch(t *testing.T) {
 }
 
 func TestLiteralVocabularyAndConstructors(t *testing.T) {
-	stringLiteral := NewLiteral("lynx")
+	stringLiteral := NewLiteral("scope")
 	if !stringLiteral.IsString() || stringLiteral.IsNumber() || stringLiteral.IsBool() || stringLiteral.IsNull() {
 		t.Fatal("string literal kind helpers are inconsistent")
 	}
-	if got, err := stringLiteral.AsString(); err != nil || got != "lynx" {
+	if got, err := stringLiteral.AsString(); err != nil || got != "scope" {
 		t.Fatalf("AsString() = %q, %v", got, err)
 	}
 	if _, err := stringLiteral.AsNumber(); err == nil {
@@ -229,12 +229,12 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 	}
 
 	expressions := []Predicate{
-		EQ("name", "lynx"), NE("name", "other"),
+		EQ("name", "scope"), NE("name", "other"),
 		LT("rank", 10), LE("rank", 10), GT("rank", 1), GE("rank", 1),
 		In("tag", []string{"go", "ai"}), Like("name", "ly%"),
 		IsNull("deleted_at"), IsNotNull("created_at"),
 		And(EQ("a", 1), EQ("b", 2)), Or(EQ("a", 1), EQ("b", 2)),
-		Not(EQ("disabled", true)), EQ(nested, "lynx"),
+		Not(EQ("disabled", true)), EQ(nested, "scope"),
 	}
 	for _, expr := range expressions {
 		if err := expr.Validate(); err != nil {

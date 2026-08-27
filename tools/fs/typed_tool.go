@@ -3,7 +3,7 @@ package fs
 import (
 	"context"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 func mustTypedTool[In, Out any](config toolcontract.FuncConfig, function func(context.Context, In) (Out, error)) toolcontract.Func[In, Out] {

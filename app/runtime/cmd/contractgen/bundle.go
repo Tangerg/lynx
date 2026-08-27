@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
-	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // bundle is the JSON Schema document: every wire type the protocol can carry, in

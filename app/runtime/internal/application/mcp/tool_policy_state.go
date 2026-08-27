@@ -3,7 +3,7 @@ package mcp
 import (
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // ToolPolicyState owns the effective MCP tool-policy snapshot. The application

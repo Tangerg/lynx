@@ -762,7 +762,7 @@ export const zhTW: Record<string, string> = {
   "settings.pane.mcpServers": "MCP 伺服器",
   "settings.pane.hooks": "Hooks",
   "settings.pane.schedules": "排程",
-  "settings.appearance.hero": "主題、對比、字體與動態決定了 Lynx 的操作手感。",
+  "settings.appearance.hero": "主題、對比、字體與動態決定了 Scope 的操作手感。",
   "context.usage.aria": "上下文用量：{{percent}}%",
   "context.usage.label": "上下文視窗：",
   "context.usage.statusFull": "已使用 {{percent}}%",

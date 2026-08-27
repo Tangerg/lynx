@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/cassandra"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
+	"github.com/Tangerg/scope/vectorstores/cassandra"
 )
 
 func TestVisitor_PreservesUnsignedIntegerList(t *testing.T) {

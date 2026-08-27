@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
-var workerTracer = otel.Tracer("lynx/lyra/schedule")
+var workerTracer = otel.Tracer("scope/lyra/schedule")
 
 const workerTick = time.Minute
 

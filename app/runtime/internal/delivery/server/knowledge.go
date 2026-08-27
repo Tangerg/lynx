@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListKnowledge enumerates LYRA.md entries across scopes (API.md §7.7).

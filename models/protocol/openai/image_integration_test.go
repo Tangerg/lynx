@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestImageModel_Call_Integration(t *testing.T) {
 	key := modeltest.RequireKey(t, "openai")
-	modelID, _ := modeltest.LookupEnv("LYNX_TEST_OPENAI_IMAGE_MODEL")
+	modelID, _ := modeltest.LookupEnv("SCOPE_TEST_OPENAI_IMAGE_MODEL")
 	if modelID == "" {
 		modelID = "dall-e-2" // cheaper than dall-e-3
 	}

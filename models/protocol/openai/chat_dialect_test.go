@@ -6,23 +6,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	scopeopenai "github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestTextReasoningDialects(t *testing.T) {
 	tests := []struct {
 		name            string
-		dialect         lynxopenai.Dialect
+		dialect         scopeopenai.Dialect
 		responseField   string
 		wantReplayField string
 		withToolCall    bool
 	}{
-		{name: "reasoning_content output only", dialect: lynxopenai.ReasoningContentDialect("test"), responseField: "reasoning_content"},
-		{name: "reasoning_content full replay", dialect: lynxopenai.ReasoningContentReplayDialect("test"), responseField: "reasoning_content", wantReplayField: "reasoning_content"},
-		{name: "reasoning_content tool replay", dialect: lynxopenai.ReasoningContentToolReplayDialect("test"), responseField: "reasoning_content", wantReplayField: "reasoning_content", withToolCall: true},
-		{name: "reasoning output only", dialect: lynxopenai.ReasoningDialect("test"), responseField: "reasoning"},
-		{name: "reasoning full replay", dialect: lynxopenai.ReasoningReplayDialect("test"), responseField: "reasoning", wantReplayField: "reasoning"},
+		{name: "reasoning_content output only", dialect: scopeopenai.ReasoningContentDialect("test"), responseField: "reasoning_content"},
+		{name: "reasoning_content full replay", dialect: scopeopenai.ReasoningContentReplayDialect("test"), responseField: "reasoning_content", wantReplayField: "reasoning_content"},
+		{name: "reasoning_content tool replay", dialect: scopeopenai.ReasoningContentToolReplayDialect("test"), responseField: "reasoning_content", wantReplayField: "reasoning_content", withToolCall: true},
+		{name: "reasoning output only", dialect: scopeopenai.ReasoningDialect("test"), responseField: "reasoning"},
+		{name: "reasoning full replay", dialect: scopeopenai.ReasoningReplayDialect("test"), responseField: "reasoning", wantReplayField: "reasoning"},
 	}
 
 	for _, test := range tests {
@@ -56,7 +56,7 @@ func TestTextReasoningDialects(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			adapter, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
+			adapter, err := scopeopenai.NewCompatibleChat(scopeopenai.ChatConfig{
 				APIKey:         "test-key",
 				DefaultOptions: corechat.Options{Model: "provider-model"},
 				BaseURL:        server.URL,
@@ -64,11 +64,11 @@ func TestTextReasoningDialects(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewCompatibleChat: %v", err)
 			}
-			field := lynxopenai.TextReasoningContent
+			field := scopeopenai.TextReasoningContent
 			if test.responseField == "reasoning" {
-				field = lynxopenai.TextReasoning
+				field = scopeopenai.TextReasoning
 			}
-			priorReasoning, err := lynxopenai.NewTextReasoningPart("test", field, "prior reasoning")
+			priorReasoning, err := scopeopenai.NewTextReasoningPart("test", field, "prior reasoning")
 			if err != nil {
 				t.Fatalf("NewTextReasoningPart: %v", err)
 			}
@@ -112,14 +112,14 @@ func TestTextReasoningDialects(t *testing.T) {
 func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 	tests := []struct {
 		name      string
-		construct func(lynxopenai.ChatConfig) (*lynxopenai.Chat, error)
+		construct func(scopeopenai.ChatConfig) (*scopeopenai.Chat, error)
 		wantField string
 	}{
-		{name: "native", construct: lynxopenai.NewChat, wantField: "max_completion_tokens"},
+		{name: "native", construct: scopeopenai.NewChat, wantField: "max_completion_tokens"},
 		{
 			name: "compatible",
-			construct: func(config lynxopenai.ChatConfig) (*lynxopenai.Chat, error) {
-				return lynxopenai.NewCompatibleChat(config, lynxopenai.Dialect{Provider: "test", TokenLimitField: lynxopenai.TokenLimitMaxTokens})
+			construct: func(config scopeopenai.ChatConfig) (*scopeopenai.Chat, error) {
+				return scopeopenai.NewCompatibleChat(config, scopeopenai.Dialect{Provider: "test", TokenLimitField: scopeopenai.TokenLimitMaxTokens})
 			},
 			wantField: "max_tokens",
 		},
@@ -140,7 +140,7 @@ func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			maxTokens := int64(321)
-			adapter, err := test.construct(lynxopenai.ChatConfig{
+			adapter, err := test.construct(scopeopenai.ChatConfig{
 				APIKey: "test-key",
 				DefaultOptions: corechat.Options{
 					Model:     "model",
@@ -171,11 +171,11 @@ func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 }
 
 func TestDialectRequiresAnExplicitTokenLimitField(t *testing.T) {
-	dialect := lynxopenai.Dialect{Provider: "test"}
+	dialect := scopeopenai.Dialect{Provider: "test"}
 	if err := dialect.Validate(); err == nil {
 		t.Fatal("Dialect.Validate accepted an implicit token limit field")
 	}
-	if lynxopenai.TokenLimitField("").Valid() {
+	if scopeopenai.TokenLimitField("").Valid() {
 		t.Fatal("zero TokenLimitField is valid")
 	}
 }

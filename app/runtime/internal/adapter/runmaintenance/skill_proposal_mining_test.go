@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/conversationfixture"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
-	skillspec "github.com/Tangerg/lynx/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/testsupport/conversationfixture"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
 )
 
 type fakeSkillSource struct {

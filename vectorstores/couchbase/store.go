@@ -10,12 +10,12 @@ import (
 	"github.com/couchbase/gocb/v2"
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 const Provider = "Couchbase"
@@ -23,14 +23,14 @@ const Provider = "Couchbase"
 const (
 	DefaultScopeName      = "_default"
 	DefaultCollectionName = "_default"
-	DefaultIndexName      = "lynx-vector-index"
+	DefaultIndexName      = "scope-vector-index"
 	DefaultSimilarity     = SimilarityDotProduct
 	DefaultIndexOptimize  = OptimizeRecall
 	contentField          = "content"
 	embeddingField        = "embedding"
 	metadataField         = "metadata"
 	idField               = "id"
-	resultScoreField      = "_lynx_score"
+	resultScoreField      = "_scope_score"
 )
 
 // Similarity selects the vector similarity function written into the

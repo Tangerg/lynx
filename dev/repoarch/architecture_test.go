@@ -16,7 +16,7 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-const repositoryModulePrefix = "github.com/Tangerg/lynx"
+const repositoryModulePrefix = "github.com/Tangerg/scope"
 
 type repositoryModule struct {
 	path  string

@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 const (

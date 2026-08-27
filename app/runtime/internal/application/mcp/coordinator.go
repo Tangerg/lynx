@@ -6,9 +6,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/taskgroup"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // StatusReader reads the live status projection for configured MCP servers.

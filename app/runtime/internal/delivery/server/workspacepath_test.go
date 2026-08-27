@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
 )
 
 func canonicalWorkspacePath(t *testing.T, path string) string {

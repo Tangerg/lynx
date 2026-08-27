@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/scope/core/moderation"
 )
 
 func TestJSONBoundaries(t *testing.T) {

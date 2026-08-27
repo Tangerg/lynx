@@ -6,7 +6,7 @@ import (
 
 	"github.com/gocql/gocql"
 
-	"github.com/Tangerg/lynx/historystores/cassandra"
+	"github.com/Tangerg/scope/historystores/cassandra"
 )
 
 func stubSession() *gocql.Session { return new(gocql.Session) }
@@ -45,7 +45,7 @@ func TestNewStoreRejectsBadIdentifier(t *testing.T) {
 func TestNewStoreAcceptsValidIdentifiers(t *testing.T) {
 	_, err := cassandra.NewStore(t.Context(), cassandra.StoreConfig{
 		Session:   stubSession(),
-		Keyspace:  "lynx",
+		Keyspace:  "scope",
 		TableName: "chat_history",
 	})
 	if err != nil {

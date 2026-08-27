@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	jsonreader "github.com/Tangerg/lynx/etl/json"
+	jsonreader "github.com/Tangerg/scope/etl/json"
 )
 
 type pointerReader struct{}

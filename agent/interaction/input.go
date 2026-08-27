@@ -3,7 +3,7 @@ package interaction
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // Input is the complete caller-supplied starting working context. Tools are

@@ -6,11 +6,11 @@ import (
 	"math"
 	"slices"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 func (i *interactionSession) initializeRestoredContinuation(

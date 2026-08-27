@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/skillproposal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/skillauthoring"
 )
 
 func TestLibrariesRouteProposalsByScope(t *testing.T) {

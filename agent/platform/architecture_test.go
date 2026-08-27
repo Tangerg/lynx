@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 func TestDeploymentCandidateContainsOnlyDiscoveryContracts(t *testing.T) {

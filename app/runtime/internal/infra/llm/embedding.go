@@ -3,14 +3,14 @@ package llm
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 
-	"github.com/Tangerg/lynx/models/alibaba"
-	"github.com/Tangerg/lynx/models/azureopenai"
-	"github.com/Tangerg/lynx/models/google"
-	"github.com/Tangerg/lynx/models/mistral"
-	openaimodel "github.com/Tangerg/lynx/models/openai"
-	"github.com/Tangerg/lynx/models/zhipu"
+	"github.com/Tangerg/scope/models/alibaba"
+	"github.com/Tangerg/scope/models/azureopenai"
+	"github.com/Tangerg/scope/models/google"
+	"github.com/Tangerg/scope/models/mistral"
+	openaimodel "github.com/Tangerg/scope/models/openai"
+	"github.com/Tangerg/scope/models/zhipu"
 )
 
 const defaultOpenAIEmbeddingModel = "text-embedding-3-small"

@@ -771,7 +771,7 @@ export const es: Record<string, string> = {
   "settings.pane.hooks": "Hooks",
   "settings.pane.schedules": "Programaciones",
   "settings.appearance.hero":
-    "Los temas, el contraste, la tipografía y el movimiento definen la sensación de trabajo de Lynx.",
+    "Los temas, el contraste, la tipografía y el movimiento definen la sensación de trabajo de Scope.",
   "context.usage.aria": "Uso del contexto: {{percent}}%",
   "context.usage.label": "Ventana de contexto:",
   "context.usage.statusFull": "{{percent}}% usado",

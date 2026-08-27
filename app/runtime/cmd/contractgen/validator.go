@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/scope/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/scope/app/runtime/internal/contractshape"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
 )
 
 // The authoritative Go wire validator: the Go half of contract §11.3's

@@ -3,12 +3,12 @@ package toolset
 import (
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/tools/httpreq"
-	"github.com/Tangerg/lynx/tools/web"
-	"github.com/Tangerg/lynx/tools/web/jina"
-	"github.com/Tangerg/lynx/tools/web/tavily"
+	"github.com/Tangerg/scope/tools/httpreq"
+	"github.com/Tangerg/scope/tools/web"
+	"github.com/Tangerg/scope/tools/web/jina"
+	"github.com/Tangerg/scope/tools/web/tavily"
 )
 
 // OnlineConfig groups the credentials network-reaching tools need (web /

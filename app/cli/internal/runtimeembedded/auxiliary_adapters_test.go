@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/embedded"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/embedded"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
-	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
-	"github.com/Tangerg/lynx/app/cli/internal/feedback"
+	"github.com/Tangerg/scope/app/cli/internal/authoringcontext"
+	"github.com/Tangerg/scope/app/cli/internal/diagnostictool"
+	"github.com/Tangerg/scope/app/cli/internal/feedback"
 )
 
 type diagnosticToolBindingStub struct {

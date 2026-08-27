@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 func TestSearch(t *testing.T) {
@@ -30,11 +30,11 @@ func TestSearch(t *testing.T) {
 			t.Errorf("decode body: %v", err)
 			return
 		}
-		if body.Query != "lynx" || body.Type != "fast" || body.NumResults != 20 || len(body.Domains) != 1 {
+		if body.Query != "scope" || body.Type != "fast" || body.NumResults != 20 || len(body.Domains) != 1 {
 			t.Errorf("body = %#v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"results":[{"title":"Lynx","url":"https://example.com","author":"example","favicon":"https://example.com/favicon.ico","highlights":["highlight"]}]}`))
+		_, _ = w.Write([]byte(`{"results":[{"title":"Scope","url":"https://example.com","author":"example","favicon":"https://example.com/favicon.ico","highlights":["highlight"]}]}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -42,11 +42,11 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "lynx", MaxResults: 20, AllowedDomains: []string{"example.com"}})
+	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "scope", MaxResults: 20, AllowedDomains: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Query != "lynx" || len(response.Results) != 1 || response.Results[0].Snippet != "highlight" {
+	if response.Query != "scope" || len(response.Results) != 1 || response.Results[0].Snippet != "highlight" {
 		t.Fatalf("response = %#v", response)
 	}
 }

@@ -1,13 +1,13 @@
 # CLAUDE.md — mcp module
 
-> lynx 对 Model Context Protocol 的**薄适配**:client / server / session / transport 直接用官方 MCP go-sdk,本模块不做第二套 SDK。
+> scope 对 Model Context Protocol 的**薄适配**:client / server / session / transport 直接用官方 MCP go-sdk,本模块不做第二套 SDK。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体符号 / SDK 版本以代码为准 —— 本则只讲宏观。
 
 ---
 
 ## 定位
 
-- **根包放 lynx 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tool.Tool` 与 MCP tool 的双向适配、prompt 转换。
+- **根包放 scope 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tool.Tool` 与 MCP tool 的双向适配、prompt 转换。
 - **应用层的事不在这里**:MCP 服务器配置、OAuth 登录、热重连、状态展示属于 app/runtime 的 infra 层 —— 本模块只做协议适配。
 
 ## 架构心智

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
 )
 
 // ErrAuthoredWatchUnavailable reports that externally-authored workspace

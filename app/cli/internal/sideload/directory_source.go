@@ -18,8 +18,8 @@ import (
 
 	"github.com/spf13/pathologize"
 
-	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/terminal"
+	"github.com/Tangerg/scope/app/cli/internal/extensions"
+	"github.com/Tangerg/scope/app/cli/internal/terminal"
 )
 
 const (

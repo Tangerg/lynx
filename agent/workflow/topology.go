@@ -1,6 +1,6 @@
 package workflow
 
-import agent "github.com/Tangerg/lynx/agent"
+import agent "github.com/Tangerg/scope/agent"
 
 // StageKind is the stable operation kind in a Workflow Topology projection.
 type StageKind string

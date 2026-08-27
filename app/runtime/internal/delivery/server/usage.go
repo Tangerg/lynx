@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/usage"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // SessionUsage projects the application-owned session usage report onto the

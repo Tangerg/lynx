@@ -155,7 +155,7 @@ func (a *api) request(
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", accept)
-	request.Header.Set("User-Agent", "lynx-ollama")
+	request.Header.Set("User-Agent", "scope-ollama")
 	return a.httpClient.Do(request)
 }
 

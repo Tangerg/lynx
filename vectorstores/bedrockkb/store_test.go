@@ -3,8 +3,8 @@ package bedrockkb
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestVectorSearchConfigKeepsRequestPolicyAuthoritative(t *testing.T) {

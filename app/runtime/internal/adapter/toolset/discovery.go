@@ -19,10 +19,10 @@ import (
 	"slices"
 	"strings"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // defaultLimit caps how many tools one search returns (and promotes). Kept small

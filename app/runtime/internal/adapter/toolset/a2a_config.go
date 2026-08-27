@@ -3,7 +3,7 @@ package toolset
 import (
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/a2a"
 )
 
 // A2AAgentConfig identifies one remote Agent-to-Agent endpoint to expose as a

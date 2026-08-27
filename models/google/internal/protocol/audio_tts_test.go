@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/modeltest"
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/scope/core/modeltest"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {

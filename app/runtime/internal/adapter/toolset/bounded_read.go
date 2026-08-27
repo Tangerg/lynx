@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/textread"
-	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/textread"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 const (

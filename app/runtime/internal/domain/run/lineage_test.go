@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {

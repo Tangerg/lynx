@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	skillspec "github.com/Tangerg/lynx/skills"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
 )
 
 func TestRenderProposalEmitsProvenanceMetadata(t *testing.T) {

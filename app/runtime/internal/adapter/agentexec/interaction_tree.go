@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 const interactionBarrierPauseReason = "runtime human-input tree barrier"

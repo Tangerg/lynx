@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
-	"github.com/Tangerg/lynx/tools/web/exa"
-	"github.com/Tangerg/lynx/tools/web/firecrawl"
-	"github.com/Tangerg/lynx/tools/web/jina"
-	"github.com/Tangerg/lynx/tools/web/tavily"
+	"github.com/Tangerg/scope/tools/web"
+	"github.com/Tangerg/scope/tools/web/exa"
+	"github.com/Tangerg/scope/tools/web/firecrawl"
+	"github.com/Tangerg/scope/tools/web/jina"
+	"github.com/Tangerg/scope/tools/web/tavily"
 )
 
 func TestWebFetchProvidersValidateRequests(t *testing.T) {

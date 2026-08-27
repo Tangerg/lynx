@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 func TestValidateProviderDocumentsRejectsValuesThatDoNotFitSchema(t *testing.T) {

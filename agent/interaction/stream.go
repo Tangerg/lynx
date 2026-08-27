@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/core/chat"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // ModelResponseDelta is one validated provider-neutral streaming increment.

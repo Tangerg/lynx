@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/historystores/postgres"
+	"github.com/Tangerg/scope/historystores/postgres"
 )
 
 // stubPool is a sentinel non-nil *pgxpool.Pool used to exercise the

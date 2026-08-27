@@ -12,7 +12,7 @@ import { visualStyleTokens, WORKBENCH_MOTION } from "./tokens";
  */
 export const lyraStyle: VisualStyleSpec = {
   id: "lyra",
-  label: "Lynx Workbench",
+  label: "Scope Workbench",
   description: "Tool-window geometry: opaque columns, borderless cards, half-pixel seams.",
   order: -10,
   traits: { regions: "tool-windows", controls: "quiet" },

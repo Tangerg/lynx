@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestModelErrorsAreClassifiable(t *testing.T) {
@@ -49,7 +49,7 @@ func TestJSONRejectsInvalidModels(t *testing.T) {
 }
 
 func TestJSONRoundTripsVectorstoreModels(t *testing.T) {
-	doc := &document.Document{ID: "doc-1", Text: "lynx"}
+	doc := &document.Document{ID: "doc-1", Text: "scope"}
 	indexRequest, err := vectorstore.NewIndexRequest([]*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)

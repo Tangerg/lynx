@@ -3,7 +3,7 @@ package codeintel
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/lsp"
 )
 
 // TestNewProblems_FiltersBaseline is the deterministic guard against the LSP

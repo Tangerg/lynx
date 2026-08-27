@@ -10,15 +10,15 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
-	"github.com/Tangerg/lynx/app/cli/internal/workspace"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/workspace"
 )
 
 func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 	header := newSessionHeader(kit.Dark(), kit.Unicode(), agent.Session{
 		Title:     "Architecture review",
-		Workspace: workspace.Workspace{Path: "/workspace/lynx", ProjectRoot: "/workspace", Availability: workspace.Available},
+		Workspace: workspace.Workspace{Path: "/workspace/scope", ProjectRoot: "/workspace", Availability: workspace.Available},
 	})
 	header.SetUsage(agent.Usage{InputTokens: 1_234, OutputTokens: 56_789})
 
@@ -30,7 +30,7 @@ func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 	}
 
 	wide := drawStatic(t, header, 72, 2)
-	for _, want := range []string{"/workspace/lynx", "Architecture review", "↑1.2k", "↓56k"} {
+	for _, want := range []string{"/workspace/scope", "Architecture review", "↑1.2k", "↓56k"} {
 		if !strings.Contains(wide, want) {
 			t.Errorf("header does not contain %q:\n%s", want, wide)
 		}
@@ -157,7 +157,7 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	theme, glyphs := kit.Dark(), kit.Unicode()
 	transcript := testTranscriptView(t)
 	header := newSessionHeader(theme, glyphs, agent.Session{Title: "New session", Workspace: workspace.Workspace{
-		Path: "/workspace/lynx", ProjectRoot: "/workspace", Availability: workspace.Available,
+		Path: "/workspace/scope", ProjectRoot: "/workspace", Availability: workspace.Available,
 	}})
 	activity := newActivityView(theme, glyphs)
 	activity.Set([]agent.PlanItem{{Title: "Inspect", Status: agent.PlanActive}})

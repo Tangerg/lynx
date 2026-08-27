@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessions"
 )
 
 // SessionCheckpoints adapts workspace checkpoint operations to session

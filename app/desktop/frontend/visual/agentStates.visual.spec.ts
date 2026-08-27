@@ -1207,7 +1207,7 @@ test("an expanded patch reports only its call-scoped file receipt", async ({ pag
   await row.click();
   const receipt = page.locator('[data-patch-change="modified"]').filter({
     has: page.getByTitle(
-      "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
+      "/Users/visual/scope/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
     ),
   });
   await expect(receipt).toContainText("Edited");

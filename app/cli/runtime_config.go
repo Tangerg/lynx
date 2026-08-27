@@ -10,7 +10,7 @@ import (
 const runtimeConfigDirectoryEnvironment = "LYRA_RUNTIME_CONFIG_DIR"
 
 // runtimeConfigDirectories returns config sources in precedence order. A user
-// config beside the runtime's durable data wins. Inside the Lynx worktree, the existing
+// config beside the runtime's durable data wins. Inside the Scope worktree, the existing
 // app/runtime development config is a fallback so source checkouts retain one
 // provider configuration instead of copying credentials into app/cli.
 func runtimeConfigDirectories(runtimeDirectory string) ([]string, error) {

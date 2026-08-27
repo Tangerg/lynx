@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 // ResultJSON folds a streamed run into one final JSON object. It retains only

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/tool"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 func TestSchemaDerivesStrictStructContract(t *testing.T) {

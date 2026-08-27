@@ -6,7 +6,7 @@ import (
 	pineconeclient "github.com/pinecone-io/go-pinecone/v4/pinecone"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/scope/core/document"
 )
 
 func TestDocumentTextRoundTripsThroughReservedMetadata(t *testing.T) {

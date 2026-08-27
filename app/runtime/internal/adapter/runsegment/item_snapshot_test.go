@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 func sameItemSnapshot(left, right transcript.Item) bool {

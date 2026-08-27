@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
 // ErrInvalidSchema reports malformed, unsupported, or unresolved JSON Schema.

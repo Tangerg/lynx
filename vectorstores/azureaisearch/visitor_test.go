@@ -3,7 +3,7 @@ package azureaisearch
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestAzureWildcardPattern(t *testing.T) {

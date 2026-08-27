@@ -8,14 +8,14 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 const Provider = "Redis"
 
 const (
-	DefaultIndexName       = "lynx-vector-index"
+	DefaultIndexName       = "scope-vector-index"
 	DefaultKeyPrefix       = "embedding:"
 	DefaultContentField    = "content"
 	DefaultEmbeddingField  = "embedding"
@@ -26,7 +26,7 @@ const (
 	DefaultHNSWEFConstruct = 200
 	DefaultHNSWEFRuntime   = 10
 	distanceFieldName      = "__vector_distance"
-	vectorParamName        = "lynx_query_vec"
+	vectorParamName        = "scope_query_vec"
 )
 
 // DistanceMetric selects the similarity function used by the

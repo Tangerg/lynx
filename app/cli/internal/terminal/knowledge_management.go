@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
+	"github.com/Tangerg/scope/app/cli/internal/knowledge"
 )
 
 func (a *app) ShowKnowledge() {

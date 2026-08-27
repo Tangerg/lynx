@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/core/chat"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/core/chat"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 type catalogTool string
@@ -560,7 +560,7 @@ func addRemoteTool(t *testing.T, server *sdkmcp.Server, name string) {
 	if err != nil {
 		t.Fatalf("build remote tool %q: %v", name, err)
 	}
-	if err := lynxmcp.Register(server, tool); err != nil {
+	if err := scopemcp.Register(server, tool); err != nil {
 		t.Fatalf("register remote tool %q: %v", name, err)
 	}
 }

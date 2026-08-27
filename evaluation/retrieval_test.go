@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/evaluation"
+	"github.com/Tangerg/scope/evaluation"
 )
 
 func TestRetrievalEvaluatorCalculatesRankingMetricsAtK(t *testing.T) {

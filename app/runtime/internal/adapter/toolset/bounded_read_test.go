@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 const testMaxRuntimeReadFileBytes = 8 << 20

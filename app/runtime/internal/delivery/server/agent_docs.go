@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListAgentDocs maps the application-owned instruction-document cascade onto

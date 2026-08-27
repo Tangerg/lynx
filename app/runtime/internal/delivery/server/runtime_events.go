@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func (s *Server) observeFileChanges(observe func(func(workspaceapp.FileChangeNotice))) {

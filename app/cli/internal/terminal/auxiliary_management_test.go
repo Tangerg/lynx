@@ -9,13 +9,13 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
-	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
-	"github.com/Tangerg/lynx/app/cli/internal/feedback"
-	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent/mock"
+	"github.com/Tangerg/scope/app/cli/internal/authoringcontext"
+	"github.com/Tangerg/scope/app/cli/internal/changefeed"
+	"github.com/Tangerg/scope/app/cli/internal/diagnostictool"
+	"github.com/Tangerg/scope/app/cli/internal/feedback"
+	"github.com/Tangerg/scope/app/cli/internal/hookpolicy"
 )
 
 type diagnosticToolServiceStub struct {

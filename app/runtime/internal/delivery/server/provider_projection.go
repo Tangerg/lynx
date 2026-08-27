@@ -3,9 +3,9 @@ package server
 import (
 	"fmt"
 
-	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	modelapp "github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func presentProvider(info modelapp.ProviderSummary) (protocol.Provider, error) {

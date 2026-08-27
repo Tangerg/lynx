@@ -3,7 +3,7 @@ package operation
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 const ItemsList Name = "items.list"

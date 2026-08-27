@@ -3,8 +3,8 @@ package runmaintenance
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/exec"
 )
 
 // PlanReader is the compactor's read-only view of a session plan list.

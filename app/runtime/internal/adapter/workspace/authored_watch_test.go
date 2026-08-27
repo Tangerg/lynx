@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 func TestAuthoredWatcherMapsGlobalAndWorkspaceCascades(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
-	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
+	"github.com/Tangerg/scope/core/chat"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
 // Func adapts a typed Go function to [Tool]. It owns the derived input

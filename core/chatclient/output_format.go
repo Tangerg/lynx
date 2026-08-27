@@ -7,8 +7,8 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
-	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
+	"github.com/Tangerg/scope/core/chat"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 	jsonrepair "github.com/silaswei-io/jsonrepair-go"
 )
 

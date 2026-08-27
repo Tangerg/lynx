@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
+	"github.com/Tangerg/scope/app/cli/internal/diagnostictool"
 )
 
 func (a *app) ShowDiagnosticTools() {

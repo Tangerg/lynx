@@ -7,8 +7,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/speech"
 )
 
 func TestModelAndStreamerFunc(t *testing.T) {

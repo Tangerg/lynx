@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/workflow"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/workflow"
 )
 
 func TestDefinitionTopologyProjectsEverySealedStageKind(t *testing.T) {

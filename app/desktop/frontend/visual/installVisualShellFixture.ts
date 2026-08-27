@@ -34,8 +34,8 @@ const ACTIVE_SESSION_ID = "visual-shell-active";
 
 const PROJECTS: WorkspaceProjectSummary[] = [
   {
-    id: "/Users/visual/lynx",
-    name: "lynx",
+    id: "/Users/visual/scope",
+    name: "scope",
     sessionCount: 6,
   },
   {
@@ -50,7 +50,7 @@ const SESSIONS: AgentSessionSummary[] = [
     ACTIVE_SESSION_ID,
     "Refine Runtime protocol",
     "idle",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "14:29",
     true,
   ),
@@ -58,35 +58,35 @@ const SESSIONS: AgentSessionSummary[] = [
     "visual-shell-running",
     "Align desktop shell and Work Index",
     "running",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "14:18",
   ),
   session(
     "visual-shell-waiting",
     "Review cancellation ownership",
     "waiting",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "11:30",
   ),
   session(
     "visual-shell-long",
     "Validate a deliberately long mixed CJK / English session title without breaking the row",
     "idle",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "2026-07-30T14:30:00Z",
   ),
   session(
     "visual-shell-checks",
     "Close conformance gates",
     "idle",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "2026-07-29T14:30:00Z",
   ),
   session(
     "visual-shell-more",
     "Remove compatibility residue",
     "idle",
-    "/Users/visual/lynx",
+    "/Users/visual/scope",
     "2026-07-28T14:30:00Z",
   ),
   session(

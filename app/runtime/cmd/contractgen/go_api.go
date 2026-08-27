@@ -10,7 +10,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-const runtimeModulePath = "github.com/Tangerg/lynx/app/runtime"
+const runtimeModulePath = "github.com/Tangerg/scope/app/runtime"
 
 var publicPackagePaths = []string{
 	runtimeModulePath + "/embedded",

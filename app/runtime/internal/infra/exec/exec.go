@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/sandbox"
 )
 
 // maxBuffer caps a background shell's retained output; once exceeded the

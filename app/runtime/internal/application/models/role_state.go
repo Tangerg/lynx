@@ -3,7 +3,7 @@ package models
 import (
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // RoleState owns one live model-role assignment. Its synchronization is kept

@@ -3,9 +3,9 @@ package runtimeembedded
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 func projectEvent(value protocol.RunEvent) (agent.RunEvent, bool, error) {

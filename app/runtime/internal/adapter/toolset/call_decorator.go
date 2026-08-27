@@ -3,9 +3,9 @@ package toolset
 import (
 	"context"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // decorateCall replaces Call while preserving the inner capability declarations

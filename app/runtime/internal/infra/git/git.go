@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/gitprocess"
 )
 
 // ErrUnavailable means the git binary isn't on PATH. ErrNotRepo means the

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	mcpapp "github.com/Tangerg/scope/app/runtime/internal/application/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // mcpServerList is the boot-time snapshot view of the MCP registry: building the

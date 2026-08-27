@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/embeddingclient"
+	"github.com/Tangerg/scope/core/embeddingclient"
 
-	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	agentmemoryapp "github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/llm"
 )
 
 // EmbeddingResolver builds + caches embedding clients from provider-registry

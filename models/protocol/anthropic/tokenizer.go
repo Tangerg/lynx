@@ -7,7 +7,7 @@ import (
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 
-	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/scope/core/tokenizer"
 )
 
 // TextEstimatorConfig configures an Anthropic-backed token estimator.

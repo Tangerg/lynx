@@ -3,7 +3,7 @@ package runsegment
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 func normalizeCapabilities(capabilities run.Capabilities) run.Capabilities {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/scope/core/tokenizer"
 )
 
 func TestCapabilitiesRemainSmall(t *testing.T) {

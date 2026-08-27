@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Tangerg/lynx/tools/web"
+	"github.com/Tangerg/scope/tools/web"
 )
 
 func TestSearch(t *testing.T) {
@@ -30,11 +30,11 @@ func TestSearch(t *testing.T) {
 			t.Errorf("decode body: %v", err)
 			return
 		}
-		if body.Query != "lynx" || body.Results != 20 || body.Recency != "day" || len(body.Domains) != 1 || body.Domains[0] != "-blocked.example" {
+		if body.Query != "scope" || body.Results != 20 || body.Recency != "day" || len(body.Domains) != 1 || body.Domains[0] != "-blocked.example" {
 			t.Errorf("body = %#v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"results":[{"title":"Lynx","url":"https://example.com","snippet":"cat","date":"2026-08-03"}]}`))
+		_, _ = w.Write([]byte(`{"results":[{"title":"Scope","url":"https://example.com","snippet":"cat","date":"2026-08-03"}]}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -42,7 +42,7 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "lynx", MaxResults: 20, BlockedDomains: []string{"blocked.example"}, Recency: web.RecencyDay})
+	response, err := client.Search(t.Context(), &web.SearchRequest{Query: "scope", MaxResults: 20, BlockedDomains: []string{"blocked.example"}, Recency: web.RecencyDay})
 	if err != nil {
 		t.Fatal(err)
 	}

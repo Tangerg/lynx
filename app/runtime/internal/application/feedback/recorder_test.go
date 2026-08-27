@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	feedbackdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
+	feedbackdomain "github.com/Tangerg/scope/app/runtime/internal/domain/feedback"
 )
 
 type storeFake struct {

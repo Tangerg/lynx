@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
-	feedbackdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	feedbackapp "github.com/Tangerg/scope/app/runtime/internal/application/feedback"
+	feedbackdomain "github.com/Tangerg/scope/app/runtime/internal/domain/feedback"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 type feedbackRecorderFake struct {

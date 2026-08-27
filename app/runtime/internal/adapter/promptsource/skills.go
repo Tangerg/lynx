@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	sdk "github.com/Tangerg/lynx/skills"
+	sdk "github.com/Tangerg/scope/skills"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
 const projectSkillsSubdir = ".lyra/skills"

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	mcpapp "github.com/Tangerg/scope/app/runtime/internal/application/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func presentMCPServer(server mcpapp.Server) (protocol.MCPServer, error) {

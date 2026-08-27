@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesChat {
@@ -129,7 +129,7 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 
 func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	// Build the SSE event sequence by hand. Each event ships exactly one
-	// part delta to lynx — reasoning → text → tool_call → text — and the
+	// part delta to scope — reasoning → text → tool_call → text — and the
 	// final response.completed carries usage + finish reason.
 	events := []modeltest.AnthropicEvent{
 		{Event: "response.created", Data: `{"type":"response.created","sequence_number":1,"response":{"id":"resp_x","object":"response","model":"gpt-5","created_at":1700000000,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"metadata":null,"output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`},

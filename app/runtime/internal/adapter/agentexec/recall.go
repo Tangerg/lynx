@@ -12,7 +12,7 @@ import (
 // the "what's relevant right now" supplement.
 const recalledMemoryTopK = 5
 
-const memoryScope = "lynx/lyra/memory"
+const memoryScope = "scope/lyra/memory"
 
 var recallTracer = otel.Tracer(memoryScope)
 

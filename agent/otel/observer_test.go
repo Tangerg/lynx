@@ -12,8 +12,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	agent "github.com/Tangerg/lynx/agent"
-	agentotel "github.com/Tangerg/lynx/agent/otel"
+	agent "github.com/Tangerg/scope/agent"
+	agentotel "github.com/Tangerg/scope/agent/otel"
 )
 
 func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {

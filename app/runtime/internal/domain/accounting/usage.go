@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // Totals is the cumulative token and cost fact reported for one scope. CostUSD

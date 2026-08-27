@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
 // RecipeLister discovers the recipes visible from a working directory.

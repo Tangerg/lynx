@@ -19,13 +19,13 @@
 // Example:
 //
 //	cluster := gocql.NewCluster("127.0.0.1")
-//	cluster.Keyspace = "lynx"
+//	cluster.Keyspace = "scope"
 //	sess, _ := cluster.CreateSession()
 //	defer sess.Close()
 //
 //	store, _ := cassandra.NewStore(ctx, cassandra.StoreConfig{
 //	    Session:          sess,
-//	    Keyspace:         "lynx",
+//	    Keyspace:         "scope",
 //	    InitializeSchema: true,
 //	})
 package cassandra

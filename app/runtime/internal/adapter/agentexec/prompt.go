@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/planpresentation"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // agentMemoryInjectBudget bounds each prompt-resident Agent Memory block by the

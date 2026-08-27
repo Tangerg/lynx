@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	modelapp "github.com/Tangerg/scope/app/runtime/internal/application/models"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // ListModels projects the application-owned model-discovery result onto the

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/assemblyai"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/assemblyai"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {

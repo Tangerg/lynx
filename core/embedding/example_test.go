@@ -3,11 +3,11 @@ package embedding_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/scope/core/embedding"
 )
 
 func Example() {
-	request, err := embedding.NewRequest([]string{"lynx", "wild cat"})
+	request, err := embedding.NewRequest([]string{"scope", "wild cat"})
 	if err != nil {
 		panic(err)
 	}

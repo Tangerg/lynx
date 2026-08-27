@@ -29,7 +29,7 @@ type ServerConfig struct {
 	RPCPattern string
 }
 
-// NewHTTPHandler builds an http.Handler serving the A2A protocol for a lynx
+// NewHTTPHandler builds an http.Handler serving the A2A protocol for a scope
 // [Agent]: the JSON-RPC method endpoint at RPCPattern and the AgentCard at
 // [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
 // a larger mux.

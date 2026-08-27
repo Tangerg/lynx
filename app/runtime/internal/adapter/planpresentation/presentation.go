@@ -5,7 +5,7 @@ package planpresentation
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 // Render formats an ordered Plan for Agent consumption. An empty Plan renders

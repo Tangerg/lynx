@@ -48,7 +48,7 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
       main={
         <AgentContentCard label="Shell and Work Index visual fixture">
           <AgentSurfaceHeader windowCorner>
-            <span className="font-mono text-ui-md text-fg-faint">lynx</span>
+            <span className="font-mono text-ui-md text-fg-faint">scope</span>
             <span className="text-ui-md text-fg-faint">/</span>
             <span className="truncate text-ui-md font-semibold text-fg">Work Index</span>
             <AgentStatusPill tone={state === "error" ? "warning" : "neutral"}>

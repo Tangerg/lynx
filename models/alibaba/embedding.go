@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 type EmbeddingModelConfig struct {

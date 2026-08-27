@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
 type AudioTranscriptionModelConfig struct {

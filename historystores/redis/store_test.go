@@ -7,7 +7,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Tangerg/lynx/historystores/redis"
+	"github.com/Tangerg/scope/historystores/redis"
 )
 
 func stubClient() goredis.UniversalClient {

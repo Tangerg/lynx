@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
 )
 
 // runScope protects a renderer from mixing unrelated streams while allowing a

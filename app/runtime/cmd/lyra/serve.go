@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
-	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/telemetry"
-	"github.com/Tangerg/lynx/app/runtime/localruntime"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/bootstrap"
+	"github.com/Tangerg/scope/app/runtime/internal/config"
+	lyrahttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/telemetry"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func run(ctx context.Context, errw io.Writer) (err error) {

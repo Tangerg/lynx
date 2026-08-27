@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/scope/agent/planning"
 )
 
 func FuzzWorldStateJSON(f *testing.F) {

@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/lmnt"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/lmnt"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {

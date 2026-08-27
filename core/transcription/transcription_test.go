@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/transcription"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/transcription"
 )
 
 func TestModelFunc(t *testing.T) {
@@ -128,7 +128,7 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestResponseErrorBoundaries(t *testing.T) {
-	output, _ := transcription.NewOutput("lynx", &transcription.OutputMetadata{})
+	output, _ := transcription.NewOutput("scope", &transcription.OutputMetadata{})
 	if _, err := transcription.NewResponse(nil, &transcription.ResponseMetadata{}); err == nil {
 		t.Fatal("NewResponse accepted nil output")
 	}

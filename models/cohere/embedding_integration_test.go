@@ -7,8 +7,8 @@ import (
 
 	coheresdk "github.com/cohere-ai/cohere-go/v2"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/cohere"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/models/cohere"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
@@ -16,7 +16,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 		Provider: "cohere",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := lookupEnv("LYNX_TEST_COHERE_MODEL")
+			modelID, _ := lookupEnv("SCOPE_TEST_COHERE_MODEL")
 			if modelID == "" {
 				modelID = "embed-v4.0"
 			}

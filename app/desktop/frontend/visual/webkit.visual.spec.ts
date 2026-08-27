@@ -42,7 +42,7 @@ test("WebKit shell preserves minimum geometry and drawer focus handoff", async (
   await openFixture(page, { fixture: "shell", state: "populated", motion: "full" });
 
   await expect(page.getByRole("complementary", { name: "Work index" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "lynx 6" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "scope 6" })).toBeVisible();
   const drawer = page.locator(".agent-drawer");
   await expect(drawer).toHaveCSS("transition-duration", "0.5s, 0.5s, 0s");
   expect(

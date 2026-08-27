@@ -763,7 +763,7 @@ export const ja: Record<string, string> = {
   "settings.pane.hooks": "フック",
   "settings.pane.schedules": "スケジュール",
   "settings.appearance.hero":
-    "テーマ、コントラスト、タイポグラフィ、モーションが Lynx の操作感を決めます。",
+    "テーマ、コントラスト、タイポグラフィ、モーションが Scope の操作感を決めます。",
   "context.usage.aria": "コンテキスト使用率: {{percent}}%",
   "context.usage.label": "コンテキストウィンドウ:",
   "context.usage.statusFull": "{{percent}}% 使用済み",

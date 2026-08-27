@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/provider"
 )
 
 func TestProviderStoreUpdatePreservesOmittedFieldsAndClearsExplicitly(t *testing.T) {

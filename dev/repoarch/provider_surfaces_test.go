@@ -339,7 +339,7 @@ func sharedProtocolImportAliases(file *ast.File) map[string]struct{} {
 	aliases := make(map[string]struct{})
 	for _, imported := range file.Imports {
 		path, err := strconv.Unquote(imported.Path.Value)
-		if err != nil || (path != "github.com/Tangerg/lynx/models/protocol/openai" && path != "github.com/Tangerg/lynx/models/protocol/anthropic") {
+		if err != nil || (path != "github.com/Tangerg/scope/models/protocol/openai" && path != "github.com/Tangerg/scope/models/protocol/anthropic") {
 			continue
 		}
 		name := filepath.Base(path)

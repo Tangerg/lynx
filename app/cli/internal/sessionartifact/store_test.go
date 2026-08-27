@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/scope/app/cli/internal/sessiontransfer"
 )
 
 func TestStorePublishesWithoutClobberingAndLoadsPortableJSON(t *testing.T) {

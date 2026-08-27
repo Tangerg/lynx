@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // Probe tests cfg with a throwaway client (mcp.servers.test). It reuses an
@@ -52,7 +52,7 @@ func probe(ctx context.Context, cfg ServerConfig) (err error) {
 			err = errors.Join(err, closeErr)
 		}
 	}()
-	if _, err := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); err != nil {
+	if _, err := sourceTools(ctx, scopemcp.ToolSource{Name: cfg.Name, Session: session}); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}

@@ -15,11 +15,11 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/core/chat"
-	corehistory "github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	corehistory "github.com/Tangerg/scope/core/history"
 )
 
-const instrumentationName = "github.com/Tangerg/lynx/otel/history"
+const instrumentationName = "github.com/Tangerg/scope/otel/history"
 
 // ErrInvalidConfig reports a missing database-system identity.
 var ErrInvalidConfig = errors.New("otel/history: invalid config")

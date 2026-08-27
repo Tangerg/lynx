@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 // OutputMetadata holds per-segment metadata returned by the provider.

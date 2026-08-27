@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/google/vertexai"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/models/google/vertexai"
 )
 
 func TestImageModelUsesVertexGenerateContent(t *testing.T) {
@@ -54,7 +54,7 @@ func TestImageModelUsesVertexGenerateContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, _ := image.NewRequest("a lynx in snow")
+	request, _ := image.NewRequest("a scope in snow")
 	response, err := model.Call(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore"
 )
 
 func TestScoreNormalization(t *testing.T) {

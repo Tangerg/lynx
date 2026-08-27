@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/tokenizers/tiktoken"
+	"github.com/Tangerg/scope/tokenizers/tiktoken"
 )
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {

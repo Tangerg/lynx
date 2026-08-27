@@ -11,7 +11,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 
-	tts "github.com/Tangerg/lynx/core/speech"
+	tts "github.com/Tangerg/scope/core/speech"
 )
 
 type AudioTTSModelConfig struct {

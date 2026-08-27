@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 func TestHostFailureSignalModesAreExclusive(t *testing.T) {

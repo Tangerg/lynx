@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 func newMemoryID() (string, error) {

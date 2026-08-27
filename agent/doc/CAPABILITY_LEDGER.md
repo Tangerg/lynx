@@ -552,7 +552,7 @@
 ## 15. P11 唯一模块替换证据
 
 - Runtime 已在 P8 以 Interaction、完整 TreeSnapshot、typed waiting/Delegate inspectors 和 prepared subtree change 取代原框架执行路径；workspace 搜索证明原实现没有剩余生产 consumer、测试依赖或独有能力。
-- P11 整体删除原实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步 Runtime imports、workspace metadata、examples、GoDoc 和 architecture guards。不存在 alias module、replace compatibility、转发 package 或第二 lifecycle owner。
+- P11 整体删除原实现，把绿色重写实现安装为唯一 `github.com/Tangerg/scope/agent` module，并同步 Runtime imports、workspace metadata、examples、GoDoc 和 architecture guards。不存在 alias module、replace compatibility、转发 package 或第二 lifecycle owner。
 - 模块身份变化形成 Baseline 15；七个公共 package 的语义与全部 Process Snapshot、TreeSnapshot、Strategy protocol、Event/Delta wire version不变。Runtime 产品 Run、Store、transaction、checkpoint policy、WorkingContext composition 与 protocol 仍停留在应用侧，未泄露进 Framework。
 
 ## 16. P14 二次反证精修证据
@@ -614,7 +614,7 @@
 ### 18.2 真实消费者反例与边界
 
 - 外部测试使用真实 `interaction.Output`，证明对象 response extension、字符串 reasoning metadata 与非空 signature 可共同通过最终 Output Schema；它只提供消费证据，不让根生产包依赖 Core chat 或 Interaction。
-- Runtime 不删除/重写 provider metadata、不识别 DeepSeek、不跳过输出校验，也不复制 Framework schema。Agent production package DAG 的 Host import 守卫继续阻止 `github.com/Tangerg/lynx/app` 进入任何生产 package。
+- Runtime 不删除/重写 provider metadata、不识别 DeepSeek、不跳过输出校验，也不复制 Framework schema。Agent production package DAG 的 Host import 守卫继续阻止 `github.com/Tangerg/scope/app` 进入任何生产 package。
 - 公开 Go API、Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v6/v4 与其余 owner wire 均不变；派生 JSON Schema 及由内容决定的 Descriptor/Deployment digest 显式切换到正确值。
 
 ### 18.3 最终验收

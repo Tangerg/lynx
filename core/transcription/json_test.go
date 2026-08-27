@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/transcription"
+	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/transcription"
 )
 
 func TestJSONBoundaries(t *testing.T) {

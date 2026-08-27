@@ -1,5 +1,3 @@
-github.com/Tangerg/lynx/core v0.0.0-20260827031301-d8b9c6ddf518 h1:CwMPIpnzyjxKA1nY70kDpPreTfxbx0fHvjg0+4tjc34=
-github.com/Tangerg/lynx/core v0.0.0-20260827031301-d8b9c6ddf518/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=

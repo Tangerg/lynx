@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/platform"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/platform"
 )
 
 var _ agent.DeploymentResolver = platform.Catalog{}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/historystores/cosmosdb"
+	"github.com/Tangerg/scope/historystores/cosmosdb"
 )
 
 func TestNewStoreRequiresContainer(t *testing.T) {

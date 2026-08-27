@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
 // TestNilRegistryDisablesCRUD: a coordinator built without a store reports

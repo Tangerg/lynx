@@ -3,7 +3,7 @@ package interaction
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/core/chat"
 )
 
 // ExecutionObserver receives exact, provider-neutral Interaction facts after

@@ -10,10 +10,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
-var toolTracer = otel.Tracer("lynx/lyra/tool")
+var toolTracer = otel.Tracer("scope/lyra/tool")
 
 const attrGenAIToolName = "gen_ai.tool.name"
 

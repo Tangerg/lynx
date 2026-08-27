@@ -6,7 +6,7 @@ import (
 
 	"github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 // Visitor transforms AST filter expressions into Qdrant filter conditions.

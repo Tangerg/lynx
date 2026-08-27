@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // Each namespace binds a cursor to one application read so another read cannot

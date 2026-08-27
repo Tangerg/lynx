@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"unsafe"
 
-	"github.com/Tangerg/lynx/app/runtime/localruntime"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
 )
 
 const localRuntimeEndpoint = "http://127.0.0.1:17171"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // ForkReducer combines branch outputs in declaration order. It must be

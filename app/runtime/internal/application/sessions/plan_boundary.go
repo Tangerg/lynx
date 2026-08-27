@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	planapp "github.com/Tangerg/scope/app/runtime/internal/application/plans"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 // PlanServices is the complete optional Plan capability. Grouping the two

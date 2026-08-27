@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
-	feedbackdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	feedbackapp "github.com/Tangerg/scope/app/runtime/internal/application/feedback"
+	feedbackdomain "github.com/Tangerg/scope/app/runtime/internal/domain/feedback"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // CreateFeedback records an ungated quality signal in the runtime's durable

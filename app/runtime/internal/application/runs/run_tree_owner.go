@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/completion"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/scope/app/runtime/internal/completion"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 // runCleanupTimeout bounds request-detached Run teardown, so a stuck store or

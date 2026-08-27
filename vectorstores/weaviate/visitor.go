@@ -8,10 +8,10 @@ import (
 
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor compiles Lynx filter expressions into Weaviate where filters.
+// Visitor compiles Scope filter expressions into Weaviate where filters.
 // A visitor can be reused; each call to Visit replaces the previous result.
 type Visitor struct {
 	result *filters.WhereBuilder

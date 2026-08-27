@@ -8,7 +8,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 
-	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/scope/core/moderation"
 )
 
 type ModerationModelConfig struct {

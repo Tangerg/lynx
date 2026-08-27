@@ -775,7 +775,7 @@ export const de: Record<string, string> = {
   "settings.pane.hooks": "Hooks",
   "settings.pane.schedules": "Zeitpläne",
   "settings.appearance.hero":
-    "Themes, Kontrast, Typografie und Bewegung bestimmen das Arbeitsgefühl von Lynx.",
+    "Themes, Kontrast, Typografie und Bewegung bestimmen das Arbeitsgefühl von Scope.",
   "context.usage.aria": "Kontextauslastung: {{percent}}%",
   "context.usage.label": "Kontextfenster:",
   "context.usage.statusFull": "{{percent}}% verwendet",

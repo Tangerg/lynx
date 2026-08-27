@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-const runtimeModulePath = "github.com/Tangerg/lynx/app/runtime"
+const runtimeModulePath = "github.com/Tangerg/scope/app/runtime"
 
 // TestTargetDependencyRuleRejectsOutwardFixture proves the production DAG gate
 // has a failing counterexample. The fixture is parsed, not compiled, so it can

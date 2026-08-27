@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/mutation"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
-	"github.com/Tangerg/lynx/app/cli/internal/retry"
-	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
+	"github.com/Tangerg/scope/app/cli/internal/agent"
+	"github.com/Tangerg/scope/app/cli/internal/mutation"
+	"github.com/Tangerg/scope/app/cli/internal/reconnect"
+	"github.com/Tangerg/scope/app/cli/internal/retry"
+	"github.com/Tangerg/scope/app/cli/internal/runrecovery"
 )
 
 const cancellationTimeout = 5 * time.Second

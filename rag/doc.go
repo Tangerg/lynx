@@ -28,7 +28,7 @@
 //
 // # Parallel retriever fan-out
 //
-// Lynx deliberately does not ship a separate "DocumentJoiner"
+// Scope deliberately does not ship a separate "DocumentJoiner"
 // abstraction. Use [Parallel] to run retrievers concurrently and union their
 // result lists into a flat slice; use refiners to re-organize that slice.
 // A typical "join overlapping retriever results" pattern is:

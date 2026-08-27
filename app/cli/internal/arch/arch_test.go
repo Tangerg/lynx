@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	modulePath  = "github.com/Tangerg/lynx/app/cli"
+	modulePath  = "github.com/Tangerg/scope/app/cli"
 	libraryPath = "github.com/Tangerg/oolong"
-	runtimePath = "github.com/Tangerg/lynx/app/runtime"
+	runtimePath = "github.com/Tangerg/scope/app/runtime"
 	cobraPath   = "github.com/spf13/cobra"
 	viperPath   = "github.com/spf13/viper"
 )

@@ -11,7 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/Tangerg/lynx/otel/slog"
+	"github.com/Tangerg/scope/otel/slog"
 )
 
 // TestMetricExporter_WritesOneRecordPerMetric drives a real MeterProvider

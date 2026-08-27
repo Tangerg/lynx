@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // A wire enum is a named string type with a closed value set. Reflection can see

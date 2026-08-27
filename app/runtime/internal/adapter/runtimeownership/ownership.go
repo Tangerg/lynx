@@ -11,11 +11,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/ownershiprecovery"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/app/runtime/internal/application/goals"
+	"github.com/Tangerg/scope/app/runtime/internal/application/ownershiprecovery"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
 const ownershipDirectory = "ownership"

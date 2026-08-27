@@ -5,7 +5,7 @@ import (
 
 	openaisdk "github.com/openai/openai-go/v3"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 type openAIStreamTool struct {

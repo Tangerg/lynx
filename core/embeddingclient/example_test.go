@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/embeddingclient"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/embeddingclient"
 )
 
 func Example() {
@@ -17,7 +17,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	vector, err := client.EmbedText(context.Background(), "lynx")
+	vector, err := client.EmbedText(context.Background(), "scope")
 	if err != nil {
 		panic(err)
 	}

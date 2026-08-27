@@ -3,9 +3,9 @@ package runmaintenance
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/models/catalog"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
 )
 
 // Pipeline composes the post-Run maintenance workers. It keeps the lifecycle

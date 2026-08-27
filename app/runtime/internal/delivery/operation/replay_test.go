@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/idempotency"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 type countingCancelService struct {

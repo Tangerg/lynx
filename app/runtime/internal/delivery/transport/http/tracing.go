@@ -10,10 +10,10 @@ import (
 )
 
 // tracer is the package-wide OTel tracer. Names follow the
-// `lynx/lyra/...` convention used elsewhere in the monorepo so
+// `scope/lyra/...` convention used elsewhere in the monorepo so
 // trace dashboards can bucket lyra HTTP transport spans
 // separately from other lyra-side instrumentation.
-var tracer = otel.Tracer("lynx/lyra/internal/delivery/transport/http")
+var tracer = otel.Tracer("scope/lyra/internal/delivery/transport/http")
 
 // recordError emits a short-lived span carrying err, parented on ctx so
 // the error chains onto the caller's trace. The span ends immediately;

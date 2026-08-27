@@ -2,7 +2,7 @@
 // the vectorstore capability interfaces. Vectara handles embedding, chunking, and
 // retrieval internally — the store sends raw text to the v2 API and
 // does NOT need an [embedding.Model]. This is unlike every other
-// lynx vector store.
+// scope vector store.
 //
 // Requirements: a Vectara account, an API key with corpus-level
 // write + query scope, and a corpus provisioned via the Vectara

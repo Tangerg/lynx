@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
-	history "github.com/Tangerg/lynx/core/history"
+	"github.com/Tangerg/scope/core/chat"
+	history "github.com/Tangerg/scope/core/history"
 )
 
 // MessageStore persists the Runtime's per-session model-context history in

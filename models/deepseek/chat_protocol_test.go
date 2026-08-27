@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/deepseek"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/deepseek"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestOpenAIChat_ReasoningReplay(t *testing.T) {
@@ -43,7 +43,7 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 				corechat.NewUserMessage(corechat.NewTextPart("search")),
 				corechat.NewAssistantMessage(
 					toolReasoning,
-					corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
+					corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"scope"}`}),
 				),
 				corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "search", Result: "found"}),
 			},

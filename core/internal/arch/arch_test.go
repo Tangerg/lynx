@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/moderation"
-	"github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/moderation"
+	"github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/core/transcription"
+	"github.com/Tangerg/scope/core/vectorstore"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestDocumentRemainsPureData(t *testing.T) {
@@ -446,8 +446,8 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 	}
 }
 
-func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
-	const lynxPrefix = "github.com/Tangerg/lynx/"
+func TestCoreDoesNotImportUpperScopeModules(t *testing.T) {
+	const scopePrefix = "github.com/Tangerg/scope/"
 	fset := token.NewFileSet()
 
 	violations := 0
@@ -458,7 +458,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 		}
 		for _, imp := range f.Imports {
 			ip := strings.Trim(imp.Path.Value, `"`)
-			rest, ok := strings.CutPrefix(ip, lynxPrefix)
+			rest, ok := strings.CutPrefix(ip, scopePrefix)
 			if !ok {
 				continue
 			}
@@ -467,7 +467,7 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 			}
 			violations++
 			rel, _ := filepath.Rel(coreRoot(t), path)
-			t.Errorf("core must not import upper lynx module %q: %s", ip, rel)
+			t.Errorf("core must not import upper scope module %q: %s", ip, rel)
 		}
 	}
 	if violations == 0 {

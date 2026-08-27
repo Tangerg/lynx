@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
-	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/scope/app/runtime/internal/application/sessionadmission"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 func TestNewCoordinatorRejectsMalformedDependencies(t *testing.T) {

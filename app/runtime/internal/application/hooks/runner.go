@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	domain "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
 // DefaultTimeout bounds a single hook command — a hook must not wedge execution

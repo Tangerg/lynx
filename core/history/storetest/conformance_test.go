@@ -3,8 +3,8 @@ package storetest_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/history/inmemory"
-	"github.com/Tangerg/lynx/core/history/storetest"
+	"github.com/Tangerg/scope/core/history/inmemory"
+	"github.com/Tangerg/scope/core/history/storetest"
 )
 
 func TestRun(t *testing.T) {

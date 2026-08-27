@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	scheduledomain "github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
+	scheduleapp "github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	scheduledomain "github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
 func TestSchedulesCreateListDelete(t *testing.T) {

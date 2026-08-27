@@ -98,7 +98,7 @@ function visualSession(state: VisualAgentState): AgentSessionSummary {
           : "idle",
     provider: VISUAL_MODELS[0]!.provider,
     model: VISUAL_MODELS[0]!.id,
-    workspace: { path: "/Users/visual/lynx", availability: "available" },
+    workspace: { path: "/Users/visual/scope", availability: "available" },
     time: "2026-07-31T08:00:00.000Z",
   };
 }

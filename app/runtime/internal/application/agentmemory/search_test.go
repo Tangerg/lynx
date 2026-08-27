@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	domain "github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 type fakeItemSource struct {

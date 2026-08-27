@@ -17,10 +17,10 @@ import (
 	"strings"
 	"sync"
 
-	skillspec "github.com/Tangerg/lynx/skills"
+	skillspec "github.com/Tangerg/scope/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
 )
 
 // Store serializes writes to one scoped skills root. The same instance must be

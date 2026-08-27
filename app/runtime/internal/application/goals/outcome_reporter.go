@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/goal"
 )
 
 // ReportCommand is a model-originated terminal outcome for the active Goal.

@@ -10,12 +10,12 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/Tangerg/lynx/core/tool"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/interaction"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
+	"github.com/Tangerg/scope/core/tool"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief.
@@ -41,7 +41,7 @@ func main() {
 	defer srvSession.Close()
 
 	cli := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "lynx-mcp-agent", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "scope-mcp-agent", Version: "v0.1.0"},
 		nil,
 	)
 	cliSession, err := cli.Connect(ctx, cliT, nil)
@@ -51,8 +51,8 @@ func main() {
 	defer cliSession.Close()
 
 	loadTools := func(ctx context.Context) ([]tool.Tool, error) {
-		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolsConfig{
-			MetaFunc: lynxmcp.MetaFromContext,
+		return scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "research", Session: cliSession}}, scopemcp.ToolsConfig{
+			MetaFunc: scopemcp.MetaFromContext,
 		})
 	}
 	topic := Topic{Title: "agent frameworks in 2026"}
@@ -62,7 +62,7 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("get prompt: %w", err))
 	}
-	systemMessages, err := lynxmcp.PromptMessagesToChat(promptResult.Messages)
+	systemMessages, err := scopemcp.PromptMessagesToChat(promptResult.Messages)
 	if err != nil {
 		log.Fatal(fmt.Errorf("convert MCP prompt messages: %w", err))
 	}
@@ -121,7 +121,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{"lynx.example": "mcp-agent"})
+	ctx = scopemcp.WithMeta(ctx, sdkmcp.Meta{"scope.example": "mcp-agent"})
 	result, err := engine.Run(ctx, deployment, input)
 	if err != nil {
 		log.Fatal(err)

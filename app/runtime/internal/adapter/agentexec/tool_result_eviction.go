@@ -3,7 +3,7 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
 )
 
 // toolResultOffloader is the narrow write capability the observer needs to

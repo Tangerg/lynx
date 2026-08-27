@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
+	agent "github.com/Tangerg/scope/agent"
 )
 
 // Dispatcher is the zero-state protocol guard required by a Workflow

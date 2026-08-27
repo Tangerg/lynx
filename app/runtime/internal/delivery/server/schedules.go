@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	scheduleapp "github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the

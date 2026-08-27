@@ -5,7 +5,7 @@ package operation
 // only mechanism that notices when the code and the published contract disagree
 // (contract §11.4 gate 1).
 //
-//go:generate go run github.com/Tangerg/lynx/app/runtime/cmd/contractgen -out ../../../contract -validators ../../../protocol -ts ../../../contract/typescript
+//go:generate go run github.com/Tangerg/scope/app/runtime/cmd/contractgen -out ../../../contract -validators ../../../protocol -ts ../../../contract/typescript
 
 // contract is the runtime's method surface. It is built once, at package init,
 // from method expressions — so it exists without a Runtime and a build-time tool

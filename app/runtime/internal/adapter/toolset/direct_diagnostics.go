@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
-	"github.com/Tangerg/lynx/tools/fs"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
+	"github.com/Tangerg/scope/tools/fs"
 )
 
 // directTools is the small, read-only capability set valid without an agent

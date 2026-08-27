@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/mcpconnection"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset/builtin"
+	"github.com/Tangerg/scope/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/application/approvals"
+	"github.com/Tangerg/scope/app/runtime/internal/application/goals"
+	planapp "github.com/Tangerg/scope/app/runtime/internal/application/plans"
+	"github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/teardown"
 )
 
 // toolEnvironment groups the tool resolver with the separately-owned MCP

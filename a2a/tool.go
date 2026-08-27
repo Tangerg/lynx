@@ -13,8 +13,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	corechat "github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 var errEmptyToolName = errors.New("a2a: tool name must not be empty")
@@ -73,7 +73,7 @@ func (r remoteTool) Definition() corechat.ToolDefinition { return r.definition.C
 
 // ConcurrencyKey declares A2A invocations independent: every SendMessage owns
 // a distinct remote task, and the remote server retains authority over its own
-// execution limit. The lynx Agent ToolLoop may therefore overlap calls while
+// execution limit. The scope Agent ToolLoop may therefore overlap calls while
 // still committing their observable results in request order.
 func (r remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
 	return "", true

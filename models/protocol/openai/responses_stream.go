@@ -7,7 +7,7 @@ import (
 
 	"github.com/openai/openai-go/v3/responses"
 
-	corechat "github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 type responsesToolIdentity struct {

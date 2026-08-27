@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/modeltest"
-	"github.com/Tangerg/lynx/models/google/internal/protocol"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
 func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
@@ -87,7 +87,7 @@ func TestImageModelRejectsUnsupportedImagenOnlyOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, _ := image.NewRequest("a lynx")
+	req, _ := image.NewRequest("a scope")
 	req.Options.NegativePrompt = "blurry"
 	if _, err := model.Call(t.Context(), req); err == nil {
 		t.Fatal("Call accepted Imagen-only negative_prompt")

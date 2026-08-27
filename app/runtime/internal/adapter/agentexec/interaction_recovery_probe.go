@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 // CanResumeWaitingExecution probes one exact durable waiting tree without

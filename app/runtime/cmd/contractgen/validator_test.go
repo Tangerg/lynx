@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/dispatch"
 )
 
 type validatorUnionFixture struct {

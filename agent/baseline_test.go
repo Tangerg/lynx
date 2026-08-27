@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 28
+	currentAPIBaseline         = 29
 	currentAPIBaselineFrozenOn = "2026-08-27"
 )
 
@@ -27,14 +27,14 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "caded767ca7d5de2ddaa2f84af59acc3bbae30cc95a249688596cf9972e2bf05"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "873d620bf325608d5035027262754c838f3f73edab7913472c45b715826158b4"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "0c01a609eb1af0b95a99f805807217d5bbd876dbb7a49843938b4e91a324b0af"},
-	{name: "planning", label: "planning", directory: "planning", want: "dfd3883f8697dad5f889dcdd821e1df5e1da486fa8a6df6a954ed38242ea6e5c"},
-	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0576feedc1e8ffb1f0c6fd5426ddee8fc269aec69f1a92521c6ea9da21258a0d"},
-	{name: "workflow", label: "workflow", directory: "workflow", want: "06af49d58f68cd82075e72ac1f6d14a42d40c77cb0a77afc86c9816a35818566"},
-	{name: "otel", label: "otel", directory: "otel", want: "6bb2eae75c7f7c4d8cde426672200fac68b965376d94e61ef3d283607a83b6ec"},
-	{name: "platform", label: "platform", directory: "platform", want: "46d030411c966805e158e24f1a05fa8b16750ded2eafd0d4f03ea24e3b589408"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "2106ee94db015611e301793912379bf13217c7276dc9c1d27b2616a6bab7d84f"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "f85a554c9f12d09893ce17658afc950a4f45a6c9bb229066a4d5f708a2b79ee7"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "e183c47468ee84ed712cdca42ce977d1883589a96f06fbd1fc7d87562e1e1a53"},
+	{name: "planning", label: "planning", directory: "planning", want: "9e3eb61695b0c189ff9fe500e780d4badab69dfb91d2cb167164b5a53d878f1b"},
+	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "cea8080c8c006dac24ae2e4d1483a6838f9cc7e4d68df0c36a3888f418d05a2c"},
+	{name: "workflow", label: "workflow", directory: "workflow", want: "ef25cc22a1115789b0335c4ace1e851e771eb2ec2d859e2d3942d2fd9fed9c87"},
+	{name: "otel", label: "otel", directory: "otel", want: "40495e32f4ad7a3ec6a602ad26f9a20c57aebdfd8db644117aeeef1ec50b5267"},
+	{name: "platform", label: "platform", directory: "platform", want: "d250bd34f9ce7b557a0a760b0a54653fb59af60a452c7a5efa904de131b77f37"},
 }
 
 var frameworkPackageDirectories = []string{

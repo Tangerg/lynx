@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
 func TestDispatchRejectsUnsupportedOperators(t *testing.T) {
@@ -54,7 +54,7 @@ func TestLiteralValue(t *testing.T) {
 		literal *filter.Literal
 		wantErr bool
 	}{
-		{name: "string", literal: filter.NewLiteral("lynx")},
+		{name: "string", literal: filter.NewLiteral("scope")},
 		{name: "negative integer", literal: filter.NewLiteral(-1)},
 		{name: "decimal", literal: filter.NewLiteral(1.5)},
 		{name: "bool", literal: filter.NewLiteral(true)},

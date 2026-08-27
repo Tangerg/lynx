@@ -1,10 +1,10 @@
-module github.com/Tangerg/lynx/vectorstores/clickhouse
+module github.com/Tangerg/scope/vectorstores/clickhouse
 
 go 1.27.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
-	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/Tangerg/scope/core v0.0.0-20260826074033-2e35cbad116b
 )
 
 require (

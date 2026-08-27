@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/scope/app/runtime/internal/infra/knowledgefile"
 )
 
 func newKnowledgeStore(t *testing.T, userScopeDirectory, defaultWorkspaceDirectory string) *knowledgefile.Store {

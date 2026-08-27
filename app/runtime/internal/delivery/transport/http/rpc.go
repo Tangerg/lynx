@@ -9,7 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
 )
 
 // maxRPCBodyBytes caps the JSON-RPC request body to avoid trivial

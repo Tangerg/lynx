@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/approval"
+	plandomain "github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 // planStateReader supplies the canonical session Plan approved by exit_plan_mode.

@@ -3,7 +3,7 @@ package planpresentation
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 )
 
 func TestRenderUsesStableStepMarkers(t *testing.T) {

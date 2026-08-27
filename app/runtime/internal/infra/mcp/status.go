@@ -3,7 +3,7 @@ package mcp
 import (
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
 )
 
 // ErrUnknownServer is returned by [Connections.Reconnect] for a name that was

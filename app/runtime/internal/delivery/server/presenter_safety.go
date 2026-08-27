@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func presentSafetyClass(class tool.SafetyClass) protocol.SafetyClass {

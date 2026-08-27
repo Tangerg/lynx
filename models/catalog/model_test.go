@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/models/catalog"
 )
 
 func approximately(a, b float64) bool { return math.Abs(a-b) < 1e-9 }

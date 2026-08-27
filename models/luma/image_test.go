@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/luma"
+	"github.com/Tangerg/scope/core/image"
+	"github.com/Tangerg/scope/models/luma"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {

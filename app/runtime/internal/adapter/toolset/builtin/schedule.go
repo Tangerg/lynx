@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	scheduledomain "github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	scheduleapp "github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	scheduledomain "github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 type createScheduleArgs struct {

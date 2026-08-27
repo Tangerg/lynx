@@ -3,9 +3,9 @@ package toolset
 import (
 	"testing"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	domaintool "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
 // resolveRootManifest builds one exact root visibility snapshot.

@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
+	workspaceadapter "github.com/Tangerg/scope/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
+	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 type workspaceTestConfig struct {

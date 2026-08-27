@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 )
 
 // SessionTitles is the Application capability for best-effort initial title

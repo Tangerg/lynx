@@ -3,7 +3,7 @@ package jsonschema_test
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/jsonschema"
+	"github.com/Tangerg/scope/core/jsonschema"
 )
 
 func Example() {

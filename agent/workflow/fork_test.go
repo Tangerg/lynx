@@ -10,8 +10,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/workflow"
+	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/workflow"
 )
 
 type forkInput struct {

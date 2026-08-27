@@ -1,9 +1,9 @@
 package modelcatalog
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/models/catalog"
 )
 
 // Pricing returns a per-round cost calculator backed by the model

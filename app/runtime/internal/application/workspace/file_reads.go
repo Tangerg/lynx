@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
 )
 
 // Files owns root-scoped file browser operations.

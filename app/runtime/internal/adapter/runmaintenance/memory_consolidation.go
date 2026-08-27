@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/chatclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 )
 
 const (

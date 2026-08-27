@@ -14,9 +14,9 @@ import (
 	extensionast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/tokenizer"
-	"github.com/Tangerg/lynx/etl"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/tokenizer"
+	"github.com/Tangerg/scope/etl"
 )
 
 const (

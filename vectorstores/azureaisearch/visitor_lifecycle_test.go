@@ -3,8 +3,8 @@ package azureaisearch_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/storetest"
-	"github.com/Tangerg/lynx/vectorstores/azureaisearch"
+	"github.com/Tangerg/scope/core/vectorstore/storetest"
+	"github.com/Tangerg/scope/vectorstores/azureaisearch"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

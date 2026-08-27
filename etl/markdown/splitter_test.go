@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/etl"
-	markdownsplitter "github.com/Tangerg/lynx/etl/markdown"
+	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/etl"
+	markdownsplitter "github.com/Tangerg/scope/etl/markdown"
 )
 
 type runeTokenizer struct{}

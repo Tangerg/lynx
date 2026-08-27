@@ -3,9 +3,9 @@ package openai_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/modeltest"
-	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/protocol/openai"
+	"github.com/Tangerg/scope/core/modeltest"
+	tts "github.com/Tangerg/scope/core/speech"
+	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {

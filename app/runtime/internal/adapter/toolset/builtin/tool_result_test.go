@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	domaintool "github.com/Tangerg/scope/app/runtime/internal/domain/tool"
+	resultoffload "github.com/Tangerg/scope/app/runtime/internal/domain/toolresult"
 )
 
 type fakeStore struct {

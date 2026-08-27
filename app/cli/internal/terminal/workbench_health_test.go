@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/kit"
 
-	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/scope/app/cli/internal/settings"
 )
 
 func TestWorkbenchProblemsArePrioritizedAndClearedIndependently(t *testing.T) {

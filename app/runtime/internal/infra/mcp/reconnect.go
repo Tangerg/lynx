@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	toolcontract "github.com/Tangerg/lynx/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/httporigin"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/scope/app/runtime/internal/httporigin"
+	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 // Reconnect tears down a configured server's current session (if any) and
@@ -189,7 +189,7 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	var verifiedTools []toolcontract.Tool
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
-		verifiedTools, err = sourceTools(attempt.ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session})
+		verifiedTools, err = sourceTools(attempt.ctx, scopemcp.ToolSource{Name: cfg.Name, Session: session})
 	}
 
 	c.mu.Lock()
