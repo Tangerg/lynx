@@ -15,8 +15,8 @@ import (
 var (
 	// ErrNilChatResponse reports a model that returned no response and no error.
 	ErrNilChatResponse = errors.New("rag: chat model returned a nil response")
-	// ErrNilChatStream reports a streamer that returned a nil sequence.
-	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
+	// ErrNilChatStreamSequence reports a streamer that returned no sequence.
+	ErrNilChatStreamSequence = errors.New("rag: chat streamer returned a nil sequence")
 )
 
 const (
@@ -39,17 +39,20 @@ type MiddlewareConfig struct {
 	Augmenter Augmenter
 }
 
-func (c MiddlewareConfig) normalized() (MiddlewareConfig, error) {
-	if lo.IsNil(c.Retriever) {
+func (config MiddlewareConfig) normalized() (MiddlewareConfig, error) {
+	if lo.IsNil(config.Retriever) {
 		return MiddlewareConfig{}, ErrNilRetriever
 	}
-	if lo.IsNil(c.Augmenter) {
-		c.Augmenter = IdentityAugmenter()
+	if lo.IsNil(config.Augmenter) {
+		config.Augmenter = IdentityAugmenter()
 	}
-	return c, nil
+	return config, nil
 }
 
-type middleware struct {
+// Middleware owns retrieval and augmentation policy for both chat call modes.
+// It is immutable after construction and safe for concurrent use when its
+// Retriever and Augmenter are safe for concurrent use.
+type Middleware struct {
 	retriever Retriever
 	augmenter Augmenter
 }
@@ -71,21 +74,21 @@ func newPreparedChatRequest(request *chat.Request) (preparedChatRequest, error) 
 	return preparedChatRequest{request: clone}, nil
 }
 
-func (p preparedChatRequest) finalUserText() string {
-	for index := len(p.request.Messages) - 1; index >= 0; index-- {
-		if p.request.Messages[index].Role == chat.RoleUser {
-			return p.request.Messages[index].Text()
+func (prepared preparedChatRequest) finalUserText() string {
+	for index := len(prepared.request.Messages) - 1; index >= 0; index-- {
+		if prepared.request.Messages[index].Role == chat.RoleUser {
+			return prepared.request.Messages[index].Text()
 		}
 	}
 	return ""
 }
 
-func (p *preparedChatRequest) replaceFinalUserText(text string) {
-	for index := len(p.request.Messages) - 1; index >= 0; index-- {
-		if p.request.Messages[index].Role != chat.RoleUser {
+func (prepared *preparedChatRequest) replaceFinalUserText(text string) {
+	for index := len(prepared.request.Messages) - 1; index >= 0; index-- {
+		if prepared.request.Messages[index].Role != chat.RoleUser {
 			continue
 		}
-		original := p.request.Messages[index]
+		original := prepared.request.Messages[index]
 		parts := make([]chat.Part, 0, 1+len(original.Parts))
 		if text != "" {
 			parts = append(parts, chat.NewTextPart(text))
@@ -95,7 +98,7 @@ func (p *preparedChatRequest) replaceFinalUserText(text string) {
 				parts = append(parts, original.Parts[partIndex])
 			}
 		}
-		p.request.Messages[index] = chat.Message{
+		prepared.request.Messages[index] = chat.Message{
 			Role:     chat.RoleUser,
 			Parts:    parts,
 			Metadata: original.Metadata.Clone(),
@@ -104,18 +107,18 @@ func (p *preparedChatRequest) replaceFinalUserText(text string) {
 	}
 }
 
-func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
+func (prepared preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	if err := response.Metadata.Set(retrievedCandidatesMetadataKey, p.candidates); err != nil {
+	if err := response.Metadata.Set(retrievedCandidatesMetadataKey, prepared.candidates); err != nil {
 		return err
 	}
-	if len(p.citations) == 0 {
+	if len(prepared.citations) == 0 {
 		delete(response.Metadata.Extra, citationsMetadataKey)
 		return nil
 	}
-	return response.Metadata.Set(citationsMetadataKey, p.citations)
+	return response.Metadata.Set(citationsMetadataKey, prepared.citations)
 }
 
 // CandidatesFromResponse returns the candidates attached to response by
@@ -161,22 +164,17 @@ func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
 	return citations, found, nil
 }
 
-// NewMiddleware builds call and stream middleware that retrieve documents before a chat
-// request, augment the last user message, and attach retrieval and citation
-// metadata to the response. Use [CandidatesFromResponse] and
-// [CitationsFromResponse] to read
-// those typed values.
-func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+// NewMiddleware snapshots one shared retrieval policy so Call and Stream
+// cannot accidentally diverge in configuration.
+func NewMiddleware(config MiddlewareConfig) (*Middleware, error) {
 	config, err := config.normalized()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	mw := &middleware{retriever: config.Retriever, augmenter: config.Augmenter}
-	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
+	return &Middleware{retriever: config.Retriever, augmenter: config.Augmenter}, nil
 }
 
-func (m *middleware) prepare(ctx context.Context, request *chat.Request) (preparedChatRequest, error) {
+func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request) (preparedChatRequest, error) {
 	prepared, err := newPreparedChatRequest(request)
 	if err != nil {
 		return preparedChatRequest{}, err
@@ -191,11 +189,11 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 		return preparedChatRequest{}, fmt.Errorf("rag: attach chat history: %w", err)
 	}
 
-	candidates, err := Retrieve(ctx, m.retriever, query)
+	candidates, err := Retrieve(ctx, middleware.retriever, query)
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	augmentation, err := m.augmenter.Augment(ctx, query, candidates)
+	augmentation, err := middleware.augmenter.Augment(ctx, query, candidates)
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
@@ -208,33 +206,28 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 	return prepared, nil
 }
 
-// executeCall is the synchronous flow: retrieve → augment → call next → attach
-// docs to response metadata.
-func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.Model) (*chat.Response, error) {
-	prepared, err := m.prepare(ctx, req)
+func (middleware *Middleware) call(ctx context.Context, request *chat.Request, next chat.Model) (*chat.Response, error) {
+	prepared, err := middleware.prepare(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := next.Call(ctx, prepared.request)
-	if resp == nil {
+	response, err := next.Call(ctx, prepared.request)
+	if response == nil {
 		if err != nil {
 			return nil, err
 		}
 		return nil, ErrNilChatResponse
 	}
-	if extensionErr := prepared.attachRetrievalMetadata(resp); extensionErr != nil {
-		return resp, errors.Join(err, extensionErr)
+	if extensionErr := prepared.attachRetrievalMetadata(response); extensionErr != nil {
+		return response, errors.Join(err, extensionErr)
 	}
-	return resp, err
+	return response, err
 }
 
-// executeStream is the streaming flow: retrieve once before the stream begins,
-// swap the user message, then forward chunks while attaching docs to response
-// metadata.
-func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
+func (middleware *Middleware) stream(ctx context.Context, request *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		prepared, err := m.prepare(ctx, req)
+		prepared, err := middleware.prepare(ctx, request)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -242,47 +235,49 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 
 		sequence := next.Stream(ctx, prepared.request)
 		if sequence == nil {
-			yield(nil, ErrNilChatStream)
+			yield(nil, ErrNilChatStreamSequence)
 			return
 		}
-		for resp, err := range sequence {
-			if resp == nil {
-				if err != nil {
-					yield(nil, err)
+		for response, streamErr := range sequence {
+			if response == nil {
+				if streamErr != nil {
+					yield(nil, streamErr)
 					return
 				}
 				yield(nil, ErrNilChatResponse)
 				return
 			}
-			if extensionErr := prepared.attachRetrievalMetadata(resp); extensionErr != nil {
-				yield(resp, errors.Join(err, extensionErr))
+			if extensionErr := prepared.attachRetrievalMetadata(response); extensionErr != nil {
+				yield(response, errors.Join(streamErr, extensionErr))
 				return
 			}
-			if err != nil {
-				yield(resp, err)
+			if streamErr != nil {
+				yield(response, streamErr)
 				return
 			}
-			if !yield(resp, nil) {
+			if !yield(response, nil) {
 				return
 			}
 		}
 	}
 }
 
-func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
+// Call returns a chat middleware view over this retrieval policy.
+func (middleware *Middleware) Call(next chat.Model) chat.Model {
 	if lo.IsNil(next) {
 		return nil
 	}
-	return chat.ModelFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-		return m.executeCall(ctx, req, next)
+	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+		return middleware.call(ctx, request, next)
 	})
 }
 
-func (m *middleware) wrapStreamHandler(next chat.Streamer) chat.Streamer {
+// Stream returns a streaming middleware view over the same retrieval policy.
+func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	if lo.IsNil(next) {
 		return nil
 	}
-	return chat.StreamerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-		return m.executeStream(ctx, req, next)
+	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+		return middleware.stream(ctx, request, next)
 	})
 }
