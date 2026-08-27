@@ -265,8 +265,8 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	)
 
 	queryParams := []azcosmos.QueryParameter{
-		azcosmos.QueryParameter{Name: "@queryVec", Value: queryVec},
-		azcosmos.QueryParameter{Name: "@topK", Value: req.Options.TopK},
+		{Name: "@queryVec", Value: queryVec},
+		{Name: "@topK", Value: req.Options.TopK},
 	}
 	for _, p := range params {
 		queryParams = append(queryParams, azcosmos.QueryParameter{Name: p.Name, Value: p.Value})

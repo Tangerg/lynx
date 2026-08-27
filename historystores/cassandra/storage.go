@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

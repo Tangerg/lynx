@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 func encodeMessages(messages []chat.Message) ([][]byte, error) {
