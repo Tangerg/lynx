@@ -3,8 +3,8 @@ module github.com/Tangerg/scope/models/cohere
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
-	github.com/cohere-ai/cohere-go/v2 v2.18.0
+	github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150
+	github.com/cohere-ai/cohere-go/v2 v2.19.0
 )
 
 require github.com/google/uuid v1.6.0 // indirect

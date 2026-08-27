@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
@@ -34,8 +35,8 @@ func TestLogExporter_EmitViaProvider(t *testing.T) {
 
 	var rec otellog.Record
 	rec.SetSeverity(otellog.SeverityInfo)
-	rec.SetBody(otellog.StringValue("session created"))
-	rec.AddAttributes(otellog.String("gen_ai.conversation.id", "ses_42"))
+	rec.SetBody(attribute.StringValue("session created"))
+	rec.AddAttributes(attribute.String("gen_ai.conversation.id", "ses_42"))
 	l.Emit(t.Context(), rec)
 
 	out := buf.String()
@@ -67,7 +68,7 @@ func TestLogExporterLifecycle(t *testing.T) {
 	}
 
 	var record sdklog.Record
-	record.SetBody(otellog.StringValue("must not be exported"))
+	record.SetBody(attribute.StringValue("must not be exported"))
 	if err := exporter.Export(canceled, []sdklog.Record{record}); err != nil {
 		t.Fatalf("Export after shutdown = %v, want nil", err)
 	}

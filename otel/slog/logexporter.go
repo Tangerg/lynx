@@ -5,6 +5,7 @@ import (
 	stdslog "log/slog"
 	"sync/atomic"
 
+	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
@@ -69,7 +70,7 @@ func (l *LogExporter) Export(ctx context.Context, records []sdklog.Record) error
 		if scope := rec.InstrumentationScope().Name; scope != "" {
 			attrs = append(attrs, stdslog.String("scope", scope))
 		}
-		rec.WalkAttributes(func(kv otellog.KeyValue) bool {
+		rec.WalkAttributes(func(kv attribute.KeyValue) bool {
 			attrs = append(attrs, logKVToSlog(kv))
 			return true
 		})
@@ -115,17 +116,18 @@ func severityToLevel(s otellog.Severity) stdslog.Level {
 // logKVToSlog converts one OTel log key-value to a typed slog.Attr, keeping
 // the common scalar kinds typed and falling back to a string rendering for
 // composite kinds (bytes / slice / map).
-func logKVToSlog(kv otellog.KeyValue) stdslog.Attr {
-	switch v := kv.Value; v.Kind() {
-	case otellog.KindBool:
-		return stdslog.Bool(kv.Key, v.AsBool())
-	case otellog.KindInt64:
-		return stdslog.Int64(kv.Key, v.AsInt64())
-	case otellog.KindFloat64:
-		return stdslog.Float64(kv.Key, v.AsFloat64())
-	case otellog.KindString:
-		return stdslog.String(kv.Key, v.AsString())
+func logKVToSlog(kv attribute.KeyValue) stdslog.Attr {
+	key := string(kv.Key)
+	switch v := kv.Value; v.Type() {
+	case attribute.BOOL:
+		return stdslog.Bool(key, v.AsBool())
+	case attribute.INT64:
+		return stdslog.Int64(key, v.AsInt64())
+	case attribute.FLOAT64:
+		return stdslog.Float64(key, v.AsFloat64())
+	case attribute.STRING:
+		return stdslog.String(key, v.AsString())
 	default:
-		return stdslog.String(kv.Key, v.String())
+		return stdslog.String(key, v.String())
 	}
 }

@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/vectorstores/typesense
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
+	github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150
 	github.com/samber/lo v1.53.0
 	github.com/typesense/typesense-go/v3 v3.2.0
 )
@@ -11,7 +11,7 @@ require (
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/oapi-codegen/runtime v1.6.0 // indirect
+	github.com/oapi-codegen/runtime v1.7.0 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

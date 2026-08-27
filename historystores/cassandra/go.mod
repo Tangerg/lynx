@@ -3,14 +3,14 @@ module github.com/Tangerg/scope/historystores/cassandra
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9
+	github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150
 	github.com/gocql/gocql v1.7.0
 	github.com/samber/lo v1.53.0
 )
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.1.2 // indirect
+	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
@@ -18,7 +18,7 @@ require (
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )

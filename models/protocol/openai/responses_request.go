@@ -290,7 +290,7 @@ func mapResponsesToolResults(parts []corechat.Part) []responses.ResponseInputIte
 	for index := range parts {
 		result := parts[index].ToolResult
 		items = append(items, responses.ResponseInputItemUnionParam{OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
-			CallID: result.ID,
+			CallID: openaisdk.String(result.ID),
 			Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfString: openaisdk.String(result.Result)},
 		}})
 	}
