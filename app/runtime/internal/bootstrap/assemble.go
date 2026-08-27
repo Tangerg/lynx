@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -118,7 +117,7 @@ func CloseAssembly(a *Assembly) error {
 }
 
 func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
-	if err := validateAssemblyConfig(a.cfg); err != nil {
+	if err := a.cfg.Validate(); err != nil {
 		return nil, err
 	}
 	// Offloads are staged before their ordered transcript event commits so a
@@ -506,90 +505,4 @@ func buildAssemblyCore(
 		lifetime: lifetime,
 	}
 	return host, nil
-}
-
-func validateAssemblyConfig(cfg Config) error {
-	if cfg.UserHome == "" {
-		return errors.New("runtime: UserHome is required")
-	}
-	if !filepath.IsAbs(cfg.UserHome) {
-		return errors.New("runtime: UserHome must be absolute")
-	}
-	if cfg.DefaultWorkspacePath == "" {
-		return errors.New("runtime: DefaultWorkspacePath is required")
-	}
-	if !filepath.IsAbs(cfg.DefaultWorkspacePath) {
-		return errors.New("runtime: DefaultWorkspacePath must be absolute")
-	}
-	if cfg.KnowledgeDirectory == "" {
-		return errors.New("runtime: KnowledgeDirectory is required")
-	}
-	for _, path := range []struct {
-		name  string
-		value string
-	}{
-		{name: "SkillsUserDir", value: cfg.SkillsUserDir},
-		{name: "SandboxDir", value: cfg.SandboxDir},
-		{name: "RecipesGlobalDir", value: cfg.RecipesGlobalDir},
-		{name: "CheckpointDir", value: cfg.CheckpointDir},
-		{name: "KnowledgeDirectory", value: cfg.KnowledgeDirectory},
-	} {
-		if path.value != "" && !filepath.IsAbs(path.value) {
-			return fmt.Errorf("runtime: %s must be absolute when set", path.name)
-		}
-	}
-	for i, path := range cfg.SandboxReadOnlyPaths {
-		if path != "" && !filepath.IsAbs(path) {
-			return fmt.Errorf("runtime: SandboxReadOnlyPaths[%d] must be absolute when set", i)
-		}
-	}
-	if cfg.ChatClient == nil {
-		return errors.New("runtime: ChatClient is required")
-	}
-	if cfg.BuildID == "" {
-		return errors.New("runtime: BuildID is required")
-	}
-	if cfg.ConversationStore == nil {
-		return errors.New("runtime: ConversationStore is required")
-	}
-	if cfg.ProviderRegistry == nil {
-		return errors.New("runtime: ProviderRegistry is required")
-	}
-	if cfg.MCPRegistry == nil {
-		return errors.New("runtime: MCPRegistry is required")
-	}
-	if cfg.MCPOAuthSessions == nil {
-		return errors.New("runtime: MCPOAuthSessions is required")
-	}
-	if cfg.SessionStore == nil {
-		return errors.New("runtime: SessionStore is required")
-	}
-	if cfg.InterruptStore == nil {
-		return errors.New("runtime: InterruptStore is required")
-	}
-	if cfg.TranscriptStore == nil {
-		return errors.New("runtime: TranscriptStore is required")
-	}
-	if cfg.FeedbackStore == nil {
-		return errors.New("runtime: FeedbackStore is required")
-	}
-	if cfg.RunStore == nil {
-		return errors.New("runtime: RunStore is required")
-	}
-	if cfg.ExecutorCheckpoints == nil {
-		return errors.New("runtime: ExecutorCheckpoints is required")
-	}
-	if cfg.ModelInvocationStore == nil {
-		return errors.New("runtime: ModelInvocationStore is required")
-	}
-	if cfg.ToolInvocationStore == nil {
-		return errors.New("runtime: ToolInvocationStore is required")
-	}
-	if cfg.ChildRunStartStore == nil {
-		return errors.New("runtime: ChildRunStartStore is required")
-	}
-	if cfg.Transactor == nil {
-		return errors.New("runtime: Transactor is required")
-	}
-	return nil
 }

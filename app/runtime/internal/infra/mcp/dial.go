@@ -52,7 +52,7 @@ func Dial(
 	}
 	servers = slices.Clone(servers)
 	for i := range servers {
-		servers[i] = cloneServerConfig(servers[i])
+		servers[i] = servers[i].Clone()
 	}
 
 	// Validate config before dialing: duplicate names collide tool prefixes and

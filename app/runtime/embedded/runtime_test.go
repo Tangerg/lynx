@@ -13,7 +13,7 @@ import (
 func TestResolveConfigUsesExplicitStableDefaults(t *testing.T) {
 	data := t.TempDir()
 	home := t.TempDir()
-	resolved, err := resolveConfig(Config{DataDirectory: data, UserHomePath: home})
+	resolved, err := (Config{DataDirectory: data, UserHomePath: home}).resolve()
 	if err != nil {
 		t.Fatalf("resolveConfig: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestResolveConfigUsesExplicitStableDefaults(t *testing.T) {
 		{name: "relative config directory", config: Config{DataDirectory: data, UserHomePath: home, ConfigDirectories: []string{"config"}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := resolveConfig(test.config); err == nil {
+			if _, err := test.config.resolve(); err == nil {
 				t.Fatal("resolveConfig accepted an ambiguous host path")
 			}
 		})
@@ -154,11 +154,11 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 
 func TestResolveConfigCleansPaths(t *testing.T) {
 	root := t.TempDir()
-	resolved, err := resolveConfig(Config{
+	resolved, err := (Config{
 		DataDirectory:        filepath.Join(root, "data", "..", "data"),
 		DefaultWorkspacePath: filepath.Join(root, "workspace", "."),
 		UserHomePath:         filepath.Join(root, "home", "."),
-	})
+	}).resolve()
 	if err != nil {
 		t.Fatalf("resolveConfig: %v", err)
 	}

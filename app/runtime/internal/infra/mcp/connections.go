@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"errors"
-	"maps"
-	"slices"
 	"sync"
 
 	toolcontract "github.com/Tangerg/lynx/core/tool"
@@ -119,11 +117,4 @@ func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession, cleanup se
 			return errors.Join(session.Close(), cleanup())
 		}}
 	}
-}
-
-func cloneServerConfig(cfg ServerConfig) ServerConfig {
-	cfg.Args = slices.Clone(cfg.Args)
-	cfg.Env = slices.Clone(cfg.Env)
-	cfg.Headers = maps.Clone(cfg.Headers)
-	return cfg
 }

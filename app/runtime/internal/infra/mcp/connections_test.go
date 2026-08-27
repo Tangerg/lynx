@@ -248,7 +248,7 @@ func TestCloneServerConfigOwnsMutableFields(t *testing.T) {
 		Env:     []string{"A=1"},
 		Headers: map[string]string{"X-Test": "before"},
 	}
-	cloned := cloneServerConfig(original)
+	cloned := original.Clone()
 	original.Args[0] = "two"
 	original.Env[0] = "A=2"
 	original.Headers["X-Test"] = "after"

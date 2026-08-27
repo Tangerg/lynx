@@ -37,6 +37,25 @@ type DescriptorConfig struct {
 	OutputSchema Schema
 }
 
+func (c DescriptorConfig) validate() error {
+	if !validQualifiedName(c.Name) {
+		return fmt.Errorf("%w: name must start with a lowercase letter and contain only lowercase letters, digits, '.', '_' or '-'", ErrInvalidDescriptor)
+	}
+	if c.Description == "" || strings.TrimSpace(c.Description) != c.Description || len(c.Description) > maxDescriptionBytes {
+		return fmt.Errorf("%w: description must be non-empty, trimmed, and at most %d bytes", ErrInvalidDescriptor, maxDescriptionBytes)
+	}
+	if !validSemanticVersion(c.Version) {
+		return fmt.Errorf("%w: version must be a canonical MAJOR.MINOR.PATCH semantic version", ErrInvalidDescriptor)
+	}
+	if !c.InputSchema.Valid() {
+		return fmt.Errorf("%w: input schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
+	}
+	if !c.OutputSchema.Valid() {
+		return fmt.Errorf("%w: output schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
+	}
+	return nil
+}
+
 // Descriptor is an immutable Definition contract. It contains no executable
 // behavior or Deployment configuration.
 type Descriptor struct {
@@ -50,7 +69,7 @@ type Descriptor struct {
 
 // NewDescriptor validates and takes an immutable snapshot of config.
 func NewDescriptor(config DescriptorConfig) (Descriptor, error) {
-	if err := validateDescriptorConfig(config); err != nil {
+	if err := config.validate(); err != nil {
 		return Descriptor{}, err
 	}
 	descriptor := Descriptor{
@@ -193,25 +212,6 @@ type descriptorContractWire struct {
 type descriptorWire struct {
 	descriptorContractWire
 	Digest Digest `json:"digest"`
-}
-
-func validateDescriptorConfig(config DescriptorConfig) error {
-	if !validQualifiedName(config.Name) {
-		return fmt.Errorf("%w: name must start with a lowercase letter and contain only lowercase letters, digits, '.', '_' or '-'", ErrInvalidDescriptor)
-	}
-	if config.Description == "" || strings.TrimSpace(config.Description) != config.Description || len(config.Description) > maxDescriptionBytes {
-		return fmt.Errorf("%w: description must be non-empty, trimmed, and at most %d bytes", ErrInvalidDescriptor, maxDescriptionBytes)
-	}
-	if !validSemanticVersion(config.Version) {
-		return fmt.Errorf("%w: version must be a canonical MAJOR.MINOR.PATCH semantic version", ErrInvalidDescriptor)
-	}
-	if !config.InputSchema.Valid() {
-		return fmt.Errorf("%w: input schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
-	}
-	if !config.OutputSchema.Valid() {
-		return fmt.Errorf("%w: output schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
-	}
-	return nil
 }
 
 func validSemanticVersion(value string) bool {

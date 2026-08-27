@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -84,6 +85,15 @@ type ServerConfig struct {
 	// live process state; its opaque session may be persisted separately through
 	// [OAuthSessionStore].
 	OAuthHandler auth.OAuthHandler
+}
+
+// Clone returns an independently owned configuration snapshot. Live handler
+// values are intentionally shared; only mutable collection storage is copied.
+func (s ServerConfig) Clone() ServerConfig {
+	s.Args = slices.Clone(s.Args)
+	s.Env = slices.Clone(s.Env)
+	s.Headers = maps.Clone(s.Headers)
+	return s
 }
 
 // Validate reports whether exactly one transport is fully specified and the

@@ -47,7 +47,7 @@ type Runtime struct {
 
 // Open constructs, recovers and starts one Runtime. The caller must Close it.
 func Open(ctx context.Context, cfg Config) (*Runtime, error) {
-	resolved, err := resolveConfig(cfg)
+	resolved, err := cfg.resolve()
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,14 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	return &Runtime{instance: instance}, nil
 }
 
-func resolveConfig(cfg Config) (Config, error) {
-	if cfg.DataDirectory == "" {
+func (c Config) resolve() (Config, error) {
+	if c.DataDirectory == "" {
 		return Config{}, errors.New("embedded: data directory is required")
 	}
-	if !filepath.IsAbs(cfg.DataDirectory) {
+	if !filepath.IsAbs(c.DataDirectory) {
 		return Config{}, errors.New("embedded: data directory must be absolute")
 	}
-	userHome := cfg.UserHomePath
+	userHome := c.UserHomePath
 	if userHome == "" {
 		var err error
 		userHome, err = os.UserHomeDir()
@@ -85,16 +85,16 @@ func resolveConfig(cfg Config) (Config, error) {
 	if userHome == "" || !filepath.IsAbs(userHome) {
 		return Config{}, errors.New("embedded: user home must be a non-empty absolute path")
 	}
-	workspace := cfg.DefaultWorkspacePath
+	workspace := c.DefaultWorkspacePath
 	if workspace == "" {
 		workspace = userHome
 	}
 	if !filepath.IsAbs(workspace) {
 		return Config{}, errors.New("embedded: default workspace path must be absolute")
 	}
-	directories := slices.Clone(cfg.ConfigDirectories)
+	directories := slices.Clone(c.ConfigDirectories)
 	if len(directories) == 0 {
-		directories = []string{cfg.DataDirectory}
+		directories = []string{c.DataDirectory}
 	}
 	for index, directory := range directories {
 		if directory == "" || !filepath.IsAbs(directory) {
@@ -103,7 +103,7 @@ func resolveConfig(cfg Config) (Config, error) {
 		directories[index] = filepath.Clean(directory)
 	}
 	return Config{
-		DataDirectory:        filepath.Clean(cfg.DataDirectory),
+		DataDirectory:        filepath.Clean(c.DataDirectory),
 		DefaultWorkspacePath: filepath.Clean(workspace),
 		UserHomePath:         filepath.Clean(userHome),
 		ConfigDirectories:    directories,

@@ -1,6 +1,10 @@
 package bootstrap
 
 import (
+	"errors"
+	"fmt"
+	"path/filepath"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
@@ -263,4 +267,92 @@ type Config struct {
 	// cascade) commit atomically. Required; the composition root wires the single
 	// SQLite backend's transactor into the sessions coordinator.
 	Transactor Transactor
+}
+
+// Validate reports whether the construction-time bundle has every capability
+// required to assemble a Runtime. It does not mutate the configuration.
+func (c Config) Validate() error {
+	if c.UserHome == "" {
+		return errors.New("runtime: UserHome is required")
+	}
+	if !filepath.IsAbs(c.UserHome) {
+		return errors.New("runtime: UserHome must be absolute")
+	}
+	if c.DefaultWorkspacePath == "" {
+		return errors.New("runtime: DefaultWorkspacePath is required")
+	}
+	if !filepath.IsAbs(c.DefaultWorkspacePath) {
+		return errors.New("runtime: DefaultWorkspacePath must be absolute")
+	}
+	if c.KnowledgeDirectory == "" {
+		return errors.New("runtime: KnowledgeDirectory is required")
+	}
+	for _, configuredPath := range []struct {
+		name  string
+		value string
+	}{
+		{name: "SkillsUserDir", value: c.SkillsUserDir},
+		{name: "SandboxDir", value: c.SandboxDir},
+		{name: "RecipesGlobalDir", value: c.RecipesGlobalDir},
+		{name: "CheckpointDir", value: c.CheckpointDir},
+		{name: "KnowledgeDirectory", value: c.KnowledgeDirectory},
+	} {
+		if configuredPath.value != "" && !filepath.IsAbs(configuredPath.value) {
+			return fmt.Errorf("runtime: %s must be absolute when set", configuredPath.name)
+		}
+	}
+	for index, configuredPath := range c.SandboxReadOnlyPaths {
+		if configuredPath != "" && !filepath.IsAbs(configuredPath) {
+			return fmt.Errorf("runtime: SandboxReadOnlyPaths[%d] must be absolute when set", index)
+		}
+	}
+	if c.ChatClient == nil {
+		return errors.New("runtime: ChatClient is required")
+	}
+	if c.BuildID == "" {
+		return errors.New("runtime: BuildID is required")
+	}
+	if c.ConversationStore == nil {
+		return errors.New("runtime: ConversationStore is required")
+	}
+	if c.ProviderRegistry == nil {
+		return errors.New("runtime: ProviderRegistry is required")
+	}
+	if c.MCPRegistry == nil {
+		return errors.New("runtime: MCPRegistry is required")
+	}
+	if c.MCPOAuthSessions == nil {
+		return errors.New("runtime: MCPOAuthSessions is required")
+	}
+	if c.SessionStore == nil {
+		return errors.New("runtime: SessionStore is required")
+	}
+	if c.InterruptStore == nil {
+		return errors.New("runtime: InterruptStore is required")
+	}
+	if c.TranscriptStore == nil {
+		return errors.New("runtime: TranscriptStore is required")
+	}
+	if c.FeedbackStore == nil {
+		return errors.New("runtime: FeedbackStore is required")
+	}
+	if c.RunStore == nil {
+		return errors.New("runtime: RunStore is required")
+	}
+	if c.ExecutorCheckpoints == nil {
+		return errors.New("runtime: ExecutorCheckpoints is required")
+	}
+	if c.ModelInvocationStore == nil {
+		return errors.New("runtime: ModelInvocationStore is required")
+	}
+	if c.ToolInvocationStore == nil {
+		return errors.New("runtime: ToolInvocationStore is required")
+	}
+	if c.ChildRunStartStore == nil {
+		return errors.New("runtime: ChildRunStartStore is required")
+	}
+	if c.Transactor == nil {
+		return errors.New("runtime: Transactor is required")
+	}
+	return nil
 }

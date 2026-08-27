@@ -57,7 +57,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 // nil receiver is NOT supported — Configure mutates and a nil here is a wiring
 // bug, so callers hold a real *Connections.
 func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
-	cfg = cloneServerConfig(cfg)
+	cfg = cfg.Clone()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("mcp: invalid server %q: %w", cfg.Name, err)
 	}
