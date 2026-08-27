@@ -13,8 +13,8 @@ import (
 //
 //   - Glob uses the platform-neutral doublestar matcher and never follows
 //     directory symlinks while walking.
-//   - Grep prefers ripgrep when it's on PATH; falls back to GNU grep
-//     otherwise (FileType / Multiline only work on the ripgrep path).
+//   - Grep consumes ripgrep's structured JSON protocol and returns
+//     [ErrRipgrepUnavailable] when rg is not installed.
 //   - Write and Edit serialize per file via [LocalExecutor.lockPath]
 //     so concurrent tool calls on the same path can't tear.
 //   - Read normalises CRLF→LF and strips UTF-8 BOM; Write and Edit
@@ -27,9 +27,6 @@ type LocalExecutor struct {
 
 	pathLocksMu sync.Mutex
 	pathLocks   map[string]*sync.Mutex
-
-	rgOnce sync.Once
-	rgPath string // "" after rgOnce runs means rg is not on PATH
 }
 
 // NewLocalExecutor returns a [LocalExecutor] anchored at root. Pass

@@ -232,7 +232,7 @@ func TestApplyPatchTool_HappyPath(t *testing.T) {
 }
 
 func TestGrepTool_ContentMode(t *testing.T) {
-	skipWithoutGrepOrRG(t)
+	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo bar\n")
 	body, err := NewGrepTool(NewLocalExecutor(dir)).Call(t.Context(), `{"pattern":"foo"}`)
@@ -243,13 +243,13 @@ func TestGrepTool_ContentMode(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
 		t.Fatalf("Unmarshal: %v body=%s", err, body)
 	}
-	if len(resp.Matches) == 0 {
+	if len(resp.Lines) == 0 {
 		t.Errorf("no matches in body=%s", body)
 	}
 }
 
 func TestGrepTool_FilesWithMatchesMode(t *testing.T) {
-	skipWithoutGrepOrRG(t)
+	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo\n")
 	writeTemp(t, dir, "b.txt", "bar\n")
@@ -265,12 +265,12 @@ func TestGrepTool_FilesWithMatchesMode(t *testing.T) {
 	if len(resp.Files) == 0 {
 		t.Errorf("expected files populated; body=%s", body)
 	}
-	if len(resp.Matches) != 0 {
-		t.Errorf("matches must be empty in files mode: %v", resp.Matches)
+	if len(resp.Lines) != 0 {
+		t.Errorf("lines must be empty in files mode: %v", resp.Lines)
 	}
-	// JSON sum-type sanity: matches/counts must be absent (omitempty)
-	if strings.Contains(body, `"matches"`) {
-		t.Errorf("body should omit matches in files mode; got %s", body)
+	// JSON sum-type sanity: lines/counts must be absent (omitempty)
+	if strings.Contains(body, `"lines"`) {
+		t.Errorf("body should omit lines in files mode; got %s", body)
 	}
 }
 

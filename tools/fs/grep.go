@@ -10,8 +10,7 @@ import (
 
 // GrepRequest is the LLM-facing argument shape for the grep tool.
 //
-// Notes on pattern syntax: the underlying engine is ripgrep (when
-// available, falling back to GNU grep). That means literal braces /
+// Notes on pattern syntax: the underlying engine is ripgrep. Literal braces /
 // brackets need escaping (`interface\{\}` to find `interface{}`).
 // By default patterns match within a single line; set `multiline=true`
 // for patterns that span newlines.
@@ -33,10 +32,10 @@ type GrepRequest struct {
 }
 
 // GrepResponse is the LLM-facing return shape. Exactly one of
-// matches / files / counts is populated based on the request's
+// lines / files / counts is populated based on the request's
 // output_mode.
 type GrepResponse struct {
-	Matches   []GrepMatch     `json:"matches,omitempty"`
+	Lines     []GrepLine      `json:"lines,omitempty"`
 	Files     []string        `json:"files,omitempty"`
 	Counts    []GrepFileCount `json:"counts,omitempty"`
 	Truncated bool            `json:"truncated,omitempty"`

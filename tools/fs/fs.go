@@ -66,7 +66,7 @@ type GlobInput struct {
 	Pattern    string
 	Root       string // "" = executor's workspace root
 	IgnoreCase bool
-	MaxResults int // 0 = no limit
+	MaxResults int // 0 = executor default
 }
 
 // ---------------------------------------------------------------- Grep
@@ -75,7 +75,7 @@ type GlobInput struct {
 type GrepOutputMode string
 
 const (
-	// GrepOutputContent (default) populates [GrepResponse.Matches].
+	// GrepOutputContent (default) populates [GrepResponse.Lines].
 	GrepOutputContent GrepOutputMode = "content"
 	// GrepOutputFilesWithMatches populates [GrepResponse.Files].
 	GrepOutputFilesWithMatches GrepOutputMode = "files_with_matches"
@@ -126,10 +126,32 @@ func (g GrepInput) contextLines() (before, after int) {
 	return cmp.Or(g.BeforeContext, g.Context), cmp.Or(g.AfterContext, g.Context)
 }
 
-type GrepMatch struct {
-	Path string `json:"path"`
-	Line int    `json:"line"` // 1-based
-	Text string `json:"text"`
+// GrepLineKind distinguishes a matching line from requested surrounding
+// context.
+type GrepLineKind string
+
+const (
+	// GrepLineMatch identifies content matched by the regular expression.
+	GrepLineMatch GrepLineKind = "match"
+
+	// GrepLineContext identifies surrounding content requested for a match.
+	GrepLineContext GrepLineKind = "context"
+)
+
+// Valid reports whether g is a supported line kind.
+func (g GrepLineKind) Valid() bool {
+	return g == GrepLineMatch || g == GrepLineContext
+}
+
+// String returns the stable serialized line kind.
+func (g GrepLineKind) String() string { return string(g) }
+
+// GrepLine is one structured ripgrep line event.
+type GrepLine struct {
+	Path string       `json:"path"`
+	Line int          `json:"line"` // 1-based
+	Text string       `json:"text"`
+	Kind GrepLineKind `json:"kind"`
 }
 
 // GrepFileCount is one entry of the "count" output mode.

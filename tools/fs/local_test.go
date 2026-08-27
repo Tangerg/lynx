@@ -18,13 +18,10 @@ func skipWithoutBash(t *testing.T) {
 	}
 }
 
-func skipWithoutGrepOrRG(t *testing.T) {
+func skipWithoutRipgrep(t *testing.T) {
 	t.Helper()
-	if _, err := exec.LookPath("rg"); err == nil {
-		return
-	}
-	if _, err := exec.LookPath("grep"); err != nil {
-		t.Skip("neither rg nor grep available")
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("ripgrep not available")
 	}
 }
 
@@ -529,7 +526,7 @@ func TestGrepOutputModeOwnsDefaultAndValidation(t *testing.T) {
 }
 
 func TestLocalExecutor_Grep_Content(t *testing.T) {
-	skipWithoutGrepOrRG(t)
+	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo bar\nbaz foo\nqux\n")
 	writeTemp(t, dir, "b.txt", "no match here\n")
@@ -537,13 +534,18 @@ func TestLocalExecutor_Grep_Content(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Grep: %v", err)
 	}
-	if len(out.Matches) != 2 {
-		t.Errorf("got %d matches, want 2: %#v", len(out.Matches), out.Matches)
+	if len(out.Lines) != 2 {
+		t.Errorf("got %d lines, want 2: %#v", len(out.Lines), out.Lines)
+	}
+	for _, line := range out.Lines {
+		if line.Kind != GrepLineMatch {
+			t.Errorf("line kind = %q, want match", line.Kind)
+		}
 	}
 }
 
 func TestLocalExecutor_Grep_FilesWithMatches(t *testing.T) {
-	skipWithoutGrepOrRG(t)
+	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo\n")
 	writeTemp(t, dir, "b.txt", "foo\nfoo\n")
@@ -558,13 +560,13 @@ func TestLocalExecutor_Grep_FilesWithMatches(t *testing.T) {
 	if len(out.Files) != 2 {
 		t.Errorf("files = %d, want 2: %v", len(out.Files), out.Files)
 	}
-	if len(out.Matches) != 0 {
-		t.Errorf("Matches populated in files mode: %v", out.Matches)
+	if len(out.Lines) != 0 {
+		t.Errorf("Lines populated in files mode: %v", out.Lines)
 	}
 }
 
 func TestLocalExecutor_Grep_Count(t *testing.T) {
-	skipWithoutGrepOrRG(t)
+	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo\nbar\nfoo\n")
 	writeTemp(t, dir, "b.txt", "foo\n")
@@ -609,5 +611,37 @@ func TestLocalExecutor_Grep_AsymmetricContext(t *testing.T) {
 	before, after = (GrepInput{Context: 2, BeforeContext: 10}).contextLines()
 	if before != 10 || after != 2 {
 		t.Errorf("Context=2 + B=10 → before=%d after=%d, want 10,2 (explicit wins for before, fallback for after)", before, after)
+	}
+}
+
+func TestLocalExecutor_Grep_ReturnsStructuredContext(t *testing.T) {
+	skipWithoutRipgrep(t)
+	dir := t.TempDir()
+	writeTemp(t, dir, "with:colon.txt", "before\nmatch here\nafter\n")
+	out, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{
+		Pattern: "match", Context: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Lines) != 3 {
+		t.Fatalf("lines = %#v, want before/match/after", out.Lines)
+	}
+	wantKinds := []GrepLineKind{GrepLineContext, GrepLineMatch, GrepLineContext}
+	for index, line := range out.Lines {
+		if line.Kind != wantKinds[index] {
+			t.Errorf("lines[%d].Kind = %q, want %q", index, line.Kind, wantKinds[index])
+		}
+		if !strings.Contains(line.Path, "with:colon.txt") {
+			t.Errorf("lines[%d].Path = %q, want colon-bearing filename", index, line.Path)
+		}
+	}
+}
+
+func TestLocalExecutor_GrepRequiresRipgrep(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	_, err := NewLocalExecutor(t.TempDir()).Grep(t.Context(), GrepInput{Pattern: "match"})
+	if !errors.Is(err, ErrRipgrepUnavailable) {
+		t.Fatalf("Grep error = %v, want ErrRipgrepUnavailable", err)
 	}
 }
