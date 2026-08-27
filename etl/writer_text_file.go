@@ -15,6 +15,10 @@ import (
 	"github.com/Tangerg/scope/core/document"
 )
 
+// New text files carry no executable bits; the process umask narrows the
+// remaining permissions for the caller's environment.
+const createdTextFileMode os.FileMode = 0o666
+
 type TextFileWriterConfig struct {
 	// Path is required. Existing files are replaced unless Append is true.
 	Path string
@@ -69,7 +73,7 @@ func (t *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}
-	file, err := os.OpenFile(t.path, t.openFlags(), 0o666)
+	file, err := os.OpenFile(t.path, t.openFlags(), createdTextFileMode)
 	if err != nil {
 		return fmt.Errorf("etl: open output %q: %w", t.path, err)
 	}

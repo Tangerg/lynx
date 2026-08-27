@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/scope/tools/web"
 )
 
+const defaultSearchResultCount = 10
+
 const (
 	baseURL                 = "https://api.search.brave.com/res/v1"
 	queryParameterQuery     = "q"
@@ -129,7 +131,7 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
 		Q:     request.QueryWithSiteOperators(),
-		Count: cmp.Or(request.MaxResults, 10),
+		Count: cmp.Or(request.MaxResults, defaultSearchResultCount),
 	}
 	r.Freshness = recencyToFreshness(request.Recency)
 	return r

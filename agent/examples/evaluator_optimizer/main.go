@@ -18,6 +18,17 @@ import (
 	"github.com/Tangerg/scope/agent/workflow"
 )
 
+const (
+	acceptanceThreshold       = 0.9
+	maximumOptimizationRounds = 3
+	workerBudgetSteps         = 8
+	workerBudgetEffects       = 4
+	workerBudgetSignals       = 8
+	iterationBudgetSteps      = 64
+	iterationBudgetEffects    = 32
+	iterationBudgetSignals    = 64
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -30,8 +41,8 @@ func run(ctx context.Context, output io.Writer) error {
 		ctx,
 		optimizationRequest{Objective: "improve the release draft"},
 		[]float64{0.4, 0.7, 0.95},
-		0.9,
-		3,
+		acceptanceThreshold,
+		maximumOptimizationRounds,
 	)
 	if err != nil {
 		return err
@@ -217,7 +228,7 @@ func newEvaluatorOptimizer(
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	workerBudget, err := agent.NewBudget(8, 4, 8)
+	workerBudget, err := agent.NewBudget(workerBudgetSteps, workerBudgetEffects, workerBudgetSignals)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -268,7 +279,7 @@ func newEvaluatorOptimizer(
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	iterationBudget, err := agent.NewBudget(64, 32, 64)
+	iterationBudget, err := agent.NewBudget(iterationBudgetSteps, iterationBudgetEffects, iterationBudgetSignals)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}

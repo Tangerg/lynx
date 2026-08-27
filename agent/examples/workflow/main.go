@@ -15,6 +15,11 @@ import (
 	"github.com/Tangerg/scope/agent/workflow"
 )
 
+const (
+	workflowChildBudgetUnits = 16
+	reviewerCount            = 2
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -114,7 +119,7 @@ func newManagedWorkflow() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	budget, err := agent.NewBudget(16, 16, 16)
+	budget, err := agent.NewBudget(workflowChildBudgetUnits, workflowChildBudgetUnits, workflowChildBudgetUnits)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -130,9 +135,9 @@ func newManagedWorkflow() (agent.Deployment, deploymentResolver, error) {
 			{ID: "clarity", Deployment: clarity, Budget: budget},
 			{ID: "safety", Deployment: safety, Budget: budget},
 		},
-		WindowSize: 2,
+		WindowSize: reviewerCount,
 		Reduce: func(reviews []review) (reviewReport, error) {
-			if len(reviews) != 2 || reviews[0].Request != reviews[1].Request {
+			if len(reviews) != reviewerCount || reviews[0].Request != reviews[1].Request {
 				return reviewReport{}, errors.New("review branches returned inconsistent results")
 			}
 			return reviewReport{Request: reviews[0].Request, Reviews: reviews}, nil

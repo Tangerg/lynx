@@ -13,6 +13,8 @@ import (
 	"github.com/Tangerg/scope/tools/web"
 )
 
+const defaultSearchResultCount = 10
+
 const (
 	baseURL = "https://api.exa.ai"
 )
@@ -121,7 +123,7 @@ func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
 		Query:      request.Query,
 		Type:       "fast",
-		NumResults: cmp.Or(request.MaxResults, 10),
+		NumResults: cmp.Or(request.MaxResults, defaultSearchResultCount),
 		Contents: &contentsOptions{
 			Summary: &summaryOptions{Query: request.Query},
 		},

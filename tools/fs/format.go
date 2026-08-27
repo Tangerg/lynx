@@ -45,7 +45,7 @@ func restoreFormat(text string, hadBOM, hadCRLF bool) []byte {
 // file visible to readers.
 func atomicWriteFile(path string, data []byte, mode os.FileMode) (err error) {
 	dir := filepath.Dir(path)
-	if err = os.MkdirAll(dir, 0o755); err != nil {
+	if err = os.MkdirAll(dir, defaultDirectoryMode); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".write-*")

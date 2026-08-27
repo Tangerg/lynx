@@ -8,6 +8,13 @@ import (
 	"sync"
 )
 
+// Newly created workspace content is non-executable by default. The process
+// umask may narrow these permissions further.
+const (
+	defaultDirectoryMode os.FileMode = 0o755
+	defaultFileMode      os.FileMode = 0o644
+)
+
 // LocalExecutor is the reference [Executor] running against the host
 // filesystem.
 //

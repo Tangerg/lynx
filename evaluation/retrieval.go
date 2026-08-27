@@ -146,16 +146,20 @@ func (relevant relevanceSet) reciprocalRank(ranking []string) float64 {
 	return 0
 }
 
+func discountedGain(rank int) float64 {
+	return 1 / math.Log2(float64(rank+1))
+}
+
 func (relevant relevanceSet) ndcgAt(ranking []string, cutoff int) float64 {
 	dcg := 0.0
 	for index, identity := range ranking {
 		if _, found := relevant[identity]; found {
-			dcg += 1 / math.Log2(float64(index+2))
+			dcg += discountedGain(index + 1)
 		}
 	}
 	idcg := 0.0
 	for index := range min(cutoff, len(relevant)) {
-		idcg += 1 / math.Log2(float64(index+2))
+		idcg += discountedGain(index + 1)
 	}
 	return dcg / idcg
 }

@@ -20,6 +20,15 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
+const (
+	plannedWorkerCount  = 3
+	workerBudgetSteps   = 32
+	workerBudgetEffects = 32
+	workerBudgetSignals = 64
+	workerParallelism   = 2
+	maximumPlannedTasks = 8
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -60,7 +69,7 @@ func run(ctx context.Context, output io.Writer) (err error) {
 	if err != nil {
 		return err
 	}
-	if len(report.Results) != 3 {
+	if len(report.Results) != plannedWorkerCount {
 		return fmt.Errorf("orchestration returned %d worker results", len(report.Results))
 	}
 	_, err = fmt.Fprintf(
@@ -135,7 +144,7 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	budget, err := agent.NewBudget(32, 32, 64)
+	budget, err := agent.NewBudget(workerBudgetSteps, workerBudgetEffects, workerBudgetSignals)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -165,7 +174,7 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	}
 	execute, err := workflow.Map(workflow.MapConfig[workerTask, workerResult]{
 		ID: "execute", Deployment: worker, Budget: budget,
-		WindowSize: 2, ItemLimit: 8,
+		WindowSize: workerParallelism, ItemLimit: maximumPlannedTasks,
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err

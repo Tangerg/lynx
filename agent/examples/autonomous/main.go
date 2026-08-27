@@ -17,6 +17,11 @@ import (
 	"github.com/Tangerg/scope/core/tool"
 )
 
+const (
+	calculatorToolRequestCall = 1
+	calculatorFinalAnswerCall = 2
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -33,7 +38,7 @@ func run(ctx context.Context, output io.Writer) error {
 		Name:          "example.autonomous_calculator",
 		Description:   "Use available Tools until the requested calculation is complete.",
 		Version:       "1.0.0",
-		MaxModelCalls: 3,
+		MaxModelCalls: calculatorFinalAnswerCall,
 	})
 	if err != nil {
 		return err
@@ -112,14 +117,14 @@ type calculatorModel struct{ calls int }
 func (c *calculatorModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	c.calls++
 	switch c.calls {
-	case 1:
+	case calculatorToolRequestCall:
 		message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
 			ID: "calculation_1", Name: "add", Arguments: `{"left":20,"right":22}`,
 		}))
 		return &chat.Response{Output: &chat.Output{
 			Message: &message, FinishReason: chat.FinishReasonToolCalls,
 		}}, nil
-	case 2:
+	case calculatorFinalAnswerCall:
 		last := request.Messages[len(request.Messages)-1]
 		if last.Role != chat.RoleTool || len(last.Parts) != 1 ||
 			last.Parts[0].ToolResult == nil || last.Parts[0].ToolResult.Result != "42" {

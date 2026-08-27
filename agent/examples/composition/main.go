@@ -18,6 +18,13 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
+const (
+	compositionChildCount         = 2
+	compositionChildBudgetSteps   = 20
+	compositionChildBudgetEffects = 20
+	compositionChildBudgetSignals = 40
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -290,7 +297,11 @@ func (c *compositionExecution) startChildren() (agent.Transition, error) {
 	}})
 	localKey, _ := agent.ParseChildKey("local")
 	modelKey, _ := agent.ParseChildKey("model")
-	budget, _ := agent.NewBudget(20, 20, 40)
+	budget, _ := agent.NewBudget(
+		compositionChildBudgetSteps,
+		compositionChildBudgetEffects,
+		compositionChildBudgetSignals,
+	)
 	localEffect, err := agent.StartChild(agent.ChildSpec{
 		Key: localKey, DeploymentRef: c.local, Input: localInput, Budget: budget,
 	})
@@ -308,7 +319,7 @@ func (c *compositionExecution) startChildren() (agent.Transition, error) {
 }
 
 func (c *compositionExecution) waitForChildren(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) != 2 {
+	if len(signals) != compositionChildCount {
 		return agent.Transition{}, errors.New("composition requires two child-start results")
 	}
 	for _, signal := range signals {
@@ -317,7 +328,7 @@ func (c *compositionExecution) waitForChildren(signals []agent.Signal) (agent.Tr
 			return agent.Transition{}, err
 		}
 		if failure, failed := started.Failure(); failed {
-			return agent.Fail(2, failure)
+			return agent.Fail(compositionChildCount, failure)
 		}
 		childID, _ := started.ProcessID()
 		c.state.ChildIDs = append(c.state.ChildIDs, childID.String())
@@ -334,7 +345,7 @@ func (c *compositionExecution) waitForChildren(signals []agent.Signal) (agent.Tr
 		return agent.Transition{}, err
 	}
 	c.state.Phase = "wait_opened"
-	return agent.Continue(2, waitEffect)
+	return agent.Continue(compositionChildCount, waitEffect)
 }
 
 func (c *compositionExecution) complete(

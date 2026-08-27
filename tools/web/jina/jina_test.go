@@ -3,10 +3,19 @@ package jina
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/scope/tools/web"
 )
+
+func TestSearchResultSnippetPreservesUTF8(t *testing.T) {
+	content := strings.Repeat("界", maximumSnippetRunes+1)
+	snippet := (&searchResult{Content: content}).snippet()
+	if snippet != strings.Repeat("界", maximumSnippetRunes)+snippetEllipsis {
+		t.Fatalf("snippet = %q", snippet)
+	}
+}
 
 func TestSearch(t *testing.T) {
 	if _, err := NewClient(Config{}); err == nil {

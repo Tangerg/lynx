@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/scope/tools/web"
 )
 
+const defaultSearchResultCount = 10
+
 const (
 	baseURL = "https://api.firecrawl.dev/v2"
 )
@@ -111,7 +113,7 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
 		Query: request.QueryWithSiteOperators(),
-		Limit: cmp.Or(request.MaxResults, 10),
+		Limit: cmp.Or(request.MaxResults, defaultSearchResultCount),
 	}
 	r.Tbs = recencyToTbs(request.Recency)
 	return r

@@ -17,6 +17,15 @@ import (
 	"github.com/Tangerg/scope/agent/workflow"
 )
 
+const (
+	patternChildBudgetSteps   = 16
+	patternChildBudgetEffects = 8
+	patternChildBudgetSignals = 16
+	sectionWorkerCount        = 2
+	sectionWindowSize         = 2
+	voteWindowSize            = 2
+)
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -207,7 +216,11 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	budget, err := agent.NewBudget(16, 8, 16)
+	budget, err := agent.NewBudget(
+		patternChildBudgetSteps,
+		patternChildBudgetEffects,
+		patternChildBudgetSignals,
+	)
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -249,9 +262,9 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 			{ID: "facts", Deployment: facts, Budget: budget},
 			{ID: "risks", Deployment: risks, Budget: budget},
 		},
-		WindowSize: 2,
+		WindowSize: sectionWindowSize,
 		Reduce: func(findings []finding) (findingBundle, error) {
-			if len(findings) != 2 || findings[0].Normalized != findings[1].Normalized ||
+			if len(findings) != sectionWorkerCount || findings[0].Normalized != findings[1].Normalized ||
 				findings[0].Summary != findings[1].Summary || findings[0].Route != findings[1].Route {
 				return findingBundle{}, errors.New("parallel sections returned inconsistent context")
 			}
@@ -272,7 +285,7 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 			{ID: "reject_second", Deployment: rejectSecond, Budget: budget},
 			{ID: "approve_second", Deployment: approveSecond, Budget: budget},
 		},
-		WindowSize: 2,
+		WindowSize: voteWindowSize,
 		Reduce:     reduceBallots,
 	})
 	if err != nil {
@@ -295,7 +308,7 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		Budget        agent.Budget `json:"budget"`
 		SectionWindow uint32       `json:"section_window"`
 		VoteWindow    uint32       `json:"vote_window"`
-	}{Budget: budget, SectionWindow: 2, VoteWindow: 2}
+	}{Budget: budget, SectionWindow: sectionWindowSize, VoteWindow: voteWindowSize}
 	resolver := make(deploymentResolver, len(children))
 	for _, child := range children {
 		configuration.Children = append(configuration.Children, child.DeploymentRef().Digest().String())

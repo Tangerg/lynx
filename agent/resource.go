@@ -7,6 +7,17 @@ import (
 
 var ErrResourceLimitExceeded = errors.New("agent: resource limit exceeded")
 
+const (
+	defaultMaxSteps          uint64 = 10_000
+	defaultMaxEffects        uint64 = 10_000
+	defaultMaxSignals        uint64 = 100_000
+	defaultMaxPendingSignals uint64 = 10_000
+	defaultMaxDepth          uint32 = 16
+	defaultMaxChildren       uint32 = 64
+	defaultMaxActiveChildren uint32 = 16
+	defaultMaxTreeProcesses  uint32 = 1024
+)
+
 // Limits bounds Framework-owned execution growth. Zero-valued fields in
 // EngineConfig inherit DefaultLimits; Snapshot stores effective non-zero values
 // so restoration preserves the same execution contract.
@@ -28,8 +39,8 @@ type Limits struct {
 // DefaultLimits returns conservative hard bounds for one Process.
 func DefaultLimits() Limits {
 	return Limits{
-		MaxSteps: 10_000, MaxEffects: 10_000,
-		MaxSignals: 100_000, MaxPendingSignals: 10_000,
+		MaxSteps: defaultMaxSteps, MaxEffects: defaultMaxEffects,
+		MaxSignals: defaultMaxSignals, MaxPendingSignals: defaultMaxPendingSignals,
 	}
 }
 
@@ -202,7 +213,8 @@ type TreeLimits struct {
 // DefaultTreeLimits returns conservative structured-concurrency bounds.
 func DefaultTreeLimits() TreeLimits {
 	return TreeLimits{
-		MaxDepth: 16, MaxChildren: 64, MaxActiveChildren: 16, MaxTreeProcesses: 1024,
+		MaxDepth: defaultMaxDepth, MaxChildren: defaultMaxChildren,
+		MaxActiveChildren: defaultMaxActiveChildren, MaxTreeProcesses: defaultMaxTreeProcesses,
 	}
 }
 

@@ -19,6 +19,8 @@ import (
 	"github.com/Tangerg/scope/agent/workflow"
 )
 
+const managedWorkerBudgetUnits = 16
+
 func main() {
 	if err := run(context.Background(), os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -120,7 +122,7 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 	if err != nil {
 		return agent.Deployment{}, agent.Deployment{}, err
 	}
-	budget, err := agent.NewBudget(16, 16, 16)
+	budget, err := agent.NewBudget(managedWorkerBudgetUnits, managedWorkerBudgetUnits, managedWorkerBudgetUnits)
 	if err != nil {
 		return agent.Deployment{}, agent.Deployment{}, err
 	}

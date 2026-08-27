@@ -65,7 +65,7 @@ func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteResponse, 
 
 	// Detect existing format + permissions so an overwrite preserves
 	// CRLF / BOM / mode instead of silently flipping them.
-	mode := os.FileMode(0o644)
+	mode := defaultFileMode
 	hadBOM, hadCRLF := false, false
 	if info, err := os.Stat(path); err == nil {
 		mode = info.Mode().Perm()
@@ -78,7 +78,7 @@ func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteResponse, 
 	}
 
 	if in.Append {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), defaultDirectoryMode); err != nil {
 			return WriteResponse{}, err
 		}
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
@@ -127,7 +127,7 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditRequest) (EditResponse, e
 		return EditResponse{}, err
 	}
 
-	mode := os.FileMode(0o644)
+	mode := defaultFileMode
 	if info, err := os.Stat(path); err == nil {
 		mode = info.Mode().Perm()
 	}

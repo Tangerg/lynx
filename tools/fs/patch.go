@@ -289,7 +289,7 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 		}
 	}
 
-	mode := os.FileMode(0o644)
+	mode := defaultFileMode
 	var source []byte
 	hadBOM, hadCRLF := false, false
 	if !file.created() {

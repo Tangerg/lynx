@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/scope/tools/web"
 )
@@ -23,6 +24,9 @@ const (
 	queryParameterPage    = "page"
 	queryParameterSite    = "site"
 	queryParameterNoCache = "noCache"
+	defaultSearchResults  = 10
+	maximumSnippetRunes   = 300
+	snippetEllipsis       = "..."
 )
 
 type Config struct {
@@ -115,7 +119,7 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 }
 
 func (request *searchRequest) params() map[string]string {
-	parameters := make(map[string]string, 4)
+	parameters := make(map[string]string)
 	if request.Count > 0 {
 		parameters[queryParameterCount] = strconv.Itoa(request.Count)
 	}
@@ -147,7 +151,7 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	r := &searchRequest{
 		Query: request.Query,
-		Count: cmp.Or(request.MaxResults, 10),
+		Count: cmp.Or(request.MaxResults, defaultSearchResults),
 		Page:  1,
 	}
 	if len(request.AllowedDomains) > 0 {
@@ -179,8 +183,8 @@ func (s *searchResult) snippet() string {
 	if s.Content == "" {
 		return ""
 	}
-	if len(s.Content) > 300 {
-		return s.Content[:300] + "..."
+	if lo.RuneLength(s.Content) > maximumSnippetRunes {
+		return lo.Substring(s.Content, 0, maximumSnippetRunes) + snippetEllipsis
 	}
 	return s.Content
 }

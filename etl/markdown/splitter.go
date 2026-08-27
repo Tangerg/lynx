@@ -22,6 +22,8 @@ import (
 const (
 	defaultMaxTokensPerChunk = 800
 	defaultMaxChunks         = 10_000
+	minimumTableLines        = 3
+	minimumCodeFenceLength   = 3
 )
 
 var ErrSemanticUnitTooLarge = errors.New("markdown splitter: semantic unit exceeds token limit")
@@ -381,7 +383,7 @@ func (s *Splitter) largestFittingTokenPrefix(ctx context.Context, prefix string,
 
 func (s *Splitter) splitTable(ctx context.Context, prefix, table string) ([]string, error) {
 	lines := nonEmptyLines(table)
-	if len(lines) < 3 {
+	if len(lines) < minimumTableLines {
 		return nil, s.semanticUnitError(ctx, blockTable, renderChunk(prefix, table))
 	}
 	header := lines[:2]
@@ -529,7 +531,7 @@ func closingFence(opening string) string {
 	for count < len(trimmed) && trimmed[count] == trimmed[0] {
 		count++
 	}
-	return indent + strings.Repeat(string(trimmed[0]), max(3, count))
+	return indent + strings.Repeat(string(trimmed[0]), max(minimumCodeFenceLength, count))
 }
 
 func isClosingFence(line, opening string) bool {

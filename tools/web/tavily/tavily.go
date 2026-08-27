@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/scope/tools/web"
 )
 
+const defaultSearchResultCount = 5
+
 const (
 	baseURL = "https://api.tavily.com"
 )
@@ -112,7 +114,7 @@ func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 		Query:          request.Query,
 		SearchDepth:    "basic",
 		Topic:          "general",
-		MaxResults:     cmp.Or(request.MaxResults, 5),
+		MaxResults:     cmp.Or(request.MaxResults, defaultSearchResultCount),
 		IncludeFavicon: true,
 	}
 	if len(request.AllowedDomains) > 0 {
