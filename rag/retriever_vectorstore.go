@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	corevs "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/samber/lo"
 )
 
 var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store filter")

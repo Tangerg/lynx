@@ -69,8 +69,8 @@ func TestModelRerankerHandlesEmptyAndUnformattableCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := reranker.Refine(t.Context(), mustQuery(t, "query"), nil); err != nil || got != nil {
-		t.Fatalf("empty Refine = %#v, %v", got, err)
+	if got, refineErr := reranker.Refine(t.Context(), mustQuery(t, "query"), nil); refineErr != nil || got != nil {
+		t.Fatalf("empty Refine = %#v, %v", got, refineErr)
 	}
 	if model.calls != 0 {
 		t.Fatalf("empty candidates triggered %d model calls", model.calls)

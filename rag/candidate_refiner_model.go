@@ -9,9 +9,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
-	"github.com/samber/lo"
 )
 
 // ErrInvalidReranking reports malformed model ranking output or candidate

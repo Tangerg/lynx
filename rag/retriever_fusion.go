@@ -68,8 +68,8 @@ type reciprocalRankFusion struct {
 }
 
 func (r reciprocalRankFusion) Retrieve(ctx context.Context, query Query) (candidates Candidates, err error) {
-	if err := query.Validate(); err != nil {
-		return nil, err
+	if validateErr := query.Validate(); validateErr != nil {
+		return nil, validateErr
 	}
 	ctx, span := startStageSpan(ctx, retrieveStage)
 	defer func() {

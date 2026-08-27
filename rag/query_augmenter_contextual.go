@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/tokenizer"
-	"github.com/samber/lo"
 )
 
 // ErrInvalidContextBudget reports inconsistent token-budget configuration.

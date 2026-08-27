@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/tool"
-	"github.com/samber/lo"
 )
 
 // RetrievalToolConfig describes a model-visible retrieval capability. Name
