@@ -64,8 +64,8 @@ func (s *ToolSet) Close() error {
 	}
 	s.closeOnce.Do(func() {
 		var errs []error
-		for index := len(s.clients) - 1; index >= 0; index-- {
-			if err := s.clients[index].Destroy(); err != nil {
+		for _, client := range slices.Backward(s.clients) {
+			if err := client.Destroy(); err != nil {
 				errs = append(errs, err)
 			}
 		}
