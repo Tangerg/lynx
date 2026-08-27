@@ -65,20 +65,20 @@ type EmbeddingModel struct {
 	defaultOptions embedding.Options
 }
 
-func NewEmbeddingModel(ctx context.Context, cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(ctx context.Context, config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := newAPI(ctx, apiConfig{
-		Region:      cfg.Region,
-		BaseURL:     cfg.BaseURL,
-		HTTPClient:  cfg.HTTPClient,
-		Credentials: cfg.Credentials,
+		Region:      config.Region,
+		BaseURL:     config.BaseURL,
+		HTTPClient:  config.HTTPClient,
+		Credentials: config.Credentials,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &EmbeddingModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
+	return &EmbeddingModel{api: api, defaultOptions: config.DefaultOptions.Clone()}, nil
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

@@ -43,23 +43,23 @@ type api struct {
 	client *bedrockruntime.Client
 }
 
-func newAPI(ctx context.Context, cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(ctx context.Context, config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
 	loadOptions := make([]func(*awsconfig.LoadOptions) error, 0, 3)
-	if cfg.Region != "" {
-		loadOptions = append(loadOptions, awsconfig.WithRegion(cfg.Region))
+	if config.Region != "" {
+		loadOptions = append(loadOptions, awsconfig.WithRegion(config.Region))
 	}
-	if cfg.HTTPClient != nil {
-		loadOptions = append(loadOptions, awsconfig.WithHTTPClient(cfg.HTTPClient))
+	if config.HTTPClient != nil {
+		loadOptions = append(loadOptions, awsconfig.WithHTTPClient(config.HTTPClient))
 	}
-	if cfg.Credentials != nil {
+	if config.Credentials != nil {
 		loadOptions = append(loadOptions, awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			cfg.Credentials.AccessKeyID,
-			cfg.Credentials.SecretAccessKey,
-			cfg.Credentials.SessionToken,
+			config.Credentials.AccessKeyID,
+			config.Credentials.SecretAccessKey,
+			config.Credentials.SessionToken,
 		)))
 	}
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOptions...)
@@ -68,8 +68,8 @@ func newAPI(ctx context.Context, cfg apiConfig) (*api, error) {
 	}
 
 	client := bedrockruntime.NewFromConfig(awsCfg, func(options *bedrockruntime.Options) {
-		if cfg.BaseURL != "" {
-			options.BaseEndpoint = aws.String(cfg.BaseURL)
+		if config.BaseURL != "" {
+			options.BaseEndpoint = aws.String(config.BaseURL)
 		}
 	})
 	return &api{client: client}, nil

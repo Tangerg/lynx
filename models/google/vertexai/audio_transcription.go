@@ -42,18 +42,18 @@ type AudioTranscriptionModel struct {
 }
 
 // NewAudioTranscriptionModel returns a Vertex AI transcription model.
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	adapter, err := protocol.NewAudioTranscriptionModel(protocol.AudioTranscriptionModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
-		Project:        cfg.Project,
-		Location:       cfg.Location,
-		DefaultOptions: cfg.DefaultOptions,
-		BaseURL:        cfg.BaseURL,
-		HTTPClient:     cfg.HTTPClient,
+		Project:        config.Project,
+		Location:       config.Location,
+		DefaultOptions: config.DefaultOptions,
+		BaseURL:        config.BaseURL,
+		HTTPClient:     config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

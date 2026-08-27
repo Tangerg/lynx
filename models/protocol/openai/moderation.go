@@ -43,15 +43,15 @@ type ModerationModel struct {
 	defaultOptions moderation.Options
 }
 
-func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewModerationModel(config ModerationModelConfig) (*ModerationModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -59,8 +59,8 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 
 	return &ModerationModel{
 		api:            api,
-		provider:       cfg.Provider,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		provider:       config.Provider,
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 

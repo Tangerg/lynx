@@ -61,25 +61,25 @@ type ImageModel struct {
 	defaultOptions image.Options
 }
 
-func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	clientConfig := &genai.ClientConfig{
 		Backend:    genai.BackendVertexAI,
-		Project:    cfg.Project,
-		Location:   cfg.Location,
-		HTTPClient: cfg.HTTPClient,
+		Project:    config.Project,
+		Location:   config.Location,
+		HTTPClient: config.HTTPClient,
 		HTTPOptions: genai.HTTPOptions{
 			APIVersion: "v1",
-			BaseURL:    cfg.BaseURL,
+			BaseURL:    config.BaseURL,
 		},
 	}
 	client, err := genai.NewClient(context.Background(), clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("vertexai: create Gen AI client: %w", err)
 	}
-	return &ImageModel{client: client, defaultOptions: cfg.DefaultOptions.Clone()}, nil
+	return &ImageModel{client: client, defaultOptions: config.DefaultOptions.Clone()}, nil
 }
 
 func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {

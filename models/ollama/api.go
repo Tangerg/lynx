@@ -44,17 +44,17 @@ type api struct {
 	httpClient *http.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
-	u, err := url.Parse(cmp.Or(cfg.BaseURL, DefaultBaseURL))
+	u, err := url.Parse(cmp.Or(config.BaseURL, DefaultBaseURL))
 	if err != nil {
 		return nil, errors.New("ollama: BaseURL must be a valid URL")
 	}
 
-	httpClient := cfg.HTTPClient
+	httpClient := config.HTTPClient
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}

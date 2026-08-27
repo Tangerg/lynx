@@ -40,18 +40,18 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 type EmbeddingModel struct{ protocol *protocol.EmbeddingModel }
 
 // NewEmbeddingModel returns a Vertex AI embedding model.
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	adapter, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
-		Project:        cfg.Project,
-		Location:       cfg.Location,
-		DefaultOptions: cfg.DefaultOptions,
-		BaseURL:        cfg.BaseURL,
-		HTTPClient:     cfg.HTTPClient,
+		Project:        config.Project,
+		Location:       config.Location,
+		DefaultOptions: config.DefaultOptions,
+		BaseURL:        config.BaseURL,
+		HTTPClient:     config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

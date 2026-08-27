@@ -57,18 +57,18 @@ type EmbeddingModel struct {
 	defaultOptions embedding.Options
 }
 
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    cfg.Backend,
-		Project:    cfg.Project,
-		Location:   cfg.Location,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		Backend:    config.Backend,
+		Project:    config.Project,
+		Location:   config.Location,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -76,8 +76,8 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		provider:       cfg.Provider,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		provider:       config.Provider,
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -89,7 +89,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 
 	cfgValue, _, err := effectiveOptions.Extensions.Decode[genai.EmbedContentConfig](protocolKey(e.provider, "embedding_request"))
 
-	cfg := &cfgValue
+	config := &cfgValue
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -98,7 +98,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		if *effectiveOptions.Dimensions < 128 || *effectiveOptions.Dimensions > 3072 {
 			return "", nil, nil, fmt.Errorf("google: embedding: dimensions must be between 128 and 3072: %d", *effectiveOptions.Dimensions)
 		}
-		cfg.OutputDimensionality = new(int32(*effectiveOptions.Dimensions))
+		config.OutputDimensionality = new(int32(*effectiveOptions.Dimensions))
 	}
 
 	contents := make([]*genai.Content, 0, len(req.Texts))
@@ -106,7 +106,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		contents = append(contents, genai.NewContentFromText(text, genai.RoleUser))
 	}
 
-	return effectiveOptions.Model, contents, cfg, nil
+	return effectiveOptions.Model, contents, config, nil
 }
 
 func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedContentResponse, expectedResults int) (*embedding.Response, error) {
@@ -163,12 +163,12 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	modelName, contents, cfg, err := e.buildAPIRequest(req)
+	modelName, contents, config, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	apiResp, err := e.api.embedding(ctx, modelName, contents, cfg)
+	apiResp, err := e.api.embedding(ctx, modelName, contents, config)
 	if err != nil {
 		return nil, err
 	}

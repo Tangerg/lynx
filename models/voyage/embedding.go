@@ -52,15 +52,15 @@ type EmbeddingModel struct {
 	defaultOptions embedding.Options
 }
 
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 

@@ -52,27 +52,27 @@ type ImageModel struct {
 	pollTimeout    time.Duration
 }
 
-func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
 	}
-	pi := cfg.PollInterval
+	pi := config.PollInterval
 	if pi <= 0 {
 		pi = time.Duration(DefaultPollIntervalSeconds) * time.Second
 	}
-	pt := cfg.PollTimeout
+	pt := config.PollTimeout
 	if pt <= 0 {
 		pt = time.Duration(DefaultPollTimeoutSeconds) * time.Second
 	}
-	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
+	return &ImageModel{api: api, defaultOptions: config.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {

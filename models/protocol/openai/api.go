@@ -29,18 +29,18 @@ type api struct {
 	client *openai.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	options := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
-	if cfg.BaseURL != "" {
-		options = append(options, option.WithBaseURL(cfg.BaseURL))
+	options := []option.RequestOption{option.WithAPIKey(config.APIKey)}
+	if config.BaseURL != "" {
+		options = append(options, option.WithBaseURL(config.BaseURL))
 	}
-	if cfg.HTTPClient != nil {
-		options = append(options, option.WithHTTPClient(cfg.HTTPClient))
+	if config.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(config.HTTPClient))
 	}
-	for name, values := range cfg.Headers {
+	for name, values := range config.Headers {
 		for _, value := range values {
 			options = append(options, option.WithHeader(name, value))
 		}

@@ -37,15 +37,15 @@ type Chat struct {
 }
 
 // NewChat constructs a Core chat adapter.
-func NewChat(cfg ChatConfig) (*Chat, error) {
-	if err := cfg.Validate(); err != nil {
+func NewChat(config ChatConfig) (*Chat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := newAPI(apiConfig{BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{BaseURL: config.BaseURL, HTTPClient: config.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
+	return &Chat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one non-streaming native chat request.

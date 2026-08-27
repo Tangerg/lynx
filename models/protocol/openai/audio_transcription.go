@@ -45,15 +45,15 @@ type AudioTranscriptionModel struct {
 	defaultOptions transcription.Options
 }
 
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -61,8 +61,8 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 
 	return &AudioTranscriptionModel{
 		api:            api,
-		provider:       cfg.Provider,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		provider:       config.Provider,
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 

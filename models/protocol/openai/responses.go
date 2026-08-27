@@ -29,15 +29,15 @@ var (
 )
 
 // NewResponsesChat constructs a Responses-API-backed Core chat adapter.
-func NewResponsesChat(cfg ChatConfig) (*ResponsesChat, error) {
-	if err := cfg.Validate(); err != nil {
+func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient, Headers: cfg.Headers})
+	api, err := newAPI(apiConfig{APIKey: config.APIKey, BaseURL: config.BaseURL, HTTPClient: config.HTTPClient, Headers: config.Headers})
 	if err != nil {
 		return nil, err
 	}
-	return &ResponsesChat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
+	return &ResponsesChat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one non-streaming Responses API request.

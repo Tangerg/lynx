@@ -31,17 +31,17 @@ type api struct {
 	http *resty.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
 	client := resty.New()
-	if cfg.HTTPClient != nil {
-		client = resty.NewWithClient(cfg.HTTPClient)
+	if config.HTTPClient != nil {
+		client = resty.NewWithClient(config.HTTPClient)
 	}
-	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Token "+cfg.APIKey)
+	client.SetBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL)).
+		SetHeader("Authorization", "Token "+config.APIKey)
 
 	return &api{http: client}, nil
 }

@@ -31,11 +31,11 @@ type api struct {
 	baseURL  *url.URL
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
+	baseURL := cmp.Or(config.BaseURL, DefaultBaseURL)
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
 		return nil, fmt.Errorf("blackforestlabs: invalid BaseURL %q", baseURL)
@@ -43,12 +43,12 @@ func newAPI(cfg apiConfig) (*api, error) {
 
 	client := resty.New()
 	download := resty.New()
-	if cfg.HTTPClient != nil {
-		client = resty.NewWithClient(cfg.HTTPClient)
-		download = resty.NewWithClient(cfg.HTTPClient)
+	if config.HTTPClient != nil {
+		client = resty.NewWithClient(config.HTTPClient)
+		download = resty.NewWithClient(config.HTTPClient)
 	}
 	client.SetBaseURL(baseURL).
-		SetHeader("x-key", cfg.APIKey).
+		SetHeader("x-key", config.APIKey).
 		SetHeader("Content-Type", "application/json")
 	return &api{http: client, download: download, baseURL: parsedBaseURL}, nil
 }

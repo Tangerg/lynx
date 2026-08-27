@@ -32,23 +32,23 @@ type api struct {
 	baseHost string
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
 	download := resty.New()
-	if cfg.HTTPClient != nil {
-		client = resty.NewWithClient(cfg.HTTPClient)
-		download = resty.NewWithClient(cfg.HTTPClient)
+	if config.HTTPClient != nil {
+		client = resty.NewWithClient(config.HTTPClient)
+		download = resty.NewWithClient(config.HTTPClient)
 	}
-	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
+	baseURL := cmp.Or(config.BaseURL, DefaultBaseURL)
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
 		return nil, fmt.Errorf("replicate: invalid BaseURL %q", baseURL)
 	}
 	client.SetBaseURL(baseURL).
-		SetAuthToken(cfg.APIKey).
+		SetAuthToken(config.APIKey).
 		SetHeader("Content-Type", "application/json")
 	return &api{http: client, download: download, baseHost: parsedBaseURL.Hostname()}, nil
 }

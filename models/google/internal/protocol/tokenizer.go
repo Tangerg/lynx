@@ -44,24 +44,24 @@ type TextEstimator struct {
 	model string
 }
 
-func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
-	if err := cfg.Validate(); err != nil {
+func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    cfg.Backend,
-		Project:    cfg.Project,
-		Location:   cfg.Location,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		Backend:    config.Backend,
+		Project:    config.Project,
+		Location:   config.Location,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &TextEstimator{api: api, model: cfg.Model}, nil
+	return &TextEstimator{api: api, model: config.Model}, nil
 }
 
 // EstimateText returns the prompt-token count Gemini would charge if

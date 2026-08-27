@@ -54,29 +54,29 @@ type api struct {
 	interactionsHTTP *resty.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
 	clientCfg := &genai.ClientConfig{
-		Backend:    cfg.Backend,
-		HTTPClient: cfg.HTTPClient,
+		Backend:    config.Backend,
+		HTTPClient: config.HTTPClient,
 	}
-	if cfg.Backend == 0 {
+	if config.Backend == 0 {
 		clientCfg.Backend = genai.BackendGeminiAPI
 	}
-	if cfg.APIKey != "" {
-		clientCfg.APIKey = cfg.APIKey
+	if config.APIKey != "" {
+		clientCfg.APIKey = config.APIKey
 	}
-	if cfg.Project != "" {
-		clientCfg.Project = cfg.Project
+	if config.Project != "" {
+		clientCfg.Project = config.Project
 	}
-	if cfg.Location != "" {
-		clientCfg.Location = cfg.Location
+	if config.Location != "" {
+		clientCfg.Location = config.Location
 	}
-	if cfg.BaseURL != "" {
-		clientCfg.HTTPOptions.BaseURL = cfg.BaseURL
+	if config.BaseURL != "" {
+		clientCfg.HTTPOptions.BaseURL = config.BaseURL
 	}
 
 	client, err := genai.NewClient(context.Background(), clientCfg)
@@ -85,12 +85,12 @@ func newAPI(cfg apiConfig) (*api, error) {
 	}
 
 	interactionsHTTP := resty.New()
-	if cfg.HTTPClient != nil {
-		interactionsHTTP = resty.NewWithClient(cfg.HTTPClient)
+	if config.HTTPClient != nil {
+		interactionsHTTP = resty.NewWithClient(config.HTTPClient)
 	}
 	interactionsHTTP.
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("x-goog-api-key", cfg.APIKey).
+		SetBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL)).
+		SetHeader("x-goog-api-key", config.APIKey).
 		SetHeader("Content-Type", "application/json")
 
 	return &api{client: client, interactionsHTTP: interactionsHTTP}, nil

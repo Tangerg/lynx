@@ -34,19 +34,19 @@ type EmbeddingModel = openai.EmbeddingModel
 
 // NewEmbeddingModel returns an Azure OpenAI embedding model. Model is the
 // Azure deployment id.
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	baseURL, err := normalizeBaseURL(cfg.BaseURL)
+	baseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
 	}
 	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		Provider:       "azureopenai",
-		APIKey:         cfg.APIKey,
-		DefaultOptions: cfg.DefaultOptions,
+		APIKey:         config.APIKey,
+		DefaultOptions: config.DefaultOptions,
 		BaseURL:        baseURL,
-		HTTPClient:     cfg.HTTPClient,
+		HTTPClient:     config.HTTPClient,
 	})
 }

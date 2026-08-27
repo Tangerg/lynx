@@ -62,32 +62,32 @@ type AudioTranscriptionModel struct {
 	pollTimeout    time.Duration
 }
 
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	pollInterval := cfg.PollInterval
+	pollInterval := config.PollInterval
 	if pollInterval <= 0 {
 		pollInterval = DefaultPollInterval
 	}
-	pollTimeout := cfg.PollTimeout
+	pollTimeout := config.PollTimeout
 	if pollTimeout <= 0 {
 		pollTimeout = DefaultPollTimeout
 	}
 
 	return &AudioTranscriptionModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		defaultOptions: config.DefaultOptions.Clone(),
 		pollInterval:   pollInterval,
 		pollTimeout:    pollTimeout,
 	}, nil

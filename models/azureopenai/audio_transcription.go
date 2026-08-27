@@ -33,19 +33,19 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 type AudioTranscriptionModel = openai.AudioTranscriptionModel
 
 // NewAudioTranscriptionModel returns an Azure OpenAI transcription model.
-func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	baseURL, err := normalizeBaseURL(cfg.BaseURL)
+	baseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
 	}
 	return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
 		Provider:       "azureopenai",
-		APIKey:         cfg.APIKey,
-		DefaultOptions: cfg.DefaultOptions,
+		APIKey:         config.APIKey,
+		DefaultOptions: config.DefaultOptions,
 		BaseURL:        baseURL,
-		HTTPClient:     cfg.HTTPClient,
+		HTTPClient:     config.HTTPClient,
 	})
 }

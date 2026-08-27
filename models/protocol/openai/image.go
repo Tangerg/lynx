@@ -46,15 +46,15 @@ type ImageModel struct {
 	defaultOptions image.Options
 }
 
-func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -62,8 +62,8 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 
 	return &ImageModel{
 		api:            api,
-		provider:       cfg.Provider,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		provider:       config.Provider,
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 

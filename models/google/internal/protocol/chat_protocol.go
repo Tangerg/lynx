@@ -51,22 +51,22 @@ type Chat struct {
 }
 
 // NewChat constructs a Core chat adapter.
-func NewChat(cfg ChatConfig) (*Chat, error) {
-	if err := cfg.Validate(); err != nil {
+func NewChat(config ChatConfig) (*Chat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    cfg.Backend,
-		Project:    cfg.Project,
-		Location:   cfg.Location,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		Backend:    config.Backend,
+		Project:    config.Project,
+		Location:   config.Location,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone(), provider: cfg.Provider}, nil
+	return &Chat{api: api, defaults: config.DefaultOptions.Clone(), provider: config.Provider}, nil
 }
 
 // Call performs one non-streaming GenerateContent request.

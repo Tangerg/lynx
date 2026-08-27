@@ -44,18 +44,18 @@ var (
 type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
 
 // NewAudioTTSModel returns a Vertex AI speech model.
-func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	adapter, err := protocol.NewAudioTTSModel(protocol.AudioTTSModelConfig{
 		Provider:       "vertexai",
 		Backend:        genai.BackendVertexAI,
-		Project:        cfg.Project,
-		Location:       cfg.Location,
-		DefaultOptions: cfg.DefaultOptions,
-		BaseURL:        cfg.BaseURL,
-		HTTPClient:     cfg.HTTPClient,
+		Project:        config.Project,
+		Location:       config.Location,
+		DefaultOptions: config.DefaultOptions,
+		BaseURL:        config.BaseURL,
+		HTTPClient:     config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

@@ -79,20 +79,20 @@ type Chat struct {
 }
 
 // NewChat constructs a Bedrock Converse Core chat adapter.
-func NewChat(ctx context.Context, cfg ChatConfig) (*Chat, error) {
-	if err := cfg.Validate(); err != nil {
+func NewChat(ctx context.Context, config ChatConfig) (*Chat, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	api, err := newAPI(ctx, apiConfig{
-		Region:      cfg.Region,
-		BaseURL:     cfg.BaseURL,
-		HTTPClient:  cfg.HTTPClient,
-		Credentials: cfg.Credentials,
+		Region:      config.Region,
+		BaseURL:     config.BaseURL,
+		HTTPClient:  config.HTTPClient,
+		Credentials: config.Credentials,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Chat{api: api, defaults: cfg.DefaultOptions.Clone()}, nil
+	return &Chat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
 // Call performs one Bedrock Converse request.

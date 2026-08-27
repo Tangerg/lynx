@@ -33,8 +33,8 @@ type api struct {
 	v2 *cohereclientv2.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
@@ -42,9 +42,9 @@ func newAPI(cfg apiConfig) (*api, error) {
 	// options). Build one with our token + caller-supplied BaseURL.
 	// Per-call options can still be passed at Embed time.
 	reqOpts := &core.RequestOptions{
-		Token:      cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		Token:      config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	}
 
 	return &api{v2: cohereclientv2.NewClient(reqOpts)}, nil

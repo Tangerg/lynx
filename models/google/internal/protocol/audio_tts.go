@@ -63,18 +63,18 @@ type AudioTTSModel struct {
 	defaultOptions tts.Options
 }
 
-func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		Backend:    cfg.Backend,
-		Project:    cfg.Project,
-		Location:   cfg.Location,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		Backend:    config.Backend,
+		Project:    config.Project,
+		Location:   config.Location,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -82,8 +82,8 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		provider:       cfg.Provider,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		provider:       config.Provider,
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -98,7 +98,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 
 	cfgValue, _, err := effectiveOptions.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "speech_request"))
 
-	cfg := &cfgValue
+	config := &cfgValue
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -106,8 +106,8 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	// Force AUDIO output. The caller may have set ResponseModalities via
 	// Extra (e.g. ["AUDIO", "TEXT"] for hybrid response); preserve that
 	// when it already includes AUDIO, otherwise overwrite.
-	if !slices.Contains(cfg.ResponseModalities, string(genai.ModalityAudio)) {
-		cfg.ResponseModalities = []string{string(genai.ModalityAudio)}
+	if !slices.Contains(config.ResponseModalities, string(genai.ModalityAudio)) {
+		config.ResponseModalities = []string{string(genai.ModalityAudio)}
 	}
 
 	// Voice routes onto SpeechConfig.VoiceConfig.PrebuiltVoiceConfig.VoiceName.
@@ -116,11 +116,11 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	// kept; the prebuilt-voice slot is only filled when the caller
 	// did not supply one.
 	if effectiveOptions.Voice != "" {
-		if cfg.SpeechConfig == nil {
-			cfg.SpeechConfig = &genai.SpeechConfig{}
+		if config.SpeechConfig == nil {
+			config.SpeechConfig = &genai.SpeechConfig{}
 		}
-		if cfg.SpeechConfig.VoiceConfig == nil && cfg.SpeechConfig.MultiSpeakerVoiceConfig == nil {
-			cfg.SpeechConfig.VoiceConfig = &genai.VoiceConfig{
+		if config.SpeechConfig.VoiceConfig == nil && config.SpeechConfig.MultiSpeakerVoiceConfig == nil {
+			config.SpeechConfig.VoiceConfig = &genai.VoiceConfig{
 				PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{
 					VoiceName: effectiveOptions.Voice,
 				},
@@ -132,7 +132,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		genai.NewContentFromText(req.Text, genai.RoleUser),
 	}
 
-	return effectiveOptions.Model, contents, cfg, nil
+	return effectiveOptions.Model, contents, config, nil
 }
 
 func (*AudioTTSModel) validateOptions(options tts.Options) error {
@@ -199,12 +199,12 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	modelName, contents, cfg, err := a.buildAPITTSRequest(req)
+	modelName, contents, config, err := a.buildAPITTSRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	apiResp, err := a.api.chatCompletion(ctx, modelName, contents, cfg)
+	apiResp, err := a.api.chatCompletion(ctx, modelName, contents, config)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			yield(nil, err)
 			return
 		}
-		modelName, contents, cfg, err := a.buildAPITTSRequest(req)
+		modelName, contents, config, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -228,7 +228,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 
-		for chunk, err := range a.api.chatCompletionStream(ctx, modelName, contents, cfg) {
+		for chunk, err := range a.api.chatCompletionStream(ctx, modelName, contents, config) {
 			if err != nil {
 				yield(nil, err)
 				return

@@ -27,20 +27,20 @@ type api struct {
 	http *resty.Client
 }
 
-func newAPI(cfg apiConfig) (*api, error) {
-	if err := cfg.validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
 	var client *resty.Client
-	if cfg.HTTPClient != nil {
-		client = resty.NewWithClient(cfg.HTTPClient)
+	if config.HTTPClient != nil {
+		client = resty.NewWithClient(config.HTTPClient)
 	} else {
 		client = resty.New()
 	}
 	client.
-		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey).
+		SetBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL)).
+		SetAuthToken(config.APIKey).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json")
 

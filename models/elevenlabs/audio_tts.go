@@ -63,15 +63,15 @@ type AudioTTSModel struct {
 	defaultOptions tts.Options
 }
 
-func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		HTTPClient: cfg.HTTPClient,
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions.Clone(),
+		defaultOptions: config.DefaultOptions.Clone(),
 	}, nil
 }
 

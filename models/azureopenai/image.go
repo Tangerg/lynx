@@ -33,19 +33,19 @@ var _ image.Model = (*ImageModel)(nil)
 type ImageModel = openai.ImageModel
 
 // NewImageModel returns an Azure OpenAI image model.
-func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	baseURL, err := normalizeBaseURL(cfg.BaseURL)
+	baseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
 	}
 	return openai.NewImageModel(openai.ImageModelConfig{
 		Provider:       "azureopenai",
-		APIKey:         cfg.APIKey,
-		DefaultOptions: cfg.DefaultOptions,
+		APIKey:         config.APIKey,
+		DefaultOptions: config.DefaultOptions,
 		BaseURL:        baseURL,
-		HTTPClient:     cfg.HTTPClient,
+		HTTPClient:     config.HTTPClient,
 	})
 }

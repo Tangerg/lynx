@@ -34,15 +34,15 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 type EmbeddingModel = openai.EmbeddingModel
 
 // NewEmbeddingModel returns a DashScope-compatible embedding model.
-func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.Validate(); err != nil {
+func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		Provider:       "alibaba",
-		APIKey:         cfg.APIKey,
-		DefaultOptions: cfg.DefaultOptions,
-		BaseURL:        cmp.Or(cfg.BaseURL, BaseURLChina),
-		HTTPClient:     cfg.HTTPClient,
+		APIKey:         config.APIKey,
+		DefaultOptions: config.DefaultOptions,
+		BaseURL:        cmp.Or(config.BaseURL, BaseURLChina),
+		HTTPClient:     config.HTTPClient,
 	})
 }
