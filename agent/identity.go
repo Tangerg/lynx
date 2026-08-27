@@ -79,10 +79,8 @@ func (p ProcessID) String() string { return p.identity.String() }
 
 func (p ProcessID) Valid() bool { return p.identity.Valid() }
 
-// MarshalText returns the validated Process identity.
 func (p ProcessID) MarshalText() ([]byte, error) { return p.identity.MarshalText() }
 
-// UnmarshalText replaces p with a validated Process identity.
 func (p *ProcessID) UnmarshalText(text []byte) error {
 	if p == nil {
 		return fmt.Errorf("%w: nil ProcessID receiver", ErrInvalidIdentity)
@@ -109,10 +107,8 @@ func (s SignalID) String() string { return s.identity.String() }
 
 func (s SignalID) Valid() bool { return s.identity.Valid() }
 
-// MarshalText returns the validated Signal delivery identity.
 func (s SignalID) MarshalText() ([]byte, error) { return s.identity.MarshalText() }
 
-// UnmarshalText replaces s with a validated Signal delivery identity.
 func (s *SignalID) UnmarshalText(text []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil SignalID receiver", ErrInvalidIdentity)
@@ -139,10 +135,8 @@ func (w WaitID) String() string { return w.identity.String() }
 
 func (w WaitID) Valid() bool { return w.identity.Valid() }
 
-// MarshalText returns the validated wait identity.
 func (w WaitID) MarshalText() ([]byte, error) { return w.identity.MarshalText() }
 
-// UnmarshalText replaces w with a validated wait identity.
 func (w *WaitID) UnmarshalText(text []byte) error {
 	if w == nil {
 		return fmt.Errorf("%w: nil WaitID receiver", ErrInvalidIdentity)
@@ -168,10 +162,8 @@ func (e EffectID) String() string { return e.identity.String() }
 
 func (e EffectID) Valid() bool { return e.identity.Valid() }
 
-// MarshalText returns the validated Effect identity.
 func (e EffectID) MarshalText() ([]byte, error) { return e.identity.MarshalText() }
 
-// UnmarshalText replaces e with a validated Effect identity.
 func (e *EffectID) UnmarshalText(text []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil EffectID receiver", ErrInvalidIdentity)
@@ -198,10 +190,8 @@ func (w WaitKey) String() string { return w.identity.String() }
 
 func (w WaitKey) Valid() bool { return w.identity.Valid() }
 
-// MarshalText returns the validated logical wait key.
 func (w WaitKey) MarshalText() ([]byte, error) { return w.identity.MarshalText() }
 
-// UnmarshalText replaces w with a validated logical wait key.
 func (w *WaitKey) UnmarshalText(text []byte) error {
 	if w == nil {
 		return fmt.Errorf("%w: nil WaitKey receiver", ErrInvalidIdentity)
@@ -229,10 +219,8 @@ func (c ChildKey) String() string { return c.identity.String() }
 
 func (c ChildKey) Valid() bool { return c.identity.Valid() }
 
-// MarshalText returns the validated logical child key.
 func (c ChildKey) MarshalText() ([]byte, error) { return c.identity.MarshalText() }
 
-// UnmarshalText replaces c with a validated logical child key.
 func (c *ChildKey) UnmarshalText(text []byte) error {
 	if c == nil {
 		return fmt.Errorf("%w: nil ChildKey receiver", ErrInvalidIdentity)

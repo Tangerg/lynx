@@ -49,7 +49,7 @@ Baseline 31 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 已将 Planning `Truth` 纳入同一稳定文本值对象规则：
 
-- root kernel：`976ba6bf0fa370a29b346baff846a3a3423c8cbcff242eb95108288f851616fe`
+- root kernel：`d4618424bc0d48c99ef4dd2139d928468bebd58680f4f839ccb5b8fdfdc22dbb`
 - agenttest：`66c49a9dec9e33d416fbc66c925a5893d54b96335d4e09294ad87b40badc6ad9`
 - interaction：`a9a52cc367e60b8dbf710f18e41fcb69c1b74a29508ee521ba293fca910edc4d`
 - planning：`4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014`

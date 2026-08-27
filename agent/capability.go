@@ -27,7 +27,6 @@ func (c Capability) String() string { return c.name }
 
 func (c Capability) Valid() bool { return validQualifiedName(c.name) }
 
-// MarshalText returns the validated qualified capability name.
 func (c Capability) MarshalText() ([]byte, error) {
 	if !c.Valid() {
 		return nil, ErrInvalidCapability
@@ -35,7 +34,6 @@ func (c Capability) MarshalText() ([]byte, error) {
 	return []byte(c.name), nil
 }
 
-// UnmarshalText replaces c with a validated qualified name.
 func (c *Capability) UnmarshalText(text []byte) error {
 	if c == nil {
 		return ErrInvalidCapability

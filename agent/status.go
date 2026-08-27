@@ -71,7 +71,6 @@ func (s Status) Terminal() bool {
 	}
 }
 
-// MarshalText returns the validated stable lifecycle-state name.
 func (s Status) MarshalText() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidStatus
@@ -79,7 +78,6 @@ func (s Status) MarshalText() ([]byte, error) {
 	return []byte(s), nil
 }
 
-// UnmarshalText replaces s with a parsed lifecycle state.
 func (s *Status) UnmarshalText(text []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidStatus)
