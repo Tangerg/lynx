@@ -44,6 +44,12 @@
 // comparable score scale. Use [ReciprocalRankFusion] before TopK when combining
 // unlike ranking systems so fusion depends on result order instead of raw
 // scores.
+
+// # Agentic retrieval
+
+// [NewRetrievalTool] adapts any composed Retriever to the ordinary core tool
+// contract. Agent runtimes can advertise it immediately or keep it in their
+// deferred tool set without introducing an agent-specific RAG API.
 //
 // # Per-query retriever routing
 //
