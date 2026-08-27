@@ -100,18 +100,3 @@ type RefinerFunc func(context.Context, *Query, []Candidate) ([]Candidate, error)
 func (r RefinerFunc) Refine(ctx context.Context, query *Query, documents []Candidate) ([]Candidate, error) {
 	return r(ctx, query, documents)
 }
-
-// Augmenter folds retrieved documents into the query so the LLM has the right
-// context to answer.
-type Augmenter interface {
-	// Augment returns a new query enriched with documents.
-	Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error)
-}
-
-// AugmenterFunc adapts a function to [Augmenter].
-type AugmenterFunc func(context.Context, *Query, []Candidate) (*Query, error)
-
-// Augment calls a(ctx, query, documents).
-func (a AugmenterFunc) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
-	return a(ctx, query, documents)
-}

@@ -23,12 +23,19 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, erro
 	if err != nil {
 		return nil, err
 	}
-	for index, candidate := range candidates {
-		if err := candidate.Validate(); err != nil {
-			return nil, fmt.Errorf("rag: candidate %d: %w", index, err)
-		}
+	if err := validateCandidates(candidates); err != nil {
+		return nil, err
 	}
 	return candidates, nil
+}
+
+func validateCandidates(candidates []Candidate) error {
+	for index, candidate := range candidates {
+		if err := candidate.Validate(); err != nil {
+			return fmt.Errorf("rag: candidate %d: %w", index, err)
+		}
+	}
+	return nil
 }
 
 // Parallel returns a [Retriever] that runs retrievers concurrently and unions
@@ -57,7 +64,7 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 		}()
 		docs, err = parallelCollect(ctx, "rag.Parallel", owned, "retriever",
 			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
-				return retriever.Retrieve(ctx, query)
+				return Retrieve(ctx, retriever, query)
 			})
 		return docs, err
 	}), nil
@@ -91,7 +98,7 @@ func WithTransformers(next Retriever, transformers ...Transformer) (Retriever, e
 				return nil, fmt.Errorf("rag: transformer %d returned an invalid query: %w", i, err)
 			}
 		}
-		return next.Retrieve(ctx, current)
+		return Retrieve(ctx, next, current)
 	}), nil
 }
 
@@ -119,10 +126,7 @@ func WithExpander(next Retriever, expander Expander) (Retriever, error) {
 		queries = slices.Clone(queries)
 		return parallelCollect(ctx, "rag.WithExpander", queries, "query",
 			func(ctx context.Context, _ int, q *Query) ([]Candidate, error) {
-				if err := q.Validate(); err != nil {
-					return nil, err
-				}
-				return next.Retrieve(ctx, q)
+				return Retrieve(ctx, next, q)
 			})
 	}), nil
 }
@@ -144,7 +148,7 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
-		docs, err := next.Retrieve(ctx, query)
+		docs, err := Retrieve(ctx, next, query)
 		if err != nil {
 			return nil, err
 		}
@@ -152,6 +156,9 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 			docs, err = refiner.Refine(ctx, query, docs)
 			if err != nil {
 				return nil, fmt.Errorf("rag: refiner %d: %w", i, err)
+			}
+			if err := validateCandidates(docs); err != nil {
+				return nil, fmt.Errorf("rag: refiner %d returned invalid candidates: %w", i, err)
 			}
 		}
 		return docs, nil

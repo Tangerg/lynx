@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/samber/lo"
 )
 
@@ -19,25 +18,13 @@ var (
 	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
 )
 
-// RetrievedCandidatesKey is the [chat.ResponseMetadata.Extra] key under which
-// the middleware stores the candidates used to augment the model request.
-const RetrievedCandidatesKey = "rag/retrieved_candidates"
+const retrievedCandidatesMetadataKey = "rag/retrieved_candidates"
 
-var (
-	historyValueKey                  = MustValueKey[[]chat.Message]("chat history")
-	requestOptionsExtensionsValueKey = MustValueKey[metadata.Map]("chat request options extensions")
-)
+var historyValueKey = MustValueKey[[]chat.Message]("chat history")
 
 // HistoryValueKey returns the immutable message snapshot slot populated
 // when a query originates from [NewMiddleware].
 func HistoryValueKey() ValueKey[[]chat.Message] { return historyValueKey }
-
-// RequestOptionsExtensionsValueKey returns the request Options extension
-// envelope slot. The envelope remains separate from the RAG value namespace
-// rather than being flattened into a weakly typed map.
-func RequestOptionsExtensionsValueKey() ValueKey[metadata.Map] {
-	return requestOptionsExtensionsValueKey
-}
 
 type MiddlewareConfig struct {
 	// Retriever fetches documents for the latest user message. Required.
@@ -106,12 +93,33 @@ func (p preparedChatRequest) attachDocuments(response *chat.Response) error {
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	return response.Metadata.Set(RetrievedCandidatesKey, p.candidates)
+	return response.Metadata.Set(retrievedCandidatesMetadataKey, p.candidates)
+}
+
+// RetrievedCandidates returns the candidates attached to response by
+// [NewMiddleware]. The boolean reports whether retrieval metadata was present.
+func RetrievedCandidates(response *chat.Response) ([]Candidate, bool, error) {
+	if response == nil {
+		return nil, false, ErrNilChatResponse
+	}
+	if response.Metadata == nil {
+		return nil, false, nil
+	}
+	candidates, found, err := response.Metadata.Extra.Decode[[]Candidate](retrievedCandidatesMetadataKey)
+	if err != nil {
+		return nil, found, fmt.Errorf("rag: decode retrieved candidates: %w", err)
+	}
+	if found {
+		if err := validateCandidates(candidates); err != nil {
+			return nil, true, fmt.Errorf("rag: decode retrieved candidates: %w", err)
+		}
+	}
+	return candidates, found, nil
 }
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieved documents to
-// [chat.ResponseMetadata.Extra] under [RetrievedCandidatesKey].
+// its response metadata. Use [RetrievedCandidates] to read them.
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if lo.IsNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever
@@ -134,12 +142,6 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 		return preparedChatRequest{}, fmt.Errorf("rag: build query from final user message: %w", err)
 	}
 
-	if len(prepared.request.Options.Extensions) != 0 {
-		query, err = query.WithValue(requestOptionsExtensionsValueKey, prepared.request.Options.Extensions.Clone())
-		if err != nil {
-			return preparedChatRequest{}, fmt.Errorf("rag: attach request Options extensions: %w", err)
-		}
-	}
 	query, err = query.WithValue(historyValueKey, slices.Clone(prepared.request.Messages))
 	if err != nil {
 		return preparedChatRequest{}, fmt.Errorf("rag: attach chat history: %w", err)
@@ -149,15 +151,15 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	augmented, err := m.augmenter.Augment(ctx, query, candidates)
+	augmentation, err := m.augmenter.Augment(ctx, query, candidates)
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	if err := augmented.Validate(); err != nil {
-		return preparedChatRequest{}, fmt.Errorf("rag: augmented query: %w", err)
+	if err := augmentation.Validate(); err != nil {
+		return preparedChatRequest{}, fmt.Errorf("rag: augmentation: %w", err)
 	}
 	prepared.candidates = candidates
-	prepared.replaceFinalUserText(augmented.Text())
+	prepared.replaceFinalUserText(augmentation.Text())
 	return prepared, nil
 }
 

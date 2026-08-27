@@ -108,6 +108,51 @@ func TestRetrieveValidatesCandidates(t *testing.T) {
 	}
 }
 
+func TestWithRefinersRejectsInvalidRetrieverOutputBeforeRefining(t *testing.T) {
+	refinerCalled := false
+	refined, err := rag.WithRefiners(
+		&fakeRetriever{docs: []rag.Candidate{{}}},
+		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
+			refinerCalled = true
+			return nil, nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := refined.Retrieve(t.Context(), mustQuery(t, "query")); !errors.Is(err, rag.ErrInvalidCandidate) {
+		t.Fatalf("invalid candidate error = %v", err)
+	}
+	if refinerCalled {
+		t.Fatal("refiner received invalid candidates")
+	}
+}
+
+func TestWithRefinersRejectsInvalidOutputBeforeNextRefiner(t *testing.T) {
+	secondCalled := false
+	refined, err := rag.WithRefiners(
+		&fakeRetriever{},
+		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
+			return []rag.Candidate{{}}, nil
+		}),
+		rag.RefinerFunc(func(context.Context, *rag.Query, []rag.Candidate) ([]rag.Candidate, error) {
+			secondCalled = true
+			return nil, nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := refined.Retrieve(t.Context(), mustQuery(t, "query")); !errors.Is(err, rag.ErrInvalidCandidate) {
+		t.Fatalf("invalid candidate error = %v", err)
+	}
+	if secondCalled {
+		t.Fatal("next refiner received invalid candidates")
+	}
+}
+
 // fakeTransformer mocks Transformer.
 type fakeTransformer struct {
 	suffix string
@@ -283,8 +328,8 @@ func TestIdentityDefaults(t *testing.T) {
 	if got, _ := rag.IdentityTransformer().Transform(t.Context(), q); got != q {
 		t.Fatal("Transform should pass through")
 	}
-	if got, _ := rag.IdentityAugmenter().Augment(t.Context(), q, nil); got != q {
-		t.Fatal("Augment should pass through")
+	if got, _ := rag.IdentityAugmenter().Augment(t.Context(), q, nil); got.Text() != q.Text() {
+		t.Fatal("Augment should preserve query text")
 	}
 	if got, _ := rag.NopRetriever().Retrieve(t.Context(), q); got != nil {
 		t.Fatal("Retrieve should return nil")

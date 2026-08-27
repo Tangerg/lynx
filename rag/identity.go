@@ -30,9 +30,12 @@ func IdentityRefiner() Refiner {
 	})
 }
 
-// IdentityAugmenter returns an [Augmenter] that returns the input query.
+// IdentityAugmenter returns an [Augmenter] that uses the query text unchanged.
 func IdentityAugmenter() Augmenter {
-	return AugmenterFunc(func(_ context.Context, query *Query, _ []Candidate) (*Query, error) {
-		return query, nil
+	return AugmenterFunc(func(_ context.Context, query *Query, _ []Candidate) (Augmentation, error) {
+		if err := query.Validate(); err != nil {
+			return Augmentation{}, err
+		}
+		return NewAugmentation(query.Text())
 	})
 }

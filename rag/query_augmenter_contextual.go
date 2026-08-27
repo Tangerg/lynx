@@ -121,12 +121,12 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 // context. When documents is empty, falls back to
 // [ContextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
-func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
+func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (Augmentation, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return Augmentation{}, err
 	}
 	if err := query.Validate(); err != nil {
-		return nil, err
+		return Augmentation{}, err
 	}
 
 	if len(documents) == 0 {
@@ -136,11 +136,11 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documen
 	contextTexts := make([]string, 0, len(documents))
 	for _, candidate := range documents {
 		if err := candidate.Validate(); err != nil {
-			return nil, err
+			return Augmentation{}, err
 		}
 		formatted, err := c.formatter.Format(candidate.Document)
 		if err != nil {
-			return nil, err
+			return Augmentation{}, err
 		}
 		contextTexts = append(contextTexts, formatted)
 	}
@@ -150,22 +150,22 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documen
 		Query:   query.Text(),
 	})
 	if err != nil {
-		return nil, err
+		return Augmentation{}, err
 	}
-	return query.WithText(rendered)
+	return NewAugmentation(rendered)
 }
 
 // handleEmptyContext implements the no-docs branch: pass through the
 // original query (AllowEmptyContext=true) or render the empty-context
 // refusal template.
-func (c *ContextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
+func (c *ContextualAugmenter) handleEmptyContext(query *Query) (Augmentation, error) {
 	if c.allowEmptyContext {
-		return query, nil
+		return NewAugmentation(query.Text())
 	}
 
 	rendered, err := c.emptyContextPromptTemplate.Render(nil)
 	if err != nil {
-		return nil, err
+		return Augmentation{}, err
 	}
-	return query.WithText(rendered)
+	return NewAugmentation(rendered)
 }

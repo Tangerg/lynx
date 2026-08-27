@@ -67,7 +67,7 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	}
 }
 
-func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
+func TestContextualAugmenterKeepsRetrievalQueryUnchanged(t *testing.T) {
 	aug, err := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -80,12 +80,18 @@ func TestContextualAugmenterPreservesQueryValues(t *testing.T) {
 	}
 	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
 
-	got, err := aug.Augment(t.Context(), q, []rag.Candidate{candidate(doc)})
+	augmentation, err := aug.Augment(t.Context(), q, []rag.Candidate{candidate(doc)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v, _, _ := got.Value(routeKey); v != "docs" {
-		t.Fatalf("query metadata was not preserved: route=%v", v)
+	if augmentation.Text() == q.Text() {
+		t.Fatal("augmentation did not add retrieved context")
+	}
+	if q.Text() != "what is GOAP?" {
+		t.Fatalf("retrieval query text was mutated: %q", q.Text())
+	}
+	if v, _, _ := q.Value(routeKey); v != "docs" {
+		t.Fatalf("retrieval query value was mutated: route=%v", v)
 	}
 }
 
@@ -110,8 +116,8 @@ func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != q {
-		t.Fatal("AllowEmptyContext=true should pass the original query through unchanged")
+	if got.Text() != q.Text() {
+		t.Fatalf("AllowEmptyContext=true output = %q, want %q", got.Text(), q.Text())
 	}
 }
 
