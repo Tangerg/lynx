@@ -99,13 +99,10 @@ func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (GrepResponse, e
 	if in.Pattern == "" {
 		return GrepResponse{}, ErrEmptyPattern
 	}
-	mode := in.OutputMode
-	if mode == "" {
-		mode = GrepOutputContent
-	}
-	if mode != GrepOutputContent && mode != GrepOutputFilesWithMatches && mode != GrepOutputCount {
+	if !in.OutputMode.Valid() {
 		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep: invalid output_mode %q", in.OutputMode)
 	}
+	mode := in.OutputMode.Resolve()
 	maxResults := in.MaxResults
 	if maxResults <= 0 {
 		maxResults = defaultGrepMaxResults

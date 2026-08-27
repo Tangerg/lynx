@@ -83,6 +83,24 @@ const (
 	GrepOutputCount GrepOutputMode = "count"
 )
 
+// Resolve returns the effective output mode, applying the documented default.
+func (g GrepOutputMode) Resolve() GrepOutputMode {
+	if g == "" {
+		return GrepOutputContent
+	}
+	return g
+}
+
+// Valid reports whether g is empty or names one supported result projection.
+func (g GrepOutputMode) Valid() bool {
+	switch g.Resolve() {
+	case GrepOutputContent, GrepOutputFilesWithMatches, GrepOutputCount:
+		return true
+	default:
+		return false
+	}
+}
+
 type GrepInput struct {
 	Pattern    string // regex
 	Root       string
@@ -97,7 +115,8 @@ type GrepInput struct {
 	BeforeContext int
 	AfterContext  int
 
-	// OutputMode picks the shape of GrepResponse. "" = content.
+	// OutputMode picks the shape of GrepResponse. Its zero value resolves to
+	// [GrepOutputContent].
 	OutputMode GrepOutputMode
 
 	MaxResults int

@@ -27,7 +27,7 @@ type GrepRequest struct {
 	BeforeContextLines int `json:"before_context_lines,omitempty" jsonschema:"minimum=0,maximum=20" jsonschema_description:"Lines to include before each match. Defaults to 0 and cannot exceed 20."`
 	AfterContextLines  int `json:"after_context_lines,omitempty" jsonschema:"minimum=0,maximum=20" jsonschema_description:"Lines to include after each match. Defaults to 0 and cannot exceed 20."`
 
-	OutputMode string `json:"output_mode,omitempty" jsonschema:"enum=content,enum=files_with_matches,enum=count" jsonschema_description:"Result projection: content (default), files_with_matches, or count."`
+	OutputMode GrepOutputMode `json:"output_mode,omitempty" jsonschema:"enum=content,enum=files_with_matches,enum=count" jsonschema_description:"Result projection: content (default), files_with_matches, or count."`
 
 	MaxResults int `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=1000" jsonschema_description:"Maximum result entries. Defaults to 250 and cannot exceed 1000."`
 }
@@ -91,7 +91,7 @@ func (g *GrepTool) grep(ctx context.Context, req GrepRequest) (GrepResponse, err
 		Multiline:     req.Multiline,
 		BeforeContext: req.BeforeContextLines,
 		AfterContext:  req.AfterContextLines,
-		OutputMode:    GrepOutputMode(req.OutputMode),
+		OutputMode:    req.OutputMode,
 		MaxResults:    req.MaxResults,
 	})
 	if err != nil {

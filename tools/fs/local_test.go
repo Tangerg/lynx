@@ -497,6 +497,20 @@ func TestLocalExecutor_Glob_MaxResults(t *testing.T) {
 
 // ---------------------------------------------------------------- Grep
 
+func TestGrepOutputModeOwnsDefaultAndValidation(t *testing.T) {
+	for _, mode := range []GrepOutputMode{"", GrepOutputContent, GrepOutputFilesWithMatches, GrepOutputCount} {
+		if !mode.Valid() {
+			t.Errorf("%q should be valid", mode)
+		}
+	}
+	if resolved := (GrepOutputMode("")).Resolve(); resolved != GrepOutputContent {
+		t.Fatalf("zero mode resolved to %q, want %q", resolved, GrepOutputContent)
+	}
+	if mode := GrepOutputMode("bogus"); mode.Valid() || mode.Resolve() != mode {
+		t.Fatalf("invalid mode changed or passed validation: %q", mode)
+	}
+}
+
 func TestLocalExecutor_Grep_Content(t *testing.T) {
 	skipWithoutGrepOrRG(t)
 	dir := t.TempDir()
