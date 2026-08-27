@@ -44,10 +44,10 @@ import (
 
 | API | 说明 |
 |---|---|
-| `WithMeta` / `MetaFromContext` | 把请求级 `_meta` 放进 context，并由 `Tool` 透传到 `CallToolParams.Meta` |
+| `WithRequestMeta` / `RequestMetaFromContext` | 把请求级 `_meta` 放进 context，并由 `Tool` 透传到 `CallToolParams.Meta` |
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `Elicit` | tool 执行中使用官方 `sdkmcp.ElicitParams` 向客户端发起 elicitation |
-| `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tool.Tool` |
+| `DiscoverTools(ctx, sources, config)` | 现场列出远端 MCP tools，并包装成 `[]tool.Tool` |
 | `Register(server, tools...)` | 把 scope `tool.Tool` 暴露到 MCP server |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
@@ -75,15 +75,15 @@ if err != nil {
 }
 defer session.Close()
 
-tools, err := scopemcp.Tools(ctx,
+tools, err := scopemcp.DiscoverTools(ctx,
     []scopemcp.ToolSource{{Name: "local", Session: session}},
-    scopemcp.ToolsConfig{MetaFunc: scopemcp.MetaFromContext},
+    scopemcp.ToolDiscoveryConfig{RequestMeta: scopemcp.RequestMetaFromContext},
 )
 if err != nil {
     return err
 }
 
-ctx = scopemcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42"})
+ctx = scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{"userId": "u-42"})
 out, err := tools[0].Call(ctx, `{"name":"world"}`)
 ```
 

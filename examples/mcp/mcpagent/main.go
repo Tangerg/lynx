@@ -51,8 +51,8 @@ func main() {
 	defer cliSession.Close()
 
 	loadTools := func(ctx context.Context) ([]tool.Tool, error) {
-		return scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "research", Session: cliSession}}, scopemcp.ToolsConfig{
-			MetaFunc: scopemcp.MetaFromContext,
+		return scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "research", Session: cliSession}}, scopemcp.ToolDiscoveryConfig{
+			RequestMeta: scopemcp.RequestMetaFromContext,
 		})
 	}
 	topic := Topic{Title: "agent frameworks in 2026"}
@@ -121,7 +121,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = scopemcp.WithMeta(ctx, sdkmcp.Meta{"scope.example": "mcp-agent"})
+	ctx = scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{"scope.example": "mcp-agent"})
 	result, err := engine.Run(ctx, deployment, input)
 	if err != nil {
 		log.Fatal(err)

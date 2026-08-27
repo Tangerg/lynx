@@ -31,7 +31,7 @@ func TestInputSchemaRejectsMissingAndInvalidValues(t *testing.T) {
 	}
 }
 
-func TestSourceToolsEnablesOnlyAnnotatedReadOnlyConcurrency(t *testing.T) {
+func TestSourceToolsEnablesOnlyAnnotatedReadOnlyConcurrencyPolicy(t *testing.T) {
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v0.1.0"}, nil)
 	for _, descriptor := range []*sdkmcp.Tool{

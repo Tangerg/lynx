@@ -10,16 +10,16 @@ import (
 
 func TestMetaContextOwnsTopLevelMap(t *testing.T) {
 	meta := sdkmcp.Meta{"requestId": "original"}
-	ctx := scopemcp.WithMeta(t.Context(), meta)
+	ctx := scopemcp.WithRequestMeta(t.Context(), meta)
 	meta["requestId"] = "caller mutation"
 
-	first := scopemcp.MetaFromContext(ctx)
+	first := scopemcp.RequestMetaFromContext(ctx)
 	if got := first["requestId"]; got != "original" {
-		t.Fatalf("MetaFromContext requestId = %v, want original", got)
+		t.Fatalf("RequestMetaFromContext requestId = %v, want original", got)
 	}
 	first["requestId"] = "consumer mutation"
 
-	if got := scopemcp.MetaFromContext(ctx)["requestId"]; got != "original" {
-		t.Fatalf("second MetaFromContext requestId = %v, want original", got)
+	if got := scopemcp.RequestMetaFromContext(ctx)["requestId"]; got != "original" {
+		t.Fatalf("second RequestMetaFromContext requestId = %v, want original", got)
 	}
 }

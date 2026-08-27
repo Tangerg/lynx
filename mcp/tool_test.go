@@ -47,7 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -59,7 +59,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	// errors.AsType both classifies the error and exposes the structured payload.
 	tcErr, ok := errors.AsType[*scopemcp.ToolCallError](err)
 	require.True(t, ok, "expected errors.AsType to extract *ToolCallError, got %v", err)
-	assert.Equal(t, "boom", tcErr.ToolName)
+	assert.Equal(t, "boom", tcErr.RemoteName)
 	assert.Equal(t, "kaboom", tcErr.Message)
 }
 
@@ -68,7 +68,7 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	// which must NOT be classified as *ToolCallError.
 	ctx := t.Context()
 	cs, cleanup := startServerWithFailing(t, ctx)
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	cleanup() // close immediately
@@ -84,7 +84,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolsConfig{})
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "s", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 
 	callable := tools[0]
@@ -117,12 +117,12 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
-		MetaFunc: scopemcp.MetaFromContext,
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		RequestMeta: scopemcp.RequestMetaFromContext,
 	})
 	require.NoError(t, err)
 
-	callCtx := scopemcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
+	callCtx := scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
 	out, err := tools[0].Call(callCtx, "{}")
 	require.NoError(t, err)
 	assert.Equal(t, "ok", out)

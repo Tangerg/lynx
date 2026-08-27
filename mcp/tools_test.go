@@ -96,7 +96,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 		require.NoError(t, err)
 		defer cs.Close()
 
-		tools, err := scopemcp.Tools(t.Context(), []scopemcp.ToolSource{{Name: c.source, Session: cs}}, scopemcp.ToolsConfig{})
+		tools, err := scopemcp.DiscoverTools(t.Context(), []scopemcp.ToolSource{{Name: c.source, Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 		require.NoError(t, err)
 		require.Len(t, tools, 1)
 
@@ -111,7 +111,7 @@ func TestToolsDiscoversAndCallsTool(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -135,10 +135,10 @@ func TestToolsTwoSourcesAreNamespaced(t *testing.T) {
 	cs2, _, c2 := startServerWithEcho(t, ctx)
 	defer c2()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{
 		{Name: "alpha", Session: cs1},
 		{Name: "beta", Session: cs2},
-	}, scopemcp.ToolsConfig{})
+	}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 2)
 
@@ -153,10 +153,10 @@ func TestToolsFailsOnDuplicateNames(t *testing.T) {
 	cs2, _, c2 := startServerWithEcho(t, ctx)
 	defer c2()
 
-	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{
+	_, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{
 		{Name: "samename", Session: cs1},
 		{Name: "samename", Session: cs2},
-	}, scopemcp.ToolsConfig{})
+	}, scopemcp.ToolDiscoveryConfig{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate tool name")
 }
@@ -166,8 +166,8 @@ func TestToolsCustomNaming(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
-		Naming: func(_, toolName string) string {
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		PublicName: func(_, toolName string) string {
 			return "mcp__" + toolName
 		},
 	})
@@ -182,8 +182,8 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 	defer cleanup()
 
 	var gotSource, gotTool, gotArguments string
-	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{
-		Concurrency: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, arguments string) (string, bool) {
+	wrapped, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		ConcurrencyPolicy: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, arguments string) (string, bool) {
 			gotSource = sourceName
 			gotTool = toolName
 			gotArguments = arguments
@@ -209,8 +209,8 @@ func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
 	defer cleanup()
 
 	var destructive []bool
-	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{
-		Concurrency: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (string, bool) {
+	wrapped, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		ConcurrencyPolicy: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (string, bool) {
 			destructive = append(destructive, annotations.DestructiveHint != nil && *annotations.DestructiveHint)
 			annotations.DestructiveHint = new(true)
 			return "", true
@@ -240,7 +240,7 @@ func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	wrapped, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
+	wrapped, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, wrapped, 1)
 
@@ -256,8 +256,8 @@ func TestToolsRejectsEmptyPublicName(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
-		Naming: func(string, string) string { return "" },
+	_, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		PublicName: func(string, string) string { return "" },
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "public name")
@@ -268,8 +268,8 @@ func TestToolsRejectsInvalidPublicName(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	_, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolsConfig{
-		Naming: func(string, string) string { return "invalid name" },
+	_, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "src", Session: cs}}, scopemcp.ToolDiscoveryConfig{
+		PublicName: func(string, string) string { return "invalid name" },
 	})
 	require.ErrorIs(t, err, corechat.ErrInvalidToolDefinition)
 }
@@ -279,7 +279,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 	cs, srv, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	first, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolsConfig{})
+	first, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 
@@ -290,7 +290,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 		},
 	)
 
-	refreshed, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolsConfig{})
+	refreshed, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "p", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, refreshed, 2)
 
@@ -299,7 +299,7 @@ func TestToolsReadsCurrentRemoteList(t *testing.T) {
 }
 
 func TestToolsRejectsNilSession(t *testing.T) {
-	_, err := scopemcp.Tools(t.Context(), []scopemcp.ToolSource{{Name: "x"}}, scopemcp.ToolsConfig{})
+	_, err := scopemcp.DiscoverTools(t.Context(), []scopemcp.ToolSource{{Name: "x"}}, scopemcp.ToolDiscoveryConfig{})
 	require.Error(t, err)
 }
 
@@ -308,7 +308,7 @@ func TestToolsZeroOptionsUsesDefaults(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolsConfig{})
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	assert.Equal(t, "primary_echo", tools[0].Definition().Name, "default naming should join source and tool")

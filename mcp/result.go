@@ -8,18 +8,18 @@ import (
 )
 
 type remoteResult struct {
-	toolName string
-	value    *sdkmcp.CallToolResult
+	remoteName string
+	value      *sdkmcp.CallToolResult
 }
 
 func (r remoteResult) unwrap() (string, error) {
 	if r.value == nil {
-		return "", fmt.Errorf("mcp: call tool %q: server returned a nil result", r.toolName)
+		return "", fmt.Errorf("mcp: call tool %q: server returned a nil result", r.remoteName)
 	}
 	if r.value.IsError {
 		return "", &ToolCallError{
-			ToolName: r.toolName,
-			Message:  r.firstText("tool returned isError=true with no text content"),
+			RemoteName: r.remoteName,
+			Message:    r.firstText("tool returned isError=true with no text content"),
 		}
 	}
 	return r.content()

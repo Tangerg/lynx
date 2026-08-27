@@ -18,22 +18,22 @@ import (
 )
 
 type remoteTool struct {
-	session     *sdkmcp.ClientSession
-	descriptor  descriptorSnapshot
-	definition  corechat.ToolDefinition
-	metaFunc    MetaFunc
-	sourceName  string
-	concurrency ConcurrencyFunc
+	session           *sdkmcp.ClientSession
+	descriptor        descriptorSnapshot
+	definition        corechat.ToolDefinition
+	requestMeta       RequestMetaFunc
+	sourceName        string
+	concurrencyPolicy ToolConcurrencyPolicy
 }
 
 var _ toolcontract.Tool = remoteTool{}
 
 type remoteToolConfig struct {
-	source      ToolSource
-	descriptor  descriptorSnapshot
-	publicName  string
-	metaFunc    MetaFunc
-	concurrency ConcurrencyFunc
+	source            ToolSource
+	descriptor        descriptorSnapshot
+	publicName        string
+	requestMeta       RequestMetaFunc
+	concurrencyPolicy ToolConcurrencyPolicy
 }
 
 func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
@@ -45,12 +45,12 @@ func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
 		return remoteTool{}, fmt.Errorf("build definition for remote tool %q: %w", config.descriptor.name(), err)
 	}
 	return remoteTool{
-		session:     config.source.Session,
-		descriptor:  config.descriptor,
-		definition:  definition,
-		metaFunc:    config.metaFunc,
-		sourceName:  config.source.Name,
-		concurrency: config.concurrency,
+		session:           config.source.Session,
+		descriptor:        config.descriptor,
+		definition:        definition,
+		requestMeta:       config.requestMeta,
+		sourceName:        config.source.Name,
+		concurrencyPolicy: config.concurrencyPolicy,
 	}, nil
 }
 
@@ -66,12 +66,12 @@ func (r remoteTool) MCPToolIdentity() (sourceName, remoteName string) {
 // ConcurrencyKey structurally satisfies schedulers that support conflict-aware
 // parallel calls without coupling this protocol adapter to a particular agent
 // runtime. Unknown remote tools remain exclusive unless the caller supplied a
-// policy through [ToolsConfig.Concurrency].
+// policy through [ToolDiscoveryConfig.ConcurrencyPolicy].
 func (r remoteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if r.concurrency == nil {
+	if r.concurrencyPolicy == nil {
 		return "", false
 	}
-	return r.concurrency(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), arguments)
+	return r.concurrencyPolicy(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), arguments)
 }
 
 // Call implements [tool.Tool]. IsError=true on the remote
@@ -105,8 +105,8 @@ func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err
 		Name:      remoteName,
 		Arguments: args,
 	}
-	if r.metaFunc != nil {
-		if meta := r.metaFunc(ctx); len(meta) > 0 {
+	if r.requestMeta != nil {
+		if meta := r.requestMeta(ctx); len(meta) > 0 {
 			params.Meta = maps.Clone(meta)
 		}
 	}
@@ -115,7 +115,7 @@ func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err
 	if err != nil {
 		return "", fmt.Errorf("mcp: call tool %q: %w", remoteName, err)
 	}
-	return remoteResult{toolName: remoteName, value: res}.unwrap()
+	return remoteResult{remoteName: remoteName, value: res}.unwrap()
 }
 
 func parseArguments(arguments string) (json.RawMessage, error) {

@@ -7,32 +7,29 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// MetaFunc produces the _meta map carried on outbound MCP requests
-// (CallTool today; extend to other RPCs as the package grows). It is the
-// hook through which a caller forwards ambient identifiers (userId,
-// traceId, sessionId, …) from the caller-side context to the remote
-// server.
+// RequestMetaFunc produces the _meta map carried on outbound MCP tool calls.
+// It is the hook through which a caller forwards ambient identifiers from the
+// caller-side context to the remote server.
 //
-// A nil MetaFunc, or one that returns an empty map, sends no _meta.
-type MetaFunc func(ctx context.Context) sdkmcp.Meta
+// A nil RequestMetaFunc, or one that returns an empty map, sends no _meta.
+type RequestMetaFunc func(ctx context.Context) sdkmcp.Meta
 
-type metaContextKey struct{}
+type requestMetaContextKey struct{}
 
-// WithMeta returns a copy of ctx carrying a shallow snapshot of meta. Empty
-// meta leaves ctx unchanged. Pair with [MetaFromContext] to forward per-request
-// metadata across the tool subsystem without explicit plumbing.
-func WithMeta(ctx context.Context, meta sdkmcp.Meta) context.Context {
+// WithRequestMeta stores a defensive snapshot because request metadata may be
+// read after the caller reuses or mutates its original map.
+func WithRequestMeta(ctx context.Context, meta sdkmcp.Meta) context.Context {
 	if len(meta) == 0 {
 		return ctx
 	}
-	return context.WithValue(ctx, metaContextKey{}, maps.Clone(meta))
+	return context.WithValue(ctx, requestMetaContextKey{}, maps.Clone(meta))
 }
 
-// MetaFromContext returns a shallow copy of metadata stored by [WithMeta], or
-// nil. Its signature matches [MetaFunc] so it can be assigned directly:
+// RequestMetaFromContext returns a shallow copy of metadata stored by
+// [WithRequestMeta], or nil. Its signature matches [RequestMetaFunc]:
 //
-//	config := mcp.ToolsConfig{MetaFunc: mcp.MetaFromContext}
-func MetaFromContext(ctx context.Context) sdkmcp.Meta {
-	meta, _ := ctx.Value(metaContextKey{}).(sdkmcp.Meta)
+//	config := mcp.ToolDiscoveryConfig{RequestMeta: mcp.RequestMetaFromContext}
+func RequestMetaFromContext(ctx context.Context) sdkmcp.Meta {
+	meta, _ := ctx.Value(requestMetaContextKey{}).(sdkmcp.Meta)
 	return maps.Clone(meta)
 }

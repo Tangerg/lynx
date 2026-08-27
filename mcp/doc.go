@@ -1,9 +1,9 @@
-// Package mcp provides scope helpers around the Model Context Protocol
+// Package mcp provides Scope helpers around the Model Context Protocol
 // (https://modelcontextprotocol.io/).
 //
 // Use the official Go SDK package (github.com/modelcontextprotocol/go-sdk/mcp)
-// for protocol clients, servers, sessions, and transports. The root scope
-// package keeps the small adapters scope needs around those SDK primitives:
+// for protocol clients, servers, sessions, and transports. The Scope package
+// keeps the small adapters needed around those SDK primitives:
 // context metadata, reverse-capability helpers, tool.Tool wrapping, tool
 // registration and prompt conversion.
 //

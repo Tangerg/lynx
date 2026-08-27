@@ -13,11 +13,11 @@ import (
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
 func sourceTools(ctx context.Context, src scopemcp.ToolSource) ([]toolcontract.Tool, error) {
-	tools, err := scopemcp.Tools(ctx, []scopemcp.ToolSource{src}, scopemcp.ToolsConfig{
-		Naming: func(server, toolName string) string {
+	tools, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{src}, scopemcp.ToolDiscoveryConfig{
+		PublicName: func(server, toolName string) string {
 			return mcpserver.ToolName(server, toolName)
 		},
-		Concurrency: scopemcp.AnnotatedReadOnlyConcurrency,
+		ConcurrencyPolicy: scopemcp.AnnotatedReadOnlyConcurrencyPolicy,
 	})
 	if err != nil {
 		return nil, err

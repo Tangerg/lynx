@@ -2,9 +2,9 @@ package mcp
 
 import sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-var _ ConcurrencyFunc = AnnotatedReadOnlyConcurrency
+var _ ToolConcurrencyPolicy = AnnotatedReadOnlyConcurrencyPolicy
 
-// AnnotatedReadOnlyConcurrency opts explicitly read-only MCP tools into
+// AnnotatedReadOnlyConcurrencyPolicy opts explicitly read-only MCP tools into
 // conflict-free concurrent execution. Missing, false, or contradictory
 // annotations remain exclusive.
 //
@@ -12,7 +12,7 @@ var _ ConcurrencyFunc = AnnotatedReadOnlyConcurrency
 // caller's approval policy. MCP annotations are untrusted hints, so callers
 // should use this policy only for servers whose descriptors they are willing
 // to trust for execution ordering.
-func AnnotatedReadOnlyConcurrency(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (key string, concurrent bool) {
+func AnnotatedReadOnlyConcurrencyPolicy(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (key string, concurrent bool) {
 	if !annotations.ReadOnlyHint {
 		return "", false
 	}
