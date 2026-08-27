@@ -15,7 +15,10 @@ import (
 )
 
 const (
-	baseURL = "https://api.search.brave.com/res/v1"
+	baseURL                 = "https://api.search.brave.com/res/v1"
+	queryParameterQuery     = "q"
+	queryParameterCount     = "count"
+	queryParameterFreshness = "freshness"
 )
 
 // Config configures [NewClient].
@@ -101,23 +104,15 @@ func (c *Client) search(ctx context.Context, req *searchRequest) (*searchRespons
 	return &raw, nil
 }
 
-func (s *searchRequest) params() map[string]string {
-	p := map[string]string{"q": s.Q}
-	addIntParam(p, "count", s.Count)
-	addStringParam(p, "freshness", s.Freshness)
-	return p
-}
-
-func addStringParam(params map[string]string, key, value string) {
-	if value != "" {
-		params[key] = value
+func (request *searchRequest) params() map[string]string {
+	parameters := map[string]string{queryParameterQuery: request.Q}
+	if request.Count > 0 {
+		parameters[queryParameterCount] = strconv.Itoa(request.Count)
 	}
-}
-
-func addIntParam(params map[string]string, key string, value int) {
-	if value > 0 {
-		params[key] = strconv.Itoa(value)
+	if request.Freshness != "" {
+		parameters[queryParameterFreshness] = request.Freshness
 	}
+	return parameters
 }
 
 func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {

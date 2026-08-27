@@ -17,8 +17,12 @@ import (
 )
 
 const (
-	searchBaseURL = "https://s.jina.ai"
-	fetchBaseURL  = "https://r.jina.ai"
+	searchBaseURL         = "https://s.jina.ai"
+	fetchBaseURL          = "https://r.jina.ai"
+	queryParameterCount   = "count"
+	queryParameterPage    = "page"
+	queryParameterSite    = "site"
+	queryParameterNoCache = "noCache"
 )
 
 // Config configures [NewClient].
@@ -112,31 +116,21 @@ func (c *Client) search(ctx context.Context, req *searchRequest) (*searchRespons
 	return &raw, nil
 }
 
-func (s *searchRequest) params() map[string]string {
-	p := map[string]string{}
-	addIntParam(p, "count", s.Count)
-	addIntParam(p, "page", s.Page)
-	addCSVParam(p, "site", s.Site)
-	addBoolParam(p, "noCache", s.NoCache)
-	return p
-}
-
-func addIntParam(params map[string]string, key string, value int) {
-	if value > 0 {
-		params[key] = strconv.Itoa(value)
+func (request *searchRequest) params() map[string]string {
+	parameters := make(map[string]string, 4)
+	if request.Count > 0 {
+		parameters[queryParameterCount] = strconv.Itoa(request.Count)
 	}
-}
-
-func addBoolParam(params map[string]string, key string, value bool) {
-	if value {
-		params[key] = "true"
+	if request.Page > 0 {
+		parameters[queryParameterPage] = strconv.Itoa(request.Page)
 	}
-}
-
-func addCSVParam(params map[string]string, key string, values []string) {
-	if len(values) > 0 {
-		params[key] = strings.Join(values, ",")
+	if len(request.Site) > 0 {
+		parameters[queryParameterSite] = strings.Join(request.Site, ",")
 	}
+	if request.NoCache {
+		parameters[queryParameterNoCache] = strconv.FormatBool(request.NoCache)
+	}
+	return parameters
 }
 
 func (c *Client) Search(ctx context.Context, req *web.SearchRequest) (*web.SearchResponse, error) {
