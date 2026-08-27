@@ -269,9 +269,11 @@ type Config struct {
 	Transactor Transactor
 }
 
-// Validate reports whether the construction-time bundle has every capability
-// required to assemble a Runtime. It does not mutate the configuration.
-func (c Config) Validate() error {
+// validateAssemblyConfig reports whether the construction-time bundle has
+// every capability required to assemble a Runtime. Bootstrap keeps this as a
+// construction function: Config is data at the composition boundary, not a
+// domain object with business behavior.
+func validateAssemblyConfig(c Config) error {
 	if c.UserHome == "" {
 		return errors.New("runtime: UserHome is required")
 	}

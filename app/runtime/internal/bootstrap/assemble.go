@@ -117,7 +117,7 @@ func CloseAssembly(a *Assembly) error {
 }
 
 func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
-	if err := a.cfg.Validate(); err != nil {
+	if err := validateAssemblyConfig(a.cfg); err != nil {
 		return nil, err
 	}
 	// Offloads are staged before their ordered transcript event commits so a
