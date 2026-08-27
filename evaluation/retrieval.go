@@ -30,7 +30,11 @@ func (metric RetrievalMetric) Validate() error {
 }
 
 func (metric RetrievalMetric) reportMetric(cutoff int) (Metric, error) {
-	return NewMetric(fmt.Sprintf("retrieval/%s@%d", metric, cutoff))
+	reportMetric := Metric(fmt.Sprintf("retrieval/%s@%d", metric, cutoff))
+	if err := reportMetric.Validate(); err != nil {
+		return "", err
+	}
+	return reportMetric, nil
 }
 
 // RetrievalSample is an observed ranking and its complete binary relevance

@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-var testMetric = evaluation.MustMetric("test")
+const testMetric evaluation.Metric = "test"
 
 func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelEvaluatorConfig{}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {

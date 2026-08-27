@@ -24,7 +24,7 @@ const (
 	citationsMetadataKey           = "rag/citations"
 )
 
-var historyValueKey = MustValueKey[[]chat.Message]("chat history")
+var historyValueKey = mustValueKey[[]chat.Message]("chat history")
 
 // HistoryValueKey returns the immutable message snapshot slot populated
 // when a query originates from [NewMiddleware].

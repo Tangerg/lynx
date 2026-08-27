@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store filter")
+var vectorStoreFilterValueKey = mustValueKey[filter.Predicate]("vector store filter")
 
 // VectorStoreFilterValueKey returns the typed query slot for a parsed per-call
 // filter. Parse textual filter DSL with [filter.Parse] before attaching it.

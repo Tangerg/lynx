@@ -58,13 +58,12 @@
 // your retrievers in a custom [Retriever] that switches on the query
 // internally:
 //
-//	var routeKey = rag.MustValueKey[string]("route")
-//
 //	type routingRetriever struct {
+//	    routeKey rag.ValueKey[string]
 //	    docsR, logsR rag.Retriever
 //	}
 //	func (r *routingRetriever) Retrieve(ctx context.Context, q rag.Query) (rag.Candidates, error) {
-//	    route, _, err := q.Value(routeKey)
+//	    route, _, err := q.Value(r.routeKey)
 //	    if err != nil {
 //	        return nil, err
 //	    }
@@ -74,6 +73,6 @@
 //	    return r.docsR.Retrieve(ctx, q)
 //	}
 //
-// Callers stay oblivious; routing logic lives where it belongs (the
-// retriever boundary).
+// Create routeKey once with [NewValueKey] and retain it in the retriever.
+// Callers stay oblivious; routing logic lives at the retriever boundary.
 package rag

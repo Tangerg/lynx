@@ -15,24 +15,6 @@ const (
 	MetricComposite       Metric = "composite"
 )
 
-func NewMetric(name string) (Metric, error) {
-	metric := Metric(name)
-	if err := metric.Validate(); err != nil {
-		return "", err
-	}
-	return metric, nil
-}
-
-// MustMetric is intended for declaration-time identities that cannot recover
-// from an invalid source literal.
-func MustMetric(name string) Metric {
-	metric, err := NewMetric(name)
-	if err != nil {
-		panic(err)
-	}
-	return metric
-}
-
 func (metric Metric) Validate() error {
 	name := string(metric)
 	if name == "" || name != strings.TrimSpace(name) {

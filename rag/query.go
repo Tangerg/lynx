@@ -32,13 +32,12 @@ type valueKeyIdentity struct {
 // with the code that writes and reads the slot. Each key instance has its own
 // identity; the name is diagnostic only and never acts as a global namespace.
 //
-// The zero value and ValueKey[any] are invalid. Use [NewValueKey] or
-// [MustValueKey] with a concrete value type.
+// The zero value and ValueKey[any] are invalid. Create keys with [NewValueKey]
+// and retain the returned value because equal names do not share identity.
 type ValueKey[T any] struct {
 	identity *valueKeyIdentity
 }
 
-// NewValueKey validates name and returns a typed query value key.
 func NewValueKey[T any](name string) (ValueKey[T], error) {
 	key := ValueKey[T]{identity: &valueKeyIdentity{name: name}}
 	if err := key.validate(); err != nil {
@@ -47,8 +46,7 @@ func NewValueKey[T any](name string) (ValueKey[T], error) {
 	return key, nil
 }
 
-// MustValueKey is the declaration-time companion to [NewValueKey].
-func MustValueKey[T any](name string) ValueKey[T] {
+func mustValueKey[T any](name string) ValueKey[T] {
 	key, err := NewValueKey[T](name)
 	if err != nil {
 		panic(err)

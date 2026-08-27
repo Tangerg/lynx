@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/scope/rag"
 )
 
-var routeKey = rag.MustValueKey[string]("route")
+var routeKey = mustValueKey[string]("route")
 
 // fakeChatModel is the target core/chat mock used by every LLM-backed
 // component test.

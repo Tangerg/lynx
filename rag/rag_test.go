@@ -10,7 +10,15 @@ import (
 	"github.com/Tangerg/scope/rag"
 )
 
-var testQueryValueKey = rag.MustValueKey[string]("test value")
+var testQueryValueKey = mustValueKey[string]("test value")
+
+func mustValueKey[T any](name string) rag.ValueKey[T] {
+	key, err := rag.NewValueKey[T](name)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
 
 func TestNewQuery_RequiresText(t *testing.T) {
 	if _, err := rag.NewQuery(""); !errors.Is(err, rag.ErrInvalidQuery) {
@@ -87,7 +95,7 @@ func TestQueryValueKeyRejectsUntypedValuesAndIsolatesSameNameKeys(t *testing.T) 
 
 	q, _ := rag.NewQuery("hi")
 	q, _ = q.WithValue(testQueryValueKey, "v")
-	independent := rag.MustValueKey[int](testQueryValueKey.Name())
+	independent := mustValueKey[int](testQueryValueKey.Name())
 	q, err := q.WithValue(independent, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +106,7 @@ func TestQueryValueKeyRejectsUntypedValuesAndIsolatesSameNameKeys(t *testing.T) 
 	if value, found, err := q.Value(testQueryValueKey); err != nil || !found || value != "v" {
 		t.Fatalf("Value(original key) = (%q, %v, %v)", value, found, err)
 	}
-	nilSliceKey := rag.MustValueKey[[]string]("nil slice")
+	nilSliceKey := mustValueKey[[]string]("nil slice")
 	if _, err := q.WithValue(nilSliceKey, nil); !errors.Is(err, rag.ErrNilQueryValue) {
 		t.Fatalf("WithValue nil error = %v, want ErrNilQueryValue", err)
 	}
