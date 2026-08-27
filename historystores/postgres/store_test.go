@@ -19,12 +19,12 @@ import (
 // inspect validation use a hand-built struct via pointer-to-zero.
 func stubPool() *pgxpool.Pool { return new(pgxpool.Pool) }
 
-func TestNewRequiresPool(t *testing.T) {
-	cfg := postgres.Config{}
+func TestNewStoreRequiresPool(t *testing.T) {
+	cfg := postgres.StoreConfig{}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("Config.Validate should reject a nil Pool")
+		t.Fatal("StoreConfig.Validate should reject a nil Pool")
 	}
-	_, err := postgres.New(t.Context(), cfg)
+	_, err := postgres.NewStore(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Pool is nil")
 	}
@@ -33,31 +33,31 @@ func TestNewRequiresPool(t *testing.T) {
 	}
 }
 
-func TestNewRejectsBadIdentifier(t *testing.T) {
+func TestNewStoreRejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  postgres.Config
+		cfg  postgres.StoreConfig
 	}{
 		{
 			name: "schema with semicolon",
-			cfg:  postgres.Config{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
 		},
 		{
 			name: "table with hyphen",
-			cfg:  postgres.Config{Pool: stubPool(), TableName: "chat history"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
 		},
 		{
 			name: "index starting with digit",
-			cfg:  postgres.Config{Pool: stubPool(), IndexName: "1bad"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), IndexName: "1bad"},
 		},
 		{
 			name: "table with space",
-			cfg:  postgres.Config{Pool: stubPool(), TableName: "chat history"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := postgres.New(t.Context(), tc.cfg)
+			_, err := postgres.NewStore(t.Context(), tc.cfg)
 			if err == nil {
 				t.Fatal("expected identifier-validation error")
 			}
@@ -68,10 +68,10 @@ func TestNewRejectsBadIdentifier(t *testing.T) {
 	}
 }
 
-func TestNewAcceptsValidIdentifiers(t *testing.T) {
+func TestNewStoreAcceptsValidIdentifiers(t *testing.T) {
 	// InitializeSchema=false so we don't issue SQL — only validation
 	// runs. The stub pool would crash any real query.
-	_, err := postgres.New(t.Context(), postgres.Config{
+	_, err := postgres.NewStore(t.Context(), postgres.StoreConfig{
 		Pool:       stubPool(),
 		SchemaName: "my_schema",
 		TableName:  "chat_history",

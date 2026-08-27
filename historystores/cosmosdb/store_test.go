@@ -7,12 +7,12 @@ import (
 	"github.com/Tangerg/lynx/historystores/cosmosdb"
 )
 
-func TestNewRequiresContainer(t *testing.T) {
-	cfg := cosmosdb.Config{}
+func TestNewStoreRequiresContainer(t *testing.T) {
+	cfg := cosmosdb.StoreConfig{}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("Config.Validate should reject a nil Container")
+		t.Fatal("StoreConfig.Validate should reject a nil Container")
 	}
-	_, err := cosmosdb.New(cfg)
+	_, err := cosmosdb.NewStore(cfg)
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}

@@ -25,5 +25,5 @@
 //
 //	cosmos, _ := azcosmos.NewClient(endpoint, cred, nil)
 //	container, _ := cosmos.NewContainer("lynx", "chat_history")
-//	store, _ := cosmosdb.New(cosmosdb.Config{Container: container})
+//	store, _ := cosmosdb.NewStore(cosmosdb.StoreConfig{Container: container})
 package cosmosdb

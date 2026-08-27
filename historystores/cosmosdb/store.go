@@ -17,15 +17,15 @@ import (
 	"github.com/Tangerg/lynx/core/history"
 )
 
-// Config configures [New]. Only [Config.Container] is required.
-type Config struct {
+// StoreConfig configures [NewStore]. Only [StoreConfig.Container] is required.
+type StoreConfig struct {
 	// Container is the live Cosmos container handle. Required. The
 	// container's partition key MUST be `/conversation_id`.
 	Container *azcosmos.ContainerClient
 }
 
 // Validate reports whether c can be used to construct a [Store].
-func (c Config) Validate() error {
+func (c StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("cosmosdb: container is required")
 	}
@@ -37,14 +37,14 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cosmos DB-backed [history.Store]. Construct via [New].
+// Store is a Cosmos DB-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	container *azcosmos.ContainerClient
 	sequence  sequenceGenerator
 }
 
 // New builds a [Store] from cfg.
-func New(cfg Config) (*Store, error) {
+func NewStore(cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

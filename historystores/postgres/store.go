@@ -14,16 +14,16 @@ import (
 	"github.com/Tangerg/lynx/core/history"
 )
 
-// Default identifiers used when [Config] leaves them blank.
+// Default identifiers used when [StoreConfig] leaves them blank.
 const (
 	DefaultSchemaName      = "public"
 	DefaultTableName       = "chat_history"
 	DefaultIndexNameSuffix = "_conversation_idx"
 )
 
-// Config configures [New]. Only [Config.Pool] is required; the rest fall back
+// StoreConfig configures [NewStore]. Only [StoreConfig.Pool] is required; the rest fall back
 // to documented defaults.
-type Config struct {
+type StoreConfig struct {
 	// Pool is the pgx connection pool. Required. The store does not
 	// take ownership — callers close the pool themselves.
 	Pool *pgxpool.Pool
@@ -49,8 +49,8 @@ type Config struct {
 
 // Validate reports whether c can be used to construct a [Store]. Blank
 // optional identifiers are valid and are resolved to their documented
-// defaults by [New].
-func (c Config) Validate() error {
+// defaults by [NewStore].
+func (c StoreConfig) Validate() error {
 	if c.Pool == nil {
 		return errors.New("postgres: pool is required")
 	}
@@ -74,9 +74,9 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a PostgreSQL-backed [history.Store]. Construct via [New].
+// Store is a PostgreSQL-backed [history.Store]. Construct via [NewStore].
 //
-// Schema (created when [Config.InitializeSchema] is true):
+// Schema (created when [StoreConfig.InitializeSchema] is true):
 //
 //	CREATE TABLE <schema>.<table> (
 //	    seq             BIGSERIAL    PRIMARY KEY,
@@ -103,7 +103,7 @@ type Store struct {
 }
 
 // New builds a [Store] from cfg. ctx bounds optional schema initialization.
-func New(ctx context.Context, cfg Config) (*Store, error) {
+func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

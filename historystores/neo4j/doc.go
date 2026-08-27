@@ -21,7 +21,7 @@
 //
 //	drv, _ := neo4j.NewDriverWithContext("neo4j://...", auth)
 //	defer drv.Close(ctx)
-//	store, _ := neo4jstore.New(ctx, neo4jstore.Config{
+//	store, _ := neo4jstore.NewStore(ctx, neo4jstore.StoreConfig{
 //	    Driver:           drv,
 //	    Database:         "neo4j",
 //	    InitializeSchema: true,

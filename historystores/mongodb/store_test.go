@@ -7,12 +7,12 @@ import (
 	"github.com/Tangerg/lynx/historystores/mongodb"
 )
 
-func TestNewRequiresCollection(t *testing.T) {
-	cfg := mongodb.Config{}
+func TestNewStoreRequiresCollection(t *testing.T) {
+	cfg := mongodb.StoreConfig{}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("Config.Validate should reject a nil Collection")
+		t.Fatal("StoreConfig.Validate should reject a nil Collection")
 	}
-	_, err := mongodb.New(t.Context(), cfg)
+	_, err := mongodb.NewStore(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}

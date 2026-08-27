@@ -14,12 +14,12 @@ func stubClient() goredis.UniversalClient {
 	return goredis.NewClient(&goredis.Options{Addr: "127.0.0.1:0"})
 }
 
-func TestNewRequiresClient(t *testing.T) {
-	cfg := redis.Config{}
+func TestNewStoreRequiresClient(t *testing.T) {
+	cfg := redis.StoreConfig{}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("Config.Validate should reject a nil Client")
+		t.Fatal("StoreConfig.Validate should reject a nil Client")
 	}
-	_, err := redis.New(cfg)
+	_, err := redis.NewStore(cfg)
 	if err == nil {
 		t.Fatal("expected error when Client is nil")
 	}
@@ -27,13 +27,13 @@ func TestNewRequiresClient(t *testing.T) {
 		t.Fatalf("err = %v; should mention client", err)
 	}
 	var typedNil *goredis.Client
-	if _, err := redis.New(redis.Config{Client: typedNil}); err == nil {
+	if _, err := redis.NewStore(redis.StoreConfig{Client: typedNil}); err == nil {
 		t.Fatal("expected error when Client is a typed nil")
 	}
 }
 
-func TestNewRejectsNegativeTTL(t *testing.T) {
-	_, err := redis.New(redis.Config{
+func TestNewStoreRejectsNegativeTTL(t *testing.T) {
+	_, err := redis.NewStore(redis.StoreConfig{
 		Client: stubClient(),
 		TTL:    -1 * time.Second,
 	})
@@ -42,8 +42,8 @@ func TestNewRejectsNegativeTTL(t *testing.T) {
 	}
 }
 
-func TestNewDefaultsKeyPrefix(t *testing.T) {
-	if _, err := redis.New(redis.Config{Client: stubClient()}); err != nil {
+func TestNewStoreDefaultsKeyPrefix(t *testing.T) {
+	if _, err := redis.NewStore(redis.StoreConfig{Client: stubClient()}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

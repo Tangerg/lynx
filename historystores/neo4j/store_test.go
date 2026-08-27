@@ -16,12 +16,12 @@ func stubDriver() neo4j.DriverWithContext {
 	return drv
 }
 
-func TestNewRequiresDriver(t *testing.T) {
-	cfg := neo4jstore.Config{}
+func TestNewStoreRequiresDriver(t *testing.T) {
+	cfg := neo4jstore.StoreConfig{}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("Config.Validate should reject a nil Driver")
+		t.Fatal("StoreConfig.Validate should reject a nil Driver")
 	}
-	_, err := neo4jstore.New(t.Context(), cfg)
+	_, err := neo4jstore.NewStore(t.Context(), cfg)
 	if err == nil {
 		t.Fatal("expected error when Driver is nil")
 	}
@@ -30,8 +30,8 @@ func TestNewRequiresDriver(t *testing.T) {
 	}
 }
 
-func TestNewRejectsBadLabel(t *testing.T) {
-	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{
+func TestNewStoreRejectsBadLabel(t *testing.T) {
+	_, err := neo4jstore.NewStore(t.Context(), neo4jstore.StoreConfig{
 		Driver: stubDriver(),
 		Label:  "Bad-Label",
 	})
@@ -40,8 +40,8 @@ func TestNewRejectsBadLabel(t *testing.T) {
 	}
 }
 
-func TestNewAcceptsDefaults(t *testing.T) {
-	_, err := neo4jstore.New(t.Context(), neo4jstore.Config{Driver: stubDriver()})
+func TestNewStoreAcceptsDefaults(t *testing.T) {
+	_, err := neo4jstore.NewStore(t.Context(), neo4jstore.StoreConfig{Driver: stubDriver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -23,8 +23,8 @@ const (
 	fieldCreatedAt      = "created_at"
 )
 
-// Config configures [New]. Only [Config.Collection] is required.
-type Config struct {
+// StoreConfig configures [NewStore]. Only [StoreConfig.Collection] is required.
+type StoreConfig struct {
 	// Collection is the live MongoDB collection. Required. The store
 	// does not take ownership of the underlying client.
 	Collection *mongo.Collection
@@ -35,7 +35,7 @@ type Config struct {
 }
 
 // Validate reports whether c can be used to construct a [Store].
-func (c Config) Validate() error {
+func (c StoreConfig) Validate() error {
 	if c.Collection == nil {
 		return errors.New("mongodb: collection is required")
 	}
@@ -47,14 +47,14 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a MongoDB-backed [history.Store]. Construct via [New].
+// Store is a MongoDB-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	collection *mongo.Collection
 	sequence   sequenceGenerator
 }
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
-func New(ctx context.Context, cfg Config) (*Store, error) {
+func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

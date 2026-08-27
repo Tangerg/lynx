@@ -25,8 +25,8 @@ var scanPatternEscaper = strings.NewReplacer(
 	`]`, `\]`,
 )
 
-// Config configures [New]. Only [Config.Client] is required.
-type Config struct {
+// StoreConfig configures [NewStore]. Only [StoreConfig.Client] is required.
+type StoreConfig struct {
 	// Client is the live go-redis client. Required. The store does
 	// not take ownership — callers Close() the client themselves.
 	Client goredis.UniversalClient
@@ -42,8 +42,8 @@ type Config struct {
 }
 
 // Validate reports whether c can be used to construct a [Store]. A blank key
-// prefix is valid and is resolved to [DefaultKeyPrefix] by [New].
-func (c Config) Validate() error {
+// prefix is valid and is resolved to [DefaultKeyPrefix] by [NewStore].
+func (c StoreConfig) Validate() error {
 	if lo.IsNil(c.Client) {
 		return errors.New("redis: client is required")
 	}
@@ -58,7 +58,7 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Redis-backed [history.Store]. Construct via [New].
+// Store is a Redis-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	client    goredis.UniversalClient
 	keyPrefix string
@@ -66,7 +66,7 @@ type Store struct {
 }
 
 // New builds a [Store] from cfg.
-func New(cfg Config) (*Store, error) {
+func NewStore(cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

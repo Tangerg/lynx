@@ -18,8 +18,8 @@ const (
 	DefaultTableName = "chat_history"
 )
 
-// Config configures [New]. Only [Config.Session] is required.
-type Config struct {
+// StoreConfig configures [NewStore]. Only [StoreConfig.Session] is required.
+type StoreConfig struct {
 	// Session is the live gocql session. Required. Callers own
 	// session lifetime.
 	Session *gocql.Session
@@ -41,8 +41,8 @@ type Config struct {
 
 // Validate reports whether c can be used to construct a [Store]. Blank
 // optional identifiers are valid and are resolved to their documented
-// defaults by [New].
-func (c Config) Validate() error {
+// defaults by [NewStore].
+func (c StoreConfig) Validate() error {
 	if c.Session == nil {
 		return errors.New("cassandra: session is required")
 	}
@@ -60,7 +60,7 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cassandra-backed [history.Store]. Construct via [New].
+// Store is a Cassandra-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	session  *gocql.Session
 	sequence sequenceGenerator
@@ -73,7 +73,7 @@ type Store struct {
 }
 
 // New builds a [Store] from cfg. ctx bounds optional table initialization.
-func New(ctx context.Context, cfg Config) (*Store, error) {
+func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

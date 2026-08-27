@@ -9,5 +9,5 @@
 // Example:
 //
 //	client := goredis.NewUniversalClient(&goredis.UniversalOptions{...})
-//	store, _ := redis.New(redis.Config{Client: client})
+//	store, _ := redis.NewStore(redis.StoreConfig{Client: client})
 package redis

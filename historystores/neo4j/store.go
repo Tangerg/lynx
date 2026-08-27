@@ -23,8 +23,8 @@ const (
 	parameterRows       = "rows"
 )
 
-// Config configures [New]. Only [Config.Driver] is required.
-type Config struct {
+// StoreConfig configures [NewStore]. Only [StoreConfig.Driver] is required.
+type StoreConfig struct {
 	// Driver is the live Neo4j driver. Required. Callers own its
 	// lifetime.
 	Driver neo4j.DriverWithContext
@@ -44,8 +44,8 @@ type Config struct {
 
 // Validate reports whether c can be used to construct a [Store]. Blank
 // optional values are valid and are resolved to their documented defaults by
-// [New].
-func (c Config) Validate() error {
+// [NewStore].
+func (c StoreConfig) Validate() error {
 	if lo.IsNil(c.Driver) {
 		return errors.New("neo4j: driver is required")
 	}
@@ -60,7 +60,7 @@ var (
 	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed [history.Store]. Construct via [New].
+// Store is a Neo4j-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
@@ -69,7 +69,7 @@ type Store struct {
 }
 
 // New builds a [Store] from cfg. ctx bounds optional index initialization.
-func New(ctx context.Context, cfg Config) (*Store, error) {
+func NewStore(ctx context.Context, cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
