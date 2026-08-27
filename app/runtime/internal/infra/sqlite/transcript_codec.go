@@ -67,13 +67,15 @@ type toolInvocationPayload struct {
 
 type toolFailurePayload struct {
 	Kind              tool.FailureKind `json:"kind"`
-	Scope             string           `json:"scope"`
+	Scope             failureScope     `json:"scope"`
 	Detail            string           `json:"detail,omitempty"`
 	DocURL            string           `json:"docUrl,omitempty"`
 	RetryAfterSeconds int              `json:"retryAfterSeconds,omitempty"`
 }
 
-const toolFailureScope = "tool"
+type failureScope string
+
+const toolFailureScope failureScope = "tool"
 
 func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 	if !item.Status().Valid() {

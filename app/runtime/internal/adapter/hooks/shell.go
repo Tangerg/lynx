@@ -112,15 +112,15 @@ type hookToolInputWire struct {
 }
 
 type hookSubagentInputWire struct {
-	RunID           string `json:"runId"`
-	ParentRunID     string `json:"parentRunId,omitempty"`
-	Description     string `json:"description,omitempty"`
-	Prompt          string `json:"prompt,omitempty"`
-	PromptTruncated bool   `json:"promptTruncated,omitempty"`
-	Status          string `json:"status,omitempty"`
-	Result          string `json:"result,omitempty"`
-	Error           string `json:"error,omitempty"`
-	ResultTruncated bool   `json:"resultTruncated,omitempty"`
+	RunID           string                     `json:"runId"`
+	ParentRunID     string                     `json:"parentRunId,omitempty"`
+	Description     string                     `json:"description,omitempty"`
+	Prompt          string                     `json:"prompt,omitempty"`
+	PromptTruncated bool                       `json:"promptTruncated,omitempty"`
+	Status          domainhooks.SubagentStatus `json:"status,omitempty"`
+	Result          string                     `json:"result,omitempty"`
+	Error           string                     `json:"error,omitempty"`
+	ResultTruncated bool                       `json:"resultTruncated,omitempty"`
 }
 
 func hookInputWireFrom(input domainhooks.Input) hookInputWire {
@@ -138,7 +138,7 @@ func hookInputWireFrom(input domainhooks.Input) hookInputWire {
 		out.Subagent = &hookSubagentInputWire{
 			RunID: input.Subagent.RunID, ParentRunID: input.Subagent.ParentRunID,
 			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt,
-			PromptTruncated: input.Subagent.PromptTruncated, Status: string(input.Subagent.Status),
+			PromptTruncated: input.Subagent.PromptTruncated, Status: input.Subagent.Status,
 			Result: input.Subagent.Result, Error: input.Subagent.Error,
 			ResultTruncated: input.Subagent.ResultTruncated,
 		}
@@ -188,10 +188,10 @@ func hookInputMaterialWithinLimit(input domainhooks.Input, limit int) bool {
 }
 
 type hookDecisionWire struct {
-	Decision         string `json:"decision,omitempty"`
-	Reason           string `json:"reason,omitempty"`
-	InjectContext    string `json:"injectContext,omitempty"`
-	RewriteArguments string `json:"rewriteArguments,omitempty"`
+	Decision         apphooks.CommandVerdict `json:"decision,omitempty"`
+	Reason           string                  `json:"reason,omitempty"`
+	InjectContext    string                  `json:"injectContext,omitempty"`
+	RewriteArguments string                  `json:"rewriteArguments,omitempty"`
 }
 
 func hookDecisionFromWire(stdout []byte) (apphooks.CommandDecision, error) {
@@ -235,15 +235,14 @@ func requireHookDecisionEOF(decoder *json.Decoder) error {
 	return nil
 }
 
-func hookVerdictFromWire(verdict string) (apphooks.CommandVerdict, error) {
+func hookVerdictFromWire(verdict apphooks.CommandVerdict) (apphooks.CommandVerdict, error) {
 	if verdict == "" {
 		return apphooks.CommandAllow, nil
 	}
-	decision := apphooks.CommandVerdict(verdict)
-	if !decision.Valid() {
+	if !verdict.Valid() {
 		return "", fmt.Errorf("hooks: unsupported command decision %q", verdict)
 	}
-	return decision, nil
+	return verdict, nil
 }
 
 type hookOutputBuffer struct {

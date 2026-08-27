@@ -45,10 +45,10 @@ type interactionPendingSteerWire struct {
 }
 
 type interactionContentBlockWire struct {
-	Kind      string `json:"kind"`
-	Text      string `json:"text,omitempty"`
-	MediaType string `json:"media_type,omitempty"`
-	Data      string `json:"data,omitempty"`
+	Kind      transcript.ContentKind `json:"kind"`
+	Text      string                 `json:"text,omitempty"`
+	MediaType string                 `json:"media_type,omitempty"`
+	Data      string                 `json:"data,omitempty"`
 }
 
 type interactionCheckpointState struct {
@@ -149,10 +149,10 @@ func encodeInteractionPendingSteers(
 			}
 			switch block.Kind {
 			case transcript.TextContent:
-				content[index] = interactionContentBlockWire{Kind: "text", Text: block.Text}
+				content[index] = interactionContentBlockWire{Kind: block.Kind, Text: block.Text}
 			case transcript.ImageContent:
 				content[index] = interactionContentBlockWire{
-					Kind: "image", MediaType: block.MediaType,
+					Kind: block.Kind, MediaType: block.MediaType,
 					Data: base64.StdEncoding.EncodeToString(block.Bytes),
 				}
 			default:
@@ -280,12 +280,12 @@ func decodeInteractionPendingSteers(
 		content := make([]transcript.ContentBlock, len(value.Content))
 		for contentIndex, block := range value.Content {
 			switch block.Kind {
-			case "text":
+			case transcript.TextContent:
 				if block.Text == "" || block.MediaType != "" || block.Data != "" {
 					return nil, fmt.Errorf("pending steer %s content %d is not canonical text", signalID, contentIndex)
 				}
 				content[contentIndex] = transcript.ContentBlock{Kind: transcript.TextContent, Text: block.Text}
-			case "image":
+			case transcript.ImageContent:
 				if block.Text != "" || block.MediaType == "" || block.Data == "" {
 					return nil, fmt.Errorf("pending steer %s content %d is not canonical image", signalID, contentIndex)
 				}
