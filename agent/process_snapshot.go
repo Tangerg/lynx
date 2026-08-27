@@ -375,7 +375,7 @@ func validatePreparedEffect(
 }
 
 func validatePreparedFrameworkEffect(record preparedEffectWire) error {
-	operation, err := frameworkEffectOperation(record.Effect.Payload())
+	operation, err := decodeFrameworkEffectOperation(record.Effect.Payload())
 	if err != nil {
 		return err
 	}

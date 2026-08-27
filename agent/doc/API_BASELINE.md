@@ -60,9 +60,9 @@ P24 将 Planning `Truth` 纳入同一稳定文本值对象规则；P23 已完成
 
 Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 27 wire digest：
 
-P24 不改变 `Truth` 的 JSON 文本、schema version 或 Planning protocol；下列 wire digest 保持 P23 冻结值：
+下列 digest 冻结当前 Kernel、Interaction 与 Planning 的完整 wire 类型形状：
 
-- Kernel snapshot/protocol wire：`251d7cd6d229bfd2f4c6dd39fe75f66183a9c4e75a6ead6ac633772ca22e6912`
+- Kernel snapshot/protocol wire：`41b91a73b202a4654f3e5248a5b01a56e313a5c5ff70d39af65655df667aebc6`
 - Framework Event/Delta observation wire：`77e8e0aa2ba047879e0c3e477acf315a118e14d45092eee8d852a107acca1994`
 - Interaction state/protocol wire：`73a91aca91d2a968636d90aebd11041c149e0e06afc2f8efc0eac6f4b42b64de`
 - Planning state/protocol wire：`dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e`

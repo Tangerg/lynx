@@ -107,18 +107,18 @@ func ParseChildStartResult(signal Signal) (ChildStartResult, error) {
 }
 
 type childStartEffectWire struct {
-	Operation     string    `json:"operation"`
-	SchemaVersion uint16    `json:"schema_version"`
-	Spec          ChildSpec `json:"spec"`
+	Operation     frameworkEffectOperation `json:"operation"`
+	SchemaVersion uint16                   `json:"schema_version"`
+	Spec          ChildSpec                `json:"spec"`
 }
 
 type childStartResultWire struct {
-	SchemaVersion uint16        `json:"schema_version"`
-	Operation     string        `json:"operation"`
-	Key           ChildKey      `json:"key"`
-	ProcessID     *ProcessID    `json:"process_id,omitempty"`
-	DeploymentRef DeploymentRef `json:"deployment_ref"`
-	Failure       *Failure      `json:"failure,omitempty"`
+	SchemaVersion uint16                   `json:"schema_version"`
+	Operation     frameworkEffectOperation `json:"operation"`
+	Key           ChildKey                 `json:"key"`
+	ProcessID     *ProcessID               `json:"process_id,omitempty"`
+	DeploymentRef DeploymentRef            `json:"deployment_ref"`
+	Failure       *Failure                 `json:"failure,omitempty"`
 }
 
 func decodeChildStartEffect(payload json.RawMessage) (ChildSpec, error) {

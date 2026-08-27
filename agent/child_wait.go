@@ -244,9 +244,11 @@ func ParseChildrenCompleted(signal Signal) (ChildrenCompleted, error) {
 	return completed, nil
 }
 
+type childSignalOperation string
+
 const (
-	childSignalWaitOpened        = "child_wait_opened"
-	childSignalChildrenCompleted = "children_completed"
+	childSignalWaitOpened        childSignalOperation = "child_wait_opened"
+	childSignalChildrenCompleted childSignalOperation = "children_completed"
 )
 
 type childWaitConditionWire struct {
@@ -261,22 +263,22 @@ type childWaitSpecWire struct {
 }
 
 type childWaitEffectWire struct {
-	Operation     string            `json:"operation"`
-	SchemaVersion uint16            `json:"schema_version"`
-	Spec          childWaitSpecWire `json:"spec"`
+	Operation     frameworkEffectOperation `json:"operation"`
+	SchemaVersion uint16                   `json:"schema_version"`
+	Spec          childWaitSpecWire        `json:"spec"`
 }
 
 type childWaitOpenedWire struct {
-	SchemaVersion uint16            `json:"schema_version"`
-	Operation     string            `json:"operation"`
-	Spec          childWaitSpecWire `json:"spec"`
+	SchemaVersion uint16               `json:"schema_version"`
+	Operation     childSignalOperation `json:"operation"`
+	Spec          childWaitSpecWire    `json:"spec"`
 }
 
 type childrenCompletedWire struct {
-	SchemaVersion uint16             `json:"schema_version"`
-	Operation     string             `json:"operation"`
-	Key           WaitKey            `json:"key"`
-	Outcomes      []childOutcomeWire `json:"outcomes"`
+	SchemaVersion uint16               `json:"schema_version"`
+	Operation     childSignalOperation `json:"operation"`
+	Key           WaitKey              `json:"key"`
+	Outcomes      []childOutcomeWire   `json:"outcomes"`
 }
 
 type childOutcomeWire struct {

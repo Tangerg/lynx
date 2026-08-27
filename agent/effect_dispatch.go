@@ -38,7 +38,7 @@ func (p *processLoop) dispatchPrepared(ctx context.Context, hostDone *<-chan str
 
 func (p *processLoop) dispatchFrameworkEffect(ctx context.Context, record *preparedEffectWire) {
 	var header struct {
-		Operation string `json:"operation"`
+		Operation frameworkEffectOperation `json:"operation"`
 	}
 	if err := json.Unmarshal(record.Effect.Payload(), &header); err != nil {
 		p.markFrameworkEffectUnknown(record)

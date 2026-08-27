@@ -437,7 +437,7 @@ func (b *blockingChildStartAcknowledger) AcknowledgePreparedStep(
 	if err != nil || wire.Prepared == nil || len(wire.Prepared.Effects) != 1 {
 		return err
 	}
-	operation, err := frameworkEffectOperation(wire.Prepared.Effects[0].Effect.Payload())
+	operation, err := decodeFrameworkEffectOperation(wire.Prepared.Effects[0].Effect.Payload())
 	if err != nil || operation != frameworkEffectStartChild {
 		return err
 	}

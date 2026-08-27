@@ -330,7 +330,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "251d7cd6d229bfd2f4c6dd39fe75f66183a9c4e75a6ead6ac633772ca22e6912"
+	const want = "41b91a73b202a4654f3e5248a5b01a56e313a5c5ff70d39af65655df667aebc6"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}

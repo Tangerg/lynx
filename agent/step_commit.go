@@ -216,7 +216,7 @@ func (p *preparedStepFinalization) registerFrameworkEffect(record preparedEffect
 	if record.Effect.Target() != EffectTargetFramework {
 		return WaitID{}, nil
 	}
-	operation, err := frameworkEffectOperation(record.Effect.Payload())
+	operation, err := decodeFrameworkEffectOperation(record.Effect.Payload())
 	if err != nil {
 		return WaitID{}, errors.New("invalid prepared framework Effect")
 	}

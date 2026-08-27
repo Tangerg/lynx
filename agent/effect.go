@@ -166,18 +166,30 @@ type effectWire struct {
 	RequiredCapabilities []Capability    `json:"required_capabilities,omitempty"`
 }
 
+const frameworkEffectSchemaVersion uint16 = 2
+
+type frameworkEffectOperation string
+
 const (
-	frameworkEffectSchemaVersion = 2
-	frameworkEffectWait          = "wait"
-	frameworkEffectStartChild    = "start_child"
-	frameworkEffectWaitChildren  = "wait_children"
+	frameworkEffectWait         frameworkEffectOperation = "wait"
+	frameworkEffectStartChild   frameworkEffectOperation = "start_child"
+	frameworkEffectWaitChildren frameworkEffectOperation = "wait_children"
 )
 
+func (f frameworkEffectOperation) valid() bool {
+	switch f {
+	case frameworkEffectWait, frameworkEffectStartChild, frameworkEffectWaitChildren:
+		return true
+	default:
+		return false
+	}
+}
+
 type waitRequestWire struct {
-	Operation     string          `json:"operation"`
-	SchemaVersion uint16          `json:"schema_version"`
-	Key           WaitKey         `json:"key"`
-	SignalPayload json.RawMessage `json:"signal_payload"`
+	Operation     frameworkEffectOperation `json:"operation"`
+	SchemaVersion uint16                   `json:"schema_version"`
+	Key           WaitKey                  `json:"key"`
+	SignalPayload json.RawMessage          `json:"signal_payload"`
 }
 
 func decodeWaitRequest(effect Effect) (WaitKey, json.RawMessage, error) {
@@ -203,7 +215,7 @@ func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage
 }
 
 func validateFrameworkEffectPayload(payload json.RawMessage) error {
-	operation, err := frameworkEffectOperation(payload)
+	operation, err := decodeFrameworkEffectOperation(payload)
 	if err != nil {
 		return err
 	}
@@ -222,16 +234,16 @@ func validateFrameworkEffectPayload(payload json.RawMessage) error {
 	}
 }
 
-func frameworkEffectOperation(payload json.RawMessage) (string, error) {
+func decodeFrameworkEffectOperation(payload json.RawMessage) (frameworkEffectOperation, error) {
 	var header struct {
-		Operation     string `json:"operation"`
-		SchemaVersion uint16 `json:"schema_version"`
+		Operation     frameworkEffectOperation `json:"operation"`
+		SchemaVersion uint16                   `json:"schema_version"`
 	}
 	if err := json.Unmarshal(payload, &header); err != nil {
 		return "", fmt.Errorf("%w: decode Framework Effect header: %w", ErrInvalidEffect, err)
 	}
-	if header.SchemaVersion != frameworkEffectSchemaVersion {
-		return "", fmt.Errorf("%w: unsupported Framework Effect schema", ErrInvalidEffect)
+	if header.SchemaVersion != frameworkEffectSchemaVersion || !header.Operation.valid() {
+		return "", fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
 	}
 	return header.Operation, nil
 }
