@@ -25,7 +25,7 @@ func (r ReplayPolicy) Valid() bool {
 
 func (r ReplayPolicy) String() string {
 	if !r.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(r)
 }

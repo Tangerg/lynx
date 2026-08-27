@@ -37,8 +37,6 @@ func writeTemp(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-// ---------------------------------------------------------------- Read
-
 func TestLocalExecutor_Read_Whole(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\n")
@@ -114,8 +112,6 @@ func TestLocalExecutor_Read_NormalizesCRLFAndBOM(t *testing.T) {
 		t.Errorf("Content still has BOM prefix: %q", out.Content)
 	}
 }
-
-// ---------------------------------------------------------------- Write
 
 func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 	dir := t.TempDir()
@@ -217,8 +213,6 @@ func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- Edit
-
 func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta gamma\n")
@@ -308,8 +302,6 @@ func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 		t.Errorf("Edit on binary: err = %v, want ErrBinaryFile", err)
 	}
 }
-
-// ---------------------------------------------------------------- ApplyPatch
 
 func TestLocalExecutor_ApplyPatch_ModifyCreateDelete(t *testing.T) {
 	dir := t.TempDir()
@@ -453,8 +445,6 @@ func TestLocalExecutor_ApplyPatch_InvalidRangeRejected(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- Glob
-
 func TestLocalExecutor_Glob_BasicAndDoublestar(t *testing.T) {
 	skipWithoutBash(t)
 	dir := t.TempDir()
@@ -508,8 +498,6 @@ func TestLocalExecutor_Glob_UsesFullDoublestarSyntax(t *testing.T) {
 		t.Fatalf("paths = %v, want %v", out.Paths, want)
 	}
 }
-
-// ---------------------------------------------------------------- Grep
 
 func TestGrepOutputModeOwnsDefaultAndValidation(t *testing.T) {
 	for _, mode := range []GrepOutputMode{"", GrepOutputContent, GrepOutputFilesWithMatches, GrepOutputCount} {

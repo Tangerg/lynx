@@ -42,7 +42,7 @@ func (f FailureKind) Valid() bool {
 
 func (f FailureKind) String() string {
 	if !f.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(f)
 }

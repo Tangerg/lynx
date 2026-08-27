@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/embedding"
 )
 
+const integrationEmbeddingTimeout = 30 * time.Second
+
 // EmbeddingContract drives the mock-test contract for any embedding
 // vendor. The `Response` field is the canned JSON body the mock server
 // returns — it should encode a response with 2 embeddings (matching
@@ -25,7 +27,6 @@ type EmbeddingContract struct {
 	Build func(t *testing.T, baseURL string) embedding.Model
 }
 
-// RunEmbeddingContract exercises an embedding vendor against canned
 func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
@@ -48,8 +49,8 @@ func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 		if contract.ExpectedPath != "" && seenPath != contract.ExpectedPath {
 			t.Errorf("URL = %q; want %q", seenPath, contract.ExpectedPath)
 		}
-		if len(response.Outputs) != 2 {
-			t.Fatalf("got %d outputs; want 2", len(response.Outputs))
+		if len(response.Outputs) != len(request.Texts) {
+			t.Fatalf("got %d outputs; want %d", len(response.Outputs), len(request.Texts))
 		}
 		for index, output := range response.Outputs {
 			if len(output.Embedding) == 0 {
@@ -71,7 +72,7 @@ func RunIntegrationEmbedding(t *testing.T, probe IntegrationEmbeddingProbe) {
 	t.Helper()
 	key := RequireKey(t, probe.Provider)
 	model := probe.Build(t, key)
-	ctx, cancel := WithTimeout(t, 30*time.Second)
+	ctx, cancel := WithTimeout(t, integrationEmbeddingTimeout)
 	defer cancel()
 
 	request, err := embedding.NewRequest([]string{"the quick brown fox", "jumps over the lazy dog"})
@@ -82,8 +83,8 @@ func RunIntegrationEmbedding(t *testing.T, probe IntegrationEmbeddingProbe) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(response.Outputs) != 2 {
-		t.Fatalf("got %d outputs; want 2", len(response.Outputs))
+	if len(response.Outputs) != len(request.Texts) {
+		t.Fatalf("got %d outputs; want %d", len(response.Outputs), len(request.Texts))
 	}
 	for index, output := range response.Outputs {
 		if len(output.Embedding) == 0 {

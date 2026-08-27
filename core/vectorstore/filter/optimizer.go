@@ -5,6 +5,8 @@ package filter
 // visitors receive programmatically built predicates unchanged.
 type optimizer struct{}
 
+const factorableTermCount = 2
+
 func optimize(predicate Predicate) Predicate {
 	return (optimizer{}).rewrite(predicate)
 }
@@ -49,7 +51,7 @@ func (o optimizer) rewriteBinary(binary *BinaryExpr) Predicate {
 	if deduplicated || absorbed {
 		return o.joinLogical(binary.operator, terms)
 	}
-	if len(terms) == 2 {
+	if len(terms) == factorableTermCount {
 		if factored, ok := o.factorCommon(binary.operator, terms[0], terms[1]); ok {
 			return o.rewrite(factored)
 		}

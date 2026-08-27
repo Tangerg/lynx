@@ -26,7 +26,7 @@ func (p ProcessStartOutcomeStatus) Valid() bool {
 
 func (p ProcessStartOutcomeStatus) String() string {
 	if !p.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(p)
 }

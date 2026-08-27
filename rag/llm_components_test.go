@@ -50,8 +50,6 @@ func (f *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Respon
 
 func (f *fakeChatModel) lastRequest() *chat.Request { return f.request }
 
-// --- ContextualAugmenter -------------------------------------------
-
 func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	aug, err := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	if err != nil {
@@ -271,8 +269,6 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 	}
 }
 
-// --- MultiQueryExpander --------------------------------------------
-
 func TestMultiQueryExpanderUsesStructuredDistinctVariants(t *testing.T) {
 	model := newFakeChatModel(t, `{"queries":[" variant 1 ","variant 1","hi","variant 2","variant 3"]}`)
 	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
@@ -358,8 +354,6 @@ func TestMultiQueryExpanderConfigRejectsMissingModel(t *testing.T) {
 	}
 }
 
-// --- CompressionTransformer ---------------------------------------
-
 func TestCompressionTransformer_UsesHistory(t *testing.T) {
 	model := newFakeChatModel(t, "compressed query")
 	tr, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{Model: model})
@@ -398,8 +392,6 @@ func TestCompressionTransformerRejectsEmptyModelOutput(t *testing.T) {
 	}
 }
 
-// --- RewriteTransformer -------------------------------------------
-
 func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened query")
 	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{Model: model})
@@ -436,8 +428,6 @@ func TestRewriteTransformerRejectsPaddedTarget(t *testing.T) {
 		t.Fatal("padded target must error")
 	}
 }
-
-// --- TranslationTransformer ---------------------------------------
 
 func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 	model := newFakeChatModel(t, "")

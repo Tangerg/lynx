@@ -13,7 +13,7 @@ func (s StepStatus) Valid() bool {
 
 func (s StepStatus) String() string {
 	if !s.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(s)
 }

@@ -60,7 +60,7 @@ func (e EventPhase) Valid() bool {
 
 func (e EventPhase) String() string {
 	if !e.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(e)
 }

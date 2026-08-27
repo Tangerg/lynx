@@ -6,6 +6,11 @@ import (
 	"math"
 )
 
+const (
+	minimumCosineSimilarity = -1
+	maximumCosineSimilarity = 1
+)
+
 // Score is a provider-neutral similarity value in [0, 1].
 type Score float64
 
@@ -56,12 +61,15 @@ func ScoreFromValue(value float64) Score {
 
 // ScoreFromCosineSimilarity maps cosine similarity from [-1, 1] to [0, 1].
 func ScoreFromCosineSimilarity(similarity float64) Score {
-	return ScoreFromValue((similarity + 1) / 2)
+	return ScoreFromValue(
+		(similarity - minimumCosineSimilarity) /
+			(maximumCosineSimilarity - minimumCosineSimilarity),
+	)
 }
 
 // ScoreFromCosineDistance maps 1-cosine-similarity from [0, 2] to [0, 1].
 func ScoreFromCosineDistance(distance float64) Score {
-	return ScoreFromValue(1 - distance/2)
+	return ScoreFromCosineSimilarity(maximumCosineSimilarity - distance)
 }
 
 // ScoreFromDistance maps a non-negative, unbounded distance to (0, 1], where

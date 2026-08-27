@@ -424,13 +424,17 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		s.embeddingColumn, vecLiteral, req.Options.TopK,
 	)
 
-	iter := s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()
-	defer iter.Close()
+	iterator := queryIterator{value: s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()}
+	defer func() {
+		if closeErr := iterator.close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cassandra: close query iterator for %s: %w", s.fullTable, closeErr))
+		}
+	}()
 
 	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
-	scanDest := s.makeScanDestinations()
-	for iter.Scan(scanDest...) {
-		match, err := s.scanDestToMatch(scanDest, req.Options.MinScore)
+	scanDestinations := s.scanDestinations()
+	for iterator.scan(scanDestinations...) {
+		match, err := s.searchResultFromScan(scanDestinations, req.Options.MinScore)
 		if err != nil {
 			return nil, err
 		}
@@ -439,30 +443,50 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 		docs = append(docs, match)
 	}
-	if err := iter.Close(); err != nil {
-		return nil, fmt.Errorf("cassandra: query %s: %w", s.fullTable, err)
+	if closeErr := iterator.close(); closeErr != nil {
+		return nil, fmt.Errorf("cassandra: close query iterator for %s: %w", s.fullTable, closeErr)
 	}
 	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-// makeScanDestinations allocates the per-row pointer slice used by
-// gocql.Iter.Scan. The shape mirrors the SELECT column list built in
-// Search.
-
-func (s *Store) makeScanDestinations() []any {
-	dest := []any{new(string), new(string), new(float32)}
-	for range s.metadataColumns {
-		dest = append(dest, new(any))
-	}
-	return dest
+type queryIterator struct {
+	value  *gocql.Iter
+	closed bool
 }
 
-// scanDestToDocument turns the per-row pointer slice back into a
-// Document. Returns nil when the row's score falls below minScore.
-func (s *Store) scanDestToMatch(dest []any, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {
-	id := *dest[0].(*string)
-	text := *dest[1].(*string)
-	score := vectorstore.ScoreFromValue(float64(*dest[2].(*float32)))
+const (
+	scanDocumentIDIndex = iota
+	scanContentIndex
+	scanScoreIndex
+	scanMetadataOffset
+)
+
+func (i *queryIterator) scan(destinations ...any) bool {
+	return !i.closed && i.value.Scan(destinations...)
+}
+
+func (i *queryIterator) close() error {
+	if i.closed {
+		return nil
+	}
+	i.closed = true
+	return i.value.Close()
+}
+
+// gocql.Scan needs one pointer for every selected column, including the
+// configuration-dependent metadata tail.
+func (s *Store) scanDestinations() []any {
+	destinations := []any{new(string), new(string), new(float32)}
+	for range s.metadataColumns {
+		destinations = append(destinations, new(any))
+	}
+	return destinations
+}
+
+func (s *Store) searchResultFromScan(destinations []any, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {
+	id := *destinations[scanDocumentIDIndex].(*string)
+	text := *destinations[scanContentIndex].(*string)
+	score := vectorstore.ScoreFromValue(float64(*destinations[scanScoreIndex].(*float32)))
 	if score < minScore {
 		return nil, nil
 	}
@@ -476,10 +500,10 @@ func (s *Store) scanDestToMatch(dest []any, minScore vectorstore.Score) (*vector
 	doc := &document.Document{ID: id, Text: text}
 	if len(s.metadataColumns) > 0 {
 		meta := make(map[string]any, len(s.metadataColumns))
-		for i, m := range s.metadataColumns {
-			v := *(dest[3+i].(*any))
-			if v != nil {
-				meta[m.Name] = v
+		for index, column := range s.metadataColumns {
+			value := *(destinations[scanMetadataOffset+index].(*any))
+			if value != nil {
+				meta[column.Name] = value
 			}
 		}
 		if len(meta) > 0 {
@@ -516,16 +540,20 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	}
 
 	selectStmt := fmt.Sprintf("SELECT %s FROM %s WHERE %s", s.idColumn, s.fullTable, predicate)
-	iter := s.session.Query(selectStmt, args...).WithContext(ctx).Iter()
-	defer iter.Close()
+	iterator := queryIterator{value: s.session.Query(selectStmt, args...).WithContext(ctx).Iter()}
+	defer func() {
+		if closeErr := iterator.close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cassandra: close ID iterator: %w", closeErr))
+		}
+	}()
 
 	var ids []string
 	var id string
-	for iter.Scan(&id) {
+	for iterator.scan(&id) {
 		ids = append(ids, id)
 	}
-	if err := iter.Close(); err != nil {
-		return fmt.Errorf("cassandra: enumerate ids: %w", err)
+	if closeErr := iterator.close(); closeErr != nil {
+		return fmt.Errorf("cassandra: close ID iterator: %w", closeErr)
 	}
 	if len(ids) == 0 {
 		return nil

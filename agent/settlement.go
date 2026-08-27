@@ -35,7 +35,7 @@ func (s SettlementStatus) Valid() bool {
 
 func (s SettlementStatus) String() string {
 	if !s.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(s)
 }

@@ -29,7 +29,7 @@ func (e EffectTarget) Valid() bool {
 
 func (e EffectTarget) String() string {
 	if !e.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(e)
 }

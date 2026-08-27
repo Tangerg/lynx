@@ -202,7 +202,7 @@ func (p *parser) parsePredicate() (Predicate, error) {
 			return nil, err
 		}
 		null := &Literal{
-			kind: LiteralNull, text: "null",
+			kind: LiteralNull, text: string(LiteralNull),
 			start: nullToken.start, end: nullToken.end,
 		}
 		test := &BinaryExpr{

@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+const firstInvalidSignedIndex = 1 << 63
+
 type evaluator struct {
 	metadata map[string]any
 	match    bool
@@ -120,7 +122,7 @@ func arrayIndex(value any) (uint64, bool) {
 	case uint64:
 		return number, true
 	case float64:
-		if number < 0 || number >= math.Exp2(63) || math.Trunc(number) != number {
+		if number < 0 || number >= firstInvalidSignedIndex || math.Trunc(number) != number {
 			return 0, false
 		}
 		return uint64(number), true
@@ -210,11 +212,8 @@ func (e *evaluator) evalHas(b *filter.BinaryExpr) (any, error) {
 	return false, nil
 }
 
-// evalNullTest evaluates `<field> IS NULL`: true when the field is
-// absent or stored as nil. A missing key already evaluates to nil
-// (lookupField / evalIndex return nil), so this collapses to a nil
-// check. `IS NOT NULL` is the NOT wrapper around this, handled by
-// evalUnary.
+// Missing metadata and explicit nil intentionally share filter semantics so
+// in-memory evaluation agrees with provider-side IS NULL translations.
 func (e *evaluator) evalNullTest(b *filter.BinaryExpr) (any, error) {
 	left, err := e.eval(b.Left())
 	if err != nil {

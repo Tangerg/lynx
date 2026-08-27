@@ -76,14 +76,10 @@ func (o Operator) IsUnaryOperator() bool { return o == OpNot }
 
 // LogicalString returns the canonical uppercase form of a logical operator.
 func (o Operator) LogicalString() (string, error) {
-	switch o {
-	case OpAnd:
-		return "AND", nil
-	case OpOr:
-		return "OR", nil
-	default:
+	if !o.IsLogicalOperator() {
 		return "", fmt.Errorf("filter: format logical operator: expected logical operator, got %s", o.Name())
 	}
+	return o.Name(), nil
 }
 
 // Inverse returns the exact inverse comparison operator.

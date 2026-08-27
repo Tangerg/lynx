@@ -209,7 +209,7 @@ func keywordKind(literal string) tokenKind {
 		return tokenLike
 	case "is":
 		return tokenIs
-	case "null":
+	case string(LiteralNull):
 		return tokenNull
 	default:
 		return tokenIdent

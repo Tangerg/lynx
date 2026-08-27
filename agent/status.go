@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const invalidEnumName = "invalid"
+
 var ErrInvalidStatus = errors.New("agent: invalid status")
 
 // Status is the complete common lifecycle state of a Process. Strategy-specific
@@ -36,7 +38,7 @@ const (
 
 func (s Status) String() string {
 	if !s.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(s)
 }

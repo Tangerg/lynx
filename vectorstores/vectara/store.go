@@ -150,7 +150,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 					map[string]any{"text": doc.Text},
 				},
 			}
-			if _, err := s.do(ctx, http.MethodPost, path, payload); err != nil {
+			if _, err := s.sendJSON(ctx, http.MethodPost, path, payload); err != nil {
 				return fmt.Errorf("vectara: upload %s: %w", id, err)
 			}
 		}
@@ -189,7 +189,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	path := fmt.Sprintf("/%s/corpora/%s/query",
 		DefaultAPIVersion, url.PathEscape(s.corpusKey))
-	raw, err := s.do(ctx, http.MethodPost, path, payload)
+	raw, err := s.sendJSON(ctx, http.MethodPost, path, payload)
 	if err != nil {
 		return nil, fmt.Errorf("vectara: query: %w", err)
 	}
@@ -257,7 +257,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		DefaultAPIVersion, url.PathEscape(s.corpusKey), url.QueryEscape(filterFragment))
 
 	for {
-		raw, err := s.do(ctx, http.MethodGet, listPath, nil)
+		raw, err := s.sendJSON(ctx, http.MethodGet, listPath, nil)
 		if err != nil {
 			return fmt.Errorf("vectara: list documents: %w", err)
 		}
@@ -278,7 +278,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		for _, doc := range parsed.Documents {
 			delPath := fmt.Sprintf("/%s/corpora/%s/documents/%s",
 				DefaultAPIVersion, url.PathEscape(s.corpusKey), url.PathEscape(doc.ID))
-			if _, err := s.do(ctx, http.MethodDelete, delPath, nil); err != nil {
+			if _, err := s.sendJSON(ctx, http.MethodDelete, delPath, nil); err != nil {
 				return fmt.Errorf("vectara: delete %s: %w", doc.ID, err)
 			}
 		}
@@ -302,7 +302,7 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, error) {
+func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]byte, error) {
 	u := s.endpoint + path
 
 	var reqBody io.Reader

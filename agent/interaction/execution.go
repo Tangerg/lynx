@@ -135,7 +135,7 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 			envelope.ModelResult.Error,
 		)
 	}
-	response := cloneResponse(envelope.ModelResult.Response)
+	response := envelope.ModelResult.Response.Clone()
 	calls, _, err := responseToolCalls(response)
 	if err != nil {
 		return agent.Transition{}, err
@@ -370,7 +370,7 @@ func (e *execution) finishOrRetry(
 	}
 	candidate := CompletionCandidate{
 		workingContext: e.state.WorkingContext.Clone(),
-		output:         cloneOutput(output),
+		output:         output.clone(),
 		artifacts:      newArtifacts(e.state.ArtifactRecords),
 	}
 	decision := CompletionDecision{Accepted: true}

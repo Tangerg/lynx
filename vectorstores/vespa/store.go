@@ -230,8 +230,8 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			body := map[string]any{"fields": fields}
 			path := fmt.Sprintf("/document/v1/%s/%s/docid/%s",
 				url.PathEscape(s.namespace), url.PathEscape(s.schemaName), url.PathEscape(id))
-			if _, err := s.do(ctx, http.MethodPost, path, body); err != nil {
-				return fmt.Errorf("vespa: PUT document %s: %w", id, err)
+			if _, err := s.sendJSON(ctx, http.MethodPost, path, body); err != nil {
+				return fmt.Errorf("vespa: index document %q: %w", id, err)
 			}
 		}
 	}
@@ -277,7 +277,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		"ranking": s.rankingProfile,
 	}
 
-	raw, err := s.do(ctx, http.MethodPost, "/search/", body)
+	raw, err := s.sendJSON(ctx, http.MethodPost, "/search/", body)
 	if err != nil {
 		return nil, fmt.Errorf("vespa: search: %w", err)
 	}
@@ -348,7 +348,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 			"hits":   pageSize,
 			"offset": offset,
 		}
-		raw, err := s.do(ctx, http.MethodPost, "/search/", body)
+		raw, err := s.sendJSON(ctx, http.MethodPost, "/search/", body)
 		if err != nil {
 			return fmt.Errorf("vespa: enumerate ids: %w", err)
 		}
@@ -372,7 +372,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 			}
 			path := fmt.Sprintf("/document/v1/%s/%s/docid/%s",
 				url.PathEscape(s.namespace), url.PathEscape(s.schemaName), url.PathEscape(id))
-			if _, err := s.do(ctx, http.MethodDelete, path, nil); err != nil {
+			if _, err := s.sendJSON(ctx, http.MethodDelete, path, nil); err != nil {
 				return fmt.Errorf("vespa: delete %s: %w", id, err)
 			}
 		}
@@ -433,8 +433,7 @@ func (s *Store) toDocument(rawID string, fields map[string]any) (*document.Docum
 	return doc, nil
 }
 
-// do executes a JSON request against the Vespa endpoint.
-func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, error) {
+func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]byte, error) {
 	u := s.endpoint + path
 
 	var reqBody io.Reader

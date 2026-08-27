@@ -76,7 +76,7 @@ func Like[L IdentifierValue | *IndexExpr, R string | *Literal](left L, right R) 
 
 // IsNull tests the selected value for null.
 func IsNull[L IdentifierValue | *IndexExpr](left L) *BinaryExpr {
-	return &BinaryExpr{left: leftOperand(left), operator: OpIs, right: &Literal{kind: LiteralNull, text: "null"}}
+	return &BinaryExpr{left: leftOperand(left), operator: OpIs, right: &Literal{kind: LiteralNull, text: string(LiteralNull)}}
 }
 
 // IsNotNull tests the selected value for non-null.

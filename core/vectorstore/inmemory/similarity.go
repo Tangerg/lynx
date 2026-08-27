@@ -27,7 +27,7 @@ func CosineSimilarity(left, right []float64) vectorstore.Score {
 		magB += right[index] * right[index]
 	}
 	if magA == 0 || magB == 0 {
-		return 0.5
+		return vectorstore.ScoreFromCosineSimilarity(0)
 	}
 	return vectorstore.ScoreFromCosineSimilarity(dot / (math.Sqrt(magA) * math.Sqrt(magB)))
 }

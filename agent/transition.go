@@ -42,7 +42,7 @@ func (t TransitionKind) Valid() bool {
 
 func (t TransitionKind) String() string {
 	if !t.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(t)
 }

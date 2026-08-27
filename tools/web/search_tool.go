@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
@@ -14,31 +13,33 @@ var _ toolcontract.Tool = (*SearchTool)(nil)
 // with [NewSearchTool] — there is no nil-default fallback because web search
 // inherently requires an upstream API.
 type SearchTool struct {
-	searcher Searcher
-	inner    toolcontract.Tool
+	readOnlyTool
 }
 
 func NewSearchTool(searcher Searcher) (*SearchTool, error) {
 	if searcher == nil {
 		return nil, ErrMissingSearcher
 	}
-	t := &SearchTool{searcher: searcher}
-	inner, err := toolcontract.NewFunc[SearchRequest, *SearchResponse](
+	t := &SearchTool{}
+	if err := t.bind(
 		toolcontract.FuncConfig{Name: "web_search", Description: webSearchDescription},
-		t.search,
-	)
-	if err != nil {
+		func(ctx context.Context, request SearchRequest) (*SearchResponse, error) {
+			prepared, err := request.Prepare()
+			if err != nil {
+				return nil, fmt.Errorf("web: prepare search request: %w", err)
+			}
+			response, err := searcher.Search(ctx, prepared)
+			if err != nil {
+				return nil, fmt.Errorf("web: execute search: %w", err)
+			}
+			return response, nil
+		},
+	); err != nil {
 		return nil, fmt.Errorf("web: build search tool: %w", err)
 	}
-	t.inner = inner
 	return t, nil
 }
 
-func (s *SearchTool) Definition() chat.ToolDefinition { return s.inner.Definition() }
-
-// webSearchDescription is the LLM-facing prompt. Structure follows
-// the standard WebSearch prompt: short bullets + a CRITICAL block
-// for the source-citation contract.
 const webSearchDescription = `Search the web for current information.
 - Returns a ranked list of result items, each with title, URL, and snippet
 - Use this for events, products, prices, releases, people, docs — anything time-sensitive or beyond training data
@@ -55,25 +56,3 @@ Search hygiene:
 - For "latest X" queries, include the current year explicitly in the query string
 - For official docs, restrict with allowed_domains (e.g. ["nodejs.org"]) — far less noise than open web
 - If the first query returns weak hits, refine keywords and search again rather than guessing`
-
-// ConcurrencyKey opts web_search into parallel execution — a read-only search
-// has no local resource conflict (the tool loop's optional concurrency
-// contract), so the loop runs several searches at once.
-func (s *SearchTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
-
-func (s *SearchTool) Call(ctx context.Context, arguments string) (string, error) {
-	return s.inner.Call(ctx, arguments)
-}
-
-func (s *SearchTool) search(ctx context.Context, req SearchRequest) (*SearchResponse, error) {
-	prepared, err := req.Prepare()
-	if err != nil {
-		return nil, fmt.Errorf("web: search: %w", err)
-	}
-
-	res, err := s.searcher.Search(ctx, prepared)
-	if err != nil {
-		return nil, fmt.Errorf("web: search: %w", err)
-	}
-	return res, nil
-}

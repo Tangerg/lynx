@@ -20,6 +20,8 @@ const (
 	LiteralNull   LiteralKind = "null"
 )
 
+const firstInvalidSignedIndex = 1 << 63
+
 // Literal is an immutable scalar constant. Text is the canonical semantic
 // representation; typed methods reject mismatched kinds.
 type Literal struct {
@@ -227,7 +229,7 @@ func (l *Literal) Key() (string, error) {
 			}
 			return strconv.FormatUint(number, 10), nil
 		case float64:
-			if number < 0 || number >= math.Exp2(63) || math.Trunc(number) != number {
+			if number < 0 || number >= firstInvalidSignedIndex || math.Trunc(number) != number {
 				return "", errors.New("filter: convert literal to index key: numeric index must be a non-negative integer")
 			}
 			return strconv.FormatUint(uint64(number), 10), nil

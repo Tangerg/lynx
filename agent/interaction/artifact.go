@@ -87,7 +87,7 @@ func (c CompletionCandidate) WorkingContext() *chat.Request {
 }
 
 // Output returns an independently owned candidate Output.
-func (c CompletionCandidate) Output() Output { return cloneOutput(c.output) }
+func (c CompletionCandidate) Output() Output { return c.output.clone() }
 
 // Artifacts returns the immutable Delegate output snapshot.
 func (c CompletionCandidate) Artifacts() Artifacts { return c.artifacts }
@@ -119,9 +119,9 @@ func (c CompletionDecision) Valid() bool {
 // in a managed child Process, not this callback.
 type CompletionValidator func(candidate CompletionCandidate) (CompletionDecision, error)
 
-func cloneOutput(output Output) Output {
-	cloned := output
-	cloned.ModelResponse = cloneResponse(output.ModelResponse)
-	cloned.DirectToolResults = slices.Clone(output.DirectToolResults)
+func (o Output) clone() Output {
+	cloned := o
+	cloned.ModelResponse = o.ModelResponse.Clone()
+	cloned.DirectToolResults = slices.Clone(o.DirectToolResults)
 	return cloned
 }

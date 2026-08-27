@@ -79,7 +79,7 @@ func (a *analyzer) visitLiteral(literal *Literal) error {
 	case LiteralString:
 		return nil
 	case LiteralNull:
-		if literal.text != "null" {
+		if literal.text != string(LiteralNull) {
 			return fmt.Errorf("filter: invalid NULL literal %q at %s", literal.text, literal.Start())
 		}
 		return nil

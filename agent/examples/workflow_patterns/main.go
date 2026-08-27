@@ -24,6 +24,8 @@ const (
 	sectionWorkerCount        = 2
 	sectionWindowSize         = 2
 	voteWindowSize            = 2
+	urgentRouteID             = "urgent"
+	standardRouteID           = "standard"
 )
 
 func main() {
@@ -244,13 +246,13 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 				return "", errors.New("router received an incomplete chain state")
 			}
 			if state.Urgent {
-				return "urgent", nil
+				return urgentRouteID, nil
 			}
-			return "standard", nil
+			return standardRouteID, nil
 		},
 		Cases: []workflow.SwitchCase{
-			{ID: "urgent", Deployment: urgent, Budget: budget},
-			{ID: "standard", Deployment: standard, Budget: budget},
+			{ID: urgentRouteID, Deployment: urgent, Budget: budget},
+			{ID: standardRouteID, Deployment: standard, Budget: budget},
 		},
 	})
 	if err != nil {

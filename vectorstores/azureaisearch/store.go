@@ -254,7 +254,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 		body := map[string]any{"value": actions}
 		path := fmt.Sprintf("/indexes/%s/docs/index", url.PathEscape(s.indexName))
-		if _, err := s.do(ctx, http.MethodPost, path, body); err != nil {
+		if _, err := s.sendJSON(ctx, http.MethodPost, path, body); err != nil {
 			return fmt.Errorf("azureaisearch: index documents: %w", err)
 		}
 	}
@@ -304,7 +304,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	path := fmt.Sprintf("/indexes/%s/docs/search", url.PathEscape(s.indexName))
-	raw, err := s.do(ctx, http.MethodPost, path, body)
+	raw, err := s.sendJSON(ctx, http.MethodPost, path, body)
 	if err != nil {
 		return nil, fmt.Errorf("azureaisearch: search: %w", err)
 	}
@@ -362,7 +362,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 			"skip":   skip,
 		}
 		path := fmt.Sprintf("/indexes/%s/docs/search", url.PathEscape(s.indexName))
-		raw, err := s.do(ctx, http.MethodPost, path, body)
+		raw, err := s.sendJSON(ctx, http.MethodPost, path, body)
 		if err != nil {
 			return fmt.Errorf("azureaisearch: enumerate ids: %w", err)
 		}
@@ -401,7 +401,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		}
 		body := map[string]any{"value": actions}
 		path := fmt.Sprintf("/indexes/%s/docs/index", url.PathEscape(s.indexName))
-		if _, err := s.do(ctx, http.MethodPost, path, body); err != nil {
+		if _, err := s.sendJSON(ctx, http.MethodPost, path, body); err != nil {
 			return fmt.Errorf("azureaisearch: delete batch: %w", err)
 		}
 	}
@@ -459,7 +459,7 @@ func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
 }
 
-func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, error) {
+func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]byte, error) {
 	u := fmt.Sprintf("%s%s?api-version=%s", s.endpoint, path, url.QueryEscape(s.apiVersion))
 
 	var reqBody io.Reader

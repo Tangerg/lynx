@@ -28,7 +28,7 @@ func (d deadlineOwner) valid() bool {
 
 func (d deadlineOwner) String() string {
 	if !d.valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(d)
 }
@@ -48,7 +48,7 @@ func (c cancellationOwner) valid() bool {
 
 func (c cancellationOwner) String() string {
 	if !c.valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(c)
 }
@@ -195,7 +195,7 @@ func (t TerminationCause) Valid() bool {
 
 func (t TerminationCause) String() string {
 	if !t.Valid() {
-		return "invalid"
+		return invalidEnumName
 	}
 	return string(t)
 }

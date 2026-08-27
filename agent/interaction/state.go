@@ -438,10 +438,6 @@ func cloneMessages(messages []chat.Message) []chat.Message {
 	return cloned
 }
 
-func cloneResponse(response *chat.Response) *chat.Response {
-	return response.Clone()
-}
-
 func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message, error) {
 	if response == nil {
 		return nil, nil, errors.New("interaction: model returned a nil response")
