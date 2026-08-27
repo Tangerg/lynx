@@ -114,30 +114,30 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresGoalRunProvenance(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name string
-		ctx  context.Context
-		role string
-		want map[string]bool
+		name  string
+		ctx   context.Context
+		group domaintool.Group
+		want  map[string]bool
 	}{
 		{
-			name: "goal-owned root", ctx: goalRunContext, role: domaintool.GroupRoot,
+			name: "goal-owned root", ctx: goalRunContext, group: domaintool.GroupRoot,
 			want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true},
 		},
 		{
-			name: "ordinary root", ctx: t.Context(), role: domaintool.GroupRoot,
+			name: "ordinary root", ctx: t.Context(), group: domaintool.GroupRoot,
 			want: map[string]bool{"create_goal": true, "get_goal": true},
 		},
-		{name: "goal-owned delegate", ctx: goalRunContext, role: domaintool.GroupDelegated, want: map[string]bool{}},
+		{name: "goal-owned delegate", ctx: goalRunContext, group: domaintool.GroupDelegated, want: map[string]bool{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			manifest, err := built.Resolver.Manifest(tc.ctx, tc.role)
+			manifest, err := built.Resolver.Manifest(tc.ctx, tc.group)
 			if err != nil {
-				t.Fatalf("Manifest(%s): %v", tc.role, err)
+				t.Fatalf("Manifest(%s): %v", tc.group, err)
 			}
 			names := definitionNames(manifestTools(manifest))
 			for _, name := range []string{"create_goal", "get_goal", "report_goal_outcome"} {
 				if names[name] != tc.want[name] {
-					t.Errorf("role %s tool %s present=%v, want %v", tc.role, name, names[name], tc.want[name])
+					t.Errorf("group %s tool %s present=%v, want %v", tc.group, name, names[name], tc.want[name])
 				}
 			}
 		})
@@ -156,42 +156,42 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 	closeBuiltToolset(t, built)
 
 	for _, tc := range []struct {
-		role string
-		want bool
+		group domaintool.Group
+		want  bool
 	}{
-		{role: domaintool.GroupRoot, want: true},
-		{role: domaintool.GroupDelegated, want: false},
+		{group: domaintool.GroupRoot, want: true},
+		{group: domaintool.GroupDelegated, want: false},
 	} {
-		manifest, err := built.Resolver.Manifest(t.Context(), tc.role)
+		manifest, err := built.Resolver.Manifest(t.Context(), tc.group)
 		if err != nil {
-			t.Fatalf("Manifest(%s): %v", tc.role, err)
+			t.Fatalf("Manifest(%s): %v", tc.group, err)
 		}
 		if got := definitionNames(manifestTools(manifest))["propose_skill"]; got != tc.want {
-			t.Errorf("role %s propose_skill present=%v, want %v", tc.role, got, tc.want)
+			t.Errorf("group %s propose_skill present=%v, want %v", tc.group, got, tc.want)
 		}
 		for _, executable := range manifest.Visible {
 			if executable.Definition().Name == "propose_skill" {
-				t.Errorf("role %s advertised deferred propose_skill", tc.role)
+				t.Errorf("group %s advertised deferred propose_skill", tc.group)
 			}
 		}
 	}
 }
 
-func TestResolverAcceptsOnlyCanonicalRoleNames(t *testing.T) {
+func TestResolverAcceptsOnlyCanonicalGroups(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{Lifetime: t.Context(), DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	closeBuiltToolset(t, built)
 
-	for _, role := range []string{"root", "delegated"} {
-		if _, err := built.Resolver.Manifest(t.Context(), role); err != nil {
-			t.Errorf("Manifest(%q): %v", role, err)
+	for _, group := range []domaintool.Group{domaintool.GroupRoot, domaintool.GroupDelegated} {
+		if _, err := built.Resolver.Manifest(t.Context(), group); err != nil {
+			t.Errorf("Manifest(%q): %v", group, err)
 		}
 	}
-	for _, obsolete := range []string{"coding", "subtask"} {
+	for _, obsolete := range []domaintool.Group{"coding", "subtask"} {
 		if _, err := built.Resolver.Manifest(t.Context(), obsolete); err == nil {
-			t.Errorf("Manifest accepted obsolete role %q", obsolete)
+			t.Errorf("Manifest accepted obsolete group %q", obsolete)
 		}
 	}
 }

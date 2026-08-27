@@ -1,12 +1,19 @@
 // Package tool defines the runtime's model-facing tool vocabulary.
 package tool
 
+// Group identifies the model-facing Tool surface assigned to one Interaction
+// deployment layer.
+type Group string
+
 const (
 	// GroupRoot is the complete product-tool surface used by the root Agent.
-	GroupRoot = "root"
+	GroupRoot Group = "root"
 	// GroupDelegated is the bounded surface used by delegated Agents.
-	GroupDelegated = "delegated"
+	GroupDelegated Group = "delegated"
 )
+
+// Valid reports whether g names one supported Tool surface.
+func (g Group) Valid() bool { return g == GroupRoot || g == GroupDelegated }
 
 // Runtime-owned model-facing tool identities. Names are domain vocabulary:
 // constructors, policy, presentation, execution, and recovery all refer to

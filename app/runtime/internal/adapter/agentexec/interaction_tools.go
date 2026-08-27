@@ -17,7 +17,7 @@ import (
 // resolution must not execute a Tool or call a model. [toolset.Resolver]
 // satisfies this port directly.
 type InteractionToolResolver interface {
-	Manifest(ctx context.Context, role string) (toolset.Manifest, error)
+	Manifest(ctx context.Context, group tool.Group) (toolset.Manifest, error)
 }
 
 // InteractionToolInterpreter owns product policy facts implied by concrete

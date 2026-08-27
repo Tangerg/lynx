@@ -144,7 +144,7 @@ func (i *interactionDeploymentBuilder) build() (*interactionDeploymentSet, error
 }
 
 func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deployment) (agent.Deployment, error) {
-	role, manifest, definitionName, definitionDescription := i.layerIdentity(depth)
+	group, manifest, definitionName, definitionDescription := i.layerIdentity(depth)
 	delegates, delegateBudget, err := i.delegateLayer(depth, next)
 	if err != nil {
 		return agent.Deployment{}, err
@@ -175,7 +175,7 @@ func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deploy
 		delegateRef = next.DeploymentRef()
 	}
 	configuration, err := i.executor.interactionConfiguration(
-		i.session, i.start, i.maxModelCalls, manifest, role, uint32(depth), delegateRef,
+		i.session, i.start, i.maxModelCalls, manifest, group, uint32(depth), delegateRef,
 		delegateBudget, i.instructions,
 	)
 	if err != nil {
@@ -193,7 +193,9 @@ func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deploy
 	return deployment, nil
 }
 
-func (i *interactionDeploymentBuilder) layerIdentity(depth int) (string, toolset.Manifest, string, string) {
+func (i *interactionDeploymentBuilder) layerIdentity(
+	depth int,
+) (domaintool.Group, toolset.Manifest, string, string) {
 	if depth == 0 {
 		return domaintool.GroupRoot, i.rootManifest, interactionDefinitionName, interactionDefinitionDescription
 	}
@@ -238,7 +240,7 @@ func (i *interactionDeploymentBuilder) deploymentDefinition(
 
 func (i *InteractionExecutor) resolveInteractionManifest(
 	ctx context.Context,
-	group string,
+	group domaintool.Group,
 ) (toolset.Manifest, error) {
 	if i.config.ToolResolver == nil {
 		return toolset.Manifest{}, nil

@@ -1018,7 +1018,7 @@ type staticInteractionTools struct{ manifest toolset.Manifest }
 
 var _ InteractionToolResolver = (*toolset.Resolver)(nil)
 
-func (s staticInteractionTools) Manifest(context.Context, string) (toolset.Manifest, error) {
+func (s staticInteractionTools) Manifest(context.Context, domaintool.Group) (toolset.Manifest, error) {
 	return s.manifest, nil
 }
 
@@ -1028,7 +1028,7 @@ type scopeRecordingInteractionTools struct {
 	ok       bool
 }
 
-func (s *scopeRecordingInteractionTools) Manifest(ctx context.Context, _ string) (toolset.Manifest, error) {
+func (s *scopeRecordingInteractionTools) Manifest(ctx context.Context, _ domaintool.Group) (toolset.Manifest, error) {
 	s.scope, s.ok = executionctx.Scope(ctx)
 	return s.manifest, nil
 }

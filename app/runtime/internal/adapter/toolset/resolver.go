@@ -21,8 +21,8 @@ import (
 // lives in package executionctx — the resolver, per-tool packages, and prompt
 // composition all read it inward without coupling to each other.
 
-// Resolver is the engine-scope [core.ToolGroupResolver] for the root and
-// delegated roles. The working-directory-independent tools (online
+// Resolver is the engine-scope Tool Group resolver for root and delegated
+// execution groups. The working-directory-independent tools (online
 // providers, MCP servers, the `delegate_task` tool) are built once at
 // engine construction and captured here; filesystem and skill tools are
 // rebuilt per resolution, while shell and LSP tools read the resolving Run's
@@ -45,7 +45,7 @@ type Resolver struct {
 	pathLocker    *pathLocker                // serializes same-path fs calls across every concurrent Run resolution
 	shell         []toolcontract.Tool        // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	createGoal    toolcontract.Tool          // root-only Goal entry tool; nil until the Goal Driver exists
-	staticSpecs   []staticSpec               // built-once capabilities with one role/placement policy for Run manifests
+	staticSpecs   []staticSpec               // built-once capabilities with one group/placement policy for Run manifests
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -66,8 +66,8 @@ const (
 	audienceRoot
 )
 
-func (a audience) includes(role string) bool {
-	return a == audienceBoth || role == domaintool.GroupRoot
+func (a audience) includes(group domaintool.Group) bool {
+	return a == audienceBoth || group == domaintool.GroupRoot
 }
 
 type placement uint8
@@ -101,17 +101,17 @@ type resolverDeps struct {
 	A2A                []toolcontract.Tool // remote A2A delegation tools
 	LSP                []toolcontract.Tool // code-intelligence tools
 	Shell              []toolcontract.Tool // shell tools (shell / read_shell_output / stop_shell); nil means omitted
-	AskUser            toolcontract.Tool   // ask_user HITL tool (both roles)
-	EnterPlan          toolcontract.Tool   // enter_plan_mode (root role only); nil → omitted
-	ExitPlan           toolcontract.Tool   // exit_plan_mode (root role only); nil → omitted
-	Plan               toolcontract.Tool   // set_plan execution-plan tool (root role only); nil → omitted
-	ScheduleTools      []toolcontract.Tool // schedule management tools (root role only); nil → omitted
-	ToolResult         toolcontract.Tool   // read_tool_result offloaded-output reader (both roles); nil → omitted
-	AgentMemorySearch  toolcontract.Tool   // search_memory agent-memory reader (both roles); nil → omitted
-	ConversationSearch toolcontract.Tool   // search_conversations past-transcript reader (both roles); nil → omitted
-	GoalGet            toolcontract.Tool   // get_goal state reader (root role only); nil → omitted
+	AskUser            toolcontract.Tool   // ask_user HITL tool (both groups)
+	EnterPlan          toolcontract.Tool   // enter_plan_mode (root group only); nil → omitted
+	ExitPlan           toolcontract.Tool   // exit_plan_mode (root group only); nil → omitted
+	Plan               toolcontract.Tool   // set_plan execution-plan tool (root group only); nil → omitted
+	ScheduleTools      []toolcontract.Tool // schedule management tools (root group only); nil → omitted
+	ToolResult         toolcontract.Tool   // read_tool_result offloaded-output reader (both groups); nil → omitted
+	AgentMemorySearch  toolcontract.Tool   // search_memory agent-memory reader (both groups); nil → omitted
+	ConversationSearch toolcontract.Tool   // search_conversations past-transcript reader (both groups); nil → omitted
+	GoalGet            toolcontract.Tool   // get_goal state reader (root group only); nil → omitted
 	GoalReport         toolcontract.Tool   // report_goal_outcome loop signal (Goal-owned root Runs only); nil → omitted
-	ProposeSkill       toolcontract.Tool   // propose_skill pending submission (root role only); nil → omitted
+	ProposeSkill       toolcontract.Tool   // propose_skill pending submission (root group only); nil → omitted
 	CodeIntel          *codeintel.Analyzer // backs post-mutation diagnostics
 	ReadTracker        *readTracker        // backs the read-before-patch and stale-read guards
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
@@ -166,9 +166,14 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 	return resolver, nil
 }
 
-func (r *Resolver) appendStatic(ctx context.Context, into *manifestBuilder, at placement, role string) error {
+func (r *Resolver) appendStatic(
+	ctx context.Context,
+	into *manifestBuilder,
+	at placement,
+	group domaintool.Group,
+) error {
 	for _, spec := range r.staticSpecs {
-		if spec.tool == nil || spec.placement != at || !spec.audience.includes(role) {
+		if spec.tool == nil || spec.placement != at || !spec.audience.includes(group) {
 			continue
 		}
 		if spec.requiresGoalRun {
@@ -262,21 +267,21 @@ func (r *Resolver) toolsForCWD(cwd string) cwdTools {
 	return buildCWDTools(cwd, r.codeIntel, r.readTracker, r.pathLocker)
 }
 
-// Manifest resolves one role's frozen, framework-neutral Tool visibility. It
+// Manifest resolves one Group's frozen, framework-neutral Tool visibility. It
 // is the integration surface for execution strategies that distinguish initial
 // visibility from deferred executable authority without importing this package
 // into their framework.
-func (r *Resolver) Manifest(ctx context.Context, role string) (Manifest, error) {
-	resolved, err := r.resolve(ctx, role)
+func (r *Resolver) Manifest(ctx context.Context, group domaintool.Group) (Manifest, error) {
+	resolved, err := r.resolve(ctx, group)
 	if err != nil {
 		return Manifest{}, err
 	}
 	return resolved.manifest(), nil
 }
 
-func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, error) {
-	if role != domaintool.GroupRoot && role != domaintool.GroupDelegated {
-		return manifestBuilder{}, fmt.Errorf("toolset: unsupported tool role %q", role)
+func (r *Resolver) resolve(ctx context.Context, group domaintool.Group) (manifestBuilder, error) {
+	if !group.Valid() {
+		return manifestBuilder{}, fmt.Errorf("toolset: unsupported Tool group %q", group)
 	}
 	cwd := r.cwdFor(ctx)
 	localTools := r.toolsForCWD(cwd)
@@ -291,24 +296,24 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 	tools.direct(r.shell...)
 	// Skill tools are working-directory scoped (project skills live under the
 	// Run's cwd), so they are built per resolution like filesystem tools and are
-	// available to both root and delegated roles. No tools when no skills exist.
+	// available to both root and delegated groups. No tools when no skills exist.
 	skillTools, err := builtin.BuildReaders(cwd, r.skillsUserDir, r.skillUsage)
 	if err != nil {
 		return manifestBuilder{}, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}
 	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
-	// are projected from the resolver's role and placement policy.
-	if appendStaticErr := r.appendStatic(ctx, &tools, afterSkill, role); appendStaticErr != nil {
+	// are projected from the resolver's group and placement policy.
+	if appendStaticErr := r.appendStatic(ctx, &tools, afterSkill, group); appendStaticErr != nil {
 		return manifestBuilder{}, appendStaticErr
 	}
-	// Both roles can ask the user; Plan-mode controls in this placement remain
+	// Both groups can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question waits at the same durable tree boundary as a
 	// child approval.
-	if appendStaticErr := r.appendStatic(ctx, &tools, interactionTail, role); appendStaticErr != nil {
+	if appendStaticErr := r.appendStatic(ctx, &tools, interactionTail, group); appendStaticErr != nil {
 		return manifestBuilder{}, appendStaticErr
 	}
-	if role == domaintool.GroupRoot {
+	if group == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns
 		// Runs, while the resolver itself was needed to build the Agent executor.
 		// Keep only the generic tool at this seam; no Driver or runtime state enters
@@ -318,7 +323,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 		}
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		if appendStaticErr := r.appendStatic(ctx, &tools, rootTail, role); appendStaticErr != nil {
+		if appendStaticErr := r.appendStatic(ctx, &tools, rootTail, group); appendStaticErr != nil {
 			return manifestBuilder{}, appendStaticErr
 		}
 	}

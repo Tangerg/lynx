@@ -27,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
@@ -320,7 +321,7 @@ func (i *InteractionExecutor) interactionConfiguration(
 	start runs.RootExecutionStart,
 	maxModelCalls uint32,
 	manifest toolset.Manifest,
-	role string,
+	group domaintool.Group,
 	depth uint32,
 	delegate agent.DeploymentRef,
 	delegateBudget agent.Budget,
@@ -338,7 +339,7 @@ func (i *InteractionExecutor) interactionConfiguration(
 		InteractiveApproval    bool                      `json:"interactiveApproval"`
 		VisibleTools           []corechat.ToolDefinition `json:"visibleTools,omitempty"`
 		DeferredTools          []corechat.ToolDefinition `json:"deferredTools,omitempty"`
-		Role                   string                    `json:"role"`
+		Group                  domaintool.Group          `json:"group"`
 		Depth                  uint32                    `json:"depth"`
 		Delegate               string                    `json:"delegate,omitempty"`
 		DelegateBudget         agent.Budget              `json:"delegateBudget,omitzero"`
@@ -352,7 +353,7 @@ func (i *InteractionExecutor) interactionConfiguration(
 		ToolResultReaderName:   i.config.ToolResultReaderName,
 		InteractiveApproval:    i.config.ToolAuthorizer != nil,
 		VisibleTools:           toolDefinitions(manifest.Visible), DeferredTools: toolDefinitions(manifest.Deferred),
-		Role: role, Depth: depth, Delegate: delegate.String(), DelegateBudget: delegateBudget,
+		Group: group, Depth: depth, Delegate: delegate.String(), DelegateBudget: delegateBudget,
 		Instructions: cloneChatMessages(instructions),
 	})
 	if err != nil {
