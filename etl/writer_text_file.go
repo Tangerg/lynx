@@ -14,14 +14,6 @@ import (
 	"github.com/samber/lo"
 )
 
-// Metadata keys recognized by [TextFileWriter] when writing document
-// markers. These are conventions, not part of [document.Document]'s public
-// fields.
-const (
-	metadataKeyStartPageNumber = "start_page_number"
-	metadataKeyEndPageNumber   = "end_page_number"
-)
-
 // TextFileWriterConfig configures plain-text output for [TextFileWriter].
 type TextFileWriterConfig struct {
 	// Path is required. Existing files are replaced unless Append is true.
@@ -137,18 +129,6 @@ func (t *TextFileWriter) renderDocument(index int, doc *document.Document) (stri
 	if t.documentMarkers {
 		buf.WriteString("### Index: ")
 		buf.WriteString(strconv.Itoa(index))
-
-		start, end, hasRange, err := t.documentPageRange(doc)
-		if err != nil {
-			return "", err
-		}
-		if hasRange {
-			buf.WriteString(", Pages:[")
-			buf.WriteString(start)
-			buf.WriteString(",")
-			buf.WriteString(end)
-			buf.WriteString("]")
-		}
 		buf.WriteString("\n")
 	}
 
@@ -159,27 +139,4 @@ func (t *TextFileWriter) renderDocument(index int, doc *document.Document) (stri
 	buf.WriteString(rendered)
 	buf.WriteString("\n\n")
 	return buf.String(), nil
-}
-
-func (*TextFileWriter) documentPageRange(doc *document.Document) (string, string, bool, error) {
-	if doc == nil || doc.Metadata == nil {
-		return "", "", false, nil
-	}
-	startValue, startFound := doc.Metadata[metadataKeyStartPageNumber]
-	endValue, endFound := doc.Metadata[metadataKeyEndPageNumber]
-	if !startFound || !endFound {
-		return "", "", false, nil
-	}
-	start, err := metadataValue(startValue).text()
-	if err != nil {
-		return "", "", false, fmt.Errorf("format start page number: %w", err)
-	}
-	end, err := metadataValue(endValue).text()
-	if err != nil {
-		return "", "", false, fmt.Errorf("format end page number: %w", err)
-	}
-	if start == "" || end == "" {
-		return "", "", false, nil
-	}
-	return start, end, true, nil
 }

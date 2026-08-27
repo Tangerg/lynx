@@ -3,6 +3,7 @@
 //
 // NewDocument requires text, media, or both. Metadata is JSON-safe and belongs
 // to the document itself; query-specific relevance belongs to the vector-store
-// match value. Extraction, formatting, splitting, identifier assignment,
-// batching, and loading policy live in the separate etl module.
+// match value. Clone provides an independent snapshot when ownership crosses a
+// component boundary. Extraction, formatting, splitting, identifier
+// assignment, batching, and loading policy live in the separate etl module.
 package document

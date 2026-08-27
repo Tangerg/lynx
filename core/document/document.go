@@ -21,6 +21,18 @@ type Document struct {
 	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
+// Clone returns an independent copy of d. It is nil-safe and recursively
+// copies the mutable media and metadata owned by the document.
+func (d *Document) Clone() *Document {
+	if d == nil {
+		return nil
+	}
+	clone := *d
+	clone.Media = d.Media.Clone()
+	clone.Metadata = d.Metadata.Clone()
+	return &clone
+}
+
 // NewDocument builds a [Document]. At least one of text or media is
 // required.
 //

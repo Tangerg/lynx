@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// metadataValue owns the text representation shared by formatters and
-// document-marker metadata.
+// metadataValue owns the deterministic text representation used by document
+// formatters.
 type metadataValue json.RawMessage
 
 func (m metadataValue) text() (string, error) {

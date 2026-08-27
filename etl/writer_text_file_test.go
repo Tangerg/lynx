@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/etl"
 )
 
@@ -48,32 +47,6 @@ func TestTextFileWriterDefaultsToTextAndSupportsAppend(t *testing.T) {
 func TestTextFileWriterRequiresPath(t *testing.T) {
 	if _, err := etl.NewTextFileWriter(etl.TextFileWriterConfig{}); err == nil {
 		t.Fatal("expected missing path error")
-	}
-}
-
-func TestTextFileWriterPreservesEncodedPageRange(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "documents.txt")
-	writer, err := etl.NewTextFileWriter(etl.TextFileWriterConfig{
-		Path:            path,
-		DocumentMarkers: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, _ := document.NewDocument("body", nil)
-	doc.Metadata = metadata.Map{
-		"start_page_number": []byte("9007199254740993"),
-		"end_page_number":   []byte("9007199254740994"),
-	}
-	if writeErr := writer.Write(t.Context(), []*document.Document{doc}); writeErr != nil {
-		t.Fatal(writeErr)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := string(data); !strings.HasPrefix(got, "### Index: 0, Pages:[9007199254740993,9007199254740994]\n") {
-		t.Fatalf("file contents = %q", got)
 	}
 }
 

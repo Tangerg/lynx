@@ -50,7 +50,7 @@ func (i *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*
 		if err := doc.Validate(); err != nil {
 			return nil, fmt.Errorf("etl: assign ID to document %d: %w", index, err)
 		}
-		owned[index] = i.cloneDocument(doc)
+		owned[index] = doc.Clone()
 	}
 
 	for index, doc := range owned {
@@ -67,13 +67,6 @@ func (i *IDAssigner) Assign(ctx context.Context, docs []*document.Document) ([]*
 		}
 	}
 	return owned, nil
-}
-
-func (*IDAssigner) cloneDocument(doc *document.Document) *document.Document {
-	clone := *doc
-	clone.Media = doc.Media.Clone()
-	clone.Metadata = doc.Metadata.Clone()
-	return &clone
 }
 
 func assignID(ctx context.Context, doc *document.Document, generator IDGenerator) error {

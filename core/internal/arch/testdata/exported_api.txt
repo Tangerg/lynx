@@ -155,6 +155,7 @@ chatclient: type Template struct { source string compiled *template.Template }
 chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") )
 chatclient: var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
+document: func (d *Document) Clone() *Document
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }

@@ -22,6 +22,31 @@ func TestDocumentValidate(t *testing.T) {
 	}
 }
 
+func TestDocumentClone(t *testing.T) {
+	inline, err := media.NewBytes("image/png", []byte{1, 2, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := &document.Document{ID: "doc-1", Media: inline, Metadata: metadata.Map{}}
+	if err := original.Metadata.Set("source", "original"); err != nil {
+		t.Fatal(err)
+	}
+
+	clone := original.Clone()
+	clone.Media.Source.Bytes[0] = 9
+	clone.Metadata["source"][1] = 'X'
+
+	if original.Media.Source.Bytes[0] != 1 {
+		t.Fatal("clone shares media bytes with original")
+	}
+	if got := string(original.Metadata["source"]); got != `"original"` {
+		t.Fatalf("clone shares metadata with original: %s", got)
+	}
+	if (*document.Document)(nil).Clone() != nil {
+		t.Fatal("nil document clone must remain nil")
+	}
+}
+
 func TestNewDocumentReturnsNilOnInvalidMedia(t *testing.T) {
 	doc, err := document.NewDocument("", &media.Media{})
 	if err == nil || doc != nil {
