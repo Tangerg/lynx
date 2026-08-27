@@ -7,14 +7,14 @@
 
 ## 定位
 
-- **按领域拆分的观测外挂**：`otel` 是无根包的命名空间；`otel/chat`、`otel/history`、`otel/vectorstore` 分别包装自己领域的能力，`otel/slog` 只拥有开发态 exporter。Core 不 import 本模块或官方 OTel。wrapper 是普通 decorator，不引入 `Observation`/`Tracer` 自定义接口。
+- **按领域拆分的观测外挂**：`otel` 是无根包的集成层命名空间；`otel/agent`、`otel/chat`、`otel/history`、`otel/vectorstore` 分别包装自己领域的能力，`otel/slog` 只拥有开发态 exporter。领域模块不 import 本模块或官方 OTel。wrapper 是普通 decorator，不引入 `Observation`/`Tracer` 自定义接口。
 - **三驾马车都落到 slog**:span、metric、OTel log record 各有一个 exporter 写成 slog record。
 - **为什么走 OTel 而不是直接写 slog**:可替换性 —— dev 用 slog 看着方便,生产把每个 exporter 换成 OTLP(→ 云端 tracing / logging),**业务代码零改**。这是 vendor-neutral 的意义。
 - **Logs 也是一等 OTel 信号**:应用经 contrib 的 `otelslog` bridge 把 slog 喂进 LoggerProvider,再由本模块的 log exporter 落地 —— 不是"绕开 OTel 直接打日志"。
 
 ## 架构心智
 
-- **官方 API 直接使用**：wrapper 内直接调用 `otel.Tracer` / `otel.Meter`，provider identity 等观测属性在构造 wrapper 时显式传入，不污染 Core Model SPI。
+- **官方 API 直接使用**：wrapper 内直接调用 `otel.Tracer` / `otel.Meter`，provider identity 等观测属性在构造 wrapper 时显式传入，不污染被包装领域的协议。
 - **三个 exporter 都实现 OTel SDK 的标准接口**,不自造接口:各信号一份,互不耦合。
 - **log handler 不在本模块**:用 contrib 的 `otelslog`(slog handler → LoggerProvider),本模块只提供它下游的 log exporter。
 - **组合根一次性绑定**:startup 设全局三 provider + 把 slog 默认 handler 换成 bridge + W3C propagator,之后 `otel.Tracer` / `otel.Meter` 直接用,零 DI。

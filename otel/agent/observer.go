@@ -1,4 +1,4 @@
-package otel
+package agent
 
 import (
 	"context"
@@ -21,14 +21,44 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-const instrumentationName = "github.com/Tangerg/scope/agent/otel"
+const (
+	instrumentationName = "github.com/Tangerg/scope/otel/agent"
+	durationUnit        = "ms"
 
-// ErrInvalidConfig reports a typed-nil provider or unusable instrument setup.
-var ErrInvalidConfig = errors.New("agent otel: invalid configuration")
+	processSpanName = "agent.process"
+	stepSpanName    = "agent.step"
+	effectSpanName  = "agent.effect"
 
-// Config selects the official OpenTelemetry providers used by Observer. A nil
-// provider uses the corresponding OpenTelemetry global provider.
-type Config struct {
+	processStartsMetricName  = "agent.process.starts"
+	processExitsMetricName   = "agent.process.exits"
+	stepDurationMetricName   = "agent.step.duration"
+	effectDurationMetricName = "agent.effect.duration"
+	deltaDropsMetricName     = "agent.delta.dropped"
+
+	processIDAttribute            attribute.Key = "agent.process.id"
+	processRootIDAttribute        attribute.Key = "agent.process.root_id"
+	processParentIDAttribute      attribute.Key = "agent.process.parent_id"
+	processDepthAttribute         attribute.Key = "agent.process.depth"
+	processStatusAttribute        attribute.Key = "agent.process.status"
+	processCauseAttribute         attribute.Key = "agent.process.cause"
+	processEventSequenceAttribute attribute.Key = "agent.process.event_sequence"
+	stepSequenceAttribute         attribute.Key = "agent.step.sequence"
+	stepStatusAttribute           attribute.Key = "agent.step.status"
+	effectIDAttribute             attribute.Key = "agent.effect.id"
+	effectTargetAttribute         attribute.Key = "agent.effect.target"
+	effectStatusAttribute         attribute.Key = "agent.effect.status"
+	eventPhaseAttribute           attribute.Key = "agent.event.phase"
+	deploymentNameAttribute       attribute.Key = "agent.deployment.name"
+	deploymentVersionAttribute    attribute.Key = "agent.deployment.version"
+	deploymentDigestAttribute     attribute.Key = "agent.deployment.digest"
+)
+
+// ErrInvalidObserverConfig reports a typed-nil provider or unusable instrument setup.
+var ErrInvalidObserverConfig = errors.New("agent otel: invalid observer configuration")
+
+// ObserverConfig selects the official OpenTelemetry providers used by Observer.
+// A nil provider uses the corresponding OpenTelemetry global provider.
+type ObserverConfig struct {
 	// TracerProvider creates Process, Step, and Effect spans. Nil uses the
 	// OpenTelemetry global provider.
 	TracerProvider trace.TracerProvider
@@ -41,8 +71,8 @@ type Config struct {
 // Observer projects immutable Framework Event facts into OpenTelemetry spans
 // and metrics. It implements agent.EventListener and is safe for concurrent
 // calls. Observer never receives Process behavior or application state.
-// Observer values must be constructed with New and must not be copied after
-// first use.
+// Observer values must be constructed with NewObserver and must not be copied
+// after first use.
 type Observer struct {
 	tracer trace.Tracer
 
@@ -71,13 +101,14 @@ type stepKey struct {
 	sequence  uint64
 }
 
-// New validates providers and constructs one isolated Observer.
-func New(config Config) (*Observer, error) {
+// NewObserver rejects typed-nil providers because only an actual nil interface
+// denotes the corresponding OpenTelemetry global provider.
+func NewObserver(config ObserverConfig) (*Observer, error) {
 	if config.TracerProvider != nil && lo.IsNil(config.TracerProvider) {
-		return nil, fmt.Errorf("%w: TracerProvider is typed nil", ErrInvalidConfig)
+		return nil, fmt.Errorf("%w: tracer provider is typed nil", ErrInvalidObserverConfig)
 	}
 	if config.MeterProvider != nil && lo.IsNil(config.MeterProvider) {
-		return nil, fmt.Errorf("%w: MeterProvider is typed nil", ErrInvalidConfig)
+		return nil, fmt.Errorf("%w: meter provider is typed nil", ErrInvalidObserverConfig)
 	}
 	tracerProvider := config.TracerProvider
 	if tracerProvider == nil {
@@ -89,41 +120,41 @@ func New(config Config) (*Observer, error) {
 	}
 	meter := meterProvider.Meter(instrumentationName)
 	processStarts, err := meter.Int64Counter(
-		"agent.process.starts",
+		processStartsMetricName,
 		metric.WithDescription("Agent Process executions started or restored."),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: process starts counter: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: create process starts counter: %w", ErrInvalidObserverConfig, err)
 	}
 	processExits, err := meter.Int64Counter(
-		"agent.process.exits",
+		processExitsMetricName,
 		metric.WithDescription("Agent Process terminal outcomes."),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: process exits counter: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: create process exits counter: %w", ErrInvalidObserverConfig, err)
 	}
 	stepDuration, err := meter.Float64Histogram(
-		"agent.step.duration",
+		stepDurationMetricName,
 		metric.WithDescription("Execution Step wall-clock duration."),
-		metric.WithUnit("ms"),
+		metric.WithUnit(durationUnit),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: step duration histogram: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: create step duration histogram: %w", ErrInvalidObserverConfig, err)
 	}
 	effectDuration, err := meter.Float64Histogram(
-		"agent.effect.duration",
+		effectDurationMetricName,
 		metric.WithDescription("Framework or Dispatcher Effect attempt duration."),
-		metric.WithUnit("ms"),
+		metric.WithUnit(durationUnit),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: effect duration histogram: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: create effect duration histogram: %w", ErrInvalidObserverConfig, err)
 	}
 	deltaDrops, err := meter.Int64Counter(
-		"agent.delta.dropped",
+		deltaDropsMetricName,
 		metric.WithDescription("Best-effort Delta increments dropped before observation."),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: delta drop counter: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: create delta drop counter: %w", ErrInvalidObserverConfig, err)
 	}
 	return &Observer{
 		tracer:        tracerProvider.Tracer(instrumentationName),
@@ -214,7 +245,7 @@ func (o *Observer) startProcess(ctx context.Context, event agent.Event) {
 		}
 	}
 	spanContext, span := o.tracer.Start(
-		parentContext, "agent.process",
+		parentContext, processSpanName,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithTimestamp(event.OccurredAt()),
 		trace.WithAttributes(processAttributes(event)...),
@@ -249,16 +280,16 @@ func (o *Observer) finishProcess(ctx context.Context, event agent.Event) {
 	}
 	o.mu.Unlock()
 	attributes := append(deploymentMetricAttributes(event),
-		attribute.String("agent.process.status", payload.ProcessStatus.String()),
-		attribute.String("agent.process.cause", payload.TerminationCause.String()),
+		processStatusAttribute.String(payload.ProcessStatus.String()),
+		processCauseAttribute.String(payload.TerminationCause.String()),
 	)
 	o.processExits.Add(ctx, 1, metric.WithAttributes(attributes...))
 	if !found {
 		return
 	}
 	record.span.SetAttributes(
-		attribute.String("agent.process.status", payload.ProcessStatus.String()),
-		attribute.String("agent.process.cause", payload.TerminationCause.String()),
+		processStatusAttribute.String(payload.ProcessStatus.String()),
+		processCauseAttribute.String(payload.TerminationCause.String()),
 	)
 	if processStatusIsError(payload.ProcessStatus) {
 		record.span.SetStatus(codes.Error, payload.TerminationCause.String())
@@ -283,9 +314,9 @@ func (o *Observer) startStep(event agent.Event) {
 		return
 	}
 	ctx, span := o.tracer.Start(
-		process.ctx, "agent.step",
+		process.ctx, stepSpanName,
 		trace.WithTimestamp(event.OccurredAt()),
-		trace.WithAttributes(uint64Attribute("agent.step.sequence", sequence)),
+		trace.WithAttributes(uint64Attribute(stepSequenceAttribute, sequence)),
 	)
 	o.steps[key] = spanRecord{
 		processID: event.ProcessID(), ctx: ctx, span: span, startedAt: event.OccurredAt(),
@@ -309,14 +340,14 @@ func (o *Observer) finishStep(ctx context.Context, event agent.Event) {
 		return
 	}
 	payload := decodePayload(event)
-	record.span.SetAttributes(attribute.String("agent.step.status", payload.StepStatus.String()))
+	record.span.SetAttributes(stepStatusAttribute.String(payload.StepStatus.String()))
 	if payload.StepStatus == agent.StepStatusFailed {
 		record.span.SetStatus(codes.Error, "Execution Step failed")
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 	o.stepDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
-		metric.WithAttributes(attribute.String("agent.step.status", payload.StepStatus.String())),
+		metric.WithAttributes(stepStatusAttribute.String(payload.StepStatus.String())),
 	)
 }
 
@@ -337,11 +368,11 @@ func (o *Observer) startEffect(event agent.Event) {
 		return
 	}
 	ctx, span := o.tracer.Start(
-		process.ctx, "agent.effect",
+		process.ctx, effectSpanName,
 		trace.WithTimestamp(event.OccurredAt()),
 		trace.WithAttributes(
-			attribute.String("agent.effect.id", effectID.String()),
-			attribute.String("agent.effect.target", payload.EffectTarget.String()),
+			effectIDAttribute.String(effectID.String()),
+			effectTargetAttribute.String(payload.EffectTarget.String()),
 		),
 	)
 	o.effects[effectID] = spanRecord{
@@ -366,8 +397,8 @@ func (o *Observer) finishEffect(ctx context.Context, event agent.Event) {
 	}
 	payload := decodePayload(event)
 	record.span.SetAttributes(
-		attribute.String("agent.effect.target", payload.EffectTarget.String()),
-		attribute.String("agent.effect.status", payload.SettlementStatus.String()),
+		effectTargetAttribute.String(payload.EffectTarget.String()),
+		effectStatusAttribute.String(payload.SettlementStatus.String()),
 	)
 	if payload.SettlementStatus != agent.SettlementStatusSucceeded {
 		record.span.SetStatus(codes.Error, "Effect attempt "+payload.SettlementStatus.String())
@@ -376,8 +407,8 @@ func (o *Observer) finishEffect(ctx context.Context, event agent.Event) {
 	o.effectDuration.Record(
 		ctx, elapsedMilliseconds(record.startedAt, event.OccurredAt()),
 		metric.WithAttributes(
-			attribute.String("agent.effect.target", payload.EffectTarget.String()),
-			attribute.String("agent.effect.status", payload.SettlementStatus.String()),
+			effectTargetAttribute.String(payload.EffectTarget.String()),
+			effectStatusAttribute.String(payload.SettlementStatus.String()),
 		),
 	)
 }
@@ -398,14 +429,14 @@ func (o *Observer) addProcessEvent(event agent.Event) {
 		return
 	}
 	attributes := []attribute.KeyValue{
-		uint64Attribute("agent.process.event_sequence", event.ProcessSequence()),
-		attribute.String("agent.event.phase", event.Phase().String()),
+		uint64Attribute(processEventSequenceAttribute, event.ProcessSequence()),
+		eventPhaseAttribute.String(event.Phase().String()),
 	}
 	if step, ok := event.StepSequence(); ok {
-		attributes = append(attributes, uint64Attribute("agent.step.sequence", step))
+		attributes = append(attributes, uint64Attribute(stepSequenceAttribute, step))
 	}
 	if effectID, ok := event.EffectID(); ok {
-		attributes = append(attributes, attribute.String("agent.effect.id", effectID.String()))
+		attributes = append(attributes, effectIDAttribute.String(effectID.String()))
 	}
 	record.span.AddEvent(
 		event.Name(), trace.WithTimestamp(event.OccurredAt()), trace.WithAttributes(attributes...),
@@ -421,8 +452,8 @@ type eventPayload struct {
 	DroppedDeltaCount uint64                 `json:"dropped_delta_count"`
 }
 
-func uint64Attribute(name string, value uint64) attribute.KeyValue {
-	return attribute.String(name, strconv.FormatUint(value, 10))
+func uint64Attribute(key attribute.Key, value uint64) attribute.KeyValue {
+	return key.String(strconv.FormatUint(value, 10))
 }
 
 func saturatingInt64(value uint64) int64 {
@@ -442,15 +473,15 @@ func processAttributes(event agent.Event) []attribute.KeyValue {
 	reference := event.DeploymentRef()
 	relation := event.Relation()
 	values := []attribute.KeyValue{
-		attribute.String("agent.process.id", event.ProcessID().String()),
-		attribute.String("agent.process.root_id", relation.RootID().String()),
-		attribute.Int64("agent.process.depth", int64(relation.Depth())),
-		attribute.String("agent.deployment.name", reference.Name()),
-		attribute.String("agent.deployment.version", reference.Version()),
-		attribute.String("agent.deployment.digest", reference.Digest().String()),
+		processIDAttribute.String(event.ProcessID().String()),
+		processRootIDAttribute.String(relation.RootID().String()),
+		processDepthAttribute.Int64(int64(relation.Depth())),
+		deploymentNameAttribute.String(reference.Name()),
+		deploymentVersionAttribute.String(reference.Version()),
+		deploymentDigestAttribute.String(reference.Digest().String()),
 	}
 	if parentID, child := relation.ParentID(); child {
-		values = append(values, attribute.String("agent.process.parent_id", parentID.String()))
+		values = append(values, processParentIDAttribute.String(parentID.String()))
 	}
 	return values
 }
@@ -458,8 +489,8 @@ func processAttributes(event agent.Event) []attribute.KeyValue {
 func deploymentMetricAttributes(event agent.Event) []attribute.KeyValue {
 	reference := event.DeploymentRef()
 	return []attribute.KeyValue{
-		attribute.String("agent.deployment.name", reference.Name()),
-		attribute.String("agent.deployment.version", reference.Version()),
+		deploymentNameAttribute.String(reference.Name()),
+		deploymentVersionAttribute.String(reference.Version()),
 	}
 }
 

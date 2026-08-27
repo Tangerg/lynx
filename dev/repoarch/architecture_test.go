@@ -423,8 +423,10 @@ func moduleLayer(dir string) int {
 	switch dir {
 	case "core", "skills", "models/catalog":
 		return 0
-	case "a2a", "agent", "etl", "evaluation", "mcp", "otel", "rag", "tools":
+	case "a2a", "agent", "etl", "evaluation", "mcp", "rag", "tools":
 		return 1
+	case "otel":
+		return 2
 	case "examples":
 		return 3
 	case "dev/providerconformance", "dev/repoarch":
@@ -465,6 +467,9 @@ func allowedRepositoryDependency(source, target repositoryModule) bool {
 	}
 	if source.dir == "tools" {
 		return target.dir == "skills"
+	}
+	if source.dir == "otel" {
+		return target.layer < source.layer && !strings.HasPrefix(target.dir, "dev/")
 	}
 	return false
 }

@@ -1,4 +1,4 @@
-package otel
+package agent
 
 import (
 	"go/parser"

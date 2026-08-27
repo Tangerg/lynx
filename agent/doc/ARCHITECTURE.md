@@ -635,7 +635,7 @@ Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调�
 
 事件时间字段具有准确语义；duration 从成对时间计算或由同一 owner 生成。Host 可以投影 UI、审计和账本，Agent 不反向依赖投影。
 
-独立 `agent/otel` adapter 只消费 Framework Event 并直接使用官方 OTel trace/metric API：Process/Step/Effect 形成 span，Process start/exit、Step/Effect duration 和 Delta drop 形成 metric。provider 由 Config 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry，只使用 Framework-owned identity/status/target/count。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、原框架实现与 Host import；SDK 只用于行为测试。
+独立 `otel/agent` adapter 只消费 Framework Event 并直接使用官方 OTel trace/metric API：Process/Step/Effect 形成 span，Process start/exit、Step/Effect duration 和 Delta drop 形成 metric。provider 由 ObserverConfig 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry，只使用 Framework-owned identity/status/target/count。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、原框架实现与 Host import；SDK 只用于行为测试。
 
 ---
 

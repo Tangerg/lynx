@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 29 已冻结
+> 状态：Baseline 30 已冻结
 > 冻结日期：2026-08-27
-> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v7/v6、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v7/v6、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 29 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 30 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -45,7 +45,7 @@ Baseline 29 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 29 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 30 public digest：
 
 P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 已将 Planning `Truth` 纳入同一稳定文本值对象规则：
 
@@ -55,10 +55,9 @@ P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 �
 - planning：`9e3eb61695b0c189ff9fe500e780d4badab69dfb91d2cb167164b5a53d878f1b`
 - planning/goap：`cea8080c8c006dac24ae2e4d1483a6838f9cc7e4d68df0c36a3888f418d05a2c`
 - workflow：`ef25cc22a1115789b0335c4ace1e851e771eb2ec2d859e2d3942d2fd9fed9c87`
-- otel：`40495e32f4ad7a3ec6a602ad26f9a20c57aebdfd8db644117aeeef1ec50b5267`
 - platform：`d250bd34f9ce7b557a0a760b0a54653fb59af60a452c7a5efa904de131b77f37`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 29 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 30 wire digest：
 
 下列 digest 冻结当前 Kernel、Interaction 与 Planning 的完整 wire 类型形状：
 
@@ -92,7 +91,7 @@ P8-04 依据 ADR-A2-050 为尚未冻结的 Platform 增加唯一 Definition sele
 
 P8-05 依据 ADR-A2-051 修订根 Engine 合同：新增 immutable `ProcessAdmission`、单一 `ProcessAdmitter`/func adapter、`ErrProcessAdmissionRejected` 与 EngineConfig consumption point。一个 admitter 同构覆盖 root/child start，只能拒绝，不能修改由 Engine 唯一拥有的 Budget、TreeLimits 或 CapabilitySet attenuation；其合同同步、有界、无 I/O、不重入 Process，因此没有误导性 context，恢复也不重复 admission。没有增加 Policy/Guard/Extension registry、通用 StopPolicy 或 Platform-owned runtime，四个 Strategy API 与共同 snapshot/tree wire 均未变化。
 
-P8-06 依据 ADR-A2-052 修订根 observation 合同：Event 新增 exact DeploymentRef/ProcessRelation，统一 Framework Event 名称常量，补齐 Step 与两类 Effect 的真实 started/finished、target/status/duration；EventListener/DeltaListener 删除无效 error 返回并增加 Func adapter。新增独立 `agent/otel` official-API adapter，Kernel 不 import OTel，production adapter 不 import SDK。根与 OTel API 以及 Event/Delta wire 显式冻结；四个 Strategy API 和 snapshot/tree wire 不变。
+P8-06 依据 ADR-A2-052 修订根 observation 合同：Event 新增 exact DeploymentRef/ProcessRelation，统一 Framework Event 名称常量，补齐 Step 与两类 Effect 的真实 started/finished、target/status/duration；EventListener/DeltaListener 删除无效 error 返回并增加 Func adapter。新增独立 `otel/agent` official-API adapter，Kernel 不 import OTel，production adapter 不 import SDK。根与 OTel API 以及 Event/Delta wire 显式冻结；四个 Strategy API 和 snapshot/tree wire 不变。
 
 P8-07 依据 ADR-A2-053 用第八个公开 command 同时运行 embedded 与 Platform 两条路径：同一 root/worker/Input、admission、Event listener 和 Engine 产生相同 Output、Status、Usage、exact tree 与稳定 Process/Step/Effect observation 投影。Platform 没有第二 Start/Run/runtime。冻结前删除单字段 Config 和 executable ActiveDeployments 副视图，构造收敛为 `New(deployments...)` 且零值可用；发现只保留 non-executable DeploymentCandidates。只表示 nil 的错误精确命名为 ErrNilPlatform/ErrNilDeploymentSelector。`platform` API/GoDoc 现纳入 digest 守卫；其余六个 API 与全部共同 wire 不变。
 
@@ -154,6 +153,8 @@ P25 依据 ADR-A2-082 形成 Baseline 28。Agent 删除自己维护的 schema �
 
 P26 形成 Baseline 29。仓库身份与全部 canonical Go module/import path 统一迁移到 Scope；不保留旧 module alias、双路径或 compatibility replace。该变化只改变 `go doc` 输出中的 package identity，因此八个公共 digest 显式重新冻结；API 语义、JSON wire、schema version 与运行时行为均未变化。
 
+P27 形成 Baseline 30。Agent 的 OpenTelemetry adapter 从 `agent/otel` 迁移到集成层 `otel/agent`，使 Agent 模块重新只拥有 Framework 领域并移除全部 OTel 依赖。adapter 的构造入口同步收敛为 `NewObserver(ObserverConfig)`；不保留旧 package、`New` 或 `Config` alias。Agent 基线因此只冻结七个领域 package，Framework API、wire 与运行时行为不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 29 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 30 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。七个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

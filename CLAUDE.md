@@ -56,7 +56,7 @@
   - **Logs 仍是一等 OTel 信号**（slog 经 bridge 进 LoggerProvider）—— 意义是**可替换性**（生产换 OTLP exporter 即把 span/metric/log 全导云端、业务零改），不是邀请到处写日志。
   - **attr key 去品牌**：semconv 优先，否则裸 domain 名，无项目前缀（instrumentation scope 名保留库路径 —— 那是库标识不是数据）。
   - **全链路**：trace_id 在入口生成，脱钩的后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
-  - **依赖边界**：官方 OTel API 本身就是 vendor-neutral 层；“外挂”指改变 import 方向，不是再造 `core/observation`。`otel` 可以 import Core，Core 不能反向 import `otel` 或官方 OTel。
+  - **依赖边界**：官方 OTel API 本身就是 vendor-neutral 层；“外挂”指改变 import 方向，不是再造 `core/observation`。`otel` 是可依赖被观测能力模块的集成层，被观测模块不能反向 import `otel` 或官方 OTel。
   - 具体模块边界见 [`otel/CLAUDE.md`](otel/CLAUDE.md)。
 - **设计原则**（高内聚低耦合 / SOLID / DRY / KISS / YAGNI）见下「设计原则」段 —— 是判断标准，不是口号。
 - **公开 API 可调、但不可擅自调**：dev 阶段不写 legacy 兼容 / 不写 migration、schema·exported type·签名变了直接换、注释不留"Legacy …"；**但任何破坏性公开 API 改动（含改一个签名 / 删一个类型 / 改一个字段）必须先咨询用户**，列清 scope + 影响面 + 备选方案，等确认再动。适用所有 sub-module。

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 29
+	currentAPIBaseline         = 30
 	currentAPIBaselineFrozenOn = "2026-08-27"
 )
 
@@ -33,12 +33,11 @@ var exportedAPIBaselines = []struct {
 	{name: "planning", label: "planning", directory: "planning", want: "9e3eb61695b0c189ff9fe500e780d4badab69dfb91d2cb167164b5a53d878f1b"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "cea8080c8c006dac24ae2e4d1483a6838f9cc7e4d68df0c36a3888f418d05a2c"},
 	{name: "workflow", label: "workflow", directory: "workflow", want: "ef25cc22a1115789b0335c4ace1e851e771eb2ec2d859e2d3942d2fd9fed9c87"},
-	{name: "otel", label: "otel", directory: "otel", want: "40495e32f4ad7a3ec6a602ad26f9a20c57aebdfd8db644117aeeef1ec50b5267"},
 	{name: "platform", label: "platform", directory: "platform", want: "d250bd34f9ce7b557a0a760b0a54653fb59af60a452c7a5efa904de131b77f37"},
 }
 
 var frameworkPackageDirectories = []string{
-	".", "agenttest", "interaction", "planning", "planning/goap", "workflow", "otel", "platform",
+	".", "agenttest", "interaction", "planning", "planning/goap", "workflow", "platform",
 }
 
 func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {

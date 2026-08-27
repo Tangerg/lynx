@@ -1,4 +1,4 @@
-package otel_test
+package agent_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	agent "github.com/Tangerg/scope/agent"
-	agentotel "github.com/Tangerg/scope/agent/otel"
+	agentotel "github.com/Tangerg/scope/otel/agent"
 )
 
 func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
@@ -23,7 +23,7 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
-	observer, err := agentotel.New(agentotel.Config{
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{
 		TracerProvider: provider, MeterProvider: meterProvider,
 	})
 	if err != nil {
@@ -99,8 +99,8 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 
 func TestObserverRejectsTypedNilTracerProvider(t *testing.T) {
 	var provider *sdktrace.TracerProvider
-	observer, err := agentotel.New(agentotel.Config{TracerProvider: provider})
-	if observer != nil || !errors.Is(err, agentotel.ErrInvalidConfig) {
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{TracerProvider: provider})
+	if observer != nil || !errors.Is(err, agentotel.ErrInvalidObserverConfig) {
 		t.Fatalf("observer = %v, error = %v", observer, err)
 	}
 }
@@ -129,7 +129,7 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
-	observer, err := agentotel.New(agentotel.Config{MeterProvider: meterProvider})
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{MeterProvider: meterProvider})
 	if err != nil {
 		t.Fatal(err)
 	}

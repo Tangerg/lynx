@@ -415,7 +415,7 @@
 - Event envelope 现在自足携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 StepSequence/EffectID、name、phase、OccurredAt 与 immutable payload。strict JSON round-trip 验证 exact binding/relation，独立 observation wire digest 固化 Event/Delta shape。
 - 根发布点只使用统一 Event 常量。真实两 Step/一 Effect 运行的顺序固定为 Process started → Step started/finished/prepared → Effect started/finished → Step committed → Step started/finished/prepared/committed → Process finished；每个 Event 的 sequence、exact ref、root relation 都有行为断言。Framework StartChild 另有测试证明使用同一 Effect lifecycle 且 target=framework。
 - Event/Delta listener 治本删除永远被忽略的 error 返回值并新增 Func adapter；panic 仍隔离。Event 实现承担 bounded/no-reentry 合同，Delta 继续使用 bounded async queue，drop 同时进入 Usage 与 Event。
-- `agent/otel` 是单向 adapter，不是第二观察总线。生产代码只 import 根 Framework 与官方 OTel API；Kernel 禁止 OTel，adapter 禁止 SDK、Strategy、原框架实现与 Host。SDK 只在测试中证明真实 spans、parenting、exact deployment attributes、status/target，以及 Process starts/exits、Step/Effect duration metrics。
+- `otel/agent` 是单向 adapter，不是第二观察总线。生产代码只 import 根 Framework 与官方 OTel API；Kernel 禁止 OTel，adapter 禁止 SDK、Strategy、原框架实现与 Host。SDK 只在测试中证明真实 spans、parenting、exact deployment attributes、status/target，以及 Process starts/exits、Step/Effect duration metrics。
 - raw payload、Input/Output、产品身份、日志 backend、exporter 生命周期都不进入 Framework 或默认 telemetry attributes。模型/Tool/Action 的 Strategy-specific observability 由相应 dispatcher/adapter owner 提供，Kernel 不通过 opaque Effect 猜测。
 
 ### 12.7 embedded Engine 与完整 Platform 共用一个 runtime
