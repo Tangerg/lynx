@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 var (
@@ -53,7 +54,7 @@ func (r *Registry) Register(values ...Tool) error {
 
 	pending := make(map[string]entry, len(values))
 	for index, value := range values {
-		if isNilTool(value) {
+		if lo.IsNil(value) {
 			return fmt.Errorf("%w: tools[%d] is nil", ErrInvalidTool, index)
 		}
 		definition := value.Definition().Clone()

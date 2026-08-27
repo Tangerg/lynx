@@ -82,15 +82,12 @@ func productionGoFiles(t *testing.T, root string) []string {
 	return files
 }
 
-func TestCoreModuleHasNoRequirementsOrReplacements(t *testing.T) {
+func TestCoreModuleHasNoReplaceDirectives(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(packageRoot(t), "..", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	contents := string(data)
-	if strings.Contains(contents, "\nrequire ") || strings.Contains(contents, "\nrequire(") {
-		t.Fatal("core module must not require another module")
-	}
 	if strings.Contains(contents, "\nreplace ") || strings.Contains(contents, "\nreplace(") {
 		t.Fatal("core module must not contain replace directives")
 	}

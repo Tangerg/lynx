@@ -1,4 +1,8 @@
-github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2 h1:G7htJvDGmKg9UlkWqaPfXIfxqOGpsQDmojGIqSPgIss=
-github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
+github.com/Tangerg/lynx/core v0.0.0-20260827031301-d8b9c6ddf518 h1:CwMPIpnzyjxKA1nY70kDpPreTfxbx0fHvjg0+4tjc34=
+github.com/Tangerg/lynx/core v0.0.0-20260827031301-d8b9c6ddf518/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
 github.com/neo4j/neo4j-go-driver/v5 v5.28.4 h1:7toxehVcYkZbyxV4W3Ib9VcnyRBQPucF+VwNNmtSXi4=
 github.com/neo4j/neo4j-go-driver/v5 v5.28.4/go.mod h1:Vff8OwT7QpLm7L2yYr85XNWe9Rbqlbeb9asNXJTHO4k=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
+golang.org/x/text v0.22.0 h1:bofq7m3/HAFvbF51jz3Q9wLg3jkvSPuiZu/pD1XwgtM=
+golang.org/x/text v0.22.0/go.mod h1:YRoo4H8PVmsu+E3Ou7cqLVH8oXWIHVoX0jqUWALQhfY=

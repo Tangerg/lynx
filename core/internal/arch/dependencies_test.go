@@ -21,7 +21,11 @@ var dependencyBudgetPackageRoots = []string{
 	"vectorstore",
 }
 
-func TestTargetPackagesHaveNoExternalDependencies(t *testing.T) {
+var allowedExternalProductionImports = map[string]struct{}{
+	"github.com/samber/lo": {},
+}
+
+func TestTargetPackagesStayWithinDependencyBudget(t *testing.T) {
 	root := coreRoot(t)
 	fset := token.NewFileSet()
 	seen := make(map[string]bool, len(dependencyBudgetPackageRoots))
@@ -43,10 +47,10 @@ func TestTargetPackagesHaveNoExternalDependencies(t *testing.T) {
 		}
 		for _, spec := range file.Imports {
 			importPath := strings.Trim(spec.Path.Value, `"`)
-			if isStandardImport(importPath) || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
+			if isAllowedProductionImport(importPath) {
 				continue
 			}
-			t.Errorf("target package %s has external production import %q in %s", budgetRoot, importPath, relativePath)
+			t.Errorf("target package %s imports %q outside the production dependency budget in %s", budgetRoot, importPath, relativePath)
 		}
 	}
 	for _, packageRoot := range dependencyBudgetPackageRoots {
@@ -65,7 +69,7 @@ func dependencyBudgetRoot(packagePath string) (string, bool) {
 	return "", false
 }
 
-func TestCoreProductionImportsAreStandardLibraryOnly(t *testing.T) {
+func TestCoreProductionDependenciesMatchAllowlist(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, path := range productionGoFiles(t) {
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -74,13 +78,21 @@ func TestCoreProductionImportsAreStandardLibraryOnly(t *testing.T) {
 		}
 		for _, spec := range file.Imports {
 			importPath := strings.Trim(spec.Path.Value, `"`)
-			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core") || isStandardImport(importPath) {
+			if isAllowedProductionImport(importPath) {
 				continue
 			}
 			rel, _ := filepath.Rel(coreRoot(t), path)
-			t.Errorf("core production import %q in %s is not from the standard library", importPath, rel)
+			t.Errorf("core production import %q in %s is outside the explicit dependency allowlist", importPath, rel)
 		}
 	}
+}
+
+func isAllowedProductionImport(importPath string) bool {
+	if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core") || isStandardImport(importPath) {
+		return true
+	}
+	_, ok := allowedExternalProductionImports[importPath]
+	return ok
 }
 
 func isStandardImport(importPath string) bool {

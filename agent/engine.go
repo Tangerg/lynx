@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 var (
@@ -126,25 +128,25 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if config.DeltaBufferCapacity < 0 {
 		return nil, fmt.Errorf("%w: DeltaBufferCapacity must not be negative", ErrInvalidEngineConfig)
 	}
-	if !nilOrConcrete(config.PreparedStepAcknowledger) {
+	if config.PreparedStepAcknowledger != nil && lo.IsNil(config.PreparedStepAcknowledger) {
 		return nil, fmt.Errorf("%w: PreparedStepAcknowledger is typed nil", ErrInvalidEngineConfig)
 	}
-	if !nilOrConcrete(config.ProcessStartOutcomeAcknowledger) {
+	if config.ProcessStartOutcomeAcknowledger != nil && lo.IsNil(config.ProcessStartOutcomeAcknowledger) {
 		return nil, fmt.Errorf("%w: ProcessStartOutcomeAcknowledger is typed nil", ErrInvalidEngineConfig)
 	}
-	if !nilOrConcrete(config.DeploymentResolver) {
+	if config.DeploymentResolver != nil && lo.IsNil(config.DeploymentResolver) {
 		return nil, fmt.Errorf("%w: DeploymentResolver is typed nil", ErrInvalidEngineConfig)
 	}
-	if !nilOrConcrete(config.ProcessAdmitter) {
+	if config.ProcessAdmitter != nil && lo.IsNil(config.ProcessAdmitter) {
 		return nil, fmt.Errorf("%w: ProcessAdmitter is typed nil", ErrInvalidEngineConfig)
 	}
 	for index, listener := range config.EventListeners {
-		if nilInterface(listener) {
+		if lo.IsNil(listener) {
 			return nil, fmt.Errorf("%w: EventListeners[%d] is nil", ErrInvalidEngineConfig, index)
 		}
 	}
 	for index, listener := range config.DeltaListeners {
-		if nilInterface(listener) {
+		if lo.IsNil(listener) {
 			return nil, fmt.Errorf("%w: DeltaListeners[%d] is nil", ErrInvalidEngineConfig, index)
 		}
 	}
@@ -185,8 +187,6 @@ type childIdentity struct {
 	parent ProcessID
 	key    ChildKey
 }
-
-func nilOrConcrete(value any) bool { return value == nil || !nilInterface(value) }
 
 // Start validates Input, creates exactly one Execution, registers its Process,
 // and starts the Engine-owned loop. Canceling ctx records a Host cancellation

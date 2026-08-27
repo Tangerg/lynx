@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -50,7 +51,7 @@ type Splitter struct {
 
 // NewSplitter constructs a structure-aware Markdown splitter.
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
-	if isNil(config.Tokenizer) {
+	if lo.IsNil(config.Tokenizer) {
 		return nil, errors.New("markdown splitter: tokenizer is required")
 	}
 	if config.MaxTokensPerChunk < 0 || config.MaxChunks < 0 {

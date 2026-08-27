@@ -7,11 +7,13 @@ import (
 	"io"
 	"io/fs"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // ReadResource reads and closes a bundled skill resource from src.
 func ReadResource(ctx context.Context, src ResourceSource, name, resource string) ([]byte, error) {
-	if isNil(src) {
+	if lo.IsNil(src) {
 		return nil, ErrNilSource
 	}
 	if err := ValidateName(name); err != nil {
@@ -56,14 +58,14 @@ func checkedResourceFile(
 	if err != nil {
 		return nil, errors.Join(err, closeResourceFile(name, resource, file))
 	}
-	if isNil(file) {
+	if lo.IsNil(file) {
 		return nil, fmt.Errorf("skills: %s: %w", operation, ErrNilResourceFile)
 	}
 	return file, nil
 }
 
 func closeResourceFile(name, resource string, file fs.File) error {
-	if isNil(file) {
+	if lo.IsNil(file) {
 		return nil
 	}
 	return resourceIOError("close", name, resource, file.Close())

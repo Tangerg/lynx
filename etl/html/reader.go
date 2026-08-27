@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/andybalholm/cascadia"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/document"
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
@@ -45,7 +45,7 @@ type Reader struct {
 
 // New builds an HTML reader over source.
 func New(source io.Reader, config Config) (*Reader, error) {
-	if isNil(source) {
+	if lo.IsNil(source) {
 		return nil, errors.New("html reader: source must not be nil")
 	}
 	r := &Reader{
@@ -219,17 +219,4 @@ func (p pageInfo) applyTo(metadata *coremetadata.Map) error {
 		}
 	}
 	return nil
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

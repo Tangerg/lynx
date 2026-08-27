@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/samber/lo"
 )
 
 var (
@@ -32,7 +33,7 @@ type WindowStore struct {
 // NewWindowStore returns a read-side sliding-window decorator. Limit counts
 // the merged system message when one exists and must be greater than zero.
 func NewWindowStore(store Store, limit int) (WindowStore, error) {
-	if isNilCapability(store) {
+	if lo.IsNil(store) {
 		return WindowStore{}, ErrNilStore
 	}
 	if limit <= 0 {

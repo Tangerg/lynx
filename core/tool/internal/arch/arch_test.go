@@ -104,7 +104,7 @@ func receiverName(expression ast.Expr) string {
 	}
 }
 
-func TestProductionDependenciesStayAtCore(t *testing.T) {
+func TestProductionDependenciesMatchBudget(t *testing.T) {
 	root := moduleRoot(t)
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -126,10 +126,10 @@ func TestProductionDependenciesStayAtCore(t *testing.T) {
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			first, _, _ := strings.Cut(importPath, "/")
-			if !strings.Contains(first, ".") || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
+			if !strings.Contains(first, ".") || importPath == "github.com/samber/lo" || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
 				continue
 			}
-			t.Errorf("tool production file %s imports dependency above Core: %s", path, importPath)
+			t.Errorf("tool production file %s imports dependency outside its explicit budget: %s", path, importPath)
 		}
 		return nil
 	})

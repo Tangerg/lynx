@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // formatter owns one complete DSL rendering operation. Its builder never
@@ -37,7 +39,7 @@ const (
 )
 
 func (f *formatter) expression(expr Expr, parent formatPrecedence, right bool) error {
-	if isNilExpr(expr) {
+	if lo.IsNil(expr) {
 		return errors.New("filter: expression is nil")
 	}
 

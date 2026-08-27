@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/samber/lo"
 )
 
 const defaultBatcherMaxTokens = 8191
@@ -46,7 +47,7 @@ type sizedDocument struct {
 }
 
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	if isNil(config.Estimator) {
+	if lo.IsNil(config.Estimator) {
 		return nil, errors.New("etl: token estimator is required")
 	}
 	if config.MaxTokens == 0 {
@@ -60,7 +61,7 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 	}
 	if config.Formatter == nil {
 		config.Formatter = TextFormatter{}
-	} else if isNil(config.Formatter) {
+	} else if lo.IsNil(config.Formatter) {
 		return nil, errors.New("etl: formatter must not be a typed nil")
 	}
 

@@ -4,20 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"unicode"
+
+	"github.com/samber/lo"
 )
 
 // analyzer owns semantic validation for the immutable filter tree.
 type analyzer struct{}
 
 func (a *analyzer) analyze(expr Predicate) error {
-	if isNilExpr(expr) {
+	if lo.IsNil(expr) {
 		return errors.New("filter: expression is nil")
 	}
 	return a.visit(expr)
 }
 
 func (a *analyzer) visit(expr Expr) error {
-	if isNilExpr(expr) {
+	if lo.IsNil(expr) {
 		return errors.New("filter: expression is nil")
 	}
 	switch node := expr.(type) {
@@ -140,7 +142,7 @@ func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 	if !unary.operator.IsUnaryOperator() {
 		return fmt.Errorf("filter: invalid unary operator %q at %s", unary.operator, unary.Start())
 	}
-	if isNilExpr(unary.right) {
+	if lo.IsNil(unary.right) {
 		return fmt.Errorf("filter: NOT operand is nil at %s", unary.Start())
 	}
 	if !a.isPredicate(unary.right) {
@@ -156,10 +158,10 @@ func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	if !binary.operator.IsBinaryOperator() {
 		return fmt.Errorf("filter: invalid binary operator %q at %s", binary.operator, binary.Start())
 	}
-	if isNilExpr(binary.left) {
+	if lo.IsNil(binary.left) {
 		return fmt.Errorf("filter: %s left operand is nil at %s", binary.operator.Name(), binary.Start())
 	}
-	if isNilExpr(binary.right) {
+	if lo.IsNil(binary.right) {
 		return fmt.Errorf("filter: %s right operand is nil at %s", binary.operator.Name(), binary.Start())
 	}
 
@@ -261,7 +263,7 @@ func (a *analyzer) visitNullTest(binary *BinaryExpr) error {
 }
 
 func (a *analyzer) visitSelector(expr Expr) error {
-	if isNilExpr(expr) {
+	if lo.IsNil(expr) {
 		return errors.New("selector is nil")
 	}
 	switch expr.(type) {
@@ -296,5 +298,5 @@ func (a *analyzer) visitIndex(index *IndexExpr) error {
 
 func (*analyzer) isPredicate(expr Expr) bool {
 	_, ok := expr.(Predicate)
-	return ok && !isNilExpr(expr)
+	return ok && !lo.IsNil(expr)
 }

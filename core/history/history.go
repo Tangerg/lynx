@@ -3,9 +3,9 @@ package history
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 var (
@@ -73,7 +73,7 @@ type Counter interface {
 // ErrReplacementUnsupported without modifying history when store does not
 // implement Replacer.
 func Replace(ctx context.Context, store Store, conversationID ConversationID, messages ...chat.Message) error {
-	if isNilCapability(store) {
+	if lo.IsNil(store) {
 		return ErrNilStore
 	}
 	if replacer, ok := store.(Replacer); ok {
@@ -85,7 +85,7 @@ func Replace(ctx context.Context, store Store, conversationID ConversationID, me
 // Count uses store's optional Counter capability and otherwise falls back to
 // reading the conversation.
 func Count(ctx context.Context, store Store, conversationID ConversationID) (int, error) {
-	if isNilCapability(store) {
+	if lo.IsNil(store) {
 		return 0, ErrNilStore
 	}
 	if counter, ok := store.(Counter); ok {
@@ -96,17 +96,4 @@ func Count(ctx context.Context, store Store, conversationID ConversationID) (int
 		return 0, err
 	}
 	return len(messages), nil
-}
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

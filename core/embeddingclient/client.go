@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/samber/lo"
 )
 
 // ErrNilModel reports that a Client has no usable model, including a typed nil.
@@ -109,18 +109,8 @@ func (Client) documentTexts(docs []*document.Document) ([]string, error) {
 }
 
 func (c Client) validate() error {
-	if c.model == nil || isNilModel(c.model) {
+	if c.model == nil || lo.IsNil(c.model) {
 		return ErrNilModel
 	}
 	return nil
-}
-
-func isNilModel(model embedding.Model) bool {
-	value := reflect.ValueOf(model)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

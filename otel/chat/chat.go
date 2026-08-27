@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"reflect"
 	"strings"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/chat"
@@ -67,11 +67,11 @@ func New(config Config) (Middleware, error) {
 	provider := strings.ToLower(strings.TrimSpace(config.Provider))
 
 	tracerProvider := config.TracerProvider
-	if isNilCapability(tracerProvider) {
+	if lo.IsNil(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
 	meterProvider := config.MeterProvider
-	if isNilCapability(meterProvider) {
+	if lo.IsNil(meterProvider) {
 		meterProvider = apiotel.GetMeterProvider()
 	}
 
@@ -96,7 +96,7 @@ func New(config Config) (Middleware, error) {
 // Call is a [corechat.CallMiddleware]. It preserves the wrapped model's response
 // and error exactly; observation is a read-only side effect.
 func (m Middleware) Call(next corechat.Model) corechat.Model {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return corechat.ModelFunc(func(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
@@ -114,7 +114,7 @@ func (m Middleware) Call(next corechat.Model) corechat.Model {
 // accumulation problem is recorded as an event and never becomes a business
 // error.
 func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return corechat.StreamerFunc(func(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
@@ -163,19 +163,6 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 			})
 		}
 	})
-}
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
 
 func (m Middleware) start(

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/samber/lo"
 )
 
 // Metadata keys recognized by [TextFileWriter] when writing document
@@ -60,7 +61,7 @@ func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 	}
 	if config.Formatter == nil {
 		config.Formatter = TextFormatter{}
-	} else if isNil(config.Formatter) {
+	} else if lo.IsNil(config.Formatter) {
 		return nil, errors.New("etl: formatter must not be a typed nil")
 	}
 	return &TextFileWriter{

@@ -27,7 +27,7 @@ func TestClientSurfaceStaysVectorFocused(t *testing.T) {
 	}
 }
 
-func TestProductionImportsOnlyStandardLibraryAndCore(t *testing.T) {
+func TestProductionDependenciesMatchBudget(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, path := range productionGoFiles(t) {
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -36,11 +36,11 @@ func TestProductionImportsOnlyStandardLibraryAndCore(t *testing.T) {
 		}
 		for _, specification := range file.Imports {
 			importPath := strings.Trim(specification.Path.Value, `"`)
-			if isStandardImport(importPath) || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
+			if isStandardImport(importPath) || importPath == "github.com/samber/lo" || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
 				continue
 			}
 			relative, _ := filepath.Rel(packageRoot(t), path)
-			t.Errorf("embeddingclient production import %q is outside stdlib + Core boundary: %s", importPath, relative)
+			t.Errorf("embeddingclient production import %q is outside its explicit dependency budget: %s", importPath, relative)
 		}
 	}
 }

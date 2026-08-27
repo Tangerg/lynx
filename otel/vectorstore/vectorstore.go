@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	apiotel "go.opentelemetry.io/otel"
@@ -16,6 +15,7 @@ import (
 
 	corevectorstore "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/vectorstore"
@@ -60,7 +60,7 @@ func New(config Config) (Middleware, error) {
 	system := strings.ToLower(strings.TrimSpace(config.System))
 
 	tracerProvider := config.TracerProvider
-	if isNilCapability(tracerProvider) {
+	if lo.IsNil(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
 	return Middleware{
@@ -71,22 +71,9 @@ func New(config Config) (Middleware, error) {
 	}, nil
 }
 
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}
-
 // Index instruments only the [corevectorstore.Indexer] capability.
 func (m Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return indexer{middleware: m, next: next}
@@ -94,7 +81,7 @@ func (m Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer 
 
 // Search instruments only the [corevectorstore.Searcher] capability.
 func (m Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searcher {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return searcher{middleware: m, next: next}
@@ -102,7 +89,7 @@ func (m Middleware) Search(next corevectorstore.Searcher) corevectorstore.Search
 
 // DeleteIDs instruments only the [corevectorstore.IDDeleter] capability.
 func (m Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.IDDeleter {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return idDeleter{middleware: m, next: next}
@@ -110,7 +97,7 @@ func (m Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.ID
 
 // DeleteWhere instruments only the [corevectorstore.FilterDeleter] capability.
 func (m Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorstore.FilterDeleter {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return filterDeleter{middleware: m, next: next}

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 func failureFromError(kind FailureKind, code string, err error) (Failure, error) {
@@ -43,7 +45,7 @@ func startExecution(definition Definition, input Input) (execution Execution, er
 		}
 	}()
 	execution, err = definition.Start(input)
-	if err == nil && nilInterface(execution) {
+	if err == nil && lo.IsNil(execution) {
 		return nil, errors.New("definition.Start returned nil execution")
 	}
 	return execution, err
@@ -57,7 +59,7 @@ func restoreExecution(definition Definition, state ExecutionState) (execution Ex
 		}
 	}()
 	execution, err = definition.Restore(state)
-	if err == nil && nilInterface(execution) {
+	if err == nil && lo.IsNil(execution) {
 		return nil, errors.New("definition.Restore returned nil execution")
 	}
 	return execution, err

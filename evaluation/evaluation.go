@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"slices"
 	"strings"
 
@@ -18,19 +17,6 @@ var (
 	ErrInvalidSample = errors.New("evaluation: invalid sample")
 	ErrInvalidReport = errors.New("evaluation: invalid report")
 )
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}
 
 // DefaultThreshold is used when [ModelConfig.Threshold] is nil.
 const DefaultThreshold Score = 0.5

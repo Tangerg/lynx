@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	agent "github.com/Tangerg/lynx/agent"
+	"github.com/samber/lo"
 )
 
 // DispatcherConfig binds side-effect-free observation and the exact set of
@@ -36,7 +37,7 @@ type Dispatcher struct {
 // by definition. Missing, extra, typed-nil, or child-Action executors are
 // rejected before Deployment assembly.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
-	if !definition.valid() || isNilImplementation(config.Observer) {
+	if !definition.valid() || lo.IsNil(config.Observer) {
 		return nil, ErrInvalidDispatcherConfig
 	}
 	executors := make(map[string]boundExecutor)
@@ -44,7 +45,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 		executor, supplied := config.ActionExecutors[binding.action.name]
 		switch binding.target {
 		case bindingTargetDispatcher:
-			if !supplied || isNilImplementation(executor) {
+			if !supplied || lo.IsNil(executor) {
 				return nil, fmt.Errorf("%w: missing executor for Action %q", ErrInvalidDispatcherConfig, binding.action.name)
 			}
 			executors[binding.action.name] = boundExecutor{action: binding.action, executor: executor}
@@ -57,7 +58,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 		}
 	}
 	for name, executor := range config.ActionExecutors {
-		if !validName(name) || isNilImplementation(executor) {
+		if !validName(name) || lo.IsNil(executor) {
 			return nil, fmt.Errorf("%w: invalid executor %q", ErrInvalidDispatcherConfig, name)
 		}
 		if _, found := executors[name]; !found {
@@ -77,7 +78,7 @@ func (d *Dispatcher) Dispatch(
 	request agent.EffectRequest,
 	_ agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	if d == nil || !d.descriptor.Valid() || isNilImplementation(d.observer) {
+	if d == nil || !d.descriptor.Valid() || lo.IsNil(d.observer) {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
 	}
 	envelope, err := decodeEffect(request.Effect().Payload())

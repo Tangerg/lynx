@@ -3,7 +3,8 @@ package tool
 import (
 	"errors"
 	"fmt"
-	"reflect"
+
+	"github.com/samber/lo"
 )
 
 // ErrInvalidWrappingChain reports a malformed Tool decorator chain.
@@ -33,7 +34,7 @@ func Capability[T any](value Tool) (capability T, found bool, err error) {
 	}()
 
 	current := value
-	for depth := 0; !isNilTool(current); depth++ {
+	for depth := 0; !lo.IsNil(current); depth++ {
 		if capability, ok := any(current).(T); ok {
 			return capability, true, nil
 		}
@@ -54,17 +55,4 @@ func Capability[T any](value Tool) (capability T, found bool, err error) {
 	}
 	var zero T
 	return zero, false, nil
-}
-
-func isNilTool(value Tool) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

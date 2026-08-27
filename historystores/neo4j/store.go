@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/history"
@@ -45,7 +46,7 @@ type Config struct {
 // optional values are valid and are resolved to their documented defaults by
 // [New].
 func (c Config) Validate() error {
-	if isNilCapability(c.Driver) {
+	if lo.IsNil(c.Driver) {
 		return errors.New("neo4j: driver is required")
 	}
 	if c.Label != "" && !validIdentifier(c.Label) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/samber/lo"
 )
 
 // Chunk-lineage metadata keys stamped by [Splitter] on every emitted chunk.
@@ -43,7 +44,7 @@ func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	if config.SplitFunc == nil {
 		return nil, errors.New("etl: split function is required")
 	}
-	if config.IDGenerator != nil && isNil(config.IDGenerator) {
+	if config.IDGenerator != nil && lo.IsNil(config.IDGenerator) {
 		return nil, errors.New("etl: ID generator must not be a typed nil")
 	}
 	return &Splitter{

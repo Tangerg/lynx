@@ -1,6 +1,10 @@
 package filter
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/samber/lo"
+)
 
 // Expr is the stable root of the immutable filter expression tree.
 type Expr interface {
@@ -29,32 +33,10 @@ type Predicate interface {
 }
 
 func equalExpr(left, right Expr) bool {
-	leftNil := isNilExpr(left)
-	rightNil := isNilExpr(right)
+	leftNil := lo.IsNil(left)
+	rightNil := lo.IsNil(right)
 	if leftNil || rightNil {
 		return leftNil && rightNil
 	}
 	return left.Equal(right)
-}
-
-func isNilExpr(expr Expr) bool {
-	if expr == nil {
-		return true
-	}
-	switch node := expr.(type) {
-	case *Ident:
-		return node == nil
-	case *Literal:
-		return node == nil
-	case *ListLiteral:
-		return node == nil
-	case *UnaryExpr:
-		return node == nil
-	case *BinaryExpr:
-		return node == nil
-	case *IndexExpr:
-		return node == nil
-	default:
-		return false
-	}
 }

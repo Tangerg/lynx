@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
+	"github.com/samber/lo"
 )
 
 const modelReportSchema = `{
@@ -52,7 +53,7 @@ func newModelEvaluator(
 	validate func(TextSample) error,
 	required ...string,
 ) (*modelEvaluator, error) {
-	if isNilCapability(config.Model) {
+	if lo.IsNil(config.Model) {
 		return nil, fmt.Errorf("%w: nil model", ErrInvalidConfig)
 	}
 	threshold := DefaultThreshold

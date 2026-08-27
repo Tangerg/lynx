@@ -3,6 +3,8 @@ package filter
 import (
 	"errors"
 	"fmt"
+
+	"github.com/samber/lo"
 )
 
 // BinaryHandlers names the operator-specific branches of a filter compiler.
@@ -54,7 +56,7 @@ func (b *BinaryExpr) Selector() (Selector, error) {
 		return nil, errors.New("filter.BinaryExpr.Selector: expression is nil")
 	}
 	selector, ok := b.left.(Selector)
-	if !ok || isNilExpr(selector) {
+	if !ok || lo.IsNil(selector) {
 		return nil, fmt.Errorf("filter: %s requires a selector on the left at %s, got %T",
 			b.operator.Name(), b.Start(), b.left)
 	}

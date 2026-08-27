@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/samber/lo"
 )
 
 var (
@@ -112,10 +113,10 @@ func (p preparedChatRequest) attachDocuments(response *chat.Response) error {
 // request, augment the last user message, and attach retrieved documents to
 // [chat.ResponseMetadata.Extra] under [RetrievedCandidatesKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
-	if isNil(config.Retriever) {
+	if lo.IsNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever
 	}
-	if isNil(config.Augmenter) {
+	if lo.IsNil(config.Augmenter) {
 		config.Augmenter = IdentityAugmenter()
 	}
 
@@ -222,7 +223,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 }
 
 func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
-	if isNil(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return chat.ModelFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
@@ -231,7 +232,7 @@ func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
 }
 
 func (m *middleware) wrapStreamHandler(next chat.Streamer) chat.Streamer {
-	if isNil(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return chat.StreamerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

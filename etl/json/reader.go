@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/samber/lo"
 )
 
 // Reader parses a JSON payload into [*document.Document] entries. Top-level
@@ -29,7 +29,7 @@ type Reader struct {
 
 // New constructs a JSON Reader from source.
 func New(source io.Reader) (*Reader, error) {
-	if isNil(source) {
+	if lo.IsNil(source) {
 		return nil, errors.New("json reader: source must not be nil")
 	}
 	return &Reader{source: source}, nil
@@ -87,17 +87,4 @@ func (*Reader) parseArray(ctx context.Context, data []byte) ([]*document.Documen
 		docs = append(docs, doc)
 	}
 	return docs, nil
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

@@ -7,12 +7,13 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/samber/lo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // Retrieve validates the complete input and output boundary around r.
 func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, error) {
-	if isNil(r) {
+	if lo.IsNil(r) {
 		return nil, ErrNilRetriever
 	}
 	if err := query.Validate(); err != nil {
@@ -39,7 +40,7 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 	}
 	owned := slices.Clone(retrievers)
 	for index, retriever := range owned {
-		if isNil(retriever) {
+		if lo.IsNil(retriever) {
 			return nil, fmt.Errorf("rag.Parallel: retriever %d: %w", index, ErrNilRetriever)
 		}
 	}
@@ -65,12 +66,12 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 // WithTransformers returns a [Retriever] that rewrites the query through
 // transformers before calling next.
 func WithTransformers(next Retriever, transformers ...Transformer) (Retriever, error) {
-	if isNil(next) {
+	if lo.IsNil(next) {
 		return nil, ErrNilRetriever
 	}
 	owned := slices.Clone(transformers)
 	for index, transformer := range owned {
-		if isNil(transformer) {
+		if lo.IsNil(transformer) {
 			return nil, fmt.Errorf("rag.WithTransformers: transformer %d: %w", index, ErrNilTransformer)
 		}
 	}
@@ -97,10 +98,10 @@ func WithTransformers(next Retriever, transformers ...Transformer) (Retriever, e
 // WithExpander returns a [Retriever] that expands one query into many and
 // calls next for each expanded query in parallel.
 func WithExpander(next Retriever, expander Expander) (Retriever, error) {
-	if isNil(next) {
+	if lo.IsNil(next) {
 		return nil, ErrNilRetriever
 	}
-	if isNil(expander) {
+	if lo.IsNil(expander) {
 		return nil, ErrNilExpander
 	}
 
@@ -129,12 +130,12 @@ func WithExpander(next Retriever, expander Expander) (Retriever, error) {
 // WithRefiners returns a [Retriever] that calls next and then applies
 // refiners to the returned documents in order.
 func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
-	if isNil(next) {
+	if lo.IsNil(next) {
 		return nil, ErrNilRetriever
 	}
 	owned := slices.Clone(refiners)
 	for index, refiner := range owned {
-		if isNil(refiner) {
+		if lo.IsNil(refiner) {
 			return nil, fmt.Errorf("rag.WithRefiners: refiner %d: %w", index, ErrNilRefiner)
 		}
 	}

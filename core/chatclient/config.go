@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 // Config describes construction-time Client behavior. Request-specific
@@ -25,7 +26,7 @@ func (c Config) snapshot() (Config, error) {
 	if err := c.Defaults.Validate(); err != nil {
 		return Config{}, err
 	}
-	if c.Streamer != nil && isNil(c.Streamer) {
+	if c.Streamer != nil && lo.IsNil(c.Streamer) {
 		return Config{}, errors.New("chatclient: nil streamer")
 	}
 	c.CallMiddleware = slices.Clone(c.CallMiddleware)

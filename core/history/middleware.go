@@ -7,6 +7,7 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 // ErrNilStream reports a wrapped Streamer that violates the Streamer contract
@@ -22,7 +23,7 @@ type Middleware struct {
 
 // NewMiddleware constructs history middleware around store.
 func NewMiddleware(store ReadWriter) (Middleware, error) {
-	if isNilCapability(store) {
+	if lo.IsNil(store) {
 		return Middleware{}, ErrNilStore
 	}
 	return Middleware{store: store}, nil

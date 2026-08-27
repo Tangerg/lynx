@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"reflect"
 )
 
 // Source is the read-only repository that lists and loads skills. Its two
@@ -27,19 +26,6 @@ type Source interface {
 type ResourceSource interface {
 	Source
 	OpenResource(ctx context.Context, name, resource string) (fs.File, error)
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
 
 func contextError(ctx context.Context, operation string) error {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // Composite evaluates children sequentially, applies AND semantics to Passed,
@@ -20,7 +22,7 @@ func NewComposite[T any](evaluators ...Evaluator[T]) (*Composite[T], error) {
 	}
 	snapshot := make([]Evaluator[T], len(evaluators))
 	for i, evaluator := range evaluators {
-		if isNilCapability(evaluator) {
+		if lo.IsNil(evaluator) {
 			return nil, fmt.Errorf("%w: evaluators[%d] is nil", ErrInvalidConfig, i)
 		}
 		snapshot[i] = evaluator

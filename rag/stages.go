@@ -5,24 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 
 	"github.com/Tangerg/lynx/core/document"
 )
-
-// isNil recognizes both nil interfaces and interfaces containing a typed nil.
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}
 
 var (
 	// ErrInvalidCandidate reports a missing/invalid document or non-finite score.

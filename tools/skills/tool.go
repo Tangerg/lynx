@@ -3,11 +3,11 @@ package skills
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/core/tool"
 	skillsrc "github.com/Tangerg/lynx/skills"
+	"github.com/samber/lo"
 )
 
 type LoadSkillRequest struct {
@@ -26,7 +26,7 @@ type toolSet struct {
 // NewTools builds the three progressive-disclosure tools over source. A skill
 // source has no sensible default, so nil returns [ErrNilSource].
 func NewTools(source skillsrc.ResourceSource) ([]toolcontract.Tool, error) {
-	if isNilSource(source) {
+	if lo.IsNil(source) {
 		return nil, ErrNilSource
 	}
 	set := &toolSet{source: source}
@@ -64,19 +64,6 @@ func NewTools(source skillsrc.ResourceSource) ([]toolcontract.Tool, error) {
 		return nil, fmt.Errorf("skills: build read_skill_resource: %w", err)
 	}
 	return []toolcontract.Tool{list, load, readResource}, nil
-}
-
-func isNilSource(source skillsrc.ResourceSource) bool {
-	value := reflect.ValueOf(source)
-	if !value.IsValid() {
-		return true
-	}
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }
 
 func (t *toolSet) list(ctx context.Context, _ struct{}) (string, error) {

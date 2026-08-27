@@ -2,15 +2,9 @@ package redis
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	return !reflected.IsValid() || (reflected.Kind() == reflect.Pointer && reflected.IsNil())
-}
 
 func encodeMessages(messages []chat.Message) ([][]byte, error) {
 	encoded := make([][]byte, len(messages))

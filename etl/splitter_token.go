@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/samber/lo"
 )
 
 const (
@@ -48,7 +49,7 @@ type TokenSplitter struct {
 }
 
 func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
-	if isNil(config.Tokenizer) {
+	if lo.IsNil(config.Tokenizer) {
 		return nil, errors.New("etl: tokenizer is required")
 	}
 	if config.MaxTokensPerChunk < 0 || config.MinTokensPerChunk < 0 ||

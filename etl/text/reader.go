@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/samber/lo"
 )
 
 // Reader reads the entire contents of an [io.Reader] and packages
@@ -21,7 +21,7 @@ type Reader struct {
 
 // New constructs a text Reader from source.
 func New(source io.Reader) (*Reader, error) {
-	if isNil(source) {
+	if lo.IsNil(source) {
 		return nil, errors.New("text reader: source must not be nil")
 	}
 	return &Reader{source: source}, nil
@@ -50,17 +50,4 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 		return nil, fmt.Errorf("text reader: build document: %w", err)
 	}
 	return []*document.Document{doc}, nil
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

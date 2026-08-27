@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
@@ -45,7 +45,7 @@ type Reader struct {
 
 // New builds a Markdown reader over source.
 func New(source io.Reader, config Config) (*Reader, error) {
-	if isNil(source) {
+	if lo.IsNil(source) {
 		return nil, errors.New("markdown reader: source must not be nil")
 	}
 	r := &Reader{
@@ -286,18 +286,5 @@ func (s *section) collectSegments(buf *bytes.Buffer, raw []byte, n ast.Node) {
 	}
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		s.collectSegments(buf, raw, c)
-	}
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
 	}
 }

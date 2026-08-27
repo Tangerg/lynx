@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	apiotel "go.opentelemetry.io/otel"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	corehistory "github.com/Tangerg/lynx/core/history"
+	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel/history"
@@ -53,7 +53,7 @@ func New(config Config) (Middleware, error) {
 	}
 	system := strings.ToLower(strings.TrimSpace(config.System))
 	tracerProvider := config.TracerProvider
-	if isNilCapability(tracerProvider) {
+	if lo.IsNil(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
 	return Middleware{
@@ -65,22 +65,9 @@ func New(config Config) (Middleware, error) {
 	}, nil
 }
 
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}
-
 // Store instruments the ordinary read, write, and clear capabilities.
 func (m Middleware) Store(next corehistory.Store) corehistory.Store {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return historyStore{middleware: m, next: next}
@@ -89,7 +76,7 @@ func (m Middleware) Store(next corehistory.Store) corehistory.Store {
 // Conversations instruments the optional cross-conversation listing
 // capability without synthesizing it for stores that do not provide it.
 func (m Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return historyLister{middleware: m, next: next}
@@ -97,7 +84,7 @@ func (m Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
 
 // Replace instruments the optional atomic replacement capability.
 func (m Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return historyReplacer{middleware: m, next: next}
@@ -105,7 +92,7 @@ func (m Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
 
 // Count instruments the optional message-count capability.
 func (m Middleware) Count(next corehistory.Counter) corehistory.Counter {
-	if isNilCapability(next) {
+	if lo.IsNil(next) {
 		return nil
 	}
 	return historyCounter{middleware: m, next: next}

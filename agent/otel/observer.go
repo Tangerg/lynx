@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	agent "github.com/Tangerg/lynx/agent"
+	"github.com/samber/lo"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/agent/otel"
@@ -72,10 +72,10 @@ type stepKey struct {
 
 // New validates providers and constructs one isolated Observer.
 func New(config Config) (*Observer, error) {
-	if typedNil(config.TracerProvider) {
+	if config.TracerProvider != nil && lo.IsNil(config.TracerProvider) {
 		return nil, fmt.Errorf("%w: TracerProvider is typed nil", ErrInvalidConfig)
 	}
-	if typedNil(config.MeterProvider) {
+	if config.MeterProvider != nil && lo.IsNil(config.MeterProvider) {
 		return nil, fmt.Errorf("%w: MeterProvider is typed nil", ErrInvalidConfig)
 	}
 	tracerProvider := config.TracerProvider
@@ -473,19 +473,6 @@ func processStatusIsError(status agent.Status) bool {
 	switch status {
 	case agent.StatusFailed, agent.StatusTimedOut, agent.StatusKilled:
 		return true
-	default:
-		return false
-	}
-}
-
-func typedNil(value any) bool {
-	if value == nil {
-		return false
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
 	default:
 		return false
 	}

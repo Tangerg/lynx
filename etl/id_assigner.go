@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/samber/lo"
 )
 
 // IDAssignerConfig configures document ID assignment.
@@ -26,7 +27,7 @@ type IDAssigner struct {
 }
 
 func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
-	if isNil(config.Generator) {
+	if lo.IsNil(config.Generator) {
 		return nil, errors.New("etl: ID generator is required")
 	}
 	return &IDAssigner{

@@ -2,7 +2,6 @@ package neo4j
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
 	"sync"
 	"time"
@@ -14,11 +13,6 @@ var identifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func validIdentifier(value string) bool {
 	return identifierPattern.MatchString(value)
-}
-
-func isNilCapability(value any) bool {
-	reflected := reflect.ValueOf(value)
-	return !reflected.IsValid() || (reflected.Kind() == reflect.Pointer && reflected.IsNil())
 }
 
 func encodeMessages(messages []chat.Message) ([][]byte, error) {

@@ -3,7 +3,8 @@ package agent
 import (
 	"errors"
 	"fmt"
-	"reflect"
+
+	"github.com/samber/lo"
 )
 
 // ErrInvalidDeployment reports an incomplete or contradictory exact binding.
@@ -40,10 +41,10 @@ type Deployment struct {
 // binding. Definition and Dispatcher implementations must themselves obey their
 // documented immutability and concurrency contracts.
 func NewDeployment(config DeploymentConfig) (Deployment, error) {
-	if nilInterface(config.Definition) {
+	if lo.IsNil(config.Definition) {
 		return Deployment{}, fmt.Errorf("%w: definition is required", ErrInvalidDeployment)
 	}
-	if nilInterface(config.Dispatcher) {
+	if lo.IsNil(config.Dispatcher) {
 		return Deployment{}, fmt.Errorf("%w: dispatcher is required", ErrInvalidDeployment)
 	}
 	descriptor := config.Definition.Descriptor()
@@ -72,21 +73,8 @@ func (d Deployment) Definition() Definition { return d.definition }
 // reports the contract frozen at construction.
 func (d Deployment) Valid() bool {
 	return d.reference.Valid() && d.descriptor.Valid() &&
-		!nilInterface(d.definition) && !nilInterface(d.dispatcher) &&
+		!lo.IsNil(d.definition) && !lo.IsNil(d.dispatcher) &&
 		d.definition.Descriptor().Digest() == d.descriptor.Digest()
 }
 
 func (d Deployment) effectDispatcher() Dispatcher { return d.dispatcher }
-
-func nilInterface(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}

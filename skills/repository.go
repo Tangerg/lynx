@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"slices"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // SkillFile is the required metadata file at the root of every skill
@@ -28,7 +30,7 @@ var _ ResourceSource = (*Repository)(nil)
 // NewFS trusts the confinement semantics of fsys. Use [Dir] for an operating
 // system directory that must reject symbolic links escaping its root.
 func NewFS(fsys fs.FS) (*Repository, error) {
-	if isNil(fsys) {
+	if lo.IsNil(fsys) {
 		return nil, ErrNilFilesystem
 	}
 	return &Repository{fsys: fsys}, nil
@@ -43,7 +45,7 @@ func Dir(root string) *Repository {
 }
 
 func (r *Repository) validate() error {
-	if r == nil || isNil(r.fsys) {
+	if r == nil || lo.IsNil(r.fsys) {
 		return ErrNilFilesystem
 	}
 	return nil

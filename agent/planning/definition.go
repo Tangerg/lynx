@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	agent "github.com/Tangerg/lynx/agent"
+	"github.com/samber/lo"
 )
 
 const (
@@ -57,7 +58,7 @@ type Definition struct {
 
 // NewDefinition validates config and constructs a managed Planning Definition.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
-	if !config.InputSchema.Valid() || !config.Goal.Valid() || isNilImplementation(config.Planner) || config.MaxActionAttempts == 0 {
+	if !config.InputSchema.Valid() || !config.Goal.Valid() || lo.IsNil(config.Planner) || config.MaxActionAttempts == 0 {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	bindings := slices.Clone(config.Actions)
@@ -130,7 +131,7 @@ func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error
 
 func (d *Definition) valid() bool {
 	if d == nil || !d.descriptor.Valid() || !d.goal.Valid() ||
-		isNilImplementation(d.planner) || d.maxActionAttempts == 0 || len(d.bindings) != len(d.byName) {
+		lo.IsNil(d.planner) || d.maxActionAttempts == 0 || len(d.bindings) != len(d.byName) {
 		return false
 	}
 	for _, binding := range d.bindings {

@@ -6,6 +6,8 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 var (
@@ -159,7 +161,7 @@ func (q *Query) WithValue[T any](key ValueKey[T], value T) (*Query, error) {
 	if err := key.validate(); err != nil {
 		return nil, err
 	}
-	if isNil(value) {
+	if lo.IsNil(value) {
 		return nil, fmt.Errorf("%w for %q", ErrNilQueryValue, key.name)
 	}
 	if current, found := q.values[key.name]; found && current.typ != key.typ {

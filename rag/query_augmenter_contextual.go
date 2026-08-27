@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/samber/lo"
 )
 
 // DocumentFormatter renders one retrieved document for contextual RAG.
@@ -104,7 +105,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 		return nil, err
 	}
 	formatter := cfg.Formatter
-	if isNil(formatter) {
+	if lo.IsNil(formatter) {
 		formatter = textDocumentFormatter{}
 	}
 

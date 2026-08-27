@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"slices"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 // Merge layers several resource sources into one. Earlier sources take
@@ -20,7 +22,7 @@ import (
 func Merge(sources ...ResourceSource) ResourceSource {
 	kept := make([]ResourceSource, 0, len(sources))
 	for _, s := range sources {
-		if !isNil(s) {
+		if !lo.IsNil(s) {
 			kept = append(kept, s)
 		}
 	}

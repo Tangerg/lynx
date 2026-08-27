@@ -2,7 +2,8 @@ package filter
 
 import (
 	"fmt"
-	"reflect"
+
+	"github.com/samber/lo"
 )
 
 // Visitor processes a complete expression tree. Implementations own traversal
@@ -18,21 +19,8 @@ func accept(predicate Predicate, visitor Visitor) error {
 	if err := predicate.Validate(); err != nil {
 		return err
 	}
-	if isNilVisitor(visitor) {
+	if lo.IsNil(visitor) {
 		return fmt.Errorf("filter.Predicate.Accept: visitor is nil")
 	}
 	return visitor.Visit(predicate)
-}
-
-func isNilVisitor(visitor Visitor) bool {
-	if visitor == nil {
-		return true
-	}
-	value := reflect.ValueOf(visitor)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 
 	agent "github.com/Tangerg/lynx/agent"
+	"github.com/samber/lo"
 )
 
 var (
@@ -84,7 +84,7 @@ func (p *Platform) SelectDeployment(
 	if p == nil {
 		return agent.Deployment{}, ErrNilPlatform
 	}
-	if nilDeploymentSelector(selector) {
+	if lo.IsNil(selector) {
 		return agent.Deployment{}, ErrNilDeploymentSelector
 	}
 	p.mu.RLock()
@@ -143,17 +143,4 @@ func callDeploymentSelector(
 		}
 	}()
 	return selector.Select(ctx, candidates)
-}
-
-func nilDeploymentSelector(selector DeploymentSelector) bool {
-	if selector == nil {
-		return true
-	}
-	value := reflect.ValueOf(selector)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

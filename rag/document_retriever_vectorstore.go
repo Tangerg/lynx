@@ -7,6 +7,7 @@ import (
 
 	corevs "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/samber/lo"
 )
 
 var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store filter")
@@ -50,7 +51,7 @@ type VectorStoreRetriever struct {
 // capping, and
 // similarity thresholds.
 func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	if isNil(cfg.VectorStore) {
+	if lo.IsNil(cfg.VectorStore) {
 		return nil, errors.New("rag: vector store is required")
 	}
 	if cfg.TopK < 0 {

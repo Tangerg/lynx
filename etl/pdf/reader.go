@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"strings"
 
 	ledongthuc "github.com/ledongthuc/pdf"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/document"
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
@@ -49,7 +49,7 @@ type Reader struct {
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
 func New(source io.ReaderAt, size int64, config Config) (*Reader, error) {
-	if isNil(source) {
+	if lo.IsNil(source) {
 		return nil, errors.New("pdf reader: source must not be nil")
 	}
 	if size <= 0 {
@@ -246,17 +246,4 @@ func (*Reader) pageText(pdfReader *ledongthuc.Reader, pageIndex int, fonts map[s
 		return "", fmt.Errorf("page %d: %w", pageIndex, err)
 	}
 	return text, nil
-}
-
-func isNil(value any) bool {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return true
-	}
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

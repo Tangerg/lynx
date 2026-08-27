@@ -9,6 +9,7 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/history"
@@ -43,7 +44,7 @@ type Config struct {
 // Validate reports whether c can be used to construct a [Store]. A blank key
 // prefix is valid and is resolved to [DefaultKeyPrefix] by [New].
 func (c Config) Validate() error {
-	if isNilCapability(c.Client) {
+	if lo.IsNil(c.Client) {
 		return errors.New("redis: client is required")
 	}
 	if c.TTL < 0 {

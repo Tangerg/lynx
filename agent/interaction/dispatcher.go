@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
 	"github.com/Tangerg/lynx/core/tool"
+	"github.com/samber/lo"
 )
 
 // DispatcherConfig binds external capabilities for one Deployment.
@@ -112,7 +112,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 }
 
 func (d *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
-	if isNilTool(executable) {
+	if lo.IsNil(executable) {
 		return errors.New("tool is nil")
 	}
 	definition, err := toolDefinition(executable)
@@ -614,19 +614,6 @@ func cloneDefinitions(definitions []chat.ToolDefinition) []chat.ToolDefinition {
 		cloned[index] = definitions[index].Clone()
 	}
 	return cloned
-}
-
-func isNilTool(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
 
 var _ agent.Dispatcher = (*Dispatcher)(nil)
