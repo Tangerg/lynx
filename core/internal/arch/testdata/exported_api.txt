@@ -152,8 +152,8 @@ chatclient: type Config struct { Defaults chat.Options Streamer chat.Streamer Ca
 chatclient: type Generation[T any] struct { client *Client format OutputFormat[T] }
 chatclient: type OutputFormat[T any] struct { contract chat.OutputFormat decoder func([]byte) (T, error) }
 chatclient: type Template struct { source string compiled *template.Template }
+chatclient: var ( ErrInvalidOutputFormat = errors.New("chatclient: invalid output format") ErrInvalidOutput = errors.New("chatclient: invalid output") )
 chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") )
-chatclient: var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 document: func (d *Document) Clone() *Document
 document: func (d *Document) Validate() error

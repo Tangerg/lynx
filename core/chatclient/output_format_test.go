@@ -119,8 +119,8 @@ func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 		`{"name":"tea","name":"coffee","steps":[]}`,
 		string([]byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', ',', '"', 's', 't', 'e', 'p', 's', '"', ':', '[', ']', '}'}),
 	} {
-		if _, err := JSON[recipe]().decode(once(responseWithText(t, raw), nil)); err == nil {
-			t.Fatalf("Decode(%q) unexpectedly succeeded", raw)
+		if _, err := JSON[recipe]().decode(once(responseWithText(t, raw), nil)); !errors.Is(err, ErrInvalidOutput) {
+			t.Fatalf("Decode(%q) error = %v, want ErrInvalidOutput", raw, err)
 		}
 	}
 }
@@ -131,14 +131,14 @@ func TestOutputFormatDecodeBoundaries(t *testing.T) {
 	if _, err := format.decode(nil); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("nil sequence error = %v", err)
 	}
-	if _, err := format.decode(once(nil, nil)); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := format.decode(once(nil, nil)); !errors.Is(err, ErrInvalidOutput) {
 		t.Fatalf("nil response error = %v", err)
 	}
 	if _, err := format.decode(once(nil, upstream)); !errors.Is(err, upstream) {
 		t.Fatalf("upstream error = %v", err)
 	}
 	empty := iter.Seq2[*chat.Response, error](func(func(*chat.Response, error) bool) {})
-	if _, err := format.decode(empty); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := format.decode(empty); !errors.Is(err, ErrInvalidOutput) {
 		t.Fatalf("empty sequence error = %v", err)
 	}
 	if got, err := Text().decode(once(responseWithText(t, " exact \n"), nil)); err != nil || got != " exact \n" {

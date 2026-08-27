@@ -12,8 +12,14 @@ import (
 	jsonrepair "github.com/silaswei-io/jsonrepair-go"
 )
 
-// ErrInvalidOutputFormat reports an unusable output format or response stream.
-var ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
+var (
+	// ErrInvalidOutputFormat reports an unusable output format configuration.
+	ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
+
+	// ErrInvalidOutput reports a completed model response that cannot satisfy
+	// its bound output contract.
+	ErrInvalidOutput = errors.New("chatclient: invalid output")
+)
 
 // OutputFormat couples a provider-neutral request contract with the decoder
 // that consumes its response stream. Pass one to [Client.Output].
@@ -85,20 +91,20 @@ func (o OutputFormat[T]) decode(responses iter.Seq2[*chat.Response, error]) (T, 
 			return zero, err
 		}
 		if response == nil {
-			return zero, fmt.Errorf("%w: nil response", ErrInvalidOutputFormat)
+			return zero, fmt.Errorf("%w: nil response", ErrInvalidOutput)
 		}
 		if err := response.Validate(); err != nil {
-			return zero, fmt.Errorf("%w: response: %w", ErrInvalidOutputFormat, err)
+			return zero, fmt.Errorf("%w: response: %w", ErrInvalidOutput, err)
 		}
 		seen = true
 		text.WriteString(response.Text())
 	}
 	if !seen {
-		return zero, fmt.Errorf("%w: empty response sequence", ErrInvalidOutputFormat)
+		return zero, fmt.Errorf("%w: empty response sequence", ErrInvalidOutput)
 	}
 	value, err := o.decoder([]byte(text.String()))
 	if err != nil {
-		return zero, fmt.Errorf("chatclient: decode result: %w", err)
+		return zero, fmt.Errorf("%w: decode: %w", ErrInvalidOutput, err)
 	}
 	return value, nil
 }
