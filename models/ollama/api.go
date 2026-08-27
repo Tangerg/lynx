@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -69,13 +68,41 @@ func (a *api) chat(ctx context.Context, req *nativeChatRequest, fn func(nativeCh
 	if req == nil {
 		return errors.New("ollama: request must not be nil")
 	}
-	return a.stream(ctx, "/api/chat", req, func(data []byte) error {
-		var response nativeChatResponse
-		if err := json.Unmarshal(data, &response); err != nil {
+	response, err := a.request(ctx, "/api/chat", req, "application/x-ndjson")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxNativeErrorBytes+1))
+		if readErr != nil {
+			return readErr
+		}
+		if len(body) > maxNativeErrorBytes {
+			body = body[:maxNativeErrorBytes]
+		}
+		return nativeResponseError(response, body)
+	}
+
+	decoder := json.NewDecoder(response.Body)
+	for {
+		var frame nativeChatResponse
+		if err := decoder.Decode(&frame); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return fmt.Errorf("ollama: decode native chat stream: %w", err)
+		}
+		if len(frame.raw) > maxNativeStreamFrameBytes {
+			return fmt.Errorf("ollama: native stream frame exceeds %d bytes", maxNativeStreamFrameBytes)
+		}
+		if frame.Error != "" {
+			return errors.New(frame.Error)
+		}
+		if err := fn(frame); err != nil {
 			return err
 		}
-		return fn(response)
-	})
+	}
 }
 
 func (a *api) embed(ctx context.Context, req *nativeEmbedRequest) (*nativeEmbedResponse, error) {
@@ -109,54 +136,6 @@ func (a *api) call(ctx context.Context, path string, requestValue, responseValue
 		return nil
 	}
 	return json.Unmarshal(body, responseValue)
-}
-
-func (a *api) stream(
-	ctx context.Context,
-	path string,
-	requestValue any,
-	yield func([]byte) error,
-) error {
-	response, err := a.request(ctx, path, requestValue, "application/x-ndjson")
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= http.StatusBadRequest {
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxNativeErrorBytes+1))
-		if readErr != nil {
-			return readErr
-		}
-		if len(body) > maxNativeErrorBytes {
-			body = body[:maxNativeErrorBytes]
-		}
-		return nativeResponseError(response, body)
-	}
-
-	scanner := bufio.NewScanner(response.Body)
-	scanner.Buffer(make([]byte, 0, 64<<10), maxNativeStreamFrameBytes)
-	for scanner.Scan() {
-		data := bytes.Clone(scanner.Bytes())
-		if err := nativeResponseError(response, data); err != nil {
-			return err
-		}
-		var providerFailure struct {
-			Error string `json:"error"`
-		}
-		if err := json.Unmarshal(data, &providerFailure); err != nil {
-			return err
-		}
-		if providerFailure.Error != "" {
-			return errors.New(providerFailure.Error)
-		}
-		if err := yield(data); err != nil {
-			return err
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("ollama: read native stream: %w", err)
-	}
-	return nil
 }
 
 func (a *api) request(

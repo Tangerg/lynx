@@ -181,6 +181,7 @@ type nativeMetrics struct {
 }
 
 type nativeChatResponse struct {
+	Error       string          `json:"error,omitempty"`
 	Model       string          `json:"model"`
 	RemoteModel string          `json:"remote_model,omitempty"`
 	RemoteHost  string          `json:"remote_host,omitempty"`

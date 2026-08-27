@@ -1,10 +1,7 @@
 package mistral
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
@@ -91,41 +88,4 @@ func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, 
 		}))
 	}
 	return parts, nil
-}
-
-func scanMistralSSE(reader io.Reader, yield func([]byte) bool) error {
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	var data []byte
-	flush := func() bool {
-		if len(data) == 0 {
-			return true
-		}
-		payload := bytes.TrimSpace(data)
-		data = data[:0]
-		if bytes.Equal(payload, []byte("[DONE]")) {
-			return false
-		}
-		return yield(payload)
-	}
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			if !flush() {
-				return nil
-			}
-			continue
-		}
-		if bytes.HasPrefix(line, []byte("data:")) {
-			if len(data) > 0 {
-				data = append(data, '\n')
-			}
-			data = append(data, bytes.TrimSpace(line[len("data:"):])...)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("mistral: read chat stream: %w", err)
-	}
-	flush()
-	return nil
 }

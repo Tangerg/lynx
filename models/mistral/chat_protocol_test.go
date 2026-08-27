@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -209,4 +210,30 @@ func TestChatReturnsStructuredAPIError(t *testing.T) {
 	if apiError.StatusCode != http.StatusUnprocessableEntity || apiError.RequestID != "req-123" || apiError.Message != "invalid reasoning_effort" {
 		t.Fatalf("API error = %#v", apiError)
 	}
+}
+
+func TestChatStreamSurfacesMalformedEvent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(writer, "data: {\n\n")
+	}))
+	t.Cleanup(server.Close)
+
+	model, err := mistral.NewChat(mistral.ChatConfig{
+		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "mistral-small-latest"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := corechat.NewRequest(corechat.NewUserMessage(corechat.NewTextPart("hello")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range model.Stream(t.Context(), request) {
+		if streamErr == nil || !strings.Contains(streamErr.Error(), "decode chat stream chunk") {
+			t.Fatalf("Stream error = %v, want malformed event error", streamErr)
+		}
+		return
+	}
+	t.Fatal("Stream completed without surfacing malformed event")
 }

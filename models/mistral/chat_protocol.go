@@ -1,6 +1,7 @@
 package mistral
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -10,12 +11,15 @@ import (
 	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/sse"
 )
 
 const (
 	RequestExtensionKey     = "mistral/request"
 	responseExtensionKey    = "mistral/response"
 	streamChunkExtensionKey = "mistral/chunk"
+	mistralStreamDone       = "[DONE]"
+	mistralStreamMaxBytes   = 16 << 20
 )
 
 // ReasoningEffort controls Mistral's native reasoning mode.
@@ -139,21 +143,32 @@ func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[
 		}
 		defer body.Close()
 
+		events := sse.NewReader(body)
+		events.MaxLineBytes = mistralStreamMaxBytes
+		events.MaxEventBytes = mistralStreamMaxBytes
 		state := newChatStreamState()
-		if scanMistralSSEErr := scanMistralSSE(body, func(data []byte) bool {
+		for event, eventErr := range events.Messages() {
+			if eventErr != nil {
+				yield(nil, fmt.Errorf("mistral: read chat stream: %w", eventErr))
+				return
+			}
+			data := bytes.TrimSpace(event.Data)
+			if bytes.Equal(data, []byte(mistralStreamDone)) {
+				return
+			}
 			var chunk chatCompletionChunk
-			if decodeErr := json.Unmarshal(data, &chunk); decodeErr != nil {
-				err = fmt.Errorf("mistral: decode chat stream chunk: %w", decodeErr)
-				return false
+			if err := json.Unmarshal(data, &chunk); err != nil {
+				yield(nil, fmt.Errorf("mistral: decode chat stream chunk: %w", err))
+				return
 			}
-			response, mapErr := state.mapChunk(chunk)
-			if mapErr != nil {
-				err = mapErr
-				return false
+			response, err := state.mapChunk(chunk)
+			if err != nil {
+				yield(nil, err)
+				return
 			}
-			return yield(response, nil)
-		}); scanMistralSSEErr != nil {
-			yield(nil, scanMistralSSEErr)
+			if !yield(response, nil) {
+				return
+			}
 		}
 	}
 }

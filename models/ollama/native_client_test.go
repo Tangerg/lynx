@@ -69,3 +69,23 @@ func TestNativeChatReportsProviderStatusAndMessage(t *testing.T) {
 		t.Fatalf("Call error = %v, want provider status and message", err)
 	}
 }
+
+func TestNativeChatReportsSuccessfulStatusErrorFrame(t *testing.T) {
+	server := jsonServer(http.StatusOK, `{"error":"model is missing"}`)
+	t.Cleanup(server.Close)
+	model, err := ollama.NewChat(ollama.ChatConfig{
+		DefaultOptions: corechat.Options{Model: "missing"},
+		BaseURL:        server.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := corechat.NewRequest(corechat.NewUserMessage(corechat.NewTextPart("hello")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = model.Call(t.Context(), request)
+	if err == nil || !strings.Contains(err.Error(), "model is missing") {
+		t.Fatalf("Call error = %v, want provider frame error", err)
+	}
+}
