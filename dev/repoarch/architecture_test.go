@@ -26,6 +26,7 @@ var (
 		"github.com/pb33f/ordered-map/v2",
 		"github.com/samber/lo",
 		"github.com/santhosh-tekuri/jsonschema/v6",
+		"github.com/silaswei-io/jsonrepair-go",
 		"go.yaml.in/yaml/v4",
 		"golang.org/x/text",
 	}
@@ -33,6 +34,7 @@ var (
 		"github.com/invopop/jsonschema",
 		"github.com/samber/lo",
 		"github.com/santhosh-tekuri/jsonschema/v6",
+		"github.com/silaswei-io/jsonrepair-go",
 	}
 )
 
