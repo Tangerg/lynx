@@ -476,11 +476,23 @@
       "path": "github.com/Tangerg/scope/app/runtime/localruntime",
       "variables": [
         {
+          "name": "ErrInvalidDataDirectory",
+          "type": "error"
+        },
+        {
           "name": "ErrInvalidToken",
           "type": "error"
         }
       ],
       "functions": [
+        {
+          "name": "DataDirectoryAt",
+          "signature": "func(path string) (DataDirectory, error)"
+        },
+        {
+          "name": "DefaultDataDirectory",
+          "signature": "func(userHome string) (DataDirectory, error)"
+        },
         {
           "name": "OpenToken",
           "signature": "func(path string) (*Token, error)"
@@ -491,6 +503,24 @@
         }
       ],
       "types": [
+        {
+          "name": "DataDirectory",
+          "kind": "struct",
+          "methods": [
+            {
+              "name": "DatabasePath",
+              "signature": "func() string"
+            },
+            {
+              "name": "LocalTokenPath",
+              "signature": "func() string"
+            },
+            {
+              "name": "Path",
+              "signature": "func() string"
+            }
+          ]
+        },
         {
           "name": "Token",
           "kind": "struct",
@@ -1462,7 +1492,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-24\""
+          "value": "\"2026-08-28\""
         },
         {
           "name": "ProviderConfigClear",

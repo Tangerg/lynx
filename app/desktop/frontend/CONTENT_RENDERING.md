@@ -1,9 +1,9 @@
-# Lyra 内容区渲染规格
+# ScopeApp 内容区渲染规格
 
-> **这份文档是自包含的。** 读它不需要打开仓库、不需要事先了解 Lyra。
+> **这份文档是自包含的。** 读它不需要打开仓库、不需要事先了解 ScopeApp。
 > 它回答三个问题：**后端会给什么数据**（TypeScript 写全）、**每个字段大致要表达什么**、**大概落在界面的哪个区域**。
 >
-> 面向两类人：给内容区**重做视觉**的设计/前端；以及要给 Lyra Runtime 写另一个客户端的人。
+> 面向两类人：给内容区**重做视觉**的设计/前端；以及要给 ScopeApp Runtime 写另一个客户端的人。
 
 > ### ⚠️ 怎么用这份文档
 >
@@ -33,7 +33,7 @@
 
 | 事实 | 文件 |
 | --- | --- |
-| wire 形状 / 枚举 | `app/runtime/contract/typescript` 的 `@lyra/runtime-contract/wire`（codegen，含 `PROTOCOL_VERSION`） |
+| wire 形状 / 枚举 | `app/runtime/contract/typescript` 的 `@scopeapp/runtime-contract/wire`（codegen，含 `PROTOCOL_VERSION`） |
 | 事件可靠性 / feature 门控 / 工具 result 归一化登记 | `app/runtime/contract/manifest.json` |
 | 字段级 presence 规则（跨字段约束） | `app/runtime/contract/schema.json` |
 | 工具身份 + safetyClass + 进行中文案 | `app/runtime/internal/adapter/toolset/catalog/` |
@@ -1931,7 +1931,7 @@ interface AgentMemoryItem {
 ### 9.7 知识文件（G 区）
 
 ```ts
-interface MemoryEntry {                        // 用户可编辑的 LYRA.md
+interface MemoryEntry {                        // 用户可编辑的 SCOPEAPP.md
   scope: "cwd" | "projectRoot" | "home";
   path: string; content: string; updatedAt?: string;
 }

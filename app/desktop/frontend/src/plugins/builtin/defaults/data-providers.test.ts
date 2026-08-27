@@ -17,10 +17,10 @@ import type {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
-import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
+import { createScopeAppClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
-import type { WireMethodName } from "@lyra/runtime-contract/methods";
+import type { WireMethodName } from "@scopeapp/runtime-contract/methods";
 import { defaultDataProviders } from "./index";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
 
@@ -35,7 +35,7 @@ async function runProvider<T>(
   params?: unknown,
 ): Promise<{ value: T; requests: Array<{ method: string; params: unknown }> }> {
   const t = createMemoryTransport();
-  const client = createLyraClient(t);
+  const client = createScopeAppClient(t);
   try {
     setContainer({ client: () => client });
     await loadPluginsForTest(defaultDataProviders);
@@ -57,7 +57,7 @@ async function runProvider<T>(
 
 describe("defaultDataProviders — providers over JSON-RPC", () => {
   it("rejects missing parameters before a parameterized provider reaches RPC", async () => {
-    const client = createLyraClient(createMemoryTransport());
+    const client = createScopeAppClient(createMemoryTransport());
     try {
       setContainer({ client: () => client });
       await loadPluginsForTest(defaultDataProviders);
@@ -343,9 +343,9 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
 
   it("keeps one multi-stage provider read on its admitted client generation", async () => {
     const retiredTransport = createMemoryTransport();
-    const retiredClient = createLyraClient(retiredTransport);
+    const retiredClient = createScopeAppClient(retiredTransport);
     const successorTransport = createMemoryTransport();
-    const successorClient = createLyraClient(successorTransport);
+    const successorClient = createScopeAppClient(successorTransport);
     try {
       setContainer({ client: () => retiredClient });
       await loadPluginsForTest(defaultDataProviders);
@@ -398,7 +398,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
 
   it("models: preserves a Runtime failure instead of presenting an empty catalog", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = createScopeAppClient(transport);
     setContainer({ client: () => client });
     await loadPluginsForTest(defaultDataProviders);
     const fetcher = lookupDataProvider("models");

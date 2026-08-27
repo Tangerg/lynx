@@ -9,17 +9,17 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
-	lyrahttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	scopeapphttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
-func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Server {
+func newProbeServer(t *testing.T, probes ...scopeapphttp.HealthProbe) *httptest.Server {
 	t.Helper()
-	srv, err := lyrahttp.NewServer(lyrahttp.Config{
+	srv, err := scopeapphttp.NewServer(scopeapphttp.Config{
 		Endpoint: newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:     ":0",
 		ServerInfo: protocol.ServerInfo{
-			Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
+			Name: "scopeapp-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/secret/project"}, Home: "/secret/home",
 		},
 		ProtocolVersion: testProtocolVersion,
@@ -62,7 +62,7 @@ func TestInfoIsMinimalAndTyped(t *testing.T) {
 	if body.ProtocolVersion != testProtocolVersion {
 		t.Fatalf("protocolVersion = %q", body.ProtocolVersion)
 	}
-	if body.Server.Name != "lyra-test" || body.Server.Version != "0.0.0" || body.Server.InstanceID != testRuntimeInstanceID {
+	if body.Server.Name != "scopeapp-test" || body.Server.Version != "0.0.0" || body.Server.InstanceID != testRuntimeInstanceID {
 		t.Fatalf("server = %+v", body.Server)
 	}
 	if body.Transport != "http" {
@@ -95,11 +95,11 @@ func TestInfoDoesNotExposeRuntimePathsOrCapabilities(t *testing.T) {
 
 func TestLivenessDoesNotCallReadinessProbes(t *testing.T) {
 	var calls atomic.Int32
-	ts := newProbeServer(t, lyrahttp.HealthProbe{
+	ts := newProbeServer(t, scopeapphttp.HealthProbe{
 		Name: "storage",
-		Probe: func(context.Context) lyrahttp.HealthCheck {
+		Probe: func(context.Context) scopeapphttp.HealthCheck {
 			calls.Add(1)
-			return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy}
+			return scopeapphttp.HealthCheck{Status: scopeapphttp.HealthUnhealthy}
 		},
 	})
 	defer ts.Close()
@@ -129,11 +129,11 @@ func TestLivenessDoesNotCallReadinessProbes(t *testing.T) {
 
 func TestReadinessReportsWorstProbe(t *testing.T) {
 	ts := newProbeServer(t,
-		lyrahttp.HealthProbe{Name: "runtime", Probe: func(context.Context) lyrahttp.HealthCheck {
-			return lyrahttp.HealthCheck{Status: lyrahttp.HealthOK}
+		scopeapphttp.HealthProbe{Name: "runtime", Probe: func(context.Context) scopeapphttp.HealthCheck {
+			return scopeapphttp.HealthCheck{Status: scopeapphttp.HealthOK}
 		}},
-		lyrahttp.HealthProbe{Name: "storage", Probe: func(context.Context) lyrahttp.HealthCheck {
-			return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy}
+		scopeapphttp.HealthProbe{Name: "storage", Probe: func(context.Context) scopeapphttp.HealthCheck {
+			return scopeapphttp.HealthCheck{Status: scopeapphttp.HealthUnhealthy}
 		}},
 	)
 	defer ts.Close()
@@ -160,9 +160,9 @@ func TestReadinessReportsWorstProbe(t *testing.T) {
 }
 
 func TestReadinessContainsProbePanic(t *testing.T) {
-	ts := newProbeServer(t, lyrahttp.HealthProbe{
+	ts := newProbeServer(t, scopeapphttp.HealthProbe{
 		Name: "panic",
-		Probe: func(context.Context) lyrahttp.HealthCheck {
+		Probe: func(context.Context) scopeapphttp.HealthCheck {
 			panic("boom")
 		},
 	})
@@ -179,10 +179,10 @@ func TestReadinessContainsProbePanic(t *testing.T) {
 }
 
 func TestNewServerRequiresRuntimeInstanceIdentity(t *testing.T) {
-	_, err := lyrahttp.NewServer(lyrahttp.Config{
+	_, err := scopeapphttp.NewServer(scopeapphttp.Config{
 		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
+		ServerInfo:      protocol.ServerInfo{Name: "scopeapp-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,
 	})
 	if err == nil {
@@ -191,27 +191,27 @@ func TestNewServerRequiresRuntimeInstanceIdentity(t *testing.T) {
 }
 
 func TestNewServerRejectsAmbiguousHealthProbes(t *testing.T) {
-	base := lyrahttp.Config{
+	base := scopeapphttp.Config{
 		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
+		ServerInfo:      protocol.ServerInfo{Name: "scopeapp-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
 		ProtocolVersion: testProtocolVersion,
 	}
 	tests := []struct {
 		name   string
-		probes []lyrahttp.HealthProbe
+		probes []scopeapphttp.HealthProbe
 	}{
-		{name: "missing function", probes: []lyrahttp.HealthProbe{{Name: "storage"}}},
-		{name: "duplicate name", probes: []lyrahttp.HealthProbe{
-			{Name: "storage", Probe: func(context.Context) lyrahttp.HealthCheck { return lyrahttp.HealthCheck{} }},
-			{Name: "storage", Probe: func(context.Context) lyrahttp.HealthCheck { return lyrahttp.HealthCheck{} }},
+		{name: "missing function", probes: []scopeapphttp.HealthProbe{{Name: "storage"}}},
+		{name: "duplicate name", probes: []scopeapphttp.HealthProbe{
+			{Name: "storage", Probe: func(context.Context) scopeapphttp.HealthCheck { return scopeapphttp.HealthCheck{} }},
+			{Name: "storage", Probe: func(context.Context) scopeapphttp.HealthCheck { return scopeapphttp.HealthCheck{} }},
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := base
 			cfg.HealthProbes = tt.probes
-			if _, err := lyrahttp.NewServer(cfg); err == nil {
+			if _, err := scopeapphttp.NewServer(cfg); err == nil {
 				t.Fatal("NewServer accepted ambiguous health probes")
 			}
 		})

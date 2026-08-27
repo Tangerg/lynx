@@ -1,4 +1,4 @@
-// Branded ID types for the Lyra Runtime Protocol (API.md §2.2). Each
+// Branded ID types for the ScopeApp Runtime Protocol (API.md §2.2). Each
 // opaque string id carries a phantom tag so TypeScript stops you from
 // passing a `RunId` where an `ItemId` is expected — both are strings at
 // runtime, but the type checker treats them as distinct.

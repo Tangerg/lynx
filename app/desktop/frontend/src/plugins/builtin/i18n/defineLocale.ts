@@ -21,7 +21,7 @@ import { activeLocale, addLocaleBundle } from "@/lib/i18n";
  */
 export function defineLocale(spec: LocaleSpec): AnyPlugin {
   return definePlugin({
-    name: `lyra.builtin.locale-${spec.id}`,
+    name: `scopeapp.builtin.locale-${spec.id}`,
     setup(ctx) {
       ctx.contribute(LOCALE, spec);
       // Cold start with a persisted non-English locale: this plugin is the only

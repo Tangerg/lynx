@@ -3,7 +3,7 @@ import { openChatSearch } from "./application/openChatSearch";
 import { ChatSearchOverlay } from "./ui/ChatSearchOverlay";
 
 export default definePlugin({
-  name: "lyra.builtin.chat-search",
+  name: "scopeapp.builtin.chat-search",
   setup(ctx) {
     contributeLayout(ctx, "app.overlay", {
       id: "chat-search",

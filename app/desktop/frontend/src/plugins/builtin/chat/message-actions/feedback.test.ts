@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -16,7 +16,7 @@ describe("message feedback Runtime generation wiring", () => {
   it("retires an admitted command when the Runtime process generation changes", async () => {
     const pending = deferred<void>();
     const create = vi.fn(() => pending.promise);
-    setContainer({ client: () => ({ feedback: { create } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ feedback: { create } }) as unknown as ScopeAppClient });
     let generation = "runtime_1";
     const subscribers = new Set<() => void>();
     const runtime = definePlugin({

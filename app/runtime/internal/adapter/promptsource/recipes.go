@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	recipeProjectSubdir = ".lyra/recipes"
+	recipeProjectSubdir = ".scopeapp/recipes"
 	recipeFileExt       = ".md"
 	// A recipes directory is an authored capability root rather than a generic
 	// file browser. This adapter limit bounds scanning even when most entries do

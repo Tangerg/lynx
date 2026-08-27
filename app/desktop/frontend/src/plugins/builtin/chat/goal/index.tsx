@@ -28,7 +28,7 @@ const GOAL_SLASH_COMMAND: SlashCommandSpec = {
 };
 
 export default definePlugin({
-  name: "lyra.builtin.goal",
+  name: "scopeapp.builtin.goal",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const composerMode = GoalComposerModeOwner.install();

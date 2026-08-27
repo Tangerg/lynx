@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
-// ListKnowledge enumerates LYRA.md entries across scopes (API.md §7.7).
+// ListKnowledge enumerates SCOPEAPP.md entries across scopes (API.md §7.7).
 // The entire knowledge.* group is capability-gated, so an unwired store is a
 // capability error rather than a synthetic empty collection.
 func (s *Server) ListKnowledge(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
@@ -30,7 +30,7 @@ func (s *Server) ListKnowledge(ctx context.Context, in protocol.WorkspaceQuery) 
 	return protocol.NewPage(out), nil
 }
 
-// GetKnowledge returns one scope's LYRA.md content. Dispatch has already
+// GetKnowledge returns one scope's SCOPEAPP.md content. Dispatch has already
 // validated the scope (KnowledgeScope.Valid).
 func (s *Server) GetKnowledge(ctx context.Context, in protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 	scope, err := knowledgeScopeFromWire(in.Scope)

@@ -37,7 +37,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const globPreview = definePlugin({
-  name: "lyra.builtin.glob-preview",
+  name: "scopeapp.builtin.glob-preview",
   setup(ctx) {
     for (const preview of globToolPreview(GlobPreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

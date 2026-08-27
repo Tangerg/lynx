@@ -387,7 +387,7 @@ test("accent selection gives an immediate, durable visual acknowledgement", asyn
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const persisted = JSON.parse(localStorage.getItem("lyra.ui") ?? "null") as {
+        const persisted = JSON.parse(localStorage.getItem("scopeapp.ui") ?? "null") as {
           state?: { accent?: string };
         } | null;
         return persisted?.state?.accent;
@@ -479,7 +479,7 @@ test("plugin notifications use the production toast and dismiss automatically", 
 
   await page.evaluate(() => {
     window.dispatchEvent(
-      new CustomEvent("lyra:plugin-toast", {
+      new CustomEvent("scopeapp:plugin-toast", {
         detail: { message: "Provider credentials were rejected", level: "error" },
       }),
     );

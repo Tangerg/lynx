@@ -1,4 +1,4 @@
-# Lyra Runtime vNext —— 实施计划与进度台账
+# ScopeApp Runtime vNext —— 实施计划与进度台账
 
 > **状态：历史归档 / 已完成。** 本文记录 2026-07-27 vNext 切换过程，不是现行协议或待办入口；
 > 文中的“目标”“当前”和版本差异均以当时审计基线为语境。现行语义以
@@ -111,7 +111,7 @@ typed commands
 
 | # | 决策 | 日期 | 内容 |
 |---|---|---|---|
-| D1 | **Registry 全量治本级** | 2026-07-28 | 契约 §11 全量：14 类产物（含 **TypeScript wire types + typed client stubs**）+ 18 项 CI drift gate。**推翻**记忆 `project_lyra_no_protocol_ts_codegen`（"codegen 拒"）—— 当初反对理由是"Go flat-struct 不映 TS union"，§11.2 的显式 `UnionSpec` metadata 正是该理由的解：不靠 reflection 猜 discriminator，而是显式登记。 |
+| D1 | **Registry 全量治本级** | 2026-07-28 | 契约 §11 全量：14 类产物（含 **TypeScript wire types + typed client stubs**）+ 18 项 CI drift gate。**推翻**记忆 `project_scopeapp_no_protocol_ts_codegen`（"codegen 拒"）—— 当初反对理由是"Go flat-struct 不映 TS union"，§11.2 的显式 `UnionSpec` metadata 正是该理由的解：不靠 reflection 猜 discriminator，而是显式登记。 |
 | D2 | **子 Run / subagents 本轮不做** | 2026-07-28 | **shape 全量落地，行为用 capability 关掉** —— 见 §2.1。 |
 | D3 | **`SystemInvariantSpec` 归 application** | 2026-07-28 | 见 §2.2。 |
 | D4 | **A′ 前置于 B / B′** | 2026-07-28 | 不在被泄露污染的读面上重建。 |
@@ -638,7 +638,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 两份文档相互独立：渲染一份永远不可能在另一份里留下本地引用。gate 4 的解析器正是为抓这类错写的。
 
 **第 12 类 TypeScript wire types 已落地**（`app/desktop/frontend/src/rpc/wire.generated.ts`，1290 行）—— 手写的
-`src/rpc/shapes.ts`（1304 行）**已删**，`memory: project_lyra_no_protocol_ts_codegen 的"拒 codegen"结论由本批推翻**：
+`src/rpc/shapes.ts`（1304 行）**已删**，`memory: project_scopeapp_no_protocol_ts_codegen 的"拒 codegen"结论由本批推翻**：
 当年的理由是「Go flat-struct 不映 TS union」，而 B2 的 union spec 正好补上了 reflection 缺的那一半，现在生成的是**真正的
 discriminated union**（比手写的更严）。
 
@@ -1232,7 +1232,7 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 
 | 记忆 | 结果 |
 |---|---|
-| `project_lyra_no_protocol_ts_codegen` | ✅ 已改写成 OVERTURNED，写清推翻理由（`UnionSpec` 显式 metadata 解掉 flat-struct 不映 union），并补了 2026-07-29 的四个生成模块现状 |
+| `project_scopeapp_no_protocol_ts_codegen` | ✅ 已改写成 OVERTURNED，写清推翻理由（`UnionSpec` 显式 metadata 解掉 flat-struct 不映 union），并补了 2026-07-29 的四个生成模块现状 |
 | `project_agent_refinement_closed_perf_dropped` | ✅ 已补边界：关闭只覆盖 agent 模块 CPU/延迟，**不覆盖** Batch D 的**有界性**问题（不封顶的 buffer 不让 turn 变慢，它让进程 OOM —— 论证救不了） |
 | **新增** `feedback_delivery_never_leaks_business` | ✅ 三种形态都写了**判据**（文案要改措辞该改哪层 / 反推=把业务规则抄进 wire / 这段回答"问了什么"还是"怎么算"），并写明 arch 守卫只挡符号与 import 方向、新形态会全绿 |
 | **新增** `project_vnext_contract_registry_shipped` | ✅ 跨 session 接手的入口：进度 + 产物形状原则 + 证据索引机制 + 「先审后做」的理由 |

@@ -90,7 +90,7 @@ func (o *oauthFlow) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if cb.err != nil {
 		_, _ = w.Write([]byte(oauthResultHTML("Authorization failed — you can close this tab.")))
 	} else {
-		_, _ = w.Write([]byte(oauthResultHTML("Authorized — close this tab and return to Lyra.")))
+		_, _ = w.Write([]byte(oauthResultHTML("Authorized — close this tab and return to ScopeApp.")))
 	}
 	select {
 	case o.result <- cb:
@@ -154,7 +154,7 @@ func newOAuthHandler(
 	config := &auth.AuthorizationCodeHandlerConfig{
 		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{
 			Metadata: &oauthex.ClientRegistrationMetadata{
-				ClientName:              "Lyra",
+				ClientName:              "ScopeApp",
 				RedirectURIs:            []string{flow.redirectURI},
 				GrantTypes:              []string{"authorization_code", "refresh_token"},
 				ResponseTypes:           []string{"code"},
@@ -202,7 +202,7 @@ func openBrowser(ctx context.Context, url string) error {
 }
 
 func oauthResultHTML(msg string) string {
-	return "<!doctype html><meta charset=utf-8><title>Lyra</title>" +
+	return "<!doctype html><meta charset=utf-8><title>ScopeApp</title>" +
 		`<body style="font:14px system-ui;display:grid;place-items:center;height:100vh;margin:0">` +
 		"<p>" + msg + "</p></body>"
 }

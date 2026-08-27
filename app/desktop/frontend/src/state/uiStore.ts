@@ -22,7 +22,7 @@ import type { CustomTheme, UiState } from "./uiPreferences";
 export type { CustomTheme, UiState } from "./uiPreferences";
 
 // localStorage payload schema. Validated on rehydrate so a corrupted
-// `lyra.ui` entry (manual edit, downgrade leaving a future-shape blob,
+// `scopeapp.ui` entry (manual edit, downgrade leaving a future-shape blob,
 // browser extension tampering) falls back to defaults instead of
 // crashing the boot.
 const uiPersistSchema = z.object({
@@ -78,7 +78,7 @@ export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set) => ({
       theme: "light",
-      visualStyle: "lyra",
+      visualStyle: "scopeapp",
       accent: "#3574f0",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 25,
@@ -116,7 +116,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setCompletionSound: (completionSound) => set({ completionSound }),
     }),
     {
-      name: "lyra.ui",
+      name: "scopeapp.ui",
       storage: createJSONStorage(() => localStorage),
       version: 11,
       migrate: discardOlderVersions,
@@ -125,7 +125,7 @@ export const useUiStore = create<UiState & UiActions>()(
         const parsed = uiPersistSchema.safeParse(persisted);
         if (!parsed.success) {
           // Reset on schema mismatch — defaults are always a safe boot.
-          console.warn("[uiStore] discarding corrupted lyra.ui:", parsed.error.issues);
+          console.warn("[uiStore] discarding corrupted scopeapp.ui:", parsed.error.issues);
           return current;
         }
         return { ...current, ...parsed.data };

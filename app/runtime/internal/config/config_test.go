@@ -19,8 +19,8 @@ func TestLoadUsesOnlyExplicitAbsoluteSearchDirectories(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("LYRA_PROVIDER", "")
-	t.Setenv("LYRA_MODEL", "")
+	t.Setenv("SCOPEAPP_PROVIDER", "")
+	t.Setenv("SCOPEAPP_MODEL", "")
 	settings, err := Load([]string{directory})
 	if err != nil {
 		t.Fatalf("Load: %v", err)

@@ -300,7 +300,7 @@ function ringViolation(file, dep, contextRoots) {
 // silently capped at the 64KB buffer once the graph grows past it — which
 // check:circular dodges only because `--circular` output is tiny. A file fd
 // flushes synchronously on close, so the whole graph survives at any size.
-const graphFile = join(tmpdir(), "lyra-check-layers-madge.json");
+const graphFile = join(tmpdir(), "scopeapp-check-layers-madge.json");
 let raw = "";
 try {
   const fd = openSync(graphFile, "w");

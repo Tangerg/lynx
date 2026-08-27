@@ -24,7 +24,7 @@ frontend/dist
 .vscode/
 
 # Local plugin sideload tree (loaded at runtime, not source)
-.lyra/
+.scopeapp/
 
 # Test + tooling caches
 .cache/

@@ -50,7 +50,7 @@ function isPublicContextFile(path, context) {
 }
 
 function readMadgeGraph() {
-  const graphFile = join(tmpdir(), "lyra-check-builtin-contexts-madge.json");
+  const graphFile = join(tmpdir(), "scopeapp-check-builtin-contexts-madge.json");
   let raw = "";
   try {
     const fd = openSync(graphFile, "w");

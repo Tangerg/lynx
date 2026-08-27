@@ -6,15 +6,15 @@
 # Claude permission decisions are machine-local and accumulate absolute paths.
 .claude/settings.local.json
 
-# Lyra local config (holds API keys) — keep config.example.yaml only.
+# ScopeApp local config (holds API keys) — keep config.example.yaml only.
 app/runtime/config/config.yaml
 
-# Lyra dev binary (built via `go build -o lyra ./cmd/lyra`).
-app/runtime/lyra
+# ScopeApp dev binary (built via `go build -o scopeapp ./cmd/scopeapp`).
+app/runtime/scopeapp
 
-# Lyra dev-server runtime artifacts (written by `make restart` / `make start`).
-app/runtime/lyra.log
-app/runtime/lyra.pid
+# ScopeApp dev-server runtime artifacts (written by `make restart` / `make start`).
+app/runtime/scopeapp.log
+app/runtime/scopeapp.pid
 
-# Lyra runtime-generated memory (written to cwd when serving from app/runtime/).
-app/runtime/LYRA.md
+# ScopeApp runtime-generated knowledge (written to cwd when serving from app/runtime/).
+app/runtime/SCOPEAPP.md

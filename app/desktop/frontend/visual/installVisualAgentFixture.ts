@@ -38,8 +38,8 @@ import {
 } from "@/plugins/builtin/chat/message-actions";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import customTheme from "@/plugins/builtin/theme/themes/custom-theme";
-import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
-import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
+import scopeappDark from "@/plugins/builtin/theme/themes/scopeapp-dark";
+import scopeappLight from "@/plugins/builtin/theme/themes/scopeapp-light";
 import { defaultAccents } from "@/plugins/builtin/defaults";
 import goal from "@/plugins/builtin/chat/goal";
 import type { GoalState } from "@/plugins/builtin/chat/goal/application/goalReadModel";
@@ -133,7 +133,7 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
 // component that draws it appeared in no test. One line is deliberately far longer than
 // the column it is read in to verify that its tail remains reachable.
 const fileHeadProvider = definePlugin({
-  name: "lyra.visual.file-head",
+  name: "scopeapp.visual.file-head",
   setup(ctx) {
     ctx.contribute(DATA_PROVIDER, {
       key: WORKSPACE_FILE_HEAD_KEY,
@@ -158,7 +158,7 @@ const fileHeadProvider = definePlugin({
  * Service contract as well: setup-time consumers must see the dependency in
  * the composition graph, not infer it from a module singleton. */
 const visualAgentSessionPorts = definePlugin({
-  name: "lyra.visual.agent-session-ports",
+  name: "scopeapp.visual.agent-session-ports",
   provides: { sessions: AGENT_SESSION_PORTS },
   setup() {
     return {
@@ -173,7 +173,7 @@ const visualAgentSessionPorts = definePlugin({
 });
 
 const visualRuntimeStreamPorts = definePlugin({
-  name: "lyra.visual.runtime-stream-ports",
+  name: "scopeapp.visual.runtime-stream-ports",
   provides: { stream: RUNTIME_STREAM_PORTS },
   setup() {
     return {
@@ -187,7 +187,7 @@ const visualRuntimeStreamPorts = definePlugin({
 });
 
 const visualAgentLifecycle = definePlugin({
-  name: "lyra.visual.agent-lifecycle",
+  name: "scopeapp.visual.agent-lifecycle",
   setup(ctx) {
     const commands = AgentCommandOwner.install();
     const disposeInterruptResponses = installInterruptResponseCoordinator();
@@ -229,9 +229,9 @@ export async function installVisualAgentFixture(
     // pre-hydration fallbacks: an unregistered theme id resolves to the dark
     // scheme, which is why every `agent-light-*` golden was a byte-for-byte copy
     // of its dark twin.
-    lyraLight,
+    scopeappLight,
     defaultAccents,
-    lyraDark,
+    scopeappDark,
     // This plugin owns the production custom palette and reacts to the same
     // accent preference as the swatches. Omitting it let the fixture prove the
     // picker in a topology where the production duplicate-contribution failure

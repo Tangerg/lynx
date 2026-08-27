@@ -95,7 +95,7 @@ function StoredToolResultPreview({ tool }: ToolPreviewProps) {
 }
 
 export const recallPreviews = definePlugin({
-  name: "lyra.builtin.recall-previews",
+  name: "scopeapp.builtin.recall-previews",
   setup(ctx) {
     for (const preview of recallToolPreviews({
       search_memory: MemoryRecallPreview,

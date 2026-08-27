@@ -24,7 +24,7 @@ type embeddingProviderProfile struct {
 }
 
 // embeddingProviderCatalog is the embedding counterpart of [chatProviderCatalog] — the
-// providers Lyra already imports that ALSO offer an embeddings endpoint.
+// providers ScopeApp already imports that ALSO offer an embeddings endpoint.
 // Anthropic is intentionally absent (it has no embeddings API); local Ollama
 // gives a key-free embedding path for anyone, including Anthropic-only users.
 // The credential (key + base URL) comes from the same provider registry the

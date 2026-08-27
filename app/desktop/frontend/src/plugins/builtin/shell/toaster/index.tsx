@@ -8,7 +8,7 @@ import { PluginToaster } from "@/plugins/host/PluginToaster";
 import { contributeLayout, definePlugin } from "@/plugins/sdk";
 
 export default definePlugin({
-  name: "lyra.builtin.toaster",
+  name: "scopeapp.builtin.toaster",
   setup(ctx) {
     contributeLayout(ctx, "app.overlay", {
       id: "toaster",

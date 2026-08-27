@@ -17,7 +17,7 @@ import (
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
 	got := composeSystemPromptText(t, WorkingContextConfig{}, "")
-	if !strings.Contains(got, "You are Lyra") {
+	if !strings.Contains(got, "You are ScopeApp") {
 		t.Errorf("base prompt missing identity, got %q", got)
 	}
 	if strings.Contains(got, "## User preferences") || strings.Contains(got, "## Project knowledge") {
@@ -61,7 +61,7 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 }
 
 // TestComposePrompt_ProjectMemoryFollowsCWD — the project scope must
-// read the LYRA.md of the TURN's working directory (the per-session
+// read the SCOPEAPP.md of the TURN's working directory (the per-session
 // cwd), not a directory fixed at construction time.
 func TestComposePrompt_ProjectMemoryFollowsCWD(t *testing.T) {
 	store := &stubKnowledgeStore{cwd: "workspace body"}
@@ -112,10 +112,10 @@ func TestComposePromptPreservesTheThreeKnowledgeScopes(t *testing.T) {
 func TestComposePromptUsesInjectedUserHomeForAgentDocs(t *testing.T) {
 	userHome := t.TempDir()
 	workspace := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(userHome, ".lyra"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(userHome, ".scopeapp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(userHome, ".lyra", "AGENTS.md"), []byte("injected home rule"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(userHome, ".scopeapp", "AGENTS.md"), []byte("injected home rule"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -179,13 +179,13 @@ func (s *stubKnowledgeStore) Entries(_ context.Context, cwd string) ([]knowledge
 	}
 	entries := make([]knowledge.Entry, 0, 3)
 	if s.home != "" {
-		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeHome, Path: "/home/.lyra/LYRA.md", Content: s.home})
+		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeHome, Path: "/home/.scopeapp/SCOPEAPP.md", Content: s.home})
 	}
 	if s.projectRoot != "" {
-		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeProjectRoot, Path: "/repo/LYRA.md", Content: s.projectRoot})
+		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeProjectRoot, Path: "/repo/SCOPEAPP.md", Content: s.projectRoot})
 	}
 	if s.cwd != "" {
-		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeCWD, Path: filepath.Join(cwd, "LYRA.md"), Content: s.cwd})
+		entries = append(entries, knowledge.Entry{Scope: knowledge.ScopeCWD, Path: filepath.Join(cwd, "SCOPEAPP.md"), Content: s.cwd})
 	}
 	return entries, nil
 }

@@ -5,7 +5,7 @@ import {
   asRunId,
   asSegmentId,
   RpcTransportError,
-  type LyraClient,
+  type ScopeAppClient,
   type MutationPromise,
   type RunEvent,
 } from "@/rpc";
@@ -50,10 +50,10 @@ describe("runtimeRunsGateway", () => {
         Object.assign(Promise.reject(transportFailure), {
           idempotencyKey: "retired-run-start",
           retry: retiredRetry,
-        }) as ReturnType<LyraClient["runs"]["start"]>,
+        }) as ReturnType<ScopeAppClient["runs"]["start"]>,
     );
     setContainer({
-      client: () => ({ runs: { start: retiredStart } }) as unknown as LyraClient,
+      client: () => ({ runs: { start: retiredStart } }) as unknown as ScopeAppClient,
     });
     const retiredGateway = runtimeRunsGateway();
 
@@ -71,10 +71,10 @@ describe("runtimeRunsGateway", () => {
             events: noEvents(),
           }),
           { idempotencyKey: "successor-run-start", retry: vi.fn() },
-        ) as ReturnType<LyraClient["runs"]["start"]>,
+        ) as ReturnType<ScopeAppClient["runs"]["start"]>,
     );
     setContainer({
-      client: () => ({ runs: { start: successorStart } }) as unknown as LyraClient,
+      client: () => ({ runs: { start: successorStart } }) as unknown as ScopeAppClient,
     });
     const successorGateway = runtimeRunsGateway();
 
@@ -122,7 +122,7 @@ describe("runtimeRunsGateway", () => {
       ),
     );
     setContainer({
-      client: () => ({ runs: { start } }) as unknown as LyraClient,
+      client: () => ({ runs: { start } }) as unknown as ScopeAppClient,
     });
     const gateway = runtimeRunsGateway();
     const params = { sessionId: "ses_1", input: [{ type: "text" as const, text: "ship it" }] };
@@ -156,10 +156,10 @@ describe("runtimeRunsGateway", () => {
         Object.assign(Promise.reject(transportFailure), {
           idempotencyKey: "retired-run-resume",
           retry: retiredRetry,
-        }) as ReturnType<LyraClient["runs"]["resume"]>,
+        }) as ReturnType<ScopeAppClient["runs"]["resume"]>,
     );
     setContainer({
-      client: () => ({ runs: { resume: retiredResume } }) as unknown as LyraClient,
+      client: () => ({ runs: { resume: retiredResume } }) as unknown as ScopeAppClient,
     });
     const gateway = runtimeRunsGateway();
 
@@ -175,7 +175,7 @@ describe("runtimeRunsGateway", () => {
       ),
     );
     setContainer({
-      client: () => ({ runs: { resume: successorResume } }) as unknown as LyraClient,
+      client: () => ({ runs: { resume: successorResume } }) as unknown as ScopeAppClient,
     });
     gateway.replaceRuntimeGeneration();
 

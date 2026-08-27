@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DesktopHostClient, LyraClient } from "@/rpc";
+import type { DesktopHostClient, ScopeAppClient } from "@/rpc";
 import {
   disposeContainer,
   getContainer,
@@ -19,7 +19,7 @@ describe("main/container", () => {
   });
 
   it("setContainer() swaps a single slot, leaving others intact", () => {
-    const fake = {} as LyraClient;
+    const fake = {} as ScopeAppClient;
     const before = getContainer().desktop;
     setContainer({ client: () => fake });
     expect(getContainer().client()).toBe(fake);
@@ -27,7 +27,7 @@ describe("main/container", () => {
   });
 
   it("resetContainer() restores defaults", async () => {
-    const fake = {} as LyraClient;
+    const fake = {} as ScopeAppClient;
     setContainer({ client: () => fake });
     await resetContainer();
     expect(getContainer().client()).not.toBe(fake);
@@ -70,7 +70,7 @@ describe("main/container", () => {
 
   it("does not close a client injected by an external owner", async () => {
     const close = vi.fn(async () => {});
-    const external = { close } as unknown as LyraClient;
+    const external = { close } as unknown as ScopeAppClient;
     setContainer({ client: () => external });
 
     await disposeContainer();

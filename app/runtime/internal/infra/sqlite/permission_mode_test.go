@@ -12,7 +12,7 @@ import (
 
 func newPermissionModeStores(t *testing.T) (*sqlite.PermissionModeStore, *sqlite.SessionStore) {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

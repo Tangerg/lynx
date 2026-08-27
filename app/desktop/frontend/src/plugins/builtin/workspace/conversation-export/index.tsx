@@ -7,7 +7,7 @@ import {
 import { conversationExportCommands } from "./application/conversationExportCommands";
 
 export default definePlugin({
-  name: "lyra.builtin.conversation-export",
+  name: "scopeapp.builtin.conversation-export",
   setup(ctx) {
     for (const command of conversationExportCommands({
       exportMarkdown: exportConversationMarkdown,

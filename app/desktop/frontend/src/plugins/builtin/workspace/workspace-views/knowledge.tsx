@@ -1,4 +1,4 @@
-// Built-in workspace view: "Knowledge" — the LYRA.md knowledge files the runtime
+// Built-in workspace view: "Knowledge" — the SCOPEAPP.md knowledge files the runtime
 // loads into the agent's context. One entry per scope expands into an inline
 // whole-file editor.
 

@@ -103,12 +103,12 @@ func TestParseMCPServers(t *testing.T) {
 }
 
 // TestParseMCPServers_AuthFromEnv covers the per-server bearer-token env:
-// LYRA_MCP_<NAME>_TOKEN populates an HTTP server's Authorization (as a Bearer
+// SCOPEAPP_MCP_<NAME>_TOKEN populates an HTTP server's Authorization (as a Bearer
 // header), the name is normalized (upper-cased, '-' → '_'), and stdio servers
 // never pick one up.
 func TestParseMCPServers_AuthFromEnv(t *testing.T) {
-	t.Setenv("LYRA_MCP_GH_TOKEN", "ghp_secret")
-	t.Setenv("LYRA_MCP_MY_API_TOKEN", "tok2") // for server "my-api"
+	t.Setenv("SCOPEAPP_MCP_GH_TOKEN", "ghp_secret")
+	t.Setenv("SCOPEAPP_MCP_MY_API_TOKEN", "tok2") // for server "my-api"
 
 	got, err := parseMCPServers("gh=https://mcp.github.com/,my-api=https://api.example.com/,local=stdio:echo hi")
 	if err != nil {

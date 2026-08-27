@@ -379,7 +379,7 @@ export const fr: Record<string, string> = {
 
   "settings.pane.connection": "Connexion",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Adresse du runtime Lyra. L’application reconnecte le bureau.",
+  "settings.connection.sub": "Adresse du runtime ScopeApp. L’application reconnecte le bureau.",
   "settings.connection.url": "URL",
   "settings.connection.apply": "Appliquer",
   "settings.connection.reset": "Réinitialiser",
@@ -387,7 +387,7 @@ export const fr: Record<string, string> = {
   "settings.connection.status.reconnecting": "Reconnexion…",
   "runtime.connection.reconnecting": "La connexion au runtime a été interrompue. Reconnexion…",
   "runtime.connection.unavailable":
-    "Le runtime est indisponible. Lyra continuera de tenter de se reconnecter.",
+    "Le runtime est indisponible. ScopeApp continuera de tenter de se reconnecter.",
   "runtime.connection.settings": "Paramètres de connexion",
   "settings.connection.status.ready": "Prêt",
   "settings.connection.status.degraded": "Dégradé",
@@ -611,7 +611,8 @@ export const fr: Record<string, string> = {
   "knowledge.scope.home": "dossier personnel",
   "knowledge.off": "désactivé",
   "knowledge.empty.title": "Aucune connaissance pour l'instant",
-  "knowledge.empty.sub": "Les fichiers LYRA.md que le runtime gère pour l'agent apparaissent ici.",
+  "knowledge.empty.sub":
+    "Les fichiers SCOPEAPP.md que le runtime gère pour l'agent apparaissent ici.",
   "knowledge.disabled.title": "Connaissances désactivées",
   "knowledge.disabled.sub": "Ce runtime ne propose pas la fonctionnalité de connaissances.",
   "knowledge.save": "Enregistrer",
@@ -709,8 +710,8 @@ export const fr: Record<string, string> = {
   "convExport.exportedAt": "Exporté {{time}}",
   "convExport.importUnsupported": "Ce runtime ne prend pas en charge l'importation de session.",
   "convExport.notJson": "Ce n'est pas un fichier JSON.",
-  "convExport.notLyra":
-    "Ce n'est pas un export de session Lyra — choisissez un JSON exporté via « Exporter la conversation ».",
+  "convExport.notScopeApp":
+    "Ce n'est pas un export de session ScopeApp — choisissez un JSON exporté via « Exporter la conversation ».",
   "convExport.importFailed": "Impossible d'importer la conversation.",
   "convExport.importSuccess": "« {{title}} » importée.",
   "connection.error.urlScheme": "Doit commencer par http:// ou https://",
@@ -800,7 +801,7 @@ export const fr: Record<string, string> = {
     "Autoriser les modifications ; demander avant d'exécuter des commandes.",
   "approvals.mode.auto.desc": "Tout exécuter sans demander.",
   "hooks.intro":
-    "Les hooks exécutent vos propres commandes à des points fixes d'un tour — avant un outil, après un prompt, lors d'un compactage. Les hooks globaux (~/.lyra) s'exécutent toujours ; ceux d'un projet seulement après que vous lui accordez votre confiance.",
+    "Les hooks exécutent vos propres commandes à des points fixes d'un tour — avant un outil, après un prompt, lors d'un compactage. Les hooks globaux (~/.scopeapp) s'exécutent toujours ; ceux d'un projet seulement après que vous lui accordez votre confiance.",
   "hooks.trust": "Faire confiance aux hooks de ce projet",
   "hooks.trust.sub":
     "Les hooks de ce projet exécutent des commandes shell sur votre machine. N'activez que pour des dépôts de confiance. Effectif au prochain tour.",
@@ -811,7 +812,7 @@ export const fr: Record<string, string> = {
   "hooks.inactive.hint": "Faites confiance à ce projet pour activer ses hooks.",
   "hooks.empty": "Aucun hook configuré",
   "hooks.empty.sub":
-    "Ajoutez des hooks dans ~/.lyra/hooks.json (global) ou <project>/.lyra/hooks.json.",
+    "Ajoutez des hooks dans ~/.scopeapp/hooks.json (global) ou <project>/.scopeapp/hooks.json.",
   "hooks.unavailable": "Hooks indisponibles",
   "hooks.unavailable.sub": "Cette runtime n'expose pas la gestion des hooks.",
   "hooks.error.trust": "Impossible de modifier la confiance des hooks du projet.",
@@ -966,7 +967,7 @@ export const fr: Record<string, string> = {
   "recipes.available": "{{count}} disponibles",
   "recipes.empty.title": "Aucune recette",
   "recipes.empty.sub":
-    "Déposez un fichier .md dans .lyra/recipes (projet) ou ~/.lyra/recipes (global) — son nom devient une commande /slash.",
+    "Déposez un fichier .md dans .scopeapp/recipes (projet) ou ~/.scopeapp/recipes (global) — son nom devient une commande /slash.",
   "schedules.intro":
     "Exécute un prompt enregistré selon une planification. Chaque exécution démarre une nouvelle session tant que la runtime tourne — retrouvez sa sortie dans la barre latérale.",
   "schedules.add": "Nouvelle planification",

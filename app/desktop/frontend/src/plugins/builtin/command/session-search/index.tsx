@@ -12,7 +12,7 @@ import { installSessionSearchLauncher } from "./adapters/sessionSearchLauncher";
 import { SessionSearch } from "./ui/SessionSearch";
 
 export default definePlugin({
-  name: "lyra.builtin.session-search",
+  name: "scopeapp.builtin.session-search",
   setup(ctx) {
     const disposeLauncher = installSessionSearchLauncher();
     contributeLayout(ctx, "app.overlay", {

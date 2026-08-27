@@ -1,7 +1,7 @@
 import type { TransportRequest } from "../transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcConnectionError, RpcTransportError } from "../errors";
-import type { WireMethodName } from "@lyra/runtime-contract/methods";
+import type { WireMethodName } from "@scopeapp/runtime-contract/methods";
 import { createHttpTransport } from "./http";
 
 afterEach(() => vi.restoreAllMocks());
@@ -294,7 +294,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     const fetchStub = (async () =>
       new Response(
         JSON.stringify({
-          type: "urn:lyra:transport:invalid_request",
+          type: "urn:scopeapp:transport:invalid_request",
           detail: "bad request",
           requestId: "req_123",
         }),
@@ -305,7 +305,7 @@ describe("HTTPTransport — streamable HTTP", () => {
       name: "RpcTransportError",
       status: 400,
       requestId: "req_123",
-      problemType: "urn:lyra:transport:invalid_request",
+      problemType: "urn:scopeapp:transport:invalid_request",
     } satisfies Partial<RpcTransportError>);
     await transport.close();
   });

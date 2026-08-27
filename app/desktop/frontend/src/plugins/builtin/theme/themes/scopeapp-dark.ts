@@ -113,7 +113,7 @@ export default defineColorThemePlugin({
   // accent pick on the button too.
   // One shade below the indicator accent, because the dark-scheme accents are
   // tuned to glow against near-black and carry white label text at only
-  // 3.3–4.6:1. The light scheme needs no such step — see lyra-light.
+  // 3.3–4.6:1. The light scheme needs no such step — see scopeapp-light.
   cta: {
     cta: "var(--color-accent-border)",
     ctaHover: "var(--color-accent-press)",

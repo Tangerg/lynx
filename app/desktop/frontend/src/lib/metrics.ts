@@ -29,21 +29,21 @@ let inst: Instruments | null = null;
 /** Create the instruments against the (now-registered) global MeterProvider.
  *  Called once by lib/observability/setup after setGlobalMeterProvider. */
 export function bindMetricInstruments(): void {
-  const meter = metrics.getMeter("lyra");
+  const meter = metrics.getMeter("scopeapp");
   inst = {
-    reducer: meter.createHistogram("lyra.reducer.duration", {
+    reducer: meter.createHistogram("scopeapp.reducer.duration", {
       description: "Time spent reducing one StreamEvent",
       unit: "ms",
     }),
-    shiki: meter.createHistogram("lyra.shiki.highlight.duration", {
+    shiki: meter.createHistogram("scopeapp.shiki.highlight.duration", {
       description: "Time spent highlighting one code block",
       unit: "ms",
     }),
-    mermaid: meter.createHistogram("lyra.mermaid.render.duration", {
+    mermaid: meter.createHistogram("scopeapp.mermaid.render.duration", {
       description: "Time spent rendering one mermaid diagram",
       unit: "ms",
     }),
-    events: meter.createCounter("lyra.run.event.count", {
+    events: meter.createCounter("scopeapp.run.event.count", {
       description: "Number of run StreamEvents processed",
     }),
   };

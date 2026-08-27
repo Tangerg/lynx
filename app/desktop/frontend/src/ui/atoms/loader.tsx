@@ -2,7 +2,7 @@
 // ("Loading") — an implicit live status region — so assistive tech announces
 // the activity while the visual marks stay presentational; the
 // motion honors prefers-reduced-motion via the blanket rule in globals.css.
-// Keyframes (`lyra-loader-*`) live in styles/globals.css; `pulse-dot` reuses
+// Keyframes (`scopeapp-loader-*`) live in styles/globals.css; `pulse-dot` reuses
 // the shared `animate-pulse-dot` and `text-shimmer` the shared `animate-shimmer`.
 //
 // Skeleton (skeleton.tsx) already covers block/placeholder loading, so the
@@ -57,7 +57,7 @@ function DotsLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "rounded-full bg-fg-muted animate-[lyra-loader-bounce_calc(1400ms*var(--motion-scale))_ease-in-out_infinite]",
+            "rounded-full bg-fg-muted animate-[scopeapp-loader-bounce_calc(1400ms*var(--motion-scale))_ease-in-out_infinite]",
             dot,
           )}
           style={{ animationDelay: `${i * 160}ms` }}
@@ -76,7 +76,7 @@ function TypingLoader({ size = "md", className }: { size?: LoaderSize; className
         <span
           key={i}
           className={cn(
-            "rounded-full bg-fg-muted animate-[lyra-loader-typing_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
+            "rounded-full bg-fg-muted animate-[scopeapp-loader-typing_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
             dot,
           )}
           style={{ animationDelay: `${i * 250}ms` }}
@@ -104,7 +104,7 @@ function WaveLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "h-full origin-center rounded-full bg-fg-muted animate-[lyra-loader-wave_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
+            "h-full origin-center rounded-full bg-fg-muted animate-[scopeapp-loader-wave_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
             bar,
           )}
           style={{ animationDelay: `${i * 100}ms` }}
@@ -124,7 +124,7 @@ function BarsLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "h-full origin-center rounded-sm bg-fg-muted animate-[lyra-loader-bars_calc(1200ms*var(--motion-scale))_ease-in-out_infinite]",
+            "h-full origin-center rounded-sm bg-fg-muted animate-[scopeapp-loader-bars_calc(1200ms*var(--motion-scale))_ease-in-out_infinite]",
             width,
           )}
           style={{ animationDelay: `${i * 200}ms` }}
@@ -142,7 +142,7 @@ function TerminalLoader({ size = "md", className }: { size?: LoaderSize; classNa
       <span className={cn("font-mono text-fg-muted", TEXT[size])}>{">"}</span>
       <span
         className={cn(
-          "bg-fg-muted animate-[lyra-loader-blink_calc(1000ms*var(--motion-scale))_step-end_infinite]",
+          "bg-fg-muted animate-[scopeapp-loader-blink_calc(1000ms*var(--motion-scale))_step-end_infinite]",
           cursor,
         )}
       />

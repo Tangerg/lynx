@@ -91,7 +91,7 @@ function DeletedSchedulePreview({ tool }: ToolPreviewProps) {
 }
 
 export const schedulePreview = definePlugin({
-  name: "lyra.builtin.schedule-preview",
+  name: "scopeapp.builtin.schedule-preview",
   setup(ctx) {
     for (const preview of scheduleToolPreviews({
       create_schedule: CreatedSchedulePreview,

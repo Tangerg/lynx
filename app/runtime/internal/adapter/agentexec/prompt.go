@@ -21,9 +21,9 @@ const agentMemoryInjectBudget = 4096
 
 // basePrompt is the always-on identity / behavioral preamble. It
 // stays small on purpose — project-specific context lives in agent memory,
-// LYRA.md, or AGENTS.md and gets appended during prompt assembly.
-// Anything user-specific lives in ~/.lyra/LYRA.md.
-const basePrompt = `You are Lyra, a general-purpose AI coding agent.
+// SCOPEAPP.md, or AGENTS.md and gets appended during prompt assembly.
+// Anything user-specific lives in ~/.scopeapp/SCOPEAPP.md.
+const basePrompt = `You are ScopeApp, a general-purpose AI coding agent.
 
 You can read and modify files, run shell commands, search the
 codebase, and (when configured) fetch web content. Use the
@@ -40,12 +40,12 @@ task is ambiguous, ask one focused question rather than guess.`
 // overrides the broader layer:
 //
 //	<base prompt>
-//	<user knowledge>       (~/.lyra/LYRA.md — global, user-managed)
+//	<user knowledge>       (~/.scopeapp/SCOPEAPP.md — global, user-managed)
 //	<pinned agent memory>  (durable, project-scoped, agent-managed)
-//	<project knowledge>    (<project-root>/LYRA.md, when distinct)
-//	<workspace knowledge>  (<cwd>/LYRA.md — per-session workspace root)
+//	<project knowledge>    (<project-root>/SCOPEAPP.md, when distinct)
+//	<workspace knowledge>  (<cwd>/SCOPEAPP.md — per-session workspace root)
 //	<discovered>      (agentdoc cascade — global AGENTS.md first
-//	                   (~/.lyra, ~/.agents), then project root → cwd)
+//	                   (~/.scopeapp, ~/.agents), then project root → cwd)
 //
 // The project side anchors to the TURN's working directory — the
 // session cwd carried in application context ([executionctx.CWD]), the same seam
@@ -70,7 +70,7 @@ func (w *WorkingContextComposer) composeSystemMessage(
 	var prompt promptComposition
 	prompt.append(
 		basePrompt,
-		contextSourceBasePrompt.source("builtin:lyra"),
+		contextSourceBasePrompt.source("builtin:scopeapp"),
 	)
 
 	var knowledgeEntries []knowledge.Entry
@@ -86,7 +86,7 @@ func (w *WorkingContextComposer) composeSystemMessage(
 			}
 			if content := strings.TrimSpace(entry.Content); content != "" {
 				prompt.append(
-					"## User preferences (from ~/.lyra/LYRA.md)\n\n"+content,
+					"## User preferences (from ~/.scopeapp/SCOPEAPP.md)\n\n"+content,
 					contextSourceUserKnowledge.source(entry.Path),
 				)
 			}
@@ -115,12 +115,12 @@ func (w *WorkingContextComposer) composeSystemMessage(
 		switch entry.Scope {
 		case knowledge.ScopeProjectRoot:
 			prompt.append(
-				"## Project knowledge (from <project-root>/LYRA.md)\n\n"+content,
+				"## Project knowledge (from <project-root>/SCOPEAPP.md)\n\n"+content,
 				contextSourceProjectKnowledge.source(entry.Path),
 			)
 		case knowledge.ScopeCWD:
 			prompt.append(
-				"## Workspace knowledge (from <cwd>/LYRA.md)\n\n"+content,
+				"## Workspace knowledge (from <cwd>/SCOPEAPP.md)\n\n"+content,
 				contextSourceProjectKnowledge.source(entry.Path),
 			)
 		}

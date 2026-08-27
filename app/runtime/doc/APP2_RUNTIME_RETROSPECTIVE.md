@@ -50,14 +50,14 @@ app2 作为原版 Runtime 的替代实现并不成功，但作为一次受控的
 | 公共非命令 package | 2 | 65 | app2 严重扩大实现暴露面，不能复制 |
 
 协议对比同样具有两面性：app2 的 37 个 `protocol` Go 文件中，27 个与原版逐字节相同，9 个修改，1 个新增。
-这说明当前 Lyra Protocol 的窄腰已经成熟，正确做法是保留它并只修复有反例的缺陷；它也说明 app2 并非真正从零
+这说明当前 ScopeApp Protocol 的窄腰已经成熟，正确做法是保留它并只修复有反例的缺陷；它也说明 app2 并非真正从零
 重建全部语义，较小体积不能直接归因于更好的架构。
 
 ## 3. app2 真正做得更好的地方
 
-### 3.1 没有把 Codex 的 wire 搬进 Lyra
+### 3.1 没有把 Codex 的 wire 搬进 ScopeApp
 
-这是 app2 最重要、也最应该保留的判断。app2 明确让当前 Lyra dotted operations、typed registry、
+这是 app2 最重要、也最应该保留的判断。app2 明确让当前 ScopeApp dotted operations、typed registry、
 streamable HTTP、SSE replay、token、CORS、sidecar、capability、pagination 和 idempotency 继续构成协议窄腰；Codex
 只影响进程监督、generation、背压和生命周期机制。
 
@@ -191,7 +191,7 @@ AST guard，不能为减少测试文件而弱化真实门禁。
 
 | app2 经验 | 决策 | 迁回原版的形态 |
 |---|---|---|
-| 保留 Lyra Protocol 窄腰 | 保持 | 不改 wire；继续由 canonical registry 和 generator 驱动 |
+| 保留 ScopeApp Protocol 窄腰 | 保持 | 不改 wire；继续由 canonical registry 和 generator 驱动 |
 | provider/model 配对 | 采用 | 原版复用 `modelref.Selection`，完整贯通 Session 与持久/公共 shape |
 | 精确 Workspace value | 调整后采用 | 复用原版 path/isolation owner，不复制 app2 的简化规则 |
 | capability vertical slice | 调整后采用 | 以真实 use case 重画边界，不引入 `*flow.Service` 模板 |

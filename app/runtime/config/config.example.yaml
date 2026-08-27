@@ -1,10 +1,10 @@
-# Lyra runtime configuration (viper).
+# ScopeApp runtime configuration (viper).
 #
 # Copy this file to config.yaml and fill in your API key:
 #   cp config/config.example.yaml config/config.yaml
 #
 # config.yaml is gitignored (it holds your key). Precedence, later wins:
-#   built-in defaults  <  this file  <  env vars (LYRA_* / {PROVIDER}_API_KEY)
+#   built-in defaults  <  this file  <  env vars (SCOPEAPP_* / {PROVIDER}_API_KEY)
 
 # LLM provider: anthropic | openai | moonshot | deepseek
 provider: anthropic
@@ -25,7 +25,7 @@ apiKey: ""
 
 # Optional API endpoint override. Empty = the adapter's built-in default.
 # Point this at a proxy, gateway, regional endpoint, or a self-hosted
-# OpenAI-compatible server. Overridden by LYRA_BASEURL env.
+# OpenAI-compatible server. Overridden by SCOPEAPP_BASEURL env.
 baseURL: ""
 
 # Tool-result eviction: a single tool output larger than this many bytes is
@@ -33,7 +33,7 @@ baseURL: ""
 # head+tail placeholder the model reads back on demand via the read_tool_result
 # tool — so one giant file read or command dump stops re-inflating every later
 # request. Default ~50000, enabled. Set 0 (or any non-positive value) to
-# disable. Overridable by LYRA_TOOLRESULTOFFLOAD_THRESHOLD.
+# disable. Overridable by SCOPEAPP_TOOLRESULTOFFLOAD_THRESHOLD.
 # toolResultOffload:
 #   threshold: 50000
 
@@ -45,7 +45,7 @@ baseURL: ""
 # enabling it refuses startup (fail-closed) rather than running shells
 # unconfined. readOnlyPaths re-opens toolchain roots under $HOME the build needs
 # (e.g. a language toolchain or dependency cache). Overridable by
-# LYRA_SANDBOX_SHELL.
+# SCOPEAPP_SANDBOX_SHELL.
 # sandbox:
 #   shell: false
 #   readOnlyPaths:
@@ -53,11 +53,11 @@ baseURL: ""
 #     - "~/.cache"
 
 # Runtime HTTP transport settings. Each is overridable by the matching
-# LYRA_SERVER_* env var.
+# SCOPEAPP_SERVER_* env var.
 server:
   listen: 127.0.0.1:17171   # loopback endpoint for local protocol clients
   noLocalToken: false       # true = disable the local-process gate (dev / same-origin)
-  localTokenPath: ""        # default: $HOME/.lyra/local-token; path owns the durable token
+  localTokenPath: ""        # default: $HOME/.scopeapp/local-token; path owns the durable token
   # Empty uses the exact Wails + repository Vite origins built into the Runtime.
   # Add origins only for a different browser client; "*" is development-only.
   corsOrigins: []

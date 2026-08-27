@@ -699,7 +699,7 @@ dock/settings visual fixtures
 
 平台证据边界：
 
-- 最终 `lyra.app` 已真实启动；CoreGraphics 返回 onscreen、layer 0、`1440×900`
+- 最终 `scopeapp.app` 已真实启动；CoreGraphics 返回 onscreen、layer 0、`1440×900`
   主窗口，与 Go/CSS contract 一致；
 - 当前 macOS 拒绝此终端的 Screen Recording 与 Accessibility automation，
   因此本文不声称取得 Wails 原生截图或自动 VoiceOver 操作；

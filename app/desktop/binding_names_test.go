@@ -38,7 +38,7 @@ func TestDesktopHostBindsExactlyFourMethods(t *testing.T) {
 // the gutter its stylesheet declares; a zeroed measurement that claimed to be real would
 // collapse the strip holding the platform's own controls.
 func TestWindowChromeIsUnmeasuredWithoutAWindow(t *testing.T) {
-	if chrome := newDesktopHost(t.TempDir()).WindowChrome(); chrome.Measured {
+	if chrome := mustDesktopHost(t, t.TempDir()).WindowChrome(); chrome.Measured {
 		t.Fatalf("WindowChrome without a window = %#v, want unmeasured", chrome)
 	}
 }

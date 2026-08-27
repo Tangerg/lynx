@@ -1,9 +1,9 @@
 import { getContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { SkillCurationOwner } from "../application/skillCuration";
 import type { SkillCurationGateway } from "../application/ports/skillCurationGateway";
 
-function runtimeSkillCurationGateway(client: LyraClient): SkillCurationGateway {
+function runtimeSkillCurationGateway(client: ScopeAppClient): SkillCurationGateway {
   return {
     archive: (name) => client.skills.archive(name),
     restore: (name) => client.skills.restore(name),

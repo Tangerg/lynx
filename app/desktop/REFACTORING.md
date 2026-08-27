@@ -1,4 +1,4 @@
-# REFACTORING.md — Lyra 前端重构标尺
+# REFACTORING.md — ScopeApp 前端重构标尺
 
 > 重构时**改什么、怎么改、按什么节奏**。文档分工（尽量不重述）：
 >

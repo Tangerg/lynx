@@ -94,7 +94,7 @@ function SendButton() {
 }
 
 export const composerSend = definePlugin({
-  name: "lyra.builtin.composer-send",
+  name: "scopeapp.builtin.composer-send",
   setup(ctx) {
     contributeLayout(ctx, "composer.toolbar.end", {
       id: "send",

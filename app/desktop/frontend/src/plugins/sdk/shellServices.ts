@@ -66,7 +66,7 @@ const commands: CommandsService = {
 };
 
 export const shellServices = definePlugin({
-  name: "lyra.kernel.shell",
+  name: "scopeapp.kernel.shell",
   provides: {
     config: CONFIG,
     i18n: I18N,

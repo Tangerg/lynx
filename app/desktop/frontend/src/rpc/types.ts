@@ -1,4 +1,4 @@
-// JSON-RPC 2.0 envelope for the Lyra Runtime Protocol.
+// JSON-RPC 2.0 envelope for the ScopeApp Runtime Protocol.
 //
 // See app/runtime/doc/API.md §1 for the full spec. Three message kinds share one
 // shape (discriminated by which optional fields are populated):
@@ -7,7 +7,7 @@
 //   Response:     { jsonrpc, id, result? | error? }    (mutually exclusive)
 //   Notification: { jsonrpc, method, params? }         (no id)
 //
-// Lyra currently uses notifications only for runtime→client event delivery
+// ScopeApp currently uses notifications only for runtime→client event delivery
 // (`notifications.run.event` and `notifications.runtime.event`). Mutations
 // such as `sessions.update` are ordinary requests with correlated responses.
 

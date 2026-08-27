@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
 import {
   setEmbeddingRole as saveEmbeddingRole,
@@ -38,7 +38,7 @@ describe("runtimeProviderGateway", () => {
       defaultEmbeddingModel: "embed-1",
     });
     setContainer({
-      client: () => ({ providers: { update } }) as unknown as LyraClient,
+      client: () => ({ providers: { update } }) as unknown as ScopeAppClient,
     });
     uninstall = installProviderGateway().dispose;
 
@@ -63,7 +63,7 @@ describe("runtimeProviderGateway", () => {
     const setUtilityRole = vi.fn().mockResolvedValue({ provider: "openai", model: "chat-1" });
     const setEmbeddingRole = vi.fn().mockResolvedValue({ provider: "openai", model: "embed-1" });
     setContainer({
-      client: () => ({ models: { setUtilityRole, setEmbeddingRole } }) as unknown as LyraClient,
+      client: () => ({ models: { setUtilityRole, setEmbeddingRole } }) as unknown as ScopeAppClient,
     });
     uninstall = installProviderGateway().dispose;
 
@@ -93,7 +93,7 @@ describe("runtimeProviderGateway", () => {
       }),
     );
     setContainer({
-      client: () => ({ providers: { update: updateRetired } }) as unknown as LyraClient,
+      client: () => ({ providers: { update: updateRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installProviderGateway();
     queryClient.setQueryData([PROVIDERS_KEY], [provider()]);
@@ -111,7 +111,7 @@ describe("runtimeProviderGateway", () => {
     await vi.waitFor(() => expect(updateRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ providers: { update: updateSuccessor } }) as unknown as LyraClient,
+      client: () => ({ providers: { update: updateSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installProviderGateway();
     uninstall = () => {

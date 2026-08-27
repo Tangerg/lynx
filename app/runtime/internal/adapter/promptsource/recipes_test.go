@@ -44,7 +44,7 @@ func recipeNames(rs []workspaceapp.Recipe) []string {
 // parsing: project layers over global (winning a name collision), entries sort
 // by name, and frontmatter is optional.
 func TestListRecipes(t *testing.T) {
-	project := filepath.Join(t.TempDir(), ".lyra", "recipes")
+	project := filepath.Join(t.TempDir(), ".scopeapp", "recipes")
 	global := t.TempDir()
 
 	write(t, global, "review.md", "---\ndescription: global review\n---\nGlobal review body $ARGUMENTS")
@@ -182,7 +182,7 @@ func TestListRecipesRejectsUnboundedCascadeMaterial(t *testing.T) {
 }
 
 func TestRecipeFileConventions(t *testing.T) {
-	if got := recipeDir("/work"); got != "/work/.lyra/recipes" {
+	if got := recipeDir("/work"); got != "/work/.scopeapp/recipes" {
 		t.Fatalf("recipeDir(/work) = %q", got)
 	}
 	if got := recipeDir(""); got != "" {

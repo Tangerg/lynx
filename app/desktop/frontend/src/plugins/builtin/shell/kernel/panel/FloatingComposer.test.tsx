@@ -87,7 +87,7 @@ describe("FloatingComposer Runtime connection material", () => {
       </FloatingComposer>,
     );
 
-    expect(screen.getByText("Runtime is unavailable. Lyra will keep trying.")).toBeTruthy();
+    expect(screen.getByText("Runtime is unavailable. ScopeApp will keep trying.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Connection settings" }));
     expect(navigation.openSettings).toHaveBeenCalledWith("connection");
   });

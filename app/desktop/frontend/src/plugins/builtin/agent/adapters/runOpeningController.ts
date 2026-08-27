@@ -50,7 +50,7 @@ export function createRunOpeningController({
       abortCurrent();
       const ctrl = new AbortController();
       setAbortController(ctrl);
-      const span = startRunSpan({ "lyra.session_id": sessionId });
+      const span = startRunSpan({ "scopeapp.session_id": sessionId });
       let failure: unknown;
       let spanEnded = false;
       const finishSpan = () => {
@@ -75,7 +75,7 @@ export function createRunOpeningController({
             }
             try {
               onResult?.(stream.result);
-              span.setAttribute("lyra.run_id", stream.result.runId);
+              span.setAttribute("scopeapp.run_id", stream.result.runId);
               await pump(stream, ctrl.signal);
             } catch (err) {
               if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;

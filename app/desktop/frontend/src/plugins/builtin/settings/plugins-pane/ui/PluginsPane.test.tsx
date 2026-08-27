@@ -17,11 +17,11 @@ afterEach(async () => {
 describe("PluginsPane installation facts", () => {
   it("renders installed plugins from the active Host read model", async () => {
     host = await startKernel([]);
-    trackInstalledPlugin(host, "lyra.builtin.example");
+    trackInstalledPlugin(host, "scopeapp.builtin.example");
 
     const view = render(<PluginsPane />);
 
-    expect(screen.getByText("lyra.builtin.example")).toBeTruthy();
+    expect(screen.getByText("scopeapp.builtin.example")).toBeTruthy();
     view.unmount();
   });
 });

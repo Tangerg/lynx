@@ -7,7 +7,7 @@ import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { ContextUsageGauge } from "./ui/ContextUsageGauge";
 
 export default definePlugin({
-  name: "lyra.builtin.context-usage",
+  name: "scopeapp.builtin.context-usage",
   setup(ctx) {
     contributeLayout(ctx, "composer.toolbar.start", {
       // After the model it measures: the window reads as that control's consequence.

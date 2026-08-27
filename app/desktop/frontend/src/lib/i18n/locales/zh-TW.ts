@@ -371,14 +371,14 @@ export const zhTW: Record<string, string> = {
 
   "settings.pane.connection": "連線",
   "settings.connection.title": "後端",
-  "settings.connection.sub": "Lyra Runtime 的位址。套用後桌面端將切換連線。",
+  "settings.connection.sub": "ScopeApp Runtime 的位址。套用後桌面端將切換連線。",
   "settings.connection.url": "URL",
   "settings.connection.apply": "套用",
   "settings.connection.reset": "恢復預設",
   "settings.connection.status.checking": "正在檢查 Runtime…",
   "settings.connection.status.reconnecting": "正在重新連線…",
   "runtime.connection.reconnecting": "Runtime 連線已中斷，正在重新連線…",
-  "runtime.connection.unavailable": "Runtime 暫時無法使用，Lyra 會繼續嘗試連線。",
+  "runtime.connection.unavailable": "Runtime 暫時無法使用，ScopeApp 會繼續嘗試連線。",
   "runtime.connection.settings": "連線設定",
   "settings.connection.status.ready": "就緒",
   "settings.connection.status.degraded": "部分降級",
@@ -598,7 +598,7 @@ export const zhTW: Record<string, string> = {
   "knowledge.scope.home": "家目錄",
   "knowledge.off": "關閉",
   "knowledge.empty.title": "尚無知識",
-  "knowledge.empty.sub": "執行時為 agent 維護的 LYRA.md 檔案會顯示在這裡。",
+  "knowledge.empty.sub": "執行時為 agent 維護的 SCOPEAPP.md 檔案會顯示在這裡。",
   "knowledge.disabled.title": "知識功能已關閉",
   "knowledge.disabled.sub": "此執行時未宣告知識功能。",
   "knowledge.save": "儲存",
@@ -701,7 +701,7 @@ export const zhTW: Record<string, string> = {
   "convExport.exportedAt": "匯出於 {{time}}",
   "convExport.importUnsupported": "此執行時不支援工作階段匯入。",
   "convExport.notJson": "非 JSON 檔案。",
-  "convExport.notLyra": "非 Lyra 工作階段匯出 —— 請選擇透過「匯出對話」匯出的 JSON 檔案。",
+  "convExport.notScopeApp": "非 ScopeApp 工作階段匯出 —— 請選擇透過「匯出對話」匯出的 JSON 檔案。",
   "convExport.importFailed": "無法匯入對話。",
   "convExport.importSuccess": "已匯入「{{title}}」。",
   "connection.error.urlScheme": "必須以 http:// 或 https:// 開頭",
@@ -787,7 +787,7 @@ export const zhTW: Record<string, string> = {
   "approvals.mode.balanced.desc": "自動允許編輯；執行命令前詢問。",
   "approvals.mode.auto.desc": "全部直接執行，不詢問。",
   "hooks.intro":
-    "Hooks 會在回合中的固定時點執行你自己的命令 —— 工具執行前、提示之後、壓縮時。全域 hooks（~/.lyra）一律執行；專案的 hooks 只有在你信任它之後才會執行。",
+    "Hooks 會在回合中的固定時點執行你自己的命令 —— 工具執行前、提示之後、壓縮時。全域 hooks（~/.scopeapp）一律執行；專案的 hooks 只有在你信任它之後才會執行。",
   "hooks.trust": "信任此專案的 hooks",
   "hooks.trust.sub":
     "此專案的 hooks 會在你的機器上執行 shell 命令。只對你信任的儲存庫啟用。下一個回合起生效。",
@@ -797,7 +797,8 @@ export const zhTW: Record<string, string> = {
   "hooks.inactive": "未啟用",
   "hooks.inactive.hint": "信任此專案以啟用其 hooks。",
   "hooks.empty": "尚未設定任何 hook",
-  "hooks.empty.sub": "在 ~/.lyra/hooks.json（全域）或 <project>/.lyra/hooks.json 中新增 hooks。",
+  "hooks.empty.sub":
+    "在 ~/.scopeapp/hooks.json（全域）或 <project>/.scopeapp/hooks.json 中新增 hooks。",
   "hooks.unavailable": "Hooks 不可用",
   "hooks.unavailable.sub": "此執行時未提供 hook 管理。",
   "hooks.error.trust": "無法變更專案 hook 的信任狀態。",
@@ -943,7 +944,7 @@ export const zhTW: Record<string, string> = {
   "recipes.available": "{{count}} 個可用",
   "recipes.empty.title": "沒有配方",
   "recipes.empty.sub":
-    "把 .md 檔放進 .lyra/recipes（專案）或 ~/.lyra/recipes（全域）—— 檔名就會變成一個 /slash 指令。",
+    "把 .md 檔放進 .scopeapp/recipes（專案）或 ~/.scopeapp/recipes（全域）—— 檔名就會變成一個 /slash 指令。",
   "schedules.intro":
     "依排程執行已存的提示。只要執行時在服務中，每次執行都會開一個新的工作階段 —— 輸出可在側邊欄找到。",
   "schedules.add": "新增排程",

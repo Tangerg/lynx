@@ -35,7 +35,7 @@ function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const webSearchPreview = definePlugin({
-  name: "lyra.builtin.web-search-preview",
+  name: "scopeapp.builtin.web-search-preview",
   setup(ctx) {
     for (const preview of webSearchToolPreview(WebSearchPreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

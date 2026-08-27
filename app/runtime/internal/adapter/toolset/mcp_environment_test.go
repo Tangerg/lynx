@@ -27,7 +27,7 @@ import (
 // test (below) re-execs the test binary with this set so we get a
 // real subprocess to talk to over stdin/stdout without depending on
 // `npx` / Python / etc. in CI.
-const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
+const runAsMCPServerEnv = "SCOPEAPP_TEST_RUN_AS_MCP_SERVER"
 
 func resolvedRootTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
@@ -39,7 +39,7 @@ func resolvedRootTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.
 }
 
 // TestMain is the standard fork-and-exec trick documented in the
-// SDK's cmd_test.go: when LYRA_TEST_RUN_AS_MCP_SERVER is set, run as
+// SDK's cmd_test.go: when SCOPEAPP_TEST_RUN_AS_MCP_SERVER is set, run as
 // a stdio MCP server (with one `ping` tool) instead of executing
 // the test suite.
 func TestMain(m *testing.M) {
@@ -55,7 +55,7 @@ func TestMain(m *testing.M) {
 // HTTP test server: one `ping` tool, stdio transport.
 func runStdioMCPServer() {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{
-		Name: "lyra-test-stdio-mcp", Version: "v0.1.0",
+		Name: "scopeapp-test-stdio-mcp", Version: "v0.1.0",
 	}, nil)
 	ping, err := toolcontract.NewFunc[struct{}, string](
 		toolcontract.FuncConfig{

@@ -15,7 +15,7 @@ import { AGENT_SESSION_PORTS } from "@/plugins/builtin/agent/public/ports";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
-  name: "lyra.builtin.agent-bootstrap",
+  name: "scopeapp.builtin.agent-bootstrap",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   provides: { sessions: AGENT_SESSION_PORTS },
   setup(ctx) {

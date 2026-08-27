@@ -1,10 +1,10 @@
-// Package config loads Lyra's runtime settings via Viper.
+// Package config loads ScopeApp's runtime settings via Viper.
 //
 // Sources, later overrides earlier:
 //
 //  1. Built-in defaults
 //  2. config.yaml in an executable-supplied absolute search directory
-//  3. Environment variables (LYRA_*)
+//  3. Environment variables (SCOPEAPP_*)
 //
 // The yaml file is where the API key lives in dev; it is gitignored.
 // Copy config/config.example.yaml → config/config.yaml and fill it in.
@@ -13,7 +13,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -37,15 +36,15 @@ func Load(configDirectories []string) (Settings, error) {
 	}
 
 	// No default provider — it must be set explicitly in config/config.yaml
-	// or via LYRA_PROVIDER. (No vendor is privileged as the implicit default.)
+	// or via SCOPEAPP_PROVIDER. (No vendor is privileged as the implicit default.)
 	v.SetDefault("server.listen", "127.0.0.1:17171")
 	v.SetDefault("server.noLocalToken", false)
 	// Tool-result eviction is on by default; an explicit non-positive value
 	// (e.g. toolResultOffload.threshold: 0) disables it.
 	v.SetDefault("toolResultOffload.threshold", DefaultToolResultOffloadThreshold)
 
-	// LYRA_* env override yaml (e.g. LYRA_PROVIDER, LYRA_SERVER_LISTEN).
-	v.SetEnvPrefix("LYRA")
+	// SCOPEAPP_* env override yaml (e.g. SCOPEAPP_PROVIDER, SCOPEAPP_SERVER_LISTEN).
+	v.SetEnvPrefix(environmentPrefix.String())
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
@@ -58,27 +57,27 @@ func Load(configDirectories []string) (Settings, error) {
 
 	provider := v.GetString("provider")
 	if provider == "" {
-		return Settings{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (see providers.list for the supported set)")
+		return Settings{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or SCOPEAPP_PROVIDER (see providers.list for the supported set)")
 	}
 
 	model := v.GetString("model")
 
-	// API key from yaml `apiKey` or LYRA_APIKEY. Provider-native environment
+	// API key from yaml `apiKey` or SCOPEAPP_APIKEY. Provider-native environment
 	// fallback is resolved separately against the selected provider.
 	apiKey := v.GetString("apiKey")
 
-	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
+	servers, err := parseMCPServers(mcpServersEnvironment.Value())
 	if err != nil {
-		return Settings{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
+		return Settings{}, fmt.Errorf("config: %s: %w", mcpServersEnvironment, err)
 	}
 
-	a2aAgents, err := parseA2AAgents(os.Getenv("LYRA_A2A_AGENTS"))
+	a2aAgents, err := parseA2AAgents(a2aAgentsEnvironment.Value())
 	if err != nil {
-		return Settings{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
+		return Settings{}, fmt.Errorf("config: %s: %w", a2aAgentsEnvironment, err)
 	}
-	a2aAgents, err = addA2ARPCOrigins(a2aAgents, os.Getenv("LYRA_A2A_RPC_ORIGINS"))
+	a2aAgents, err = addA2ARPCOrigins(a2aAgents, a2aOriginsEnvironment.Value())
 	if err != nil {
-		return Settings{}, fmt.Errorf("config: LYRA_A2A_RPC_ORIGINS: %w", err)
+		return Settings{}, fmt.Errorf("config: %s: %w", a2aOriginsEnvironment, err)
 	}
 
 	lspServers, err := loadLSPServers(v)

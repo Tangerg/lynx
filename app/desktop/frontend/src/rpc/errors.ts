@@ -3,8 +3,8 @@
 // is the same refusal with the round-trip removed. Wraps the raw payload so callers
 // branch on the problem TYPE rather than parsing the message string.
 
-import type { ProblemData } from "@lyra/runtime-contract/wire";
-import type { WireViolation } from "@lyra/runtime-contract/wire-check";
+import type { ProblemData } from "@scopeapp/runtime-contract/wire";
+import type { WireViolation } from "@scopeapp/runtime-contract/wire-check";
 
 type ProblemOf<Type extends ProblemData["type"]> = Type extends `plugin:${string}/${string}`
   ? Extract<ProblemData, { type: `plugin:${string}/${string}` }>

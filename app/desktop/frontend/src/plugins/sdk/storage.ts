@@ -1,15 +1,15 @@
 // Namespaced key-value storage handed to each plugin.
 //
-//   const storage = createStorage("lyra.builtin.my-plugin");
+//   const storage = createStorage("scopeapp.builtin.my-plugin");
 //   storage.set("threshold", 0.42);
 //   const stored = storage.get("threshold");
 //   const threshold = typeof stored === "number" ? stored : undefined;
 //
-// Keys live under `lyra.plugin.<plugin-name>.<key>` in localStorage so two
+// Keys live under `scopeapp.plugin.<plugin-name>.<key>` in localStorage so two
 // plugins can never read each other's data and a stale plugin's keys are
 // trivially purgeable.
 
-const ROOT = "lyra.plugin";
+const ROOT = "scopeapp.plugin";
 
 export interface KeyValueStore {
   /** Persistent data is untrusted until the consuming boundary validates it. */

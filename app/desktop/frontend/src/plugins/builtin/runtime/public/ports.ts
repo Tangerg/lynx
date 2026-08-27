@@ -9,7 +9,7 @@ export interface RuntimeStreamPorts {
   reportConnectionLoss: (expectedGeneration: string) => Promise<void>;
 }
 
-export const RUNTIME_STREAM_PORTS = service<RuntimeStreamPorts>("lyra.runtime.streamPorts");
+export const RUNTIME_STREAM_PORTS = service<RuntimeStreamPorts>("scopeapp.runtime.streamPorts");
 
 /** A configured endpoint change replaces the product's one server scope. */
 export interface RuntimeServerScopePorts {
@@ -17,5 +17,5 @@ export interface RuntimeServerScopePorts {
 }
 
 export const RUNTIME_SERVER_SCOPE_PORTS = service<RuntimeServerScopePorts>(
-  "lyra.runtime.serverScopePorts",
+  "scopeapp.runtime.serverScopePorts",
 );

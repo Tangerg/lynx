@@ -25,7 +25,7 @@ type KnowledgeWorkspaceInspector interface {
 	Inspect(path string) (Resolved, error)
 }
 
-// Knowledge owns the human-authored LYRA.md cascade use cases.
+// Knowledge owns the human-authored SCOPEAPP.md cascade use cases.
 type Knowledge struct {
 	scope         *Scope
 	workspaces    KnowledgeWorkspaceInspector
@@ -50,7 +50,7 @@ func NewKnowledge(
 // Available reports whether this runtime has a long-term knowledge store.
 func (k *Knowledge) Available() bool { return k != nil && k.store != nil }
 
-// Entries enumerates LYRA.md entries across scopes.
+// Entries enumerates SCOPEAPP.md entries across scopes.
 func (k *Knowledge) Entries(ctx context.Context, cwd string) ([]knowledge.Entry, error) {
 	if k.store == nil {
 		return nil, ErrKnowledgeUnavailable
@@ -67,7 +67,7 @@ func (k *Knowledge) Entries(ctx context.Context, cwd string) ([]knowledge.Entry,
 	return entries, knowledgePathError(err)
 }
 
-// Read returns the LYRA.md content for one scope.
+// Read returns the SCOPEAPP.md content for one scope.
 func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
 	if err := scope.Validate(); err != nil {
 		return knowledge.Entry{}, err
@@ -93,7 +93,7 @@ func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string)
 	return entry, knowledgePathError(err)
 }
 
-// Update conditionally replaces one LYRA.md document and returns the committed fact.
+// Update conditionally replaces one SCOPEAPP.md document and returns the committed fact.
 func (k *Knowledge) Update(ctx context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
 	if err := scope.Validate(); err != nil {
 		return knowledge.Entry{}, err

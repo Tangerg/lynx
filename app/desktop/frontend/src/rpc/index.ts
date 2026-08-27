@@ -1,8 +1,8 @@
-// Public surface of the Lyra Runtime Protocol v2 client. See app/runtime/doc/API.md.
+// Public surface of the ScopeApp Runtime Protocol v2 client. See app/runtime/doc/API.md.
 //
 // The SDK is transport-agnostic: inject a `Transport`, get a typed client.
 //
-//   const client = createLyraClient(createHttpTransport({ baseUrl, localToken }));
+//   const client = createScopeAppClient(createHttpTransport({ baseUrl, localToken }));
 //   await client.runtime.discover();            // optional capability discovery
 //   const sessions = await client.sessions.list();
 //   const allSessions = await client.sessions.list().autoPagingToArray();
@@ -31,9 +31,9 @@ export {
 } from "./mutationSettlement";
 export type { UnaryMutationSettler } from "./mutationSettlement";
 export type { Methods, StreamingResult } from "./methods";
-export { createLyraClient } from "./sdk";
-export type { LyraClient } from "./sdk";
-export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "@lyra/runtime-contract/wire";
+export { createScopeAppClient } from "./sdk";
+export type { ScopeAppClient } from "./sdk";
+export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "@scopeapp/runtime-contract/wire";
 export type {
   // Lifecycle / capabilities
   ClientCapabilities,
@@ -95,8 +95,8 @@ export type {
   KnowledgeEntry,
   RuntimeEvent,
   RuntimeTopic,
-} from "@lyra/runtime-contract/wire";
-export type { WireFeature } from "@lyra/runtime-contract/methods";
+} from "@scopeapp/runtime-contract/wire";
+export type { WireFeature } from "@scopeapp/runtime-contract/methods";
 export { createSidecarClient } from "./sidecar";
 export type { LivenessStatus, ReadinessStatus, RuntimeInfo, SidecarClient } from "./sidecar";
 export { createDesktopHostClient } from "./desktopHost";

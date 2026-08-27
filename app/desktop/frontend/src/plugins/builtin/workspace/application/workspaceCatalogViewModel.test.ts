@@ -41,7 +41,7 @@ describe("workspace catalog view models", () => {
           id: "projectRoot",
           scope: "projectRoot",
           scopeLabelKey: "knowledge.scope.projectRoot",
-          path: "project/LYRA.md",
+          path: "project/SCOPEAPP.md",
           content: "knowledge",
           revision: "rev-1",
           updatedAt: undefined,

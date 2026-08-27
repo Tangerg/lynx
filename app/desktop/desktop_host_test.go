@@ -11,6 +11,15 @@ import (
 	"testing"
 )
 
+func mustDesktopHost(t *testing.T, home string) *DesktopHost {
+	t.Helper()
+	host, err := newDesktopHost(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return host
+}
+
 type workingDirectoryPickerFunc func() (string, error)
 
 func (w workingDirectoryPickerFunc) ChooseWorkingDirectory() (string, error) {
@@ -25,12 +34,12 @@ func (i imageSaverFunc) SaveImage(suggestedFilename string, contents []byte) (bo
 
 func TestDesktopHostBootstrap(t *testing.T) {
 	home := t.TempDir()
-	host := newDesktopHost(home)
-	if err := os.MkdirAll(filepath.Join(home, ".lyra"), 0o700); err != nil {
+	host := mustDesktopHost(t, home)
+	if err := os.MkdirAll(filepath.Join(home, ".scopeapp"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	value := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
-	if err := os.WriteFile(filepath.Join(home, ".lyra", "local-token"), []byte(value), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".scopeapp", "local-token"), []byte(value), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	bootstrap, err := host.Bootstrap()
@@ -59,7 +68,7 @@ func TestDesktopHostBootstrapRejectsInvalidDurableCredentials(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			home := t.TempDir()
-			root := filepath.Join(home, ".lyra")
+			root := filepath.Join(home, ".scopeapp")
 			if err := os.MkdirAll(root, 0o700); err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +89,7 @@ func TestDesktopHostBootstrapRejectsInvalidDurableCredentials(t *testing.T) {
 				}
 			}
 
-			if _, err := newDesktopHost(home).Bootstrap(); err == nil {
+			if _, err := mustDesktopHost(t, home).Bootstrap(); err == nil {
 				t.Fatal("Bootstrap() accepted an invalid durable credential")
 			}
 		})
@@ -88,7 +97,7 @@ func TestDesktopHostBootstrapRejectsInvalidDurableCredentials(t *testing.T) {
 }
 
 func TestDesktopHostBootstrapAllowsMissingState(t *testing.T) {
-	bootstrap, err := newDesktopHost(t.TempDir()).Bootstrap()
+	bootstrap, err := mustDesktopHost(t, t.TempDir()).Bootstrap()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +108,7 @@ func TestDesktopHostBootstrapAllowsMissingState(t *testing.T) {
 
 func TestDesktopHostChooseWorkingDirectory(t *testing.T) {
 	directory := t.TempDir()
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	host.useWorkingDirectoryPicker(workingDirectoryPickerFunc(func() (string, error) {
 		return directory, nil
 	}))
@@ -118,7 +127,7 @@ func TestDesktopHostChooseWorkingDirectory(t *testing.T) {
 }
 
 func TestDesktopHostChooseWorkingDirectoryPreservesCancellation(t *testing.T) {
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	host.useWorkingDirectoryPicker(workingDirectoryPickerFunc(func() (string, error) {
 		return "", nil
 	}))
@@ -133,7 +142,7 @@ func TestDesktopHostChooseWorkingDirectoryPreservesCancellation(t *testing.T) {
 }
 
 func TestDesktopHostChooseWorkingDirectoryRequiresPicker(t *testing.T) {
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 
 	if selected, err := host.ChooseWorkingDirectory(); err == nil {
 		t.Fatalf("ChooseWorkingDirectory() = %q, nil; want unconfigured picker error", selected)
@@ -165,7 +174,7 @@ func TestDesktopHostChooseWorkingDirectoryRejectsInvalidSelections(t *testing.T)
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			host := newDesktopHost(t.TempDir())
+			host := mustDesktopHost(t, t.TempDir())
 			host.useWorkingDirectoryPicker(workingDirectoryPickerFunc(func() (string, error) {
 				return test.selection(t), test.pickErr
 			}))
@@ -178,7 +187,7 @@ func TestDesktopHostChooseWorkingDirectoryRejectsInvalidSelections(t *testing.T)
 }
 
 func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	var filename string
 	var contents []byte
 	host.useImageSaver(imageSaverFunc(func(suggestedFilename string, material []byte) (bool, error) {
@@ -197,13 +206,13 @@ func TestDesktopHostSaveImageDecodesInlineMaterial(t *testing.T) {
 	if !bytes.Equal(contents, []byte("image")) {
 		t.Fatalf("saved material = %q; want image bytes", contents)
 	}
-	if !strings.HasPrefix(filename, "Lyra Image ") || !strings.HasSuffix(filename, ".png") {
-		t.Fatalf("suggested filename = %q, want Lyra image PNG name", filename)
+	if !strings.HasPrefix(filename, "ScopeApp Image ") || !strings.HasSuffix(filename, ".png") {
+		t.Fatalf("suggested filename = %q, want ScopeApp image PNG name", filename)
 	}
 }
 
 func TestDesktopHostSaveImagePreservesCancellation(t *testing.T) {
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 		return false, nil
 	}))
@@ -225,7 +234,7 @@ func TestDesktopHostSaveImageRejectsInvalidSourcesBeforeOpeningDialog(t *testing
 	for _, source := range tests {
 		t.Run(source, func(t *testing.T) {
 			called := false
-			host := newDesktopHost(t.TempDir())
+			host := mustDesktopHost(t, t.TempDir())
 			host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 				called = true
 				return true, nil
@@ -242,11 +251,11 @@ func TestDesktopHostSaveImageRejectsInvalidSourcesBeforeOpeningDialog(t *testing
 }
 
 func TestDesktopHostSaveImageRequiresAndPropagatesNativeOwner(t *testing.T) {
-	if saved, err := newDesktopHost(t.TempDir()).SaveImage("data:image/png;base64,aW1hZ2U="); err == nil {
+	if saved, err := mustDesktopHost(t, t.TempDir()).SaveImage("data:image/png;base64,aW1hZ2U="); err == nil {
 		t.Fatalf("SaveImage() = %v, nil; want unconfigured saver error", saved)
 	}
 
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	host.useImageSaver(imageSaverFunc(func(string, []byte) (bool, error) {
 		return false, errors.New("disk full")
 	}))

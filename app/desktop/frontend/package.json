@@ -50,7 +50,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@lobehub/icons": "^5.16.0",
-    "@lyra/runtime-contract": "file:../../runtime/contract/typescript",
+    "@scopeapp/runtime-contract": "file:../../runtime/contract/typescript",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.221.0",
     "@opentelemetry/core": "^2.10.0",

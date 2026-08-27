@@ -378,7 +378,8 @@ export const de: Record<string, string> = {
 
   "settings.pane.connection": "Verbindung",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Adresse der Lyra Runtime. Anwenden verbindet die Desktop-App neu.",
+  "settings.connection.sub":
+    "Adresse der ScopeApp Runtime. Anwenden verbindet die Desktop-App neu.",
   "settings.connection.url": "URL",
   "settings.connection.apply": "Anwenden",
   "settings.connection.reset": "Auf Standard zurücksetzen",
@@ -387,7 +388,7 @@ export const de: Record<string, string> = {
   "runtime.connection.reconnecting":
     "Die Runtime-Verbindung wurde unterbrochen. Verbindung wird wiederhergestellt…",
   "runtime.connection.unavailable":
-    "Die Runtime ist nicht verfügbar. Lyra versucht weiterhin, die Verbindung herzustellen.",
+    "Die Runtime ist nicht verfügbar. ScopeApp versucht weiterhin, die Verbindung herzustellen.",
   "runtime.connection.settings": "Verbindungseinstellungen",
   "settings.connection.status.ready": "Bereit",
   "settings.connection.status.degraded": "Eingeschränkt",
@@ -611,7 +612,7 @@ export const de: Record<string, string> = {
   "knowledge.off": "aus",
   "knowledge.empty.title": "Noch kein Wissen",
   "knowledge.empty.sub":
-    "LYRA.md-Dateien, die die Runtime für den Agenten pflegt, erscheinen hier.",
+    "SCOPEAPP.md-Dateien, die die Runtime für den Agenten pflegt, erscheinen hier.",
   "knowledge.disabled.title": "Wissen ist deaktiviert",
   "knowledge.disabled.sub": "Diese Runtime bietet die Wissensfunktion nicht an.",
   "knowledge.save": "Speichern",
@@ -710,8 +711,8 @@ export const de: Record<string, string> = {
   "convExport.exportedAt": "Exportiert {{time}}",
   "convExport.importUnsupported": "Diese Runtime unterstützt keinen Sitzungsimport.",
   "convExport.notJson": "Keine JSON-Datei.",
-  "convExport.notLyra":
-    'Kein Lyra-Sitzungsexport — wähle ein JSON, das über „Konversation exportieren" exportiert wurde.',
+  "convExport.notScopeApp":
+    'Kein ScopeApp-Sitzungsexport — wähle ein JSON, das über „Konversation exportieren" exportiert wurde.',
   "convExport.importFailed": "Konversation konnte nicht importiert werden.",
   "convExport.importSuccess": '"{{title}}" importiert.',
   "connection.error.urlScheme": "Muss mit http:// oder https:// beginnen",
@@ -800,7 +801,7 @@ export const de: Record<string, string> = {
   "approvals.mode.balanced.desc": "Änderungen automatisch erlauben; vor Befehlen fragen.",
   "approvals.mode.auto.desc": "Alles ohne Rückfrage ausführen.",
   "hooks.intro":
-    "Hooks führen deine eigenen Befehle an festen Punkten eines Zugs aus — vor einem Tool, nach einem Prompt, bei der Verdichtung. Globale Hooks (~/.lyra) laufen immer; die Hooks eines Projekts erst, wenn du ihm vertraust.",
+    "Hooks führen deine eigenen Befehle an festen Punkten eines Zugs aus — vor einem Tool, nach einem Prompt, bei der Verdichtung. Globale Hooks (~/.scopeapp) laufen immer; die Hooks eines Projekts erst, wenn du ihm vertraust.",
   "hooks.trust": "Hooks dieses Projekts vertrauen",
   "hooks.trust.sub":
     "Die Hooks dieses Projekts führen Shell-Befehle auf deinem Rechner aus. Aktiviere sie nur für Repositories, denen du vertraust. Wirkt ab dem nächsten Zug.",
@@ -811,7 +812,7 @@ export const de: Record<string, string> = {
   "hooks.inactive.hint": "Vertraue diesem Projekt, um seine Hooks zu aktivieren.",
   "hooks.empty": "Keine Hooks konfiguriert",
   "hooks.empty.sub":
-    "Füge Hooks in ~/.lyra/hooks.json (global) oder <project>/.lyra/hooks.json hinzu.",
+    "Füge Hooks in ~/.scopeapp/hooks.json (global) oder <project>/.scopeapp/hooks.json hinzu.",
   "hooks.unavailable": "Hooks nicht verfügbar",
   "hooks.unavailable.sub": "Diese Runtime stellt keine Hook-Verwaltung bereit.",
   "hooks.error.trust": "Hook-Vertrauen des Projekts konnte nicht geändert werden.",
@@ -966,7 +967,7 @@ export const de: Record<string, string> = {
   "recipes.available": "{{count}} verfügbar",
   "recipes.empty.title": "Keine Rezepte",
   "recipes.empty.sub":
-    "Lege eine .md-Datei in .lyra/recipes (Projekt) oder ~/.lyra/recipes (global) — ihr Name wird zu einem /Slash-Befehl.",
+    "Lege eine .md-Datei in .scopeapp/recipes (Projekt) oder ~/.scopeapp/recipes (global) — ihr Name wird zu einem /Slash-Befehl.",
   "schedules.intro":
     "Führt einen gespeicherten Prompt nach Zeitplan aus. Jeder Lauf startet eine frische Sitzung, solange die Runtime läuft — die Ausgabe findest du in der Seitenleiste.",
   "schedules.add": "Neuer Zeitplan",

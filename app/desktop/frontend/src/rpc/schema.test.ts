@@ -4,7 +4,7 @@ import { join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { describe, expect, it } from "vitest";
 
-import { WIRE_SAMPLES } from "@lyra/runtime-contract/samples";
+import { WIRE_SAMPLES } from "@scopeapp/runtime-contract/samples";
 
 // The PUBLISHED schema, checked by a validator that had no hand in producing it.
 //

@@ -4,5 +4,5 @@
   "argumentHint": "[focus area]",
   "body": "Review the current diff, focusing on $ARGUMENTS.",
   "scope": "project",
-  "source": "/Users/dev/project/.lyra/recipes/review.md"
+  "source": "/Users/dev/project/.scopeapp/recipes/review.md"
 }

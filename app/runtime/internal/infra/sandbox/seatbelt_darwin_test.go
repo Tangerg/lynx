@@ -25,9 +25,9 @@ func TestSeatbeltRunnerConfinesWritesAndEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("LYRA_SANDBOX_SECRET", "must-not-leak")
+	t.Setenv("SCOPEAPP_SANDBOX_SECRET", "must-not-leak")
 	out, err := runner.Run(t.Context(), workspace, toolshell.Input{
-		Cmd: "printf inside > inside.txt; printf %s \"${LYRA_SANDBOX_SECRET-unset}\"; test ! -r " + strconv.Quote(secret),
+		Cmd: "printf inside > inside.txt; printf %s \"${SCOPEAPP_SANDBOX_SECRET-unset}\"; test ! -r " + strconv.Quote(secret),
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { setHookTrust } from "../application/hookTrust";
 import { HOOKS_KEY } from "../application/hookQueries";
 import { installHookTrustGateway } from "./runtimeHookTrustGateway";
@@ -21,7 +21,7 @@ describe("runtimeHookTrustGateway", () => {
     const setTrustRetired = vi.fn(() => retiredWrite.promise);
     const setTrustSuccessor = vi.fn().mockResolvedValue(undefined);
     setContainer({
-      client: () => ({ hooks: { setTrust: setTrustRetired } }) as unknown as LyraClient,
+      client: () => ({ hooks: { setTrust: setTrustRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installHookTrustGateway();
 
@@ -30,7 +30,7 @@ describe("runtimeHookTrustGateway", () => {
     await vi.waitFor(() => expect(setTrustRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ hooks: { setTrust: setTrustSuccessor } }) as unknown as LyraClient,
+      client: () => ({ hooks: { setTrust: setTrustSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installHookTrustGateway();
     uninstall = () => {

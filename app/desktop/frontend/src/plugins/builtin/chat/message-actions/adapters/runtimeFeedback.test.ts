@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { submitMessageFeedback } from "../application/feedback";
 import { installRuntimeFeedbackGateway } from "./runtimeFeedback";
 
@@ -16,11 +16,11 @@ describe("runtimeFeedbackGateway", () => {
   it("captures the exact client and submits the Session identity admitted with the message", async () => {
     const create = vi.fn().mockResolvedValue(undefined);
     const successorCreate = vi.fn().mockResolvedValue(undefined);
-    setContainer({ client: () => ({ feedback: { create } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ feedback: { create } }) as unknown as ScopeAppClient });
     const installation = installRuntimeFeedbackGateway();
     dispose = installation.dispose;
     setContainer({
-      client: () => ({ feedback: { create: successorCreate } }) as unknown as LyraClient,
+      client: () => ({ feedback: { create: successorCreate } }) as unknown as ScopeAppClient,
     });
 
     await submitMessageFeedback(

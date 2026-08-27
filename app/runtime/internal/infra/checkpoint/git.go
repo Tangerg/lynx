@@ -23,8 +23,8 @@ func (s *Store) git(ctx context.Context, gitDir, workTree string, args ...string
 func (s *Store) gitOutput(ctx context.Context, gitDir, workTree string, args ...string) ([]byte, error) {
 	environment := []string{
 		"GIT_DIR=" + gitDir,
-		"GIT_AUTHOR_NAME=lyra", "GIT_AUTHOR_EMAIL=lyra@localhost",
-		"GIT_COMMITTER_NAME=lyra", "GIT_COMMITTER_EMAIL=lyra@localhost",
+		"GIT_AUTHOR_NAME=scopeapp", "GIT_AUTHOR_EMAIL=scopeapp@localhost",
+		"GIT_COMMITTER_NAME=scopeapp", "GIT_COMMITTER_EMAIL=scopeapp@localhost",
 		"GIT_CONFIG_GLOBAL=" + os.DevNull, "GIT_CONFIG_SYSTEM=" + os.DevNull,
 		"LC_ALL=C", "LANG=C",
 	}

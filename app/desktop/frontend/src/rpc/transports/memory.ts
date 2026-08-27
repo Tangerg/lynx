@@ -10,7 +10,7 @@ import type {
   TransportRequest,
   TransportResponseMetadata,
 } from "../transport";
-import type { WireStreamingMethodName } from "@lyra/runtime-contract/methods";
+import type { WireStreamingMethodName } from "@scopeapp/runtime-contract/methods";
 import { isResponse, type RpcId, type RpcMessage } from "../types";
 
 export interface MemoryTransport extends Transport {

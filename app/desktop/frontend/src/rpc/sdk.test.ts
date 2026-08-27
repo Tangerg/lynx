@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLyraClient } from "./sdk";
+import { createScopeAppClient } from "./sdk";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import { JSONRPC_VERSION, type RpcMessage } from "./types";
-import { PROTOCOL_VERSION, type ServerCapabilities } from "@lyra/runtime-contract/wire";
-import discoverResponse from "@lyra/runtime-contract/samples/method.discover.resp.json";
+import { PROTOCOL_VERSION, type ServerCapabilities } from "@scopeapp/runtime-contract/wire";
+import discoverResponse from "@scopeapp/runtime-contract/samples/method.discover.resp.json";
 
-describe("createLyraClient", () => {
+describe("createScopeAppClient", () => {
   it("disposes journal ownership before closing the transport", async () => {
     const transport = createMemoryTransport();
     const dispose = vi.fn();
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       mutationJournal: { reserve: () => undefined, dispose },
     });
 
@@ -23,7 +23,7 @@ describe("createLyraClient", () => {
     const transport = createMemoryTransport();
     const closeTransport = vi.spyOn(transport, "close");
     const failure = new Error("journal cleanup failed");
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       mutationJournal: {
         reserve: () => undefined,
         dispose: () => {
@@ -45,7 +45,7 @@ describe("createLyraClient", () => {
       await closeMemoryTransport();
       throw transportFailure;
     });
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       mutationJournal: {
         reserve: () => undefined,
         dispose: () => {
@@ -77,7 +77,7 @@ describe("createLyraClient", () => {
       disposed = true;
       throw journalFailure;
     });
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       mutationJournal: { reserve: () => undefined, dispose },
     });
 
@@ -101,7 +101,7 @@ describe("createLyraClient", () => {
 
   it("attaches request metadata to typed calls", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       requestMeta: () => ({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "test", version: "0" },
@@ -151,7 +151,7 @@ describe("createLyraClient", () => {
         runtimeSubscription: { maxTopics: 1, maxWatches: 1 },
       },
     } satisfies ServerCapabilities;
-    const client = createLyraClient(transport, {
+    const client = createScopeAppClient(transport, {
       capabilities: () => capabilities,
       requestMeta: () => {
         reads += 1;

@@ -92,7 +92,7 @@ mutually exclusive; an empty ref is invalid and never means clear.
 ## Desktop follow-up
 
 The desktop consumes generated Runtime bindings, validators, and samples directly
-from the private local `@lyra/runtime-contract` package rooted at
+from the private local `@scopeapp/runtime-contract` package rooted at
 `app/runtime/contract/typescript`; it does not vendor a second generated tree.
 Every later protocol batch regenerates this one package and updates handwritten
 SDK semantics and fixtures against it:

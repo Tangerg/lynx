@@ -15,7 +15,7 @@ import (
 // conversation wiped if the rewrite fails. Append (Write) accumulates; Replace
 // overwrites; empty clears.
 func TestMessageStore_ReplaceIsTransactional(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestMessageStore_ReplaceIsTransactional(t *testing.T) {
 // watermark read doesn't load and unmarshal the whole history. Unknown
 // conversation is 0, not an error.
 func TestMessageStore_CountMatchesReadLength(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

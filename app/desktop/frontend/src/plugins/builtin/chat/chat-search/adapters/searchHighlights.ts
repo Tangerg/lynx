@@ -2,7 +2,7 @@
 // to the browser, so this is document-facing plumbing rather than application
 // logic — it lives with the DOM walk that produces those Ranges.
 const HIGHLIGHTS_AVAILABLE = typeof CSS !== "undefined" && "highlights" in CSS;
-const HIGHLIGHT_STYLE_ID = "lyra-chat-search-highlight-styles";
+const HIGHLIGHT_STYLE_ID = "scopeapp-chat-search-highlight-styles";
 const HIGHLIGHT_STYLES = `
 ::highlight(chat-search) {
   background-color: color-mix(in oklab, var(--color-warning) 32%, transparent);

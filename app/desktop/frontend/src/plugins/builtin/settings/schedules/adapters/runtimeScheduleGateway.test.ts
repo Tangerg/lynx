@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient, Schedule } from "@/rpc";
+import type { ScopeAppClient, Schedule } from "@/rpc";
 import {
   createSchedule,
   runScheduleNow,
@@ -41,7 +41,7 @@ function schedule(workspace?: { path: string }): Schedule {
 describe("runtimeScheduleGateway", () => {
   it("omits workspace when a new schedule deliberately uses the Runtime default", async () => {
     const create = vi.fn().mockResolvedValue(schedule());
-    setContainer({ client: () => ({ schedules: { create } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ schedules: { create } }) as unknown as ScopeAppClient });
     installation = installScheduleGateway();
 
     await createSchedule({
@@ -60,7 +60,7 @@ describe("runtimeScheduleGateway", () => {
 
   it("uses the explicit Runtime-default mode when an edit clears a binding", async () => {
     const update = vi.fn().mockResolvedValue(schedule());
-    setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ schedules: { update } }) as unknown as ScopeAppClient });
     installation = installScheduleGateway();
 
     await updateSchedule({
@@ -86,7 +86,7 @@ describe("runtimeScheduleGateway", () => {
 
   it("sends a valid workspace ref when an edit sets an explicit binding", async () => {
     const update = vi.fn().mockResolvedValue(schedule({ path: "/workspace" }));
-    setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ schedules: { update } }) as unknown as ScopeAppClient });
     installation = installScheduleGateway();
 
     await updateSchedule({
@@ -112,7 +112,7 @@ describe("runtimeScheduleGateway", () => {
 
   it("preserves the launched session and run identities from run-now", async () => {
     const runNow = vi.fn().mockResolvedValue({ sessionId: "ses_scheduled", runId: "run_1" });
-    setContainer({ client: () => ({ schedules: { runNow } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ schedules: { runNow } }) as unknown as ScopeAppClient });
     installation = installScheduleGateway();
 
     await expect(runScheduleNow("schedule-1")).resolves.toEqual({
@@ -125,7 +125,7 @@ describe("runtimeScheduleGateway", () => {
   it("preserves the authoritative revision returned by an enablement change", async () => {
     const updated = { ...schedule(), enabled: false, revision: 8 };
     const update = vi.fn().mockResolvedValue(updated);
-    setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ schedules: { update } }) as unknown as ScopeAppClient });
     installation = installScheduleGateway();
 
     await expect(setScheduleEnabled(schedule(), false)).resolves.toMatchObject({
@@ -142,14 +142,14 @@ describe("runtimeScheduleGateway", () => {
       runId: "run_successor",
     });
     setContainer({
-      client: () => ({ schedules: { runNow: runNowRetired } }) as unknown as LyraClient,
+      client: () => ({ schedules: { runNow: runNowRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installScheduleGateway();
     const command = rejected(runScheduleNow("schedule-1"));
     await vi.waitFor(() => expect(runNowRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ schedules: { runNow: runNowSuccessor } }) as unknown as LyraClient,
+      client: () => ({ schedules: { runNow: runNowSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installScheduleGateway();
     installation = {

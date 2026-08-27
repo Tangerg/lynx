@@ -1,10 +1,10 @@
 import { getContainer } from "@/main/container";
-import { isErrorType, type KnowledgeEntry, type LyraClient } from "@/rpc";
+import { isErrorType, type KnowledgeEntry, type ScopeAppClient } from "@/rpc";
 import { KnowledgeOwner } from "../application/knowledge";
 import { WorkspaceKnowledgeRevisionConflictError } from "../application/ports/knowledgeGateway";
 import type { WorkspaceKnowledgeGateway } from "../application/ports/knowledgeGateway";
 
-function runtimeKnowledgeGateway(client: LyraClient): WorkspaceKnowledgeGateway {
+function runtimeKnowledgeGateway(client: ScopeAppClient): WorkspaceKnowledgeGateway {
   return {
     async read(input) {
       const workspace = await client.workspaces.open(input.cwd ? { path: input.cwd } : undefined);

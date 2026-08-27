@@ -9,21 +9,21 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
-	lyrahttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	scopeapphttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
 func TestDefaultCORSOriginsReturnsCallerOwnedConfiguration(t *testing.T) {
-	origins := lyrahttp.DefaultCORSOrigins()
+	origins := scopeapphttp.DefaultCORSOrigins()
 	original := origins[0]
 	origins[0] = "https://mutated.invalid"
-	if lyrahttp.DefaultCORSOrigins()[0] != original {
+	if scopeapphttp.DefaultCORSOrigins()[0] != original {
 		t.Fatal("mutating one default origin list changed another caller's configuration")
 	}
 }
 
 func TestDefaultCORSOriginsAuthorizeShippedDesktopClients(t *testing.T) {
-	ts := newGatedServerWithOrigins(t, lyrahttp.DefaultCORSOrigins())
+	ts := newGatedServerWithOrigins(t, scopeapphttp.DefaultCORSOrigins())
 	defer ts.Close()
 
 	for _, origin := range []string{
@@ -51,11 +51,11 @@ func TestDefaultCORSOriginsAuthorizeShippedDesktopClients(t *testing.T) {
 		})
 	}
 
-	if slices.Contains(lyrahttp.DefaultCORSOrigins(), "*") {
+	if slices.Contains(scopeapphttp.DefaultCORSOrigins(), "*") {
 		t.Fatal("default desktop CORS policy must not allow every browser origin")
 	}
 	for _, unrelated := range []string{"tauri://localhost", "http://localhost:3000"} {
-		if slices.Contains(lyrahttp.DefaultCORSOrigins(), unrelated) {
+		if slices.Contains(scopeapphttp.DefaultCORSOrigins(), unrelated) {
 			t.Fatalf("default desktop CORS policy still allows unrelated origin %q", unrelated)
 		}
 	}
@@ -69,10 +69,10 @@ func newGatedServer(t *testing.T) *httptest.Server {
 
 func newGatedServerWithOrigins(t *testing.T, origins []string) *httptest.Server {
 	t.Helper()
-	srv, err := lyrahttp.NewServer(lyrahttp.Config{
+	srv, err := scopeapphttp.NewServer(scopeapphttp.Config{
 		Endpoint:        newTestEndpoint(t, &fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
+		ServerInfo:      protocol.ServerInfo{Name: "scopeapp-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
 		ProtocolVersion: testProtocolVersion,
 		LocalToken:      "test-token",
 		CORSOrigins:     origins,
@@ -100,7 +100,7 @@ func TestAuthGateMissingToken(t *testing.T) {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}
 	raw := readBody(resp)
-	if !strings.Contains(raw, `"type":"urn:lyra:transport:unauthorized"`) {
+	if !strings.Contains(raw, `"type":"urn:scopeapp:transport:unauthorized"`) {
 		t.Fatalf("body = %s, want unauthorized problem", raw)
 	}
 	if strings.Contains(raw, `"jsonrpc"`) {

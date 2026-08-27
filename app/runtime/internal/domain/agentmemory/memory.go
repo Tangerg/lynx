@@ -1,6 +1,6 @@
-// Package agentmemory defines Lyra's agent-maintained long-term memory: the
+// Package agentmemory defines ScopeApp's agent-maintained long-term memory: the
 // durable facts the agent mines from conversations, folded into addressable
-// memory items. It is distinct from the human-authored LYRA.md cascade
+// memory items. It is distinct from the human-authored SCOPEAPP.md cascade
 // (package knowledge) — that stays a user-owned file the agent never writes;
 // this is agent-owned, curated from an append-only fact ledger into discrete,
 // individually addressable items.

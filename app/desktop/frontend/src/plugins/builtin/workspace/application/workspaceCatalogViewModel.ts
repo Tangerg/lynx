@@ -95,9 +95,9 @@ export function workspaceKnowledgeViewModel(
 }
 
 function knowledgePath(scope: WorkspaceKnowledgeScope): string {
-  if (scope === "cwd") return "LYRA.md";
-  if (scope === "projectRoot") return "project/LYRA.md";
-  return "~/.lyra/LYRA.md";
+  if (scope === "cwd") return "SCOPEAPP.md";
+  if (scope === "projectRoot") return "project/SCOPEAPP.md";
+  return "~/.scopeapp/SCOPEAPP.md";
 }
 
 export function workspaceSkillsViewModel(

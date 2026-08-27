@@ -15,7 +15,7 @@ describe("parseFileRefs", () => {
   });
 
   it("matches a slashed path without an extension", () => {
-    expect(parseFileRefs("cmd/lyra/main")).toEqual([{ path: "cmd/lyra/main", line: 0 }]);
+    expect(parseFileRefs("cmd/scopeapp/main")).toEqual([{ path: "cmd/scopeapp/main", line: 0 }]);
   });
 
   it("ignores prose abbreviations and versions", () => {

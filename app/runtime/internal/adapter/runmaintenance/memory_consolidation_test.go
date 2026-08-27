@@ -47,7 +47,7 @@ func (s *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 
 func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*MemoryConsolidator, *sqlite.AgentMemoryStore, *scriptedModel) {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

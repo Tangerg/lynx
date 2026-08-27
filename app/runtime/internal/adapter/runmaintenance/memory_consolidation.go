@@ -72,7 +72,7 @@ type messageReader interface {
 
 // MemoryConsolidator extracts durable facts into a daily append-only ledger,
 // then folds due ledger entries into curated memory items. It never writes the
-// human-owned LYRA.md cascade. Derived vectors belong to semantic search, not
+// human-owned SCOPEAPP.md cascade. Derived vectors belong to semantic search, not
 // this curation lifecycle.
 type MemoryConsolidator struct {
 	history messageReader

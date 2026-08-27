@@ -12,7 +12,7 @@ import (
 
 func newUtilityRoleStore(t *testing.T) *sqlite.UtilityRoleStore {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestUtilityRoleStore_RoundTrip(t *testing.T) {
 }
 
 func TestUtilityRoleStoreRejectsPartialPersistedSelection(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

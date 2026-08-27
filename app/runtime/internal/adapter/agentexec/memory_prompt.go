@@ -59,7 +59,7 @@ func (p pinnedMemoryPrompt) appendTo(composition *promptComposition) {
 		return
 	}
 	composition.append(
-		"## Pinned memory (managed by Lyra)\n\n"+p.text,
+		"## Pinned memory (managed by ScopeApp)\n\n"+p.text,
 		p.sources[0],
 		p.sources[1:]...,
 	)

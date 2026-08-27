@@ -1,6 +1,6 @@
 # CLAUDE.md — project context for Claude Code
 
-> **Lyra** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **Lyra Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
+> **ScopeApp** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **ScopeApp Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
 > 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，后端数据 ↔ 渲染意图的自包含规格看 `frontend/CONTENT_RENDERING.md`，协议看 `../runtime/doc/`。
 >
 > 本文件只放**法则 —— 只宏观、不写具体**（具体文件名 / 符号 / 版本 / 行数 / 历史会随演化变动，活在代码 / git / ARCHITECTURE.md 里，不进本则）。读法：先「两条法则」（总透镜）→ §1 架构心智 → §2-§5 写代码的判断与硬约定 → §6 别走的方向 → §7 怎么干活。
@@ -39,7 +39,7 @@
   2. **协议 fold 层**：reducer 是**纯派发器**，把 wire 的 StreamEvent 路由到注册的 handler chain；所有协议语义（Item→message/block 投影、HITL）都在 agent 插件里（handlers 派发 / projections 纯映射 / fold 有状态折叠）。wire 层独立于 fold 层。
   3. **状态分层**：几个小 Zustand store 各司其职（每会话 ephemeral / tab·draft / UI 偏好 / 握手能力 / 后台任务 / 编辑器），无 context 链。store schema 变了 bump `version` 丢旧数据，不写 migration。
      - **但"我此刻在哪"不归 store —— 归 URL**：session / 主视图 / dock 目标 / settings 面板四个标量住在路由的 search param（`lib/navigation` 的 Navigator port），所以历史里有它们、前进后退成立。**store 拥有"我在各处存了什么"**（打开的 tab 集、每个视图的局部状态、跨启动的连续性）。转场时**记忆去种 URL，永不反向同步**；同一个标量绝不留第二份副本。曾经的 `selectionEpoch` 与 `dockOpen` 就是这条规则缺席时长出来的（两个 store 表达不了"一次移动"、一个旗标能和它所显示的视图自相矛盾）。
-- **结构细节**（目录树 / 各模块职责 / composition root）见 `frontend/ARCHITECTURE.md`。Go 侧只是 Wails 壳、不内嵌 runtime；前端经 HTTP 连外部 Lyra Runtime。
+- **结构细节**（目录树 / 各模块职责 / composition root）见 `frontend/ARCHITECTURE.md`。Go 侧只是 Wails 壳、不内嵌 runtime；前端经 HTTP 连外部 ScopeApp Runtime。
 
 ---
 
@@ -47,9 +47,9 @@
 
 - **UI**：React + TypeScript。
 - **样式**：Tailwind（utility-first）+ `cva` / `cn()`；**所有新代码用 utility class，不写新 .css 文件**，全局样式只剩一个 `globals.css`。
-- **Headless 基件**：**Base UI primitives first**（带交互 / 焦点 / 键盘 / aria 的一律先用 Base UI，没有的才自写）。Base UI 只作为行为 primitive；视觉、主题 token、阴影、圆角、密度归 Lyra 自己。
+- **Headless 基件**：**Base UI primitives first**（带交互 / 焦点 / 键盘 / aria 的一律先用 Base UI，没有的才自写）。Base UI 只作为行为 primitive；视觉、主题 token、阴影、圆角、密度归 ScopeApp 自己。
 - **状态 / 数据 / 路由**：Zustand（多小 store）/ TanStack React Query / TanStack Router。
-- **协议**：自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，已弃用 AG-UI），权威定义见 `../runtime/doc/`。
+- **协议**：自研 ScopeApp Runtime Protocol v2（JSON-RPC 2.0，已弃用 AG-UI），权威定义见 `../runtime/doc/`。
 - **桌面壳**：Wails v3（beta，版本钉在 `go.mod`）。**测试**：Vitest + Testing Library。**构建 / 质检**：VoidZero 栈（Vite + Rolldown / Vitest / OxLint）+ prettier + knip。
 - 具体库（命令面板 / Toast / 图标 / 高亮 / i18n / 动画 等）见 `package.json` 与 §3「不重复造轮子」。
 
@@ -117,7 +117,7 @@ perf 排查沉淀的硬规则 —— 几个"看似没事其实在累积"的坑�
 
 ### 6.2 协议 / 后端边界
 
-- ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**：Lyra Runtime 是无状态纯计算单元，协议层零 user 概念；鉴权由更外层（OS 信任 / 本地门禁 token / 未来 facade）解决。
+- ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**：ScopeApp Runtime 是无状态纯计算单元，协议层零 user 概念；鉴权由更外层（OS 信任 / 本地门禁 token / 未来 facade）解决。
 - ❌ **给 LLM provider 加 OAuth / token refresh / 订阅检测**：用户填 API key、存 keychain、401 让 UI 提示重填。
 - ❌ **把"远程后端 / 团队 server / 云端订阅"当部署形态**：那是未来 facade 层的事，Runtime 协议永不感知 facade（同一份代码跑桌面也跑服务器）。
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 `context.Context` 或 HTTP header，永不进 message body。

@@ -75,8 +75,8 @@ const (
 )
 
 // Scope is where a hook came from — set by the loader, not the JSON. It gates
-// trust: global hooks (the user's own ~/.lyra) always run; project hooks (a
-// repo's .lyra, which a `git clone` could carry) run only for a trusted project.
+// trust: global hooks (the user's own ~/.scopeapp) always run; project hooks (a
+// repo's .scopeapp, which a `git clone` could carry) run only for a trusted project.
 type Scope string
 
 const (

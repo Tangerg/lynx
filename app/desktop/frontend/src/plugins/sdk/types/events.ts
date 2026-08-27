@@ -1,7 +1,7 @@
 // Run-event handler types. The reducer is a pure
 // dispatcher: it routes each v2 `StreamEvent` to the plugin handlers
 // registered for first-class run.* / item.* / plan.* events. The built-in
-// protocol semantics live in `lyra.builtin.agent-fold`.
+// protocol semantics live in `scopeapp.builtin.agent-fold`.
 
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import type { AgentEventEnvelope } from "./agentEvents";

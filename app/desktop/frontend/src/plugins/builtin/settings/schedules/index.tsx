@@ -10,7 +10,7 @@ const SchedulesPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.schedules-pane",
+  name: "scopeapp.builtin.schedules-pane",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = installScheduleGateway();

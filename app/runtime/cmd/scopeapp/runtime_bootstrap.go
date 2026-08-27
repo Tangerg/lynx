@@ -9,8 +9,11 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/scope/app/runtime/internal/config"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
+
+const dataDirectoryEnvironment = "SCOPEAPP_HOME"
 
 // runtimePaths is the executable's single snapshot of host paths. User Home,
 // default workspace, durable data, and launch directory are distinct facts even
@@ -19,7 +22,7 @@ import (
 type runtimePaths struct {
 	userHome             string
 	defaultWorkspacePath string
-	dataDirectory        string
+	dataDirectory        localruntime.DataDirectory
 	launchDirectory      string
 }
 
@@ -42,16 +45,20 @@ func resolveRuntimePaths() (runtimePaths, error) {
 	if !filepath.IsAbs(launchDirectory) {
 		return runtimePaths{}, errors.New("runtime: launch directory must be absolute")
 	}
-	dataDirectory := os.Getenv("LYRA_HOME")
-	if dataDirectory == "" {
-		dataDirectory = filepath.Join(userHome, ".lyra")
-	} else if !filepath.IsAbs(dataDirectory) {
-		return runtimePaths{}, errors.New("runtime: LYRA_HOME must be an absolute path")
+	dataDirectoryPath := os.Getenv(dataDirectoryEnvironment)
+	var dataDirectory localruntime.DataDirectory
+	if dataDirectoryPath == "" {
+		dataDirectory, err = localruntime.DefaultDataDirectory(userHome)
+	} else {
+		dataDirectory, err = localruntime.DataDirectoryAt(dataDirectoryPath)
+	}
+	if err != nil {
+		return runtimePaths{}, fmt.Errorf("runtime: resolve %s: %w", dataDirectoryEnvironment, err)
 	}
 	return runtimePaths{
 		userHome:             userHome,
 		defaultWorkspacePath: userHome,
-		dataDirectory:        filepath.Clean(dataDirectory),
+		dataDirectory:        dataDirectory,
 		launchDirectory:      filepath.Clean(launchDirectory),
 	}, nil
 }
@@ -77,10 +84,10 @@ func bootstrapRuntimeWithBuildID(
 	return bootstrap.OpenInstance(ctx, bootstrap.InstanceConfig{
 		UserHome:             paths.userHome,
 		DefaultWorkspacePath: paths.defaultWorkspacePath,
-		DataDirectory:        paths.dataDirectory,
+		DataDirectory:        paths.dataDirectory.Path(),
 		ConfigDirectories: []string{
 			filepath.Join(paths.launchDirectory, "config"),
-			paths.dataDirectory,
+			paths.dataDirectory.Path(),
 		},
 		BuildID: buildID,
 		ServerInfo: protocol.ServerInfo{

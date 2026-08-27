@@ -47,7 +47,7 @@ import {
 import type { DataProviderSpec, Contributor } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { asSessionId, type LyraClient, type Schedule } from "@/rpc";
+import { asSessionId, type ScopeAppClient, type Schedule } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyListIfUngated,
@@ -86,7 +86,7 @@ function scheduleConfig(schedule: Schedule): ScheduleConfig {
  * cannot splice a retired response into a successor transport. */
 class RuntimeProviderRead {
   private constructor(
-    readonly client: LyraClient,
+    readonly client: ScopeAppClient,
     readonly signal: AbortSignal | undefined,
   ) {}
 

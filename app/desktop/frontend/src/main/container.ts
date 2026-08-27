@@ -6,25 +6,25 @@ import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
 import { installedRuntimeMutationJournalStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
-import type { DesktopBootstrap, DesktopHostClient, LyraClient, SidecarClient } from "@/rpc";
+import type { DesktopBootstrap, DesktopHostClient, ScopeAppClient, SidecarClient } from "@/rpc";
 import type { RuntimeMutationJournalStorage } from "@/plugins/builtin/runtime/public/mutationJournal";
 import {
   createDesktopHostClient,
   createHttpTransport,
-  createLyraClient,
+  createScopeAppClient,
   createMutationJournal,
   createSidecarClient,
 } from "@/rpc";
 
 export interface Container {
   /**
-   * Shared, lazily-constructed Lyra Runtime Protocol SDK client for app use.
+   * Shared, lazily-constructed ScopeApp Runtime Protocol SDK client for app use.
    * Builds the transport lazily and caches one client per active endpoint and
    * local-token signature. Runtime configuration is restored before discovery;
    * changing it produces a new client instead of leaving callers pinned to the
    * startup default. Tests can override with `setContainer({ client })`.
    */
-  client: () => LyraClient;
+  client: () => ScopeAppClient;
   /** Typed HTTP operational endpoints owned by the Runtime transport adapter. */
   sidecar: () => SidecarClient;
   /** App-owned Wails capability boundary. It never becomes Runtime Protocol. */
@@ -42,7 +42,7 @@ function defaultContainer(): DefaultContainerOwner {
   let shared: {
     signature: string;
     storage: RuntimeMutationJournalStorage | null;
-    client: LyraClient;
+    client: ScopeAppClient;
   } | null = null;
   let sidecar: { endpoint: string; client: SidecarClient } | null = null;
   const retiring = new Set<Promise<void>>();
@@ -53,7 +53,7 @@ function defaultContainer(): DefaultContainerOwner {
   const assertOpen = () => {
     if (closed) throw new Error("Desktop container is closed");
   };
-  const retire = (client: LyraClient) => {
+  const retire = (client: ScopeAppClient) => {
     let closing!: Promise<void>;
     closing = client
       .close()
@@ -76,7 +76,7 @@ function defaultContainer(): DefaultContainerOwner {
       const storage = installedRuntimeMutationJournalStorage();
       if (shared?.signature === signature && shared.storage === storage) return shared.client;
       if (shared) retire(shared.client);
-      const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
+      const client = createScopeAppClient(createHttpTransport({ baseUrl, localToken }), {
         requestMeta: runtimeRequestMeta,
         capabilities: negotiatedCapabilities,
         mutationJournal: storage
@@ -160,7 +160,7 @@ export async function initializeDesktopHost(): Promise<void> {
 /** Begin final application teardown. The composition root only closes the
  * client it created; gateways injected by an embedding test remain externally
  * owned. Calling this from beforeunload is useful even though browsers do not
- * await it: LyraClient releases its journal lease synchronously before joining
+ * await it: ScopeAppClient releases its journal lease synchronously before joining
  * the HTTP receive loop. */
 export function disposeContainer(): Promise<void> {
   return defaultOwner.dispose();

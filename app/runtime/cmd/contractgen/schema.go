@@ -26,7 +26,7 @@ import (
 // What it deliberately does NOT emit on SHARED DEFINITIONS is
 // `additionalProperties: false`. A result may grow optional fields and an older
 // client must keep accepting it. Requests are different: dispatch strictly
-// decodes their DTOs, so OpenRPC closes each contextual x-lyra-requestFrame with
+// decodes their DTOs, so OpenRPC closes each contextual x-scopeapp-requestFrame with
 // `unevaluatedProperties: false` while leaving the reusable result shapes open.
 //
 // Nor does it widen a required field to accept null. A nil Go slice or map DOES

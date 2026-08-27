@@ -86,7 +86,7 @@ func TestTranscriptSearchIndexesConversationAndExcludesNoise(t *testing.T) {
 // is the path every restart takes, and it used to be masked by Open dropping the
 // whole schema whenever the epoch moved.
 func TestReopenKeepsTheSearchIndex(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open: %v", err)

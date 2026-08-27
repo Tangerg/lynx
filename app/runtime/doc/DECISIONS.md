@@ -1,4 +1,4 @@
-# Lyra Runtime 架构决策记录
+# ScopeApp Runtime 架构决策记录
 
 > 状态：持续维护
 >
@@ -568,12 +568,12 @@
 - 决策：采纳 app2 已验证的 per-server 2048 tools、per-description 64 KiB 与 per-schema 1 MiB envelope，并由 MCP Domain 唯一发布常量和稳定错误。description 同时要求有效 UTF-8；input schema 在 JSON decode 前先验 encoded bytes，并在 canonical normalization 后重验 owned representation，防转义扩张越界。模型目录在 session verification 后、publication 前验证完整 tool set；管理目录逐 descriptor 验证并拒绝 nil/empty/duplicate name。commit gate 再守一次廉价 count invariant，并继续原子检查跨 server public-name collision。
 - 后果：一个远端 server 不能把无界 descriptor material 带入 live projection、模型工具目录或非分页管理页面；任何越界使该 server 的完整 catalog 失败，不截断、不发布前缀、不降级为空 schema。该批保留原版 generation-safe reconnect、session ownership、tool policy 与 public-name identity，不复制 app2 Runtime/Service facade、SQLite owner 或兼容路径。
 
-## ADR-RT-081：Knowledge Domain 拥有 `LYRA.md` 完整文档包络
+## ADR-RT-081：Knowledge Domain 拥有 `SCOPEAPP.md` 完整文档包络
 
 - 状态：已接受并实施，P162 完成；只改变 Runtime internal Knowledge Domain/Application/Infra/Delivery 与测试文档，公共 Protocol shape、Artifact、SQLite、Desktop source、Agent Framework 与 CLI 合同不变。
-- 背景：`LYRA.md` 同时进入非分页管理面和 fresh Run prompt，但原版 Domain/Application 没有 content bound，filesystem store 还直接 `io.ReadAll` 外部文件。失败优先反例 `756a86456` 证明 Application 会把超过 1 MiB 的更新交给 persistence port，Store 会原子写入同一内容，也会把外部放置的超大文档完整读入 revision/string/prompt 路径；补充反例 `2cfc5f58a` 证明 prompt composer 会丢弃整个 Knowledge cascade 的读取错误，让管理面失败与模型侧静默缺指令形成双重语义。HTTP request body 的 transport cap 既不保护 embedded/direct store consumer，也不表达单文档所有权。
+- 背景：`SCOPEAPP.md` 同时进入非分页管理面和 fresh Run prompt，但原版 Domain/Application 没有 content bound，filesystem store 还直接 `io.ReadAll` 外部文件。失败优先反例 `756a86456` 证明 Application 会把超过 1 MiB 的更新交给 persistence port，Store 会原子写入同一内容，也会把外部放置的超大文档完整读入 revision/string/prompt 路径；补充反例 `2cfc5f58a` 证明 prompt composer 会丢弃整个 Knowledge cascade 的读取错误，让管理面失败与模型侧静默缺指令形成双重语义。HTTP request body 的 transport cap 既不保护 embedded/direct store consumer，也不表达单文档所有权。
 - 决策：采纳 app2 的 1 MiB authored-knowledge threshold，但把常量与稳定 `ErrDocumentTooLarge` 放在 Knowledge Domain。Application 在 store 之前验证完整 content；filesystem Store 的 direct Update 复验，read 则先检查 caller cancellation 与 stat，再以 cancellation-aware `limit+1` reader 覆盖读取期间增长。Delivery 只把命令侧越界映射为 `invalid_params`，外部 corrupt file 保持读取失败；管理面与 prompt composer 都对完整 cascade fail closed。Agent Memory、AGENTS.md 与 Plan 的既有 best-effort 策略不随本批改变。
-- 后果：Knowledge 管理页、revision 计算与模型 prompt 不再接纳无界 `LYRA.md`；exact 1 MiB 文档仍可读写。原有 content CAS、跨进程 directory lease、in-scope symlink identity、atomic rename、权限与 crash recovery 全部保留；不增加 truncation、skip、transport-only guard、配置旋钮、兼容 reader 或第二存储路径。
+- 后果：Knowledge 管理页、revision 计算与模型 prompt 不再接纳无界 `SCOPEAPP.md`；exact 1 MiB 文档仍可读写。原有 content CAS、跨进程 directory lease、in-scope symlink identity、atomic rename、权限与 crash recovery 全部保留；不增加 truncation、skip、transport-only guard、配置旋钮、兼容 reader 或第二存储路径。
 
 ## ADR-RT-082：Lifecycle Hook 配置是有界完整策略级联
 
@@ -669,7 +669,7 @@
 ## ADR-RT-094：Knowledge crash recovery 流式拥有任意项目目录
 
 - 状态：已接受并实施，P175 完成；只修改 `app/runtime` internal Knowledge filesystem owner、架构门禁、测试与文档，公共 Protocol、Artifact、SQLite、公共 Go API、Desktop source、Wails binding、Agent Framework 与 CLI 不变。
-- 背景：P162 已把每份 `LYRA.md` 收敛为 1 MiB complete document，但原子替换的 cold recovery 仍在 home/project/cwd 根目录调用 `ReadDir(-1)`，先完整物化所有 sibling 再筛选 `.LYRA.md.lyra-stage-*`。该目录可以是用户选择的任意大型项目根；文档上限、transport cap 和最终只删除少量 stage 文件都不能追回这次无界分配。失败优先架构反例 `9d701070f` 唯一命中该调用，证明 Runtime 其余生产目录读取已使用显式正数上限。
+- 背景：P162 已把每份 `SCOPEAPP.md` 收敛为 1 MiB complete document，但原子替换的 cold recovery 仍在 home/project/cwd 根目录调用 `ReadDir(-1)`，先完整物化所有 sibling 再筛选 `.SCOPEAPP.md.scopeapp-stage-*`。该目录可以是用户选择的任意大型项目根；文档上限、transport cap 和最终只删除少量 stage 文件都不能追回这次无界分配。失败优先架构反例 `9d701070f` 唯一命中该调用，证明 Runtime 其余生产目录读取已使用显式正数上限。
 - 决策：Knowledge Store 保持 crash-recovery 唯一 owner，不新增 sweeper/facade；在已持有 directory lease 与 `os.Root` confinement 的同一事务里，以 128-entry 正数批次连续调用 `File.ReadDir`，每批和每项处理前观察 caller cancellation。每轮只收集最多 128 个 verified regular stage candidate，关闭枚举 handle 后删除并从头复扫，避免修改目录时扰乱活跃的 enumeration offset。一次完整 EOF 没有 candidate 才表示 sweep 完成；任一 read/remove/cancel/close failure 都不把目录标记为已恢复，后续调用可从头重试。全 Runtime AST 门禁同时禁止 production `os.ReadDir` 与 non-positive `File.ReadDir`，防止无界完整物化迁移到别处。
 - 后果：目录大小不再决定 Knowledge recovery 的峰值 entry allocation，取消也不必等完整项目目录进入内存；合法 CAS、atomic rename、cross-process lease、非 stage 用户文件与完整 orphan cleanup 语义保持。没有设置会拒绝大型合法项目的总 entry cap，也没有 partial-success marker、后台 goroutine、兼容扫描器或新公共合同；app2 只提供原子暂存机制，本批补齐其未拥有的 recovery resource boundary。
 

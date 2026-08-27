@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RpcConnectionError, RpcError, type LyraClient } from "@/rpc";
+import { RpcConnectionError, RpcError, type ScopeAppClient } from "@/rpc";
 import { asRunId, asSegmentId } from "@/rpc";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
 import { createRunStreamReattach } from "./runStreamReattach";
@@ -23,8 +23,8 @@ function position(recovery: RunStreamPosition["recovery"]): RunStreamPosition {
   };
 }
 
-function runClient(subscribe: LyraClient["runs"]["subscribe"]): Pick<LyraClient, "runs"> {
-  return { runs: { subscribe } as LyraClient["runs"] };
+function runClient(subscribe: ScopeAppClient["runs"]["subscribe"]): Pick<ScopeAppClient, "runs"> {
+  return { runs: { subscribe } as ScopeAppClient["runs"] };
 }
 
 describe("run stream reattach", () => {
@@ -33,7 +33,7 @@ describe("run stream reattach", () => {
     const recoverProjection = vi.fn(async (_signal: AbortSignal) => {
       order.push("recover");
     });
-    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>(async () => {
+    const subscribe = vi.fn<ScopeAppClient["runs"]["subscribe"]>(async () => {
       order.push("subscribe");
       return emptyStream();
     });
@@ -53,7 +53,7 @@ describe("run stream reattach", () => {
 
   it("replays from the last folded event while the cursor remains trustworthy", async () => {
     const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
-    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>(async () => emptyStream());
+    const subscribe = vi.fn<ScopeAppClient["runs"]["subscribe"]>(async () => emptyStream());
     const reattach = createRunStreamReattach({
       sessionId: "ses_1",
       client: () => runClient(subscribe),
@@ -72,7 +72,7 @@ describe("run stream reattach", () => {
 
   it("rebuilds durable state when the addressed run finishes before replay attach", async () => {
     const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
-    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
+    const subscribe = vi.fn<ScopeAppClient["runs"]["subscribe"]>().mockRejectedValue(
       new RpcError({
         code: -32002,
         message: "run finished",
@@ -94,7 +94,7 @@ describe("run stream reattach", () => {
   it("does not warn when a cold projection read proves the run already moved", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
-    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
+    const subscribe = vi.fn<ScopeAppClient["runs"]["subscribe"]>().mockRejectedValue(
       new RpcError({
         code: -32002,
         message: "run waiting",
@@ -118,7 +118,7 @@ describe("run stream reattach", () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const recoverProjection = vi.fn(async (_signal: AbortSignal) => {});
     const subscribe = vi
-      .fn<LyraClient["runs"]["subscribe"]>()
+      .fn<ScopeAppClient["runs"]["subscribe"]>()
       .mockRejectedValue(new RpcConnectionError("fetch failed"));
     const reattach = createRunStreamReattach({
       sessionId: "ses_1",

@@ -13,7 +13,7 @@ import {
 } from "./runtimeService";
 
 const observation: RuntimeServiceObservation = {
-  server: { name: "lyra", version: "1.2.3" },
+  server: { name: "scopeapp", version: "1.2.3" },
   protocolVersion: "2026-07-01",
   health: "ready",
   checks: {},

@@ -14,7 +14,7 @@ const HooksPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.hooks-pane",
+  name: "scopeapp.builtin.hooks-pane",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = installHookTrustGateway();

@@ -212,7 +212,7 @@
 - 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
 - `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
 - 显式用户创作与自动 Miner 共享应用层 `SubmitProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；
-- Tool adapter 只依赖单方法 `ProposalSubmitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.lyra`，Agent 核心只接收通用 `tool.Tool`。
+- Tool adapter 只依赖单方法 `ProposalSubmitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.scopeapp`，Agent 核心只接收通用 `tool.Tool`。
 
 ## 7. 删除与收敛
 
@@ -395,8 +395,8 @@
 
 - 从服务端源码完整删除 `download` definition、实现、测试、resolver 字段、BuildConfig 派生 allowlist、CWD-bound tool family、审批 subject 和安全分类；不保留 disabled registration、旧名称或兼容参数；
 - `download` 原本把任意 URL GET 与 workspace 写入重新组合，重复了 `http_request`、`write` / `shell` 已有能力，并产生第二套 SSRF gate、路径锁、overwrite 规则和写审批身份；删除组合工具后，模型用单一原语显式完成网络读取与受保护写入；
-- 保留 `online.httpAllowedHosts` / `LYRA_HTTP_ALLOWED_HOSTS`，但其唯一模型消费者现在是 `http_request`。这不是 `download` 兼容配置，不再在 composition root 派生另一份 allowlist；
-- 从服务端源码完整删除 `sourcegraph_search`、stream parser、条件注册、测试和 `online.sourcegraphEndpoint/sourcegraphToken` 及 `LYRA_SOURCEGRAPH_*` 配置；不保留 vendor-specific hidden tool；
+- 保留 `online.httpAllowedHosts` / `SCOPEAPP_HTTP_ALLOWED_HOSTS`，但其唯一模型消费者现在是 `http_request`。这不是 `download` 兼容配置，不再在 composition root 派生另一份 allowlist；
+- 从服务端源码完整删除 `sourcegraph_search`、stream parser、条件注册、测试和 `online.sourcegraphEndpoint/sourcegraphToken` 及 `SCOPEAPP_SOURCEGRAPH_*` 配置；不保留 vendor-specific hidden tool；
 - Sourcegraph JSON-RPC Go 依赖继续由 LSP transport 合法消费，没有因名称相同而机械删除。`agent` 与通用工具模块没有新增网络、workspace 或 provider 概念；runtime 的 OnlineConfig 反而收窄为三个真实能力字段。
 
 ### 批次 6b
@@ -478,7 +478,7 @@
 
 - 将 Skill authoring 的规范词汇统一为 `Proposal / Submit / Approve / Reject / project / user`，完整删除 `Draft / SaveDraft / Promote / Discard / global` 及其 store、application、wire 和 RPC 名称，不保留兼容别名；
 - `skills.ProposalRef{scope,name,revision}` 绑定 scope、name 与完整渲染内容的 SHA-256，project/user store 都在 `_proposals` 保存不可变内容；评审 list 返回完整指令和 provenance，不再让用户只凭摘要审批；
-- 新增 adapter-owned `skillproposal.Libraries`，以 workspace root 路由 project library、以配置 root 路由 user library。Application 只接收已解析 root 和领域 Proposal，不认识 `.lyra/skills` 文件布局；
+- 新增 adapter-owned `skillproposal.Libraries`，以 workspace root 路由 project library、以配置 root 路由 user library。Application 只接收已解析 root 和领域 Proposal，不认识 `.scopeapp/skills` 文件布局；
 - 服务端评审协议改为 `skills.proposals.list / approve / reject`，请求显式携带 workspace 和 scope，旧 `skills.drafts.*` 直接消失；本轮只生成 Go contract 和 validator，桌面 TypeScript 与 canonical samples 按约定留给前端专项；
 - SkillMiner 改为消费应用层单方法 `SubmitProposal`，固定提交 `scope=user, origin=mined`，不再直连 `skillauthoring.Store`。前台与后台共享持久化不变量，但不共享触发策略。
 

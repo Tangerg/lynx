@@ -8,7 +8,7 @@ import type {
   MCPConnectionInput,
   MCPEnvironmentChange,
   MCPHeadersChange,
-  LyraClient,
+  ScopeAppClient,
   UpdateMCPServerRequest,
 } from "@/rpc";
 import type { MCPServerInput } from "../application/mcpServerInput";
@@ -94,7 +94,7 @@ function authorizationAttempt(attempt: MCPAuthorizationAttempt): AuthorizationAt
   }
 }
 
-function runtimeMCPServerGateway(client: LyraClient): MCPServerGateway {
+function runtimeMCPServerGateway(client: ScopeAppClient): MCPServerGateway {
   return {
     async create(input) {
       const saved = await client.mcp.create(candidate(input));

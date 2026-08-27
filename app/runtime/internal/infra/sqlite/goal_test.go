@@ -20,7 +20,7 @@ import (
 
 func newGoalStore(t *testing.T) (*sqlite.GoalStore, *sqlite.SessionStore) {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 }
 
 func TestGoalSchemaUsesSemanticIncarnationColumns(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

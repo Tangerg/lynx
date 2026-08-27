@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { accentTintedNeutral, hexToOklch, neutralChromaFactor, oklchToHex } from "./accentTint";
 
-/** The light scheme's steps, as `themes/lyra-light.ts` declares them. */
+/** The light scheme's steps, as `themes/scopeapp-light.ts` declares them. */
 const LIGHT = {
   surface: { l: 97.3, c: 0.006 },
   elevated: { l: 98.4, c: 0.008 },
@@ -15,7 +15,7 @@ const ORANGE = "#e8590c";
 
 const chromaOf = (hex: string) => hexToOklch(hex).c;
 
-/** The accent `lyra-light` declares, and so the reference its literals are relative to. */
+/** The accent `scopeapp-light` declares, and so the reference its literals are relative to. */
 const REFERENCE = BLUE;
 
 /** The whole family at one accent, the way the shell builds it. */

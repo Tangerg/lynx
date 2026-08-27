@@ -120,7 +120,7 @@ export function ProjectsSection() {
 }
 
 export const sidebarProjects = definePlugin({
-  name: "lyra.builtin.sidebar-projects",
+  name: "scopeapp.builtin.sidebar-projects",
   setup(ctx) {
     contributeWorkIndexItem(ctx, {
       id: "projects",

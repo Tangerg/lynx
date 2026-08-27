@@ -53,9 +53,9 @@
   vertical-align: baseline;
   border-radius: var(--shape-pill);
   background: var(--color-accent);
-  animation: lyra-caret-blink calc(1050ms * var(--motion-scale)) step-end infinite;
+  animation: scopeapp-caret-blink calc(1050ms * var(--motion-scale)) step-end infinite;
 }
-@keyframes lyra-caret-blink {
+@keyframes scopeapp-caret-blink {
   0%,
   100% {
     opacity: 1;

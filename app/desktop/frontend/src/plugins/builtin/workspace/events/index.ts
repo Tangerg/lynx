@@ -30,7 +30,7 @@ import {
 import { WORKSPACE_MUTATION_LIFECYCLE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
-  name: "lyra.builtin.workspace-events",
+  name: "scopeapp.builtin.workspace-events",
   requires: {
     runtime: RUNTIME_STREAM_PORTS,
     serverScope: RUNTIME_SERVER_SCOPE_PORTS,

@@ -5,17 +5,17 @@
     {
       "event": "PreToolUse",
       "matcher": "shell",
-      "command": "./.lyra/hooks/guard.sh",
+      "command": "./.scopeapp/hooks/guard.sh",
       "timeoutMillis": 5000,
       "scope": "project",
-      "source": "/Users/dev/project/.lyra/hooks.json",
+      "source": "/Users/dev/project/.scopeapp/hooks.json",
       "active": true
     },
     {
       "event": "SessionStart",
       "inject": "You are working in the acme monorepo.",
       "scope": "global",
-      "source": "/Users/dev/.lyra/hooks.json",
+      "source": "/Users/dev/.scopeapp/hooks.json",
       "active": true
     }
   ]

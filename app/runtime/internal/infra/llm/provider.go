@@ -1,4 +1,4 @@
-// Package llm owns Lyra's static provider catalog and constructs a chat client
+// Package llm owns ScopeApp's static provider catalog and constructs a chat client
 // for a selected provider. Each catalog entry binds a vendor, default model,
 // credential environment key, and external wire adapter.
 //
@@ -12,7 +12,7 @@ import (
 	"slices"
 )
 
-// Provider identifies an LLM vendor Lyra supports. Its lowercase string value
+// Provider identifies an LLM vendor ScopeApp supports. Its lowercase string value
 // is the stable catalog key.
 type Provider string
 

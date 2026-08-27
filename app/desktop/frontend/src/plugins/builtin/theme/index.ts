@@ -13,8 +13,8 @@ import atomOneDark from "./themes/atom-one-dark";
 import atomOneLight from "./themes/atom-one-light";
 import catppuccinLatte from "./themes/catppuccin-latte";
 import catppuccinMocha from "./themes/catppuccin-mocha";
-import lyraDark from "./themes/lyra-dark";
-import lyraLight from "./themes/lyra-light";
+import scopeappDark from "./themes/scopeapp-dark";
+import scopeappLight from "./themes/scopeapp-light";
 import solarizedDark from "./themes/solarized-dark";
 import solarizedLight from "./themes/solarized-light";
 import tokyoNightLight from "./themes/tokyo-night-light";
@@ -22,8 +22,8 @@ import tokyoNightStorm from "./themes/tokyo-night-storm";
 import { builtinVisualStyles } from "./visualStyles";
 
 const builtinThemes: AnyPlugin[] = [
-  lyraDark,
-  lyraLight,
+  scopeappDark,
+  scopeappLight,
   atomOneDark,
   atomOneLight,
   tokyoNightStorm,

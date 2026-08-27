@@ -73,7 +73,7 @@ export interface AgentMemoryQuery {
 
 // One addressable agent-memory item (agentMemory.list). status is
 // active | pending (pending items await review); origin is auto (mined) | user
-// (authored). Distinct from WorkspaceKnowledgeEntry (the LYRA.md file cascade).
+// (authored). Distinct from WorkspaceKnowledgeEntry (the SCOPEAPP.md file cascade).
 export interface AgentMemoryEntry {
   id: string;
   scope: "project" | "user";

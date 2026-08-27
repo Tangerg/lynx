@@ -7,7 +7,7 @@ import { rpcAgentSource } from "./application/rpcAgentSource";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
-  name: "lyra.builtin.rpc-agent",
+  name: "scopeapp.builtin.rpc-agent",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = runtimeRunsGateway();

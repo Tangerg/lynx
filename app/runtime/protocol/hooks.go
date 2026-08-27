@@ -7,7 +7,7 @@ package protocol
 // trusted).
 
 // ListHooksRequest — hooks.list body. Workspace scopes project discovery;
-// global ~/.lyra hooks are always included.
+// global ~/.scopeapp hooks are always included.
 type ListHooksRequest struct {
 	Workspace WorkspaceRef `json:"workspace"`
 }

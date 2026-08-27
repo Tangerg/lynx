@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { configureAgentRuntimeGateway, type AgentRuntimeGateway } from "./ports/runtimeGateway";
 import { forgetRules, setApprovalMode } from "./approvalPolicy";
@@ -89,7 +89,7 @@ describe("approval policy", () => {
 
     const successorSetMode = vi.fn().mockResolvedValue({ mode: "yolo" });
     setContainer({
-      client: () => ({ approval: { setMode: successorSetMode } }) as unknown as LyraClient,
+      client: () => ({ approval: { setMode: successorSetMode } }) as unknown as ScopeAppClient,
     });
     const disposeSuccessor = installAgentRuntimeGateway();
     const successor = setApprovalMode("yolo");
@@ -141,14 +141,14 @@ describe("approval policy", () => {
     const forgetRetired = vi.fn(() => retiredWrite.promise);
     const forgetSuccessor = vi.fn().mockResolvedValue(undefined);
     setContainer({
-      client: () => ({ approval: { forgetRule: forgetRetired } }) as unknown as LyraClient,
+      client: () => ({ approval: { forgetRule: forgetRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installAgentRuntimeGateway();
     const command = rejected(forgetRules(["rule-1", "rule-2"]));
     await vi.waitFor(() => expect(forgetRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ approval: { forgetRule: forgetSuccessor } }) as unknown as LyraClient,
+      client: () => ({ approval: { forgetRule: forgetSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installAgentRuntimeGateway();
     try {

@@ -13,11 +13,11 @@ import (
 
 func writeHooks(t *testing.T, dir, body string) {
 	t.Helper()
-	lyra := filepath.Join(dir, ".lyra")
-	if err := os.MkdirAll(lyra, 0o755); err != nil {
+	scopeapp := filepath.Join(dir, ".scopeapp")
+	if err := os.MkdirAll(scopeapp, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(lyra, "hooks.json"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(scopeapp, "hooks.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

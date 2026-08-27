@@ -1,4 +1,4 @@
-# Lyra Runtime Domain 模型精修设计
+# ScopeApp Runtime Domain 模型精修设计
 
 > 状态：已接受专项设计；实施授权与完成事实由 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 和 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 唯一记录
 >
@@ -117,7 +117,7 @@ Domain package 是否成立只看以下证据：
 | `goal` | 跨多个 Run 的 autonomous Goal、objective incarnation、budget、progress 和 terminal reason |
 | `hooks` | 与 `hooks.json` 一致的 lifecycle Hook vocabulary、matching 和 decision fold；I/O 与 trust orchestration 在外部 |
 | `interrupt` | durable HITL kind、stable key 和 semantic resolution；open-set、request validation 和 continuation routing 在 Application |
-| `knowledge` | 人类维护的 LYRA.md scope/document value；与 AgentMemory 的所有权和写入来源不同 |
+| `knowledge` | 人类维护的 SCOPEAPP.md scope/document value；与 AgentMemory 的所有权和写入来源不同 |
 | `mcpserver` | MCP server descriptor、canonical tool identity/schema 与 per-tool policy；connection lifecycle 在外部 |
 | `modelref` | zero-or-complete provider/model selection，被 Run、Goal、Schedule 和 model use case 共享 |
 | `plan` | Session-scoped ordered Plan replacement、step invariant、revision 和 updated time |

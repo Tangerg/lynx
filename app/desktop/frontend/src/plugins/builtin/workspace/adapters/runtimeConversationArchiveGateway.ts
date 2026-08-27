@@ -1,10 +1,10 @@
 import { getContainer } from "@/main/container";
-import { asSessionId, type LyraClient, type SessionArtifact } from "@/rpc";
+import { asSessionId, type ScopeAppClient, type SessionArtifact } from "@/rpc";
 import { ConversationArchiveOwner } from "../application/conversationExport";
 import type { ConversationArchiveGateway } from "../application/ports/conversationArchiveGateway";
 import { browserFileTransfer } from "./browserFileTransfer";
 
-function runtimeConversationArchiveGateway(client: LyraClient): ConversationArchiveGateway {
+function runtimeConversationArchiveGateway(client: ScopeAppClient): ConversationArchiveGateway {
   return {
     async exportConversation(sessionId, format) {
       return client.sessions.export(asSessionId(sessionId), format);

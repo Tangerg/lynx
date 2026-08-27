@@ -38,8 +38,8 @@ func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
 	if bundle.IdempotencyNamespace == "" {
 		t.Fatal("Open returned an empty idempotency namespace")
 	}
-	if _, statErr := os.Stat(filepath.Join(dataDirectory, "lyra.db")); statErr != nil {
-		t.Fatalf("data directory does not own lyra.db: %v", statErr)
+	if _, statErr := os.Stat(filepath.Join(dataDirectory, "scopeapp.db")); statErr != nil {
+		t.Fatalf("data directory does not own scopeapp.db: %v", statErr)
 	}
 	fresh, err := bundle.Knowledge.Get(t.Context(), knowledge.ScopeCWD, "")
 	if err != nil {
@@ -50,13 +50,13 @@ func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
 	); err != nil {
 		t.Fatalf("write default project knowledge: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(defaultWorkspace, "LYRA.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(defaultWorkspace, "SCOPEAPP.md")); err != nil {
 		t.Fatalf("default workspace does not own project knowledge: %v", err)
 	}
 }
 
 func TestBundleCloseIsIdempotent(t *testing.T) {
-	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

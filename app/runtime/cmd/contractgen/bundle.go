@@ -77,7 +77,7 @@ func walkWireTypes(registry *operation.Registry, shapes *dispatch.Shapes) *schem
 func newBundle(set *schemaSet) bundle {
 	return bundle{
 		Schema:  schemaDialect,
-		Title:   "Lyra Runtime Protocol wire types",
+		Title:   "ScopeApp Runtime Protocol wire types",
 		Version: protocol.ProtocolVersion,
 		Defs:    set.Definitions(),
 	}

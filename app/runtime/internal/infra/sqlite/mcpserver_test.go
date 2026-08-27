@@ -14,7 +14,7 @@ import (
 )
 
 func TestMCPServerStoreRoundTrip(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -70,7 +70,7 @@ func equalMCPServer(a, b mcpserver.Server) bool {
 }
 
 func TestMCPServerStoreRejectsMalformedJSONFields(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestMCPServerStoreRejectsMalformedJSONFields(t *testing.T) {
 }
 
 func TestMCPServerStoreBindsOAuthSessionLifecycle(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

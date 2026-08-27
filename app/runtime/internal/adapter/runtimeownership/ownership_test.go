@@ -102,9 +102,9 @@ func TestWorkingTreeRunsSharePhysicalIdentityAndExcludeMutation(t *testing.T) {
 }
 
 func TestSessionOwnershipTransfersAfterProcessKill(t *testing.T) {
-	const childEnvironment = "LYRA_TEST_RUNTIME_OWNERSHIP_CHILD"
+	const childEnvironment = "SCOPEAPP_TEST_RUNTIME_OWNERSHIP_CHILD"
 	if os.Getenv(childEnvironment) == "1" {
-		manager, err := New(os.Getenv("LYRA_TEST_RUNTIME_OWNERSHIP_DATA"))
+		manager, err := New(os.Getenv("SCOPEAPP_TEST_RUNTIME_OWNERSHIP_DATA"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestSessionOwnershipTransfersAfterProcessKill(t *testing.T) {
 		if !ok {
 			t.Fatal("child could not acquire Session ownership")
 		}
-		if err := os.WriteFile(os.Getenv("LYRA_TEST_RUNTIME_OWNERSHIP_READY"), nil, 0o600); err != nil {
+		if err := os.WriteFile(os.Getenv("SCOPEAPP_TEST_RUNTIME_OWNERSHIP_READY"), nil, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		var oneByte [1]byte
@@ -126,8 +126,8 @@ func TestSessionOwnershipTransfersAfterProcessKill(t *testing.T) {
 	command := exec.Command(os.Args[0], "-test.run=^TestSessionOwnershipTransfersAfterProcessKill$")
 	command.Env = append(os.Environ(),
 		childEnvironment+"=1",
-		"LYRA_TEST_RUNTIME_OWNERSHIP_DATA="+data,
-		"LYRA_TEST_RUNTIME_OWNERSHIP_READY="+ready,
+		"SCOPEAPP_TEST_RUNTIME_OWNERSHIP_DATA="+data,
+		"SCOPEAPP_TEST_RUNTIME_OWNERSHIP_READY="+ready,
 	)
 	stdin, err := command.StdinPipe()
 	if err != nil {

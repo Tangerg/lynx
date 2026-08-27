@@ -12,7 +12,7 @@ import { shellServices } from "./shellServices";
 
 export function createKernel(plugins: ReadonlyArray<AnyPlugin>): Host {
   const host = createHost({
-    name: "lyra",
+    name: "scopeapp",
     logger: kernelLogger,
     onError: (error) => reportPluginError("kernel", "setup", error),
   });

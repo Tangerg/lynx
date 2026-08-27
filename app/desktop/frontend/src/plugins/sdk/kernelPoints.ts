@@ -37,42 +37,42 @@ import { defineExtensionPoint } from "./contracts";
 import { normalizeCombo } from "./combo";
 
 export const COLOR_THEME = defineExtensionPoint<ColorThemeSpec>({
-  id: "lyra.colorTheme",
+  id: "scopeapp.colorTheme",
   keying: "single",
 });
 export const ACCENT = defineExtensionPoint<AccentSpec>({
-  id: "lyra.accent",
+  id: "scopeapp.accent",
   keying: "single",
 });
 export const VISUAL_STYLE = defineExtensionPoint<VisualStyleSpec>({
-  id: "lyra.visualStyle",
+  id: "scopeapp.visualStyle",
   keying: "single",
 });
 export const LOCALE = defineExtensionPoint<LocaleSpec>({
-  id: "lyra.locale",
+  id: "scopeapp.locale",
   keying: "single",
 });
 
 export const ROUTE = defineExtensionPoint<RouteSpec>({
-  id: "lyra.route",
+  id: "scopeapp.route",
   keying: "single",
 });
 export const AGENT_SOURCE = defineExtensionPoint<AgentSourceSpec>({
-  id: "lyra.agent.source",
+  id: "scopeapp.agent.source",
   keying: "single",
 });
 export const AGENT_RUN_OPTIONS = defineExtensionPoint<AgentRunOptionsProviderSpec>({
-  id: "lyra.agent.runOptions",
+  id: "scopeapp.agent.runOptions",
   keying: "single",
   keyOf: (s) => s.id,
 });
 export const DATA_PROVIDER = defineExtensionPoint<DataProviderSpec>({
-  id: "lyra.data.provider",
+  id: "scopeapp.data.provider",
   keying: "single",
   keyOf: (s) => s.key,
 });
 export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
-  id: "lyra.plugin.errorFallback",
+  id: "scopeapp.plugin.errorFallback",
   keying: "single",
 });
 
@@ -80,57 +80,57 @@ export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
 // via `opts.key`. `normalizeKey` folds the leading "/" so callers can register
 // "ping" or "/ping" and look it up either way.
 export const SLASH_COMMAND = defineExtensionPoint<SlashCommandSpec>({
-  id: "lyra.composer.slashCommand",
+  id: "scopeapp.composer.slashCommand",
   keying: "single",
   normalizeKey: (k) => (k.startsWith("/") ? k : `/${k}`),
 });
 // Key combos fold "Cmd+K" / "mod+k" to one canonical form on both contribute
 // and lookup, so registrations and keydown lookups always agree.
 export const COMPOSER_KEY_BINDING = defineExtensionPoint<ComposerKeyBindingSpec>({
-  id: "lyra.composer.keyBinding",
+  id: "scopeapp.composer.keyBinding",
   keying: "single",
   keyOf: (s) => s.key,
   normalizeKey: normalizeCombo,
 });
 export const COMPOSER_SUBMIT_MODE = defineExtensionPoint<ComposerSubmitModeSpec>({
-  id: "lyra.composer.submitMode",
+  id: "scopeapp.composer.submitMode",
   keying: "single",
   keyOf: (mode) => mode.id,
 });
 
 export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({
-  id: "lyra.shortcut",
+  id: "scopeapp.shortcut",
   keying: "single",
   keyOf: (s) => s.key,
   normalizeKey: normalizeCombo,
 });
 
 export const COMMAND = defineExtensionPoint<CommandSpec>({
-  id: "lyra.command",
+  id: "scopeapp.command",
   keying: "single",
 });
 export const SETTINGS_PANE = defineExtensionPoint<SettingsPaneSpec>({
-  id: "lyra.settingsPane",
+  id: "scopeapp.settingsPane",
   keying: "single",
 });
 export const WORKSPACE_VIEW = defineExtensionPoint<WorkspaceViewSpec>({
-  id: "lyra.workspaceView",
+  id: "scopeapp.workspaceView",
   keying: "single",
 });
 export const CONTEXT_DOCK_DESTINATION = defineExtensionPoint<ContextDockDestinationSpec>({
-  id: "lyra.contextDock.destination",
+  id: "scopeapp.contextDock.destination",
   keying: "single",
   keyOf: (destination) => destination.viewId,
 });
 
 // ---- multi-handler surfaces (every contribution coexists, runs in order) --
 export const LOG_SUBSCRIBER = defineExtensionPoint<LogSubscriber>({
-  id: "lyra.log.subscriber",
+  id: "scopeapp.log.subscriber",
   keying: "multi",
 });
 
 export const READY_HANDLER = defineExtensionPoint<ReadyHandler>({
-  id: "lyra.lifecycle.ready",
+  id: "scopeapp.lifecycle.ready",
   keying: "multi",
 });
 
@@ -140,38 +140,38 @@ export const READY_HANDLER = defineExtensionPoint<ReadyHandler>({
 export const STREAM_EVENT_HANDLER = defineExtensionPoint<{
   eventType: string;
   handler: StreamEventHandler;
-}>({ id: "lyra.events.stream", keying: "multi" });
+}>({ id: "scopeapp.events.stream", keying: "multi" });
 export const LAYOUT_SLOT = defineExtensionPoint<{ slot: string; spec: LayoutSlotSpec }>({
-  id: "lyra.layoutSlot",
+  id: "scopeapp.layoutSlot",
   keying: "multi",
 });
 
 export const WORK_INDEX_ITEM = defineExtensionPoint<WorkIndexItemSpec>({
-  id: "lyra.workIndex.item",
+  id: "scopeapp.workIndex.item",
   keying: "single",
 });
 
 export const MESSAGE_ROLE = defineExtensionPoint<MessageRoleSpec>({
-  id: "lyra.message.role",
+  id: "scopeapp.message.role",
   keying: "single",
 });
 export const TOOL_ACTION = defineExtensionPoint<ToolActionSpec>({
-  id: "lyra.tool.action",
+  id: "scopeapp.tool.action",
   keying: "single",
 });
 export const TOOL_VIEW_OPENER = defineExtensionPoint<ToolViewOpenerSpec>({
-  id: "lyra.tool.viewOpener",
+  id: "scopeapp.tool.viewOpener",
   keying: "single",
 });
 // Keyed by an explicit arg (tool fn name / block kind), not a field on the
 // item — contributors pass `opts.key`. The item is the renderer/component
 // itself (or, for icons, the icon name string).
 export const TOOL_PREVIEW = defineExtensionPoint<ToolPreviewComponent>({
-  id: "lyra.tool.preview",
+  id: "scopeapp.tool.preview",
   keying: "single",
 });
 export const TOOL_ICON = defineExtensionPoint<string>({
-  id: "lyra.tool.icon",
+  id: "scopeapp.tool.icon",
   keying: "single",
 });
 // A tool whose whole outcome is already on screen somewhere that stays on screen.
@@ -184,6 +184,6 @@ export const TOOL_ICON = defineExtensionPoint<string>({
 // is not presented by that surface however much of the plan it echoes: `exit_plan_mode`
 // interrupts for approval of the plan, and hiding it would hide the question.
 export const TOOL_STANDING_SURFACE = defineExtensionPoint<string>({
-  id: "lyra.tool.standingSurface",
+  id: "scopeapp.tool.standingSurface",
   keying: "single",
 });

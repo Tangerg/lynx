@@ -14,7 +14,7 @@ import { WORKSPACE_SCOPE_PORTS } from "@/plugins/builtin/workspace/public/ports"
 import { WORKSPACE_MUTATION_LIFECYCLE_PORTS } from "@/plugins/builtin/workspace/public/ports";
 
 export default definePlugin({
-  name: "lyra.builtin.workspace-bootstrap",
+  name: "scopeapp.builtin.workspace-bootstrap",
   provides: {
     scopes: WORKSPACE_SCOPE_PORTS,
     mutationLifecycle: WORKSPACE_MUTATION_LIFECYCLE_PORTS,

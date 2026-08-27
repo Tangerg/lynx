@@ -6,7 +6,7 @@ import { useToggleFavorite } from "./favoriteSession";
 import { useRenameSession } from "./renameSession";
 import { AGENT_SESSIONS_KEY, type AgentSessionSummary } from "./sessionQueries";
 import { setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { installAgentRuntimeGateway } from "../../adapters/agentRuntimeGateway";
 
 let restoreRuntime: (() => void) | undefined;
@@ -149,7 +149,7 @@ describe("optimistic Session summary mutations", () => {
 
     const successorUpdate = vi.fn().mockResolvedValue({ revision: 4 });
     setContainer({
-      client: () => ({ sessions: { update: successorUpdate } }) as unknown as LyraClient,
+      client: () => ({ sessions: { update: successorUpdate } }) as unknown as ScopeAppClient,
     });
     const disposeSuccessor = installAgentRuntimeGateway();
     try {

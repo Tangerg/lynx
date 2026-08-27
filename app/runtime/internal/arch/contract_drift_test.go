@@ -488,7 +488,7 @@ func TestOpenRPCDescribesEveryMethod(t *testing.T) {
 		Methods []struct {
 			Name           string `json:"name"`
 			ParamStructure string `json:"paramStructure"`
-			Kind           string `json:"x-lyra-kind"`
+			Kind           string `json:"x-scopeapp-kind"`
 		} `json:"methods"`
 	}
 	if err := json.Unmarshal(readArtifact(t, dir, "openrpc.json"), &document); err != nil {

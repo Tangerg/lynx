@@ -103,7 +103,7 @@ import type {
   WorkspaceInfo,
   WorkspaceRef,
   WorkspaceSummary,
-} from "@lyra/runtime-contract/wire";
+} from "@scopeapp/runtime-contract/wire";
 import { streamRunEvents, streamRuntimeEvents } from "./stream";
 import { createAutoPagingPromise, type AutoPagingPromise, type CursorPage } from "./pagination";
 import {
@@ -114,7 +114,7 @@ import {
   type WirePaginatedMethodName,
   type WireParams,
   type WireResult,
-} from "@lyra/runtime-contract/methods";
+} from "@scopeapp/runtime-contract/methods";
 import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
@@ -412,7 +412,7 @@ export interface Methods {
   // agentMemory.* (§7.7, capability-gated): the HITL review surface over the
   // agent's self-maintained memory — list active + pending items (pending
   // first), approve/reject a proposal, edit content / pin an item, delete one,
-  // or add a user-authored active item. Distinct from `memory` (the LYRA.md
+  // or add a user-authored active item. Distinct from `memory` (the SCOPEAPP.md
   // cascade). capability_not_negotiated when the store is not wired.
   agentMemory: {
     list: (target: AgentMemoryTarget) => Promise<AgentMemoryList>;

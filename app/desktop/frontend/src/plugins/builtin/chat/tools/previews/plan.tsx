@@ -57,7 +57,7 @@ function ExitPlanModePreview(props: ToolPreviewProps) {
 }
 
 export const planPreviews = definePlugin({
-  name: "lyra.builtin.plan-previews",
+  name: "scopeapp.builtin.plan-previews",
   setup(ctx) {
     for (const preview of planToolPreviews({
       enter_plan_mode: EnterPlanModePreview,

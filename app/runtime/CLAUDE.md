@@ -1,6 +1,6 @@
-# CLAUDE.md — Lyra Runtime module
+# CLAUDE.md — ScopeApp Runtime module
 
-> Lyra Runtime 是供桌面、Web、CLI、TUI 和同进程消费者使用的 Go 应用后端，实现 Lyra Runtime Protocol。项目级法则继承自 [`../../CLAUDE.md`](../../CLAUDE.md)。
+> ScopeApp Runtime 是供桌面、Web、CLI、TUI 和同进程消费者使用的 Go 应用后端，实现 ScopeApp Runtime Protocol。项目级法则继承自 [`../../CLAUDE.md`](../../CLAUDE.md)。
 
 在设计、实现、评审或重构本模块前，必须按顺序完整阅读：
 

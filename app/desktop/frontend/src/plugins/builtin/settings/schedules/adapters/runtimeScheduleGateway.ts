@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import type { CreateScheduleRequest, LyraClient, Schedule } from "@/rpc";
+import type { CreateScheduleRequest, ScopeAppClient, Schedule } from "@/rpc";
 import { ScheduleMutationOwner, type ScheduleGateway } from "../application/scheduleCommands";
 import type { ScheduleConfig, ScheduleConfigInput } from "../application/scheduleConfig";
 
@@ -20,7 +20,7 @@ function scheduleConfig(schedule: Schedule): ScheduleConfig {
   };
 }
 
-function runtimeScheduleGateway(client: LyraClient): ScheduleGateway {
+function runtimeScheduleGateway(client: ScopeAppClient): ScheduleGateway {
   return {
     async create(input) {
       return scheduleConfig(await client.schedules.create(scheduleInput(input)));

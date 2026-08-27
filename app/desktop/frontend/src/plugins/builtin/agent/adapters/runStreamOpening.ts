@@ -1,6 +1,6 @@
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 
-type RuntimeRunStream = Awaited<ReturnType<LyraClient["runs"]["subscribe"]>>;
+type RuntimeRunStream = Awaited<ReturnType<ScopeAppClient["runs"]["subscribe"]>>;
 
 /**
  * Give an aborting generation immediate ownership release even when the

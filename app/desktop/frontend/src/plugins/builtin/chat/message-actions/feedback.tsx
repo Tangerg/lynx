@@ -54,7 +54,7 @@ function RateableFeedbackButtons({ msg }: { msg: Message }) {
 }
 
 export const messageFeedback = definePlugin({
-  name: "lyra.builtin.message-feedback",
+  name: "scopeapp.builtin.message-feedback",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = installRuntimeFeedbackGateway();

@@ -11,7 +11,7 @@ type mcpServerSeeder interface {
 	Save(ctx context.Context, server mcpserver.Server) error
 }
 
-// SeedMCPServers writes any env-sourced servers (LYRA_MCP_SERVERS) into the
+// SeedMCPServers writes any env-sourced servers (SCOPEAPP_MCP_SERVERS) into the
 // registry that aren't already present, mirroring bootstrap.SeedConfiguredProvider: the
 // env is a first-run seed, runtime edits (a persisted resource) win and are
 // left untouched.

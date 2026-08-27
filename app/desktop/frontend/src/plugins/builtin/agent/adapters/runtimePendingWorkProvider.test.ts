@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { createLyraClient, RpcTransportError } from "@/rpc";
+import { createScopeAppClient, RpcTransportError } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
@@ -10,7 +10,7 @@ import { contributeRuntimePendingWork } from "./runtimePendingWorkProvider";
 import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
-let clients: Array<ReturnType<typeof createLyraClient>> = [];
+let clients: Array<ReturnType<typeof createScopeAppClient>> = [];
 
 async function waitForInterruptRequest(
   transport: ReturnType<typeof createMemoryTransport>,
@@ -38,7 +38,7 @@ afterEach(async () => {
 describe("Agent-owned Runtime pending-work provider", () => {
   it("drains install-wide interrupts and publishes only the Agent read model", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = createScopeAppClient(transport);
     clients.push(client);
     setContainer({ client: () => client });
     await contributeForTest(contributeRuntimePendingWork);
@@ -93,7 +93,7 @@ describe("Agent-owned Runtime pending-work provider", () => {
 
   it("cancels a pending continuation page with the query generation", async () => {
     const transport = createMemoryTransport();
-    const client = createLyraClient(transport);
+    const client = createScopeAppClient(transport);
     clients.push(client);
     setContainer({ client: () => client });
     await contributeForTest(contributeRuntimePendingWork);

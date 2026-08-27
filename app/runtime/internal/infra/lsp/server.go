@@ -34,7 +34,7 @@ type ServerSpec struct {
 	RootMarkers []string
 }
 
-// DefaultServers is the built-in server table — the languages lyra supports
+// DefaultServers is the built-in server table — the languages scopeapp supports
 // out of the box. Every entry is self-contained, so adding a language is a
 // single literal here (or a config override; see engine.Config.LSPServers).
 // A server whose Command isn't installed simply stays unavailable: its files

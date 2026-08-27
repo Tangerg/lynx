@@ -23,8 +23,11 @@ import (
 	otelslog "github.com/Tangerg/scope/otel/slog"
 )
 
-// scopeName names the slog→OTel logs bridge's instrumentation scope.
-const scopeName = "lyra"
+const (
+	// scopeName names the slog→OTel logs bridge's instrumentation scope.
+	scopeName           = "scopeapp"
+	logLevelEnvironment = "SCOPEAPP_LOG_LEVEL"
+)
 
 // Shutdown releases the configured telemetry providers.
 type Shutdown func(context.Context) error
@@ -47,13 +50,13 @@ type Shutdown func(context.Context) error
 //   - Context: W3C trace-context + baggage propagator, so an inbound traceparent
 //     continues through the runtime.
 //
-// Level comes from LYRA_LOG_LEVEL (debug|info|warn|error, default info) and
+// Level comes from SCOPEAPP_LOG_LEVEL (debug|info|warn|error, default info) and
 // is gated before the bridge (the bridge itself does no level filtering).
 //
 // Returns a shutdown func that flushes + tears down the providers; call it
 // on process exit.
 func Configure(serviceVersion string) Shutdown {
-	level := parseLogLevel(os.Getenv("LYRA_LOG_LEVEL"))
+	level := parseLogLevel(os.Getenv(logLevelEnvironment))
 
 	// The base logger is the actual stderr sink every signal renders into;
 	// the three OTel exporters write here. Its level gates the rendered
@@ -109,7 +112,7 @@ func Configure(serviceVersion string) Shutdown {
 
 // minLevelHandler drops records below level before they reach the OTel logs
 // bridge — the bridge does no level filtering, so without this gate
-// LYRA_LOG_LEVEL would be ignored. It only adds the Enabled check; Handle /
+// SCOPEAPP_LOG_LEVEL would be ignored. It only adds the Enabled check; Handle /
 // WithAttrs / WithGroup delegate straight through.
 type minLevelHandler struct {
 	level stdslog.Level
@@ -127,7 +130,7 @@ func (m minLevelHandler) WithGroup(name string) stdslog.Handler {
 	return minLevelHandler{level: m.level, inner: m.inner.WithGroup(name)}
 }
 
-// parseLogLevel maps a LYRA_LOG_LEVEL string onto an slog level, defaulting
+// parseLogLevel maps a SCOPEAPP_LOG_LEVEL string onto an slog level, defaulting
 // to Info on empty / unrecognized input.
 func parseLogLevel(s string) stdslog.Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {

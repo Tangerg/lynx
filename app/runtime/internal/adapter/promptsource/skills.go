@@ -12,10 +12,10 @@ import (
 	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
 )
 
-const projectSkillsSubdir = ".lyra/skills"
+const projectSkillsSubdir = ".scopeapp/skills"
 
 // ProjectSkillDir resolves the project skill-source directory for a working
-// directory. The .lyra layout is a prompt-source filesystem convention, not a
+// directory. The .scopeapp layout is a prompt-source filesystem convention, not a
 // skills-domain concern.
 func ProjectSkillDir(cwd string) string {
 	if cwd == "" {

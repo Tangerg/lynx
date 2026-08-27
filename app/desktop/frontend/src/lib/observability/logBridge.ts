@@ -32,7 +32,7 @@ const SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string }> = {
   error: { number: SeverityNumber.ERROR, text: "ERROR" },
 };
 
-const LOGGER_NAME = "lyra-frontend";
+const LOGGER_NAME = "scopeapp-frontend";
 
 /** Emit one frontend log line as an OTel LogRecord, attributed to `scope`
  *  (the plugin/kernel name). The active span's trace context is attached

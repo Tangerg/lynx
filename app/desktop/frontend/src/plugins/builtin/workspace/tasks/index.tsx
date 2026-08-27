@@ -3,7 +3,7 @@ import { installTaskReadoutPort } from "./adapters/taskReadoutStore";
 import { TasksPill } from "./ui/TasksPill";
 
 export const tasksPill = definePlugin({
-  name: "lyra.builtin.tasks",
+  name: "scopeapp.builtin.tasks",
   setup(ctx) {
     const disposeTaskReadout = installTaskReadoutPort();
     contributeLayout(ctx, "sidebar.footer.status", {

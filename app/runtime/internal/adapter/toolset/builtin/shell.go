@@ -23,7 +23,7 @@ import (
 // auto-background window: finishing in time yields its output inline and the
 // job is removed; outliving the window leaves it running, addressable by the
 // same shell id, so the lifecycle tools work on it unchanged. This is the
-// auto-background design — lyra selects on the per-shell done channel
+// auto-background design — scopeapp selects on the per-shell done channel
 // instead of polling. cwd is read per call (executionctx.CWD) so a command runs in the
 // session's working directory.
 

@@ -370,14 +370,16 @@ export const ko: Record<string, string> = {
 
   "settings.pane.connection": "연결",
   "settings.connection.title": "백엔드",
-  "settings.connection.sub": "Lyra Runtime 주소. 적용하면 데스크톱 앱이 새 주소로 다시 연결됩니다.",
+  "settings.connection.sub":
+    "ScopeApp Runtime 주소. 적용하면 데스크톱 앱이 새 주소로 다시 연결됩니다.",
   "settings.connection.url": "URL",
   "settings.connection.apply": "적용",
   "settings.connection.reset": "기본값 복원",
   "settings.connection.status.checking": "Runtime 확인 중…",
   "settings.connection.status.reconnecting": "다시 연결하는 중…",
   "runtime.connection.reconnecting": "Runtime 연결이 끊겼습니다. 다시 연결하는 중…",
-  "runtime.connection.unavailable": "Runtime을 사용할 수 없습니다. Lyra가 계속 다시 연결합니다.",
+  "runtime.connection.unavailable":
+    "Runtime을 사용할 수 없습니다. ScopeApp가 계속 다시 연결합니다.",
   "runtime.connection.settings": "연결 설정",
   "settings.connection.status.ready": "준비됨",
   "settings.connection.status.degraded": "일부 성능 저하",
@@ -597,7 +599,8 @@ export const ko: Record<string, string> = {
   "knowledge.scope.home": "홈",
   "knowledge.off": "꺼짐",
   "knowledge.empty.title": "아직 지식 없음",
-  "knowledge.empty.sub": "런타임이 agent를 위해 유지 관리하는 LYRA.md 파일이 여기에 표시됩니다.",
+  "knowledge.empty.sub":
+    "런타임이 agent를 위해 유지 관리하는 SCOPEAPP.md 파일이 여기에 표시됩니다.",
   "knowledge.disabled.title": "지식 기능이 꺼져 있음",
   "knowledge.disabled.sub": "이 런타임은 지식 기능을 제공하지 않습니다.",
   "knowledge.save": "저장",
@@ -691,8 +694,8 @@ export const ko: Record<string, string> = {
   "convExport.exportedAt": "{{time}}에 내보냄",
   "convExport.importUnsupported": "이 런타임은 세션 가져오기를 지원하지 않습니다.",
   "convExport.notJson": "JSON 파일이 아닙니다.",
-  "convExport.notLyra":
-    "Lyra 세션 내보내기가 아닙니다 — '대화 내보내기'로 내보낸 JSON을 선택하세요.",
+  "convExport.notScopeApp":
+    "ScopeApp 세션 내보내기가 아닙니다 — '대화 내보내기'로 내보낸 JSON을 선택하세요.",
   "convExport.importFailed": "대화를 가져올 수 없습니다.",
   "convExport.importSuccess": "'{{title}}'을(를) 가져왔습니다.",
   "connection.error.urlScheme": "http:// 또는 https://로 시작해야 합니다",
@@ -780,7 +783,7 @@ export const ko: Record<string, string> = {
   "approvals.mode.balanced.desc": "편집은 자동 허용하고, 명령 실행 전에 묻습니다.",
   "approvals.mode.auto.desc": "묻지 않고 전부 실행합니다.",
   "hooks.intro":
-    "훅은 턴 안의 정해진 시점에 사용자의 명령을 실행합니다 — 도구 실행 전, 프롬프트 후, 압축 시. 전역 훅(~/.lyra)은 항상 실행되며, 프로젝트 훅은 신뢰한 뒤에만 실행됩니다.",
+    "훅은 턴 안의 정해진 시점에 사용자의 명령을 실행합니다 — 도구 실행 전, 프롬프트 후, 압축 시. 전역 훅(~/.scopeapp)은 항상 실행되며, 프로젝트 훅은 신뢰한 뒤에만 실행됩니다.",
   "hooks.trust": "이 프로젝트의 훅을 신뢰",
   "hooks.trust.sub":
     "이 프로젝트의 훅은 사용자 머신에서 셸 명령을 실행합니다. 신뢰하는 저장소에만 켜세요. 다음 턴부터 적용됩니다.",
@@ -790,7 +793,8 @@ export const ko: Record<string, string> = {
   "hooks.inactive": "비활성",
   "hooks.inactive.hint": "이 프로젝트를 신뢰하면 훅이 켜집니다.",
   "hooks.empty": "설정된 훅이 없습니다",
-  "hooks.empty.sub": "~/.lyra/hooks.json(전역) 또는 <project>/.lyra/hooks.json에 훅을 추가하세요.",
+  "hooks.empty.sub":
+    "~/.scopeapp/hooks.json(전역) 또는 <project>/.scopeapp/hooks.json에 훅을 추가하세요.",
   "hooks.unavailable": "훅을 사용할 수 없습니다",
   "hooks.unavailable.sub": "이 런타임은 훅 관리를 제공하지 않습니다.",
   "hooks.error.trust": "프로젝트 훅 신뢰 설정을 변경할 수 없습니다.",
@@ -941,7 +945,7 @@ export const ko: Record<string, string> = {
   "recipes.available": "{{count}}개 사용 가능",
   "recipes.empty.title": "레시피가 없습니다",
   "recipes.empty.sub":
-    ".md 파일을 .lyra/recipes(프로젝트) 또는 ~/.lyra/recipes(전역)에 넣으면 그 이름이 /슬래시 명령이 됩니다.",
+    ".md 파일을 .scopeapp/recipes(프로젝트) 또는 ~/.scopeapp/recipes(전역)에 넣으면 그 이름이 /슬래시 명령이 됩니다.",
   "schedules.intro":
     "저장한 프롬프트를 일정에 따라 실행합니다. 런타임이 서비스 중이면 각 실행은 새 세션으로 시작합니다 — 출력은 사이드바에서 확인하세요.",
   "schedules.add": "새 일정",

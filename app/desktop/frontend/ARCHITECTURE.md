@@ -1,4 +1,4 @@
-# Lyra 前端架构
+# ScopeApp 前端架构
 
 > 本文档描述 `frontend/` 这个 React + TypeScript 应用是怎么组织、怎么运行的。
 > 主 UI 心智模型看 [`../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`](../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md)；
@@ -11,9 +11,9 @@
 
 ## 1. 一句话概括
 
-**Lyra 前端 = 自研 Lyra Runtime Protocol v2 流式协议 + 插件化 React 外壳。**
+**ScopeApp 前端 = 自研 ScopeApp Runtime Protocol v2 流式协议 + 插件化 React 外壳。**
 
-外壳几乎不长肉——路由、布局、内容渲染、命令、快捷键、主题、协议事件处理（StreamEvent fold）、设置面板，全部由内置插件贡献。Kernel 由 dougong `Host` 的契约图与生命周期、Lyra 的开放扩展点策略和少量共享 Zustand store组成；插件经 `PluginContext` 写贡献，经 typed selector 消费稳定 read model。
+外壳几乎不长肉——路由、布局、内容渲染、命令、快捷键、主题、协议事件处理（StreamEvent fold）、设置面板，全部由内置插件贡献。Kernel 由 dougong `Host` 的契约图与生命周期、ScopeApp 的开放扩展点策略和少量共享 Zustand store组成；插件经 `PluginContext` 写贡献，经 typed selector 消费稳定 read model。
 
 ---
 
@@ -28,7 +28,7 @@
 | 状态     | Zustand（多 store，无 context 链）                                |
 | 路由     | TanStack Router（route tree 动态构建）                            |
 | 数据     | TanStack React Query                                              |
-| 协议     | 自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）         |
+| 协议     | 自研 ScopeApp Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）         |
 | 动画     | motion/react                                                      |
 | 桌面壳   | Wails v3 beta（Go 后端 + WebView 前端，版本钉死）                 |
 | 测试     | Vitest 4 + Testing Library + happy-dom                            |
@@ -61,8 +61,8 @@ src/
 │   ├── sdk/                  插件平台
 │   │   ├── types/                17 个 domain 文件 + barrel（按贡献面拆）
 │   │   ├── kernelPoints.ts       ~35 个内置 ExtensionPoint（THEME / COMMAND / LAYOUT_SLOT / …）
-│   │   ├── contracts.ts          dougong token + Lyra key/read policy
-│   │   ├── definePlugin.ts       绑定 dougong context 与 Lyra contribute policy
+│   │   ├── contracts.ts          dougong token + ScopeApp key/read policy
+│   │   ├── definePlugin.ts       绑定 dougong context 与 ScopeApp contribute policy
 │   │   ├── bootstrap.ts          Host create/start/stop + installation transaction
 │   │   ├── kernel.ts             当前 Host 代际、ContributionView cache 与安装 read model
 │   │   ├── services.ts / shellServices.ts  typed shell capability contracts
@@ -137,7 +137,7 @@ src/
 │   └── classNames.ts / motion.ts / metrics.ts / hmr.ts / systemFonts.ts
 │
 ├── rpc/                  Runtime Protocol boundary —— 唯一 outbound 副作用层
-│   ├── sdk.ts            createLyraClient(transport) — JSON-RPC client + typed methods
+│   ├── sdk.ts            createScopeAppClient(transport) — JSON-RPC client + typed methods
 │   ├── methods.ts        typed method 包装（runs.start / runs.resume / runs.cancel / items.list / …）
 │   ├── shapes.ts         wire schema（Zod，信任边界校验）
 │   ├── stream.ts         RunEvent 信封校验 + 去重（iterableOf / bindLifecycle）
@@ -145,7 +145,7 @@ src/
 │   └── client.ts / channel.ts / ids.ts / errors.ts
 │
 ├── main/                 composition root（DI）
-│   ├── container.ts      按 active endpoint/token 缓存 LyraClient；测试 setContainer 注入
+│   ├── container.ts      按 active endpoint/token 缓存 ScopeAppClient；测试 setContainer 注入
 │   └── config.ts         local desktop shell URL / desktop client identity
 │
 ├── styles/               globals.css（Tailwind base + @theme token + keyframes，唯一主样式）
@@ -155,14 +155,14 @@ src/
 
 ### 3.1 单向依赖与 outbound 边界
 
-Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内外分层"的只有一处：**UI / 状态 / 插件不应直接发起 outbound 副作用**（HTTP、SSE、IPC）。这一层由 **`rpc/`（Runtime Protocol boundary）+ `main/container.ts`（composition root）** 承担。
+ScopeApp 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内外分层"的只有一处：**UI / 状态 / 插件不应直接发起 outbound 副作用**（HTTP、SSE、IPC）。这一层由 **`rpc/`（Runtime Protocol boundary）+ `main/container.ts`（composition root）** 承担。
 
 所有 outbound 都收敛成一个 JSON-RPC 协议客户端，但业务上下文不会直接依赖它：application 定义窄 port，adapter 在组合边界把 port 接到 `getContainer().client()`。协议 DTO 只在 adapter 或明确的 fold 反腐层出现。
 
 ```
         ┌────────────────────────────────────────────┐
         │  rpc/                                        │
-        │   createLyraClient(transport)                │
+        │   createScopeAppClient(transport)                │
         │   JSON-RPC client + typed methods + shapes   │
         │   transports（http / memory）+ stream 校验   │
         │   独立层：只依赖外部库 + 自己（check-layers 强制）│
@@ -213,7 +213,7 @@ RPC mutation journal 只持久化 unresolved command identity，不持久化请�
 
 Runtime endpoint 是 Runtime context 的应用配置：application 拥有默认值、HTTP(S)
 校验与 `applied | rejected` 结果语义，adapter 才把 consumer-owned port 接到 Host
-config/storage。`lyra.builtin.runtime` 在 capability discovery 之前同步恢复 endpoint，
+config/storage。`scopeapp.builtin.runtime` 在 capability discovery 之前同步恢复 endpoint，
 `main/container.ts` 只通过 Runtime `public/endpoint` 读取 active endpoint，并按
 endpoint 与 Wails bootstrap 返回的 local token 缓存客户端。Connection 面板把稳定 rejection code 翻译为当前 locale
 文案；应用变更后重载前端，让 streams、queries、capabilities 与 Session read models
@@ -365,7 +365,7 @@ PluginSpec.setup(ctx)
 dougong Host —— owner-qualified contribution storage + transaction + cleanup
        │  host.contributions(POINT.token)
        ▼
-kernel.ts —— current Host generation + cached ContributionView + Lyra single/multi policy
+kernel.ts —— current Host generation + cached ContributionView + ScopeApp single/multi policy
        │
        ▼
 selectors（sdk/selectors/）
@@ -374,7 +374,7 @@ selectors（sdk/selectors/）
 React hooks / imperative lookup consumers
 ```
 
-`contracts.ts` 把 dougong `ExtensionPoint` token 与 Lyra 的领域 key、排序、capability 和 `single | multi` read policy绑定。Core 保留所有 owner-qualified contribution；Lyra selector 才按领域 key 解析 shadow。因而覆盖插件卸载后，被遮蔽的原贡献会重新出现，而不是在写入时被破坏。
+`contracts.ts` 把 dougong `ExtensionPoint` token 与 ScopeApp 的领域 key、排序、capability 和 `single | multi` read policy绑定。Core 保留所有 owner-qualified contribution；ScopeApp selector 才按领域 key 解析 shadow。因而覆盖插件卸载后，被遮蔽的原贡献会重新出现，而不是在写入时被破坏。
 
 #### 一个插件长这样
 
@@ -383,7 +383,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
-  name: "lyra.builtin.rpc-agent",
+  name: "scopeapp.builtin.rpc-agent",
   setup(ctx) {
     ctx.contribute(AGENT_SOURCE, rpcAgentSource(t, getActiveSessionId, runtimeRunsGateway));
   },
@@ -395,7 +395,7 @@ export default definePlugin({
 #### Host、Services 与 read policy
 
 - dougong `Host` 只由 composition root 持有：安装、启动、事务变更、贡献 read model 与 stop；产品插件不通过全局 Host 绕过契约。
-- 插件间命令式能力通过 `services.ts` token 与 `requires` / `provides` 注入。Lyra shell 只提供 config、i18n、window、workspace、commands、plugins 六类明确 Service。
+- 插件间命令式能力通过 `services.ts` token 与 `requires` / `provides` 注入。ScopeApp shell 只提供 config、i18n、window、workspace、commands、plugins 六类明确 Service。
 - Runtime 网络访问不属于通用 shell Service；内置业务仍经 context adapter → `main/container` → typed JSON-RPC client，Runtime DTO 停在 Adapter。
 - `kernel.ts` 只发布一个 Host generation。views 与 installed-plugin read model 都绑定该 Host identity；stale stop / subscription callback 不能清理或写入 successor generation。
 
@@ -416,7 +416,7 @@ manifest 和调用方，不留兼容 loader。
 #### 形状：Session projection + normalized Run tree
 
 ```
-LyraClient（rpc/）—— runs.start / runs.resume 流式返回 RunEvent
+ScopeAppClient（rpc/）—— runs.start / runs.resume 流式返回 RunEvent
    │   useAgentSession → AgentRunPump：for await (event of stream.events)
    ▼
 useAgentStore.applyRunEvents(sessionId, batch)  ◄── rAF 批处理，~1 commit/帧
@@ -552,7 +552,7 @@ helper 自动补 shadow ladder + CTA defaults + `ctx.contribute(THEME, …)` 注
 
 ### 5.5 可观测性（OpenTelemetry 三信号）
 
-`lib/observability/` 是后端 `setupObservability` 的前端镜像：**一处**装好三个全局 OTel provider（Tracer / Meter / Logger）+ 共享 Resource（`service.name=lyra-frontend`）+ W3C TraceContext+Baggage propagator，其余代码只用 `trace.getTracer` / `metrics.getMeter` / `logs.getLogger` 这些静态访问器（无注入）。
+`lib/observability/` 是后端 `setupObservability` 的前端镜像：**一处**装好三个全局 OTel provider（Tracer / Meter / Logger）+ 共享 Resource（`service.name=scopeapp-frontend`）+ W3C TraceContext+Baggage propagator，其余代码只用 `trace.getTracer` / `metrics.getMeter` / `logs.getLogger` 这些静态访问器（无注入）。
 
 - **安装时机**：独立 `observability` 插件**动态导入** `setup.ts` 并 always-on 安装——重 SDK 进懒 chunk、不碰首屏；trace context 传播又始终在线。
 - **可切换 exporter**（同后端）：本地有界内存 sink（dev 可见，`stores.ts`）始终在；配了 `otel.endpoint` config 才追加 OTLP（prod 切换，懒导入 + 批处理）。
@@ -662,7 +662,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { COMMAND } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
-  name: "lyra.example.hello",
+  name: "scopeapp.example.hello",
   capabilities: ["commands"],
   setup(ctx) {
     // 1. 注册一个可按 id 执行的命令

@@ -10,8 +10,8 @@ import { visualStyleTokens, WORKBENCH_MOTION } from "./tokens";
  * theme inherits the same region algorithm without hard-coded light or dark
  * values — the style says where the depth is, the theme says how dark.
  */
-export const lyraStyle: VisualStyleSpec = {
-  id: "lyra",
+export const scopeappStyle: VisualStyleSpec = {
+  id: "scopeapp",
   label: "Scope Workbench",
   description: "Tool-window geometry: opaque columns, borderless cards, half-pixel seams.",
   order: -10,

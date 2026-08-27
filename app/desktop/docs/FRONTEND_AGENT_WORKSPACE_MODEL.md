@@ -1,6 +1,6 @@
 # Frontend Agent Workspace Model
 
-> 本文记录 Lyra desktop 现行的主 UI 心智模型。它回答的是：
+> 本文记录 ScopeApp desktop 现行的主 UI 心智模型。它回答的是：
 > **左侧 / 中间 / 右侧分别为什么存在，什么东西应该放在哪，后续重构怎么判断方向。**
 >
 > 视觉 token、阴影、字体、圆角等细节看 [`../frontend/DESIGN.md`](../frontend/DESIGN.md)
@@ -10,9 +10,9 @@
 
 ## 1. North Star
 
-**Lyra 是一个 AI agent 工作台，不是普通 IDE，也不是功能菜单驱动的后台系统。**
+**ScopeApp 是一个 AI agent 工作台，不是普通 IDE，也不是功能菜单驱动的后台系统。**
 
-主界面不是回答“Lyra 有哪些功能”，而是回答：
+主界面不是回答“ScopeApp 有哪些功能”，而是回答：
 
 ```text
 我的 agent 正在 / 曾经在哪些工作上下文里做事？
@@ -42,7 +42,7 @@ Right  = Context Dock
 
 ## 2. Protocol Mapping
 
-Lyra Runtime Protocol 的核心原语已经决定了 UI 的主轴：
+ScopeApp Runtime Protocol 的核心原语已经决定了 UI 的主轴：
 
 ```text
 Session
@@ -172,7 +172,7 @@ Context Dock 的内容由 active `Session.cwd` 驱动。切换 session 后，应
 
 ### 4.1 Theme and Surface Rules
 
-Lyra 已经有主题系统，后续 UI 调整必须把主题系统当作唯一视觉权威：
+ScopeApp 已经有主题系统，后续 UI 调整必须把主题系统当作唯一视觉权威：
 
 - 组件不直接写品牌色、灰阶、透明白、散落 shadow。
 - surface、border、text、accent、focus、shadow、radius 都从 theme token 读取。
@@ -203,7 +203,7 @@ app background
 
 ### 4.2 Remove the Web Feel
 
-Lyra 是桌面工作台，不能像网页后台。判断标准：
+ScopeApp 是桌面工作台，不能像网页后台。判断标准：
 
 - 导航像本地 app 的 source list，不像 SaaS sidebar。
 - 右侧像 inspector / editor，不像 dashboard card grid。
@@ -214,7 +214,7 @@ Lyra 是桌面工作台，不能像网页后台。判断标准：
 交互细节：
 
 - icon button 用真实图标 + tooltip，不用文字胶囊按钮堆满工具栏。
-- popup / menu / select 走 Base UI primitive，视觉由 Lyra theme 接管。
+- popup / menu / select 走 Base UI primitive，视觉由 ScopeApp theme 接管。
 - transient surface 使用短而轻的 enter/exit animation，但不能抢主叙事注意力。
 - resize / collapse / split view 应保持 session context，不把用户正在看的材料清掉。
 
@@ -248,7 +248,7 @@ type WorkIndexItemScope = "global" | "session";
 type WorkIndexItemVariant = "expanded" | "rail";
 ```
 
-Context Dock 贡献只声明 scope；placement 由 `lyra.contextDock.destination` 这个扩展点身份隐含：
+Context Dock 贡献只声明 scope；placement 由 `scopeapp.contextDock.destination` 这个扩展点身份隐含：
 
 ```ts
 type ContextDockDestinationScope = "workspace" | "session" | "run";
@@ -380,7 +380,7 @@ P129 进一步固定 Conversation 与 Transcript 的可见性边界：Applicatio
 - 左侧顶级 workspace destinations 已移除。
 - 右侧提供 `context` launcher / handle。
 - Search、active-session destinations、rail context 入口都打开到 Context Dock。
-- Context Dock destinations 已进入 `lyra.contextDock.destination` contribution registry，首批内置入口由 workspace 插件贡献，launcher 按 `workspace / run / session` scope 渲染 read model。
+- Context Dock destinations 已进入 `scopeapp.contextDock.destination` contribution registry，首批内置入口由 workspace 插件贡献，launcher 按 `workspace / run / session` scope 渲染 read model。
 - 左侧 active session 下不再嵌 workspace/run 快捷入口；Work Index 只表达 session 选择与状态。
 - 左侧顶部不再暴露 workspace grep 假装全局 Search；文件搜索从 Context Dock 的 workspace scope 进入。
 
@@ -420,7 +420,7 @@ P129 进一步固定 Conversation 与 Transcript 的可见性边界：Applicatio
 - **Review Workspace 成形**：diff view 不再按 active file 过滤查询 —— 它展示整个改动，逐文件可折叠卡片在同一个滚动区里，右侧一条可筛选的变更文件导航（点行**滚动**到那个文件，不替换内容）。active file 从"过滤器"变成"焦点"：导航高亮它、打开时滚到它。
 - **两种密度**：`WorkspaceViewSpec.density` + 每密度一份 dock 宽度（见 §4）；一个没有任何 view 声明的密度会让 gate 变红。
 - **深度与边缘全部进 token**：逃出守卫的 6 处硬编码 shadow、3 处手挑 border alpha 全部收敛；内部竖分割线有唯一作者（`.agent-pane-split`，`data-split-side` 选边）；`check-design-tokens` 增两条规则挡住回归。
-- 几何数字对齐 `~/Desktop/synara`（chrome bar 46px、列宽下限 208/640、seam ring clip 到自身半径），实现走 Lyra 自己的 token 而非它的组件库。
+- 几何数字对齐 `~/Desktop/synara`（chrome bar 46px、列宽下限 208/640、seam ring clip 到自身半径），实现走 ScopeApp 自己的 token 而非它的组件库。
 
 验收：
 

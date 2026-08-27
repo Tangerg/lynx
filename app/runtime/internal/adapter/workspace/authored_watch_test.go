@@ -37,14 +37,14 @@ func TestAuthoredWatcherMapsGlobalAndWorkspaceCascades(t *testing.T) {
 		path     string
 		resource workspaceapp.AuthoredResource
 	}{
-		{filepath.Join(knowledgeHome, "LYRA.md"), workspaceapp.AuthoredKnowledge},
-		{filepath.Join(project, "LYRA.md"), workspaceapp.AuthoredKnowledge},
-		{filepath.Join(workspace, "LYRA.md"), workspaceapp.AuthoredKnowledge},
-		{filepath.Join(home, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
-		{filepath.Join(project, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
-		{filepath.Join(workspace, ".lyra", "hooks.json"), workspaceapp.AuthoredHooks},
+		{filepath.Join(knowledgeHome, "SCOPEAPP.md"), workspaceapp.AuthoredKnowledge},
+		{filepath.Join(project, "SCOPEAPP.md"), workspaceapp.AuthoredKnowledge},
+		{filepath.Join(workspace, "SCOPEAPP.md"), workspaceapp.AuthoredKnowledge},
+		{filepath.Join(home, ".scopeapp", "hooks.json"), workspaceapp.AuthoredHooks},
+		{filepath.Join(project, ".scopeapp", "hooks.json"), workspaceapp.AuthoredHooks},
+		{filepath.Join(workspace, ".scopeapp", "hooks.json"), workspaceapp.AuthoredHooks},
 		{filepath.Join(skillsHome, "global-skill", "SKILL.md"), workspaceapp.AuthoredSkills},
-		{filepath.Join(project, ".lyra", "skills", "project-skill", "SKILL.md"), workspaceapp.AuthoredSkills},
+		{filepath.Join(project, ".scopeapp", "skills", "project-skill", "SKILL.md"), workspaceapp.AuthoredSkills},
 	} {
 		if err := os.MkdirAll(filepath.Dir(change.path), 0o755); err != nil {
 			t.Fatal(err)

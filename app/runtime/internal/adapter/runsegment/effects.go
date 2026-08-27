@@ -273,7 +273,7 @@ var (
 	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
 )
 
-const runsegmentTracerName = "scope/lyra/runsegment"
+const runsegmentTracerName = "scope/scopeapp/runsegment"
 
 // New returns the durable Run-segment effects. Every dependency needed by the
 // supported write-sets is validated here; optional product capabilities remain

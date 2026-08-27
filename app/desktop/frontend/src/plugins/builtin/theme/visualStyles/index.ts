@@ -1,8 +1,8 @@
 import type { AnyPlugin } from "dougong";
 import { defineVisualStylePlugin } from "./defineVisualStylePlugin";
-import { lyraStyle } from "./lyra";
+import { scopeappStyle } from "./scopeapp";
 
-export const builtinVisualStyleSpecs = [lyraStyle] as const;
+export const builtinVisualStyleSpecs = [scopeappStyle] as const;
 
 export const builtinVisualStyles: AnyPlugin[] =
   builtinVisualStyleSpecs.map(defineVisualStylePlugin);

@@ -73,7 +73,7 @@ func writeSkill(t *testing.T, root, name, desc string) {
 }
 
 // TestBuild_MergesProjectOverUser proves the engine's skill tool
-// layers <cwd>/.lyra/skills over the user dir, with the project copy
+// layers <cwd>/.scopeapp/skills over the user dir, with the project copy
 // winning on a name collision.
 func TestBuildReadersMergesProjectOverUser(t *testing.T) {
 	cwd := t.TempDir()

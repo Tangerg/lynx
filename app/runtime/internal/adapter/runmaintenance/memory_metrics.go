@@ -18,7 +18,7 @@ import (
 // un-instrumented compaction worker: instrumenting only some maintenance ops
 // with spans would be inconsistent. A coherent maintenance-tracing pass is a
 // separate concern.
-const memoryMetricsScope = "scope/lyra/memory"
+const memoryMetricsScope = "scope/scopeapp/memory"
 
 var extractedFactCounter = sync.OnceValue(func() metric.Int64Counter {
 	// A creation error yields a usable no-op counter, so it's safe to drop.

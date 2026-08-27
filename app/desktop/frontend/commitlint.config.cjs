@@ -1,4 +1,4 @@
-// Conventional Commits enforcement. Lyra's recent commit history is
+// Conventional Commits enforcement. ScopeApp's recent commit history is
 // already on this format (`feat: ...`, `refactor(scope): ...`, etc) —
 // this config locks the convention in so it stays consistent.
 //

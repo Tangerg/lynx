@@ -36,7 +36,7 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 
 func TestAssemblyPreservesParkedQuestionAcrossCrashLikeRestart(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("LYRA_HOME", home)
+	t.Setenv("SCOPEAPP_HOME", home)
 	stores, err := persistence.Open(t.Context(), persistence.Config{
 		DataDirectory: home, DefaultWorkspacePath: home,
 	})
@@ -95,7 +95,7 @@ type protocolLifecycleFixture struct {
 func newProtocolLifecycleFixture(t *testing.T) *protocolLifecycleFixture {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("LYRA_HOME", home)
+	t.Setenv("SCOPEAPP_HOME", home)
 	model := newLifecycleModel()
 	stores, err := persistence.Open(t.Context(), persistence.Config{
 		DataDirectory: home, DefaultWorkspacePath: home,
@@ -407,7 +407,7 @@ func (noMaintenance) Maintain(
 
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {
 	t.Helper()
-	dataDirectory := os.Getenv("LYRA_HOME")
+	dataDirectory := os.Getenv("SCOPEAPP_HOME")
 	stores, err := persistence.Open(t.Context(), persistence.Config{
 		DataDirectory:        dataDirectory,
 		DefaultWorkspacePath: dataDirectory,

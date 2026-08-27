@@ -1,16 +1,16 @@
-// Lyra Runtime Protocol SDK — the one ergonomic entry point.
+// ScopeApp Runtime Protocol SDK — the one ergonomic entry point.
 //
 // The protocol is transport-agnostic (app/runtime/doc/TRANSPORT.md): the same JSON-RPC
 // semantics ride InProcess / HTTP. So the SDK takes a `Transport` and
 // nothing else — inject the transport, get back a fully-typed client:
 //
-//   const client = createLyraClient(createHttpTransport({ baseUrl }));
+//   const client = createScopeAppClient(createHttpTransport({ baseUrl }));
 //   await client.runtime.discover();
 //   const { result, events } = await client.runs.start({ ... });
 //   for await (const ev of events) reduce(ev.event);
 //   await client.close();
 //
-// `LyraClient` is the complete typed method surface
+// `ScopeAppClient` is the complete typed method surface
 // (client.sessions.list(), …) plus `close()` for teardown.
 //
 // Transport construction (HTTP / in-memory) stays separate —
@@ -20,11 +20,11 @@
 import { createRpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
 import type { MutationJournal } from "./mutationJournal";
-import type { RequestMeta, ServerCapabilities } from "@lyra/runtime-contract/wire";
+import type { RequestMeta, ServerCapabilities } from "@scopeapp/runtime-contract/wire";
 import type { Transport } from "./transport";
 
-/** Options for [createLyraClient]. */
-export interface LyraClientOptions {
+/** Options for [createScopeAppClient]. */
+export interface ScopeAppClientOptions {
   requestMeta?: () => RequestMeta | undefined;
   /**
    * What the server said it can do, or null before discovery. Supplying it lets the
@@ -36,13 +36,16 @@ export interface LyraClientOptions {
   mutationJournal?: MutationJournal;
 }
 
-export interface LyraClient extends Methods {
+export interface ScopeAppClient extends Methods {
   /** Tear down the client + the underlying transport. */
   close(): Promise<void>;
 }
 
-/** Build a Lyra Runtime Protocol client over the given transport. */
-export function createLyraClient(transport: Transport, opts?: LyraClientOptions): LyraClient {
+/** Build a ScopeApp Runtime Protocol client over the given transport. */
+export function createScopeAppClient(
+  transport: Transport,
+  opts?: ScopeAppClientOptions,
+): ScopeAppClient {
   const rpc = createRpcClient(transport, { requestMeta: opts?.requestMeta });
   let closePromise: Promise<void> | undefined;
   const close = (): Promise<void> => {

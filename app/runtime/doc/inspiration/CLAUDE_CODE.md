@@ -2,7 +2,7 @@
 
 > **来源**：对 **Claude Code 源码快照**（2026-03-31 经 npm source-map 泄露；桌面克隆 `~/Desktop/claude_code`，TS strict + Bun + React/Ink TUI，~1900 文件 51 万行）的源码级对比分析。核心：巨型 `QueryEngine.ts`（LLM loop）、`Tool.ts`、`tools/`（~40 工具一工具一文件夹）、`commands/`（~50 slash）、`services/`（api/mcp/oauth/lsp/compact/extractMemories）。大量能力挂在 GrowthBook `tengu_*` feature flag 后。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
-> **状态**：全部 proposed。已跳过 parity 项（plan-mode、hooks、slash、MCP、scheduler、结构化输出、checkpoint、LSP、@codebase）——只谈 lyra **缺**或**做得差**的。
+> **状态**：全部 proposed。已跳过 parity 项（plan-mode、hooks、slash、MCP、scheduler、结构化输出、checkpoint、LSP、@codebase）——只谈 scopeapp **缺**或**做得差**的。
 
 ---
 
@@ -10,7 +10,7 @@
 
 Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Task* + SendMessage）· auto-mode LLM 安全分类器（yoloClassifier）· 持久 auto-memory（memdir + extractMemories）· 结构化 task/todo（TodoWrite V1 + Task* V2）。横切：**配置即 markdown+frontmatter**（output-styles/agents/skills/commands/memories 全 `.md`）。
 
-**两个强收敛信号**（多家独立殊途同归 = 高置信）：① **工具搜索/延迟加载** —— Claude Code(A) 与 [Grok G4](GROK.md) 独立都做；② **检索式跨会话记忆** —— Claude Code(D) 与 [Grok G2](GROK.md)（及 Hermes）独立都收敛到 lyra 的 deferred C8。
+**两个强收敛信号**（多家独立殊途同归 = 高置信）：① **工具搜索/延迟加载** —— Claude Code(A) 与 [Grok G4](GROK.md) 独立都做；② **检索式跨会话记忆** —— Claude Code(D) 与 [Grok G2](GROK.md)（及 Hermes）独立都收敛到 scopeapp 的 deferred C8。
 
 ## 0.1 筛选准则
 
@@ -39,7 +39,7 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 - **落点**：`toolset/todo/` 一个工具 + session/blackboard 上 `todos` 分区（domain/application）；desktop 进度条视图（adapter）。
 - **计划**：① V1 扁平清单 + 整表替换写 + 内存 session-state ② prompt 契约（恰好一个 in_progress / 完成即标 / ≥3 步才用）③ desktop 进度条 ④ V2 依赖/owner 属 YAGNI，swarm 落地再说。
 - **验收**：长任务中模型维护清单、恰好一个 in_progress、完成即标；UI 实时反映。
-- **风险/边界**：⚠️**别退化成第二个机制**——lyra 已有 plan-mode。Claude Code 里 **plan-mode 产计划、todo 追执行是分开的**，建议 lyra 同样保持 todo 只做执行追踪，与 plan 两层。
+- **风险/边界**：⚠️**别退化成第二个机制**——scopeapp 已有 plan-mode。Claude Code 里 **plan-mode 产计划、todo 追执行是分开的**，建议 scopeapp 同样保持 todo 只做执行追踪，与 plan 两层。
 - **优先级**：**P1**。
 
 ---
@@ -58,8 +58,8 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 
 - **来源/为什么**：`memdir/findRelevantMemories.ts`（读）、`services/extractMemories/`（写）、`memdir/memoryTypes.ts`（taxonomy）、注入点 `utils/attachments.ts`。**写**：一轮结束后台 fork 一个 "memory extraction subagent"（与主对话同 system prompt 的 perfect fork），**只准读 + 只准写 memory dir**（`rm` 禁、其它工具 deny），把最近消息里持久事实写成**一 topic 一文件**并在 `MEMORY.md` 索引加一行 `- [Title](file.md) — hook`；若主 agent 本轮已自写 memory 就跳过。**读**：每 user turn 扫所有 memory 文件的 frontmatter 组 manifest，喂便宜 side-query 选**最多 5 个**相关文件（过滤已 surface 过的），截断后作为 `relevant_memories` system-reminder 注入；`MEMORY.md` 索引常驻 system prompt。
 - **目标**：跨会话记忆的**检索式注入**——不塞整个记忆，而"frontmatter manifest + 便宜模型选 top-5 + 注入"；写侧沙箱化 extraction fork + MEMORY.md 只做索引、内容在分文件。
-- **落点**：memory 子系统（application）+ side-model 检索 + 注入 turn 输入（adapter）；选取器复用 lyra 现成便宜 utility-model 角色。
-- **风险/边界**：**取**：相关性检索注入 + 分文件+索引 + 后台抽取 fork。**拒**：`teamMemorySync/` + team secret scanner（team 共享=多租户，违 filter #2）。**这是 lyra DEFERRED 的 C8 的一份成熟蓝图**，与 [Grok G2](GROK.md)、Hermes 三方收敛——C8 实现时综合三家。工程量较大且触 schema，破坏性改动先咨询。
+- **落点**：memory 子系统（application）+ side-model 检索 + 注入 turn 输入（adapter）；选取器复用 scopeapp 现成便宜 utility-model 角色。
+- **风险/边界**：**取**：相关性检索注入 + 分文件+索引 + 后台抽取 fork。**拒**：`teamMemorySync/` + team secret scanner（team 共享=多租户，违 filter #2）。**这是 scopeapp DEFERRED 的 C8 的一份成熟蓝图**，与 [Grok G2](GROK.md)、Hermes 三方收敛——C8 实现时综合三家。工程量较大且触 schema，破坏性改动先咨询。
 - **优先级**：**P2**。
 
 ---
@@ -69,7 +69,7 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 - **来源/为什么**：`tools/AgentTool/built-in/verificationAgent.ts` + TodoWrite loop-exit nudge。一个 **built-in、只读、对抗式** "verification specialist" 子 agent：system prompt 极详——"你的工作不是确认能跑，是**试图弄坏它**"；禁改项目/装依赖/git 写；按变更类型给分门别类验证策略 + "PASS 前至少跑一个 adversarial probe"。配套 nudge："你刚关掉 3+ 任务且无 verification step……**你不能靠总结里列 caveat 自评 PARTIAL，只有 verifier 出 verdict**"。
 - **目标**：把"验证"做成**一等、只读、有独立人格的子 agent 角色**，用 loop-exit nudge 强制收尾前触发——对抗 LLM"读了代码就说 PASS"的通病。
 - **落点**：sub-agent 定义（application/config）+ todo/loop 收尾 hook。
-- **风险/边界**：**纯角色/prompt 设计、零新机制**（lyra sub-agent 体系里加一个 built-in 定义 + 一段收尾 nudge）；verifier 只读约束天然契合 lyra editguard/safety-class。
+- **风险/边界**：**纯角色/prompt 设计、零新机制**（scopeapp sub-agent 体系里加一个 built-in 定义 + 一段收尾 nudge）；verifier 只读约束天然契合 scopeapp editguard/safety-class。
 - **优先级**：**P3**（高价值非紧急）。
 
 ---
@@ -79,7 +79,7 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 - **来源/为什么**：`coordinator/coordinatorMode.ts`、`tools/SendMessageTool/`、`tasks/{LocalAgentTask,InProcessTeammateTask,RemoteAgentTask}`。coordinator 模式下主 agent 换成"只派活/综合/对用户说话"的 system prompt，worker 异步跑、结果作为 `<task-notification>` user 消息 fire-and-forget 回流；`SendMessage(to, message)` 可**续跑一个已完成/停的 worker**（复用其已加载 context）或 broadcast；附一张 **"continue vs spawn 决策表"**（按 context 重叠度选）。
 - **目标**：取两点——(1) **异步 worker + 通知式结果回流**（vs 同步阻塞委派）；(2) **"续跑复用 context vs 新 spawn 清 context"由重叠度决定** 的 orchestration 心智 + "coordinator 绝不把'理解'甩给 worker、必须自己 synthesize spec" 的纪律。
 - **落点**：agent runtime / engine（application）。
-- **风险/边界**：**明确拒**整套 teams/mailbox/tmux-pane/coordinator-mode 机器（多机制债，违 filter #3）+ `RemoteAgentTask`（远程/多机，违 filter #2）。只取异步+续跑语义 + spec-synthesis 纪律。SendMessage 的 `queuePendingMessage`("下个 tool round 投递")可映射到 lyra 的 BeforeRound seam。**先证伪"lyra sub-agent 现状是否真同步"再决定，不确定就不吸**。
+- **风险/边界**：**明确拒**整套 teams/mailbox/tmux-pane/coordinator-mode 机器（多机制债，违 filter #3）+ `RemoteAgentTask`（远程/多机，违 filter #2）。只取异步+续跑语义 + spec-synthesis 纪律。SendMessage 的 `queuePendingMessage`("下个 tool round 投递")可映射到 scopeapp 的 BeforeRound seam。**先证伪"scopeapp sub-agent 现状是否真同步"再决定，不确定就不吸**。
 - **优先级**：**P3，先证伪**。
 
 ---
@@ -89,14 +89,14 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 - **来源/为什么**：`tools/EnterWorktreeTool/` + `utils/worktree.ts`。在 `.claude/worktrees/` 建基于 HEAD 新 branch 的 git worktree，把 session cwd 切进去（清 system-prompt/CLAUDE.md/plans 缓存）；非 git repo 降级到 hook；`ExitWorktree` 中途退出（keep/remove）；**仅当用户显式说 "worktree" 才用**。
 - **目标**：一个**平行隔离工作区**原语——与 checkpoint **正交**两轴：worktree=空间隔离（在别处干活不污染主 tree），checkpoint=时间回溯。
 - **落点**：`toolset/worktree/` 一个工具 + session cwd（adapter/infra）。
-- **风险/边界**：取 worktree-as-isolation 思想、复用 lyra per-session cwd seam；非 git 时 hook 降级可不做。niche。
+- **风险/边界**：取 worktree-as-isolation 思想、复用 scopeapp per-session cwd seam；非 git 时 hook 降级可不做。niche。
 - **优先级**：**P3**。
 
 ---
 
 ### CC8 · Output styles（persona 切换）—— 不吸
 
-- `outputStyles/*.md` 作为 system-prompt persona 注入、`keep-coding-instructions` 决定叠加还是整体替换。**不吸**：lyra 已有 rules（持久约束）+ recipes（调用式模板）+ per-role models，再加"persona 系统提示层"是**第三个重叠机制**（违 filter #3）。若真需 persona 应并入 rules。
+- `outputStyles/*.md` 作为 system-prompt persona 注入、`keep-coding-instructions` 决定叠加还是整体替换。**不吸**：scopeapp 已有 rules（持久约束）+ recipes（调用式模板）+ per-role models，再加"persona 系统提示层"是**第三个重叠机制**（违 filter #3）。若真需 persona 应并入 rules。
 
 ---
 
@@ -105,11 +105,11 @@ Deferred tool loading（ToolSearch）· 多 agent swarm（coordinator + Team*/Ta
 | 项 | 来源 | 不吸理由 |
 |---|---|---|
 | **output styles（persona）** | `outputStyles/` | 与 rules/recipes/per-role-models 重叠的第三机制；需要就并入 rules |
-| **SleepTool** | `tools/SleepTool/` | lyra 已定 `bash_output` 的 `block+timeout` 优于独立 Sleep 工具 |
+| **SleepTool** | `tools/SleepTool/` | scopeapp 已定 `bash_output` 的 `block+timeout` 优于独立 Sleep 工具 |
 | **SyntheticOutputTool（结构化输出）** | `tools/SyntheticOutputTool/` | `chatclient.OutputFormat[T]` + `agent.Prompt[T]` 已覆盖 typed managed output，无需伪造工具 |
 | **teamMemorySync / mailbox / tmux panes / RemoteAgentTask / coordinator-mode 整机** | `services/teamMemorySync/`、`coordinator/`、`tasks/RemoteAgentTask` | team 共享=多租户、远程=跨机（违 filter #2）+ 多机制债（违 filter #3）；只抽"异步 worker + 续跑语义"薄层（CC6）|
-| **cache_edits microcompaction** | `microCompact.ts` | 依赖 Anthropic `cache_edits`/`cache_reference` beta，provider 专属；lyra A2（超大 offload）+ A3（分级 trim）已覆盖。"按 recency 保留最近 N 个 tool_result"若 A3 未覆盖可小参考，机制本身不吸 |
-| **GrowthBook flags / `tengu_*` analytics / OAuth / bridge / voice / buddy / upstreamproxy** | 多处 | Anthropic 内部基建或触 provider-OAuth（反向不变量）/多机，与 lyra 无关或明确反向 |
+| **cache_edits microcompaction** | `microCompact.ts` | 依赖 Anthropic `cache_edits`/`cache_reference` beta，provider 专属；scopeapp A2（超大 offload）+ A3（分级 trim）已覆盖。"按 recency 保留最近 N 个 tool_result"若 A3 未覆盖可小参考，机制本身不吸 |
+| **GrowthBook flags / `tengu_*` analytics / OAuth / bridge / voice / buddy / upstreamproxy** | 多处 | Anthropic 内部基建或触 provider-OAuth（反向不变量）/多机，与 scopeapp 无关或明确反向 |
 
 ---
 

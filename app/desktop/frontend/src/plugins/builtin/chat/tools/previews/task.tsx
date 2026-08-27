@@ -32,7 +32,7 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const taskPreview = definePlugin({
-  name: "lyra.builtin.task-preview",
+  name: "scopeapp.builtin.task-preview",
   setup(ctx) {
     for (const preview of delegationToolPreview(TaskPreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

@@ -68,14 +68,14 @@ function captureLocalExport(
     }
     return {
       sessionId,
-      filename: `lyra-${sessionId}-${stamp}.md`,
+      filename: `scopeapp-${sessionId}-${stamp}.md`,
       content: sections.join("\n"),
       mime: "text/markdown;charset=utf-8",
     };
   }
   return {
     sessionId,
-    filename: `lyra-${sessionId}-${stamp}.json`,
+    filename: `scopeapp-${sessionId}-${stamp}.json`,
     content: JSON.stringify(
       {
         version: 1,
@@ -195,7 +195,7 @@ class ConversationArchiveGeneration {
       }
       if (!artifactEnvelope.safeParse(artifact).success) {
         this.#cohort.assertCurrent();
-        notifyError(t("convExport.notLyra"), { source: "import" });
+        notifyError(t("convExport.notScopeApp"), { source: "import" });
         return;
       }
 

@@ -8,12 +8,12 @@ export interface WorkspaceScopePorts {
   forgetSessionScopes: (openSessionIds: string[]) => void;
 }
 
-export const WORKSPACE_SCOPE_PORTS = service<WorkspaceScopePorts>("lyra.workspace.scopePorts");
+export const WORKSPACE_SCOPE_PORTS = service<WorkspaceScopePorts>("scopeapp.workspace.scopePorts");
 
 export interface WorkspaceMutationLifecyclePorts {
   replaceRuntimeGeneration(): void;
 }
 
 export const WORKSPACE_MUTATION_LIFECYCLE_PORTS = service<WorkspaceMutationLifecyclePorts>(
-  "lyra.workspace.mutationLifecyclePorts",
+  "scopeapp.workspace.mutationLifecyclePorts",
 );

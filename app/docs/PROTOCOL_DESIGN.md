@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol 设计指南 —— 四方对照 · 取舍基准 · 演进路线
+# ScopeApp Runtime Protocol 设计指南 —— 四方对照 · 取舍基准 · 演进路线
 
 > **本篇是什么**：`API.md` / `AUX_API.md` / `TRANSPORT.md` 是 wire 契约的**真相源**（有什么、什么形状）；本篇是**为什么这样定、接下来怎么调**。它合并两轮独立分析——一轮以四方协议的一手源码对照为主，一轮以状态机与契约体系为主——并把其中每条关于本仓库的事实主张**逐条到代码核实**后收敛成一份。
 >
@@ -52,7 +52,7 @@ Agent：同一个 Run 跨若干 Segment 推进，产出一条权威 Item 时间�
 
 ## 2. 四方形态对照
 
-| 维度 | Codex app-server | opencode v2 | Claude Code | **lyra（目标）** |
+| 维度 | Codex app-server | opencode v2 | Claude Code | **scopeapp（目标）** |
 |---|---|---|---|---|
 | 对外形态 | 双向 JSON-RPC（stdio/WS/unix） | REST + OpenAPI 3.1（标 Experimental） | Agent SDK / CLI，进程级 AsyncGenerator | JSON-RPC + Streamable HTTP，同协议支持 in-process |
 | 核心资源 | Thread → Turn → Item（**强类型变体**） | Session → Message → Part（**事件源投影**） | 无服务端资源（JSONL + `session_id`） | **Session → Run → Segment → Item** |
@@ -484,7 +484,7 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 ### P0-B · 删除前端 business-code 镜像（**改 TS 公开 surface，不是纯文档**）
 
 - **保留**标准 JSON-RPC 常量（`-32700 / -32600 / -32601 / -32602 / -32603`）——envelope 坏掉时 `error.data` 可能不存在，数字码是唯一信号，那是 transport 层事实；
-- **删除** Lyra business numeric 镜像（`-32001…-32021` 那一段，含错值 `RPC_IDEMPOTENCY_CONFLICT = -32015`）及其 barrel re-export，并把依赖它的 RPC 单测 fixture 改成不依赖这份镜像；
+- **删除** ScopeApp business numeric 镜像（`-32001…-32021` 那一段，含错值 `RPC_IDEMPOTENCY_CONFLICT = -32015`）及其 barrel re-export，并把依赖它的 RPC 单测 fixture 改成不依赖这份镜像；
 - 理由：production 客户端按 `ProblemData.type` 分支、这段镜像**无业务消费者**、已漏 `-32017…-32021` 且有错值；只改一个数字等于继续保留第二真相源。将来真需要公开数字码，由 §12 的 Registry 生成。
 
 **为什么单独一批**：常量已从 `rpc/index.ts` 导出，删除会改变 TypeScript 公开 API 并动测试——按代码改动走，不混进文档批。
@@ -588,7 +588,7 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 **本轮（2026-07-27）新增收敛**：
 
 - **breaking change 已获授权**——P1/P2 不再逐批等批准，但每批仍要独立 revert 的 commit + `protocolVersion` bump + 前后端同批（§16 抬头）；
-- 数字码：**保留标准 JSON-RPC 5 个常量，删除 Lyra business 镜像**；真需要公开时由 Registry 生成（§16 P0-B）；
+- 数字码：**保留标准 JSON-RPC 5 个常量，删除 ScopeApp business 镜像**；真需要公开时由 Registry 生成（§16 P0-B）；
 - **canonical sample 不由 Registry 生成**——那是同源自证；Registry 只出索引与缺口检查（§12.1）；
 - 控制面归位是**与版本同批的一次迁移**，dev 阶段不留双发兼容层（§16 P2）；
 - 对照描述要分级：opencode 的 volatile 全局流与 per-session durable 流是**两层**，不能混写（§2）；Codex 强类型 item 的代价限定为"每类新**执行类别**动三处"，不是"每个新工具"（§2）。

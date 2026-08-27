@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/scope/app/runtime/internal/delivery/operation"
-	lyrahttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
+	scopeapphttp "github.com/Tangerg/scope/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
@@ -26,7 +26,7 @@ func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, err
 	return &protocol.DiscoverResponse{
 		ProtocolVersion: protocol.ProtocolVersion,
 		ServerInfo: protocol.ServerInfo{
-			Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
+			Name: "scopeapp-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID,
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/workspace"}, Home: "/home",
 		},
 		Capabilities: validTestCapabilities(),
@@ -83,10 +83,10 @@ func newTestEndpoint(t *testing.T, target any, config operation.Config) *operati
 // test that needs a different fake still exercises one server setup.
 func newTestServerFor(t *testing.T, api any) *httptest.Server {
 	t.Helper()
-	srv, err := lyrahttp.NewServer(lyrahttp.Config{
+	srv, err := scopeapphttp.NewServer(scopeapphttp.Config{
 		Endpoint:        newTestEndpoint(t, api, operation.Config{IdempotencyNamespace: "idp_test"}),
 		Addr:            ":0",
-		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
+		ServerInfo:      protocol.ServerInfo{Name: "scopeapp-test", Version: "0.0.0", InstanceID: testRuntimeInstanceID},
 		ProtocolVersion: testProtocolVersion,
 	})
 	if err != nil {

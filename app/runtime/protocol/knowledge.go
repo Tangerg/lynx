@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// KnowledgeScope selects which LYRA.md a knowledge operation targets (API.md §4.10).
+// KnowledgeScope selects which SCOPEAPP.md a knowledge operation targets (API.md §4.10).
 type KnowledgeScope string
 
 const (

@@ -19,7 +19,7 @@ export type { ColorThemePluginSpec } from "./types";
 export function defineColorThemePlugin(spec: ColorThemePluginSpec): AnyPlugin {
   const theme = colorThemeContribution(spec);
   return definePlugin({
-    name: `lyra.builtin.color-theme-${spec.id}`,
+    name: `scopeapp.builtin.color-theme-${spec.id}`,
     setup(ctx) {
       ctx.contribute(COLOR_THEME, theme);
     },

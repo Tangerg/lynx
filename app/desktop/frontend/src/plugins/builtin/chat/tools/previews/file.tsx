@@ -40,7 +40,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const file = definePlugin({
-  name: "lyra.builtin.file",
+  name: "scopeapp.builtin.file",
   setup(ctx) {
     for (const preview of fileToolPreview(FilePreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

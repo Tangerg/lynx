@@ -15,7 +15,7 @@ const EMPTY = {
 const dock = () => useContextDockStore.getState();
 
 beforeEach(() => {
-  localStorage.removeItem("lyra.context-dock");
+  localStorage.removeItem("scopeapp.context-dock");
   useContextDockStore.setState({ ...EMPTY, sessionScopes: new Map() });
 });
 
@@ -145,7 +145,7 @@ describe("per-session scopes", () => {
       lastViewId: null,
     });
     await vi.waitFor(() => {
-      const persisted = JSON.parse(localStorage.getItem("lyra.context-dock") ?? "null") as {
+      const persisted = JSON.parse(localStorage.getItem("scopeapp.context-dock") ?? "null") as {
         state: { sessionScopes: [string, unknown][] };
       };
       expect(persisted.state.sessionScopes.map(([sessionId]) => sessionId)).toEqual(["s1"]);
@@ -162,7 +162,7 @@ describe("per-session scopes", () => {
     dock().setFileViewer("src/runtime.ts", 42);
     dock().revealTool("call-from-retired-renderer");
 
-    await vi.waitFor(() => expect(localStorage.getItem("lyra.context-dock")).not.toBeNull());
+    await vi.waitFor(() => expect(localStorage.getItem("scopeapp.context-dock")).not.toBeNull());
 
     vi.resetModules();
     const replacementModule = await import("./contextDockStore");
@@ -209,14 +209,14 @@ describe("tool selection inside a scope", () => {
 describe("renderer storage validation", () => {
   it("discards an older scope payload and restamps the current version", async () => {
     localStorage.setItem(
-      "lyra.context-dock",
+      "scopeapp.context-dock",
       JSON.stringify({ state: { sessionScopes: [["stale", {}]] }, version: 0 }),
     );
 
     await useContextDockStore.persist.rehydrate();
 
     expect(dock().sessionScopes.size).toBe(0);
-    const stored = JSON.parse(localStorage.getItem("lyra.context-dock") ?? "null") as {
+    const stored = JSON.parse(localStorage.getItem("scopeapp.context-dock") ?? "null") as {
       version: number;
     };
     expect(stored.version).toBe(useContextDockStore.persist.getOptions().version);
@@ -224,7 +224,7 @@ describe("renderer storage validation", () => {
 
   it("falls back to empty memory when the current payload is malformed", async () => {
     localStorage.setItem(
-      "lyra.context-dock",
+      "scopeapp.context-dock",
       JSON.stringify({
         state: { sessionScopes: [["s1", { dockViewIds: "not-an-array" }]] },
         version: useContextDockStore.persist.getOptions().version,

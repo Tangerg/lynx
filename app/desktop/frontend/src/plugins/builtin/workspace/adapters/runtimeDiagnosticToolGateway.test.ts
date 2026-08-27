@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { invokeDiagnosticTool } from "../application/diagnosticTool";
 import { installDiagnosticToolGateway } from "./runtimeDiagnosticToolGateway";
 
@@ -18,7 +18,7 @@ describe("runtimeDiagnosticToolGateway", () => {
   it("invokes a direct diagnostic Tool with the selected workspace", async () => {
     const invoke = vi.fn().mockResolvedValue({ matches: 2 });
     setContainer({
-      client: () => ({ tools: { invoke } }) as unknown as LyraClient,
+      client: () => ({ tools: { invoke } }) as unknown as ScopeAppClient,
     });
     installations.push(installDiagnosticToolGateway());
 
@@ -40,7 +40,7 @@ describe("runtimeDiagnosticToolGateway", () => {
     const retired = deferred<unknown>();
     const invokeRetired = vi.fn(() => retired.promise);
     setContainer({
-      client: () => ({ tools: { invoke: invokeRetired } }) as unknown as LyraClient,
+      client: () => ({ tools: { invoke: invokeRetired } }) as unknown as ScopeAppClient,
     });
     installations.push(installDiagnosticToolGateway());
 
@@ -51,7 +51,7 @@ describe("runtimeDiagnosticToolGateway", () => {
 
     const invokeSuccessor = vi.fn().mockResolvedValue({ matches: 3 });
     setContainer({
-      client: () => ({ tools: { invoke: invokeSuccessor } }) as unknown as LyraClient,
+      client: () => ({ tools: { invoke: invokeSuccessor } }) as unknown as ScopeAppClient,
     });
     installations.push(installDiagnosticToolGateway());
 
@@ -68,7 +68,7 @@ describe("runtimeDiagnosticToolGateway", () => {
       .fn()
       .mockReturnValueOnce(retired.promise)
       .mockResolvedValueOnce({ matches: 4 });
-    setContainer({ client: () => ({ tools: { invoke } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ tools: { invoke } }) as unknown as ScopeAppClient });
     const installation = installDiagnosticToolGateway();
     installations.push(installation);
 

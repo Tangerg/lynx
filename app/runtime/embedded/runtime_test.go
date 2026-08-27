@@ -43,11 +43,11 @@ func TestResolveConfigUsesExplicitStableDefaults(t *testing.T) {
 }
 
 func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
-	t.Setenv("LYRA_PROVIDER", "anthropic")
+	t.Setenv("SCOPEAPP_PROVIDER", "anthropic")
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
-	t.Setenv("LYRA_MCP_SERVERS", "")
-	t.Setenv("LYRA_A2A_AGENTS", "")
-	t.Setenv("LYRA_A2A_RPC_ORIGINS", "")
+	t.Setenv("SCOPEAPP_MCP_SERVERS", "")
+	t.Setenv("SCOPEAPP_A2A_AGENTS", "")
+	t.Setenv("SCOPEAPP_A2A_RPC_ORIGINS", "")
 
 	config := Config{
 		DataDirectory:        t.TempDir(),

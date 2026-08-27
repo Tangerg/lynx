@@ -372,14 +372,14 @@ export const ja: Record<string, string> = {
 
   "settings.pane.connection": "接続",
   "settings.connection.title": "バックエンド",
-  "settings.connection.sub": "Lyra Runtime のアドレス。適用するとデスクトップが再接続します。",
+  "settings.connection.sub": "ScopeApp Runtime のアドレス。適用するとデスクトップが再接続します。",
   "settings.connection.url": "URL",
   "settings.connection.apply": "適用",
   "settings.connection.reset": "デフォルトに戻す",
   "settings.connection.status.checking": "Runtime を確認中…",
   "settings.connection.status.reconnecting": "再接続中…",
   "runtime.connection.reconnecting": "Runtime への接続が切れました。再接続しています…",
-  "runtime.connection.unavailable": "Runtime を利用できません。Lyra は再接続を続けます。",
+  "runtime.connection.unavailable": "Runtime を利用できません。ScopeApp は再接続を続けます。",
   "runtime.connection.settings": "接続設定",
   "settings.connection.status.ready": "準備完了",
   "settings.connection.status.degraded": "一部機能低下",
@@ -601,7 +601,7 @@ export const ja: Record<string, string> = {
   "knowledge.off": "オフ",
   "knowledge.empty.title": "まだ知識はありません",
   "knowledge.empty.sub":
-    "ランタイムが agent のために管理する LYRA.md ファイルがここに表示されます。",
+    "ランタイムが agent のために管理する SCOPEAPP.md ファイルがここに表示されます。",
   "knowledge.disabled.title": "知識はオフです",
   "knowledge.disabled.sub": "このランタイムは知識機能を提供していません。",
   "knowledge.save": "保存",
@@ -698,8 +698,8 @@ export const ja: Record<string, string> = {
   "convExport.exportedAt": "{{time}} にエクスポート",
   "convExport.importUnsupported": "このランタイムはセッションインポートをサポートしていません。",
   "convExport.notJson": "JSON ファイルではありません。",
-  "convExport.notLyra":
-    "Lyra セッションエクスポートではありません — 「会話をエクスポート」でエクスポートされた JSON を選択してください。",
+  "convExport.notScopeApp":
+    "ScopeApp セッションエクスポートではありません — 「会話をエクスポート」でエクスポートされた JSON を選択してください。",
   "convExport.importFailed": "会話をインポートできませんでした。",
   "convExport.importSuccess": "「{{title}}」をインポートしました。",
   "connection.error.urlScheme": "http:// または https:// で始める必要があります",
@@ -788,7 +788,7 @@ export const ja: Record<string, string> = {
   "approvals.mode.balanced.desc": "編集は自動で許可し、コマンド実行前に確認します。",
   "approvals.mode.auto.desc": "確認せずにすべて実行します。",
   "hooks.intro":
-    "フックはターン内の決まった時点であなた自身のコマンドを実行します — ツール実行前、プロンプト後、コンパクション時。グローバルフック（~/.lyra）は常に実行され、プロジェクトのフックは信頼した後にのみ実行されます。",
+    "フックはターン内の決まった時点であなた自身のコマンドを実行します — ツール実行前、プロンプト後、コンパクション時。グローバルフック（~/.scopeapp）は常に実行され、プロジェクトのフックは信頼した後にのみ実行されます。",
   "hooks.trust": "このプロジェクトのフックを信頼する",
   "hooks.trust.sub":
     "このプロジェクトのフックはあなたのマシンでシェルコマンドを実行します。信頼できるリポジトリでのみ有効にしてください。次のターンから反映されます。",
@@ -799,7 +799,7 @@ export const ja: Record<string, string> = {
   "hooks.inactive.hint": "このプロジェクトを信頼するとフックが有効になります。",
   "hooks.empty": "フックが設定されていません",
   "hooks.empty.sub":
-    "~/.lyra/hooks.json（グローバル）または <project>/.lyra/hooks.json にフックを追加してください。",
+    "~/.scopeapp/hooks.json（グローバル）または <project>/.scopeapp/hooks.json にフックを追加してください。",
   "hooks.unavailable": "フックは利用できません",
   "hooks.unavailable.sub": "このランタイムはフック管理を公開していません。",
   "hooks.error.trust": "プロジェクトのフック信頼設定を変更できませんでした。",
@@ -951,7 +951,7 @@ export const ja: Record<string, string> = {
   "recipes.available": "{{count}} 件利用可能",
   "recipes.empty.title": "レシピがありません",
   "recipes.empty.sub":
-    ".md ファイルを .lyra/recipes（プロジェクト）または ~/.lyra/recipes（グローバル）に置くと、その名前が /slash コマンドになります。",
+    ".md ファイルを .scopeapp/recipes（プロジェクト）または ~/.scopeapp/recipes（グローバル）に置くと、その名前が /slash コマンドになります。",
   "schedules.intro":
     "保存したプロンプトをスケジュール実行します。ランタイムが稼働している間、各実行は新しいセッションで始まります — 出力はサイドバーで確認できます。",
   "schedules.add": "新しいスケジュール",

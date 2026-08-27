@@ -29,7 +29,7 @@ function AskUserPreview({ tool }: ToolPreviewProps) {
 }
 
 export const askUserPreview = definePlugin({
-  name: "lyra.builtin.ask-user-preview",
+  name: "scopeapp.builtin.ask-user-preview",
   setup(ctx) {
     for (const preview of askUserToolPreview(AskUserPreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

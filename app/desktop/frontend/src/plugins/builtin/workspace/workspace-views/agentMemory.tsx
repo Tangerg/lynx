@@ -2,7 +2,7 @@
 // agent's self-maintained memory (agentMemory.*). The agent mines durable facts
 // from sessions; they wait as `pending` until the user approves them, and only
 // `active` items are recalled into future turns or returned by memory_search.
-// Distinct from "Knowledge" (knowledge.tsx), which edits the user-authored LYRA.md
+// Distinct from "Knowledge" (knowledge.tsx), which edits the user-authored SCOPEAPP.md
 // cascade. A scope toggle switches between the current project and the
 // cross-project user store.
 

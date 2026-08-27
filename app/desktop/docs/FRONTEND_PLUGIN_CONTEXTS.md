@@ -1,13 +1,13 @@
 # Frontend Plugin Context Architecture
 
-> 本文记录 Lyra desktop 已采用的插件限界上下文架构，以及后续演进必须守住的
+> 本文记录 ScopeApp desktop 已采用的插件限界上下文架构，以及后续演进必须守住的
 > published language、依赖方向和抽象边界。
 >
 > 结论一句话：**Kernel as plugin platform, Plugin as bounded context, Clean Architecture inside plugin.**
 
 ## 1. 背景与判断
 
-Lyra desktop 的第一性不是单一业务产品，而是插件化 AI agent 桌面平台。路由、布局、内容渲染、命令、快捷键、主题、设置面板、运行时事件折叠都已经由插件贡献；Kernel 应继续保持薄平台。
+ScopeApp desktop 的第一性不是单一业务产品，而是插件化 AI agent 桌面平台。路由、布局、内容渲染、命令、快捷键、主题、设置面板、运行时事件折叠都已经由插件贡献；Kernel 应继续保持薄平台。
 
 因此，前端业务不适合收进一个全局 `src/domain/`。一个全局 domain 会很快变成所有业务名词的收容所：agent 的 `Run` / `ToolCall`、workspace 的 `Diff` / `Terminal`、settings 的 `MCPServer` / `Schedule`、plugin platform 的 `ExtensionPoint` / `Contribution` 都会被塞到一起。短期看似分层，长期会让 Kernel/domain 变厚，插件退化成 UI 壳。
 
@@ -16,7 +16,7 @@ Lyra desktop 的第一性不是单一业务产品，而是插件化 AI agent 桌
 对比 `planet_new`：
 
 - `planet_new` 是稳定单领域音乐播放器，统一的 `Track / Album / Artist / Playlist / PlayQueue` 领域语言非常明确，所以集中式 `domain <- core <- providers <- ui` 合理。
-- Lyra desktop 是多上下文插件平台，agent、composer、workspace、settings、plugin platform 的语言不同，所以更适合按插件上下文组织业务。
+- ScopeApp desktop 是多上下文插件平台，agent、composer、workspace、settings、plugin platform 的语言不同，所以更适合按插件上下文组织业务。
 
 ## 2. 目标形态
 

@@ -89,17 +89,17 @@ async function fixtureNode(): Promise<ReactNode> {
     // cannot map the stored accent to its light-ground shade and falls back to
     // darkening the dark one, which ships a navy button in every golden.
     const [
-      { default: lyraLight },
-      { default: lyraDark },
+      { default: scopeappLight },
+      { default: scopeappDark },
       { builtinVisualStyles },
       { defaultAccents },
     ] = await Promise.all([
-      import("@/plugins/builtin/theme/themes/lyra-light"),
-      import("@/plugins/builtin/theme/themes/lyra-dark"),
+      import("@/plugins/builtin/theme/themes/scopeapp-light"),
+      import("@/plugins/builtin/theme/themes/scopeapp-dark"),
       import("@/plugins/builtin/theme/visualStyles"),
       import("@/plugins/builtin/defaults"),
     ]);
-    for (const plugin of [lyraLight, lyraDark, defaultAccents, ...builtinVisualStyles]) {
+    for (const plugin of [scopeappLight, scopeappDark, defaultAccents, ...builtinVisualStyles]) {
       await loadPluginsForTest(plugin);
     }
     return <VisualFoundationFixture sidebarOpen={sidebarOpen} />;

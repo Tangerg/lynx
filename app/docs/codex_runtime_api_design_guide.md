@@ -1,4 +1,4 @@
-# Lyra Runtime API 设计对照与演进指南
+# ScopeApp Runtime API 设计对照与演进指南
 
 > 作者：Codex  
 > 基线日期：2026-07-27  
@@ -7,18 +7,18 @@
 
 ## 0. 文档定位
 
-本文基于以下对象的官方文档与 Lyra 当前实现做协议级对照：
+本文基于以下对象的官方文档与 ScopeApp 当前实现做协议级对照：
 
 - [OpenCode v2 HttpApi](https://opencode.ai/v2/docs/api)
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)
 - [Claude Code Agent SDK](https://code.claude.com/docs/en/agent-sdk)
-- Lyra 当前协议：
+- ScopeApp 当前协议：
   [`API.md`](../desktop/docs/protocol/API.md)、
   [`AUX_API.md`](../desktop/docs/protocol/AUX_API.md)、
   [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md)
-- Lyra 当前 Go wire：
+- ScopeApp 当前 Go wire：
   [`internal/delivery/protocol`](../runtime/internal/delivery/protocol)
-- Lyra 当前前端 RPC：
+- ScopeApp 当前前端 RPC：
   [`frontend/src/rpc`](../desktop/frontend/src/rpc)
 - 同期收敛稿与唯一决策账本：
   [`PROTOCOL_DESIGN.md`](PROTOCOL_DESIGN.md)
@@ -46,7 +46,7 @@
 1. 从 OpenCode 吸收 HTTP API 的可发现性、耐久接收和资源查询能力；
 2. 从 Codex 吸收精确状态建模、并发前置条件、机器契约和客户端生命周期经验；
 3. 从 Claude Code 吸收 session resume/fork、长时间 HITL defer 和 Agent 控制面的经验；
-4. 保留 Lyra 已经更适合本产品的 Streamable HTTP、R 模型、领域中立工具和单事件流；
+4. 保留 ScopeApp 已经更适合本产品的 Streamable HTTP、R 模型、领域中立工具和单事件流；
 5. 保留一个判别字段 `type`、真实领域根和 Item / state / custom 三条扩展缝；
 6. 删除所有会制造双重真相、非法状态、连接耦合和客户端认知负担的设计。
 
@@ -54,9 +54,9 @@
 
 ## 1. 总体结论
 
-Lyra 当前的协议方向是正确的，不应改造成 OpenCode 式的大型 REST API，也不应照搬 Codex 的双向连接或 Claude Code 的进程级 SDK 消息联合。
+ScopeApp 当前的协议方向是正确的，不应改造成 OpenCode 式的大型 REST API，也不应照搬 Codex 的双向连接或 Claude Code 的进程级 SDK 消息联合。
 
-Lyra 应继续坚持：
+ScopeApp 应继续坚持：
 
 - JSON-RPC 作为 transport-neutral 的语义层；
 - HTTP POST 响应内 SSE 作为桌面端主流式传输；
@@ -154,7 +154,7 @@ Session  对话与工作目录的长期容器
 
 ## 3. 四方设计对照
 
-| 维度       | OpenCode v2                                   | Codex App Server                            | Claude Code                            | Lyra 目标                                                 |
+| 维度       | OpenCode v2                                   | Codex App Server                            | Claude Code                            | ScopeApp 目标                                                 |
 | ---------- | --------------------------------------------- | ------------------------------------------- | -------------------------------------- | --------------------------------------------------------- |
 | 对外形态   | REST / OpenAPI；当前标为 Experimental HttpApi | 双向 JSON-RPC over stdio / WS / Unix socket | Agent SDK / CLI；进程级 AsyncGenerator | JSON-RPC + Streamable HTTP；同协议支持 in-process         |
 | 核心资源   | Session / Message / Part                      | Thread / Turn / Item                        | Session / SDKMessage / Result          | Session / Run / Segment / Item                            |
@@ -183,10 +183,10 @@ Session  对话与工作目录的长期容器
    Session、message、provider、model、MCP、filesystem 等都有可发现的查询入口，适合调试、第三方集成和生成 SDK。
 
 3. **OpenAPI 可发现性**  
-   API 路径、参数、错误和示例可被工具直接消费。Lyra 应通过 OpenRPC + JSON Schema 达到同等可发现性，而不是改成 REST。
+   API 路径、参数、错误和示例可被工具直接消费。ScopeApp 应通过 OpenRPC + JSON Schema 达到同等可发现性，而不是改成 REST。
 
 4. **client-provided input identity / admitted sequence 的思想**  
-   Lyra 已有 Idempotency-Key 和 `userItemId`，应继续保证“输入只被接收一次、客户端可精确对账”。
+   ScopeApp 已有 Idempotency-Key 和 `userItemId`，应继续保证“输入只被接收一次、客户端可精确对账”。
 
 #### 应拒绝
 
@@ -194,10 +194,10 @@ Session  对话与工作目录的长期容器
    `resource/action` 逐步增长后容易形成大量风格不一致的 endpoint，并让 transport 形态侵入业务语义。
 
 2. **全局常开事件总线**  
-   它需要连接路由、订阅管理和全局 fan-out；与 Lyra“一次操作一条流”的模型冲突。
+   它需要连接路由、订阅管理和全局 fan-out；与 ScopeApp“一次操作一条流”的模型冲突。
 
 3. **以 live 事件承担正确性**  
-   无论 live stream 是否支持部分 durable replay，Lyra 都不能让最终 Item、Interrupt 或 Run 状态只能从流中获得。
+   无论 live stream 是否支持部分 durable replay，ScopeApp 都不能让最终 Item、Interrupt 或 Run 状态只能从流中获得。
 
 ### 4.2 Codex App Server
 
@@ -210,13 +210,13 @@ Session  对话与工作目录的长期容器
    `thread/read` 不需要把 thread 加载进执行内存；`notLoaded / idle / active / systemError` 也不与某个 Turn 的完成原因混为一谈。
 
 3. **控制命令的预期实例校验**  
-   `turn/steer.expectedTurnId` 防止延迟命令注入错误 Turn。Lyra 应采用 `expectedSegmentId`。
+   `turn/steer.expectedTurnId` 防止延迟命令注入错误 Turn。ScopeApp 应采用 `expectedSegmentId`。
 
 4. **权威 Item + 专用 delta**  
-   `item/completed` 是权威，delta 只用于体验。这与 Lyra 的正确方向一致。
+   `item/completed` 是权威，delta 只用于体验。这与 ScopeApp 的正确方向一致。
 
 5. **显式 resolved 通知**  
-   `serverRequest/resolved` 让另一个动作、超时或取消清理 pending UI。Lyra 不需要 server request，但需要 equivalent 的“Interrupt 已被其他客户端解决”失效通知。
+   `serverRequest/resolved` 让另一个动作、超时或取消清理 pending UI。ScopeApp 不需要 server request，但需要 equivalent 的“Interrupt 已被其他客户端解决”失效通知。
 
 6. **冷读与加载分离**  
    历史查询不能隐式启动 executor、占用 Session admission 或建立订阅。
@@ -224,32 +224,32 @@ Session  对话与工作目录的长期容器
 #### 应拒绝
 
 1. **mandatory connection handshake 进入核心协议**  
-   它适合双向长连接，不适合 Lyra 的 stateless HTTP / in-process 一致性目标。
+   它适合双向长连接，不适合 ScopeApp 的 stateless HTTP / in-process 一致性目标。
 
 2. **server→client JSON-RPC request**  
    它把 HITL 绑定到某条连接和某个客户端，增加多客户端、断线与恢复复杂度。
 
 3. **把越来越多执行类别提升成一等 Item 联合**  
-   Codex 的 first-party command execution、file change、MCP call 等强类型 Item 为客户端提供了明确语义，但新增一等执行类别会联动 wire、审批和 UI。Lyra 应只把真正具有独立生命周期的领域概念提升为 Item；普通新工具继续留在通用 ToolInvocation 窄腰中。
+   Codex 的 first-party command execution、file change、MCP call 等强类型 Item 为客户端提供了明确语义，但新增一等执行类别会联动 wire、审批和 UI。ScopeApp 应只把真正具有独立生命周期的领域概念提升为 Item；普通新工具继续留在通用 ToolInvocation 窄腰中。
 
 4. **通知 method 数量随 delta 类型增长**  
-   Lyra 单一 `notifications.run.event` 更适合统一 reducer 和 transport。
+   ScopeApp 单一 `notifications.run.event` 更适合统一 reducer 和 transport。
 
 ### 4.3 Claude Code
 
 #### 应吸收
 
 1. **Query 是流，也是控制句柄**  
-   流式结果与 interrupt、set model、set permission mode、close 等控制能力被组织在同一个高层 SDK 对象中。Lyra 生成的客户端也应提供类似的人体工程学，而不是让 UI 手动拼 JSON-RPC。
+   流式结果与 interrupt、set model、set permission mode、close 等控制能力被组织在同一个高层 SDK 对象中。ScopeApp 生成的客户端也应提供类似的人体工程学，而不是让 UI 手动拼 JSON-RPC。
 
 2. **session resume / fork 是一等能力**  
    对话身份、恢复和分支清晰；文件 checkpoint 与 session transcript 分离。
 
 3. **短等待与长等待的统一语义**  
-   callback 可以一直等待，TypeScript 的 `defer` 可以退出进程后恢复。Lyra 应始终保证 durable resume，同时允许服务端内部短期保温 executor，优化延迟但不改变 wire 语义。
+   callback 可以一直等待，TypeScript 的 `defer` 可以退出进程后恢复。ScopeApp 应始终保证 durable resume，同时允许服务端内部短期保温 executor，优化延迟但不改变 wire 语义。
 
 4. **权限规则与本次应答分开**  
-   一次批准、参数改写、长期规则是不同概念。Lyra 当前的 `editedArgs` one-shot 与 session/project/global remembered rules 方向正确。
+   一次批准、参数改写、长期规则是不同概念。ScopeApp 当前的 `editedArgs` one-shot 与 session/project/global remembered rules 方向正确。
 
 5. **最终 Result 汇总 usage、cost、duration、terminal reason**  
    终态必须自包含，客户端不应从 delta 反推总量。
@@ -267,7 +267,7 @@ Session  对话与工作目录的长期容器
 
 ---
 
-## 5. Lyra 的目标心智模型
+## 5. ScopeApp 的目标心智模型
 
 ### 5.1 Run 状态机
 
@@ -594,7 +594,7 @@ notifications.run.event
 - stream 断开不取消 Run；
 - SDK 应在重连失败时自动切换到冷恢复，而不是无限 retry。
 
-这综合了 OpenCode 的慢消费者现实主义和 Lyra 的终态正确性。
+这综合了 OpenCode 的慢消费者现实主义和 ScopeApp 的终态正确性。
 
 ### 7.6 非当前 Run 的控制面推送
 
@@ -646,7 +646,7 @@ Interrupt 失效各维护一条长流。是否需要某个具体 topic 仍由真
 
 ### 8.1 R 模型继续作为协议基线
 
-Lyra 不应改成 server→client request。正确流程是：
+ScopeApp 不应改成 server→client request。正确流程是：
 
 ```text
 Segment executing
@@ -676,7 +676,7 @@ Segment executing
 - 两条路径的 wire 完全一致；
 - 正确性永远不能依赖 process 仍存活。
 
-这兼得 Claude callback 的低延迟与 Lyra defer/R 模型的可靠性。
+这兼得 Claude callback 的低延迟与 ScopeApp defer/R 模型的可靠性。
 
 ### 8.3 Interrupt 必须自包含
 
@@ -787,7 +787,7 @@ interface ToolInvocation {
 
 ### 10.1 不引入 mandatory initialize
 
-Codex 的 connection-level initialize 适合双向长连接；Lyra 的核心协议应保持请求自描述：
+Codex 的 connection-level initialize 适合双向长连接；ScopeApp 的核心协议应保持请求自描述：
 
 - `runtime.discover` 是无副作用查询；
 - 客户端可以缓存 discover；
@@ -1087,7 +1087,7 @@ SDK 不应负责：
 - 从 delta 重建唯一历史；
 - 暴露 transport connection identity 给业务 UI。
 
-这是 Claude Query control handle 的人体工程学优点，与 Lyra 稳定 wire 的结合点。
+这是 Claude Query control handle 的人体工程学优点，与 ScopeApp 稳定 wire 的结合点。
 
 ---
 
@@ -1154,7 +1154,7 @@ Go wire flat struct 可以表达大量 tag/payload 不一致状态，而当前�
 
 ### 14.8 前端业务数字码已经漂移
 
-这张 business-code 镜像没有 production 业务分支消费者，但仍通过 barrel 公开，且 RPC 单测使用了其中的 `RPC_SESSION_NOT_FOUND` 作为 fixture。目标不是只修 `-32015`：保留标准 JSON-RPC 常量，删除无业务消费者的手写 Lyra code 镜像；若未来 SDK 确需暴露 numeric codes，则由 Contract Registry 生成。
+这张 business-code 镜像没有 production 业务分支消费者，但仍通过 barrel 公开，且 RPC 单测使用了其中的 `RPC_SESSION_NOT_FOUND` 作为 fixture。目标不是只修 `-32015`：保留标准 JSON-RPC 常量，删除无业务消费者的手写 ScopeApp code 镜像；若未来 SDK 确需暴露 numeric codes，则由 Contract Registry 生成。
 
 ### 14.9 控制面没有真实协议根
 
@@ -1192,7 +1192,7 @@ breaking change 已获授权，后续不再为保留错误兼容面设计双写�
 
 ### Immediate B：清理前端 business-code 镜像（breaking TypeScript API）
 
-推荐保留标准 JSON-RPC 常量，删除 `rpc/types.ts` 与 barrel export 中手写的 Lyra business numeric code 镜像，并把单测 fixture 改成不依赖这份镜像。理由：
+推荐保留标准 JSON-RPC 常量，删除 `rpc/types.ts` 与 barrel export 中手写的 ScopeApp business numeric code 镜像，并把单测 fixture 改成不依赖这份镜像。理由：
 
 - production 客户端按 `ProblemData.type` 分支，没有 business numeric constant 消费者；
 - 镜像已经漏掉 `-32017…-32021`，且现有 `idempotency_conflict` 值错误；
@@ -1465,7 +1465,7 @@ protocol/
 - 依赖 delta 或 live process 保证正确性；
 - 为兼容当前错误 shape 添加 legacy shim。
 
-最终的 Lyra API 应该让三个角色看到同一个世界：
+最终的 ScopeApp API 应该让三个角色看到同一个世界：
 
 ```text
 用户：我的任务正在运行、等我回答、继续了、完成了。
@@ -1493,7 +1493,7 @@ Agent：同一个 Run 在若干 Segment 中推进，并产生一条权威 Item �
 提交 `9a06051ba` 已吸收上一轮五项独立复核意见：
 
 - OpenCode 的 global live/experimental 流与 per-session durable history/replay 已拆开描述；
-- 错误码清理已独立成代码/API 批次，并区分标准 JSON-RPC 常量与 Lyra business 镜像；
+- 错误码清理已独立成代码/API 批次，并区分标准 JSON-RPC 常量与 ScopeApp business 镜像；
 - `runtime.subscribe` 迁移被明确为与 protocolVersion 同批的 breaking migration；
 - canonical sample 保持人工审阅与独立验证，Registry 只生成索引和缺口检查；
 - per-request capability 与 Codex 强类型 Item 成本的绝对化表述已降调。

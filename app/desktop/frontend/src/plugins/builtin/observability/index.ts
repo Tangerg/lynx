@@ -3,7 +3,7 @@ import { initFrontendObservability } from "./frontendObservability";
 import { startObservability } from "./observabilityLifecycle";
 
 export default definePlugin({
-  name: "lyra.builtin.observability",
+  name: "scopeapp.builtin.observability",
   setup(ctx) {
     ctx.cleanup(
       startObservability(initFrontendObservability, (error) => {

@@ -26,7 +26,7 @@ func TestRequestInstrumentationRecordsContainedPanicResponse(t *testing.T) {
 	if response.Code != nethttp.StatusInternalServerError {
 		t.Fatalf("response status = %d, want %d", response.Code, nethttp.StatusInternalServerError)
 	}
-	if !strings.Contains(response.Body.String(), `"type":"urn:lyra:transport:internal_error"`) {
+	if !strings.Contains(response.Body.String(), `"type":"urn:scopeapp:transport:internal_error"`) {
 		t.Fatalf("response body = %q, want problem detail", response.Body.String())
 	}
 	if response.Header().Get("Request-Id") == "" {

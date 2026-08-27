@@ -84,7 +84,7 @@ export interface AgentRunOptionsProviderSpec {
 }
 
 /**
- * Drives one chat session over the Lyra Runtime Protocol: starts runs and
+ * Drives one chat session over the ScopeApp Runtime Protocol: starts runs and
  * resumes interrupted ones, returning the RunEvent stream for each. The
  * orchestration (pumping events into agentStore, abort/cancel) lives in
  * `useAgentSession`; the driver is just the session-bound RPC surface.
@@ -114,7 +114,7 @@ export interface AgentDriver {
 
 /**
  * A provider for the agent driver that powers the chat. The default drives
- * the local Lyra Runtime over JSON-RPC; alternative sources can implement a
+ * the local ScopeApp Runtime over JSON-RPC; alternative sources can implement a
  * recorded-fixture replayer, a mock streamer, etc.
  *
  * Only one source is active at a time — kernel-chat resolves to the first

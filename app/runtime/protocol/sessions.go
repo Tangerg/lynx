@@ -147,7 +147,7 @@ type ExportSessionRequest struct {
 	Format    ExportFormat `json:"format,omitempty"`
 }
 
-// ExportSessionResponse — sessions.export result, returned INLINE (lyra is a
+// ExportSessionResponse — sessions.export result, returned INLINE (scopeapp is a
 // local loopback runtime, so there is no out-of-band file channel / giant-
 // payload concern). For format=json, Artifact is the round-trippable bundle
 // sessions.import consumes; for format=md, Markdown is a human-readable

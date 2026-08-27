@@ -1,6 +1,6 @@
-# Lyra
+# ScopeApp
 
-**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面/Web 客户端，并为 Go CLI/TUI/宿主程序提供公共 embedded binding。
+**ScopeApp Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 ScopeApp Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面/Web 客户端，并为 Go CLI/TUI/宿主程序提供公共 embedded binding。
 
 > 模块级上下文见 [`CLAUDE.md`](./CLAUDE.md)；重构目标架构见 [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md)；阶段、当前事实和全部文档入口见 [`doc/README.md`](./doc/README.md)。
 
@@ -32,7 +32,7 @@ domain      (internal/domain/*)      entity / value / aggregate behavior / pure 
 Framework-managed Interaction · nested child checkpoint 精确
 pause/resume · HITL 审批/提问 · plan 模式 · LSP 代码智能 · read-before/stale 编辑保护 ·
 worktree 与 Git checkpoint · MCP client/server bridge · A2A 远端 agent · Agent Skills ·
-LYRA.md 长期知识与提取 · model-facing plan · per-run provider+model 显式选择 ·
+SCOPEAPP.md 长期知识与提取 · model-facing plan · per-run provider+model 显式选择 ·
 token 触发上下文压缩 · OTel trace/metric/log → slog。
 
 ## 跑起来
@@ -40,7 +40,7 @@ token 触发上下文压缩 · OTel trace/metric/log → slog。
 ```bash
 cd app/runtime                                         # 从仓库根进入 runtime 模块
 go build ./... && go vet ./... && go test ./...        # 全绿
-ANTHROPIC_API_KEY=xxx ./lyra                           # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
+ANTHROPIC_API_KEY=xxx ./scopeapp                           # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $SCOPEAPP_HOME/scopeapp.db
 ```
 
 ## 嵌入 Go 程序

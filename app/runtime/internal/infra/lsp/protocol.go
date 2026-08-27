@@ -11,7 +11,7 @@ import (
 )
 
 // This file holds the minimal slice of the Language Server Protocol wire
-// shapes lyra consumes — definition / references / hover / symbols /
+// shapes scopeapp consumes — definition / references / hover / symbols /
 // diagnostics, plus the document-sync notifications a server needs before it
 // will answer. It is deliberately NOT the full protocol: we type only what we
 // read, and let the rest pass through as json.RawMessage. LSP positions are

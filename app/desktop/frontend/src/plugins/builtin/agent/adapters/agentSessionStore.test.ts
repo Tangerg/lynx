@@ -49,7 +49,7 @@ describe("the cold-start seed", () => {
 describe("storage written by an older version", () => {
   it("boots on defaults and restamps storage at the current version", async () => {
     localStorage.setItem(
-      "lyra.agent-session",
+      "scopeapp.agent-session",
       JSON.stringify({ state: { openSessionIds: ["stale"], lastSessionId: "stale" }, version: 1 }),
     );
 
@@ -58,7 +58,7 @@ describe("storage written by an older version", () => {
     expect(store().openSessionIds).toEqual([]);
     expect(store().lastSessionId).toBe("");
 
-    const stored = JSON.parse(localStorage.getItem("lyra.agent-session") ?? "null") as {
+    const stored = JSON.parse(localStorage.getItem("scopeapp.agent-session") ?? "null") as {
       version: number;
     };
     expect(stored.version).toBe(useAgentSessionStore.persist.getOptions().version);
@@ -78,7 +78,7 @@ describe("drafts", () => {
 
   it("restores draft ownership without restoring the in-process freshness proof", async () => {
     localStorage.setItem(
-      "lyra.agent-session",
+      "scopeapp.agent-session",
       JSON.stringify({
         state: {
           openSessionIds: ["s1"],

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { createLyraClient } from "@/rpc";
+import { createScopeAppClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { USAGE_SUMMARY_KEY, useUsageReport } from "../application/usageConfig";
@@ -11,7 +11,7 @@ import { installUsageGateway } from "./runtimeUsageGateway";
 
 let queryClient: QueryClient;
 let transport: ReturnType<typeof createMemoryTransport>;
-let client: ReturnType<typeof createLyraClient>;
+let client: ReturnType<typeof createScopeAppClient>;
 let restoreGateway: (() => void) | undefined;
 let unmountHook: (() => void) | undefined;
 
@@ -33,7 +33,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false } },
   });
   transport = createMemoryTransport();
-  client = createLyraClient(transport);
+  client = createScopeAppClient(transport);
   setContainer({ client: () => client });
   restoreGateway = installUsageGateway();
 });

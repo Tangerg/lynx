@@ -11,7 +11,7 @@ const PersonalizationPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.personalization",
+  name: "scopeapp.builtin.personalization",
   setup(ctx) {
     const disposePreferences = installPersonalizationPreferencesPort();
     registerSettingsPane(ctx, {

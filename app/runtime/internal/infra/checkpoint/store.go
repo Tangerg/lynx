@@ -20,7 +20,7 @@ type Store struct {
 	repoLocks sync.Map // session id → *sync.Mutex, serializing one shadow repository
 }
 
-// NewStore roots the shadow repos at dir (e.g. <LYRA_HOME>/checkpoints).
+// NewStore roots the shadow repos at dir (e.g. <SCOPEAPP_HOME>/checkpoints).
 func NewStore(dir string) *Store { return &Store{root: dir} }
 
 func (s *Store) treeLockFor(cwd string) *sync.Mutex {

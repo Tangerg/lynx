@@ -15,7 +15,7 @@ import { installSystemAppearance } from "./adapters/systemAppearance";
 import { installThemePreferencePort } from "./adapters/uiThemePreference";
 
 export const appearancePainter = definePlugin({
-  name: "lyra.builtin.appearance-painter",
+  name: "scopeapp.builtin.appearance-painter",
   setup(ctx) {
     const releasePreference = installThemePreferencePort();
     // Before the painter: its first paint resolves the scheme, which asks this.

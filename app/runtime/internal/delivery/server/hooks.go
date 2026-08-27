@@ -9,7 +9,7 @@ import (
 )
 
 // ListHooks reports the lifecycle hooks discovered for a cwd — global
-// (~/.lyra) + the project's (.lyra) — each marked active iff it currently runs
+// (~/.scopeapp) + the project's (.scopeapp) — each marked active iff it currently runs
 // (global always; project only when the project is trusted). The client renders
 // this for review + a trust toggle (hooks.list, API.md §7.5).
 func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {

@@ -96,11 +96,11 @@ func TestDiscoverAgentDocsCanonicalizesAndDedupesSymlinkedUserSource(t *testing.
 	home := t.TempDir()
 	root := t.TempDir()
 	mkGitDir(t, root)
-	writeFile(t, filepath.Join(home, ".lyra", "AGENTS.md"), "shared-user-source")
+	writeFile(t, filepath.Join(home, ".scopeapp", "AGENTS.md"), "shared-user-source")
 	if err := os.MkdirAll(filepath.Join(home, ".agents"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(home, ".lyra", "AGENTS.md"), filepath.Join(home, ".agents", "AGENTS.md")); err != nil {
+	if err := os.Symlink(filepath.Join(home, ".scopeapp", "AGENTS.md"), filepath.Join(home, ".agents", "AGENTS.md")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
@@ -111,7 +111,7 @@ func TestDiscoverAgentDocsCanonicalizesAndDedupesSymlinkedUserSource(t *testing.
 	if len(files) != 1 {
 		t.Fatalf("files = %+v, want one canonical user source", files)
 	}
-	want, err := filepath.EvalSymlinks(filepath.Join(home, ".lyra", "AGENTS.md"))
+	want, err := filepath.EvalSymlinks(filepath.Join(home, ".scopeapp", "AGENTS.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,10 +120,10 @@ func TestDiscoverAgentDocsCanonicalizesAndDedupesSymlinkedUserSource(t *testing.
 	}
 }
 
-func TestDiscoverAgentDocsPicksLyraSubdirBeforePlainFile(t *testing.T) {
+func TestDiscoverAgentDocsPicksScopeAppSubdirBeforePlainFile(t *testing.T) {
 	root := t.TempDir()
 	mkGitDir(t, root)
-	writeFile(t, filepath.Join(root, ".lyra", "AGENTS.md"), "lyra-subdir")
+	writeFile(t, filepath.Join(root, ".scopeapp", "AGENTS.md"), "scopeapp-subdir")
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "plain")
 
 	files, err := promptsource.DiscoverAgentDocs(context.Background(), root, "")
@@ -133,8 +133,8 @@ func TestDiscoverAgentDocsPicksLyraSubdirBeforePlainFile(t *testing.T) {
 	if len(files) != 2 {
 		t.Fatalf("len = %d, want 2", len(files))
 	}
-	if files[0].Content != "lyra-subdir" {
-		t.Fatalf("files[0] = %+v (want lyra-subdir first)", files[0])
+	if files[0].Content != "scopeapp-subdir" {
+		t.Fatalf("files[0] = %+v (want scopeapp-subdir first)", files[0])
 	}
 	if files[1].Content != "plain" {
 		t.Fatalf("files[1] = %+v", files[1])
@@ -163,7 +163,7 @@ func TestDiscoverAgentDocsUserScope(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
 	mkGitDir(t, root)
-	writeFile(t, filepath.Join(home, ".lyra", "AGENTS.md"), "user-prefs")
+	writeFile(t, filepath.Join(home, ".scopeapp", "AGENTS.md"), "user-prefs")
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "project")
 
 	files, err := promptsource.DiscoverAgentDocs(context.Background(), root, home)
@@ -231,10 +231,10 @@ func TestDiscoverAgentDocsRejectsInvalidUTF8(t *testing.T) {
 func TestDiscoverAgentDocsRejectsBrokenHigherPrecedenceSource(t *testing.T) {
 	root := t.TempDir()
 	mkGitDir(t, root)
-	if err := os.MkdirAll(filepath.Join(root, ".lyra"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".scopeapp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink("missing-agent-document", filepath.Join(root, ".lyra", "AGENTS.md")); err != nil {
+	if err := os.Symlink("missing-agent-document", filepath.Join(root, ".scopeapp", "AGENTS.md")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "lower-precedence rule")

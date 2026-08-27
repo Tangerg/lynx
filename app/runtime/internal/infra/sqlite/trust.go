@@ -10,7 +10,7 @@ import (
 
 // TrustStore records which project roots are trusted to run their project-scope
 // hooks (internal/domain/hooks). A cloned repo's hooks stay inert until the user
-// trusts the project explicitly. Global (~/.lyra) hooks need no entry.
+// trusts the project explicitly. Global (~/.scopeapp) hooks need no entry.
 type TrustStore struct {
 	db *sql.DB
 }

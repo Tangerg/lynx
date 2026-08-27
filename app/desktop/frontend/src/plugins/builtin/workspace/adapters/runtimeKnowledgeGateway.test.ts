@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { RpcError } from "@/rpc";
 import { loadWorkspaceKnowledge, saveWorkspaceKnowledge } from "../application/knowledge";
 import { WorkspaceKnowledgeRevisionConflictError } from "../application/ports/knowledgeGateway";
@@ -30,7 +30,7 @@ describe("runtimeKnowledgeGateway", () => {
     });
     const open = vi.fn().mockResolvedValue({ knowledge: { get } });
     setContainer({
-      client: () => ({ workspaces: { open } }) as unknown as LyraClient,
+      client: () => ({ workspaces: { open } }) as unknown as ScopeAppClient,
     });
     install();
 
@@ -63,7 +63,7 @@ describe("runtimeKnowledgeGateway", () => {
       );
     const open = vi.fn().mockResolvedValue({ knowledge: { update } });
     setContainer({
-      client: () => ({ workspaces: { open } }) as unknown as LyraClient,
+      client: () => ({ workspaces: { open } }) as unknown as ScopeAppClient,
     });
     install();
 
@@ -100,14 +100,14 @@ describe("runtimeKnowledgeGateway", () => {
       client: () =>
         ({
           workspaces: { open: vi.fn().mockResolvedValue({ knowledge: { get } }) },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     install();
 
     const retired = rejected(loadWorkspaceKnowledge({ scope: "cwd", cwd: "/work/alpha" }));
     await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
     setContainer({
-      client: () => ({ workspaces: { open: vi.fn() } }) as unknown as LyraClient,
+      client: () => ({ workspaces: { open: vi.fn() } }) as unknown as ScopeAppClient,
     });
     install();
     response.resolve({ scope: "cwd", content: "retired", revision: "rev-retired" });
@@ -128,7 +128,7 @@ describe("runtimeKnowledgeGateway", () => {
       client: () =>
         ({
           workspaces: { open: vi.fn().mockResolvedValue({ knowledge: { update } }) },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     install();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
@@ -143,7 +143,7 @@ describe("runtimeKnowledgeGateway", () => {
     );
     await vi.waitFor(() => expect(update).toHaveBeenCalledOnce());
     setContainer({
-      client: () => ({ workspaces: { open: vi.fn() } }) as unknown as LyraClient,
+      client: () => ({ workspaces: { open: vi.fn() } }) as unknown as ScopeAppClient,
     });
     install();
     response.resolve({ scope: "cwd", content: "retired", revision: "rev-retired" });
@@ -169,7 +169,7 @@ describe("runtimeKnowledgeGateway", () => {
       client: () =>
         ({
           workspaces: { open: vi.fn().mockResolvedValue({ knowledge: { get } }) },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     install();
 

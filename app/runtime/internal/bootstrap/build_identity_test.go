@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildIDFromFileUsesSHA256ContentDigest(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra")
+	path := filepath.Join(t.TempDir(), "scopeapp")
 	content := []byte("runtime executable")
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatalf("write executable fixture: %v", err)

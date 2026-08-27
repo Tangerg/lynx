@@ -9,7 +9,7 @@ import { ShortcutsProvider } from "@/plugins/host/ShortcutsProvider";
 import { ShortcutsPane } from "./ShortcutsPane";
 
 export default definePlugin({
-  name: "lyra.builtin.shortcuts",
+  name: "scopeapp.builtin.shortcuts",
   setup(ctx) {
     contributeLayout(ctx, "app.overlay", {
       id: "shortcuts-provider",

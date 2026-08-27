@@ -3,11 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 )
 
-// parseMCPServers parses the LYRA_MCP_SERVERS env var: a comma-separated list
+// parseMCPServers parses the SCOPEAPP_MCP_SERVERS env var: a comma-separated list
 // of "name=value" pairs. Empty input yields nil.
 //
 // Two value shapes:
@@ -47,7 +46,7 @@ func parseMCPServers(raw string) ([]MCPServer, error) {
 	return out, nil
 }
 
-// parseMCPServerValue dispatches by prefix. `stdio:` is a Lyra convention —
+// parseMCPServerValue dispatches by prefix. `stdio:` is a ScopeApp convention —
 // anything else must look like an HTTP(S) URL.
 func parseMCPServerValue(name, value string) (MCPServer, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
@@ -77,13 +76,13 @@ func parseMCPServerValue(name, value string) (MCPServer, error) {
 }
 
 // mcpAuthFromEnv reads an optional bearer token for HTTP MCP server `name` from
-// LYRA_MCP_<NAME>_TOKEN (name upper-cased, non-alphanumerics → '_') and returns
+// SCOPEAPP_MCP_<NAME>_TOKEN (name upper-cased, non-alphanumerics → '_') and returns
 // it as an "Authorization: Bearer <token>" header value, or "" when unset. It
-// authenticates Lyra to an access-controlled MCP server. The token lives in its
-// own env var (not the LYRA_MCP_SERVERS list) so the secret stays separate from
+// authenticates ScopeApp to an access-controlled MCP server. The token lives in its
+// own env var (not the SCOPEAPP_MCP_SERVERS list) so the secret stays separate from
 // the connection descriptor.
 func mcpAuthFromEnv(name string) string {
-	if tok := os.Getenv("LYRA_MCP_" + envTokenKey(name) + "_TOKEN"); tok != "" {
+	if tok := mcpTokenEnvironment(name).Value(); tok != "" {
 		return "Bearer " + tok
 	}
 	return ""

@@ -5,14 +5,14 @@ import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
 import { copyToolArgsAction } from "./application/toolActions";
 
 export const toolActions = definePlugin({
-  name: "lyra.builtin.tool-actions",
+  name: "scopeapp.builtin.tool-actions",
   setup(ctx) {
     ctx.contribute(TOOL_ACTION, copyToolArgsAction({ title: "toolAction.copyCommand", copyText }));
   },
 });
 
 export const toolIcons = definePlugin({
-  name: "lyra.builtin.tool-icons",
+  name: "scopeapp.builtin.tool-icons",
   setup(ctx) {
     for (const { key, icon } of defaultToolIconContributions()) {
       ctx.contribute(TOOL_ICON, icon, { key });

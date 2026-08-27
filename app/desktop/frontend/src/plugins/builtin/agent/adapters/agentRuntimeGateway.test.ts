@@ -4,7 +4,7 @@ import {
   RpcError,
   RpcTransportError,
   UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
-  type LyraClient,
+  type ScopeAppClient,
   type Methods,
   type MutationPromise,
   UnaryMutationSettlementClosedError,
@@ -47,7 +47,7 @@ describe("agentRuntimeGateway", () => {
         }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>,
     );
     setContainer({
-      client: () => ({ sessions: { create: retiredCreate } }) as unknown as LyraClient,
+      client: () => ({ sessions: { create: retiredCreate } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -63,7 +63,7 @@ describe("agentRuntimeGateway", () => {
         }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>,
     );
     setContainer({
-      client: () => ({ sessions: { create: successorCreate } }) as unknown as LyraClient,
+      client: () => ({ sessions: { create: successorCreate } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -88,7 +88,7 @@ describe("agentRuntimeGateway", () => {
       }) as MutationPromise<{ id: ReturnType<typeof asSessionId> }>;
     });
     setContainer({
-      client: () => ({ sessions: { create } }) as unknown as LyraClient,
+      client: () => ({ sessions: { create } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -129,7 +129,7 @@ describe("agentRuntimeGateway", () => {
       ),
     );
     setContainer({
-      client: () => ({ sessions: { create } }) as unknown as LyraClient,
+      client: () => ({ sessions: { create } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -151,7 +151,7 @@ describe("agentRuntimeGateway", () => {
     const get = vi.fn();
     const update = vi.fn().mockResolvedValue({ revision: 12 });
     setContainer({
-      client: () => ({ sessions: { get, update } }) as unknown as LyraClient,
+      client: () => ({ sessions: { get, update } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -174,7 +174,7 @@ describe("agentRuntimeGateway", () => {
   it("projects the approval mode saved by the Runtime", async () => {
     const setMode = vi.fn().mockResolvedValue({ mode: "safe" });
     setContainer({
-      client: () => ({ approval: { setMode } }) as unknown as LyraClient,
+      client: () => ({ approval: { setMode } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -185,7 +185,7 @@ describe("agentRuntimeGateway", () => {
   it("translates structured steering input only at the runtime adapter", async () => {
     const steer = vi.fn().mockResolvedValue({});
     setContainer({
-      client: () => ({ runs: { steer } }) as unknown as LyraClient,
+      client: () => ({ runs: { steer } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -238,7 +238,7 @@ describe("agentRuntimeGateway", () => {
         client: () =>
           ({
             sessions: { snapshot: readSnapshot },
-          }) as unknown as LyraClient,
+          }) as unknown as ScopeAppClient,
       });
       uninstall = installAgentRuntimeGateway();
 
@@ -272,7 +272,7 @@ describe("agentRuntimeGateway", () => {
       client: () =>
         ({
           sessions: { snapshot: vi.fn().mockRejectedValue(missing) },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -287,7 +287,7 @@ describe("agentRuntimeGateway", () => {
     });
     setContainer({
       client: () =>
-        ({ sessions: { delete: vi.fn().mockRejectedValue(missing) } }) as unknown as LyraClient,
+        ({ sessions: { delete: vi.fn().mockRejectedValue(missing) } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 
@@ -308,7 +308,7 @@ describe("agentRuntimeGateway", () => {
       ],
     });
     setContainer({
-      client: () => ({ sessions: { rollback } }) as unknown as LyraClient,
+      client: () => ({ sessions: { rollback } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentRuntimeGateway();
 

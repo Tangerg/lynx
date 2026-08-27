@@ -12,7 +12,7 @@ import (
 // the "what's relevant right now" supplement.
 const recalledMemoryTopK = 5
 
-const memoryScope = "scope/lyra/memory"
+const memoryScope = "scope/scopeapp/memory"
 
 var recallTracer = otel.Tracer(memoryScope)
 

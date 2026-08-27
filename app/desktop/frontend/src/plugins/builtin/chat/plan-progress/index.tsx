@@ -5,7 +5,7 @@ import { ActivePlan } from "./ui/ActivePlan";
 const PLAN_SURFACE = "composer.overlay.top:plan";
 
 export default definePlugin({
-  name: "lyra.builtin.plan-progress",
+  name: "scopeapp.builtin.plan-progress",
   setup(ctx) {
     contributeLayout(ctx, "composer.overlay.top", {
       id: "plan-progress",

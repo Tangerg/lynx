@@ -18,7 +18,7 @@ import (
 // session identity + chat history + canonical items + runs + portable offloaded tool
 // bodies — that ImportSession restores. format=md produces a human-readable
 // transcript (not re-importable).
-// Returned inline: lyra is a local loopback runtime, so there's no out-of-band
+// Returned inline: scopeapp is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, request protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 	result, err := s.sessions.ExportSession(ctx, request.SessionID)

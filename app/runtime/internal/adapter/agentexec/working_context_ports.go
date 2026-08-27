@@ -9,7 +9,7 @@ import (
 )
 
 // KnowledgeReader is the prompt composer's read-only view of human-authored
-// LYRA.md content.
+// SCOPEAPP.md content.
 type KnowledgeReader interface {
 	Entries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
 }

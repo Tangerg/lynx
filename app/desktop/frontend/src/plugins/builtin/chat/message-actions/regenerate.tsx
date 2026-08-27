@@ -23,7 +23,7 @@ function RegenerateButton() {
 }
 
 export const messageRegenerate = definePlugin({
-  name: "lyra.builtin.message-regenerate",
+  name: "scopeapp.builtin.message-regenerate",
   setup(ctx) {
     contributeLayout(ctx, "message.actions", {
       id: "regenerate",

@@ -1,4 +1,4 @@
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { asRunId, asSegmentId, RpcConnectionError } from "@/rpc";
 import type { AgentRunView, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
@@ -7,7 +7,7 @@ import type { RunStream } from "./agentRunPump";
 import { retireRunStream, settleRunStreamOpening } from "./runStreamOpening";
 
 interface AgentSessionRecoveryOptions {
-  client: Pick<LyraClient, "runs">;
+  client: Pick<ScopeAppClient, "runs">;
   sessionId: string;
   signal: AbortSignal;
   isCancelled: () => boolean;

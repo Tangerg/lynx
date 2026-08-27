@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// parseA2AAgents parses the LYRA_A2A_AGENTS env var: a comma-separated list of
+// parseA2AAgents parses the SCOPEAPP_A2A_AGENTS env var: a comma-separated list of
 // "name=cardURL" pairs, where cardURL is the base URL the remote agent's
 // AgentCard is resolved from. Empty input yields nil. The name becomes the
 // delegation tool's name; the first '=' separates it from the URL, so query
@@ -44,9 +44,9 @@ func parseA2AAgents(raw string) ([]A2AAgent, error) {
 	return out, nil
 }
 
-// addA2ARPCOrigins applies the optional LYRA_A2A_RPC_ORIGINS map to parsed
+// addA2ARPCOrigins applies the optional SCOPEAPP_A2A_RPC_ORIGINS map to parsed
 // agents. The shape is "name=origin|origin,name=origin"; names must already
-// exist in LYRA_A2A_AGENTS so a misspelling cannot silently weaken nothing.
+// exist in SCOPEAPP_A2A_AGENTS so a misspelling cannot silently weaken nothing.
 func addA2ARPCOrigins(agents []A2AAgent, raw string) ([]A2AAgent, error) {
 	if raw == "" {
 		return agents, nil

@@ -1,4 +1,4 @@
-// Package session owns Lyra's conversation identity and the behavior of one
+// Package session owns ScopeApp's conversation identity and the behavior of one
 // Session aggregate. Every multi-Run interaction lives under one Session.
 // Persistence, clocks, identity generation, filesystem admission, and
 // cross-aggregate orchestration remain consumer concerns.

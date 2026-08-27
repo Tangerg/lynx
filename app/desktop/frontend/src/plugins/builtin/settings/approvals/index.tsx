@@ -16,7 +16,7 @@ const ApprovalsPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.approvals-pane",
+  name: "scopeapp.builtin.approvals-pane",
   setup(ctx) {
     registerSettingsPane(ctx, {
       id: APPROVALS_PANE,

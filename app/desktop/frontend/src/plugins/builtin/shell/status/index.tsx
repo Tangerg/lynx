@@ -5,7 +5,7 @@ export { completionNotify } from "./completionNotify";
 export { windowTitle } from "./windowTitle";
 
 export const statusNotifications = definePlugin({
-  name: "lyra.builtin.status-notifications",
+  name: "scopeapp.builtin.status-notifications",
   setup(ctx) {
     contributeLayout(ctx, "sidebar.footer.status", {
       id: "notifications",

@@ -8,7 +8,7 @@ import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient, Methods } from "@/rpc";
+import type { ScopeAppClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
@@ -21,7 +21,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function stubCreate(create: Methods["sessions"]["create"]) {
-  setContainer({ client: () => ({ sessions: { create } }) as unknown as LyraClient });
+  setContainer({ client: () => ({ sessions: { create } }) as unknown as ScopeAppClient });
 }
 
 afterEach(() => {

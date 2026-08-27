@@ -101,7 +101,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       },
     }),
     {
-      name: "lyra.agent-session",
+      name: "scopeapp.agent-session",
       storage: createJSONStorage(() => localStorage),
       // Persist continuity plus provisional Session ownership. Only the
       // in-process freshness proof is ephemeral.
@@ -119,7 +119,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
         const parsed = sessionPersistSchema.safeParse(persisted);
         if (!parsed.success) {
           console.warn(
-            "[agentSessionStore] discarding corrupted lyra.agent-session:",
+            "[agentSessionStore] discarding corrupted scopeapp.agent-session:",
             parsed.error.issues,
           );
           return current;

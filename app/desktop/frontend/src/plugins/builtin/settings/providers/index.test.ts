@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -21,7 +21,7 @@ describe("providers plugin Runtime generation wiring", () => {
     const retired = deferred<ProviderConfiguration>();
     const update = vi.fn(() => retired.promise);
     setContainer({
-      client: () => ({ providers: { update } }) as unknown as LyraClient,
+      client: () => ({ providers: { update } }) as unknown as ScopeAppClient,
     });
     let generation = "runtime_1";
     const subscribers = new Set<() => void>();

@@ -12,7 +12,7 @@ const UsagePane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.usage-pane",
+  name: "scopeapp.builtin.usage-pane",
   setup(ctx) {
     const disposeGateway = installUsageGateway();
     registerSettingsPane(ctx, {

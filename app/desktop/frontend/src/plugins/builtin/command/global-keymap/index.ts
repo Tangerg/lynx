@@ -5,7 +5,7 @@ import { globalCommandShortcuts, workspaceEscapeShortcut } from "./application/g
 import { t } from "@/lib/i18n";
 
 export default definePlugin({
-  name: "lyra.builtin.global-keymap",
+  name: "scopeapp.builtin.global-keymap",
   setup(ctx) {
     for (const shortcut of globalCommandShortcuts((id) => lookupExtensionByKey(COMMAND, id))) {
       ctx.contribute(SHORTCUT, shortcut);

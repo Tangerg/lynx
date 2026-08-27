@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
 import {
   authorizeMCPServer,
@@ -32,7 +32,7 @@ describe("runtimeMcpServerGateway", () => {
       disabledTools: ["delete"],
       autoApproveTools: ["read"],
     });
-    setContainer({ client: () => ({ mcp: { create } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ mcp: { create } }) as unknown as ScopeAppClient });
     uninstall = installMCPServerGateway().dispose;
 
     await expect(
@@ -63,7 +63,7 @@ describe("runtimeMcpServerGateway", () => {
       connection: { type: "streamableHttp", url: "https://example.test/mcp" },
       status: { type: "disabled" },
     });
-    setContainer({ client: () => ({ mcp: { update } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ mcp: { update } }) as unknown as ScopeAppClient });
     uninstall = installMCPServerGateway().dispose;
 
     await expect(setMCPServerEnabled("cloud", false)).resolves.toMatchObject({
@@ -81,7 +81,9 @@ describe("runtimeMcpServerGateway", () => {
     const updateSuccessor = vi
       .fn()
       .mockResolvedValue(runtimeServer({ status: { type: "connected", toolCount: 2 } }));
-    setContainer({ client: () => ({ mcp: { update: updateRetired } }) as unknown as LyraClient });
+    setContainer({
+      client: () => ({ mcp: { update: updateRetired } }) as unknown as ScopeAppClient,
+    });
     const retiredInstallation = installMCPServerGateway();
     queryClient.setQueryData([MCP_SERVERS_KEY], [server()]);
 
@@ -92,7 +94,7 @@ describe("runtimeMcpServerGateway", () => {
     await vi.waitFor(() => expect(updateRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ mcp: { update: updateSuccessor } }) as unknown as LyraClient,
+      client: () => ({ mcp: { update: updateSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installMCPServerGateway();
     uninstall = () => {
@@ -122,7 +124,9 @@ describe("runtimeMcpServerGateway", () => {
     });
     setContainer({
       client: () =>
-        ({ mcp: { authorizationAttempts: { create: createRetired } } }) as unknown as LyraClient,
+        ({
+          mcp: { authorizationAttempts: { create: createRetired } },
+        }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installMCPServerGateway();
     const authorization = rejected(authorizeMCPServer("github"));
@@ -134,7 +138,7 @@ describe("runtimeMcpServerGateway", () => {
     });
     setContainer({
       client: () =>
-        ({ mcp: { authorizationAttempts: { get: getSuccessor } } }) as unknown as LyraClient,
+        ({ mcp: { authorizationAttempts: { get: getSuccessor } } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installMCPServerGateway();
     uninstall = () => {
@@ -152,13 +156,13 @@ describe("runtimeMcpServerGateway", () => {
   it("binds reconnect to the exact Runtime client captured by its installation", async () => {
     const reconnectRetired = vi.fn().mockResolvedValue(undefined);
     setContainer({
-      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as LyraClient,
+      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as ScopeAppClient,
     });
     uninstall = installMCPServerGateway().dispose;
 
     const reconnectSuccessor = vi.fn().mockResolvedValue(undefined);
     setContainer({
-      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as LyraClient,
+      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as ScopeAppClient,
     });
 
     await reconnectMCPServer("cloud");
@@ -171,7 +175,7 @@ describe("runtimeMcpServerGateway", () => {
     const retired = deferred<void>();
     const reconnectRetired = vi.fn(() => retired.promise);
     setContainer({
-      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as LyraClient,
+      client: () => ({ mcp: { reconnect: reconnectRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installMCPServerGateway();
     const reconnect = rejected(reconnectMCPServer("cloud"));
@@ -179,7 +183,7 @@ describe("runtimeMcpServerGateway", () => {
 
     const reconnectSuccessor = vi.fn().mockResolvedValue(undefined);
     setContainer({
-      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as LyraClient,
+      client: () => ({ mcp: { reconnect: reconnectSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installMCPServerGateway();
     uninstall = () => {

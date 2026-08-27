@@ -57,7 +57,7 @@ function SidebarFooter() {
 }
 
 export const sidebarFooter = definePlugin({
-  name: "lyra.builtin.sidebar-footer",
+  name: "scopeapp.builtin.sidebar-footer",
   setup(ctx) {
     contributeLayout(ctx, "sidebar.footer", {
       id: "user-card",

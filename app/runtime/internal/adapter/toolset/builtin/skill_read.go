@@ -21,7 +21,7 @@ type SkillUsageRecorder interface {
 }
 
 // BuildReaders assembles the working-directory-scoped reading tools over the
-// merged skill source (project <cwd>/.lyra/skills layered over the user dir,
+// merged skill source (project <cwd>/.scopeapp/skills layered over the user dir,
 // project winning). It returns nil when neither directory exists, so a session
 // that ships no skills gets no skill tools at all. When recorder is non-nil,
 // loading a skill records a use so the curator can tell active skills from idle

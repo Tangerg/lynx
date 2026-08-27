@@ -3,7 +3,7 @@ import type { RuntimeServiceSnapshot } from "./ports/serviceStatus";
 import { runtimeServiceAcceptsCommands } from "./runtimeCommandAvailability";
 
 const observation = {
-  server: { name: "lyra", version: "test" },
+  server: { name: "scopeapp", version: "test" },
   protocolVersion: "2",
   health: "ready" as const,
   checks: {},

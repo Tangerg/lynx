@@ -1,6 +1,6 @@
-# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-24`）
+# ScopeApp Runtime Protocol · 旁路 API（定稿 `2026-08-28`）
 
-> **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 Lyra Runtime 的**旁路面**——不经 LLM 的
+> **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 ScopeApp Runtime 的**旁路面**——不经 LLM 的
 > 辅助能力：git/VCS、失效事件流、会话回退 / 派生 / 归档、MCP 生命周期、审批 scope。与 `API.md` /
 > [`TRANSPORT.md`](./TRANSPORT.md) 互为配套、共用同一套约定，合起来构成完整 wire 契约。
 >
@@ -11,7 +11,7 @@
 > **字段级真相在生成物**（`runtime/contract/{schema,openrpc,manifest}.json` 与 `API_REFERENCE.md`，`API.md §14`）。
 > 本文写语义与不变量，不重述字段表。
 >
-> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-24`**（与 `API.md` 同）。
+> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-28`**（与 `API.md` 同）。
 
 ---
 
@@ -100,7 +100,7 @@
   `capabilities.limits.runtimeSubscription{maxTopics,maxWatches}` 里公布并被强制执行。
 - **`watches` 是 workspace 文件身份的附加维度**（`features.fileWatch`）：每个 watch 必带客户端命名的 `watchId` 与显式
   `workspace: WorkspaceRef`，`files.changed` 原样回显二者；同一订阅点名 `knowledge.changed` / `hooks.changed` 时，该身份也让
-  Runtime 精确观察对应 workspace/projectRoot 的 `LYRA.md` 与 hooks cascade。无 watch 的对应 topic 仍观察 Runtime 全局
+  Runtime 精确观察对应 workspace/projectRoot 的 `SCOPEAPP.md` 与 hooks cascade。无 watch 的对应 topic 仍观察 Runtime 全局
   Knowledge / Hook 配置，不凭空猜测 workspace。
 - **作用域 = 这条流本身**：topic / watch 集随订阅参数走，无独立 `watch` / `unwatch` 方法——**改集合 = 关流重订**。
 - **信号只说"再读一次"**：每条事件带被影响资源的 id（`sessionIds` / `runIds` / `paths` / …），**不带业务数据**。
@@ -109,7 +109,7 @@
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
 - **配置与后台任务有专用信号**：成功的 Skill library/proposal、`knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
   review mutation 分别经同一 Application invalidation vocabulary 发布所属 topic。外部进程新增、替换、删除已订阅作用域的
-  `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
+  `SCOPEAPP.md` / `.scopeapp/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
   workspace 观测或 Runtime wire 细节泄露到 Agent。
 
 ### 3.1 连接与投递模型

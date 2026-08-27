@@ -2,7 +2,7 @@
 // ports. One SQLite file is the single
 // durable backend — sessions / executor checkpoints / interrupts / history /
 // providers each live in their own table, sharing one *sql.DB. Human-authored
-// memory is the deliberate exception: it stays a user-editable LYRA.md file
+// memory is the deliberate exception: it stays a user-editable SCOPEAPP.md file
 // cascade. Agent-extracted ledger and curated memory are ordinary SQLite state.
 //
 // Driver: modernc.org/sqlite (pure Go). No CGO, cross-compilation
@@ -33,7 +33,7 @@ var ErrSchemaEpochMismatch = errors.New("sqlite: schema epoch mismatch")
 // file that holds no schema yet is installed into. The returned *sql.DB is
 // safe for concurrent use; callers share it across every
 // sqlite-backed store (session / transcript / interrupt / provider / message /
-// agent memory). Human-authored knowledge (LYRA.md) is file-backed, not here.
+// agent memory). Human-authored knowledge (SCOPEAPP.md) is file-backed, not here.
 //
 // Tuning baked in:
 //   - journal_mode = WAL — concurrent readers don't block the writer
@@ -484,10 +484,10 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_approval_rules_scope
 			ON approval_rules(scope, scope_key)`,
-		// Projects whose .lyra/hooks.json is trusted to run. A cloned repo's
+		// Projects whose .scopeapp/hooks.json is trusted to run. A cloned repo's
 		// project-scope hooks must NOT auto-execute (supply-chain RCE); the user
 		// trusts a project explicitly and the grant is recorded here. Global
-		// (~/.lyra) hooks need no entry — they're the user's own.
+		// (~/.scopeapp) hooks need no entry — they're the user's own.
 		`CREATE TABLE IF NOT EXISTS trusted_projects (
 			project_root TEXT    PRIMARY KEY,
 			trusted_at   INTEGER NOT NULL

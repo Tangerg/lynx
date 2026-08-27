@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -17,7 +17,7 @@ describe("hooks plugin Runtime generation wiring", () => {
     const retired = deferred();
     const setTrust = vi.fn(() => retired.promise);
     setContainer({
-      client: () => ({ hooks: { setTrust } }) as unknown as LyraClient,
+      client: () => ({ hooks: { setTrust } }) as unknown as ScopeAppClient,
     });
     let generation = "runtime_1";
     const subscribers = new Set<() => void>();

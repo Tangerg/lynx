@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentRunFact as RunRef } from "@/plugins/sdk";
 import { setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { navigator } from "@/lib/navigation";
 import { installAgentRuntimeGateway } from "../../adapters/agentRuntimeGateway";
 import {
@@ -112,7 +112,7 @@ describe("rollbackSessionToBeforeRun", () => {
     } as unknown as AgentSessionViewPort);
     const successorRollback = vi.fn().mockResolvedValue({ droppedRuns: [] });
     setContainer({
-      client: () => ({ sessions: { rollback: successorRollback } }) as unknown as LyraClient,
+      client: () => ({ sessions: { rollback: successorRollback } }) as unknown as ScopeAppClient,
     });
 
     const retired = rollbackSessionToBeforeRun("ses_1", "run_2");
@@ -164,7 +164,7 @@ describe("forkAgentSessionAtRun", () => {
     } as unknown as AgentRuntimeGateway);
     const successorFork = vi.fn().mockResolvedValue({ id: "fork_successor" });
     setContainer({
-      client: () => ({ sessions: { fork: successorFork } }) as unknown as LyraClient,
+      client: () => ({ sessions: { fork: successorFork } }) as unknown as ScopeAppClient,
     });
 
     const retired = forkAgentSessionAtRun("ses_1", "run_1");

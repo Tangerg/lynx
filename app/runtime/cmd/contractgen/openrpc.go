@@ -28,7 +28,7 @@ type openrpcDocument struct {
 	OpenRPC       string                `json:"openrpc"`
 	Info          openrpcInfo           `json:"info"`
 	Methods       []openrpcMethod       `json:"methods"`
-	Notifications []openrpcNotification `json:"x-lyra-notifications"`
+	Notifications []openrpcNotification `json:"x-scopeapp-notifications"`
 }
 
 type openrpcNotification struct {
@@ -53,22 +53,22 @@ type openrpcMethod struct {
 	Result         *openrpcResult `json:"result,omitempty"`
 	Errors         []openrpcError `json:"errors,omitempty"`
 
-	// The x-lyra extensions carry what OpenRPC has no vocabulary for: retry
+	// The x-scopeapp extensions carry what OpenRPC has no vocabulary for: retry
 	// semantics, cursor pagination, capability gating, and the event stream a
 	// streaming method's response body becomes.
-	Kind         string          `json:"x-lyra-kind"`
-	Operation    string          `json:"x-lyra-operation"`
-	Idempotency  string          `json:"x-lyra-idempotency"`
-	ReplayCursor string          `json:"x-lyra-replayCursor"`
-	Pagination   string          `json:"x-lyra-pagination"`
-	Features     []string        `json:"x-lyra-features,omitempty"`
-	Capabilities []capabilityRow `json:"x-lyra-capabilityRules,omitempty"`
-	StreamEvent  *schema         `json:"x-lyra-streamEvent,omitempty"`
+	Kind         string          `json:"x-scopeapp-kind"`
+	Operation    string          `json:"x-scopeapp-operation"`
+	Idempotency  string          `json:"x-scopeapp-idempotency"`
+	ReplayCursor string          `json:"x-scopeapp-replayCursor"`
+	Pagination   string          `json:"x-scopeapp-pagination"`
+	Features     []string        `json:"x-scopeapp-features,omitempty"`
+	Capabilities []capabilityRow `json:"x-scopeapp-capabilityRules,omitempty"`
+	StreamEvent  *schema         `json:"x-scopeapp-streamEvent,omitempty"`
 
 	// RequestFrame references the whole params object. By-name params describe the
 	// fields one at a time and so cannot express a cross-field rule; the frame
 	// schema is where those live, and pointing at it beats restating them.
-	RequestFrame *schema `json:"x-lyra-requestFrame"`
+	RequestFrame *schema `json:"x-scopeapp-requestFrame"`
 }
 
 type openrpcParam struct {
@@ -95,7 +95,7 @@ func newOpenRPC(registry *operation.Registry, shapes *dispatch.Shapes, set *sche
 	document := openrpcDocument{
 		OpenRPC: openrpcVersion,
 		Info: openrpcInfo{
-			Title:       "Lyra Runtime Protocol",
+			Title:       "ScopeApp Runtime Protocol",
 			Version:     protocol.ProtocolVersion,
 			Description: "Generated from the Contract Registry. Shapes live in schema.json; this document is the method surface.",
 		},
@@ -185,7 +185,7 @@ func strictRequestFrame(set *schemaSet, business *schema) *schema {
 // request frame, not by walking the field's Go type again. Value constraints
 // belong to the field in its owner (for example expectedRevision >= 1); a fresh
 // type walk would lose that owner context and publish a weaker parameter than
-// both the runtime validator and x-lyra-requestFrame.
+// both the runtime validator and x-scopeapp-requestFrame.
 func requestPropertySchema(set *schemaSet, frame *schema, owner reflect.Type, field string) *schema {
 	body := frame
 	if name, ok := strings.CutPrefix(frame.Ref, refPrefix); ok {

@@ -68,7 +68,7 @@ func (a AuthoredWatcher) Watch(
 	}
 	if slices.Contains(resources, workspaceapp.AuthoredHooks) {
 		targets = append(targets, fileobservation.Target{
-			Key: authoredHooksKey, Path: filepath.Join(a.hooksHome, ".lyra", "hooks.json"),
+			Key: authoredHooksKey, Path: filepath.Join(a.hooksHome, ".scopeapp", "hooks.json"),
 		})
 		for _, scope := range scopes {
 			directories, err := directoriesRootToLeaf(scope.ProjectRoot, scope.Workspace)
@@ -77,7 +77,7 @@ func (a AuthoredWatcher) Watch(
 			}
 			for _, directory := range directories {
 				targets = append(targets, fileobservation.Target{
-					Key: authoredHooksKey, Path: filepath.Join(directory, ".lyra", "hooks.json"),
+					Key: authoredHooksKey, Path: filepath.Join(directory, ".scopeapp", "hooks.json"),
 				})
 			}
 		}
@@ -168,7 +168,7 @@ func cleanOptionalPath(path string) string {
 
 func knowledgeTarget(root string) fileobservation.Target {
 	return fileobservation.Target{
-		Key: authoredKnowledgeKey, Path: filepath.Join(root, "LYRA.md"), Boundary: root,
+		Key: authoredKnowledgeKey, Path: filepath.Join(root, "SCOPEAPP.md"), Boundary: root,
 	}
 }
 

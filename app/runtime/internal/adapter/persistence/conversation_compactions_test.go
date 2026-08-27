@@ -20,7 +20,7 @@ import (
 
 func newCompactionFixture(t *testing.T) (*sql.DB, *sqlite.MessageStore, *sqlite.RunStore, *conversations.Messages) {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

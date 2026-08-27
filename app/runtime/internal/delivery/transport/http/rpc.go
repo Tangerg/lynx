@@ -128,7 +128,7 @@ func writeProblem(w http.ResponseWriter, status int, typ, detail string, noCache
 	}
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(transportProblem{
-		Type:      "urn:lyra:transport:" + typ,
+		Type:      "urn:scopeapp:transport:" + typ,
 		Title:     http.StatusText(status),
 		Status:    status,
 		Detail:    detail,

@@ -11,7 +11,7 @@ const McpServersPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.mcp-servers-pane",
+  name: "scopeapp.builtin.mcp-servers-pane",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = installMCPServerGateway();

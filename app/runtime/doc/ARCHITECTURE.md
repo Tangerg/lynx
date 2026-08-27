@@ -1,14 +1,14 @@
-# Lyra Runtime 目标架构
+# ScopeApp Runtime 目标架构
 
 > 状态：已接受的重构目标设计
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 
-本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
+本文定义 ScopeApp Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
 ## 1. 定位
 
-Lyra Runtime 是产品应用后端，不是第二个 Agent Framework。
+ScopeApp Runtime 是产品应用后端，不是第二个 Agent Framework。
 
 它面向桌面、Web、CLI 和 TUI 客户端，负责把用户意图、产品状态、Agent 执行、工具能力、持久化和 Runtime Protocol 组织为一套可恢复、可观察的应用生命周期。
 
@@ -66,7 +66,7 @@ DDD 用于澄清语言、实体行为、聚合和所有权，不用于复制 Jav
 | `Segment` | 一个 Run 中连续输出的一段；首启和每次恢复分别打开新 Segment | Run、Agent Framework Step |
 | `Conversation` | Host 拥有、用于构造未来模型上下文的产品消息历史 | Transcript、WorkingContext |
 | `Transcript` | 面向用户和审计的权威 Items-and-Runs 记录 | 模型恢复状态、Framework Event 流 |
-| `Knowledge` | 用户可编辑的 home/projectRoot/cwd `LYRA.md` 级联 | Conversation、Agent memory index |
+| `Knowledge` | 用户可编辑的 home/projectRoot/cwd `SCOPEAPP.md` 级联 | Conversation、Agent memory index |
 | `Interrupt` | 一个 Run tree 等待外部答案或裁决的产品请求 | Agent Framework Signal payload 本身 |
 | `Plan` | 当前工作请求的步骤状态 | Goal、Todo 的别名 |
 | `Goal` | 跨多个 Run 持续推进的自主目标 | 当前 Run 的 Plan |
@@ -169,7 +169,7 @@ MCP 远端工具描述符是不可信的 complete-list 输入。MCP Domain 唯�
 
 MCP stdio transport 还是外部进程边界，SDK `ClientSession` 只拥有协议连接，不自动证明派生进程已经退出。Runtime 的 live-session ledger 因此同时拥有一个 fallible cleanup：先关闭 session wire，再取消 session lifetime，最后终止仍存活的进程 owner；Unix command 在启动前进入独立 process group，正常 detach、replacement、probe、handshake failure 与 Host shutdown 都必须回收整组后代。清理诊断进入同一个 one-shot session-close attempt，不能用只杀直接子进程的 `CommandContext` cancel、caller timeout 或 SDK `Close` 返回替代资源所有权。
 
-Knowledge 的 `LYRA.md` 是同时进入 `knowledge.list/get` 管理面与 fresh Run prompt 的完整 human-authored document，不是通用文件读取结果。Knowledge Domain 唯一规定每份文档最多 1 MiB；Application 在调用 persistence port 前拒绝超限更新，filesystem store 直连写入复验同一规则，读取则在 revision、string 与 prompt material 形成前执行 stat fast rejection 和 cancellation-aware `limit+1` 检测。home/projectRoot/cwd cascade 中任一现存文档越界都使完整读取失败，不截断、不跳过、不发布部分级联；合法文档仍服从原有 content CAS、directory lease、atomic rename 与 crash recovery。Crash recovery 对可能是任意项目根的目录只做固定批次、可取消的流式枚举，逐项清理 Runtime 自有 stage 文件，不把整个用户目录物化为内存集合。
+Knowledge 的 `SCOPEAPP.md` 是同时进入 `knowledge.list/get` 管理面与 fresh Run prompt 的完整 human-authored document，不是通用文件读取结果。Knowledge Domain 唯一规定每份文档最多 1 MiB；Application 在调用 persistence port 前拒绝超限更新，filesystem store 直连写入复验同一规则，读取则在 revision、string 与 prompt material 形成前执行 stat fast rejection 和 cancellation-aware `limit+1` 检测。home/projectRoot/cwd cascade 中任一现存文档越界都使完整读取失败，不截断、不跳过、不发布部分级联；合法文档仍服从原有 content CAS、directory lease、atomic rename 与 crash recovery。Crash recovery 对可能是任意项目根的目录只做固定批次、可取消的流式枚举，逐项清理 Runtime 自有 stage 文件，不把整个用户目录物化为内存集合。
 
 AGENTS.md 与 Recipe 也是 complete authored prompt resources，但没有必要为它们新建空壳 Domain；`application/workspace` 直接拥有准入合同。每份文档最多 1 MiB 且必须是有效 UTF-8；AGENTS.md root-to-leaf cascade 最多 64 份/4 MiB raw material，Recipe 每个 project/global scope 最多 128 份、完整级联最多 256 份/8 MiB。`adapter/promptsource` 在 string/YAML 与 public/model projection 前执行 stat、cancellation-aware `limit+1` 和读取后复验，Recipe directory 只扫描有限 entry sentinel；missing/empty source 不存在，任一现存 invalid/oversized source 则使完整管理或执行读取失败，不回退低优先级副本。模型侧 AGENTS.md 继续使用 32 KiB、more-specific-tail 的 whole-document projection，但任一单份文档连同 provenance 放不进预算时明确拒绝 fresh Run，不再把指令静默整份删除。
 

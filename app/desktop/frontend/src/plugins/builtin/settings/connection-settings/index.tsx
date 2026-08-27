@@ -8,7 +8,7 @@ const ConnectionPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.connection-settings",
+  name: "scopeapp.builtin.connection-settings",
   setup(ctx) {
     registerSettingsPane(ctx, {
       id: CONNECTION_PANE,

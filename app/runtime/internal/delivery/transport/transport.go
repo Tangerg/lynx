@@ -33,7 +33,7 @@ type Request = jsonrpc.Request
 // is set — never both.
 type Response = jsonrpc.Response
 
-// ID is an opaque JSON-RPC id. Lyra's API.md §1 narrows calls and replies to
+// ID is an opaque JSON-RPC id. ScopeApp's API.md §1 narrows calls and replies to
 // string ids only; DecodeMessage enforces that wire constraint before the SDK
 // can coerce a numeric id.
 type ID = jsonrpc.ID
@@ -134,7 +134,7 @@ func validateUniqueJSONValue(decoder *json.Decoder, envelope bool) (jsonValueKin
 			if err != nil {
 				return jsonObject, err
 			}
-			// Lyra deliberately narrows every wire message id to a string.
+			// ScopeApp deliberately narrows every wire message id to a string.
 			// Enforce that at the wire owner before SDK decoding: the SDK
 			// collapses null into an omitted id and converts numbers through
 			// float64/int64, which can truncate fractions, lose large integers,

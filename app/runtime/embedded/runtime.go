@@ -37,7 +37,7 @@ type Config struct {
 	ConfigDirectories []string
 }
 
-// Runtime is a complete in-process Lyra Runtime. It is safe for concurrent
+// Runtime is a complete in-process ScopeApp Runtime. It is safe for concurrent
 // calls. Do not copy a Runtime; Open always returns a pointer.
 type Runtime struct {
 	mu       sync.RWMutex

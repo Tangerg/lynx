@@ -1,4 +1,4 @@
-// Package persistence assembles Lyra's durable storage adapters into one
+// Package persistence assembles ScopeApp's durable storage adapters into one
 // process-lifetime bundle. It is the storage-side capability adapter: [Open]
 // returns a bundle while its consumers decide how to use each store.
 package persistence
@@ -15,11 +15,12 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/infra/knowledgefile"
 	sqlitestore "github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/scope/app/runtime/localruntime"
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All
 // durable stores share one SQLite database under DataDirectory, except
-// Knowledge, which is the user-editable LYRA.md cascade. AgentMemory is the
+// Knowledge, which is the user-editable SCOPEAPP.md cascade. AgentMemory is the
 // separate SQLite fact ledger + curated memory items.
 type Bundle struct {
 	db        *sql.DB
@@ -109,12 +110,11 @@ func (b *Bundle) StartExternalChangeObserver(ctx context.Context, notify func())
 // Open wires the persistence backends. The returned bundle owns the shared
 // SQLite handle and must be closed when the runtime process stops.
 func Open(ctx context.Context, config Config) (*Bundle, error) {
-	if config.DataDirectory == "" {
-		return nil, errors.New("persistence: data directory is required")
+	dataDirectory, err := localruntime.DataDirectoryAt(config.DataDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("persistence: data directory: %w", err)
 	}
-	if !filepath.IsAbs(config.DataDirectory) {
-		return nil, errors.New("persistence: data directory must be absolute")
-	}
+	config.DataDirectory = dataDirectory.Path()
 	if config.DefaultWorkspacePath == "" {
 		return nil, errors.New("persistence: default workspace path is required")
 	}
@@ -127,7 +127,7 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if err := os.Chmod(config.DataDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("persistence: protect data directory %q: %w", config.DataDirectory, err)
 	}
-	db, err := sqlitestore.Open(ctx, filepath.Join(config.DataDirectory, "lyra.db"))
+	db, err := sqlitestore.Open(ctx, dataDirectory.DatabasePath())
 	if err != nil {
 		return nil, err
 	}

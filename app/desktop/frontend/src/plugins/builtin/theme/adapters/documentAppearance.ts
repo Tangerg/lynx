@@ -128,11 +128,12 @@ function applyColorTheme(
 
 function applyVisualStyle(id: VisualStyleId): void {
   const root = document.documentElement;
-  const spec = lookupExtensionByKey(VISUAL_STYLE, id) ?? lookupExtensionByKey(VISUAL_STYLE, "lyra");
+  const spec =
+    lookupExtensionByKey(VISUAL_STYLE, id) ?? lookupExtensionByKey(VISUAL_STYLE, "scopeapp");
   const motionTokens = spec ? visualStyleMotionTokens(spec.motion) : {};
   appliedStyleTokens = replaceTokens(appliedStyleTokens, { ...spec?.tokens, ...motionTokens });
   if (spec) publishVisualStyleMotion(spec.motion);
-  root.dataset.visualStyle = spec?.id ?? "lyra";
+  root.dataset.visualStyle = spec?.id ?? "scopeapp";
   root.dataset.regionLayout = spec?.traits.regions ?? "tonal-columns";
   root.dataset.controlTreatment = spec?.traits.controls ?? "quiet";
 }

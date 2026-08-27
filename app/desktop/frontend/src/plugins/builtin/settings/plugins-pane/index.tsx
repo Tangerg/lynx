@@ -11,7 +11,7 @@ const PluginsPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.plugins-pane",
+  name: "scopeapp.builtin.plugins-pane",
   setup(ctx) {
     registerSettingsPane(ctx, {
       id: PLUGINS_PANE,

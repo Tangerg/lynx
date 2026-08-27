@@ -11,7 +11,7 @@ import { recallNextComposerHistory, recallPreviousComposerHistory } from "./publ
 import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 export const composerKeymap = definePlugin({
-  name: "lyra.builtin.composer-keymap",
+  name: "scopeapp.builtin.composer-keymap",
   setup(ctx) {
     for (const binding of composerKeyBindings({
       send: ({ submit, event }) => {

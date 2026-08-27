@@ -1,8 +1,8 @@
-# Lyra Runtime Transport（定稿 `2026-08-24`）
+# ScopeApp Runtime Transport（定稿 `2026-08-28`）
 
-> **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
+> **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（ScopeApp Runtime Protocol）如何在具体 transport
 > 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
-> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-24`**。
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-28`**。
 
 ## 0. 目的
 
@@ -53,7 +53,7 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 - **JSON-RPC envelope `id` 必须是 string**（硬约束）。虽然 JSON-RPC 2.0 本身也允许 number id，本协议**只接受字符串 id**
   —— number / boolean / array / object / explicit `null` id 都在 SDK decode 前被拒为 `400 invalid_request`；通知必须省略 `id`。
   这样不会让 SDK 把 `null` 折叠成通知，或把小数、超大整数截断/饱和成另一个请求 id。本文所有示例用字符串即遵此约定。
-  Lyra 的 streamable-HTTP binding 对无法解码的 request 返回 transport problem，不再生成带 `null` id 的 JSON-RPC error envelope。
+  ScopeApp 的 streamable-HTTP binding 对无法解码的 request 返回 transport problem，不再生成带 `null` id 的 JSON-RPC error envelope。
 - Envelope 是闭合形状：request/notification 只允许 `jsonrpc`、`id`、`method`、`params`；response 只允许
   `jsonrpc`、`id` 与 `result XOR error`。禁止 unknown member、`method` 与 `result/error` 混合、以及 `result+error` 双载荷。
   `POST /v2/rpc` 是 client→server binding，只接受 request/notification；客户端发送 response envelope 返回 `400 invalid_request`。
@@ -145,8 +145,8 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-08-24",
-      "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
+      "protocolVersion": "2026-08-28",
+      "clientInfo": { "name": "scopeapp-desktop", "version": "0.1.0" },
       "clientCapabilities": {
         "features": {},
         "interruptTypes": ["approval", "question"]
@@ -185,7 +185,7 @@ prompt、credential、文件内容或完整 params 写进 retry journal。取得
   HTTP/1.1 200 OK
   Content-Type: application/json
   X-Method: sessions.get
-  X-Server: lyra-runtime
+  X-Server: scopeapp-runtime
   ```
 
   ```json
@@ -209,7 +209,7 @@ HTTP status 只描述传输层失败。
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | JSON-RPC 响应已接受（`application/json` 单条，body 里仍可能含业务 error）**或** 流式响应已开启（`text/event-stream`，§6.4）。                                                       |
 | `204`  | client 通知已接受、同步 dispatch 完毕；无 body。                                                                                                                                    |
-| `400`  | HTTP body 读不出，或 JSON / envelope shape（含 duplicate/unknown member、request/response 混合、空 method、非字符串显式 id、client response）无法解码成 Lyra request/notification。 |
+| `400`  | HTTP body 读不出，或 JSON / envelope shape（含 duplicate/unknown member、request/response 混合、空 method、非字符串显式 id、client response）无法解码成 ScopeApp request/notification。 |
 | `401`  | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。                                                                                            |
 | `404`  | 未知 transport 端点。                                                                                                                                                               |
 | `405`  | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。                                                                                                     |
@@ -219,14 +219,14 @@ HTTP status 只描述传输层失败。
 
 > 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
 > 处理未决"）。**URL 从不携带 method**（§6.1），故不存在"URL 与 body 的 method 不一致"这种 `400`；envelope 一旦
-> 解码成功，method / params 的一切问题都是 `200` + JSON-RPC error。Lyra 的 string-only id 是 envelope decode 约束，
+> 解码成功，method / params 的一切问题都是 `200` + JSON-RPC error。ScopeApp 的 string-only id 是 envelope decode 约束，
 > 因而非字符串显式 id 在 dispatch 前返回 `400`；`409` 不用于传输层。
 
 除 `404` / `405` 等由 HTTP 路由器直接产生的标准响应外，transport 失败使用
 `application/problem+json`，字段为 `{ type, title, status, detail, requestId? }`；`type` 是稳定的
-`urn:lyra:transport:*` 判别键，`requestId` 与响应头 `Request-Id` 相同。客户端不得把 transport problem
+`urn:scopeapp:transport:*` 判别键，`requestId` 与响应头 `Request-Id` 相同。客户端不得把 transport problem
 误当作 JSON-RPC `error`。例如 JSON 无法解码为 JSON-RPC message 时返回 `400` +
-`urn:lyra:transport:invalid_request`，而已经解码成功后的 method / params 错误仍返回 `200` JSON-RPC error。
+`urn:scopeapp:transport:invalid_request`，而已经解码成功后的 method / params 错误仍返回 `200` JSON-RPC error。
 
 当前的闭合 `type` 集：`invalid_request`（400）、`unauthorized`（401）、`request_too_large`（413）、
 `unsupported_media_type`（415）、`response_encoding_failed` / `streaming_unsupported` / `internal_error`（500）。
@@ -251,7 +251,7 @@ HTTP/1.1 200 OK
 Content-Type: text/event-stream
 Cache-Control: no-cache
 X-Method: runs.start
-X-Server: lyra-runtime
+X-Server: scopeapp-runtime
 ```
 
 ```text
@@ -429,10 +429,10 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。�
 
 ```json
 {
-  "protocolVersion": "2026-08-24",
+  "protocolVersion": "2026-08-28",
   "server": {
     "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10",
-    "name": "lyra-runtime",
+    "name": "scopeapp-runtime",
     "version": "0.0.0"
   },
   "transport": "http",

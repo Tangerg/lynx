@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>lyra</title>
+    <title>scopeapp</title>
     <!-- First-paint theme class sync.
          Reads the persisted theme id from the same localStorage key the
-         Zustand store uses (`lyra.ui`) and toggles `theme-{scheme}` on
+         Zustand store uses (`scopeapp.ui`) and toggles `theme-{scheme}` on
          <html> BEFORE any CSS parses, preventing a flash of the wrong scheme.
          "system" (the default) + a missing value follow prefers-color-scheme;
          "light"/"dark" are explicit; custom theme ids default to dark until
@@ -19,7 +19,7 @@
           !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         var scheme = systemDark ? "dark" : "light";
         try {
-          var raw = localStorage.getItem("lyra.ui");
+          var raw = localStorage.getItem("scopeapp.ui");
           var state = raw ? JSON.parse(raw)?.state : null;
           var id = state?.theme;
           if (id === "light") scheme = "light";
@@ -29,7 +29,7 @@
           /* localStorage blocked, malformed JSON — keep the system default */
         }
         var root = document.documentElement;
-        root.dataset.visualStyle = state?.visualStyle || "lyra";
+        root.dataset.visualStyle = state?.visualStyle || "scopeapp";
         root.classList.add("theme-" + scheme);
         // Paint the canvas colour on <html> BEFORE the CSS bundle parses, so a
         // cold boot opens straight into the app surface instead of flashing white.

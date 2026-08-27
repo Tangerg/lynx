@@ -67,7 +67,7 @@ export function ApplyPatchPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const applyPatchPreview = definePlugin({
-  name: "lyra.builtin.apply-patch-preview",
+  name: "scopeapp.builtin.apply-patch-preview",
   setup(ctx) {
     for (const preview of applyPatchToolPreview({ apply_patch: ApplyPatchPreview })) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

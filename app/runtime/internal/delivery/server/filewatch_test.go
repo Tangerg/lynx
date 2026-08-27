@@ -91,7 +91,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 
 // TestWorkspaceSubscribe_ExternalAuthoredFiles verifies that the two
 // file-backed, user-authored resources converge when another process edits
-// them. Git observation is deliberately irrelevant here: neither LYRA.md nor
+// them. Git observation is deliberately irrelevant here: neither SCOPEAPP.md nor
 // hooks.json needs to be staged before its query projection becomes stale.
 func TestWorkspaceSubscribe_ExternalAuthoredFiles(t *testing.T) {
 	dir := t.TempDir()
@@ -114,20 +114,20 @@ func TestWorkspaceSubscribe_ExternalAuthoredFiles(t *testing.T) {
 	}
 	events := drainSeq(ctx, seq)
 
-	if err := os.WriteFile(filepath.Join(dir, "LYRA.md"), []byte("external knowledge\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SCOPEAPP.md"), []byte("external knowledge\n"), 0o644); err != nil {
 		t.Fatalf("write knowledge: %v", err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeKnowledgeChanged)
 
-	if err := os.MkdirAll(filepath.Join(dir, ".lyra"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".scopeapp"), 0o755); err != nil {
 		t.Fatalf("create hook directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".lyra", "hooks.json"), []byte(`{"hooks":[]}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".scopeapp", "hooks.json"), []byte(`{"hooks":[]}`), 0o644); err != nil {
 		t.Fatalf("write hooks: %v", err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
 
-	skillPath := filepath.Join(dir, ".lyra", "skills", "external-skill", "SKILL.md")
+	skillPath := filepath.Join(dir, ".scopeapp", "skills", "external-skill", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
 		t.Fatalf("create skill directory: %v", err)
 	}
@@ -158,14 +158,14 @@ func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *tes
 		t.Fatal(err)
 	}
 	events := drainSeq(ctx, seq)
-	if err := os.WriteFile(filepath.Join(knowledgeHome, "LYRA.md"), []byte("global knowledge"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(knowledgeHome, "SCOPEAPP.md"), []byte("global knowledge"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeKnowledgeChanged)
-	if err := os.MkdirAll(filepath.Join(hooksHome, ".lyra"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(hooksHome, ".scopeapp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(hooksHome, ".lyra", "hooks.json"), []byte(`{"hooks":[]}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(hooksHome, ".scopeapp", "hooks.json"), []byte(`{"hooks":[]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeHooksChanged)
@@ -178,7 +178,7 @@ func TestWorkspaceSubscribe_GlobalAuthoredFilesDoNotRequireWorkspaceWatch(t *tes
 	}
 	assertRuntimeEventType(t, events, protocol.RuntimeSkillsChanged)
 
-	if err := os.WriteFile(filepath.Join(workspaceRoot, "LYRA.md"), []byte("unwatched workspace"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "SCOPEAPP.md"), []byte("unwatched workspace"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	select {

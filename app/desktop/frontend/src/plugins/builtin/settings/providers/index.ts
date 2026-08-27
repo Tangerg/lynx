@@ -10,7 +10,7 @@ const ProvidersPane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.providers-pane",
+  name: "scopeapp.builtin.providers-pane",
   requires: { runtime: RUNTIME_STREAM_PORTS },
   setup(ctx) {
     const gateway = installProviderGateway();

@@ -3,7 +3,7 @@ import type { NotificationLevel } from "./types/infra";
 // A self-mounting listener (see PluginToaster.tsx) picks up these events and
 // renders an animated toast. Keeping the dispatcher event-based means the SDK
 // doesn't import React for its notification path.
-export const PLUGIN_TOAST_EVENT = "lyra:plugin-toast";
+export const PLUGIN_TOAST_EVENT = "scopeapp:plugin-toast";
 
 export interface PluginToastDetail {
   message: string;

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestParseA2AAgents covers the LYRA_A2A_AGENTS env-var parser: the
+// TestParseA2AAgents covers the SCOPEAPP_A2A_AGENTS env-var parser: the
 // name=cardURL shape, URL query strings (split on the first '='), trimming,
 // empty entries, and error cases.
 func TestParseA2AAgents(t *testing.T) {

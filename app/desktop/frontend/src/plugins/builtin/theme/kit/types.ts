@@ -100,7 +100,7 @@ export interface ThemeSemantic {
 }
 
 /** Primary CTA color trio. Defaults to accent-driven (most themes), but
- *  e.g. Lyra Light overrides this to pure black-on-white (Vercel
+ *  e.g. ScopeApp Light overrides this to pure black-on-white (Vercel
  *  signature) so the accent can stay reserved for "live" state. */
 export interface ThemeCta {
   cta: string;
@@ -109,7 +109,7 @@ export interface ThemeCta {
 }
 
 export interface ColorThemePluginSpec {
-  /** Stable id — what `uiStore` persists to `lyra.ui`. */
+  /** Stable id — what `uiStore` persists to `scopeapp.ui`. */
   id: string;
   /** User-facing label. */
   label: string;

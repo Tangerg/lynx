@@ -5,7 +5,7 @@ import {
   asRunId,
   asSegmentId,
   RpcTransportError,
-  type LyraClient,
+  type ScopeAppClient,
   type MutationPromise,
   type RunEvent,
 } from "@/rpc";
@@ -45,10 +45,10 @@ describe("RPC Agent Runtime generation wiring", () => {
         Object.assign(Promise.reject(predecessorFailure), {
           idempotencyKey: "predecessor-opening",
           retry: predecessorRetry,
-        }) as ReturnType<LyraClient["runs"]["start"]>,
+        }) as ReturnType<ScopeAppClient["runs"]["start"]>,
     );
     setContainer({
-      client: () => ({ runs: { start: predecessorStart } }) as unknown as LyraClient,
+      client: () => ({ runs: { start: predecessorStart } }) as unknown as ScopeAppClient,
     });
 
     const runtime = new RuntimeGenerationFixture("test.rpc-agent-runtime-generation");
@@ -74,7 +74,7 @@ describe("RPC Agent Runtime generation wiring", () => {
       ),
     );
     setContainer({
-      client: () => ({ runs: { start: successorStart } }) as unknown as LyraClient,
+      client: () => ({ runs: { start: successorStart } }) as unknown as ScopeAppClient,
     });
     runtime.replace("runtime_2");
 
@@ -102,7 +102,7 @@ describe("RPC Agent Runtime generation wiring", () => {
       );
     });
     setContainer({
-      client: () => ({ runs: { start } }) as unknown as LyraClient,
+      client: () => ({ runs: { start } }) as unknown as ScopeAppClient,
     });
 
     const runtime = new RuntimeGenerationFixture("test.rpc-agent-accepted-stream-generation");

@@ -1,5 +1,5 @@
 {
-  "name": "@lyra/runtime-contract",
+  "name": "@scopeapp/runtime-contract",
   "private": true,
   "version": "0.0.0",
   "type": "module",

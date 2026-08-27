@@ -6,7 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
 import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/public/queries";
 import type { Disposable } from "@/plugins/sdk";
-import { createLyraClient } from "@/rpc";
+import { createScopeAppClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { registerDefaultDataProviders } from "./runtimeDataProviders";
@@ -14,7 +14,7 @@ import { contributeForTest } from "@/plugins/sdk/testKernel";
 
 let disposables: Disposable[] = [];
 let transport: ReturnType<typeof createMemoryTransport>;
-let client: ReturnType<typeof createLyraClient>;
+let client: ReturnType<typeof createScopeAppClient>;
 let unmountHook: (() => void) | undefined;
 
 async function waitForChangesRequest(index: number) {
@@ -36,7 +36,7 @@ beforeEach(async () => {
   queryClient.clear();
   disposables = [];
   transport = createMemoryTransport();
-  client = createLyraClient(transport);
+  client = createScopeAppClient(transport);
   setContainer({ client: () => client });
   await contributeForTest(registerDefaultDataProviders);
 });

@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 )
 
-var toolTracer = otel.Tracer("scope/lyra/tool")
+var toolTracer = otel.Tracer("scope/scopeapp/tool")
 
 const attrGenAIToolName = "gen_ai.tool.name"
 

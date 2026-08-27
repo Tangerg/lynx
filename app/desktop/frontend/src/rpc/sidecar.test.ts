@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "./errors";
 import { createSidecarClient } from "./sidecar";
-import { PROTOCOL_VERSION } from "@lyra/runtime-contract/wire";
+import { PROTOCOL_VERSION } from "@scopeapp/runtime-contract/wire";
 
 function makeFetch(status: number, body: unknown): typeof fetch {
   const stub = vi.fn(
@@ -14,7 +14,7 @@ describe("SidecarClient", () => {
   it("info() returns public bootstrap metadata", async () => {
     const fetchStub = makeFetch(200, {
       protocolVersion: PROTOCOL_VERSION,
-      server: { name: "lyra-core", version: "0.8.1", instanceId: "runtime_1" },
+      server: { name: "scopeapp-core", version: "0.8.1", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: "/v2/rpc",
@@ -25,7 +25,7 @@ describe("SidecarClient", () => {
     });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
-    expect(info.server.name).toBe("lyra-core");
+    expect(info.server.name).toBe("scopeapp-core");
     expect(info.server.instanceId).toBe("runtime_1");
     expect(info.protocolVersion).toBe(PROTOCOL_VERSION);
   });
@@ -52,7 +52,7 @@ describe("SidecarClient", () => {
     const client = createSidecarClient({
       baseUrl: "http://x",
       fetch: makeFetch(500, {
-        type: "urn:lyra:transport:internal_error",
+        type: "urn:scopeapp:transport:internal_error",
         detail: "probe registry unavailable",
         requestId: "req_123",
       }),
@@ -60,7 +60,7 @@ describe("SidecarClient", () => {
     await expect(client.info()).rejects.toMatchObject({
       status: 500,
       requestId: "req_123",
-      problemType: "urn:lyra:transport:internal_error",
+      problemType: "urn:scopeapp:transport:internal_error",
       message: expect.stringContaining("probe registry unavailable"),
     } satisfies Partial<RpcTransportError>);
   });
@@ -70,7 +70,7 @@ describe("SidecarClient", () => {
       baseUrl: "http://x",
       fetch: makeFetch(200, {
         protocolVersion: PROTOCOL_VERSION,
-        server: { name: "lyra-core", version: "0.8.1" },
+        server: { name: "scopeapp-core", version: "0.8.1" },
         transport: "ipc",
         endpoints: {},
       }),

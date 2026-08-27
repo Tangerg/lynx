@@ -61,7 +61,7 @@ type Config struct {
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
 	// used by the default MemoryConsolidator and injected into the system prompt. nil
-	// disables agent-maintained memory without affecting user-editable LYRA.md.
+	// disables agent-maintained memory without affecting user-editable SCOPEAPP.md.
 	AgentMemoryStore *sqlitestore.AgentMemoryStore
 
 	IdempotencyStore *sqlitestore.IdempotencyStore
@@ -113,7 +113,7 @@ type Config struct {
 	// process-local and every restart would unnecessarily re-authorize.
 	MCPOAuthSessions mcp.OAuthSessionStore
 
-	// SessionStore persists Lyra sessions. Required; the composition root injects
+	// SessionStore persists ScopeApp sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to
 	// the consumers that each hold their own narrow session port — the sessions
 	// coordinator, the Session title generator, and the child-Run admission adapter. The
@@ -183,7 +183,7 @@ type Config struct {
 	// capability_not_negotiated). The composition root injects the sqlite store.
 	GoalStore goals.DurableStore
 
-	// KnowledgeStore persists the human-authored LYRA.md cascade for both the
+	// KnowledgeStore persists the human-authored SCOPEAPP.md cascade for both the
 	// workspace use case and the execution adapter's read-only prompt view.
 	KnowledgeStore workspace.KnowledgeStore
 	// KnowledgeDirectory is the explicit global filesystem scope observed for
@@ -218,13 +218,13 @@ type Config struct {
 	// resolver still reads trust through its own checker.
 	HookTrustStore workspace.HookTrustStore
 
-	// RecipesGlobalDir is the global recipes directory (<LYRA_HOME>/recipes) the
-	// recipes.list discovery layers under a project's .lyra/recipes.
+	// RecipesGlobalDir is the global recipes directory (<SCOPEAPP_HOME>/recipes) the
+	// recipes.list discovery layers under a project's .scopeapp/recipes.
 	// Empty means only project recipes are listed. The composition root sets it.
 	RecipesGlobalDir string
 
 	// CheckpointDir roots the per-session shadow-git repos backing run-boundary
-	// file snapshots (<LYRA_HOME>/checkpoints); the checkpoint adapter enables
+	// file snapshots (<SCOPEAPP_HOME>/checkpoints); the checkpoint adapter enables
 	// snapshots + file rollback only when git is present. Empty disables file
 	// checkpoints. The composition root sets it.
 	CheckpointDir string

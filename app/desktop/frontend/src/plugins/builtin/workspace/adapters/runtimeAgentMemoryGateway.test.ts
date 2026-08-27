@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { queryClient } from "@/lib/queryClient";
 import {
   addAgentMemory,
@@ -38,7 +38,7 @@ describe("runtimeAgentMemoryGateway", () => {
       updatedAt: "2026-08-12T12:00:01Z",
     });
     setContainer({
-      client: () => ({ agentMemory: { add, update } }) as unknown as LyraClient,
+      client: () => ({ agentMemory: { add, update } }) as unknown as ScopeAppClient,
     });
     uninstall = installAgentMemoryGateway().dispose;
 
@@ -62,7 +62,7 @@ describe("runtimeAgentMemoryGateway", () => {
         memoryItem({ content: "successor", pinned: false, updatedAt: "2026-08-17T12:00:02Z" }),
       );
     setContainer({
-      client: () => ({ agentMemory: { update: updateRetired } }) as unknown as LyraClient,
+      client: () => ({ agentMemory: { update: updateRetired } }) as unknown as ScopeAppClient,
     });
     const retiredInstallation = installAgentMemoryGateway();
     queryClient.setQueryData([WORKSPACE_AGENT_MEMORY_KEY, query], [memoryEntry()]);
@@ -74,7 +74,7 @@ describe("runtimeAgentMemoryGateway", () => {
     await vi.waitFor(() => expect(updateRetired).toHaveBeenCalledOnce());
 
     setContainer({
-      client: () => ({ agentMemory: { update: updateSuccessor } }) as unknown as LyraClient,
+      client: () => ({ agentMemory: { update: updateSuccessor } }) as unknown as ScopeAppClient,
     });
     const successorInstallation = installAgentMemoryGateway();
     uninstall = () => {

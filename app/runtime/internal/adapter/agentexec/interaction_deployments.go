@@ -201,8 +201,8 @@ func (i *interactionDeploymentBuilder) layerIdentity(
 	}
 	return domaintool.GroupDelegated,
 		i.delegatedManifest,
-		"lyra.runtime.interaction.delegate.depth" + strconv.Itoa(depth),
-		"Run one isolated delegated Lyra interaction."
+		"scopeapp.runtime.interaction.delegate.depth" + strconv.Itoa(depth),
+		"Run one isolated delegated ScopeApp interaction."
 }
 
 func (i *interactionDeploymentBuilder) delegateLayer(
@@ -234,7 +234,7 @@ func (i *interactionDeploymentBuilder) deploymentDefinition(
 		return definition, nil
 	}
 	return newDelegatedInteractionDefinition(
-		"lyra.runtime.delegated_task.depth"+strconv.Itoa(depth), definition, i.instructions,
+		"scopeapp.runtime.delegated_task.depth"+strconv.Itoa(depth), definition, i.instructions,
 	)
 }
 

@@ -20,11 +20,11 @@ import (
 // DiscoverAgentDocs walks the project tree + user-level locations and returns
 // the AGENTS.md files in render order:
 //
-//  1. ~/.lyra/AGENTS.md           (Lyra-specific user scope)
+//  1. ~/.scopeapp/AGENTS.md           (ScopeApp-specific user scope)
 //  2. ~/.agents/AGENTS.md         (cross-tool generic; first match
 //     of AGENTS.md / agents.md)
 //  3. for each dir from project-root → cwd inclusive:
-//     - {dir}/.lyra/AGENTS.md     (Lyra subdir convention)
+//     - {dir}/.scopeapp/AGENTS.md     (ScopeApp subdir convention)
 //     - {dir}/AGENTS.md           (first match of AGENTS.md / agents.md)
 //
 // Project root = the nearest ancestor containing a `.git` entry; if none is
@@ -50,9 +50,9 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 
 	d := &agentDocScan{seen: make(map[string]struct{})}
 
-	// 1) User-level: Lyra-specific first, then generic (first-match).
+	// 1) User-level: ScopeApp-specific first, then generic (first-match).
 	if home != "" {
-		if err := d.try(ctx, filepath.Join(home, ".lyra", "AGENTS.md"), workspaceapp.AgentDocScopeHome); err != nil {
+		if err := d.try(ctx, filepath.Join(home, ".scopeapp", "AGENTS.md"), workspaceapp.AgentDocScopeHome); err != nil {
 			return nil, err
 		}
 		if err := d.tryFirst(ctx, workspaceapp.AgentDocScopeHome,
@@ -70,7 +70,7 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 		if dir == cwd {
 			scope = workspaceapp.AgentDocScopeCWD
 		}
-		if err := d.try(ctx, filepath.Join(dir, ".lyra", "AGENTS.md"), scope); err != nil {
+		if err := d.try(ctx, filepath.Join(dir, ".scopeapp", "AGENTS.md"), scope); err != nil {
 			return nil, err
 		}
 		if err := d.tryFirst(ctx, scope,

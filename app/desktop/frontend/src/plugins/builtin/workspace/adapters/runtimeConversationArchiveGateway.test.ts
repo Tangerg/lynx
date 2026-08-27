@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { exportConversationMarkdown } from "../application/conversationExport";
 import { installConversationArchiveGateway } from "./runtimeConversationArchiveGateway";
 
@@ -60,7 +60,7 @@ describe("runtimeConversationArchiveGateway", () => {
     expect(retiredExport).toHaveBeenCalledWith("session-current", "md");
     expect(successorExport).not.toHaveBeenCalled();
     expect(mocks.download).toHaveBeenCalledWith(
-      expect.stringContaining("lyra-session-current-"),
+      expect.stringContaining("scopeapp-session-current-"),
       "retired",
       "text/markdown;charset=utf-8",
     );
@@ -90,17 +90,17 @@ describe("runtimeConversationArchiveGateway", () => {
 
     await exportConversationMarkdown();
     expect(mocks.download).toHaveBeenCalledWith(
-      expect.stringContaining("lyra-session-current-"),
+      expect.stringContaining("scopeapp-session-current-"),
       "current",
       "text/markdown;charset=utf-8",
     );
   });
 });
 
-function clientWithExport(exportConversation: ReturnType<typeof vi.fn>): LyraClient {
+function clientWithExport(exportConversation: ReturnType<typeof vi.fn>): ScopeAppClient {
   return {
     sessions: { export: exportConversation },
-  } as unknown as LyraClient;
+  } as unknown as ScopeAppClient;
 }
 
 function deferred<T>() {

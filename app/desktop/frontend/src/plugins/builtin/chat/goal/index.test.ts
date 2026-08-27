@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { Goal, LyraClient, MutationPromise } from "@/rpc";
+import type { Goal, ScopeAppClient, MutationPromise } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -28,7 +28,7 @@ describe("Goal plugin Runtime generation wiring", () => {
     const retired = deferred<Goal>();
     const retiredStop = vi.fn(() => mutation(retired.promise, "retired-stop"));
     setContainer({
-      client: () => ({ goals: { stop: retiredStop } }) as unknown as LyraClient,
+      client: () => ({ goals: { stop: retiredStop } }) as unknown as ScopeAppClient,
     });
     let generation = "runtime_1";
     const subscribers = new Set<() => void>();
@@ -56,7 +56,7 @@ describe("Goal plugin Runtime generation wiring", () => {
       mutation(Promise.resolve(runtimeGoal("ses_goal")), "successor-resume"),
     );
     setContainer({
-      client: () => ({ goals: { resume: successorResume } }) as unknown as LyraClient,
+      client: () => ({ goals: { resume: successorResume } }) as unknown as ScopeAppClient,
     });
     generation = "runtime_2";
     for (const subscriber of subscribers) subscriber();
@@ -76,7 +76,7 @@ describe("Goal plugin Runtime generation wiring", () => {
 
   it("does not construct a successor client when the Runtime connection is withdrawn", async () => {
     setContainer({
-      client: () => ({ goals: {} }) as unknown as LyraClient,
+      client: () => ({ goals: {} }) as unknown as ScopeAppClient,
     });
     let generation: string | null = "runtime_1";
     const subscribers = new Set<() => void>();
@@ -115,7 +115,7 @@ describe("Goal plugin Runtime generation wiring", () => {
       mutation(Promise.resolve(runtimeGoal("ses_goal")), "successor-resume"),
     );
     setContainer({
-      client: () => ({ goals: { resume: successorResume } }) as unknown as LyraClient,
+      client: () => ({ goals: { resume: successorResume } }) as unknown as ScopeAppClient,
     });
     generation = "runtime_2";
     for (const subscriber of subscribers) subscriber();

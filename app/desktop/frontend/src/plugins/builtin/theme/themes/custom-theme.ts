@@ -72,7 +72,7 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Co
 }
 
 export default definePlugin({
-  name: "lyra.builtin.custom-theme",
+  name: "scopeapp.builtin.custom-theme",
   setup(ctx) {
     let contribution: Disposable | undefined;
     const register = () => {

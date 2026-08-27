@@ -32,7 +32,7 @@ function KernelSidebar() {
 }
 
 export const kernelChat = definePlugin({
-  name: "lyra.builtin.kernel-chat",
+  name: "scopeapp.builtin.kernel-chat",
   setup(ctx) {
     contributeLayout(ctx, "app.main", { id: "chat", order: 0, component: KernelChat });
     contributeLayout(ctx, "composer.overlay.top", {
@@ -44,14 +44,14 @@ export const kernelChat = definePlugin({
 });
 
 export const kernelSidebar = definePlugin({
-  name: "lyra.builtin.kernel-sidebar",
+  name: "scopeapp.builtin.kernel-sidebar",
   setup(ctx) {
     contributeLayout(ctx, "app.sidebar", { id: "sidebar", order: 0, component: KernelSidebar });
   },
 });
 
 export const kernelSettings = definePlugin({
-  name: "lyra.builtin.kernel-settings",
+  name: "scopeapp.builtin.kernel-settings",
   setup(ctx) {
     ctx.contribute(WORKSPACE_VIEW, {
       id: "settings",

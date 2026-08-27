@@ -1,8 +1,8 @@
 # opencode 启发的能力吸纳 Backlog
 
-> **来源**：对 **opencode**（sst/opencode，开源 TS coding agent，Bun/Effect 生态，~2500 .ts + 590 .tsx；桌面克隆 `~/Desktop/opencode`）的源码级对比分析。核心形态 = **headless server + 多客户端**（`opencode serve` loopback HTTP server，TUI/web/Wails/IDE/slack/github 皆客户端）——与 lyra 的 runtime+desktop 分离**同构**。正处 **v1（promise+Zod）→ v2（Effect+Drizzle 事件溯源）迁移中途**，很多子系统两代并存，判断真 delta 时认准 v2。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
+> **来源**：对 **opencode**（sst/opencode，开源 TS coding agent，Bun/Effect 生态，~2500 .ts + 590 .tsx；桌面克隆 `~/Desktop/opencode`）的源码级对比分析。核心形态 = **headless server + 多客户端**（`opencode serve` loopback HTTP server，TUI/web/Wails/IDE/slack/github 皆客户端）——与 scopeapp 的 runtime+desktop 分离**同构**。正处 **v1（promise+Zod）→ v2（Effect+Drizzle 事件溯源）迁移中途**，很多子系统两代并存，判断真 delta 时认准 v2。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
-> **状态**：全部 proposed。已跳过 parity 项（结构化输出=`chatclient.OutputFormat[T]` + `agent.Prompt[T]`、skills 自著、LSP、rules、agent 配置、tool-output spill=lyra A2、approval 粒度、`external_directory`≈B5）。
+> **状态**：全部 proposed。已跳过 parity 项（结构化输出=`chatclient.OutputFormat[T]` + `agent.Prompt[T]`、skills 自著、LSP、rules、agent 配置、tool-output spill=scopeapp A2、approval 粒度、`external_directory`≈B5）。
 
 ---
 
@@ -35,7 +35,7 @@ CodeMode（自研 confined JS 解释器，工具即函数）· client/server 协
 - **来源/为什么**：`core/system-context/{index,builtins}.ts`、`core/session/context-epoch.ts`、`session/history.ts`。把 system prompt 建模成一组**独立可刷新的类型化 source**（env / date / AGENTS.md 指令 / references），每个 `= {key, codec, load, baseline, update, removed?}`。`reconcile(current, snapshot)` diff：未变→不动；变了→注入一条**中途 system-delta 消息**（"The environment is now…" / "These instructions replace all previously loaded…"）并推进 snapshot；不兼容/源被删/compaction 后→整段 baseline 替换；某 source `unavailable` 则**阻塞替换**而非静默丢上下文。`context_epoch` 持久化 `baseline+snapshot+baseline_seq`，`history.load` 用 `baseline_seq` 只保留**当前** baseline、排除被取代的旧 system 消息、从最近 compaction 切片——**compaction 和 resume 都尊重这个 epoch**。
 - **目标**：system context 不是会话开始冻结的静态串，而是"类型化源 → 增量、可重放、完整性校验的 system-delta，锚在一个 compaction 会尊重的 baseline epoch 上"。
 - **落点**：runtime session/context 层。
-- **风险/边界**：这是 opencode sub-agent 评"最该偷的单点"，认同——**原则性强、与 lyra 已有 epoch/compaction 世界观最契合的纯加法**（无双机制冲突）。env/date/指令在会话中途变化时以 durable delta 注入、且穿越 compaction/resume 保持单一连贯 baseline——lyra 现在没有这套。
+- **风险/边界**：这是 opencode sub-agent 评"最该偷的单点"，认同——**原则性强、与 scopeapp 已有 epoch/compaction 世界观最契合的纯加法**（无双机制冲突）。env/date/指令在会话中途变化时以 durable delta 注入、且穿越 compaction/resume 保持单一连贯 baseline——scopeapp 现在没有这套。
 - **优先级**：**P1~P2**。
 
 ---
@@ -65,7 +65,7 @@ CodeMode（自研 confined JS 解释器，工具即函数）· client/server 协
 - **来源/为什么**：`core/snapshot.ts`、`core/session/revert.ts`。revert 三段式：`stage`（存 `original` tree、逐文件恢复、算 unified diff、持久化 `Revert.State`，**仍可逆**）→ `clear`（撤回）→ `commit`（永久截断 boundary 后消息日志 + 删排队输入 + 重置 context epoch）。staged diff 在提交前作为 UI **预览**。
 - **目标**：revert 是**可预览、可撤销**的暂存态——用户看 diff 预览再决定是否 commit，而非一步不可逆回滚。
 - **落点**：checkpoint/UI 层。
-- **风险/边界**：**只吸可逆预览生命周期**；opencode 的**逐文件 content-store** 对 lyra 是**已决不吸**（lyra checkpoint = gated 整仓 shadow-git 是定型的刻意选择，别重开 content-store rewrite / edited-files-only 辩论，filter③）。"stage→preview-diff→clear→commit"是**正交** UX 思想，可在不动整仓模型前提下叠加。与 [Grok G5 hunk-tracker](GROK.md) 有部分重叠——都涉及"改动的可视化 curation"，实现时统筹（hunk 级 accept/reject 是更细的 curation，revert-preview 是更粗的整批可逆预览）。
+- **风险/边界**：**只吸可逆预览生命周期**；opencode 的**逐文件 content-store** 对 scopeapp 是**已决不吸**（scopeapp checkpoint = gated 整仓 shadow-git 是定型的刻意选择，别重开 content-store rewrite / edited-files-only 辩论，filter③）。"stage→preview-diff→clear→commit"是**正交** UX 思想，可在不动整仓模型前提下叠加。与 [Grok G5 hunk-tracker](GROK.md) 有部分重叠——都涉及"改动的可视化 curation"，实现时统筹（hunk 级 accept/reject 是更细的 curation，revert-preview 是更粗的整批可逆预览）。
 - **优先级**：**P2**。
 
 ---
@@ -82,21 +82,21 @@ CodeMode（自研 confined JS 解释器，工具即函数）· client/server 协
 
 ## 2. 协议 / client-server 专项
 
-opencode 协议 = OpenAPI 3.1 REST + SSE（Effect HttpApi），按 group 组织、`/doc` 发 spec 生成多语言 SDK。对照 lyra 自研 JSON-RPC：
+opencode 协议 = OpenAPI 3.1 REST + SSE（Effect HttpApi），按 group 组织、`/doc` 发 spec 生成多语言 SDK。对照 scopeapp 自研 JSON-RPC：
 
-- **REST/OpenAPI/codegen** —— 纯**形差**，lyra 已定案（拒 codegen、改 golden-sample drift gate）。**不吸**。
-- **可断线重放的事件流**（事件带 `durable{aggregateID,seq,version}`；`SessionsCursor` + `after=seq` 重放）—— **部分吸/待确认**：若 lyra desktop event 通道重连时无 seq 重放则干净吸（P2，wire 层）；若已有 items.list seq 重放 + per-run last-event-id 则 **parity**。先核对 lyra 现状。
+- **REST/OpenAPI/codegen** —— 纯**形差**，scopeapp 已定案（拒 codegen、改 golden-sample drift gate）。**不吸**。
+- **可断线重放的事件流**（事件带 `durable{aggregateID,seq,version}`；`SessionsCursor` + `after=seq` 重放）—— **部分吸/待确认**：若 scopeapp desktop event 通道重连时无 seq 重放则干净吸（P2，wire 层）；若已有 items.list seq 重放 + per-run last-event-id 则 **parity**。先核对 scopeapp 现状。
 - **多项目 `location` 作用域**（一个 server 并发服务多项目目录、各自隔离）—— 真架构 delta 但改造大、非多租户诉求，**记 note 暂不吸**（除非 desktop 确需多项目并发）。
-- **TUI 控制通道**（server 反向驱动客户端长轮询）—— lyra desktop 用 events+command 即 parity。**不吸**。
-- **ACP 适配器**（`opencode acp`，stdio 接 Zed/JetBrains/Neovim）—— 额外**入站**适配器、不违反 lyra "runtime 协议不用 stdio"。**与 [Grok G17](GROK.md)+[Kimi K4](KIMI_CODE.md) 三方收敛**：一个 ACP 适配层让 lyra agent 可被第三方编辑器嵌入。**部分吸/defer**（生态期权，非核心，P3）。
+- **TUI 控制通道**（server 反向驱动客户端长轮询）—— scopeapp desktop 用 events+command 即 parity。**不吸**。
+- **ACP 适配器**（`opencode acp`，stdio 接 Zed/JetBrains/Neovim）—— 额外**入站**适配器、不违反 scopeapp "runtime 协议不用 stdio"。**与 [Grok G17](GROK.md)+[Kimi K4](KIMI_CODE.md) 三方收敛**：一个 ACP 适配层让 scopeapp agent 可被第三方编辑器嵌入。**部分吸/defer**（生态期权，非核心，P3）。
 
 ---
 
 ## 3. 其余小候选
 
-- **plugin hook seam 审计**（`session.compacting` 等 seam）—— in-process JS loader **不吸**（lyra subprocess-contract 更安全），但**审计这些 seam 点 lyra BeforeRound 是否都覆盖**，尤其 `session.compacting`（自定义 compaction 上下文/prompt）与 A1/A2/A3 天然配对。**部分吸**（只取 seam 清单），P2~P3。
-- **background-job wait-timeout→promote**（前台跑、`wait(timeout)` 超阈值自动转后台，agent 继续）—— lyra 有 background commands + bash_output block，这是"跑着自动转后台"的 nuance。**部分吸**，P3。
-- **PTY**（native pty + ring-buffer 绝对 cursor 重放 + ticket-websocket）—— lyra 明确"背景命令、无 PTY"。真能力缺口但价值窄（纯人向 UX：vim/htop/彩色 dev-server）；对 agent 自己非-PTY 更好。**部分吸/有条件**：仅当 lyra 想要"desktop 内嵌人操作终端面板"才做。P3，别高估。
+- **plugin hook seam 审计**（`session.compacting` 等 seam）—— in-process JS loader **不吸**（scopeapp subprocess-contract 更安全），但**审计这些 seam 点 scopeapp BeforeRound 是否都覆盖**，尤其 `session.compacting`（自定义 compaction 上下文/prompt）与 A1/A2/A3 天然配对。**部分吸**（只取 seam 清单），P2~P3。
+- **background-job wait-timeout→promote**（前台跑、`wait(timeout)` 超阈值自动转后台，agent 继续）—— scopeapp 有 background commands + bash_output block，这是"跑着自动转后台"的 nuance。**部分吸**，P3。
+- **PTY**（native pty + ring-buffer 绝对 cursor 重放 + ticket-websocket）—— scopeapp 明确"背景命令、无 PTY"。真能力缺口但价值窄（纯人向 UX：vim/htop/彩色 dev-server）；对 agent 自己非-PTY 更好。**部分吸/有条件**：仅当 scopeapp 想要"desktop 内嵌人操作终端面板"才做。P3，别高估。
 
 ---
 
@@ -105,11 +105,11 @@ opencode 协议 = OpenAPI 3.1 REST + SSE（Effect HttpApi），按 group 组织�
 | 项 | 来源 | 不吸理由 |
 |---|---|---|
 | **share / 云同步公开链接** | `core/share`、`opncd.ai/s/<id>` | filter② 多租户云，违单机本地用户 |
-| **Zen 网关** | `zen.mdx` | opencode 商业化托管 gateway；lyra 用户自带 key |
+| **Zen 网关** | `zen.mdx` | opencode 商业化托管 gateway；scopeapp 用户自带 key |
 | **OAuth/credential/refresh 状态机** | `core/integration.ts`、`oauth/` | 反向不变量：不给 provider 加 OAuth/token refresh，用户填 key、401 UI 重填 |
 | **retry / Transient 分类** | `llm/route/executor.ts` | 反向不变量：SDK 内建 retry 已够 |
-| **in-process JS 插件 loader** | `packages/plugin` | lyra 刻意选 subprocess-contract（更安全、语言无关）；只薅 hook seam 清单 |
-| **OpenAPI-codegen SDK / REST transport** | `packages/protocol` | lyra 已定案 JSON-RPC + golden-sample gate |
+| **in-process JS 插件 loader** | `packages/plugin` | scopeapp 刻意选 subprocess-contract（更安全、语言无关）；只薅 hook seam 清单 |
+| **OpenAPI-codegen SDK / REST transport** | `packages/protocol` | scopeapp 已定案 JSON-RPC + golden-sample gate |
 | **多项目 `location` 作用域** | `core/location-services.ts` | 真架构 delta 但大改、非多租户诉求，记 note |
 | **provider policies** | `policies.mdx` | 单机用户对自配 provider 做 deny-list 属 YAGNI |
 | **CodeMode 的解释器机器本体** | `codemode/interpreter` | ~4500 行 confined 解释器 + 手写 stdlib，违 KISS；只取"工具即代码"思想（OC1）|

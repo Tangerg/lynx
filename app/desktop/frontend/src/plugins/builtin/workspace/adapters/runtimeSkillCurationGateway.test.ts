@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import {
   approveSkillProposal,
   archiveSkill,
@@ -31,7 +31,7 @@ describe("runtimeSkillCurationGateway", () => {
           ({
             skills: {},
             workspaces: { open },
-          }) as unknown as LyraClient,
+          }) as unknown as ScopeAppClient,
       });
       installation = installSkillCurationGateway();
 
@@ -56,7 +56,7 @@ describe("runtimeSkillCurationGateway", () => {
       const archive = vi.fn().mockResolvedValue(undefined);
       const restore = vi.fn().mockResolvedValue(undefined);
       setContainer({
-        client: () => ({ skills: { archive, restore } }) as unknown as LyraClient,
+        client: () => ({ skills: { archive, restore } }) as unknown as ScopeAppClient,
       });
       installation = installSkillCurationGateway();
 

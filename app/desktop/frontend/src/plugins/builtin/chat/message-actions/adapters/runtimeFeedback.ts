@@ -1,9 +1,9 @@
 import { getContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
 import { MessageFeedbackOwner, type MessageFeedbackGateway } from "../application/feedback";
 
-function runtimeFeedbackGateway(client: LyraClient): MessageFeedbackGateway {
+function runtimeFeedbackGateway(client: ScopeAppClient): MessageFeedbackGateway {
   return {
     async createMessageFeedback({ target, rating }) {
       await client.feedback.create({

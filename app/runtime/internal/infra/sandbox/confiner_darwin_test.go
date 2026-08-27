@@ -31,7 +31,7 @@ func TestConfinerJailsInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
-	t.Setenv("LYRA_SANDBOX_SECRET", "must-not-leak")
+	t.Setenv("SCOPEAPP_SANDBOX_SECRET", "must-not-leak")
 
 	confiner, err := NewConfiner(home, nil)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestConfinerJailsInPlace(t *testing.T) {
 	}
 
 	inside, err := confiner.Confine(workspace,
-		"printf inside > inside.txt; printf %s \"${LYRA_SANDBOX_SECRET-unset}\"; test ! -r "+strconv.Quote(secret))
+		"printf inside > inside.txt; printf %s \"${SCOPEAPP_SANDBOX_SECRET-unset}\"; test ! -r "+strconv.Quote(secret))
 	if err != nil {
 		t.Fatal(err)
 	}

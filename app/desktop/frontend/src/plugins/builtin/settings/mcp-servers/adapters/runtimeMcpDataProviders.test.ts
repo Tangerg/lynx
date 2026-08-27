@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
-import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
+import { createScopeAppClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import type { MCPServerSettings, MCPToolSummary } from "../application/mcpServerQueries";
@@ -16,10 +16,10 @@ const mcpDataProviders = definePlugin({
   },
 });
 
-const clients: Array<ReturnType<typeof createLyraClient>> = [];
+const clients: Array<ReturnType<typeof createScopeAppClient>> = [];
 
 function testClient(transport: ReturnType<typeof createMemoryTransport>) {
-  const client = createLyraClient(transport);
+  const client = createScopeAppClient(transport);
   clients.push(client);
   return client;
 }

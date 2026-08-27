@@ -2,20 +2,19 @@ package config
 
 import (
 	"cmp"
-	"os"
 	"strings"
 
 	"github.com/spf13/viper"
 )
 
 // loadOnline reads the optional provider-tool credentials. yaml under
-// `online:`; the LYRA_* env vars take precedence over yaml, matching
+// `online:`; the SCOPEAPP_* env vars take precedence over yaml, matching
 // the overall source ordering (env over file).
 func loadOnline(v *viper.Viper) Online {
-	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
-	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
+	jina := cmp.Or(jinaAPIKeyEnvironment.Value(), v.GetString("online.jinaApiKey"))
+	tavily := cmp.Or(tavilyAPIKeyEnvironment.Value(), v.GetString("online.tavilyApiKey"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
-	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
+	if env := httpHostsEnvironment.Value(); env != "" {
 		hosts = splitHosts(env)
 	}
 	return Online{
@@ -25,7 +24,7 @@ func loadOnline(v *viper.Viper) Online {
 	}
 }
 
-// splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS value.
+// splitHosts parses the comma-separated SCOPEAPP_HTTP_ALLOWED_HOSTS value.
 func splitHosts(raw string) []string {
 	if raw == "" {
 		return nil

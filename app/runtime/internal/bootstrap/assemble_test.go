@@ -367,7 +367,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		t.Fatalf("chat client: %v", err)
 	}
 
-	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

@@ -1,5 +1,5 @@
-// Package knowledge defines Lyra's human-authored long-term knowledge: the
-// user-editable LYRA.md cascade. Agent-maintained memory (the mined fact ledger
+// Package knowledge defines ScopeApp's human-authored long-term knowledge: the
+// user-editable SCOPEAPP.md cascade. Agent-maintained memory (the mined fact ledger
 // and its curated items) is a separate bounded context — see package
 // agentmemory. Prompt composition remains outside both storage domains.
 package knowledge
@@ -22,7 +22,7 @@ var (
 	ErrDocumentTooLarge = errors.New("knowledge: document too large")
 )
 
-// MaxDocumentBytes is the complete encoded size admitted for one LYRA.md.
+// MaxDocumentBytes is the complete encoded size admitted for one SCOPEAPP.md.
 const MaxDocumentBytes int64 = 1 << 20
 
 // ValidateDocumentSize enforces the single resource envelope shared by
@@ -44,18 +44,18 @@ func ValidateDocument(content string) error {
 	return ValidateDocumentSize(int64(len(content)))
 }
 
-// Scope selects one location in the human-authored LYRA.md cascade. The three
+// Scope selects one location in the human-authored SCOPEAPP.md cascade. The three
 // locations are distinct even when a workspace happens to be its project root:
 // callers may address that file through either semantic scope, while cascade
 // readers de-duplicate the shared physical document.
 type Scope string
 
 const (
-	// ScopeCWD is the LYRA.md at the workspace resource root.
+	// ScopeCWD is the SCOPEAPP.md at the workspace resource root.
 	ScopeCWD Scope = "cwd"
-	// ScopeProjectRoot is the LYRA.md at the nearest project-discovery root.
+	// ScopeProjectRoot is the SCOPEAPP.md at the nearest project-discovery root.
 	ScopeProjectRoot Scope = "projectRoot"
-	// ScopeHome is the cross-project LYRA.md in the Runtime's user data root.
+	// ScopeHome is the cross-project SCOPEAPP.md in the Runtime's user data root.
 	ScopeHome Scope = "home"
 )
 
@@ -65,7 +65,7 @@ func (s Scope) Valid() bool {
 	return s == ScopeCWD || s == ScopeProjectRoot || s == ScopeHome
 }
 
-// Validate rejects a value that cannot identify a LYRA.md location.
+// Validate rejects a value that cannot identify a SCOPEAPP.md location.
 func (s Scope) Validate() error {
 	if !s.Valid() {
 		return fmt.Errorf("knowledge: invalid scope %q", s)

@@ -1,4 +1,4 @@
-# Lyra Runtime API 最终一致性收口计划
+# ScopeApp Runtime API 最终一致性收口计划
 
 > 作者：Codex
 > 状态：`ARCHIVED / A-TRACK DONE / B1 DONE`

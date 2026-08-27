@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol 2026-07-27 冻结稿（历史归档）
+# ScopeApp Runtime Protocol 2026-07-27 冻结稿（历史归档）
 
 > **状态：历史归档，不是现行协议，也不得作为新改动的目标契约。** 本文原样保留
 > 2026-07-27 切换时的设计裁决与验收基线，因此正文中的版本号、Artifact 版本和
@@ -1705,7 +1705,7 @@ retryable
 - 已知 core error 的 structured 字段由 Registry 按 `type` 生成 required/forbidden
   约束，不把 `activeRun` 或 `requiredCapabilities` 塞进 detail；
 - 保留五个标准 JSON-RPC 数字常量；
-- 删除前端所有手写 Lyra business numeric code 常量和 barrel export；
+- 删除前端所有手写 ScopeApp business numeric code 常量和 barrel export；
 - business numeric code 若需对外，只能由 Registry 生成。
 
 ### 9.3 新增或收敛的可行动错误

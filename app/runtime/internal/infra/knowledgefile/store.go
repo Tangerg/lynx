@@ -1,4 +1,4 @@
-// Package knowledgefile persists the user- and project-scoped LYRA.md
+// Package knowledgefile persists the user- and project-scoped SCOPEAPP.md
 // documents. It owns filesystem layout and atomic replacement, but no knowledge
 // policy or application workflow.
 package knowledgefile
@@ -22,19 +22,19 @@ import (
 )
 
 // knowledgeFileName is the on-disk file name for both scopes.
-// "LYRA.md" on disk; rendered through the knowledge store as a markdown
+// "SCOPEAPP.md" on disk; rendered through the knowledge store as a markdown
 // blob consumed as project or user knowledge.
-const knowledgeFileName = "LYRA.md"
+const knowledgeFileName = "SCOPEAPP.md"
 
-const stagedFilePrefix = ".LYRA.md.lyra-stage-"
+const stagedFilePrefix = ".SCOPEAPP.md.scopeapp-stage-"
 
 const stagedRecoveryReadBatchSize = 128
 
 // Store persists human-authored knowledge to markdown files:
 //
-//   - <cwd>/LYRA.md — workspace-local knowledge
-//   - <project-root>/LYRA.md — project knowledge when the workspace is nested
-//   - <data-dir>/LYRA.md — user scope (cross-project preferences)
+//   - <cwd>/SCOPEAPP.md — workspace-local knowledge
+//   - <project-root>/SCOPEAPP.md — project knowledge when the workspace is nested
+//   - <data-dir>/SCOPEAPP.md — user scope (cross-project preferences)
 //
 // Files are created lazily on first Update. Every read returns an opaque content
 // revision, and writes compare that revision while holding the store lock so two

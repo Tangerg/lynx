@@ -60,14 +60,14 @@ func TestStoreRejectsOversizedKnowledgeDocuments(t *testing.T) {
 		if _, err := store.Update(t.Context(), knowledge.ScopeHome, "", fresh.Revision, content); !errors.Is(err, knowledge.ErrDocumentTooLarge) {
 			t.Fatalf("Update error = %v, want ErrDocumentTooLarge", err)
 		}
-		if _, err := os.Stat(filepath.Join(home, "LYRA.md")); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(filepath.Join(home, "SCOPEAPP.md")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("oversized Update changed storage: %v", err)
 		}
 	})
 
 	t.Run("external file", func(t *testing.T) {
 		home := t.TempDir()
-		path := filepath.Join(home, "LYRA.md")
+		path := filepath.Join(home, "SCOPEAPP.md")
 		if err := os.WriteFile(path, []byte(strings.Repeat("x", int(knowledge.MaxDocumentBytes)+1)), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +126,7 @@ func TestStoreRejectsKnowledgeSymlinkOutsideScope(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("private outside knowledge"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(outside, filepath.Join(home, "LYRA.md")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(home, "SCOPEAPP.md")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	store := newKnowledgeStore(t, home, t.TempDir())
@@ -158,7 +158,7 @@ func TestStoreUsesInScopeSymlinkPhysicalIdentityAndPreservesMode(t *testing.T) {
 	if err := os.WriteFile(target, []byte("before"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	alias := filepath.Join(home, "LYRA.md")
+	alias := filepath.Join(home, "SCOPEAPP.md")
 	if err := os.Symlink(target, alias); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestStoreUsesInScopeSymlinkPhysicalIdentityAndPreservesMode(t *testing.T) {
 func TestStoreCreatesMissingInScopeSymlinkTarget(t *testing.T) {
 	home := t.TempDir()
 	target := filepath.Join(home, "private", "knowledge.md")
-	alias := filepath.Join(home, "LYRA.md")
+	alias := filepath.Join(home, "SCOPEAPP.md")
 	if err := os.Symlink(filepath.Join("private", "knowledge.md"), alias); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestStoreCreatesMissingInScopeSymlinkTarget(t *testing.T) {
 
 func TestStoreUpdatePreservesRegularFileMode(t *testing.T) {
 	home := t.TempDir()
-	path := filepath.Join(home, "LYRA.md")
+	path := filepath.Join(home, "SCOPEAPP.md")
 	if err := os.WriteFile(path, []byte("before"), 0o640); err != nil {
 		t.Fatal(err)
 	}
@@ -256,8 +256,8 @@ func TestStoreUsesPrivateModeForNewHomeAndReadableModeForNewWorkspace(t *testing
 		mode  os.FileMode
 		path  string
 	}{
-		{value: knowledge.ScopeHome, mode: 0o600, path: filepath.Join(home, "LYRA.md")},
-		{value: knowledge.ScopeCWD, dir: workspace, mode: 0o644, path: filepath.Join(workspace, "LYRA.md")},
+		{value: knowledge.ScopeHome, mode: 0o600, path: filepath.Join(home, "SCOPEAPP.md")},
+		{value: knowledge.ScopeCWD, dir: workspace, mode: 0o644, path: filepath.Join(workspace, "SCOPEAPP.md")},
 	} {
 		fresh, err := store.Get(t.Context(), scope.value, scope.dir)
 		if err != nil {
@@ -286,7 +286,7 @@ func TestStoreConcurrentUpdatesRejectStaleRevisionsWithoutTornWrites(t *testing.
 	}
 
 	// A fixed sibling used by an older implementation must not be a reserved path.
-	legacyTemporary := filepath.Join(home, "LYRA.md.tmp")
+	legacyTemporary := filepath.Join(home, "SCOPEAPP.md.tmp")
 	if mkdirErr := os.Mkdir(legacyTemporary, 0o755); mkdirErr != nil {
 		t.Fatal(mkdirErr)
 	}
@@ -339,10 +339,10 @@ func TestStoreConcurrentUpdatesRejectStaleRevisionsWithoutTornWrites(t *testing.
 }
 
 func TestStoreCrossProcessUpdatesHaveOneCASWinner(t *testing.T) {
-	if os.Getenv("LYRA_TEST_KNOWLEDGE_CAS_CHILD") == "1" {
-		store := newKnowledgeStore(t, os.Getenv("LYRA_TEST_KNOWLEDGE_HOME"), t.TempDir())
-		ready := os.Getenv("LYRA_TEST_KNOWLEDGE_READY")
-		start := os.Getenv("LYRA_TEST_KNOWLEDGE_START")
+	if os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_CAS_CHILD") == "1" {
+		store := newKnowledgeStore(t, os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_HOME"), t.TempDir())
+		ready := os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_READY")
+		start := os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_START")
 		if err := os.WriteFile(ready, nil, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestStoreCrossProcessUpdatesHaveOneCASWinner(t *testing.T) {
 		}
 		_, err := store.Update(
 			t.Context(), knowledge.ScopeHome, "",
-			os.Getenv("LYRA_TEST_KNOWLEDGE_REVISION"), os.Getenv("LYRA_TEST_KNOWLEDGE_BODY"),
+			os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_REVISION"), os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_BODY"),
 		)
 		switch {
 		case err == nil:
@@ -386,12 +386,12 @@ func TestStoreCrossProcessUpdatesHaveOneCASWinner(t *testing.T) {
 		ready := filepath.Join(barrier, fmt.Sprintf("ready-%02d", index))
 		children[index].command = exec.Command(os.Args[0], "-test.run=^TestStoreCrossProcessUpdatesHaveOneCASWinner$")
 		children[index].command.Env = append(os.Environ(),
-			"LYRA_TEST_KNOWLEDGE_CAS_CHILD=1",
-			"LYRA_TEST_KNOWLEDGE_HOME="+home,
-			"LYRA_TEST_KNOWLEDGE_READY="+ready,
-			"LYRA_TEST_KNOWLEDGE_START="+start,
-			"LYRA_TEST_KNOWLEDGE_REVISION="+fresh.Revision,
-			fmt.Sprintf("LYRA_TEST_KNOWLEDGE_BODY=writer-%02d", index),
+			"SCOPEAPP_TEST_KNOWLEDGE_CAS_CHILD=1",
+			"SCOPEAPP_TEST_KNOWLEDGE_HOME="+home,
+			"SCOPEAPP_TEST_KNOWLEDGE_READY="+ready,
+			"SCOPEAPP_TEST_KNOWLEDGE_START="+start,
+			"SCOPEAPP_TEST_KNOWLEDGE_REVISION="+fresh.Revision,
+			fmt.Sprintf("SCOPEAPP_TEST_KNOWLEDGE_BODY=writer-%02d", index),
 		)
 		children[index].command.Stdout = &children[index].output
 		children[index].command.Stderr = &children[index].output
@@ -433,15 +433,15 @@ func TestStoreCrossProcessUpdatesHaveOneCASWinner(t *testing.T) {
 }
 
 func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
-	if os.Getenv("LYRA_TEST_KNOWLEDGE_CRASH_CHILD") == "1" {
-		store := newKnowledgeStore(t, os.Getenv("LYRA_TEST_KNOWLEDGE_HOME"), t.TempDir())
+	if os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_CRASH_CHILD") == "1" {
+		store := newKnowledgeStore(t, os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_HOME"), t.TempDir())
 		body := strings.Repeat("x", int(knowledge.MaxDocumentBytes))
-		if err := os.WriteFile(os.Getenv("LYRA_TEST_KNOWLEDGE_READY"), nil, 0o600); err != nil {
+		if err := os.WriteFile(os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_READY"), nil, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		_, err := store.Update(
 			t.Context(), knowledge.ScopeHome, "",
-			os.Getenv("LYRA_TEST_KNOWLEDGE_REVISION"), body,
+			os.Getenv("SCOPEAPP_TEST_KNOWLEDGE_REVISION"), body,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -466,10 +466,10 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 	ready := filepath.Join(t.TempDir(), "ready")
 	command := exec.Command(os.Args[0], "-test.run=^TestStoreRecoversAfterWriterProcessDiesDuringStaging$")
 	command.Env = append(os.Environ(),
-		"LYRA_TEST_KNOWLEDGE_CRASH_CHILD=1",
-		"LYRA_TEST_KNOWLEDGE_HOME="+home,
-		"LYRA_TEST_KNOWLEDGE_READY="+ready,
-		"LYRA_TEST_KNOWLEDGE_REVISION="+written.Revision,
+		"SCOPEAPP_TEST_KNOWLEDGE_CRASH_CHILD=1",
+		"SCOPEAPP_TEST_KNOWLEDGE_HOME="+home,
+		"SCOPEAPP_TEST_KNOWLEDGE_READY="+ready,
+		"SCOPEAPP_TEST_KNOWLEDGE_REVISION="+written.Revision,
 	)
 	var output strings.Builder
 	command.Stdout = &output
@@ -500,7 +500,7 @@ func TestStoreRecoversAfterWriterProcessDiesDuringStaging(t *testing.T) {
 			t.Fatal(readDirErr)
 		}
 		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), ".LYRA.md.lyra-stage-") {
+			if strings.HasPrefix(entry.Name(), ".SCOPEAPP.md.scopeapp-stage-") {
 				staged = filepath.Join(home, entry.Name())
 				break
 			}
@@ -547,7 +547,7 @@ func TestStoreRecoveryScansLargeDirectoriesWithoutLeavingOrphans(t *testing.T) {
 	staged := make([]string, 0, 130)
 	for index := range 130 {
 		suffix := strings.Repeat("A", 24) + string(rune('A'+index/26)) + string(rune('A'+index%26))
-		path := filepath.Join(home, ".LYRA.md.lyra-stage-"+suffix)
+		path := filepath.Join(home, ".SCOPEAPP.md.scopeapp-stage-"+suffix)
 		if err := os.WriteFile(path, []byte("orphan"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -588,7 +588,7 @@ func TestStoreListIncludesEmptyAddressableScopes(t *testing.T) {
 	// UpdatedAt must be populated from the file mtime, not left zero (the wire
 	// maps it to KnowledgeEntry.UpdatedAt — a zero time would surface as 0001-01-01).
 	if entries[0].UpdatedAt.IsZero() {
-		t.Error("UpdatedAt is zero; want the LYRA.md file mtime")
+		t.Error("UpdatedAt is zero; want the SCOPEAPP.md file mtime")
 	}
 }
 
@@ -630,9 +630,9 @@ func TestStoreListPreservesDistinctCascadeScopes(t *testing.T) {
 		body  string
 		path  string
 	}{
-		{knowledge.ScopeHome, "home knowledge", filepath.Join(home, "LYRA.md")},
-		{knowledge.ScopeProjectRoot, "project knowledge", filepath.Join(projectRoot, "LYRA.md")},
-		{knowledge.ScopeCWD, "workspace knowledge", filepath.Join(cwd, "LYRA.md")},
+		{knowledge.ScopeHome, "home knowledge", filepath.Join(home, "SCOPEAPP.md")},
+		{knowledge.ScopeProjectRoot, "project knowledge", filepath.Join(projectRoot, "SCOPEAPP.md")},
+		{knowledge.ScopeCWD, "workspace knowledge", filepath.Join(cwd, "SCOPEAPP.md")},
 	} {
 		got := entries[index]
 		physicalPath, evalSymlinksErr := filepath.EvalSymlinks(want.path)
@@ -674,8 +674,8 @@ func TestStoreProjectScopeUsesConfiguredDefault(t *testing.T) {
 	fresh, _ := store.Get(ctx, knowledge.ScopeCWD, "")
 	_, _ = store.Update(ctx, knowledge.ScopeCWD, "", fresh.Revision, "project body")
 
-	// File should live at <projectDir>/LYRA.md
-	body, err := os.ReadFile(filepath.Join(projectDir, "LYRA.md"))
+	// File should live at <projectDir>/SCOPEAPP.md
+	body, err := os.ReadFile(filepath.Join(projectDir, "SCOPEAPP.md"))
 	if err != nil {
 		t.Fatalf("read project file: %v", err)
 	}

@@ -229,7 +229,7 @@ func buildExecutionComposition(
 		DefaultSelection:       defaultSelection,
 		ChatResolver:           modelServices.chatResolver,
 		ImplementationIdentity: cfg.BuildID,
-		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
+		ConfigurationIdentity:  "scopeapp.runtime.interaction.v1",
 		StreamModelResponses:   true,
 		MaxConcurrentToolCalls: 8,
 		ToolInterpreter:        toolset.NewInterpreter(policy.plans),

@@ -12,7 +12,7 @@ interface Props {
  * Auto-suggest panel that appears when the composer value starts with "/".
  *
  * Commands come from the plugin registry; built-in hints live in the
- * `lyra.builtin.slash-hints` plugin. Clicking a row fills the composer
+ * `scopeapp.builtin.slash-hints` plugin. Clicking a row fills the composer
  * with the command + a trailing space — Enter on the composer still
  * submits the full typed text, so there's no implicit "pick first on
  * Enter" behavior.

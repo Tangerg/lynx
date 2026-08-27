@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { createLyraClient } from "@/rpc";
+import { createScopeAppClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess } from "@/rpc/transports/memory.testkit";
 import { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
@@ -11,7 +11,7 @@ import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 import { queryClient } from "@/lib/queryClient";
 
 let transport: ReturnType<typeof createMemoryTransport>;
-let client: ReturnType<typeof createLyraClient>;
+let client: ReturnType<typeof createScopeAppClient>;
 let restoreGateway: ReturnType<typeof installAgentRuntimeGateway> | undefined;
 let unmountHook: (() => void) | undefined;
 let restoreQueryDefaults: (() => void) | undefined;
@@ -44,7 +44,7 @@ beforeEach(() => {
   restoreQueryDefaults = () => queryClient.setDefaultOptions(defaults);
   queryClient.clear();
   transport = createMemoryTransport();
-  client = createLyraClient(transport);
+  client = createScopeAppClient(transport);
   setContainer({ client: () => client });
   restoreGateway = installAgentRuntimeGateway();
 });
@@ -132,7 +132,7 @@ describe("mounted Session usage generation", () => {
     const retiredSignal = retiredSend.mock.calls[0]?.[1];
 
     const successorTransport = createMemoryTransport();
-    const successorClient = createLyraClient(successorTransport);
+    const successorClient = createScopeAppClient(successorTransport);
     const successorSend = vi.spyOn(successorTransport, "send");
     setContainer({ client: () => successorClient });
     let disposeSuccessor!: ReturnType<typeof installAgentRuntimeGateway>;

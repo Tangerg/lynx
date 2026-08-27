@@ -4,7 +4,7 @@ import {
   HTTP_ENDPOINTS,
   PROTOCOL_VERSION,
   type DiscoverResponse,
-  type LyraClient,
+  type ScopeAppClient,
   type Methods,
   type ReadinessStatus,
   type SidecarClient,
@@ -26,7 +26,7 @@ const discovery: DiscoverResponse = {
   protocolVersion: PROTOCOL_VERSION,
   serverInfo: {
     instanceId: "runtime_1",
-    name: "lyra-runtime",
+    name: "scopeapp-runtime",
     version: "1.2.3",
     defaultWorkspace: { path: "/w" },
     home: "/h",
@@ -49,7 +49,7 @@ function healthySidecar(): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
       protocolVersion: PROTOCOL_VERSION,
-      server: { name: "lyra-runtime", version: "1.2.3", instanceId: "runtime_1" },
+      server: { name: "scopeapp-runtime", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: HTTP_ENDPOINTS.rpc.path,
@@ -71,7 +71,7 @@ function stubContainer(
     client: () =>
       ({
         runtime: { discover },
-      }) as unknown as LyraClient,
+      }) as unknown as ScopeAppClient,
     sidecar: () => sidecar,
   });
 }

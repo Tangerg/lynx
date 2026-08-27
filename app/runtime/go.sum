@@ -17,8 +17,8 @@ github.com/Tangerg/scope/a2a v0.0.1 h1:hfl4NUL7kNPtAgxr0pEcF2iNVKLn5n+G315cNyQwu
 github.com/Tangerg/scope/a2a v0.0.1/go.mod h1:l+jxCO8pNr9MHplpR6viuu2uGDxZzbns/LTAF6boA6U=
 github.com/Tangerg/scope/agent v0.0.1 h1:xGo6BVsJ8UFDLpL40cYGfIDdmwV1SlcgOeoyhOJT+jE=
 github.com/Tangerg/scope/agent v0.0.1/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827170400-0e00aaa541f3 h1:d/phsGyn8jSvZQ2wHFyFW5xded2Bke76OAwLOoqq3w8=
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827170400-0e00aaa541f3/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29 h1:DtrNYCn7gYbm8t2ZDofa2sBGALj3qgC10JH7vVnBfV4=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
 github.com/Tangerg/scope/core v0.0.1 h1:fs347LjoXriZ6gKpfY/AJAt7L21mrxXbB1Be2DOi6Yk=
 github.com/Tangerg/scope/core v0.0.1/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
 github.com/Tangerg/scope/mcp v0.0.1 h1:RHgxDGZnRYqNfj6B2hUtKm6VRtYJ9CACFeVsrRpWq+0=

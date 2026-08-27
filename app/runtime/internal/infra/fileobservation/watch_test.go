@@ -9,7 +9,7 @@ import (
 
 func TestWatchObservesMissingParentsReplacementAndRemoval(t *testing.T) {
 	root := t.TempDir()
-	target := filepath.Join(root, "nested", ".lyra", "hooks.json")
+	target := filepath.Join(root, "nested", ".scopeapp", "hooks.json")
 	events := make(chan []string, 8)
 	watcher, err := Watch([]Target{{Key: "hooks", Path: target}}, func(keys []string) { events <- keys })
 	if err != nil {
@@ -43,7 +43,7 @@ func TestWatchObservesMissingParentsReplacementAndRemoval(t *testing.T) {
 func TestWatchObservesPhysicalSymlinkTargetAndCloseJoins(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "knowledge-target.md")
-	alias := filepath.Join(root, "LYRA.md")
+	alias := filepath.Join(root, "SCOPEAPP.md")
 	if err := os.WriteFile(target, []byte("one"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +77,8 @@ func TestWatchObservesPhysicalSymlinkTargetAndCloseJoins(t *testing.T) {
 
 func TestAcceptRefreshesOnlyTheExactIdentity(t *testing.T) {
 	root := t.TempDir()
-	first := filepath.Join(root, "first", "LYRA.md")
-	second := filepath.Join(root, "second", "LYRA.md")
+	first := filepath.Join(root, "first", "SCOPEAPP.md")
+	second := filepath.Join(root, "second", "SCOPEAPP.md")
 	for _, path := range []string{first, second} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -115,7 +115,7 @@ func TestAcceptRefreshesOnlyTheExactIdentity(t *testing.T) {
 
 func TestWatchSuppressesMetadataNoiseWithoutSemanticChange(t *testing.T) {
 	root := t.TempDir()
-	target := filepath.Join(root, "LYRA.md")
+	target := filepath.Join(root, "SCOPEAPP.md")
 	if err := os.WriteFile(target, []byte("stable"), 0o644); err != nil {
 		t.Fatal(err)
 	}

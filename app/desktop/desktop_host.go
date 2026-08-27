@@ -75,11 +75,14 @@ type DesktopHost struct {
 	window nativeWindow
 }
 
-func newDesktopHost(home string) *DesktopHost {
-	root := filepath.Join(home, ".lyra")
-	return &DesktopHost{
-		localTokenPath: filepath.Join(root, "local-token"),
+func newDesktopHost(home string) (*DesktopHost, error) {
+	dataDirectory, err := localruntime.DefaultDataDirectory(home)
+	if err != nil {
+		return nil, fmt.Errorf("desktop host: resolve data directory: %w", err)
 	}
+	return &DesktopHost{
+		localTokenPath: dataDirectory.LocalTokenPath(),
+	}, nil
 }
 
 // useWindow names the window whose chrome `WindowChrome` measures. Unexported on
@@ -105,7 +108,7 @@ func defaultDesktopHost() (*DesktopHost, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desktop host: resolve user home: %w", err)
 	}
-	return newDesktopHost(home), nil
+	return newDesktopHost(home)
 }
 
 // WindowChrome hands the frontend the geometry of the platform's own window

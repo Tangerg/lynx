@@ -202,7 +202,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       };
     },
     {
-      name: "lyra.composer",
+      name: "scopeapp.composer",
       storage: createJSONStorage(() => localStorage),
       version: 1,
       migrate: discardOlderVersions,

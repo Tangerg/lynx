@@ -42,7 +42,7 @@ function openNewChatSession(): void {
 }
 
 export const defaultCommands = definePlugin({
-  name: "lyra.builtin.default-commands",
+  name: "scopeapp.builtin.default-commands",
   setup(ctx) {
     for (const command of defaultStaticCommands({
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),

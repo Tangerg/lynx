@@ -17,7 +17,7 @@ import { subscribeAnySessionRunning } from "@/plugins/builtin/agent/public/run";
 import { definePlugin, READY_HANDLER, WINDOW } from "@/plugins/sdk";
 
 export const windowTitle = definePlugin({
-  name: "lyra.builtin.window-title",
+  name: "scopeapp.builtin.window-title",
   requires: { window: WINDOW },
   setup(ctx) {
     // Subscribe to the "any run working" signal only once the app is READY.

@@ -373,7 +373,7 @@ export const zh: Record<string, string> = {
   "approvals.error.forget": "无法清除该决定。",
 
   "hooks.intro":
-    "钩子在一个 turn 的固定时点跑你自己的命令——工具执行前、prompt 提交后、压缩前。全局钩子（~/.lyra）始终运行；项目的钩子只在你信任它后才运行。",
+    "钩子在一个 turn 的固定时点跑你自己的命令——工具执行前、prompt 提交后、压缩前。全局钩子（~/.scopeapp）始终运行；项目的钩子只在你信任它后才运行。",
   "hooks.trust": "信任此项目的钩子",
   "hooks.trust.sub":
     "此项目的钩子会在你的机器上执行 shell 命令。只对你信任的仓库启用。下一个 turn 起生效。",
@@ -383,7 +383,7 @@ export const zh: Record<string, string> = {
   "hooks.inactive": "未启用",
   "hooks.inactive.hint": "信任此项目以启用其钩子。",
   "hooks.empty": "未配置钩子",
-  "hooks.empty.sub": "在 ~/.lyra/hooks.json（全局）或 <项目>/.lyra/hooks.json 中添加钩子。",
+  "hooks.empty.sub": "在 ~/.scopeapp/hooks.json（全局）或 <项目>/.scopeapp/hooks.json 中添加钩子。",
   "hooks.unavailable": "钩子不可用",
   "hooks.unavailable.sub": "此运行时未提供钩子管理。",
   "hooks.error.trust": "无法更改项目钩子信任。",
@@ -506,14 +506,14 @@ export const zh: Record<string, string> = {
 
   "settings.pane.connection": "连接",
   "settings.connection.title": "后端",
-  "settings.connection.sub": "Lyra Runtime 的地址。应用后桌面端将切换连接。",
+  "settings.connection.sub": "ScopeApp Runtime 的地址。应用后桌面端将切换连接。",
   "settings.connection.url": "URL",
   "settings.connection.apply": "应用",
   "settings.connection.reset": "恢复默认",
   "settings.connection.status.checking": "正在检查 Runtime…",
   "settings.connection.status.reconnecting": "正在重新连接…",
   "runtime.connection.reconnecting": "Runtime 连接已断开，正在重新连接…",
-  "runtime.connection.unavailable": "Runtime 暂时不可用，Lyra 会继续尝试连接。",
+  "runtime.connection.unavailable": "Runtime 暂时不可用，ScopeApp 会继续尝试连接。",
   "runtime.connection.settings": "连接设置",
   "settings.connection.status.ready": "就绪",
   "settings.connection.status.degraded": "部分降级",
@@ -727,7 +727,7 @@ export const zh: Record<string, string> = {
   "recipes.available": "{{count}} 个可用",
   "recipes.empty.title": "暂无 recipe",
   "recipes.empty.sub":
-    "在 .lyra/recipes（项目）或 ~/.lyra/recipes（全局）放一个 .md 文件 —— 文件名即一个 /slash 命令。",
+    "在 .scopeapp/recipes（项目）或 ~/.scopeapp/recipes（全局）放一个 .md 文件 —— 文件名即一个 /slash 命令。",
   "schedules.intro":
     "按计划运行一段存好的 prompt。运行时在线期间,每次触发开一个新会话 —— 在边栏查看输出。",
   "schedules.add": "新建定时任务",
@@ -762,7 +762,7 @@ export const zh: Record<string, string> = {
   "knowledge.scope.home": "主目录",
   "knowledge.off": "关闭",
   "knowledge.empty.title": "暂无知识",
-  "knowledge.empty.sub": "运行时为 agent 维护的 LYRA.md 文件会显示在这里。",
+  "knowledge.empty.sub": "运行时为 agent 维护的 SCOPEAPP.md 文件会显示在这里。",
   "knowledge.disabled.title": "知识功能已关闭",
   "knowledge.disabled.sub": "此运行时未声明知识功能。",
   "knowledge.save": "保存",
@@ -866,7 +866,7 @@ export const zh: Record<string, string> = {
   "convExport.exportedAt": "导出于 {{time}}",
   "convExport.importUnsupported": "此运行时不支持会话导入。",
   "convExport.notJson": "不是 JSON 文件。",
-  "convExport.notLyra": "不是 Lyra 会话导出 —— 请选择通过「导出对话」导出的 JSON 文件。",
+  "convExport.notScopeApp": "不是 ScopeApp 会话导出 —— 请选择通过「导出对话」导出的 JSON 文件。",
   "convExport.importFailed": "无法导入对话。",
   "convExport.importSuccess": "已导入「{{title}}」。",
   "connection.error.urlScheme": "必须以 http:// 或 https:// 开头",

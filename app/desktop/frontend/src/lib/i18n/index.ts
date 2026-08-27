@@ -29,7 +29,7 @@ import { en } from "@/lib/i18n/locales/en";
 
 export type Locale = string;
 
-const STORAGE_KEY = "lyra.locale";
+const STORAGE_KEY = "scopeapp.locale";
 
 function detectInitial(): Locale {
   try {

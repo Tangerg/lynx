@@ -77,7 +77,7 @@ function SkillProposalPreview(props: ToolPreviewProps) {
 }
 
 export const skillPreview = definePlugin({
-  name: "lyra.builtin.skill-preview",
+  name: "scopeapp.builtin.skill-preview",
   setup(ctx) {
     for (const preview of skillToolPreviews({
       list_skills: SkillCatalogPreview,

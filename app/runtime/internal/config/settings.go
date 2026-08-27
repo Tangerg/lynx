@@ -31,7 +31,7 @@ func (m MCPTransport) Valid() bool {
 	return m == MCPTransportStdio || m == MCPTransportStreamableHTTP
 }
 
-// MCPServer is one MCP server entry parsed from LYRA_MCP_SERVERS. It is
+// MCPServer is one MCP server entry parsed from SCOPEAPP_MCP_SERVERS. It is
 // the config package's source DTO; runtime maps it into its registry model.
 type MCPServer struct {
 	Name          string
@@ -86,12 +86,12 @@ type Settings struct {
 	Online Online
 
 	// MCPServers is the parsed list of external MCP servers dialed at startup.
-	// Sourced from LYRA_MCP_SERVERS.
+	// Sourced from SCOPEAPP_MCP_SERVERS.
 	MCPServers []MCPServer
 
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
-	// Sourced from LYRA_A2A_AGENTS; optional cross-origin RPC trust is supplied
-	// separately by LYRA_A2A_RPC_ORIGINS.
+	// Sourced from SCOPEAPP_A2A_AGENTS; optional cross-origin RPC trust is supplied
+	// separately by SCOPEAPP_A2A_RPC_ORIGINS.
 	A2AAgents []A2AAgent
 
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.
@@ -103,14 +103,14 @@ type Settings struct {
 	// result is offloaded out of the conversation and replaced by a head+tail
 	// placeholder the model reads back via read_tool_result. Defaults to
 	// [DefaultToolResultOffloadThreshold] (enabled); set `toolResultOffload.threshold: 0`
-	// (or any non-positive value) in config.yaml / LYRA_TOOLRESULTOFFLOAD_THRESHOLD
+	// (or any non-positive value) in config.yaml / SCOPEAPP_TOOLRESULTOFFLOAD_THRESHOLD
 	// to disable eviction.
 	ToolResultOffloadThreshold int
 
 	// SandboxShell opts the shell tool family into per-command OS isolation:
 	// each command runs in an in-place jail rooted at its cwd (workspace-write
 	// only, network denied, $HOME hidden, env scrubbed). Off by default (a plain
-	// /bin/sh -c). Sourced from `sandbox.shell` / LYRA_SANDBOX_SHELL. On a host
+	// /bin/sh -c). Sourced from `sandbox.shell` / SCOPEAPP_SANDBOX_SHELL. On a host
 	// with no isolation backend (only macOS Seatbelt today) enabling it refuses
 	// startup — fail-closed, rather than silently running shells unconfined.
 	SandboxShell bool

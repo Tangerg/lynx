@@ -24,7 +24,7 @@ var ErrPromptRejected = errors.New("agentexec: prompt rejected by lifecycle hook
 
 // WorkingContextConfig supplies the Runtime-owned prompt layers used to build
 // one self-contained fresh-root context. Every reader is optional; the base
-// prompt, LYRA/AGENTS knowledge and enabled readers are combined deterministically.
+// prompt, SCOPEAPP/AGENTS knowledge and enabled readers are combined deterministically.
 type WorkingContextConfig struct {
 	UserHome          string
 	Knowledge         KnowledgeReader

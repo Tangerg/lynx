@@ -20,7 +20,7 @@ import (
 // tracer emits the MCP dial / reconnect spans the lower layers don't (per-call
 // MCP tool spans come from the mcp module itself). No-op until a provider is
 // installed.
-var tracer = otel.Tracer("scope/lyra/infra/mcp")
+var tracer = otel.Tracer("scope/scopeapp/infra/mcp")
 
 // Dial connects to each configured server, lists its tools, and returns the
 // Connections handle alongside the merged model-facing tool list. The server
@@ -77,7 +77,7 @@ func Dial(
 		}
 	}
 
-	// One client identity for every server — none of lyra's connections need
+	// One client identity for every server — none of scopeapp's connections need
 	// per-server handlers (sampling / list-changed), so they share it. Retained
 	// so Reconnect / Configure can re-dial with it.
 	client := newClient()

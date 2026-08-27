@@ -220,7 +220,7 @@ Clean Architecture 在本项目中首先是**所有权与依赖方向**，不是
 > 这个概念是否对所有 Framework 消费者都成立？
 
 - 对所有消费者成立的 execution 原语可以进入 Agent；
-- 只有 Lyra App 需要的事务、幂等、产品 identity、投影和协议必须留在 App；
+- 只有 ScopeApp App 需要的事务、幂等、产品 identity、投影和协议必须留在 App；
 - wire shape 只存在于 delivery / generated client；
 - UI state、交互和视觉语言只存在于 Desktop；
 - 任何层不得要求内层理解自己的具体概念。
@@ -1107,9 +1107,9 @@ W6.1 breaking blast radius：
 实施顺序：
 
 1. 审计参考仓库的 shell、布局、间距、字体、surface、颜色、阴影、边界、动效和状态；
-2. 建立 Lyra 与 Synara 的页面/组件/状态映射，不复制其业务架构；
+2. 建立 ScopeApp 与 Synara 的页面/组件/状态映射，不复制其业务架构；
 3. 先收敛 design tokens，再实现 shell、Work Index、Agent Narrative、Context Dock；
-4. 将交互 primitive 留在 Base UI，视觉落在 Lyra atoms/agent shell；
+4. 将交互 primitive 留在 Base UI，视觉落在 ScopeApp atoms/agent shell；
 5. 覆盖空态、加载、Waiting、Running、Finished、错误、长文本、窄窗口和高密度 tree；
 6. 使用固定 viewport、截图基线和视觉 diff 做像素级验收；
 7. 真机验证 Wails/WebView 下的字体、DPI、滚动、焦点、拖拽和窗口边缘行为。
@@ -2331,7 +2331,7 @@ method/DTO shape、root stream 语义、child subscribe refusal、Agent public A
   - 新逻辑不进入 stream/resize pointer hot path：coarse target 是 media rule，
     focus effect 只在 sidebar state 边界运行，既有 drag 仍只在结束时提交一次。
 - 真机与平台证据：
-  - 最终 `lyra.app` 已实际启动；CoreGraphics 对该真实进程返回 onscreen、layer 0、
+  - 最终 `scopeapp.app` 已实际启动；CoreGraphics 对该真实进程返回 onscreen、layer 0、
     `1440×900` 主窗口，与 Go/CSS contract 一致；
   - 当前 macOS 明确拒绝此终端的 Screen Recording 与 Accessibility automation，
     因此本文**不声称**取得 Wails 原生窗口截图或自动 VoiceOver 操作；

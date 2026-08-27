@@ -16,10 +16,10 @@ import (
 	domainhooks "github.com/Tangerg/scope/app/runtime/internal/domain/hooks"
 )
 
-// hooksRelPath is the cascade filename. Global lives at ~/.lyra/hooks.json; a
-// project's lives at <dir>/.lyra/hooks.json for any dir from the project root
+// hooksRelPath is the cascade filename. Global lives at ~/.scopeapp/hooks.json; a
+// project's lives at <dir>/.scopeapp/hooks.json for any dir from the project root
 // down to the cwd.
-const hooksRelPath = ".lyra/hooks.json"
+const hooksRelPath = ".scopeapp/hooks.json"
 
 // Load discovers and parses the hooks.json cascade for a working directory and
 // returns every configured hook, each stamped with its scope and source path.

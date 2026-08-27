@@ -13,7 +13,7 @@
 
 import { context, type Span, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 
-const TRACER_NAME = "lyra-frontend";
+const TRACER_NAME = "scopeapp-frontend";
 
 /** Open a span for one agent run. Coarse: covers the whole run (start →
  *  finish), the parent the RPC CLIENT spans nest under. */

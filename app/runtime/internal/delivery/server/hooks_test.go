@@ -90,7 +90,7 @@ func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {
 		ProjectRoot: root,
 		Hooks: []domainhooks.Hook{{
 			Event: domainhooks.SubagentStart, Command: "audit", TimeoutMillis: 2500,
-			Scope: domainhooks.ScopeGlobal, Source: "/home/user/.lyra/hooks.json",
+			Scope: domainhooks.ScopeGlobal, Source: "/home/user/.scopeapp/hooks.json",
 		}},
 	}}})
 

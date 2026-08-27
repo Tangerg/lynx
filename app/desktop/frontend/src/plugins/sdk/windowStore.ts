@@ -8,6 +8,7 @@
 // state, not extension registration.
 
 import { create } from "zustand";
+import { PRODUCT_NAME } from "@/product";
 
 interface WindowState {
   title: string;
@@ -22,7 +23,7 @@ function compose(base: string, badge: number, working: boolean): void {
   if (typeof document === "undefined") return;
   const dot = working ? "● " : "";
   const count = badge > 0 ? `(${badge}) ` : "";
-  document.title = `${dot}${count}${base || "Lyra"}`;
+  document.title = `${dot}${count}${base || PRODUCT_NAME}`;
 }
 
 export const useWindowStore = create<WindowState>((set, get) => ({

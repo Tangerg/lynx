@@ -12,7 +12,7 @@ import {
   runEventReliability,
   type ProblemData,
   type RequestMeta,
-} from "@lyra/runtime-contract/wire";
+} from "@scopeapp/runtime-contract/wire";
 import type {
   Transport,
   TransportEvent,
@@ -26,7 +26,7 @@ import {
   type WireMethodName,
   type WireParams,
   type WireResult,
-} from "@lyra/runtime-contract/methods";
+} from "@scopeapp/runtime-contract/methods";
 import {
   isWireNotificationName,
   validateMethodResult,
@@ -34,7 +34,7 @@ import {
   validateWire,
   type WireNotificationName,
   type WireNotificationParams,
-} from "@lyra/runtime-contract/validate";
+} from "@scopeapp/runtime-contract/validate";
 import type { RpcId, RpcMessage } from "./types";
 import { JSONRPC_VERSION, isErrorResponse, isNotification, isResponse } from "./types";
 

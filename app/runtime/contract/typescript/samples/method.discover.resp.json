@@ -1,11 +1,11 @@
 {
-  "protocolVersion": "2026-08-24",
+  "protocolVersion": "2026-08-28",
   "serverInfo": {
     "instanceId": "runtime_019c765b-2f8f-7e36-a2b4-31cb11f48d10",
-    "name": "lyra",
+    "name": "scopeapp",
     "version": "0.1.0",
     "defaultWorkspace": { "path": "/Users/dev/project" },
-    "home": "/Users/dev/.lyra"
+    "home": "/Users/dev/.scopeapp"
   },
   "capabilities": {
     "runEvents": [

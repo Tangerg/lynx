@@ -12,8 +12,8 @@
 
 import type { MemoryTransport } from "./memory";
 import type { TransportRequest } from "../transport";
-import type { RunMetrics, SegmentOutcome, StreamEvent } from "@lyra/runtime-contract/wire";
-import type { WireMethodName } from "@lyra/runtime-contract/methods";
+import type { RunMetrics, SegmentOutcome, StreamEvent } from "@scopeapp/runtime-contract/wire";
+import type { WireMethodName } from "@scopeapp/runtime-contract/methods";
 import { RUN_EVENT_METHOD } from "../stream";
 import { JSONRPC_VERSION, type RpcId, type RpcMessage } from "../types";
 

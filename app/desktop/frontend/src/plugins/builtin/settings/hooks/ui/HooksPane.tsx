@@ -1,6 +1,6 @@
 // The "Hooks" settings pane. Reviews the lifecycle hooks the runtime
 // discovered for the active project (hooks.list) — global
-// (~/.lyra) + project (<root>/.lyra) — and toggles whether the project's hooks
+// (~/.scopeapp) + project (<root>/.scopeapp) — and toggles whether the project's hooks
 // are trusted to run (hooks.setTrust).
 //
 // Trust is the security seam: a cloned repo's hooks run shell commands, so they

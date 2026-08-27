@@ -5,7 +5,7 @@ import { VISUAL_STYLE } from "@/plugins/sdk/kernelPoints";
 
 export function defineVisualStylePlugin(spec: VisualStyleSpec): AnyPlugin {
   return definePlugin({
-    name: `lyra.builtin.visual-style-${spec.id}`,
+    name: `scopeapp.builtin.visual-style-${spec.id}`,
     setup(ctx) {
       ctx.contribute(VISUAL_STYLE, spec);
     },

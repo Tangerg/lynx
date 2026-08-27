@@ -24,7 +24,7 @@ function EditButton() {
 }
 
 export const messageEdit = definePlugin({
-  name: "lyra.builtin.message-edit",
+  name: "scopeapp.builtin.message-edit",
   setup(ctx) {
     contributeLayout(ctx, "message.actions", { id: "edit", order: 5, component: EditButton });
   },

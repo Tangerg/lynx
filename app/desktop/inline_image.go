@@ -62,5 +62,5 @@ func decodeInlineImage(source string) (extension string, contents []byte, err er
 
 func suggestedImageFilename(extension string) string {
 	stamp := time.Now().Format("2006-01-02 at 15.04.05")
-	return fmt.Sprintf("Lyra Image %s.%s", stamp, extension)
+	return fmt.Sprintf("ScopeApp Image %s.%s", stamp, extension)
 }

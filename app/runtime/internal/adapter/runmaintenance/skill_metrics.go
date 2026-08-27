@@ -17,7 +17,7 @@ import (
 // extraction workers carry none, so instrumenting only the skill ops with spans
 // would be inconsistent. A coherent maintenance-tracing pass is a separate
 // concern; these counters cover the self-evolving loop's activity meanwhile.
-const skillMetricsScope = "scope/lyra/skill"
+const skillMetricsScope = "scope/scopeapp/skill"
 
 var minedSkillProposalCounter = sync.OnceValue(func() metric.Int64Counter {
 	// A creation error yields a usable no-op counter, so it's safe to drop.

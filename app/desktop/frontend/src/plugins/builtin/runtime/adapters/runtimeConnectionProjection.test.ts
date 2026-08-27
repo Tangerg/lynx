@@ -58,7 +58,7 @@ function inspection(capabilities = makeCaps()): RuntimeConnectionInspection<Serv
     processGeneration: "runtime_1",
     capabilities,
     service: {
-      server: { name: "lyra", version: "1.2.3" },
+      server: { name: "scopeapp", version: "1.2.3" },
       protocolVersion: "2026-07-01",
       health: "ready",
       checks: {},

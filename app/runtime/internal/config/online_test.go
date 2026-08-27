@@ -9,9 +9,9 @@ import (
 )
 
 func TestLoadOnline_EnvOverridesYAML(t *testing.T) {
-	t.Setenv("LYRA_JINA_API_KEY", "jina-env")
-	t.Setenv("LYRA_TAVILY_API_KEY", "tavily-env")
-	t.Setenv("LYRA_HTTP_ALLOWED_HOSTS", "api.github.com, *.example.com ")
+	t.Setenv("SCOPEAPP_JINA_API_KEY", "jina-env")
+	t.Setenv("SCOPEAPP_TAVILY_API_KEY", "tavily-env")
+	t.Setenv("SCOPEAPP_HTTP_ALLOWED_HOSTS", "api.github.com, *.example.com ")
 
 	v := viper.New()
 	v.SetConfigType("yaml")

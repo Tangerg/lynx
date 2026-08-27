@@ -9,7 +9,7 @@ import { contributeLayout, definePlugin } from "@/plugins/sdk";
 import { TurnRail } from "./ui/TurnRail";
 
 export default definePlugin({
-  name: "lyra.builtin.narrative-rails",
+  name: "scopeapp.builtin.narrative-rails",
   setup(ctx) {
     contributeLayout(ctx, "chat.rail.start", {
       id: "turn-rail",

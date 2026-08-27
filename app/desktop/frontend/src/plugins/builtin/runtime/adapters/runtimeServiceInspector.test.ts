@@ -4,7 +4,7 @@ import {
   HTTP_ENDPOINTS,
   PROTOCOL_VERSION,
   type DiscoverResponse,
-  type LyraClient,
+  type ScopeAppClient,
   type SidecarClient,
 } from "@/rpc";
 import { runtimeServiceInspector } from "./runtimeServiceInspector";
@@ -13,7 +13,7 @@ const discovery: DiscoverResponse = {
   protocolVersion: PROTOCOL_VERSION,
   serverInfo: {
     instanceId: "runtime_1",
-    name: "lyra",
+    name: "scopeapp",
     version: "1.2.3",
     defaultWorkspace: { path: "/workspace" },
     home: "/home",
@@ -32,15 +32,15 @@ const discovery: DiscoverResponse = {
   },
 };
 
-function runtimeClient(discover = vi.fn().mockResolvedValue(discovery)): LyraClient {
-  return { runtime: { discover } } as unknown as LyraClient;
+function runtimeClient(discover = vi.fn().mockResolvedValue(discovery)): ScopeAppClient {
+  return { runtime: { discover } } as unknown as ScopeAppClient;
 }
 
 function sidecar(overrides: Partial<SidecarClient> = {}): SidecarClient {
   return {
     info: vi.fn().mockResolvedValue({
       protocolVersion: PROTOCOL_VERSION,
-      server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
+      server: { name: "scopeapp", version: "1.2.3", instanceId: "runtime_1" },
       transport: "http",
       endpoints: {
         rpc: HTTP_ENDPOINTS.rpc.path,
@@ -71,7 +71,7 @@ describe("runtime service inspector", () => {
     await expect(runtimeServiceInspector().inspect(signal)).resolves.toEqual({
       processGeneration: "runtime_1",
       service: {
-        server: { name: "lyra", version: "1.2.3" },
+        server: { name: "scopeapp", version: "1.2.3" },
         protocolVersion: PROTOCOL_VERSION,
         health: "degraded",
         checks: { database: "ready", git: "degraded" },
@@ -90,7 +90,7 @@ describe("runtime service inspector", () => {
     const client = sidecar({
       info: vi.fn().mockResolvedValue({
         protocolVersion: PROTOCOL_VERSION,
-        server: { name: "lyra", version: "1.2.3", instanceId: "runtime_1" },
+        server: { name: "scopeapp", version: "1.2.3", instanceId: "runtime_1" },
         transport: "http",
         endpoints: {
           rpc: "/v3/rpc",
@@ -127,7 +127,7 @@ describe("runtime service inspector", () => {
     const client = sidecar({
       info: vi.fn().mockResolvedValue({
         protocolVersion: PROTOCOL_VERSION,
-        server: { name: "lyra", version: "1.2.3", instanceId: "runtime_retired" },
+        server: { name: "scopeapp", version: "1.2.3", instanceId: "runtime_retired" },
         transport: "http",
         endpoints: {
           rpc: HTTP_ENDPOINTS.rpc.path,

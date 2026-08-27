@@ -2231,7 +2231,7 @@ func forbidden(from, to string) bool {
 }
 
 // moduleRoot walks up from the test's working directory to the directory
-// holding go.mod (the lyra module root).
+// holding go.mod (the scopeapp module root).
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

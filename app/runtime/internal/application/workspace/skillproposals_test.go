@@ -25,7 +25,7 @@ func (f *fakeSkillProposals) SubmitProposal(_ context.Context, projectRoot strin
 	if f.submitErr != nil {
 		return skills.ProposalRef{}, nil, f.submitErr
 	}
-	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), []string{"/repo/.lyra/skills/_proposals/skill-name/SKILL.md"}, nil
+	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), []string{"/repo/.scopeapp/skills/_proposals/skill-name/SKILL.md"}, nil
 }
 
 func (f *fakeSkillProposals) ListProposals(_ context.Context, projectRoot string) ([]skills.ProposalReview, error) {
@@ -39,7 +39,7 @@ func (f *fakeSkillProposals) ApproveProposal(_ context.Context, projectRoot stri
 		return nil, f.approveErr
 	}
 	f.approved = append(f.approved, ref)
-	return []string{"/repo/.lyra/skills/run-tests/SKILL.md"}, nil
+	return []string{"/repo/.scopeapp/skills/run-tests/SKILL.md"}, nil
 }
 
 func (f *fakeSkillProposals) RejectProposal(_ context.Context, projectRoot string, ref skills.ProposalRef) ([]string, error) {
@@ -48,7 +48,7 @@ func (f *fakeSkillProposals) RejectProposal(_ context.Context, projectRoot strin
 		return nil, f.rejectErr
 	}
 	f.rejected = append(f.rejected, ref)
-	return []string{"/repo/.lyra/skills/_proposals/skill-name/SKILL.md"}, nil
+	return []string{"/repo/.scopeapp/skills/_proposals/skill-name/SKILL.md"}, nil
 }
 
 func TestSkillProposalsUnavailableWithoutStore(t *testing.T) {

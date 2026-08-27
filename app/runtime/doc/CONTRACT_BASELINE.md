@@ -1,8 +1,8 @@
-# Lyra Runtime 合同基线
+# ScopeApp Runtime 合同基线
 
-> 状态：Runtime Protocol Baseline 1
+> 状态：Runtime Protocol Baseline 2
 >
-> 基线日期：2026-08-24
+> 基线日期：2026-08-28
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
@@ -31,16 +31,18 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 P186 为仓库内 85 个非 `app/**` Go module 建立首个 canonical `v0.0.1`，标签名称精确为 `<module-dir>/v0.0.1`；上层 module 只引用已发布的下层正式版本。4 个 app module 不属于该发布集合，`app/runtime` 只把非 app Scope 依赖切换为 `v0.0.1`，内部 `localruntime` 部署交接仍由 app 自身版本拥有。该发布事实不改变 Runtime Protocol、公共 Go surface、Artifact、SQLite、Agent Framework contract 或 Desktop generated binding。
 
-## 2. Runtime Protocol Baseline 1
+P187 将产品身份一次性切换为 `scopeapp` / `ScopeApp`：协议元数据、OpenRPC 扩展键、生成 TypeScript package 与公共客户端名称不再发布旧品牌。Runtime 只接受 `SCOPEAPP_*` 环境变量，默认 durability 只位于 `~/.scopeapp`，知识文件只名为 `SCOPEAPP.md`；旧环境变量、目录、文件名、别名与兼容 reader 均不存在。共享 `localruntime.DataDirectory` 是 Runtime/Desktop 对 database 与 local-token 布局的唯一部署值对象。该 breaking cutover 将 Protocol 精确前移到 `2026-08-28`；Artifact v23 与 SQLite epoch 83 的数据 shape 不变。
+
+## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `f2264bd241ea2bdd19f72061f290e21ce41319b1b8ff4b4a1c033beb55af1441` |
-| `contract/openrpc.json` | `94af81a7fcb8cdc3c3ce8d16624110fb71df44e070a75c830b33e3ffd7f0105d` |
-| `contract/schema.json` | `c7e4004c928d2bf73d606e1b67ba87b5a407ac296c8d279726a0337c974fe428` |
-| `contract/go-api.json` | `9701b198772e5c63d73ecb4a174a091c276cee2e37b77d2a303ae37848d76c00` |
+| `contract/manifest.json` | `5b533aff6081876805f60035ed603b34ba9dc93fc04c42c1b91486726f63f0f6` |
+| `contract/openrpc.json` | `6aac79ba0c991f8574bfd30d37f6a8fccb850951bde80076eeb1477e9a0d1413` |
+| `contract/schema.json` | `516210a8095029d787b31d6bda50b98a2a80c1211c678957483364815912c6be` |
+| `contract/go-api.json` | `6c7da682d772ea661861d5a0fc59cb76e65484fad319539d29b19107030cbd88` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -54,7 +56,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-24`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-28`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 P153 直接删除 Codebase semantic-index contract：公共 Go surface、三项 operation、feature、runtime topic、DTO/enum/sample 及 Desktop/CLI direct consumer 同批消失；不存在旧同日 Protocol shape reader、disabled capability 或 compatibility binding。当前 manifest 精确发布 86 个 methods、17 个 features 与 15 个 runtime topics。Embedding role 仍是 Agent Memory 的可选配置，不是被删除能力的残留别名。
 
@@ -74,13 +76,13 @@ P160 只收紧 Runtime internal LSP document synchronization：进入 digest、`
 
 P161 只收紧 Runtime internal MCP remote catalog admission：每 connected server 最多 2048 个 tools，每个 description 最多 64 KiB 且为有效 UTF-8，每个 encoded input schema 最多 1 MiB；模型目录和 `mcp.tools.list` 管理目录都 fail closed，不返回截断前缀。MCP operation request/result shape、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
-P162 只收紧 Knowledge 完整文档准入：单份 home/projectRoot/cwd `LYRA.md` 最多 1 MiB，`knowledge.update` 在 persistence port 前拒绝超限内容并投影为 `invalid_params`，filesystem store 的 direct write 与外部文件 read 复用同一 Domain 上限；完整 cascade 不截断或跳过越界文档。Knowledge operation request/result shape、content-revision 格式、CAS/atomic-replace/recovery 语义、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+P162 只收紧 Knowledge 完整文档准入：单份 home/projectRoot/cwd `SCOPEAPP.md` 最多 1 MiB，`knowledge.update` 在 persistence port 前拒绝超限内容并投影为 `invalid_params`，filesystem store 的 direct write 与外部文件 read 复用同一 Domain 上限；完整 cascade 不截断或跳过越界文档。Knowledge operation request/result shape、content-revision 格式、CAS/atomic-replace/recovery 语义、operation/feature/topic catalog、generated Desktop binding、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
 P163 只收紧 Lifecycle Hook 配置准入：单份 `hooks.json` 最多 256 KiB/128 条，global + project 完整级联最多 256 条；matcher 最多 256 bytes、command/inject 最多 8 KiB、command timeout 最多 5 分钟，配置文本必须是有效 UTF-8。`hooks.list` 与 fresh Run binding 对任一超限文件或级联整体失败，不截断、不跳过、不发布部分策略。Hook operation/request/result shape、trust key/active 语义、event/scope vocabulary、Protocol `2026-08-24`、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
 P164 收紧 Hook command 私有进程合同：stdout/stderr 各最多保留 64 KiB 且继续 drain；stdout 只能为空或一个 UTF-8 JSON object，只接受 `decision/reason/injectContext/rewriteArguments` 与 `allow/deny/ask`，unknown/trailing/malformed/overflow 输出作为可观察的 broken-hook failure，不贡献 decision。既有非阻断错误策略保持，exit code 2 即使 stdout 失效也继续 deny；Unix timeout/cancellation 终止整个 process group，返回时再次清理后代。该私有 shell contract 的严格化不改变 `hooks.*` Protocol shape、trust/event/scope 语义、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI。
 
-P165 收紧同一私有 Hook command stdin 合同：Domain command projection 将 prompt/arguments/result/reason 类 material 分别限制在 256/256/128/8 KiB，prompt 与 result 只发布 marked UTF-8 prefix，arguments 必须 lossless；Shell 在进程创建前同时要求 raw material 与最终 JSON stdin 不超过 512 KiB。新增 `promptTruncated`、`tool.resultTruncated` 与 Subagent 对应 marker 只属于 private process JSON，不进入 Lyra Protocol。超界或非法 material 作为可观察的 broken-hook failure，不执行 command；declarative hook 仍独立生效。`hooks.*` Protocol shape、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
+P165 收紧同一私有 Hook command stdin 合同：Domain command projection 将 prompt/arguments/result/reason 类 material 分别限制在 256/256/128/8 KiB，prompt 与 result 只发布 marked UTF-8 prefix，arguments 必须 lossless；Shell 在进程创建前同时要求 raw material 与最终 JSON stdin 不超过 512 KiB。新增 `promptTruncated`、`tool.resultTruncated` 与 Subagent 对应 marker 只属于 private process JSON，不进入 ScopeApp Protocol。超界或非法 material 作为可观察的 broken-hook failure，不执行 command；declarative hook 仍独立生效。`hooks.*` Protocol shape、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
 P166 收紧现有 `agentDocs.list` / fresh Run AGENTS.md 与 `recipes.list` 的 authored-source 准入，不改变 wire shape：Application 统一规定每份完整文档最多 1 MiB/valid UTF-8，Agent document cascade 最多 64 份/4 MiB，Recipe 每 scope 128 份且完整级联最多 256 份/8 MiB；filesystem adapter 在 parse/materialize 前以 stat + cancellation-aware `limit+1` 复验，并以 1024-entry sentinel 限制 Recipe directory scan。现存 invalid/oversized source 整体失败；AGENTS.md 模型 projection 仍按 32 KiB 选择完整的 most-specific tail，但单份文档放不进预算时拒绝 Run，不静默省略。Protocol `2026-08-24`、operation/feature/topic catalog、Artifact v23、SQLite epoch 82、generated Desktop binding、公共 Go API、Desktop source、Agent Framework 与 CLI 均不改变。
 
@@ -94,7 +96,7 @@ P170 收紧既有 `workspace.files.read/head` 语义，不改变 `ReadFileReques
 
 P171 收紧既有 `workspace.files.search` 行为，不改变 `GrepRequest` / `GrepResult` shape。`query` 是最多 64 KiB 且必须编译成功的 Go/RE2-compatible regex；`limit=0` 选择 100，显式值最高 1000。Searchable corpus 使用既有 ignore-aware 20,000-candidate file catalog，单个完整 UTF-8 regular file/line 最多 8/1 MiB，一次请求实际扫描最多 512 MiB；binary/invalid/oversized individual source 不属于 corpus，catalog/aggregate 超限映射 `invalid_params`。`Matches` 是最多 8 MiB 的稳定 whole-row prefix，`Total` 在同一次 complete admitted-corpus scan 上精确产生并可大于 prefix；Application 复验 direct port 的 count/material/path/line/order/text/query correspondence。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding shape、公共 Go API、Desktop source、Agent Framework、`tools/fs` 与 CLI 均不改变。
 
-P172 breaking 收敛 model/direct filesystem search Tool contract；这不是 Lyra Protocol method。Tool 名 `glob`/`grep` 保持。两种 request 当前唯一 shape 都是 `pattern/path?/max_results?`，pattern/path 分别由 strict schema 限制，default/max result count 统一为 100/1000；glob pattern 是相对 selected path 的 case-sensitive segment-doublestar，grep pattern 是逐完整行匹配的 Go/RE2 regex。旧 glob `ignore_case` 与 grep `file_glob/file_type/ignore_case/multiline/before_context_lines/after_context_lines/output_mode` 完整删除，不接受 alias；case-insensitive regex 用 inline flag，文件集合与上下文分别组合 glob/read。Glob response 唯一 shape 为 `paths/total/truncated`，grep 为 `matches/total/truncated`，其中 total 来自完整 admitted corpus，truncated 精确表示 retained prefix。两者使用 canonical root confinement、ignore-aware 20,000-candidate catalog，并逐 row 计算 JSON representation，使最终 encoded Tool result 最多 1 MiB；grep 前置 scanner 仍服从 P171 的 8 MiB row result、8/1/512 MiB file/line/scan。Runtime 不再调用共享 `tools/fs` Glob/Grep 或宿主 `find/rg/grep`。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding、公共 Go API、Desktop source、Agent Framework、共享 `tools/fs` 与 CLI 均不改变。
+P172 breaking 收敛 model/direct filesystem search Tool contract；这不是 ScopeApp Protocol method。Tool 名 `glob`/`grep` 保持。两种 request 当前唯一 shape 都是 `pattern/path?/max_results?`，pattern/path 分别由 strict schema 限制，default/max result count 统一为 100/1000；glob pattern 是相对 selected path 的 case-sensitive segment-doublestar，grep pattern 是逐完整行匹配的 Go/RE2 regex。旧 glob `ignore_case` 与 grep `file_glob/file_type/ignore_case/multiline/before_context_lines/after_context_lines/output_mode` 完整删除，不接受 alias；case-insensitive regex 用 inline flag，文件集合与上下文分别组合 glob/read。Glob response 唯一 shape 为 `paths/total/truncated`，grep 为 `matches/total/truncated`，其中 total 来自完整 admitted corpus，truncated 精确表示 retained prefix。两者使用 canonical root confinement、ignore-aware 20,000-candidate catalog，并逐 row 计算 JSON representation，使最终 encoded Tool result 最多 1 MiB；grep 前置 scanner 仍服从 P171 的 8 MiB row result、8/1/512 MiB file/line/scan。Runtime 不再调用共享 `tools/fs` Glob/Grep 或宿主 `find/rg/grep`。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding、公共 Go API、Desktop source、Agent Framework、共享 `tools/fs` 与 CLI 均不改变。
 
 P173 收紧 Runtime internal Skill source/lifecycle 行为，不改变 `skills.discovered.list`、`skills.library.list/archive/restore`、`skills.proposals.*`、`Skill`/`ManagedSkill`/`Page` wire shape 或 model Tool 名/schema。每个 project/user complete-list 当前最多 256 个 valid-name candidate、272 个 raw top-level entries；完整 `SKILL.md` 与 `read_skill_resource` 文件各最多 1 MiB。用户托管 active+archived 总量、approval、完整 list 与 idle sweep 共用 256-entry strict snapshot；`.usage.json` 最多 64 KiB/256 records。越界使用稳定 internal capacity/size error 整体失败，不分页、不截断、不回退共享 SDK 的 unbounded reader。Protocol `2026-08-24`、86 methods/17 features/15 topics、Artifact v23、SQLite epoch 82、generated binding、公共 Go API、Desktop source、Agent Framework、共享 `skills`/`tools/skills` 与 CLI 均不改变。
 

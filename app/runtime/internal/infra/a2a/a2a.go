@@ -29,7 +29,7 @@ type ClientConfig struct {
 	AllowedRPCOrigins []string
 }
 
-var tracer = otel.Tracer("scope/lyra/infra/a2a")
+var tracer = otel.Tracer("scope/scopeapp/infra/a2a")
 
 // Connections owns the remote-agent connection cleanup for shutdown.
 type Connections struct {

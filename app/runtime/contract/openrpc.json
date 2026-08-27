@@ -1,8 +1,8 @@
 {
   "openrpc": "1.3.2",
   "info": {
-    "title": "Lyra Runtime Protocol",
-    "version": "2026-08-24",
+    "title": "ScopeApp Runtime Protocol",
+    "version": "2026-08-28",
     "description": "Generated from the Contract Registry. Shapes live in schema.json; this document is the method surface."
   },
   "methods": [
@@ -23,12 +23,12 @@
           "$ref": "schema.json#/$defs/DiscoverResponse"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -75,12 +75,12 @@
           "$ref": "schema.json#/$defs/PageOfSession"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -128,12 +128,12 @@
           "message": "session_not_found"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -190,15 +190,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "subagents"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -211,7 +211,7 @@
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -263,12 +263,12 @@
           "message": "workspace_unavailable"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -368,15 +368,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "relocate"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -389,7 +389,7 @@
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -437,12 +437,12 @@
           "message": "session_not_found"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -506,12 +506,12 @@
           "message": "run_not_found"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -587,15 +587,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "checkpoints"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -621,7 +621,7 @@
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -679,22 +679,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "sessionExport"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "sessionExport"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -741,22 +741,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "sessionExport"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "sessionExport"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -870,15 +870,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "stream",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayRunStream",
-      "x-lyra-replayCursor": "run",
-      "x-lyra-pagination": "none",
-      "x-lyra-streamEvent": {
+      "x-scopeapp-kind": "stream",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayRunStream",
+      "x-scopeapp-replayCursor": "run",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
       },
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -954,15 +954,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "stream",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayRunStream",
-      "x-lyra-replayCursor": "run",
-      "x-lyra-pagination": "none",
-      "x-lyra-streamEvent": {
+      "x-scopeapp-kind": "stream",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayRunStream",
+      "x-scopeapp-replayCursor": "run",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
       },
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1046,15 +1046,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "stream",
-      "x-lyra-operation": "subscription",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "run",
-      "x-lyra-pagination": "none",
-      "x-lyra-streamEvent": {
+      "x-scopeapp-kind": "stream",
+      "x-scopeapp-operation": "subscription",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "run",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-streamEvent": {
         "$ref": "schema.json#/$defs/RunEvent"
       },
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1121,12 +1121,12 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1209,12 +1209,12 @@
           "message": "stale_segment"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1266,12 +1266,12 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1347,15 +1347,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-features": [
         "subagents"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -1368,7 +1368,7 @@
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1437,12 +1437,12 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1494,22 +1494,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "plan"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "plan"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1583,15 +1583,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-features": [
         "subagents"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -1604,7 +1604,7 @@
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1650,12 +1650,12 @@
           "message": "workspace_unavailable"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1689,12 +1689,12 @@
           "$ref": "schema.json#/$defs/PageOfWorkspaceSummary"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1749,22 +1749,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "git"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "git"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1848,22 +1848,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "git"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "git"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -1929,12 +1929,12 @@
           "message": "path_outside_root"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2006,12 +2006,12 @@
           "message": "path_outside_root"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2099,12 +2099,12 @@
           "message": "path_outside_root"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2184,12 +2184,12 @@
           "message": "path_outside_root"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2250,15 +2250,15 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "stream",
-      "x-lyra-operation": "subscription",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "stream",
+      "x-scopeapp-operation": "subscription",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "fileWatch"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "when": [
             {
@@ -2271,10 +2271,10 @@
           ]
         }
       ],
-      "x-lyra-streamEvent": {
+      "x-scopeapp-streamEvent": {
         "$ref": "schema.json#/$defs/RuntimeEvent"
       },
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2325,22 +2325,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2380,22 +2380,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2443,22 +2443,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2506,22 +2506,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2568,22 +2568,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2653,22 +2653,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2738,22 +2738,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "skills"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "skills"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2800,12 +2800,12 @@
           "message": "workspace_unavailable"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2852,12 +2852,12 @@
           "message": "workspace_unavailable"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -2897,22 +2897,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3011,22 +3011,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3123,22 +3123,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3190,22 +3190,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3300,22 +3300,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3361,22 +3361,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3432,22 +3432,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3503,22 +3503,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3570,22 +3570,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "mcp"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "mcp"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3632,12 +3632,12 @@
           "message": "workspace_unavailable"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3686,12 +3686,12 @@
           "type": "object"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3725,12 +3725,12 @@
           "$ref": "schema.json#/$defs/ApprovalModeResult"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3771,12 +3771,12 @@
           "$ref": "schema.json#/$defs/ApprovalModeResult"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3818,12 +3818,12 @@
           "$ref": "schema.json#/$defs/ListApprovalRulesResult"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3865,12 +3865,12 @@
           "type": "object"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -3923,22 +3923,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "cursor",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "cursor",
+      "x-scopeapp-features": [
         "schedules"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "schedules"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4018,22 +4018,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "schedules"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "schedules"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4143,22 +4143,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "schedules"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "schedules"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4206,22 +4206,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "schedules"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "schedules"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4269,22 +4269,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "schedules"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "schedules"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4362,22 +4362,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4435,22 +4435,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4502,22 +4502,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4576,22 +4576,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4643,22 +4643,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4710,22 +4710,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "goals"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "goals"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4759,12 +4759,12 @@
           "$ref": "schema.json#/$defs/PageOfProvider"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4818,12 +4818,12 @@
           "$ref": "schema.json#/$defs/Provider"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4865,12 +4865,12 @@
           "$ref": "schema.json#/$defs/ProviderTestResult"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4910,12 +4910,12 @@
           "$ref": "schema.json#/$defs/PageOfModel"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -4949,12 +4949,12 @@
           "$ref": "schema.json#/$defs/UtilityRole"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5000,12 +5000,12 @@
           "$ref": "schema.json#/$defs/UtilityRole"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5039,12 +5039,12 @@
           "$ref": "schema.json#/$defs/EmbeddingRole"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5090,12 +5090,12 @@
           "$ref": "schema.json#/$defs/EmbeddingRole"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5129,12 +5129,12 @@
           "$ref": "schema.json#/$defs/PageOfToolSpec"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5198,12 +5198,12 @@
           "message": "path_outside_root"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5251,12 +5251,12 @@
           "message": "session_not_found"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5297,12 +5297,12 @@
           "$ref": "schema.json#/$defs/UsageSummary"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5357,22 +5357,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "knowledge"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "knowledge"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5433,22 +5433,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "knowledge"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "knowledge"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5528,22 +5528,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "knowledge"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "knowledge"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5596,22 +5596,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "query",
-      "x-lyra-idempotency": "none",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "query",
+      "x-scopeapp-idempotency": "none",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "agentMemory"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "agentMemory"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5666,22 +5666,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "agentMemory"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "agentMemory"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5743,22 +5743,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "agentMemory"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "agentMemory"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5806,22 +5806,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "agentMemory"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "agentMemory"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5883,22 +5883,22 @@
           "message": "capability_not_negotiated"
         }
       ],
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-features": [
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-features": [
         "agentMemory"
       ],
-      "x-lyra-capabilityRules": [
+      "x-scopeapp-capabilityRules": [
         {
           "requires": [
             "agentMemory"
           ]
         }
       ],
-      "x-lyra-requestFrame": {
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5962,12 +5962,12 @@
           "type": "object"
         }
       },
-      "x-lyra-kind": "unary",
-      "x-lyra-operation": "command",
-      "x-lyra-idempotency": "replayResponse",
-      "x-lyra-replayCursor": "none",
-      "x-lyra-pagination": "none",
-      "x-lyra-requestFrame": {
+      "x-scopeapp-kind": "unary",
+      "x-scopeapp-operation": "command",
+      "x-scopeapp-idempotency": "replayResponse",
+      "x-scopeapp-replayCursor": "none",
+      "x-scopeapp-pagination": "none",
+      "x-scopeapp-requestFrame": {
         "unevaluatedProperties": false,
         "allOf": [
           {
@@ -5985,7 +5985,7 @@
       }
     }
   ],
-  "x-lyra-notifications": [
+  "x-scopeapp-notifications": [
     {
       "name": "notifications.run.event",
       "params": {

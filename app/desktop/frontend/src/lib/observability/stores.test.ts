@@ -13,7 +13,7 @@ const HISTOGRAM = 0;
 const SUM = 3;
 
 const RES = {} as ResourceMetrics["resource"];
-const SCOPE = { name: "lyra", version: "1.0.0" };
+const SCOPE = { name: "scopeapp", version: "1.0.0" };
 
 function batch(metrics: MetricBuilder[]): ResourceMetrics {
   return {
@@ -92,7 +92,7 @@ describe("telemetry store: ingestMetrics", () => {
       batch([
         () =>
           histogramMetric({
-            name: "lyra.reducer.duration",
+            name: "scopeapp.reducer.duration",
             attrs: { eventType: "item.delta" },
             count: 10,
             sum: 220,
@@ -103,7 +103,7 @@ describe("telemetry store: ingestMetrics", () => {
     const rows = metricRows();
     expect(rows).toHaveLength(1);
     const r = rows[0]!;
-    expect(r.name).toBe("lyra.reducer.duration");
+    expect(r.name).toBe("scopeapp.reducer.duration");
     expect(r.kind).toBe("histogram");
     expect(r.attrs).toEqual({ eventType: "item.delta" });
     expect(r.count).toBe(10);
@@ -145,7 +145,7 @@ describe("telemetry store: ingestMetrics", () => {
   it("ingests a counter into a row with count == sum == total and no histogram fields", () => {
     useTelemetryStore
       .getState()
-      .ingestMetrics(batch([() => counterMetric({ name: "lyra.run.event.count", total: 42 })]));
+      .ingestMetrics(batch([() => counterMetric({ name: "scopeapp.run.event.count", total: 42 })]));
     const r = metricRows()[0]!;
     expect(r.kind).toBe("counter");
     expect(r.count).toBe(42);

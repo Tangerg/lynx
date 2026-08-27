@@ -18,7 +18,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
-var workerTracer = otel.Tracer("scope/lyra/schedule")
+var workerTracer = otel.Tracer("scope/scopeapp/schedule")
 
 const workerTick = time.Minute
 

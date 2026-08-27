@@ -1,11 +1,11 @@
 import { getContainer } from "@/main/container";
 import { describeProblem, rpcErrorText } from "@/lib/rpcErrors";
-import type { LyraClient, Provider, ProviderConfigChange } from "@/rpc";
+import type { ScopeAppClient, Provider, ProviderConfigChange } from "@/rpc";
 import type { ProviderGateway } from "../application/ports/providerGateway";
 import type { ProviderConfiguration } from "../application/providerModels";
 import { ProviderMutationOwner } from "../application/providerMutationOwner";
 
-function runtimeProviderGateway(client: LyraClient): ProviderGateway {
+function runtimeProviderGateway(client: ScopeAppClient): ProviderGateway {
   return {
     async updateProvider(input) {
       const saved = await client.providers.update({

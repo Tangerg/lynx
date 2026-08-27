@@ -63,7 +63,7 @@ function GoalOutcomePreview({ tool }: ToolPreviewProps) {
 }
 
 export const goalPreviews = definePlugin({
-  name: "lyra.builtin.goal-previews",
+  name: "scopeapp.builtin.goal-previews",
   setup(ctx) {
     for (const preview of goalToolPreviews({
       create_goal: CreatedGoalPreview,

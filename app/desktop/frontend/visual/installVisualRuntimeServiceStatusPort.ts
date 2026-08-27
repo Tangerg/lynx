@@ -14,7 +14,7 @@ export function installVisualRuntimeServiceStatusPort(): void {
   const snapshot = {
     phase: "ready",
     observation: {
-      server: { name: "lyra-runtime", version: "0.0.0-visual" },
+      server: { name: "scopeapp-runtime", version: "0.0.0-visual" },
       protocolVersion: "2",
       health: "ready",
       checks: {},

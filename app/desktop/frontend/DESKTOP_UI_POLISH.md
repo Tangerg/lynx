@@ -5,7 +5,7 @@ React WebView app evolves quickly:
 
 - surface depth should come from a deliberate shadow model, not gray borders or
   one large blurry shadow;
-- Lyra should feel like a desktop app that happens to use web technology, not a
+- ScopeApp should feel like a desktop app that happens to use web technology, not a
   website embedded in a window.
 
 References:
@@ -88,7 +88,7 @@ Avoid:
 The Raycast article's key distinction is architectural and behavioral: a desktop
 app may use web technology for UI, but it should not inherit website defaults.
 
-Rules for Lyra:
+Rules for ScopeApp:
 
 - Do not use `cursor: pointer` as a default marker for controls. Desktop apps do
   not need the browser hand cursor everywhere.

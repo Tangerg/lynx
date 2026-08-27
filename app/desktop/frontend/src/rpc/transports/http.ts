@@ -48,17 +48,17 @@ import {
 } from "../transport";
 import type { RpcId } from "../types";
 import { isResponse, parseRpcMessage } from "../types";
-import { HTTP_ENDPOINTS } from "@lyra/runtime-contract/wire";
+import { HTTP_ENDPOINTS } from "@scopeapp/runtime-contract/wire";
 import {
   isWireStreamingMethodName,
   type WireStreamingMethodName,
-} from "@lyra/runtime-contract/methods";
+} from "@scopeapp/runtime-contract/methods";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
 // W3C `traceparent` it injects extends the backend's existing OTel trace
 // (TRANSPORT.md §2: trace context rides headers, never the JSON-RPC body).
-const tracer = trace.getTracer("lyra-frontend");
+const tracer = trace.getTracer("scopeapp-frontend");
 
 function endSpan(span: Span, err?: unknown): void {
   if (err !== undefined) {
@@ -74,7 +74,7 @@ export interface HttpTransportConfig {
   /** Runtime base URL, e.g. "http://127.0.0.1:17171". No trailing slash. */
   baseUrl: string;
   /**
-   * Local-loopback data-directory gate token (read from `~/.lyra/local-token` by the
+   * Local-loopback data-directory gate token (read from `~/.scopeapp/local-token` by the
    * host shell, passed in here). Sent as `Authorization: Bearer`. Not a
    * user-auth credential — see app/runtime/doc/TRANSPORT.md §11.
    */
@@ -241,7 +241,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     const metadata: TransportResponseMetadata = {
       requestId: res.headers.get("Request-Id") ?? undefined,
     };
-    if (metadata.requestId) span.setAttribute("lyra.request_id", metadata.requestId);
+    if (metadata.requestId) span.setAttribute("scopeapp.request_id", metadata.requestId);
 
     // This client sends Requests only; a bodyless notification acknowledgement is
     // therefore always a protocol mismatch.

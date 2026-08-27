@@ -9,7 +9,7 @@ import {
 } from "@/plugins/builtin/runtime/public/ports";
 
 export default definePlugin({
-  name: "lyra.builtin.runtime",
+  name: "scopeapp.builtin.runtime",
   provides: { serverScope: RUNTIME_SERVER_SCOPE_PORTS, stream: RUNTIME_STREAM_PORTS },
   requires: { config: CONFIG },
   setup(ctx) {

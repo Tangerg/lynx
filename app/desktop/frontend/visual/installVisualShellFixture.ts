@@ -15,8 +15,8 @@ import {
   sidebarRecents,
 } from "@/plugins/builtin/sidebar";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
-import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
-import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
+import scopeappDark from "@/plugins/builtin/theme/themes/scopeapp-dark";
+import scopeappLight from "@/plugins/builtin/theme/themes/scopeapp-light";
 import { defaultAccents } from "@/plugins/builtin/defaults";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import {
@@ -137,7 +137,7 @@ function pending<T>(): Promise<T> {
 
 function dataProviderPlugin(state: VisualWorkIndexState): AnyPlugin {
   return definePlugin({
-    name: "lyra.visual.work-index-data",
+    name: "scopeapp.visual.work-index-data",
     setup(ctx) {
       ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_PROJECTS_KEY,
@@ -177,7 +177,7 @@ export async function installVisualShellFixture(
   navigator().go({ session: state === "populated" ? ACTIVE_SESSION_ID : "" });
   useUiStore.setState({
     theme,
-    visualStyle: "lyra",
+    visualStyle: "scopeapp",
     sidebarCollapsed: !sidebarOpen,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
   });
@@ -188,9 +188,9 @@ export async function installVisualShellFixture(
   // product never renders and no style regression could ever fail a test.
   await loadPluginsForTest(
     dataProviderPlugin(state),
-    lyraLight,
+    scopeappLight,
     defaultAccents,
-    lyraDark,
+    scopeappDark,
     ...builtinVisualStyles,
     sessionSearch,
     sidebarActions,

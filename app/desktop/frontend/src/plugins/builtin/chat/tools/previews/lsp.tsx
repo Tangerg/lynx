@@ -115,7 +115,7 @@ function LspPreview(props: ToolPreviewProps) {
 }
 
 export const lspPreviews = definePlugin({
-  name: "lyra.builtin.lsp-previews",
+  name: "scopeapp.builtin.lsp-previews",
   setup(ctx) {
     for (const preview of lspToolPreview(LspPreview)) {
       ctx.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });

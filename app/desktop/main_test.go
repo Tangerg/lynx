@@ -53,7 +53,7 @@ func TestDesktopWindowPinsTheCompactToolbarStyle(t *testing.T) {
 }
 
 func TestDesktopApplicationBindsHostAsItsOnlyService(t *testing.T) {
-	host := newDesktopHost(t.TempDir())
+	host := mustDesktopHost(t, t.TempDir())
 	services := desktopApplicationOptions(host).Services
 
 	want := []application.Service{application.NewService(host)}

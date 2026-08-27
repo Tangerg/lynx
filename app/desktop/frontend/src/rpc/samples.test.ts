@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateWire } from "@lyra/runtime-contract/validate";
-import { WIRE_ENUMS } from "@lyra/runtime-contract/wire";
-import { WIRE_SAMPLES } from "@lyra/runtime-contract/samples";
-import requestMeta from "@lyra/runtime-contract/samples/request.meta.json";
+import { validateWire } from "@scopeapp/runtime-contract/validate";
+import { WIRE_ENUMS } from "@scopeapp/runtime-contract/wire";
+import { WIRE_SAMPLES } from "@scopeapp/runtime-contract/samples";
+import requestMeta from "@scopeapp/runtime-contract/samples/request.meta.json";
 
 // The TypeScript half of contract §11.3's canonical-sample gate: every hand-written
 // fixture is checked against the shape the binding says it is — the SAME binding the

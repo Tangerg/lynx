@@ -21,13 +21,13 @@ import {
 import { createRpcClient, type RpcClient } from "./client";
 import { asItemId, asRunId, asSessionId } from "./ids";
 import { createMethods, type Methods } from "./methods";
-import { PROTOCOL_VERSION, type Item, type RunEvent } from "@lyra/runtime-contract/wire";
+import { PROTOCOL_VERSION, type Item, type RunEvent } from "@scopeapp/runtime-contract/wire";
 // The discover response is NOT hand-written here. It is the canonical sample —
 // the one the schema gate validates — because a second copy of that payload is a
 // copy that goes stale silently: this test asserts nothing about the capability
 // shape, so a retired field would sit here looking authoritative for as long as
 // nobody read it.
-import discoverResponse from "@lyra/runtime-contract/samples/method.discover.resp.json";
+import discoverResponse from "@scopeapp/runtime-contract/samples/method.discover.resp.json";
 
 function agentMessageItem(id: string, runId: string, text: string, status: Item["status"]): Item {
   return {

@@ -103,7 +103,7 @@ function WebFetchPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 export const httpPreviews = definePlugin({
-  name: "lyra.builtin.http-previews",
+  name: "scopeapp.builtin.http-previews",
   setup(ctx) {
     for (const preview of httpToolPreviews({
       http_request: HttpRequestPreview,

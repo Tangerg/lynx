@@ -1,4 +1,4 @@
-// Package protocol defines the binding-neutral public values of the Lyra
+// Package protocol defines the binding-neutral public values of the ScopeApp
 // Runtime Protocol. HTTP and the embedded Go binding use these same requests,
 // responses, events, errors, version values, and strict validators.
 //

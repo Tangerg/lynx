@@ -21,29 +21,30 @@ import {
 } from "@/plugins/builtin/agent/public/run";
 import { definePlugin, READY_HANDLER } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
+import { PRODUCT_NAME } from "@/product";
 
 function onSettled({ sessionId, status, errorMessage }: RootRunSettlement): void {
   // Focus gate: only alert when the window is blurred / hidden. document.hasFocus
   // is false when another OS window has focus or the app is minimized.
   if (document.hasFocus()) return;
 
-  let title = "Lyra finished";
+  let title = `${PRODUCT_NAME} finished`;
   let body = "The agent finished its turn.";
   switch (status) {
     case "needsInput":
-      title = "Lyra needs your input";
+      title = `${PRODUCT_NAME} needs your input`;
       body = "The agent is waiting for your approval or answer.";
       break;
     case "error":
-      title = "Lyra hit an error";
+      title = `${PRODUCT_NAME} hit an error`;
       body = errorMessage ?? "The agent run failed.";
       break;
     case "canceled":
-      title = "Lyra stopped";
+      title = `${PRODUCT_NAME} stopped`;
       body = "The agent run was canceled.";
       break;
     case "limit":
-      title = "Lyra reached a limit";
+      title = `${PRODUCT_NAME} reached a limit`;
       body = "The agent stopped after reaching its configured limit.";
       break;
     case "finished":
@@ -57,7 +58,7 @@ function onSettled({ sessionId, status, errorMessage }: RootRunSettlement): void
 }
 
 export const completionNotify = definePlugin({
-  name: "lyra.builtin.completion-notify",
+  name: "scopeapp.builtin.completion-notify",
   setup(ctx) {
     // Prime notification permission at load (window focused → prompt allowed).
     ensureOsNotifyPermission();

@@ -1,7 +1,7 @@
 ---
 version: 1.0
-name: lyra-design-analysis
-description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. CURRENT DIRECTION (2026-07, drawer + content card): the work index is a fixed-position DRAWER plus an in-flow spacer, and the content is a card that floats over it — card z-index outranks the drawer, so collapsing slides the drawer UNDER the card and the card never moves. The two regions sit at nearly the same value and the split is carried by ONE 1px inset ring on the card (clipped to the seam-side radius) plus a low-spread directional shadow; internal pane splits and chrome-bar bottoms use the more-transparent --app-surface-divider hairline. This SUPERSEDES the earlier background-delta / no-hairline model. One chrome-bar height (46px) is shared by the drawer and every content header so they align across the seam. Type and corner radius are derived ladders (--fs-* from one base size, --shape-* off a 10px base × the user Shape scale) — no per-callsite pixel values; check:tokens fails the build on any. Light by default with full dark parity, bundled Geist Sans/Mono, one restrained blue-700 accent reserved for live/focus/links, inverting ink primary CTA. AUTHORITATIVE VALUES LIVE IN CODE: src/styles/globals.css and src/plugins/builtin/theme/themes/*.ts — the YAML below is historical illustration from the dark-first spec; trust the code."
+name: scopeapp-design-analysis
+description: "ScopeApp is an agent client — a desktop chat shell that streams ScopeApp Runtime Protocol events from a Go runtime. CURRENT DIRECTION (2026-07, drawer + content card): the work index is a fixed-position DRAWER plus an in-flow spacer, and the content is a card that floats over it — card z-index outranks the drawer, so collapsing slides the drawer UNDER the card and the card never moves. The two regions sit at nearly the same value and the split is carried by ONE 1px inset ring on the card (clipped to the seam-side radius) plus a low-spread directional shadow; internal pane splits and chrome-bar bottoms use the more-transparent --app-surface-divider hairline. This SUPERSEDES the earlier background-delta / no-hairline model. One chrome-bar height (46px) is shared by the drawer and every content header so they align across the seam. Type and corner radius are derived ladders (--fs-* from one base size, --shape-* off a 10px base × the user Shape scale) — no per-callsite pixel values; check:tokens fails the build on any. Light by default with full dark parity, bundled Geist Sans/Mono, one restrained blue-700 accent reserved for live/focus/links, inverting ink primary CTA. AUTHORITATIVE VALUES LIVE IN CODE: src/styles/globals.css and src/plugins/builtin/theme/themes/*.ts — the YAML below is historical illustration from the dark-first spec; trust the code."
 
 colors:
   # ---- Accent ----
@@ -182,7 +182,7 @@ spacing:
   4xl: 64px
   5xl: 96px
 
-# ---- Lyra-specific layout constants ----
+# ---- ScopeApp-specific layout constants ----
 layout:
   content-max: 720px       # Max reading width for chat content (was 760; narrowed 2026-06)
   sidebar-expanded: 275px  # Expanded Work Index preference (default state)
@@ -207,7 +207,7 @@ components:
     typography: "{typography.button-md}"
     rounded: "{rounded.md}"
     padding: "8px 14px"
-    description: Primary CTA. Lyra signature green. Reserved for explicit action ("Send", "Approve", "Run").
+    description: Primary CTA. ScopeApp signature green. Reserved for explicit action ("Send", "Approve", "Run").
   button-secondary:
     backgroundColor: "{colors.surface-1}"
     textColor: "{colors.ink}"
@@ -420,7 +420,7 @@ accent _scarcity_, tabular numerals, keyboard-focus discipline, reduced-motion.
 
 ## 1. Overview
 
-Lyra is an agent client — a desktop application (Wails / React) that streams Lyra Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself — but it presents as a refined, calm product surface, not a dense console.
+ScopeApp is an agent client — a desktop application (Wails / React) that streams ScopeApp Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself — but it presents as a refined, calm product surface, not a dense console.
 
 Light and dark are **equal first-class themes**; the default follows the OS (`prefers-color-scheme`) and tracks it live. Neither scheme is second-class.
 
@@ -449,7 +449,7 @@ Color carries information, not decoration. The system uses **one chromatic accen
 
 ### Surface anchors
 
-Values live in `themes/lyra-*.ts` and are restated for first paint in
+Values live in `themes/scopeapp-*.ts` and are restated for first paint in
 `globals.css`. This table says what each anchor is FOR; it deliberately does not
 repeat the hexes, which is how the previous version of it went stale.
 
@@ -511,7 +511,7 @@ the language spends a border on meaning rather than on affordance. The three-ste
 ramp (`border` / `border-soft` / `divider`) uses literal hex per theme, because a
 semi-transparent border shifts across surface lifts and reads as approximate.
 
-**Ink, by contrast, may derive.** Unlike hairlines, the ink ramp (`text-soft` / `text-muted` / `text-faint`) *should* adapt to the surface behind it — that's the Apple label model. A theme can ship just `text` + `text-bright` and let the soft/muted/faint steps derive as `text` at ~82% / ~56% / ~38% alpha over transparent (so they composite against whatever surface they sit on). Palette themes (Solarized, Catppuccin, Tokyo Night, One Dark) instead pin explicit ink hues — their ramp is part of the palette identity, not a single hue at falling opacity. The first-party Lyra themes keep explicit values too; the derivation is the low-friction default for third-party themes.
+**Ink, by contrast, may derive.** Unlike hairlines, the ink ramp (`text-soft` / `text-muted` / `text-faint`) *should* adapt to the surface behind it — that's the Apple label model. A theme can ship just `text` + `text-bright` and let the soft/muted/faint steps derive as `text` at ~82% / ~56% / ~38% alpha over transparent (so they composite against whatever surface they sit on). Palette themes (Solarized, Catppuccin, Tokyo Night, One Dark) instead pin explicit ink hues — their ramp is part of the palette identity, not a single hue at falling opacity. The first-party ScopeApp themes keep explicit values too; the derivation is the low-friction default for third-party themes.
 
 ### Accent policy
 
@@ -572,7 +572,7 @@ and native than any shipped font, loads instantly, and renders mixed CJK best:
 
 ### Scale
 
-The full scale is 11 tokens — narrower than the previous 13-step Spotify scale. Display sizes are smaller than typical marketing systems because Lyra is a product UI, not a hero page.
+The full scale is 11 tokens — narrower than the previous 13-step Spotify scale. Display sizes are smaller than typical marketing systems because ScopeApp is a product UI, not a hero page.
 
 (See frontmatter `typography:` for canonical sizes / weights / tracking.)
 
@@ -666,12 +666,12 @@ all. Banners and composer take the same gutters, so the three stay on one axis.
 
 ### Spacing rhythm
 
-Lyra is a **product UI**, not a marketing site. Spacing values from the frontmatter `spacing:` block apply, but:
+ScopeApp is a **product UI**, not a marketing site. Spacing values from the frontmatter `spacing:` block apply, but:
 
 - Section breaks inside a panel: `md` 16px to `lg` 24px (never `5xl` 96px — too marketing).
 - Card interior padding: `md` 16px default, `lg` 24px for emphasized cards.
 - Inline gaps: `xs` 8px to `sm` 12px.
-- Marketing-band spacing (`5xl` / `section` 192px from Vercel) is **not used** in Lyra except in the welcome screen.
+- Marketing-band spacing (`5xl` / `section` 192px from Vercel) is **not used** in ScopeApp except in the welcome screen.
 
 ## 5. Elevation & Depth
 
@@ -745,7 +745,7 @@ user's radius preference multiplies through.
 
 ## 8. Components
 
-The frontmatter `components:` block carries the canonical spec for every Lyra-specific component. Highlights:
+The frontmatter `components:` block carries the canonical spec for every ScopeApp-specific component. Highlights:
 
 ### Tool-call card — the "RPC log" rule
 
@@ -815,7 +815,7 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 - **Don't add panel / card drop shadows.** The layout is flush — depth is the surface step + hairlines. Stacked-subtle shadow is for truly-floating overlays (Level 4) only, in BOTH schemes. No cards-on-canvas, no gutters.
 - **Don't use pure `#000000` or a harsh near-black canvas.** Dark canvas is `#0c0d0f` — a soft, comfortable dark for a full reading surface.
 - **Don't flash a bright accent ring/halo on focus or click.** Keyboard focus is one thin stroke; inputs/composer just strengthen their border. The loud glow read as cheap.
-- **Don't introduce a second chromatic accent.** Lyra has one accent + four semantic colors. No more.
+- **Don't introduce a second chromatic accent.** ScopeApp has one accent + four semantic colors. No more.
 - **Don't use accent decoratively.** Active tab / primary CTA / focus ring / live indicator — that's the entire allowed list.
 - **Don't set body paragraphs in mono.** Mono is for the technical layer only.
 - **Don't apply atmospheric gradients, mesh backdrops, or dot grids** (the latter was discussed and rejected — Linear explicitly forbids "atmospheric gradients or spotlight cards").
@@ -826,7 +826,7 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 Light is full parity, not second-class — and the **default theme follows the OS**
 (`prefers-color-scheme`, live). It runs the same region algorithm mirrored: the
 plane is the brightest surface, the chrome steps down from it, cards lift to
-white, wells recede. Values live in `themes/lyra-light.ts`.
+white, wells recede. Values live in `themes/scopeapp-light.ts`.
 
 Two places where light is not a mechanical inversion, both for the same reason —
 ink cannot be:
@@ -842,7 +842,7 @@ ink cannot be:
 - **JetBrains tool windows** — the region model: an editor you are inside, framed
   by opaque panels, separated by value rather than by lines.
 - **Linear-app** — the scarce single-accent policy and sentence-case labels.
-- Lyra Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
+- ScopeApp Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
 
 ## 13. Iteration guide
 

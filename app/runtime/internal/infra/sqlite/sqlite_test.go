@@ -24,7 +24,7 @@ import (
 func TestOpenHonorsCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "lyra.db")); !errors.Is(err, context.Canceled) {
+	if db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "scopeapp.db")); !errors.Is(err, context.Canceled) {
 		if db != nil {
 			_ = db.Close()
 		}
@@ -34,7 +34,7 @@ func TestOpenHonorsCanceledContext(t *testing.T) {
 
 func newTempDB(t *testing.T) *sqlite.SessionStore {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -44,7 +44,7 @@ func newTempDB(t *testing.T) *sqlite.SessionStore {
 }
 
 func TestSessionSchemaOwnsExactWorkspacePath(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestSessionCRUD(t *testing.T) {
 func TestSessionPersistAcrossReopen(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "lyra.db")
+	path := filepath.Join(dir, "scopeapp.db")
 
 	db1, err := sqlite.Open(t.Context(), path)
 	if err != nil {
@@ -186,7 +186,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 // reads, per-conversation scoping, and Clear. Empty conversation reads as
 // an empty slice; Clear is idempotent.
 func TestMessageStore_RoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -245,7 +245,7 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 // TestTranscriptStore_RoundTrip pins the item log: append order (ORDER BY seq)
 // and per-session scoping. The Runs those items belong to are the run store's.
 func TestTranscriptStore_RoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -272,7 +272,7 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 }
 
 func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -333,7 +333,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 }
 
 func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -394,7 +394,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 }
 
 func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

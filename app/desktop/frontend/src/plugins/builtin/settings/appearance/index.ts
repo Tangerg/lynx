@@ -15,7 +15,7 @@ const AppearancePane = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.appearance",
+  name: "scopeapp.builtin.appearance",
   setup(ctx) {
     const disposePreferences = installAppearancePreferencesPort();
     const disposeFonts = installBrowserFontAvailability();

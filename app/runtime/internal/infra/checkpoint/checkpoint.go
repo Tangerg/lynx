@@ -2,11 +2,11 @@
 // a per-session SHADOW git repository, so a rollback or fork can restore files
 // (not just chat history) to a chosen run.
 //
-// The shadow repo's GIT_DIR lives under the lyra home, with the session's cwd
+// The shadow repo's GIT_DIR lives under the scopeapp home, with the session's cwd
 // as its work tree — the user's own .git is never touched (git addresses the
 // two independently, the classic dotfiles-repo pattern). Each run boundary is
 // anchored by a lightweight tag named for the run id, so a restore is a reset
-// to that tag. The only OS dependency is the git binary, which lyra already
+// to that tag. The only OS dependency is the git binary, which scopeapp already
 // requires for workspace diffs — so this is platform-agnostic.
 //
 // To avoid re-hashing a project that git already has, a fresh shadow repo SEEDS

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
 import { definePlugin } from "@/plugins/sdk";
 import { loadPluginsForTest, resetKernelForTest } from "@/plugins/sdk/testKernel";
@@ -19,7 +19,7 @@ describe("MCP servers plugin Runtime generation wiring", () => {
   it("retires an admitted command when the Runtime process generation changes", async () => {
     const retired = deferred<ReturnType<typeof runtimeServer>>();
     const update = vi.fn(() => retired.promise);
-    setContainer({ client: () => ({ mcp: { update } }) as unknown as LyraClient });
+    setContainer({ client: () => ({ mcp: { update } }) as unknown as ScopeAppClient });
     let generation = "runtime_1";
     const subscribers = new Set<() => void>();
     const runtime = definePlugin({

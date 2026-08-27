@@ -8,9 +8,9 @@ version: '3'
 
 info:
   companyName: "tangerg"
-  productName: "lyra"
-  productIdentifier: "com.tangerg.lyra"
-  description: "Agent client for the Lyra Runtime"
+  productName: "scopeapp"
+  productIdentifier: "com.tangerg.scopeapp"
+  description: "Agent client for the ScopeApp Runtime"
   copyright: "(c) 2026, tangerg"
   comments: ""
   version: "0.0.1"

@@ -42,7 +42,7 @@ func TestSidecarInfo(t *testing.T) {
 	if body.ProtocolVersion != testProtocolVersion {
 		t.Fatalf("protocolVersion = %q", body.ProtocolVersion)
 	}
-	if body.Server.Name != "lyra-test" {
+	if body.Server.Name != "scopeapp-test" {
 		t.Fatalf("server.name = %q", body.Server.Name)
 	}
 }
@@ -503,7 +503,7 @@ func TestMalformedRPCBodyReturnsTransportProblem(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&problem); err != nil {
 		t.Fatalf("decode problem: %v", err)
 	}
-	if problem.Type != "urn:lyra:transport:invalid_request" || problem.RequestID == "" {
+	if problem.Type != "urn:scopeapp:transport:invalid_request" || problem.RequestID == "" {
 		t.Fatalf("problem = %+v", problem)
 	}
 }
@@ -580,7 +580,7 @@ func TestInvalidRPCEnvelopeReturnsTransportProblem(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&problem); err != nil {
 				t.Fatalf("decode problem: %v", err)
 			}
-			if problem.Type != "urn:lyra:transport:invalid_request" ||
+			if problem.Type != "urn:scopeapp:transport:invalid_request" ||
 				!strings.Contains(problem.Detail, test.detail) {
 				t.Fatalf("problem = %+v", problem)
 			}

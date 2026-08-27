@@ -1,7 +1,7 @@
 // Deriving the neutral family's hue from the live accent.
 //
 // The family sits on the accent's hue at a chroma chosen per surface by area (see
-// themes/lyra-light.ts). Expressing that in CSS as
+// themes/scopeapp-light.ts). Expressing that in CSS as
 // `oklch(from var(--color-accent) <L> <C> h)` looks like the whole answer and is not:
 // a GREY ACCENT HAS NO HUE, and CSS reads the powerless channel as 0, which is RED —
 // so choosing pure black painted every surface pink. A colour function cannot branch,

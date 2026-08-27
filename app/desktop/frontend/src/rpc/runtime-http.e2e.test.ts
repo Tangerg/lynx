@@ -24,19 +24,19 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createLyraClient, type LyraClient } from "./sdk";
+import { createScopeAppClient, type ScopeAppClient } from "./sdk";
 import { RpcError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
-import { isWireStreamingMethodName, type WireMethodName } from "@lyra/runtime-contract/methods";
+import { isWireStreamingMethodName, type WireMethodName } from "@scopeapp/runtime-contract/methods";
 import {
   PROTOCOL_VERSION,
   type RequestMeta,
   type RunEvent,
   type RuntimeEvent,
-} from "@lyra/runtime-contract/wire";
+} from "@scopeapp/runtime-contract/wire";
 
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
@@ -641,7 +641,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
   let provider: ReturnType<typeof createHttpServer> | undefined;
   let providerGate: ProviderGate | undefined;
-  let client: LyraClient | undefined;
+  let client: ScopeAppClient | undefined;
   let processOutput = "";
   let runtimeExecutable = "";
   let runtimePort = 0;
@@ -649,17 +649,17 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   const runtimeEnvironment = () => ({
     ...process.env,
     HOME: runtimeHome,
-    LYRA_HOME: runtimeData,
-    LYRA_PROVIDER: "openai-compatible",
-    LYRA_MODEL: "e2e-model",
-    LYRA_APIKEY: "e2e-placeholder-key",
-    LYRA_BASEURL: providerBaseUrl,
+    SCOPEAPP_HOME: runtimeData,
+    SCOPEAPP_PROVIDER: "openai-compatible",
+    SCOPEAPP_MODEL: "e2e-model",
+    SCOPEAPP_APIKEY: "e2e-placeholder-key",
+    SCOPEAPP_BASEURL: providerBaseUrl,
     OPENAI_COMPATIBLE_API_KEY: "e2e-placeholder-key",
     OPENAI_API_KEY: "",
-    LYRA_SERVER_LISTEN: `127.0.0.1:${runtimePort}`,
-    LYRA_SERVER_NOLOCALTOKEN: "true",
-    LYRA_MCP_SERVERS: "",
-    LYRA_A2A_AGENTS: "",
+    SCOPEAPP_SERVER_LISTEN: `127.0.0.1:${runtimePort}`,
+    SCOPEAPP_SERVER_NOLOCALTOKEN: "true",
+    SCOPEAPP_MCP_SERVERS: "",
+    SCOPEAPP_A2A_AGENTS: "",
     OTEL_SDK_DISABLED: "true",
   });
 
@@ -702,7 +702,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   };
 
   const createRuntimeClient = () =>
-    createLyraClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
+    createScopeAppClient(createHttpTransport({ baseUrl, fetch: isolatedFetch }), {
       requestMeta: () => ({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "runtime-http-e2e", version: "1" },
@@ -711,7 +711,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     });
 
   beforeAll(async () => {
-    environmentRoot = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
+    environmentRoot = await mkdtemp(join(tmpdir(), "scopeapp-runtime-e2e-"));
     root = join(environmentRoot, "workspace");
     runtimeHome = join(environmentRoot, "home");
     runtimeData = join(environmentRoot, "runtime-data");
@@ -830,8 +830,8 @@ for await (const line of lines) {
     }
     providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
 
-    runtimeExecutable = join(environmentRoot, "lyra-e2e");
-    await execFileAsync("go", ["build", "-o", runtimeExecutable, "./cmd/lyra"], {
+    runtimeExecutable = join(environmentRoot, "scopeapp-e2e");
+    await execFileAsync("go", ["build", "-o", runtimeExecutable, "./cmd/scopeapp"], {
       cwd: runtimeDirectory,
     });
 
@@ -968,9 +968,12 @@ for await (const line of lines) {
     try {
       for (const cutpoint of ["beforeCommit", "afterCommit"] as const) {
         const fault = faultUnaryResponse("sessions.create", cutpoint);
-        const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-          requestMeta,
-        });
+        const faultClient = createScopeAppClient(
+          createHttpTransport({ baseUrl, fetch: fault.fetch }),
+          {
+            requestMeta,
+          },
+        );
         try {
           const created = await faultClient.sessions.create({
             workspace: { path: root },
@@ -996,9 +999,12 @@ for await (const line of lines) {
       const deletedId = createdIds.pop();
       if (!deletedId) throw new Error("post-commit Session was not created");
       const fault = faultUnaryResponse("sessions.delete", "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         await faultClient.sessions.delete(asSessionId(deletedId));
         expect(fault.attempts()).toBe(2);
@@ -1030,7 +1036,7 @@ for await (const line of lines) {
     const gate = createProviderGate("E2E_RUN_REPLAY_CUTPOINT");
     providerGate = gate;
     const fault = faultStreamOpening("runs.start");
-    const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+    const faultClient = createScopeAppClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
       requestMeta: (): RequestMeta => ({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "runtime-http-stream-cutpoint-e2e", version: "1" },
@@ -1081,12 +1087,15 @@ for await (const line of lines) {
     });
     const callAfterCommitLoss = async <T>(
       method: string,
-      call: (faultClient: LyraClient) => Promise<T>,
+      call: (faultClient: ScopeAppClient) => Promise<T>,
     ): Promise<T> => {
       const fault = faultUnaryResponse(method, "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         const value = await call(faultClient);
         expect(fault.attempts()).toBe(2);
@@ -1188,12 +1197,15 @@ for await (const line of lines) {
     });
     const callAfterCommitLoss = async <T>(
       method: string,
-      call: (faultClient: LyraClient) => Promise<T>,
+      call: (faultClient: ScopeAppClient) => Promise<T>,
     ): Promise<T> => {
       const fault = faultUnaryResponse(method, "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         const value = await call(faultClient);
         expect(fault.attempts()).toBe(2);
@@ -1335,7 +1347,7 @@ for await (const line of lines) {
     );
     const runtimeEvents = subscription.events[Symbol.asyncIterator]();
     const fault = faultStreamOpening("runs.resume");
-    const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
+    const faultClient = createScopeAppClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
       requestMeta: (): RequestMeta => ({
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: "runtime-http-hitl-resume-cutpoint-e2e", version: "1" },
@@ -1404,12 +1416,15 @@ for await (const line of lines) {
     });
     const callAfterCommitLoss = async <T>(
       method: string,
-      call: (faultClient: LyraClient) => Promise<T>,
+      call: (faultClient: ScopeAppClient) => Promise<T>,
     ): Promise<T> => {
       const fault = faultUnaryResponse(method, "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         const value = await call(faultClient);
         expect(fault.attempts()).toBe(2);
@@ -1498,12 +1513,15 @@ for await (const line of lines) {
     });
     const callAfterCommitLoss = async <T>(
       method: string,
-      call: (faultClient: LyraClient) => Promise<T>,
+      call: (faultClient: ScopeAppClient) => Promise<T>,
     ): Promise<T> => {
       const fault = faultUnaryResponse(method, "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         const value = await call(faultClient);
         expect(fault.attempts()).toBe(2);
@@ -1607,12 +1625,15 @@ for await (const line of lines) {
     });
     const callAfterCommitLoss = async <T>(
       method: string,
-      call: (faultClient: LyraClient) => Promise<T>,
+      call: (faultClient: ScopeAppClient) => Promise<T>,
     ): Promise<T> => {
       const fault = faultUnaryResponse(method, "afterCommit");
-      const faultClient = createLyraClient(createHttpTransport({ baseUrl, fetch: fault.fetch }), {
-        requestMeta,
-      });
+      const faultClient = createScopeAppClient(
+        createHttpTransport({ baseUrl, fetch: fault.fetch }),
+        {
+          requestMeta,
+        },
+      );
       try {
         const value = await call(faultClient);
         expect(fault.attempts()).toBe(2);
@@ -3215,7 +3236,7 @@ for await (const line of lines) {
     });
 
     const projectSkillName = "external-project-skill";
-    const projectSkillDirectory = join(root, ".lyra", "skills", projectSkillName);
+    const projectSkillDirectory = join(root, ".scopeapp", "skills", projectSkillName);
     await mkdir(projectSkillDirectory, { recursive: true });
     await writeFile(
       join(projectSkillDirectory, "SKILL.md"),
@@ -3319,7 +3340,10 @@ for await (const line of lines) {
       ]),
     });
     await expect(
-      readFile(join(workspaceRoot, ".lyra", "skills", projectProposal.name, "SKILL.md"), "utf8"),
+      readFile(
+        join(workspaceRoot, ".scopeapp", "skills", projectProposal.name, "SKILL.md"),
+        "utf8",
+      ),
     ).resolves.toContain(projectProposal.instructions);
     await expect(workspace.skills.approveProposal(projectRef)).rejects.toSatisfy(
       (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
@@ -3554,10 +3578,10 @@ for await (const line of lines) {
         },
       ],
     });
-    await expect(readFile(join(projectRoot, "LYRA.md"), "utf8")).resolves.toBe(
+    await expect(readFile(join(projectRoot, "SCOPEAPP.md"), "utf8")).resolves.toBe(
       "project-root knowledge\n",
     );
-    await expect(readFile(join(workspaceRoot, "LYRA.md"), "utf8")).resolves.toBe(
+    await expect(readFile(join(workspaceRoot, "SCOPEAPP.md"), "utf8")).resolves.toBe(
       "workspace knowledge\n",
     );
 
@@ -3602,13 +3626,21 @@ for await (const line of lines) {
     // runtime stream must still invalidate every cascade scope, after which
     // the SDK's cold read observes the exact new file content.
     for (const change of [
-      { scope: "home" as const, path: join(runtimeData, "LYRA.md"), content: "external home\n" },
+      {
+        scope: "home" as const,
+        path: join(runtimeData, "SCOPEAPP.md"),
+        content: "external home\n",
+      },
       {
         scope: "projectRoot" as const,
-        path: join(projectRoot, "LYRA.md"),
+        path: join(projectRoot, "SCOPEAPP.md"),
         content: "external project\n",
       },
-      { scope: "cwd" as const, path: join(workspaceRoot, "LYRA.md"), content: "external cwd\n" },
+      {
+        scope: "cwd" as const,
+        path: join(workspaceRoot, "SCOPEAPP.md"),
+        content: "external cwd\n",
+      },
     ]) {
       await writeFile(change.path, change.content);
       await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
@@ -3630,7 +3662,7 @@ for await (const line of lines) {
     const outside = join(root, "knowledge-outside.md");
     await mkdir(workspaceRoot);
     await writeFile(outside, "outside secret\n", { mode: 0o600 });
-    const alias = join(workspaceRoot, "LYRA.md");
+    const alias = join(workspaceRoot, "SCOPEAPP.md");
     await symlink(outside, alias);
     const workspace = client.workspace({ path: workspaceRoot });
 
@@ -3844,12 +3876,12 @@ for await (const line of lines) {
     await mkdir(workspaceRoot, { recursive: true });
     await execFileAsync("git", ["init", "--quiet"], { cwd: projectRoot });
 
-    const projectRecipe = join(workspaceRoot, ".lyra", "recipes", "project-side-api.md");
+    const projectRecipe = join(workspaceRoot, ".scopeapp", "recipes", "project-side-api.md");
     const globalRecipe = join(runtimeData, "recipes", "global-side-api.md");
     await Promise.all([
-      mkdir(join(workspaceRoot, ".lyra", "recipes"), { recursive: true }),
-      mkdir(join(projectRoot, ".lyra"), { recursive: true }),
-      mkdir(join(runtimeHome, ".lyra"), { recursive: true }),
+      mkdir(join(workspaceRoot, ".scopeapp", "recipes"), { recursive: true }),
+      mkdir(join(projectRoot, ".scopeapp"), { recursive: true }),
+      mkdir(join(runtimeHome, ".scopeapp"), { recursive: true }),
       mkdir(join(runtimeData, "recipes"), { recursive: true }),
       mkdir(join(workspaceRoot, "nested"), { recursive: true }),
     ]);
@@ -3859,8 +3891,8 @@ for await (const line of lines) {
       writeFile(join(workspaceRoot, ".gitignore"), "ignored.log\n"),
       writeFile(join(workspaceRoot, "ignored.log"), "ignored marker\n"),
       writeFile(join(projectRoot, "AGENTS.md"), "project-root instructions\n"),
-      writeFile(join(workspaceRoot, ".lyra", "AGENTS.md"), "workspace instructions\n"),
-      writeFile(join(runtimeHome, ".lyra", "AGENTS.md"), "home instructions\n"),
+      writeFile(join(workspaceRoot, ".scopeapp", "AGENTS.md"), "workspace instructions\n"),
+      writeFile(join(runtimeHome, ".scopeapp", "AGENTS.md"), "home instructions\n"),
       writeFile(
         projectRecipe,
         '---\ndescription: Project side API recipe\nargumentHint: "[target]"\n---\nReview $1\n',
@@ -3870,11 +3902,11 @@ for await (const line of lines) {
         "---\ndescription: Global side API recipe\n---\nExplain $ARGUMENTS\n",
       ),
       writeFile(
-        join(runtimeHome, ".lyra", "hooks.json"),
+        join(runtimeHome, ".scopeapp", "hooks.json"),
         JSON.stringify({ hooks: [{ event: "SessionStart", inject: "global hook context" }] }),
       ),
       writeFile(
-        join(projectRoot, ".lyra", "hooks.json"),
+        join(projectRoot, ".scopeapp", "hooks.json"),
         JSON.stringify({
           hooks: [{ event: "PreToolUse", matcher: "shell", command: "true" }],
         }),
@@ -3961,7 +3993,7 @@ for await (const line of lines) {
           argumentHint: "[target]",
           body: "Review $1",
           scope: "project",
-          source: join(canonicalWorkspaceRoot, ".lyra", "recipes", "project-side-api.md"),
+          source: join(canonicalWorkspaceRoot, ".scopeapp", "recipes", "project-side-api.md"),
         }),
         expect.objectContaining({
           name: "global-side-api",
@@ -3974,9 +4006,9 @@ for await (const line of lines) {
     });
     await expect(workspace.agentDocs.list()).resolves.toEqual({
       data: [
-        { path: join(canonicalRuntimeHome, ".lyra", "AGENTS.md"), scope: "home" },
+        { path: join(canonicalRuntimeHome, ".scopeapp", "AGENTS.md"), scope: "home" },
         { path: join(resolved.projectRoot, "AGENTS.md"), scope: "projectRoot" },
-        { path: join(canonicalWorkspaceRoot, ".lyra", "AGENTS.md"), scope: "cwd" },
+        { path: join(canonicalWorkspaceRoot, ".scopeapp", "AGENTS.md"), scope: "cwd" },
       ],
     });
 
@@ -4031,19 +4063,19 @@ for await (const line of lines) {
     // authoritative input and must converge through hooks.changed.
     const externalHookChanges = [
       {
-        path: join(runtimeHome, ".lyra", "hooks.json"),
+        path: join(runtimeHome, ".scopeapp", "hooks.json"),
         marker: "external global hook",
         scope: "global",
         event: "SessionStart",
       },
       {
-        path: join(projectRoot, ".lyra", "hooks.json"),
+        path: join(projectRoot, ".scopeapp", "hooks.json"),
         marker: "external project hook",
         scope: "project",
         event: "UserPromptSubmit",
       },
       {
-        path: join(workspaceRoot, ".lyra", "hooks.json"),
+        path: join(workspaceRoot, ".scopeapp", "hooks.json"),
         marker: "external cwd hook",
         scope: "project",
         event: "Notification",

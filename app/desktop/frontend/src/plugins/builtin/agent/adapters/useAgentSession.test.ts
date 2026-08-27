@@ -12,7 +12,7 @@ import type { AgentDriver } from "@/plugins/sdk/types";
 import {
   RpcError,
   type CancelRunResponse,
-  type LyraClient,
+  type ScopeAppClient,
   type RunEvent,
   type RunRef,
 } from "@/rpc";
@@ -90,7 +90,7 @@ describe("useAgentSession driver lifecycle", () => {
               },
             }),
           },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
 
     renderHook(() => useAgentSession(() => driver, SID));
@@ -263,7 +263,7 @@ describe("useAgentSession run timing guards", () => {
           runs: {
             cancel,
           },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const onSettled = vi.fn();
@@ -321,7 +321,7 @@ describe("useAgentSession run timing guards", () => {
     const cancellation = deferred<CancelRunResponse>();
     const cancel = vi.fn(() => cancellation.promise);
     setContainer({
-      client: () => ({ runs: { cancel } }) as unknown as LyraClient,
+      client: () => ({ runs: { cancel } }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, SID));
@@ -371,7 +371,7 @@ describe("useAgentSession run timing guards", () => {
       return response;
     });
     setContainer({
-      client: () => ({ runs: { cancel: predecessorCancel } }) as unknown as LyraClient,
+      client: () => ({ runs: { cancel: predecessorCancel } }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, SID));
@@ -422,7 +422,7 @@ describe("useAgentSession run timing guards", () => {
             ),
           },
           runs: { cancel: successorCancel },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
 
     let replacement!: Promise<boolean>;
@@ -483,7 +483,7 @@ describe("useAgentSession run timing guards", () => {
       }),
     );
     setContainer({
-      client: () => ({ runs: { cancel } }) as unknown as LyraClient,
+      client: () => ({ runs: { cancel } }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, SID));
@@ -540,7 +540,7 @@ describe("useAgentSession run timing guards", () => {
           runs: {
             cancel,
           },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { driver } = parkedDriver();
@@ -610,7 +610,7 @@ describe("useAgentSession durable recovery", () => {
             subscribe,
             ...(runOverrides as object),
           },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     return { readSnapshot, subscribe };
   }
@@ -845,7 +845,7 @@ describe("useAgentSession durable recovery", () => {
         ({
           sessions: { snapshot: readSnapshot },
           runs: { subscribe },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -946,7 +946,7 @@ describe("useAgentSession durable recovery", () => {
       client: () =>
         ({
           sessions: { snapshot: readSnapshot },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1030,7 +1030,7 @@ describe("useAgentSession durable recovery", () => {
         ({
           sessions: { snapshot: readSnapshot },
           runs: { subscribe },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1114,7 +1114,7 @@ describe("useAgentSession durable recovery", () => {
         ({
           sessions: { snapshot: readSnapshot },
           runs: { subscribe },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1195,7 +1195,7 @@ describe("useAgentSession durable recovery", () => {
         ({
           sessions: { snapshot: readSnapshot },
           runs: { get, subscribe },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1257,7 +1257,7 @@ describe("useAgentSession durable recovery", () => {
         ({
           sessions: { snapshot: readSnapshot },
           runs: { subscribe },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));
@@ -1325,7 +1325,7 @@ describe("useAgentSession durable recovery", () => {
             subscribe,
             cancel,
           },
-        }) as unknown as LyraClient,
+        }) as unknown as ScopeAppClient,
     });
     const { driver } = parkedDriver();
     renderHook(() => useAgentSession(() => driver, RID));

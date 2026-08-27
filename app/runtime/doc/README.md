@@ -1,4 +1,4 @@
-# lyra/doc — 文档索引
+# scopeapp/doc — 文档索引
 
 > Runtime 模块的目标架构、实施治理和协议规范。模块级强约束以 [`../CLAUDE.md`](../CLAUDE.md) 为入口。
 >

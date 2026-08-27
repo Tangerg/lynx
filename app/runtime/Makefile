@@ -1,4 +1,4 @@
-# Lyra dev server — build + run the JSON-RPC/HTTP backend.
+# ScopeApp dev server — build + run the JSON-RPC/HTTP backend.
 #
 # `make restart` is the headline target: rebuild the binary, stop the old
 # server, start the new one. The server MUST run from THIS directory so viper
@@ -9,18 +9,18 @@
 # PORT must match server.listen in config/config.yaml — used for the health
 # probe and the stop-by-port fallback. Override: make restart PORT=17171
 PORT   ?= 17171
-BIN    := lyra
-PKG    := ./cmd/lyra
-PID    := lyra.pid
-LOG    := lyra.log
+BIN    := scopeapp
+PKG    := ./cmd/scopeapp
+PID    := scopeapp.pid
+LOG    := scopeapp.log
 HEALTH := http://127.0.0.1:$(PORT)/v2/health/ready
 
-# LYRA_HOME holds the runtime's persistent state; DB is the single SQLite store
+# SCOPEAPP_HOME holds the runtime's persistent state; DB is the single SQLite store
 # `make reset-db` / `make fresh` drop (dev stage = drop + rebuild, never
 # migrate). Only the db + its WAL/SHM sidecars are removed — local-token,
-# skills/, plugins/, and any user-edited LYRA.md are preserved.
-LYRA_HOME ?= $(HOME)/.lyra
-DB        := $(LYRA_HOME)/lyra.db
+# skills/, plugins/, and any user-edited SCOPEAPP.md are preserved.
+SCOPEAPP_HOME ?= $(HOME)/.scopeapp
+DB        := $(SCOPEAPP_HOME)/scopeapp.db
 
 .DEFAULT_GOAL := help
 .PHONY: help build check-standalone start stop restart status health logs run clean reset-db fresh
@@ -29,7 +29,7 @@ help: ## List targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
 		awk -F':.*?## ' '{printf "  \033[36m%-9s\033[0m %s\n", $$1, $$2}'
 
-build: ## Compile the dev binary (./lyra)
+build: ## Compile the dev binary (./scopeapp)
 	go build -o $(BIN) $(PKG)
 	@echo "[make] built ./$(BIN)"
 

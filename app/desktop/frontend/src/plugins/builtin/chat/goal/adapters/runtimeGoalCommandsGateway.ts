@@ -3,7 +3,7 @@ import {
   asSessionId,
   createUnaryMutationSettler,
   type Goal,
-  type LyraClient,
+  type ScopeAppClient,
   type SessionSnapshot,
   type UnaryMutationSettler,
 } from "@/rpc";
@@ -61,10 +61,10 @@ export function runtimeGoalMaterial(goal: Goal | undefined, available: boolean):
 }
 
 class RuntimeGoalCommandsGateway implements GoalCommandsGateway {
-  readonly #client: LyraClient;
+  readonly #client: ScopeAppClient;
   #mutations: UnaryMutationSettler = createUnaryMutationSettler();
 
-  constructor(client: LyraClient) {
+  constructor(client: ScopeAppClient) {
     this.#client = client;
   }
 

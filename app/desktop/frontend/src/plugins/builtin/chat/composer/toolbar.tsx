@@ -191,7 +191,7 @@ function ApprovalModePill() {
 }
 
 export const composerToolbar = definePlugin({
-  name: "lyra.builtin.composer-toolbar",
+  name: "scopeapp.builtin.composer-toolbar",
   setup(ctx) {
     contributeLayout(ctx, "composer.toolbar.start", {
       id: "attach",

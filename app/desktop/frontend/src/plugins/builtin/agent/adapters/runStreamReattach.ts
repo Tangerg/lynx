@@ -1,4 +1,4 @@
-import type { LyraClient } from "@/rpc";
+import type { ScopeAppClient } from "@/rpc";
 import { asRunId, asSegmentId, RpcConnectionError } from "@/rpc";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
@@ -6,7 +6,7 @@ import { retireRunStream, settleRunStreamOpening } from "./runStreamOpening";
 
 interface RunStreamReattachOptions {
   sessionId: string;
-  client: () => Pick<LyraClient, "runs">;
+  client: () => Pick<ScopeAppClient, "runs">;
   isCancelled: () => boolean;
   /** Rebuild the complete durable projection when the replay window no longer
    *  reaches this client's cursor. Missed deltas are gone, but their completed

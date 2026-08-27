@@ -42,7 +42,7 @@ describe("ConnectionPane runtime status", () => {
       phase: "ready",
       failure: null,
       observation: {
-        server: { name: "lyra-runtime", version: "1.2.3" },
+        server: { name: "scopeapp-runtime", version: "1.2.3" },
         protocolVersion: "2026-07-01",
         health: "ready",
         checks: {},
@@ -70,7 +70,7 @@ describe("ConnectionPane runtime status", () => {
       phase: "degraded",
       failure: null,
       observation: {
-        server: { name: "lyra-runtime", version: "1.2.3" },
+        server: { name: "scopeapp-runtime", version: "1.2.3" },
         protocolVersion: "2026-07-01",
         health: "degraded",
         checks: { sqlite: "ready", git: "degraded" },
@@ -80,7 +80,7 @@ describe("ConnectionPane runtime status", () => {
     render(<ConnectionPane />);
 
     expect(screen.getAllByText("Degraded")).toHaveLength(2);
-    expect(screen.getByText(/lyra-runtime 1\.2\.3/)).toBeTruthy();
+    expect(screen.getByText(/scopeapp-runtime 1\.2\.3/)).toBeTruthy();
     expect(screen.getByText("2026-07-01")).toBeTruthy();
     expect(screen.getByText("git")).toBeTruthy();
     expect(screen.queryByText("sqlite")).toBeNull();

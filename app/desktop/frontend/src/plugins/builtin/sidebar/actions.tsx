@@ -60,7 +60,7 @@ export function SidebarActions() {
 }
 
 export const sidebarActions = definePlugin({
-  name: "lyra.builtin.sidebar-actions",
+  name: "scopeapp.builtin.sidebar-actions",
   setup(ctx) {
     contributeWorkIndexItem(ctx, {
       id: "actions",

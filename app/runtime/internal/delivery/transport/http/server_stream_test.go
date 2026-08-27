@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	lyratransport "github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
+	scopeapptransport "github.com/Tangerg/scope/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
 
@@ -99,7 +99,7 @@ func TestStreamableRunStart(t *testing.T) {
 // SubscribeRun records the reconnect cursor so the test below can assert the
 // transport plumbed the Last-Event-Id header onto the dispatch ctx.
 func (f *fakeRuntime) SubscribeRun(ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
-	f.gotLastEventID = lyratransport.LastEventIDFrom(ctx)
+	f.gotLastEventID = scopeapptransport.LastEventIDFrom(ctx)
 	return &protocol.SubscribeRunResponse{RunID: in.RunID, SegmentID: in.SegmentID},
 		slices.Values([]protocol.RunEvent{}), nil
 }

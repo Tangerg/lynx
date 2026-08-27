@@ -1,6 +1,6 @@
 # Hermes 启发的能力吸纳 Backlog —— 聚焦「记忆」与「自进化 Skill」
 
-> **来源**：对 **Hermes Agent**（Nous Research，MIT，Python；单用户自托管 agent runtime，TUI + messaging gateway + React 桌面；桌面克隆 `~/Desktop/hermes-agent`）的源码级对比分析。**按用户指定聚焦两块：① 记忆怎么做的、② 自进化 skill 怎么做的。** Hermes 自称"唯一带内置 learning loop 的 agent"，且**非多租户云**（单本地用户、一个 `~/.hermes/` profile、SQLite `state.db`）——治理默认**比 lyra B4 弱**（默认自由写），但**自动挖掘/自动进化机器比 lyra 现有的都丰富**。两块由一个机制串起：**post-turn 后台 review fork**（`agent/background_review.py`）+ **weekly curator**（`agent/curator.py`）。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
+> **来源**：对 **Hermes Agent**（Nous Research，MIT，Python；单用户自托管 agent runtime，TUI + messaging gateway + React 桌面；桌面克隆 `~/Desktop/hermes-agent`）的源码级对比分析。**按用户指定聚焦两块：① 记忆怎么做的、② 自进化 skill 怎么做的。** Hermes 自称"唯一带内置 learning loop 的 agent"，且**非多租户云**（单本地用户、一个 `~/.hermes/` profile、SQLite `state.db`）——治理默认**比 scopeapp B4 弱**（默认自由写），但**自动挖掘/自动进化机器比 scopeapp 现有的都丰富**。两块由一个机制串起：**post-turn 后台 review fork**（`agent/background_review.py`）+ **weekly curator**（`agent/curator.py`）。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
 > **状态**：全部 proposed。
 
@@ -10,7 +10,7 @@
 
 ### Hermes 怎么做（源码级）
 
-**三层，只有第一层是 lyra C8 意义上的"记忆"：**
+**三层，只有第一层是 scopeapp C8 意义上的"记忆"：**
 
 - **Tier 1 · 有界 curated in-prompt 记忆**（`tools/memory_tool.py`, `agent/memory_manager.py`）：`~/.hermes/memories/` 两文件——`MEMORY.md`（agent 笔记，**硬顶 2200 字符/~800 tok**）+ `USER.md`（用户画像，1375 字符/~500 tok），`\n§\n` 分隔的 prose。**session start 冻结注入快照**（`_system_prompt_snapshot`），mid-session 绝不变（保 prefix cache 稳定）；写立即落盘、但下次 session 才进 prompt。写=agent 经 `memory` 工具 `add`/`replace`/`remove`/`apply_batch`（无 `read`——已在 prompt 里），`replace`/`remove` 用**唯一子串匹配**。**无 auto-compaction**：溢出时工具返回一个**教模型当轮 consolidate 的结构化错误**（"Consolidate now: use 'replace'… then retry this add — all in this turn"），并**限每轮 3 次失败**防脆弱 add 把整轮烧到预算耗尽；`apply_batch` 是原子逃生舱（remove+add all-or-nothing）。**安全**：每次写用共享威胁库 `strict` 扫描，**且 load 时对每条盘上条目重扫**——被投毒条目在快照里换成 `[BLOCKED: …]` 占位、raw text 留在 live state 供用户看/删（因为条目冻结进 system prompt，投毒会存活整个 session）。**external-drift guard**：file-locked read-modify-write，若盘上文件不能 round-trip（shell 追加/手改/兄弟 session 写过）就拒绝 clobber 并存 `.bak`。**读路径无检索无排序**——整个有界库逐字注入（char cap 的全部意义：小到永远能带，故无需 relevance/recency 逻辑）。治理：`memory.write_approval` 默认 **false=自由写**（true=stage→`/memory pending|approve|reject`，跨重启）。scope：`memory`(agent) vs `user`(profile)，均 **global per-profile**，无 per-project/session scope；**无 decay**（有界替代老化）。
 - **Tier 2 · session 搜索（FTS5 关键词）**（`tools/session_search_tool.py`）：所有 CLI+messaging session 存 SQLite + **FTS5 全文搜索**，按需 `session_search` 工具（discovery/scroll/browse 三形态）。**关键词非语义**，"无 LLM 摘要、无截断"；无界、~20ms、未查询前零 token 成本。这是"上周是否聊过 X"层。
@@ -27,19 +27,19 @@
 5. **轨迹自动挖掘**：一个隔离、工具白名单的 review pass 按 cadence 触发。
 6. **写带 provenance 元数据**（write_origin foreground vs background_review、session_id、platform）。
 
-### Lyra gap（vs C8-deferred）
+### ScopeApp gap（vs C8-deferred）
 
-lyra 今天**只有**单个可编辑 `LYRA.md` + `memory.*` RPC；C8 design-only——无 session-log 层、无自动挖掘、无检索、无 consolidation。Hermes 正好填这个洞，且**单用户形态**。关键：Hermes **原则上拒绝 auto-compaction**（"Memory does not auto-compact"）——与 lyra 对 LYRA.md 已持的有界/curated 哲学一致，**与 Grok "dream consolidator" 相反**。这是 lyra 要**显式选**的设计岔路：**有界+当轮强制（Hermes）vs 无界+后台 dream（Grok）**——Hermes 那条更贴 lyra 薄核 + 反向不变量（无隐藏 retry 层、写保持生命周期触发）。
+scopeapp 今天**只有**单个可编辑 `SCOPEAPP.md` + `memory.*` RPC；C8 design-only——无 session-log 层、无自动挖掘、无检索、无 consolidation。Hermes 正好填这个洞，且**单用户形态**。关键：Hermes **原则上拒绝 auto-compaction**（"Memory does not auto-compact"）——与 scopeapp 对 SCOPEAPP.md 已持的有界/curated 哲学一致，**与 Grok "dream consolidator" 相反**。这是 scopeapp 要**显式选**的设计岔路：**有界+当轮强制（Hermes）vs 无界+后台 dream（Grok）**——Hermes 那条更贴 scopeapp 薄核 + 反向不变量（无隐藏 retry 层、写保持生命周期触发）。
 
 ### Verdict：部分吸（filter：薄核优先 + 不引双机制债）
 
 - **吸**：自动挖掘 review pass、FTS5 session-log 层、溢出强制当轮 consolidate、load 时重扫、frozen-snapshot 不变量。
-- **不吸**：**两文件切分**（agent-notes vs user-profile）——若 lyra 保持单 `LYRA.md`，引入它就是对 C8 的双机制债；**8 个外部 provider**（多厂商插件蔓延，Honcho 是云服务，off-strategy）。
+- **不吸**：**两文件切分**（agent-notes vs user-profile）——若 scopeapp 保持单 `SCOPEAPP.md`，引入它就是对 C8 的双机制债；**8 个外部 provider**（多厂商插件蔓延，Honcho 是云服务，off-strategy）。
 
 ### 落点 + priority
 
-- **P2 · `app/runtime`**：C8 builtin 层 = 有界 curated 库 + `add/replace/remove` + 溢出强制当轮 consolidate 错误；**复用现有 LYRA.md、不切分**。
-- **P2 · `app/runtime`**：FTS5 关键词 session-log 召回层（lyra 计划复用 @codebase 嵌入做向量——**先/并加更便宜的关键词层**，Hermes 证明关键词对常见场景够用）。
+- **P2 · `app/runtime`**：C8 builtin 层 = 有界 curated 库 + `add/replace/remove` + 溢出强制当轮 consolidate 错误；**复用现有 SCOPEAPP.md、不切分**。
+- **P2 · `app/runtime`**：FTS5 关键词 session-log 召回层（scopeapp 计划复用 @codebase 嵌入做向量——**先/并加更便宜的关键词层**，Hermes 证明关键词对常见场景够用）。
 - **P3**：memory 块 load 时注入重扫 → 占位。
 
 ---
@@ -66,16 +66,16 @@ lyra 今天**只有**单个可编辑 `LYRA.md` + `memory.*` RPC；C8 design-only
 4. **provenance-gated 自治**：只 auto-curate 自动创建的 skill，放过人/用户创作的。
 5. **read-before-write guard**（任何自治编辑器）。
 
-### Lyra gap（vs B4）
+### ScopeApp gap（vs B4）
 
-lyra B4 = post-turn 轨迹挖掘→静态安全扫描→`_drafts/`→**客户端审核晋升**→curator ACTIVE↔ARCHIVED（never delete），写生命周期所有 + 人审门。对比 Hermes：
+scopeapp B4 = post-turn 轨迹挖掘→静态安全扫描→`_drafts/`→**客户端审核晋升**→curator ACTIVE↔ARCHIVED（never delete），写生命周期所有 + 人审门。对比 Hermes：
 
-- **治理：lyra B4 默认更强**。Hermes 自由写 skill（approval off、agent-created 扫描 off、无强制 draft staging）。lyra 的强制扫描 + `_drafts/` + HITL 门正是 Hermes 只作 opt-in 的。
+- **治理：scopeapp B4 默认更强**。Hermes 自由写 skill（approval off、agent-created 扫描 off、无强制 draft staging）。scopeapp 的强制扫描 + `_drafts/` + HITL 门正是 Hermes 只作 opt-in 的。
 - **能力（历史基线）**：Hermes 当时揭示三项缺口：自动挖掘、从反馈修订现有 Skill、usage 驱动的闲置生命周期。当前 B4 已把它们收敛到后台 miner + reviewed draft workflow + curator，不再要求前台 coding Agent 主动决定是否提案。
 
 ### Verdict：部分吸（filter：反向不变量"写生命周期所有 + HITL 一致"）
 
-- **吸机制、但走 B4 现有的门、不走 Hermes 的自由写默认**：自动挖掘 + 精修现有 应产出**草稿**、走 lyra **强制 HITL 晋升**——取 Hermes 的**轨迹挖掘脑**、保 B4 的**治理身**。这正是"取思想不取形态"的线。
+- **吸机制、但走 B4 现有的门、不走 Hermes 的自由写默认**：自动挖掘 + 精修现有 应产出**草稿**、走 scopeapp **强制 HITL 晋升**——取 Hermes 的**轨迹挖掘脑**、保 B4 的**治理身**。这正是"取思想不取形态"的线。
 - **吸**自动闲置生命周期（never-delete、pinned/referenced 豁免、provenance-gated）作 B4 curator 的扩展。
 - **吸**工程化蒸馏 prompt（反模式清单 + umbrella 塑形）进入 B4 后台 SkillMiner 指引——零机制、纯智慧。
 - **不吸**：自由写默认、opt-in-only 扫描、weekly LLM consolidation（aux 成本，Hermes 自己都默认 off——单用户过度工程）、version-field theater。
@@ -91,9 +91,9 @@ lyra B4 = post-turn 轨迹挖掘→静态安全扫描→`_drafts/`→**客户端
 
 ## Bottom line
 
-**记忆（C8）**：Hermes 递给 lyra 一份**比 Grok 参照更贴 lyra 哲学**的完整、单用户形态 C8 蓝本——**有界 + curated + agent 拥有，溢出时强制当轮 consolidate 替代后台 dream daemon**、一个**廉价 FTS5 关键词 session-log 层**做"是否聊过 X"、一个**cadence 触发的轨迹自动挖掘器**经 memory 工具写。Hermes 逼 lyra 显式做的关键决定：**不 auto-compact**——有界化 + 溢出让模型自 curate（Hermes 刻意拒绝 dream-consolidator 路线）。跳过两文件切分（保单 LYRA.md）与 8 个外部 provider。
+**记忆（C8）**：Hermes 递给 scopeapp 一份**比 Grok 参照更贴 scopeapp 哲学**的完整、单用户形态 C8 蓝本——**有界 + curated + agent 拥有，溢出时强制当轮 consolidate 替代后台 dream daemon**、一个**廉价 FTS5 关键词 session-log 层**做"是否聊过 X"、一个**cadence 触发的轨迹自动挖掘器**经 memory 工具写。Hermes 逼 scopeapp 显式做的关键决定：**不 auto-compact**——有界化 + 溢出让模型自 curate（Hermes 刻意拒绝 dream-consolidator 路线）。跳过两文件切分（保单 SCOPEAPP.md）与 8 个外部 provider。
 
-**Skill（B4）**：Hermes 的 skill **治理弱于 B4**（默认自由写），治理别借。但其 skill **进化机器在三个 lyra 真缺的轴上领先**：**轨迹自动蒸馏、反馈驱动精修现有 skill、自动闲置生命周期**。正解是**把 Hermes 的自动挖掘/自动精修脑接到 B4 的强制-HITL 身**——每个自动提议落 `_drafts/` 走人审门，只有 auto-authored 才 auto-curate（provenance gating）。既补 gap，又不引入 Hermes 的自由写债、不违 lyra 反向不变量。
+**Skill（B4）**：Hermes 的 skill **治理弱于 B4**（默认自由写），治理别借。但其 skill **进化机器在三个 scopeapp 真缺的轴上领先**：**轨迹自动蒸馏、反馈驱动精修现有 skill、自动闲置生命周期**。正解是**把 Hermes 的自动挖掘/自动精修脑接到 B4 的强制-HITL 身**——每个自动提议落 `_drafts/` 走人审门，只有 auto-authored 才 auto-curate（provenance gating）。既补 gap，又不引入 Hermes 的自由写债、不违 scopeapp 反向不变量。
 
 ---
 
@@ -103,7 +103,7 @@ lyra B4 = post-turn 轨迹挖掘→静态安全扫描→`_drafts/`→**客户端
 |---|---|---|
 | **8-provider 外部记忆插件 + Honcho 云用户建模** | `plugins/memory/*` | 多厂商蔓延、Honcho 是云服务，off-strategy for 单本地用户 + 薄核 |
 | **Skills Hub / marketplace（9 源）** | `tools/skills_guard.py` 等 | 多作者分发，违 filter #2（同 [Grok 刻意不吸](GROK.md) 的 marketplace）|
-| **两文件记忆切分（MEMORY.md + USER.md）** | `tools/memory_tool.py` | 对单 LYRA.md 是双机制债；用户画像可作 LYRA.md 内一节 |
-| **memory & skill 的自由写默认** | `*.write_approval=false` | 违 lyra B4/C8 的"生命周期所有 + HITL"不变量；lyra 保持强制门 |
+| **两文件记忆切分（MEMORY.md + USER.md）** | `tools/memory_tool.py` | 对单 SCOPEAPP.md 是双机制债；用户画像可作 SCOPEAPP.md 内一节 |
+| **memory & skill 的自由写默认** | `*.write_approval=false` | 违 scopeapp B4/C8 的"生命周期所有 + HITL"不变量；scopeapp 保持强制门 |
 | **weekly LLM umbrella-consolidation pass** | `curator.py` `DEFAULT_CONSOLIDATE=False` | aux 模型成本，Hermes 自己都默认 off——单用户 YAGNI |
 | **semver `version:` 字段** | skill frontmatter | 无自动 bump、无历史——theater；archive 已是唯一历史 |

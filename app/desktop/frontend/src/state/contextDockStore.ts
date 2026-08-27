@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { discardOlderVersions } from "@/lib/persistedStore";
 
-const CONTEXT_DOCK_STORAGE_KEY = "lyra.context-dock";
+const CONTEXT_DOCK_STORAGE_KEY = "scopeapp.context-dock";
 
 const persistedDockScopeSchema = z.object({
   dockViewIds: z.array(z.string()),
@@ -231,7 +231,7 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
         const parsed = contextDockPersistSchema.safeParse(persisted);
         if (!parsed.success) {
           console.warn(
-            "[contextDockStore] discarding corrupted lyra.context-dock:",
+            "[contextDockStore] discarding corrupted scopeapp.context-dock:",
             parsed.error.issues,
           );
           return current;

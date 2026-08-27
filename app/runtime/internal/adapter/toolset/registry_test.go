@@ -46,7 +46,7 @@ func TestDiagnosticRegistryListsOnlyDirectTools(t *testing.T) {
 
 func TestDiagnosticRegistryInvokesWithinRoot(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("lyra"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("scopeapp"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	registry := toolset.NewDiagnosticRegistry()
@@ -54,8 +54,8 @@ func TestDiagnosticRegistryInvokesWithinRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if value := output.Any(); !strings.Contains(value.(map[string]any)["content"].(string), "lyra") {
-		t.Errorf("Invoke output missing lyra: %#v", value)
+	if value := output.Any(); !strings.Contains(value.(map[string]any)["content"].(string), "scopeapp") {
+		t.Errorf("Invoke output missing scopeapp: %#v", value)
 	}
 }
 

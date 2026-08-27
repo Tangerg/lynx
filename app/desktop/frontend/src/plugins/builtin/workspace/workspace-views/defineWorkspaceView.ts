@@ -11,7 +11,7 @@ import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
 export function defineWorkspaceView(spec: WorkspaceViewSpec): AnyPlugin {
   return definePlugin({
-    name: `lyra.builtin.view-${spec.id}`,
+    name: `scopeapp.builtin.view-${spec.id}`,
     setup(ctx) {
       ctx.contribute(WORKSPACE_VIEW, spec);
     },

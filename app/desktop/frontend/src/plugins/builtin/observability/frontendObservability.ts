@@ -6,7 +6,7 @@ export async function initFrontendObservability(): Promise<ObservabilityTeardown
   const { setupObservability, teardownObservability } = await import("@/lib/observability/setup");
   const configuredEndpoint = getConfig("otel.endpoint");
   await setupObservability({
-    serviceName: "lyra-frontend",
+    serviceName: "scopeapp-frontend",
     serviceVersion: DESKTOP_CLIENT_INFO.version,
     otlpEndpoint: typeof configuredEndpoint === "string" ? configuredEndpoint : undefined,
   });

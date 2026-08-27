@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	interactionDefinitionName        = "lyra.runtime.interaction"
-	interactionDefinitionDescription = "Run one model-directed Lyra interaction over a frozen working context."
+	interactionDefinitionName        = "scopeapp.runtime.interaction"
+	interactionDefinitionDescription = "Run one model-directed ScopeApp interaction over a frozen working context."
 	interactionDefinitionVersion     = "1.0.0"
 	defaultInteractionModelCalls     = 64
 	interactionEventBuffer           = 64

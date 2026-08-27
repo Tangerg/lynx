@@ -53,7 +53,7 @@ export interface PluginSpec<
   Requires extends Requirements = Requirements,
   Provides extends Provisions = Provisions,
 > {
-  /** Unique identifier. Built-ins use the `lyra.builtin.*` namespace. */
+  /** Unique identifier. Built-ins use the `scopeapp.builtin.*` namespace. */
   readonly name: string;
   readonly requires?: Requires;
   readonly provides?: Provides;

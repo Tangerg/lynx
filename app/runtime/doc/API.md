@@ -1,6 +1,6 @@
-# Lyra Runtime Protocol（定稿 `2026-08-24`）
+# ScopeApp Runtime Protocol（定稿 `2026-08-28`）
 
-> **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
+> **状态：正式契约（canonical）。** 本文是 ScopeApp 客户端 ↔ ScopeApp Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
 >
 > **本文不是字段目录。** 字段级真相只有一处：Contract Registry 生成的制品（§14）——
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-24`**（本 build 只服务这一个精确版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-28`**（本 build 只服务这一个精确版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -42,7 +42,7 @@
 
 ## 0. 模型与概念
 
-Lyra Runtime 是一个**本地、领域中立的 agent runtime**。客户端可以是 web UI、桌面外壳、TUI 或另一个本地进程。协议是
+ScopeApp Runtime 是一个**本地、领域中立的 agent runtime**。客户端可以是 web UI、桌面外壳、TUI 或另一个本地进程。协议是
 **JSON-RPC 2.0**，当前通过 streamable HTTP 承载。协议语义不依赖 HTTP 实现细节。
 
 **"领域中立"是核心设计立场**：协议核心只懂 Session / Run / Item / 通用工具调用这套**通用原语**；"某个工具长什么样、
@@ -161,7 +161,7 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 - method params 按对应请求 DTO **严格解码**：未知字段、`null`、类型不符或多余 JSON 值均返回 `invalid_params`，
   不允许服务端悄悄丢弃客户端意图。**required 字段不接受 `null`**，客户端也不发 `null` 占位。
 - OpenRPC 的 by-name `params[]` 从完整 request frame 的属性直接投影；不得重新按字段 Go 类型生成一个更宽的副本。
-  因而 `minLength` / `minimum` / `maximum` 等约束在逐参数视图、`x-lyra-requestFrame`、Go 与 TS validator 中完全一致。
+  因而 `minLength` / `minimum` / `maximum` 等约束在逐参数视图、`x-scopeapp-requestFrame`、Go 与 TS validator 中完全一致。
 
 ---
 
@@ -522,7 +522,7 @@ MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态
   跨查询复用会被拒绝。cursor 锚定上一页末尾的**排序键值**而非行本身，所以锚点行随后被删除也能继续。
 - **分页类别不是方法名约定**：Registry 从 result 的完整 `data/nextCursor` shape 与 params 是否同时含有
   `cursor/limit` 推导能力。`Page<T>` 不带这对参数就是 `pagination:"none"`；同时具备才是
-  `pagination:"cursor"`；只出现半套字段时启动即失败。manifest、OpenRPC 的 `x-lyra-pagination` 与 SDK 都消费这一个
+  `pagination:"cursor"`；只出现半套字段时启动即失败。manifest、OpenRPC 的 `x-scopeapp-pagination` 与 SDK 都消费这一个
   事实，不维护第二张方法表。
 - **SDK 只为真实 cursor 调用提供自动续页**：cursor list 的调用可用 `for await` / `.autoPagingEach()` /
   `.autoPagingToArray()`，`.pages()` 在需要 `items.list.runs` 等 page 级附加数据时逐页交付；有界 list 直接
@@ -803,7 +803,7 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 `capability_not_negotiated`（problem 里带 `requiredCapabilities`，客户端因此知道缺的是哪一个）。语义见
 [`AUX_API.md`](./AUX_API.md)。
 
-`knowledge.*` 专指人工维护的 `LYRA.md` 级联：`knowledge.list` 列出 workspace 可见且可寻址的条目，包括尚未创建的空文档；
+`knowledge.*` 专指人工维护的 `SCOPEAPP.md` 级联：`knowledge.list` 列出 workspace 可见且可寻址的条目，包括尚未创建的空文档；
 `knowledge.get` / `knowledge.update` 以闭合 `scope`（`cwd` / `projectRoot` / `home`）读取或条件覆盖一个条目。
 级联按 `home → projectRoot → cwd` 从宽到窄排列；当 workspace 本身就是 project root 时，同一物理文件只列一次并归为
 `cwd`，但 `knowledge.get/update` 仍可用任一显式 scope 寻址。
@@ -1040,7 +1040,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-24`）：**本 build 只服务一个精确版本**，协议没有兼容范围。
+- `protocolVersion` 是日期串（本定稿 `2026-08-28`）：**本 build 只服务一个精确版本**，协议没有兼容范围。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的精确版本），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
 - **加什么必须 bump**：新增请求字段（旧 server 严格拒绝）、**给闭合枚举或闭合 union 加成员**（客户端对它写

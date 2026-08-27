@@ -13,7 +13,7 @@ import (
 )
 
 func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
 }
 
 func TestIdempotencyStoreKeepsAbandonedClaimAcrossReopen(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -96,7 +96,7 @@ func TestIdempotencyStoreKeepsAbandonedClaimAcrossReopen(t *testing.T) {
 }
 
 func TestIdempotencyNamespaceIdentifiesOneDurableStore(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.db")
+	path := filepath.Join(t.TempDir(), "scopeapp.db")
 	openNamespace := func() (*sql.DB, string) {
 		db, err := sqlite.Open(t.Context(), path)
 		if err != nil {
@@ -135,7 +135,7 @@ func TestIdempotencyNamespaceIdentifiesOneDurableStore(t *testing.T) {
 }
 
 func TestIdempotencyNamespaceRejectsCorruptIdentity(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

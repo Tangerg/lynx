@@ -317,7 +317,7 @@ export const en: Record<string, string> = {
   "approvals.error.forget": "Couldn't clear the decision.",
 
   "hooks.intro":
-    "Hooks run your own command at fixed points in a turn — before a tool runs, after a prompt, on compaction. Global hooks (~/.lyra) always run; a project's hooks run only after you trust it.",
+    "Hooks run your own command at fixed points in a turn — before a tool runs, after a prompt, on compaction. Global hooks (~/.scopeapp) always run; a project's hooks run only after you trust it.",
   "hooks.trust": "Trust this project's hooks",
   "hooks.trust.sub":
     "This project's hooks run shell commands on your machine. Only enable for repositories you trust. Takes effect on the next turn.",
@@ -327,7 +327,8 @@ export const en: Record<string, string> = {
   "hooks.inactive": "inactive",
   "hooks.inactive.hint": "Trust this project to enable its hooks.",
   "hooks.empty": "No hooks configured",
-  "hooks.empty.sub": "Add hooks to ~/.lyra/hooks.json (global) or <project>/.lyra/hooks.json.",
+  "hooks.empty.sub":
+    "Add hooks to ~/.scopeapp/hooks.json (global) or <project>/.scopeapp/hooks.json.",
   "hooks.unavailable": "Hooks unavailable",
   "hooks.unavailable.sub": "This runtime doesn't expose hook management.",
   "hooks.error.trust": "Couldn't change project hook trust.",
@@ -523,14 +524,14 @@ export const en: Record<string, string> = {
   "settings.pane.connection": "Connection",
   "settings.connection.title": "Backend",
   "settings.connection.sub":
-    "Where the Lyra runtime is reachable. Applying reconnects the desktop app.",
+    "Where the ScopeApp runtime is reachable. Applying reconnects the desktop app.",
   "settings.connection.url": "URL",
   "settings.connection.apply": "Apply",
   "settings.connection.reset": "Reset to default",
   "settings.connection.status.checking": "Checking runtime…",
   "settings.connection.status.reconnecting": "Reconnecting…",
   "runtime.connection.reconnecting": "Runtime connection was lost. Reconnecting…",
-  "runtime.connection.unavailable": "Runtime is unavailable. Lyra will keep trying.",
+  "runtime.connection.unavailable": "Runtime is unavailable. ScopeApp will keep trying.",
   "runtime.connection.settings": "Connection settings",
   "settings.connection.status.ready": "Ready",
   "settings.connection.status.degraded": "Degraded",
@@ -811,7 +812,7 @@ export const en: Record<string, string> = {
   "recipes.available": "{{count}} available",
   "recipes.empty.title": "No recipes",
   "recipes.empty.sub":
-    "Drop a .md file in .lyra/recipes (project) or ~/.lyra/recipes (global) — its name becomes a /slash command.",
+    "Drop a .md file in .scopeapp/recipes (project) or ~/.scopeapp/recipes (global) — its name becomes a /slash command.",
   "schedules.intro":
     "Run a saved prompt on a schedule. Each run starts a fresh session while the runtime is serving — find its output in the sidebar.",
   "schedules.add": "New schedule",
@@ -847,7 +848,7 @@ export const en: Record<string, string> = {
   "knowledge.scope.home": "home",
   "knowledge.off": "off",
   "knowledge.empty.title": "No knowledge yet",
-  "knowledge.empty.sub": "LYRA.md files the runtime maintains for the agent show up here.",
+  "knowledge.empty.sub": "SCOPEAPP.md files the runtime maintains for the agent show up here.",
   "knowledge.disabled.title": "Knowledge is off",
   "knowledge.disabled.sub": "This runtime doesn't advertise the knowledge feature.",
   "knowledge.save": "Save",
@@ -968,8 +969,8 @@ export const en: Record<string, string> = {
   "convExport.exportedAt": "Exported {{time}}",
   "convExport.importUnsupported": "This runtime doesn't support session import.",
   "convExport.notJson": "Not a JSON file.",
-  "convExport.notLyra":
-    'Not a Lyra session export — pick a JSON exported via "Export conversation".',
+  "convExport.notScopeApp":
+    'Not a ScopeApp session export — pick a JSON exported via "Export conversation".',
   "convExport.importFailed": "Couldn't import the conversation.",
   "convExport.importSuccess": 'Imported "{{title}}".',
 

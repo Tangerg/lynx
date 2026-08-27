@@ -11,6 +11,8 @@ import (
 var assets embed.FS
 
 const (
+	productName         = "scopeapp"
+	productDescription  = "Agent client for the ScopeApp Runtime"
 	defaultWindowWidth  = 1440
 	defaultWindowHeight = 900
 	minimumWindowWidth  = 1120
@@ -23,8 +25,8 @@ const (
 // hold several windows, and none of their sizes is a property of the process.
 func desktopApplicationOptions(host *DesktopHost) application.Options {
 	return application.Options{
-		Name:        "lyra",
-		Description: "Agent client for the Lyra Runtime",
+		Name:        productName,
+		Description: productDescription,
 		// The Wails-owned boundary, and the whole of it: one service, whose methods are
 		// the only Go the frontend can reach.
 		Services: []application.Service{application.NewService(host)},
@@ -62,7 +64,7 @@ func desktopApplicationOptions(host *DesktopHost) application.Options {
 // shadow.
 func desktopWindowOptions() application.WebviewWindowOptions {
 	return application.WebviewWindowOptions{
-		Title:            "lyra",
+		Title:            productName,
 		Width:            defaultWindowWidth,
 		Height:           defaultWindowHeight,
 		MinWidth:         minimumWindowWidth,

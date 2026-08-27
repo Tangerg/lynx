@@ -1,4 +1,4 @@
-// Package http implements the Lyra Runtime Protocol's streamable-HTTP
+// Package http implements the ScopeApp Runtime Protocol's streamable-HTTP
 // transport. One endpoint carries JSON-RPC:
 //
 //	POST /v2/rpc            Request / Notification. A streaming method

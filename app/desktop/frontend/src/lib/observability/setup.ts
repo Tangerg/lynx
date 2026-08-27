@@ -1,5 +1,5 @@
 // Frontend mirror of the backend's setupObservability
-// (scope lyra/cmd/lyra/observability.go): the ONE place all three OTel signals
+// (scope scopeapp/cmd/scopeapp/observability.go): the ONE place all three OTel signals
 // are wired onto the global providers. Everything else just calls the static
 // otel accessors (trace.getTracer / metrics.getMeter / logs.getLogger) — no
 // injection.

@@ -39,7 +39,7 @@ function StopShellPreview(props: ToolPreviewProps) {
 // Previews are keyed by the tool ROUTING KEY = the wire tool `name` (§4.4 /
 // §4.4.2 display conventions).
 export const shellPreview = definePlugin({
-  name: "lyra.builtin.shell",
+  name: "scopeapp.builtin.shell",
   setup(ctx) {
     for (const preview of shellToolPreviews({
       shell: ShellCommandPreview,

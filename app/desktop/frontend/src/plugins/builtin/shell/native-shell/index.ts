@@ -33,7 +33,7 @@ const EDITABLE = "input, textarea, [contenteditable='true']";
 const WINDOW_INACTIVE_ATTR = "data-window-inactive";
 
 export default definePlugin({
-  name: "lyra.builtin.native-shell",
+  name: "scopeapp.builtin.native-shell",
   setup(ctx) {
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;

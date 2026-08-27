@@ -10,7 +10,7 @@ describe("createStorage", () => {
     expect(s.get("config")).toEqual({ x: 1, y: "hi" });
 
     // Verify the underlying key actually carries the namespace.
-    expect(localStorage.getItem("lyra.plugin.alpha.config")).toBe(
+    expect(localStorage.getItem("scopeapp.plugin.alpha.config")).toBe(
       JSON.stringify({ x: 1, y: "hi" }),
     );
   });
@@ -64,7 +64,7 @@ describe("createStorage", () => {
   it("gracefully returns non-JSON strings as-is", () => {
     const s = createStorage("alpha");
     // Bypass the typed setter to plant a raw value.
-    localStorage.setItem("lyra.plugin.alpha.raw", "not-json");
+    localStorage.setItem("scopeapp.plugin.alpha.raw", "not-json");
     expect(s.get("raw")).toBe("not-json");
   });
 

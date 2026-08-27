@@ -16,4 +16,4 @@ export interface AgentSessionPorts {
   subscribeLifecycle: (listener: (state: AgentSessionLifecycleSnapshot) => void) => () => void;
 }
 
-export const AGENT_SESSION_PORTS = service<AgentSessionPorts>("lyra.agent.sessionPorts");
+export const AGENT_SESSION_PORTS = service<AgentSessionPorts>("scopeapp.agent.sessionPorts");

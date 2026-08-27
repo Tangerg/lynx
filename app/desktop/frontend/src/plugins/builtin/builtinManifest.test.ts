@@ -9,6 +9,6 @@ describe("built-in plugin manifest", () => {
 
   it("keeps cumulative context telemetry out of the title bar", () => {
     const names = builtinPlugins.map((plugin) => plugin.name);
-    expect(names).not.toContain("lyra.builtin.session-usage");
+    expect(names).not.toContain("scopeapp.builtin.session-usage");
   });
 });

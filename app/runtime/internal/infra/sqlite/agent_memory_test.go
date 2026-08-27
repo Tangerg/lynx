@@ -17,7 +17,7 @@ import (
 
 func newAgentMemoryStore(t *testing.T) *sqlite.AgentMemoryStore {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 }
 
 func TestAgentMemorySchemaRejectsInvalidDomainVocabulary(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestAgentMemorySchemaRejectsInvalidDomainVocabulary(t *testing.T) {
 }
 
 func TestAgentMemorySchemaRejectsContentBeyondDomainBound(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +372,7 @@ func TestAgentMemoryReconcilePublishesOnlyAvailableTargetCapacity(t *testing.T) 
 }
 
 func TestAgentMemoryListRejectsCorruptOverfullTarget(t *testing.T) {
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestAgentMemoryExplicitAddRevivesRejectedProposal(t *testing.T) {
 
 func TestAgentMemoryReviewBoundsRejectedTombstones(t *testing.T) {
 	const maximumRejected = 2048
-	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "scopeapp.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

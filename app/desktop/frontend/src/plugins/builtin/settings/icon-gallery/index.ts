@@ -17,7 +17,7 @@ const IconShowcase = lazy(() =>
 );
 
 export default definePlugin({
-  name: "lyra.builtin.icon-gallery",
+  name: "scopeapp.builtin.icon-gallery",
   setup(ctx) {
     ctx.contribute(WORKSPACE_VIEW, {
       id: "icon-gallery",

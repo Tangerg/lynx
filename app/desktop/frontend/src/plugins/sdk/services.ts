@@ -70,11 +70,11 @@ export interface CommandsService {
   execute(id: string, ...args: unknown[]): Promise<void>;
 }
 
-export const CONFIG = service<ConfigService>("lyra.shell.config");
-export const I18N = service<I18nService>("lyra.shell.i18n");
-export const WINDOW = service<WindowService>("lyra.shell.window");
-export const WORKSPACE = service<WorkspaceService>("lyra.shell.workspace");
-export const COMMANDS = service<CommandsService>("lyra.shell.commands");
+export const CONFIG = service<ConfigService>("scopeapp.shell.config");
+export const I18N = service<I18nService>("scopeapp.shell.i18n");
+export const WINDOW = service<WindowService>("scopeapp.shell.window");
+export const WORKSPACE = service<WorkspaceService>("scopeapp.shell.workspace");
+export const COMMANDS = service<CommandsService>("scopeapp.shell.commands");
 
 /** The ambient half, bound per plugin by `definePlugin` — all three carry the
  *  plugin's identity, so there is no provider to declare. */

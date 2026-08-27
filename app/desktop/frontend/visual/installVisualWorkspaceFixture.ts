@@ -195,7 +195,7 @@ function pending<T>(): Promise<T> {
 
 function workspaceDataPlugin(state: VisualWorkspaceState): AnyPlugin {
   return definePlugin({
-    name: "lyra.visual.workspace-data",
+    name: "scopeapp.visual.workspace-data",
     setup(ctx) {
       ctx.contribute(DATA_PROVIDER, {
         key: WORKSPACE_DIFF_KEY,
@@ -384,7 +384,7 @@ const FIXTURE_VIEW_IDS = new Set([
 ]);
 
 const workspaceDockDestinations = definePlugin({
-  name: "lyra.visual.workspace-dock-destinations",
+  name: "scopeapp.visual.workspace-dock-destinations",
   setup(ctx) {
     for (const destination of builtinContextDockDestinations) {
       if (!FIXTURE_VIEW_IDS.has(destination.viewId)) continue;
@@ -394,7 +394,7 @@ const workspaceDockDestinations = definePlugin({
 });
 
 const visualShortcuts = definePlugin({
-  name: "lyra.visual.shortcuts",
+  name: "scopeapp.visual.shortcuts",
   setup(ctx) {
     for (const shortcut of [
       {
@@ -485,7 +485,7 @@ export async function installVisualWorkspaceFixture(
   });
   useUiStore.setState({
     theme,
-    visualStyle: "lyra",
+    visualStyle: "scopeapp",
     motionScale: 0,
     sidebarCollapsed: false,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
