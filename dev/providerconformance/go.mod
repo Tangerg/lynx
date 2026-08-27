@@ -3,30 +3,30 @@ module github.com/Tangerg/scope/dev/providerconformance
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/models/alibaba v0.0.0-20260827154425-7882a8dd5c5e
-	github.com/Tangerg/scope/models/anthropic v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/azureopenai v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/deepseek v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/fireworks v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/groq v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/huggingface v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/minimax v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/mistral v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/moonshot v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/openai v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/openrouter v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/perplexity v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/together v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/xai v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/xiaomi v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/models/zhipu v0.0.0-20260827161502-4639332bf150
-	github.com/Tangerg/scope/tools v0.0.0-20260827161502-4639332bf150
+	github.com/Tangerg/scope/models/alibaba v0.0.1
+	github.com/Tangerg/scope/models/anthropic v0.0.1
+	github.com/Tangerg/scope/models/azureopenai v0.0.1
+	github.com/Tangerg/scope/models/deepseek v0.0.1
+	github.com/Tangerg/scope/models/fireworks v0.0.1
+	github.com/Tangerg/scope/models/groq v0.0.1
+	github.com/Tangerg/scope/models/huggingface v0.0.1
+	github.com/Tangerg/scope/models/minimax v0.0.1
+	github.com/Tangerg/scope/models/mistral v0.0.1
+	github.com/Tangerg/scope/models/moonshot v0.0.1
+	github.com/Tangerg/scope/models/openai v0.0.1
+	github.com/Tangerg/scope/models/openrouter v0.0.1
+	github.com/Tangerg/scope/models/perplexity v0.0.1
+	github.com/Tangerg/scope/models/together v0.0.1
+	github.com/Tangerg/scope/models/xai v0.0.1
+	github.com/Tangerg/scope/models/xiaomi v0.0.1
+	github.com/Tangerg/scope/models/zhipu v0.0.1
+	github.com/Tangerg/scope/tools v0.0.1
 )
 
 require (
-	github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150 // indirect
-	github.com/Tangerg/scope/models/protocol/anthropic v0.0.0-20260827161502-4639332bf150 // indirect
-	github.com/Tangerg/scope/models/protocol/openai v0.0.0-20260827161502-4639332bf150 // indirect
+	github.com/Tangerg/scope/core v0.0.1 // indirect
+	github.com/Tangerg/scope/models/protocol/anthropic v0.0.1 // indirect
+	github.com/Tangerg/scope/models/protocol/openai v0.0.1 // indirect
 	github.com/Tangerg/sse v0.0.6 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.67.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
