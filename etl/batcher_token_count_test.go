@@ -62,11 +62,14 @@ func TestTokenCountBatcherValidatesConstructorInput(t *testing.T) {
 		config etl.TokenCountBatcherConfig
 	}{
 		{name: "estimator required"},
+		{name: "maximum required", config: etl.TokenCountBatcherConfig{
+			Estimator: textLengthEstimator{},
+		}},
 		{name: "negative max", config: etl.TokenCountBatcherConfig{
 			Estimator: textLengthEstimator{}, MaxTokens: -1,
 		}},
 		{name: "invalid reserve", config: etl.TokenCountBatcherConfig{
-			Estimator: textLengthEstimator{}, Reserve: 1,
+			Estimator: textLengthEstimator{}, MaxTokens: 10, Reserve: 1,
 		}},
 	}
 	for _, test := range tests {
@@ -92,6 +95,7 @@ func TestTokenCountBatcherPropagatesEstimatorError(t *testing.T) {
 	want := errors.New("estimate failed")
 	batcher, err := etl.NewTokenCountBatcher(etl.TokenCountBatcherConfig{
 		Estimator: failingEstimator{err: want},
+		MaxTokens: 10,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +109,7 @@ func TestTokenCountBatcherPropagatesEstimatorError(t *testing.T) {
 func TestTokenCountBatcherRejectsInvalidStageValues(t *testing.T) {
 	batcher, err := etl.NewTokenCountBatcher(etl.TokenCountBatcherConfig{
 		Estimator: textLengthEstimator{},
+		MaxTokens: 10,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -115,6 +120,7 @@ func TestTokenCountBatcherRejectsInvalidStageValues(t *testing.T) {
 
 	batcher, err = etl.NewTokenCountBatcher(etl.TokenCountBatcherConfig{
 		Estimator: negativeEstimator{},
+		MaxTokens: 10,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -10,14 +10,13 @@ import (
 	"github.com/samber/lo"
 )
 
-const defaultBatcherMaxTokens = 8191
-
 // TokenCountBatcherConfig configures token estimation and the per-batch
 // provider budget.
 type TokenCountBatcherConfig struct {
 	// Estimator is required.
 	Estimator tokenizer.TextEstimator
-	// MaxTokens is the provider input limit. Zero uses 8191.
+	// MaxTokens is the required provider input limit. The batching layer has no
+	// provider-neutral default because model limits differ.
 	MaxTokens int
 	// Reserve is the fraction of MaxTokens held back from each batch. Zero
 	// means no reserve.
@@ -25,6 +24,24 @@ type TokenCountBatcherConfig struct {
 	// Formatter renders each document before estimation. Nil uses document
 	// text without metadata.
 	Formatter Formatter
+}
+
+func (c TokenCountBatcherConfig) normalized() (TokenCountBatcherConfig, error) {
+	if lo.IsNil(c.Estimator) {
+		return TokenCountBatcherConfig{}, errors.New("etl: token estimator is required")
+	}
+	if c.MaxTokens <= 0 {
+		return TokenCountBatcherConfig{}, errors.New("etl: maximum batch tokens must be positive")
+	}
+	if c.Reserve < 0 || c.Reserve >= 1 {
+		return TokenCountBatcherConfig{}, errors.New("etl: token reserve must be in [0, 1)")
+	}
+	if c.Formatter == nil {
+		c.Formatter = TextFormatter{}
+	} else if lo.IsNil(c.Formatter) {
+		return TokenCountBatcherConfig{}, errors.New("etl: formatter must not be a typed nil")
+	}
+	return c, nil
 }
 
 // TokenCountBatcher carves a document slice into batches that fit
@@ -47,22 +64,9 @@ type sizedDocument struct {
 }
 
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	if lo.IsNil(config.Estimator) {
-		return nil, errors.New("etl: token estimator is required")
-	}
-	if config.MaxTokens == 0 {
-		config.MaxTokens = defaultBatcherMaxTokens
-	}
-	if config.MaxTokens < 0 {
-		return nil, errors.New("etl: maximum batch tokens must not be negative")
-	}
-	if config.Reserve < 0 || config.Reserve >= 1 {
-		return nil, errors.New("etl: token reserve must be in [0, 1)")
-	}
-	if config.Formatter == nil {
-		config.Formatter = TextFormatter{}
-	} else if lo.IsNil(config.Formatter) {
-		return nil, errors.New("etl: formatter must not be a typed nil")
+	config, err := config.normalized()
+	if err != nil {
+		return nil, err
 	}
 
 	effective := max(1, int(float64(config.MaxTokens)*(1-config.Reserve)))
