@@ -23,10 +23,10 @@ const (
 	MetadataSourceName  = "html.source"
 )
 
-// Config controls HTML extraction. By default whitespace runs are collapsed;
+// ReaderConfig controls HTML extraction. By default whitespace runs are collapsed;
 // PreserveWhitespace retains the source spacing instead. Metadata is cloned
-// by New, and reader-derived html.* keys take precedence on conflict.
-type Config struct {
+// by NewReader, and reader-derived html.* keys take precedence on conflict.
+type ReaderConfig struct {
 	Selector           string
 	SourceName         string
 	PreserveWhitespace bool
@@ -43,8 +43,8 @@ type Reader struct {
 	extraMetadata   coremetadata.Map
 }
 
-// New builds an HTML reader over source.
-func New(source io.Reader, config Config) (*Reader, error) {
+// NewReader builds an HTML reader over source.
+func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("html reader: source must not be nil")
 	}

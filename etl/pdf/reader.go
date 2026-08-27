@@ -24,10 +24,10 @@ const (
 // Read may return successfully decoded documents together with this error.
 var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read")
 
-// Config controls PDF extraction. PerPage emits one document per readable
-// page. Password is used for encrypted PDFs. Metadata is cloned by New,
+// ReaderConfig controls PDF extraction. PerPage emits one document per readable
+// page. Password is used for encrypted PDFs. Metadata is cloned by NewReader,
 // and reader-derived pdf.* keys take precedence on conflict.
-type Config struct {
+type ReaderConfig struct {
 	PerPage    bool
 	SourceName string
 	Password   string
@@ -44,11 +44,11 @@ type Reader struct {
 	extraMetadata coremetadata.Map
 }
 
-// New builds a PDF reader. The underlying source must implement
+// NewReader builds a PDF reader. The underlying source must implement
 // io.ReaderAt because ledongthuc/pdf parses PDF objects via random access.
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
-func New(source io.ReaderAt, size int64, config Config) (*Reader, error) {
+func NewReader(source io.ReaderAt, size int64, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("pdf reader: source must not be nil")
 	}

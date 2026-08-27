@@ -15,7 +15,7 @@ type pointerReader struct{}
 func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func TestReader(t *testing.T) {
-	reader, err := text.New(strings.NewReader("hello"))
+	reader, err := text.NewReader(strings.NewReader("hello"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestReader(t *testing.T) {
 }
 
 func TestReaderEmptySourceReturnsNoDocuments(t *testing.T) {
-	reader, err := text.New(strings.NewReader(" \n\t"))
+	reader, err := text.NewReader(strings.NewReader(" \n\t"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestReaderEmptySourceReturnsNoDocuments(t *testing.T) {
 }
 
 func TestReaderHonorsCanceledContext(t *testing.T) {
-	reader, err := text.New(strings.NewReader("never read"))
+	reader, err := text.NewReader(strings.NewReader("never read"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,12 +54,12 @@ func TestReaderHonorsCanceledContext(t *testing.T) {
 	}
 }
 
-func TestNewRejectsNil(t *testing.T) {
+func TestNewReaderRejectsNil(t *testing.T) {
 	var typedNil *pointerReader
-	if _, err := text.New(nil); err == nil {
+	if _, err := text.NewReader(nil); err == nil {
 		t.Fatal("nil reader must fail")
 	}
-	if _, err := text.New(typedNil); err == nil {
+	if _, err := text.NewReader(typedNil); err == nil {
 		t.Fatal("typed nil reader must fail")
 	}
 }

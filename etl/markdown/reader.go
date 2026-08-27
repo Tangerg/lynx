@@ -24,11 +24,11 @@ const (
 	MetadataSourceName   = "markdown.source"
 )
 
-// Config controls Markdown extraction. HeadingSplitLevel emits one document
+// ReaderConfig controls Markdown extraction. HeadingSplitLevel emits one document
 // per section split on headings at or above that level (1 = H1, 2 = H1+H2).
 // Zero disables splitting; non-zero values must be in [1, 6]. Metadata is
-// cloned by New, and reader-derived markdown.* keys take precedence.
-type Config struct {
+// cloned by NewReader, and reader-derived markdown.* keys take precedence.
+type ReaderConfig struct {
 	HeadingSplitLevel int
 	SourceName        string
 	Metadata          coremetadata.Map
@@ -43,8 +43,8 @@ type Reader struct {
 	extraMetadata     coremetadata.Map
 }
 
-// New builds a Markdown reader over source.
-func New(source io.Reader, config Config) (*Reader, error) {
+// NewReader builds a Markdown reader over source.
+func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("markdown reader: source must not be nil")
 	}

@@ -20,8 +20,8 @@ type Reader struct {
 	source io.Reader
 }
 
-// New constructs a text Reader from source.
-func New(source io.Reader) (*Reader, error) {
+// NewReader constructs a text Reader from source.
+func NewReader(source io.Reader) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("text reader: source must not be nil")
 	}

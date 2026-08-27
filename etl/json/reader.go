@@ -22,14 +22,14 @@ import (
 //
 // Example:
 //
-//	r, err := json.New(strings.NewReader(`[{"id":1},{"id":2}]`))
+//	r, err := json.NewReader(strings.NewReader(`[{"id":1},{"id":2}]`))
 //	docs, err := r.Read(ctx) // 2 documents
 type Reader struct {
 	source io.Reader
 }
 
-// New constructs a JSON Reader from source.
-func New(source io.Reader) (*Reader, error) {
+// NewReader constructs a JSON Reader from source.
+func NewReader(source io.Reader) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("json reader: source must not be nil")
 	}

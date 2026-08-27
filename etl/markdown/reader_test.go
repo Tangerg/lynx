@@ -40,7 +40,7 @@ Body of section B.
 `
 
 func TestWholeDocument(t *testing.T) {
-	r, err := markdown.New(strings.NewReader(sample), markdown.Config{})
+	r, err := markdown.NewReader(strings.NewReader(sample), markdown.ReaderConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,9 +57,9 @@ func TestWholeDocument(t *testing.T) {
 }
 
 func TestHeadingSplitH2(t *testing.T) {
-	r, err := markdown.New(
+	r, err := markdown.NewReader(
 		strings.NewReader(sample),
-		markdown.Config{HeadingSplitLevel: 2, SourceName: "test.md"},
+		markdown.ReaderConfig{HeadingSplitLevel: 2, SourceName: "test.md"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -100,23 +100,23 @@ func TestHeadingSplitH2(t *testing.T) {
 	}
 }
 
-func TestNewRejectsInvalidConfiguration(t *testing.T) {
-	for _, config := range []markdown.Config{
+func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+	for _, config := range []markdown.ReaderConfig{
 		{HeadingSplitLevel: -1},
 		{HeadingSplitLevel: 7},
 	} {
-		if _, err := markdown.New(strings.NewReader(sample), config); err == nil {
-			t.Fatalf("New(%+v) error = nil", config)
+		if _, err := markdown.NewReader(strings.NewReader(sample), config); err == nil {
+			t.Fatalf("NewReader(%+v) error = nil", config)
 		}
 	}
 }
 
-func TestNewRejectsNilSource(t *testing.T) {
+func TestNewReaderRejectsNilSource(t *testing.T) {
 	var typedNil *pointerReader
-	if _, err := markdown.New(nil, markdown.Config{}); err == nil {
+	if _, err := markdown.NewReader(nil, markdown.ReaderConfig{}); err == nil {
 		t.Fatal("nil source must fail")
 	}
-	if _, err := markdown.New(typedNil, markdown.Config{}); err == nil {
+	if _, err := markdown.NewReader(typedNil, markdown.ReaderConfig{}); err == nil {
 		t.Fatal("typed nil source must fail")
 	}
 }

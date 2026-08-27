@@ -15,7 +15,7 @@ type pointerReader struct{}
 func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func TestReaderArray(t *testing.T) {
-	reader, err := jsonreader.New(strings.NewReader(`[{"id":1},{"id":2}]`))
+	reader, err := jsonreader.NewReader(strings.NewReader(`[{"id":1},{"id":2}]`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestReaderArray(t *testing.T) {
 
 func TestReaderSingleValue(t *testing.T) {
 	for _, input := range []string{`{"id":1}`, `42`, `"text"`, `null`} {
-		reader, err := jsonreader.New(strings.NewReader(input))
+		reader, err := jsonreader.NewReader(strings.NewReader(input))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +45,7 @@ func TestReaderSingleValue(t *testing.T) {
 }
 
 func TestReaderHonorsCanceledContext(t *testing.T) {
-	reader, err := jsonreader.New(strings.NewReader(`{"id":1}`))
+	reader, err := jsonreader.NewReader(strings.NewReader(`{"id":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,18 +56,18 @@ func TestReaderHonorsCanceledContext(t *testing.T) {
 	}
 }
 
-func TestNewRejectsNil(t *testing.T) {
+func TestNewReaderRejectsNil(t *testing.T) {
 	var typedNil *pointerReader
-	if _, err := jsonreader.New(nil); err == nil {
+	if _, err := jsonreader.NewReader(nil); err == nil {
 		t.Fatal("nil reader must fail")
 	}
-	if _, err := jsonreader.New(typedNil); err == nil {
+	if _, err := jsonreader.NewReader(typedNil); err == nil {
 		t.Fatal("typed nil reader must fail")
 	}
 }
 
 func TestReaderRejectsMalformedArray(t *testing.T) {
-	reader, err := jsonreader.New(strings.NewReader(`[{"id":1}`))
+	reader, err := jsonreader.NewReader(strings.NewReader(`[{"id":1}`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -46,7 +46,7 @@ const samplePage = `<!doctype html>
 </html>`
 
 func TestWholePage(t *testing.T) {
-	r, err := html.New(strings.NewReader(samplePage), html.Config{SourceName: "test.html"})
+	r, err := html.NewReader(strings.NewReader(samplePage), html.ReaderConfig{SourceName: "test.html"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,9 +76,9 @@ func TestWholePage(t *testing.T) {
 }
 
 func TestSelector(t *testing.T) {
-	r, err := html.New(
+	r, err := html.NewReader(
 		strings.NewReader(samplePage),
-		html.Config{Selector: "article"},
+		html.ReaderConfig{Selector: "article"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -103,19 +103,19 @@ func TestSelector(t *testing.T) {
 	}
 }
 
-func TestNewRejectsInvalidConfiguration(t *testing.T) {
-	config := html.Config{Selector: "["}
-	if _, err := html.New(strings.NewReader(samplePage), config); err == nil {
-		t.Fatalf("New(%+v) error = nil", config)
+func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
+	config := html.ReaderConfig{Selector: "["}
+	if _, err := html.NewReader(strings.NewReader(samplePage), config); err == nil {
+		t.Fatalf("NewReader(%+v) error = nil", config)
 	}
 }
 
-func TestNewRejectsNilSource(t *testing.T) {
+func TestNewReaderRejectsNilSource(t *testing.T) {
 	var typedNil *pointerReader
-	if _, err := html.New(nil, html.Config{}); err == nil {
+	if _, err := html.NewReader(nil, html.ReaderConfig{}); err == nil {
 		t.Fatal("nil source must fail")
 	}
-	if _, err := html.New(typedNil, html.Config{}); err == nil {
+	if _, err := html.NewReader(typedNil, html.ReaderConfig{}); err == nil {
 		t.Fatal("typed nil source must fail")
 	}
 }
