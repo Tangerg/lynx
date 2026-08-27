@@ -442,7 +442,6 @@ tool: func (r *Registry) Resolve(name string) (Tool, bool)
 tool: func Capability[T any](value Tool) (capability T, found bool, err error)
 tool: func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (Func[In, Out], error)
 tool: func NewRegistry(initial ...Tool) (*Registry, error)
-tool: func Schema[T any]() (json.RawMessage, error)
 tool: type FuncConfig struct { Name string Description string }
 tool: type Func[In, Out any] struct { config FuncConfig input corejsonschema.Schema function func(context.Context, In) (Out, error) }
 tool: type Registry struct { mu sync.RWMutex entries map[string]entry }

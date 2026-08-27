@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/jsonschema"
@@ -91,6 +92,111 @@ func TestForUsesRichValueSchemaModel(t *testing.T) {
 	}
 	if err := schema.Validate([]byte(`{"value":0}`)); err == nil {
 		t.Fatal("Validate(value below modeled minimum) succeeded")
+	}
+}
+
+func TestForMatchesJSONFieldAndSchemaTagSemantics(t *testing.T) {
+	type option struct {
+		Label string `json:"label"`
+	}
+	type input struct {
+		Operation string    `json:"operation" jsonschema:"enum=list,enum=load,minLength=4,maxLength=4,pattern=^[a-z]+$" jsonschema_description:"Operation to run."`
+		Options   []option  `json:"options,omitempty" jsonschema:"minItems=1,maxItems=4"`
+		Ignored   string    `json:"-"`
+		When      time.Time `json:"when,omitempty"`
+		Score     float64   `json:"score,omitempty" jsonschema:"minimum=-1.5,maximum=2.5"`
+	}
+
+	contract, err := jsonschema.For[input]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(contract.JSON(), &schema); err != nil {
+		t.Fatal(err)
+	}
+	if schema["type"] != "object" || schema["additionalProperties"] != false {
+		t.Fatalf("schema = %s, want strict object", contract.JSON())
+	}
+	properties := schema["properties"].(map[string]any)
+	if _, exists := properties["Ignored"]; exists {
+		t.Fatalf("schema includes ignored field: %s", contract.JSON())
+	}
+	operation := properties["operation"].(map[string]any)
+	if operation["description"] != "Operation to run." || len(operation["enum"].([]any)) != 2 ||
+		operation["minLength"] != float64(4) || operation["maxLength"] != float64(4) || operation["pattern"] != "^[a-z]+$" {
+		t.Fatalf("operation schema = %#v", operation)
+	}
+	required := schema["required"].([]any)
+	if len(required) != 1 || required[0] != "operation" {
+		t.Fatalf("required = %#v, want [operation]", required)
+	}
+	options := properties["options"].(map[string]any)
+	if options["minItems"] != float64(1) || options["maxItems"] != float64(4) {
+		t.Fatalf("options schema = %#v", options)
+	}
+	when := properties["when"].(map[string]any)
+	if when["type"] != "string" || when["format"] != "date-time" {
+		t.Fatalf("time schema = %#v", when)
+	}
+	score := properties["score"].(map[string]any)
+	if score["minimum"] != -1.5 || score["maximum"] != 2.5 {
+		t.Fatalf("score schema = %#v", score)
+	}
+}
+
+func TestForSupportsCompositePointerAndEncodingSemantics(t *testing.T) {
+	type input struct {
+		Names  []string          `json:"names"`
+		Labels map[string]string `json:"labels"`
+		Limit  *int              `json:"limit,omitempty"`
+		Value  any               `json:"value,omitempty"`
+		Debug  bool              `json:"debug,omitzero"`
+	}
+	type recursive struct {
+		Next *recursive `json:"next,omitempty"`
+	}
+	type badPattern struct {
+		Value string `json:"value" jsonschema:"pattern=["`
+	}
+	type stringEncoded struct {
+		Value int `json:"value,string"`
+	}
+
+	if _, err := jsonschema.For[*input](); err != nil {
+		t.Fatal(err)
+	}
+	collection, err := jsonschema.For[map[string][]int]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var collectionSchema map[string]any
+	if err := json.Unmarshal(collection.JSON(), &collectionSchema); err != nil {
+		t.Fatal(err)
+	}
+	additional := collectionSchema["additionalProperties"].(map[string]any)
+	if additional["type"] != "array" {
+		t.Fatalf("map schema = %s", collection.JSON())
+	}
+	recursiveSchema, err := jsonschema.For[recursive]()
+	if err != nil {
+		t.Fatalf("recursive schema: %v", err)
+	}
+	if !strings.Contains(string(recursiveSchema.JSON()), `"$ref"`) || !strings.Contains(string(recursiveSchema.JSON()), `"$defs"`) {
+		t.Fatalf("recursive schema does not use references: %s", recursiveSchema.JSON())
+	}
+	if _, err := jsonschema.For[badPattern](); err == nil {
+		t.Fatal("invalid pattern succeeded")
+	}
+	encoded, err := jsonschema.For[stringEncoded]()
+	if err != nil {
+		t.Fatalf("encoding/json string option: %v", err)
+	}
+	if !strings.Contains(string(encoded.JSON()), `"value":{"type":"string"}`) {
+		t.Fatalf("string-encoded field schema = %s", encoded.JSON())
+	}
+	if _, err := jsonschema.For[chan int](); err == nil {
+		t.Fatal("unsupported Go type succeeded")
 	}
 }
 

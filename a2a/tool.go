@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/scope/core/chat"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
@@ -51,14 +52,14 @@ func newRemoteTool(config remoteToolConfig) (remoteTool, error) {
 	if config.name == "" {
 		return remoteTool{}, errEmptyToolName
 	}
-	inputSchema, err := toolcontract.Schema[callArguments]()
+	inputSchema, err := corejsonschema.For[callArguments]()
 	if err != nil {
 		return remoteTool{}, fmt.Errorf("a2a: derive input schema: %w", err)
 	}
 	definition := corechat.ToolDefinition{
 		Name:        config.name,
 		Description: describeAgent(config.card),
-		InputSchema: inputSchema,
+		InputSchema: inputSchema.JSON(),
 	}
 	if err := definition.Validate(); err != nil {
 		return remoteTool{}, fmt.Errorf("a2a: build tool for agent %q: %w", config.card.Name, err)

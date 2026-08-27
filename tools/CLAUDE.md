@@ -1,6 +1,6 @@
 # CLAUDE.md — tools module family
 
-> `tools` module 提供可直接装配的 shell、文件系统、HTTP、网页抓取、网页搜索和 skill 工具。单工具协议、typed function、schema 与实例 Registry 属于更低层的 `core/tool`。
+> `tools` module 提供可直接装配的 shell、文件系统、HTTP、网页抓取、网页搜索和 skill 工具。单工具协议、typed function 与实例 Registry 属于更低层的 `core/tool`，schema 合同只由 `core/jsonschema` 拥有。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
@@ -16,7 +16,7 @@
 - **两层 SPI 是核心**:Tool 层只做 JSON ↔ Go + schema 校验 + LLM 交互;**所有业务逻辑**(行号、binary 检测、写锁、路径锚定 …)都在 Executor 层 —— 这样远程 backend 能独立优化,不必往返整个文件。
 - **手动注册,无全局 registry**:调用方显式把工具注册进自己的 toolset,多 agent / 多进程各管各的。
 - **只有一套可执行 Tool 身份**：`core/tool.Registry` 只管理普通 `tool.Tool`；Agent Framework `interaction.Dispatcher` 冻结同一批 Tool，不建立第二套 Tool 类型、可变 registry 或 bridge。
-- **schema 归单工具层**：`core/tool.NewFunc` 从 Input struct 派生 schema；手写具体 Tool 使用 `tool.Schema`，不在本 family 复制 schema 内核。
+- **schema 只有一个 owner**：优先由 `core/tool.NewFunc` 从 Input struct 派生 schema；确实无法适配 typed function 的手写 Tool 直接使用 `core/jsonschema`，不经过工具层转发。
 - **typed helper 不承载 runtime policy**：`tool.NewFunc` 不处理并发、重试、HITL、直接返回或 Tool loop 终止；这些属于 `agent/interaction` 与 Host adapter。
 - **Nil-safety 双标**:有本地实现的(shell / fs 等)`New(nil)` 默认本地、开箱即用;必须外部配置的(web / httpreq)`New(nil)` **返错** —— 没有本地 fallback。
 - **输出超限截断而非报错**:带 truncated 标记,LLM 据此决定下一步。
@@ -26,7 +26,7 @@
 ## 模块特有反向不变量
 
 - ❌ **全局 tool registry** —— 显式注册是有意的,多 agent / 多进程各自管理 toolset。
-- ❌ **在 `tools` 复制 Tool/Registry/schema 原语** —— 这些只由 `core/tool` 拥有。
+- ❌ **在 `tools` 复制 Tool/Registry/schema 原语** —— Tool/Registry 只由 `core/tool` 拥有，schema 只由 `core/jsonschema` 拥有。
 - ❌ **为同依赖方向与生命周期的 web provider 拆 module** —— `web/<provider>` 是实现 package，不是独立发布单元；只有引入明显不同的重型 SDK 或生命周期时才重新评估边界。
 - ❌ **在 Tool 层做业务逻辑** —— 业务全在 Executor,Tool 只是 JSON ↔ Go + schema。
 - ❌ **给 shell 加 root 限制** —— 信任调用方,要 jail 在外层(进程上下文 / 容器)。
