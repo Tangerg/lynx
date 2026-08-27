@@ -2,7 +2,7 @@ module github.com/Tangerg/scope/vectorstores/azureaisearch
 
 go 1.27.0
 
-require github.com/Tangerg/scope/core v0.0.0-20260827161502-4639332bf150
+require github.com/Tangerg/scope/core v0.0.1
 
 require (
 	github.com/samber/lo v1.53.0 // indirect
