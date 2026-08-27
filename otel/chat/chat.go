@@ -22,7 +22,12 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-const instrumentationName = "github.com/Tangerg/scope/otel/chat"
+const (
+	instrumentationName            = "github.com/Tangerg/scope/otel/chat"
+	chatOperationName              = "chat"
+	firstTokenReceivedEvent        = "first_token_received"
+	streamAccumulationFailureEvent = "gen_ai.stream.accumulation_error"
+)
 
 var (
 	ErrInvalidConfig = errors.New("otel/chat: invalid config")
@@ -138,12 +143,12 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 					return false
 				}
 				if !firstToken && hasGeneratedContent(chunk) {
-					span.AddEvent("first_token_received")
+					span.AddEvent(firstTokenReceivedEvent)
 					firstToken = true
 				}
 				if chunk != nil {
 					if accumulationErr := accumulator.Add(chunk); accumulationErr != nil {
-						span.AddEvent("gen_ai.stream.accumulation_error",
+						span.AddEvent(streamAccumulationFailureEvent,
 							trace.WithAttributes(semconv.ErrorTypeKey.String(errorType(accumulationErr))),
 						)
 					}
@@ -166,9 +171,9 @@ func (m Middleware) start(
 	request *corechat.Request,
 ) (context.Context, trace.Span) {
 	model := requestModel(request)
-	name := "chat"
+	name := chatOperationName
 	if model != "" {
-		name = "chat " + model
+		name = chatOperationName + " " + model
 	}
 	attrs := requestAttributes(request)
 	attrs = append(attrs,
@@ -243,7 +248,7 @@ func requestAttributes(request *corechat.Request) []attribute.KeyValue {
 		return nil
 	}
 	options := request.Options
-	attrs := make([]attribute.KeyValue, 0, 8)
+	var attrs []attribute.KeyValue
 	if options.Model != "" {
 		attrs = append(attrs, semconv.GenAIRequestModel(options.Model))
 	}
@@ -275,7 +280,7 @@ func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 	if response == nil {
 		return nil
 	}
-	attrs := make([]attribute.KeyValue, 0, 5)
+	var attrs []attribute.KeyValue
 	if response.Metadata != nil {
 		if response.Metadata.ID != "" {
 			attrs = append(attrs, semconv.GenAIResponseID(response.Metadata.ID))
@@ -297,7 +302,7 @@ func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 }
 
 func metricAttributes(request *corechat.Request, response *corechat.Response) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, 2)
+	var attrs []attribute.KeyValue
 	if model := requestModel(request); model != "" {
 		attrs = append(attrs, semconv.GenAIRequestModel(model))
 	}

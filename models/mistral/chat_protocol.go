@@ -20,6 +20,8 @@ const (
 	streamChunkExtensionKey = "mistral/chunk"
 	mistralStreamDone       = "[DONE]"
 	mistralStreamMaxBytes   = 16 << 20
+	responseFormatField     = "response_format"
+	maximumTemperature      = 1.5
 )
 
 // ReasoningEffort controls Mistral's native reasoning mode.
@@ -56,18 +58,40 @@ func (c ChatRequestOptions) Validate() error {
 	if err := c.ReasoningEffort.Validate(); err != nil {
 		return err
 	}
-	for name, raw := range map[string]json.RawMessage{
-		"tool_choice": c.ToolChoice,
-	} {
-		if len(raw) > 0 && !json.Valid(raw) {
-			return fmt.Errorf("%s contains invalid JSON", name)
-		}
+	if len(c.ToolChoice) > 0 && !json.Valid(c.ToolChoice) {
+		return errors.New("tool_choice contains invalid JSON")
 	}
 	for index := range c.Guardrails {
 		if !json.Valid(c.Guardrails[index]) {
 			return fmt.Errorf("guardrails[%d] contains invalid JSON", index)
 		}
 	}
+	return nil
+}
+
+func (c *ChatRequestOptions) UnmarshalJSON(data []byte) error {
+	if c == nil {
+		return errors.New("mistral: nil ChatRequestOptions")
+	}
+	var reserved struct {
+		ResponseFormat json.RawMessage `json:"response_format"`
+	}
+	if err := json.Unmarshal(data, &reserved); err != nil {
+		return fmt.Errorf("decode Mistral request options: %w", err)
+	}
+	if len(reserved.ResponseFormat) != 0 {
+		return fmt.Errorf("field %q is owned by chat options output format", responseFormatField)
+	}
+	type wireOptions ChatRequestOptions
+	var decoded wireOptions
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("decode Mistral request options: %w", err)
+	}
+	candidate := ChatRequestOptions(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*c = candidate
 	return nil
 }
 
@@ -80,10 +104,10 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error {
 	if c.APIKey == "" {
-		return errors.New("mistral: APIKey is required")
+		return errors.New("mistral: API key is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {
-		return fmt.Errorf("mistral: DefaultOptions: %w", err)
+		return fmt.Errorf("mistral: default options: %w", err)
 	}
 	return nil
 }

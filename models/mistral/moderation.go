@@ -17,10 +17,10 @@ type ModerationModelConfig struct {
 
 func (m ModerationModelConfig) Validate() error {
 	if m.APIKey == "" {
-		return errors.New("mistral: APIKey is required")
+		return errors.New("mistral: API key is required")
 	}
 	if m.DefaultOptions.Model == "" {
-		return errors.New("mistral: DefaultOptions.Model is required")
+		return errors.New("mistral: default model is required")
 	}
 	if err := m.DefaultOptions.Validate(); err != nil {
 		return err

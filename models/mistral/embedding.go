@@ -18,10 +18,10 @@ type EmbeddingModelConfig struct {
 
 func (e EmbeddingModelConfig) Validate() error {
 	if e.APIKey == "" {
-		return errors.New("mistral: APIKey is required")
+		return errors.New("mistral: API key is required")
 	}
 	if e.DefaultOptions.Model == "" {
-		return errors.New("mistral: DefaultOptions.Model is required")
+		return errors.New("mistral: default model is required")
 	}
 	if err := e.DefaultOptions.Validate(); err != nil {
 		return err

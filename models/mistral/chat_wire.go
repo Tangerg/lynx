@@ -2,6 +2,60 @@ package mistral
 
 import "encoding/json"
 
+type chatRole string
+
+const (
+	chatRoleSystem    chatRole = "system"
+	chatRoleUser      chatRole = "user"
+	chatRoleAssistant chatRole = "assistant"
+	chatRoleTool      chatRole = "tool"
+)
+
+type contentType string
+
+const (
+	contentTypeText          contentType = "text"
+	contentTypeThinking      contentType = "thinking"
+	contentTypeImageURL      contentType = "image_url"
+	contentTypeDocumentURL   contentType = "document_url"
+	contentTypeInputAudio    contentType = "input_audio"
+	contentTypeReference     contentType = "reference"
+	contentTypeToolReference contentType = "tool_reference"
+)
+
+type toolType string
+
+const toolTypeFunction toolType = "function"
+
+type outputFormatType string
+
+const (
+	outputFormatTypeText       outputFormatType = "text"
+	outputFormatTypeJSONObject outputFormatType = "json_object"
+	outputFormatTypeJSONSchema outputFormatType = "json_schema"
+)
+
+type finishReason string
+
+const (
+	finishReasonStop        finishReason = "stop"
+	finishReasonLength      finishReason = "length"
+	finishReasonModelLength finishReason = "model_length"
+	finishReasonToolCalls   finishReason = "tool_calls"
+)
+
+type responseFormat struct {
+	Type       outputFormatType      `json:"type"`
+	JSONSchema *jsonSchemaDefinition `json:"json_schema,omitempty"`
+}
+
+type jsonSchemaDefinition struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Schema      json.RawMessage `json:"schema"`
+	Strict      bool            `json:"strict"`
+}
+
 type chatCompletionRequest struct {
 	Model            string          `json:"model"`
 	Messages         []chatMessage   `json:"messages"`
@@ -13,12 +67,12 @@ type chatCompletionRequest struct {
 	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
 	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
 	Tools            []chatTool      `json:"tools,omitempty"`
-	ResponseFormat   json.RawMessage `json:"response_format,omitempty"`
+	ResponseFormat   *responseFormat `json:"response_format,omitempty"`
 	ChatRequestOptions
 }
 
 type chatMessage struct {
-	Role       string         `json:"role"`
+	Role       chatRole       `json:"role"`
 	Content    any            `json:"content,omitempty"`
 	ToolCalls  []chatToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
@@ -26,18 +80,18 @@ type chatMessage struct {
 }
 
 type textChunk struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type contentType `json:"type"`
+	Text string      `json:"text"`
 }
 
 type thinkChunk struct {
-	Type     string      `json:"type"`
+	Type     contentType `json:"type"`
 	Thinking []textChunk `json:"thinking"`
 	Closed   bool        `json:"closed"`
 }
 
 type imageURLChunk struct {
-	Type     string        `json:"type"`
+	Type     contentType   `json:"type"`
 	ImageURL imageURLValue `json:"image_url"`
 }
 
@@ -64,18 +118,18 @@ func (i *imageURLValue) UnmarshalJSON(data []byte) error {
 }
 
 type documentURLChunk struct {
-	Type         string `json:"type"`
-	DocumentURL  string `json:"document_url"`
-	DocumentName string `json:"document_name,omitempty"`
+	Type         contentType `json:"type"`
+	DocumentURL  string      `json:"document_url"`
+	DocumentName string      `json:"document_name,omitempty"`
 }
 
 type audioChunk struct {
-	Type       string `json:"type"`
-	InputAudio string `json:"input_audio"`
+	Type       contentType `json:"type"`
+	InputAudio string      `json:"input_audio"`
 }
 
 type chatTool struct {
-	Type     string       `json:"type"`
+	Type     toolType     `json:"type"`
 	Function chatFunction `json:"function"`
 }
 
@@ -87,7 +141,7 @@ type chatFunction struct {
 
 type chatToolCall struct {
 	ID       string           `json:"id,omitempty"`
-	Type     string           `json:"type,omitempty"`
+	Type     toolType         `json:"type,omitempty"`
 	Function chatFunctionCall `json:"function"`
 	Index    int              `json:"index,omitempty"`
 }
@@ -107,11 +161,11 @@ type chatCompletionResponse struct {
 type chatCompletionChoice struct {
 	Index        int                   `json:"index"`
 	Message      chatCompletionMessage `json:"message"`
-	FinishReason string                `json:"finish_reason"`
+	FinishReason finishReason          `json:"finish_reason"`
 }
 
 type chatCompletionMessage struct {
-	Role      string          `json:"role"`
+	Role      chatRole        `json:"role"`
 	Content   json.RawMessage `json:"content"`
 	ToolCalls []chatToolCall  `json:"tool_calls"`
 }
@@ -126,7 +180,7 @@ type chatCompletionChunk struct {
 type chatCompletionStreamChoice struct {
 	Index        int                   `json:"index"`
 	Delta        chatCompletionMessage `json:"delta"`
-	FinishReason string                `json:"finish_reason"`
+	FinishReason finishReason          `json:"finish_reason"`
 }
 
 type chatUsage struct {

@@ -30,7 +30,89 @@ const (
 	DefaultSpaceType      = SpaceTypeCosine
 	DefaultEngine         = EngineLucene
 	DefaultMethodName     = "hnsw"
+	bulkRecordSeparator   = '\n'
+	mappingTypeText       = "text"
+	mappingTypeVector     = "knn_vector"
+	mappingTypeObject     = "object"
 )
+
+type bulkOperation string
+
+const (
+	bulkOperationIndex  bulkOperation = "index"
+	bulkOperationDelete bulkOperation = "delete"
+)
+
+type createIndexRequest struct {
+	Settings indexSettings `json:"settings"`
+	Mappings indexMappings `json:"mappings"`
+}
+
+type indexSettings struct {
+	KNN bool `json:"index.knn"`
+}
+
+type indexMappings struct {
+	Properties map[string]any `json:"properties"`
+}
+
+type textFieldMapping struct {
+	Type string `json:"type"`
+}
+
+type vectorFieldMapping struct {
+	Type       string           `json:"type"`
+	Dimensions int              `json:"dimension"`
+	Method     annMethodMapping `json:"method"`
+}
+
+type annMethodMapping struct {
+	Name      string    `json:"name"`
+	Engine    Engine    `json:"engine"`
+	SpaceType SpaceType `json:"space_type"`
+}
+
+type objectFieldMapping struct {
+	Type    string `json:"type"`
+	Dynamic bool   `json:"dynamic"`
+}
+
+type bulkAction struct {
+	Index  *bulkActionTarget `json:"index,omitempty"`
+	Delete *bulkActionTarget `json:"delete,omitempty"`
+}
+
+type bulkActionTarget struct {
+	Index string `json:"_index,omitempty"`
+	ID    string `json:"_id"`
+}
+
+type queryString struct {
+	Query string `json:"query"`
+}
+
+type queryClause struct {
+	QueryString queryString `json:"query_string"`
+}
+
+type nearestNeighbor struct {
+	Vector []float32    `json:"vector"`
+	K      int          `json:"k"`
+	Filter *queryClause `json:"filter,omitempty"`
+}
+
+type nearestNeighborQuery struct {
+	KNN map[string]nearestNeighbor `json:"knn"`
+}
+
+type searchRequest struct {
+	Size  int                  `json:"size"`
+	Query nearestNeighborQuery `json:"query"`
+}
+
+type deleteByQueryRequest struct {
+	Query queryClause `json:"query"`
+}
 
 // SpaceType selects the vector similarity space recognized by
 // OpenSearch's knn_vector field. The chosen value is baked into the
@@ -175,22 +257,22 @@ type StoreConfig struct {
 func (s StoreConfig) Validate() error {
 	s.applyDefaults()
 	if s.Client == nil {
-		return errors.New("opensearch: Client is required")
+		return errors.New("opensearch: client is required")
 	}
 	if s.EmbeddingModel == nil {
-		return errors.New("opensearch: EmbeddingModel is required")
+		return errors.New("opensearch: embedding model is required")
 	}
 	if s.DocumentBatcher == nil {
-		return errors.New("opensearch: DocumentBatcher is required")
+		return errors.New("opensearch: document batcher is required")
 	}
 	if s.Dimensions < 0 {
-		return errors.New("opensearch: Dimensions must be >= 0")
+		return errors.New("opensearch: dimensions must be non-negative")
 	}
 	if !s.SpaceType.Valid() {
-		return fmt.Errorf("opensearch: unsupported SpaceType %q", s.SpaceType)
+		return fmt.Errorf("opensearch: unsupported space type %q", s.SpaceType)
 	}
 	if !s.Engine.Valid() {
-		return fmt.Errorf("opensearch: unsupported Engine %q", s.Engine)
+		return fmt.Errorf("opensearch: unsupported engine %q", s.Engine)
 	}
 	switch s.MethodName {
 	case "hnsw":
@@ -199,10 +281,10 @@ func (s StoreConfig) Validate() error {
 			return fmt.Errorf("opensearch: method %q requires the Faiss engine", s.MethodName)
 		}
 	default:
-		return fmt.Errorf("opensearch: unsupported MethodName %q", s.MethodName)
+		return fmt.Errorf("opensearch: unsupported method name %q", s.MethodName)
 	}
 	if s.Engine == EngineLucene && (s.SpaceType == SpaceTypeL1 || s.SpaceType == SpaceTypeLInf) {
-		return fmt.Errorf("opensearch: Lucene does not support SpaceType %q", s.SpaceType)
+		return fmt.Errorf("opensearch: Lucene does not support space type %q", s.SpaceType)
 	}
 	return nil
 }
@@ -281,7 +363,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return nil
 	}
 	if !initSchema {
-		return errors.New("opensearch: index not found and InitializeSchema is false")
+		return fmt.Errorf("opensearch: index %q does not exist and schema initialization is disabled", s.indexName)
 	}
 
 	if s.dimensions <= 0 {
@@ -292,7 +374,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		s.dimensions = dimensions
 	}
 	if s.dimensions <= 0 {
-		return errors.New("opensearch: Dimensions must be > 0")
+		return errors.New("opensearch: embedding dimensions must be positive")
 	}
 
 	return s.createIndex(ctx)
@@ -301,7 +383,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	resp, err := s.client.Indices.Exists(ctx, opensearchapi.IndicesExistsReq{Indices: []string{s.indexName}})
 	if err != nil {
-		return false, fmt.Errorf("indices.exists: %w", err)
+		return false, fmt.Errorf("opensearch: check index %q: %w", s.indexName, err)
 	}
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -309,36 +391,35 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	case http.StatusNotFound:
 		return false, nil
 	default:
-		body, _ := io.ReadAll(resp.Body)
-		return false, fmt.Errorf("indices.exists %s: status=%d body=%s",
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return false, fmt.Errorf("opensearch: read index existence error for %q with status %d: %w",
+				s.indexName, resp.StatusCode, readErr)
+		}
+		return false, fmt.Errorf("opensearch: check index %q: status=%d body=%s",
 			s.indexName, resp.StatusCode, string(body))
 	}
 }
 
 func (s *Store) createIndex(ctx context.Context) error {
-	embeddingMapping := map[string]any{
-		"type":      "knn_vector",
-		"dimension": s.dimensions,
-		"method": map[string]any{
-			"name":       s.methodName,
-			"engine":     string(s.engine),
-			"space_type": string(s.spaceType),
+	embeddingMapping := vectorFieldMapping{
+		Type:       mappingTypeVector,
+		Dimensions: s.dimensions,
+		Method: annMethodMapping{
+			Name: s.methodName, Engine: s.engine, SpaceType: s.spaceType,
 		},
 	}
 	properties := map[string]any{
-		s.contentField:   map[string]any{"type": "text"},
+		s.contentField:   textFieldMapping{Type: mappingTypeText},
 		s.embeddingField: embeddingMapping,
 	}
 	if s.metadataField != "" {
-		properties[s.metadataField] = map[string]any{
-			"type":    "object",
-			"dynamic": true,
-		}
+		properties[s.metadataField] = objectFieldMapping{Type: mappingTypeObject, Dynamic: true}
 	}
 
-	body, err := jsonReader(map[string]any{
-		"settings": map[string]any{"index.knn": true},
-		"mappings": map[string]any{"properties": properties},
+	body, err := encodeJSONRequest(createIndexRequest{
+		Settings: indexSettings{KNN: true},
+		Mappings: indexMappings{Properties: properties},
 	})
 	if err != nil {
 		return err
@@ -349,17 +430,21 @@ func (s *Store) createIndex(ctx context.Context) error {
 		Body:  body,
 	})
 	if err != nil {
-		return fmt.Errorf("indices.create %s: %w", s.indexName, err)
+		return fmt.Errorf("opensearch: create index %q: %w", s.indexName, err)
 	}
 	if resp != nil && resp.Inspect().Response != nil && resp.Inspect().Response.IsError() {
-		raw, _ := io.ReadAll(resp.Inspect().Response.Body)
-		return fmt.Errorf("indices.create %s: status=%d body=%s",
-			s.indexName, resp.Inspect().Response.StatusCode, string(raw))
+		response := resp.Inspect().Response
+		raw, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return fmt.Errorf("opensearch: read create-index error for %q with status %d: %w",
+				s.indexName, response.StatusCode, readErr)
+		}
+		return fmt.Errorf("opensearch: create index %q: status=%d body=%s",
+			s.indexName, response.StatusCode, string(raw))
 	}
 	return nil
 }
 
-// Index embeds documents and bulk-indexes them.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
 	if validateErr := request.Validate(); validateErr != nil {
 		return fmt.Errorf("opensearch.Store.Index: %w", validateErr)
@@ -379,11 +464,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		}
 
 		var body bytes.Buffer
-		for i, doc := range docs {
+		for index, doc := range docs {
 			id := doc.ID
 
-			actionLine, encErr := json.Marshal(map[string]any{
-				"index": map[string]any{"_id": id},
+			actionLine, encErr := json.Marshal(bulkAction{
+				Index: &bulkActionTarget{ID: id},
 			})
 			if encErr != nil {
 				return fmt.Errorf("opensearch: encode bulk action: %w", encErr)
@@ -391,7 +476,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 			docBody := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: embedding.Float32Vector(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[index]),
 			}
 			if s.metadataField != "" {
 				docBody[s.metadataField] = doc.Metadata
@@ -406,9 +491,9 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			}
 
 			body.Write(actionLine)
-			body.WriteByte('\n')
+			body.WriteByte(bulkRecordSeparator)
 			body.Write(docLine)
-			body.WriteByte('\n')
+			body.WriteByte(bulkRecordSeparator)
 		}
 
 		resp, err := s.client.Bulk(ctx, opensearchapi.BulkReq{
@@ -418,27 +503,40 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		if err != nil {
 			return fmt.Errorf("opensearch: bulk: %w", err)
 		}
-		if resp != nil && resp.Errors {
-			return s.bulkErrorReason(resp)
+		if err := (bulkOutcome{operation: bulkOperationIndex, response: resp}).Err(); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (s *Store) bulkErrorReason(resp *opensearchapi.BulkResp) error {
-	for _, item := range resp.Items {
+type bulkOutcome struct {
+	operation bulkOperation
+	response  *opensearchapi.BulkResp
+}
+
+func (b bulkOutcome) Err() error {
+	if b.response == nil {
+		return fmt.Errorf("opensearch: bulk %s returned no response", b.operation)
+	}
+	if !b.response.Errors {
+		return nil
+	}
+	for _, item := range b.response.Items {
 		for _, info := range item {
 			if info.Error != nil {
-				return fmt.Errorf("opensearch: bulk failed on id=%s: %s",
-					info.ID, info.Error.Reason)
+				reason := info.Error.Reason
+				if reason == "" {
+					reason = "provider returned no reason"
+				}
+				return fmt.Errorf("opensearch: bulk %s failed for document %q with status %d: %s",
+					b.operation, info.ID, info.Status, reason)
 			}
 		}
 	}
-	return errors.New("opensearch: bulk reported errors with no item-level reason")
+	return fmt.Errorf("opensearch: bulk %s reported errors without an item failure", b.operation)
 }
 
-// Search runs an approximate KNN query against the configured index
-// and returns the documents above MinScore.
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
@@ -458,25 +556,23 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	knnQuery := map[string]any{
-		s.embeddingField: map[string]any{
-			"vector": queryVec,
-			"k":      req.Options.TopK,
-		},
+	neighbor := nearestNeighbor{
+		Vector: queryVec,
+		K:      req.Options.TopK,
 	}
 	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
 	if err != nil {
 		return nil, err
 	}
 	if filterQuery != "" {
-		knnQuery[s.embeddingField].(map[string]any)["filter"] = map[string]any{
-			"query_string": map[string]any{"query": filterQuery},
-		}
+		neighbor.Filter = &queryClause{QueryString: queryString{Query: filterQuery}}
 	}
 
-	body, err := jsonReader(map[string]any{
-		"size":  req.Options.TopK,
-		"query": map[string]any{"knn": knnQuery},
+	body, err := encodeJSONRequest(searchRequest{
+		Size: req.Options.TopK,
+		Query: nearestNeighborQuery{
+			KNN: map[string]nearestNeighbor{s.embeddingField: neighbor},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -508,8 +604,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-// Delete removes documents matching the filter expression via
-// delete_by_query.
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
@@ -527,10 +621,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return errors.New("opensearch: refusing to delete on empty filter")
 	}
 
-	body, err := jsonReader(map[string]any{
-		"query": map[string]any{
-			"query_string": map[string]any{"query": filterQuery},
-		},
+	body, err := encodeJSONRequest(deleteByQueryRequest{
+		Query: queryClause{QueryString: queryString{Query: filterQuery}},
 	})
 	if err != nil {
 		return err
@@ -550,11 +642,6 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	return nil
 }
 
-// DeleteIDs removes documents by their OpenSearch _id via a single
-// Bulk request carrying one delete action per id (NDJSON
-// `{"delete":{"_index":idx,"_id":id}}`). An empty slice is a no-op;
-// unknown ids are silently ignored (Bulk reports them as not_found, not
-// an error). Implements [vectorstore.IDDeleter].
 func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
@@ -563,14 +650,14 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	var body bytes.Buffer
 	for _, id := range ids {
 		var actionLine []byte
-		actionLine, err = json.Marshal(map[string]any{
-			"delete": map[string]any{"_index": s.indexName, "_id": id},
+		actionLine, err = json.Marshal(bulkAction{
+			Delete: &bulkActionTarget{Index: s.indexName, ID: id},
 		})
 		if err != nil {
 			return fmt.Errorf("opensearch: encode bulk delete action: %w", err)
 		}
 		body.Write(actionLine)
-		body.WriteByte('\n')
+		body.WriteByte(bulkRecordSeparator)
 	}
 
 	resp, err := s.client.Bulk(ctx, opensearchapi.BulkReq{
@@ -580,10 +667,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if err != nil {
 		return fmt.Errorf("opensearch: bulk delete: %w", err)
 	}
-	if resp != nil && resp.Errors {
-		return s.bulkErrorReason(resp)
-	}
-	return nil
+	return (bulkOutcome{operation: bulkOperationDelete, response: resp}).Err()
 }
 
 // buildFilterQuery wraps the visitor and returns the Lucene query
@@ -651,9 +735,8 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 
 func (s *Store) Close() error { return nil }
 
-// jsonReader marshals v to JSON and returns it as an io.Reader.
-func jsonReader(v any) (io.Reader, error) {
-	buf, err := json.Marshal(v)
+func encodeJSONRequest(value any) (io.Reader, error) {
+	buf, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("opensearch: encode request: %w", err)
 	}

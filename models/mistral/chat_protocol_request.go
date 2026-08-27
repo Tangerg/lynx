@@ -1,6 +1,7 @@
 package mistral
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,15 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+const (
+	mediaTypeImagePrefix = "image/"
+	mediaTypeAudioPrefix = "audio/"
+	mediaTypePDF         = "application/pdf"
+	dataURIPrefix        = "data:"
+	dataURIBase64Marker  = ";base64,"
+	emptyJSONObject      = "{}"
+)
+
 func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatCompletionRequest, error) {
 	if c == nil || c.api == nil {
 		return nil, errors.New("mistral: nil Chat")
@@ -20,21 +30,12 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("mistral: request: %w", err)
 	}
-	extension, found, err := request.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
+	extension, _, err := request.Options.Extensions.Decode[ChatRequestOptions](RequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, err)
 	}
-	if found {
-		fields, _, decodeErr := request.Options.Extensions.Decode[map[string]json.RawMessage](RequestExtensionKey)
-		if decodeErr != nil {
-			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, decodeErr)
-		}
-		if _, exists := fields["response_format"]; exists {
-			return nil, fmt.Errorf("mistral: extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
-		}
-		if validateErr := extension.Validate(); validateErr != nil {
-			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, validateErr)
-		}
+	if validateErr := extension.Validate(); validateErr != nil {
+		return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, validateErr)
 	}
 	options, err := c.defaults.Resolve(request.Options)
 	if err != nil {
@@ -46,8 +47,8 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 	if options.TopK != nil {
 		return nil, errors.New("mistral: options.top_k is not supported")
 	}
-	if options.Temperature != nil && (*options.Temperature < 0 || *options.Temperature > 1.5) {
-		return nil, fmt.Errorf("mistral: options.temperature must be between 0 and 1.5, got %v", *options.Temperature)
+	if options.Temperature != nil && (*options.Temperature < 0 || *options.Temperature > maximumTemperature) {
+		return nil, fmt.Errorf("mistral: options.temperature must be between 0 and %g, got %v", maximumTemperature, *options.Temperature)
 	}
 	messages, err := mapChatRequestMessages(request.Messages)
 	if err != nil {
@@ -57,7 +58,7 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 	if err != nil {
 		return nil, err
 	}
-	responseFormat, err := mapMistralOutputFormat(options.OutputFormat)
+	responseFormat, err := newResponseFormat(options.OutputFormat)
 	if err != nil {
 		return nil, err
 	}
@@ -77,34 +78,26 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 	}, nil
 }
 
-func mapMistralOutputFormat(format *corechat.OutputFormat) (json.RawMessage, error) {
+func newResponseFormat(format *corechat.OutputFormat) (*responseFormat, error) {
 	if format == nil {
 		return nil, nil
 	}
-	var value any
 	switch format.Type {
 	case corechat.OutputFormatText:
-		value = map[string]string{"type": "text"}
+		return &responseFormat{Type: outputFormatTypeText}, nil
 	case corechat.OutputFormatJSON:
-		value = map[string]string{"type": "json_object"}
+		return &responseFormat{Type: outputFormatTypeJSONObject}, nil
 	case corechat.OutputFormatJSONSchema:
-		schema, err := format.SchemaAs[map[string]any]()
-		if err != nil {
-			return nil, fmt.Errorf("mistral: output schema: %w", err)
-		}
-		definition := map[string]any{"name": format.Name, "schema": schema, "strict": true}
-		if format.Description != "" {
-			definition["description"] = format.Description
-		}
-		value = map[string]any{"type": "json_schema", "json_schema": definition}
+		return &responseFormat{
+			Type: outputFormatTypeJSONSchema,
+			JSONSchema: &jsonSchemaDefinition{
+				Name: format.Name, Description: format.Description,
+				Schema: bytes.Clone(format.Schema), Strict: true,
+			},
+		}, nil
 	default:
 		return nil, fmt.Errorf("mistral: unsupported output format %q", format.Type)
 	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return nil, fmt.Errorf("mistral: encode output format: %w", err)
-	}
-	return encoded, nil
 }
 
 func mapChatRequestMessages(messages []corechat.Message) ([]chatMessage, error) {
@@ -113,13 +106,13 @@ func mapChatRequestMessages(messages []corechat.Message) ([]chatMessage, error) 
 		message := messages[messageIndex]
 		switch message.Role {
 		case corechat.RoleSystem:
-			result = append(result, chatMessage{Role: "system", Content: message.Text()})
+			result = append(result, chatMessage{Role: chatRoleSystem, Content: message.Text()})
 		case corechat.RoleUser:
 			content, err := mapMistralUserContent(message.Parts)
 			if err != nil {
 				return nil, fmt.Errorf("mistral: messages[%d]: %w", messageIndex, err)
 			}
-			result = append(result, chatMessage{Role: "user", Content: content})
+			result = append(result, chatMessage{Role: chatRoleUser, Content: content})
 		case corechat.RoleAssistant:
 			mapped, err := mapMistralAssistantMessage(message.Parts)
 			if err != nil {
@@ -133,7 +126,7 @@ func mapChatRequestMessages(messages []corechat.Message) ([]chatMessage, error) 
 					return nil, fmt.Errorf("mistral: messages[%d].parts[%d]: missing tool result", messageIndex, partIndex)
 				}
 				result = append(result, chatMessage{
-					Role:       "tool",
+					Role:       chatRoleTool,
 					Content:    toolResult.Result,
 					ToolCallID: toolResult.ID,
 					Name:       toolResult.Name,
@@ -155,7 +148,7 @@ func mapMistralUserContent(parts []corechat.Part) (any, error) {
 		part := parts[partIndex]
 		switch part.Kind {
 		case corechat.PartText:
-			content = append(content, textChunk{Type: "text", Text: part.Text})
+			content = append(content, textChunk{Type: contentTypeText, Text: part.Text})
 		case corechat.PartMedia:
 			chunk, err := mapMistralMedia(part.Media)
 			if err != nil {
@@ -175,13 +168,13 @@ func mapMistralMedia(value *media.Media) (any, error) {
 		return nil, fmt.Errorf("media MIME %q: %w", value.MIME, err)
 	}
 	switch {
-	case strings.HasPrefix(mediaType, "image/"):
+	case strings.HasPrefix(mediaType, mediaTypeImagePrefix):
 		uri, err := mistralMediaURI(value)
 		if err != nil {
 			return nil, err
 		}
-		return imageURLChunk{Type: "image_url", ImageURL: imageURLValue(uri)}, nil
-	case mediaType == "application/pdf":
+		return imageURLChunk{Type: contentTypeImageURL, ImageURL: imageURLValue(uri)}, nil
+	case mediaType == mediaTypePDF:
 		if value.Source.Kind != media.SourceURI {
 			return nil, errors.New("PDF input requires a URL source")
 		}
@@ -189,8 +182,8 @@ func mapMistralMedia(value *media.Media) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return documentURLChunk{Type: "document_url", DocumentURL: uri, DocumentName: value.Name}, nil
-	case strings.HasPrefix(mediaType, "audio/"):
+		return documentURLChunk{Type: contentTypeDocumentURL, DocumentURL: uri, DocumentName: value.Name}, nil
+	case strings.HasPrefix(mediaType, mediaTypeAudioPrefix):
 		if value.Source.Kind != media.SourceBytes {
 			return nil, errors.New("audio input requires a byte source")
 		}
@@ -198,7 +191,7 @@ func mapMistralMedia(value *media.Media) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return audioChunk{Type: "input_audio", InputAudio: base64.StdEncoding.EncodeToString(data)}, nil
+		return audioChunk{Type: contentTypeInputAudio, InputAudio: base64.StdEncoding.EncodeToString(data)}, nil
 	default:
 		return nil, fmt.Errorf("media MIME %q is unsupported", mediaType)
 	}
@@ -213,20 +206,20 @@ func mistralMediaURI(value *media.Media) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return "data:" + value.MIME + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+		return dataURIPrefix + value.MIME + dataURIBase64Marker + base64.StdEncoding.EncodeToString(data), nil
 	default:
 		return "", fmt.Errorf("media source %q is unsupported", value.Source.Kind)
 	}
 }
 
 func mapMistralAssistantMessage(parts []corechat.Part) (chatMessage, error) {
-	message := chatMessage{Role: "assistant"}
+	message := chatMessage{Role: chatRoleAssistant}
 	content := make([]any, 0, len(parts))
 	for partIndex := range parts {
 		part := parts[partIndex]
 		switch part.Kind {
 		case corechat.PartText:
-			content = append(content, textChunk{Type: "text", Text: part.Text})
+			content = append(content, textChunk{Type: contentTypeText, Text: part.Text})
 		case corechat.PartReasoning:
 			frames, framed, err := decodeThinkingFrames(part.Signature)
 			if err != nil {
@@ -242,22 +235,22 @@ func mapMistralAssistantMessage(parts []corechat.Part) (chatMessage, error) {
 			}
 			if part.Text != "" {
 				content = append(content, thinkChunk{
-					Type:     "thinking",
-					Thinking: []textChunk{{Type: "text", Text: part.Text}},
+					Type:     contentTypeThinking,
+					Thinking: []textChunk{{Type: contentTypeText, Text: part.Text}},
 					Closed:   true,
 				})
 			}
 		case corechat.PartToolCall:
 			arguments := json.RawMessage(part.ToolCall.Arguments)
 			if len(arguments) == 0 {
-				arguments = json.RawMessage(`{}`)
+				arguments = json.RawMessage(emptyJSONObject)
 			}
 			if !json.Valid(arguments) {
 				return chatMessage{}, fmt.Errorf("parts[%d].tool_call.arguments contains invalid JSON", partIndex)
 			}
 			message.ToolCalls = append(message.ToolCalls, chatToolCall{
 				ID:   part.ToolCall.ID,
-				Type: "function",
+				Type: toolTypeFunction,
 				Function: chatFunctionCall{
 					Name:      part.ToolCall.Name,
 					Arguments: arguments,
@@ -287,7 +280,7 @@ func mapChatTools(definitions []corechat.ToolDefinition) ([]chatTool, error) {
 			return nil, fmt.Errorf("mistral: tools[%d].input_schema: %w", index, err)
 		}
 		tools = append(tools, chatTool{
-			Type: "function",
+			Type: toolTypeFunction,
 			Function: chatFunction{
 				Name:        definitions[index].Name,
 				Description: definitions[index].Description,

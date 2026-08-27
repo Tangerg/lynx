@@ -7,24 +7,19 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-func TestMapMistralOutputFormat(t *testing.T) {
+func TestNewResponseFormat(t *testing.T) {
 	format, err := corechat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := mapMistralOutputFormat(&format)
+	mapped, err := newResponseFormat(&format)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mapped map[string]any
-	if err := json.Unmarshal(raw, &mapped); err != nil {
-		t.Fatal(err)
-	}
-	if mapped["type"] != "json_schema" {
+	if mapped.Type != outputFormatTypeJSONSchema {
 		t.Fatalf("response format = %#v", mapped)
 	}
-	definition, ok := mapped["json_schema"].(map[string]any)
-	if !ok || definition["name"] != "answer" || definition["strict"] != true {
-		t.Fatalf("json_schema = %#v", mapped["json_schema"])
+	if mapped.JSONSchema == nil || mapped.JSONSchema.Name != "answer" || !mapped.JSONSchema.Strict {
+		t.Fatalf("json_schema = %#v", mapped.JSONSchema)
 	}
 }

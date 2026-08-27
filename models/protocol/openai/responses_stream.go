@@ -32,7 +32,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		r.model = string(typed.Response.Model)
 		return nil, false, nil
 	case responses.ResponseOutputItemAddedEvent:
-		if typed.Item.Type != "function_call" {
+		if typed.Item.Type != responsesItemTypeFunctionCall {
 			return nil, false, nil
 		}
 		call := typed.Item.AsFunctionCall()
@@ -70,7 +70,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		}
 		return r.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
 	case responses.ResponseOutputItemDoneEvent:
-		if typed.Item.Type != "reasoning" {
+		if typed.Item.Type != responsesItemTypeReasoning {
 			return nil, false, nil
 		}
 		reasoning := typed.Item.AsReasoning()
@@ -81,7 +81,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		return r.deltaResponse(corechat.NewReasoningPart("", signature))
 	case responses.ResponseCompletedEvent:
 		hasToolCall := slices.ContainsFunc(typed.Response.Output, func(item responses.ResponseOutputItemUnion) bool {
-			return item.Type == "function_call"
+			return item.Type == responsesItemTypeFunctionCall
 		})
 		response := &corechat.Response{
 			Output: &corechat.Output{FinishReason: responsesFinishReason(&typed.Response, hasToolCall)},

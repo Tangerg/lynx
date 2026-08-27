@@ -8,34 +8,36 @@ import (
 	"fmt"
 )
 
-const thinkingFrameHeaderSize = 8
-
-var thinkingFrameMagic = [4]byte{'M', 'S', 'T', 'H'}
+const (
+	thinkingFrameMagic      = "MSTH"
+	thinkingFrameLengthSize = 4
+	thinkingFrameHeaderSize = len(thinkingFrameMagic) + thinkingFrameLengthSize
+)
 
 func encodeThinkingFrame(raw json.RawMessage) ([]byte, error) {
 	if uint64(len(raw)) > uint64(^uint32(0)) {
 		return nil, errors.New("mistral: thinking chunk exceeds framing limit")
 	}
 	frame := make([]byte, thinkingFrameHeaderSize+len(raw))
-	copy(frame, thinkingFrameMagic[:])
-	binary.BigEndian.PutUint32(frame[4:thinkingFrameHeaderSize], uint32(len(raw)))
+	copy(frame, thinkingFrameMagic)
+	binary.BigEndian.PutUint32(frame[len(thinkingFrameMagic):thinkingFrameHeaderSize], uint32(len(raw)))
 	copy(frame[thinkingFrameHeaderSize:], raw)
 	return frame, nil
 }
 
 func decodeThinkingFrames(signature []byte) ([]json.RawMessage, bool, error) {
-	if len(signature) < len(thinkingFrameMagic) || !bytes.Equal(signature[:len(thinkingFrameMagic)], thinkingFrameMagic[:]) {
+	if len(signature) < len(thinkingFrameMagic) || string(signature[:len(thinkingFrameMagic)]) != thinkingFrameMagic {
 		return nil, false, nil
 	}
-	frames := make([]json.RawMessage, 0, 1)
+	var frames []json.RawMessage
 	for offset := 0; offset < len(signature); {
 		if len(signature)-offset < thinkingFrameHeaderSize {
 			return nil, true, errors.New("truncated thinking frame header")
 		}
-		if !bytes.Equal(signature[offset:offset+4], thinkingFrameMagic[:]) {
+		if string(signature[offset:offset+len(thinkingFrameMagic)]) != thinkingFrameMagic {
 			return nil, true, fmt.Errorf("invalid thinking frame magic at byte %d", offset)
 		}
-		length := int(binary.BigEndian.Uint32(signature[offset+4 : offset+thinkingFrameHeaderSize]))
+		length := int(binary.BigEndian.Uint32(signature[offset+len(thinkingFrameMagic) : offset+thinkingFrameHeaderSize]))
 		offset += thinkingFrameHeaderSize
 		if length > len(signature)-offset {
 			return nil, true, fmt.Errorf("thinking frame length %d exceeds remaining %d bytes", length, len(signature)-offset)
@@ -55,17 +57,17 @@ func coalesceThinkingFrames(frames []json.RawMessage) (json.RawMessage, error) {
 		return nil, nil
 	}
 	type wireThinking struct {
-		Type     string            `json:"type"`
+		Type     contentType       `json:"type"`
 		Thinking []json.RawMessage `json:"thinking"`
 		Closed   *bool             `json:"closed,omitempty"`
 	}
-	merged := wireThinking{Type: "thinking"}
+	merged := wireThinking{Type: contentTypeThinking}
 	for index := range frames {
 		var chunk wireThinking
 		if err := json.Unmarshal(frames[index], &chunk); err != nil {
 			return nil, fmt.Errorf("thinking frame %d: %w", index, err)
 		}
-		if chunk.Type != "thinking" {
+		if chunk.Type != contentTypeThinking {
 			return nil, fmt.Errorf("thinking frame %d has type %q", index, chunk.Type)
 		}
 		merged.Thinking = append(merged.Thinking, chunk.Thinking...)

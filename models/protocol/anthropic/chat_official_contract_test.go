@@ -16,9 +16,9 @@ func TestNativeClaudeSamplingContract(t *testing.T) {
 		options corechat.Options
 		want    string
 	}{
-		{name: "top k", options: corechat.Options{TopK: int64Pointer(10)}, want: "top_k is not supported"},
-		{name: "top p", options: corechat.Options{TopP: float64Pointer(0.9)}, want: "top_p is not supported"},
-		{name: "temperature", options: corechat.Options{Temperature: float64Pointer(1.1)}, want: "between 0 and 1"},
+		{name: "top k", options: corechat.Options{TopK: new(int64(10))}, want: "top_k is not supported"},
+		{name: "top p", options: corechat.Options{TopP: new(0.9)}, want: "top_p is not supported"},
+		{name: "temperature", options: corechat.Options{Temperature: new(1.1)}, want: "between 0 and 1"},
 	}
 
 	for _, tt := range tests {
@@ -35,7 +35,7 @@ func TestNativeClaudeSamplingContract(t *testing.T) {
 
 func TestNativeClaudeRejectsZeroMaxTokens(t *testing.T) {
 	request := validNativeRequest(t)
-	request.Options.MaxTokens = int64Pointer(0)
+	request.Options.MaxTokens = new(int64(0))
 	_, err := mapProtocolRequest(corechat.Options{Model: "claude-opus-4-6"}, request, Dialect{Provider: "anthropic"})
 	if err == nil || !strings.Contains(err.Error(), "max_tokens must be greater than zero") {
 		t.Fatalf("error = %v, want max_tokens validation failure", err)
@@ -102,6 +102,3 @@ func validNativeRequest(t *testing.T) *corechat.Request {
 	}
 	return request
 }
-
-func int64Pointer(value int64) *int64       { return &value }
-func float64Pointer(value float64) *float64 { return &value }

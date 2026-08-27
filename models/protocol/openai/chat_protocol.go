@@ -34,10 +34,10 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error {
 	if c.APIKey == "" {
-		return errors.New("openai: APIKey is required")
+		return errors.New("openai: API key is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {
-		return fmt.Errorf("openai: DefaultOptions: %w", err)
+		return fmt.Errorf("openai: default options: %w", err)
 	}
 	return nil
 }
@@ -56,7 +56,7 @@ type Chat struct {
 }
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	return newChat(config, Dialect{Provider: "openai", TokenLimitField: TokenLimitMaxCompletionTokens})
+	return newChat(config, Dialect{Provider: protocolProvider, TokenLimitField: TokenLimitMaxCompletionTokens})
 }
 
 func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
@@ -86,7 +86,6 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	}, nil
 }
 
-// Call performs one non-streaming Chat Completions request.
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	params, err := c.buildRequest(req, false)
 	if err != nil {

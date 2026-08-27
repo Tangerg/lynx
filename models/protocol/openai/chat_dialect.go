@@ -173,7 +173,7 @@ type textReasoningCodec struct {
 }
 
 func protocolRequestExtensionKey(provider string) string {
-	if provider == "openai" {
+	if provider == protocolProvider {
 		return RequestExtensionKey
 	}
 	return provider + "/openai_request"
@@ -191,28 +191,28 @@ func protocolModalityRequestExtensionKey(provider, modality string) string {
 }
 
 func protocolResponseExtensionKey(provider string) string {
-	if provider == "openai" {
+	if provider == protocolProvider {
 		return ResponseExtensionKey
 	}
 	return provider + "/openai_response"
 }
 
 func protocolStreamChunkExtensionKey(provider string) string {
-	if provider == "openai" {
+	if provider == protocolProvider {
 		return StreamChunkExtensionKey
 	}
 	return provider + "/openai_stream_chunk"
 }
 
 func protocolRefusalExtensionKey(provider string) string {
-	if provider == "openai" {
+	if provider == protocolProvider {
 		return "openai/refusal"
 	}
 	return provider + "/openai_refusal"
 }
 
 func protocolRefusalDeltaExtensionKey(provider string) string {
-	if provider == "openai" {
+	if provider == protocolProvider {
 		return "openai/refusal_delta"
 	}
 	return provider + "/openai_refusal_delta"

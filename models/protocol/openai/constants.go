@@ -1,6 +1,7 @@
 package openai
 
 const (
+	protocolProvider                 = "openai"
 	SpeechRequestExtensionKey        = "openai/speech_request"
 	TranscriptionRequestExtensionKey = "openai/transcription_request"
 	TranslationRequestExtensionKey   = "openai/translation_request"

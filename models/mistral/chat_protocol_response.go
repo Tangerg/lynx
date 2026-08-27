@@ -11,11 +11,16 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+const (
+	expectedResponseChoices = 1
+	firstChoiceIndex        = 0
+)
+
 func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, error) {
 	if completion == nil {
 		return nil, errors.New("mistral: nil chat completion response")
 	}
-	if len(completion.Choices) != 1 {
+	if len(completion.Choices) != expectedResponseChoices {
 		return nil, fmt.Errorf("mistral: response has %d choices; Core requires one output", len(completion.Choices))
 	}
 	response := &corechat.Response{
@@ -27,8 +32,8 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 		return nil, err
 	}
 	wireChoice := completion.Choices[0]
-	if wireChoice.Index != 0 {
-		return nil, fmt.Errorf("mistral: choice index is %d, want 0", wireChoice.Index)
+	if wireChoice.Index != firstChoiceIndex {
+		return nil, fmt.Errorf("mistral: choice index is %d, want %d", wireChoice.Index, firstChoiceIndex)
 	}
 	parts, err := mapMistralContent(wireChoice.Message.Content)
 	if err != nil {
@@ -71,13 +76,13 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 	parts := make([]corechat.Part, 0, len(chunks))
 	for index := range chunks {
 		var discriminator struct {
-			Type string `json:"type"`
+			Type contentType `json:"type"`
 		}
 		if err := json.Unmarshal(chunks[index], &discriminator); err != nil {
 			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
 		}
 		switch discriminator.Type {
-		case "text":
+		case contentTypeText:
 			var chunk textChunk
 			if err := json.Unmarshal(chunks[index], &chunk); err != nil {
 				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
@@ -85,7 +90,7 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 			if chunk.Text != "" {
 				parts = append(parts, corechat.NewTextPart(chunk.Text))
 			}
-		case "thinking":
+		case contentTypeThinking:
 			var chunk struct {
 				Thinking []json.RawMessage `json:"thinking"`
 			}
@@ -95,7 +100,7 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 			var reasoning strings.Builder
 			for nestedIndex := range chunk.Thinking {
 				var nested textChunk
-				if err := json.Unmarshal(chunk.Thinking[nestedIndex], &nested); err == nil && nested.Type == "text" {
+				if err := json.Unmarshal(chunk.Thinking[nestedIndex], &nested); err == nil && nested.Type == contentTypeText {
 					reasoning.WriteString(nested.Text)
 				}
 			}
@@ -104,7 +109,7 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
 			}
 			parts = append(parts, corechat.NewReasoningPart(reasoning.String(), frame))
-		case "image_url":
+		case contentTypeImageURL:
 			var chunk imageURLChunk
 			if err := json.Unmarshal(chunks[index], &chunk); err != nil {
 				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
@@ -114,7 +119,7 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
 			}
 			parts = append(parts, corechat.NewMediaPart(image))
-		case "reference", "tool_reference":
+		case contentTypeReference, contentTypeToolReference:
 			// Reference chunks remain available losslessly in the response or
 			// stream-chunk extension. Core has no citation part kind.
 			continue
@@ -176,15 +181,15 @@ func mapMistralUsage(usage chatUsage) corechat.Usage {
 	return mapped
 }
 
-func normalizeMistralFinishReason(reason string) corechat.FinishReason {
+func normalizeMistralFinishReason(reason finishReason) corechat.FinishReason {
 	switch reason {
 	case "":
 		return ""
-	case "stop":
+	case finishReasonStop:
 		return corechat.FinishReasonStop
-	case "length", "model_length":
+	case finishReasonLength, finishReasonModelLength:
 		return corechat.FinishReasonLength
-	case "tool_calls":
+	case finishReasonToolCalls:
 		return corechat.FinishReasonToolCalls
 	default:
 		return corechat.FinishReasonOther

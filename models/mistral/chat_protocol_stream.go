@@ -29,13 +29,13 @@ func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Respons
 	if err := response.Metadata.Set(streamChunkExtensionKey, chunk); err != nil {
 		return nil, err
 	}
-	if len(chunk.Choices) > 1 {
+	if len(chunk.Choices) > expectedResponseChoices {
 		return nil, fmt.Errorf("mistral: stream chunk has %d choices; Core supports one output", len(chunk.Choices))
 	}
-	if len(chunk.Choices) == 1 {
+	if len(chunk.Choices) == expectedResponseChoices {
 		wireChoice := chunk.Choices[0]
-		if wireChoice.Index != 0 {
-			return nil, fmt.Errorf("mistral: stream choice index is %d, want 0", wireChoice.Index)
+		if wireChoice.Index != firstChoiceIndex {
+			return nil, fmt.Errorf("mistral: stream choice index is %d, want %d", wireChoice.Index, firstChoiceIndex)
 		}
 		parts, err := mapMistralContent(wireChoice.Delta.Content)
 		if err != nil {

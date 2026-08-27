@@ -17,21 +17,21 @@ type Dialect struct {
 }
 
 func protocolRequestExtensionKey(provider string) string {
-	if provider == "anthropic" {
+	if provider == protocolProvider {
 		return RequestExtensionKey
 	}
 	return provider + "/anthropic_request"
 }
 
 func protocolResponseExtensionKey(provider string) string {
-	if provider == "anthropic" {
+	if provider == protocolProvider {
 		return ResponseExtensionKey
 	}
 	return provider + "/anthropic_response"
 }
 
 func protocolStreamEventExtensionKey(provider string) string {
-	if provider == "anthropic" {
+	if provider == protocolProvider {
 		return StreamEventExtensionKey
 	}
 	return provider + "/anthropic_stream_event"

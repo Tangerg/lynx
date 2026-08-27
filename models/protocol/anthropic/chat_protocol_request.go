@@ -157,7 +157,7 @@ func mapProtocolOutputFormat(format *corechat.OutputFormat, dialect Dialect, par
 }
 
 func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthropicsdk.TextBlockParam, []anthropicsdk.MessageParam, error) {
-	system := make([]anthropicsdk.TextBlockParam, 0)
+	var system []anthropicsdk.TextBlockParam
 	conversation := make([]anthropicsdk.MessageParam, 0, len(messages))
 	for i := range messages {
 		message := messages[i]

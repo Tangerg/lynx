@@ -14,6 +14,12 @@ const (
 	// ResponsesResponseExtensionKey preserves the complete official Responses
 	// API response, including output item types Core does not normalize.
 	ResponsesResponseExtensionKey = "openai/responses_response"
+	responsesItemTypeMessage      = "message"
+	responsesItemTypeReasoning    = "reasoning"
+	responsesItemTypeFunctionCall = "function_call"
+	responsesContentTypeText      = "output_text"
+	responsesIncompleteMaxTokens  = "max_output_tokens"
+	responsesIncompleteFiltered   = "content_filter"
 )
 
 // ResponsesChat adapts OpenAI's ordered Responses API output to the minimal
@@ -39,7 +45,6 @@ func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
 	return &ResponsesChat{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
-// Call performs one non-streaming Responses API request.
 func (r *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	params, err := r.buildResponsesRequest(req)
 	if err != nil {

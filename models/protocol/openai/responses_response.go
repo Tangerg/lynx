@@ -44,14 +44,14 @@ func responsesOutputParts(output []responses.ResponseOutputItemUnion) ([]corecha
 	for index := range output {
 		item := output[index]
 		switch item.Type {
-		case "message":
+		case responsesItemTypeMessage:
 			message := item.AsMessage()
 			for _, content := range message.Content {
-				if content.Type == "output_text" && content.Text != "" {
+				if content.Type == responsesContentTypeText && content.Text != "" {
 					parts = append(parts, corechat.NewTextPart(content.Text))
 				}
 			}
-		case "reasoning":
+		case responsesItemTypeReasoning:
 			reasoning := item.AsReasoning()
 			text := joinResponsesReasoning(reasoning)
 			signature, encodeErr := encodeResponsesReasoningFrame(reasoning.ToParam())
@@ -59,7 +59,7 @@ func responsesOutputParts(output []responses.ResponseOutputItemUnion) ([]corecha
 				return nil, false, fmt.Errorf("openai responses: output[%d] reasoning: %w", index, encodeErr)
 			}
 			parts = append(parts, corechat.NewReasoningPart(text, signature))
-		case "function_call":
+		case responsesItemTypeFunctionCall:
 			call := item.AsFunctionCall()
 			id := call.CallID
 			if id == "" {
@@ -93,17 +93,17 @@ func responsesFinishReason(response *responses.Response, hasToolCall bool) corec
 	if hasToolCall {
 		return corechat.FinishReasonToolCalls
 	}
-	if response.Status == "incomplete" {
+	if response.Status == responses.ResponseStatusIncomplete {
 		switch response.IncompleteDetails.Reason {
-		case "max_output_tokens":
+		case responsesIncompleteMaxTokens:
 			return corechat.FinishReasonLength
-		case "content_filter":
+		case responsesIncompleteFiltered:
 			return corechat.FinishReasonContentFilter
 		default:
 			return corechat.FinishReasonOther
 		}
 	}
-	if response.Status != "completed" {
+	if response.Status != responses.ResponseStatusCompleted {
 		return corechat.FinishReasonOther
 	}
 	return corechat.FinishReasonStop

@@ -46,7 +46,7 @@ func (a *APIError) Error() string {
 
 func (a apiConfig) validate() error {
 	if a.APIKey == "" {
-		return errors.New("mistral: APIKey is required")
+		return errors.New("mistral: API key is required")
 	}
 	return nil
 }

@@ -177,7 +177,7 @@ func (r reasoningDetailsCodec) encodeFrame(raw json.RawMessage) ([]byte, error) 
 }
 
 func (r reasoningDetailsCodec) mapHistory(parts []corechat.Part) ([]json.RawMessage, string, error) {
-	frames := make([]json.RawMessage, 0)
+	var frames []json.RawMessage
 	var plain strings.Builder
 	for partIndex := range parts {
 		part := parts[partIndex]
@@ -209,7 +209,7 @@ func (r reasoningDetailsCodec) decodeFrames(signature []byte) ([]json.RawMessage
 	if len(signature) < len(reasoningDetailFrameMagic) || !bytes.Equal(signature[:len(reasoningDetailFrameMagic)], reasoningDetailFrameMagic[:]) {
 		return nil, false, false, nil
 	}
-	frames := make([]json.RawMessage, 0, 1)
+	var frames []json.RawMessage
 	ownProvider := true
 	for offset := 0; offset < len(signature); {
 		if len(signature)-offset < reasoningDetailFrameHeaderSize {

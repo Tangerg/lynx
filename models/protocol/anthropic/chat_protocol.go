@@ -13,7 +13,11 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-const protocolDefaultMaxTokens int64 = 4096
+const (
+	protocolProvider           = "anthropic"
+	protocolDefaultMaxTokens   = 4096
+	protocolMaximumTemperature = 1
+)
 
 // ChatConfig configures an Anthropic Messages adapter. Defaults are copied
 // during construction; callers may select the model per request.
@@ -27,10 +31,10 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error {
 	if c.APIKey == "" {
-		return errors.New("anthropic: APIKey is required")
+		return errors.New("anthropic: API key is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {
-		return fmt.Errorf("anthropic: DefaultOptions: %w", err)
+		return fmt.Errorf("anthropic: default options: %w", err)
 	}
 	return nil
 }
@@ -49,7 +53,10 @@ type Chat struct {
 }
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	return newChat(config, Dialect{Provider: "anthropic", MaxTemperature: 1, RejectTopK: true, RejectTopP: true, NativeJSONSchema: true})
+	return newChat(config, Dialect{
+		Provider: protocolProvider, MaxTemperature: protocolMaximumTemperature,
+		RejectTopK: true, RejectTopP: true, NativeJSONSchema: true,
+	})
 }
 
 func NewCompatibleChat(config ChatConfig, dialect Dialect) (*Chat, error) {
@@ -61,7 +68,7 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 		return nil, err
 	}
 	if dialect.Provider == "" || strings.TrimSpace(dialect.Provider) != dialect.Provider || strings.Contains(dialect.Provider, "/") {
-		return nil, errors.New("anthropic: dialect.Provider is required, must not contain '/', and must not have surrounding whitespace")
+		return nil, errors.New("anthropic: dialect provider is required, must not contain '/', and must not have surrounding whitespace")
 	}
 	api, err := newAPI(apiConfig{
 		APIKey:     config.APIKey,
@@ -79,7 +86,6 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	}, nil
 }
 
-// Call performs one non-streaming Messages API request.
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	params, err := c.buildProtocolRequest(req)
 	if err != nil {

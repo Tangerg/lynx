@@ -33,7 +33,7 @@ func decodeResponsesReasoningFrames(signature []byte) ([]responses.ResponseReaso
 	if len(signature) < len(responsesReasoningFrameMagic) || !bytes.Equal(signature[:len(responsesReasoningFrameMagic)], responsesReasoningFrameMagic[:]) {
 		return nil, false, nil
 	}
-	items := make([]responses.ResponseReasoningItemParam, 0, 1)
+	var items []responses.ResponseReasoningItemParam
 	for offset := 0; offset < len(signature); {
 		if len(signature)-offset < responsesReasoningFrameSize {
 			return nil, true, errors.New("truncated frame header")

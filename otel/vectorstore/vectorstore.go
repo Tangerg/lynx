@@ -21,6 +21,17 @@ import (
 
 const instrumentationName = "github.com/Tangerg/scope/otel/vectorstore"
 
+type operationName string
+
+const (
+	operationIndex       operationName = "index"
+	operationSearch      operationName = "search"
+	operationDeleteIDs   operationName = "delete_ids"
+	operationDeleteWhere operationName = "delete_where"
+	queryTopKKey                       = attribute.Key("db.vector.query.top_k")
+	queryMinScoreKey                   = attribute.Key("db.vector.query.similarity_threshold")
+)
+
 var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
 
 // MiddlewareConfig identifies the database observed by vector-store
@@ -101,14 +112,13 @@ func (m Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorst
 
 func (m Middleware) start(
 	ctx context.Context,
-	operation string,
+	operation operationName,
 	extra ...attribute.KeyValue,
 ) (context.Context, trace.Span) {
-	attrs := make([]attribute.KeyValue, 0, 3+len(extra))
-	attrs = append(attrs,
+	attrs := []attribute.KeyValue{
 		semconv.DBSystemNameKey.String(m.system),
-		semconv.DBOperationNameKey.String(operation),
-	)
+		semconv.DBOperationNameKey.String(string(operation)),
+	}
 	target := ""
 	if m.collection != "" {
 		attrs = append(attrs, semconv.DBCollectionNameKey.String(m.collection))
@@ -122,7 +132,7 @@ func (m Middleware) start(
 	}
 	attrs = append(attrs, extra...)
 
-	name := operation
+	name := string(operation)
 	if target != "" {
 		name += " " + target
 	}
@@ -147,11 +157,11 @@ type indexer struct {
 }
 
 func (i indexer) Index(ctx context.Context, request *corevectorstore.IndexRequest) error {
-	extra := make([]attribute.KeyValue, 0, 1)
+	var extra []attribute.KeyValue
 	if request != nil && len(request.Documents) > 1 {
 		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(request.Documents)))
 	}
-	ctx, span := i.middleware.start(ctx, "index", extra...)
+	ctx, span := i.middleware.start(ctx, operationIndex, extra...)
 	err := i.next.Index(ctx, request)
 	finishVectorStoreSpan(span, err)
 	return err
@@ -169,9 +179,9 @@ func (s searcher) Search(ctx context.Context, request *corevectorstore.SearchReq
 		topK = request.Options.TopK
 		minScore = request.Options.MinScore.Float64()
 	}
-	ctx, span := s.middleware.start(ctx, "search",
-		attribute.Int("db.vector.query.top_k", topK),
-		attribute.Float64("db.vector.query.similarity_threshold", minScore),
+	ctx, span := s.middleware.start(ctx, operationSearch,
+		queryTopKKey.Int(topK),
+		queryMinScoreKey.Float64(minScore),
 	)
 	response, err := s.next.Search(ctx, request)
 	if err == nil && response != nil {
@@ -187,11 +197,11 @@ type idDeleter struct {
 }
 
 func (i idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
-	extra := make([]attribute.KeyValue, 0, 1)
+	var extra []attribute.KeyValue
 	if len(ids) > 1 {
 		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(ids)))
 	}
-	ctx, span := i.middleware.start(ctx, "delete_ids", extra...)
+	ctx, span := i.middleware.start(ctx, operationDeleteIDs, extra...)
 	err := i.next.DeleteIDs(ctx, ids)
 	finishVectorStoreSpan(span, err)
 	return err
@@ -203,7 +213,7 @@ type filterDeleter struct {
 }
 
 func (f filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
-	ctx, span := f.middleware.start(ctx, "delete_where")
+	ctx, span := f.middleware.start(ctx, operationDeleteWhere)
 	err := f.next.DeleteWhere(ctx, predicate)
 	finishVectorStoreSpan(span, err)
 	return err
