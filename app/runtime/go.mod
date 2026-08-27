@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/app/runtime
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/a2a v0.0.0-20260827095509-4bdfa7205bb9
+	github.com/Tangerg/scope/a2a v0.0.0-20260827102019-a6f090b6c1ad
 	github.com/Tangerg/scope/agent v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827095509-4bdfa7205bb9
 	github.com/Tangerg/scope/core v0.0.0-20260827095509-4bdfa7205bb9

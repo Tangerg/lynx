@@ -8,8 +8,8 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/scope/a2a v0.0.0-20260827095509-4bdfa7205bb9 h1:fsd1uLF6ZFy/JutolU7A1Iwd++uzv1lZP0N/UfjbSi0=
-github.com/Tangerg/scope/a2a v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:6nQM8iRG9+rvCYVFypNDt8GHe11a/olk1yD3BmPeg04=
+github.com/Tangerg/scope/a2a v0.0.0-20260827102019-a6f090b6c1ad h1:Y+MmV1Iac5sdmnS3mKFhL1v0zfcEE50V+CR0i9UwoOc=
+github.com/Tangerg/scope/a2a v0.0.0-20260827102019-a6f090b6c1ad/go.mod h1:FdXh6A+LKpSv6MsXxAD/3nTiixVBlgZGmfgmOt/HIfU=
 github.com/Tangerg/scope/agent v0.0.0-20260827095509-4bdfa7205bb9 h1:Z761AKJ6/JkFb+n6Cois4MPCz++4kn05XNH+0YjbH7s=
 github.com/Tangerg/scope/agent v0.0.0-20260827095509-4bdfa7205bb9/go.mod h1:yMALL1Gki3eQQKBIbUfAfHNHvYDw+oJ/fGS61Cq2w2o=
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827095509-4bdfa7205bb9 h1:nfucFLjGxC4tKWqjZqQL+LnYMaqByzEqVcl6U7kve0w=
