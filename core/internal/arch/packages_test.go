@@ -17,6 +17,7 @@ var targetPublicPackages = map[string]struct{}{
 	"embedding":             {},
 	"embeddingclient":       {},
 	"image":                 {},
+	"jsonschema":            {},
 	"media":                 {},
 	"metadata":              {},
 	"modeltest":             {},

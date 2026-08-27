@@ -25,6 +25,7 @@ var allowedExternalProductionImports = map[string]struct{}{
 	"github.com/invopop/jsonschema":            {},
 	"github.com/samber/lo":                     {},
 	"github.com/santhosh-tekuri/jsonschema/v6": {},
+	"github.com/silaswei-io/jsonrepair-go":     {},
 }
 
 func TestTargetPackagesStayWithinDependencyBudget(t *testing.T) {

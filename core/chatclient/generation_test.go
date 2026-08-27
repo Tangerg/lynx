@@ -2,7 +2,6 @@ package chatclient
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"iter"
 	"reflect"
@@ -56,13 +55,10 @@ func TestGenerationCallAndStreamUseOneTypedOutput(t *testing.T) {
 }
 
 func TestGenerationSnapshotsSchemaAndOverridesClientDefault(t *testing.T) {
-	schema := json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"}}}`)
-	format, err := JSONSchema[recipe]("recipe", schema)
+	format, err := JSONSchema[recipe]("recipe")
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema[0] = '['
-
 	textDefault, err := chat.NewOutputFormat(chat.OutputFormatText)
 	if err != nil {
 		t.Fatal(err)

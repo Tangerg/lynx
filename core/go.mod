@@ -6,6 +6,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/samber/lo v1.53.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+	github.com/silaswei-io/jsonrepair-go v1.1.2
 )
 
 require (

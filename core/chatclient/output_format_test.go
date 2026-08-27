@@ -1,7 +1,6 @@
 package chatclient
 
 import (
-	"encoding/json"
 	"errors"
 	"iter"
 	"reflect"
@@ -24,13 +23,11 @@ func TestOutputFormatContracts(t *testing.T) {
 	if err := jsonFormat.validate(); err != nil || jsonFormat.contract.Type != chat.OutputFormatJSON {
 		t.Fatalf("JSON = (%#v, %v)", jsonFormat.contract, err)
 	}
-	schema := json.RawMessage(`{"type":"object"}`)
-	schemaFormat, err := JSONSchema[recipe]("recipe", schema)
+	schemaFormat, err := JSONSchema[recipe]("recipe")
 	if err != nil {
 		t.Fatal(err)
 	}
 	contract := schemaFormat.contract.Clone()
-	schema[0] = '['
 	if contract.Type != chat.OutputFormatJSONSchema || contract.Name != "recipe" || contract.Schema[0] != '{' {
 		t.Fatalf("JSONSchema contract = %#v", contract)
 	}
@@ -38,8 +35,11 @@ func TestOutputFormatContracts(t *testing.T) {
 	if schemaFormat.contract.Schema[0] != '{' {
 		t.Fatal("Contract returned aliased schema bytes")
 	}
-	if _, err := JSONSchema[recipe]("", json.RawMessage(`{}`)); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := JSONSchema[recipe](""); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("invalid JSONSchema error = %v", err)
+	}
+	if _, err := JSONSchema[chan int]("invalid"); !errors.Is(err, ErrInvalidOutputFormat) {
+		t.Fatalf("unsupported JSONSchema type error = %v", err)
 	}
 	if err := (OutputFormat[recipe]{}).validate(); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("zero OutputFormat error = %v", err)
@@ -100,6 +100,8 @@ func TestOutputFormatDecodeRobustJSON(t *testing.T) {
 		{name: "fenced", raw: "```JSON\n{\"name\":\"tea\",\"steps\":[]}\n```", want: recipe{Name: "tea", Steps: []string{}}},
 		{name: "surrounding prose", raw: `Here: {"name":"tea","steps":[]} done.`, want: recipe{Name: "tea", Steps: []string{}}},
 		{name: "control character", raw: "{\"name\":\"green\ntea\",\"steps\":[]}", want: recipe{Name: "green\ntea", Steps: []string{}}},
+		{name: "truncated", raw: `{"name":"tea","steps":[]`, want: recipe{Name: "tea", Steps: []string{}}},
+		{name: "nested in truncated wrapper", raw: `prefix {"wrapper":{"name":"tea","steps":[]}`, want: recipe{Name: "tea", Steps: []string{}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -113,8 +115,6 @@ func TestOutputFormatDecodeRobustJSON(t *testing.T) {
 
 func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 	for _, raw := range []string{
-		`{"name":"tea","steps":[]`,
-		`prefix {"wrapper":{"name":"tea","steps":[]}`,
 		`{"name":"first","steps":[]} {"name":"second","steps":[]}`,
 		`{"name":"tea","name":"coffee","steps":[]}`,
 		string([]byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', ',', '"', 's', 't', 'e', 'p', 's', '"', ':', '[', ']', '}'}),

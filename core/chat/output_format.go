@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
 )
 
 // ErrInvalidOutputFormat reports a malformed output-format contract.
@@ -121,9 +123,13 @@ func (o OutputFormat) Validate() error {
 		if o.Description != "" && strings.TrimSpace(o.Description) != o.Description {
 			return fmt.Errorf("%w: json_schema description must not have surrounding whitespace", ErrInvalidOutputFormat)
 		}
+		schema, err := corejsonschema.Parse(o.Schema)
+		if err != nil {
+			return fmt.Errorf("%w: json_schema schema: %w", ErrInvalidOutputFormat, err)
+		}
 		var object map[string]json.RawMessage
-		if len(o.Schema) == 0 || jsonv2.Unmarshal(o.Schema, &object) != nil || object == nil {
-			return fmt.Errorf("%w: json_schema schema must be a JSON object", ErrInvalidOutputFormat)
+		if jsonv2.Unmarshal(schema.JSON(), &object) != nil || object == nil {
+			return fmt.Errorf("%w: json_schema schema must be an object", ErrInvalidOutputFormat)
 		}
 		return nil
 	default:

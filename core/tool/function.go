@@ -3,11 +3,14 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
+	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
 )
 
 // Func adapts a typed Go function to [Tool]. It owns the derived input
@@ -17,7 +20,7 @@ import (
 // the wrapped function is safe for concurrent calls.
 type Func[In, Out any] struct {
 	config   FuncConfig
-	input    schemaContract
+	input    corejsonschema.Schema
 	function func(context.Context, In) (Out, error)
 }
 
@@ -42,7 +45,7 @@ func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) 
 	if err := validateFuncInput(inputType); err != nil {
 		return zero, fmt.Errorf("%w: %w", ErrInvalidTool, err)
 	}
-	input, err := newSchemaContract(inputType)
+	input, err := corejsonschema.For[In]()
 	if err != nil {
 		return zero, fmt.Errorf("%w: %w", ErrInvalidTool, err)
 	}
@@ -92,7 +95,7 @@ func (f Func[In, Out]) Call(ctx context.Context, arguments string) (string, erro
 	if f.function == nil {
 		return "", fmt.Errorf("%w: function tool is nil", ErrInvalidTool)
 	}
-	input, err := f.input.decode[In](arguments)
+	input, err := f.decodeInput(arguments)
 	if err != nil {
 		return "", fmt.Errorf("tool: decode function arguments: %w", err)
 	}
@@ -105,6 +108,20 @@ func (f Func[In, Out]) Call(ctx context.Context, arguments string) (string, erro
 		return "", fmt.Errorf("tool: encode function result: %w", err)
 	}
 	return result, nil
+}
+
+func (f Func[In, Out]) decodeInput(arguments string) (In, error) {
+	var input In
+	if strings.TrimSpace(arguments) == "" {
+		arguments = "{}"
+	}
+	if err := f.input.Validate([]byte(arguments)); err != nil {
+		return input, fmt.Errorf("arguments violate input schema: %w", err)
+	}
+	if err := jsonv2.Unmarshal([]byte(arguments), &input, jsonv2.RejectUnknownMembers(true)); err != nil {
+		return input, err
+	}
+	return input, nil
 }
 
 func (Func[In, Out]) encodeResult(output Out) (string, error) {

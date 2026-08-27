@@ -98,6 +98,10 @@ func reflectedMethods(typ reflect.Type) []string {
 }
 
 func TestProductionDependenciesMatchBudget(t *testing.T) {
+	allowedExternal := map[string]struct{}{
+		"github.com/samber/lo":                 {},
+		"github.com/silaswei-io/jsonrepair-go": {},
+	}
 	fset := token.NewFileSet()
 	for _, path := range productionGoFiles(t) {
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -106,7 +110,8 @@ func TestProductionDependenciesMatchBudget(t *testing.T) {
 		}
 		for _, specification := range file.Imports {
 			importPath := strings.Trim(specification.Path.Value, `"`)
-			if isStandardImport(importPath) || importPath == "github.com/samber/lo" || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
+			_, externalAllowed := allowedExternal[importPath]
+			if isStandardImport(importPath) || externalAllowed || importPath == "github.com/Tangerg/lynx/core" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/") {
 				continue
 			}
 			relative, _ := filepath.Rel(packageRoot(t), path)

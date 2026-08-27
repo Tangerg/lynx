@@ -142,7 +142,7 @@ chatclient: func (t *Template) Require(names ...string) error
 chatclient: func (t *Template) Source() string
 chatclient: func (t *Template) SystemMessage(data any) (chat.Message, error)
 chatclient: func (t *Template) UserMessage(data any, attachments ...*media.Media) (chat.Message, error)
-chatclient: func JSONSchema[T any](name string, schema []byte) (OutputFormat[T], error)
+chatclient: func JSONSchema[T any](name string) (OutputFormat[T], error)
 chatclient: func JSON[T any]() OutputFormat[T]
 chatclient: func New(model chat.Model, config Config) (*Client, error)
 chatclient: func ParseTemplate(source string) (*Template, error)
@@ -281,6 +281,15 @@ image: type Request struct { Prompt string `json:"prompt"` Options Options `json
 image: type Response struct { Outputs []*Output `json:"outputs,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 image: type ResponseMetadata struct { Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 image: var ( ErrInvalidOptions = errors.New("image: invalid options") ErrInvalidRequest = errors.New("image: invalid request") ErrInvalidResponse = errors.New("image: invalid response") )
+jsonschema: func (s *Schema) UnmarshalJSON(raw []byte) error
+jsonschema: func (s Schema) JSON() json.RawMessage
+jsonschema: func (s Schema) MarshalJSON() ([]byte, error)
+jsonschema: func (s Schema) Valid() bool
+jsonschema: func (s Schema) Validate(raw []byte) error
+jsonschema: func For[T any]() (Schema, error)
+jsonschema: func Parse(raw []byte) (Schema, error)
+jsonschema: type Schema struct { raw json.RawMessage compiled *validation.Schema }
+jsonschema: var ErrInvalid = errors.New("jsonschema: invalid schema")
 media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )
 media: func (m *Media) Bytes() ([]byte, error)
 media: func (m *Media) Clone() *Media
@@ -428,13 +437,12 @@ tool: func (f Func[In, Out]) Definition() chat.ToolDefinition
 tool: func (r *Registry) Definitions() []chat.ToolDefinition
 tool: func (r *Registry) Register(values ...Tool) error
 tool: func (r *Registry) Resolve(name string) (Tool, bool)
-tool: func (s schemaContract) JSON() json.RawMessage
 tool: func Capability[T any](value Tool) (capability T, found bool, err error)
 tool: func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (Func[In, Out], error)
 tool: func NewRegistry(initial ...Tool) (*Registry, error)
 tool: func Schema[T any]() (json.RawMessage, error)
 tool: type FuncConfig struct { Name string Description string }
-tool: type Func[In, Out any] struct { config FuncConfig input schemaContract function func(context.Context, In) (Out, error) }
+tool: type Func[In, Out any] struct { config FuncConfig input corejsonschema.Schema function func(context.Context, In) (Out, error) }
 tool: type Registry struct { mu sync.RWMutex entries map[string]entry }
 tool: type Tool interface { Definition() chat.ToolDefinition Call(ctx context.Context, arguments string) (string, error) }
 tool: type WrappingTool interface { Unwrap() Tool }
