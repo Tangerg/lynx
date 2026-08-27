@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -757,6 +758,20 @@ func TestEngineEnforcesStepLimitAndReportsMonotonicUsage(t *testing.T) {
 	usage := result.Usage()
 	if usage.CommittedSteps != 1 || usage.PreparedEffects != 1 || usage.AcceptedSignals != 1 {
 		t.Fatalf("usage=%+v", usage)
+	}
+}
+
+func TestEngineReportsInvalidLimitRelation(t *testing.T) {
+	_, err := NewEngine(EngineConfig{Limits: Limits{MaxSignals: 1, MaxPendingSignals: 2}})
+	if !errors.Is(err, ErrInvalidEngineConfig) ||
+		!strings.Contains(err.Error(), "MaxPendingSignals (2) exceeds MaxSignals (1)") {
+		t.Fatalf("limit error = %v", err)
+	}
+
+	_, err = NewEngine(EngineConfig{TreeLimits: TreeLimits{MaxChildren: 1, MaxActiveChildren: 2}})
+	if !errors.Is(err, ErrInvalidEngineConfig) ||
+		!strings.Contains(err.Error(), "MaxActiveChildren (2) exceeds MaxChildren (1)") {
+		t.Fatalf("tree limit error = %v", err)
 	}
 }
 

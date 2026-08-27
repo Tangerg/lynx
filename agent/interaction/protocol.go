@@ -315,18 +315,19 @@ func (s signalEnvelope) validateToolResult() error {
 	if modes != 1 {
 		return errors.New("interaction: tool_result requires complete results, a checkpoint, or a host error")
 	}
-	if result.HostError != "" {
+	switch {
+	case result.HostError != "":
 		if result.Direct || len(result.AdvertisedToolNames) != 0 {
 			return errors.New("interaction: failed tool_result must carry only its host error")
 		}
-	} else if result.Checkpoint != nil {
+	case result.Checkpoint != nil:
 		if result.Direct || len(result.AdvertisedToolNames) != 0 {
 			return errors.New("interaction: paused tool_result must carry only its checkpoint")
 		}
 		if _, err := result.Checkpoint.InputRequest.inputRequest(); err != nil {
 			return err
 		}
-	} else {
+	default:
 		for index := range result.Results {
 			if err := result.Results[index].Validate(); err != nil {
 				return fmt.Errorf("interaction: tool_result %d: %w", index, err)

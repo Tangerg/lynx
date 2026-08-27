@@ -34,13 +34,11 @@ func DefaultLimits() Limits {
 }
 
 func (l Limits) Valid() bool {
-	return l.MaxSteps > 0 && l.MaxEffects > 0 &&
-		l.MaxSignals > 0 && l.MaxPendingSignals > 0 &&
-		l.MaxPendingSignals <= l.MaxSignals
+	return l.validate() == nil
 }
 
-func effectiveLimits(configured Limits) (Limits, error) {
-	effective := configured
+func (l Limits) resolve() (Limits, error) {
+	effective := l
 	defaults := DefaultLimits()
 	if effective.MaxSteps == 0 {
 		effective.MaxSteps = defaults.MaxSteps
@@ -54,10 +52,27 @@ func effectiveLimits(configured Limits) (Limits, error) {
 	if effective.MaxPendingSignals == 0 {
 		effective.MaxPendingSignals = defaults.MaxPendingSignals
 	}
-	if !effective.Valid() {
-		return Limits{}, ErrInvalidEngineConfig
+	if err := effective.validate(); err != nil {
+		return Limits{}, fmt.Errorf("%w: limits: %w", ErrInvalidEngineConfig, err)
 	}
 	return effective, nil
+}
+
+func (l Limits) validate() error {
+	switch {
+	case l.MaxSteps == 0:
+		return errors.New("MaxSteps must be greater than zero")
+	case l.MaxEffects == 0:
+		return errors.New("MaxEffects must be greater than zero")
+	case l.MaxSignals == 0:
+		return errors.New("MaxSignals must be greater than zero")
+	case l.MaxPendingSignals == 0:
+		return errors.New("MaxPendingSignals must be greater than zero")
+	case l.MaxPendingSignals > l.MaxSignals:
+		return fmt.Errorf("MaxPendingSignals (%d) exceeds MaxSignals (%d)", l.MaxPendingSignals, l.MaxSignals)
+	default:
+		return nil
+	}
 }
 
 // Usage contains monotonic Framework-owned counters. It deliberately excludes
@@ -192,13 +207,11 @@ func DefaultTreeLimits() TreeLimits {
 }
 
 func (t TreeLimits) Valid() bool {
-	return t.MaxDepth > 0 && t.MaxChildren > 0 &&
-		t.MaxActiveChildren > 0 && t.MaxActiveChildren <= t.MaxChildren &&
-		t.MaxTreeProcesses > 0
+	return t.validate() == nil
 }
 
-func effectiveTreeLimits(configured TreeLimits) (TreeLimits, error) {
-	effective := configured
+func (t TreeLimits) resolve() (TreeLimits, error) {
+	effective := t
 	defaults := DefaultTreeLimits()
 	if effective.MaxDepth == 0 {
 		effective.MaxDepth = defaults.MaxDepth
@@ -212,8 +225,25 @@ func effectiveTreeLimits(configured TreeLimits) (TreeLimits, error) {
 	if effective.MaxTreeProcesses == 0 {
 		effective.MaxTreeProcesses = defaults.MaxTreeProcesses
 	}
-	if !effective.Valid() {
-		return TreeLimits{}, ErrInvalidEngineConfig
+	if err := effective.validate(); err != nil {
+		return TreeLimits{}, fmt.Errorf("%w: tree limits: %w", ErrInvalidEngineConfig, err)
 	}
 	return effective, nil
+}
+
+func (t TreeLimits) validate() error {
+	switch {
+	case t.MaxDepth == 0:
+		return errors.New("MaxDepth must be greater than zero")
+	case t.MaxChildren == 0:
+		return errors.New("MaxChildren must be greater than zero")
+	case t.MaxActiveChildren == 0:
+		return errors.New("MaxActiveChildren must be greater than zero")
+	case t.MaxActiveChildren > t.MaxChildren:
+		return fmt.Errorf("MaxActiveChildren (%d) exceeds MaxChildren (%d)", t.MaxActiveChildren, t.MaxChildren)
+	case t.MaxTreeProcesses == 0:
+		return errors.New("MaxTreeProcesses must be greater than zero")
+	default:
+		return nil
+	}
 }

@@ -78,12 +78,6 @@ func (e EffectRequest) ID() EffectID { return e.id }
 // Effect returns an independently owned copy of the frozen intent.
 func (e EffectRequest) Effect() Effect { return e.effect.clone() }
 
-func (e EffectRequest) valid() bool {
-	return e.processID.Valid() && e.deploymentRef.Valid() &&
-		e.relation.Valid() && e.relation.ProcessID() == e.processID &&
-		e.stepSequence > 0 && e.id.Valid() && e.effect.Valid()
-}
-
 // DeltaEmitter accepts Strategy-owned streaming payloads while Dispatch is
 // active. The Engine validates, orders, bounds, and publishes each payload as a
 // best-effort Delta. It intentionally returns no observer error. A Dispatcher

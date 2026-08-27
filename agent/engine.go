@@ -150,13 +150,13 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if capacity == 0 {
 		capacity = defaultDeltaBuffer
 	}
-	limits, err := effectiveLimits(config.Limits)
+	limits, err := config.Limits.resolve()
 	if err != nil {
-		return nil, fmt.Errorf("%w: limits are invalid", ErrInvalidEngineConfig)
+		return nil, err
 	}
-	treeLimits, err := effectiveTreeLimits(config.TreeLimits)
+	treeLimits, err := config.TreeLimits.resolve()
 	if err != nil {
-		return nil, fmt.Errorf("%w: tree limits are invalid", ErrInvalidEngineConfig)
+		return nil, err
 	}
 	if !config.Capabilities.Valid() {
 		return nil, fmt.Errorf("%w: capabilities are invalid", ErrInvalidEngineConfig)

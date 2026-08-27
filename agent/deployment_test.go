@@ -48,7 +48,7 @@ func TestDeploymentBindsExactDefinitionAndDispatcher(t *testing.T) {
 	)
 	copyOfEffect := request.Effect()
 	copyOfEffect.payload[0] = '['
-	if !request.valid() || request.DeploymentRef() != deployment.DeploymentRef() ||
+	if request.ProcessID() != processID || request.DeploymentRef() != deployment.DeploymentRef() ||
 		request.Relation() != relation || string(request.Effect().Payload()) != `{"operation":"test"}` {
 		t.Fatalf("EffectRequest did not freeze Effect: %+v", request)
 	}

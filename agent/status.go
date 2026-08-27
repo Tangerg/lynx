@@ -69,21 +69,6 @@ func (s Status) Terminal() bool {
 	}
 }
 
-func (s Status) canTransitionTo(next Status) bool {
-	switch s {
-	case StatusNotStarted:
-		return next == StatusRunning
-	case StatusRunning:
-		return next == StatusWaiting || next == StatusPaused || next.Terminal()
-	case StatusWaiting:
-		return next == StatusRunning || next == StatusFailed || next == StatusCanceled || next == StatusTimedOut || next == StatusKilled
-	case StatusPaused:
-		return next == StatusRunning || next == StatusCanceled || next == StatusTimedOut || next == StatusKilled
-	default:
-		return false
-	}
-}
-
 // MarshalText returns the validated stable lifecycle-state name.
 func (s Status) MarshalText() ([]byte, error) {
 	if !s.Valid() {

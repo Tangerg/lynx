@@ -6,33 +6,6 @@ import (
 	"testing"
 )
 
-func TestStatusTransitionMatrix(t *testing.T) {
-	legal := map[Status]map[Status]bool{
-		StatusNotStarted: {StatusRunning: true},
-		StatusRunning: {
-			StatusWaiting: true, StatusPaused: true, StatusCompleted: true, StatusFailed: true,
-			StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
-		},
-		StatusWaiting: {
-			StatusRunning: true, StatusFailed: true, StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
-		},
-		StatusPaused: {
-			StatusRunning: true, StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
-		},
-	}
-	statuses := []Status{
-		StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused, StatusCompleted,
-		StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled,
-	}
-	for _, from := range statuses {
-		for _, to := range statuses {
-			if got, want := from.canTransitionTo(to), legal[from][to]; got != want {
-				t.Errorf("%s.canTransitionTo(%s) = %t, want %t", from, to, got, want)
-			}
-		}
-	}
-}
-
 func TestResolveTerminationPriorityMatrix(t *testing.T) {
 	kill, _ := newKillIntent("operator requested kill")
 	processDeadline, _ := newDeadlineIntent(deadlineOwnerProcess, "process deadline reached")

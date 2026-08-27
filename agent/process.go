@@ -16,6 +16,10 @@ var (
 	ErrInvalidProcessControl = errors.New("agent: invalid process control request")
 )
 
+// A bounded buffer lets control-plane callers submit while the Process is
+// completing a safe boundary without allowing an unbounded command backlog.
+const processCommandBufferCapacity = 32
+
 // Process is an Engine-issued handle to one managed execution. Its fields and
 // construction remain private so a caller cannot create a second lifecycle
 // owner. Methods only submit control-plane requests to the owning Engine loop.
@@ -298,7 +302,7 @@ func newProcessController(
 	return &processController{
 		processID: relation.ProcessID(), deploymentRef: deploymentRef, relation: relation,
 		budget: budget, capabilities: capabilities, treeLimits: treeLimits, startedAt: startedAt,
-		commands: make(chan processCommand, 32), done: make(chan struct{}),
+		commands: make(chan processCommand, processCommandBufferCapacity), done: make(chan struct{}),
 		treeSettled: make(chan struct{}), viewStatus: status,
 	}
 }
