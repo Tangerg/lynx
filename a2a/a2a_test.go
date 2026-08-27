@@ -147,7 +147,7 @@ func TestRoundTrip(t *testing.T) {
 		Name:        "Echo Agent",
 		Description: "Echoes the request back",
 		SupportedInterfaces: []*sdka2a.AgentInterface{
-			a2a.JSONRPCInterface(ts.URL + a2a.DefaultRPCPattern),
+			a2a.NewJSONRPCInterface(ts.URL + a2a.DefaultRPCPattern),
 		},
 		DefaultInputModes:  []string{"text"},
 		DefaultOutputModes: []string{"text"},

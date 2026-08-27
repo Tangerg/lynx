@@ -21,7 +21,7 @@ type ServerConfig struct {
 	// Card is the AgentCard served at the well-known path. Required and
 	// snapshotted during construction — its SupportedInterfaces should advertise
 	// a JSON-RPC interface whose URL ends in RPCPattern. Build it with
-	// [JSONRPCInterface] for the transport entry.
+	// [NewJSONRPCInterface] for the transport entry.
 	Card *sdka2a.AgentCard
 
 	// RPCPattern overrides where the JSON-RPC endpoint is mounted. Empty
@@ -78,10 +78,9 @@ func registerRPCHandler(mux *http.ServeMux, pattern string, handler http.Handler
 	return nil
 }
 
-// JSONRPCInterface is a small helper for building an AgentCard: it declares a
-// JSON-RPC transport interface at url (which should end in the server's
-// RPCPattern). Mirrors the SDK's a2a.NewAgentInterface with the protocol
-// fixed to JSON-RPC.
-func JSONRPCInterface(url string) *sdka2a.AgentInterface {
+// NewJSONRPCInterface builds an AgentCard transport entry at url, which should
+// end in the server's RPCPattern. It fixes the SDK's generic AgentInterface
+// constructor to JSON-RPC.
+func NewJSONRPCInterface(url string) *sdka2a.AgentInterface {
 	return sdka2a.NewAgentInterface(url, sdka2a.TransportProtocolJSONRPC)
 }
