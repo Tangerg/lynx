@@ -1,0 +1,130 @@
+package opensearch
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
+)
+
+const (
+	bulkRecordSeparator = '\n'
+	mappingTypeText     = "text"
+	mappingTypeVector   = "knn_vector"
+	mappingTypeObject   = "object"
+)
+
+type bulkOperation string
+
+const (
+	bulkOperationIndex  bulkOperation = "index"
+	bulkOperationDelete bulkOperation = "delete"
+)
+
+type createIndexRequest struct {
+	Settings indexSettings `json:"settings"`
+	Mappings indexMappings `json:"mappings"`
+}
+
+type indexSettings struct {
+	KNN bool `json:"index.knn"`
+}
+
+type indexMappings struct {
+	Properties map[string]any `json:"properties"`
+}
+
+type textFieldMapping struct {
+	Type string `json:"type"`
+}
+
+type vectorFieldMapping struct {
+	Type       string           `json:"type"`
+	Dimensions int              `json:"dimension"`
+	Method     annMethodMapping `json:"method"`
+}
+
+type annMethodMapping struct {
+	Name      string    `json:"name"`
+	Engine    Engine    `json:"engine"`
+	SpaceType SpaceType `json:"space_type"`
+}
+
+type objectFieldMapping struct {
+	Type    string `json:"type"`
+	Dynamic bool   `json:"dynamic"`
+}
+
+type bulkAction struct {
+	Index  *bulkActionTarget `json:"index,omitempty"`
+	Delete *bulkActionTarget `json:"delete,omitempty"`
+}
+
+type bulkActionTarget struct {
+	Index string `json:"_index,omitempty"`
+	ID    string `json:"_id"`
+}
+
+type queryString struct {
+	Query string `json:"query"`
+}
+
+type queryClause struct {
+	QueryString queryString `json:"query_string"`
+}
+
+type nearestNeighbor struct {
+	Vector []float32    `json:"vector"`
+	K      int          `json:"k"`
+	Filter *queryClause `json:"filter,omitempty"`
+}
+
+type nearestNeighborQuery struct {
+	KNN map[string]nearestNeighbor `json:"knn"`
+}
+
+type searchRequest struct {
+	Size  int                  `json:"size"`
+	Query nearestNeighborQuery `json:"query"`
+}
+
+type deleteByQueryRequest struct {
+	Query queryClause `json:"query"`
+}
+
+type bulkOutcome struct {
+	operation bulkOperation
+	response  *opensearchapi.BulkResp
+}
+
+func (b bulkOutcome) Err() error {
+	if b.response == nil {
+		return fmt.Errorf("opensearch: bulk %s returned no response", b.operation)
+	}
+	if !b.response.Errors {
+		return nil
+	}
+	for _, item := range b.response.Items {
+		for _, info := range item {
+			if info.Error != nil {
+				reason := info.Error.Reason
+				if reason == "" {
+					reason = "provider returned no reason"
+				}
+				return fmt.Errorf("opensearch: bulk %s failed for document %q with status %d: %s",
+					b.operation, info.ID, info.Status, reason)
+			}
+		}
+	}
+	return fmt.Errorf("opensearch: bulk %s reported errors without an item failure", b.operation)
+}
+
+func encodeJSONRequest(value any) (io.Reader, error) {
+	buf, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("opensearch: encode request: %w", err)
+	}
+	return bytes.NewReader(buf), nil
+}

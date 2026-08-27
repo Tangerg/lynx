@@ -114,7 +114,6 @@ type ttsStreamEvent struct {
 	Timestamp       json.RawMessage `json:"timestamp,omitempty"`
 }
 
-// DecodeAudio decodes an audio stream event.
 func (t *ttsStreamEvent) DecodeAudio() ([]byte, error) {
 	if t.Type != "audio" {
 		return nil, fmt.Errorf("hume: stream event type %q has no audio", t.Type)
