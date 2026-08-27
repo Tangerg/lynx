@@ -12,6 +12,7 @@ var targetPublicPackages = map[string]struct{}{
 	"chatclient/safeguard":  {},
 	"history":               {},
 	"history/inmemory":      {},
+	"history/storetest":     {},
 	"document":              {},
 	"embedding":             {},
 	"embeddingclient":       {},

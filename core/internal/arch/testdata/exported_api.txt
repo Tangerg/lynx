@@ -213,6 +213,8 @@ history/inmemory: func (s *Store) Replace(ctx context.Context, conversationID hi
 history/inmemory: func (s *Store) Write(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error
 history/inmemory: func New() *Store
 history/inmemory: type Store struct { mu sync.RWMutex messages map[history.ConversationID][]chat.Message }
+history/storetest: func Run(t *testing.T, store any, want Capabilities)
+history/storetest: type Capabilities struct { Reader bool Writer bool Clearer bool Lister bool Replacer bool Counter bool }
 history: func (c ConversationID) String() string
 history: func (c ConversationID) Validate() error
 history: func (m Middleware) Call(next chat.Model) chat.Model
