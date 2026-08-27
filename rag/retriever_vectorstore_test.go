@@ -33,10 +33,10 @@ func (f *fakeVectorSearcher) Search(_ context.Context, req *vectorstore.SearchRe
 }
 
 func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {
-	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{}); err == nil {
+	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{}); err == nil {
 		t.Fatal("nil config must error")
 	}
-	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
+	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: &fakeVectorSearcher{},
 		MinScore:    1.5,
 	}); err == nil {
@@ -46,7 +46,7 @@ func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {
 
 func TestRetrieverAppliesTopKAndMinScore(t *testing.T) {
 	store := &fakeVectorSearcher{}
-	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
+	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: store,
 		TopK:        7,
 		MinScore:    0.42,
@@ -72,7 +72,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 	store := &fakeVectorSearcher{}
 	funcCalls := 0
 
-	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
+	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: store,
 		FilterFunc: func(_ context.Context, _ *rag.Query) (filter.Predicate, error) {
 			funcCalls++
@@ -106,7 +106,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 
 func TestRetrieverUsesParsedQueryFilter(t *testing.T) {
 	store := &fakeVectorSearcher{}
-	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
+	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: store,
 	})
 
@@ -131,7 +131,7 @@ func TestRetrieverUsesParsedQueryFilter(t *testing.T) {
 func TestRetrieverPropagatesError(t *testing.T) {
 	want := errors.New("boom")
 	store := &fakeVectorSearcher{err: want}
-	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{VectorStore: store})
+	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{VectorStore: store})
 
 	q, _ := rag.NewQuery("hi")
 	if _, err := r.Retrieve(t.Context(), q); !errors.Is(err, want) {
@@ -141,7 +141,7 @@ func TestRetrieverPropagatesError(t *testing.T) {
 
 func TestRetrieverRejectsNilVectorStoreResponse(t *testing.T) {
 	store := &fakeVectorSearcher{nilResponse: true}
-	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{VectorStore: store})
+	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{VectorStore: store})
 	query, _ := rag.NewQuery("hi")
 
 	if _, err := r.Retrieve(t.Context(), query); !errors.Is(err, vectorstore.ErrInvalidResponse) {
@@ -150,7 +150,7 @@ func TestRetrieverRejectsNilVectorStoreResponse(t *testing.T) {
 }
 
 func TestRetrieverNilQuery(t *testing.T) {
-	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
+	r, _ := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 		VectorStore: &fakeVectorSearcher{},
 	})
 	if _, err := r.Retrieve(t.Context(), nil); err == nil {

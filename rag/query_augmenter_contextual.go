@@ -69,9 +69,10 @@ type ContextualAugmenterConfig struct {
 	Formatter DocumentFormatter
 }
 
-var _ Augmenter = (*contextualAugmenter)(nil)
+var _ Augmenter = (*ContextualAugmenter)(nil)
 
-type contextualAugmenter struct {
+// ContextualAugmenter folds retrieved documents into a contextual query.
+type ContextualAugmenter struct {
 	promptTemplate             *chatclient.Template
 	emptyContextPromptTemplate *chatclient.Template
 	allowEmptyContext          bool
@@ -83,9 +84,9 @@ type contextualPromptVariables struct {
 	Query   string
 }
 
-// NewContextualAugmenter returns an [Augmenter] that folds retrieved
+// NewContextualAugmenter returns an augmenter that folds retrieved
 // documents into the query text as a context block.
-func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
+func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
 	promptTemplate, err := resolvePromptTemplate(
 		cfg.PromptTemplate,
 		contextualDefaultTemplate,
@@ -107,7 +108,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 		formatter = textDocumentFormatter{}
 	}
 
-	return &contextualAugmenter{
+	return &ContextualAugmenter{
 		promptTemplate:             promptTemplate,
 		emptyContextPromptTemplate: emptyContextPromptTemplate,
 		allowEmptyContext:          cfg.AllowEmptyContext,
@@ -117,9 +118,9 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 
 // Augment renders the prompt template with the documents joined as
 // context. When documents is empty, falls back to
-// [contextualAugmenter.handleEmptyContext]. Honors ctx
+// [ContextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
-func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
+func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -156,7 +157,7 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 // handleEmptyContext implements the no-docs branch: pass through the
 // original query (AllowEmptyContext=true) or render the empty-context
 // refusal template.
-func (c *contextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
+func (c *ContextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 	if c.allowEmptyContext {
 		return query, nil
 	}

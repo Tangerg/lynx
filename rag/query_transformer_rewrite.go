@@ -38,9 +38,10 @@ type RewriteTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-var _ Transformer = (*rewriteTransformer)(nil)
+var _ Transformer = (*RewriteTransformer)(nil)
 
-type rewriteTransformer struct {
+// RewriteTransformer tightens a query for a configured search target.
+type RewriteTransformer struct {
 	prompt             modelPrompt
 	targetSearchSystem string
 }
@@ -50,9 +51,9 @@ type rewritePromptVariables struct {
 	Query  string
 }
 
-// NewRewriteTransformer returns a [Transformer] that tightens a verbose or
+// NewRewriteTransformer returns a transformer that tightens a verbose or
 // ambiguous user query for a configured search target.
-func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
+func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
 	if cfg.TargetSearchSystem == "" {
 		cfg.TargetSearchSystem = defaultRewriteTarget
 	}
@@ -67,7 +68,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 		return nil, err
 	}
 
-	return &rewriteTransformer{
+	return &RewriteTransformer{
 		prompt:             prompt,
 		targetSearchSystem: cfg.TargetSearchSystem,
 	}, nil
@@ -75,7 +76,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 
 // Transform asks the LLM to rewrite the query and returns a clone with Text
 // replaced by the model output.
-func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (r *RewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}

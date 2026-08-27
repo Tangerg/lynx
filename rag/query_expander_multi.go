@@ -49,9 +49,10 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-var _ Expander = (*multiQueryExpander)(nil)
+var _ Expander = (*MultiQueryExpander)(nil)
 
-type multiQueryExpander struct {
+// MultiQueryExpander asks a model for alternate query phrasings.
+type MultiQueryExpander struct {
 	prompt          modelPrompt
 	includeOriginal bool
 	numberOfQueries int
@@ -62,9 +63,9 @@ type multiQueryPromptVariables struct {
 	Query  string
 }
 
-// NewMultiQueryExpander returns an [Expander] that asks an LLM for alternate
+// NewMultiQueryExpander returns an expander that asks an LLM for alternate
 // query phrasings.
-func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
+func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
 	if cfg.NumberOfQueries < 0 {
 		return nil, errors.New("rag: number of expanded queries must not be negative")
 	}
@@ -82,7 +83,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 		return nil, err
 	}
 
-	return &multiQueryExpander{
+	return &MultiQueryExpander{
 		prompt:          prompt,
 		includeOriginal: cfg.IncludeOriginal,
 		numberOfQueries: cfg.NumberOfQueries,
@@ -92,7 +93,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 // Expand asks the LLM for variants and parses them into one [*Query]
 // per non-empty line. Empty model output is reported as
 // [ErrEmptyModelOutput] instead of silently turning expansion into identity.
-func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}

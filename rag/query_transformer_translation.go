@@ -36,9 +36,10 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-var _ Transformer = (*translationTransformer)(nil)
+var _ Transformer = (*TranslationTransformer)(nil)
 
-type translationTransformer struct {
+// TranslationTransformer translates queries into a configured language.
+type TranslationTransformer struct {
 	prompt         modelPrompt
 	targetLanguage string
 }
@@ -48,9 +49,9 @@ type translationPromptVariables struct {
 	Query  string
 }
 
-// NewTranslationTransformer returns a [Transformer] that translates queries
+// NewTranslationTransformer returns a transformer that translates queries
 // into the target language expected by downstream retrieval.
-func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
+func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
 	if cfg.TargetLanguage == "" {
 		return nil, errors.New("rag: translation target language is required")
 	}
@@ -65,7 +66,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 		return nil, err
 	}
 
-	return &translationTransformer{
+	return &TranslationTransformer{
 		prompt:         prompt,
 		targetLanguage: cfg.TargetLanguage,
 	}, nil
@@ -73,7 +74,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 
 // Transform asks the LLM to translate the query and returns a clone with Text
 // replaced by the model output.
-func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (t *TranslationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}

@@ -15,7 +15,8 @@ var vectorStoreFilterValueKey = MustValueKey[filter.Predicate]("vector store fil
 // filter. Parse textual filter DSL with [filter.Parse] before attaching it.
 func VectorStoreFilterValueKey() ValueKey[filter.Predicate] { return vectorStoreFilterValueKey }
 
-type VectorStoreConfig struct {
+// VectorStoreRetrieverConfig configures [NewVectorStoreRetriever].
+type VectorStoreRetrieverConfig struct {
 	// VectorStore performs the actual similarity search. Required.
 	VectorStore corevs.Searcher
 
@@ -32,20 +33,23 @@ type VectorStoreConfig struct {
 	FilterFunc func(ctx context.Context, query *Query) (filter.Predicate, error)
 }
 
-var _ Retriever = (*vectorStoreRetriever)(nil)
+var _ Retriever = (*VectorStoreRetriever)(nil)
 
-type vectorStoreRetriever struct {
+// VectorStoreRetriever retrieves candidates from a core vector store.
+type VectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
 	minScore    corevs.Score
 	filterFunc  func(ctx context.Context, query *Query) (filter.Predicate, error)
 }
 
-// NewVectorStoreRetriever returns a [Retriever] backed by a core vector store.
+// NewVectorStoreRetriever returns a [VectorStoreRetriever] backed by a core
+// vector store.
 // It supports per-query metadata filters via [VectorStoreFilterValueKey],
-// configured filters via [VectorStoreConfig.FilterFunc], top-K capping, and
+// configured filters via [VectorStoreRetrieverConfig.FilterFunc], top-K
+// capping, and
 // similarity thresholds.
-func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
+func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
 	if isNil(cfg.VectorStore) {
 		return nil, errors.New("rag: vector store is required")
 	}
@@ -63,7 +67,7 @@ func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
 		cfg.TopK = corevs.DefaultTopK
 	}
 
-	return &vectorStoreRetriever{
+	return &VectorStoreRetriever{
 		vectorStore: cfg.VectorStore,
 		topK:        cfg.TopK,
 		minScore:    cfg.MinScore,
@@ -72,7 +76,7 @@ func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
 }
 
 // Retrieve issues a similarity search via the underlying vector store.
-func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
+func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
@@ -108,7 +112,7 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 // resolveFilter picks the filter expression to use for this call,
 // preferring the per-query [VectorStoreFilterValueKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
-func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
+func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
 	expression, exists, err := query.Value(vectorStoreFilterValueKey)
 	if err != nil {
 		return nil, fmt.Errorf("rag: read vector-store filter: %w", err)
