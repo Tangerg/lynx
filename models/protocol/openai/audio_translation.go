@@ -34,7 +34,7 @@ func (a AudioTranslationModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -78,24 +78,24 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 }
 
 func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Request) (*openai.AudioTranslationNewParams, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions("openai: translation", map[string]bool{
-		"language": mergedOpts.Language != "",
+		"language": effectiveOptions.Language != "",
 	}); rejectUnsupportedOptionsErr != nil {
 		return nil, rejectUnsupportedOptionsErr
 	}
 
-	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"), "model", "file")
+	fields, err := decodeRequestFields(effectiveOptions.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"), "model", "file")
 	if err != nil {
 		return nil, err
 	}
 	params := &openai.AudioTranslationNewParams{}
 	params.SetExtraFields(fields)
 
-	params.Model = mergedOpts.Model
+	params.Model = effectiveOptions.Model
 	data, err := req.Audio.Bytes()
 	if err != nil {
 		return nil, err

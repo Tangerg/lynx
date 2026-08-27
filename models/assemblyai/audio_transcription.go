@@ -31,7 +31,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("assemblyai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -97,21 +97,21 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[transcriptRequest](RequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[transcriptRequest](RequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
-	apiReq.SpeechModels = prioritizedSpeechModels(mergedOpts.Model, apiReq.SpeechModels)
+	apiReq.SpeechModels = prioritizedSpeechModels(effectiveOptions.Model, apiReq.SpeechModels)
 	if validateTranscriptRequestErr := validateTranscriptRequest(apiReq); validateTranscriptRequestErr != nil {
 		return nil, validateTranscriptRequestErr
 	}
-	if apiReq.LanguageCode == "" && mergedOpts.Language != "" {
-		apiReq.LanguageCode = mergedOpts.Language
+	if apiReq.LanguageCode == "" && effectiveOptions.Language != "" {
+		apiReq.LanguageCode = effectiveOptions.Language
 	}
 
 	// Skip the /upload roundtrip when the caller already gave us a

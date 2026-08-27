@@ -42,7 +42,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("elevenlabs: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -84,41 +84,41 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat string, body *ttsRequest, err error) {
-	mergedOpts, mergeErr := a.defaultOptions.Merged(req.Options)
-	if mergeErr != nil {
-		return "", "", nil, mergeErr
+	effectiveOptions, resolveErr := a.defaultOptions.Resolve(req.Options)
+	if resolveErr != nil {
+		return "", "", nil, resolveErr
 	}
 
-	if mergedOpts.Voice == "" {
+	if effectiveOptions.Voice == "" {
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	bodyValue, _, err := mergedOpts.Extensions.Decode[ttsRequest](SpeechRequestExtensionKey)
+	bodyValue, _, err := effectiveOptions.Extensions.Decode[ttsRequest](SpeechRequestExtensionKey)
 	if err != nil {
 		return "", "", nil, err
 	}
 	body = &bodyValue
 	body.Text = req.Text
-	body.ModelID = mergedOpts.Model
+	body.ModelID = effectiveOptions.Model
 
-	if mergedOpts.Speed != 0 {
-		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.2 {
-			return "", "", nil, fmt.Errorf("elevenlabs: speech speed must be between 0.7 and 1.2, got %g", mergedOpts.Speed)
+	if effectiveOptions.Speed != 0 {
+		if effectiveOptions.Speed < 0.7 || effectiveOptions.Speed > 1.2 {
+			return "", "", nil, fmt.Errorf("elevenlabs: speech speed must be between 0.7 and 1.2, got %g", effectiveOptions.Speed)
 		}
 		if body.VoiceSettings == nil {
 			body.VoiceSettings = &voiceSettings{}
 		}
-		v := mergedOpts.Speed
+		v := effectiveOptions.Speed
 		body.VoiceSettings.Speed = &v
 	}
 	if body.OptimizeStreamingLatency != nil && (*body.OptimizeStreamingLatency < 0 || *body.OptimizeStreamingLatency > 4) {
 		return "", "", nil, fmt.Errorf("elevenlabs: optimize_streaming_latency must be between 0 and 4, got %d", *body.OptimizeStreamingLatency)
 	}
-	if mergedOpts.OutputFormat != "" && !isSupportedOutputFormat(mergedOpts.OutputFormat) {
-		return "", "", nil, fmt.Errorf("elevenlabs: unsupported output format %q", mergedOpts.OutputFormat)
+	if effectiveOptions.OutputFormat != "" && !isSupportedOutputFormat(effectiveOptions.OutputFormat) {
+		return "", "", nil, fmt.Errorf("elevenlabs: unsupported output format %q", effectiveOptions.OutputFormat)
 	}
 
-	return mergedOpts.Voice, mergedOpts.OutputFormat, body, nil
+	return effectiveOptions.Voice, effectiveOptions.OutputFormat, body, nil
 }
 
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {

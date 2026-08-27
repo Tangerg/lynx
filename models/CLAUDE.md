@@ -17,7 +17,7 @@
 - **wire protocol 是更低一层的实现**：跨 provider 复用的 OpenAI 与 Anthropic wire 分别位于独立 `models/protocol/openai`、`models/protocol/anthropic` module。provider 可以向下依赖 protocol，protocol 不能反向依赖 provider；provider 之间禁止互相 import。公开 Config、DTO 和方法签名不得泄露 wire/SDK 类型，但允许像 MCP Go SDK 提升底层消息类型一样，用 alias 提升完全相同的共享可执行 Model。provider-private 的 `internal/protocol` 必须继续由外层 Model 封装。
 - **不抽公共基类**:各家 SDK 的 shape 差异大于相似度,强抽 helper 是虚假 DRY —— 宁可每家重复。
 - **适配策略分几档**(靠这个判断新 provider 落哪档):原生跟自家 SDK / 委托 OpenAI 客户端改 BaseURL / 一个 provider 同时暴露 OpenAI 与 Anthropic 两种 API / 托管平台走 IAM(无 API key)/ 本地容器。
-- **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
+- **两级 options 解析**:模型默认配置通过 `Options.Resolve` 应用一次请求级覆盖;provider 专属参数走类型化提取器,不手动 type-assert。
 - **流式逐事件累积**:原生 provider 或共享 protocol owner 的 accumulator 把 SSE delta 拼成 chunk,上层再 stitch 成完整消息 —— 用 `iter.Seq2`,不用 channel；兼容 provider 不复制同一 wire 的 accumulator。
 - **能力差异按 provider 填空**:reasoning signature(续流必需)有的家有、有的没有,适配层用中性字节承载,不强求统一。
 - **公共契约测试归契约 owner**：行为套件归 `core/modeltest`，跨 provider 构造/API 一致性归 `dev/providerconformance`；provider module 不复制 conformance 或跨厂商 helper。扩展参数直接用 `core/metadata.Map.Decode`，provider-local transport helper 留在自己的 module。

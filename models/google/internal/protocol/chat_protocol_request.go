@@ -25,7 +25,7 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if err != nil {
 		return "", nil, nil, err
 	}
-	options, err := defaults.Merged(req.Options)
+	options, err := defaults.Resolve(req.Options)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("google: options: %w", err)
 	}

@@ -40,7 +40,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -88,15 +88,15 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if validateOptionsErr := a.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := a.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return "", nil, nil, validateOptionsErr
 	}
 
-	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "speech_request"))
+	cfgValue, _, err := effectiveOptions.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "speech_request"))
 
 	cfg := &cfgValue
 	if err != nil {
@@ -115,14 +115,14 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	// (multi-speaker dialog, language code, replicated voice) it is
 	// kept; the prebuilt-voice slot is only filled when the caller
 	// did not supply one.
-	if mergedOpts.Voice != "" {
+	if effectiveOptions.Voice != "" {
 		if cfg.SpeechConfig == nil {
 			cfg.SpeechConfig = &genai.SpeechConfig{}
 		}
 		if cfg.SpeechConfig.VoiceConfig == nil && cfg.SpeechConfig.MultiSpeakerVoiceConfig == nil {
 			cfg.SpeechConfig.VoiceConfig = &genai.VoiceConfig{
 				PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{
-					VoiceName: mergedOpts.Voice,
+					VoiceName: effectiveOptions.Voice,
 				},
 			}
 		}
@@ -132,7 +132,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		genai.NewContentFromText(req.Text, genai.RoleUser),
 	}
 
-	return mergedOpts.Model, contents, cfg, nil
+	return effectiveOptions.Model, contents, cfg, nil
 }
 
 func (*AudioTTSModel) validateOptions(options tts.Options) error {

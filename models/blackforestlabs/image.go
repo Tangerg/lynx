@@ -33,7 +33,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("blackforestlabs: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -79,41 +79,41 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	if mergedOpts.NegativePrompt != "" {
+	if effectiveOptions.NegativePrompt != "" {
 		return nil, errors.New("blackforestlabs: image: unsupported option: negative_prompt")
 	}
 
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[generateRequest](ImageRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[generateRequest](ImageRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
 	apiReq.Prompt = req.Prompt
-	if mergedOpts.Width != nil {
-		apiReq.Width = int(*mergedOpts.Width)
-		if int64(apiReq.Width) != *mergedOpts.Width {
-			return nil, fmt.Errorf("blackforestlabs: image: width %d exceeds int", *mergedOpts.Width)
+	if effectiveOptions.Width != nil {
+		apiReq.Width = int(*effectiveOptions.Width)
+		if int64(apiReq.Width) != *effectiveOptions.Width {
+			return nil, fmt.Errorf("blackforestlabs: image: width %d exceeds int", *effectiveOptions.Width)
 		}
 	}
-	if mergedOpts.Height != nil {
-		apiReq.Height = int(*mergedOpts.Height)
-		if int64(apiReq.Height) != *mergedOpts.Height {
-			return nil, fmt.Errorf("blackforestlabs: image: height %d exceeds int", *mergedOpts.Height)
+	if effectiveOptions.Height != nil {
+		apiReq.Height = int(*effectiveOptions.Height)
+		if int64(apiReq.Height) != *effectiveOptions.Height {
+			return nil, fmt.Errorf("blackforestlabs: image: height %d exceeds int", *effectiveOptions.Height)
 		}
 	}
-	if mergedOpts.Seed != nil {
-		apiReq.Seed = mergedOpts.Seed
+	if effectiveOptions.Seed != nil {
+		apiReq.Seed = effectiveOptions.Seed
 	}
-	if mergedOpts.OutputFormat != "" && apiReq.OutputFormat == "" {
-		apiReq.OutputFormat = strings.TrimPrefix(mergedOpts.OutputFormat, "image/")
+	if effectiveOptions.OutputFormat != "" && apiReq.OutputFormat == "" {
+		apiReq.OutputFormat = strings.TrimPrefix(effectiveOptions.OutputFormat, "image/")
 	}
 
-	async, err := i.api.generate(ctx, mergedOpts.Model, apiReq)
+	async, err := i.api.generate(ctx, effectiveOptions.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}

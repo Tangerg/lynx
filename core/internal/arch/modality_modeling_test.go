@@ -34,7 +34,7 @@ func TestModalityModelsExposeConsistentOwnedBehavior(t *testing.T) {
 
 	for _, modality := range modalities {
 		t.Run(modality.name, func(t *testing.T) {
-			assertMethods(t, reflect.TypeOf(modality.options), "Clone", "MarshalJSON", "Merged", "Validate")
+			assertMethods(t, reflect.TypeOf(modality.options), "Clone", "MarshalJSON", "Resolve", "Validate")
 			assertPointerMethods(t, modality.options, "SetExtension", "UnmarshalJSON")
 
 			assertMethods(t, reflect.TypeOf(modality.request), "MarshalJSON")

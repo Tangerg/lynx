@@ -33,7 +33,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("luma: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("luma: DefaultOptions: %w", err)
 	}
 	return nil
@@ -91,36 +91,36 @@ func (i *ImageModel) Call(ctx context.Context, request *image.Request) (*image.R
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("luma: request: %w", err)
 	}
-	optionsValue, err := i.defaultOptions.Merged(request.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(request.Options)
 	if err != nil {
 		return nil, err
 	}
-	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions(optionsValue); rejectUnsupportedOptionsErr != nil {
+	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions(effectiveOptions); rejectUnsupportedOptionsErr != nil {
 		return nil, rejectUnsupportedOptionsErr
 	}
 
-	paramsValue, _, err := optionsValue.Extensions.Decode[lumaagents.GenerationNewParams](ImageRequestExtensionKey)
+	paramsValue, _, err := effectiveOptions.Extensions.Decode[lumaagents.GenerationNewParams](ImageRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("luma: extension %q: %w", ImageRequestExtensionKey, err)
 	}
 	params := &paramsValue
 	params.Prompt = lumaagents.F(request.Prompt)
-	params.Model = lumaagents.F(lumaagents.Model(optionsValue.Model))
+	params.Model = lumaagents.F(lumaagents.Model(effectiveOptions.Model))
 	if !params.Type.Present {
 		params.Type = lumaagents.F(lumaagents.GenerationNewParamsTypeImage)
 	}
 	if params.Type.Value != lumaagents.GenerationNewParamsTypeImage && params.Type.Value != lumaagents.GenerationNewParamsTypeImageEdit {
 		return nil, fmt.Errorf("luma: extension %q type %q is not an image operation", ImageRequestExtensionKey, params.Type.Value)
 	}
-	if optionsValue.OutputFormat != "" {
-		format := strings.TrimPrefix(optionsValue.OutputFormat, "image/")
+	if effectiveOptions.OutputFormat != "" {
+		format := strings.TrimPrefix(effectiveOptions.OutputFormat, "image/")
 		switch format {
 		case "png":
 			params.OutputFormat = lumaagents.F(lumaagents.GenerationNewParamsOutputFormatPng)
 		case "jpeg", "jpg":
 			params.OutputFormat = lumaagents.F(lumaagents.GenerationNewParamsOutputFormatJpeg)
 		default:
-			return nil, fmt.Errorf("luma: output format %q is unsupported; use image/png or image/jpeg", optionsValue.OutputFormat)
+			return nil, fmt.Errorf("luma: output format %q is unsupported; use image/png or image/jpeg", effectiveOptions.OutputFormat)
 		}
 	}
 

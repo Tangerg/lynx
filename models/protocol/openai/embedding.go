@@ -29,7 +29,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -65,25 +65,25 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*openai.EmbeddingNewParams, error) {
-	mergedOpts, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"), "model", "input", "dimensions")
+	fields, err := decodeRequestFields(effectiveOptions.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"), "model", "input", "dimensions")
 	if err != nil {
 		return nil, err
 	}
 	params := &openai.EmbeddingNewParams{}
 	params.SetExtraFields(fields)
 
-	params.Model = mergedOpts.Model
+	params.Model = effectiveOptions.Model
 	params.Input = openai.EmbeddingNewParamsInputUnion{
 		OfArrayOfStrings: req.Texts,
 	}
 
-	if mergedOpts.Dimensions != nil {
-		params.Dimensions = openai.Int(*mergedOpts.Dimensions)
+	if effectiveOptions.Dimensions != nil {
+		params.Dimensions = openai.Int(*effectiveOptions.Dimensions)
 	}
 
 	return params, nil

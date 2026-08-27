@@ -26,7 +26,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("gladia: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -68,21 +68,21 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[transcriptionRequest](RequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[transcriptionRequest](RequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
-	apiReq.Model = mergedOpts.Model
-	if mergedOpts.Language != "" {
+	apiReq.Model = effectiveOptions.Model
+	if effectiveOptions.Language != "" {
 		if apiReq.LanguageConfig == nil {
 			apiReq.LanguageConfig = &languageConfig{}
 		}
-		apiReq.LanguageConfig.Languages = []string{mergedOpts.Language}
+		apiReq.LanguageConfig.Languages = []string{effectiveOptions.Language}
 	}
 	if validateTranscriptionRequestErr := validateTranscriptionRequest(apiReq); validateTranscriptionRequestErr != nil {
 		return nil, validateTranscriptionRequestErr

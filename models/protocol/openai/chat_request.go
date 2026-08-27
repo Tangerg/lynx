@@ -40,7 +40,7 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 		params.SetExtraFields(fields)
 	}
 
-	options, err := c.defaults.Merged(req.Options)
+	options, err := c.defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("openai: options: %w", err)
 	}

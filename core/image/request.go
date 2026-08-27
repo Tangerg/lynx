@@ -73,65 +73,61 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Merged clones o then applies each override left-to-right.
-// Scalar non-zero values overwrite; the Extensions map merges last-write-wins.
-func (o Options) Merged(overrides ...Options) (Options, error) {
-	merged := o.Clone()
-	for _, override := range overrides {
-		if err := merged.applyOverride(override); err != nil {
-			return Options{}, fmt.Errorf("image.Options.Merged: %w: %w", ErrInvalidOptions, err)
-		}
+// Resolve returns the effective options after applying one request-level
+// override to o. Neither input is mutated.
+func (o Options) Resolve(override Options) (Options, error) {
+	effective := o.Clone()
+	if err := effective.applyOverride(override); err != nil {
+		return Options{}, fmt.Errorf("image.Options.Resolve: %w: %w", ErrInvalidOptions, err)
 	}
-	normalized, err := normalizeOutputFormat(merged.OutputFormat)
-	if err != nil {
-		return Options{}, fmt.Errorf("image.Options.Merged: %w: %w", ErrInvalidOptions, err)
+	if err := effective.Validate(); err != nil {
+		return Options{}, fmt.Errorf("image.Options.Resolve: %w", err)
 	}
-	merged.OutputFormat = normalized
-	if err := merged.Validate(); err != nil {
-		return Options{}, fmt.Errorf("image.Options.Merged: %w", err)
-	}
-	return merged, nil
+	return effective, nil
 }
 
-func normalizeOutputFormat(value string) (string, error) {
-	if value == "" {
-		return "", nil
+func (o Options) validateOutputFormat() error {
+	if o.OutputFormat == "" {
+		return nil
 	}
-	mediaType, parameters, err := mime.ParseMediaType(value)
+	mediaType, parameters, err := mime.ParseMediaType(o.OutputFormat)
 	if err != nil {
-		return "", fmt.Errorf("invalid output format %q: %w", value, err)
+		return fmt.Errorf("invalid output format %q: %w", o.OutputFormat, err)
 	}
-	mediaType = strings.ToLower(mediaType)
-	if !strings.HasPrefix(mediaType, "image/") || len(strings.TrimPrefix(mediaType, "image/")) == 0 {
-		return "", fmt.Errorf("output format %q is not an image MIME type", value)
+	canonical := strings.ToLower(mediaType)
+	if !strings.HasPrefix(canonical, "image/") || len(strings.TrimPrefix(canonical, "image/")) == 0 {
+		return fmt.Errorf("output format %q is not an image MIME type", o.OutputFormat)
 	}
 	if len(parameters) != 0 {
-		return "", fmt.Errorf("output format %q must not include parameters", value)
+		return fmt.Errorf("output format %q must not include parameters", o.OutputFormat)
 	}
-	return mediaType, nil
+	if canonical != o.OutputFormat {
+		return fmt.Errorf("output format must use canonical MIME form %q", canonical)
+	}
+	return nil
 }
 
-func (o *Options) applyOverride(src Options) error {
-	if src.NegativePrompt != "" {
-		o.NegativePrompt = src.NegativePrompt
+func (o *Options) applyOverride(override Options) error {
+	if override.NegativePrompt != "" {
+		o.NegativePrompt = override.NegativePrompt
 	}
-	if src.Model != "" {
-		o.Model = src.Model
+	if override.Model != "" {
+		o.Model = override.Model
 	}
-	if src.Width != nil {
-		o.Width = ptr.Clone(src.Width)
+	if override.Width != nil {
+		o.Width = ptr.Clone(override.Width)
 	}
-	if src.Height != nil {
-		o.Height = ptr.Clone(src.Height)
+	if override.Height != nil {
+		o.Height = ptr.Clone(override.Height)
 	}
-	if src.Seed != nil {
-		o.Seed = ptr.Clone(src.Seed)
+	if override.Seed != nil {
+		o.Seed = ptr.Clone(override.Seed)
 	}
-	if src.OutputFormat != "" {
-		o.OutputFormat = src.OutputFormat
+	if override.OutputFormat != "" {
+		o.OutputFormat = override.OutputFormat
 	}
-	if len(src.Extensions) > 0 {
-		if err := o.Extensions.Merge(src.Extensions); err != nil {
+	if len(override.Extensions) > 0 {
+		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}
 	}
@@ -152,14 +148,8 @@ func (o Options) Validate() error {
 	if o.Seed != nil && *o.Seed < 0 {
 		return fmt.Errorf("%w: seed must not be negative", ErrInvalidOptions)
 	}
-	if o.OutputFormat != "" {
-		normalized, err := normalizeOutputFormat(o.OutputFormat)
-		if err != nil {
-			return fmt.Errorf("%w: output format: %w", ErrInvalidOptions, err)
-		}
-		if normalized != o.OutputFormat {
-			return fmt.Errorf("%w: output format must use canonical MIME form %q", ErrInvalidOptions, normalized)
-		}
+	if err := o.validateOutputFormat(); err != nil {
+		return fmt.Errorf("%w: output format: %w", ErrInvalidOptions, err)
 	}
 	if err := extension.Validate(o.Extensions); err != nil {
 		return fmt.Errorf("%w: extensions: %w", ErrInvalidOptions, err)

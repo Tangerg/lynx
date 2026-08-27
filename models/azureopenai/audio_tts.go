@@ -22,7 +22,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("azureopenai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil

@@ -36,7 +36,7 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		params = responses.ResponseNewParams{}
 	}
 
-	options, err := r.defaults.Merged(req.Options)
+	options, err := r.defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("openai responses: options: %w", err)
 	}

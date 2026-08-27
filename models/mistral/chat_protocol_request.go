@@ -36,7 +36,7 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 			return nil, fmt.Errorf("mistral: extension %q: %w", RequestExtensionKey, validateErr)
 		}
 	}
-	options, err := c.defaults.Merged(request.Options)
+	options, err := c.defaults.Resolve(request.Options)
 	if err != nil {
 		return nil, fmt.Errorf("mistral: options: %w", err)
 	}

@@ -125,7 +125,7 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrock: request: %w", err)
 	}
-	options, err := c.defaults.Merged(req.Options)
+	options, err := c.defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("bedrock: options: %w", err)
 	}

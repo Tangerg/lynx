@@ -32,7 +32,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -69,28 +69,28 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeechNewParams, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"), "model", "input", "voice", "speed", "response_format", "stream_format")
+	fields, err := decodeRequestFields(effectiveOptions.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"), "model", "input", "voice", "speed", "response_format", "stream_format")
 	if err != nil {
 		return nil, err
 	}
 	params := &openai.AudioSpeechNewParams{}
 	params.SetExtraFields(fields)
 
-	params.Model = mergedOpts.Model
+	params.Model = effectiveOptions.Model
 	params.Input = req.Text
-	if mergedOpts.Voice != "" {
-		params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(mergedOpts.Voice)}
+	if effectiveOptions.Voice != "" {
+		params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(effectiveOptions.Voice)}
 	}
-	if mergedOpts.Speed != 0 {
-		params.Speed = openai.Float(mergedOpts.Speed)
+	if effectiveOptions.Speed != 0 {
+		params.Speed = openai.Float(effectiveOptions.Speed)
 	}
-	if mergedOpts.OutputFormat != "" {
-		params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.OutputFormat)
+	if effectiveOptions.OutputFormat != "" {
+		params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(effectiveOptions.OutputFormat)
 	}
 	params.StreamFormat = openai.AudioSpeechNewParamsStreamFormatAudio
 

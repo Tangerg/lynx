@@ -24,7 +24,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("deepgram: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -64,39 +64,39 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *speakParams, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, err
 	}
-	if mergedOpts.Voice != "" {
+	if effectiveOptions.Voice != "" {
 		return "", nil, errors.New("deepgram: speech: unsupported option: voice")
 	}
 
-	paramsValue, _, err := mergedOpts.Extensions.Decode[speakParams](SpeechRequestExtensionKey)
+	paramsValue, _, err := effectiveOptions.Extensions.Decode[speakParams](SpeechRequestExtensionKey)
 
 	params := &paramsValue
 	if err != nil {
 		return "", nil, err
 	}
 	if params.Model == "" {
-		params.Model = mergedOpts.Model
+		params.Model = effectiveOptions.Model
 	}
-	if mergedOpts.OutputFormat != "" {
-		switch mergedOpts.OutputFormat {
+	if effectiveOptions.OutputFormat != "" {
+		switch effectiveOptions.OutputFormat {
 		case "wav":
 			params.Encoding = "linear16"
 			params.Container = "wav"
 		case "mp3", "flac", "aac", "opus", "mulaw", "alaw", "linear16":
-			params.Encoding = mergedOpts.OutputFormat
+			params.Encoding = effectiveOptions.OutputFormat
 		default:
-			return "", nil, fmt.Errorf("deepgram: speech: unsupported output format %q", mergedOpts.OutputFormat)
+			return "", nil, fmt.Errorf("deepgram: speech: unsupported output format %q", effectiveOptions.OutputFormat)
 		}
 	}
-	if mergedOpts.Speed != 0 {
-		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.5 {
+	if effectiveOptions.Speed != 0 {
+		if effectiveOptions.Speed < 0.7 || effectiveOptions.Speed > 1.5 {
 			return "", nil, errors.New("deepgram: speech: speed must be between 0.7 and 1.5")
 		}
-		params.Speed = mergedOpts.Speed
+		params.Speed = effectiveOptions.Speed
 	}
 
 	return req.Text, params, nil

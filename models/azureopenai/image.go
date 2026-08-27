@@ -22,7 +22,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("azureopenai: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil

@@ -38,7 +38,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -82,23 +82,23 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*genai.Content, *genai.EmbedContentConfig, error) {
-	mergedOpts, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.EmbedContentConfig](protocolKey(e.provider, "embedding_request"))
+	cfgValue, _, err := effectiveOptions.Extensions.Decode[genai.EmbedContentConfig](protocolKey(e.provider, "embedding_request"))
 
 	cfg := &cfgValue
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	if mergedOpts.Dimensions != nil {
-		if *mergedOpts.Dimensions < 128 || *mergedOpts.Dimensions > 3072 {
-			return "", nil, nil, fmt.Errorf("google: embedding: dimensions must be between 128 and 3072: %d", *mergedOpts.Dimensions)
+	if effectiveOptions.Dimensions != nil {
+		if *effectiveOptions.Dimensions < 128 || *effectiveOptions.Dimensions > 3072 {
+			return "", nil, nil, fmt.Errorf("google: embedding: dimensions must be between 128 and 3072: %d", *effectiveOptions.Dimensions)
 		}
-		cfg.OutputDimensionality = new(int32(*mergedOpts.Dimensions))
+		cfg.OutputDimensionality = new(int32(*effectiveOptions.Dimensions))
 	}
 
 	contents := make([]*genai.Content, 0, len(req.Texts))
@@ -106,7 +106,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		contents = append(contents, genai.NewContentFromText(text, genai.RoleUser))
 	}
 
-	return mergedOpts.Model, contents, cfg, nil
+	return effectiveOptions.Model, contents, cfg, nil
 }
 
 func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedContentResponse, expectedResults int) (*embedding.Response, error) {

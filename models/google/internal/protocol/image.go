@@ -30,7 +30,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -138,30 +138,30 @@ type imageInteractionGenerationConfig struct {
 }
 
 func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionRequest, error) {
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	if validateOptionsErr := i.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := i.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return nil, validateOptionsErr
 	}
 
-	providerOptsValue, _, err := mergedOpts.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
+	providerOptsValue, _, err := effectiveOptions.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
 
 	providerOpts := &providerOptsValue
 	if err != nil {
 		return nil, err
 	}
-	if err := validateImageGenerationOptions(mergedOpts.Model, providerOpts); err != nil {
+	if err := validateImageGenerationOptions(effectiveOptions.Model, providerOpts); err != nil {
 		return nil, err
 	}
-	if mergedOpts.OutputFormat != "" && mergedOpts.OutputFormat != "image/png" && mergedOpts.OutputFormat != "image/jpeg" {
-		return nil, fmt.Errorf("google: image: unsupported output format %q; use image/png or image/jpeg", mergedOpts.OutputFormat)
+	if effectiveOptions.OutputFormat != "" && effectiveOptions.OutputFormat != "image/png" && effectiveOptions.OutputFormat != "image/jpeg" {
+		return nil, fmt.Errorf("google: image: unsupported output format %q; use image/png or image/jpeg", effectiveOptions.OutputFormat)
 	}
 
 	responseFormat := imageInteractionResponseFormat{
 		Type:        "image",
-		MIMEType:    mergedOpts.OutputFormat,
+		MIMEType:    effectiveOptions.OutputFormat,
 		AspectRatio: providerOpts.AspectRatio,
 		ImageSize:   providerOpts.ImageSize,
 		Delivery:    providerOpts.Delivery,
@@ -170,11 +170,11 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 		ThinkingLevel:     providerOpts.ThinkingLevel,
 		ThinkingSummaries: providerOpts.ThinkingSummaries,
 	}
-	if mergedOpts.Seed != nil {
-		if *mergedOpts.Seed > int64(math.MaxInt32) {
-			return nil, fmt.Errorf("google: image: seed exceeds int32: %d", *mergedOpts.Seed)
+	if effectiveOptions.Seed != nil {
+		if *effectiveOptions.Seed > int64(math.MaxInt32) {
+			return nil, fmt.Errorf("google: image: seed exceeds int32: %d", *effectiveOptions.Seed)
 		}
-		generationConfig.Seed = new(int32(*mergedOpts.Seed))
+		generationConfig.Seed = new(int32(*effectiveOptions.Seed))
 	}
 	if generationConfig.Seed == nil && generationConfig.ThinkingLevel == "" && generationConfig.ThinkingSummaries == "" {
 		generationConfig = nil
@@ -195,7 +195,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 	}
 
 	apiReq := &imageInteractionRequest{
-		Model:                 mergedOpts.Model,
+		Model:                 effectiveOptions.Model,
 		Input:                 input,
 		ResponseFormat:        responseFormat,
 		Store:                 providerOpts.Store,

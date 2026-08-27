@@ -29,7 +29,7 @@ func (m ModerationModelConfig) Validate() error {
 	if m.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := m.DefaultOptions.Merged(); err != nil {
+	if err := m.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -65,19 +65,19 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 }
 
 func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*openai.ModerationNewParams, error) {
-	mergedOpts, err := m.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := m.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"), "model", "input")
+	fields, err := decodeRequestFields(effectiveOptions.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"), "model", "input")
 	if err != nil {
 		return nil, err
 	}
 	params := &openai.ModerationNewParams{}
 	params.SetExtraFields(fields)
 
-	params.Model = mergedOpts.Model
+	params.Model = effectiveOptions.Model
 	params.Input = openai.ModerationNewParamsInputUnion{
 		OfStringArray: req.Texts,
 	}

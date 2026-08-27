@@ -33,7 +33,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("vertexai: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -83,15 +83,15 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if validateOptionsErr := i.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := i.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return "", nil, nil, validateOptionsErr
 	}
 
-	providerOptsValue, _, err := mergedOpts.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
+	providerOptsValue, _, err := effectiveOptions.Extensions.Decode[ImageGenerationOptions](ImageRequestExtensionKey)
 
 	providerOpts := &providerOptsValue
 	if err != nil {
@@ -107,20 +107,20 @@ func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 			OutputCompressionQuality: providerOpts.OutputCompressionQuality,
 		},
 	}
-	if mergedOpts.Seed != nil {
-		if *mergedOpts.Seed > math.MaxInt32 {
-			return "", nil, nil, fmt.Errorf("vertexai: image: seed exceeds int32: %d", *mergedOpts.Seed)
+	if effectiveOptions.Seed != nil {
+		if *effectiveOptions.Seed > math.MaxInt32 {
+			return "", nil, nil, fmt.Errorf("vertexai: image: seed exceeds int32: %d", *effectiveOptions.Seed)
 		}
-		config.Seed = new(int32(*mergedOpts.Seed))
+		config.Seed = new(int32(*effectiveOptions.Seed))
 	}
-	if mergedOpts.OutputFormat != "" {
-		if mergedOpts.OutputFormat != "image/png" && mergedOpts.OutputFormat != "image/jpeg" {
-			return "", nil, nil, fmt.Errorf("vertexai: image: unsupported output format %q; use image/png or image/jpeg", mergedOpts.OutputFormat)
+	if effectiveOptions.OutputFormat != "" {
+		if effectiveOptions.OutputFormat != "image/png" && effectiveOptions.OutputFormat != "image/jpeg" {
+			return "", nil, nil, fmt.Errorf("vertexai: image: unsupported output format %q; use image/png or image/jpeg", effectiveOptions.OutputFormat)
 		}
 		if config.ImageConfig == nil {
 			config.ImageConfig = &genai.ImageConfig{}
 		}
-		config.ImageConfig.OutputMIMEType = mergedOpts.OutputFormat
+		config.ImageConfig.OutputMIMEType = effectiveOptions.OutputFormat
 	}
 
 	parts := make([]*genai.Part, 0, len(providerOpts.InputImages)+1)
@@ -133,7 +133,7 @@ func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 		parts = append(parts, part)
 	}
 	contents := []*genai.Content{genai.NewContentFromParts(parts, genai.RoleUser)}
-	return mergedOpts.Model, contents, &config, nil
+	return effectiveOptions.Model, contents, &config, nil
 }
 
 func (*ImageModel) validateOptions(options image.Options) error {

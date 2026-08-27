@@ -23,7 +23,7 @@ const (
 )
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream bool) (*nativeChatRequest, error) {
-	options, err := defaults.Merged(req.Options)
+	options, err := defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: options: %w", err)
 	}

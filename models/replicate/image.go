@@ -35,7 +35,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("replicate: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	if err := i.InputSchema.Validate(); err != nil {
@@ -193,17 +193,17 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	if mergedOpts.Model != i.model {
-		return nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", mergedOpts.Model, i.model)
+	if effectiveOptions.Model != i.model {
+		return nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", effectiveOptions.Model, i.model)
 	}
-	if validateOptionsErr := i.inputSchema.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := i.inputSchema.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return nil, validateOptionsErr
 	}
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](ImageRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[predictionRequest](ImageRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
@@ -212,27 +212,27 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		apiReq.Input = map[string]any{}
 	}
 	apiReq.Input[i.inputSchema.PromptKey] = req.Prompt
-	if mergedOpts.NegativePrompt != "" {
-		apiReq.Input[i.inputSchema.NegativePromptKey] = mergedOpts.NegativePrompt
+	if effectiveOptions.NegativePrompt != "" {
+		apiReq.Input[i.inputSchema.NegativePromptKey] = effectiveOptions.NegativePrompt
 	}
-	if mergedOpts.Width != nil {
-		apiReq.Input[i.inputSchema.WidthKey] = *mergedOpts.Width
+	if effectiveOptions.Width != nil {
+		apiReq.Input[i.inputSchema.WidthKey] = *effectiveOptions.Width
 	}
-	if mergedOpts.Height != nil {
-		apiReq.Input[i.inputSchema.HeightKey] = *mergedOpts.Height
+	if effectiveOptions.Height != nil {
+		apiReq.Input[i.inputSchema.HeightKey] = *effectiveOptions.Height
 	}
-	if mergedOpts.Seed != nil {
-		apiReq.Input[i.inputSchema.SeedKey] = *mergedOpts.Seed
+	if effectiveOptions.Seed != nil {
+		apiReq.Input[i.inputSchema.SeedKey] = *effectiveOptions.Seed
 	}
-	if mergedOpts.OutputFormat != "" {
-		value, supported := i.inputSchema.OutputFormats[mergedOpts.OutputFormat]
+	if effectiveOptions.OutputFormat != "" {
+		value, supported := i.inputSchema.OutputFormats[effectiveOptions.OutputFormat]
 		if !supported {
-			return nil, fmt.Errorf("replicate: image: model %q does not support output format %q", i.model, mergedOpts.OutputFormat)
+			return nil, fmt.Errorf("replicate: image: model %q does not support output format %q", i.model, effectiveOptions.OutputFormat)
 		}
 		apiReq.Input[i.inputSchema.OutputFormatKey] = value
 	}
 
-	submit, err := i.api.createPrediction(ctx, mergedOpts.Model, apiReq)
+	submit, err := i.api.createPrediction(ctx, effectiveOptions.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 				return nil, fmt.Errorf("replicate: image output[%d]: parse content type %q: %w", outputIndex, contentType, err)
 			}
 		} else {
-			mimeType = mergedOpts.OutputFormat
+			mimeType = effectiveOptions.OutputFormat
 		}
 		if mimeType == "" {
 			mimeType = "application/octet-stream"
@@ -294,7 +294,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		}
 		meta.Created = createdAt.Unix()
 	}
-	if err := meta.Set("replicate/model", mergedOpts.Model); err != nil {
+	if err := meta.Set("replicate/model", effectiveOptions.Model); err != nil {
 		return nil, err
 	}
 	if err := meta.Set("replicate/prediction_id", final.ID); err != nil {

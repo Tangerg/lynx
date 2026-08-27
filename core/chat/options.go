@@ -69,50 +69,49 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Merged clones o and applies each override left-to-right.
-func (o Options) Merged(overrides ...Options) (Options, error) {
-	merged := o.Clone()
-	for _, override := range overrides {
-		if err := merged.applyOverride(override); err != nil {
-			return Options{}, fmt.Errorf("chat.Options.Merged: %w: %w", ErrInvalidOptions, err)
-		}
+// Resolve returns the effective options after applying one request-level
+// override to o. Neither input is mutated.
+func (o Options) Resolve(override Options) (Options, error) {
+	effective := o.Clone()
+	if err := effective.applyOverride(override); err != nil {
+		return Options{}, fmt.Errorf("chat.Options.Resolve: %w: %w", ErrInvalidOptions, err)
 	}
-	if err := merged.Validate(); err != nil {
-		return Options{}, fmt.Errorf("chat.Options.Merged: %w", err)
+	if err := effective.Validate(); err != nil {
+		return Options{}, fmt.Errorf("chat.Options.Resolve: %w", err)
 	}
-	return merged, nil
+	return effective, nil
 }
 
-func (o *Options) applyOverride(src Options) error {
-	if src.Model != "" {
-		o.Model = src.Model
+func (o *Options) applyOverride(override Options) error {
+	if override.Model != "" {
+		o.Model = override.Model
 	}
-	if src.OutputFormat != nil {
-		o.OutputFormat = src.OutputFormat.Clone()
+	if override.OutputFormat != nil {
+		o.OutputFormat = override.OutputFormat.Clone()
 	}
-	if src.FrequencyPenalty != nil {
-		o.FrequencyPenalty = ptr.Clone(src.FrequencyPenalty)
+	if override.FrequencyPenalty != nil {
+		o.FrequencyPenalty = ptr.Clone(override.FrequencyPenalty)
 	}
-	if src.MaxTokens != nil {
-		o.MaxTokens = ptr.Clone(src.MaxTokens)
+	if override.MaxTokens != nil {
+		o.MaxTokens = ptr.Clone(override.MaxTokens)
 	}
-	if src.PresencePenalty != nil {
-		o.PresencePenalty = ptr.Clone(src.PresencePenalty)
+	if override.PresencePenalty != nil {
+		o.PresencePenalty = ptr.Clone(override.PresencePenalty)
 	}
-	if src.Stop != nil {
-		o.Stop = slices.Clone(src.Stop)
+	if override.Stop != nil {
+		o.Stop = slices.Clone(override.Stop)
 	}
-	if src.Temperature != nil {
-		o.Temperature = ptr.Clone(src.Temperature)
+	if override.Temperature != nil {
+		o.Temperature = ptr.Clone(override.Temperature)
 	}
-	if src.TopK != nil {
-		o.TopK = ptr.Clone(src.TopK)
+	if override.TopK != nil {
+		o.TopK = ptr.Clone(override.TopK)
 	}
-	if src.TopP != nil {
-		o.TopP = ptr.Clone(src.TopP)
+	if override.TopP != nil {
+		o.TopP = ptr.Clone(override.TopP)
 	}
-	if len(src.Extensions) > 0 {
-		if err := o.Extensions.Merge(src.Extensions); err != nil {
+	if len(override.Extensions) > 0 {
+		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}
 	}

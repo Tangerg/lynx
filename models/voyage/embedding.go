@@ -26,7 +26,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("voyage: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -73,23 +73,23 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*embeddingRequest, error) {
-	mergedOpts, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[embeddingRequest](EmbeddingRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[embeddingRequest](EmbeddingRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq.Model = mergedOpts.Model
+	apiReq.Model = effectiveOptions.Model
 	apiReq.Input = req.Texts
 
-	if mergedOpts.Dimensions != nil {
-		apiReq.OutputDimension = mergedOpts.Dimensions
+	if effectiveOptions.Dimensions != nil {
+		apiReq.OutputDimension = effectiveOptions.Dimensions
 	}
 	if apiReq.OutputDtype == "" {
 		apiReq.OutputDtype = "float"

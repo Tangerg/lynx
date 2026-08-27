@@ -22,7 +22,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("deepgram: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -69,20 +69,20 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	paramsValue, _, err := mergedOpts.Extensions.Decode[listenParams](TranscriptionRequestExtensionKey)
+	paramsValue, _, err := effectiveOptions.Extensions.Decode[listenParams](TranscriptionRequestExtensionKey)
 	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}
 	if params.Model == "" {
-		params.Model = mergedOpts.Model
+		params.Model = effectiveOptions.Model
 	}
-	if params.Language == "" && mergedOpts.Language != "" {
-		params.Language = mergedOpts.Language
+	if params.Language == "" && effectiveOptions.Language != "" {
+		params.Language = effectiveOptions.Language
 	}
 	if params.Summarize == "v1" {
 		return nil, errors.New("deepgram: summarize=v1 is deprecated; use true or v2")

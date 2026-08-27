@@ -34,8 +34,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := image.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty prompt")
 	}
-	if merged, err := (image.Options{}).Merged(); err != nil || merged.Model != "" || merged.Width != nil || len(merged.Extensions) != 0 {
-		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
+	if resolved, err := (image.Options{}).Resolve(image.Options{}); err != nil || resolved.Model != "" || resolved.Width != nil || len(resolved.Extensions) != 0 {
+		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*image.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -74,21 +74,17 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	base.OutputFormat = "IMAGE/PNG"
-	merged, err := base.Merged()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if merged.OutputFormat != "image/png" {
-		t.Fatalf("normalized OutputFormat = %q, want image/png", merged.OutputFormat)
+	if _, err := base.Resolve(image.Options{}); err == nil {
+		t.Fatal("Resolve accepted a non-canonical output MIME type")
 	}
 	for _, invalid := range []string{"text/plain", "image", "image/png;charset=utf-8"} {
 		base.OutputFormat = invalid
-		if _, err := base.Merged(); err == nil {
-			t.Errorf("Merged accepted invalid OutputFormat %q", invalid)
+		if _, err := base.Resolve(image.Options{}); err == nil {
+			t.Errorf("Resolve accepted invalid OutputFormat %q", invalid)
 		}
 	}
-	if _, err := (image.Options{Model: " model "}).Merged(); err == nil {
-		t.Fatal("Merged accepted invalid base options")
+	if _, err := (image.Options{Model: " model "}).Resolve(image.Options{}); err == nil {
+		t.Fatal("Resolve accepted invalid base options")
 	}
 }
 
@@ -117,36 +113,36 @@ func TestResponseValidation(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndCopies(t *testing.T) {
+func TestOptionsResolveAndCopies(t *testing.T) {
 	width, height, seed := int64(512), int64(768), int64(7)
 	base := image.Options{Model: "base", Width: &width, Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
 	override := image.Options{
 		Model: "override", NegativePrompt: "text", Width: &width, Height: &height,
-		Seed: &seed, OutputFormat: "IMAGE/PNG",
+		Seed: &seed, OutputFormat: "image/png",
 		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	}
-	merged, err := base.Merged(override)
+	resolved, err := base.Resolve(override)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || merged.NegativePrompt != "text" || merged.Height == nil ||
-		merged.Seed == nil || merged.OutputFormat != "image/png" {
-		t.Fatalf("Merged = %#v", merged)
+	if resolved.Model != "override" || resolved.NegativePrompt != "text" || resolved.Height == nil ||
+		resolved.Seed == nil || resolved.OutputFormat != "image/png" {
+		t.Fatalf("Resolve = %#v", resolved)
 	}
-	if len(merged.Extensions) != 2 {
-		t.Fatalf("merged Extensions = %#v", merged.Extensions)
+	if len(resolved.Extensions) != 2 {
+		t.Fatalf("resolved Extensions = %#v", resolved.Extensions)
 	}
-	*merged.Height = 1024
-	*merged.Seed = 9
+	*resolved.Height = 1024
+	*resolved.Seed = 9
 	if height != 768 || seed != 7 {
-		t.Fatal("Merged aliases override pointer state")
+		t.Fatal("Resolve aliases override pointer state")
 	}
-	clone := merged.Clone()
+	clone := resolved.Clone()
 	*clone.Width = 1024
 	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if *merged.Width != 512 || !mustDecode[bool](t, merged.Extensions, "provider/base") {
+	if *resolved.Width != 512 || !mustDecode[bool](t, resolved.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

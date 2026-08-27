@@ -25,7 +25,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("cohere: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -61,18 +61,18 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2EmbedRequest, error) {
-	mergedOpts, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiRequest, _, err := mergedOpts.Extensions.Decode[cohere.V2EmbedRequest](EmbeddingRequestExtensionKey)
+	apiRequest, _, err := effectiveOptions.Extensions.Decode[cohere.V2EmbedRequest](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
 	apiReq := &apiRequest
 
-	apiReq.Model = mergedOpts.Model
+	apiReq.Model = effectiveOptions.Model
 	apiReq.Texts = req.Texts
 
 	if apiReq.InputType == "" {
@@ -85,10 +85,10 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		apiReq.EmbeddingTypes = []cohere.EmbeddingType{cohere.EmbeddingTypeFloat}
 	}
 
-	if mergedOpts.Dimensions != nil {
-		value := int(*mergedOpts.Dimensions)
-		if int64(value) != *mergedOpts.Dimensions {
-			return nil, fmt.Errorf("cohere: embedding: dimensions: %d exceeds int", *mergedOpts.Dimensions)
+	if effectiveOptions.Dimensions != nil {
+		value := int(*effectiveOptions.Dimensions)
+		if int64(value) != *effectiveOptions.Dimensions {
+			return nil, fmt.Errorf("cohere: embedding: dimensions: %d exceeds int", *effectiveOptions.Dimensions)
 		}
 		apiReq.OutputDimension = &value
 	}

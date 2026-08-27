@@ -26,7 +26,7 @@ chat: func (o *OutputMetadata) Set(key string, value any) error
 chat: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 chat: func (o Options) Clone() Options
 chat: func (o Options) MarshalJSON() ([]byte, error)
-chat: func (o Options) Merged(overrides ...Options) (Options, error)
+chat: func (o Options) Resolve(override Options) (Options, error)
 chat: func (o Options) Validate() error
 chat: func (o Output) MarshalJSON() ([]byte, error)
 chat: func (o OutputFormat) MarshalJSON() ([]byte, error)
@@ -168,7 +168,7 @@ embedding: func (o *OutputMetadata) Set(key string, value any) error
 embedding: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 embedding: func (o Options) Clone() Options
 embedding: func (o Options) MarshalJSON() ([]byte, error)
-embedding: func (o Options) Merged(overrides ...Options) (Options, error)
+embedding: func (o Options) Resolve(override Options) (Options, error)
 embedding: func (o Options) Validate() error
 embedding: func (o Output) MarshalJSON() ([]byte, error)
 embedding: func (o OutputMetadata) MarshalJSON() ([]byte, error)
@@ -254,7 +254,7 @@ image: func (o *OutputMetadata) Set(key string, value any) error
 image: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 image: func (o Options) Clone() Options
 image: func (o Options) MarshalJSON() ([]byte, error)
-image: func (o Options) Merged(overrides ...Options) (Options, error)
+image: func (o Options) Resolve(override Options) (Options, error)
 image: func (o Options) Validate() error
 image: func (o Output) MarshalJSON() ([]byte, error)
 image: func (o OutputMetadata) MarshalJSON() ([]byte, error)
@@ -360,7 +360,7 @@ moderation: func (o *OutputMetadata) Set(key string, value any) error
 moderation: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 moderation: func (o Options) Clone() Options
 moderation: func (o Options) MarshalJSON() ([]byte, error)
-moderation: func (o Options) Merged(overrides ...Options) (Options, error)
+moderation: func (o Options) Resolve(override Options) (Options, error)
 moderation: func (o Options) Validate() error
 moderation: func (o Output) MarshalJSON() ([]byte, error)
 moderation: func (o OutputMetadata) MarshalJSON() ([]byte, error)
@@ -400,7 +400,7 @@ speech: func (o *OutputMetadata) Set(key string, value any) error
 speech: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 speech: func (o Options) Clone() Options
 speech: func (o Options) MarshalJSON() ([]byte, error)
-speech: func (o Options) Merged(overrides ...Options) (Options, error)
+speech: func (o Options) Resolve(override Options) (Options, error)
 speech: func (o Options) Validate() error
 speech: func (o Output) MarshalJSON() ([]byte, error)
 speech: func (o OutputMetadata) MarshalJSON() ([]byte, error)
@@ -459,7 +459,7 @@ transcription: func (o *OutputMetadata) Set(key string, value any) error
 transcription: func (o *OutputMetadata) UnmarshalJSON(data []byte) error
 transcription: func (o Options) Clone() Options
 transcription: func (o Options) MarshalJSON() ([]byte, error)
-transcription: func (o Options) Merged(overrides ...Options) (Options, error)
+transcription: func (o Options) Resolve(override Options) (Options, error)
 transcription: func (o Options) Validate() error
 transcription: func (o Output) MarshalJSON() ([]byte, error)
 transcription: func (o OutputMetadata) MarshalJSON() ([]byte, error)

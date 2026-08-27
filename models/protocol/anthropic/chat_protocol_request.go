@@ -48,7 +48,7 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	params := anthropicsdk.MessageNewParams{OutputConfig: outputConfig}
 	params.SetExtraFields(fields)
 
-	options, err := defaults.Merged(req.Options)
+	options, err := defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: options: %w", err)
 	}

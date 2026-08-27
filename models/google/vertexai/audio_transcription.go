@@ -29,7 +29,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("vertexai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil

@@ -26,7 +26,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("stability: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -70,40 +70,40 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *generateRequest, error) {
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, err
 	}
 	switch {
-	case mergedOpts.Height != nil && mergedOpts.Width != nil:
+	case effectiveOptions.Height != nil && effectiveOptions.Width != nil:
 		return "", nil, errors.New("stability: image: unsupported options: height, width")
-	case mergedOpts.Height != nil:
+	case effectiveOptions.Height != nil:
 		return "", nil, errors.New("stability: image: unsupported option: height")
-	case mergedOpts.Width != nil:
+	case effectiveOptions.Width != nil:
 		return "", nil, errors.New("stability: image: unsupported option: width")
 	}
 
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[generateRequest](RequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[generateRequest](RequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
 		return "", nil, err
 	}
-	endpoint, wireModel, err := resolveModel(mergedOpts.Model)
+	endpoint, wireModel, err := resolveModel(effectiveOptions.Model)
 	if err != nil {
 		return "", nil, err
 	}
 	apiReq.Model = wireModel
 
 	apiReq.Prompt = req.Prompt
-	if mergedOpts.NegativePrompt != "" {
-		apiReq.NegativePrompt = mergedOpts.NegativePrompt
+	if effectiveOptions.NegativePrompt != "" {
+		apiReq.NegativePrompt = effectiveOptions.NegativePrompt
 	}
-	if mergedOpts.Seed != nil {
-		apiReq.Seed = mergedOpts.Seed
+	if effectiveOptions.Seed != nil {
+		apiReq.Seed = effectiveOptions.Seed
 	}
-	if mergedOpts.OutputFormat != "" && apiReq.OutputFormat == "" {
-		apiReq.OutputFormat = strings.TrimPrefix(mergedOpts.OutputFormat, "image/")
+	if effectiveOptions.OutputFormat != "" && apiReq.OutputFormat == "" {
+		apiReq.OutputFormat = strings.TrimPrefix(effectiveOptions.OutputFormat, "image/")
 	}
 
 	// Force JSON mode to get FinishReason / Seed echoed back.

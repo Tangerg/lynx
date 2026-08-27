@@ -24,7 +24,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("prodia: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -58,17 +58,17 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[jobRequest](ImageRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[jobRequest](ImageRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
 	if apiReq.Type == "" {
-		apiReq.Type = mergedOpts.Model
+		apiReq.Type = effectiveOptions.Model
 	}
 	if !strings.Contains(apiReq.Type, ".txt2img.") {
 		return nil, errors.New("prodia: image model requires a text-to-image job type containing .txt2img")
@@ -79,28 +79,28 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if _, ok := apiReq.Config["prompt"]; !ok {
 		apiReq.Config["prompt"] = req.Prompt
 	}
-	if mergedOpts.NegativePrompt != "" {
+	if effectiveOptions.NegativePrompt != "" {
 		if _, ok := apiReq.Config["negative_prompt"]; !ok {
-			apiReq.Config["negative_prompt"] = mergedOpts.NegativePrompt
+			apiReq.Config["negative_prompt"] = effectiveOptions.NegativePrompt
 		}
 	}
-	if mergedOpts.Width != nil {
+	if effectiveOptions.Width != nil {
 		if _, ok := apiReq.Config["width"]; !ok {
-			apiReq.Config["width"] = *mergedOpts.Width
+			apiReq.Config["width"] = *effectiveOptions.Width
 		}
 	}
-	if mergedOpts.Height != nil {
+	if effectiveOptions.Height != nil {
 		if _, ok := apiReq.Config["height"]; !ok {
-			apiReq.Config["height"] = *mergedOpts.Height
+			apiReq.Config["height"] = *effectiveOptions.Height
 		}
 	}
-	if mergedOpts.Seed != nil {
+	if effectiveOptions.Seed != nil {
 		if _, ok := apiReq.Config["seed"]; !ok {
-			apiReq.Config["seed"] = *mergedOpts.Seed
+			apiReq.Config["seed"] = *effectiveOptions.Seed
 		}
 	}
 
-	accept := mergedOpts.OutputFormat
+	accept := effectiveOptions.OutputFormat
 	switch accept {
 	case "", "image/jpeg", "image/png", "image/webp":
 	default:

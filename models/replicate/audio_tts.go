@@ -33,7 +33,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("replicate: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	if err := a.InputSchema.Validate(); err != nil {
@@ -152,18 +152,18 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	if mergedOpts.Model != a.model {
-		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", mergedOpts.Model, a.model)
+	if effectiveOptions.Model != a.model {
+		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", effectiveOptions.Model, a.model)
 	}
-	if validateOptionsErr := a.inputSchema.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := a.inputSchema.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return nil, validateOptionsErr
 	}
 
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[predictionRequest](SpeechRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[predictionRequest](SpeechRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
@@ -174,11 +174,11 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 
 	apiReq.Input[a.inputSchema.TextKey] = req.Text
-	if mergedOpts.Voice != "" {
-		apiReq.Input[a.inputSchema.VoiceKey] = mergedOpts.Voice
+	if effectiveOptions.Voice != "" {
+		apiReq.Input[a.inputSchema.VoiceKey] = effectiveOptions.Voice
 	}
-	if mergedOpts.Speed > 0 {
-		apiReq.Input[a.inputSchema.SpeedKey] = mergedOpts.Speed
+	if effectiveOptions.Speed > 0 {
+		apiReq.Input[a.inputSchema.SpeedKey] = effectiveOptions.Speed
 	}
 	if a.inputSchema.VoiceRequired {
 		voice, exists := apiReq.Input[a.inputSchema.VoiceKey]
@@ -187,7 +187,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		}
 	}
 
-	submit, err := a.api.createPrediction(ctx, mergedOpts.Model, apiReq)
+	submit, err := a.api.createPrediction(ctx, effectiveOptions.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	meta := &tts.ResponseMetadata{Model: mergedOpts.Model}
+	meta := &tts.ResponseMetadata{Model: effectiveOptions.Model}
 	if final.CreatedAt != "" {
 		createdAt, err := time.Parse(time.RFC3339Nano, final.CreatedAt)
 		if err != nil {

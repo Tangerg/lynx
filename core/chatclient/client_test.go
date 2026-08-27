@@ -95,7 +95,7 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	}
 }
 
-func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
+func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	inline, err := media.NewBytes("image/png", []byte{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +271,7 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 	}
 }
 
-func TestOptionsMergedUsesEveryExplicitOverride(t *testing.T) {
+func TestOptionsResolveUsesEveryExplicitOverride(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
 		FrequencyPenalty: pointer(0.1),
@@ -293,28 +293,28 @@ func TestOptionsMergedUsesEveryExplicitOverride(t *testing.T) {
 		TopP:             pointer(0.9),
 	}
 
-	merged, err := defaults.Merged(overrides)
+	resolved, err := defaults.Resolve(overrides)
 	if err != nil {
-		t.Fatalf("Merged: %v", err)
+		t.Fatalf("Resolve: %v", err)
 	}
-	if !reflect.DeepEqual(merged, overrides) {
-		t.Fatalf("merged = %#v, want %#v", merged, overrides)
+	if !reflect.DeepEqual(resolved, overrides) {
+		t.Fatalf("resolved = %#v, want %#v", resolved, overrides)
 	}
-	*merged.FrequencyPenalty = 0
-	*merged.MaxTokens = 99
-	*merged.PresencePenalty = 0
-	merged.Stop[0] = "mutated"
-	*merged.Temperature = 0
-	*merged.TopK = 99
-	*merged.TopP = 0
+	*resolved.FrequencyPenalty = 0
+	*resolved.MaxTokens = 99
+	*resolved.PresencePenalty = 0
+	resolved.Stop[0] = "mutated"
+	*resolved.Temperature = 0
+	*resolved.TopK = 99
+	*resolved.TopP = 0
 	if *overrides.FrequencyPenalty != 1.1 || *overrides.MaxTokens != 10 ||
 		*overrides.PresencePenalty != 1.2 || overrides.Stop[0] != "override" ||
 		*overrides.Temperature != 1.3 || *overrides.TopK != 20 || *overrides.TopP != 0.9 {
-		t.Fatalf("merged options alias overrides: %#v", overrides)
+		t.Fatalf("resolved options alias overrides: %#v", overrides)
 	}
 }
 
-func TestOptionsMergedKeepsDefaultsForUnspecifiedFields(t *testing.T) {
+func TestOptionsResolveKeepsDefaultsForUnspecifiedFields(t *testing.T) {
 	defaults := chat.Options{
 		Model:            "default",
 		FrequencyPenalty: pointer(0.1),
@@ -325,17 +325,17 @@ func TestOptionsMergedKeepsDefaultsForUnspecifiedFields(t *testing.T) {
 		TopK:             pointer(int64(2)),
 		TopP:             pointer(0.4),
 	}
-	merged, err := defaults.Merged(chat.Options{})
+	resolved, err := defaults.Resolve(chat.Options{})
 	if err != nil {
-		t.Fatalf("Merged: %v", err)
+		t.Fatalf("Resolve: %v", err)
 	}
-	if !reflect.DeepEqual(merged, defaults) {
-		t.Fatalf("merged = %#v, want %#v", merged, defaults)
+	if !reflect.DeepEqual(resolved, defaults) {
+		t.Fatalf("resolved = %#v, want %#v", resolved, defaults)
 	}
-	*merged.MaxTokens = 99
-	merged.Stop[0] = "mutated"
+	*resolved.MaxTokens = 99
+	resolved.Stop[0] = "mutated"
 	if *defaults.MaxTokens != 1 || defaults.Stop[0] != "default" {
-		t.Fatalf("merged defaults alias input: %#v", defaults)
+		t.Fatalf("resolved defaults alias input: %#v", defaults)
 	}
 }
 

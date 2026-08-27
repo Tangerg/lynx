@@ -43,7 +43,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("hume: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -75,18 +75,18 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsRequest, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyValue, _, err := mergedOpts.Extensions.Decode[ttsRequest](SpeechRequestExtensionKey)
+	bodyValue, _, err := effectiveOptions.Extensions.Decode[ttsRequest](SpeechRequestExtensionKey)
 
 	body := &bodyValue
 	if err != nil {
 		return nil, err
 	}
-	if mergedOpts.Model != ModelOctave1 && mergedOpts.Model != ModelOctave2 {
+	if effectiveOptions.Model != ModelOctave1 && effectiveOptions.Model != ModelOctave2 {
 		return nil, fmt.Errorf("hume: speech: model must be %q or %q", ModelOctave1, ModelOctave2)
 	}
 	if body.NumGenerations > 1 {
@@ -96,21 +96,21 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsR
 		body.Utterances = []utterance{{}}
 	}
 	body.Utterances[0].Text = req.Text
-	if mergedOpts.Voice != "" {
-		body.Utterances[0].Voice = &voice{ID: mergedOpts.Voice, Provider: "HUME_AI"}
+	if effectiveOptions.Voice != "" {
+		body.Utterances[0].Voice = &voice{ID: effectiveOptions.Voice, Provider: "HUME_AI"}
 	}
-	if mergedOpts.Speed != 0 {
-		v := mergedOpts.Speed
+	if effectiveOptions.Speed != 0 {
+		v := effectiveOptions.Speed
 		body.Utterances[0].Speed = &v
 	}
-	body.Version = mergedOpts.Model
-	if mergedOpts.OutputFormat != "" {
-		switch mergedOpts.OutputFormat {
+	body.Version = effectiveOptions.Model
+	if effectiveOptions.OutputFormat != "" {
+		switch effectiveOptions.OutputFormat {
 		case "mp3", "wav", "pcm":
 		default:
 			return nil, errors.New("hume: speech: output_format must be mp3, wav, or pcm")
 		}
-		body.Format = map[string]any{"type": mergedOpts.OutputFormat}
+		body.Format = map[string]any{"type": effectiveOptions.OutputFormat}
 	}
 	if body.Version == ModelOctave2 && body.Utterances[0].Voice == nil {
 		return nil, errors.New("hume: speech: Octave 2 requires Options.Voice or a voice on the first utterance")

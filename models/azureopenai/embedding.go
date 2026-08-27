@@ -22,7 +22,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("azureopenai: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil

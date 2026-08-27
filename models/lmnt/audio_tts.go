@@ -24,7 +24,7 @@ func (a AudioTTSModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("lmnt: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -57,12 +57,12 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*synthesizeRequest, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyValue, _, err := mergedOpts.Extensions.Decode[synthesizeRequest](RequestExtensionKey)
+	bodyValue, _, err := effectiveOptions.Extensions.Decode[synthesizeRequest](RequestExtensionKey)
 
 	body := &bodyValue
 	if err != nil {
@@ -70,15 +70,15 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*synthesizeRequest, e
 	}
 	body.Text = req.Text
 	if body.Model == "" {
-		body.Model = mergedOpts.Model
+		body.Model = effectiveOptions.Model
 	}
 	if body.Voice == "" {
-		body.Voice = mergedOpts.Voice
+		body.Voice = effectiveOptions.Voice
 	}
-	if body.Format == "" && mergedOpts.OutputFormat != "" {
-		body.Format = mergedOpts.OutputFormat
+	if body.Format == "" && effectiveOptions.OutputFormat != "" {
+		body.Format = effectiveOptions.OutputFormat
 	}
-	if mergedOpts.Speed != 0 {
+	if effectiveOptions.Speed != 0 {
 		return nil, errors.New("lmnt: options.speed is not supported by the current speech bytes API")
 	}
 	if err := validateSynthesizeRequest(body); err != nil {

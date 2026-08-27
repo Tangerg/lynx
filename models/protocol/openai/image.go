@@ -32,7 +32,7 @@ func (i ImageModelConfig) Validate() error {
 	if i.DefaultOptions.Model == "" {
 		return errors.New("openai: DefaultOptions.Model is required")
 	}
-	if _, err := i.DefaultOptions.Merged(); err != nil {
+	if err := i.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -68,35 +68,35 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGenerateParams, error) {
-	mergedOpts, err := i.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 	if rejectUnsupportedOptionsErr := rejectUnsupportedOptions("openai: image", map[string]bool{
-		"negative_prompt": mergedOpts.NegativePrompt != "",
-		"seed":            mergedOpts.Seed != nil,
+		"negative_prompt": effectiveOptions.NegativePrompt != "",
+		"seed":            effectiveOptions.Seed != nil,
 	}); rejectUnsupportedOptionsErr != nil {
 		return nil, rejectUnsupportedOptionsErr
 	}
-	if (mergedOpts.Width == nil) != (mergedOpts.Height == nil) {
+	if (effectiveOptions.Width == nil) != (effectiveOptions.Height == nil) {
 		return nil, errors.New("openai: image: width and height must be set together")
 	}
 
-	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"), "model", "prompt", "output_format", "size")
+	fields, err := decodeRequestFields(effectiveOptions.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"), "model", "prompt", "output_format", "size")
 	if err != nil {
 		return nil, err
 	}
 	params := &openai.ImageGenerateParams{}
 	params.SetExtraFields(fields)
 
-	params.Model = mergedOpts.Model
+	params.Model = effectiveOptions.Model
 	params.Prompt = req.Prompt
 
-	if mergedOpts.OutputFormat != "" {
-		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(strings.TrimPrefix(mergedOpts.OutputFormat, "image/"))
+	if effectiveOptions.OutputFormat != "" {
+		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(strings.TrimPrefix(effectiveOptions.OutputFormat, "image/"))
 	}
-	if mergedOpts.Width != nil && mergedOpts.Height != nil {
-		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", *mergedOpts.Width, *mergedOpts.Height))
+	if effectiveOptions.Width != nil && effectiveOptions.Height != nil {
+		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", *effectiveOptions.Width, *effectiveOptions.Height))
 	} else {
 		params.Size = openai.ImageGenerateParamsSizeAuto
 	}

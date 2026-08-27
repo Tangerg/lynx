@@ -103,14 +103,14 @@ func (c *Client) prepareRequest(request *chat.Request, outputFormat *chat.Output
 		return nil, fmt.Errorf("%w: request options already define output_format", ErrInvalidOutputFormat)
 	}
 	prepared := request.Clone()
-	merged, err := c.defaults.Merged(request.Options)
+	effectiveOptions, err := c.defaults.Resolve(request.Options)
 	if err != nil {
 		return nil, err
 	}
 	if outputFormat != nil {
-		merged.OutputFormat = outputFormat.Clone()
+		effectiveOptions.OutputFormat = outputFormat.Clone()
 	}
-	prepared.Options = merged
+	prepared.Options = effectiveOptions
 	if err := prepared.Validate(); err != nil {
 		return nil, err
 	}

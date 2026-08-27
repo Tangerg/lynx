@@ -77,33 +77,38 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Merged clones o then applies each override left-to-right.
-// Scalar non-zero values overwrite; the Extensions map merges last-write-wins.
-func (o Options) Merged(overrides ...Options) (Options, error) {
-	merged := o.Clone()
-	for _, override := range overrides {
-		if override.Model != "" {
-			merged.Model = override.Model
-		}
-		if override.Voice != "" {
-			merged.Voice = override.Voice
-		}
-		if override.OutputFormat != "" {
-			merged.OutputFormat = override.OutputFormat
-		}
-		if override.Speed != 0 {
-			merged.Speed = override.Speed
-		}
-		if len(override.Extensions) > 0 {
-			if err := merged.Extensions.Merge(override.Extensions); err != nil {
-				return Options{}, fmt.Errorf("speech.Options.Merged: %w: merge extensions: %w", ErrInvalidOptions, err)
-			}
+// Resolve returns the effective options after applying one request-level
+// override to o. Neither input is mutated.
+func (o Options) Resolve(override Options) (Options, error) {
+	effective := o.Clone()
+	if err := effective.applyOverride(override); err != nil {
+		return Options{}, fmt.Errorf("speech.Options.Resolve: %w: %w", ErrInvalidOptions, err)
+	}
+	if err := effective.Validate(); err != nil {
+		return Options{}, fmt.Errorf("speech.Options.Resolve: %w", err)
+	}
+	return effective, nil
+}
+
+func (o *Options) applyOverride(override Options) error {
+	if override.Model != "" {
+		o.Model = override.Model
+	}
+	if override.Voice != "" {
+		o.Voice = override.Voice
+	}
+	if override.OutputFormat != "" {
+		o.OutputFormat = override.OutputFormat
+	}
+	if override.Speed != 0 {
+		o.Speed = override.Speed
+	}
+	if len(override.Extensions) > 0 {
+		if err := o.Extensions.Merge(override.Extensions); err != nil {
+			return fmt.Errorf("merge extensions: %w", err)
 		}
 	}
-	if err := merged.Validate(); err != nil {
-		return Options{}, fmt.Errorf("speech.Options.Merged: %w", err)
-	}
-	return merged, nil
+	return nil
 }
 
 func (o Options) MarshalJSON() ([]byte, error) {

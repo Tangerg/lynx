@@ -111,7 +111,7 @@ func TestOptionsClone(t *testing.T) {
 	}
 }
 
-func TestOptionsMerged(t *testing.T) {
+func TestOptionsResolve(t *testing.T) {
 	baseFormat, err := chat.NewOutputFormat(chat.OutputFormatText)
 	if err != nil {
 		t.Fatal(err)
@@ -128,12 +128,12 @@ func TestOptionsMerged(t *testing.T) {
 		TopP:             new(0.9),
 	}
 
-	got, err := base.Merged(chat.Options{})
+	got, err := base.Resolve(chat.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, base) {
-		t.Fatalf("Merged(empty) = %#v, want unchanged %#v", got, base)
+		t.Fatalf("Resolve(empty) = %#v, want unchanged %#v", got, base)
 	}
 
 	override := chat.Options{
@@ -147,17 +147,17 @@ func TestOptionsMerged(t *testing.T) {
 		t.Fatal(err)
 	}
 	override.OutputFormat = &overrideFormat
-	got, err = base.Merged(override)
+	got, err = base.Resolve(override)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Model != "override-model" || got.OutputFormat == nil || got.OutputFormat.Type != chat.OutputFormatJSON || *got.MaxTokens != 20 ||
 		got.Stop[0] != "OVERRIDE" || *got.Temperature != 0.7 {
-		t.Fatalf("Merged did not apply set fields: %#v", got)
+		t.Fatalf("Resolve did not apply set fields: %#v", got)
 	}
 	if *got.FrequencyPenalty != 0.1 || *got.PresencePenalty != 0.2 ||
 		*got.TopK != 4 || *got.TopP != 0.9 {
-		t.Fatalf("Merged dropped base fields the override left unset: %#v", got)
+		t.Fatalf("Resolve dropped base fields the override left unset: %#v", got)
 	}
 
 	*got.MaxTokens = 99
@@ -165,10 +165,10 @@ func TestOptionsMerged(t *testing.T) {
 	got.Stop[0] = "MUTATED"
 	*got.FrequencyPenalty = 99
 	if *override.MaxTokens != 20 || override.OutputFormat.Type != chat.OutputFormatJSON || override.Stop[0] != "OVERRIDE" {
-		t.Fatalf("Merged aliased the override: %#v", override)
+		t.Fatalf("Resolve aliased the override: %#v", override)
 	}
 	if *base.FrequencyPenalty != 0.1 || base.OutputFormat.Type != chat.OutputFormatText || base.Stop[0] != "BASE" {
-		t.Fatalf("Merged aliased the base: %#v", base)
+		t.Fatalf("Resolve aliased the base: %#v", base)
 	}
 }
 

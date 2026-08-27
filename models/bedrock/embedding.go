@@ -49,7 +49,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("bedrock: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -85,17 +85,17 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	merged, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	nativeValue, _, err := merged.Extensions.Decode[EmbeddingRequestOptions](EmbeddingRequestExtensionKey)
+	nativeValue, _, err := effectiveOptions.Extensions.Decode[EmbeddingRequestOptions](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
 	native := &nativeValue
 
-	family, err := classifyEmbeddingModel(merged.Model)
+	family, err := classifyEmbeddingModel(effectiveOptions.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +103,9 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	var batch *embeddingBatch
 	switch family {
 	case embeddingFamilyTitanV1, embeddingFamilyTitanV2:
-		batch, err = e.embedTitan(ctx, family, merged.Model, req.Texts, merged.Dimensions, native)
+		batch, err = e.embedTitan(ctx, family, effectiveOptions.Model, req.Texts, effectiveOptions.Dimensions, native)
 	case embeddingFamilyCohereV3, embeddingFamilyCohereV4:
-		batch, err = e.embedCohere(ctx, family, merged.Model, req.Texts, merged.Dimensions, native)
+		batch, err = e.embedCohere(ctx, family, effectiveOptions.Model, req.Texts, effectiveOptions.Dimensions, native)
 	default:
 		return nil, fmt.Errorf("bedrock: unsupported internal embedding family %d", family)
 	}
@@ -122,7 +122,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		outputs[index] = output
 	}
 
-	metadata := &embedding.ResponseMetadata{Model: merged.Model}
+	metadata := &embedding.ResponseMetadata{Model: effectiveOptions.Model}
 	if batch.hasUsage {
 		metadata.Usage = &embedding.Usage{InputTokens: batch.inputTokens}
 	}

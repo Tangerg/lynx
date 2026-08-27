@@ -23,7 +23,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("elevenlabs: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -63,20 +63,20 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := mergedOpts.Extensions.Decode[transcriptionRequest](TranscriptionRequestExtensionKey)
+	apiReqValue, _, err := effectiveOptions.Extensions.Decode[transcriptionRequest](TranscriptionRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
 	if apiReq.ModelID == "" {
-		apiReq.ModelID = mergedOpts.Model
+		apiReq.ModelID = effectiveOptions.Model
 	}
-	if apiReq.LanguageCode == "" && mergedOpts.Language != "" {
-		apiReq.LanguageCode = mergedOpts.Language
+	if apiReq.LanguageCode == "" && effectiveOptions.Language != "" {
+		apiReq.LanguageCode = effectiveOptions.Language
 	}
 	if validateTranscriptionRequestErr := validateTranscriptionRequest(apiReq); validateTranscriptionRequestErr != nil {
 		return nil, validateTranscriptionRequestErr

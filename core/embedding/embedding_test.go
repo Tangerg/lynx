@@ -68,19 +68,19 @@ func TestOptionsAndRequest(t *testing.T) {
 	}
 	dimensions := int64(32)
 	base := embedding.Options{Model: "base"}
-	merged, err := base.Merged(
+	resolved, err := base.Resolve(
 		embedding.Options{Model: "override", Dimensions: &dimensions},
 	)
-	if err != nil || merged.Model != "override" || *merged.Dimensions != 32 {
-		t.Fatalf("Merged() = %#v, %v", merged, err)
+	if err != nil || resolved.Model != "override" || *resolved.Dimensions != 32 {
+		t.Fatalf("Resolve(override) = %#v, %v", resolved, err)
 	}
-	*merged.Dimensions = 64
+	*resolved.Dimensions = 64
 	if dimensions != 32 {
-		t.Fatal("Merged aliases override pointer state")
+		t.Fatal("Resolve aliases override pointer state")
 	}
 	invalidDimensions := int64(0)
-	if _, err := (embedding.Options{Model: "base", Dimensions: &invalidDimensions}).Merged(); err == nil {
-		t.Fatal("Merged accepted invalid base options")
+	if _, err := (embedding.Options{Model: "base", Dimensions: &invalidDimensions}).Resolve(embedding.Options{}); err == nil {
+		t.Fatal("Resolve accepted invalid base options")
 	}
 }
 
@@ -119,8 +119,8 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
-	if merged, err := (embedding.Options{}).Merged(); err != nil || merged.Model != "" || merged.Dimensions != nil || len(merged.Extensions) != 0 {
-		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
+	if resolved, err := (embedding.Options{}).Resolve(embedding.Options{}); err != nil || resolved.Model != "" || resolved.Dimensions != nil || len(resolved.Extensions) != 0 {
+		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if _, err := embedding.NewOutput(nil, &embedding.OutputMetadata{}); err == nil {
 		t.Fatal("NewOutput accepted an empty vector")

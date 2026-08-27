@@ -19,7 +19,7 @@ func (e EmbeddingModelConfig) Validate() error {
 	if e.DefaultOptions.Model == "" {
 		return errors.New("ollama: DefaultOptions.Model is required")
 	}
-	if _, err := e.DefaultOptions.Merged(); err != nil {
+	if err := e.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -55,23 +55,23 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*nativeEmbedRequest, error) {
-	mergedOpts, err := e.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := e.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiRequest, _, err := mergedOpts.Extensions.Decode[nativeEmbedRequest](EmbeddingRequestExtensionKey)
+	apiRequest, _, err := effectiveOptions.Extensions.Decode[nativeEmbedRequest](EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
 	apiReq := &apiRequest
-	apiReq.Model = mergedOpts.Model
+	apiReq.Model = effectiveOptions.Model
 	apiReq.Input = req.Texts
 
-	if mergedOpts.Dimensions != nil {
-		dimensions := int(*mergedOpts.Dimensions)
-		if int64(dimensions) != *mergedOpts.Dimensions {
-			return nil, fmt.Errorf("ollama: embedding: dimensions: %d exceeds int", *mergedOpts.Dimensions)
+	if effectiveOptions.Dimensions != nil {
+		dimensions := int(*effectiveOptions.Dimensions)
+		if int64(dimensions) != *effectiveOptions.Dimensions {
+			return nil, fmt.Errorf("ollama: embedding: dimensions: %d exceeds int", *effectiveOptions.Dimensions)
 		}
 		apiReq.Dimensions = dimensions
 	}

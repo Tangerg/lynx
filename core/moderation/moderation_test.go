@@ -36,8 +36,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.NewRequest([]string{"valid", ""}); err == nil {
 		t.Fatal("NewRequest accepted an empty text entry")
 	}
-	if merged, err := (moderation.Options{}).Merged(); err != nil || merged.Model != "" || len(merged.Extensions) != 0 {
-		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
+	if resolved, err := (moderation.Options{}).Resolve(moderation.Options{}); err != nil || resolved.Model != "" || len(resolved.Extensions) != 0 {
+		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*moderation.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -57,8 +57,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	if _, err := (moderation.Options{Model: " model "}).Merged(); err == nil {
-		t.Fatal("Merged accepted invalid base options")
+	if _, err := (moderation.Options{Model: " model "}).Resolve(moderation.Options{}); err == nil {
+		t.Fatal("Resolve accepted invalid base options")
 	}
 }
 
@@ -88,23 +88,23 @@ func TestCategoriesAndResponse(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndCopies(t *testing.T) {
+func TestOptionsResolveAndCopies(t *testing.T) {
 	base := moderation.Options{Model: "base", Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
-	merged, err := base.Merged(moderation.Options{
+	resolved, err := base.Resolve(moderation.Options{
 		Model:      "override",
 		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || len(merged.Extensions) != 2 {
-		t.Fatalf("Merged = %#v", merged)
+	if resolved.Model != "override" || len(resolved.Extensions) != 2 {
+		t.Fatalf("Resolve = %#v", resolved)
 	}
-	clone := merged.Clone()
+	clone := resolved.Clone()
 	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if !mustDecode[bool](t, merged.Extensions, "provider/base") {
+	if !mustDecode[bool](t, resolved.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

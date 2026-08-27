@@ -26,7 +26,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("revai: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -71,19 +71,19 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
-	jobOptsValue, _, err := mergedOpts.Extensions.Decode[jobOptions](RequestExtensionKey)
+	jobOptsValue, _, err := effectiveOptions.Extensions.Decode[jobOptions](RequestExtensionKey)
 	jobOpts := &jobOptsValue
 	if err != nil {
 		return nil, err
 	}
-	if jobOpts.Language == "" && mergedOpts.Language != "" {
-		jobOpts.Language = mergedOpts.Language
+	if jobOpts.Language == "" && effectiveOptions.Language != "" {
+		jobOpts.Language = effectiveOptions.Language
 	}
-	jobOpts.Transcriber = mergedOpts.Model
+	jobOpts.Transcriber = effectiveOptions.Model
 	if jobOpts.Transcriber != ModelMachine && jobOpts.Transcriber != ModelHuman {
 		return nil, fmt.Errorf("revai: transcription model must be %q or %q, got %q", ModelMachine, ModelHuman, jobOpts.Transcriber)
 	}

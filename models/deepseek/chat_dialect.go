@@ -93,7 +93,7 @@ func (r requestDialect) prepareRequest(request *corechat.Request, target *openai
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}
-	effective, err := r.defaults.Merged(request.Options)
+	effective, err := r.defaults.Resolve(request.Options)
 	if err != nil {
 		return fmt.Errorf("options: %w", err)
 	}

@@ -39,7 +39,7 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if a.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
 	}
-	if _, err := a.DefaultOptions.Merged(); err != nil {
+	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -82,15 +82,15 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	mergedOpts, err := a.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if validateOptionsErr := a.validateOptions(mergedOpts); validateOptionsErr != nil {
+	if validateOptionsErr := a.validateOptions(effectiveOptions); validateOptionsErr != nil {
 		return "", nil, nil, validateOptionsErr
 	}
 
-	cfgValue, _, err := mergedOpts.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "transcription_request"))
+	cfgValue, _, err := effectiveOptions.Extensions.Decode[genai.GenerateContentConfig](protocolKey(a.provider, "transcription_request"))
 
 	cfg := &cfgValue
 	if err != nil {
@@ -110,7 +110,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		genai.NewContentFromParts(parts, genai.RoleUser),
 	}
 
-	return mergedOpts.Model, contents, cfg, nil
+	return effectiveOptions.Model, contents, cfg, nil
 }
 
 func (*AudioTranscriptionModel) validateOptions(options transcription.Options) error {

@@ -64,30 +64,28 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Merged clones o and applies each override left-to-right.
-// Scalar non-zero values overwrite; the Extensions map merges last-write-wins.
-func (o Options) Merged(overrides ...Options) (Options, error) {
-	merged := o.Clone()
-	for _, override := range overrides {
-		if err := merged.applyOverride(override); err != nil {
-			return Options{}, fmt.Errorf("embedding.Options.Merged: %w: %w", ErrInvalidOptions, err)
-		}
+// Resolve returns the effective options after applying one request-level
+// override to o. Neither input is mutated.
+func (o Options) Resolve(override Options) (Options, error) {
+	effective := o.Clone()
+	if err := effective.applyOverride(override); err != nil {
+		return Options{}, fmt.Errorf("embedding.Options.Resolve: %w: %w", ErrInvalidOptions, err)
 	}
-	if err := merged.Validate(); err != nil {
-		return Options{}, fmt.Errorf("embedding.Options.Merged: %w", err)
+	if err := effective.Validate(); err != nil {
+		return Options{}, fmt.Errorf("embedding.Options.Resolve: %w", err)
 	}
-	return merged, nil
+	return effective, nil
 }
 
-func (o *Options) applyOverride(src Options) error {
-	if src.Model != "" {
-		o.Model = src.Model
+func (o *Options) applyOverride(override Options) error {
+	if override.Model != "" {
+		o.Model = override.Model
 	}
-	if src.Dimensions != nil {
-		o.Dimensions = ptr.Clone(src.Dimensions)
+	if override.Dimensions != nil {
+		o.Dimensions = ptr.Clone(override.Dimensions)
 	}
-	if len(src.Extensions) > 0 {
-		if err := o.Extensions.Merge(src.Extensions); err != nil {
+	if len(override.Extensions) > 0 {
+		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}
 	}

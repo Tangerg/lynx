@@ -38,8 +38,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := transcription.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted nil audio")
 	}
-	if merged, err := (transcription.Options{}).Merged(); err != nil || merged.Model != "" || merged.Language != "" || len(merged.Extensions) != 0 {
-		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
+	if resolved, err := (transcription.Options{}).Resolve(transcription.Options{}); err != nil || resolved.Model != "" || resolved.Language != "" || len(resolved.Extensions) != 0 {
+		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*transcription.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -67,8 +67,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	if _, err := (transcription.Options{Model: " base"}).Merged(); err == nil {
-		t.Fatal("Merged accepted invalid base options")
+	if _, err := (transcription.Options{Model: " base"}).Resolve(transcription.Options{}); err == nil {
+		t.Fatal("Resolve accepted invalid base options")
 	}
 }
 
@@ -85,26 +85,26 @@ func TestResponseValidation(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndCopies(t *testing.T) {
+func TestOptionsResolveAndCopies(t *testing.T) {
 	base := transcription.Options{
 		Model:      "base",
 		Extensions: mustMetadata(t, map[string]any{"provider/base": true}),
 	}
-	merged, err := base.Merged(transcription.Options{
+	resolved, err := base.Resolve(transcription.Options{
 		Model: "override", Language: "en",
 		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || merged.Language != "en" || len(merged.Extensions) != 2 {
-		t.Fatalf("Merged = %#v", merged)
+	if resolved.Model != "override" || resolved.Language != "en" || len(resolved.Extensions) != 2 {
+		t.Fatalf("Resolve = %#v", resolved)
 	}
-	clone := merged.Clone()
+	clone := resolved.Clone()
 	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if !mustDecode[bool](t, merged.Extensions, "provider/base") {
+	if !mustDecode[bool](t, resolved.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

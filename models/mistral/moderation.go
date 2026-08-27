@@ -22,7 +22,7 @@ func (m ModerationModelConfig) Validate() error {
 	if m.DefaultOptions.Model == "" {
 		return errors.New("mistral: DefaultOptions.Model is required")
 	}
-	if _, err := m.DefaultOptions.Merged(); err != nil {
+	if err := m.DefaultOptions.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -54,13 +54,13 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := m.defaultOptions.Merged(req.Options)
+	effectiveOptions, err := m.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
 	apiResp, err := m.api.moderation(ctx, &moderationRequest{
-		Model: mergedOpts.Model,
+		Model: effectiveOptions.Model,
 		Input: req.Texts,
 	})
 	if err != nil {
