@@ -3,8 +3,9 @@ module github.com/Tangerg/lynx/historystores/postgres
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2
+	github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/samber/lo v1.53.0
 )
 
 require (

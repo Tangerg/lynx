@@ -1,10 +1,8 @@
 package workflow
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 
 	agent "github.com/Tangerg/lynx/agent"
 )
@@ -234,21 +232,4 @@ func (e executionState) validateFanoutPhase(resolved, started int) error {
 		return ErrInvalidExecutionState
 	}
 	return nil
-}
-
-func decodeStrict(data []byte, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	var extra any
-	err := decoder.Decode(&extra)
-	if err == io.EOF {
-		return nil
-	}
-	if err == nil {
-		return fmt.Errorf("JSON contains multiple values")
-	}
-	return fmt.Errorf("decode trailing JSON value: %w", err)
 }

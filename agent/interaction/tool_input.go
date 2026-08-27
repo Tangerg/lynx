@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -205,7 +206,7 @@ func canonicalJSON(data json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("JSON value must contain at most %d bytes", maxInputProtocolBytes)
 	}
 	var value any
-	if err := decodeStrict(data, &value); err != nil {
+	if err := jsonv2.Unmarshal(data, &value, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return nil, err
 	}
 	canonical, err := json.Marshal(value)

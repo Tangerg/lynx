@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -89,7 +90,7 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 		return PendingToolInput{}, false, nil
 	}
 	var state executionState
-	if err := decodeStrict(stateEnvelope.Payload(), &state); err != nil {
+	if err := jsonv2.Unmarshal(stateEnvelope.Payload(), &state, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: decode state: %w", ErrInvalidPendingToolInput, err)
 	}
 	outerWaitID, ok := snapshot.WaitID()

@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -154,14 +153,9 @@ func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDescriptor)
 	}
-	var wire descriptorWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[descriptorWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidDescriptor, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidDescriptor, err)
 	}
 	inputSchema, err := ParseSchema(wire.InputSchema)
 	if err != nil {

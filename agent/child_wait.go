@@ -145,8 +145,8 @@ func ParseChildWaitOpened(signal Signal) (ChildWaitOpened, error) {
 	if !signal.Valid() || !addressed {
 		return ChildWaitOpened{}, ErrInvalidChildWait
 	}
-	var wire childWaitOpenedWire
-	if err := decodeStrictJSON(signal.Payload(), &wire); err != nil {
+	wire, err := wireJSON.decode[childWaitOpenedWire](signal.Payload())
+	if err != nil {
 		return ChildWaitOpened{}, fmt.Errorf("%w: decode opened Signal: %w", ErrInvalidChildWait, err)
 	}
 	spec, err := wire.Spec.value()
@@ -222,8 +222,8 @@ func ParseChildrenCompleted(signal Signal) (ChildrenCompleted, error) {
 	if !signal.Valid() || !addressed {
 		return ChildrenCompleted{}, ErrInvalidChildWait
 	}
-	var wire childrenCompletedWire
-	if err := decodeStrictJSON(signal.Payload(), &wire); err != nil {
+	wire, err := wireJSON.decode[childrenCompletedWire](signal.Payload())
+	if err != nil {
 		return ChildrenCompleted{}, fmt.Errorf("%w: decode completion Signal: %w", ErrInvalidChildWait, err)
 	}
 	if wire.SchemaVersion != childProtocolSchemaVersion ||
@@ -318,8 +318,8 @@ func cloneChildWaitSpec(spec ChildWaitSpec) ChildWaitSpec {
 }
 
 func decodeChildWaitEffect(payload json.RawMessage) (ChildWaitSpec, error) {
-	var wire childWaitEffectWire
-	if err := decodeStrictJSON(payload, &wire); err != nil {
+	wire, err := wireJSON.decode[childWaitEffectWire](payload)
+	if err != nil {
 		return ChildWaitSpec{}, fmt.Errorf("%w: decode request: %w", ErrInvalidChildWait, err)
 	}
 	if wire.Operation != frameworkEffectWaitChildren || wire.SchemaVersion != frameworkEffectSchemaVersion {

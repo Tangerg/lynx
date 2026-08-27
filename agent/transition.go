@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -200,14 +199,9 @@ func (t *Transition) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTransition)
 	}
-	var wire transitionWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[transitionWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidTransition, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidTransition, err)
 	}
 	value, err := transitionFromWire(wire.Kind, wire)
 	if err != nil {

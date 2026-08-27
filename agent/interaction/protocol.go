@@ -1,7 +1,9 @@
 package interaction
 
 import (
+	"bytes"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -154,7 +156,7 @@ func newToolBatchEffect(
 	if uint64(firstToolCallIndex)+uint64(len(calls)) > uint64(^uint32(0))+1 {
 		return effectEnvelope{}, errors.New("interaction: Tool batch index range overflows")
 	}
-	cloned := append([]chat.ToolCall(nil), calls...)
+	cloned := slices.Clone(calls)
 	for index := range cloned {
 		if err := cloned[index].Validate(); err != nil {
 			return effectEnvelope{}, fmt.Errorf("interaction: tool batch call %d: %w", index, err)
@@ -364,11 +366,11 @@ func (s signalEnvelope) validateSteer() error {
 
 func (t toolCheckpoint) clone() toolCheckpoint {
 	cloned := t
-	cloned.CompletedResults = append([]chat.ToolResult(nil), t.CompletedResults...)
+	cloned.CompletedResults = slices.Clone(t.CompletedResults)
 	cloned.AdvertisedToolNames = slices.Clone(t.AdvertisedToolNames)
-	cloned.InputRequest.Prompt = append(json.RawMessage(nil), t.InputRequest.Prompt...)
-	cloned.InputRequest.ResponseSchema = append(json.RawMessage(nil), t.InputRequest.ResponseSchema...)
-	cloned.InputRequest.ContinuationState = append(json.RawMessage(nil), t.InputRequest.ContinuationState...)
+	cloned.InputRequest.Prompt = bytes.Clone(t.InputRequest.Prompt)
+	cloned.InputRequest.ResponseSchema = bytes.Clone(t.InputRequest.ResponseSchema)
+	cloned.InputRequest.ContinuationState = bytes.Clone(t.InputRequest.ContinuationState)
 	return cloned
 }
 
@@ -405,7 +407,7 @@ func encodeProtocol(value any) (json.RawMessage, error) {
 
 func decodeEffect(data json.RawMessage) (effectEnvelope, error) {
 	var envelope effectEnvelope
-	if err := decodeStrict(data, &envelope); err != nil {
+	if err := jsonv2.Unmarshal(data, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return effectEnvelope{}, fmt.Errorf("interaction: decode effect: %w", err)
 	}
 	if err := envelope.validate(); err != nil {
@@ -416,7 +418,7 @@ func decodeEffect(data json.RawMessage) (effectEnvelope, error) {
 
 func decodeSignal(data json.RawMessage) (signalEnvelope, error) {
 	var envelope signalEnvelope
-	if err := decodeStrict(data, &envelope); err != nil {
+	if err := jsonv2.Unmarshal(data, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return signalEnvelope{}, fmt.Errorf("interaction: decode signal: %w", err)
 	}
 	if err := envelope.validate(); err != nil {

@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -42,7 +44,9 @@ type SimpleFormatter struct {
 // NewSimpleFormatter builds a [SimpleFormatter]. The zero config emits every
 // metadata key.
 func NewSimpleFormatter(config SimpleFormatterConfig) SimpleFormatter {
-	return SimpleFormatter{excludedMetadata: keySet(config.ExcludedMetadata)}
+	return SimpleFormatter{excludedMetadata: lo.SliceToMap(config.ExcludedMetadata, func(key string) (string, struct{}) {
+		return key, struct{}{}
+	})}
 }
 
 // Format renders doc by emitting filtered metadata as `key: value` lines
@@ -82,15 +86,4 @@ func (s SimpleFormatter) filterMetadata(values metadata.Map) metadata.Map {
 		})
 	}
 	return filtered
-}
-
-func keySet(keys []string) map[string]struct{} {
-	if len(keys) == 0 {
-		return nil
-	}
-	set := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		set[key] = struct{}{}
-	}
-	return set
 }

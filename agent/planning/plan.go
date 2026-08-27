@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"math"
 	"slices"
@@ -41,7 +42,7 @@ func (p *PlannedAction) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: nil PlannedAction receiver", ErrInvalidPlan)
 	}
 	var name string
-	if err := decodeStrict(data, &name); err != nil {
+	if err := jsonv2.Unmarshal(data, &name, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return fmt.Errorf("%w: decode PlannedAction: %w", ErrInvalidPlan, err)
 	}
 	value, err := NewPlannedAction(name)
@@ -115,7 +116,7 @@ func (p *Plan) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidPlan)
 	}
 	var wire planWire
-	if err := decodeStrict(data, &wire); err != nil {
+	if err := jsonv2.Unmarshal(data, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidPlan, err)
 	}
 	value, err := NewPlan(wire.Actions, wire.TotalCost)

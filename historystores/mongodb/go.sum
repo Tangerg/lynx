@@ -1,11 +1,13 @@
-github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2 h1:G7htJvDGmKg9UlkWqaPfXIfxqOGpsQDmojGIqSPgIss=
-github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2/go.mod h1:k0v7upl1j/QwbinzYsQIR1ab5iZfOl0rgPWCjCDfXF4=
+github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77 h1:l5nSHi4AyjWznPtQ9h5nuNICAhXxQUJL44tcnaalQdo=
+github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77/go.mod h1:cgYuXncRC3F2+yYhcjaTGmnK9mO/KKUNEIQL4bV0GGI=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
 github.com/klauspost/compress v1.19.1/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.2.0 h1:bYKF2AEwG5rqd1BumT4gAnvwU/M9nBp2pTSxeZw7Wvs=

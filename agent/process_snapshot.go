@@ -205,14 +205,9 @@ func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {
 	if len(data) == 0 || len(data) > maxSnapshotBytes {
 		return processSnapshotWire{}, fmt.Errorf("%w: JSON must contain at most %d bytes", ErrInvalidSnapshot, maxSnapshotBytes)
 	}
-	var wire processSnapshotWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[processSnapshotWire](data)
+	if err != nil {
 		return processSnapshotWire{}, fmt.Errorf("%w: decode: %w", ErrInvalidSnapshot, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return processSnapshotWire{}, fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 	}
 	if err := validateProcessSnapshot(wire); err != nil {
 		return processSnapshotWire{}, err

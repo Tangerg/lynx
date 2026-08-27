@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -104,7 +105,7 @@ func (p *Process) DeliverSignals(ctx context.Context, requests ...SignalRequest)
 	if len(requests) == 0 {
 		return false, ErrInvalidSignalRequest
 	}
-	owned := append([]SignalRequest(nil), requests...)
+	owned := slices.Clone(requests)
 	response, err := p.request(ctx, processCommand{kind: commandDeliverBatch, signalRequests: owned})
 	return response.accepted, err
 }

@@ -3,9 +3,10 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 )
 
 const maxWireBytes = 64 << 20
@@ -144,21 +145,21 @@ type jsonCodec struct{}
 
 var wireJSON jsonCodec
 
-func (j jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
+func (jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
 	if len(data) == 0 {
 		return nil, errors.New("JSON value is empty")
 	}
 	if len(data) > limit {
 		return nil, fmt.Errorf("JSON value exceeds %d bytes", limit)
 	}
+	if !jsontext.Value(data).IsValid() {
+		return nil, errors.New("JSON value is not valid RFC 7493 JSON")
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value any
 	if err := decoder.Decode(&value); err != nil {
 		return nil, fmt.Errorf("decode JSON value: %w", err)
-	}
-	if err := j.requireEOF(decoder); err != nil {
-		return nil, err
 	}
 	normalized, err := json.Marshal(value)
 	if err != nil {
@@ -170,31 +171,13 @@ func (j jsonCodec) normalize(data []byte, limit int) (json.RawMessage, error) {
 	return normalized, nil
 }
 
-func (j jsonCodec) decode[T any](data []byte) (T, error) {
+func (jsonCodec) decode[T any](data []byte) (T, error) {
 	var value T
 	if len(data) == 0 {
 		return value, errors.New("JSON value is empty")
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	decoder.UseNumber()
-	if err := decoder.Decode(&value); err != nil {
-		return value, err
-	}
-	if err := j.requireEOF(decoder); err != nil {
+	if err := jsonv2.Unmarshal(data, &value, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return value, err
 	}
 	return value, nil
-}
-
-func (jsonCodec) requireEOF(decoder *json.Decoder) error {
-	var extra any
-	err := decoder.Decode(&extra)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err == nil {
-		return errors.New("JSON contains multiple values")
-	}
-	return fmt.Errorf("decode trailing JSON value: %w", err)
 }

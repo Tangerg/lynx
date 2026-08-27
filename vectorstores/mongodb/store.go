@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -304,9 +305,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 				}
 				payload[s.metadataField] = meta
 			} else {
-				for k, v := range metadataValues {
-					payload[k] = v
-				}
+				maps.Copy(payload, metadataValues)
 			}
 
 			writes = append(writes, mongo.NewReplaceOneModel().

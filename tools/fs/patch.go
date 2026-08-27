@@ -114,7 +114,7 @@ func (f filePatch) apply(lines []string) ([]string, error) {
 		if hunk.oldStart == 0 {
 			idx = delta
 		}
-		if idx < 0 || idx+len(oldLines) > len(out) || !equalLines(out[idx:idx+len(oldLines)], oldLines) {
+		if idx < 0 || idx+len(oldLines) > len(out) || !slices.Equal(out[idx:idx+len(oldLines)], oldLines) {
 			found := findUniqueLines(out, oldLines)
 			if found < 0 {
 				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", f.path())
@@ -340,7 +340,7 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 	}
 	prepared := preparedPatch{
 		path: target.to,
-		data: restoreFormat(joinTextLines(patched), hadBOM, hadCRLF),
+		data: restoreFormat(strings.Join(patched, ""), hadBOM, hadCRLF),
 		mode: mode,
 	}
 	if file.moved() {
@@ -353,25 +353,13 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 	return prepared, nil
 }
 
-func equalLines(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func findUniqueLines(lines, needle []string) int {
 	if len(needle) == 0 {
 		return 0
 	}
 	found := -1
 	for i := 0; i+len(needle) <= len(lines); i++ {
-		if !equalLines(lines[i:i+len(needle)], needle) {
+		if !slices.Equal(lines[i:i+len(needle)], needle) {
 			continue
 		}
 		if found >= 0 {
@@ -527,10 +515,6 @@ func splitTextLines(text string) []string {
 		parts = parts[:len(parts)-1]
 	}
 	return parts
-}
-
-func joinTextLines(lines []string) string {
-	return strings.Join(lines, "")
 }
 
 func sortedUnique(in []string) []string {

@@ -40,14 +40,9 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 			"%w: JSON must contain at most %d bytes", ErrInvalidTreeSnapshot, maxTreeSnapshotBytes,
 		)
 	}
-	var wire treeSnapshotWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[treeSnapshotWire](data)
+	if err != nil {
 		return TreeSnapshot{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return TreeSnapshot{}, fmt.Errorf("%w: %w", ErrInvalidTreeSnapshot, err)
 	}
 	if err := validateTreeSnapshot(wire); err != nil {
 		return TreeSnapshot{}, err
@@ -116,14 +111,9 @@ func (t TreeSnapshot) wire() (treeSnapshotWire, error) {
 	if !t.Valid() {
 		return treeSnapshotWire{}, ErrInvalidTreeSnapshot
 	}
-	var wire treeSnapshotWire
-	decoder := json.NewDecoder(bytes.NewReader(t.data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[treeSnapshotWire](t.data)
+	if err != nil {
 		return treeSnapshotWire{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return treeSnapshotWire{}, fmt.Errorf("%w: %w", ErrInvalidTreeSnapshot, err)
 	}
 	return wire, validateTreeSnapshot(wire)
 }

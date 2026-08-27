@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -339,14 +338,9 @@ func (t *Termination) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", errInvalidTermination)
 	}
-	var wire terminationWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[terminationWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", errInvalidTermination, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", errInvalidTermination, err)
 	}
 	value := Termination{status: wire.Status, cause: wire.Cause, reason: wire.Reason}
 	if wire.Failure != nil {

@@ -87,14 +87,9 @@ func (d *Delta) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDelta)
 	}
-	var wire deltaWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[deltaWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidDelta, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidDelta, err)
 	}
 	value, err := newDelta(wire.ProcessID, wire.EffectID, wire.EffectSequence, wire.EmittedAt, wire.Payload)
 	if err != nil {

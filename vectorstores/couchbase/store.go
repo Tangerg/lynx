@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/couchbase/gocb/v2"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -375,7 +376,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			payload := map[string]any{
 				idField:        id,
 				contentField:   doc.Text,
-				metadataField:  metaOrEmpty(metadataValues),
+				metadataField:  lo.CoalesceMapOrEmpty(metadataValues),
 				embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			if _, err := s.collection.Upsert(id, payload, &gocb.UpsertOptions{Context: ctx}); err != nil {
@@ -545,15 +546,6 @@ func (s *Store) toDocument(raw map[string]any) (*document.Document, error) {
 		}
 	}
 	return doc, nil
-}
-
-// metaOrEmpty returns an empty map when m is nil so the resulting JSON
-// document always carries a `metadata` field — easier to deserialize.
-func metaOrEmpty(m map[string]any) map[string]any {
-	if m == nil {
-		return map[string]any{}
-	}
-	return m
 }
 
 func (s *Store) Close() error { return nil }

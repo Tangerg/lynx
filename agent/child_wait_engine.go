@@ -87,7 +87,7 @@ func (e *Engine) processFinished(controller *processController) {
 		}
 	}
 	for _, registration := range e.childWaits {
-		if registration.delivered || !childWaitContains(registration.spec, controller.processID) {
+		if registration.delivered || !slices.Contains(registration.spec.Children, controller.processID) {
 			continue
 		}
 		outcomes, satisfied := e.childWaitOutcomesLocked(registration)
@@ -162,13 +162,4 @@ func sortChildCompletionDeliveries(deliveries []childCompletionDelivery) {
 	slices.SortFunc(deliveries, func(left, right childCompletionDelivery) int {
 		return cmp.Compare(left.waitID.String(), right.waitID.String())
 	})
-}
-
-func childWaitContains(spec ChildWaitSpec, childID ProcessID) bool {
-	for _, candidate := range spec.Children {
-		if candidate == childID {
-			return true
-		}
-	}
-	return false
 }

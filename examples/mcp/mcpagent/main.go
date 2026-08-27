@@ -30,7 +30,7 @@ type (
 func main() {
 	ctx := context.Background()
 
-	model := newStubModel()
+	model := &stubModel{}
 
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 	srv := buildMCPServer()
@@ -212,8 +212,6 @@ func buildMCPServer() *sdkmcp.Server {
 // ============================================================================
 
 type stubModel struct{}
-
-func newStubModel() *stubModel { return &stubModel{} }
 
 func (s *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(request.Messages) {

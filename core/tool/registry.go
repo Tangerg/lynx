@@ -3,6 +3,7 @@ package tool
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -77,9 +78,7 @@ func (r *Registry) Register(values ...Tool) error {
 	if r.entries == nil {
 		r.entries = make(map[string]entry, len(pending))
 	}
-	for name, value := range pending {
-		r.entries[name] = value
-	}
+	maps.Copy(r.entries, pending)
 	return nil
 }
 

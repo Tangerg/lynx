@@ -204,14 +204,9 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEvent)
 	}
-	var wire eventWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[eventWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidEvent, err)
 	}
 	var effectID EffectID
 	if wire.EffectID != nil {

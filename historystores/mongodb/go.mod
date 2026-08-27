@@ -3,7 +3,8 @@ module github.com/Tangerg/lynx/historystores/mongodb
 go 1.27.0
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260826083855-adf089f2e7f2
+	github.com/Tangerg/lynx/core v0.0.0-20260827034135-75c054d01f77
+	github.com/samber/lo v1.53.0
 	go.mongodb.org/mongo-driver/v2 v2.8.0
 )
 

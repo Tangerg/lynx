@@ -289,8 +289,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 				if err != nil {
 					return fmt.Errorf("marshal metadata for %s: %w", id, err)
 				}
-				vec32 := embedding.Float32Vector(vectors[i])
-				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, formatVectorLiteral(vec32)); err != nil {
+				vectorJSON, err := json.Marshal(embedding.Float32Vector(vectors[i]))
+				if err != nil {
+					return fmt.Errorf("tidb: marshal vector for %s: %w", id, err)
+				}
+				if _, err := stmt.ExecContext(ctx, id, doc.Text, metaJSON, string(vectorJSON)); err != nil {
 					return fmt.Errorf("upsert %s: %w", id, err)
 				}
 			}
@@ -322,8 +325,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	if err != nil {
 		return nil, fmt.Errorf("tidb: embed query: %w", err)
 	}
-	queryVec := embedding.Float32Vector(vector)
-	vecText := formatVectorLiteral(queryVec)
+	vectorJSON, err := json.Marshal(embedding.Float32Vector(vector))
+	if err != nil {
+		return nil, fmt.Errorf("tidb: marshal query vector: %w", err)
+	}
+	vecText := string(vectorJSON)
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter)
 	if err != nil {

@@ -72,14 +72,9 @@ func (e *ExecutionState) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidExecutionState)
 	}
-	var wire executionStateWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[executionStateWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 	}
 	value, err := NewExecutionState(wire.Kind, wire.SchemaVersion, wire.Payload)
 	if err != nil {

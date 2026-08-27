@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -102,14 +101,9 @@ func (f *Failure) UnmarshalJSON(data []byte) error {
 	if f == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidFailure)
 	}
-	var wire failureWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[failureWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidFailure, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidFailure, err)
 	}
 	value, err := NewFailure(wire.Kind, wire.Code, wire.Message)
 	if err != nil {

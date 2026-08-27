@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -159,7 +160,7 @@ func (m *Map) Merge(source Map) error {
 		*m = make(Map, len(source))
 	}
 	for key, value := range source {
-		(*m)[key] = append(json.RawMessage(nil), value...)
+		(*m)[key] = bytes.Clone(value)
 	}
 	return nil
 }
@@ -199,7 +200,7 @@ func (m Map) Clone() Map {
 	}
 	clone := make(Map, len(m))
 	for key, value := range m {
-		clone[key] = append(json.RawMessage(nil), value...)
+		clone[key] = bytes.Clone(value)
 	}
 	return clone
 }
@@ -208,15 +209,9 @@ func (m Map) Clone() Map {
 // the same keys. Values produced through Set are canonical enough for protocol
 // merge decisions; callers that need semantic JSON equality should decode them.
 func (m Map) Equal(other Map) bool {
-	if len(m) != len(other) {
-		return false
-	}
-	for key, value := range m {
-		if !bytes.Equal(value, other[key]) {
-			return false
-		}
-	}
-	return true
+	return maps.EqualFunc(m, other, func(left, right json.RawMessage) bool {
+		return bytes.Equal(left, right)
+	})
 }
 
 // Validate reports empty keys and values that are not complete JSON values.

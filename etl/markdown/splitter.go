@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -281,7 +282,7 @@ func (s *Splitter) splitSection(ctx context.Context, section markdownSection) ([
 			return nil, err
 		}
 		for _, part := range parts {
-			candidate := append(append([]string(nil), current...), part)
+			candidate := slices.Concat(current, []string{part})
 			fits, _, err := s.fits(ctx, renderChunk(prefix, strings.Join(candidate, "\n\n")))
 			if err != nil {
 				return nil, err
@@ -389,7 +390,7 @@ func (s *Splitter) splitTable(ctx context.Context, prefix, table string) ([]stri
 	}
 	header := lines[:2]
 	return s.groupSemanticUnits(ctx, prefix, blockTable, lines[2:], func(rows []string) string {
-		return strings.Join(append(append([]string(nil), header...), rows...), "\n")
+		return strings.Join(slices.Concat(header, rows), "\n")
 	})
 }
 
@@ -426,7 +427,7 @@ func (s *Splitter) groupSemanticUnits(
 	groups := make([]string, 0, min(len(units), s.maxChunks))
 	current := make([]string, 0, len(units))
 	for _, unit := range units {
-		candidate := append(append([]string(nil), current...), unit)
+		candidate := slices.Concat(current, []string{unit})
 		body := render(candidate)
 		fits, _, err := s.fits(ctx, renderChunk(prefix, body))
 		if err != nil {

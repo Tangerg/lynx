@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260826074033-2e35cbad116b
+	github.com/samber/lo v1.53.0
 	github.com/typesense/typesense-go/v3 v3.2.0
 )
 
@@ -12,4 +13,5 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/oapi-codegen/runtime v1.6.0 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )

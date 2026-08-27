@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -210,7 +211,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			payload := map[string]any{
 				s.idField:        id,
 				s.contentField:   doc.Text,
-				s.metadataField:  metaOrEmpty(metadataValues),
+				s.metadataField:  lo.CoalesceMapOrEmpty(metadataValues),
 				s.embeddingField: embedding.Float32Vector(vectors[i]),
 			}
 			body, err := json.Marshal(payload)
@@ -263,10 +264,10 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		s.idField, s.contentField, s.metadataField, distanceCall, whereClause, distanceCall,
 	)
 
-	queryParams := append([]azcosmos.QueryParameter(nil),
+	queryParams := []azcosmos.QueryParameter{
 		azcosmos.QueryParameter{Name: "@queryVec", Value: queryVec},
 		azcosmos.QueryParameter{Name: "@topK", Value: req.Options.TopK},
-	)
+	}
 	for _, p := range params {
 		queryParams = append(queryParams, azcosmos.QueryParameter{Name: p.Name, Value: p.Value})
 	}
@@ -392,10 +393,3 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore vectorstore.Score) (*vec
 }
 
 func (s *Store) Close() error { return nil }
-
-func metaOrEmpty(m map[string]any) map[string]any {
-	if m == nil {
-		return map[string]any{}
-	}
-	return m
-}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -20,7 +21,7 @@ type ModelResponseDelta struct {
 // ParseModelResponseDelta strictly decodes an Interaction model Delta payload.
 func ParseModelResponseDelta(payload json.RawMessage) (ModelResponseDelta, error) {
 	var wire modelResponseDeltaWire
-	if err := decodeStrict(payload, &wire); err != nil {
+	if err := jsonv2.Unmarshal(payload, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return ModelResponseDelta{}, fmt.Errorf("interaction: decode model response Delta: %w", err)
 	}
 	if wire.SchemaVersion != protocolSchemaVersion {

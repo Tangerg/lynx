@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -56,8 +57,8 @@ type deltaObservation struct {
 
 func newObservationBus(events []EventListener, deltas []DeltaListener, capacity int) *observationBus {
 	bus := &observationBus{
-		events: append([]EventListener(nil), events...),
-		deltas: append([]DeltaListener(nil), deltas...),
+		events: slices.Clone(events),
+		deltas: slices.Clone(deltas),
 	}
 	if len(bus.deltas) > 0 {
 		bus.deltaQueue = make(chan deltaObservation, capacity)

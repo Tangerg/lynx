@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -38,14 +39,8 @@ type signalMailbox struct {
 
 func (s signalMailbox) clone() signalMailbox {
 	clone := signalMailbox{
-		records: slices.Clone(s.records), seen: make(map[SignalID]struct{}, len(s.seen)),
-		waits: make(map[WaitID]waitRecord, len(s.waits)), signalCursor: s.signalCursor,
-	}
-	for id := range s.seen {
-		clone.seen[id] = struct{}{}
-	}
-	for id, record := range s.waits {
-		clone.waits[id] = record
+		records: slices.Clone(s.records), seen: maps.Clone(s.seen),
+		waits: maps.Clone(s.waits), signalCursor: s.signalCursor,
 	}
 	return clone
 }

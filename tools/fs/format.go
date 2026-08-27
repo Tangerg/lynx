@@ -11,16 +11,11 @@ import (
 // write it; the LLM shouldn't see it and shouldn't need to type it.
 const utf8BOM = "\ufeff"
 
-// hasUTF8BOM reports whether b starts with the UTF-8 BOM.
-func hasUTF8BOM(b []byte) bool {
-	return len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF
-}
-
 // normalizeText strips UTF-8 BOM and converts CRLF to LF. Returns the
 // normalized content as a string plus flags so a downstream Write can
 // restore the original format.
 func normalizeText(data []byte) (text string, hadBOM, hadCRLF bool) {
-	if hasUTF8BOM(data) {
+	if bytes.HasPrefix(data, []byte(utf8BOM)) {
 		data = data[3:]
 		hadBOM = true
 	}

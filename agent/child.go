@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -123,8 +122,8 @@ type childStartResultWire struct {
 }
 
 func decodeChildStartEffect(payload json.RawMessage) (ChildSpec, error) {
-	var wire childStartEffectWire
-	if err := decodeStrictJSON(payload, &wire); err != nil {
+	wire, err := wireJSON.decode[childStartEffectWire](payload)
+	if err != nil {
 		return ChildSpec{}, fmt.Errorf("%w: decode start request: %w", ErrInvalidChildStart, err)
 	}
 	if wire.Operation != frameworkEffectStartChild ||
@@ -159,8 +158,8 @@ func encodeChildStartResult(result ChildStartResult) (json.RawMessage, error) {
 }
 
 func decodeChildStartResult(payload json.RawMessage) (ChildStartResult, error) {
-	var wire childStartResultWire
-	if err := decodeStrictJSON(payload, &wire); err != nil {
+	wire, err := wireJSON.decode[childStartResultWire](payload)
+	if err != nil {
 		return ChildStartResult{}, fmt.Errorf("%w: decode start result: %w", ErrInvalidChildStart, err)
 	}
 	var processID ProcessID
@@ -179,13 +178,4 @@ func decodeChildStartResult(payload json.RawMessage) (ChildStartResult, error) {
 		return ChildStartResult{}, ErrInvalidChildStart
 	}
 	return result, nil
-}
-
-func decodeStrictJSON(data []byte, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	return wireJSON.requireEOF(decoder)
 }

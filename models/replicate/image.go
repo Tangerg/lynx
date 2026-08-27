@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -252,8 +253,14 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		if err != nil {
 			return nil, fmt.Errorf("replicate: image output[%d]: %w", outputIndex, err)
 		}
-		mimeType := strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0])
-		if mimeType == "" {
+		mimeType := ""
+		contentType = strings.TrimSpace(contentType)
+		if contentType != "" {
+			mimeType, _, err = mime.ParseMediaType(contentType)
+			if err != nil {
+				return nil, fmt.Errorf("replicate: image output[%d]: parse content type %q: %w", outputIndex, contentType, err)
+			}
+		} else {
 			mimeType = mergedOpts.OutputFormat
 		}
 		if mimeType == "" {

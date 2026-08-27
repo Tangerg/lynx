@@ -119,10 +119,10 @@ func (a *api) buildAudioRequest(ctx context.Context, outputFormat string, body *
 		req = req.SetQueryParam("output_format", outputFormat)
 	}
 	if body.EnableLogging != nil {
-		req.SetQueryParam("enable_logging", boolStr(*body.EnableLogging))
+		req.SetQueryParam("enable_logging", strconv.FormatBool(*body.EnableLogging))
 	}
 	if body.OptimizeStreamingLatency != nil {
-		req.SetQueryParam("optimize_streaming_latency", intStr(*body.OptimizeStreamingLatency))
+		req.SetQueryParam("optimize_streaming_latency", strconv.Itoa(*body.OptimizeStreamingLatency))
 	}
 	return req
 }
@@ -187,13 +187,13 @@ func (a *api) transcription(ctx context.Context, audio []byte, mimeType string, 
 			form["language_code"] = req.LanguageCode
 		}
 		if req.Diarize != nil {
-			form["diarize"] = boolStr(*req.Diarize)
+			form["diarize"] = strconv.FormatBool(*req.Diarize)
 		}
 		if req.NumSpeakers != nil {
-			form["num_speakers"] = intStr(*req.NumSpeakers)
+			form["num_speakers"] = strconv.Itoa(*req.NumSpeakers)
 		}
 		if req.TagAudioEvents != nil {
-			form["tag_audio_events"] = boolStr(*req.TagAudioEvents)
+			form["tag_audio_events"] = strconv.FormatBool(*req.TagAudioEvents)
 		}
 		if req.TimestampsGranularity != "" {
 			form["timestamps_granularity"] = req.TimestampsGranularity
@@ -208,16 +208,16 @@ func (a *api) transcription(ctx context.Context, audio []byte, mimeType string, 
 			form["temperature"] = strconv.FormatFloat(*req.Temperature, 'f', -1, 64)
 		}
 		if req.Seed != nil {
-			form["seed"] = intStr(*req.Seed)
+			form["seed"] = strconv.Itoa(*req.Seed)
 		}
 		if req.NoVerbatim != nil {
-			form["no_verbatim"] = boolStr(*req.NoVerbatim)
+			form["no_verbatim"] = strconv.FormatBool(*req.NoVerbatim)
 		}
 		if req.UseSpeakerLibrary != nil {
-			form["use_speaker_library"] = boolStr(*req.UseSpeakerLibrary)
+			form["use_speaker_library"] = strconv.FormatBool(*req.UseSpeakerLibrary)
 		}
 		if req.DetectSpeakerRoles != nil {
-			form["detect_speaker_roles"] = boolStr(*req.DetectSpeakerRoles)
+			form["detect_speaker_roles"] = strconv.FormatBool(*req.DetectSpeakerRoles)
 		}
 		if len(req.Keyterms) > 0 {
 			encoded, err := json.Marshal(req.Keyterms)
@@ -242,15 +242,4 @@ func (a *api) transcription(ctx context.Context, audio []byte, mimeType string, 
 		return nil, fmt.Errorf("elevenlabs: http %d: %s", resp.StatusCode(), resp.String())
 	}
 	return &out, nil
-}
-
-func boolStr(v bool) string {
-	if v {
-		return "true"
-	}
-	return "false"
-}
-
-func intStr(v int) string {
-	return strconv.Itoa(v)
 }

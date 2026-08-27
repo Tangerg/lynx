@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/typesense/typesense-go/v3/typesense"
 	"github.com/typesense/typesense-go/v3/typesense/api"
 	"github.com/typesense/typesense-go/v3/typesense/api/pointer"
@@ -196,7 +197,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			payload = append(payload, map[string]any{
 				idField:        id,
 				contentField:   doc.Text,
-				metadataField:  metaOrEmpty(metadataValues),
+				metadataField:  lo.CoalesceMapOrEmpty(metadataValues),
 				embeddingField: embedding.Float32Vector(vectors[i]),
 			})
 		}
@@ -351,13 +352,6 @@ func formatVectorQuery(vec []float32, topK int) string {
 	b.WriteString(strconv.Itoa(topK))
 	b.WriteByte(')')
 	return b.String()
-}
-
-func metaOrEmpty(m map[string]any) map[string]any {
-	if m == nil {
-		return map[string]any{}
-	}
-	return m
 }
 
 func (s *Store) Close() error { return nil }

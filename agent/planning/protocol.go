@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -83,7 +84,7 @@ func newActionEffect(input agent.Input, binding ActionBinding, state WorldState)
 
 func decodeEffect(payload json.RawMessage) (effectEnvelope, error) {
 	var envelope effectEnvelope
-	if err := decodeStrict(payload, &envelope); err != nil {
+	if err := jsonv2.Unmarshal(payload, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return effectEnvelope{}, fmt.Errorf("%w: decode Effect: %w", ErrInvalidProtocol, err)
 	}
 	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() || !envelope.Input.Valid() {
@@ -134,7 +135,7 @@ func actionSignal(result ActionResult) (json.RawMessage, error) {
 
 func decodeSignal(payload json.RawMessage) (signalEnvelope, error) {
 	var envelope signalEnvelope
-	if err := decodeStrict(payload, &envelope); err != nil {
+	if err := jsonv2.Unmarshal(payload, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return signalEnvelope{}, fmt.Errorf("%w: decode Signal: %w", ErrInvalidProtocol, err)
 	}
 	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() {

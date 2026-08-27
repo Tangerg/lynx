@@ -3,6 +3,7 @@ package pinecone
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/pinecone-io/go-pinecone/v4/pinecone"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -166,9 +167,7 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 			return nil, fmt.Errorf("pinecone: decode metadata for document %s: %w", doc.ID, err)
 		}
 		metaMap := make(map[string]any, len(metadataValues)+1)
-		for k, val := range metadataValues {
-			metaMap[k] = val
-		}
+		maps.Copy(metaMap, metadataValues)
 		metaMap[payloadDocumentContentKey] = doc.Text
 
 		meta, err := structpb.NewStruct(metaMap)

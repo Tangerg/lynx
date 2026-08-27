@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -157,7 +158,7 @@ func (e *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transiti
 		return agent.Transition{}, err
 	}
 	got := opened.Spec()
-	if got.Key != want.Key || got.Condition != want.Condition || !sameProcessIDs(got.Children, want.Children) {
+	if got.Key != want.Key || got.Condition != want.Condition || !slices.Equal(got.Children, want.Children) {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child-wait opening mismatch", ErrInvalidExecutionState)
 	}
 	waitID := opened.WaitID()
@@ -410,16 +411,4 @@ func delegateWaitKey(modelCallCount uint32, segment delegateSegmentState) (agent
 		hash.Write([]byte(invocation.ChildProcessID.String()))
 	}
 	return agent.ParseWaitKey("interaction.delegate.wait." + hex.EncodeToString(hash.Sum(nil)))
-}
-
-func sameProcessIDs(left, right []agent.ProcessID) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

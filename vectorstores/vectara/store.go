@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/samber/lo"
 )
 
 const (
@@ -143,7 +144,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			payload := map[string]any{
 				"id":       id,
 				"type":     "core",
-				"metadata": metaOrEmpty(metadataValues),
+				"metadata": lo.CoalesceMapOrEmpty(metadataValues),
 				"document_parts": []any{
 					map[string]any{"text": doc.Text},
 				},
@@ -335,10 +336,3 @@ func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, 
 }
 
 func (s *Store) Close() error { return nil }
-
-func metaOrEmpty(m map[string]any) map[string]any {
-	if m == nil {
-		return map[string]any{}
-	}
-	return m
-}

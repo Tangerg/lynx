@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3vectors"
@@ -173,9 +174,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 				return fmt.Errorf("s3vectors: decode metadata for %s: %w", id, err)
 			}
 			meta := make(map[string]any, len(metadataValues)+1)
-			for k, v := range metadataValues {
-				meta[k] = v
-			}
+			maps.Copy(meta, metadataValues)
 			// Stash the document text in metadata so retrieval can
 			// surface it — S3 Vectors itself only stores vector + key
 			// + metadata.

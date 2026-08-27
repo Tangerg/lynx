@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"slices"
 	"strings"
@@ -238,8 +239,14 @@ func (i *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte,
 	if len(data) == 0 {
 		return nil, "", errors.New("download is empty")
 	}
-	mimeType := strings.TrimSpace(strings.SplitN(response.Header.Get("Content-Type"), ";", 2)[0])
-	if mimeType == "" {
+	mimeType := ""
+	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
+	if contentType != "" {
+		mimeType, _, err = mime.ParseMediaType(contentType)
+		if err != nil {
+			return nil, "", fmt.Errorf("parse download content type %q: %w", contentType, err)
+		}
+	} else {
 		mimeType = http.DetectContentType(data)
 	}
 	return data, mimeType, nil

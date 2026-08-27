@@ -144,14 +144,9 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEffect)
 	}
-	var wire effectWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[effectWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidEffect, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidEffect, err)
 	}
 	requirements, err := NewCapabilitySet(wire.RequiredCapabilities...)
 	if err != nil {
@@ -193,14 +188,9 @@ func decodeWaitRequest(effect Effect) (WaitKey, json.RawMessage, error) {
 }
 
 func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage, error) {
-	var wire waitRequestWire
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[waitRequestWire](payload)
+	if err != nil {
 		return WaitKey{}, nil, fmt.Errorf("%w: decode Framework Effect: %w", ErrInvalidEffect, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return WaitKey{}, nil, fmt.Errorf("%w: framework Effect: %w", ErrInvalidEffect, err)
 	}
 	if wire.Operation != frameworkEffectWait || wire.SchemaVersion != frameworkEffectSchemaVersion || !wire.Key.Valid() {
 		return WaitKey{}, nil, fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)

@@ -7,11 +7,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -271,17 +271,8 @@ func decodeModelJSON[T any](output interaction.Output) (T, error) {
 	if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil {
 		return zero, errors.New("interaction did not return a model response")
 	}
-	decoder := json.NewDecoder(strings.NewReader(output.ModelResponse.Text()))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&zero); err != nil {
+	if err := jsonv2.Unmarshal([]byte(output.ModelResponse.Text()), &zero, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return zero, fmt.Errorf("decode model JSON: %w", err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return zero, errors.New("model JSON contains trailing data")
-		}
-		return zero, fmt.Errorf("decode trailing model JSON: %w", err)
 	}
 	return zero, nil
 }

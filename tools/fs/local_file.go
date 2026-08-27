@@ -71,7 +71,7 @@ func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteResponse, 
 		mode = info.Mode().Perm()
 		if !in.Append {
 			if existing, err := os.ReadFile(path); err == nil {
-				hadBOM = hasUTF8BOM(existing)
+				hadBOM = bytes.HasPrefix(existing, []byte(utf8BOM))
 				hadCRLF = bytes.Contains(existing, []byte("\r\n"))
 			}
 		}

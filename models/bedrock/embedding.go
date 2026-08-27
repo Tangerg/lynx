@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -238,7 +239,7 @@ func (e *EmbeddingModel) embedTitan(
 		}
 		batch.vectors = append(batch.vectors, response.Embedding)
 		batch.inputTokens += response.InputTextTokenCount
-		batch.responseBodies = append(batch.responseBodies, cloneRawJSON(responseBody))
+		batch.responseBodies = append(batch.responseBodies, bytes.Clone(responseBody))
 	}
 	return batch, nil
 }
@@ -313,7 +314,7 @@ func (e *EmbeddingModel) embedCohere(
 	}
 	return &embeddingBatch{
 		vectors:        vectors,
-		responseBodies: []json.RawMessage{cloneRawJSON(responseBody)},
+		responseBodies: []json.RawMessage{bytes.Clone(responseBody)},
 	}, nil
 }
 
@@ -399,8 +400,4 @@ func (e *EmbeddingModel) invokeEmbedding(ctx context.Context, modelID string, bo
 		return nil, errors.New("bedrock: InvokeModel returned invalid JSON")
 	}
 	return output.Body, nil
-}
-
-func cloneRawJSON(value []byte) json.RawMessage {
-	return append(json.RawMessage(nil), value...)
 }

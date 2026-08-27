@@ -1,11 +1,8 @@
 package interaction
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
@@ -443,22 +440,6 @@ func cloneMessages(messages []chat.Message) []chat.Message {
 
 func cloneResponse(response *chat.Response) *chat.Response {
 	return response.Clone()
-}
-
-func decodeStrict(data []byte, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("JSON contains multiple values")
-		}
-		return fmt.Errorf("decode trailing JSON value: %w", err)
-	}
-	return nil
 }
 
 func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message, error) {

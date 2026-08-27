@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -121,12 +120,8 @@ func (c *CapabilitySet) UnmarshalJSON(data []byte) error {
 	if c == nil {
 		return ErrInvalidCapability
 	}
-	var values []Capability
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&values); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
+	values, err := wireJSON.decode[[]Capability](data)
+	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
 	}
 	value, err := NewCapabilitySet(values...)

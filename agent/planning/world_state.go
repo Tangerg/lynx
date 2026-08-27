@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"slices"
 	"strings"
@@ -124,7 +125,7 @@ func (w *WorldState) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidWorldState)
 	}
 	var wire worldStateWire
-	if err := decodeStrict(data, &wire); err != nil {
+	if err := jsonv2.Unmarshal(data, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidWorldState, err)
 	}
 	value, err := NewWorldState(wire.Conditions...)

@@ -83,14 +83,9 @@ func (s *Signal) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSignal)
 	}
-	var wire signalWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[signalWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidSignal, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidSignal, err)
 	}
 	var waitID WaitID
 	if wire.WaitID != nil {

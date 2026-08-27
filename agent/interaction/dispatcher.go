@@ -1,11 +1,12 @@
 package interaction
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
@@ -322,8 +323,8 @@ func newToolBatchDispatch(
 			return nil, errors.New("interaction: tool checkpoint pause count exhausted")
 		}
 		dispatch.continuation = &ToolInputContinuation{
-			state:    append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...),
-			response: append(json.RawMessage(nil), batch.InputResponse...),
+			state:    bytes.Clone(checkpoint.InputRequest.ContinuationState),
+			response: bytes.Clone(batch.InputResponse),
 		}
 	}
 	return dispatch, nil
@@ -442,8 +443,8 @@ func (t *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent
 		return agent.Settlement{}, errors.New("interaction: Tool input pause count is exhausted")
 	}
 	checkpoint := &toolCheckpoint{
-		CompletedResults:    append([]chat.ToolResult(nil), t.results...),
-		AdvertisedToolNames: append([]string(nil), t.advertisedToolNames...),
+		CompletedResults:    slices.Clone(t.results),
+		AdvertisedToolNames: slices.Clone(t.advertisedToolNames),
 		NextToolCallIndex:   index,
 		PauseCount:          t.pauseCount + 1,
 		InputRequest:        wireInputRequest(request),

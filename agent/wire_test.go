@@ -27,8 +27,8 @@ func TestInputOwnsNormalizedJSON(t *testing.T) {
 	}
 }
 
-func TestInputRejectsMalformedAndMultipleValues(t *testing.T) {
-	for _, data := range []json.RawMessage{nil, []byte(`{"message":`), []byte(`{} {}`)} {
+func TestInputRejectsMalformedMultipleAndDuplicateValues(t *testing.T) {
+	for _, data := range []json.RawMessage{nil, []byte(`{"message":`), []byte(`{} {}`), []byte(`{"message":"first","message":"second"}`)} {
 		if _, err := ParseInput(data); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("ParseInput(%q) error = %v, want ErrInvalidInput", data, err)
 		}

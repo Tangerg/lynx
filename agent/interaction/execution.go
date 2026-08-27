@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -439,7 +440,7 @@ func (e *execution) finishToolCallBatch(
 	consumedSignals uint32,
 	assistant *chat.Message,
 ) (agent.Transition, error) {
-	results := append([]chat.ToolResult(nil), e.state.SettledToolResults...)
+	results := slices.Clone(e.state.SettledToolResults)
 	completionContext := []chat.Message{assistant.Clone(), chat.NewToolMessage(results...)}
 	if e.state.DirectToolResultEligible && e.state.PendingSteer == nil {
 		return e.finishOrRetry(consumedSignals, Output{
@@ -554,7 +555,7 @@ func (e *execution) applyPendingSteer() ([]agent.SignalID, error) {
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: steered model request: %w", ErrInvalidExecutionState, err)
 	}
-	appliedSignalIDs := append([]agent.SignalID(nil), e.state.PendingSteer.SignalIDs...)
+	appliedSignalIDs := slices.Clone(e.state.PendingSteer.SignalIDs)
 	e.state.WorkingContext = request
 	e.state.PendingSteer = nil
 	return appliedSignalIDs, nil

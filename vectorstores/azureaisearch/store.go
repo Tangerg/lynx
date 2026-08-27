@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -245,9 +246,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			}
 			// Top-level metadata fields — caller is responsible for
 			// having declared them in the index schema.
-			for k, v := range metadataValues {
-				payload[k] = v
-			}
+			maps.Copy(payload, metadataValues)
 			actions = append(actions, payload)
 		}
 

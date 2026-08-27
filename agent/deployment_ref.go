@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -108,14 +107,9 @@ func (d *DeploymentRef) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDeploymentRef)
 	}
-	var wire deploymentRefWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[deploymentRefWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidDeploymentRef, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidDeploymentRef, err)
 	}
 	value := DeploymentRef{
 		name:                 wire.Name,

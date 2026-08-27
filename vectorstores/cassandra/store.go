@@ -3,6 +3,7 @@ package cassandra
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -346,8 +347,12 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 // primary key). The vector is inlined as a CQL literal because the
 // gocql v1.x driver doesn't support typed vector binding.
 func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document, vec []float64) error {
+	vectorJSON, err := json.Marshal(embedding.Float32Vector(vec))
+	if err != nil {
+		return fmt.Errorf("cassandra: marshal vector for %s: %w", id, err)
+	}
 	columns := []string{s.idColumn, s.contentColumn, s.embeddingColumn}
-	placeholders := []string{"?", "?", formatVectorLiteral(embedding.Float32Vector(vec))}
+	placeholders := []string{"?", "?", string(vectorJSON)}
 	args := []any{id, doc.Text}
 
 	for _, m := range s.metadataColumns {
@@ -390,7 +395,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	if err != nil {
 		return nil, fmt.Errorf("cassandra: embed query: %w", err)
 	}
-	vecLiteral := formatVectorLiteral(embedding.Float32Vector(vector))
+	vectorJSON, err := json.Marshal(embedding.Float32Vector(vector))
+	if err != nil {
+		return nil, fmt.Errorf("cassandra: marshal query vector: %w", err)
+	}
+	vecLiteral := string(vectorJSON)
 
 	wherePredicate, whereArgs, err := s.buildFilter(req.Options.Filter)
 	if err != nil {

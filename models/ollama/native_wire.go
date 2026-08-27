@@ -89,10 +89,8 @@ func emptyNativeJSONObject() nativeJSONObject {
 }
 
 func (n *nativeJSONObject) UnmarshalJSON(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
 	var value map[string]any
-	if err := decoder.Decode(&value); err != nil {
+	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
 	if value == nil {

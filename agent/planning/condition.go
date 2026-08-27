@@ -2,6 +2,7 @@ package planning
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 )
 
@@ -48,7 +49,7 @@ func (c *Condition) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidCondition)
 	}
 	var wire conditionWire
-	if err := decodeStrict(data, &wire); err != nil {
+	if err := jsonv2.Unmarshal(data, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidCondition, err)
 	}
 	value, err := NewCondition(wire.Key, wire.Truth)

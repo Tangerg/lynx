@@ -94,14 +94,9 @@ func (s *Settlement) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSettlement)
 	}
-	var wire settlementWire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
+	wire, err := wireJSON.decode[settlementWire](data)
+	if err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidSettlement, err)
-	}
-	if err := wireJSON.requireEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidSettlement, err)
 	}
 	value, err := NewSettlement(wire.EffectID, wire.Status, wire.Payload)
 	if err != nil {

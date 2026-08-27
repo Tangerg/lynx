@@ -6,18 +6,17 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/samber/lo"
 )
 
 func encodeMessages(messages []chat.Message) ([][]byte, error) {
-	encoded := make([][]byte, len(messages))
-	for index := range messages {
-		raw, err := messages[index].MarshalJSON()
+	return lo.MapErr(messages, func(message chat.Message, index int) ([]byte, error) {
+		raw, err := message.MarshalJSON()
 		if err != nil {
 			return nil, fmt.Errorf("message %d: %w", index, err)
 		}
-		encoded[index] = raw
-	}
-	return encoded, nil
+		return raw, nil
+	})
 }
 
 func decodeMessage(raw []byte) (chat.Message, error) {
