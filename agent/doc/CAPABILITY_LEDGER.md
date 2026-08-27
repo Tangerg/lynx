@@ -675,3 +675,10 @@
 - Core 公开 API、构造器、GoDoc、错误上下文和 JSON tag 已从裸 `Result` 全量切换到 `Output`，没有 alias、旧 tag、兼容 decoder 或 chat 专属 `Generation`。`ToolResult` 与 `vectorstore.SearchResult` 属于独立领域合同，不做机械改名。
 - Interaction 仍只接受一个 Chat Output；ExecutionState、model settlement 和 stream Delta 因嵌入 Core Chat Response wire升级为 v8/v7并拒绝旧版本。Agent 公共 API、Kernel、Planning、Workflow、共同 snapshot/tree 与 observation wire不变。
 - models、chatclient、embeddingclient、RAG、OTel、Runtime、examples 和契约 fixture 同批迁移，未在消费侧复制 Response/Output 类型或保留双词汇。
+
+## 25. P25 JSON Schema 单一所有权证据
+
+- 全仓反向审计确认 Agent、Core Tool、Chat structured output、RAG 与 evaluation 都在表达同一个 Go type → JSON Schema → validated JSON 合同；Agent 自有 generator/compiler 与 Planning raw schema 常量没有独立领域语义。
+- `core/jsonschema` 统一拥有类型反射、Draft 2020-12 编译、RFC 7493 严格 JSON、`json.RawMessage`/`[]byte` wire 语义和跨包同名定义消歧。Agent `Schema` 只组合该值并映射 Framework sentinel，不再直接依赖两套 schema 第三方库。
+- Planning rich values 通过 `JSONSchemaModel` 返回 typed private wire model；规则仍与领域 owner 就近，且没有暴露第三方 schema 类型、魔法 map 或 public mutable field。Planning Definition 从真实 Output 类型派生 schema，删除独立 raw schema 字符串。
+- Root 与 Planning public digest 显式冻结为 Baseline 28；Framework、Interaction、Planning、Workflow、snapshot/tree 和 observation wire digest及版本均不变。RAG/evaluation 同步消费 typed `chatclient.JSONSchema[T]`，不复制 schema。

@@ -172,7 +172,7 @@ func TestModelEvaluatorRejectsNilResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = evaluator.Evaluate(t.Context(), evaluation.TextSample{Output: "answer", Context: []string{"source"}})
-	if !errors.Is(err, chatclient.ErrInvalidOutputFormat) {
+	if !errors.Is(err, evaluation.ErrInvalidReport) || !errors.Is(err, chatclient.ErrInvalidOutput) {
 		t.Fatalf("nil response error = %v", err)
 	}
 }

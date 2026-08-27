@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-26
-> 当前阶段：P1–P22 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core Chat 单输出协议、Core 模态 Output 统一与 Go 1.27 typed-edge ownership 均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-27
+> 当前阶段：P1–P25 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象与共享 JSON Schema owner 均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -91,6 +91,8 @@ go test ./...
 | P21 Go 1.27 typed-edge ownership | 完成 | 2/2 | 用方法泛型删除无消费者包装，让 schema/value owner 持有编解码 |
 | P22 Core 模态 Output 词汇迁移 | 完成 | 2/2 | 让 Interaction 跟随 Core 六模态统一输出词汇，并显式升级 owner wire |
 | P23 稳定文本枚举值对象化 | 完成 | 2/2 | 删除数字序号、重复映射和观察魔法字符串，让领域类型拥有词汇与校验 |
+| P24 Planning Truth 文本值对象化 | 完成 | 1/1 | 让三值逻辑直接拥有稳定文本身份与无效零值 |
+| P25 JSON Schema 单一所有权 | 完成 | 2/2 | 复用 Core 共享 schema owner，让 rich value 以 typed model 拥有 wire 合同 |
 
 ---
 
@@ -292,6 +294,11 @@ go test ./...
 
 - [x] P24-01 将无数值运算语义、已有稳定 JSON 词汇的 `Truth` 改为自校验 named string value object；空零值无效，冻结 Baseline 27，保持 Planning wire 与行为不变。
 
+### P25：JSON Schema 单一所有权
+
+- [x] P25-01 删除 Agent 自有 schema generator/compiler，复用 `core/jsonschema` 的反射、标准 JSON wire、定义消歧、编译与验证合同。
+- [x] P25-02 让 Planning rich values 通过 typed `JSONSchemaModel` 自己描述 wire，删除 Output raw schema 常量并冻结 Baseline 28。
+
 ---
 
 ## 6. 最终完成定义
@@ -337,6 +344,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-27 | P25（Baseline 28） | Agent `Schema` 收敛为 Core shared schema contract 的 Framework error boundary；删除模块私有反射器/compiler 与 Planning Output raw schema。`Condition`/`WorldState` 以 typed `JSONSchemaModel` 就近拥有自定义 wire，不暴露第三方 schema 类型或魔法 map | Root/Planning public digest 显式升级；全部 Framework/Strategy wire、schema version 与运行语义不变。Agent、RAG、evaluation standalone build/vet/test 与依赖收敛在本批统一验收 |
 | 2026-08-26 | Go 1.27 formatting hygiene | 统一 Agent examples 与 Interaction 文件的标准 import 排序；没有改变公开 API、wire、状态机、并发或 Host 边界 | 非 app module 全量 lint 为 0 issue；Agent 独立 build/vet/test/tidy-diff 全绿，定向 active-child 与根 package 非缓存重跑通过 |
 | 2026-08-26 | P24（Baseline 27） | Planning `Truth` 直接以 `unknown/false/true` 作为唯一身份并拥有验证与严格 JSON codec；删除 ordinal 身份，空零值不再静默等于 Unknown | Planning public digest 显式升级；JSON、state/protocol digest、schema version、搜索与恢复语义不变，standalone 门禁在本批收口 |
 | 2026-08-26 | P23（Baseline 26） | Kernel 稳定文本 enum 由 `uint8 + String/parse switch + wire string` 收敛为 named string value object；聚合通过领域 `Valid` 校验，状态规则显式列举，不再依赖序号。Event payload 与 OTel adapter 共享 typed `StepStatus`，删除 `"succeeded"`/`"failed"` 裸字符串；内部 FSM、三值逻辑、位掩码不机械迁移 | JSON 字段和值、schema version 与行为保持不变；root public、Kernel wire 与 observation wire digest 显式升级，standalone build/vet/test/race 在本批完成前统一验收 |
@@ -441,4 +449,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P24 已完成，Baseline 27 把 Planning `Truth` 与 Kernel 稳定文本枚举统一为领域值对象：公共/wire 词汇由领域类型直接拥有，JSON 与执行语义保持不变；纯进程内 FSM、位掩码和计数没有被机械字符串化。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P25 已完成，Baseline 28 将跨模块 JSON Schema 反射、编译和标准 wire 语义归并到 Core 单一 owner；Agent 保留自己的错误边界，Planning rich value 仍以 typed model 就近拥有 wire 形状。全部 Framework/Strategy wire 与运行语义保持不变。Runtime persistence、产品 failure mapping 和恢复继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

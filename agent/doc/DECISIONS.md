@@ -680,3 +680,12 @@
 - 证据：`Truth` 虽参与三值逻辑，但没有算术、位运算或顺序语义；它公开编码为 `"unknown"`、`"false"`、`"true"`，原 `uint8` 只迫使值对象维护第二份 ordinal 身份和手写字符串映射。零值曾与 Unknown 重合，也让未初始化值静默取得业务含义。
 - 决策：`Truth` 改为 named string value object，三个常量直接等于其既有 JSON 词汇，并由 receiver 的 `Valid`、`String`、`MarshalJSON`、`UnmarshalJSON` 共同拥有合法性。空字符串无效；不保留数字别名、兼容解析或通用枚举抽象。Planner 的三值组合规则继续显式比较 `Unknown`、`False`、`True`，不把文本顺序当作逻辑顺序。
 - 后果：Planning public API/GoDoc 形成 Baseline 27；既有 JSON 值、Planning state/protocol digest、schema version、搜索与恢复语义均不变。纯进程内 FSM 判别值、位掩码和计数仍使用数值表示。
+
+## ADR-A2-082：跨模块 JSON Schema 基础能力由 Core 单点拥有
+
+- 状态：已接受并实施；形成 Baseline 28。
+- 证据：Agent、Core Tool 与 Chat structured output 分别维护 schema 反射、标准库 wire 特判、编译和验证，已经产生三份规则。`json.RawMessage`、`[]byte` 以及跨包同名类型的定义引用曾各自在不同路径失真；Planning 又依赖一份手写 Output schema 常量，领域字段与契约可独立漂移。继续在 Agent 修补 mapper 只会增加第二真相源。
+- 决策：`core/jsonschema` 是跨模块唯一通用 owner，负责从 Go 类型派生 Draft 2020-12 schema、RFC 7493 JSON 规范化、编译、验证、定义消歧和标准库 JSON wire 语义。Agent `Schema` 只保留 Framework 的 `ErrInvalidInput`/`ErrInvalidOutput` 边界并组合该不可变合同；删除 Agent 对具体反射器和 validator 的直接依赖。
+- 决策：自定义 JSON wire 仍由领域值自己拥有。Core 暴露最小 `jsonschema.Modeler`，实现者通过 `JSONSchemaModel() any` 返回 typed wire model；Planning `Condition` 与 `WorldState` 使用这一中立合同，不返回魔法 map、不 import 第三方 schema 类型，也不把 private 字段改回贫血 DTO。Planning Output schema 直接从最终 Output 类型派生，删除手写 raw schema。
+- 决策：本次不改变 Descriptor、Deployment、Input/Output、Framework/Strategy protocol 或 snapshot wire。派生 schema 内容和由其参与计算的 contract digest 是有意 breaking correction；不保留旧 schema、兼容 validator、双派生或 provider/Runtime 特判。
+- 后果：Root GoDoc 与 Planning public method digest 形成 Baseline 28；全部 owner wire digest 与 schema version保持不变。后续 Agent、RAG、evaluation 和 Tool structured output 必须复用同一 Core owner，不能重新引入模块私有 schema 编译器或手写类型镜像。

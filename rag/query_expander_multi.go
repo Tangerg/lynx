@@ -24,19 +24,6 @@ Return exactly {{.Number}} distinct variants. Do not repeat the original query.
 
 Original query: {{.Query}}`
 
-const multiQueryOutputSchema = `{
-  "type": "object",
-  "properties": {
-    "queries": {
-      "type": "array",
-      "items": {"type": "string"},
-      "minItems": 1
-    }
-  },
-  "required": ["queries"],
-  "additionalProperties": false
-}`
-
 const multiQueryOutputName = "rag_multi_query"
 
 // DefaultMultiQueryCount is the variant count used when
@@ -138,7 +125,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 	if err != nil {
 		return nil, err
 	}
-	format, err := chatclient.JSONSchema[multiQueryOutput](multiQueryOutputName, []byte(multiQueryOutputSchema))
+	format, err := chatclient.JSONSchema[multiQueryOutput](multiQueryOutputName)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +161,9 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query Query) ([]Query, 
 		Query:  query.Text(),
 	})
 	if err != nil {
+		if errors.Is(err, chatclient.ErrInvalidOutput) {
+			return nil, fmt.Errorf("%w: model output: %w", ErrInvalidExpansion, err)
+		}
 		return nil, err
 	}
 

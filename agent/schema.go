@@ -1,87 +1,45 @@
 package agent
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 
-	googlejsonschema "github.com/google/jsonschema-go/jsonschema"
-	validationjsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+	corejsonschema "github.com/Tangerg/lynx/core/jsonschema"
 )
-
-const maxSchemaBytes = 1 << 20
-
-const schemaResourceURL = "urn:lynx:agent:schema"
 
 // ErrInvalidSchema reports malformed, unsupported, or unresolved JSON Schema.
 var ErrInvalidSchema = errors.New("agent: invalid schema")
 
-// Schema is an immutable, resolved JSON Schema. It is safe for concurrent
-// validation after construction. Its zero value is invalid.
+// Schema is an immutable, resolved JSON Schema used by Framework input and
+// output contracts. Its zero value is invalid.
 type Schema struct {
-	data     json.RawMessage
-	compiled *validationjsonschema.Schema
+	contract corejsonschema.Schema
 }
 
 // ParseSchema validates and resolves one JSON Schema.
 func ParseSchema(data json.RawMessage) (Schema, error) {
-	normalized, err := wireJSON.normalize(data, maxSchemaBytes)
+	contract, err := corejsonschema.Parse(data)
 	if err != nil {
 		return Schema{}, fmt.Errorf("%w: %w", ErrInvalidSchema, err)
 	}
-	document, err := validationjsonschema.UnmarshalJSON(bytes.NewReader(normalized))
-	if err != nil {
-		return Schema{}, fmt.Errorf("%w: decode: %w", ErrInvalidSchema, err)
-	}
-	compiler := validationjsonschema.NewCompiler()
-	compiler.DefaultDraft(validationjsonschema.Draft2020)
-	compiler.UseLoader(validationjsonschema.SchemeURLLoader{})
-	if addResourceErr := compiler.AddResource(schemaResourceURL, document); addResourceErr != nil {
-		return Schema{}, fmt.Errorf("%w: add resource: %w", ErrInvalidSchema, addResourceErr)
-	}
-	compiled, err := compiler.Compile(schemaResourceURL)
-	if err != nil {
-		return Schema{}, fmt.Errorf("%w: compile: %w", ErrInvalidSchema, err)
-	}
-	return Schema{data: normalized, compiled: compiled}, nil
+	return Schema{contract: contract}, nil
 }
 
 // SchemaFor derives and resolves a JSON Schema for T.
 func SchemaFor[T any]() (Schema, error) {
-	definition, err := googlejsonschema.For[T](schemaForOptions())
+	contract, err := corejsonschema.For[T]()
 	if err != nil {
-		return Schema{}, fmt.Errorf("%w: derive: %w", ErrInvalidSchema, err)
+		return Schema{}, fmt.Errorf("%w: %w", ErrInvalidSchema, err)
 	}
-	data, err := json.Marshal(definition)
-	if err != nil {
-		return Schema{}, fmt.Errorf("%w: encode derived schema: %w", ErrInvalidSchema, err)
-	}
-	return ParseSchema(data)
-}
-
-func schemaForOptions() *googlejsonschema.ForOptions {
-	return &googlejsonschema.ForOptions{
-		TypeSchemas: map[reflect.Type]*googlejsonschema.Schema{
-			// RawMessage already contains one JSON value, so its Go []byte
-			// representation must not constrain the value's JSON kind.
-			reflect.TypeFor[json.RawMessage](): {},
-			// encoding/json represents byte slices as base64 strings (or null),
-			// not as JSON arrays of integers.
-			reflect.TypeFor[[]byte](): {
-				Types:           []string{"null", "string"},
-				ContentEncoding: "base64",
-			},
-		},
-	}
+	return Schema{contract: contract}, nil
 }
 
 // JSON returns an independently owned JSON representation.
-func (s Schema) JSON() json.RawMessage { return bytes.Clone(s.data) }
+func (s Schema) JSON() json.RawMessage { return s.contract.JSON() }
 
 // Valid reports whether the Schema was parsed and resolved successfully.
-func (s Schema) Valid() bool { return len(s.data) > 0 && s.compiled != nil }
+func (s Schema) Valid() bool { return s.contract.Valid() }
 
 // ValidateInput validates input against the schema.
 func (s Schema) ValidateInput(input Input) error {
@@ -103,26 +61,17 @@ func (s Schema) validate(data []byte) error {
 	if !s.Valid() {
 		return ErrInvalidSchema
 	}
-	value, err := validationjsonschema.UnmarshalJSON(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	if err := s.compiled.Validate(value); err != nil {
-		return err
-	}
-	return nil
+	return s.contract.Validate(data)
 }
 
-func (s Schema) clone() Schema {
-	return Schema{data: bytes.Clone(s.data), compiled: s.compiled}
-}
+func (s Schema) clone() Schema { return s }
 
 // MarshalJSON returns the validated canonical JSON Schema document.
 func (s Schema) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSchema
 	}
-	return bytes.Clone(s.data), nil
+	return s.contract.JSON(), nil
 }
 
 // UnmarshalJSON replaces s with a parsed and resolved JSON Schema.

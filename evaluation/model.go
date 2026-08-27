@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,16 +11,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/chatclient"
 )
-
-const modelReportSchema = `{
-  "type": "object",
-  "properties": {
-    "score": {"type": "number", "minimum": 0, "maximum": 1},
-    "feedback": {"type": "string"}
-  },
-  "required": ["score"],
-  "additionalProperties": false
-}`
 
 const modelReportOutputName = "evaluation_report"
 
@@ -65,7 +56,7 @@ type promptVariables struct {
 }
 
 type modelReport struct {
-	Score    Score  `json:"score"`
+	Score    Score  `json:"score" jsonschema:"minimum=0,maximum=1"`
 	Feedback string `json:"feedback,omitzero"`
 }
 
@@ -110,7 +101,7 @@ func newModelEvaluator(
 	if err != nil {
 		return nil, fmt.Errorf("%w: model: %w", ErrInvalidConfig, err)
 	}
-	format, err := chatclient.JSONSchema[modelReport](modelReportOutputName, []byte(modelReportSchema))
+	format, err := chatclient.JSONSchema[modelReport](modelReportOutputName)
 	if err != nil {
 		return nil, fmt.Errorf("%w: output format: %w", ErrInvalidConfig, err)
 	}
@@ -135,6 +126,9 @@ func (m *modelEvaluator) evaluate(ctx context.Context, sample TextSample) (Repor
 	}
 	output, err := m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 	if err != nil {
+		if errors.Is(err, chatclient.ErrInvalidOutput) {
+			return Report{}, fmt.Errorf("%w: model output: %w", ErrInvalidReport, err)
+		}
 		return Report{}, fmt.Errorf("evaluation: generate report: %w", err)
 	}
 	return output.report(m.metric, m.threshold)

@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 27 已冻结
-> 冻结日期：2026-08-26
+> 状态：Baseline 28 已冻结
+> 冻结日期：2026-08-27
 > 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v7/v6、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 27 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 28 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -45,20 +45,20 @@ Baseline 27 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 27 public digest：
+`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 28 public digest：
 
-P24 将 Planning `Truth` 纳入同一稳定文本值对象规则；P23 已完成 Kernel 枚举收敛，P22 的 Output 词汇迁移不改变 Agent 公共 API：
+P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 已将 Planning `Truth` 纳入同一稳定文本值对象规则：
 
-- root kernel：`963478c1e6482add789c2385841af9572b21446ed64d83a2b308c85f9f5a035e`
+- root kernel：`caded767ca7d5de2ddaa2f84af59acc3bbae30cc95a249688596cf9972e2bf05`
 - agenttest：`873d620bf325608d5035027262754c838f3f73edab7913472c45b715826158b4`
 - interaction：`0c01a609eb1af0b95a99f805807217d5bbd876dbb7a49843938b4e91a324b0af`
-- planning：`9851987240fb60a630433f0b9e36197eba2c7f91428c490ccb1b3b6023204308`
+- planning：`dfd3883f8697dad5f889dcdd821e1df5e1da486fa8a6df6a954ed38242ea6e5c`
 - planning/goap：`0576feedc1e8ffb1f0c6fd5426ddee8fc269aec69f1a92521c6ea9da21258a0d`
 - workflow：`06af49d58f68cd82075e72ac1f6d14a42d40c77cb0a77afc86c9816a35818566`
 - otel：`6bb2eae75c7f7c4d8cde426672200fac68b965376d94e61ef3d283607a83b6ec`
 - platform：`46d030411c966805e158e24f1a05fa8b16750ded2eafd0d4f03ea24e3b589408`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 27 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 28 wire digest：
 
 下列 digest 冻结当前 Kernel、Interaction 与 Planning 的完整 wire 类型形状：
 
@@ -148,6 +148,10 @@ P22 依据 ADR-A2-079 形成 Baseline 25。Core 六个模型模态把响应内�
 
 P23 依据 ADR-A2-080 形成 Baseline 26。`Status`、`EffectTarget`、`FailureKind`、`SettlementStatus`、`ReplayPolicy`、`ProcessStartOutcomeStatus`、`TransitionKind`、`EventPhase` 与 `TerminationCause` 以 named string value object 直接拥有稳定词汇、合法性和呈现；Framework Event payload 同步使用 `StepStatus`，不再跨包传递 `"succeeded"`/`"failed"` 魔法字符串。所有 ordinal range、parse switch 和 wire 中间 string 映射被删除；JSON 文本、schema version、状态机语义与 invalid zero-value 合同保持不变。
 
+P24 依据 ADR-A2-081 形成 Baseline 27。Planning `Truth` 直接以 named string value object 拥有 `unknown/false/true` 三值身份、合法性与严格 JSON codec；空字符串恢复为无效零值。既有 JSON 文本、Planning state/protocol、schema version、搜索和恢复行为均不变。
+
+P25 依据 ADR-A2-082 形成 Baseline 28。Agent 删除自己维护的 schema 反射、编译和标准 JSON wire 特判，`Schema` 仅保留 Agent 错误边界并委托 `core/jsonschema` 的不可变编译合同。Planning 的 `Condition` 与 `WorldState` 通过中立的 `JSONSchemaModel` 返回各自拥有的 typed wire model，不 import 或暴露具体反射库。Root GoDoc 与 Planning public method digest 显式更新；所有 Framework/Strategy wire、schema version 与运行时验证语义不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 27 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 28 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

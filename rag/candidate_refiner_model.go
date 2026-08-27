@@ -29,26 +29,6 @@ Query: {{.Query}}
 Candidates (JSON):
 {{.Candidates}}`
 
-const modelRerankerOutputSchema = `{
-  "type": "object",
-  "properties": {
-    "scores": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "index": {"type": "integer", "minimum": 0},
-          "score": {"type": "number", "minimum": 0, "maximum": 1}
-        },
-        "required": ["index", "score"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["scores"],
-  "additionalProperties": false
-}`
-
 const modelRerankerOutputName = "rag_reranking"
 
 // ModelRerankerConfig configures [NewModelReranker].
@@ -78,8 +58,8 @@ type modelRerankerPromptVariables struct {
 }
 
 type modelCandidateScore struct {
-	Index int     `json:"index"`
-	Score float64 `json:"score"`
+	Index int     `json:"index" jsonschema:"minimum=0"`
+	Score float64 `json:"score" jsonschema:"minimum=0,maximum=1"`
 }
 
 type modelRerankingOutput struct {
@@ -123,7 +103,7 @@ var _ Refiner = (*ModelReranker)(nil)
 
 // NewModelReranker constructs a model-backed candidate refiner.
 func NewModelReranker(config ModelRerankerConfig) (*ModelReranker, error) {
-	format, err := chatclient.JSONSchema[modelRerankingOutput](modelRerankerOutputName, []byte(modelRerankerOutputSchema))
+	format, err := chatclient.JSONSchema[modelRerankingOutput](modelRerankerOutputName)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +161,9 @@ func (m *ModelReranker) Refine(ctx context.Context, query Query, candidates Cand
 		Candidates: string(encoded),
 	})
 	if err != nil {
+		if errors.Is(err, chatclient.ErrInvalidOutput) {
+			return nil, fmt.Errorf("%w: model output: %w", ErrInvalidReranking, err)
+		}
 		return nil, err
 	}
 	return output.rank(candidates)

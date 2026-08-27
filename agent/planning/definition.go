@@ -75,7 +75,7 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 		}
 		byName[name] = binding
 	}
-	outputSchema, err := agent.ParseSchema(json.RawMessage(planningOutputSchema))
+	outputSchema, err := agent.SchemaFor[Output]()
 	if err != nil {
 		return nil, fmt.Errorf("%w: output schema: %w", ErrInvalidDefinitionConfig, err)
 	}
@@ -166,46 +166,3 @@ func encodeExecutionState(state executionState) (agent.ExecutionState, error) {
 	}
 	return agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
 }
-
-const planningOutputSchema = `{
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "type":"object",
-  "additionalProperties":false,
-  "properties":{
-    "outcome":{"enum":["achieved","unreachable","stuck"]},
-    "world_state":{
-      "type":"object",
-      "additionalProperties":false,
-      "properties":{
-        "conditions":{
-          "type":"array",
-          "items":{
-            "type":"object",
-            "additionalProperties":false,
-            "properties":{
-              "key":{"type":"string","pattern":"^[a-z][a-z0-9._-]{0,127}$"},
-              "truth":{"enum":["false","true"]}
-            },
-            "required":["key","truth"]
-          }
-        }
-      },
-      "required":["conditions"]
-    },
-    "attempts":{
-      "type":"array",
-      "items":{
-        "type":"object",
-        "additionalProperties":false,
-        "properties":{
-		  "action_name":{"type":"string","pattern":"^[a-z][a-z0-9._-]{0,127}$"},
-          "status":{"enum":["succeeded","failed","unconfirmed"]},
-          "diagnostic":{"type":"string","minLength":1,"maxLength":4096}
-        },
-		"required":["action_name","status"]
-      }
-    },
-    "planning_passes":{"type":"integer","minimum":0,"maximum":4294967295}
-  },
-  "required":["outcome","world_state","attempts","planning_passes"]
-}`
