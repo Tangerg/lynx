@@ -9,8 +9,9 @@
 // The package owns the stable contracts ([Transformer], [Expander],
 // [Retriever], [Refiner], and [Augmenter]) as well as the small concrete
 // adapters that make those contracts useful: vector-store retrieval,
-// model-backed query transforms and reranking, contextual augmentation, and
-// chat middleware. Keeping them together follows the Go standard-library style:
+// model-backed query transforms and reranking, citation-aware contextual
+// augmentation, and chat middleware. Keeping them together follows the Go
+// standard-library style:
 // one discoverable package, small interfaces, explicit composition.
 //
 // Composition is explicit. Wrap a retriever with the stages you need:

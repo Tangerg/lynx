@@ -18,8 +18,8 @@ const (
 	promptVariableTarget     = "Target"
 )
 
-// ErrEmptyModelOutput reports a successful model call that produced no usable
-// query text. A requested transform or expansion must not silently become an
+// ErrEmptyModelOutput reports a successful text model call that produced no
+// usable query text. A requested transformation must not silently become an
 // identity operation.
 var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 

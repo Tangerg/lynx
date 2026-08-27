@@ -115,6 +115,13 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
 	}
+	citations, found, err := rag.Citations(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || len(citations) != 1 || citations[0].Marker() != "[1]" || citations[0].Candidate.Document.Text != doc.Text {
+		t.Fatalf("citations = %#v, present %v", citations, found)
+	}
 }
 
 func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {

@@ -18,6 +18,34 @@ func TestNewQuery_RequiresText(t *testing.T) {
 	}
 }
 
+func TestAugmentationOwnsValidatedCitationOrder(t *testing.T) {
+	doc, _ := document.NewDocument("evidence", nil)
+	citation, err := rag.NewCitation(1, candidate(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	augmentation, err := rag.NewAugmentation("answer with [1]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	augmentation, err = augmentation.WithCitations([]rag.Citation{citation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	citations := augmentation.Citations()
+	citations[0].Number = 2
+	if augmentation.Citations()[0].Number != 1 {
+		t.Fatal("citation slice aliases caller mutation")
+	}
+	if _, err := rag.NewCitation(0, candidate(doc)); !errors.Is(err, rag.ErrInvalidAugmentation) {
+		t.Fatalf("invalid citation number error = %v", err)
+	}
+	citation.Number = 2
+	if _, err := augmentation.WithCitations([]rag.Citation{citation}); !errors.Is(err, rag.ErrInvalidAugmentation) {
+		t.Fatalf("non-consecutive citation error = %v", err)
+	}
+}
+
 func TestQueryValidateRejectsZeroValue(t *testing.T) {
 	if err := new(rag.Query).Validate(); !errors.Is(err, rag.ErrInvalidQuery) {
 		t.Fatalf("zero-value Query.Validate error = %v", err)

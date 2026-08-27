@@ -18,7 +18,10 @@ var (
 	ErrNilChatStream = errors.New("rag: chat streamer returned a nil sequence")
 )
 
-const retrievedCandidatesMetadataKey = "rag/retrieved_candidates"
+const (
+	retrievedCandidatesMetadataKey = "rag/retrieved_candidates"
+	citationsMetadataKey           = "rag/citations"
+)
 
 var historyValueKey = MustValueKey[[]chat.Message]("chat history")
 
@@ -43,6 +46,7 @@ type middleware struct {
 type preparedChatRequest struct {
 	request    *chat.Request
 	candidates []Candidate
+	citations  []Citation
 }
 
 func newPreparedChatRequest(request *chat.Request) (preparedChatRequest, error) {
@@ -89,11 +93,18 @@ func (p *preparedChatRequest) replaceFinalUserText(text string) {
 	}
 }
 
-func (p preparedChatRequest) attachDocuments(response *chat.Response) error {
+func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	return response.Metadata.Set(retrievedCandidatesMetadataKey, p.candidates)
+	if err := response.Metadata.Set(retrievedCandidatesMetadataKey, p.candidates); err != nil {
+		return err
+	}
+	if len(p.citations) == 0 {
+		delete(response.Metadata.Extra, citationsMetadataKey)
+		return nil
+	}
+	return response.Metadata.Set(citationsMetadataKey, p.citations)
 }
 
 // RetrievedCandidates returns the candidates attached to response by
@@ -117,9 +128,31 @@ func RetrievedCandidates(response *chat.Response) ([]Candidate, bool, error) {
 	return candidates, found, nil
 }
 
+// Citations returns the ordered citation mapping produced by the configured
+// augmenter. The boolean reports whether citation metadata was present.
+func Citations(response *chat.Response) ([]Citation, bool, error) {
+	if response == nil {
+		return nil, false, ErrNilChatResponse
+	}
+	if response.Metadata == nil {
+		return nil, false, nil
+	}
+	citations, found, err := response.Metadata.Extra.Decode[[]Citation](citationsMetadataKey)
+	if err != nil {
+		return nil, found, fmt.Errorf("rag: decode citations: %w", err)
+	}
+	if found {
+		if err := validateCitations(citations); err != nil {
+			return nil, true, fmt.Errorf("rag: decode citations: %w", err)
+		}
+	}
+	return citations, found, nil
+}
+
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
-// request, augment the last user message, and attach retrieved documents to
-// its response metadata. Use [RetrievedCandidates] to read them.
+// request, augment the last user message, and attach retrieval and citation
+// metadata to the response. Use [RetrievedCandidates] and [Citations] to read
+// those typed values.
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if lo.IsNil(config.Retriever) {
 		return nil, nil, ErrNilRetriever
@@ -159,6 +192,7 @@ func (m *middleware) prepare(ctx context.Context, request *chat.Request) (prepar
 		return preparedChatRequest{}, fmt.Errorf("rag: augmentation: %w", err)
 	}
 	prepared.candidates = candidates
+	prepared.citations = augmentation.Citations()
 	prepared.replaceFinalUserText(augmentation.Text())
 	return prepared, nil
 }
@@ -178,7 +212,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 		}
 		return nil, ErrNilChatResponse
 	}
-	if extensionErr := prepared.attachDocuments(resp); extensionErr != nil {
+	if extensionErr := prepared.attachRetrievalMetadata(resp); extensionErr != nil {
 		return resp, errors.Join(err, extensionErr)
 	}
 	return resp, err
@@ -209,7 +243,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 				yield(nil, ErrNilChatResponse)
 				return
 			}
-			if extensionErr := prepared.attachDocuments(resp); extensionErr != nil {
+			if extensionErr := prepared.attachRetrievalMetadata(resp); extensionErr != nil {
 				yield(resp, errors.Join(err, extensionErr))
 				return
 			}
