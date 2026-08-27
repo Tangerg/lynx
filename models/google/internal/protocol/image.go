@@ -16,6 +16,13 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+const (
+	imageInteractionType = "image"
+	imageMediaTypePrefix = "image/"
+	mediaTypePNG         = "image/png"
+	mediaTypeJPEG        = "image/jpeg"
+)
+
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -155,12 +162,13 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 	if err := validateImageGenerationOptions(effectiveOptions.Model, providerOpts); err != nil {
 		return nil, err
 	}
-	if effectiveOptions.OutputFormat != "" && effectiveOptions.OutputFormat != "image/png" && effectiveOptions.OutputFormat != "image/jpeg" {
-		return nil, fmt.Errorf("google: image: unsupported output format %q; use image/png or image/jpeg", effectiveOptions.OutputFormat)
+	if effectiveOptions.OutputFormat != "" && effectiveOptions.OutputFormat != mediaTypePNG && effectiveOptions.OutputFormat != mediaTypeJPEG {
+		return nil, fmt.Errorf("google: image: unsupported output format %q; use %s or %s",
+			effectiveOptions.OutputFormat, mediaTypePNG, mediaTypeJPEG)
 	}
 
 	responseFormat := imageInteractionResponseFormat{
-		Type:        "image",
+		Type:        imageInteractionType,
 		MIMEType:    effectiveOptions.OutputFormat,
 		AspectRatio: providerOpts.AspectRatio,
 		ImageSize:   providerOpts.ImageSize,
@@ -232,15 +240,15 @@ func imageInteractionContentFromMedia(value *media.Media) (imageInteractionConte
 		return imageInteractionContent{}, err
 	}
 	mediaType, _, err := mime.ParseMediaType(value.MIME)
-	if err != nil || !strings.HasPrefix(mediaType, "image/") {
+	if err != nil || !strings.HasPrefix(mediaType, imageMediaTypePrefix) {
 		return imageInteractionContent{}, fmt.Errorf("MIME type %q is not an image", value.MIME)
 	}
 	if !slices.Contains([]string{
-		"image/png", "image/jpeg", "image/webp", "image/heic", "image/heif", "image/gif", "image/bmp", "image/tiff",
+		mediaTypePNG, mediaTypeJPEG, "image/webp", "image/heic", "image/heif", "image/gif", "image/bmp", "image/tiff",
 	}, mediaType) {
 		return imageInteractionContent{}, fmt.Errorf("MIME type %q is not supported by the Interactions API", mediaType)
 	}
-	content := imageInteractionContent{Type: "image", MIMEType: mediaType}
+	content := imageInteractionContent{Type: imageInteractionType, MIMEType: mediaType}
 	switch value.Source.Kind {
 	case media.SourceBytes:
 		content.Data = slices.Clone(value.Source.Bytes)
@@ -375,7 +383,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 			if err := json.Unmarshal(rawContent, &interactionOutput); err != nil {
 				return nil, fmt.Errorf("google: image: decode steps[%d].content[%d]: %w", stepIndex, contentIndex, err)
 			}
-			if interactionOutput.Type != "image" {
+			if interactionOutput.Type != imageInteractionType {
 				continue
 			}
 			value, err := imageMediaFromInteractionOutput(interactionOutput)

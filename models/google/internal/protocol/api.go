@@ -41,9 +41,16 @@ type apiConfig struct {
 }
 
 func (a apiConfig) validate() error {
-	// Vertex AI authenticates via ADC / service account, not API key;
-	// every other backend requires the typed APIKey.
-	if a.Backend != genai.BackendVertexAI && a.APIKey == "" {
+	if a.Backend == genai.BackendVertexAI {
+		if a.Project == "" {
+			return errors.New("google: Vertex AI project is required")
+		}
+		if a.Location == "" {
+			return errors.New("google: Vertex AI location is required")
+		}
+		return nil
+	}
+	if a.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	return nil

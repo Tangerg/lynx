@@ -25,13 +25,20 @@ type TextEstimatorConfig struct {
 }
 
 func (t TextEstimatorConfig) Validate() error {
-	if t.Backend != genai.BackendVertexAI && t.APIKey == "" {
-		return errors.New("google: APIKey is required")
+	if err := t.api().validate(); err != nil {
+		return err
 	}
 	if t.Model == "" {
 		return errors.New("google: DefaultOptions is required")
 	}
 	return nil
+}
+
+func (t TextEstimatorConfig) api() apiConfig {
+	return apiConfig{
+		APIKey: t.APIKey, Backend: t.Backend, Project: t.Project,
+		Location: t.Location, BaseURL: t.BaseURL, HTTPClient: t.HTTPClient,
+	}
 }
 
 var _ tokenizer.TextEstimator = (*TextEstimator)(nil)
@@ -49,14 +56,7 @@ func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		Backend:    config.Backend,
-		Project:    config.Project,
-		Location:   config.Location,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
-	})
+	api, err := newAPI(config.api())
 	if err != nil {
 		return nil, err
 	}

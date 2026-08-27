@@ -32,8 +32,8 @@ func (e EmbeddingModelConfig) Validate() error {
 	if err := validateProvider(e.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if e.Backend != genai.BackendVertexAI && e.APIKey == "" {
-		return errors.New("google: APIKey is required")
+	if err := e.api().validate(); err != nil {
+		return err
 	}
 	if e.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
@@ -42,6 +42,13 @@ func (e EmbeddingModelConfig) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (e EmbeddingModelConfig) api() apiConfig {
+	return apiConfig{
+		APIKey: e.APIKey, Backend: e.Backend, Project: e.Project,
+		Location: e.Location, BaseURL: e.BaseURL, HTTPClient: e.HTTPClient,
+	}
 }
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
@@ -62,14 +69,7 @@ func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		Backend:    config.Backend,
-		Project:    config.Project,
-		Location:   config.Location,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
-	})
+	api, err := newAPI(config.api())
 	if err != nil {
 		return nil, err
 	}

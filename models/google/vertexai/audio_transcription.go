@@ -3,7 +3,6 @@ package vertexai
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -12,27 +11,24 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	Project        string
-	Location       string
+	Client         ClientConfig
 	DefaultOptions transcription.Options
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (a AudioTranscriptionModelConfig) Validate() error {
-	if a.Project == "" {
-		return errors.New("vertexai: Project is required")
+	return a.Client.validateModelOptions(a.DefaultOptions.Model, a.DefaultOptions)
+}
+
+func (a AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
+	return protocol.AudioTranscriptionModelConfig{
+		Provider:       protocolProvider,
+		Backend:        genai.BackendVertexAI,
+		Project:        a.Client.Project,
+		Location:       a.Client.Location,
+		DefaultOptions: a.DefaultOptions,
+		BaseURL:        a.Client.BaseURL,
+		HTTPClient:     a.Client.HTTPClient,
 	}
-	if a.Location == "" {
-		return errors.New("vertexai: Location is required")
-	}
-	if a.DefaultOptions.Model == "" {
-		return errors.New("vertexai: DefaultOptions.Model is required")
-	}
-	if err := a.DefaultOptions.Validate(); err != nil {
-		return err
-	}
-	return nil
 }
 
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
@@ -45,15 +41,7 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	adapter, err := protocol.NewAudioTranscriptionModel(protocol.AudioTranscriptionModelConfig{
-		Provider:       "vertexai",
-		Backend:        genai.BackendVertexAI,
-		Project:        config.Project,
-		Location:       config.Location,
-		DefaultOptions: config.DefaultOptions,
-		BaseURL:        config.BaseURL,
-		HTTPClient:     config.HTTPClient,
-	})
+	adapter, err := protocol.NewAudioTranscriptionModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}

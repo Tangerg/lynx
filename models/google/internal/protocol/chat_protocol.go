@@ -27,13 +27,20 @@ func (c ChatConfig) Validate() error {
 	if err := validateProvider(c.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
-		return errors.New("google: APIKey is required")
+	if err := c.api().validate(); err != nil {
+		return err
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("google: DefaultOptions: %w", err)
 	}
 	return nil
+}
+
+func (c ChatConfig) api() apiConfig {
+	return apiConfig{
+		APIKey: c.APIKey, Backend: c.Backend, Project: c.Project,
+		Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+	}
 }
 
 var (
@@ -52,14 +59,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		Backend:    config.Backend,
-		Project:    config.Project,
-		Location:   config.Location,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
-	})
+	api, err := newAPI(config.api())
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,52 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Elasticsearch bulk endpoints use newline-delimited JSON, including a final
+// separator after the last record.
+const bulkRecordSeparator = '\n'
+
+type bulkOperation string
+
+const (
+	bulkOperationIndex  bulkOperation = "index"
+	bulkOperationDelete bulkOperation = "delete"
+)
+
+type bulkAction struct {
+	Index  *bulkActionTarget `json:"index,omitempty"`
+	Delete *bulkActionTarget `json:"delete,omitempty"`
+}
+
+type bulkActionTarget struct {
+	Index string `json:"_index"`
+	ID    string `json:"_id"`
+}
+
+type queryString struct {
+	Query string `json:"query"`
+}
+
+type queryClause struct {
+	QueryString queryString `json:"query_string"`
+}
+
+type nearestNeighborQuery struct {
+	Field         string       `json:"field"`
+	QueryVector   []float32    `json:"query_vector"`
+	K             int          `json:"k"`
+	NumCandidates int          `json:"num_candidates"`
+	Filter        *queryClause `json:"filter,omitempty"`
+}
+
+type searchRequest struct {
+	Size int                  `json:"size"`
+	KNN  nearestNeighborQuery `json:"knn"`
+}
+
+type deleteByQueryRequest struct {
+	Query queryClause `json:"query"`
+}
+
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
 	if validateErr := request.Validate(); validateErr != nil {
 		return fmt.Errorf("elasticsearch.Store.Index: %w", validateErr)
@@ -37,14 +83,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		}
 
 		var body bytes.Buffer
-		for i, doc := range docs {
+		for index, doc := range docs {
 			id := doc.ID
 
-			actionLine, encErr := json.Marshal(map[string]any{
-				"index": map[string]any{
-					"_index": s.indexName,
-					"_id":    id,
-				},
+			actionLine, encErr := json.Marshal(bulkAction{
+				Index: &bulkActionTarget{Index: s.indexName, ID: id},
 			})
 			if encErr != nil {
 				return fmt.Errorf("elasticsearch: encode bulk action: %w", encErr)
@@ -52,7 +95,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 			docBody := map[string]any{
 				s.contentField:   doc.Text,
-				s.embeddingField: embedding.Float32Vector(vectors[i]),
+				s.embeddingField: embedding.Float32Vector(vectors[index]),
 			}
 			if s.metadataField != "" {
 				docBody[s.metadataField] = doc.Metadata
@@ -67,9 +110,9 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			}
 
 			body.Write(actionLine)
-			body.WriteByte('\n')
+			body.WriteByte(bulkRecordSeparator)
 			body.Write(docLine)
-			body.WriteByte('\n')
+			body.WriteByte(bulkRecordSeparator)
 		}
 
 		resp, err := s.client.Bulk(
@@ -79,7 +122,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 		if err != nil {
 			return fmt.Errorf("elasticsearch: bulk: %w", err)
 		}
-		if err = parseBulkResponse(resp); err != nil {
+		if err = parseBulkResponse(resp, bulkOperationIndex); err != nil {
 			return err
 		}
 	}
@@ -107,11 +150,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	queryVec := embedding.Float32Vector(vector)
 
-	knn := map[string]any{
-		"field":          s.embeddingField,
-		"query_vector":   queryVec,
-		"k":              req.Options.TopK,
-		"num_candidates": int(stdmath.Ceil(float64(req.Options.TopK) * s.numCandidatesMul)),
+	knn := nearestNeighborQuery{
+		Field:         s.embeddingField,
+		QueryVector:   queryVec,
+		K:             req.Options.TopK,
+		NumCandidates: int(stdmath.Ceil(float64(req.Options.TopK) * s.numCandidatesMul)),
 	}
 
 	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
@@ -119,16 +162,10 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, err
 	}
 	if filterQuery != "" {
-		knn["filter"] = map[string]any{
-			"query_string": map[string]any{"query": filterQuery},
-		}
+		knn.Filter = &queryClause{QueryString: queryString{Query: filterQuery}}
 	}
 
-	body := map[string]any{
-		"size": req.Options.TopK,
-		"knn":  knn,
-	}
-	buf, err := jsonReader(body)
+	body, err := encodeJSONRequest(searchRequest{Size: req.Options.TopK, KNN: knn})
 	if err != nil {
 		return nil, err
 	}
@@ -136,14 +173,18 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	resp, err := s.client.Search(
 		s.client.Search.WithContext(ctx),
 		s.client.Search.WithIndex(s.indexName),
-		s.client.Search.WithBody(buf),
+		s.client.Search.WithBody(body),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: search %s: %w", s.indexName, err)
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("elasticsearch: read search error response for %s with status %d: %w",
+				s.indexName, resp.StatusCode, readErr)
+		}
 		return nil, fmt.Errorf("elasticsearch: search %s: status=%d body=%s",
 			s.indexName, resp.StatusCode, string(body))
 	}
@@ -168,8 +209,6 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	return &vectorstore.SearchResponse{Results: docs}, nil
 }
 
-// Delete removes documents matching the filter via delete_by_query.
-
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
@@ -187,19 +226,16 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return errors.New("elasticsearch: refusing to delete on empty filter")
 	}
 
-	body := map[string]any{
-		"query": map[string]any{
-			"query_string": map[string]any{"query": filterQuery},
-		},
-	}
-	buf, err := jsonReader(body)
+	body, err := encodeJSONRequest(deleteByQueryRequest{
+		Query: queryClause{QueryString: queryString{Query: filterQuery}},
+	})
 	if err != nil {
 		return err
 	}
 
 	resp, err := s.client.DeleteByQuery(
 		[]string{s.indexName},
-		buf,
+		body,
 		s.client.DeleteByQuery.WithContext(ctx),
 	)
 	if err != nil {
@@ -207,7 +243,11 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("elasticsearch: read delete_by_query error response for %s with status %d: %w",
+				s.indexName, resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("elasticsearch: delete_by_query %s: status=%d body=%s",
 			s.indexName, resp.StatusCode, string(respBody))
 	}
@@ -226,17 +266,14 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	var body bytes.Buffer
 	for _, id := range ids {
 		var actionLine []byte
-		actionLine, err = json.Marshal(map[string]any{
-			"delete": map[string]any{
-				"_index": s.indexName,
-				"_id":    id,
-			},
+		actionLine, err = json.Marshal(bulkAction{
+			Delete: &bulkActionTarget{Index: s.indexName, ID: id},
 		})
 		if err != nil {
 			return fmt.Errorf("elasticsearch: encode bulk delete action: %w", err)
 		}
 		body.Write(actionLine)
-		body.WriteByte('\n')
+		body.WriteByte(bulkRecordSeparator)
 	}
 
 	resp, err := s.client.Bulk(
@@ -246,7 +283,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if err != nil {
 		return fmt.Errorf("elasticsearch: bulk delete: %w", err)
 	}
-	return parseBulkDeleteResponse(resp)
+	return parseBulkResponse(resp, bulkOperationDelete)
 }
 
 // buildFilterQuery converts the AST filter into a Lucene query string
@@ -318,9 +355,8 @@ func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
 
 func (s *Store) Close() error { return nil }
 
-// searchResponse / searchHit / bulkResponse mirror the slice of the
-// Elasticsearch REST response the store actually consumes. We avoid
-// the full typed client to keep the dependency footprint small.
+// These response models intentionally cover only fields consumed by Store;
+// decoding remains forward-compatible without exposing Elasticsearch DTOs.
 type searchResponse struct {
 	Hits struct {
 		Hits []searchHit `json:"hits"`
@@ -334,93 +370,83 @@ type searchHit struct {
 }
 
 type bulkResponse struct {
-	Errors bool `json:"errors"`
-	Items  []struct {
-		Index *struct {
-			ID     string         `json:"_id"`
-			Status int            `json:"status"`
-			Error  map[string]any `json:"error"`
-		} `json:"index"`
-	} `json:"items"`
+	Errors bool       `json:"errors"`
+	Items  []bulkItem `json:"items"`
 }
 
-func parseBulkResponse(resp *esapi.Response) error {
-	defer resp.Body.Close()
-	if resp.IsError() {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("elasticsearch: bulk: status=%d body=%s",
-			resp.StatusCode, string(body))
+type bulkItem struct {
+	Index  *bulkItemResult `json:"index"`
+	Delete *bulkItemResult `json:"delete"`
+}
+
+func (i bulkItem) result(operation bulkOperation) *bulkItemResult {
+	switch operation {
+	case bulkOperationIndex:
+		return i.Index
+	case bulkOperationDelete:
+		return i.Delete
+	default:
+		return nil
 	}
+}
+
+type bulkItemResult struct {
+	ID     string       `json:"_id"`
+	Status int          `json:"status"`
+	Error  *bulkFailure `json:"error"`
+}
+
+type bulkFailure struct {
+	Reason string `json:"reason"`
+}
+
+func (r bulkResponse) firstFailure(operation bulkOperation) *bulkItemResult {
+	for _, item := range r.Items {
+		result := item.result(operation)
+		if result != nil && result.Error != nil {
+			return result
+		}
+	}
+	return nil
+}
+
+func parseBulkResponse(response *esapi.Response, operation bulkOperation) (err error) {
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("elasticsearch: close bulk %s response: %w", operation, closeErr))
+		}
+	}()
+	if response.IsError() {
+		body, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return fmt.Errorf("elasticsearch: read bulk %s error response with status %d: %w",
+				operation, response.StatusCode, readErr)
+		}
+		return fmt.Errorf("elasticsearch: bulk %s: status=%d body=%s",
+			operation, response.StatusCode, string(body))
+	}
+
 	var parsed bulkResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return fmt.Errorf("elasticsearch: decode bulk response: %w", err)
+	if err := json.NewDecoder(response.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("elasticsearch: decode bulk %s response: %w", operation, err)
 	}
 	if !parsed.Errors {
 		return nil
 	}
-	var firstErr, failedID string
-	for _, item := range parsed.Items {
-		if item.Index != nil && item.Index.Error != nil {
-			failedID = item.Index.ID
-			if reason, ok := item.Index.Error["reason"].(string); ok {
-				firstErr = reason
-			}
-			break
-		}
+	failure := parsed.firstFailure(operation)
+	if failure == nil {
+		return fmt.Errorf("elasticsearch: bulk %s failed without an item error", operation)
 	}
-	if firstErr == "" {
-		firstErr = "unknown error"
+	reason := failure.Error.Reason
+	if reason == "" {
+		reason = "provider returned no reason"
 	}
-	return fmt.Errorf("elasticsearch: bulk failed on id=%s: %s", failedID, firstErr)
+	return fmt.Errorf("elasticsearch: bulk %s failed for document %q with status %d: %s",
+		operation, failure.ID, failure.Status, reason)
 }
 
-// bulkDeleteResponse mirrors the slice of a bulk response whose items
-// carry a `delete` action. A missing id surfaces as status 404 with no
-// error object, which is treated as success (idempotent delete).
-type bulkDeleteResponse struct {
-	Errors bool `json:"errors"`
-	Items  []struct {
-		Delete *struct {
-			ID     string         `json:"_id"`
-			Status int            `json:"status"`
-			Error  map[string]any `json:"error"`
-		} `json:"delete"`
-	} `json:"items"`
-}
-
-func parseBulkDeleteResponse(resp *esapi.Response) error {
-	defer resp.Body.Close()
-	if resp.IsError() {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("elasticsearch: bulk delete: status=%d body=%s",
-			resp.StatusCode, string(body))
-	}
-	var parsed bulkDeleteResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return fmt.Errorf("elasticsearch: decode bulk delete response: %w", err)
-	}
-	if !parsed.Errors {
-		return nil
-	}
-	var firstErr, failedID string
-	for _, item := range parsed.Items {
-		if item.Delete != nil && item.Delete.Error != nil {
-			failedID = item.Delete.ID
-			if reason, ok := item.Delete.Error["reason"].(string); ok {
-				firstErr = reason
-			}
-			break
-		}
-	}
-	if firstErr == "" {
-		firstErr = "unknown error"
-	}
-	return fmt.Errorf("elasticsearch: bulk delete failed on id=%s: %s", failedID, firstErr)
-}
-
-// jsonReader marshals v to JSON and returns it as an io.Reader.
-func jsonReader(v any) (io.Reader, error) {
-	buf, err := json.Marshal(v)
+func encodeJSONRequest(value any) (io.Reader, error) {
+	buf, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: encode request: %w", err)
 	}

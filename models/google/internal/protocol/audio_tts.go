@@ -34,8 +34,8 @@ func (a AudioTTSModelConfig) Validate() error {
 	if err := validateProvider(a.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if a.Backend != genai.BackendVertexAI && a.APIKey == "" {
-		return errors.New("google: APIKey is required")
+	if err := a.api().validate(); err != nil {
+		return err
 	}
 	if a.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
@@ -44,6 +44,13 @@ func (a AudioTTSModelConfig) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (a AudioTTSModelConfig) api() apiConfig {
+	return apiConfig{
+		APIKey: a.APIKey, Backend: a.Backend, Project: a.Project,
+		Location: a.Location, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
+	}
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
@@ -68,14 +75,7 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		Backend:    config.Backend,
-		Project:    config.Project,
-		Location:   config.Location,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
-	})
+	api, err := newAPI(config.api())
 	if err != nil {
 		return nil, err
 	}

@@ -56,6 +56,8 @@ const (
 	ModelGeminiEmbedding2 = protocol.ModelGeminiEmbedding2
 )
 
+const protocolProvider = "google"
+
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -67,7 +69,7 @@ func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ChatConfig) protocol() protocol.ChatConfig {
 	return protocol.ChatConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
+		Provider: protocolProvider, APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
 		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
@@ -122,7 +124,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	}
 	return openaiprotocol.NewCompatibleChat(
 		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
-		openaiprotocol.Dialect{Provider: "google", TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
+		openaiprotocol.Dialect{Provider: protocolProvider, TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
 }
 
@@ -137,7 +139,7 @@ func (e EmbeddingModelConfig) Validate() error { return e.protocol().Validate() 
 
 func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
 	return protocol.EmbeddingModelConfig{
-		Provider: "google", APIKey: e.APIKey, DefaultOptions: e.DefaultOptions,
+		Provider: protocolProvider, APIKey: e.APIKey, DefaultOptions: e.DefaultOptions,
 		BaseURL: e.BaseURL, HTTPClient: e.HTTPClient,
 	}
 }
@@ -172,7 +174,7 @@ func (a AudioTTSModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
 	return protocol.AudioTTSModelConfig{
-		Provider: "google", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
+		Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
 		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
 	}
 }
@@ -215,7 +217,7 @@ func (a AudioTranscriptionModelConfig) Validate() error { return a.protocol().Va
 
 func (a AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
 	return protocol.AudioTranscriptionModelConfig{
-		Provider: "google", APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
+		Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
 		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
 	}
 }

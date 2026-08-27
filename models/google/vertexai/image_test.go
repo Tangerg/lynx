@@ -45,11 +45,11 @@ func TestImageModelUsesVertexGenerateContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	model, err := vertexai.NewImageModel(vertexai.ImageModelConfig{
-		Project:        "test-project",
-		Location:       vertexai.LocationGlobal,
+		Client: vertexai.ClientConfig{
+			Project: "test-project", Location: vertexai.LocationGlobal,
+			BaseURL: server.URL, HTTPClient: server.Client(),
+		},
 		DefaultOptions: defaultOptions,
-		BaseURL:        server.URL,
-		HTTPClient:     server.Client(),
 	})
 	if err != nil {
 		t.Fatal(err)

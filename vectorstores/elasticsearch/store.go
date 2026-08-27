@@ -24,7 +24,34 @@ const (
 	DefaultMetadataField    = "metadata"
 	DefaultSimilarity       = SimilarityCosine
 	defaultNumCandidatesMul = 1.5 // num_candidates = ceil(topK * multiplier)
+	mappingTypeText         = "text"
+	mappingTypeDenseVector  = "dense_vector"
+	mappingTypeObject       = "object"
 )
+
+type createIndexRequest struct {
+	Mappings indexMappings `json:"mappings"`
+}
+
+type indexMappings struct {
+	Properties map[string]any `json:"properties"`
+}
+
+type textFieldMapping struct {
+	Type string `json:"type"`
+}
+
+type vectorFieldMapping struct {
+	Type       string `json:"type"`
+	Dimensions int    `json:"dims"`
+	Similarity string `json:"similarity"`
+	Index      bool   `json:"index"`
+}
+
+type objectFieldMapping struct {
+	Type    string `json:"type"`
+	Dynamic bool   `json:"dynamic"`
+}
 
 // SimilarityFunction selects the Elasticsearch dense-vector similarity
 // metric. The chosen value is recorded in the index mapping; changing
@@ -224,7 +251,7 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 		s.client.Indices.Exists.WithContext(ctx),
 	)
 	if err != nil {
-		return false, fmt.Errorf("indices.exists %s: %w", s.indexName, err)
+		return false, fmt.Errorf("elasticsearch: check index %q: %w", s.indexName, err)
 	}
 	defer resp.Body.Close()
 
@@ -234,48 +261,52 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	case http.StatusNotFound:
 		return false, nil
 	default:
-		body, _ := io.ReadAll(resp.Body)
-		return false, fmt.Errorf("indices.exists %s: status=%d body=%s",
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return false, fmt.Errorf("elasticsearch: read index existence error for %q with status %d: %w",
+				s.indexName, resp.StatusCode, readErr)
+		}
+		return false, fmt.Errorf("elasticsearch: check index %q: status=%d body=%s",
 			s.indexName, resp.StatusCode, string(body))
 	}
 }
 
 func (s *Store) createIndex(ctx context.Context) error {
 	properties := map[string]any{
-		s.contentField: map[string]any{"type": "text"},
-		s.embeddingField: map[string]any{
-			"type":       "dense_vector",
-			"dims":       s.dimensions,
-			"similarity": string(s.similarity),
-			"index":      true,
+		s.contentField: textFieldMapping{Type: mappingTypeText},
+		s.embeddingField: vectorFieldMapping{
+			Type:       mappingTypeDenseVector,
+			Dimensions: s.dimensions,
+			Similarity: string(s.similarity),
+			Index:      true,
 		},
 	}
 	if s.metadataField != "" {
-		properties[s.metadataField] = map[string]any{
-			"type":    "object",
-			"dynamic": true,
-		}
+		properties[s.metadataField] = objectFieldMapping{Type: mappingTypeObject, Dynamic: true}
 	}
-	body := map[string]any{
-		"mappings": map[string]any{"properties": properties},
-	}
-	buf, err := jsonReader(body)
+	body, err := encodeJSONRequest(createIndexRequest{
+		Mappings: indexMappings{Properties: properties},
+	})
 	if err != nil {
 		return err
 	}
 
 	resp, err := s.client.Indices.Create(
 		s.indexName,
-		s.client.Indices.Create.WithBody(buf),
+		s.client.Indices.Create.WithBody(body),
 		s.client.Indices.Create.WithContext(ctx),
 	)
 	if err != nil {
-		return fmt.Errorf("indices.create %s: %w", s.indexName, err)
+		return fmt.Errorf("elasticsearch: create index %q: %w", s.indexName, err)
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("indices.create %s: status=%d body=%s",
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("elasticsearch: read create-index error for %q with status %d: %w",
+				s.indexName, resp.StatusCode, readErr)
+		}
+		return fmt.Errorf("elasticsearch: create index %q: status=%d body=%s",
 			s.indexName, resp.StatusCode, string(body))
 	}
 	return nil

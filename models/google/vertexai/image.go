@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"mime"
-	"net/http"
 	"strings"
 
 	"google.golang.org/genai"
@@ -16,28 +15,21 @@ import (
 )
 
 type ImageModelConfig struct {
-	Project        string
-	Location       string
+	Client         ClientConfig
 	DefaultOptions image.Options
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (i ImageModelConfig) Validate() error {
-	if i.Project == "" {
-		return errors.New("vertexai: Project is required")
-	}
-	if i.Location == "" {
-		return errors.New("vertexai: Location is required")
-	}
-	if i.DefaultOptions.Model == "" {
-		return errors.New("vertexai: DefaultOptions.Model is required")
-	}
-	if err := i.DefaultOptions.Validate(); err != nil {
-		return err
-	}
-	return nil
+	return i.Client.validateModelOptions(i.DefaultOptions.Model, i.DefaultOptions)
 }
+
+const (
+	vertexAPIVersion           = "v1"
+	imageMediaTypePrefix       = "image/"
+	mediaTypePNG               = "image/png"
+	mediaTypeJPEG              = "image/jpeg"
+	imageNativePartMetadataKey = "vertexai/native_part"
+)
 
 // ImageGenerationOptions carries Vertex-specific GenerateContent controls and
 // optional source images for editing. Store it under
@@ -67,12 +59,12 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	}
 	clientConfig := &genai.ClientConfig{
 		Backend:    genai.BackendVertexAI,
-		Project:    config.Project,
-		Location:   config.Location,
-		HTTPClient: config.HTTPClient,
+		Project:    config.Client.Project,
+		Location:   config.Client.Location,
+		HTTPClient: config.Client.HTTPClient,
 		HTTPOptions: genai.HTTPOptions{
-			APIVersion: "v1",
-			BaseURL:    config.BaseURL,
+			APIVersion: vertexAPIVersion,
+			BaseURL:    config.Client.BaseURL,
 		},
 	}
 	client, err := genai.NewClient(context.Background(), clientConfig)
@@ -114,8 +106,9 @@ func (i *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 		config.Seed = new(int32(*effectiveOptions.Seed))
 	}
 	if effectiveOptions.OutputFormat != "" {
-		if effectiveOptions.OutputFormat != "image/png" && effectiveOptions.OutputFormat != "image/jpeg" {
-			return "", nil, nil, fmt.Errorf("vertexai: image: unsupported output format %q; use image/png or image/jpeg", effectiveOptions.OutputFormat)
+		if effectiveOptions.OutputFormat != mediaTypePNG && effectiveOptions.OutputFormat != mediaTypeJPEG {
+			return "", nil, nil, fmt.Errorf("vertexai: image: unsupported output format %q; use %s or %s",
+				effectiveOptions.OutputFormat, mediaTypePNG, mediaTypeJPEG)
 		}
 		if config.ImageConfig == nil {
 			config.ImageConfig = &genai.ImageConfig{}
@@ -154,7 +147,7 @@ func vertexImagePart(value *media.Media) (*genai.Part, error) {
 		return nil, err
 	}
 	mediaType, _, err := mime.ParseMediaType(value.MIME)
-	if err != nil || !strings.HasPrefix(mediaType, "image/") {
+	if err != nil || !strings.HasPrefix(mediaType, imageMediaTypePrefix) {
 		return nil, fmt.Errorf("MIME type %q is not an image", value.MIME)
 	}
 	switch value.Source.Kind {
@@ -183,9 +176,9 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 			var value *media.Media
 			var err error
 			switch {
-			case part.InlineData != nil && strings.HasPrefix(part.InlineData.MIMEType, "image/"):
+			case part.InlineData != nil && strings.HasPrefix(part.InlineData.MIMEType, imageMediaTypePrefix):
 				value, err = media.NewBytes(part.InlineData.MIMEType, part.InlineData.Data)
-			case part.FileData != nil && strings.HasPrefix(part.FileData.MIMEType, "image/"):
+			case part.FileData != nil && strings.HasPrefix(part.FileData.MIMEType, imageMediaTypePrefix):
 				value, err = media.NewURI(part.FileData.MIMEType, part.FileData.FileURI)
 			default:
 				continue
@@ -194,7 +187,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 				return nil, fmt.Errorf("vertexai: image: candidates[%d].parts[%d]: %w", candidateIndex, partIndex, err)
 			}
 			outputMetadata := &image.OutputMetadata{}
-			if setErr := outputMetadata.Set("vertexai/native_part", part); setErr != nil {
+			if setErr := outputMetadata.Set(imageNativePartMetadataKey, part); setErr != nil {
 				return nil, setErr
 			}
 			output, err := image.NewOutput(value, outputMetadata)

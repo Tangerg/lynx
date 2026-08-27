@@ -3,9 +3,7 @@ package vertexai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"iter"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -14,24 +12,24 @@ import (
 )
 
 type ChatConfig struct {
-	Project        string
-	Location       string
+	Client         ClientConfig
 	DefaultOptions corechat.Options
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (c ChatConfig) Validate() error {
-	if c.Project == "" {
-		return errors.New("vertexai: Project is required")
+	return c.Client.validateOptions(c.DefaultOptions)
+}
+
+func (c ChatConfig) protocol() protocol.ChatConfig {
+	return protocol.ChatConfig{
+		Provider:       protocolProvider,
+		Backend:        genai.BackendVertexAI,
+		Project:        c.Client.Project,
+		Location:       c.Client.Location,
+		DefaultOptions: c.DefaultOptions,
+		BaseURL:        c.Client.BaseURL,
+		HTTPClient:     c.Client.HTTPClient,
 	}
-	if c.Location == "" {
-		return errors.New("vertexai: Location is required")
-	}
-	if err := c.DefaultOptions.Validate(); err != nil {
-		return fmt.Errorf("vertexai: DefaultOptions: %w", err)
-	}
-	return nil
 }
 
 var (
@@ -45,15 +43,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	adapter, err := protocol.NewChat(protocol.ChatConfig{
-		Provider:       "vertexai",
-		Backend:        genai.BackendVertexAI,
-		Project:        config.Project,
-		Location:       config.Location,
-		DefaultOptions: config.DefaultOptions,
-		BaseURL:        config.BaseURL,
-		HTTPClient:     config.HTTPClient,
-	})
+	adapter, err := protocol.NewChat(config.protocol())
 	if err != nil {
 		return nil, err
 	}

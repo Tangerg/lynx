@@ -3,7 +3,6 @@ package vertexai
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -12,27 +11,24 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	Project        string
-	Location       string
+	Client         ClientConfig
 	DefaultOptions embedding.Options
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (e EmbeddingModelConfig) Validate() error {
-	if e.Project == "" {
-		return errors.New("vertexai: Project is required")
+	return e.Client.validateModelOptions(e.DefaultOptions.Model, e.DefaultOptions)
+}
+
+func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
+	return protocol.EmbeddingModelConfig{
+		Provider:       protocolProvider,
+		Backend:        genai.BackendVertexAI,
+		Project:        e.Client.Project,
+		Location:       e.Client.Location,
+		DefaultOptions: e.DefaultOptions,
+		BaseURL:        e.Client.BaseURL,
+		HTTPClient:     e.Client.HTTPClient,
 	}
-	if e.Location == "" {
-		return errors.New("vertexai: Location is required")
-	}
-	if e.DefaultOptions.Model == "" {
-		return errors.New("vertexai: DefaultOptions.Model is required")
-	}
-	if err := e.DefaultOptions.Validate(); err != nil {
-		return err
-	}
-	return nil
 }
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
@@ -43,15 +39,7 @@ func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	adapter, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
-		Provider:       "vertexai",
-		Backend:        genai.BackendVertexAI,
-		Project:        config.Project,
-		Location:       config.Location,
-		DefaultOptions: config.DefaultOptions,
-		BaseURL:        config.BaseURL,
-		HTTPClient:     config.HTTPClient,
-	})
+	adapter, err := protocol.NewEmbeddingModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
