@@ -100,9 +100,6 @@ describe("workspace Runtime-generation query recovery", () => {
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(result.current.data?.goal?.objective).toBe("successor goal"));
-    await expect(result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
   });
 
   it("replaces an initial parameterized read before the old Runtime settles", async () => {
@@ -145,8 +142,5 @@ describe("workspace Runtime-generation query recovery", () => {
     retired.resolve({ available: true, goal: goal("retired goal") });
     await act(async () => Promise.resolve());
     expect(result.current.data?.goal?.objective).toBe("successor goal");
-    await expect(result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
   });
 });

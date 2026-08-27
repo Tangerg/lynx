@@ -97,8 +97,5 @@ describe("mounted Runtime Workspace-file-list generation", () => {
     respondSuccess(transport, retiredSecond.id, { data: [file("old-page-2.ts")] });
     await act(async () => Promise.resolve());
     expect(hook.result.current.data?.[0]?.path).toBe("successor.ts");
-    await expect(hook.result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
   });
 });

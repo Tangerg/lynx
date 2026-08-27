@@ -52,7 +52,20 @@ export function Composer({
 }: Props) {
   const t = useT();
   const recordHistory = useRecordComposerHistory();
-  const input = useComposerInputController({
+  const {
+    inputRef,
+    mentions,
+    placeholder,
+    handleChange,
+    clearCompositionCommit,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleDrop,
+    handleKeyDown,
+    handleKeyUp,
+    handlePaste,
+    handleSelect,
+  } = useComposerInputController({
     value,
     onChange,
     onClear,
@@ -66,13 +79,13 @@ export function Composer({
   });
   return (
     <AgentComposerSurface className="relative" data-slot="composer-root">
-      <ComposerImageDrop enabled={acceptsImages} onDropImages={input.handleDrop} />
-      {input.mentions.active && (
+      <ComposerImageDrop enabled={acceptsImages} onDropImages={handleDrop} />
+      {mentions.active && (
         <FileMentionPopup
-          items={input.mentions.items}
-          index={input.mentions.index}
-          onPick={input.mentions.accept}
-          onHover={input.mentions.setIndex}
+          items={mentions.items}
+          index={mentions.index}
+          onPick={mentions.accept}
+          onHover={mentions.setIndex}
         />
       )}
       <div className="pt-[var(--density-composer-editor-top)] pr-[var(--density-composer-editor-end)] pb-[var(--density-composer-editor-bottom)] pl-[var(--density-composer-editor-start)]">
@@ -88,7 +101,7 @@ export function Composer({
           variant="bare"
           size="prose"
           font="sans"
-          ref={input.inputRef}
+          ref={inputRef}
           aria-label={t("composer.input.label")}
           /* The @-mention picker is ours to wire (see fileMentions.ts for why it
              isn't Base UI's). No `role="combobox"`: this textarea is not one — the
@@ -96,22 +109,20 @@ export function Composer({
              happens to host a picker, and the picker's selected row is announced
              from here because focus never leaves (the caret has to keep blinking
              where the user is typing). */
-          aria-controls={input.mentions.active ? MENTION_LISTBOX_ID : undefined}
-          aria-activedescendant={
-            input.mentions.active ? mentionOptionId(input.mentions.index) : undefined
-          }
-          placeholder={input.placeholder}
+          aria-controls={mentions.active ? MENTION_LISTBOX_ID : undefined}
+          aria-activedescendant={mentions.active ? mentionOptionId(mentions.index) : undefined}
+          placeholder={placeholder}
           value={value}
-          onChange={input.handleChange}
-          onSelect={input.handleSelect}
-          onBlur={input.clearCompositionCommit}
-          onFocus={input.clearCompositionCommit}
-          onCompositionStart={input.handleCompositionStart}
-          onCompositionEnd={input.handleCompositionEnd}
-          onPaste={input.handlePaste}
-          onKeyDown={input.handleKeyDown}
-          onKeyUp={input.handleKeyUp}
-          onPointerUp={input.clearCompositionCommit}
+          onChange={handleChange}
+          onSelect={handleSelect}
+          onBlur={clearCompositionCommit}
+          onFocus={clearCompositionCommit}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onPaste={handlePaste}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
+          onPointerUp={clearCompositionCommit}
           rows={1}
           autosize
           /* Both bounds are in `lh` — THIS element's own line-height — so the

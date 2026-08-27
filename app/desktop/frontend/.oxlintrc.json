@@ -7,6 +7,10 @@
     "unicorn/no-useless-spread": "off",
     "react-hooks/exhaustive-deps": "error",
     "react-hooks/rules-of-hooks": "error",
+    // React Compiler is not enabled. TanStack Virtual deliberately returns
+    // dynamic measurement callbacks; the compiler-only incompatibility warning
+    // does not represent a runtime correctness or memoization contract here.
+    "react/incompatible-library": "off",
     // Our mocks are typed by the port interface they stand in for, so the type
     // parameter would restate what the assignment target already fixes.
     "vitest/require-mock-type-parameters": "off",

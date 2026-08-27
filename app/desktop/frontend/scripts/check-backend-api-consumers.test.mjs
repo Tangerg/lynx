@@ -6,8 +6,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 const script = readFileSync(new URL("./check-backend-api-consumers.mjs", import.meta.url), "utf8");
-const match = /function discardsNonVoidResult\(call\) \{[\s\S]*?\n\}/.exec(script);
-if (!match) throw new Error("discardsNonVoidResult helper was not found");
+const discardStart = script.indexOf("function discardsNonVoidResult(call)");
+const discardEnd = script.indexOf("\nfunction propertyName", discardStart);
+if (discardStart < 0 || discardEnd < 0) throw new Error("discarded-result helpers were not found");
+const discardedResultHelpers = script.slice(discardStart, discardEnd);
 const sidecarMatch =
   /function checkSidecarConsumers\(expected, methods, calls, targetErrors\) \{[\s\S]*?\n\}/.exec(
     script,
@@ -24,27 +26,28 @@ function discardedResult(sourceText) {
   const dir = mkdtempSync(join(tmpdir(), "api-result-consumer-"));
   try {
     writeFileSync(join(dir, "package.json"), '{"type":"module"}\n');
+    writeFileSync(join(dir, "probe.ts"), sourceText);
     writeFileSync(
       join(dir, "probe.mjs"),
-      `import ts from ${JSON.stringify(import.meta.resolve("typescript"))};
+      `import { API, TypeFlags } from ${JSON.stringify(import.meta.resolve("typescript/unstable/sync"))};
+import * as ts from ${JSON.stringify(import.meta.resolve("typescript/unstable/ast"))};
 const fileName = ${JSON.stringify(join(dir, "probe.ts"))};
-const sourceText = ${JSON.stringify(sourceText)};
-const options = { target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext };
-const host = ts.createCompilerHost(options);
-const getSourceFile = host.getSourceFile.bind(host);
-const readFile = host.readFile.bind(host);
-const fileExists = host.fileExists.bind(host);
-host.getSourceFile = (name, languageVersion, onError, shouldCreate) => name === fileName ? ts.createSourceFile(name, sourceText, languageVersion, true, ts.ScriptKind.TS) : getSourceFile(name, languageVersion, onError, shouldCreate);
-host.readFile = (name) => name === fileName ? sourceText : readFile(name);
-host.fileExists = (name) => name === fileName || fileExists(name);
-const program = ts.createProgram([fileName], options, host);
-const checker = program.getTypeChecker();
-const source = program.getSourceFile(fileName);
-${match[0]}
-let call;
-function visit(node) { if (ts.isCallExpression(node) && node.expression.getText(source) === "saved") call = node; ts.forEachChild(node, visit); }
-visit(source);
-console.log(discardsNonVoidResult(call));
+const compiler = new API({ cwd: ${JSON.stringify(dir)} });
+try {
+  const snapshot = compiler.updateSnapshot({ openFiles: [fileName] });
+  const project = snapshot.getDefaultProjectForFile(fileName);
+  if (!project) throw new Error("TypeScript did not create an inferred project");
+  const checker = project.checker;
+  const source = project.program.getSourceFile(fileName);
+  if (!source) throw new Error("TypeScript did not load the probe source");
+  ${discardedResultHelpers}
+  let call;
+  function visit(node) { if (ts.isCallExpression(node) && node.expression.getText(source) === "saved") call = node; node.forEachChild(visit); }
+  visit(source);
+  console.log(discardsNonVoidResult(call));
+} finally {
+  compiler.close();
+}
 `,
     );
     const output = execFileSync(process.execPath, [join(dir, "probe.mjs")], {

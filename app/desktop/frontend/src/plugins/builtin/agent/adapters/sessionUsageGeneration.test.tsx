@@ -38,7 +38,6 @@ beforeEach(() => {
     ...defaults,
     queries: {
       ...defaults.queries,
-      experimental_prefetchInRender: true,
       retry: false,
     },
   });

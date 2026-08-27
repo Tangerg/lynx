@@ -26,6 +26,7 @@ import {
   openTimelineView,
 } from "@/plugins/builtin/workspace/public/deeplinks";
 import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import type { AgentProblem } from "@/plugins/builtin/agent/public/viewState";
 
 // Best-effort: find the most recent user-message plaintext so Retry can
 // replay it. Returns "" if no usable text exists — Retry hides in that
@@ -42,6 +43,12 @@ function findLastUserText(): string {
 // Behavior branches on the required symbolic type. An optional boolean cannot
 // distinguish an explicit refusal from an omitted value.
 const UNRETRYABLE: readonly string[] = ["invalid_api_key", "invalid_params", "provider_rejected"];
+
+interface RetryCountdown {
+  problem: AgentProblem | null;
+  retryAfter: number;
+  remaining: number;
+}
 
 // RunErrorBanner — surfaces an run error.
 //
@@ -76,22 +83,25 @@ export function RunErrorBanner() {
   // counting, Retry is shown but inert — don't hammer a provider that just
   // asked us to wait.
   const retryAfter = error?.retryAfterSeconds ?? 0;
-  const errKey = error ? (error.code ?? error.message ?? "unknown") : null;
-  const [retryIn, setRetryIn] = useState(0);
+  const [countdown, setCountdown] = useState<RetryCountdown>({
+    problem: null,
+    retryAfter: 0,
+    remaining: 0,
+  });
+  const retryIn =
+    countdown.problem === error && countdown.retryAfter === retryAfter
+      ? countdown.remaining
+      : retryAfter;
   useEffect(() => {
-    if (retryAfter <= 0) {
-      setRetryIn(0);
-      return;
-    }
+    if (retryAfter <= 0) return;
     const started = performance.now();
-    setRetryIn(retryAfter);
     const id = setInterval(() => {
       const rem = Math.max(0, Math.ceil(retryAfter - (performance.now() - started) / 1000));
-      setRetryIn(rem);
+      setCountdown({ problem: error, retryAfter, remaining: rem });
       if (rem <= 0) clearInterval(id);
     }, 250);
     return () => clearInterval(id);
-  }, [retryAfter, errKey]);
+  }, [error, retryAfter]);
 
   const retryText = error ? findLastUserText() : "";
 

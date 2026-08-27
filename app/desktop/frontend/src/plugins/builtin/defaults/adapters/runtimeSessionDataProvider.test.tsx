@@ -101,8 +101,5 @@ describe("mounted Runtime Session-list generation", () => {
     respondSuccess(transport, retiredSecond.id, { data: [session("retired-page-2")] });
     await act(async () => Promise.resolve());
     expect(hook.result.current.data?.map(({ id }) => id)).toEqual(["successor"]);
-    await expect(hook.result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
   });
 });

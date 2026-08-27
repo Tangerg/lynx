@@ -81,8 +81,5 @@ describe("mounted Runtime Workspace-file-changes generation", () => {
     });
     await act(async () => Promise.resolve());
     expect(hook.result.current.data?.[0]?.path).toBe("successor.ts");
-    await expect(hook.result.current.promise).rejects.toThrow(
-      "experimental_prefetchInRender feature flag is not enabled",
-    );
   });
 });

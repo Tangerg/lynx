@@ -145,6 +145,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 - 当前 `schemaEpoch = 83`；
 - P183 将 Runtime 稳定领域枚举直接持久化为其命名文本，并把 `session_permission_modes.mode/restore_mode` 从 INTEGER 改为 TEXT；旧 ordinal/数字字符串与新领域值不兼容，故一次性提升 epoch，不迁移、不双读、不保留 codec 映射表；
 - P184 把 operation 注册/typed invocation 的 Go 1.27 泛型行为归还 `Registry` / `Endpoint`，让就近声明的 `operation.Name` 成为注册与 embedded binding 共用的唯一 method identity，并收紧 Hook verdict 与 Tool mutation scope 的 internal zero-value 边界；不改变 Protocol method text、Artifact 或 SQLite shape；
+- P185 迁移到 Agent Baseline 31 的 `SchemaFor` owner并整体升级 Runtime/Desktop/Frontend 依赖图；不改变 Protocol method text、Artifact、SQLite、checkpoint 或公共 Go surface；
 - `sessions.workspace_path` 是非空列；strict codec 先重建 Domain `Workspace`，相对、非 lexical-clean 或空路径均拒绝，旧 `sessions.cwd` 不读取；
 - `sessions.provider` / `sessions.model` 是非空列；strict codec 只恢复 configured exact pair，Runtime 默认只在 Session admission 时安装，不在 reader/Run 层补写；
 - `agent_memory_items.embedding_space` 与 `embedding` 是成对为空或成对有效的 search-derived cache；strict reader 拒绝空/半对、非 4-byte vector encoding 与非有限值。cache write 只在 exact item 仍 active 且 content digest 未变时提交；内容编辑同时清空 space/vector。epoch 80 的无空间裸 BLOB 不读取、不迁移；
@@ -187,9 +188,9 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent Framework 消费 Baseline
 
-Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 27 canonical module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换，P25 完成真实 pseudo-version 发布与 standalone 消费；Core 六个模型模态的产物词汇现统一为 `Output`，其中 Interaction 消费唯一 `chat.Response.Output`：
+Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 31 canonical module。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换，P25 完成真实 pseudo-version 发布与 standalone 消费；Core 六个模型模态的产物词汇现统一为 `Output`，其中 Interaction 消费唯一 `chat.Response.Output`。P185 的 Runtime delegation schema 直接消费 `agent.SchemaFor`，不再引用已删除的 Tool contract schema owner：
 
-- root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
+- root Kernel、Agenttest、Interaction、Planning、Planning/GOAP、Workflow、Platform 七个 public package 已冻结；OpenTelemetry adapter 由集成层 `otel/agent` 拥有；
 - Process Snapshot v6、TreeSnapshot v4；
 - Interaction state/protocol v8/v7；
 - context-aware ProcessAdmitter、conclusive ProcessStartOutcome、提交式 `RequestCancellation`、带 exact applied-steer Signal identity 的 ModelInvocation、ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；

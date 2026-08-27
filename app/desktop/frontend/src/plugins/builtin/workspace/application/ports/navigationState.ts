@@ -46,8 +46,7 @@ export interface WorkspaceNavigationPort {
   closeView(id: string): void;
   activeViewId(): string | null;
   dock(): WorkspaceDockSnapshot;
-  setSettingsPane(pane: string | null): void;
-  settingsPaneTarget(): string | null;
+  setSettingsPane(pane: string): void;
   focusFile(path: string): void;
   openFile(path: string, line?: number): void;
   selectedToolId(): string;

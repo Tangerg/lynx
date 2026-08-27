@@ -93,7 +93,6 @@ export function installWorkspaceNavigationPort(): () => void {
     activeViewId: () => navigator().get().view,
     dock: dockSnapshot,
     setSettingsPane: (pane) => navigator().go({ settings: pane }),
-    settingsPaneTarget: () => navigator().get().settings,
     focusFile: (path) => useContextDockStore.getState().focusFile(path),
     openFile: (path, line) => {
       useContextDockStore.getState().setFileViewer(path, line);

@@ -23,6 +23,15 @@ interface Props {
   code: string;
 }
 
+type MermaidRenderResult = { status: "loading" | "error" | "rendered"; svg?: string };
+
+interface SettledMermaidRender {
+  code: string;
+  tokenRevision: number;
+  renderer: MermaidRenderer;
+  result: MermaidRenderResult;
+}
+
 // Resolve token vars to literal hex — beautiful-mermaid bakes the
 // values into stroke/fill on the SVG output and browsers won't honor
 // raw `var(--x)` text there.
@@ -68,33 +77,47 @@ export function MermaidBlock({ code }: Props) {
     };
   }, []);
 
-  const rendered = useMemo<{ status: "loading" | "error" | "rendered"; svg?: string }>(() => {
-    if (!renderer || isSettling) {
-      return { status: "loading" };
-    }
-    try {
-      // The revision is an invalidation token for the mutable computed styles
-      // read by this adapter, not a colour value in its own right.
-      const c = readThemeColors(tokenRevision);
-      const start = performance.now();
-      const out = renderer(debouncedCode, {
-        transparent: true,
-        // `bg` is still required by the type even with transparent:true;
-        // beautiful-mermaid uses it for color-mix fallbacks of unset roles.
-        bg: c.surface,
-        fg: c.fg,
-        line: c.line,
-        accent: c.accent,
-        muted: c.muted,
-        surface: c.surface,
-        border: c.border,
-      });
-      measureMermaidRender(performance.now() - start);
-      return { status: "rendered", svg: out };
-    } catch {
-      return { status: "error" };
-    }
+  const [settledRender, setSettledRender] = useState<SettledMermaidRender | null>(null);
+  useEffect(() => {
+    if (!renderer || isSettling) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      let result: MermaidRenderResult;
+      try {
+        // The revision is an invalidation token for the mutable computed styles
+        // read by this adapter, not a colour value in its own right.
+        const c = readThemeColors(tokenRevision);
+        const start = performance.now();
+        const svg = renderer(debouncedCode, {
+          transparent: true,
+          // `bg` is still required by the type even with transparent:true;
+          // beautiful-mermaid uses it for color-mix fallbacks of unset roles.
+          bg: c.surface,
+          fg: c.fg,
+          line: c.line,
+          accent: c.accent,
+          muted: c.muted,
+          surface: c.surface,
+          border: c.border,
+        });
+        measureMermaidRender(performance.now() - start);
+        result = { status: "rendered", svg };
+      } catch {
+        result = { status: "error" };
+      }
+      if (!cancelled) setSettledRender({ code: debouncedCode, tokenRevision, renderer, result });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedCode, isSettling, tokenRevision, renderer]);
+  const rendered =
+    settledRender?.code === debouncedCode &&
+    settledRender.tokenRevision === tokenRevision &&
+    settledRender.renderer === renderer &&
+    !isSettling
+      ? settledRender.result
+      : { status: "loading" as const };
 
   const [zoomed, setZoomed] = useState(false);
 

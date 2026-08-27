@@ -35,7 +35,7 @@ export function useCopyFeedback(
     mounted: true,
     resetTimer: undefined,
   });
-  const [acceptedRevision, setAcceptedRevision] = useState<number | null>(null);
+  const [accepted, setAccepted] = useState<{ material: string; revision: number } | null>(null);
 
   // Layout ownership changes before the replacement material can paint or
   // receive an event. Promise continuations run only after this transition has
@@ -46,7 +46,7 @@ export function useCopyFeedback(
     owner.material = material;
     owner.revision += 1;
     clearResetTimer(owner);
-    setAcceptedRevision(null);
+    setAccepted(null);
   }, [material]);
 
   useLayoutEffect(() => {
@@ -63,28 +63,24 @@ export function useCopyFeedback(
     const owner = ownerRef.current;
     const revision = ++owner.revision;
     clearResetTimer(owner);
-    setAcceptedRevision(null);
+    setAccepted(null);
 
     const accepted = await copyMaterial(material);
     if (!accepted || !owner.mounted || owner.material !== material || owner.revision !== revision) {
       return false;
     }
 
-    setAcceptedRevision(revision);
+    setAccepted({ material, revision });
     owner.resetTimer = setTimeout(() => {
       owner.resetTimer = undefined;
       if (!owner.mounted || owner.material !== material || owner.revision !== revision) return;
-      setAcceptedRevision(null);
+      setAccepted(null);
     }, resetAfterMs);
     return true;
   }, [copyMaterial, material, resetAfterMs]);
 
-  const owner = ownerRef.current;
   return {
-    copied:
-      owner.material === material &&
-      acceptedRevision !== null &&
-      acceptedRevision === owner.revision,
+    copied: accepted?.material === material,
     copy,
   };
 }

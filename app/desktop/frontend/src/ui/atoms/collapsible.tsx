@@ -34,10 +34,6 @@ export function Collapsible({ open, children }: Props) {
   const lockScroll = useScrollLock(rowRef);
 
   useEffect(() => {
-    if (open) setRevealed(true);
-  }, [open]);
-
-  useEffect(() => {
     if (wasOpen.current && !open) lockScroll();
     wasOpen.current = open;
   }, [open, lockScroll]);
@@ -54,6 +50,9 @@ export function Collapsible({ open, children }: Props) {
         "transition-[grid-template-rows] duration-[var(--dur-disclosure)] ease-out",
         open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
       )}
+      onTransitionRun={() => {
+        if (open) setRevealed(true);
+      }}
     >
       {/* `clip`, not `hidden`: both cut the same pixels, but `hidden` makes this box a
           scroll container, and a scroll container is the scrollport a `sticky`

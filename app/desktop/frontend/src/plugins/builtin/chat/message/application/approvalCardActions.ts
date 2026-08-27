@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import {
   useApprovalSubmit,
-  type ApprovalActions,
   type ApprovalDecision,
   type ApprovalSubmitOptions,
   type RememberScope,
@@ -76,17 +75,14 @@ export function useApprovalCardActions({
     submit("declined");
   }, [submit]);
 
-  const actionsRef = useRef<ApprovalActions>({ approve, decline });
-  actionsRef.current = { approve, decline };
-
   const registerable = canRegisterApprovalActions({ runId, itemId, status, runtimeAvailable });
   useEffect(() => {
     if (!registerable) return;
     return registerActions({
-      approve: () => actionsRef.current.approve(),
-      decline: () => actionsRef.current.decline(),
+      approve: () => approve(),
+      decline,
     });
-  }, [registerable, registerActions]);
+  }, [approve, decline, registerable, registerActions]);
 
   return {
     pending,

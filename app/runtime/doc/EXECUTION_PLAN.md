@@ -1,8 +1,8 @@
 # Lyra Runtime 执行计划
 
-> 状态：P0–P184 已完成；下一阶段待独立准入。
+> 状态：P0–P185 已完成；P186 已准入。
 >
-> 最近基线：2026-08-26，P184 已完成。
+> 最近基线：2026-08-28，P185 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,9 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P186 已准入：发布仓库内全部非 `app/**` Go module 的首个 `v0.0.1`，先证明 module/tag 集合、内部依赖 DAG、standalone build 与远端零冲突，再原子推送 canonical multi-module tags。`app/runtime`、`app/desktop`、明确冻结的 `app/cli` 均不发布；不创造聚合发行版、兼容 tag、替代 module path 或第二版本来源。
+- P185 已准入并完成：依赖升级的真实红例来自 Runtime HTTP E2E、TypeScript 7 守卫与 React lint，而非版本号本身。OpenTelemetry log API 前移使旧 `otelslog` 无法编译，Agent Baseline 31 已删除 `toolcontract.Schema` owner，TypeScript 7 根入口已删除旧 compiler namespace，TanStack Query 删除实验性 result promise，React 19 lint 暴露多处 render/effect 状态所有权泄漏。Runtime 直接消费 `agent.SchemaFor`，AST 守卫改用 TypeScript Project/Snapshot owner，Frontend 删除退役测试实现细节并把 transcript cache、drag listener、settings selection、async markdown/diagram state 收回各自生命周期 owner；不留 suppress/compat shim。
+- P185 的允许范围为 `app/runtime`、`app/desktop`、Desktop Frontend 与 workspace sums；`app/cli` 未修改。公共 Protocol、Artifact、SQLite、公共 Runtime Go API 与前后端 operation/event shape 不变。Runtime/Frontend/Desktop 的有效构建图已追到当前最新，未消费的传递 module metadata 不以虚假 indirect pin 强行覆盖。
 - P184 已准入并完成：Go 1.27 方法泛型把 operation 注册与 typed invocation 分别收回 `Registry` / `Endpoint`，删除无 owner 的自由泛型入口；86 个 wire method identity 收敛为就近声明的 `operation.Name`，注册、materialization 与 embedded binding 不再重复字符串。Hook allow 与 Tool mutation scope 在边界显式建模，无效零值 fail closed；固定字段校验按 owner 显式执行，不使用 map 参数袋。公共 Protocol、Artifact、SQLite、Desktop binding 与 Agent Framework execution contract不变。
 - P183 已准入并完成：稳定配置/持久化/wire/telemetry 枚举改为自校验命名字符串值对象，删除 SQLite、checkpoint 与 delivery 中重复的 ordinal/text codec；零值不再承担默认业务语义。位图、协议数值码和纯内部 FSM 判别值保持数值建模。`session_permission_modes` 改为 TEXT，SQLite epoch 一次性升至 83，不迁移、不双读；公共 Protocol shape、Artifact、Desktop binding 与 Agent Framework execution contract 不变。
 - P182 已准入并完成：Core 六个模型模态把产物统一为 `Output`，Runtime 只迁移 `chat.Response.Output` consumer、测试和独立 module requirements；Interaction owner wire 随 Agent Baseline 26 升为 state/protocol v8/v7。旧 `Result` API、JSON tag 和兼容读取均不保留；Runtime Protocol、Artifact、SQLite、公共 Go API、Desktop、Wails 与 `app/cli` 不改变。
@@ -494,10 +497,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P182     | Core 模型产物统一为 `Output`                                                                 | Runtime consumer 与独立 module requirements 原子迁移；Agent state/protocol baseline 同步升级                                                   |
 | P183     | Runtime 稳定枚举值对象与持久化表示收敛                                                       | named string values；删除 ordinal/text codec；显式零值语义；SQLite permission mode TEXT、epoch 83                                               |
 | P184     | Operation 泛型行为、协议身份与边界零值收敛                                                    | `Registry` / `Endpoint` generic methods；`operation.Name` 单一身份；Hook/Tool invalid zero fail closed                                          |
+| P185     | App 依赖图整体升级与退役 API 根修                                                              | Agent Schema owner、TS7 Project/Snapshot、React lifecycle ownership、Wails beta.14；无兼容 shim                                                  |
 
 ## 5. 当前里程碑结论
 
-P113–P184 共同建立了以下不可回退的心智模型：
+P113–P185 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -550,7 +554,7 @@ P113–P184 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-24`；Wails v3 动态绑定保持。cross-build artifacts 与临时检查器均已回收，未启动 agent-browser，所有验证进程均已 join。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。P185 进一步通过 Runtime workspace/standalone full test/vet/build、43 条真实 HTTP E2E、Frontend 完整门禁、`npm outdated` 零更新、534 packages 零漏洞、Desktop workspace/standalone test/vet/build 与 Wails v3 beta.14 production build；TypeScript native compiler、Runtime E2E、Wails、Vite 与测试进程均已 join。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-24`、Agent Baseline 31；仅观察到既有 macOS deployment-target linker warning，未启动 agent-browser。cross-build artifacts 与临时检查器均已回收。
 
 ## 6. 新阶段准入
 

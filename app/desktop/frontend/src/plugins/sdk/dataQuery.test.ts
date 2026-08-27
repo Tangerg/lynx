@@ -24,7 +24,6 @@ beforeEach(() => {
     ...defaults,
     queries: {
       ...defaults.queries,
-      experimental_prefetchInRender: true,
       retry: false,
     },
   });
@@ -38,14 +37,13 @@ afterEach(async () => {
   restoreProductQueryDefaults = undefined;
 });
 
-function createWrapper(experimentalPrefetchInRender: boolean) {
+function createWrapper() {
   return function Wrapper({ children }: { children: ReactNode }) {
     const [client] = useState(
       () =>
         new QueryClient({
           defaultOptions: {
             queries: {
-              experimental_prefetchInRender: experimentalPrefetchInRender,
               retry: false,
               gcTime: Infinity,
             },
@@ -95,7 +93,7 @@ describe("createParameterizedDataQuery", () => {
 
     const { result, rerender } = renderHook(({ workspace }) => useResource({ workspace }), {
       initialProps: { workspace: "/work/old" },
-      wrapper: createWrapper(true),
+      wrapper: createWrapper(),
     });
     await waitFor(() => expect(result.current.data).toBe("old value"));
 
@@ -112,15 +110,11 @@ describe("createParameterizedDataQuery", () => {
     const useResource = createParameterizedDataQuery<{ id: string }, string>("resource");
 
     const { result } = renderHook(() => useResource(undefined), {
-      wrapper: createWrapper(false),
+      wrapper: createWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe("idle");
     expect(fetcher).not.toHaveBeenCalled();
-    // QueryObserver always creates the promise surface, even for a deliberately
-    // disabled query. Read its documented rejection so the test owns and
-    // settles that otherwise-unused observer resource.
-    await expect(result.current.promise).rejects.toThrow("experimental_prefetchInRender");
   });
 
   it("hands a mounted cache writer to the successor Plugin Host", async () => {
@@ -224,19 +218,11 @@ describe("createParameterizedDataQuery", () => {
     ]);
     ownedHosts.push(host);
     const specDefaults = queryClient.getDefaultOptions();
-    queryClient.setDefaultOptions({
-      ...specDefaults,
-      queries: {
-        ...specDefaults.queries,
-        experimental_prefetchInRender: false,
-      },
-    });
     const params = { id: "same" };
     const useResource = createParameterizedDataQuery<typeof params, string>("resource");
     const hook = renderHook(() => useResource(params), {
       wrapper: productQueryWrapper,
     });
-    await expect(hook.result.current.promise).rejects.toThrow("experimental_prefetchInRender");
     await waitFor(() => expect(retiredFetcher).toHaveBeenCalledOnce());
     hook.unmount();
     expect(

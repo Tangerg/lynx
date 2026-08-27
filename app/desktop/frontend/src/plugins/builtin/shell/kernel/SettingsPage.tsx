@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import type { IconName } from "@/ui";
 import { Button, Icon, SearchField, SkeletonList, VerticalTabs } from "@/ui";
 import { AgentSurfaceHeader } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {
-  clearWorkspaceSettingsPaneTarget,
-  getWorkspaceSettingsPaneTarget,
+  openWorkspaceSettingsPane,
   selectWorkspaceChat,
   useWorkspaceSettingsPaneTarget,
 } from "@/plugins/builtin/workspace/public/navigation";
@@ -29,15 +28,7 @@ export function SettingsPage() {
   const t = useT();
   const panes = useSettingsPanes();
   const targetPane = useWorkspaceSettingsPaneTarget();
-  const [selectedId, setSelectedId] = useState<string | undefined>(
-    () => getWorkspaceSettingsPaneTarget() ?? undefined,
-  );
   const [query, setQuery] = useState("");
-  useEffect(() => {
-    if (!targetPane) return;
-    setSelectedId(targetPane);
-    clearWorkspaceSettingsPaneTarget();
-  }, [targetPane]);
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
   const known = new Set(GROUPS.map((g) => g.id));
@@ -69,14 +60,16 @@ export function SettingsPage() {
   })).filter((g) => g.items.length > 0);
   const visibleItems = grouped.flatMap((group) => group.items);
   const activeId =
-    selectedId && visibleItems.some((p) => p.id === selectedId) ? selectedId : visibleItems[0]?.id;
+    targetPane && visibleItems.some((p) => p.id === targetPane) ? targetPane : visibleItems[0]?.id;
 
   return (
     <VerticalTabs
       ariaLabel={t("settings.title")}
       groups={grouped}
       value={activeId}
-      onValueChange={setSelectedId}
+      onValueChange={(pane) => {
+        if (pane) openWorkspaceSettingsPane(pane);
+      }}
       railHeader={
         <SettingsRailHeader
           query={query}

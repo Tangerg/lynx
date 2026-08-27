@@ -11,7 +11,7 @@
 // Three-tier rate by backlog + a drain mode when the stream ends keep the
 // visible cadence on-target through vsync jitter and bursty chunking.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { segmentWords } from "@/lib/i18n/segmentWords";
 
 // Rates in chars/sec. The visible cadence picks one based on backlog and
@@ -90,21 +90,22 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
   });
 
   // Mirror the live flags into refs so the rAF closure picks up the latest
-  // values without re-subscribing.
+  // values without re-subscribing. Layout synchronization publishes the new
+  // render before the next browser frame can advance the old material.
   const enabledRef = useRef(active);
-  enabledRef.current = active;
   const typewriterRef = useRef(typewriter);
-  typewriterRef.current = typewriter;
-
-  // Sync rawText into refs on each render. Re-segment only when text
-  // actually changed.
-  if (stateRef.current.rawText !== rawText) {
-    stateRef.current.rawText = rawText;
-    stateRef.current.words = segmentWords(rawText);
-    if (stateRef.current.displayLen > rawText.length) {
-      stateRef.current.displayLen = rawText.length;
+  useLayoutEffect(() => {
+    enabledRef.current = active;
+    typewriterRef.current = typewriter;
+    const state = stateRef.current;
+    if (state.rawText !== rawText) {
+      state.rawText = rawText;
+      state.words = segmentWords(rawText);
+      if (state.displayLen > rawText.length) {
+        state.displayLen = rawText.length;
+      }
     }
-  }
+  }, [active, rawText, typewriter]);
 
   // rAF bookkeeping. 0 = parked. The loop PARKS at zero backlog instead of
   // self-rescheduling forever: every mounted message owns one of these hooks,
@@ -233,25 +234,15 @@ export function useCommitThrottle(value: string, minMs: number): string {
   const lastCommitRef = useRef(0);
 
   useEffect(() => {
-    if (minMs <= 0) {
-      setCommitted(value);
-      return;
-    }
+    if (minMs <= 0) return;
     const elapsed = performance.now() - lastCommitRef.current;
-    if (elapsed >= minMs) {
-      lastCommitRef.current = performance.now();
-      setCommitted(value);
-      return;
-    }
-    // Inside the window — schedule a trailing commit of this (latest) value.
-    // A newer value re-runs the effect, whose cleanup clears this timer and
-    // schedules one for the newer value, so the trailing edge is always fresh.
+    const delay = Math.max(0, minMs - elapsed);
     const id = setTimeout(() => {
       lastCommitRef.current = performance.now();
       setCommitted(value);
-    }, minMs - elapsed);
+    }, delay);
     return () => clearTimeout(id);
   }, [value, minMs]);
 
-  return committed;
+  return minMs <= 0 ? value : committed;
 }

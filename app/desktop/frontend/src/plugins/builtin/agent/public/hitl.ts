@@ -1,6 +1,6 @@
 export { submitPendingApproval } from "../application/hitl/submitPendingApproval";
 export { useApprovalSubmit } from "../application/hitl/useApprovalSubmit";
-export type { ApprovalActions, ApprovalSubmitOptions } from "../application/hitl/useApprovalSubmit";
+export type { ApprovalSubmitOptions } from "../application/hitl/useApprovalSubmit";
 export { useQuestionAnswer } from "../application/hitl/useQuestionAnswer";
 export type { ApprovalDecision, RememberScope } from "../domain/hitl";
 export { PENDING_WORK_KEY, usePendingWork } from "../application/hitl/pendingWork";

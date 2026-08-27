@@ -19,7 +19,6 @@ import { metrics } from "@opentelemetry/api";
 
 interface Instruments {
   reducer: Histogram;
-  markdown: Histogram;
   shiki: Histogram;
   mermaid: Histogram;
   events: Counter;
@@ -34,10 +33,6 @@ export function bindMetricInstruments(): void {
   inst = {
     reducer: meter.createHistogram("lyra.reducer.duration", {
       description: "Time spent reducing one StreamEvent",
-      unit: "ms",
-    }),
-    markdown: meter.createHistogram("lyra.markdown.repair.duration", {
-      description: "Time spent in the markdown mid-stream repair step (remend) for one body",
       unit: "ms",
     }),
     shiki: meter.createHistogram("lyra.shiki.highlight.duration", {
@@ -71,24 +66,10 @@ export function measureReduce<T>(eventType: string, fn: () => T): T {
   }
 }
 
-export function measureMarkdownRepair(ms: number, textLength: number, streaming: boolean): void {
-  inst?.markdown.record(ms, { streaming, lengthBucket: bucketLength(textLength) });
-}
-
 export function measureShikiHighlight(ms: number, lang: string): void {
   inst?.shiki.record(ms, { lang });
 }
 
 export function measureMermaidRender(ms: number): void {
   inst?.mermaid.record(ms);
-}
-
-// Coarse buckets — keeps cardinality bounded without losing the
-// "tiny vs huge body" signal that drives perf decisions.
-function bucketLength(n: number): string {
-  if (n < 100) return "<100";
-  if (n < 500) return "<500";
-  if (n < 2000) return "<2000";
-  if (n < 10000) return "<10000";
-  return ">=10000";
 }

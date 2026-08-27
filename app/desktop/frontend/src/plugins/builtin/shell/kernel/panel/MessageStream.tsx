@@ -106,6 +106,18 @@ function turnDayKey(message: Message): string | null {
   return key;
 }
 
+function transcriptDayBreaks(rows: readonly TranscriptRow[]): readonly boolean[] {
+  // A turn with no timestamp neither opens a day nor breaks the chain: absent
+  // means no information, not a different day.
+  let previousDay: string | null = null;
+  return rows.map((row) => {
+    const currentDay = turnDayKey(row.message);
+    const opensDay = currentDay !== null && previousDay !== null && currentDay !== previousDay;
+    if (currentDay !== null) previousDay = currentDay;
+    return opensDay;
+  });
+}
+
 /** Two distances, not one. A flat gap made a turn's own blocks sit as far apart as two
  *  separate turns, so nothing on the page said "these belong together" — the reference
  *  spends 4px inside a turn and 16px between them, and that ratio is what groups a
@@ -284,11 +296,7 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
   // No empty branch: the only caller mounts this once a transcript exists, while
   // empty home is its own centred layout without a scroller.
 
-  // The last day seen, carried across the map below. A turn with no timestamp neither
-  // opens a day nor breaks the chain — absent is not a different day, it is no
-  // information, and letting it reset this put a separator above the next turn that had
-  // one.
-  let previousDay: string | null = null;
+  const dayBreaks = transcriptDayBreaks(rows);
 
   return (
     <StickToBottom
@@ -311,9 +319,6 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
       >
         <AnimatePresence initial={false}>
           {rows.map((row, index) => {
-            const day = turnDayKey(row.message);
-            const opensDay = day !== null && previousDay !== null && day !== previousDay;
-            if (day !== null) previousDay = day;
             const previousRole = index > 0 ? rows[index - 1]?.message.role : undefined;
             return (
               <TranscriptTurn
@@ -325,7 +330,7 @@ export function MessageStream({ rows, ctx, sessionId, controllerRef }: Props) {
                 isRunning={running}
                 answerFollows={finalAnswerFollows(row.message, rows[index + 1]?.message)}
                 terminalRun={index === terminalTurnIndex ? currentRoot : null}
-                opensDay={opensDay}
+                opensDay={dayBreaks[index] ?? false}
                 gap={
                   previousRole === undefined
                     ? "none"

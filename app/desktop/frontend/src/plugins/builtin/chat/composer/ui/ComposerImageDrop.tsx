@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { Icon } from "@/ui";
@@ -11,24 +11,23 @@ interface Props {
 }
 
 export function ComposerImageDrop({ enabled, onDropImages }: Props) {
-  const dragging = useWindowImageDrag(enabled, onDropImages);
+  return enabled ? <EnabledComposerImageDrop onDropImages={onDropImages} /> : null;
+}
+
+function EnabledComposerImageDrop({ onDropImages }: Pick<Props, "onDropImages">) {
+  const dragging = useWindowImageDrag(onDropImages);
   return dragging ? <ImageDropOverlay /> : null;
 }
 
 // Nested dragenter/dragleave events fire as the pointer crosses child elements,
 // so depth is the overlay's flicker guard. preventDefault stays scoped to image
 // drags, leaving unrelated native drop targets alone.
-function useWindowImageDrag(enabled: boolean, onDropImages: (files: File[]) => void): boolean {
+function useWindowImageDrag(onDropImages: (files: File[]) => void): boolean {
   const [dragging, setDragging] = useState(false);
   const depth = useRef(0);
-  const onDropRef = useRef(onDropImages);
-  onDropRef.current = onDropImages;
+  const deliverImages = useEffectEvent(onDropImages);
 
   useEffect(() => {
-    if (!enabled) {
-      setDragging(false);
-      return;
-    }
     const hasImageItems = (dt: DataTransfer | null | undefined): boolean =>
       hasComposerImageTransferItems(dt?.items);
 
@@ -52,7 +51,7 @@ function useWindowImageDrag(enabled: boolean, onDropImages: (files: File[]) => v
       const files = imageFiles(event.dataTransfer?.files);
       if (files.length === 0) return;
       event.preventDefault();
-      onDropRef.current(files);
+      deliverImages(files);
     };
 
     window.addEventListener("dragenter", onEnter);
@@ -66,7 +65,7 @@ function useWindowImageDrag(enabled: boolean, onDropImages: (files: File[]) => v
       window.removeEventListener("drop", onDrop);
       depth.current = 0;
     };
-  }, [enabled]);
+  }, []);
 
   return dragging;
 }

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { extname, relative } from "node:path";
-import ts from "typescript";
+import { relative, resolve } from "node:path";
+import { API } from "typescript/unstable/sync";
+import * as ts from "typescript/unstable/ast";
 
 const SRC = new URL("../src/", import.meta.url).pathname;
+const ROOT = new URL("../", import.meta.url).pathname;
+const TSCONFIG = resolve(ROOT, "tsconfig.json");
 const PRIMITIVES = "ui/primitives/";
 const DESIGN_SYSTEM_RINGS = ["ui/primitives/", "ui/atoms/", "ui/agent/"];
 const NATIVE_INTERACTIVE_TAGS = new Set([
@@ -29,14 +31,6 @@ const NATIVE_INTERACTIVE_ROLES = new Set([
   "treeitem",
 ]);
 
-function* walk(dir) {
-  for (const entry of readdirSync(dir)) {
-    const path = `${dir}${entry}`;
-    if (statSync(path).isDirectory()) yield* walk(`${path}/`);
-    else yield path;
-  }
-}
-
 function isTestFile(path) {
   return /\.(?:spec|test)\.[jt]sx?$/.test(path) || path.includes("/__tests__/");
 }
@@ -56,18 +50,25 @@ function stringAttribute(node, name) {
 }
 
 const violations = [];
+const compiler = new API({ cwd: ROOT });
+let compilerClosed = false;
+function closeCompiler() {
+  if (compilerClosed) return;
+  compilerClosed = true;
+  compiler.close();
+}
+process.once("exit", closeCompiler);
+const snapshot = compiler.updateSnapshot({ openProjects: [TSCONFIG] });
+const project = snapshot.getProject(TSCONFIG);
+if (!project) throw new Error("TypeScript did not load tsconfig.json");
 
-for (const path of walk(SRC)) {
-  if (![".ts", ".tsx"].includes(extname(path)) || isTestFile(path)) continue;
+for (const fileName of project.program.getSourceFileNames()) {
+  const path = resolve(fileName);
+  if (!path.startsWith(SRC) || isTestFile(path)) continue;
 
   const rel = relative(SRC, path);
-  const sourceFile = ts.createSourceFile(
-    path,
-    readFileSync(path, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  );
+  const sourceFile = project.program.getSourceFile(path);
+  if (!sourceFile) continue;
   const insidePrimitives = rel.startsWith(PRIMITIVES);
   const insideDesignSystem = DESIGN_SYSTEM_RINGS.some((prefix) => rel.startsWith(prefix));
 
@@ -107,11 +108,13 @@ for (const path of walk(SRC)) {
       }
     }
 
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   }
 
   visit(sourceFile);
 }
+
+closeCompiler();
 
 if (violations.length > 0) {
   console.error(`check-design-system-boundaries: ${violations.length} abstraction bypass(es)\n`);

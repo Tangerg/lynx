@@ -14,7 +14,6 @@ import { createMarkdownComponents } from "./markdownComponents";
 import { isInlineMarkdownImage } from "./MarkdownImage";
 import { handleMarkdownCopy } from "./markdownSelectionCopy";
 import { ensureKatexCss } from "./katexCss";
-import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeFadeIn } from "./rehypeFadeIn";
 import { rehypeFileRefs } from "./rehypeFileRefs";
 import { rehypeStreamCaret } from "./rehypeStreamCaret";
@@ -116,11 +115,8 @@ export function MarkdownMessage(props: Props) {
   // more reliably on well-formed markdown. Skipped for instant messages.
   const repaired = useMemo(() => {
     if (instant) return normalized;
-    const start = performance.now();
-    const out = remend(normalized);
-    measureMarkdownRepair(performance.now() - start, normalized.length, !!streaming);
-    return out;
-  }, [normalized, streaming, instant]);
+    return remend(normalized);
+  }, [instant, normalized]);
 
   const blocks = useMemo(() => parseMarkdownIntoBlocks(repaired), [repaired]);
   const lastIdx = blocks.length - 1;

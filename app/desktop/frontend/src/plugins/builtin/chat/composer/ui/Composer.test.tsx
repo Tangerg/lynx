@@ -19,12 +19,12 @@ vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
 function wrap(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: {
-      queries: { experimental_prefetchInRender: true, retry: false, gcTime: Infinity },
+      queries: { retry: false, gcTime: Infinity },
     },
   });
   // These Composer cases do not open a mention. Seed the disabled query's
-  // identity so its observer owns a completed promise without inventing a
-  // Runtime provider or coupling this component spec to a transport adapter.
+  // identity without inventing a Runtime provider or coupling this component
+  // spec to a transport adapter.
   client.setQueryData([WORKSPACE_LIST_FILES_KEY, undefined], []);
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }

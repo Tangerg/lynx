@@ -30,7 +30,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   queryClient = new QueryClient({
-    defaultOptions: { queries: { experimental_prefetchInRender: true, retry: false } },
+    defaultOptions: { queries: { retry: false } },
   });
   transport = createMemoryTransport();
   client = createLyraClient(transport);

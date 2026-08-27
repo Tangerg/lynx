@@ -9,7 +9,7 @@ import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type ApprovalModeIntent = {
   mode: ApprovalMode;
@@ -19,14 +19,11 @@ type ApprovalModeIntent = {
 export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   const t = useT();
   const [intent, setIntent] = useState<ApprovalModeIntent>(null);
-  useEffect(() => {
-    if (intent?.settlement === "accepted-awaiting-projection" && intent.mode === mode) {
-      setIntent(null);
-    }
-  }, [intent, mode]);
+  const activeIntent =
+    intent?.settlement === "accepted-awaiting-projection" && intent.mode === mode ? null : intent;
 
   const onChange = async (next: ApprovalMode) => {
-    if (intent !== null || next === mode) return;
+    if (activeIntent !== null || next === mode) return;
     setIntent({ mode: next, settlement: "pending" });
     try {
       const accepted = await saveApprovalMode(next);
@@ -53,8 +50,8 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
       ) : (
         <div className="mt-3 flex flex-col gap-0.5">
           {APPROVAL_MODES.map((o) => {
-            const selected = o.value === (intent?.mode ?? mode);
-            const saving = o.value === intent?.mode;
+            const selected = o.value === (activeIntent?.mode ?? mode);
+            const saving = o.value === activeIntent?.mode;
             return (
               <Pressable
                 key={o.value}
@@ -62,7 +59,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                 aria-pressed={selected}
                 aria-label={t(o.labelKey)}
                 aria-busy={saving || undefined}
-                disabled={intent !== null}
+                disabled={activeIntent !== null}
                 onClick={() => void onChange(o.value)}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-3 text-left transition-colors",

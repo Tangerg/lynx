@@ -27,15 +27,14 @@ function session(id: string): AgentSessionSummary {
 
 beforeEach(() => {
   queryClient = new QueryClient({
-    defaultOptions: { queries: { experimental_prefetchInRender: true, retry: false } },
+    defaultOptions: { queries: { retry: false } },
   });
   queryClient.setQueryData([AGENT_SESSIONS_KEY], [session("ses_a"), session("ses_b")]);
 });
 
 afterEach(() => {
   // Detach the QueryObserver before removing its cache entry. Removing a live
-  // query transitions the observer back to pending and TanStack intentionally
-  // creates a never-settled thenable for that state.
+  // query transitions the observer back to pending.
   unmountHook?.();
   unmountHook = undefined;
   restoreState?.();

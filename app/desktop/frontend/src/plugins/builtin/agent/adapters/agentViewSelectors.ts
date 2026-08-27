@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { navigator } from "@/lib/navigation";
 import type {
@@ -38,6 +38,21 @@ function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
   );
 }
 
+type AgentStoreState = ReturnType<typeof useAgentStore.getState>;
+
+class TranscriptRowsProjection {
+  private cache: TranscriptRowCache = EMPTY_TRANSCRIPT_ROW_CACHE;
+
+  constructor(private readonly sessionId: string) {}
+
+  select(state: AgentStoreState): readonly TranscriptRow[] {
+    const view = state.sessions[this.sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW;
+    const built = buildTranscriptRows(view, this.cache);
+    this.cache = built.cache;
+    return built.rows;
+  }
+}
+
 export function useCurrentRootRun() {
   return useActiveAgentView(selectCurrentRootRun);
 }
@@ -65,18 +80,12 @@ export function useRootNarrativeMessages(): Message[] {
 }
 
 export function useTranscriptRows(): readonly TranscriptRow[] {
-  const view = useActiveAgentView((current) => current);
-  // The cache has to outlive the build that produced it — reusing the previous rows is
-  // the entire mechanism, and a value closed over by `useMemo` is discarded the moment
-  // its deps change. Writing a ref during render is safe here because the build is pure
-  // in `(view, cache)`: a render React throws away leaves rows that are still valid for
-  // the view they were built from, so the next build either reuses or replaces them.
-  const cache = useRef<TranscriptRowCache>(EMPTY_TRANSCRIPT_ROW_CACHE);
-  return useMemo(() => {
-    const built = buildTranscriptRows(view, cache.current);
-    cache.current = built.cache;
-    return built.rows;
-  }, [view]);
+  const sessionId = navigator().use((location) => location.session);
+  const selectRows = useMemo(() => {
+    const projection = new TranscriptRowsProjection(sessionId);
+    return (state: AgentStoreState): readonly TranscriptRow[] => projection.select(state);
+  }, [sessionId]);
+  return useAgentStore(selectRows);
 }
 
 export function useRunTree(): AgentRunTreeNode[] {

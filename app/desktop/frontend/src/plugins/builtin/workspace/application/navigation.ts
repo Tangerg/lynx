@@ -124,14 +124,6 @@ export function openWorkspaceSettingsPane(pane: string): void {
   workspaceNavigation().openView("settings");
 }
 
-export function getWorkspaceSettingsPaneTarget(): string | null {
-  return workspaceNavigation().settingsPaneTarget();
-}
-
-export function clearWorkspaceSettingsPaneTarget(): void {
-  workspaceNavigation().setSettingsPane(null);
-}
-
 export function openWorkspaceDiffForFile(path: string): void {
   workspaceNavigation().focusFile(path);
   workspaceNavigation().openViewInDock("diff");

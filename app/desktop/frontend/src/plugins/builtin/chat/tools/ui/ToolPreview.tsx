@@ -12,6 +12,7 @@ import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";
 import { toolRoutingKey } from "../public/toolIcon";
+import { createElement } from "react";
 
 interface Props {
   tool: ToolCall;
@@ -26,7 +27,7 @@ export function ToolPreview({ tool, onOpenView }: Props) {
   }
   return (
     <PluginBoundary plugin={key} label={`${tool.fn} preview`}>
-      <Preview tool={tool} onOpenView={onOpenView} />
+      {createElement(Preview, { tool, onOpenView })}
     </PluginBoundary>
   );
 }

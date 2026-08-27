@@ -39,7 +39,7 @@ function open(): ReactElement {
 function wrap(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: {
-      queries: { experimental_prefetchInRender: true, retry: false, gcTime: Infinity },
+      queries: { retry: false, gcTime: Infinity },
     },
   });
   client.setQueryData([AGENT_SESSIONS_KEY], []);

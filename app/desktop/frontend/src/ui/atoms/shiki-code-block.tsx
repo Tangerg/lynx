@@ -25,6 +25,13 @@ interface Props {
   previewLabel?: string;
 }
 
+interface HighlightedCode {
+  lang: string;
+  theme: string;
+  code: string;
+  html: string;
+}
+
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
 // run on every stream-reveal delta during streaming. While it's settling,
 // raw code shows in a <pre> fallback.
@@ -41,19 +48,25 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
   // toggle returning to a prior theme, MarkdownBlock memo invalidation
   // on a long history) skips both the async highlighter resolution and
   // the tokenizer call. Cache key is (lang, theme, exact-code).
-  const [html, setHtml] = useState<string | null>(
-    () => getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
+  const cachedHtml = getCachedHighlight(lang, shikiTheme, debouncedCode);
+  const [highlighted, setHighlighted] = useState<HighlightedCode | null>(() =>
+    cachedHtml === undefined
+      ? null
+      : { lang, theme: shikiTheme, code: debouncedCode, html: cachedHtml },
   );
+  const html =
+    cachedHtml ??
+    (highlighted?.lang === lang &&
+    highlighted.theme === shikiTheme &&
+    highlighted.code === debouncedCode
+      ? highlighted.html
+      : null);
   const wrapCode = useCodeWrapPreference();
   const { copied, copy } = useCopyFeedback(code);
 
   useEffect(() => {
     // Fast path — cache hit means we never wake the async highlighter.
-    const cached = getCachedHighlight(lang, shikiTheme, debouncedCode);
-    if (cached !== undefined) {
-      setHtml(cached);
-      return;
-    }
+    if (cachedHtml !== undefined) return;
 
     let cancelled = false;
     getHighlighter()
@@ -68,18 +81,16 @@ export function ShikiCodeBlock({ lang, code, file, preview, previewLabel }: Prop
           });
           measureShikiHighlight(performance.now() - start, resolvedLang);
           setCachedHighlight(lang, shikiTheme, debouncedCode, out);
-          setHtml(out);
+          setHighlighted({ lang, theme: shikiTheme, code: debouncedCode, html: out });
         } catch {
-          setHtml(null);
+          // Raw code remains the stable fallback for unsupported grammars.
         }
       })
-      .catch(() => {
-        if (!cancelled) setHtml(null);
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [lang, debouncedCode, shikiTheme]);
+  }, [cachedHtml, lang, debouncedCode, shikiTheme]);
 
   // Streaming → raw <pre> fallback; settled → swap to highlighted.
   // Falls back indefinitely if the highlighter never resolves.

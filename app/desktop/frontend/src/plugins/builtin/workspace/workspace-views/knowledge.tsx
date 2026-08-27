@@ -2,7 +2,7 @@
 // loads into the agent's context. One entry per scope expands into an inline
 // whole-file editor.
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Collapsible, DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -28,32 +28,25 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const listedDocument = {
-    content: row.content,
-    revision: row.revision,
-    ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
-  };
+  const listedDocument = useMemo(
+    () => ({
+      content: row.content,
+      revision: row.revision,
+      ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+    }),
+    [row.content, row.revision, row.updatedAt],
+  );
   const latestListedDocument = useRef(listedDocument);
-  latestListedDocument.current = listedDocument;
-  const [editor, setEditor] = useState(() => KnowledgeDraft.open(listedDocument));
+  useLayoutEffect(() => {
+    latestListedDocument.current = listedDocument;
+  }, [listedDocument]);
+  const [storedEditor, setEditor] = useState(() => KnowledgeDraft.open(listedDocument));
+  const editor = storedEditor.reconcile(listedDocument);
   const [saving, setSaving] = useState(false);
   // Synchronous latch — `saving` state lags a render, so a double-click before
   // the disabled state applies would otherwise fire two knowledge.update writes.
   const savingRef = useRef(false);
   const dirty = editor.dirty;
-
-  // Event-driven list refetches refresh clean editors in place. Dirty drafts
-  // deliberately keep their baseline until save, where CAS either commits or
-  // rebases them onto the latest exact document.
-  useEffect(() => {
-    setEditor((current) =>
-      current.reconcile({
-        content: row.content,
-        revision: row.revision,
-        ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
-      }),
-    );
-  }, [row.content, row.revision, row.updatedAt]);
 
   const toggle = (): void => {
     setOpen((current) => !current);
@@ -127,7 +120,9 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
           <TextArea
             aria-label={t("knowledge.aria", { path: row.path })}
             value={editor.draft}
-            onChange={(e) => setEditor((current) => current.edit(e.target.value))}
+            onChange={(e) =>
+              setEditor((current) => current.reconcile(listedDocument).edit(e.target.value))
+            }
             spellCheck={false}
             rows={12}
             className="text-fg-soft"
@@ -139,7 +134,7 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
             <PillButton
               size="sm"
               disabled={!dirty || saving}
-              onClick={() => setEditor((current) => current.revert())}
+              onClick={() => setEditor((current) => current.reconcile(listedDocument).revert())}
             >
               {t("knowledge.revert")}
             </PillButton>

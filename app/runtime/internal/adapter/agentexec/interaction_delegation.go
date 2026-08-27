@@ -10,7 +10,6 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/agent/interaction"
 	corechat "github.com/Tangerg/scope/core/chat"
-	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 const (
@@ -143,15 +142,11 @@ func newDelegatedInteractionDefinition(
 	}, nil
 }
 
-// runtimeContractSchema preserves Runtime's established jsonschema tag
-// vocabulary at the Agent Framework ACL. Agent Framework accepts the resulting neutral JSON
-// Schema and remains independent of Runtime's tool-contract implementation.
+// runtimeContractSchema derives the delegated contract through the Agent
+// Framework's schema owner. Both sides use Core's canonical JSON Schema
+// implementation, so the wire vocabulary has no adapter-local representation.
 func runtimeContractSchema[T any]() (agent.Schema, error) {
-	raw, err := toolcontract.Schema[T]()
-	if err != nil {
-		return agent.Schema{}, err
-	}
-	return agent.ParseSchema(raw)
+	return agent.SchemaFor[T]()
 }
 
 func (d *delegatedInteractionDefinition) Descriptor() agent.Descriptor {

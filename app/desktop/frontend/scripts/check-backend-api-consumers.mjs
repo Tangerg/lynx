@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { resolve, relative, sep } from "node:path";
-import ts from "typescript";
+import { API, SymbolFlags, TypeFlags } from "typescript/unstable/sync";
+import * as ts from "typescript/unstable/ast";
 
 const ROOT = process.cwd();
 const METHODS_PATH = resolve(ROOT, "src/rpc/methods.ts");
@@ -15,6 +16,7 @@ const EVENT_ADAPTER_PATH = resolve(
   ROOT,
   "src/plugins/builtin/workspace/events/adapters/runtimeWorkspaceEvents.ts",
 );
+const TSCONFIG_PATH = resolve(ROOT, "tsconfig.json");
 
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
 const operations = new Set(manifest.methods.map((method) => method.name));
@@ -25,14 +27,19 @@ const sidecarEndpoints = new Set(
 );
 const runtimeTopics = new Set(manifest.runtimeTopics.map((topic) => topic.type));
 
-const configPath = ts.findConfigFile(ROOT, ts.sys.fileExists, "tsconfig.json");
-if (!configPath) fail(["tsconfig.json was not found"]);
-const config = ts.readConfigFile(configPath, ts.sys.readFile);
-if (config.error) fail([formatDiagnostic(config.error)]);
-const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, ROOT);
-if (parsed.errors.length > 0) fail(parsed.errors.map(formatDiagnostic));
-const program = ts.createProgram(parsed.fileNames, parsed.options);
-const checker = program.getTypeChecker();
+const compiler = new API({ cwd: ROOT });
+let compilerClosed = false;
+function closeCompiler() {
+  if (compilerClosed) return;
+  compilerClosed = true;
+  compiler.close();
+}
+process.once("exit", closeCompiler);
+const snapshot = compiler.updateSnapshot({ openProjects: [TSCONFIG_PATH] });
+const project = snapshot.getProject(TSCONFIG_PATH);
+if (!project) fail([`TypeScript did not load ${relative(ROOT, TSCONFIG_PATH)}`]);
+const program = project.program;
+const checker = project.checker;
 const methodsSource = program.getSourceFile(METHODS_PATH);
 if (!methodsSource) fail([`TypeScript did not load ${relative(ROOT, METHODS_PATH)}`]);
 const sidecarSource = program.getSourceFile(SIDECAR_PATH);
@@ -46,15 +53,17 @@ const sidecarMethodMap = mappedSidecarMethods();
 const consumerCalls = new Map();
 const sidecarConsumerCalls = new Map();
 const discardedResults = [];
-for (const source of program.getSourceFiles()) {
+for (const fileName of program.getSourceFileNames()) {
+  const source = program.getSourceFile(fileName);
+  if (!source) continue;
   const sourcePath = resolve(source.fileName);
   if (!isProductSource(sourcePath)) continue;
   visit(source, (node) => {
     if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return;
     let symbol = checker.getSymbolAtLocation(node.expression.name);
     if (!symbol) return;
-    if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-    for (const declaration of symbol.declarations ?? []) {
+    if (symbol.flags & SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+    for (const declaration of declarationsOf(symbol)) {
       const declarationPath = resolve(declaration.getSourceFile().fileName);
       let wrapper;
       let target;
@@ -130,6 +139,7 @@ if (errors.length > 0) fail(errors);
 const callCount =
   [...consumerCalls.values()].reduce((total, locations) => total + locations.size, 0) +
   [...sidecarConsumerCalls.values()].reduce((total, locations) => total + locations.size, 0);
+closeCompiler();
 console.log(
   `check-backend-api-consumers: ${operations.size}/${operations.size} Runtime operation fact families have product coverage (${directlyConsumedOperations.size} direct operations, ${materializedOperations.size} materialized through server composites), ${sidecarEndpoints.size}/${sidecarEndpoints.size} HTTP sidecars, and ${runtimeTopics.size}/${runtimeTopics.size} event types have product consumers (${callCount} typed call sites)`,
 );
@@ -244,14 +254,14 @@ function wireOperationsIn(initializer) {
       const operation = constantString(node.arguments[0]);
       if (operation && operations.has(operation)) found.add(operation);
     }
-    ts.forEachChild(node, scan);
+    node.forEachChild(scan);
   };
 
   const scanInitializer = (node) => {
     if (ts.isIdentifier(node)) {
       let symbol = checker.getSymbolAtLocation(node);
-      if (symbol?.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-      for (const declaration of symbol?.declarations ?? []) {
+      if (symbol?.flags & SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+      for (const declaration of declarationsOf(symbol)) {
         if (!ts.isVariableDeclaration(declaration) || !declaration.initializer) continue;
         if (scannedInitializers.has(declaration)) continue;
         scannedInitializers.add(declaration);
@@ -270,8 +280,8 @@ function constantString(expression) {
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   if (!ts.isIdentifier(node)) return undefined;
   let symbol = checker.getSymbolAtLocation(node);
-  if (symbol?.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
-  for (const declaration of symbol?.declarations ?? []) {
+  if (symbol?.flags & SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+  for (const declaration of declarationsOf(symbol)) {
     if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
       const value = constantString(declaration.initializer);
       if (value !== undefined) return value;
@@ -286,7 +296,7 @@ function unwrapExpression(expression) {
     ts.isParenthesizedExpression(node) ||
     ts.isAsExpression(node) ||
     ts.isSatisfiesExpression(node) ||
-    ts.isTypeAssertionExpression(node)
+    ts.isTypeAssertion(node)
   ) {
     node = node.expression;
   }
@@ -298,9 +308,9 @@ function wrapperPath(declaration, declarationSourcePath) {
   let node = declaration;
   while (node && resolve(node.getSourceFile().fileName) === declarationSourcePath) {
     if (
-      (ts.isPropertySignature(node) ||
+      (ts.isPropertySignatureDeclaration(node) ||
         ts.isPropertyDeclaration(node) ||
-        ts.isMethodSignature(node)) &&
+        ts.isMethodSignatureDeclaration(node)) &&
       propertyName(node.name)
     ) {
       const name = propertyName(node.name);
@@ -314,20 +324,32 @@ function wrapperPath(declaration, declarationSourcePath) {
 
 function discardsNonVoidResult(call) {
   let expression = call;
+  let awaitedExpression;
   while (
     ts.isAwaitExpression(expression.parent) ||
     ts.isParenthesizedExpression(expression.parent) ||
     ts.isAsExpression(expression.parent) ||
     ts.isSatisfiesExpression(expression.parent) ||
-    ts.isTypeAssertionExpression(expression.parent) ||
+    ts.isTypeAssertion(expression.parent) ||
     ts.isNonNullExpression(expression.parent) ||
     ts.isVoidExpression(expression.parent)
   ) {
     expression = expression.parent;
+    if (ts.isAwaitExpression(expression)) awaitedExpression = expression;
   }
   if (!ts.isExpressionStatement(expression.parent)) return false;
-  const result = checker.getAwaitedType(checker.getTypeAtLocation(call));
-  return !result || (result.flags & (ts.TypeFlags.Void | ts.TypeFlags.Never)) === 0;
+  return hasMaterialResult(checker.getTypeAtLocation(awaitedExpression ?? call));
+}
+
+function hasMaterialResult(type) {
+  if (!type) return true;
+  if ((type.flags & (TypeFlags.Void | TypeFlags.Never)) !== 0) return false;
+  if (type.isUnionType()) return type.getTypes().some(hasMaterialResult);
+  if (!type.isTypeReference()) return true;
+  const symbol = type.getSymbol();
+  if (symbol?.name !== "Promise" && symbol?.name !== "PromiseLike") return true;
+  const [resolved] = checker.getTypeArguments(type);
+  return hasMaterialResult(resolved);
 }
 
 function propertyName(node) {
@@ -347,20 +369,12 @@ function isProductSource(sourcePath) {
 }
 
 function checkRuntimeTopics(targetErrors) {
-  const policy = ts.createSourceFile(
-    EVENT_POLICY_PATH,
-    readFileSync(EVENT_POLICY_PATH, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
-  const adapter = ts.createSourceFile(
-    EVENT_ADAPTER_PATH,
-    readFileSync(EVENT_ADAPTER_PATH, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+  const policy = program.getSourceFile(EVENT_POLICY_PATH);
+  const adapter = program.getSourceFile(EVENT_ADAPTER_PATH);
+  if (!policy || !adapter) {
+    targetErrors.push("TypeScript did not load the workspace event policy sources");
+    return;
+  }
 
   const ownedTypes = stringUnion(policy, "WorkspaceEventType");
   compareSets("WorkspaceEventType", runtimeTopics, ownedTypes, targetErrors);
@@ -416,15 +430,19 @@ function compareSets(label, expected, actual, targetErrors) {
 
 function visit(node, callback) {
   callback(node);
-  ts.forEachChild(node, (child) => visit(child, callback));
+  node.forEachChild((child) => visit(child, callback));
 }
 
-function formatDiagnostic(diagnostic) {
-  return ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+function declarationsOf(symbol) {
+  return (symbol?.declarations ?? []).flatMap((handle) => {
+    const declaration = handle.resolve(project);
+    return declaration ? [declaration] : [];
+  });
 }
 
 function fail(messages) {
   console.error("[check-backend-api-consumers] Failed:");
   for (const message of messages) console.error(`  - ${message}`);
+  closeCompiler();
   process.exit(1);
 }

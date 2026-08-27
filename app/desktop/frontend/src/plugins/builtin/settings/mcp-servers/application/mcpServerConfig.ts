@@ -51,7 +51,7 @@ export function useUpdateMCPServer(): (name: string, input: MCPServerInput) => P
 }
 
 export function useDeleteMCPServer(): (name: string) => Promise<void> {
-  return useCallback(deleteMCPServer, []);
+  return useCallback((name) => deleteMCPServer(name), []);
 }
 
 export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Promise<void> {
@@ -62,7 +62,7 @@ export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Pr
 }
 
 export function useAuthorizeMCPServer(): (name: string, signal?: AbortSignal) => Promise<void> {
-  return useCallback(authorizeMCPServer, []);
+  return useCallback((name, signal) => authorizeMCPServer(name, signal), []);
 }
 
 export async function authorizeMCPServer(name: string, signal?: AbortSignal): Promise<void> {
