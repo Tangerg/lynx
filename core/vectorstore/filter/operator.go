@@ -82,7 +82,7 @@ func (o Operator) LogicalString() (string, error) {
 	case OpOr:
 		return "OR", nil
 	default:
-		return "", fmt.Errorf("filter.Operator.LogicalString: expected logical operator, got %s", o.Name())
+		return "", fmt.Errorf("filter: format logical operator: expected logical operator, got %s", o.Name())
 	}
 }
 
@@ -102,7 +102,7 @@ func (o Operator) Inverse() (Operator, error) {
 	case OpGreaterEqual:
 		return OpLess, nil
 	default:
-		return "", fmt.Errorf("filter.Operator.Inverse: %s has no direct inverse", o.Name())
+		return "", fmt.Errorf("filter: invert operator: %s has no direct inverse", o.Name())
 	}
 }
 

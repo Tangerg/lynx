@@ -20,13 +20,12 @@ type ResponseMetadata struct {
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific response metadata into Extra.
 func (r *ResponseMetadata) Set(key string, value any) error {
 	if r == nil {
-		return fmt.Errorf("chat.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("chat: set response metadata: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := r.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("chat.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("chat: set response metadata: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -73,7 +72,6 @@ func (r ResponseMetadata) clone() *ResponseMetadata {
 	return &clone
 }
 
-// MarshalJSON validates ResponseMetadata before writing its wire representation.
 func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 	if err := (&r).validate(); err != nil {
 		return nil, err
@@ -82,10 +80,9 @@ func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireResponseMetadata(r))
 }
 
-// UnmarshalJSON decodes and validates ResponseMetadata before replacing the receiver.
 func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: response metadata receiver is nil", ErrInvalidResponse)
 	}
 	type wireResponseMetadata ResponseMetadata
 	var decoded wireResponseMetadata
@@ -102,24 +99,24 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 
 // Response is provider output with at most one generation output. Its zero
 // value is valid so a stream can represent an empty or metadata-only chunk.
+// Clone recursively snapshots nested protocol values before accumulation or
+// middleware retains them.
 type Response struct {
 	Output   *Output           `json:"output,omitempty"`
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds and validates a response from one output and shared metadata.
 func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error) {
 	if output == nil {
-		return nil, fmt.Errorf("chat.NewResponse: %w: output must not be nil", ErrInvalidResponse)
+		return nil, fmt.Errorf("chat: create response: %w: output must not be nil", ErrInvalidResponse)
 	}
 	response := &Response{Output: output, Metadata: metadata}
 	if err := response.Validate(); err != nil {
-		return nil, fmt.Errorf("chat.NewResponse: %w", err)
+		return nil, fmt.Errorf("chat: create response: %w", err)
 	}
 	return response, nil
 }
 
-// Clone returns an independent copy of r. It is nil-safe.
 func (r *Response) Clone() *Response {
 	if r == nil {
 		return nil
@@ -134,7 +131,6 @@ func (r *Response) Clone() *Response {
 	return clone
 }
 
-// Text returns the output's assistant text. It is nil/empty-safe.
 func (r *Response) Text() string {
 	if r == nil {
 		return ""
@@ -142,8 +138,6 @@ func (r *Response) Text() string {
 	return r.Output.Text()
 }
 
-// Validate recursively verifies response data. A nil Output is valid for
-// stream chunks that only carry usage or provider metadata.
 func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
@@ -159,7 +153,6 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates Response before writing its wire representation.
 func (r Response) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
@@ -168,10 +161,9 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireResponse(r))
 }
 
-// UnmarshalJSON decodes and validates Response before replacing the receiver.
 func (r *Response) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Response receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: response receiver is nil", ErrInvalidResponse)
 	}
 	type wireResponse Response
 	var decoded wireResponse

@@ -14,8 +14,6 @@ type Generation[T any] struct {
 	format OutputFormat[T]
 }
 
-// Call invokes the synchronous model capability and decodes its complete
-// response through the same stream decoder used by Stream.
 func (g Generation[T]) Call(ctx context.Context, request *chat.Request) (T, error) {
 	var zero T
 	if err := g.validate(); err != nil {
@@ -25,8 +23,6 @@ func (g Generation[T]) Call(ctx context.Context, request *chat.Request) (T, erro
 	return g.format.decode(once(response, err))
 }
 
-// Stream consumes the streaming model capability and returns the complete
-// decoded result after the response sequence ends.
 func (g Generation[T]) Stream(ctx context.Context, request *chat.Request) (T, error) {
 	var zero T
 	if err := g.validate(); err != nil {

@@ -36,7 +36,6 @@ const (
 	RoleTool Role = "tool"
 )
 
-// Valid reports whether r is a role known by the protocol.
 func (r Role) Valid() bool {
 	switch r {
 	case RoleSystem, RoleUser, RoleAssistant, RoleTool:
@@ -46,15 +45,16 @@ func (r Role) Valid() bool {
 	}
 }
 
-// Message is one provider-neutral conversation entry. Parts retain their
-// order so interleaved assistant text, reasoning, and tool calls round-trip.
+// Message is one provider-neutral conversation entry. Parts retain their order
+// so interleaved assistant text, reasoning, and tool calls round-trip. Clone
+// recursively owns every mutable protocol value. Text projection concatenates
+// only text parts and deliberately ignores reasoning, media, and tool payloads.
 type Message struct {
 	Role     Role         `json:"role"`
 	Parts    []Part       `json:"parts"`
 	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-// Clone returns an independent copy of m.
 func (m Message) Clone() Message {
 	clone := Message{
 		Role:     m.Role,
@@ -67,24 +67,18 @@ func (m Message) Clone() Message {
 	return clone
 }
 
-// NewSystemMessage returns a system message containing text.
 func NewSystemMessage(text string) Message {
 	return Message{Role: RoleSystem, Parts: []Part{NewTextPart(text)}}
 }
 
-// NewUserMessage returns a user message containing parts in their supplied
-// order.
 func NewUserMessage(parts ...Part) Message {
 	return Message{Role: RoleUser, Parts: slices.Clone(parts)}
 }
 
-// NewAssistantMessage returns an assistant message containing parts in their
-// supplied order.
 func NewAssistantMessage(parts ...Part) Message {
 	return Message{Role: RoleAssistant, Parts: slices.Clone(parts)}
 }
 
-// NewToolMessage returns a tool message containing one part per result.
 func NewToolMessage(results ...ToolResult) Message {
 	parts := make([]Part, len(results))
 	for i := range results {
@@ -93,8 +87,6 @@ func NewToolMessage(results ...ToolResult) Message {
 	return Message{Role: RoleTool, Parts: parts}
 }
 
-// Text concatenates text parts in order. It is nil-safe and ignores media,
-// reasoning, and tool parts.
 func (m *Message) Text() string {
 	if m == nil {
 		return ""
@@ -108,8 +100,6 @@ func (m *Message) Text() string {
 	return text.String()
 }
 
-// Validate verifies the role, every nested protocol value, metadata, and the
-// role/part compatibility matrix.
 func (m Message) Validate() error {
 	if !m.Role.Valid() {
 		return fmt.Errorf("%w: unknown role %q", ErrInvalidMessage, m.Role)
@@ -149,7 +139,6 @@ func (r Role) allowsPart(kind PartKind) bool {
 	}
 }
 
-// MarshalJSON validates m before writing its tagged wire representation.
 func (m Message) MarshalJSON() ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -158,7 +147,6 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireMessage(m))
 }
 
-// UnmarshalJSON decodes and validates a message before replacing the receiver.
 func (m *Message) UnmarshalJSON(data []byte) error {
 	if m == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidMessage)

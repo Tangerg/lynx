@@ -12,7 +12,7 @@ chat: func (m *Message) UnmarshalJSON(data []byte) error
 chat: func (m Message) Clone() Message
 chat: func (m Message) MarshalJSON() ([]byte, error)
 chat: func (m Message) Validate() error
-chat: func (m ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)
+chat: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 chat: func (o *Options) SetExtension(key string, value any) error
 chat: func (o *Options) UnmarshalJSON(data []byte) error
 chat: func (o *Output) Text() string
@@ -52,7 +52,7 @@ chat: func (r Request) MarshalJSON() ([]byte, error)
 chat: func (r Response) MarshalJSON() ([]byte, error)
 chat: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
 chat: func (r Role) Valid() bool
-chat: func (s StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+chat: func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 chat: func (t *ToolDefinition) UnmarshalJSON(data []byte) error
 chat: func (t ToolCall) Validate() error
 chat: func (t ToolDefinition) Clone() ToolDefinition
@@ -83,8 +83,8 @@ chat: func WrapStream(streamer Streamer, middlewares ...StreamMiddleware) Stream
 chat: type CallMiddleware func(next Model) Model
 chat: type FinishReason string
 chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitzero"` }
-chat: type Model interface { Call(ctx context.Context, req *Request) (*Response, error) }
-chat: type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
+chat: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
+chat: type ModelFunc func(ctx context.Context, request *Request) (*Response, error)
 chat: type Options struct { Model string `json:"model,omitempty"` OutputFormat *OutputFormat `json:"output_format,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type Output struct { Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
 chat: type OutputFormat struct { Type OutputFormatType `json:"type"` Name string `json:"name,omitempty"` Description string `json:"description,omitempty"` Schema json.RawMessage `json:"schema,omitempty"` }
@@ -98,8 +98,8 @@ chat: type ResponseAccumulator struct { metadata *ResponseMetadata output *accum
 chat: type ResponseMetadata struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Usage Usage `json:"usage,omitzero"` Extra metadata.Map `json:"extra,omitzero"` }
 chat: type Role string
 chat: type StreamMiddleware func(next Streamer) Streamer
-chat: type Streamer interface { Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] }
-chat: type StreamerFunc func(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+chat: type Streamer interface { Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] }
+chat: type StreamerFunc func(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 chat: type ToolCall struct { ID string `json:"id"` Name string `json:"name"` Arguments string `json:"arguments,omitempty"` }
 chat: type ToolDefinition struct { Name string `json:"name"` Description string `json:"description,omitempty"` InputSchema json.RawMessage `json:"input_schema"` }
 chat: type ToolResult struct { ID string `json:"id"` Name string `json:"name"` Result string `json:"result"` IsError bool `json:"is_error,omitempty"` }
@@ -159,6 +159,7 @@ document: func (d *Document) Clone() *Document
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
+document: var ErrInvalidDocument = errors.New("document: invalid document")
 embedding: func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 embedding: func (o *Options) SetExtension(key string, value any) error
 embedding: func (o *Options) UnmarshalJSON(data []byte) error
@@ -301,7 +302,7 @@ media: func (m *Media) Validate() error
 media: func (m Media) MarshalJSON() ([]byte, error)
 media: func (s Source) Validate() error
 media: func NewBytes(mimeType string, data []byte) (*Media, error)
-media: func NewReference(mimeType, ref string) (*Media, error)
+media: func NewReference(mimeType, reference string) (*Media, error)
 media: func NewURI(mimeType, uri string) (*Media, error)
 media: type Media struct { MIME string `json:"mime"` Source Source `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 media: type Source struct { Kind SourceKind `json:"kind"` Bytes []byte `json:"bytes,omitempty"` URI string `json:"uri,omitempty"` Ref string `json:"ref,omitempty"` }
@@ -325,19 +326,19 @@ modeltest: func (c ChatSuite) Run(t *testing.T)
 modeltest: func (p *PollCounter) Inc() int32
 modeltest: func (p *PollCounter) N() int32
 modeltest: func AnthropicSSEServer(events []AnthropicEvent) *httptest.Server
-modeltest: func BinaryServer(status int, contentType string, body []byte, inspect ...func(r *http.Request)) *httptest.Server
-modeltest: func CollectN[T any](seq iter.Seq2[T, error], n int) ([]T, error)
+modeltest: func BinaryServer(status int, contentType string, body []byte, inspections ...func(request *http.Request)) *httptest.Server
+modeltest: func CollectN[T any](sequence iter.Seq2[T, error], count int) ([]T, error)
 modeltest: func Collect[T any](seq iter.Seq2[T, error]) ([]T, error)
-modeltest: func JSONServer(status int, body string, inspect ...func(r *http.Request)) *httptest.Server
+modeltest: func JSONServer(status int, body string, inspections ...func(request *http.Request)) *httptest.Server
 modeltest: func LookupEnv(name string) (string, bool)
 modeltest: func MuxServer(routes ...Route) *httptest.Server
 modeltest: func NewBlockingServer(t *testing.T, writeInitial func(http.ResponseWriter)) (*httptest.Server, Lifecycle)
 modeltest: func OpenAISSEServer(chunks []string) *httptest.Server
 modeltest: func RequireEnv(t *testing.T, name string) string
 modeltest: func RequireKey(t *testing.T, provider string) string
-modeltest: func RunEmbeddingContract(t *testing.T, c EmbeddingContract)
-modeltest: func RunIntegrationEmbedding(t *testing.T, p IntegrationEmbeddingProbe)
-modeltest: func WithTimeout(t *testing.T, d time.Duration) (context.Context, context.CancelFunc)
+modeltest: func RunEmbeddingContract(t *testing.T, contract EmbeddingContract)
+modeltest: func RunIntegrationEmbedding(t *testing.T, probe IntegrationEmbeddingProbe)
+modeltest: func WithTimeout(t *testing.T, duration time.Duration) (context.Context, context.CancelFunc)
 modeltest: type AnthropicEvent struct { Event string Data string }
 modeltest: type CallBehaviorCase struct { Model chat.Model Lifecycle Lifecycle }
 modeltest: type ChatBehaviorSuite struct { Request func(t *testing.T) *chat.Request CallCancellation func(t *testing.T) CallBehaviorCase StreamCancellation func(t *testing.T) StreamBehaviorCase EarlyStop func(t *testing.T) StreamBehaviorCase FirstError func(t *testing.T) chat.Streamer }
@@ -568,25 +569,25 @@ vectorstore/filter: func (u *UnaryExpr) Right() Predicate
 vectorstore/filter: func (u *UnaryExpr) Start() Position
 vectorstore/filter: func (u *UnaryExpr) String() string
 vectorstore/filter: func (u *UnaryExpr) Validate() error
-vectorstore/filter: func And[L Predicate, R Predicate](l L, r R) *BinaryExpr
-vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
-vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
-vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
-vectorstore/filter: func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
-vectorstore/filter: func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr
+vectorstore/filter: func And[L Predicate, R Predicate](left L, right R) *BinaryExpr
+vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](left L, right R) *BinaryExpr
+vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](left L, right R) *BinaryExpr
+vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](left L, right R) *BinaryExpr
+vectorstore/filter: func Has[L IdentifierValue | *IndexExpr, R LiteralValue](left L, right R) *BinaryExpr
+vectorstore/filter: func In[L IdentifierValue | *IndexExpr, R ListValue](left L, right R) *BinaryExpr
 vectorstore/filter: func Index[L IdentifierValue | *IndexExpr, I Number | string | *Literal](left L, index I) *IndexExpr
-vectorstore/filter: func IsNotNull[L IdentifierValue | *IndexExpr](l L) *UnaryExpr
-vectorstore/filter: func IsNull[L IdentifierValue | *IndexExpr](l L) *BinaryExpr
-vectorstore/filter: func LE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
-vectorstore/filter: func LT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
-vectorstore/filter: func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr
-vectorstore/filter: func NE[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
+vectorstore/filter: func IsNotNull[L IdentifierValue | *IndexExpr](left L) *UnaryExpr
+vectorstore/filter: func IsNull[L IdentifierValue | *IndexExpr](left L) *BinaryExpr
+vectorstore/filter: func LE[L IdentifierValue | *IndexExpr, R Number | *Literal](left L, right R) *BinaryExpr
+vectorstore/filter: func LT[L IdentifierValue | *IndexExpr, R Number | *Literal](left L, right R) *BinaryExpr
+vectorstore/filter: func Like[L IdentifierValue | *IndexExpr, R string | *Literal](left L, right R) *BinaryExpr
+vectorstore/filter: func NE[L IdentifierValue | *IndexExpr, R LiteralValue](left L, right R) *BinaryExpr
 vectorstore/filter: func NewIdent[T IdentifierValue](value T) *Ident
 vectorstore/filter: func NewListLiteral[T ListValue](value T) *ListLiteral
 vectorstore/filter: func NewLiteral[T LiteralValue](value T) *Literal
 vectorstore/filter: func NewLiterals[T LiteralValue](values []T) []*Literal
-vectorstore/filter: func Not[T Predicate](r T) *UnaryExpr
-vectorstore/filter: func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr
+vectorstore/filter: func Not[T Predicate](predicate T) *UnaryExpr
+vectorstore/filter: func Or[L Predicate, R Predicate](left L, right R) *BinaryExpr
 vectorstore/filter: func Parse(input string) (Predicate, error)
 vectorstore/filter: type BinaryExpr struct { left Expr operator Operator right Expr start Position end Position }
 vectorstore/filter: type BinaryHandlers struct { Logical func(*BinaryExpr) error Comparison func(*BinaryExpr) error In func(*BinaryExpr) error Has func(*BinaryExpr) error Like func(*BinaryExpr) error }
@@ -616,18 +617,18 @@ vectorstore/inmemory: func (s *Store) Index(ctx context.Context, request *vector
 vectorstore/inmemory: func (s *Store) Len() int
 vectorstore/inmemory: func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error)
 vectorstore/inmemory: func (s StoreConfig) Validate() error
-vectorstore/inmemory: func CosineSimilarity(a, b []float64) vectorstore.Score
-vectorstore/inmemory: func DotProductSimilarity(a, b []float64) vectorstore.Score
-vectorstore/inmemory: func EuclideanSimilarity(a, b []float64) vectorstore.Score
+vectorstore/inmemory: func CosineSimilarity(left, right []float64) vectorstore.Score
+vectorstore/inmemory: func DotProductSimilarity(left, right []float64) vectorstore.Score
+vectorstore/inmemory: func EuclideanSimilarity(left, right []float64) vectorstore.Score
 vectorstore/inmemory: func NewStore(config StoreConfig) (*Store, error)
-vectorstore/inmemory: type Similarity func(a, b []float64) vectorstore.Score
+vectorstore/inmemory: type Similarity func(left, right []float64) vectorstore.Score
 vectorstore/inmemory: type Store struct { embeddingClient embeddingclient.Client similarity Similarity mu sync.RWMutex records map[string]record }
 vectorstore/inmemory: type StoreConfig struct { EmbeddingModel embedding.Model Similarity Similarity }
-vectorstore/inmemory: var ErrMissingEmbeddingModel = errors.New("inmemory: EmbeddingModel is required")
-vectorstore/storetest: func Run(t *testing.T, store any, want Capabilities)
-vectorstore/storetest: func VisitorConformance(t *testing.T, build BuildFn, opts ...Options)
+vectorstore/inmemory: var ErrMissingEmbeddingModel = errors.New("inmemory: embedding model is required")
+vectorstore/storetest: func Run(t *testing.T, store any, expected Capabilities)
+vectorstore/storetest: func VisitorConformance(t *testing.T, build BuildFn, options ...Options)
 vectorstore/storetest: func VisitorLifecycle(t *testing.T, factory func() Compiler)
-vectorstore/storetest: type BuildFn func(src string) error
+vectorstore/storetest: type BuildFn func(source string) error
 vectorstore/storetest: type Capabilities struct { Indexer bool Searcher bool IDDeleter bool FilterDeleter bool }
 vectorstore/storetest: type Compiler struct { Visit func(filter.Predicate) error Snapshot func() any }
 vectorstore/storetest: type Options struct { Unsupported []string }
@@ -659,7 +660,7 @@ vectorstore: func NewIndexRequest(documents []*document.Document) (*IndexRequest
 vectorstore: func NewSearchOptions() SearchOptions
 vectorstore: func NewSearchRequest(query string) (*SearchRequest, error)
 vectorstore: func NewSearchResponse(results []*SearchResult) (*SearchResponse, error)
-vectorstore: func NewSearchResult(doc *document.Document, score Score) (*SearchResult, error)
+vectorstore: func NewSearchResult(document *document.Document, score Score) (*SearchResult, error)
 vectorstore: func ScoreFromCosineDistance(distance float64) Score
 vectorstore: func ScoreFromCosineSimilarity(similarity float64) Score
 vectorstore: func ScoreFromDistance(distance float64) Score

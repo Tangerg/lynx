@@ -32,7 +32,6 @@ type OutputFormat[T any] struct {
 // model output. Its zero value is ready for use.
 type outputDecoder struct{}
 
-// Text returns a plain-text result format.
 func Text() OutputFormat[string] {
 	decoder := outputDecoder{}
 	return OutputFormat[string]{
@@ -41,7 +40,6 @@ func Text() OutputFormat[string] {
 	}
 }
 
-// JSON returns a result format for one JSON object.
 func JSON[T any]() OutputFormat[T] {
 	decoder := outputDecoder{}
 	return OutputFormat[T]{

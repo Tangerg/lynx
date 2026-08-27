@@ -30,16 +30,15 @@ var errNilStreamSequence = errors.New("chatclient: streamer returned a nil seque
 //
 // Call and Stream accept ordinary [chat.Request] values directly. Client
 // snapshots each request before invoking middleware or a provider, so those
-// layers cannot mutate caller-owned protocol values.
+// layers cannot mutate caller-owned protocol values. A configured Streamer
+// takes precedence; otherwise New discovers the capability on the model. Stream
+// remains lazy and reports unsupported streaming as its single terminal item.
 type Client struct {
 	model    chat.Model
 	streamer chat.Streamer
 	defaults chat.Options
 }
 
-// New constructs a Client around model. When model also implements
-// [chat.Streamer], Stream uses that capability automatically unless config
-// supplies a separate streaming capability.
 func New(model chat.Model, config Config) (*Client, error) {
 	if lo.IsNil(model) {
 		return nil, ErrNilModel
@@ -73,13 +72,10 @@ func New(model chat.Model, config Config) (*Client, error) {
 	}, nil
 }
 
-// Output binds format to a typed generation without modifying c.
 func (c *Client) Output[T any](format OutputFormat[T]) Generation[T] {
 	return Generation[T]{client: c, format: format}
 }
 
-// Call snapshots and validates req, applies client defaults to fields the
-// request leaves unspecified, and invokes the synchronous model capability.
 func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	if c == nil {
 		return nil, ErrNilClient
@@ -117,9 +113,6 @@ func (c *Client) prepareRequest(request *chat.Request, outputFormat *chat.Output
 	return prepared, nil
 }
 
-// Stream snapshots and validates req, applies client defaults, and returns a
-// lazy response sequence. If the client has no real streaming capability, the
-// sequence yields (nil, ErrStreamingUnsupported) once and terminates.
 func (c *Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	if c == nil {
 		return errorSequence(ErrNilClient)

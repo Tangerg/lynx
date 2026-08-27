@@ -29,7 +29,7 @@ func (i *IndexExpr) Index() *Literal {
 
 func (i *IndexExpr) Path() ([]string, error) {
 	if i == nil {
-		return nil, errors.New("filter.IndexExpr.Path: index expression is nil")
+		return nil, errors.New("filter: read index path: index expression is nil")
 	}
 	path, err := i.left.Path()
 	if err != nil {

@@ -31,7 +31,7 @@ func (l *ListLiteral) Literals() []*Literal {
 
 func (l *ListLiteral) First() (*Literal, error) {
 	if l == nil || len(l.values) == 0 {
-		return nil, errors.New("filter.ListLiteral.First: list is empty")
+		return nil, errors.New("filter: read first list literal: list is empty")
 	}
 	return l.values[0], nil
 }
@@ -63,19 +63,13 @@ func (l *ListLiteral) Equal(other Expr) bool {
 	return true
 }
 
-// Values decodes the immutable list into a homogeneous Go slice:
-//
-//   - string literals → []string
-//   - integer literals → []int64 or []uint64
-//   - decimal literals → []float64
-//   - boolean literals → []bool
 func (l *ListLiteral) Values() (any, error) {
 	if l == nil || len(l.values) == 0 {
-		return nil, errors.New("filter.ListLiteral.Values: list is empty")
+		return nil, errors.New("filter: decode list literal values: list is empty")
 	}
 	first := l.values[0]
 	if first == nil {
-		return nil, errors.New("filter.ListLiteral.Values: element 0 is nil")
+		return nil, errors.New("filter: decode list literal values: element 0 is nil")
 	}
 	switch {
 	case first.IsString():
@@ -101,7 +95,7 @@ func (l *ListLiteral) Values() (any, error) {
 		}
 		return out, nil
 	default:
-		return nil, fmt.Errorf("filter.ListLiteral.Values: unsupported element kind %s", first.Kind())
+		return nil, fmt.Errorf("filter: decode list literal values: unsupported element kind %s", first.Kind())
 	}
 }
 

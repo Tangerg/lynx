@@ -10,7 +10,9 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// Options holds per-request configuration for a moderation call.
+// Options holds per-request moderation configuration. Resolve overlays only
+// explicitly supplied values, merges namespaced extensions, and never aliases
+// mutable data from either input.
 type Options struct {
 	// Model is the provider model identifier.
 	Model string `json:"model"`
@@ -20,30 +22,26 @@ type Options struct {
 	Extensions metadata.Map `json:"extensions,omitzero"`
 }
 
-// NewOptions builds Options for the given model id. Returns an error
-// when model is empty or has surrounding whitespace.
 func NewOptions(model string) (Options, error) {
 	if model == "" {
-		return Options{}, fmt.Errorf("moderation.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
+		return Options{}, fmt.Errorf("moderation: create options: %w: model id must not be empty", ErrInvalidOptions)
 	}
 	if strings.TrimSpace(model) != model {
-		return Options{}, fmt.Errorf("moderation.NewOptions: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
+		return Options{}, fmt.Errorf("moderation: create options: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	return Options{Model: model}, nil
 }
 
-// SetExtension encodes a provider-specific option under a namespace/name key.
 func (o *Options) SetExtension(key string, value any) error {
 	if o == nil {
-		return fmt.Errorf("moderation.Options.SetExtension: %w: nil receiver", ErrInvalidOptions)
+		return fmt.Errorf("moderation: set options extension: %w: nil receiver", ErrInvalidOptions)
 	}
 	if err := extension.Set(&o.Extensions, key, value); err != nil {
-		return fmt.Errorf("moderation.Options.SetExtension: %w: %w", ErrInvalidOptions, err)
+		return fmt.Errorf("moderation: set options extension: %w: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }
 
-// Validate verifies explicitly supplied overrides. Options{} is valid.
 func (o Options) Validate() error {
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
 		return fmt.Errorf("%w: model id must not have surrounding whitespace", ErrInvalidOptions)
@@ -54,7 +52,6 @@ func (o Options) Validate() error {
 	return nil
 }
 
-// Clone returns a deep copy of o.
 func (o Options) Clone() Options {
 	return Options{
 		Model:      o.Model,
@@ -62,15 +59,13 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Resolve returns the effective options after applying one request-level
-// override to o. Neither input is mutated.
 func (o Options) Resolve(override Options) (Options, error) {
 	effective := o.Clone()
 	if err := effective.applyOverride(override); err != nil {
-		return Options{}, fmt.Errorf("moderation.Options.Resolve: %w: %w", ErrInvalidOptions, err)
+		return Options{}, fmt.Errorf("moderation: resolve options: %w: %w", ErrInvalidOptions, err)
 	}
 	if err := effective.Validate(); err != nil {
-		return Options{}, fmt.Errorf("moderation.Options.Resolve: %w", err)
+		return Options{}, fmt.Errorf("moderation: resolve options: %w", err)
 	}
 	return effective, nil
 }
@@ -97,7 +92,7 @@ func (o Options) MarshalJSON() ([]byte, error) {
 
 func (o *Options) UnmarshalJSON(data []byte) error {
 	if o == nil {
-		return fmt.Errorf("%w: nil Options receiver", ErrInvalidOptions)
+		return fmt.Errorf("%w: options receiver is nil", ErrInvalidOptions)
 	}
 	type wireOptions Options
 	var decoded wireOptions
@@ -120,17 +115,14 @@ type Request struct {
 	Options Options `json:"options,omitzero"`
 }
 
-// NewRequest builds a Request from texts. Returns an error when texts
-// is empty.
 func NewRequest(texts []string) (*Request, error) {
 	r := &Request{Texts: slices.Clone(texts)}
 	if err := r.Validate(); err != nil {
-		return nil, fmt.Errorf("moderation.NewRequest: %w", err)
+		return nil, fmt.Errorf("moderation: create request: %w", err)
 	}
 	return r, nil
 }
 
-// Validate checks the complete request before it crosses a model boundary.
 func (r *Request) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
@@ -159,7 +151,7 @@ func (r Request) MarshalJSON() ([]byte, error) {
 
 func (r *Request) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Request receiver", ErrInvalidRequest)
+		return fmt.Errorf("%w: request receiver is nil", ErrInvalidRequest)
 	}
 	type wireRequest Request
 	var decoded wireRequest

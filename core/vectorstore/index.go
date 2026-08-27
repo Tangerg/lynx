@@ -17,17 +17,14 @@ type IndexRequest struct {
 	Documents []*document.Document `json:"documents"`
 }
 
-// NewIndexRequest creates and validates an indexing request for documents.
 func NewIndexRequest(documents []*document.Document) (*IndexRequest, error) {
 	request := &IndexRequest{Documents: slices.Clone(documents)}
 	if err := request.Validate(); err != nil {
-		return nil, fmt.Errorf("vectorstore.NewIndexRequest: %w", err)
+		return nil, fmt.Errorf("vectorstore: create index request: %w", err)
 	}
 	return request, nil
 }
 
-// Validate enforces the provider-independent ingestion contract before a
-// batcher, embedding model, or provider client observes the input.
 func (i *IndexRequest) Validate() error {
 	if i == nil {
 		return fmt.Errorf("%w: index request is nil", ErrInvalidRequest)
@@ -37,24 +34,24 @@ func (i *IndexRequest) Validate() error {
 	}
 
 	seen := make(map[string]int, len(i.Documents))
-	for index, doc := range i.Documents {
-		if doc == nil {
+	for index, indexedDocument := range i.Documents {
+		if indexedDocument == nil {
 			return fmt.Errorf("%w: %w: documents[%d] is nil", ErrInvalidRequest, ErrInvalidDocument, index)
 		}
-		if err := doc.Validate(); err != nil {
+		if err := indexedDocument.Validate(); err != nil {
 			return fmt.Errorf("%w: %w: documents[%d]: %w", ErrInvalidRequest, ErrInvalidDocument, index, err)
 		}
-		if strings.TrimSpace(doc.ID) == "" {
+		if strings.TrimSpace(indexedDocument.ID) == "" {
 			return fmt.Errorf("%w: %w: documents[%d]", ErrInvalidRequest, ErrMissingDocumentID, index)
 		}
-		if doc.Text == "" {
+		if indexedDocument.Text == "" {
 			return fmt.Errorf("%w: %w: documents[%d] has no text to embed", ErrInvalidRequest, ErrInvalidDocument, index)
 		}
-		if first, duplicate := seen[doc.ID]; duplicate {
+		if first, duplicate := seen[indexedDocument.ID]; duplicate {
 			return fmt.Errorf("%w: %w %q at documents[%d] and documents[%d]",
-				ErrInvalidRequest, ErrDuplicateDocumentID, doc.ID, first, index)
+				ErrInvalidRequest, ErrDuplicateDocumentID, indexedDocument.ID, first, index)
 		}
-		seen[doc.ID] = index
+		seen[indexedDocument.ID] = index
 	}
 	return nil
 }
@@ -69,7 +66,7 @@ func (i IndexRequest) MarshalJSON() ([]byte, error) {
 
 func (i *IndexRequest) UnmarshalJSON(data []byte) error {
 	if i == nil {
-		return fmt.Errorf("%w: nil IndexRequest receiver", ErrInvalidRequest)
+		return fmt.Errorf("%w: index request receiver is nil", ErrInvalidRequest)
 	}
 	type wireIndexRequest IndexRequest
 	var decoded wireIndexRequest
@@ -91,7 +88,7 @@ func (i *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequ
 		return nil, err
 	}
 	if batcher == nil {
-		return nil, errors.New("vectorstore.IndexRequest.Batch: batcher must not be nil")
+		return nil, errors.New("vectorstore: batch index request: batcher must not be nil")
 	}
 
 	documentBatches, err := batcher.Batch(ctx, i.Documents)
@@ -106,7 +103,7 @@ func (i *IndexRequest) Batch(ctx context.Context, batcher Batcher) ([]*IndexRequ
 	for index, documents := range documentBatches {
 		batch, err := NewIndexRequest(documents)
 		if err != nil {
-			return nil, fmt.Errorf("vectorstore.IndexRequest.Batch: batch %d: %w", index, err)
+			return nil, fmt.Errorf("vectorstore: build index batch %d: %w", index, err)
 		}
 		batches[index] = batch
 	}
@@ -119,12 +116,12 @@ func (i *IndexRequest) validateBatches(batches [][]*document.Document) error {
 		if len(batch) == 0 {
 			return fmt.Errorf("%w: batch %d is empty", ErrInvalidBatcherOutput, batchIndex)
 		}
-		for documentIndex, doc := range batch {
+		for documentIndex, indexedDocument := range batch {
 			if next >= len(i.Documents) {
 				return fmt.Errorf("%w: unexpected document at batch %d index %d",
 					ErrInvalidBatcherOutput, batchIndex, documentIndex)
 			}
-			if doc != i.Documents[next] {
+			if indexedDocument != i.Documents[next] {
 				return fmt.Errorf("%w: document at batch %d index %d does not match input index %d",
 					ErrInvalidBatcherOutput, batchIndex, documentIndex, next)
 			}

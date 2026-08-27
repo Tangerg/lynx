@@ -17,16 +17,16 @@ import (
 // template.
 var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 
-// Template is an immutable, parsed prompt template. It is safe to render from
-// multiple goroutines after construction. Variables are ordinary per-render
-// data rather than mutable state retained by Template.
+// Template is an immutable, parsed prompt template safe for concurrent use.
+// Parsing fails on missing map keys instead of emitting placeholder text;
+// Require inspects the complete parse tree, including pipelines and branches.
+// Message projections validate the rendered protocol value and preserve media
+// order without retaining per-render variables in Template.
 type Template struct {
 	source   string
 	compiled *template.Template
 }
 
-// ParseTemplate parses source using Go text/template syntax. Missing map keys
-// fail at Render time instead of silently becoming "<no value>".
 func ParseTemplate(source string) (*Template, error) {
 	if strings.TrimSpace(source) == "" {
 		return nil, fmt.Errorf("%w: source is empty", ErrInvalidTemplate)
@@ -38,8 +38,6 @@ func ParseTemplate(source string) (*Template, error) {
 	return &Template{source: source, compiled: compiled}, nil
 }
 
-// Source returns the original template source. A nil Template returns an
-// empty string.
 func (t *Template) Source() string {
 	if t == nil {
 		return ""
@@ -47,8 +45,6 @@ func (t *Template) Source() string {
 	return t.source
 }
 
-// Render executes the parsed template with data. Maps and structs are the
-// common inputs, following text/template's ordinary field and key rules.
 func (t *Template) Render(data any) (string, error) {
 	if t == nil || t.compiled == nil {
 		return "", fmt.Errorf("%w: nil template", ErrInvalidTemplate)
@@ -60,9 +56,6 @@ func (t *Template) Render(data any) (string, error) {
 	return rendered.String(), nil
 }
 
-// Require verifies that every named field selector is referenced by the parsed
-// template. It understands whitespace, pipelines, branches, and nested paths;
-// for .User.Name, the first selector is User.
 func (t *Template) Require(names ...string) error {
 	if t == nil || t.compiled == nil {
 		return fmt.Errorf("%w: nil template", ErrInvalidTemplate)
@@ -92,7 +85,6 @@ func (t *Template) Require(names ...string) error {
 	return fmt.Errorf("%w: missing fields: %s", ErrInvalidTemplate, strings.Join(missing, ", "))
 }
 
-// SystemMessage renders data into a validated text-only system message.
 func (t *Template) SystemMessage(data any) (chat.Message, error) {
 	rendered, err := t.Render(data)
 	if err != nil {
@@ -105,9 +97,6 @@ func (t *Template) SystemMessage(data any) (chat.Message, error) {
 	return message, nil
 }
 
-// UserMessage renders data into a validated user message and appends media in
-// the supplied order. An empty rendered string is allowed when media supplies
-// the message content.
 func (t *Template) UserMessage(data any, attachments ...*media.Media) (chat.Message, error) {
 	rendered, err := t.Render(data)
 	if err != nil {

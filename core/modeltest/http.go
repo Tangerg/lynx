@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-// NewBlockingServer starts a mock request that remains in flight until the
-// client releases its context. writeInitial may emit and flush one valid stream
-// event before Started closes; pass nil for a blocking Call.
 func NewBlockingServer(t *testing.T, writeInitial func(http.ResponseWriter)) (*httptest.Server, Lifecycle) {
 	t.Helper()
 	started := make(chan struct{})

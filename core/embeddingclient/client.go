@@ -15,14 +15,15 @@ import (
 // ErrNilModel reports that a Client has no usable model, including a typed nil.
 var ErrNilModel = errors.New("embeddingclient: nil model")
 
-// Client is an immutable convenience wrapper around an [embedding.Model]. It
-// returns independent vector values and leaves provider response metadata to
-// callers that use the Core model directly.
+// Client is an immutable, concurrency-safe projection of [embedding.Model] for
+// callers that need vectors rather than protocol responses. It validates both
+// model boundaries, preserves input order, and returns independently owned
+// vectors. Dimensions deliberately probes once per call instead of hiding a
+// cache lifetime; provider metadata remains available only through the model.
 type Client struct {
 	model embedding.Model
 }
 
-// New constructs a Client around model.
 func New(model embedding.Model) (Client, error) {
 	client := Client{model: model}
 	if err := client.validate(); err != nil {
@@ -31,7 +32,6 @@ func New(model embedding.Model) (Client, error) {
 	return client, nil
 }
 
-// EmbedTexts embeds texts in one model call and returns vectors in input order.
 func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, error) {
 	if err := c.validate(); err != nil {
 		return nil, fmt.Errorf("embeddingclient: embed texts: %w", err)
@@ -61,7 +61,6 @@ func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, er
 	return vectors, nil
 }
 
-// EmbedText embeds one text value.
 func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	vectors, err := c.EmbedTexts(ctx, []string{text})
 	if err != nil {
@@ -70,8 +69,6 @@ func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	return vectors[0], nil
 }
 
-// Dimensions probes the model once and returns its vector width. The output is
-// deliberately not cached; callers own any cache lifetime and invalidation.
 func (c Client) Dimensions(ctx context.Context) (int, error) {
 	vector, err := c.EmbedText(ctx, "dimension probe")
 	if err != nil {
@@ -80,7 +77,6 @@ func (c Client) Dimensions(ctx context.Context) (int, error) {
 	return len(vector), nil
 }
 
-// EmbedDocuments embeds the textual content of docs in one model call.
 func (c Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, error) {
 	texts, err := c.documentTexts(docs)
 	if err != nil {

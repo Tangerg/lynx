@@ -27,15 +27,14 @@ type entry struct {
 
 // Registry is an instance-scoped, concurrency-safe collection of executable
 // tools. Its zero value is ready to use. Each runtime or process owns its
-// registry explicitly; there is no package-global counterpart.
+// registry explicitly; there is no package-global counterpart. Registration is
+// atomic for the full batch, definitions are snapshotted at registration time,
+// and model-visible views are returned as defensive copies in stable name order.
 type Registry struct {
 	mu      sync.RWMutex
 	entries map[string]entry
 }
 
-// NewRegistry constructs a Registry and atomically registers initial. It
-// returns an error without a partially populated registry when any tool is
-// invalid or duplicates another name.
 func NewRegistry(initial ...Tool) (*Registry, error) {
 	registry := &Registry{}
 	if err := registry.Register(initial...); err != nil {
@@ -44,8 +43,6 @@ func NewRegistry(initial ...Tool) (*Registry, error) {
 	return registry, nil
 }
 
-// Register atomically adds values. A name may be registered only once;
-// callers must build a new Registry when they need a different tool set.
 func (r *Registry) Register(values ...Tool) error {
 	if r == nil {
 		return ErrInvalidRegistry
@@ -83,7 +80,6 @@ func (r *Registry) Register(values ...Tool) error {
 	return nil
 }
 
-// Resolve returns the executable tool registered under name.
 func (r *Registry) Resolve(name string) (Tool, bool) {
 	if r == nil {
 		return nil, false
@@ -94,8 +90,6 @@ func (r *Registry) Resolve(name string) (Tool, bool) {
 	return value.tool, ok
 }
 
-// Definitions returns defensive copies of model-visible definitions sorted by
-// name. The stable order makes request construction and tests deterministic.
 func (r *Registry) Definitions() []chat.ToolDefinition {
 	if r == nil {
 		return nil

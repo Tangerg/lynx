@@ -25,7 +25,6 @@ const (
 	PartToolResult PartKind = "tool_result"
 )
 
-// Valid reports whether p is a part kind known by the protocol.
 func (p PartKind) Valid() bool {
 	switch p {
 	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolResult:
@@ -49,7 +48,6 @@ type Part struct {
 	Metadata   metadata.Map `json:"metadata,omitzero"`
 }
 
-// Clone returns an independent copy of p.
 func (p Part) Clone() Part {
 	clone := p
 	clone.Signature = slices.Clone(p.Signature)
@@ -64,33 +62,26 @@ func (p Part) Clone() Part {
 	return clone
 }
 
-// NewTextPart returns a text part.
 func NewTextPart(text string) Part {
 	return Part{Kind: PartText, Text: text}
 }
 
-// NewMediaPart returns a media part.
 func NewMediaPart(value *media.Media) Part {
 	return Part{Kind: PartMedia, Media: value}
 }
 
-// NewReasoningPart returns a reasoning part and copies signature.
 func NewReasoningPart(text string, signature []byte) Part {
 	return Part{Kind: PartReasoning, Text: text, Signature: slices.Clone(signature)}
 }
 
-// NewToolCallPart returns a tool-call part.
 func NewToolCallPart(call ToolCall) Part {
 	return Part{Kind: PartToolCall, ToolCall: new(call)}
 }
 
-// NewToolResultPart returns a tool-result part.
 func NewToolResultPart(result ToolResult) Part {
 	return Part{Kind: PartToolResult, ToolResult: new(result)}
 }
 
-// Validate verifies the discriminator, payload exclusivity, and active nested
-// value.
 func (p Part) Validate() error {
 	if !p.Kind.Valid() {
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidPart, p.Kind)
@@ -133,7 +124,6 @@ func (p Part) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates p before writing its tagged wire representation.
 func (p Part) MarshalJSON() ([]byte, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
@@ -142,7 +132,6 @@ func (p Part) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wirePart(p))
 }
 
-// UnmarshalJSON decodes and validates a part before replacing the receiver.
 func (p *Part) UnmarshalJSON(data []byte) error {
 	if p == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidPart)

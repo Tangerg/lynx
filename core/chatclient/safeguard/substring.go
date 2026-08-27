@@ -14,7 +14,10 @@ type SubstringConfig struct {
 	HideMatch     bool
 }
 
-// SubstringMatcher is an immutable stdlib matcher for small term sets.
+// SubstringMatcher is an immutable matcher for small policy term sets. It trims
+// and de-duplicates configuration once, preserves declaration order for the
+// first-match decision, and can withhold the matched term from downstream
+// errors and callbacks without weakening the block decision.
 type SubstringMatcher struct {
 	terms  []substringTerm
 	config SubstringConfig
@@ -25,8 +28,6 @@ type substringTerm struct {
 	match   string
 }
 
-// NewSubstringMatcher validates, trims, de-duplicates, and snapshots terms.
-// At least one non-empty term is required.
 func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatcher, error) {
 	cleaned := make([]substringTerm, 0, len(terms))
 	seen := make(map[string]struct{}, len(terms))
@@ -51,7 +52,6 @@ func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatc
 	return &SubstringMatcher{terms: cleaned, config: config}, nil
 }
 
-// Match reports the first configured term contained in text.
 func (s *SubstringMatcher) Match(ctx context.Context, text string) (Match, error) {
 	if err := ctx.Err(); err != nil {
 		return Match{}, err

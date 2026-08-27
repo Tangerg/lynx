@@ -16,7 +16,9 @@ import (
 var ErrInvalidOptions = errors.New("chat: invalid options")
 
 // Options contains provider-neutral per-request generation overrides. Its zero
-// value is valid and means that the model/provider defaults apply.
+// value means provider defaults. Resolve overlays only explicitly populated
+// fields, merges namespaced extensions, snapshots mutable values, and leaves
+// both source values unchanged.
 type Options struct {
 	Model            string        `json:"model,omitempty"`
 	OutputFormat     *OutputFormat `json:"output_format,omitempty"`
@@ -30,30 +32,27 @@ type Options struct {
 	Extensions       metadata.Map  `json:"extensions,omitzero"`
 }
 
-// NewOptions builds Options for the given model id.
 func NewOptions(model string) (Options, error) {
 	if model == "" {
-		return Options{}, fmt.Errorf("chat.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
+		return Options{}, fmt.Errorf("chat: create options: %w: model id must not be empty", ErrInvalidOptions)
 	}
 	options := Options{Model: model}
 	if err := options.Validate(); err != nil {
-		return Options{}, fmt.Errorf("chat.NewOptions: %w", err)
+		return Options{}, fmt.Errorf("chat: create options: %w", err)
 	}
 	return options, nil
 }
 
-// SetExtension encodes a provider-specific option under a namespace/name key.
 func (o *Options) SetExtension(key string, value any) error {
 	if o == nil {
-		return fmt.Errorf("chat.Options.SetExtension: %w: nil receiver", ErrInvalidOptions)
+		return fmt.Errorf("chat: set options extension: %w: nil receiver", ErrInvalidOptions)
 	}
 	if err := extension.Set(&o.Extensions, key, value); err != nil {
-		return fmt.Errorf("chat.Options.SetExtension: %w: %w", ErrInvalidOptions, err)
+		return fmt.Errorf("chat: set options extension: %w: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }
 
-// Clone returns an independent copy of o.
 func (o Options) Clone() Options {
 	return Options{
 		Model:            o.Model,
@@ -69,15 +68,13 @@ func (o Options) Clone() Options {
 	}
 }
 
-// Resolve returns the effective options after applying one request-level
-// override to o. Neither input is mutated.
 func (o Options) Resolve(override Options) (Options, error) {
 	effective := o.Clone()
 	if err := effective.applyOverride(override); err != nil {
-		return Options{}, fmt.Errorf("chat.Options.Resolve: %w: %w", ErrInvalidOptions, err)
+		return Options{}, fmt.Errorf("chat: resolve options: %w: %w", ErrInvalidOptions, err)
 	}
 	if err := effective.Validate(); err != nil {
-		return Options{}, fmt.Errorf("chat.Options.Resolve: %w", err)
+		return Options{}, fmt.Errorf("chat: resolve options: %w", err)
 	}
 	return effective, nil
 }
@@ -118,7 +115,6 @@ func (o *Options) applyOverride(override Options) error {
 	return nil
 }
 
-// Validate verifies explicitly supplied overrides. Options{} is valid.
 func (o Options) Validate() error {
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
 		return fmt.Errorf("%w: model must not have surrounding whitespace", ErrInvalidOptions)
@@ -167,7 +163,6 @@ func validateFloat(name string, value *float64, minValue, maxValue float64) erro
 	return nil
 }
 
-// MarshalJSON validates Options before writing its wire representation.
 func (o Options) MarshalJSON() ([]byte, error) {
 	if err := o.Validate(); err != nil {
 		return nil, err
@@ -176,7 +171,6 @@ func (o Options) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireOptions(o))
 }
 
-// UnmarshalJSON decodes and validates Options before replacing the receiver.
 func (o *Options) UnmarshalJSON(data []byte) error {
 	if o == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidOptions)

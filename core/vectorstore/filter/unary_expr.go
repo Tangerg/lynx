@@ -58,7 +58,7 @@ func (u *UnaryExpr) Dispatch(onNot func(*UnaryExpr) error) error {
 		return fmt.Errorf("filter: unsupported unary operator %q at %s", u.Operator(), u.Start())
 	}
 	if onNot == nil {
-		return errors.New("filter.UnaryExpr.Dispatch: NOT handler is nil")
+		return errors.New("filter: dispatch unary expression: NOT handler is nil")
 	}
 	return onNot(u)
 }

@@ -57,7 +57,7 @@ func newLiteral(value any) (*Literal, error) {
 		return typed, nil
 
 	default:
-		return nil, fmt.Errorf("filter.newLiteral: unsupported literal type %T (%v)",
+		return nil, fmt.Errorf("filter: create literal: unsupported literal type %T (%v)",
 			value, value)
 	}
 }
@@ -66,7 +66,7 @@ func NewLiteral[T LiteralValue](value T) *Literal {
 	lit, err := newLiteral(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Errorf("filter.NewLiteral: %w", err))
+		panic(fmt.Errorf("filter: create literal: %w", err))
 	}
 	return lit
 }
@@ -153,7 +153,7 @@ func newListLiteral(value any) (*ListLiteral, error) {
 	case []*Literal:
 		result.values = slices.Clone(typed)
 	default:
-		return nil, fmt.Errorf("filter.newListLiteral: unsupported list type %T (%v)",
+		return nil, fmt.Errorf("filter: create list literal: unsupported list type %T (%v)",
 			value, value)
 	}
 
@@ -166,7 +166,7 @@ func NewListLiteral[T ListValue](value T) *ListLiteral {
 	list, err := newListLiteral(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Errorf("filter.NewListLiteral: %w", err))
+		panic(fmt.Errorf("filter: create list literal: %w", err))
 	}
 	return list
 }

@@ -25,7 +25,6 @@ const (
 	ScopeBoth   Scope = "both"
 )
 
-// Valid reports whether scope selects one or both known directions.
 func (s Scope) Valid() bool {
 	switch s {
 	case ScopeInput, ScopeOutput, ScopeBoth:
@@ -52,7 +51,6 @@ type Matcher interface {
 	Match(ctx context.Context, text string) (Match, error)
 }
 
-// MatcherFunc adapts an ordinary function to Matcher.
 type MatcherFunc func(ctx context.Context, text string) (Match, error)
 
 // Match invokes m.

@@ -25,18 +25,18 @@ func Collect[T any](seq iter.Seq2[T, error]) ([]T, error) {
 // CollectN drains at most n items from the iterator. Use this for
 // cancellation tests — break early to verify the iterator's stop
 // function tears down the upstream connection cleanly.
-func CollectN[T any](seq iter.Seq2[T, error], n int) ([]T, error) {
-	var out []T
-	var i int
-	for v, err := range seq {
+func CollectN[T any](sequence iter.Seq2[T, error], count int) ([]T, error) {
+	var values []T
+	var collected int
+	for value, err := range sequence {
 		if err != nil {
-			return out, err
+			return values, err
 		}
-		out = append(out, v)
-		i++
-		if i >= n {
-			return out, nil
+		values = append(values, value)
+		collected++
+		if collected >= count {
+			return values, nil
 		}
 	}
-	return out, nil
+	return values, nil
 }

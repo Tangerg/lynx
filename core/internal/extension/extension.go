@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// Set validates key, encodes value, and stores it in target.
 func Set(target *metadata.Map, key string, value any) error {
 	if target == nil {
 		return errors.New("nil extension map")
@@ -21,7 +20,6 @@ func Set(target *metadata.Map, key string, value any) error {
 	return target.Set(key, value)
 }
 
-// Validate verifies extension keys and encoded values.
 func Validate(values metadata.Map) error {
 	for key := range values {
 		if !validKey(key) {

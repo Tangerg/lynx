@@ -22,7 +22,6 @@ type Middleware struct {
 	store ReadWriter
 }
 
-// NewMiddleware constructs history middleware around store.
 func NewMiddleware(store ReadWriter) (Middleware, error) {
 	if lo.IsNil(store) {
 		return Middleware{}, ErrNilStore

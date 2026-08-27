@@ -77,7 +77,6 @@ func validateFuncInput(input reflect.Type) error {
 	return nil
 }
 
-// Definition returns an independent snapshot of the function's tool contract.
 func (f Func[In, Out]) Definition() chat.ToolDefinition {
 	if f.function == nil {
 		return chat.ToolDefinition{}

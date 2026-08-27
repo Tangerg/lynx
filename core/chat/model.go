@@ -6,23 +6,20 @@ import (
 )
 
 // Model is the minimal synchronous chat capability. Implementations must
-// validate req before provider I/O, honor context cancellation, and return a
+// validate request before provider I/O, honor context cancellation, and return a
 // provider-neutral Response. Cancellation errors must retain
 // context.Canceled or context.DeadlineExceeded for errors.Is.
 //
 // Streaming, default configuration, and provider identity are independent
 // concerns and deliberately are not methods of Model.
 type Model interface {
-	Call(ctx context.Context, req *Request) (*Response, error)
+	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
-// ModelFunc adapts an ordinary function to Model, following the same pattern
-// as net/http.HandlerFunc.
-type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
+type ModelFunc func(ctx context.Context, request *Request) (*Response, error)
 
-// Call invokes m.
-func (m ModelFunc) Call(ctx context.Context, req *Request) (*Response, error) {
-	return m(ctx, req)
+func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return m(ctx, request)
 }
 
 // Streamer is the optional streaming chat capability. It is independent of
@@ -37,13 +34,11 @@ func (m ModelFunc) Call(ctx context.Context, req *Request) (*Response, error) {
 // error or leaving a detached goroutine behind. [ResponseAccumulator] defines
 // the provider-neutral aggregation semantics.
 type Streamer interface {
-	Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+	Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 }
 
-// StreamerFunc adapts an ordinary function to Streamer.
-type StreamerFunc func(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+type StreamerFunc func(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 
-// Stream invokes s.
-func (s StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	return s(ctx, req)
+func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
+	return s(ctx, request)
 }

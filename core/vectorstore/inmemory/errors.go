@@ -6,4 +6,4 @@ import "errors"
 const Provider = "InMemory"
 
 // ErrMissingEmbeddingModel is returned when StoreConfig.EmbeddingModel is nil.
-var ErrMissingEmbeddingModel = errors.New("inmemory: EmbeddingModel is required")
+var ErrMissingEmbeddingModel = errors.New("inmemory: embedding model is required")

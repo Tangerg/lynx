@@ -18,14 +18,6 @@ type Route struct {
 	Handle   http.HandlerFunc
 }
 
-// MuxServer returns an httptest.Server that dispatches incoming
-// requests against `routes` in order — the first route whose
-// method + suffix match wins. Useful for vendors that poll (upload
-// → submit → poll), where one server has to answer three different
-// requests over the lifetime of one Call.
-//
-// Unmatched requests return 404 with a hint so failures are
-// debuggable.
 func MuxServer(routes ...Route) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, route := range routes {
@@ -49,8 +41,6 @@ type PollCounter struct {
 	n atomic.Int32
 }
 
-// Inc returns the post-increment count.
 func (p *PollCounter) Inc() int32 { return p.n.Add(1) }
 
-// N returns the current count without incrementing.
 func (p *PollCounter) N() int32 { return p.n.Load() }

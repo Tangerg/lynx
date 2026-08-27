@@ -42,7 +42,6 @@ type Source struct {
 	Ref   string     `json:"ref,omitempty"`
 }
 
-// Validate verifies the tagged-source invariant.
 func (s Source) Validate() error {
 	switch s.Kind {
 	case SourceBytes:
@@ -68,6 +67,8 @@ func (s Source) Validate() error {
 }
 
 // Media describes a media payload without retaining runtime-only objects.
+// Inline-byte construction snapshots the caller's buffer so the protocol value
+// cannot change when that buffer is reused.
 type Media struct {
 	MIME     string       `json:"mime"`
 	Source   Source       `json:"source"`
@@ -76,7 +77,6 @@ type Media struct {
 	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-// Clone returns an independent copy of m. It is nil-safe.
 func (m *Media) Clone() *Media {
 	if m == nil {
 		return nil
@@ -87,8 +87,6 @@ func (m *Media) Clone() *Media {
 	return &clone
 }
 
-// NewBytes returns Media containing an inline byte payload. The input is
-// copied so later caller mutations cannot change the protocol value.
 func NewBytes(mimeType string, data []byte) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
@@ -104,7 +102,6 @@ func NewBytes(mimeType string, data []byte) (*Media, error) {
 	return m, nil
 }
 
-// NewURI returns Media referencing an absolute URI.
 func NewURI(mimeType, uri string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
@@ -120,13 +117,12 @@ func NewURI(mimeType, uri string) (*Media, error) {
 	return m, nil
 }
 
-// NewReference returns Media carrying a provider-native reference.
-func NewReference(mimeType, ref string) (*Media, error) {
+func NewReference(mimeType, reference string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
 		Source: Source{
 			Kind: SourceReference,
-			Ref:  ref,
+			Ref:  reference,
 		},
 		Metadata: metadata.Map{},
 	}
@@ -136,7 +132,6 @@ func NewReference(mimeType, ref string) (*Media, error) {
 	return m, nil
 }
 
-// Validate verifies MIME, source, and nested metadata invariants.
 func (m *Media) Validate() error {
 	if m == nil {
 		return ErrNilMedia
@@ -154,7 +149,6 @@ func (m *Media) Validate() error {
 	return nil
 }
 
-// Bytes returns a copy of the inline byte payload.
 func (m *Media) Bytes() ([]byte, error) {
 	if m == nil {
 		return nil, ErrNilMedia
@@ -168,7 +162,6 @@ func (m *Media) Bytes() ([]byte, error) {
 	return slices.Clone(m.Source.Bytes), nil
 }
 
-// URI returns the URI source.
 func (m *Media) URI() (string, error) {
 	if m == nil {
 		return "", ErrNilMedia
@@ -182,7 +175,6 @@ func (m *Media) URI() (string, error) {
 	return m.Source.URI, nil
 }
 
-// Reference returns the provider-native reference source.
 func (m *Media) Reference() (string, error) {
 	if m == nil {
 		return "", ErrNilMedia
@@ -196,8 +188,6 @@ func (m *Media) Reference() (string, error) {
 	return m.Source.Ref, nil
 }
 
-// MarshalJSON validates Media before writing its wire representation. Byte
-// sources use encoding/json's standard base64 representation for []byte.
 func (m Media) MarshalJSON() ([]byte, error) {
 	if err := (&m).Validate(); err != nil {
 		return nil, err
@@ -206,7 +196,6 @@ func (m Media) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireMedia(m))
 }
 
-// UnmarshalJSON decodes and validates Media before replacing the receiver.
 func (m *Media) UnmarshalJSON(data []byte) error {
 	if m == nil {
 		return ErrNilMedia

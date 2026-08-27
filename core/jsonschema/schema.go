@@ -178,13 +178,10 @@ func normalize(raw []byte) (json.RawMessage, error) {
 	return normalized, nil
 }
 
-// JSON returns an independently owned representation of s.
 func (s Schema) JSON() json.RawMessage { return bytes.Clone(s.raw) }
 
-// Valid reports whether s contains a successfully compiled schema.
 func (s Schema) Valid() bool { return len(s.raw) > 0 && s.compiled != nil }
 
-// Validate verifies that raw is one JSON value accepted by s.
 func (s Schema) Validate(raw []byte) error {
 	if !s.Valid() {
 		return ErrInvalid
@@ -199,7 +196,6 @@ func (s Schema) Validate(raw []byte) error {
 	return nil
 }
 
-// MarshalJSON returns the validated schema document.
 func (s Schema) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalid
@@ -207,7 +203,6 @@ func (s Schema) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(s.raw), nil
 }
 
-// UnmarshalJSON replaces s with a parsed and compiled schema.
 func (s *Schema) UnmarshalJSON(raw []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalid)

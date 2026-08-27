@@ -19,18 +19,18 @@ var (
 
 // Store is a concurrent in-process history store suitable for tests,
 // development, and single-instance applications. Its zero value is ready to
-// use; New is provided for discoverability.
+// use. Writes and replacements validate then snapshot messages before locking;
+// reads return deep caller-owned snapshots, and missing conversations behave as
+// empty histories. Replace swaps the complete sequence atomically.
 type Store struct {
 	mu       sync.RWMutex
 	messages map[history.ConversationID][]chat.Message
 }
 
-// New returns an empty in-memory history store.
 func New() *Store {
 	return &Store{}
 }
 
-// Write validates, snapshots, and appends messages in order.
 func (s *Store) Write(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -55,8 +55,6 @@ func (s *Store) Write(ctx context.Context, conversationID history.ConversationID
 	return nil
 }
 
-// Read returns a deep caller-owned snapshot. Unknown IDs return a non-nil
-// empty slice.
 func (s *Store) Read(ctx context.Context, conversationID history.ConversationID) ([]chat.Message, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -74,7 +72,6 @@ func (s *Store) Read(ctx context.Context, conversationID history.ConversationID)
 	return snapshotMessages(stored)
 }
 
-// Clear removes a conversation. Unknown IDs are ignored.
 func (s *Store) Clear(ctx context.Context, conversationID history.ConversationID) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -88,7 +85,6 @@ func (s *Store) Clear(ctx context.Context, conversationID history.ConversationID
 	return nil
 }
 
-// Replace atomically swaps a conversation's complete message set.
 func (s *Store) Replace(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -114,7 +110,6 @@ func (s *Store) Replace(ctx context.Context, conversationID history.Conversation
 	return nil
 }
 
-// Count returns the stored cardinality without cloning message values.
 func (s *Store) Count(ctx context.Context, conversationID history.ConversationID) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
@@ -127,7 +122,6 @@ func (s *Store) Count(ctx context.Context, conversationID history.ConversationID
 	return len(s.messages[conversationID]), nil
 }
 
-// Conversations returns a sorted snapshot of all conversation IDs.
 func (s *Store) Conversations(ctx context.Context) ([]history.ConversationID, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

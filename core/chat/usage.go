@@ -22,12 +22,10 @@ type Usage struct {
 	CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"`
 }
 
-// TotalTokens returns input plus output tokens.
 func (u Usage) TotalTokens() int64 {
 	return u.InputTokens + u.OutputTokens
 }
 
-// Validate verifies non-negative totals and subset breakdowns.
 func (u Usage) Validate() error {
 	if u.InputTokens < 0 {
 		return fmt.Errorf("%w: input_tokens must not be negative", ErrInvalidUsage)
@@ -73,7 +71,6 @@ func validateTokenSubset(name string, value *int64, total int64) error {
 	return nil
 }
 
-// MarshalJSON validates Usage before writing its wire representation.
 func (u Usage) MarshalJSON() ([]byte, error) {
 	if err := u.Validate(); err != nil {
 		return nil, err
@@ -82,7 +79,6 @@ func (u Usage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireUsage(u))
 }
 
-// UnmarshalJSON decodes and validates Usage before replacing the receiver.
 func (u *Usage) UnmarshalJSON(data []byte) error {
 	if u == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidUsage)

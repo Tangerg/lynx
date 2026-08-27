@@ -17,13 +17,12 @@ type OutputMetadata struct {
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific output metadata into Extra.
 func (o *OutputMetadata) Set(key string, value any) error {
 	if o == nil {
-		return fmt.Errorf("image.OutputMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("image: set output metadata: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("image.OutputMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("image: set output metadata: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -48,7 +47,7 @@ func (o OutputMetadata) MarshalJSON() ([]byte, error) {
 
 func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
 	if o == nil {
-		return fmt.Errorf("%w: nil OutputMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: output metadata receiver is nil", ErrInvalidResponse)
 	}
 	type wireOutputMetadata OutputMetadata
 	var decoded wireOutputMetadata
@@ -72,17 +71,14 @@ type Output struct {
 	Metadata *OutputMetadata `json:"metadata,omitempty"`
 }
 
-// NewOutput builds a [Output]. Returns an error when media or metadata
-// is nil.
 func NewOutput(value *media.Media, metadata *OutputMetadata) (*Output, error) {
 	output := &Output{Media: value, Metadata: metadata}
 	if err := output.Validate(); err != nil {
-		return nil, fmt.Errorf("image.NewOutput: %w", err)
+		return nil, fmt.Errorf("image: create output: %w", err)
 	}
 	return output, nil
 }
 
-// Validate verifies generated media and output metadata.
 func (o *Output) Validate() error {
 	if o == nil {
 		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
@@ -110,7 +106,7 @@ func (o Output) MarshalJSON() ([]byte, error) {
 
 func (o *Output) UnmarshalJSON(data []byte) error {
 	if o == nil {
-		return fmt.Errorf("%w: nil Output receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: output receiver is nil", ErrInvalidResponse)
 	}
 	type wireOutput Output
 	var decoded wireOutput
@@ -135,13 +131,12 @@ type ResponseMetadata struct {
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-// Set encodes provider-specific response metadata into Extra.
 func (r *ResponseMetadata) Set(key string, value any) error {
 	if r == nil {
-		return fmt.Errorf("image.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
+		return fmt.Errorf("image: set response metadata: %w: nil receiver", ErrInvalidResponse)
 	}
 	if err := r.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("image.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+		return fmt.Errorf("image: set response metadata: %w: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -169,7 +164,7 @@ func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 
 func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil ResponseMetadata receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: response metadata receiver is nil", ErrInvalidResponse)
 	}
 	type wireResponseMetadata ResponseMetadata
 	var decoded wireResponseMetadata
@@ -194,17 +189,14 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one output and non-nil
-// metadata.
 func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error) {
 	response := &Response{Outputs: slices.Clone(outputs), Metadata: metadata}
 	if err := response.Validate(); err != nil {
-		return nil, fmt.Errorf("image.NewResponse: %w", err)
+		return nil, fmt.Errorf("image: create response: %w", err)
 	}
 	return response, nil
 }
 
-// Validate recursively verifies generated media and response metadata.
 func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
@@ -223,7 +215,6 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-// First returns the first generated image, or nil when the response is empty.
 func (r *Response) First() *Output {
 	if r == nil || len(r.Outputs) == 0 {
 		return nil
@@ -241,7 +232,7 @@ func (r Response) MarshalJSON() ([]byte, error) {
 
 func (r *Response) UnmarshalJSON(data []byte) error {
 	if r == nil {
-		return fmt.Errorf("%w: nil Response receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: response receiver is nil", ErrInvalidResponse)
 	}
 	type wireResponse Response
 	var decoded wireResponse

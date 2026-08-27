@@ -21,7 +21,7 @@ func (i *Ident) Name() string {
 
 func (i *Ident) Path() ([]string, error) {
 	if i == nil {
-		return nil, errors.New("filter.Ident.Path: identifier is nil")
+		return nil, errors.New("filter: read identifier path: identifier is nil")
 	}
 	return []string{i.name}, nil
 }

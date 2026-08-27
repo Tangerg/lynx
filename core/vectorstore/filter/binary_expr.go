@@ -53,7 +53,7 @@ func (b *BinaryExpr) Right() Expr {
 
 func (b *BinaryExpr) Selector() (Selector, error) {
 	if b == nil {
-		return nil, errors.New("filter.BinaryExpr.Selector: expression is nil")
+		return nil, errors.New("filter: read comparison selector: expression is nil")
 	}
 	selector, ok := b.left.(Selector)
 	if !ok || lo.IsNil(selector) {
@@ -74,7 +74,7 @@ func (b *BinaryExpr) Path() ([]string, error) {
 
 func (b *BinaryExpr) Literal() (*Literal, error) {
 	if b == nil {
-		return nil, errors.New("filter.BinaryExpr.Literal: expression is nil")
+		return nil, errors.New("filter: read comparison literal: expression is nil")
 	}
 	literal, ok := b.right.(*Literal)
 	if !ok || literal == nil {
@@ -95,7 +95,7 @@ func (b *BinaryExpr) Value() (any, error) {
 
 func (b *BinaryExpr) List() (*ListLiteral, error) {
 	if b == nil {
-		return nil, errors.New("filter.BinaryExpr.List: expression is nil")
+		return nil, errors.New("filter: read membership list: expression is nil")
 	}
 	list, ok := b.right.(*ListLiteral)
 	if !ok || list == nil {
@@ -146,7 +146,7 @@ func (b *BinaryExpr) String() string               { return formatPredicate(b) }
 // comparison operator. The receiver is not mutated.
 func (b *BinaryExpr) Inverse() (*BinaryExpr, error) {
 	if b == nil {
-		return nil, errors.New("filter.BinaryExpr.Inverse: expression is nil")
+		return nil, errors.New("filter: invert expression: expression is nil")
 	}
 	operator, err := b.operator.Inverse()
 	if err != nil {
@@ -158,7 +158,7 @@ func (b *BinaryExpr) Inverse() (*BinaryExpr, error) {
 // Dispatch routes the expression to the handler for its operator family.
 func (b *BinaryExpr) Dispatch(handlers BinaryHandlers) error {
 	if b == nil {
-		return errors.New("filter.BinaryExpr.Dispatch: expression is nil")
+		return errors.New("filter: dispatch binary expression: expression is nil")
 	}
 	var handler func(*BinaryExpr) error
 	switch {

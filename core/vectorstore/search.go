@@ -35,13 +35,12 @@ func NewSearchOptions() SearchOptions {
 	return SearchOptions{TopK: DefaultTopK}
 }
 
-// Validate verifies every search policy independently from its query.
 func (s SearchOptions) Validate() error {
 	if s.TopK <= 0 {
-		return fmt.Errorf("%w: TopK must be > 0, got %d", ErrInvalidOptions, s.TopK)
+		return fmt.Errorf("%w: top K must be greater than zero, got %d", ErrInvalidOptions, s.TopK)
 	}
 	if err := s.MinScore.Validate(); err != nil {
-		return fmt.Errorf("%w: MinScore: %w", ErrInvalidOptions, err)
+		return fmt.Errorf("%w: minimum score: %w", ErrInvalidOptions, err)
 	}
 	if s.Filter != nil {
 		if err := s.Filter.Validate(); err != nil {
@@ -61,7 +60,7 @@ func (s SearchOptions) MarshalJSON() ([]byte, error) {
 
 func (s *SearchOptions) UnmarshalJSON(data []byte) error {
 	if s == nil {
-		return fmt.Errorf("%w: nil SearchOptions receiver", ErrInvalidOptions)
+		return fmt.Errorf("%w: search options receiver is nil", ErrInvalidOptions)
 	}
 	type wireSearchOptions SearchOptions
 	var decoded wireSearchOptions
@@ -86,18 +85,17 @@ type SearchRequest struct {
 func NewSearchRequest(query string) (*SearchRequest, error) {
 	request := &SearchRequest{Query: query, Options: NewSearchOptions()}
 	if err := request.Validate(); err != nil {
-		return nil, fmt.Errorf("vectorstore.NewSearchRequest: %w", err)
+		return nil, fmt.Errorf("vectorstore: create search request: %w", err)
 	}
 	return request, nil
 }
 
-// Validate verifies the query and its options before provider I/O.
 func (s *SearchRequest) Validate() error {
 	if s == nil {
 		return fmt.Errorf("%w: search request is nil", ErrInvalidRequest)
 	}
 	if strings.TrimSpace(s.Query) == "" {
-		return fmt.Errorf("%w: Query must not be empty", ErrInvalidRequest)
+		return fmt.Errorf("%w: query must not be empty", ErrInvalidRequest)
 	}
 	if err := s.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
@@ -115,7 +113,7 @@ func (s SearchRequest) MarshalJSON() ([]byte, error) {
 
 func (s *SearchRequest) UnmarshalJSON(data []byte) error {
 	if s == nil {
-		return fmt.Errorf("%w: nil SearchRequest receiver", ErrInvalidRequest)
+		return fmt.Errorf("%w: search request receiver is nil", ErrInvalidRequest)
 	}
 	type wireSearchRequest SearchRequest
 	var decoded wireSearchRequest
@@ -138,11 +136,10 @@ type SearchResult struct {
 	Score    Score              `json:"score"`
 }
 
-// NewSearchResult creates and validates one ranked document result.
-func NewSearchResult(doc *document.Document, score Score) (*SearchResult, error) {
-	result := &SearchResult{Document: doc, Score: score}
+func NewSearchResult(document *document.Document, score Score) (*SearchResult, error) {
+	result := &SearchResult{Document: document, Score: score}
 	if err := result.Validate(); err != nil {
-		return nil, fmt.Errorf("vectorstore.NewSearchResult: %w", err)
+		return nil, fmt.Errorf("vectorstore: create search result: %w", err)
 	}
 	return result, nil
 }
@@ -176,7 +173,7 @@ func (s SearchResult) MarshalJSON() ([]byte, error) {
 
 func (s *SearchResult) UnmarshalJSON(data []byte) error {
 	if s == nil {
-		return fmt.Errorf("%w: nil SearchResult receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: search result receiver is nil", ErrInvalidResponse)
 	}
 	type wireSearchResult SearchResult
 	var decoded wireSearchResult
@@ -196,26 +193,24 @@ type SearchResponse struct {
 	Results []*SearchResult `json:"results"`
 }
 
-// NewSearchResponse creates and validates a complete ranked result set.
 func NewSearchResponse(results []*SearchResult) (*SearchResponse, error) {
 	response := &SearchResponse{Results: slices.Clone(results)}
 	if err := response.Validate(); err != nil {
-		return nil, fmt.Errorf("vectorstore.NewSearchResponse: %w", err)
+		return nil, fmt.Errorf("vectorstore: create search response: %w", err)
 	}
 	return response, nil
 }
 
-// Validate verifies the response's provider-independent invariants.
 func (s *SearchResponse) Validate() error {
 	if s == nil {
 		return fmt.Errorf("%w: response is nil", ErrInvalidResponse)
 	}
-	for i, result := range s.Results {
+	for index, result := range s.Results {
 		if err := result.Validate(); err != nil {
-			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
+			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, index, err)
 		}
-		if i > 0 && s.Results[i-1].Score < result.Score {
-			return fmt.Errorf("%w: results are not sorted by descending score at index %d", ErrInvalidResponse, i)
+		if index > 0 && s.Results[index-1].Score < result.Score {
+			return fmt.Errorf("%w: results are not sorted by descending score at index %d", ErrInvalidResponse, index)
 		}
 	}
 	return nil
@@ -231,7 +226,7 @@ func (s SearchResponse) MarshalJSON() ([]byte, error) {
 
 func (s *SearchResponse) UnmarshalJSON(data []byte) error {
 	if s == nil {
-		return fmt.Errorf("%w: nil SearchResponse receiver", ErrInvalidResponse)
+		return fmt.Errorf("%w: search response receiver is nil", ErrInvalidResponse)
 	}
 	type wireSearchResponse SearchResponse
 	var decoded wireSearchResponse
@@ -246,7 +241,6 @@ func (s *SearchResponse) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ValidateFor verifies that a valid response also honors request policy.
 func (s *SearchResponse) ValidateFor(request *SearchRequest) error {
 	if err := request.Validate(); err != nil {
 		return err
@@ -255,18 +249,17 @@ func (s *SearchResponse) ValidateFor(request *SearchRequest) error {
 		return err
 	}
 	if len(s.Results) > request.Options.TopK {
-		return fmt.Errorf("%w: got %d results, TopK is %d", ErrInvalidResponse, len(s.Results), request.Options.TopK)
+		return fmt.Errorf("%w: got %d results, top K is %d", ErrInvalidResponse, len(s.Results), request.Options.TopK)
 	}
-	for i, result := range s.Results {
+	for index, result := range s.Results {
 		if result.Score < request.Options.MinScore {
-			return fmt.Errorf("%w: results[%d] score %v is below MinScore %v",
-				ErrInvalidResponse, i, result.Score, request.Options.MinScore)
+			return fmt.Errorf("%w: results[%d] score %v is below minimum score %v",
+				ErrInvalidResponse, index, result.Score, request.Options.MinScore)
 		}
 	}
 	return nil
 }
 
-// First returns the highest-ranked result, or nil when the response is empty.
 func (s *SearchResponse) First() *SearchResult {
 	if s == nil || len(s.Results) == 0 {
 		return nil
@@ -274,7 +267,6 @@ func (s *SearchResponse) First() *SearchResult {
 	return s.Results[0]
 }
 
-// Documents projects the ranked response into its complete documents.
 func (s *SearchResponse) Documents() []*document.Document {
 	if s == nil {
 		return nil

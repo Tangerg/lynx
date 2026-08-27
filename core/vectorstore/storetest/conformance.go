@@ -20,7 +20,7 @@ type Capabilities struct {
 // Run verifies the backend's exact capability set and the common operations
 // that must complete before external I/O. Pass a non-nil zero-value *Store;
 // the calls below must not reach provider dependencies.
-func Run(t *testing.T, store any, want Capabilities) {
+func Run(t *testing.T, store any, expected Capabilities) {
 	t.Helper()
 	if store == nil {
 		t.Fatal("conformance: store must not be nil")
@@ -31,13 +31,13 @@ func Run(t *testing.T, store any, want Capabilities) {
 	idDeleter, hasIDDeleter := store.(vectorstore.IDDeleter)
 	filterDeleter, hasFilterDeleter := store.(vectorstore.FilterDeleter)
 
-	assertCapability(t, "Indexer", hasIndexer, want.Indexer)
-	assertCapability(t, "Searcher", hasSearcher, want.Searcher)
-	assertCapability(t, "IDDeleter", hasIDDeleter, want.IDDeleter)
-	assertCapability(t, "FilterDeleter", hasFilterDeleter, want.FilterDeleter)
+	assertCapability(t, "Indexer", hasIndexer, expected.Indexer)
+	assertCapability(t, "Searcher", hasSearcher, expected.Searcher)
+	assertCapability(t, "IDDeleter", hasIDDeleter, expected.IDDeleter)
+	assertCapability(t, "FilterDeleter", hasFilterDeleter, expected.FilterDeleter)
 
 	ctx := t.Context()
-	if want.Indexer && hasIndexer {
+	if expected.Indexer && hasIndexer {
 		indexCases := []struct {
 			name string
 			docs []*document.Document
@@ -61,21 +61,21 @@ func Run(t *testing.T, store any, want Capabilities) {
 			})
 		}
 	}
-	if want.Searcher && hasSearcher {
+	if expected.Searcher && hasSearcher {
 		t.Run("SearchRejectsInvalidRequestBeforeIO", func(t *testing.T) {
 			if _, err := searcher.Search(ctx, &vectorstore.SearchRequest{}); err == nil {
 				t.Fatal("Search(zero request) error = nil, want validation error")
 			}
 		})
 	}
-	if want.IDDeleter && hasIDDeleter {
+	if expected.IDDeleter && hasIDDeleter {
 		t.Run("DeleteIDsTreatsEmptyInputAsNoop", func(t *testing.T) {
 			if err := idDeleter.DeleteIDs(ctx, nil); err != nil {
 				t.Fatalf("DeleteIDs(nil) error = %v, want nil", err)
 			}
 		})
 	}
-	if want.FilterDeleter && hasFilterDeleter {
+	if expected.FilterDeleter && hasFilterDeleter {
 		t.Run("DeleteWhereRejectsMissingFilterBeforeIO", func(t *testing.T) {
 			if err := filterDeleter.DeleteWhere(ctx, nil); !errors.Is(err, vectorstore.ErrMissingFilter) {
 				t.Fatalf("DeleteWhere(nil) error = %v, want %v", err, vectorstore.ErrMissingFilter)

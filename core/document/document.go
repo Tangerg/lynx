@@ -2,14 +2,20 @@ package document
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// ErrInvalidDocument classifies malformed document values at construction,
+// validation, and wire boundaries.
+var ErrInvalidDocument = errors.New("document: invalid document")
+
 // Document is the canonical content carrier. It holds identity, content, and
 // metadata; query-specific relationships and runtime policies live outside
-// this value.
+// this value. Clone recursively snapshots media and metadata so indexing and
+// retrieval boundaries never retain caller-owned mutable buffers.
 type Document struct {
 	ID string `json:"id,omitempty"`
 
@@ -21,8 +27,6 @@ type Document struct {
 	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-// Clone returns an independent copy of d. It is nil-safe and recursively
-// copies the mutable media and metadata owned by the document.
 func (d *Document) Clone() *Document {
 	if d == nil {
 		return nil
@@ -33,16 +37,9 @@ func (d *Document) Clone() *Document {
 	return &clone
 }
 
-// NewDocument builds a [Document]. At least one of text or media is
-// required.
-//
-// Example:
-//
-//	doc, err := document.NewDocument("hello", nil)
-//	_ = doc.Metadata.Set("source", "manual")
 func NewDocument(text string, media *media.Media) (*Document, error) {
 	if text == "" && media == nil {
-		return nil, errors.New("document.NewDocument: at least one of text or media is required")
+		return nil, fmt.Errorf("document: create: %w: text or media is required", ErrInvalidDocument)
 	}
 
 	doc := &Document{
@@ -56,21 +53,20 @@ func NewDocument(text string, media *media.Media) (*Document, error) {
 	return doc, nil
 }
 
-// Validate reports whether the document contains usable content.
 func (d *Document) Validate() error {
 	if d == nil {
-		return errors.New("document.Document: nil")
+		return fmt.Errorf("%w: receiver is nil", ErrInvalidDocument)
 	}
 	if d.Text == "" && d.Media == nil {
-		return errors.New("document.Document: at least one of Text or Media is required")
+		return fmt.Errorf("%w: text or media is required", ErrInvalidDocument)
 	}
 	if d.Media != nil {
 		if err := d.Media.Validate(); err != nil {
-			return errors.Join(errors.New("document.Document: invalid Media"), err)
+			return fmt.Errorf("%w: media: %w", ErrInvalidDocument, err)
 		}
 	}
 	if err := d.Metadata.Validate(); err != nil {
-		return errors.Join(errors.New("document.Document: invalid Metadata"), err)
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidDocument, err)
 	}
 	return nil
 }

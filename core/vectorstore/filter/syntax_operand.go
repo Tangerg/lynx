@@ -18,7 +18,7 @@ func newIdent(value any) (*Ident, error) {
 	case *Ident:
 		return typed, nil
 	default:
-		return nil, fmt.Errorf("filter.newIdent: expected string or *filter.Ident, got %T (%v)",
+		return nil, fmt.Errorf("filter: create identifier: expected string or *filter.Ident, got %T (%v)",
 			value, value)
 	}
 }
@@ -30,7 +30,7 @@ func NewIdent[T IdentifierValue](value T) *Ident {
 	ident, err := newIdent(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Errorf("filter.NewIdent: %w", err))
+		panic(fmt.Errorf("filter: create identifier: %w", err))
 	}
 	return ident
 }

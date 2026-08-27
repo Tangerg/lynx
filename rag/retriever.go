@@ -11,15 +11,16 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Retrieve validates the complete input and output boundary around r.
-func Retrieve(ctx context.Context, r Retriever, query Query) (Candidates, error) {
-	if lo.IsNil(r) {
+// Retrieve is the validation boundary around a retriever, including custom
+// implementations supplied by callers.
+func Retrieve(ctx context.Context, retriever Retriever, query Query) (Candidates, error) {
+	if lo.IsNil(retriever) {
 		return nil, ErrNilRetriever
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-	candidates, err := r.Retrieve(ctx, query)
+	candidates, err := retriever.Retrieve(ctx, query)
 	if err != nil {
 		return nil, err
 	}

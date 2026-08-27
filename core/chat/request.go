@@ -12,14 +12,15 @@ var ErrInvalidRequest = errors.New("chat: invalid request")
 
 // Request is the complete provider-neutral input to a chat model. It contains
 // only serializable protocol values; executable tools and invocation state are
-// supplied separately by higher-level runtimes.
+// supplied separately by higher-level runtimes. Construction and cloning
+// snapshot every mutable nested protocol value before middleware or providers
+// receive it.
 type Request struct {
 	Messages []Message        `json:"messages"`
 	Tools    []ToolDefinition `json:"tools,omitempty"`
 	Options  Options          `json:"options,omitzero"`
 }
 
-// Clone returns an independent copy of r. It is nil-safe.
 func (r *Request) Clone() *Request {
 	if r == nil {
 		return nil
@@ -38,7 +39,6 @@ func (r *Request) Clone() *Request {
 	return clone
 }
 
-// NewRequest validates and copies messages into a Request.
 func NewRequest(messages ...Message) (*Request, error) {
 	r := &Request{Messages: slices.Clone(messages)}
 	if err := r.Validate(); err != nil {
@@ -47,8 +47,6 @@ func NewRequest(messages ...Message) (*Request, error) {
 	return r, nil
 }
 
-// Validate recursively verifies messages, tool definitions, options, and
-// provider options. Tool names must be unique within one request.
 func (r *Request) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
@@ -78,7 +76,6 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates Request before writing its wire representation.
 func (r Request) MarshalJSON() ([]byte, error) {
 	if err := (&r).Validate(); err != nil {
 		return nil, err
@@ -87,7 +84,6 @@ func (r Request) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireRequest(r))
 }
 
-// UnmarshalJSON decodes and validates Request before replacing the receiver.
 func (r *Request) UnmarshalJSON(data []byte) error {
 	if r == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidRequest)

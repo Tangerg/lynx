@@ -75,38 +75,38 @@ func (l *Literal) IsSameKind(other *Literal) bool {
 
 func (l *Literal) AsString() (string, error) {
 	if l == nil {
-		return "", errors.New("filter.Literal.AsString: literal is nil")
+		return "", errors.New("filter: read string literal: literal is nil")
 	}
 	if !l.IsString() {
-		return "", fmt.Errorf("filter.Literal.AsString: expected string, got %s", l.kind)
+		return "", fmt.Errorf("filter: read string literal: expected string, got %s", l.kind)
 	}
 	return l.text, nil
 }
 
 func (l *Literal) AsNumber() (json.Number, error) {
 	if l == nil {
-		return "", errors.New("filter.Literal.AsNumber: literal is nil")
+		return "", errors.New("filter: read number literal: literal is nil")
 	}
 	if !l.IsNumber() {
-		return "", fmt.Errorf("filter.Literal.AsNumber: expected number, got %s", l.kind)
+		return "", fmt.Errorf("filter: read number literal: expected number, got %s", l.kind)
 	}
 	var number json.Number
 	if err := json.Unmarshal([]byte(l.text), &number); err != nil {
-		return "", fmt.Errorf("filter.Literal.AsNumber: parse %q: %w", l.text, err)
+		return "", fmt.Errorf("filter: read number literal: parse %q: %w", l.text, err)
 	}
 	return number, nil
 }
 
 func (l *Literal) AsBool() (bool, error) {
 	if l == nil {
-		return false, errors.New("filter.Literal.AsBool: literal is nil")
+		return false, errors.New("filter: read boolean literal: literal is nil")
 	}
 	if !l.IsBool() {
-		return false, fmt.Errorf("filter.Literal.AsBool: expected bool, got %s", l.kind)
+		return false, fmt.Errorf("filter: read boolean literal: expected bool, got %s", l.kind)
 	}
 	b, err := strconv.ParseBool(l.text)
 	if err != nil {
-		return false, fmt.Errorf("filter.Literal.AsBool: parse %q: %w", l.text, err)
+		return false, fmt.Errorf("filter: read boolean literal: parse %q: %w", l.text, err)
 	}
 	return b, nil
 }
@@ -135,11 +135,11 @@ func (l *Literal) Int64() (int64, error) {
 		return 0, err
 	}
 	if !number.IsInt() {
-		return 0, fmt.Errorf("filter.Literal.Int64: number %q is not an integer", l.text)
+		return 0, fmt.Errorf("filter: convert literal to int64: number %q is not an integer", l.text)
 	}
 	integer := number.Num()
 	if !integer.IsInt64() {
-		return 0, fmt.Errorf("filter.Literal.Int64: integer %q exceeds int64", l.text)
+		return 0, fmt.Errorf("filter: convert literal to int64: integer %q exceeds int64", l.text)
 	}
 	return integer.Int64(), nil
 }
@@ -153,7 +153,7 @@ func (l *Literal) Int() (int, error) {
 	}
 	converted := int(value)
 	if int64(converted) != value {
-		return 0, fmt.Errorf("filter.Literal.Int: integer %q exceeds int", l.text)
+		return 0, fmt.Errorf("filter: convert literal to int: integer %q exceeds int", l.text)
 	}
 	return converted, nil
 }
@@ -171,10 +171,10 @@ func (l *Literal) Float64() (float64, error) {
 	}
 	value, err := numberValue.Float64()
 	if err != nil {
-		return 0, fmt.Errorf("filter.Literal.Float64: number %q is not a float64: %w", l.text, err)
+		return 0, fmt.Errorf("filter: convert literal to float64: number %q is not a float64: %w", l.text, err)
 	}
 	if number.IsInt() && new(big.Rat).SetFloat64(value).Cmp(number) != 0 {
-		return 0, fmt.Errorf("filter.Literal.Float64: integer %q loses precision", l.text)
+		return 0, fmt.Errorf("filter: convert literal to float64: integer %q loses precision", l.text)
 	}
 	return value, nil
 }
@@ -192,14 +192,14 @@ func (l *Literal) Float32() (float32, error) {
 	}
 	value, err := numberValue.Float64()
 	if err != nil {
-		return 0, fmt.Errorf("filter.Literal.Float32: number %q is not a float64: %w", l.text, err)
+		return 0, fmt.Errorf("filter: convert literal to float32: number %q is not a float64: %w", l.text, err)
 	}
 	converted := float32(value)
 	if math.IsInf(float64(converted), 0) {
-		return 0, fmt.Errorf("filter.Literal.Float32: number %q exceeds float32", l.text)
+		return 0, fmt.Errorf("filter: convert literal to float32: number %q exceeds float32", l.text)
 	}
 	if number.IsInt() && new(big.Rat).SetFloat64(float64(converted)).Cmp(number) != 0 {
-		return 0, fmt.Errorf("filter.Literal.Float32: integer %q loses precision", l.text)
+		return 0, fmt.Errorf("filter: convert literal to float32: integer %q loses precision", l.text)
 	}
 	return converted, nil
 }
@@ -218,31 +218,31 @@ func (l *Literal) Key() (string, error) {
 		switch number := value.(type) {
 		case int64:
 			if number < 0 {
-				return "", errors.New("filter.Literal.Key: numeric index must be non-negative")
+				return "", errors.New("filter: convert literal to index key: numeric index must be non-negative")
 			}
 			return strconv.FormatInt(number, 10), nil
 		case uint64:
 			if number > math.MaxInt64 {
-				return "", errors.New("filter.Literal.Key: numeric index exceeds int64")
+				return "", errors.New("filter: convert literal to index key: numeric index exceeds int64")
 			}
 			return strconv.FormatUint(number, 10), nil
 		case float64:
 			if number < 0 || number >= math.Exp2(63) || math.Trunc(number) != number {
-				return "", errors.New("filter.Literal.Key: numeric index must be a non-negative integer")
+				return "", errors.New("filter: convert literal to index key: numeric index must be a non-negative integer")
 			}
 			return strconv.FormatUint(uint64(number), 10), nil
 		default:
-			return "", fmt.Errorf("filter.Literal.Key: unsupported numeric index type %T", value)
+			return "", fmt.Errorf("filter: convert literal to index key: unsupported numeric index type %T", value)
 		}
 	default:
-		return "", errors.New("filter.Literal.Key: index must be a string or number literal")
+		return "", errors.New("filter: convert literal to index key: index must be a string or number literal")
 	}
 }
 
 // Value decodes the literal into its exact Go scalar representation.
 func (l *Literal) Value() (any, error) {
 	if l == nil {
-		return nil, errors.New("filter.Literal.Value: literal is nil")
+		return nil, errors.New("filter: decode literal value: literal is nil")
 	}
 	switch {
 	case l.IsString():
@@ -251,20 +251,20 @@ func (l *Literal) Value() (any, error) {
 		if strings.ContainsAny(l.text, ".eE") {
 			number, err := strconv.ParseFloat(l.text, 64)
 			if err != nil || math.IsNaN(number) || math.IsInf(number, 0) {
-				return nil, fmt.Errorf("filter.Literal.Value: invalid number %q", l.text)
+				return nil, fmt.Errorf("filter: decode literal value: invalid number %q", l.text)
 			}
 			return number, nil
 		}
 		if strings.HasPrefix(l.text, "-") {
 			number, err := strconv.ParseInt(l.text, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("filter.Literal.Value: invalid integer %q: %w", l.text, err)
+				return nil, fmt.Errorf("filter: decode literal value: invalid integer %q: %w", l.text, err)
 			}
 			return number, nil
 		}
 		number, err := strconv.ParseUint(l.text, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("filter.Literal.Value: invalid integer %q: %w", l.text, err)
+			return nil, fmt.Errorf("filter: decode literal value: invalid integer %q: %w", l.text, err)
 		}
 		if number <= math.MaxInt64 {
 			return int64(number), nil
@@ -273,7 +273,7 @@ func (l *Literal) Value() (any, error) {
 	case l.IsBool():
 		return l.AsBool()
 	default:
-		return nil, fmt.Errorf("filter.Literal.Value: unsupported kind %s", l.kind)
+		return nil, fmt.Errorf("filter: decode literal value: unsupported kind %s", l.kind)
 	}
 }
 

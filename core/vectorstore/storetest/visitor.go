@@ -10,7 +10,7 @@ import (
 // vendor's visitor. It returns nil on success, an error on failure.
 // Implementations are responsible for assembling the AST (typically
 // via [filter.Parse]) and driving the vendor visitor.
-type BuildFn func(src string) error
+type BuildFn func(source string) error
 
 // Options tunes the conformance suite for vendors with genuine
 // capability gaps.
@@ -30,12 +30,12 @@ type Options struct {
 // here exercises it across ALL vendors that opt into the suite — the
 // single best lever for "no more silent visitor regressions on the
 // 27th provider".
-func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
+func VisitorConformance(t *testing.T, build BuildFn, options ...Options) {
 	t.Helper()
 
 	var opt Options
-	if len(opts) > 0 {
-		opt = opts[0]
+	if len(options) > 0 {
+		opt = options[0]
 	}
 
 	success := []struct {

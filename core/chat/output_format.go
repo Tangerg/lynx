@@ -27,6 +27,9 @@ const (
 
 // OutputFormat is the provider-neutral representation contract for one model
 // result. Name, Description, and Schema belong only to OutputFormatJSONSchema.
+// Provider adapters decode Schema into their native SDK shape when supported;
+// otherwise FallbackInstruction derives the single equivalent prompt contract.
+// Schema bytes are always snapshotted at construction and cloning boundaries.
 type OutputFormat struct {
 	Type        OutputFormatType `json:"type"`
 	Name        string           `json:"name,omitempty"`
@@ -34,26 +37,22 @@ type OutputFormat struct {
 	Schema      json.RawMessage  `json:"schema,omitempty"`
 }
 
-// NewOutputFormat builds a text or unconstrained JSON output-format contract.
 func NewOutputFormat(formatType OutputFormatType) (OutputFormat, error) {
 	format := OutputFormat{Type: formatType}
 	if err := format.Validate(); err != nil {
-		return OutputFormat{}, fmt.Errorf("chat.NewOutputFormat: %w", err)
+		return OutputFormat{}, fmt.Errorf("chat: create output format: %w", err)
 	}
 	return format, nil
 }
 
-// NewJSONSchemaOutputFormat builds a named JSON Schema output-format contract
-// and snapshots schema. Description can be assigned to the returned value.
 func NewJSONSchemaOutputFormat(name string, schema json.RawMessage) (OutputFormat, error) {
 	format := OutputFormat{Type: OutputFormatJSONSchema, Name: name, Schema: bytes.Clone(schema)}
 	if err := format.Validate(); err != nil {
-		return OutputFormat{}, fmt.Errorf("chat.NewJSONSchemaOutputFormat: %w", err)
+		return OutputFormat{}, fmt.Errorf("chat: create JSON Schema output format: %w", err)
 	}
 	return format, nil
 }
 
-// Clone returns an independent copy of o. A nil receiver returns nil.
 func (o *OutputFormat) Clone() *OutputFormat {
 	if o == nil {
 		return nil
@@ -63,9 +62,6 @@ func (o *OutputFormat) Clone() *OutputFormat {
 	return &clone
 }
 
-// SchemaAs decodes o's JSON Schema into T. It lets protocol adapters choose
-// the representation required by their SDK without taking ownership of schema
-// validation or decoding. Only json_schema formats have a schema.
 func (o *OutputFormat) SchemaAs[T any]() (T, error) {
 	var zero T
 	if o == nil {
@@ -79,7 +75,7 @@ func (o *OutputFormat) SchemaAs[T any]() (T, error) {
 	}
 	var schema T
 	if err := jsonv2.Unmarshal(o.Schema, &schema); err != nil {
-		return zero, fmt.Errorf("chat.OutputFormat.SchemaAs: %w", err)
+		return zero, fmt.Errorf("chat: decode output schema: %w", err)
 	}
 	return schema, nil
 }
@@ -100,12 +96,11 @@ func (o *OutputFormat) FallbackInstruction() (string, error) {
 	}
 	var schema bytes.Buffer
 	if err := json.Compact(&schema, o.Schema); err != nil {
-		return "", fmt.Errorf("chat.OutputFormat.FallbackInstruction: compact schema: %w", err)
+		return "", fmt.Errorf("chat: build fallback output instruction: compact schema: %w", err)
 	}
 	return prefix + " The object must conform to this JSON Schema:\n" + schema.String(), nil
 }
 
-// Validate verifies the output-format contract and its type-specific invariants.
 func (o OutputFormat) Validate() error {
 	switch o.Type {
 	case OutputFormatText, OutputFormatJSON:
@@ -137,7 +132,6 @@ func (o OutputFormat) Validate() error {
 	}
 }
 
-// MarshalJSON validates OutputFormat before writing its wire representation.
 func (o OutputFormat) MarshalJSON() ([]byte, error) {
 	if err := o.Validate(); err != nil {
 		return nil, err
@@ -146,7 +140,6 @@ func (o OutputFormat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireOutputFormat(o))
 }
 
-// UnmarshalJSON decodes and validates OutputFormat before replacing the receiver.
 func (o *OutputFormat) UnmarshalJSON(data []byte) error {
 	if o == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidOutputFormat)

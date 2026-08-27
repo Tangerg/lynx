@@ -20,7 +20,7 @@ func accept(predicate Predicate, visitor Visitor) error {
 		return err
 	}
 	if lo.IsNil(visitor) {
-		return fmt.Errorf("filter.Predicate.Accept: visitor is nil")
+		return fmt.Errorf("filter: accept visitor: visitor is nil")
 	}
 	return visitor.Visit(predicate)
 }

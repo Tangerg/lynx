@@ -21,13 +21,14 @@ var (
 	ErrInvalidValue = errors.New("metadata: invalid JSON value")
 )
 
-// Map stores metadata values in their encoded JSON representation.
-//
-// Keeping values encoded prevents runtime-only objects such as functions,
-// readers, and SDK clients from entering protocol DTOs unnoticed.
+// Map is the JSON-only extension boundary shared by protocol values. Keeping
+// values encoded prevents runtime objects such as functions, readers, and SDK
+// clients from entering DTOs unnoticed. Its zero value is writable through
+// Set; Clone and Merge copy encoded bytes, and Merge validates both sides before
+// changing the receiver. Equal intentionally compares the encoded form rather
+// than performing semantic JSON normalization.
 type Map map[string]json.RawMessage
 
-// FromValues encodes an ordinary value map into a JSON-safe Map.
 func FromValues(values map[string]any) (Map, error) {
 	if values == nil {
 		return nil, nil
@@ -41,8 +42,6 @@ func FromValues(values map[string]any) (Map, error) {
 	return encoded, nil
 }
 
-// Values decodes every entry into ordinary Go JSON values for SDK and storage
-// boundaries that do not accept json.RawMessage values.
 func (m Map) Values() (map[string]any, error) {
 	if m == nil {
 		return nil, nil
@@ -117,10 +116,6 @@ func normalizeNumber(number json.Number) (any, error) {
 	return value, nil
 }
 
-// Set encodes value as JSON and stores it under key, initializing a nil map
-// in place — so a zero-value `Extra metadata.Map` field is writable without a
-// prior initialization. Set fails immediately when value cannot be represented
-// as JSON.
 func (m *Map) Set(key string, value any) error {
 	if m == nil {
 		return ErrNilMap
@@ -140,9 +135,6 @@ func (m *Map) Set(key string, value any) error {
 	return nil
 }
 
-// Merge copies every entry from source into m. Source values overwrite entries
-// with the same key and are deep-copied so later mutations cannot cross the
-// metadata boundary. The operation validates both maps before mutating m.
 func (m *Map) Merge(source Map) error {
 	if m == nil {
 		return ErrNilMap
@@ -165,8 +157,6 @@ func (m *Map) Merge(source Map) error {
 	return nil
 }
 
-// Decode decodes the value stored under key into T. The boolean reports
-// whether key was present.
 func (m Map) Decode[T any](key string) (T, bool, error) {
 	var zero T
 	if key == "" {
@@ -187,13 +177,8 @@ func (m Map) Decode[T any](key string) (T, bool, error) {
 	return value, true, nil
 }
 
-// IsZero reports whether m carries no entries. It lets the encoding/json
-// `omitzero` option omit an empty (non-nil) Map, so a zero-value metadata field
-// never serializes as an empty "{}" object — matching the omission a nil Map
-// already gets.
 func (m Map) IsZero() bool { return len(m) == 0 }
 
-// Clone returns a deep copy of m. A nil Map remains nil.
 func (m Map) Clone() Map {
 	if m == nil {
 		return nil
@@ -205,16 +190,12 @@ func (m Map) Clone() Map {
 	return clone
 }
 
-// Equal reports whether m and other contain byte-identical JSON values under
-// the same keys. Values produced through Set are canonical enough for protocol
-// merge decisions; callers that need semantic JSON equality should decode them.
 func (m Map) Equal(other Map) bool {
 	return maps.EqualFunc(m, other, func(left, right json.RawMessage) bool {
 		return bytes.Equal(left, right)
 	})
 }
 
-// Validate reports empty keys and values that are not complete JSON values.
 func (m Map) Validate() error {
 	for key, value := range m {
 		if key == "" {
@@ -227,7 +208,6 @@ func (m Map) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates m before writing its JSON object representation.
 func (m Map) MarshalJSON() ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -236,10 +216,9 @@ func (m Map) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireMap(m))
 }
 
-// UnmarshalJSON decodes and validates a JSON metadata object.
 func (m *Map) UnmarshalJSON(data []byte) error {
 	if m == nil {
-		return errors.New("metadata: unmarshal into nil Map pointer")
+		return errors.New("metadata: map receiver is nil")
 	}
 
 	var decoded map[string]json.RawMessage

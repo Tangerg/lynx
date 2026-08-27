@@ -12,7 +12,6 @@ type Score float64
 // Float64 returns the score as a primitive provider value.
 func (s Score) Float64() float64 { return float64(s) }
 
-// Validate verifies the normalized score contract.
 func (s Score) Validate() error {
 	value := float64(s)
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < MinSimilarityScore || value > MaxSimilarityScore {
@@ -32,7 +31,7 @@ func (s Score) MarshalJSON() ([]byte, error) {
 
 func (s *Score) UnmarshalJSON(data []byte) error {
 	if s == nil {
-		return fmt.Errorf("%w: nil Score receiver", ErrInvalidScore)
+		return fmt.Errorf("%w: score receiver is nil", ErrInvalidScore)
 	}
 	type wireScore Score
 	var decoded wireScore

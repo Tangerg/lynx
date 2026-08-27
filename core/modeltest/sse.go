@@ -74,36 +74,26 @@ func AnthropicSSEServer(events []AnthropicEvent) *httptest.Server {
 	return srv
 }
 
-// JSONServer returns an httptest.Server that responds to every request
-// with the given status code + body. Used for non-streaming endpoints
-// (chat.Call, embedding.Call, image.Call, etc.).
-//
-// The optional inspect callback runs on every request, letting tests
-// assert that the outgoing request shape (URL / method / headers /
-// body) matches expectations.
-func JSONServer(status int, body string, inspect ...func(r *http.Request)) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, f := range inspect {
-			f(r)
+func JSONServer(status int, body string, inspections ...func(request *http.Request)) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		for _, inspect := range inspections {
+			inspect(request)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		fmt.Fprint(w, body)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(status)
+		fmt.Fprint(writer, body)
 	}))
-	return srv
+	return server
 }
 
-// BinaryServer is the analog of JSONServer for non-JSON payloads
-// (TTS audio, image bytes, etc.). The body is written as-is with the
-// supplied Content-Type.
-func BinaryServer(status int, contentType string, body []byte, inspect ...func(r *http.Request)) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, f := range inspect {
-			f(r)
+func BinaryServer(status int, contentType string, body []byte, inspections ...func(request *http.Request)) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		for _, inspect := range inspections {
+			inspect(request)
 		}
-		w.Header().Set("Content-Type", contentType)
-		w.WriteHeader(status)
-		_, _ = w.Write(body)
+		writer.Header().Set("Content-Type", contentType)
+		writer.WriteHeader(status)
+		_, _ = writer.Write(body)
 	}))
-	return srv
+	return server
 }

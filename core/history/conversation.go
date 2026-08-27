@@ -17,7 +17,6 @@ var ErrInvalidConversationID = errors.New("history: invalid conversation ID")
 // be converted directly when the value is known at compile time.
 type ConversationID string
 
-// NewConversationID validates value and returns a history partition identity.
 func NewConversationID(value string) (ConversationID, error) {
 	conversationID := ConversationID(value)
 	if err := conversationID.Validate(); err != nil {
@@ -26,15 +25,10 @@ func NewConversationID(value string) (ConversationID, error) {
 	return conversationID, nil
 }
 
-// String returns the storage representation of the conversation identity.
 func (c ConversationID) String() string {
 	return string(c)
 }
 
-// Validate verifies the partition identity required by Store operations. IDs
-// are opaque UTF-8 text, but control characters and leading or trailing
-// whitespace are rejected because they commonly indicate propagation bugs and
-// create invisible or unsafe storage partitions.
 func (c ConversationID) Validate() error {
 	value := c.String()
 	if value == "" {

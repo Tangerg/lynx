@@ -15,7 +15,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// StoreConfig configures a [Store].
+// StoreConfig fixes the two policies an in-memory store cannot infer per call:
+// the required embedding model and the score function shared by indexing and
+// retrieval. A nil Similarity selects CosineSimilarity; the model has no safe
+// default because it determines vector shape and meaning.
 type StoreConfig struct {
 	// EmbeddingModel embeds documents on Index and queries on Search.
 	// Required.
@@ -57,8 +60,11 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is an in-memory vector store implementing the vectorstore capability
-// interfaces. Construct one with [NewStore].
+// Store is the concurrency-safe reference implementation of the vector-store
+// capability contracts. Index snapshots documents, embeds each upsert once,
+// and replaces records by caller-owned ID. Search snapshots results, evaluates
+// the same filter AST exposed to external backends, and orders normalized scores
+// deterministically. Deletes never expose the internal record map.
 type Store struct {
 	embeddingClient embeddingclient.Client
 	similarity      Similarity
@@ -67,7 +73,6 @@ type Store struct {
 	records map[string]record
 }
 
-// NewStore constructs an in-memory vector store from config.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {
@@ -78,7 +83,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 		return nil, ErrMissingEmbeddingModel
 	}
 	if err != nil {
-		return nil, fmt.Errorf("inmemory.NewStore: create embedding client: %w", err)
+		return nil, fmt.Errorf("inmemory: create store: create embedding client: %w", err)
 	}
 	return &Store{
 		embeddingClient: embeddingClient,
@@ -87,31 +92,25 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Len reports the number of stored records. It is exposed for tests and
-// monitoring, not as part of the vectorstore capability contracts.
 func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.records)
 }
 
-// Index embeds the documents and indexes them by ID. Each
-// document must have a non-empty ID (use [document.Document.ID] or
-// assign one before calling). Existing IDs are overwritten — this
-// mirrors the upsert semantics most vendor stores expose.
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {
 	if validateErr := request.Validate(); validateErr != nil {
-		return fmt.Errorf("inmemory.Store.Index: %w", validateErr)
+		return fmt.Errorf("inmemory: index documents: %w", validateErr)
 	}
 	docs := request.Documents
 
 	texts := make([]string, 0, len(docs))
 	for i, doc := range docs {
 		if doc == nil {
-			return fmt.Errorf("inmemory.Store.Index: document[%d] is nil", i)
+			return fmt.Errorf("inmemory: index documents: document[%d] is nil", i)
 		}
 		if doc.ID == "" {
-			return fmt.Errorf("inmemory.Store.Index: document[%d] has empty ID", i)
+			return fmt.Errorf("inmemory: index documents: document[%d] has empty ID", i)
 		}
 		texts = append(texts, doc.Text)
 	}
@@ -119,10 +118,10 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	var embeddings [][]float64
 	embeddings, err = s.embeddingClient.EmbedTexts(ctx, texts)
 	if err != nil {
-		return fmt.Errorf("inmemory.Store.Index: embed: %w", err)
+		return fmt.Errorf("inmemory: index documents: embed: %w", err)
 	}
 	if len(embeddings) != len(docs) {
-		return fmt.Errorf("inmemory.Store.Index: embedder returned %d vectors for %d documents",
+		return fmt.Errorf("inmemory: index documents: embedder returned %d vectors for %d documents",
 			len(embeddings), len(docs))
 	}
 
@@ -134,13 +133,10 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	return nil
 }
 
-// Search embeds the query, scores every record by similarity, and
-// returns the top-K above MinScore. Filtering happens BEFORE scoring
-// to keep the cost O(filtered × dim) rather than O(all × dim).
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var out []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("inmemory.Store.Search: %w", err)
+		return nil, fmt.Errorf("inmemory: search: %w", err)
 	}
 
 	defer func() {
@@ -152,7 +148,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	var query []float64
 	query, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("inmemory.Store.Search: embed query: %w", err)
+		return nil, fmt.Errorf("inmemory: search: embed query: %w", err)
 	}
 
 	type scored struct {
@@ -167,12 +163,12 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			metadataValues, decodeErr := rec.doc.Metadata.Values()
 			if decodeErr != nil {
 				s.mu.RUnlock()
-				return nil, fmt.Errorf("inmemory.Store.Search: metadata: %w", decodeErr)
+				return nil, fmt.Errorf("inmemory: search: metadata: %w", decodeErr)
 			}
 			match, ferr := matchesFilter(req.Options.Filter, metadataValues)
 			if ferr != nil {
 				s.mu.RUnlock()
-				return nil, fmt.Errorf("inmemory.Store.Search: filter: %w", ferr)
+				return nil, fmt.Errorf("inmemory: search: filter: %w", ferr)
 			}
 			if !match {
 				continue
@@ -208,22 +204,22 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return vectorstore.ErrMissingFilter
 	}
 	if err = expr.Validate(); err != nil {
-		return fmt.Errorf("inmemory.Store.DeleteWhere: %w", err)
+		return fmt.Errorf("inmemory: delete by filter: %w", err)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, rec := range s.records {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("inmemory.Store.Delete: %w", err)
+			return fmt.Errorf("inmemory: delete by filter: %w", err)
 		}
 		metadataValues, err := rec.doc.Metadata.Values()
 		if err != nil {
-			return fmt.Errorf("inmemory.Store.Delete: metadata: %w", err)
+			return fmt.Errorf("inmemory: delete by filter: metadata: %w", err)
 		}
 		match, err := matchesFilter(expr, metadataValues)
 		if err != nil {
-			return fmt.Errorf("inmemory.Store.Delete: filter: %w", err)
+			return fmt.Errorf("inmemory: delete by filter: filter: %w", err)
 		}
 		if match {
 			delete(s.records, id)
@@ -232,12 +228,9 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	return nil
 }
 
-// DeleteIDs removes the records with the given ids. An empty slice is
-// a no-op; unknown ids are ignored (idempotent). Implements
-// [vectorstore.IDDeleter].
 func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if err = ctx.Err(); err != nil {
-		return fmt.Errorf("inmemory.Store.DeleteIDs: %w", err)
+		return fmt.Errorf("inmemory: delete by ID: %w", err)
 	}
 	if len(ids) == 0 {
 		return nil
@@ -251,8 +244,6 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-// Clear removes every record. It is useful for test setup and teardown, not as
-// part of the vectorstore capability contracts.
 func (s *Store) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

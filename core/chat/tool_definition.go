@@ -20,13 +20,11 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 }
 
-// Clone returns an independent copy of t.
 func (t ToolDefinition) Clone() ToolDefinition {
 	t.InputSchema = bytes.Clone(t.InputSchema)
 	return t
 }
 
-// Validate verifies the provider-compatible tool name and object input schema.
 func (t ToolDefinition) Validate() error {
 	if !toolNamePattern.MatchString(t.Name) {
 		return fmt.Errorf("%w: name must match %s", ErrInvalidToolDefinition, toolNamePattern)
@@ -45,7 +43,6 @@ func (t ToolDefinition) Validate() error {
 	return nil
 }
 
-// MarshalJSON validates t before writing its wire representation.
 func (t ToolDefinition) MarshalJSON() ([]byte, error) {
 	if err := t.Validate(); err != nil {
 		return nil, err
@@ -54,8 +51,6 @@ func (t ToolDefinition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireToolDefinition(t))
 }
 
-// UnmarshalJSON decodes and validates a definition before replacing the
-// receiver.
 func (t *ToolDefinition) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidToolDefinition)

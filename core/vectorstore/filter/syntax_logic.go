@@ -1,28 +1,28 @@
 package filter
 
-func logic[L Predicate, R Predicate](l L, r R, op Operator) *BinaryExpr {
+func logic[L Predicate, R Predicate](left L, right R, operator Operator) *BinaryExpr {
 	return &BinaryExpr{
-		left:     l,
-		operator: op,
-		right:    r,
+		left:     left,
+		operator: operator,
+		right:    right,
 	}
 }
 
-// And builds `l AND r`. Raw literals and selectors do not satisfy
+// And combines two predicates. Raw literals and selectors do not satisfy
 // [Predicate].
-func And[L Predicate, R Predicate](l L, r R) *BinaryExpr {
-	return logic(l, r, OpAnd)
+func And[L Predicate, R Predicate](left L, right R) *BinaryExpr {
+	return logic(left, right, OpAnd)
 }
 
-// Or builds `l OR r`. Both operands must be predicates.
-func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr {
-	return logic(l, r, OpOr)
+// Or accepts only predicate operands.
+func Or[L Predicate, R Predicate](left L, right R) *BinaryExpr {
+	return logic(left, right, OpOr)
 }
 
-// Not builds `NOT r`. The operand must be a predicate.
-func Not[T Predicate](r T) *UnaryExpr {
+// Not accepts only a predicate operand.
+func Not[T Predicate](predicate T) *UnaryExpr {
 	return &UnaryExpr{
 		operator: OpNot,
-		right:    r,
+		right:    predicate,
 	}
 }

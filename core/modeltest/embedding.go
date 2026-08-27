@@ -26,35 +26,34 @@ type EmbeddingContract struct {
 }
 
 // RunEmbeddingContract exercises an embedding vendor against canned
-// JSON: Call returns 2 outputs with non-empty embeddings.
-func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
+func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
 		var seenPath string
-		srv := JSONServer(http.StatusOK, c.Response, func(r *http.Request) {
-			seenPath = r.URL.Path
+		server := JSONServer(http.StatusOK, contract.Response, func(request *http.Request) {
+			seenPath = request.URL.Path
 		})
-		t.Cleanup(srv.Close)
+		t.Cleanup(server.Close)
 
-		m := c.Build(t, srv.URL)
-		req, err := embedding.NewRequest([]string{"foo", "bar"})
+		model := contract.Build(t, server.URL)
+		request, err := embedding.NewRequest([]string{"foo", "bar"})
 		if err != nil {
 			t.Fatalf("NewRequest: %v", err)
 		}
 
-		resp, err := m.Call(t.Context(), req)
+		response, err := model.Call(t.Context(), request)
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
-		if c.ExpectedPath != "" && seenPath != c.ExpectedPath {
-			t.Errorf("URL = %q; want %q", seenPath, c.ExpectedPath)
+		if contract.ExpectedPath != "" && seenPath != contract.ExpectedPath {
+			t.Errorf("URL = %q; want %q", seenPath, contract.ExpectedPath)
 		}
-		if len(resp.Outputs) != 2 {
-			t.Fatalf("got %d outputs; want 2", len(resp.Outputs))
+		if len(response.Outputs) != 2 {
+			t.Fatalf("got %d outputs; want 2", len(response.Outputs))
 		}
-		for i, r := range resp.Outputs {
-			if len(r.Embedding) == 0 {
-				t.Errorf("output %d has empty embedding", i)
+		for index, output := range response.Outputs {
+			if len(output.Embedding) == 0 {
+				t.Errorf("output %d has empty embedding", index)
 			}
 		}
 	})
@@ -68,27 +67,27 @@ type IntegrationEmbeddingProbe struct {
 	Build    func(t *testing.T, key string) embedding.Model
 }
 
-func RunIntegrationEmbedding(t *testing.T, p IntegrationEmbeddingProbe) {
+func RunIntegrationEmbedding(t *testing.T, probe IntegrationEmbeddingProbe) {
 	t.Helper()
-	key := RequireKey(t, p.Provider)
-	m := p.Build(t, key)
+	key := RequireKey(t, probe.Provider)
+	model := probe.Build(t, key)
 	ctx, cancel := WithTimeout(t, 30*time.Second)
 	defer cancel()
 
-	req, err := embedding.NewRequest([]string{"the quick brown fox", "jumps over the lazy dog"})
+	request, err := embedding.NewRequest([]string{"the quick brown fox", "jumps over the lazy dog"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := m.Call(ctx, req)
+	response, err := model.Call(ctx, request)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if len(resp.Outputs) != 2 {
-		t.Fatalf("got %d outputs; want 2", len(resp.Outputs))
+	if len(response.Outputs) != 2 {
+		t.Fatalf("got %d outputs; want 2", len(response.Outputs))
 	}
-	for i, r := range resp.Outputs {
-		if len(r.Embedding) == 0 {
-			t.Errorf("output %d has empty embedding", i)
+	for index, output := range response.Outputs {
+		if len(output.Embedding) == 0 {
+			t.Errorf("output %d has empty embedding", index)
 		}
 	}
 }

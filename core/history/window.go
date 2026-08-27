@@ -25,14 +25,14 @@ var _ Store = WindowStore{}
 // merged system message followed by a suffix of complete conversation turns.
 // A user message starts a turn; every following assistant and tool message
 // remains in that turn until the next user message. Writes and clears pass
-// through to the authoritative Store.
+// through to the authoritative Store. Read returns ErrWindowTooSmall rather
+// than splitting the newest complete turn, and the merged system message counts
+// toward the configured limit.
 type WindowStore struct {
 	store Store
 	limit int
 }
 
-// NewWindowStore returns a read-side sliding-window decorator. Limit counts
-// the merged system message when one exists and must be greater than zero.
 func NewWindowStore(store Store, limit int) (WindowStore, error) {
 	if lo.IsNil(store) {
 		return WindowStore{}, ErrNilStore
@@ -43,13 +43,10 @@ func NewWindowStore(store Store, limit int) (WindowStore, error) {
 	return WindowStore{store: store, limit: limit}, nil
 }
 
-// Write delegates to the underlying Store.
 func (w WindowStore) Write(ctx context.Context, conversationID ConversationID, messages ...chat.Message) error {
 	return w.store.Write(ctx, conversationID, messages...)
 }
 
-// Read returns the windowed projection. It returns ErrWindowTooSmall rather
-// than splitting the newest turn when that turn does not fit.
 func (w WindowStore) Read(ctx context.Context, conversationID ConversationID) ([]chat.Message, error) {
 	messages, err := w.store.Read(ctx, conversationID)
 	if err != nil {
@@ -58,7 +55,6 @@ func (w WindowStore) Read(ctx context.Context, conversationID ConversationID) ([
 	return newMessageWindow(messages, w.limit).project()
 }
 
-// Clear delegates to the underlying Store.
 func (w WindowStore) Clear(ctx context.Context, conversationID ConversationID) error {
 	return w.store.Clear(ctx, conversationID)
 }
