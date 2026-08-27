@@ -42,6 +42,7 @@ type modelReport struct {
 
 type modelEvaluator struct {
 	generation     chatclient.Generation[modelReport]
+	metric         Metric
 	prompt         *chatclient.Template
 	threshold      Score
 	validateSample func(TextSample) error
@@ -49,6 +50,7 @@ type modelEvaluator struct {
 
 func newModelEvaluator(
 	config ModelConfig,
+	metric Metric,
 	defaultPrompt string,
 	validate func(TextSample) error,
 	required ...string,
@@ -87,6 +89,7 @@ func newModelEvaluator(
 	}
 	return &modelEvaluator{
 		generation:     client.Output(format),
+		metric:         metric,
 		prompt:         prompt,
 		threshold:      threshold,
 		validateSample: validate,
@@ -112,6 +115,7 @@ func (m *modelEvaluator) Evaluate(ctx context.Context, sample TextSample) (Repor
 		return Report{}, fmt.Errorf("evaluation: generate report: %w", err)
 	}
 	report := Report{
+		Metric:   m.metric,
 		Passed:   output.Score.Passes(m.threshold),
 		Score:    output.Score,
 		Feedback: strings.TrimSpace(output.Feedback),

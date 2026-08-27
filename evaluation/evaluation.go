@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrInvalidConfig = errors.New("evaluation: invalid config")
+	ErrInvalidMetric = errors.New("evaluation: invalid metric")
 	ErrInvalidScore  = errors.New("evaluation: invalid score")
 	ErrInvalidSample = errors.New("evaluation: invalid sample")
 	ErrInvalidReport = errors.New("evaluation: invalid report")
@@ -20,6 +21,43 @@ var (
 
 // DefaultThreshold is used when [ModelConfig.Threshold] is nil.
 const DefaultThreshold Score = 0.5
+
+// Metric identifies the quality dimension measured by a [Report]. String
+// values keep reports stable and readable across process boundaries.
+type Metric string
+
+const (
+	MetricGroundedness    Metric = "groundedness"
+	MetricAnswerRelevance Metric = "answer_relevance"
+	MetricComposite       Metric = "composite"
+)
+
+// NewMetric validates name and returns a custom metric identity.
+func NewMetric(name string) (Metric, error) {
+	metric := Metric(name)
+	if err := metric.Validate(); err != nil {
+		return "", err
+	}
+	return metric, nil
+}
+
+// MustMetric is the declaration-time companion to [NewMetric].
+func MustMetric(name string) Metric {
+	metric, err := NewMetric(name)
+	if err != nil {
+		panic(err)
+	}
+	return metric
+}
+
+// Validate checks that the metric has a stable, non-blank identity.
+func (m Metric) Validate() error {
+	name := string(m)
+	if name == "" || name != strings.TrimSpace(name) {
+		return fmt.Errorf("%w: name must be non-empty without surrounding whitespace", ErrInvalidMetric)
+	}
+	return nil
+}
 
 // Score is a normalized evaluation score in the closed interval [0, 1].
 type Score float64
@@ -87,6 +125,7 @@ func (t TextSample) ContextText() string {
 // child reports of a composite evaluation instead of flattening them into
 // convention-based metadata keys.
 type Report struct {
+	Metric   Metric       `json:"metric"`
 	Passed   bool         `json:"passed"`
 	Score    Score        `json:"score"`
 	Feedback string       `json:"feedback,omitzero"`
@@ -107,6 +146,9 @@ func (r Report) Clone() Report {
 // Validate verifies the normalized score, JSON-safe metadata, and nested
 // reports.
 func (r Report) Validate() error {
+	if err := r.Metric.Validate(); err != nil {
+		return fmt.Errorf("%w: metric: %w", ErrInvalidReport, err)
+	}
 	if err := r.Score.Validate(); err != nil {
 		return fmt.Errorf("%w: score: %w", ErrInvalidReport, err)
 	}

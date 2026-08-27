@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/lynx/evaluation"
 )
 
+var testMetric = evaluation.MustMetric("test")
+
 func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	if _, err := evaluation.NewGroundednessEvaluator(evaluation.ModelConfig{}); !errors.Is(err, evaluation.ErrInvalidConfig) {
 		t.Fatalf("nil model error = %v", err)
@@ -205,10 +207,10 @@ func TestCompositeMergesValidatedReportsWithoutFlattenedMetadata(t *testing.T) {
 	}
 	evaluators := []evaluation.Evaluator[evaluation.TextSample]{
 		evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
-			return evaluation.Report{Passed: true, Score: 1, Feedback: "good", Metadata: firstMetadata}, nil
+			return evaluation.Report{Metric: testMetric, Passed: true, Score: 1, Feedback: "good", Metadata: firstMetadata}, nil
 		}),
 		evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
-			return evaluation.Report{Passed: false, Score: 0.5, Feedback: "weak"}, nil
+			return evaluation.Report{Metric: testMetric, Passed: false, Score: 0.5, Feedback: "weak"}, nil
 		}),
 	}
 	composite, err := evaluation.NewComposite(evaluators...)
@@ -256,7 +258,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 	}
 
 	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
-		return evaluation.Report{Score: evaluation.Score(math.NaN())}, nil
+		return evaluation.Report{Metric: testMetric, Score: evaluation.Score(math.NaN())}, nil
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -270,7 +272,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleReportOwnership(t *testing
 		t.Fatal(setErr)
 	}
 	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
-		return evaluation.Report{Passed: true, Score: 1, Metadata: childMetadata}, nil
+		return evaluation.Report{Metric: testMetric, Passed: true, Score: 1, Metadata: childMetadata}, nil
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -291,11 +293,11 @@ func TestCompositePreservesContextCancellationBetweenChildren(t *testing.T) {
 	composite, err := evaluation.NewComposite(
 		evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 			cancel()
-			return evaluation.Report{Passed: true, Score: 1}, nil
+			return evaluation.Report{Metric: testMetric, Passed: true, Score: 1}, nil
 		}),
 		evaluation.EvaluatorFunc[evaluation.TextSample](func(context.Context, evaluation.TextSample) (evaluation.Report, error) {
 			secondCalled = true
-			return evaluation.Report{Passed: true, Score: 1}, nil
+			return evaluation.Report{Metric: testMetric, Passed: true, Score: 1}, nil
 		}),
 	)
 	if err != nil {
@@ -311,16 +313,19 @@ func TestCompositePreservesContextCancellationBetweenChildren(t *testing.T) {
 
 func TestScoreAndReportValidation(t *testing.T) {
 	for _, score := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1)} {
-		if err := (evaluation.Report{Score: evaluation.Score(score)}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
+		if err := (evaluation.Report{Metric: testMetric, Score: evaluation.Score(score)}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
 			t.Fatalf("score %v error = %v", score, err)
 		}
 	}
 	badMetadata := metadata.Map{"key": []byte("not-json")}
-	if err := (evaluation.Report{Score: 0.5, Metadata: badMetadata}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
+	if err := (evaluation.Report{Metric: testMetric, Score: 0.5, Metadata: badMetadata}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
 		t.Fatalf("metadata error = %v", err)
 	}
-	if err := (evaluation.Report{Score: 0.5}).Validate(); err != nil {
+	if err := (evaluation.Report{Metric: testMetric, Score: 0.5}).Validate(); err != nil {
 		t.Fatal(err)
+	}
+	if err := (evaluation.Report{Score: 0.5}).Validate(); !errors.Is(err, evaluation.ErrInvalidMetric) {
+		t.Fatalf("missing metric error = %v", err)
 	}
 	if score, err := evaluation.NewScore(0.75); err != nil || score.Float64() != 0.75 {
 		t.Fatalf("NewScore = %v, %v", score, err)

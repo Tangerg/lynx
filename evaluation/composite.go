@@ -58,7 +58,7 @@ func (*Composite[T]) merge(reports []Report) (Report, error) {
 		return reports[0].Clone(), nil
 	}
 
-	merged := Report{Passed: true, Details: reports}
+	merged := Report{Metric: MetricComposite, Passed: true, Details: reports}
 	feedback := make([]string, 0, len(reports))
 	for _, report := range reports {
 		merged.Passed = merged.Passed && report.Passed

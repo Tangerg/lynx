@@ -28,6 +28,7 @@ type AnswerRelevanceEvaluator struct {
 func NewAnswerRelevanceEvaluator(config ModelConfig) (*AnswerRelevanceEvaluator, error) {
 	evaluator, err := newModelEvaluator(
 		config,
+		MetricAnswerRelevance,
 		answerRelevancePrompt,
 		validateAnswerRelevanceSample,
 		"Input",
