@@ -1,7 +1,0 @@
-{
-  "matches": [
-    { "path": "src/main.go", "lineNumber": 42, "text": "func main() {" },
-    { "path": "src/util.go", "lineNumber": 7, "text": "func helper() error {" }
-  ],
-  "total": 2
-}

@@ -8,7 +8,6 @@
 #   FAST=1 scripts/check.sh                # skip govulncheck (slowest)
 #   MODULE=core scripts/check.sh           # Core module only
 #   MODULE=models/google scripts/check.sh  # nested workspace module only
-#   MODULE=app/runtime scripts/check.sh race
 #
 # Required tools:
 #   go (1.27.0)
@@ -17,7 +16,6 @@
 #   govulncheck    — install via:
 #     go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
 #   jq              — used to enforce the reviewed vulnerability allowlist
-#   node/npm         — required only when app/desktop is selected
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -63,30 +61,6 @@ if [[ "${FAST:-0}" == "1" ]]; then
     [[ "$check" == "vuln" ]] || FAST_CHECKS+=("$check")
   done
   CHECKS=("${FAST_CHECKS[@]}")
-fi
-
-# The Wails binary embeds frontend/dist. Build that owned input before any Go
-# check that loads packages; a clean checkout deliberately does not track dist.
-prepare_desktop=0
-for module in "${MODULES[@]}"; do
-  [[ "$module" == "app/desktop" ]] || continue
-  for check in "${CHECKS[@]}"; do
-    if [[ "$check" != "tidy" ]]; then
-      prepare_desktop=1
-      break 2
-    fi
-  done
-done
-if [[ $prepare_desktop -eq 1 ]]; then
-  if ! command -v npm >/dev/null 2>&1; then
-    echo "npm is required to build app/desktop frontend assets" >&2
-    exit 2
-  fi
-  if [[ ! -d "$ROOT/app/desktop/frontend/node_modules" ]]; then
-    echo "app/desktop frontend dependencies are missing; run npm ci in app/desktop/frontend" >&2
-    exit 2
-  fi
-  (cd "$ROOT/app/desktop/frontend" && npm run build)
 fi
 
 run_in_module() {

@@ -27,8 +27,7 @@ Framework work follows these module rules:
   required to build it unless an explicit consumer migration authorizes more;
 - use repository history as implementation evidence, never as a compatibility
   contract or imported dependency;
-- do not make the Framework depend on `app/runtime`, frontend, TUI, CLI, or
-  another Host application;
+- do not make the Framework depend on Flame or another Host application;
 - do not commit placeholders, compatibility shims, known debt, or partial
   semantics; and
 - update the execution plan after every completed and verified batch.

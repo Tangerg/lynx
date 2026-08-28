@@ -153,7 +153,6 @@ func TestFixedConstructionStateUsesConfig(t *testing.T) {
 
 	root := repositoryRoot(t)
 	for _, relative := range []string{
-		"app/runtime/internal/delivery/dispatch",
 		"core/chatclient",
 		"etl/html",
 		"etl/markdown",

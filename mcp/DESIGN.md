@@ -26,8 +26,8 @@ mcp/
 └── prompt.go     // MCP prompt messages -> []chat.Message
 ```
 
-应用运行时自己的 `mcpServers` 配置、OAuth 登录、热重连和状态管理放在
-`app/runtime/internal/infra/mcp`，不放在本模块根包。
+应用运行时自己的 `mcpServers` 配置、OAuth 登录、热重连和状态管理由
+独立 Flame Runtime 的 infra 层拥有，不放在本模块根包。
 
 ## Import 约定
 

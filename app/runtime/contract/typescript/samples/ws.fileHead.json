@@ -1,8 +1,0 @@
-{
-  "path": "README.md",
-  "lines": [
-    { "lineNumber": 1, "text": "# Project" },
-    { "lineNumber": 2, "text": "" },
-    { "lineNumber": 3, "text": "Intro paragraph." }
-  ]
-}

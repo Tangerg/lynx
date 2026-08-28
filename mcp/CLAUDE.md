@@ -8,7 +8,7 @@
 ## 定位
 
 - **根包放 scope 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tool.Tool` 与 MCP tool 的双向适配、prompt 转换。
-- **应用层的事不在这里**:MCP 服务器配置、OAuth 登录、热重连、状态展示属于 app/runtime 的 infra 层 —— 本模块只做协议适配。
+- **应用层的事不在这里**:MCP 服务器配置、OAuth 登录、热重连、状态展示属于独立 Flame Runtime 的 infra 层 —— 本模块只做协议适配。
 
 ## 架构心智
 
@@ -20,7 +20,7 @@
 
 ## 模块特有反向不变量
 
-- ❌ **加配置注册中心**(服务器清单 / OAuth handler / headers / reconnect)—— 都在 app/runtime 的 infra。
+- ❌ **加配置注册中心**(服务器清单 / OAuth handler / headers / reconnect)—— 都在独立 Flame Runtime 的 infra。
 - ❌ **恢复 Provider / cache** —— 除非有多个真实调用方证明应用层刷新不够。
 - ❌ **把 MCP primitive 包成框架** —— 优先直接暴露 SDK 类型或写一个小函数。
 

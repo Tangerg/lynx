@@ -1,6 +1,0 @@
-dist
-node_modules
-wailsjs
-example
-src/lib/shiki.ts
-*.md

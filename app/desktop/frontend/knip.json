@@ -1,6 +1,0 @@
-{
-  "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": ["visual/main.tsx", "visual/**/*.visual.spec.ts", "src/plugins/sdk/index.ts"],
-  "ignoreExportsUsedInFile": true,
-  "ignoreDependencies": ["husky", "lint-staged", "@commitlint/cli"]
-}

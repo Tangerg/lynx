@@ -1,9 +1,0 @@
-// Standalone workspace for the Wails desktop app. It shadows the monorepo's
-// root go.work so `go`/`wails` invoked inside app/desktop build this module in
-// isolation. Desktop imports only Runtime's public localruntime deployment
-// handoff package through its module-local replacement; it does not add the
-// Runtime module or its backend graph to this workspace. Without this file, a
-// build here walks up to ../../go.work and loses that isolation.
-go 1.27.0
-
-use .

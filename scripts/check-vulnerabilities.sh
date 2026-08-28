@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run govulncheck as a blocking gate. Only the reviewed, currently unfixable
-# Ollama findings are allowed in models/ollama and app/runtime; every other reachable
+# Ollama findings are allowed in models/ollama; every other reachable
 # finding fails. If Ollama's version changes or the database publishes a fixed
 # version, this script fails so the exception must be removed or re-reviewed.
 set -eo pipefail
@@ -48,7 +48,7 @@ done < <(
 
 allowed=()
 case "$module" in
-  models/ollama|app/runtime)
+  models/ollama)
     allowed=(
       GO-2025-3557
       GO-2025-3558

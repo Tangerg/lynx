@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, scopeapp]
+    branches: [main]
   pull_request:
-    branches: [main, scopeapp]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -65,32 +65,10 @@ jobs:
             go.work.sum
             **/go.sum
 
-      - uses: actions/setup-node@v7
-        if: matrix.module == 'app/desktop'
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: app/desktop/frontend/package-lock.json
-
-      - name: Install desktop frontend dependencies
-        if: matrix.module == 'app/desktop'
-        working-directory: app/desktop/frontend
-        run: npm ci --no-audit --no-fund
-
-      - name: Desktop frontend quality gate
-        if: matrix.module == 'app/desktop'
-        working-directory: app/desktop/frontend
-        run: npm run check
-
       - name: Build, vet, test, race, and module hygiene
         env:
           MODULE: ${{ matrix.module }}
         run: scripts/check.sh build vet test race tidy
-
-      - name: Runtime standalone module graph
-        if: matrix.module == 'app/runtime'
-        working-directory: app/runtime
-        run: make check-standalone
 
       - name: Core API and wire compatibility guards
         if: matrix.module == 'core'

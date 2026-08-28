@@ -32,7 +32,7 @@
 
 ## 定位与导览
 
-`scope` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`rag`、`etl`、`evaluation`、`tools`、`skills` 是领域能力模块，`a2a`、`mcp` 是协议 integration 模块，`otel` 是可观测性 integration 模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。依赖层级表达 import 方向，不替代这些模块角色。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
+`scope` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`rag`、`etl`、`evaluation`、`tools`、`skills` 是领域能力模块，`a2a`、`mcp` 是协议 integration 模块，`otel` 是可观测性 integration 模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。依赖层级表达 import 方向，不替代这些模块角色。完整应用由独立 Flame 仓库拥有；本仓库不再包含 `app` 模块，也不把应用层纳入库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
 
 ---
 

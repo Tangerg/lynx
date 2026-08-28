@@ -3,10 +3,6 @@ go 1.27.0
 use (
 	./a2a
 	./agent
-	./app/cli
-	./app/desktop
-	./app/runtime
-	./app/runtime/localruntime
 	./core
 	./dev/providerconformance
 	./dev/repoarch
