@@ -17,6 +17,12 @@ func (callOnlyModel) Call(context.Context, *chat.Request) (*chat.Response, error
 	return new(chat.Response), nil
 }
 
+type inputTokenCounterFunc func(context.Context, *chat.Request) (int64, error)
+
+func (i inputTokenCounterFunc) CountInputTokens(ctx context.Context, request *chat.Request) (int64, error) {
+	return i(ctx, request)
+}
+
 type providerError struct {
 	status int
 	header http.Header
@@ -30,6 +36,30 @@ func TestClassifyModelFailuresPreservesOptionalStreamingCapability(t *testing.T)
 	classified := classifyModelFailures(callOnlyModel{})
 	if _, ok := classified.(chat.Streamer); ok {
 		t.Fatal("call-only model unexpectedly gained streaming capability")
+	}
+}
+
+func TestClassifyModelFailuresPreservesOptionalInputTokenCountingCapability(t *testing.T) {
+	providerErr := &providerError{status: http.StatusTooManyRequests}
+	model := struct {
+		chat.Model
+		inputTokenCounterFunc
+	}{
+		Model: callOnlyModel{},
+		inputTokenCounterFunc: inputTokenCounterFunc(func(context.Context, *chat.Request) (int64, error) {
+			return 0, providerErr
+		}),
+	}
+	classified := classifyModelFailures(model)
+	counter, ok := classified.(modelInputTokenCounter)
+	if !ok {
+		t.Fatal("classification stripped input token counting")
+	}
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hello")))
+	_, err := counter.CountInputTokens(t.Context(), request)
+	var failure *run.FailureError
+	if !errors.As(err, &failure) || failure.Kind != run.FailureRateLimited || !errors.Is(err, providerErr) {
+		t.Fatalf("count error = %#v", err)
 	}
 }
 

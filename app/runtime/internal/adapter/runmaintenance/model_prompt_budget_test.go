@@ -1,6 +1,7 @@
 package runmaintenance
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -8,6 +9,50 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/media"
 )
+
+type budgetInputCounter struct {
+	calls int
+	count int64
+}
+
+func (b *budgetInputCounter) CountInputTokens(context.Context, []chat.Message) (int64, error) {
+	b.calls++
+	return b.count, nil
+}
+
+func TestModelContextBudgetUsesProviderCountOnlyAtLocalThresholdOrForMedia(t *testing.T) {
+	const threshold = 10_000
+	counter := &budgetInputCounter{count: threshold - 1}
+	budget := newModelContextBudget(
+		100,
+		threshold,
+		[]chat.Message{chat.NewSystemMessage("frozen instructions")},
+		nil,
+		nil,
+		chat.Options{},
+		0,
+		counter,
+	)
+	over, _, err := budget.triggered(t.Context(), []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("well below threshold")),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if over || counter.calls != 0 {
+		t.Fatalf("text-only preflight = over:%t provider_counts:%d, want false and zero", over, counter.calls)
+	}
+
+	over, _, err = budget.triggered(t.Context(), []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("inspect"), chat.NewMediaPart(mustBudgetImage(t, []byte{0}))),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if over || counter.calls != 1 {
+		t.Fatalf("media preflight = over:%t provider_counts:%d, want false and one", over, counter.calls)
+	}
+}
 
 func TestMaintenanceModelTranscriptHasAggregateInputBound(t *testing.T) {
 	const maximumInputBytes = 384 * 1024

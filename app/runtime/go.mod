@@ -6,10 +6,10 @@ require (
 	github.com/Tangerg/scope/a2a v0.0.1
 	github.com/Tangerg/scope/agent v0.2.0
 	github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29
-	github.com/Tangerg/scope/core v0.0.1
+	github.com/Tangerg/scope/core v0.0.2
 	github.com/Tangerg/scope/mcp v0.0.1
 	github.com/Tangerg/scope/models/alibaba v0.0.1
-	github.com/Tangerg/scope/models/anthropic v0.0.1
+	github.com/Tangerg/scope/models/anthropic v0.0.2
 	github.com/Tangerg/scope/models/azureopenai v0.0.1
 	github.com/Tangerg/scope/models/catalog v0.0.1
 	github.com/Tangerg/scope/models/deepseek v0.0.1
@@ -20,10 +20,10 @@ require (
 	github.com/Tangerg/scope/models/minimax v0.0.1
 	github.com/Tangerg/scope/models/mistral v0.0.1
 	github.com/Tangerg/scope/models/moonshot v0.0.1
-	github.com/Tangerg/scope/models/openai v0.0.1
+	github.com/Tangerg/scope/models/openai v0.0.2
 	github.com/Tangerg/scope/models/openrouter v0.0.1
 	github.com/Tangerg/scope/models/perplexity v0.0.1
-	github.com/Tangerg/scope/models/protocol/openai v0.0.1
+	github.com/Tangerg/scope/models/protocol/openai v0.0.2
 	github.com/Tangerg/scope/models/together v0.0.1
 	github.com/Tangerg/scope/models/xai v0.0.1
 	github.com/Tangerg/scope/models/xiaomi v0.0.1
@@ -63,7 +63,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/scope/models/protocol/anthropic v0.0.1 // indirect
+	github.com/Tangerg/scope/models/protocol/anthropic v0.0.2 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.5.0 // indirect
 	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.67.0 // indirect

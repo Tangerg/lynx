@@ -1,6 +1,7 @@
 package runmaintenance
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -24,9 +25,12 @@ const (
 )
 
 // modelContextBudget owns both compaction triggers and the exact immutable
-// request material that survives every candidate rewrite. Keeping the fixed
-// prefix, mutable conversation, pending tail, Tool manifest, and Options in one
-// value prevents independently rounded "fixed" and "history" token ledgers.
+// request material that survives every candidate rewrite. Every main-model call
+// pays only the local preflight cost. Provider counting is reserved for a local
+// threshold hit or provider-priced media, and compaction begins only when that
+// exact count reaches the threshold. Keeping the fixed prefix, mutable
+// conversation, pending tail, Tool manifest, and Options in one value prevents
+// independently rounded "fixed" and "history" token ledgers.
 type modelContextBudget struct {
 	maxMessages  int
 	maxTokens    int
@@ -35,6 +39,23 @@ type modelContextBudget struct {
 	tools        []chat.ToolDefinition
 	options      chat.Options
 	adjustment   int
+	counter      modelContextInputTokenCounter
+}
+
+type modelContextInputTokenCounter interface {
+	CountInputTokens(context.Context, []chat.Message) (int64, error)
+}
+
+type modelContextFootprint struct {
+	tokens           int
+	providerMeasured bool
+}
+
+func (m modelContextFootprint) triggerTokens(adjustment int) int {
+	if m.providerMeasured {
+		return m.tokens
+	}
+	return calibratedTokenEstimate(m.tokens, adjustment)
 }
 
 func newModelContextBudget(
@@ -45,6 +66,7 @@ func newModelContextBudget(
 	tools []chat.ToolDefinition,
 	options chat.Options,
 	adjustment int,
+	counter modelContextInputTokenCounter,
 ) modelContextBudget {
 	return modelContextBudget{
 		maxMessages:  maxMessages,
@@ -54,29 +76,74 @@ func newModelContextBudget(
 		tools:        cloneToolDefinitions(tools),
 		options:      options.Clone(),
 		adjustment:   adjustment,
+		counter:      counter,
 	}
 }
 
-func (m modelContextBudget) triggered(messages []chat.Message) (bool, error) {
-	if saturatedAdd(len(messages), len(m.tail)) >= m.maxMessages {
-		return true, nil
-	}
-	tokens, err := m.estimatedTokens(messages)
+func (m modelContextBudget) triggered(ctx context.Context, messages []chat.Message) (bool, int, error) {
+	footprint, err := m.triggerFootprint(ctx, messages)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
-	return calibratedTokenEstimate(tokens, m.adjustment) >= m.maxTokens, nil
+	if saturatedAdd(len(messages), len(m.tail)) >= m.maxMessages {
+		return true, footprint.tokens, nil
+	}
+	return footprint.triggerTokens(m.adjustment) >= m.maxTokens, footprint.tokens, nil
 }
 
-func (m modelContextBudget) exceeded(messages []chat.Message) (bool, error) {
-	if saturatedAdd(len(messages), len(m.tail)) >= m.maxMessages {
-		return true, nil
+func (m modelContextBudget) exceeded(ctx context.Context, messages []chat.Message) (bool, int, error) {
+	footprint, err := m.replacementFootprint(ctx, messages)
+	if err != nil {
+		return false, 0, err
 	}
+	if saturatedAdd(len(messages), len(m.tail)) >= m.maxMessages {
+		return true, footprint.tokens, nil
+	}
+	return footprint.tokens >= m.maxTokens, footprint.tokens, nil
+}
+
+func (m modelContextBudget) triggerFootprint(ctx context.Context, messages []chat.Message) (modelContextFootprint, error) {
 	tokens, err := m.estimatedTokens(messages)
 	if err != nil {
-		return false, err
+		return modelContextFootprint{}, err
 	}
-	return tokens >= m.maxTokens, nil
+	calibrated := calibratedTokenEstimate(tokens, m.adjustment)
+	if m.counter == nil || (calibrated < m.maxTokens && !m.hasProviderPricedMedia(messages)) {
+		return modelContextFootprint{tokens: tokens}, nil
+	}
+	return m.countInputTokens(ctx, messages)
+}
+
+func (m modelContextBudget) replacementFootprint(ctx context.Context, messages []chat.Message) (modelContextFootprint, error) {
+	if m.counter != nil {
+		return m.countInputTokens(ctx, messages)
+	}
+	tokens, err := m.estimatedTokens(messages)
+	return modelContextFootprint{tokens: tokens}, err
+}
+
+func (m modelContextBudget) countInputTokens(ctx context.Context, messages []chat.Message) (modelContextFootprint, error) {
+	mutable := make([]chat.Message, 0, len(messages)+len(m.tail))
+	mutable = append(mutable, cloneMessages(messages)...)
+	mutable = append(mutable, cloneMessages(m.tail)...)
+	count, err := m.counter.CountInputTokens(ctx, mutable)
+	if err != nil {
+		return modelContextFootprint{}, fmt.Errorf("runmaintenance: count provider input tokens: %w", err)
+	}
+	return modelContextFootprint{tokens: tokenLimitInt(count), providerMeasured: true}, nil
+}
+
+func (m modelContextBudget) hasProviderPricedMedia(messages []chat.Message) bool {
+	for _, group := range [][]chat.Message{m.instructions, messages, m.tail} {
+		for messageIndex := range group {
+			for partIndex := range group[messageIndex].Parts {
+				if group[messageIndex].Parts[partIndex].Kind == chat.PartMedia {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (m modelContextBudget) estimatedTokens(messages []chat.Message) (int, error) {

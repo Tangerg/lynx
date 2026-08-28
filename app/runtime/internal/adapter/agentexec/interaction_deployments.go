@@ -160,12 +160,17 @@ func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deploy
 	visible, deferred := wrapInteractionTools(manifest, i.session, i.executor.config, i.start)
 	var contextReducer interaction.ModelContextReducer
 	if i.executor.config.ModelContextCompactor != nil {
+		var counter ModelContextInputTokenCounter
+		if i.client.SupportsInputTokenCounting() {
+			counter = i.client
+		}
 		contextReducer = newInteractionModelContextReducer(
 			i.executor.config.ModelContextCompactor,
 			i.executor.config.ModelContextState,
 			i.session,
 			i.start,
 			i.instructions,
+			counter,
 		)
 	}
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{

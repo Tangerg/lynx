@@ -75,6 +75,17 @@ type observedInteractionModel struct {
 	session *interactionSession
 }
 
+type observedInteractionCountingModel struct {
+	*observedInteractionModel
+}
+
+func (o *observedInteractionCountingModel) CountInputTokens(
+	ctx context.Context,
+	request *corechat.Request,
+) (int64, error) {
+	return o.inner.CountInputTokens(ctx, request)
+}
+
 func (o *observedInteractionModel) Call(
 	ctx context.Context,
 	request *corechat.Request,
@@ -768,8 +779,12 @@ func newObservedInteractionClient(
 	inner *chatclient.Client,
 	session *interactionSession,
 ) (*chatclient.Client, error) {
-	model := &observedInteractionModel{inner: inner, session: session}
-	return chatclient.New(model, chatclient.Config{Streamer: model})
+	observed := &observedInteractionModel{inner: inner, session: session}
+	var model corechat.Model = observed
+	if inner.SupportsInputTokenCounting() {
+		model = &observedInteractionCountingModel{observedInteractionModel: observed}
+	}
+	return chatclient.New(model, chatclient.Config{Streamer: observed})
 }
 
 func validateToolManifest(manifest toolset.Manifest) error {

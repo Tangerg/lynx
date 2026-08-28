@@ -676,8 +676,8 @@ func TestCompactorLadderWidensWhenRecentTurnAloneExceedsBudget(t *testing.T) {
 	if len(trimmed) >= len(big) || !strings.Contains(trimmed, "trimmed on compaction") {
 		t.Fatalf("oversized recent Tool result was not trimmed: len=%d", len(trimmed))
 	}
-	budget := newModelContextBudget(c.maxMessages, 10_000, nil, nil, nil, chat.Options{}, 0)
-	overBudget, err := budget.exceeded(after)
+	budget := newModelContextBudget(c.maxMessages, 10_000, nil, nil, nil, chat.Options{}, 0, nil)
+	overBudget, _, err := budget.exceeded(t.Context(), after)
 	if err != nil {
 		t.Fatal(err)
 	}

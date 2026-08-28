@@ -54,6 +54,7 @@ type compactionPlan struct {
 	trimmed        []chat.Message
 	older          []chat.Message
 	recent         []chat.Message
+	inputTokens    int
 }
 
 // CompactionResult describes an LLM summary rewrite. A trim-only rewrite keeps
@@ -177,8 +178,8 @@ func (c *Compactor) CompactIfNeeded(
 	if err != nil {
 		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
-	budget := newModelContextBudget(c.maxMessages, maxTokens, nil, nil, nil, chat.Options{}, 0)
-	plan, err := c.planCompaction(msgs, budget)
+	budget := newModelContextBudget(c.maxMessages, maxTokens, nil, nil, nil, chat.Options{}, 0, nil)
+	plan, err := c.planCompaction(ctx, msgs, budget)
 	if err != nil {
 		return CompactionResult{}, err
 	}
@@ -230,29 +231,31 @@ func (c *Compactor) CompactIfNeeded(
 }
 
 func (c *Compactor) planCompaction(
+	ctx context.Context,
 	messages []chat.Message,
 	budget modelContextBudget,
 ) (compactionPlan, error) {
-	return c.planCompactionWithProtectedTail(messages, budget, 0)
+	return c.planCompactionWithProtectedTail(ctx, messages, budget, 0)
 }
 
 func (c *Compactor) planCompactionWithProtectedTail(
+	ctx context.Context,
 	messages []chat.Message,
 	budget modelContextBudget,
 	protectedTail int,
 ) (compactionPlan, error) {
-	overBudget, err := budget.triggered(messages)
+	overBudget, inputTokens, err := budget.triggered(ctx, messages)
 	if err != nil {
 		return compactionPlan{}, err
 	}
 	if !overBudget || len(messages) == 0 {
-		return compactionPlan{}, nil
+		return compactionPlan{inputTokens: inputTokens}, nil
 	}
 	if protectedTail < 0 || protectedTail > len(messages) {
 		return compactionPlan{required: true}, nil
 	}
 	foldableLimit := len(messages) - protectedTail
-	protectedOverBudget, err := budget.exceeded(messages[foldableLimit:])
+	protectedOverBudget, _, err := budget.exceeded(ctx, messages[foldableLimit:])
 	if err != nil {
 		return compactionPlan{}, err
 	}
@@ -264,7 +267,7 @@ func (c *Compactor) planCompactionWithProtectedTail(
 		return compactionPlan{required: true}, nil
 	}
 	trimmed, changed := trimForBudgetBefore(messages, cutoff)
-	trimmedOverBudget, err := budget.exceeded(trimmed)
+	trimmedOverBudget, trimmedTokens, err := budget.exceeded(ctx, trimmed)
 	if err != nil {
 		return compactionPlan{}, err
 	}
@@ -272,6 +275,7 @@ func (c *Compactor) planCompactionWithProtectedTail(
 		return compactionPlan{
 			action: trimCompaction, required: true,
 			messagesBefore: len(messages), trimmed: trimmed,
+			inputTokens: trimmedTokens,
 		}, nil
 	}
 	// KeepRecent is a preference, not a license to preserve a suffix that is
@@ -279,14 +283,14 @@ func (c *Compactor) planCompactionWithProtectedTail(
 	// cannot converge: every later pass would keep the same oversized turn.
 	// Widen the deterministic rung first; only summarize the complete, finished
 	// history when cheap trimming still cannot make it executable.
-	recentOverBudget, err := budget.exceeded(trimmed[cutoff:])
+	recentOverBudget, _, err := budget.exceeded(ctx, trimmed[cutoff:])
 	if err != nil {
 		return compactionPlan{}, err
 	}
 	if recentOverBudget {
 		cutoff = foldableLimit
 		trimmed, changed = trimForBudgetBefore(messages, cutoff)
-		trimmedOverBudget, err = budget.exceeded(trimmed)
+		trimmedOverBudget, trimmedTokens, err = budget.exceeded(ctx, trimmed)
 		if err != nil {
 			return compactionPlan{}, err
 		}
@@ -294,6 +298,7 @@ func (c *Compactor) planCompactionWithProtectedTail(
 			return compactionPlan{
 				action: trimCompaction, required: true,
 				messagesBefore: len(messages), trimmed: trimmed,
+				inputTokens: trimmedTokens,
 			}, nil
 		}
 	}

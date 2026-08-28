@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P193 已完成；P194 已准入。
+> 状态：P0–P194 已完成；P195 已准入。
 >
-> 最近基线：2026-08-28，P193 已完成。
+> 最近基线：2026-08-28，P194 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P194 已准入：审计首次主调用在provider尚无usage校准时的media成本是否存在可证硬窗口反例；只有发现真实provider-owned计数能力与产品失败切点才可扩展当前budget owner，不得猜像素公式、安全倍率、模态价格或建立第二ledger。
+- P195 已准入：审计首次multimodal主请求在Runtime transport上限、Core media source/MIME与direct provider真实支持之间是否存在准入缺口；只从可复现HTTP/provider失败切点归还format、source与size owner，不新增通用media facade、兼容猜测或TUI改动。
+- P194 已准入并完成：首次含inline media的主调用在provider尚无usage校准时，provider-neutral占位估算无法证明真实input是否越过hard window。Runtime仍在每次主调用前做廉价完整请求预检；纯文本明显低于阈值时不发计数请求，只有本地估算达到阈值或请求含provider-priced media时才调用同一direct adapter的原生计数端点，并且只有精确值达到阈值才允许PreCompact、summary与原子rewrite。低于阈值或计数失败时SQLite durable history、Run watermarks与Agent Strategy state均不变。Direct OpenAI迁至Responses `/responses/input_tokens`，Anthropic使用`/messages/count_tokens`；compatible与Google不虚构能力，不猜像素公式、安全倍率、模态价格或第二ledger。Core及两份protocol、两份provider wrapper已按依赖顺序发布`v0.0.2`。
 - P193 已准入并完成：catalog扫描发现463个已知context、未知max input且max output大于窗口20%的模型，另有6个模型的input/output独立最大值之和超过context。`modelref.TokenLimits`现在唯一拥有三项事实，显式output reservation在durable Run admission、每次主调用与post-Run maintenance中同值消费；qwen 16,384/8,192真实反例在8,192输入上限而非旧13,107软阈值处压缩，gpt-5-pro超限HTTP请求在零Run/Item写入时返回`invalid_params`。zero provider usage不制造校准，非法值沿既有response validation拒绝，正值仍权威；没有margin、tokenizer、provider分支或第二budget ledger。
 - P192 已准入并完成：catalog扫描发现38个`MaxInputTokens < ContextWindow*80%`的真实模型，其中`openai/gpt-5.4-mini`的400k context / 272k input会在旧320k trigger前必然拒绝。Runtime现在每次主调用前以selected model同时读取两项catalog事实，有效token trigger为context软阈值受硬输入限制封顶。低于阈值仍零PreCompact/summary/SQLite rewrite，不增加媒体公式、安全倍率或第二token owner。
 - P191 已准入并完成：失败优先反例证明旧`raw transcript bytes / 4`完全遗漏reasoning/signature、16KiB ToolCall arguments、Tool manifest与Options；配套反例证明朴素完整JSON估算也不能把inline media transport大小误当文本成本。`modelContextBudget`现在一次估算完整provider-neutral request；CJK/emoji、全部Part/metadata/Tools/Options均入账，media source规范为最小合法占位。provider成功响应把reported input与同一exact request estimate绑定，下一主调用只沿用delta；waiting checkpoint private schema升至v4。每次主调用仍检查，但低于message/token阈值绝不hook、summary或SQLite rewrite，压缩后也不继承旧窗口校准立即二次压缩。
@@ -520,10 +521,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P191     | 主模型上下文完整请求预算与provider校准                                                       | 全Part/Tools/Options单一ledger；media transport去文本化；reported usage校准；checkpoint schema v4                                               |
 | P192     | Provider硬输入上限与压缩阈值同值闭环                                                   | selected-model context软阈值受max input封顶；不借用default identity；阈值下零副作用                                     |
 | P193     | 显式输出预留与模型限制值对象闭环                                                        | context/input/output单一Domain owner；admission与pre/post-call同值；缺失usage不伪校准                                    |
+| P194     | 首次multimodal主调用的provider-owned精确预算                                            | 每调用廉价预检；阈值/media才精确计数；阈值下零durable副作用；native-only capability；五个module `v0.0.2`                   |
 
 ## 5. 当前里程碑结论
 
-P113–P193 共同建立了以下不可回退的心智模型：
+P113–P194 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -548,6 +550,7 @@ P113–P193 共同建立了以下不可回退的心智模型：
 - Agent Memory 的管理/prompt/search read model 是有限 complete-list，不是静默分页：每 target 的 visible set、每次 maintenance result、ledger cursor page 与 rejected negative history 分别服从 Domain 唯一上限；显式 user intent 可在原 id 上提升 pending/rejected fact，自动 curation 只能填充真实剩余容量。
 - Skill Proposal 的审阅 identity 是 exact revision，retention identity 则是 scope/name：同名新稿只替换一个 current slot，旧 handle 失效；每 scope 最多 128 个待审名称、每份 authored document 最多 1 MiB，完整列表与 lifecycle read 对绕过写入的越界状态 fail closed。
 - request-detached auxiliary model call 必须显式拥有 aggregate input-byte 与 output-token envelope；maintenance transcript 只有一个 bounded fair-share renderer，compaction trigger 独立观察 raw footprint。任何 ledger/cursor 只能推进到实际完整进入模型输入的最后一项。
+- 主模型上下文压缩必须区分“每调用检查”与“每调用压缩”：本地完整请求预检在每次主调用前执行，但纯文本明显低于阈值时不访问provider；只有本地阈值命中或存在provider-priced media时才允许同一direct adapter精确计数，且精确值未到阈值时不得运行PreCompact、summary、SQLite conversation/Run watermark rewrite或安装新的Agent Strategy context。compatible endpoint与无法证明完整同请求计数的provider不得冒充该能力。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
@@ -582,6 +585,8 @@ P192 的provider硬输入上限delta另外通过Runtime workspace/standalone ful
 
 P193 的显式output reservation与TokenLimits delta另外通过Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、golangci-lint、46条真实HTTP E2E、Desktop workspace/standalone test/vet/build、Frontend targeted format/type/lint与Runtime tidy/generate零漂移。受版本控制的`app/cli`与`app/tui`均零diff；仅观察到既有macOS deployment-target linker warning。
 
+P194 的provider-owned input count与阈值门禁通过Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、golangci-lint、govulncheck、外部module consumer编译、OpenAI/Anthropic真实HTTP adapter回归、Desktop workspace test/vet/build与Runtime tidy/generate零漂移。Core、两份protocol与两份wrapper分别通过standalone race/test/vet/build、govulncheck与`gorelease`后按DAG发布`v0.0.2`。受版本控制的`app/cli`与`app/tui`均零diff；仅观察到既有macOS deployment-target linker warning。
+
 ## 6. 新阶段准入
 
 新 Goal 必须先完成以下内容，才可开始生产代码：
@@ -593,4 +598,4 @@ P193 的显式output reservation与TokenLimits delta另外通过Runtime workspac
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P193 已完成，P194 从首次主调用尚无provider usage校准时的media成本与硬窗口反例开始；只有真实provider-owned计数能力和产品失败切点才能扩展当前budget owner，不猜像素公式、安全倍率、模态价格或第二ledger。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P194 已完成，P195 从首次multimodal主请求的transport、media source/MIME与direct provider支持矩阵反例开始；只有可复现产品失败切点才能改变准入 owner，不建立通用media facade、兼容猜测或第二表示。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

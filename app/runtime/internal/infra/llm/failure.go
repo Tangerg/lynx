@@ -14,6 +14,10 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
+type modelInputTokenCounter interface {
+	CountInputTokens(context.Context, *chat.Request) (int64, error)
+}
+
 // failureModel translates provider-specific errors at the infrastructure
 // boundary. The rest of the runtime sees one typed execution failure taxonomy
 // and never parses provider error strings.
@@ -23,11 +27,21 @@ type failureModel struct {
 
 func classifyModelFailures(model chat.Model) chat.Model {
 	classified := failureModel{model: model}
-	streamer, ok := model.(chat.Streamer)
-	if !ok {
+	streamer, streams := model.(chat.Streamer)
+	counter, counts := model.(modelInputTokenCounter)
+	switch {
+	case streams && counts:
+		return failureStreamingCountingModel{
+			failureCountingModel: failureCountingModel{failureModel: classified, counter: counter},
+			streamer:             streamer,
+		}
+	case streams:
+		return failureStreamingModel{failureModel: classified, streamer: streamer}
+	case counts:
+		return failureCountingModel{failureModel: classified, counter: counter}
+	default:
 		return classified
 	}
-	return failureStreamingModel{failureModel: classified, streamer: streamer}
 }
 
 func (f failureModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
@@ -41,7 +55,29 @@ type failureStreamingModel struct {
 }
 
 func (f failureStreamingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-	sequence := f.streamer.Stream(ctx, request)
+	return classifyModelStream(f.streamer.Stream(ctx, request))
+}
+
+type failureCountingModel struct {
+	failureModel
+	counter modelInputTokenCounter
+}
+
+func (f failureCountingModel) CountInputTokens(ctx context.Context, request *chat.Request) (int64, error) {
+	count, err := f.counter.CountInputTokens(ctx, request)
+	return count, classifyModelError(err)
+}
+
+type failureStreamingCountingModel struct {
+	failureCountingModel
+	streamer chat.Streamer
+}
+
+func (f failureStreamingCountingModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	return classifyModelStream(f.streamer.Stream(ctx, request))
+}
+
+func classifyModelStream(sequence iter.Seq2[*chat.Response, error]) iter.Seq2[*chat.Response, error] {
 	if sequence == nil {
 		return nil
 	}

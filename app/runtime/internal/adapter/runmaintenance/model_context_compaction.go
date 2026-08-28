@@ -91,8 +91,9 @@ func (c *Compactor) CompactModelContext(
 		request.Tools(),
 		options,
 		request.TokenEstimateAdjustment(),
+		newModelContextCounter(request),
 	)
-	plan, err := c.planCompactionWithProtectedTail(history, budget, protectedTail)
+	plan, err := c.planCompactionWithProtectedTail(ctx, history, budget, protectedTail)
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
 	}
@@ -100,16 +101,12 @@ func (c *Compactor) CompactModelContext(
 		if plan.required {
 			return agentexec.ModelContextCompactionResult{}, ErrModelContextCannotFit
 		}
-		estimatedTokens, estimateErr := budget.estimatedTokens(history)
-		if estimateErr != nil {
-			return agentexec.ModelContextCompactionResult{}, estimateErr
-		}
 		return agentexec.NewModelContextCompactionResult(
 			candidate,
 			false,
 			false,
 			len(candidate),
-			estimatedTokens,
+			plan.inputTokens,
 		)
 	}
 	if !request.AllowsCompaction(ctx) {
@@ -124,7 +121,7 @@ func (c *Compactor) CompactModelContext(
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
 	}
-	overBudget, err := budget.exceeded(replacement)
+	overBudget, inputTokens, err := budget.exceeded(ctx, replacement)
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
 	}
@@ -132,16 +129,12 @@ func (c *Compactor) CompactModelContext(
 		return agentexec.ModelContextCompactionResult{}, ErrModelContextCannotFit
 	}
 	effective := append(cloneMessages(replacement), ephemeral...)
-	estimatedTokens, err := budget.estimatedTokens(replacement)
-	if err != nil {
-		return agentexec.ModelContextCompactionResult{}, err
-	}
 	result, err := agentexec.NewModelContextCompactionResult(
 		effective,
 		true,
 		summarized,
 		len(candidate),
-		estimatedTokens,
+		inputTokens,
 	)
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
@@ -162,6 +155,22 @@ func (c *Compactor) CompactModelContext(
 		}
 	}
 	return result, nil
+}
+
+type modelContextCounter agentexec.ModelContextCompaction
+
+func newModelContextCounter(request agentexec.ModelContextCompaction) modelContextInputTokenCounter {
+	if !request.HasInputTokenCounter() {
+		return nil
+	}
+	return modelContextCounter(request)
+}
+
+func (m modelContextCounter) CountInputTokens(
+	ctx context.Context,
+	messages []chat.Message,
+) (int64, error) {
+	return agentexec.ModelContextCompaction(m).CountInputTokens(ctx, messages)
 }
 
 func (c *Compactor) materializeModelContextPlan(

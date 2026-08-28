@@ -13,8 +13,23 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/chatclient"
+	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
 )
+
+type contextInputCounter struct {
+	calls int
+	count func(*chat.Request) int64
+	err   error
+}
+
+func (c *contextInputCounter) CountInputTokens(_ context.Context, request *chat.Request) (int64, error) {
+	c.calls++
+	if c.err != nil {
+		return 0, c.err
+	}
+	return c.count(request), nil
+}
 
 func TestModelContextCompactionRewritesDurableHistoryAndPreservesPendingInput(t *testing.T) {
 	store := newCompactionTestStore()
@@ -142,6 +157,191 @@ func TestModelContextCompactionChecksEveryCallButRewritesOnlyAtThreshold(t *test
 			after.Changed(), preCompactCalls, store.rewrites, len(model.requests),
 		)
 	}
+}
+
+func TestModelContextCompactionCountsMediaButDoesNotCompactBelowProviderThreshold(t *testing.T) {
+	const (
+		sessionID = "session:media-below-provider-threshold"
+		threshold = 10_000
+	)
+	history := contextTurnsWithInlineImage(t)
+	store := newCompactionTestStore()
+	if err := store.Write(t.Context(), sessionID, history...); err != nil {
+		t.Fatal(err)
+	}
+	summaryModel := newTextStubModel("MUST NOT RUN")
+	summaryClient, err := chatclient.New(summaryModel, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := &contextInputCounter{count: func(*chat.Request) int64 { return threshold - 1 }}
+	selection, err := modelref.New("openai", "gpt-5.6-sol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := agentexec.NewDurableModelContextCompaction(
+		sessionID,
+		selection,
+		[]chat.Message{chat.NewSystemMessage("frozen instructions")},
+		history,
+		nil,
+		chat.Options{},
+		agentexec.ModelContextTokenCalibration{},
+		counter,
+		0,
+		func(context.Context) bool {
+			t.Fatal("PreCompact ran below the provider threshold")
+			return false
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(store, constClient(summaryClient), nil, CompactionConfig{
+		MaxMessages: 100,
+		MaxTokens:   threshold,
+		KeepRecent:  2,
+	})
+
+	result, err := compactor.CompactModelContext(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Changed() || result.Summarized() || result.EstimatedTokens() != threshold-1 {
+		t.Fatalf("result = changed:%t summarized:%t tokens:%d", result.Changed(), result.Summarized(), result.EstimatedTokens())
+	}
+	if counter.calls != 1 || store.rewrites != 0 || len(summaryModel.requests) != 0 {
+		t.Fatalf("side effects = counts:%d rewrites:%d summaries:%d", counter.calls, store.rewrites, len(summaryModel.requests))
+	}
+}
+
+func TestModelContextCompactionCountFailureLeavesDurableStateUntouched(t *testing.T) {
+	const sessionID = "session:media-provider-count-failure"
+	history := contextTurnsWithInlineImage(t)
+	store := newCompactionTestStore()
+	if err := store.Write(t.Context(), sessionID, history...); err != nil {
+		t.Fatal(err)
+	}
+	summaryModel := newTextStubModel("MUST NOT RUN")
+	summaryClient, err := chatclient.New(summaryModel, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	countErr := errors.New("provider count unavailable")
+	counter := &contextInputCounter{err: countErr}
+	selection, err := modelref.New("openai", "gpt-5.6-sol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := agentexec.NewDurableModelContextCompaction(
+		sessionID,
+		selection,
+		[]chat.Message{chat.NewSystemMessage("frozen instructions")},
+		history,
+		nil,
+		chat.Options{},
+		agentexec.ModelContextTokenCalibration{},
+		counter,
+		0,
+		func(context.Context) bool {
+			t.Fatal("PreCompact ran after provider count failure")
+			return false
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(store, constClient(summaryClient), nil, CompactionConfig{
+		MaxMessages: 100,
+		MaxTokens:   10_000,
+		KeepRecent:  2,
+	})
+
+	if _, compactErr := compactor.CompactModelContext(t.Context(), request); !errors.Is(compactErr, countErr) {
+		t.Fatalf("error = %v, want provider count failure", compactErr)
+	}
+	after, err := store.Read(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counter.calls != 1 || store.rewrites != 0 || len(summaryModel.requests) != 0 || !reflect.DeepEqual(after, history) {
+		t.Fatalf(
+			"side effects = counts:%d rewrites:%d summaries:%d history_equal:%t",
+			counter.calls,
+			store.rewrites,
+			len(summaryModel.requests),
+			reflect.DeepEqual(after, history),
+		)
+	}
+}
+
+func TestModelContextCompactionCompactsMediaOnlyAtProviderThreshold(t *testing.T) {
+	const (
+		sessionID = "session:media-at-provider-threshold"
+		threshold = 10_000
+	)
+	history := contextTurnsWithInlineImage(t)
+	store := newCompactionTestStore()
+	if err := store.Write(t.Context(), sessionID, history...); err != nil {
+		t.Fatal(err)
+	}
+	summaryModel := newTextStubModel("PROVIDER MEASURED SUMMARY")
+	summaryClient, err := chatclient.New(summaryModel, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := &contextInputCounter{count: func(request *chat.Request) int64 {
+		if len(request.Messages) == len(history)+1 {
+			return threshold
+		}
+		return threshold / 10
+	}}
+	selection, err := modelref.New("openai", "gpt-5.6-sol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := agentexec.NewDurableModelContextCompaction(
+		sessionID,
+		selection,
+		[]chat.Message{chat.NewSystemMessage("frozen instructions")},
+		history,
+		nil,
+		chat.Options{},
+		agentexec.ModelContextTokenCalibration{},
+		counter,
+		0,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(store, constClient(summaryClient), nil, CompactionConfig{
+		MaxMessages: 100,
+		MaxTokens:   threshold,
+		KeepRecent:  2,
+	})
+
+	result, err := compactor.CompactModelContext(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed() || !result.Summarized() || result.EstimatedTokens() != threshold/10 {
+		t.Fatalf("result = changed:%t summarized:%t tokens:%d", result.Changed(), result.Summarized(), result.EstimatedTokens())
+	}
+	if counter.calls < 2 || store.rewrites != 1 || len(summaryModel.requests) != 1 {
+		t.Fatalf("side effects = counts:%d rewrites:%d summaries:%d", counter.calls, store.rewrites, len(summaryModel.requests))
+	}
+}
+
+func contextTurnsWithInlineImage(t *testing.T) []chat.Message {
+	t.Helper()
+	image, err := media.NewBytes("image/png", []byte("provider-priced-image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := completeContextTurns()
+	history[0] = chat.NewUserMessage(chat.NewTextPart("q1"), chat.NewMediaPart(image))
+	return history
 }
 
 func TestModelContextCompactionCalibratesThresholdFromProviderUsage(t *testing.T) {
@@ -281,6 +481,7 @@ func TestModelContextCompactionUsesSelectedModelHardInputLimit(t *testing.T) {
 		nil,
 		chat.Options{},
 		agentexec.ModelContextTokenCalibration{},
+		nil,
 		0,
 		nil,
 	)
@@ -371,6 +572,7 @@ func TestModelContextCompactionReservesExplicitOutputWindow(t *testing.T) {
 		nil,
 		options,
 		agentexec.ModelContextTokenCalibration{},
+		nil,
 		0,
 		nil,
 	)
@@ -616,6 +818,7 @@ func durableContextRequestWithCalibration(
 		nil,
 		chat.Options{},
 		calibration,
+		nil,
 		protectedTail,
 		preCompact,
 	)

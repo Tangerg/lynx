@@ -141,16 +141,48 @@ func TestInteractionExecutorDoesNotInventCalibrationWhenProviderUsageIsMissing(t
 	}
 }
 
+type countingObservationModel struct {
+	*observationScriptModel
+}
+
+func (*countingObservationModel) CountInputTokens(context.Context, *chat.Request) (int64, error) {
+	return 123, nil
+}
+
+func TestInteractionExecutorCarriesProviderInputCountingIntoEveryMainCallReduction(t *testing.T) {
+	compactor := &calibrationCaptureCompactor{estimatedTokens: 100}
+	model := &countingObservationModel{observationScriptModel: &observationScriptModel{
+		responses: []*chat.Response{interactionUsageTextResponse("done", 11, 3)},
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ModelContextCompactor: compactor,
+		ModelContextState:     emptyInteractionModelContextState{},
+	})
+
+	runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
+	if !slices.Equal(compactor.providerCounts, []int64{123}) {
+		t.Fatalf("provider input counts = %v, want [123]", compactor.providerCounts)
+	}
+}
+
 type calibrationCaptureCompactor struct {
 	estimatedTokens int
 	adjustments     []int
+	providerCounts  []int64
 }
 
 func (c *calibrationCaptureCompactor) CompactModelContext(
-	_ context.Context,
+	ctx context.Context,
 	request ModelContextCompaction,
 ) (ModelContextCompactionResult, error) {
 	c.adjustments = append(c.adjustments, request.TokenEstimateAdjustment())
+	if request.HasInputTokenCounter() {
+		count, err := request.CountInputTokens(ctx, request.Candidate())
+		if err != nil {
+			return ModelContextCompactionResult{}, err
+		}
+		c.providerCounts = append(c.providerCounts, count)
+	}
 	return NewModelContextCompactionResult(
 		request.Candidate(),
 		false,

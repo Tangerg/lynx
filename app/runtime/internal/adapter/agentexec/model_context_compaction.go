@@ -74,6 +74,10 @@ const (
 	modelContextDurable
 )
 
+type ModelContextInputTokenCounter interface {
+	CountInputTokens(context.Context, *corechat.Request) (int64, error)
+}
+
 // ModelContextCompaction is one immutable request to reduce only the mutable
 // conversational portion of an Interaction model context. Instructions and
 // newly applied input stay outside the foldable region and are reattached by
@@ -87,6 +91,7 @@ type ModelContextCompaction struct {
 	tools         []corechat.ToolDefinition
 	options       corechat.Options
 	calibration   ModelContextTokenCalibration
+	counter       ModelContextInputTokenCounter
 	protectedTail int
 	preCompact    func(context.Context) bool
 }
@@ -102,6 +107,7 @@ func NewDurableModelContextCompaction(
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
 	calibration ModelContextTokenCalibration,
+	counter ModelContextInputTokenCounter,
 	protectedDurableTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -114,6 +120,7 @@ func NewDurableModelContextCompaction(
 		tools,
 		options,
 		calibration,
+		counter,
 		protectedDurableTail,
 		preCompact,
 	)
@@ -129,6 +136,7 @@ func NewTransientModelContextCompaction(
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
 	calibration ModelContextTokenCalibration,
+	counter ModelContextInputTokenCounter,
 	protectedTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -141,6 +149,7 @@ func NewTransientModelContextCompaction(
 		tools,
 		options,
 		calibration,
+		counter,
 		protectedTail,
 		preCompact,
 	)
@@ -155,6 +164,7 @@ func newModelContextCompaction(
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
 	calibration ModelContextTokenCalibration,
+	counter ModelContextInputTokenCounter,
 	protectedTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -242,6 +252,12 @@ func newModelContextCompaction(
 	if err := calibration.Validate(); err != nil {
 		return ModelContextCompaction{}, err
 	}
+	if counter != nil && isNilInteractionCapability(counter) {
+		return ModelContextCompaction{}, fmt.Errorf(
+			"%w: input token counter is nil",
+			errInvalidModelContextCompaction,
+		)
+	}
 	frozenTools := make([]corechat.ToolDefinition, len(tools))
 	for index := range tools {
 		frozenTools[index] = tools[index].Clone()
@@ -255,6 +271,7 @@ func newModelContextCompaction(
 		tools:         frozenTools,
 		options:       options.Clone(),
 		calibration:   calibration,
+		counter:       counter,
 		protectedTail: protectedTail,
 		preCompact:    preCompact,
 	}, nil
@@ -298,6 +315,41 @@ func (m ModelContextCompaction) Options() corechat.Options { return m.options.Cl
 // every candidate built from this request's immutable model identity.
 func (m ModelContextCompaction) TokenEstimateAdjustment() int {
 	return m.calibration.Adjustment()
+}
+
+// HasInputTokenCounter reports whether this imminent call can be measured by
+// the same provider adapter that will execute it.
+func (m ModelContextCompaction) HasInputTokenCounter() bool { return m.counter != nil }
+
+// CountInputTokens measures an alternative mutable suffix together with this
+// value's frozen instructions, tools, options, and model defaults.
+func (m ModelContextCompaction) CountInputTokens(
+	ctx context.Context,
+	candidate []corechat.Message,
+) (int64, error) {
+	if m.counter == nil {
+		return 0, errors.New("agentexec: model-context input token counter is unavailable")
+	}
+	messages := make([]corechat.Message, 0, len(m.instructions)+len(candidate))
+	messages = append(messages, cloneChatMessages(m.instructions)...)
+	messages = append(messages, cloneChatMessages(candidate)...)
+	request := &corechat.Request{
+		Messages: messages,
+		Tools:    m.Tools(),
+		Options:  m.options.Clone(),
+	}
+	count, err := m.counter.CountInputTokens(ctx, request)
+	if err != nil {
+		return 0, fmt.Errorf("agentexec: count model-context input tokens: %w", err)
+	}
+	if count <= 0 {
+		return 0, fmt.Errorf(
+			"%w: input token counter returned a non-positive count: %d",
+			errInvalidModelContextCompaction,
+			count,
+		)
+	}
+	return count, nil
 }
 
 // ProtectedTail returns how many candidate messages must remain verbatim.

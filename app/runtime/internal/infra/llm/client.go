@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Tangerg/scope/core/chat"
@@ -68,8 +69,8 @@ type chatProviderProfile struct {
 // compatible providers reuse the direct OpenAI / Anthropic adapters with a caller URL.
 var chatProviderCatalog = map[Provider]chatProviderProfile{
 	// Direct vendor wire adapters (base URL optional — defaults to the vendor endpoint).
-	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: buildAnthropicModel},
-	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: buildOpenAIModel},
+	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: buildAnthropicCountingModel},
+	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: buildOpenAIResponsesModel},
 	ProviderGoogle: {defaultModel: google.ModelGemini36Flash, apiKeyEnv: "GOOGLE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return google.NewChat(google.ChatConfig{APIKey: s.APIKey, DefaultOptions: o})
 	}},
@@ -129,13 +130,33 @@ var chatProviderCatalog = map[Provider]chatProviderProfile{
 	}},
 
 	// Generic bring-your-own-endpoint providers: direct adapter + caller URL.
-	ProviderOpenAICompatible:    {apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildOpenAIModel},
-	ProviderAnthropicCompatible: {apiKeyEnv: "ANTHROPIC_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildAnthropicModel},
+	ProviderOpenAICompatible:    {apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildOpenAICompatibleModel},
+	ProviderAnthropicCompatible: {apiKeyEnv: "ANTHROPIC_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildAnthropicCompatibleModel},
 }
 
-// buildAnthropicModel builds the Anthropic wire adapter, threading an optional
-// base URL for a caller-defined compatible endpoint.
-func buildAnthropicModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+type anthropicCountingModel struct {
+	*anthropic.Chat
+}
+
+var _ modelInputTokenCounter = (*anthropicCountingModel)(nil)
+
+func (a *anthropicCountingModel) CountInputTokens(ctx context.Context, request *chat.Request) (int64, error) {
+	return a.CountMessageInputTokens(ctx, request)
+}
+
+func buildAnthropicCountingModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+	model, err := newAnthropicModel(spec, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &anthropicCountingModel{Chat: model}, nil
+}
+
+func buildAnthropicCompatibleModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+	return newAnthropicModel(spec, opts)
+}
+
+func newAnthropicModel(spec ClientSpec, opts chat.Options) (*anthropic.Chat, error) {
 	return anthropic.NewChat(anthropic.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,
@@ -143,9 +164,15 @@ func buildAnthropicModel(spec ClientSpec, opts chat.Options) (chat.Model, error)
 	})
 }
 
-// buildOpenAIModel builds the OpenAI wire adapter, threading an optional base
-// URL for a caller-defined compatible endpoint.
-func buildOpenAIModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+func buildOpenAIResponsesModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+	return openai.NewResponsesChat(openai.ChatConfig{
+		APIKey:         spec.APIKey,
+		DefaultOptions: opts,
+		BaseURL:        spec.BaseURL,
+	})
+}
+
+func buildOpenAICompatibleModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 	return openai.NewChat(openai.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,

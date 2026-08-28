@@ -21,6 +21,7 @@ type interactionModelContextReducer struct {
 	session      *interactionSession
 	start        runs.RootExecutionStart
 	instructions []corechat.Message
+	counter      ModelContextInputTokenCounter
 }
 
 func newInteractionModelContextReducer(
@@ -29,6 +30,7 @@ func newInteractionModelContextReducer(
 	session *interactionSession,
 	start runs.RootExecutionStart,
 	instructions []corechat.Message,
+	counter ModelContextInputTokenCounter,
 ) *interactionModelContextReducer {
 	return &interactionModelContextReducer{
 		compactor:    compactor,
@@ -36,6 +38,7 @@ func newInteractionModelContextReducer(
 		session:      session,
 		start:        start,
 		instructions: cloneChatMessages(instructions),
+		counter:      counter,
 	}
 }
 
@@ -103,6 +106,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			request.Tools,
 			request.Options,
 			calibration,
+			i.counter,
 			protectedTail,
 			preCompact,
 		)
@@ -128,6 +132,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			request.Tools,
 			request.Options,
 			calibration,
+			i.counter,
 			protectedTail,
 			preCompact,
 		)

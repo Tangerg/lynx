@@ -153,3 +153,110 @@ func TestBuildClient(t *testing.T) {
 		t.Errorf("openai-compatible with base URL: %v", err)
 	}
 }
+
+func TestDirectOpenAIUsesResponsesCountingWhileCompatibleRemainsChatCompletions(t *testing.T) {
+	var countRequests atomic.Int32
+	var responseRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/responses/input_tokens":
+			countRequests.Add(1)
+			_, _ = writer.Write([]byte(`{"object":"response.input_tokens","input_tokens":73}`))
+		case "/responses":
+			responseRequests.Add(1)
+			_, _ = writer.Write([]byte(`{
+  "id":"resp_scopeapp","object":"response","created_at":1,"status":"completed","model":"gpt-5.6-sol",
+  "output":[{"type":"message","id":"msg_scopeapp","status":"completed","role":"assistant","content":[{"type":"output_text","text":"done","annotations":[]}]}],
+  "parallel_tool_calls":false,"tools":[],
+  "usage":{"input_tokens":73,"output_tokens":1,"total_tokens":74,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}
+}`))
+		default:
+			t.Errorf("unexpected path %q", request.URL.Path)
+			http.Error(writer, "unexpected path", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	direct, err := BuildClient(ClientSpec{
+		Provider: ProviderOpenAI,
+		Model:    defaultOpenAIModel,
+		APIKey:   "test-key",
+		BaseURL:  server.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !direct.SupportsInputTokenCounting() {
+		t.Fatal("direct OpenAI client did not expose Responses input token counting")
+	}
+	request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("measure me")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := direct.CountInputTokens(t.Context(), request)
+	if err != nil || count != 73 || countRequests.Load() != 1 {
+		t.Fatalf("direct CountInputTokens = %d, %v; requests=%d", count, err, countRequests.Load())
+	}
+	response, err := direct.Call(t.Context(), request)
+	if err != nil || response.Text() != "done" || responseRequests.Load() != 1 {
+		t.Fatalf("direct Responses Call = %#v, %v; requests=%d", response, err, responseRequests.Load())
+	}
+
+	compatible, err := BuildClient(ClientSpec{
+		Provider: ProviderOpenAICompatible,
+		Model:    "compatible-model",
+		APIKey:   "test-key",
+		BaseURL:  "https://gateway.example/v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compatible.SupportsInputTokenCounting() {
+		t.Fatal("OpenAI-compatible client advertised the native Responses count endpoint")
+	}
+}
+
+func TestDirectAnthropicCountsWhileCompatibleDoesNotAssumeTheNativeEndpoint(t *testing.T) {
+	var countRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.HasSuffix(request.URL.Path, "/messages/count_tokens") {
+			t.Errorf("path = %q, want /messages/count_tokens", request.URL.Path)
+		}
+		countRequests.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"input_tokens":61}`))
+	}))
+	t.Cleanup(server.Close)
+
+	direct, err := BuildClient(ClientSpec{
+		Provider: ProviderAnthropic,
+		Model:    defaultAnthropicModel,
+		APIKey:   "test-key",
+		BaseURL:  server.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !direct.SupportsInputTokenCounting() {
+		t.Fatal("direct Anthropic client did not expose Messages input token counting")
+	}
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("measure me")))
+	count, err := direct.CountInputTokens(t.Context(), request)
+	if err != nil || count != 61 || countRequests.Load() != 1 {
+		t.Fatalf("direct CountInputTokens = %d, %v; requests=%d", count, err, countRequests.Load())
+	}
+
+	compatible, err := BuildClient(ClientSpec{
+		Provider: ProviderAnthropicCompatible,
+		Model:    "compatible-model",
+		APIKey:   "test-key",
+		BaseURL:  "https://gateway.example/v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compatible.SupportsInputTokenCounting() {
+		t.Fatal("Anthropic-compatible client advertised the native Messages count endpoint")
+	}
+}
