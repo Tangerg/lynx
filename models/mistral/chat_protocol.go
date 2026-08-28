@@ -10,8 +10,9 @@ import (
 	"iter"
 	"net/http"
 
-	corechat "github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/sse"
+
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 const (
