@@ -43,6 +43,13 @@ const runtimeDirectory = resolve(process.cwd(), "../../runtime");
 const managedSkillName = "runtime-http-e2e";
 const liveMCPToolName = "http-e2e-stdio_ping";
 const killedMCPToolName = "http-e2e-kill_ping";
+const compactionCutpointMarker = "E2E_COMPACTION_CUTPOINT";
+const compactionSummaryMarker = "E2E_COMPACTION_SUMMARY";
+const compactionRecoveryMarker = "E2E_COMPACTION_RECOVERY";
+const unavailableProviderStatus = 503;
+const compactionSteerCount = 21;
+const defaultTestDeadlineMilliseconds = 5_000;
+const compactionCutpointDeadlineMilliseconds = 15_000;
 
 async function unusedLoopbackPort(): Promise<number> {
   const server = createNetServer();
@@ -80,8 +87,10 @@ interface ProviderGate {
   arrived: Deferred;
   claimed: boolean;
   closed: Deferred;
+  failureStatus?: number;
   marker: string;
   minimumToolResults: number;
+  request?: FakeChatRequest;
   release: Deferred;
 }
 
@@ -93,18 +102,26 @@ function deferred(): Deferred {
   return { promise, resolve };
 }
 
-function createProviderGate(marker: string, minimumToolResults = 0): ProviderGate {
+function createProviderGate(
+  marker: string,
+  minimumToolResults = 0,
+  failureStatus?: number,
+): ProviderGate {
   return {
     arrived: deferred(),
     claimed: false,
     closed: deferred(),
+    failureStatus,
     marker,
     minimumToolResults,
     release: deferred(),
   };
 }
 
-function testDeadline(detail: string): { promise: Promise<never>; release: () => void } {
+function testDeadline(
+  detail: string,
+  timeoutMilliseconds = defaultTestDeadlineMilliseconds,
+): { promise: Promise<never>; release: () => void } {
   let settled = false;
   let release!: () => void;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -120,13 +137,17 @@ function testDeadline(detail: string): { promise: Promise<never>; release: () =>
       timer = undefined;
       settled = true;
       reject(new Error(`timed out waiting for ${detail}`));
-    }, 5_000);
+    }, timeoutMilliseconds);
   });
   return { promise, release };
 }
 
-async function within<T>(promise: Promise<T>, detail: string): Promise<T> {
-  const deadline = testDeadline(detail);
+async function within<T>(
+  promise: Promise<T>,
+  detail: string,
+  timeoutMilliseconds = defaultTestDeadlineMilliseconds,
+): Promise<T> {
+  const deadline = testDeadline(detail, timeoutMilliseconds);
   try {
     return await Promise.race([promise, deadline.promise]);
   } finally {
@@ -267,6 +288,19 @@ function scriptedReply(body: FakeChatRequest): {
   );
   const toolResultCount = (body.messages ?? []).filter((message) => message.role === "tool").length;
   const hasToolResult = toolResultCount > 0;
+
+  if (transcript.includes(compactionRecoveryMarker)) {
+    return { text: "Committed compaction recovered without an immediate second compaction." };
+  }
+  if (transcript.includes(compactionSummaryMarker) && availableTools.has("get_goal")) {
+    return { text: "The post-compaction model call completed." };
+  }
+  if (transcript.includes(compactionCutpointMarker) && availableTools.has("get_goal")) {
+    return { tool: { name: "get_goal", arguments: "{}" } };
+  }
+  if (transcript.includes(compactionCutpointMarker) && availableTools.size === 0) {
+    return { text: `${compactionSummaryMarker}: preserve only the durable progress boundary.` };
+  }
 
   if (
     transcript.includes("E2E_GOAL_SETTLEMENT") &&
@@ -800,6 +834,7 @@ for await (const line of lines) {
           return;
         }
         const body = await requestJson(request);
+        const providerTranscript = JSON.stringify(body.messages ?? []);
         const gate = providerGate;
         if (
           gate !== undefined &&
@@ -809,10 +844,25 @@ for await (const line of lines) {
             gate.minimumToolResults
         ) {
           gate.claimed = true;
+          gate.request = body;
           response.once("close", gate.closed.resolve);
           gate.arrived.resolve();
           await gate.release.promise;
           if (response.destroyed) return;
+          if (gate.failureStatus !== undefined) {
+            response.writeHead(gate.failureStatus, { "Content-Type": "application/json" });
+            response.end(JSON.stringify({ error: { message: "injected provider failure" } }));
+            return;
+          }
+        }
+        if (
+          gate?.claimed &&
+          gate.failureStatus !== undefined &&
+          providerTranscript.includes(gate.marker)
+        ) {
+          response.writeHead(gate.failureStatus, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ error: { message: "injected provider failure" } }));
+          return;
         }
         writeChatCompletion(response, body, ++providerCalls);
       } catch (error) {
@@ -4195,6 +4245,190 @@ for await (const line of lines) {
     });
     controller.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("keeps the durable compaction winner when the following provider call fails", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const openingCall = createProviderGate(compactionCutpointMarker);
+    const failedCall = createProviderGate(compactionSummaryMarker, 0, unavailableProviderStatus);
+    let recoveryCall: ProviderGate | undefined;
+    providerGate = openingCall;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP provider failure after compaction commit",
+      });
+      const sessionId = asSessionId(session.id);
+      const started = await client.runs.start({
+        sessionId,
+        input: [
+          {
+            type: "text",
+            text: `${compactionCutpointMarker} keep calling a read-only Tool until compaction.`,
+          },
+        ],
+      });
+      const failedEvents = collectRunEvents(started.events);
+      await within(openingCall.arrived.promise, "the steerable opening model call");
+      for (let index = 0; index < compactionSteerCount; index++) {
+        await client.runs.steer(
+          asRunId(started.result.runId),
+          asSegmentId(started.result.segmentId),
+          [{ type: "text", text: `Queued compaction boundary message ${index + 1}.` }],
+        );
+      }
+      providerGate = failedCall;
+      openingCall.release.resolve();
+      await within(
+        failedCall.arrived.promise,
+        "the post-compaction provider failure cutpoint",
+        compactionCutpointDeadlineMilliseconds,
+      );
+      if (!failedCall.request) throw new Error("provider failure gate did not capture its request");
+      const cutpointTranscript = JSON.stringify(failedCall.request.messages ?? []);
+      expect(cutpointTranscript).toContain(compactionSummaryMarker);
+      expect(cutpointTranscript).not.toContain(compactionCutpointMarker);
+      expect(failedCall.request.tools?.some((entry) => entry.function?.name === "get_goal")).toBe(
+        true,
+      );
+
+      failedCall.release.resolve();
+      const terminalEvents = await failedEvents;
+      expect(terminalEvents.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "failed" },
+      });
+
+      recoveryCall = createProviderGate(compactionRecoveryMarker);
+      providerGate = recoveryCall;
+      const recovered = await client.runs.start({
+        sessionId,
+        input: [
+          {
+            type: "text",
+            text: `${compactionRecoveryMarker} continue from the only durable history winner.`,
+          },
+        ],
+      });
+      const recoveredEvents = collectRunEvents(recovered.events);
+      await within(recoveryCall.arrived.promise, "the provider-failure recovery model call");
+      if (!recoveryCall.request) throw new Error("recovery gate did not capture its request");
+      const recoveryTranscript = JSON.stringify(recoveryCall.request.messages ?? []);
+      expect(recoveryTranscript).toContain(compactionSummaryMarker);
+      expect(recoveryTranscript).not.toContain(compactionCutpointMarker);
+      expect(recoveryCall.request.tools?.some((entry) => entry.function?.name === "get_goal")).toBe(
+        true,
+      );
+      recoveryCall.release.resolve();
+      expect((await recoveredEvents).at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+    } finally {
+      openingCall.release.resolve();
+      failedCall.release.resolve();
+      recoveryCall?.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
+  it("keeps the durable compaction winner after SIGKILL before Strategy settlement", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const openingCall = createProviderGate(compactionCutpointMarker);
+    const cutpoint = createProviderGate(compactionSummaryMarker);
+    let recoveryCall: ProviderGate | undefined;
+    providerGate = openingCall;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP SIGKILL after compaction commit",
+      });
+      const sessionId = asSessionId(session.id);
+      const started = await client.runs.start({
+        sessionId,
+        input: [
+          {
+            type: "text",
+            text: `${compactionCutpointMarker} reach the compaction crash cutpoint.`,
+          },
+        ],
+      });
+      const runId = asRunId(started.result.runId);
+      const killedStream = collectRunEvents(started.events).then(
+        () => undefined,
+        () => undefined,
+      );
+      await within(openingCall.arrived.promise, "the steerable SIGKILL opening model call");
+      for (let index = 0; index < compactionSteerCount; index++) {
+        await client.runs.steer(
+          asRunId(started.result.runId),
+          asSegmentId(started.result.segmentId),
+          [{ type: "text", text: `Queued SIGKILL compaction message ${index + 1}.` }],
+        );
+      }
+      providerGate = cutpoint;
+      openingCall.release.resolve();
+      await within(
+        cutpoint.arrived.promise,
+        "the post-compaction SIGKILL cutpoint",
+        compactionCutpointDeadlineMilliseconds,
+      );
+      if (!cutpoint.request) throw new Error("SIGKILL gate did not capture its request");
+      const cutpointTranscript = JSON.stringify(cutpoint.request.messages ?? []);
+      expect(cutpointTranscript).toContain(compactionSummaryMarker);
+      expect(cutpointTranscript).not.toContain(compactionCutpointMarker);
+      expect(cutpoint.request.tools?.some((entry) => entry.function?.name === "get_goal")).toBe(
+        true,
+      );
+
+      await killRuntimeProcess();
+      await within(cutpoint.closed.promise, "the compacted provider connection to close");
+      cutpoint.release.resolve();
+      providerGate = undefined;
+      await within(killedStream, "the compacted Run stream to close after SIGKILL");
+      await client.close();
+      client = undefined;
+
+      await startRuntimeProcess();
+      client = createRuntimeClient();
+      await expect(client.runs.get(runId)).resolves.toMatchObject({
+        status: "finished",
+        outcome: { type: "lost", error: expect.objectContaining({ type: "run_lost" }) },
+      });
+
+      recoveryCall = createProviderGate(compactionRecoveryMarker);
+      providerGate = recoveryCall;
+      const recovered = await client.runs.start({
+        sessionId,
+        input: [
+          {
+            type: "text",
+            text: `${compactionRecoveryMarker} continue after the lost in-flight Strategy.`,
+          },
+        ],
+      });
+      const recoveredEvents = collectRunEvents(recovered.events);
+      await within(recoveryCall.arrived.promise, "the SIGKILL compaction recovery model call");
+      if (!recoveryCall.request) throw new Error("SIGKILL recovery gate omitted its request");
+      const recoveryTranscript = JSON.stringify(recoveryCall.request.messages ?? []);
+      expect(recoveryTranscript).toContain(compactionSummaryMarker);
+      expect(recoveryTranscript).not.toContain(compactionCutpointMarker);
+      expect(recoveryCall.request.tools?.some((entry) => entry.function?.name === "get_goal")).toBe(
+        true,
+      );
+      recoveryCall.release.resolve();
+      expect((await recoveredEvents).at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+    } finally {
+      openingCall.release.resolve();
+      cutpoint.release.resolve();
+      recoveryCall?.release.resolve();
+      providerGate = undefined;
+    }
   }, 30_000);
 
   it("recovers durable HITL, Plan, Goal, Run and Tool reads after SIGKILL", async () => {

@@ -37,6 +37,8 @@ P188 不改变 Runtime Protocol Baseline 2、Artifact v23、SQLite epoch 83 或 
 
 P189 不改变任何 public contract或持久化 shape。Runtime internal context provenance新增 isolated `session_goal` data source，并把 `session_plan`从 instruction重新归类为 data；两者只在每次主模型调用的 fixed Session-state context中出现，不进入 Deployment identity、Conversation store、summary或 public Protocol。configured Goal/Plan read failure与非法/foreign state现在 fail closed。Agent release、Interaction protocol/state version、Artifact v23、SQLite epoch 83、Desktop generated binding与 CLI均保持不变。
 
+P190 不改变任何生产合同、wire或storage shape。真实retry-exhaustion与SIGKILL回归确认SQLite conversation+Run watermark事务是compaction唯一durable commit；运行中的未结算Strategy generation不构成可恢复状态，失败后按既有failed/lost语义退出。没有新增journal、checkpoint字段、两阶段提交、SQLite epoch、Agent protocol、Runtime operation/event或Desktop binding；HTTP E2E测试数增至45。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
