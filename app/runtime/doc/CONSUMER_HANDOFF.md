@@ -7,7 +7,7 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-28, through the P196 exact reasoning-selection cutover.
+> Desktop generated consumer: 2026-08-29, through the published P196 exact reasoning-selection cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline

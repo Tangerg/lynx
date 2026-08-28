@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/Tangerg/scope/app/runtime/localruntime v0.0.1
-	github.com/wailsapp/wails/v3 v3.0.0-beta.14
+	github.com/wailsapp/wails/v3 v3.0.0-beta.15
 )
 
 require (
