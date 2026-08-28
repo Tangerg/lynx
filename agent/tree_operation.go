@@ -16,7 +16,7 @@ func (e *Engine) acquireTreeOperation(
 	ctx context.Context,
 	rootID ProcessID,
 ) (*treeOperation, error) {
-	ctx = contextOrBackground(ctx)
+	ctx = requireContext(ctx)
 	for {
 		e.treeOperationsMu.Lock()
 		active := e.treeOperations[rootID]

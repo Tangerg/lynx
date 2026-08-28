@@ -12,6 +12,31 @@ import (
 	"time"
 )
 
+func TestEngineStartRejectsNilContextBeforePublication(t *testing.T) {
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = engine.Close() })
+	input, err := EncodeInput(childTestInput{Mode: "leaf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered := func() (recovered any) {
+		defer func() { recovered = recover() }()
+		_, _ = engine.Start(nil, newChildTestDeployment(t), input)
+		return nil
+	}()
+	if recovered != errNilContext {
+		t.Fatalf("Start nil-context panic = %v, want %v", recovered, errNilContext)
+	}
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
+	if len(engine.processes) != 0 || len(engine.startReservations) != 0 {
+		t.Fatalf("nil-context Start published state: processes=%d reservations=%d", len(engine.processes), len(engine.startReservations))
+	}
+}
+
 type engineTestInput struct {
 	Value string `json:"value"`
 }

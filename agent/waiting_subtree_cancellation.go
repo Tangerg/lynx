@@ -168,7 +168,7 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 	if err := validateTerminationReason(reason); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
 	}
-	ctx = contextOrBackground(ctx)
+	ctx = requireContext(ctx)
 	sourceTree, err := e.quiesceOwnedTree(ctx, rootID)
 	if err != nil {
 		return nil, err

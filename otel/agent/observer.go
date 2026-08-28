@@ -55,7 +55,10 @@ const (
 	deploymentDigestAttribute     attribute.Key = "agent.deployment.digest"
 )
 
-var ErrInvalidObserverConfig = errors.New("agent otel: invalid observer configuration")
+var (
+	ErrInvalidObserverConfig = errors.New("agent otel: invalid observer configuration")
+	errNilContext            = errors.New("agent otel: nil Context")
+)
 
 // ObserverConfig selects the official OpenTelemetry providers used by Observer.
 // A nil provider uses the corresponding OpenTelemetry global provider.
@@ -175,7 +178,7 @@ func (o *Observer) OnEvent(ctx context.Context, event agent.Event) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		panic(errNilContext)
 	}
 	switch event.Name() {
 	case agent.EventProcessStarted, agent.EventProcessRestored:

@@ -87,7 +87,7 @@ func (o *observationBus) offerDelta(ctx context.Context, delta Delta) bool {
 	if len(o.deltas) == 0 {
 		return true
 	}
-	ctx = context.WithoutCancel(contextOrBackground(ctx))
+	ctx = context.WithoutCancel(requireContext(ctx))
 	o.deltaMu.RLock()
 	defer o.deltaMu.RUnlock()
 	if o.deltaClosed {
@@ -118,9 +118,7 @@ func (o *observationBus) flushDeltas(ctx context.Context) error {
 	if o.deltaQueue == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = requireContext(ctx)
 	barrier := make(chan struct{})
 	o.deltaMu.RLock()
 	if o.deltaClosed {

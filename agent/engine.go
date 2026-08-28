@@ -191,6 +191,7 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 	if e == nil {
 		return nil, ErrInvalidEngineConfig
 	}
+	ctx = requireContext(ctx)
 	if !deployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
@@ -233,7 +234,7 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 		return nil, err
 	}
 	e.publishReservedProcess(controller)
-	go loop.run(contextOrBackground(ctx))
+	go loop.run(ctx)
 	return &Process{controller: controller}, nil
 }
 
@@ -245,7 +246,7 @@ func (e *Engine) Run(ctx context.Context, deployment Deployment, input Input) (R
 	if err != nil {
 		return Result{}, err
 	}
-	return process.Await(context.WithoutCancel(contextOrBackground(ctx)))
+	return process.Await(context.WithoutCancel(requireContext(ctx)))
 }
 
 // Restore recreates one Process from a strict Snapshot and the exact bound
@@ -254,6 +255,7 @@ func (e *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Sn
 	if e == nil {
 		return nil, ErrInvalidEngineConfig
 	}
+	ctx = requireContext(ctx)
 	if !deployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
@@ -272,7 +274,7 @@ func (e *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Sn
 		controller.markTreeSettled()
 		return &Process{controller: controller}, nil
 	}
-	go loop.run(contextOrBackground(ctx))
+	go loop.run(ctx)
 	return &Process{controller: controller}, nil
 }
 

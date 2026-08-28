@@ -126,6 +126,6 @@ func acknowledgeProcessStartOutcome(
 		}
 	}()
 	return acknowledger.AcknowledgeProcessStartOutcome(
-		context.WithoutCancel(contextOrBackground(ctx)), outcome,
+		context.WithoutCancel(requireContext(ctx)), outcome,
 	)
 }

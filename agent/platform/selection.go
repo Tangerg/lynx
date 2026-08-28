@@ -17,6 +17,7 @@ var (
 	ErrNoDeploymentCandidates = errors.New("platform: no deployment candidates")
 
 	ErrInvalidDeploymentSelection = errors.New("platform: invalid deployment selection")
+	errNilContext                 = errors.New("platform: nil Context")
 )
 
 // DeploymentCandidate is one non-executable active binding offered to a
@@ -86,6 +87,9 @@ func (p *Platform) SelectDeployment(
 	if lo.IsNil(selector) {
 		return agent.Deployment{}, ErrNilDeploymentSelector
 	}
+	if ctx == nil {
+		panic(errNilContext)
+	}
 	p.mu.RLock()
 	deployments := slices.Clone(p.state.ordered)
 	p.mu.RUnlock()
@@ -96,9 +100,6 @@ func (p *Platform) SelectDeployment(
 	offered := make(map[agent.DeploymentRef]agent.Deployment, len(deployments))
 	for _, deployment := range deployments {
 		offered[deployment.DeploymentRef()] = deployment
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	reference, err := callDeploymentSelector(ctx, selector, slices.Clone(candidates))
 	if err != nil {

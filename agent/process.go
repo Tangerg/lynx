@@ -14,6 +14,7 @@ var (
 	ErrProcessNotRunning     = errors.New("agent: process is not running")
 	ErrEffectNotPending      = errors.New("agent: effect does not require resolution")
 	ErrInvalidProcessControl = errors.New("agent: invalid process control request")
+	errNilContext            = errors.New("agent: nil Context")
 )
 
 // A bounded buffer lets control-plane callers submit while the Process is
@@ -132,11 +133,11 @@ func (p *Process) RequestCancellation(ctx context.Context, reason string) error 
 	if p == nil || p.controller == nil {
 		return ErrProcessNotRunning
 	}
+	ctx = requireContext(ctx)
 	intent, err := newCancellationIntent(cancellationOwnerHost, reason)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
 	}
-	ctx = contextOrBackground(ctx)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -191,7 +192,7 @@ func (p *Process) Await(ctx context.Context) (Result, error) {
 	if p == nil || p.controller == nil {
 		return Result{}, ErrProcessNotRunning
 	}
-	ctx = contextOrBackground(ctx)
+	ctx = requireContext(ctx)
 	select {
 	case <-p.controller.treeSettled:
 		return p.controller.terminalResult(), nil
@@ -204,7 +205,7 @@ func (p *Process) request(ctx context.Context, command processCommand) (processR
 	if p == nil || p.controller == nil {
 		return processResponse{}, ErrProcessNotRunning
 	}
-	ctx = contextOrBackground(ctx)
+	ctx = requireContext(ctx)
 	command.response = make(chan processResponse, 1)
 	select {
 	case p.controller.commands <- command:
@@ -427,9 +428,9 @@ func (p processCommand) reply(response processResponse) {
 	p.response <- response
 }
 
-func contextOrBackground(ctx context.Context) context.Context {
+func requireContext(ctx context.Context) context.Context {
 	if ctx == nil {
-		return context.Background()
+		panic(errNilContext)
 	}
 	return ctx
 }

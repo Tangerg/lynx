@@ -307,7 +307,7 @@ func (e *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSnapsho
 	if e == nil || !rootID.Valid() {
 		return TreeSnapshot{}, ErrInvalidProcessRelation
 	}
-	ctx = contextOrBackground(ctx)
+	ctx = requireContext(ctx)
 	source, err := e.quiesceOwnedTree(ctx, rootID)
 	if err != nil {
 		return TreeSnapshot{}, err
@@ -521,6 +521,7 @@ func (e *Engine) RestoreTree(
 	if e == nil {
 		return nil, ErrInvalidEngineConfig
 	}
+	ctx = requireContext(ctx)
 	if !rootDeployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
@@ -625,7 +626,7 @@ func (t *treeRestoration) prepareChildWaits() error {
 
 func (e *Engine) startRestoredTree(ctx context.Context, restoration *treeRestoration) *Process {
 	startGate := make(chan struct{})
-	rootContext := contextOrBackground(ctx)
+	rootContext := requireContext(ctx)
 	descendantContext := context.WithoutCancel(rootContext)
 	for index := range restoration.processes {
 		entry := &restoration.processes[index]
