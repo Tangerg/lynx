@@ -25,7 +25,7 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: request: %w", err)
 	}
-	if err := rejectResponsesOutputFormatExtension(req.Options.Extensions); err != nil {
+	if err := rejectCoreOwnedResponsesExtension(req.Options.Extensions); err != nil {
 		return nil, err
 	}
 	params, found, err := req.Options.Extensions.Decode[responses.ResponseNewParams](ResponsesRequestExtensionKey)
@@ -56,6 +56,11 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	if options.TopP != nil {
 		params.TopP = openaisdk.Float(*options.TopP)
 	}
+	reasoningEffort, err := mapReasoningEffort(options.ReasoningEffort)
+	if err != nil {
+		return nil, err
+	}
+	params.Reasoning.Effort = reasoningEffort
 	if options.OutputFormat != nil {
 		format, mapResponsesOutputFormatErr := mapResponsesOutputFormat(options.OutputFormat)
 		if mapResponsesOutputFormatErr != nil {
@@ -95,7 +100,7 @@ func projectResponsesInputTokenCount(params *responses.ResponseNewParams) (*resp
 	return &projected, nil
 }
 
-func rejectResponsesOutputFormatExtension(extensions metadata.Map) error {
+func rejectCoreOwnedResponsesExtension(extensions metadata.Map) error {
 	fields, found, err := extensions.Decode[map[string]json.RawMessage](ResponsesRequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)
@@ -103,16 +108,23 @@ func rejectResponsesOutputFormatExtension(extensions metadata.Map) error {
 	if !found {
 		return nil
 	}
-	raw, exists := fields["text"]
-	if !exists {
-		return nil
+	if raw, exists := fields["reasoning"]; exists {
+		var reasoningFields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &reasoningFields); err != nil {
+			return fmt.Errorf("openai responses: extension %q field %q: %w", ResponsesRequestExtensionKey, "reasoning", err)
+		}
+		if _, exists := reasoningFields["effort"]; exists {
+			return fmt.Errorf("openai responses: extension %q field %q.effort is owned by options.reasoning_effort", ResponsesRequestExtensionKey, "reasoning")
+		}
 	}
-	var textFields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &textFields); err != nil {
-		return fmt.Errorf("openai responses: extension %q field %q: %w", ResponsesRequestExtensionKey, "text", err)
-	}
-	if _, exists := textFields["format"]; exists {
-		return fmt.Errorf("openai responses: extension %q field %q.format is owned by options.output_format", ResponsesRequestExtensionKey, "text")
+	if raw, exists := fields["text"]; exists {
+		var textFields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &textFields); err != nil {
+			return fmt.Errorf("openai responses: extension %q field %q: %w", ResponsesRequestExtensionKey, "text", err)
+		}
+		if _, exists := textFields["format"]; exists {
+			return fmt.Errorf("openai responses: extension %q field %q.format is owned by options.output_format", ResponsesRequestExtensionKey, "text")
+		}
 	}
 	return nil
 }

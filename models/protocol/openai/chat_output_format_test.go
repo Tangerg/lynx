@@ -48,7 +48,7 @@ func TestResponsesOutputFormatRejectsDuplicateExtensionSource(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := rejectResponsesOutputFormatExtension(extensions); err == nil {
+	if err := rejectCoreOwnedResponsesExtension(extensions); err == nil {
 		t.Fatal("text.format extension unexpectedly accepted")
 	}
 }

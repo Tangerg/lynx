@@ -47,7 +47,6 @@ func TestProtocolOutputFormatUsesNativeSchemaAndPromptFallback(t *testing.T) {
 func TestOutputConfigExtensionKeepsNonFormatFields(t *testing.T) {
 	fields := map[string]any{
 		"output_config": map[string]any{
-			"effort":       "high",
 			"future_field": "preserved",
 		},
 	}
@@ -63,17 +62,42 @@ func TestOutputConfigExtensionKeepsNonFormatFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["effort"] != "high" || got["future_field"] != "preserved" {
+	if got["future_field"] != "preserved" {
 		t.Fatalf("output_config = %s", encoded)
 	}
 	if _, exists := fields["output_config"]; exists {
 		t.Fatal("decoded output_config remained in top-level extra fields")
 	}
 
-	for _, format := range []any{map[string]any{}, nil} {
-		fields = map[string]any{"output_config": map[string]any{"format": format}}
+	for _, owned := range []map[string]any{
+		{"format": map[string]any{}},
+		{"format": nil},
+		{"effort": "high"},
+	} {
+		fields = map[string]any{"output_config": owned}
 		if _, err := decodeOutputConfig(fields, RequestExtensionKey); err == nil {
-			t.Fatalf("format %#v unexpectedly accepted", format)
+			t.Fatalf("owned fields %#v unexpectedly accepted", owned)
 		}
+	}
+}
+
+func TestProtocolRequestMapsCoreReasoningEffort(t *testing.T) {
+	request := validNativeRequest(t)
+	request.Options.ReasoningEffort = "max"
+	params, err := mapProtocolRequest(
+		corechat.Options{Model: "claude-opus-4-6"},
+		request,
+		Dialect{Provider: "anthropic"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if params.OutputConfig.Effort != anthropicsdk.OutputConfigEffortMax {
+		t.Fatalf("output_config.effort = %q", params.OutputConfig.Effort)
+	}
+
+	request.Options.ReasoningEffort = "turbo"
+	if _, err := mapProtocolRequest(corechat.Options{Model: "claude-opus-4-6"}, request, Dialect{Provider: "anthropic"}); err == nil || !strings.Contains(err.Error(), "unsupported value") {
+		t.Fatalf("unknown effort error = %v", err)
 	}
 }

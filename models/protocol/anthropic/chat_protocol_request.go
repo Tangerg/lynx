@@ -88,6 +88,11 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	if len(options.Stop) > 0 {
 		params.StopSequences = slices.Clone(options.Stop)
 	}
+	reasoningEffort, err := mapProtocolReasoningEffort(options.ReasoningEffort)
+	if err != nil {
+		return nil, err
+	}
+	params.OutputConfig.Effort = reasoningEffort
 
 	system, messages, err := mapProtocolMessages(req.Messages, dialect.Provider)
 	if err != nil {
@@ -131,8 +136,10 @@ func decodeOutputConfig(fields map[string]any, extensionKey string) (anthropicsd
 		if _, exists := object["format"]; exists {
 			return anthropicsdk.OutputConfigParam{}, fmt.Errorf("anthropic: extension %q field %q.format is owned by options.output_format", extensionKey, "output_config")
 		}
+		if _, exists := object["effort"]; exists {
+			return anthropicsdk.OutputConfigParam{}, fmt.Errorf("anthropic: extension %q field %q.effort is owned by options.reasoning_effort", extensionKey, "output_config")
+		}
 		extraFields = maps.Clone(object)
-		delete(extraFields, "effort")
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -147,6 +154,25 @@ func decodeOutputConfig(fields map[string]any, extensionKey string) (anthropicsd
 	}
 	delete(fields, "output_config")
 	return config, nil
+}
+
+func mapProtocolReasoningEffort(effort corechat.ReasoningEffort) (anthropicsdk.OutputConfigEffort, error) {
+	switch effort {
+	case "":
+		return "", nil
+	case corechat.ReasoningEffort(anthropicsdk.OutputConfigEffortLow):
+		return anthropicsdk.OutputConfigEffortLow, nil
+	case corechat.ReasoningEffort(anthropicsdk.OutputConfigEffortMedium):
+		return anthropicsdk.OutputConfigEffortMedium, nil
+	case corechat.ReasoningEffort(anthropicsdk.OutputConfigEffortHigh):
+		return anthropicsdk.OutputConfigEffortHigh, nil
+	case corechat.ReasoningEffort(anthropicsdk.OutputConfigEffortXhigh):
+		return anthropicsdk.OutputConfigEffortXhigh, nil
+	case corechat.ReasoningEffort(anthropicsdk.OutputConfigEffortMax):
+		return anthropicsdk.OutputConfigEffortMax, nil
+	default:
+		return "", fmt.Errorf("anthropic: options.reasoning_effort has unsupported value %q", effort)
+	}
 }
 
 func mapProtocolOutputFormat(format *corechat.OutputFormat, dialect Dialect, params *anthropicsdk.MessageNewParams) error {

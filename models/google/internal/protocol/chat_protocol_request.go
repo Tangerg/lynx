@@ -61,6 +61,16 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if len(options.Stop) > 0 {
 		config.StopSequences = slices.Clone(options.Stop)
 	}
+	thinkingLevel, err := mapProtocolThinkingLevel(options.ReasoningEffort)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if thinkingLevel != genai.ThinkingLevelUnspecified {
+		if config.ThinkingConfig == nil {
+			config.ThinkingConfig = &genai.ThinkingConfig{}
+		}
+		config.ThinkingConfig.ThinkingLevel = thinkingLevel
+	}
 	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(options.OutputFormat, config); mapProtocolOutputFormatErr != nil {
 		return "", nil, nil, mapProtocolOutputFormatErr
 	}
@@ -118,6 +128,21 @@ func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.Genera
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, fmt.Errorf("google: extension %q: %w", extensionKey, err)
 	}
+	for _, name := range []string{"thinkingConfig", "thinking_config"} {
+		value, exists := fields[name]
+		if !exists {
+			continue
+		}
+		var thinkingFields map[string]json.RawMessage
+		if err := json.Unmarshal(value, &thinkingFields); err != nil {
+			return nil, fmt.Errorf("google: extension %q field %q: %w", extensionKey, name, err)
+		}
+		for _, levelName := range []string{"thinkingLevel", "thinking_level"} {
+			if _, exists := thinkingFields[levelName]; exists {
+				return nil, fmt.Errorf("google: extension %q field %q.%s is owned by options.reasoning_effort", extensionKey, name, levelName)
+			}
+		}
+	}
 	for _, name := range []string{"responseMimeType", "response_mime_type", "responseSchema", "response_schema", "responseJsonSchema", "response_json_schema"} {
 		if _, exists := fields[name]; exists {
 			return nil, fmt.Errorf("google: extension %q field %q is owned by options.output_format", extensionKey, name)
@@ -141,6 +166,19 @@ func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.Genera
 		config.ResponseModalities = slices.Clone(aliases.ResponseModalities)
 	}
 	return &config, nil
+}
+
+func mapProtocolThinkingLevel(effort corechat.ReasoningEffort) (genai.ThinkingLevel, error) {
+	if effort == "" {
+		return genai.ThinkingLevelUnspecified, nil
+	}
+	native := genai.ThinkingLevel(strings.ToUpper(string(effort)))
+	switch native {
+	case genai.ThinkingLevelMinimal, genai.ThinkingLevelLow, genai.ThinkingLevelMedium, genai.ThinkingLevelHigh:
+		return native, nil
+	default:
+		return genai.ThinkingLevelUnspecified, fmt.Errorf("google: options.reasoning_effort has unsupported value %q", effort)
+	}
 }
 
 func mapProtocolMessages(provider string, messages []corechat.Message) (*genai.Content, []*genai.Content, error) {

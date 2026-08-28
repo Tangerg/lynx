@@ -29,7 +29,7 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
 		fields, err := decodeRequestFields(req.Options.Extensions, extensionKey,
 			"model", "messages", "tools", "frequency_penalty", "max_tokens",
-			"max_completion_tokens", "presence_penalty", "response_format", "stop", "temperature", "top_p",
+			"max_completion_tokens", "presence_penalty", "reasoning_effort", "response_format", "stop", "temperature", "top_p",
 		)
 		if err != nil {
 			return nil, err
@@ -67,6 +67,11 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 	if options.PresencePenalty != nil {
 		params.PresencePenalty = openaisdk.Float(*options.PresencePenalty)
 	}
+	reasoningEffort, err := mapReasoningEffort(options.ReasoningEffort)
+	if err != nil {
+		return nil, err
+	}
+	params.ReasoningEffort = reasoningEffort
 	if len(options.Stop) > 0 {
 		params.Stop.OfStringArray = slices.Clone(options.Stop)
 	}
