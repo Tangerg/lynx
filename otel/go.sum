@@ -4,6 +4,8 @@ github.com/Tangerg/scope/agent v0.2.1-0.20260828202209-510136845ee4 h1:UaBrCOTSX
 github.com/Tangerg/scope/agent v0.2.1-0.20260828202209-510136845ee4/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
 github.com/Tangerg/scope/core v0.0.1 h1:fs347LjoXriZ6gKpfY/AJAt7L21mrxXbB1Be2DOi6Yk=
 github.com/Tangerg/scope/core v0.0.1/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
+github.com/Tangerg/scope/rag v0.0.2-0.20260828203908-4cd7853513cd h1:K8//vD01+yGzviwB/9XhAEBck8P10nlcU3smUIUr7Kk=
+github.com/Tangerg/scope/rag v0.0.2-0.20260828203908-4cd7853513cd/go.mod h1:MLFS9aZopMA4b7W3LBO7SvtiEIBgXSgr3qwazUUsWRg=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=
