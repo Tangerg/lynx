@@ -27,8 +27,7 @@ var (
 // tree remains frozen. Other root trees in the Engine remain independent.
 type PreparedWaitingSubtreeCancellation struct {
 	engine                 *Engine
-	operation              *treeOperation
-	quiescence             *treeQuiescence
+	source                 *quiescedTree
 	resultingSnapshot      TreeSnapshot
 	canceledProcessIDs     []ProcessID
 	pausedProcessIDs       []ProcessID
@@ -98,9 +97,9 @@ func (p *PreparedWaitingSubtreeCancellation) Apply() error {
 	for _, change := range p.preparedStateChanges {
 		<-change.applied
 	}
-	p.quiescence.release()
+	p.source.quiescence.release()
 	for _, processID := range p.canceledProcessIDs {
-		controller := controllerByID(p.quiescence.controllers, processID)
+		controller := controllerByID(p.source.quiescence.controllers, processID)
 		if controller != nil {
 			_ = waitTreeSettled(context.Background(), controller)
 		}
@@ -129,10 +128,9 @@ func (p *PreparedWaitingSubtreeCancellation) Discard() error {
 }
 
 func (p *PreparedWaitingSubtreeCancellation) valid() bool {
-	return p.engine != nil && p.operation != nil &&
-		p.operation.engine == p.engine && p.quiescence != nil &&
-		p.operation.rootID == p.resultingSnapshot.RootID() &&
-		!p.quiescence.released && p.resultingSnapshot.Valid() &&
+	return p.engine != nil &&
+		p.source.valid(p.engine, p.resultingSnapshot.RootID()) &&
+		p.resultingSnapshot.Valid() &&
 		len(p.canceledProcessIDs) > 0 &&
 		len(p.preparedStateChanges) ==
 			len(p.canceledProcessIDs)+len(p.pausedProcessIDs) &&
@@ -145,11 +143,9 @@ func (p *PreparedWaitingSubtreeCancellation) valid() bool {
 }
 
 func (p *PreparedWaitingSubtreeCancellation) resolveLocked() {
-	p.quiescence.release()
-	p.operation.release()
+	p.source.release()
 	p.engine = nil
-	p.operation = nil
-	p.quiescence = nil
+	p.source = nil
 	p.preparedStateChanges = nil
 	p.childWaitRegistrations = nil
 	p.applyGate = nil
@@ -173,23 +169,17 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 		return nil, fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
 	}
 	ctx = contextOrBackground(ctx)
-	operation, err := e.acquireTreeOperation(ctx, rootID)
+	sourceTree, err := e.quiesceOwnedTree(ctx, rootID)
 	if err != nil {
 		return nil, err
 	}
-	quiescence, err := e.quiesceTree(ctx, rootID)
-	if err != nil {
-		operation.release()
-		return nil, err
-	}
-	release := true
+	var prepared *PreparedWaitingSubtreeCancellation
 	defer func() {
-		if release {
-			quiescence.release()
-			operation.release()
+		if prepared == nil {
+			sourceTree.release()
 		}
 	}()
-	source, err := e.captureQuiescedTree(ctx, rootID, quiescence.controllers)
+	source, err := e.captureQuiescedTree(ctx, rootID, sourceTree.quiescence.controllers)
 	if err != nil {
 		return nil, err
 	}
@@ -213,8 +203,8 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 	if err != nil {
 		return nil, err
 	}
-	prepared := &PreparedWaitingSubtreeCancellation{
-		engine: e, operation: operation, quiescence: quiescence,
+	prepared = &PreparedWaitingSubtreeCancellation{
+		engine: e, source: sourceTree,
 		resultingSnapshot: result, canceledProcessIDs: canceled, pausedProcessIDs: paused,
 		preparedStateChanges: stateChanges, childWaitRegistrations: registrations,
 		applyGate: applyGate, resolution: &waitingSubtreeCancellationResolution{},
@@ -222,10 +212,9 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 	if !prepared.valid() {
 		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	if err := stagePreparedProcessStateChanges(ctx, quiescence, stateChanges); err != nil {
+	if err := stagePreparedProcessStateChanges(ctx, sourceTree.quiescence, stateChanges); err != nil {
 		return nil, err
 	}
-	release = false
 	return prepared, nil
 }
 

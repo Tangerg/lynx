@@ -13,11 +13,18 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	effectID, _ := ParseEffectID("process:1:step:2:effect:0")
 	deployment := newChildTestDeployment(t)
 	relation := rootProcessRelation(processID)
-	event, err := newEvent(
-		7, processID, deployment.DeploymentRef(), relation, 2, effectID,
-		EventEffectStarted, EventPhaseAttempt, time.Unix(20, 0),
-		json.RawMessage(`{"attempt":1}`),
-	)
+	event, err := newEvent(eventSpec{
+		processSequence: 7,
+		processID:       processID,
+		deploymentRef:   deployment.DeploymentRef(),
+		relation:        relation,
+		stepSequence:    2,
+		effectID:        effectID,
+		name:            EventEffectStarted,
+		phase:           EventPhaseAttempt,
+		occurredAt:      time.Unix(20, 0),
+		payload:         json.RawMessage(`{"attempt":1}`),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +71,43 @@ func TestDeltaIsEffectLocalAndImmutable(t *testing.T) {
 	}
 	if decoded.ProcessID() != processID || decoded.EffectID() != effectID {
 		t.Fatalf("decoded Delta = %+v", decoded)
+	}
+}
+
+func TestDeltaDeliveryPreservesValuesWithoutRequestCancellation(t *testing.T) {
+	type contextKey struct{}
+	const wantValue = "run-correlation"
+	var (
+		gotValue string
+		gotDone  <-chan struct{}
+	)
+	bus := newObservationBus(nil, []DeltaListener{
+		DeltaListenerFunc(func(ctx context.Context, _ Delta) {
+			gotValue, _ = ctx.Value(contextKey{}).(string)
+			gotDone = ctx.Done()
+		}),
+	}, 1)
+	t.Cleanup(bus.close)
+
+	processID, _ := ParseProcessID("process:delta-context")
+	effectID, _ := ParseEffectID("process:delta-context:step:1:effect:0")
+	delta, err := newDelta(processID, effectID, 1, time.Unix(30, 0), json.RawMessage(`{"text":"partial"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), contextKey{}, wantValue))
+	if !bus.offerDelta(ctx, delta) {
+		t.Fatal("delta was not accepted")
+	}
+	cancel()
+	if err := bus.flushDeltas(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if gotValue != wantValue {
+		t.Fatalf("listener context value = %q, want %q", gotValue, wantValue)
+	}
+	if gotDone != nil {
+		t.Fatal("listener inherited request cancellation")
 	}
 }
 

@@ -96,7 +96,7 @@ func (p *processLoop) startChild(
 	}
 	p.engine.publishReservedProcess(controller)
 	budgetCommitted = true
-	go childLoop.run(context.Background())
+	go childLoop.run(context.WithoutCancel(ctx))
 	return ChildStartResult{key: spec.Key, processID: childID, deploymentRef: spec.DeploymentRef}
 }
 

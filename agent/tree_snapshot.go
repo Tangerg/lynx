@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 )
 
 const (
@@ -307,31 +308,64 @@ func (e *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSnapsho
 		return TreeSnapshot{}, ErrInvalidProcessRelation
 	}
 	ctx = contextOrBackground(ctx)
-	operation, err := e.acquireTreeOperation(ctx, rootID)
+	source, err := e.quiesceOwnedTree(ctx, rootID)
 	if err != nil {
 		return TreeSnapshot{}, err
 	}
-	defer operation.release()
-	quiescence, err := e.quiesceTree(ctx, rootID)
-	if err != nil {
-		return TreeSnapshot{}, err
-	}
-	defer quiescence.release()
-	return e.captureQuiescedTree(ctx, rootID, quiescence.controllers)
+	defer source.release()
+	return e.captureQuiescedTree(ctx, rootID, source.quiescence.controllers)
 }
 
 type treeQuiescence struct {
 	controllers []*processController
 	releaseGate chan struct{}
-	released    bool
+	releaseOnce sync.Once
 }
 
 func (t *treeQuiescence) release() {
-	if t == nil || t.released {
+	if t == nil {
 		return
 	}
-	close(t.releaseGate)
-	t.released = true
+	t.releaseOnce.Do(func() {
+		close(t.releaseGate)
+	})
+}
+
+// quiescedTree owns the root-scoped operation and its Strategy-safe barrier as
+// one private capability. Releasing it is idempotent and always releases the
+// barrier before admitting the next operation on the same tree.
+type quiescedTree struct {
+	operation   *treeOperation
+	quiescence  *treeQuiescence
+	releaseOnce sync.Once
+}
+
+func (e *Engine) quiesceOwnedTree(ctx context.Context, rootID ProcessID) (*quiescedTree, error) {
+	operation, err := e.acquireTreeOperation(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
+	quiescence, err := e.quiesceTree(ctx, rootID)
+	if err != nil {
+		operation.release()
+		return nil, err
+	}
+	return &quiescedTree{operation: operation, quiescence: quiescence}, nil
+}
+
+func (q *quiescedTree) release() {
+	if q == nil {
+		return
+	}
+	q.releaseOnce.Do(func() {
+		q.quiescence.release()
+		q.operation.release()
+	})
+}
+
+func (q *quiescedTree) valid(engine *Engine, rootID ProcessID) bool {
+	return q != nil && q.operation != nil && q.quiescence != nil &&
+		q.operation.engine == engine && q.operation.rootID == rootID
 }
 
 // quiesceTree requires ownership of the root's tree operation. It returns every
@@ -590,6 +624,7 @@ func (t *treeRestoration) prepareChildWaits() error {
 func (e *Engine) startRestoredTree(ctx context.Context, restoration *treeRestoration) *Process {
 	startGate := make(chan struct{})
 	rootContext := contextOrBackground(ctx)
+	descendantContext := context.WithoutCancel(rootContext)
 	for index := range restoration.processes {
 		entry := &restoration.processes[index]
 		if entry.wire.Status.Terminal() {
@@ -599,7 +634,7 @@ func (e *Engine) startRestoredTree(ctx context.Context, restoration *treeRestora
 		entry.loop.quiescence = &processQuiescence{
 			command: processCommand{release: startGate},
 		}
-		runContext := context.Background()
+		runContext := descendantContext
 		if entry.controller.processID == restoration.wire.RootID {
 			runContext = rootContext
 		}

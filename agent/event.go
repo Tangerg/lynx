@@ -81,53 +81,55 @@ type Event struct {
 	payload         json.RawMessage
 }
 
-func newEvent(
-	processSequence uint64,
-	processID ProcessID,
-	deploymentRef DeploymentRef,
-	relation ProcessRelation,
-	stepSequence uint64,
-	effectID EffectID,
-	name string,
-	phase EventPhase,
-	occurredAt time.Time,
-	payload json.RawMessage,
-) (Event, error) {
-	if processSequence == 0 {
+type eventSpec struct {
+	processSequence uint64
+	processID       ProcessID
+	deploymentRef   DeploymentRef
+	relation        ProcessRelation
+	stepSequence    uint64
+	effectID        EffectID
+	name            string
+	phase           EventPhase
+	occurredAt      time.Time
+	payload         json.RawMessage
+}
+
+func newEvent(spec eventSpec) (Event, error) {
+	if spec.processSequence == 0 {
 		return Event{}, fmt.Errorf("%w: Process sequence must be greater than zero", ErrInvalidEvent)
 	}
-	if !processID.Valid() {
+	if !spec.processID.Valid() {
 		return Event{}, fmt.Errorf("%w: process ID: %w", ErrInvalidEvent, ErrInvalidIdentity)
 	}
-	if !deploymentRef.Valid() {
+	if !spec.deploymentRef.Valid() {
 		return Event{}, fmt.Errorf("%w: deployment: %w", ErrInvalidEvent, ErrInvalidDeploymentRef)
 	}
-	if !relation.Valid() || relation.ProcessID() != processID {
+	if !spec.relation.Valid() || spec.relation.ProcessID() != spec.processID {
 		return Event{}, fmt.Errorf("%w: relation: %w", ErrInvalidEvent, ErrInvalidProcessRelation)
 	}
-	if !validQualifiedName(name) {
+	if !validQualifiedName(spec.name) {
 		return Event{}, fmt.Errorf("%w: name must be a lowercase qualified name", ErrInvalidEvent)
 	}
-	if !phase.Valid() {
+	if !spec.phase.Valid() {
 		return Event{}, fmt.Errorf("%w: phase is required", ErrInvalidEvent)
 	}
-	if occurredAt.IsZero() {
+	if spec.occurredAt.IsZero() {
 		return Event{}, fmt.Errorf("%w: occurrence time is required", ErrInvalidEvent)
 	}
-	normalized, err := wireJSON.normalize(payload, maxEventBytes)
+	normalized, err := wireJSON.normalize(spec.payload, maxEventBytes)
 	if err != nil {
 		return Event{}, fmt.Errorf("%w: payload: %w", ErrInvalidEvent, err)
 	}
 	return Event{
-		processSequence: processSequence,
-		processID:       processID,
-		deploymentRef:   deploymentRef,
-		relation:        relation,
-		stepSequence:    stepSequence,
-		effectID:        effectID,
-		name:            name,
-		phase:           phase,
-		occurredAt:      occurredAt.Round(0).UTC(),
+		processSequence: spec.processSequence,
+		processID:       spec.processID,
+		deploymentRef:   spec.deploymentRef,
+		relation:        spec.relation,
+		stepSequence:    spec.stepSequence,
+		effectID:        spec.effectID,
+		name:            spec.name,
+		phase:           spec.phase,
+		occurredAt:      spec.occurredAt.Round(0).UTC(),
 		payload:         normalized,
 	}, nil
 }
@@ -210,10 +212,18 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: relation: %w", ErrInvalidEvent, err)
 	}
-	value, err := newEvent(
-		wire.ProcessSequence, wire.ProcessID, wire.DeploymentRef, relation, wire.StepSequence,
-		effectID, wire.Name, wire.Phase, wire.OccurredAt, wire.Payload,
-	)
+	value, err := newEvent(eventSpec{
+		processSequence: wire.ProcessSequence,
+		processID:       wire.ProcessID,
+		deploymentRef:   wire.DeploymentRef,
+		relation:        relation,
+		stepSequence:    wire.StepSequence,
+		effectID:        effectID,
+		name:            wire.Name,
+		phase:           wire.Phase,
+		occurredAt:      wire.OccurredAt,
+		payload:         wire.Payload,
+	})
 	if err != nil {
 		return err
 	}

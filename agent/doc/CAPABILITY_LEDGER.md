@@ -2,7 +2,7 @@
 
 > 状态：持续维护的实施事实
 > 建立日期：2026-08-06
-> 最后更新：2026-08-25
+> 最后更新：2026-08-29
 
 本文只追踪旧能力是否被新 Framework 认领、归谁拥有、如何裁决和在哪一阶段验收。它不定义目标架构、不复制 ADR、不记录逐提交进度。
 
@@ -696,3 +696,10 @@
 - 真实 HTTP approval / SIGKILL 恢复证明 Runtime transcript presenter 与模型上下文是两个独立投影：shell 的客户端结果字段不能替代 Agent 实际消费的原始 ToolResult。
 - `ToolInvocation.ModelResult` 由 exact ToolCall、可执行返回值和 cause 产生唯一模型结果。普通错误的前缀、UTF-8 安全截断与 Host/control 排除都继续由 Interaction owner 决定，Runtime 不复制常量或分支。
 - Dispatcher 与 Runtime consumer 同时使用该 rich value 行为；公开 API 形成 Baseline 33，全部 state/protocol/snapshot/observation wire 保持不变。
+
+## 28. P31 异步上下文与树 authority 证据
+
+- `context.Background()` 能让 child Process 和恢复后代脱离启动请求，却同时切断 tracing、tenant 和审计值；直接保留原 context 又会让长时间 Agent 被短请求 cancellation 误杀。`context.WithoutCancel` 是标准库中准确表达“保留值、移除 deadline/Done/cause”的唯一边界。
+- Delta 队列同样是 Engine-owned best-effort 异步生命周期：listener 获得发出 Delta 时的 context values，但不能通过请求取消撤销已经接受的投递。回归同时锁定值传播与无 cancellation channel。
+- prepared waiting-subtree cancellation 原先分别持有 operation 与 quiescence release，表示上允许部分释放。私有 `quiescedTree` 将两者组成一个幂等 capability；prepare failure、Apply 与 Discard都只能释放同一 owner。
+- Event 构造的同型位置参数收敛为私有具名 spec，归因字段由编译期字段名表达。上述变化未修改任何公共 API、GoDoc、wire 或 schema version，Baseline 33 保持不变。

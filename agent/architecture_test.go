@@ -68,8 +68,7 @@ func TestPreparedWaitingSubtreeCancellationOwnsOnlyFrameworkState(t *testing.T) 
 		typeOf reflect.Type
 	}{
 		{name: "engine", typeOf: reflect.TypeFor[*Engine]()},
-		{name: "operation", typeOf: reflect.TypeFor[*treeOperation]()},
-		{name: "quiescence", typeOf: reflect.TypeFor[*treeQuiescence]()},
+		{name: "source", typeOf: reflect.TypeFor[*quiescedTree]()},
 		{name: "resultingSnapshot", typeOf: reflect.TypeFor[TreeSnapshot]()},
 		{name: "canceledProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},
 		{name: "pausedProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},

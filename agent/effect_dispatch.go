@@ -145,7 +145,7 @@ func (p *processLoop) dispatchStrategyEffect(
 		}
 		sequence := deltaSequence.Add(1)
 		delta, err := newDelta(p.controller.processID, record.ID, sequence, time.Now(), payload)
-		if err != nil || !p.engine.observation.offerDelta(delta) {
+		if err != nil || !p.engine.observation.offerDelta(ctx, delta) {
 			dropped.Add(1)
 		}
 	}

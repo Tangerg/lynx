@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-28
-> 当前阶段：P1–P30 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位、语义注释门禁、模型调用前上下文缩减状态同步与模型 ToolResult 单一所有权均已完成；Runtime 的持久化与产品策略仍由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-29
+> 当前阶段：P1–P31 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位、语义注释门禁、模型调用前上下文缩减状态同步、模型 ToolResult 单一所有权与异步上下文/树 authority 收敛均已完成；Runtime 的持久化与产品策略仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/scope/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -97,6 +97,8 @@ go test ./...
 | P27 OTel 集成归位 | 完成 | 1/1 | Agent 只拥有领域合同，OpenTelemetry adapter 回到集成层 |
 | P28 语义注释门禁 | 完成 | 1/1 | 删除复述型 GoDoc，只强制关键接口及其方法的真实契约 |
 | P29 模型调用内上下文生命周期 | 完成 | 2/2 | 让模型调用前缩减结果成为下一轮 Strategy WorkingContext，Host 策略仍留在 Runtime |
+| P30 模型 ToolResult 单一所有权 | 完成 | 1/1 | 让 exact ToolInvocation 单点拥有模型可见结果映射 |
+| P31 异步上下文与树 authority 收敛 | 完成 | 1/1 | 保留 context values、移除请求取消，并让 quiesced tree 只有一个释放 owner |
 
 ---
 
@@ -324,6 +326,10 @@ go test ./...
 
 - [x] P30-01 用真实 Runtime presenter / approval 恢复反例证明展示结果不能重建模型上下文；让 `ToolInvocation` 单点拥有成功、普通错误与 control-plane outcome 到 exact ToolResult 的映射并冻结 Baseline 33。
 
+### P31：异步上下文与树 authority 收敛
+
+- [x] P31-01 用 child Effect、Delta listener 与等待子树取消反例证明 `context.Background` 和分裂释放字段会丢失调用语义或复制线性 authority；统一为 `context.WithoutCancel` 与私有 `quiescedTree` owner，并以具名 Event spec 消除归因错位。
+
 ---
 
 ## 6. 最终完成定义
@@ -369,6 +375,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-29 | P31（Baseline 33） | 子 Process、恢复后代和 Delta 异步投递统一保留启动 context values，同时明确脱离请求 deadline/cancellation；等待子树取消把 tree operation 与 quiescence barrier 收敛为单一幂等 capability，Event 构造使用具名 spec | 新增 child/Delta context 回归和 quiesced authority 架构守卫；Agent 全量 test/vet/build 通过。公共 API、GoDoc、全部 wire/version 与 Baseline 33 digest不变 |
 | 2026-08-28 | P30（Baseline 33） | 真实 Runtime HTTP approval 恢复证明客户端 presenter result 与模型 ToolResult 不能共用字段。`ToolInvocation.ModelResult` 现由 exact ToolCall 单点拥有成功/错误/control-plane 映射，Dispatcher 与 Runtime projection 共用；未引入 Host persistence 或产品协议 | 外部 invocation policy、Runtime reducer 双投影和 43 条真实 HTTP E2E 覆盖；Interaction public digest 显式更新，全部 Agent wire 不变。完整 standalone 门禁在发布前统一验收 |
 | 2026-08-28 | P29（Baseline 32） | 真实 Runtime consumer 证明单个 Interaction 可在 post-Run maintenance 之前越过模型窗口。Interaction 新增可选 `ModelContextReducer`，Dispatcher 在每次主模型调用前执行；成功 settlement 携带实际 messages，Execution 将其安装为下一 WorkingContext，失败以 host failure 确定终止。Host history、transaction、token/window 和 summary policy仍留在 Runtime | 外部三轮 model→tool→model 回归证明旧前缀不重新生长；reducer failure 主模型零调用；protocol v8 prior-version/互斥/baseline 门禁与真实 Runtime 长 Run、SQLite rewrite、跨下一 Run 继续消费验证通过。完整 standalone 门禁在发布前统一验收 |
 | 2026-08-27 | P28（Baseline 31） | 将公开注释从覆盖率目标收敛为语义合同：删除 sentinel error 与自解释声明上的复述文本，补齐关键接口及其每个具名方法的所有权、并发、顺序和失败契约；AST 门禁只强制真实接口合同与公开参数命名，完整 `go doc` digest 继续冻结公共文本 | 七个 Agent package 的 public digest 显式升级；全部 Framework/Strategy wire、schema version、公开签名和运行行为不变。非 app 全仓门禁在本批提交前统一验收 |
@@ -479,4 +486,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P30 已完成，Baseline 33 让 exact `ToolInvocation` 自己拥有可执行返回值到模型 ToolResult 的唯一映射；Runtime presenter 只负责客户端 transcript，不再成为模型上下文的第二真相。Agent 仍只拥有中性执行语义；durable history、transaction、模型窗口、summary policy 与产品 compaction event继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P31 已完成：Engine-owned 异步执行保留启动 context values 但不继承短请求取消，等待子树变更的 quiesced authority 只有一个幂等释放 owner；Baseline 33 不变。Agent 仍只拥有中性执行语义；durable history、transaction、模型窗口、summary policy 与产品 compaction event继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

@@ -75,6 +75,40 @@ func TestEngineStartsSameDeploymentChildWithStableRelation(t *testing.T) {
 	}
 }
 
+func TestChildEffectPreservesStartContextValuesWithoutRequestCancellation(t *testing.T) {
+	type contextKey struct{}
+	const wantValue = "root-request"
+	dispatcher := contextCheckingChildDispatcher{
+		key:  contextKey{},
+		want: wantValue,
+	}
+	deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
+	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), dispatcher.key, wantValue))
+	input, _ := EncodeInput(childTestInput{Mode: "wait:all"})
+	root, err := engine.Start(ctx, deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := root.Await(t.Context())
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, result)
+	if !slices.Equal(output.CompletedKeys, []string{"first", "second", "third"}) {
+		t.Fatalf("completed keys = %v", output.CompletedKeys)
+	}
+}
+
 func TestEngineRejectsDuplicateChildKeyInOneParent(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	engine, err := NewEngine(EngineConfig{})
@@ -1050,6 +1084,27 @@ func (childTestDispatcher) Dispatch(context.Context, EffectRequest, DeltaEmitter
 }
 
 func (childTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
+
+type contextCheckingChildDispatcher struct {
+	key  any
+	want any
+}
+
+func (c contextCheckingChildDispatcher) Dispatch(
+	ctx context.Context,
+	request EffectRequest,
+	_ DeltaEmitter,
+) (Settlement, error) {
+	if got := ctx.Value(c.key); got != c.want {
+		return Settlement{}, fmt.Errorf("child context value = %v, want %v", got, c.want)
+	}
+	if ctx.Done() != nil {
+		return Settlement{}, errors.New("child context retained request cancellation")
+	}
+	return NewSettlement(request.ID(), SettlementStatusSucceeded, json.RawMessage(`{}`))
+}
+
+func (contextCheckingChildDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
 
 type blockingChildDispatcher struct {
 	started  chan string

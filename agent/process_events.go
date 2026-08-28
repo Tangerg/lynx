@@ -19,10 +19,18 @@ func (p *processLoop) publishEvent(
 		return
 	}
 	nextSequence := p.processEventSequence + 1
-	event, err := newEvent(
-		nextSequence, p.controller.processID, p.deployment.DeploymentRef(),
-		p.controller.relation, step, effectID, name, phase, time.Now(), payload,
-	)
+	event, err := newEvent(eventSpec{
+		processSequence: nextSequence,
+		processID:       p.controller.processID,
+		deploymentRef:   p.deployment.DeploymentRef(),
+		relation:        p.controller.relation,
+		stepSequence:    step,
+		effectID:        effectID,
+		name:            name,
+		phase:           phase,
+		occurredAt:      time.Now(),
+		payload:         payload,
+	})
 	if err != nil {
 		return
 	}

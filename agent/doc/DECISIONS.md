@@ -713,3 +713,11 @@
 - 决策：immutable `ToolInvocation` 新增唯一 `ModelResult(output, cause)` 行为，按其 exact `ToolCall` 生成模型可见结果；普通成功与确定 Tool 错误返回 `present=true`，Host failure、context cancellation/deadline 与 Tool input control boundary 返回 `present=false`。Dispatcher 自身也改为消费该方法，因此规则不是为 Runtime 增加的旁路 helper。
 - 决策：方法不接收 presenter、store、Run、transaction 或产品 failure；Host 可把返回值作为自己的精确模型上下文事实，同时独立保存 UI presentation。Interaction state/protocol、snapshot 与 observation wire 不变，不增加兼容入口。
 - 后果：Interaction public digest 形成 Baseline 33。Tool 错误格式、2048-byte bounded diagnostic 与 control-plane 分类只有一个 owner；Runtime 不再从展示结果反推模型上下文。
+
+## ADR-A2-086：脱离请求取消不能丢失请求上下文语义
+
+- 状态：已接受并实施；Baseline 33 保持不变。
+- 证据：子 Process、恢复后的后代 Process 与异步 Delta 投递都需要脱离原请求的 deadline/cancellation 才能长时间运行，但直接切到 `context.Background()` 同时丢失 tracing、tenant、审计与调用链值。另一方面，等待子树取消把 tree operation 与 quiescence barrier 分成两个可独立释放的字段，允许同一份线性 authority 出现部分释放和重复释放路径；Event 构造的十个同型位置参数也让 attribution 字段可在编译通过时错位。
+- 决策：所有脱离请求生命周期的执行边界统一使用 `context.WithoutCancel`：保留值，明确移除 deadline、Done 与 cancellation cause。根 Process 仍服从 Host 启动 context；只有已获 Engine 生命周期所有权的子 Process、恢复后代和 best-effort Delta 队列脱离请求取消。tree operation 与 quiescence barrier 收敛为一个私有、幂等释放的 `quiescedTree` capability，prepared subtree cancellation 只能整体持有和释放它。Event 构造改用私有具名 spec，禁止同型位置参数表达归因。
+- 决策：这些变化不新增 context key、公共 hook、Host abstraction、第二 lifecycle 或兼容入口；Context value 的具体含义仍由调用方拥有。公开 API、GoDoc、Framework/Strategy wire、snapshot version 与 observation schema均不变。
+- 后果：长时间 child/restore/Delta 工作既不被短请求误杀，也不会丢失调用链值；等待子树变更只有一个释放 owner，Event attribution 由字段名而非参数位置约束。Baseline 33 的全部 digest保持不变。

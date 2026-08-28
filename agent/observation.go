@@ -54,6 +54,7 @@ type observationBus struct {
 // barrier does not make dropped increments reliable; it only proves that every
 // increment the bounded queue accepted before it has finished calling listeners.
 type deltaObservation struct {
+	ctx     context.Context
 	delta   Delta
 	barrier chan struct{}
 }
@@ -82,17 +83,18 @@ func callEventListener(ctx context.Context, listener EventListener, event Event)
 	listener.OnEvent(ctx, event)
 }
 
-func (o *observationBus) offerDelta(delta Delta) bool {
+func (o *observationBus) offerDelta(ctx context.Context, delta Delta) bool {
 	if len(o.deltas) == 0 {
 		return true
 	}
+	ctx = context.WithoutCancel(contextOrBackground(ctx))
 	o.deltaMu.RLock()
 	defer o.deltaMu.RUnlock()
 	if o.deltaClosed {
 		return false
 	}
 	select {
-	case o.deltaQueue <- deltaObservation{delta: delta}:
+	case o.deltaQueue <- deltaObservation{ctx: ctx, delta: delta}:
 		return true
 	default:
 		return false
@@ -107,7 +109,7 @@ func (o *observationBus) deliverDeltas() {
 			continue
 		}
 		for _, listener := range o.deltas {
-			callDeltaListener(listener, observation.delta)
+			callDeltaListener(observation.ctx, listener, observation.delta)
 		}
 	}
 }
@@ -140,9 +142,9 @@ func (o *observationBus) flushDeltas(ctx context.Context) error {
 	}
 }
 
-func callDeltaListener(listener DeltaListener, delta Delta) {
+func callDeltaListener(ctx context.Context, listener DeltaListener, delta Delta) {
 	defer func() { _ = recover() }()
-	listener.OnDelta(context.Background(), delta)
+	listener.OnDelta(ctx, delta)
 }
 
 func (o *observationBus) close() {
