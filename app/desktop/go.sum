@@ -1,5 +1,5 @@
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29 h1:DtrNYCn7gYbm8t2ZDofa2sBGALj3qgC10JH7vVnBfV4=
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.1 h1:Gz0lvZRnypAEoYSev3Q3HXagkatYitSipqrw0H2sMjc=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.1/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
 github.com/adrg/xdg v0.5.3 h1:xRnxJXne7+oWDatRhR1JLnvuccuIeCoBu2rtuLqQB78=
 github.com/adrg/xdg v0.5.3/go.mod h1:nlTsY+NNiCBGCK2tpm09vRqfVzrc2fLmXGpBLF0zlTQ=
 github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
