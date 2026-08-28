@@ -16,6 +16,7 @@
 - **单包优先,少暴露**:同一 MCP 适配域先放根包;远端工具只通过 `DiscoverTools` 暴露为 `[]tool.Tool`,不公开具体 wrapper。
 - **无 Provider / cache 层**:工具列表刷新策略由应用层决定(收到 list-changed 后重新拉)。
 - **协议错误与 tool 错误分开**:远端工具报错投影成工具级错误、传输 / 协议问题保持 wrapped Go error;server 侧 `tool.Tool` 的错误转成"结果里标错",不升格成 JSON-RPC error。
+- **协议 integration 自持协议边界观测**：client/server adapter 可直接使用官方 OTel API；该豁免只覆盖 MCP 调用边界，不允许把观测类型泄露进 `tool.Tool` 或 Core contract。
 
 ## 模块特有反向不变量
 

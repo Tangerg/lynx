@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Retrieve is the validation boundary around a retriever, including custom
@@ -48,17 +47,10 @@ func Parallel(retrievers ...Retriever) (Retriever, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
-		ctx, span := startStageSpan(ctx, retrieveStage)
-		var err error
-		var docs Candidates
-		defer func() {
-			finishSpan(span, err, attribute.Int(attrDocCount, len(docs)))
-		}()
-		docs, err = parallelCandidates(ctx, "rag.Parallel", owned, "retriever",
+		return parallelCandidates(ctx, "rag.Parallel", owned, "retriever",
 			func(ctx context.Context, _ int, retriever Retriever) (Candidates, error) {
 				return Retrieve(ctx, retriever, query)
 			})
-		return docs, err
 	}), nil
 }
 

@@ -185,8 +185,41 @@ func TestCoreModulePreservesDependencyDirection(t *testing.T) {
 			if isRepositoryImport(importPath) && importPath != core.path && !strings.HasPrefix(importPath, core.path+"/") {
 				t.Errorf("%s imports higher module %s", filepath.ToSlash(path), importPath)
 			}
-			if strings.HasPrefix(importPath, "go.opentelemetry.io/otel") {
-				t.Errorf("%s imports OpenTelemetry; instrumentation belongs in the otel module", filepath.ToSlash(path))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDomainCapabilityModulesDoNotOwnOpenTelemetry(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	for _, relativeDir := range []string{
+		"core", "agent", "etl", "evaluation", "rag", "skills", "tools",
+	} {
+		assertNoOpenTelemetryImports(t, filepath.Join(root, relativeDir))
+	}
+}
+
+func assertNoOpenTelemetryImports(t *testing.T, root string) {
+	t.Helper()
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
+			if err == nil && strings.HasPrefix(importPath, "go.opentelemetry.io/otel") {
+				t.Errorf("%s imports OpenTelemetry; domain instrumentation belongs in the otel module", filepath.ToSlash(path))
 			}
 		}
 		return nil
@@ -467,6 +500,9 @@ func allowedRepositoryDependency(source, target repositoryModule) bool {
 	}
 	if source.dir == "tools" {
 		return target.dir == "skills"
+	}
+	if strings.HasPrefix(source.dir, "etl/") {
+		return target.dir == "etl"
 	}
 	if source.dir == "otel" {
 		return target.layer < source.layer && !strings.HasPrefix(target.dir, "dev/")

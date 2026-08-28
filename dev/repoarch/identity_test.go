@@ -1,6 +1,8 @@
 package repoarch
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +36,9 @@ func TestRepositoryUsesOnlyCanonicalScopeIdentity(t *testing.T) {
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			t.Errorf("read tracked file %q: %v", relative, err)
 			continue
 		}

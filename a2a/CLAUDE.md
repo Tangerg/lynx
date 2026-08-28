@@ -17,6 +17,7 @@
 - **A2A tool 的输入统一为一个 message 字段**:A2A 是消息协议,不是 typed function call。
 - **内容投影 text-first**:把 A2A 内容投影成 scope 的文本优先语义。
 - **executor 事件序列必须合法**:提交 → 工作中 → 产出增量 → 完成 / 失败 / 取消;空增量跳过(SDK 会拒空产出)。
+- **协议 integration 自持协议边界观测**：client/server adapter 可直接使用官方 OTel API；该豁免只覆盖 A2A 调用边界，不允许把观测类型泄露进 Agent 或 Core contract。
 
 ## 模块特有反向不变量
 

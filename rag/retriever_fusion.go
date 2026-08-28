@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/samber/lo"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 var ErrInvalidRankConstant = errors.New("rag: reciprocal-rank constant must not be negative")
@@ -68,11 +67,6 @@ func (r reciprocalRankFusion) Retrieve(ctx context.Context, query Query) (candid
 	if validateErr := query.Validate(); validateErr != nil {
 		return nil, validateErr
 	}
-	ctx, span := startStageSpan(ctx, retrieveStage)
-	defer func() {
-		finishSpan(span, err, attribute.Int(attrDocCount, len(candidates)))
-	}()
-
 	rankings, err := parallelResults(ctx, "rag.ReciprocalRankFusion", r.retrievers, "retriever",
 		func(ctx context.Context, _ int, retriever Retriever) (Candidates, error) {
 			return Retrieve(ctx, retriever, query)

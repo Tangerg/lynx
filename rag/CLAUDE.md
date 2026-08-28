@@ -21,6 +21,7 @@
   不可变 Query envelope 传递；公开 API 不暴露 string-key `any` map，同名异型会显式报错。
   引用型 value 仍归调用方所有，并行检索时必须只读。
 - **评估与 RAG 平级**：通用评估策略位于顶层 `evaluation` module；RAG 只负责产生可供评估的输入，不拥有评估框架。
+- **观测策略位于 integration**：RAG 只传播 `context.Context`，不 import OTel；需要观测时由组合根使用 `otel/rag` 装饰最终 Retriever 或需要单独归因的分支。
 
 ## 模块特有反向不变量
 

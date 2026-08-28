@@ -32,7 +32,7 @@
 
 ## 定位与导览
 
-`scope` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`a2a`、`mcp`、`rag`、`etl`、`evaluation`、`tools`、`skills`、`otel` 是能力模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
+`scope` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施。仓库根目录只是 workspace，不发布空的根 module。`core` 是依赖方向严格、协议稳定的基础模块，内部按语义分包，统一拥有多模态协议、最小 SPI、client、Tool contract/registry、tokenizer contract、history contract 和内存参考实现；`agent`、`rag`、`etl`、`evaluation`、`tools`、`skills` 是领域能力模块，`a2a`、`mcp` 是协议 integration 模块，`otel` 是可观测性 integration 模块；`models/<provider>`、`vectorstores/<provider>`、`historystores/<provider>` 因第三方依赖与发布周期不同而使用独立叶子模块，`tools/web/<provider>` 因共享轻量依赖与生命周期而只拆 package。依赖层级表达 import 方向，不替代这些模块角色。`app` 是未来迁出本仓库的消费应用，不参与库架构分层。每个 module family 的特有不变量见其自己的 `CLAUDE.md`。
 
 ---
 
@@ -56,7 +56,7 @@
   - **Logs 仍是一等 OTel 信号**（slog 经 bridge 进 LoggerProvider）—— 意义是**可替换性**（生产换 OTLP exporter 即把 span/metric/log 全导云端、业务零改），不是邀请到处写日志。
   - **attr key 去品牌**：semconv 优先，否则裸 domain 名，无项目前缀（instrumentation scope 名保留库路径 —— 那是库标识不是数据）。
   - **全链路**：trace_id 在入口生成，脱钩的后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
-  - **依赖边界**：官方 OTel API 本身就是 vendor-neutral 层；“外挂”指改变 import 方向，不是再造 `core/observation`。`otel` 是可依赖被观测能力模块的集成层，被观测模块不能反向 import `otel` 或官方 OTel。
+  - **依赖边界**：官方 OTel API 本身就是 vendor-neutral 层；“外挂”指改变 import 方向，不是再造 `core/observation`。领域能力模块不能 import `otel` 或官方 OTel，由 `otel` integration 反向依赖并装饰它们。`a2a` / `mcp` 属于协议 integration，可在其拥有的协议调用边界直接使用官方 OTel；该豁免不扩散到它们适配的领域能力。
   - 具体模块边界见 [`otel/CLAUDE.md`](otel/CLAUDE.md)。
 - **设计原则**（高内聚低耦合 / SOLID / DRY / KISS / YAGNI）见下「设计原则」段 —— 是判断标准，不是口号。
 - **公开 API 可调、但不可擅自调**：dev 阶段不写 legacy 兼容 / 不写 migration、schema·exported type·签名变了直接换、注释不留"Legacy …"；**但任何破坏性公开 API 改动（含改一个签名 / 删一个类型 / 改一个字段）必须先咨询用户**，列清 scope + 影响面 + 备选方案，等确认再动。适用所有 sub-module。
