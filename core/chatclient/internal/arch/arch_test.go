@@ -16,9 +16,10 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
-func TestClientKeepsSmallCallSurface(t *testing.T) {
-	if methods := declaredMethods(t, "Client"); !slices.Equal(methods, []string{"Call", "Output", "Stream"}) {
-		t.Fatalf("Client methods = %v, want Call/Output/Stream only", methods)
+func TestClientKeepsFocusedCallSurface(t *testing.T) {
+	want := []string{"Call", "CountInputTokens", "Output", "Stream", "SupportsInputTokenCounting"}
+	if methods := declaredMethods(t, "Client"); !slices.Equal(methods, want) {
+		t.Fatalf("Client methods = %v, want %v", methods, want)
 	}
 	assertReceiverMethodsInFile(t, "Client", "client.go")
 	if methods := reflectedMethods(reflect.TypeFor[chatclient.Generation[string]]()); !slices.Equal(methods, []string{"Call", "Stream"}) {

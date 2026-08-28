@@ -78,6 +78,13 @@ func (a *api) responseNewStream(ctx context.Context, req *responses.ResponseNewP
 	return a.client.Responses.NewStreaming(ctx, *req, opts...), nil
 }
 
+func (a *api) responseInputTokensCount(ctx context.Context, req *responses.InputTokenCountParams, opts ...option.RequestOption) (*responses.InputTokenCountResponse, error) {
+	if req == nil {
+		return nil, errors.New("openai: input token count request must not be nil")
+	}
+	return a.wrapResult(a.client.Responses.InputTokens.Count(ctx, *req, opts...))
+}
+
 func (a *api) embedding(ctx context.Context, req *openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
 	if req == nil {
 		return nil, errors.New("openai: request must not be nil")

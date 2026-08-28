@@ -5,6 +5,9 @@
 //
 //   - chat (Chat Completions) via [NewChat] — tool calling, streaming,
 //     native request extensions, vision input, audio input/output;
+//   - chat (Responses) via [NewResponsesChat] — ordered reasoning and tool
+//     replay, streaming, multimodal input, and complete-request input-token
+//     counting through the native Responses endpoint;
 //   - embedding via [NewEmbeddingModel] — text-embedding-3-small/large
 //     with dimension truncation;
 //   - image via [NewImageModel] — DALL·E 3 and gpt-image-1;

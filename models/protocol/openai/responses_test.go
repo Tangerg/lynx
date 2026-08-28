@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/modeltest"
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
@@ -124,6 +125,70 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 	}
 	if usage.ReasoningTokens == nil || *usage.ReasoningTokens != 3 {
 		t.Errorf("reasoning tokens not surfaced: %+v", usage.ReasoningTokens)
+	}
+}
+
+func TestResponsesChatCountsTheSameMultimodalInput(t *testing.T) {
+	type countRequest struct {
+		Model  string            `json:"model"`
+		Input  []json.RawMessage `json:"input"`
+		Tools  []json.RawMessage `json:"tools"`
+		Text   json.RawMessage   `json:"text"`
+		Output *int64            `json:"max_output_tokens"`
+	}
+	var captured countRequest
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/responses/input_tokens" {
+			t.Errorf("path = %q, want /responses/input_tokens", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&captured); err != nil {
+			t.Errorf("decode count request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"object":"response.input_tokens","input_tokens":321}`))
+	}))
+	t.Cleanup(server.Close)
+
+	image, err := media.NewBytes("image/png", []byte("provider-counted-image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newResponsesModel(t, server.URL, "gpt-5")
+	request := &chat.Request{
+		Messages: []chat.Message{chat.NewUserMessage(
+			chat.NewTextPart("inspect"),
+			chat.NewMediaPart(image),
+		)},
+		Tools: []chat.ToolDefinition{{
+			Name: "inspect_image", Description: "Inspect an image",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}},
+	}
+	format, err := chat.NewOutputFormat(chat.OutputFormatJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Options.OutputFormat = &format
+	count, err := model.CountInputTokens(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 321 {
+		t.Fatalf("CountInputTokens = %d, want 321", count)
+	}
+	if captured.Model != "gpt-5" || len(captured.Input) != 1 || len(captured.Tools) != 1 {
+		t.Fatalf("count request = %#v", captured)
+	}
+	if captured.Output != nil {
+		t.Fatalf("count request leaked generation-only max_output_tokens: %d", *captured.Output)
+	}
+	if !strings.Contains(string(captured.Text), "json_object") {
+		t.Fatalf("count request omitted the response format: %s", captured.Text)
+	}
+	if !strings.Contains(string(captured.Input[0]), "data:image/png;base64,") {
+		t.Fatalf("count input did not preserve the inline image: %s", captured.Input[0])
 	}
 }
 

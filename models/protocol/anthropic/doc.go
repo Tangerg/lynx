@@ -12,8 +12,9 @@
 // Messages protocol through [NewCompatibleChat] and select one typed [Dialect].
 // Application code continues to use the provider's own chat type.
 //
-// Token estimation: [NewTextEstimator] wraps /v1/messages/count_tokens
-// for accurate Claude-tokenizer-based counts.
+// Token measurement: [Chat.CountMessageInputTokens] maps the same complete
+// Messages request as Call before using /v1/messages/count_tokens.
+// [NewTextEstimator] uses that endpoint for isolated text workflows.
 //
 // Anthropic's Message Batches API (~50% pricing, up to 24h
 // asynchronous) doesn't fit core/chat's synchronous request/response shape and

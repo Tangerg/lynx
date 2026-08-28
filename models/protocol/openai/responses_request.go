@@ -79,6 +79,22 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 	return &params, nil
 }
 
+func projectResponsesInputTokenCount(params *responses.ResponseNewParams) (*responses.InputTokenCountParams, error) {
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("openai responses: encode input token count request: %w", err)
+	}
+	var projected responses.InputTokenCountParams
+	if err := json.Unmarshal(encoded, &projected); err != nil {
+		return nil, fmt.Errorf("openai responses: project input token count request: %w", err)
+	}
+	projected.Input.OfString = params.Input.OfString
+	projected.Input.OfResponseInputItemArray = params.Input.OfInputItemList
+	projected.Text.Format = params.Text.Format
+	projected.Text.Verbosity = string(params.Text.Verbosity)
+	return &projected, nil
+}
+
 func rejectResponsesOutputFormatExtension(extensions metadata.Map) error {
 	fields, found, err := extensions.Decode[map[string]json.RawMessage](ResponsesRequestExtensionKey)
 	if err != nil {

@@ -133,8 +133,10 @@ chatclient/safeguard: type SubstringMatcher struct { terms []substringTerm confi
 chatclient/safeguard: type UnsafeError struct { Block Block }
 chatclient/safeguard: var ( ErrUnsafeContent = errors.New("safeguard: unsafe content") ErrInvalidMiddlewareConfig = errors.New("safeguard: invalid middleware config") ErrInvalidSubstringConfig = errors.New("safeguard: invalid substring matcher config") ErrNilStream = errors.New("safeguard: nil stream sequence") )
 chatclient: func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error)
+chatclient: func (c *Client) CountInputTokens(ctx context.Context, req *chat.Request) (int64, error)
 chatclient: func (c *Client) Output[T any](format OutputFormat[T]) Generation[T]
 chatclient: func (c *Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error]
+chatclient: func (c *Client) SupportsInputTokenCounting() bool
 chatclient: func (g Generation[T]) Call(ctx context.Context, request *chat.Request) (T, error)
 chatclient: func (g Generation[T]) Stream(ctx context.Context, request *chat.Request) (T, error)
 chatclient: func (t *Template) Render(data any) (string, error)
@@ -147,13 +149,13 @@ chatclient: func JSON[T any]() OutputFormat[T]
 chatclient: func New(model chat.Model, config Config) (*Client, error)
 chatclient: func ParseTemplate(source string) (*Template, error)
 chatclient: func Text() OutputFormat[string]
-chatclient: type Client struct { model chat.Model streamer chat.Streamer defaults chat.Options }
+chatclient: type Client struct { model chat.Model streamer chat.Streamer inputTokenCounter inputTokenCounter defaults chat.Options }
 chatclient: type Config struct { Defaults chat.Options Streamer chat.Streamer CallMiddleware []chat.CallMiddleware StreamMiddleware []chat.StreamMiddleware }
 chatclient: type Generation[T any] struct { client *Client format OutputFormat[T] }
 chatclient: type OutputFormat[T any] struct { contract chat.OutputFormat decoder func([]byte) (T, error) }
 chatclient: type Template struct { source string compiled *template.Template }
 chatclient: var ( ErrInvalidOutputFormat = errors.New("chatclient: invalid output format") ErrInvalidOutput = errors.New("chatclient: invalid output") )
-chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") )
+chatclient: var ( ErrNilModel = errors.New("chatclient: nil model") ErrNilClient = errors.New("chatclient: nil client") ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported") ErrInputTokenCountingUnsupported = errors.New("chatclient: input token counting unsupported") )
 chatclient: var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 document: func (d *Document) Clone() *Document
 document: func (d *Document) Validate() error

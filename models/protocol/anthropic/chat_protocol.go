@@ -102,6 +102,22 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	return mapped, nil
 }
 
+func (c *Chat) CountMessageInputTokens(ctx context.Context, req *corechat.Request) (int64, error) {
+	params, err := c.buildProtocolRequest(req)
+	if err != nil {
+		return 0, err
+	}
+	countParams, err := projectMessageInputTokenCount(params)
+	if err != nil {
+		return 0, err
+	}
+	response, err := c.api.countTokens(ctx, countParams)
+	if err != nil {
+		return 0, err
+	}
+	return response.InputTokens, nil
+}
+
 // Stream performs one streaming Messages API request and yields provider
 // deltas without accumulating text or tool arguments across events.
 func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {

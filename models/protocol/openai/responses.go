@@ -57,6 +57,22 @@ func (r *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corec
 	return mapResponsesResponse(response)
 }
 
+func (r *ResponsesChat) CountInputTokens(ctx context.Context, req *corechat.Request) (int64, error) {
+	params, err := r.buildResponsesRequest(req)
+	if err != nil {
+		return 0, err
+	}
+	countParams, err := projectResponsesInputTokenCount(params)
+	if err != nil {
+		return 0, err
+	}
+	response, err := r.api.responseInputTokensCount(ctx, countParams)
+	if err != nil {
+		return 0, err
+	}
+	return response.InputTokens, nil
+}
+
 // Stream performs one streaming Responses API request and yields ordered Core
 // response deltas.
 func (r *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {

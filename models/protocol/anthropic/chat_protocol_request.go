@@ -106,6 +106,21 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	return &params, nil
 }
 
+func projectMessageInputTokenCount(params *anthropicsdk.MessageNewParams) (*anthropicsdk.MessageCountTokensParams, error) {
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: encode input token count request: %w", err)
+	}
+	var projected anthropicsdk.MessageCountTokensParams
+	if err := json.Unmarshal(encoded, &projected); err != nil {
+		return nil, fmt.Errorf("anthropic: project input token count request: %w", err)
+	}
+	projected.Messages = params.Messages
+	projected.Model = params.Model
+	projected.System.OfTextBlockArray = params.System
+	return &projected, nil
+}
+
 func decodeOutputConfig(fields map[string]any, extensionKey string) (anthropicsdk.OutputConfigParam, error) {
 	value, exists := fields["output_config"]
 	if !exists {
