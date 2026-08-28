@@ -33,13 +33,3 @@ func (score Score) Validate() error {
 func (score Score) Passes(threshold Score) bool {
 	return score.Validate() == nil && threshold.Validate() == nil && score >= threshold
 }
-
-func (score *Score) valueOr(fallback Score) (Score, error) {
-	if score == nil {
-		return fallback, nil
-	}
-	if err := score.Validate(); err != nil {
-		return 0, err
-	}
-	return *score, nil
-}

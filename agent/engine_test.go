@@ -22,9 +22,10 @@ func TestEngineStartRejectsNilContextBeforePublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var nilContext context.Context
 	recovered := func() (recovered any) {
 		defer func() { recovered = recover() }()
-		_, _ = engine.Start(nil, newChildTestDeployment(t), input)
+		_, _ = engine.Start(nilContext, newChildTestDeployment(t), input)
 		return nil
 	}()
 	if recovered != errNilContext {

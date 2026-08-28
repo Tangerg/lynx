@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-const (
-	MetricGroundedness evaluation.Metric = "groundedness"
-	groundednessPrompt                   = `Evaluate how well the output is supported by the provided context.
+const MetricGroundedness evaluation.Metric = "groundedness"
+
+const groundednessPrompt = `Evaluate how well the output is supported by the provided context.
 
 Score support from 0.0 to 1.0 and provide concise feedback.
 
@@ -19,7 +19,6 @@ Output:
 {{.Output}}
 
 Evaluation:`
-)
 
 // GroundednessEvaluator scores whether generated output is supported by the
 // supplied evidence.

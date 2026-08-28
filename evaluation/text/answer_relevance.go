@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-const (
-	MetricAnswerRelevance evaluation.Metric = "answer_relevance"
-	answerRelevancePrompt                   = `Evaluate how directly and completely the output addresses the input.
+const MetricAnswerRelevance evaluation.Metric = "answer_relevance"
+
+const answerRelevancePrompt = `Evaluate how directly and completely the output addresses the input.
 
 Score relevance from 0.0 to 1.0 and provide concise feedback.
 
@@ -19,7 +19,6 @@ Output:
 {{.Output}}
 
 Evaluation:`
-)
 
 // AnswerRelevanceEvaluator scores whether generated output addresses its
 // originating input. Groundedness is intentionally evaluated separately.
