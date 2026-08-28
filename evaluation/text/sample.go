@@ -1,42 +1,47 @@
-package evaluation
+// Package text evaluates generated text against its originating input and
+// caller-selected evidence.
+package text
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 )
 
-// TextSample is the common input for generated-text evaluation. Input is the
-// originating instruction or question, Output is the generated text, and
-// Context contains caller-selected evidence. Individual evaluators validate
-// only the fields their metric needs.
-type TextSample struct {
+var ErrInvalidSample = errors.New("evaluation/text: invalid sample")
+
+const evidenceSeparator = "\n"
+
+// Sample contains the generated-text facts used by text metrics. Individual
+// evaluators require only the fields their metric consumes.
+type Sample struct {
 	Input   string   `json:"input,omitzero"`
 	Output  string   `json:"output,omitzero"`
 	Context []string `json:"context,omitzero"`
 }
 
-func NewTextSample(input, output string, context []string) TextSample {
-	return TextSample{Input: input, Output: output, Context: slices.Clone(context)}
+func NewSample(input, output string, context []string) Sample {
+	return Sample{Input: input, Output: output, Context: slices.Clone(context)}
 }
 
-func (sample TextSample) Clone() TextSample {
+func (sample Sample) Clone() Sample {
 	sample.Context = slices.Clone(sample.Context)
 	return sample
 }
 
 // ContextText drops blank evidence entries before joining them in caller order.
-func (sample TextSample) ContextText() string {
+func (sample Sample) ContextText() string {
 	texts := make([]string, 0, len(sample.Context))
 	for _, text := range sample.Context {
 		if strings.TrimSpace(text) != "" {
 			texts = append(texts, text)
 		}
 	}
-	return strings.Join(texts, "\n")
+	return strings.Join(texts, evidenceSeparator)
 }
 
-func (sample TextSample) validateAnswerRelevance() error {
+func (sample Sample) validateAnswerRelevance() error {
 	if strings.TrimSpace(sample.Input) == "" {
 		return fmt.Errorf("%w: input is required", ErrInvalidSample)
 	}
@@ -46,7 +51,7 @@ func (sample TextSample) validateAnswerRelevance() error {
 	return nil
 }
 
-func (sample TextSample) validateGroundedness() error {
+func (sample Sample) validateGroundedness() error {
 	if strings.TrimSpace(sample.Output) == "" {
 		return fmt.Errorf("%w: output is required", ErrInvalidSample)
 	}

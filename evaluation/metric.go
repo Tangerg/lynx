@@ -10,9 +10,7 @@ import (
 type Metric string
 
 const (
-	MetricGroundedness    Metric = "groundedness"
-	MetricAnswerRelevance Metric = "answer_relevance"
-	MetricComposite       Metric = "composite"
+	MetricComposite Metric = "composite"
 )
 
 func (metric Metric) Validate() error {

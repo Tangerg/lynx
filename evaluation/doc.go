@@ -1,9 +1,5 @@
-// Package evaluation defines provider-neutral evaluation inputs, reports, and
-// evaluators.
-//
-// Evaluator is generic over the subject being evaluated. TextSample and the
-// model-backed GroundednessEvaluator and AnswerRelevanceEvaluator cover common
-// generated-text metrics. RetrievalSample and RetrievalEvaluator cover
-// provider-neutral precision, recall, reciprocal-rank, and NDCG measurements.
-// The package does not depend on RAG, documents, or a storage implementation.
+// Package evaluation defines the subject-agnostic evaluation kernel: normalized
+// scores and reports, the Evaluator contract, and explicit evaluator
+// composition. Concrete subject domains live in subpackages so their sample
+// shapes and metric vocabularies cannot leak into this kernel.
 package evaluation

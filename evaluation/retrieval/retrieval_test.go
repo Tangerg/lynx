@@ -1,4 +1,4 @@
-package evaluation_test
+package retrieval_test
 
 import (
 	"context"
@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/evaluation"
+	"github.com/Tangerg/scope/evaluation/retrieval"
 )
 
-func TestRetrievalEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
-	sample, err := evaluation.NewRetrievalSample(
+func TestEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
+	sample, err := retrieval.NewSample(
 		[]string{"a", "b", "c", "d"},
 		[]string{"b", "d", "e"},
 	)
@@ -19,14 +20,14 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 	}
 
 	tests := []struct {
-		metric evaluation.RetrievalMetric
+		metric retrieval.Metric
 		want   float64
 	}{
-		{metric: evaluation.RetrievalMetricPrecision, want: 0.5},
-		{metric: evaluation.RetrievalMetricRecall, want: 2.0 / 3.0},
-		{metric: evaluation.RetrievalMetricReciprocalRank, want: 0.5},
+		{metric: retrieval.MetricPrecision, want: 0.5},
+		{metric: retrieval.MetricRecall, want: 2.0 / 3.0},
+		{metric: retrieval.MetricReciprocalRank, want: 0.5},
 		{
-			metric: evaluation.RetrievalMetricNDCG,
+			metric: retrieval.MetricNDCG,
 			want: (1/math.Log2(3) + 1/math.Log2(5)) /
 				(1 + 1/math.Log2(3) + 1/math.Log2(4)),
 		},
@@ -35,7 +36,7 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 	for _, test := range tests {
 		t.Run(string(test.metric), func(t *testing.T) {
 			threshold := evaluation.Score(0.6)
-			evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
+			evaluator, err := retrieval.NewEvaluator(retrieval.Config{
 				Metric: test.metric, Cutoff: 4, Threshold: &threshold,
 			})
 			if err != nil {
@@ -58,15 +59,15 @@ func TestRetrievalEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 	}
 }
 
-func TestRetrievalPrecisionUsesConfiguredCutoff(t *testing.T) {
-	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
-		Metric: evaluation.RetrievalMetricPrecision,
+func TestPrecisionUsesConfiguredCutoff(t *testing.T) {
+	evaluator, err := retrieval.NewEvaluator(retrieval.Config{
+		Metric: retrieval.MetricPrecision,
 		Cutoff: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sample, err := evaluation.NewRetrievalSample([]string{"relevant"}, []string{"relevant"})
+	sample, err := retrieval.NewSample([]string{"relevant"}, []string{"relevant"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,10 +80,10 @@ func TestRetrievalPrecisionUsesConfiguredCutoff(t *testing.T) {
 	}
 }
 
-func TestRetrievalSampleOwnsAndValidatesRankings(t *testing.T) {
+func TestSampleOwnsAndValidatesRankings(t *testing.T) {
 	retrieved := []string{"a"}
 	relevant := []string{"a"}
-	sample, err := evaluation.NewRetrievalSample(retrieved, relevant)
+	sample, err := retrieval.NewSample(retrieved, relevant)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,42 +94,42 @@ func TestRetrievalSampleOwnsAndValidatesRankings(t *testing.T) {
 		t.Fatalf("sample aliases caller or clone: %#v", sample)
 	}
 
-	invalid := []evaluation.RetrievalSample{
+	invalid := []retrieval.Sample{
 		{},
 		{Retrieved: []string{" "}, Relevant: []string{"a"}},
 		{Retrieved: []string{"a", "a"}, Relevant: []string{"a"}},
 		{Retrieved: []string{"a"}, Relevant: []string{"a", "a"}},
 	}
 	for _, candidate := range invalid {
-		if err := candidate.Validate(); !errors.Is(err, evaluation.ErrInvalidSample) {
+		if err := candidate.Validate(); !errors.Is(err, retrieval.ErrInvalidSample) {
 			t.Fatalf("Validate(%#v) error = %v", candidate, err)
 		}
 	}
 }
 
-func TestRetrievalEvaluatorValidatesConfigAndCancellation(t *testing.T) {
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{Cutoff: 1}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
+func TestEvaluatorValidatesConfigAndCancellation(t *testing.T) {
+	if _, err := retrieval.NewEvaluator(retrieval.Config{Cutoff: 1}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("missing metric error = %v", err)
 	}
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{Metric: evaluation.RetrievalMetricRecall}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
+	if _, err := retrieval.NewEvaluator(retrieval.Config{Metric: retrieval.MetricRecall}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("invalid cutoff error = %v", err)
 	}
 	invalidThreshold := evaluation.Score(2)
-	if _, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
-		Metric: evaluation.RetrievalMetricRecall, Cutoff: 1, Threshold: &invalidThreshold,
+	if _, err := retrieval.NewEvaluator(retrieval.Config{
+		Metric: retrieval.MetricRecall, Cutoff: 1, Threshold: &invalidThreshold,
 	}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("invalid threshold error = %v", err)
 	}
 
-	evaluator, err := evaluation.NewRetrievalEvaluator(evaluation.RetrievalEvaluatorConfig{
-		Metric: evaluation.RetrievalMetricRecall, Cutoff: 1,
+	evaluator, err := retrieval.NewEvaluator(retrieval.Config{
+		Metric: retrieval.MetricRecall, Cutoff: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := evaluator.Evaluate(ctx, evaluation.RetrievalSample{Relevant: []string{"a"}}); !errors.Is(err, context.Canceled) {
+	if _, err := evaluator.Evaluate(ctx, retrieval.Sample{Relevant: []string{"a"}}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation error = %v", err)
 	}
 }
